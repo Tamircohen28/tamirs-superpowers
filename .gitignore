@@ -1,0 +1,24 @@
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Editor / IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Node / npm (in case any skill spawns local deps)
+node_modules/
+npm-debug.log*
+
+# Local secrets / env
+.env
+.env.local
+*.local
+
+# Build / dist
+dist/
+build/
+*.log

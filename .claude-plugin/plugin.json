@@ -1,0 +1,61 @@
+{
+  "name": "tamir-library",
+  "version": "0.6.0",
+  "description": "Tamir's personal library of agents, skills, and configurations for Claude. Bundles his own skills and references third-party plugins via dependencies so they auto-install and stay current.",
+  "author": {
+    "name": "Tamir Noy",
+    "email": "tamirc@wix.com"
+  },
+  "keywords": [
+    "personal-library",
+    "skills",
+    "agents",
+    "mcp",
+    "wix",
+    "claude-code",
+    "cowork"
+  ],
+  "dependencies": [
+    {
+      "name": "skill-creator",
+      "marketplace": "claude-plugins-official"
+    },
+    {
+      "name": "session-report",
+      "marketplace": "claude-plugins-official"
+    },
+    {
+      "name": "sourcegraph",
+      "marketplace": "claude-plugins-official"
+    },
+    {
+      "name": "atlassian",
+      "marketplace": "claude-plugins-official"
+    },
+    {
+      "name": "warp",
+      "marketplace": "claude-code-warp"
+    },
+    {
+      "name": "data",
+      "marketplace": "knowledge-work-plugins"
+    },
+    {
+      "name": "enterprise-search",
+      "marketplace": "knowledge-work-plugins"
+    },
+    {
+      "name": "productivity",
+      "marketplace": "knowledge-work-plugins"
+    },
+    {
+      "name": "superpowers",
+      "marketplace": "superpowers-dev"
+    }
+  ],
+  "license": "UNLICENSED",
+  "statusLine": {
+    "type": "command",
+    "command": "bash ${CLAUDE_PLUGIN_ROOT}/statusline.sh"
+  }
+}
