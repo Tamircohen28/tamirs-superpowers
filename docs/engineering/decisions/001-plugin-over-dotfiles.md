@@ -19,7 +19,7 @@ Distribute as a Claude Code plugin hosted on a personal GitHub marketplace.
 ## Consequences
 
 **Easier:**
-- Single install command: `/plugin marketplace add TamirCohen28/tamirs-superpowers` + `/plugin install tamir-library`
+- Single install command: `/plugin marketplace add TamirCohen28/tamirs-superpowers` + `/plugin install tamirs-superpowers`
 - Auto-update at Claude Code startup — no manual `git pull` needed
 - Third-party plugins (Atlassian, Sourcegraph, Warp, etc.) auto-install as declared dependencies
 - Skills, hooks, and MCP stubs are all co-located in one versioned bundle

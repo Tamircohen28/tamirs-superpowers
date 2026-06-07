@@ -1,6 +1,6 @@
 # Changelog
 
-All notable changes to `tamir-library` are recorded here.
+All notable changes to `tamirs-superpowers` are recorded here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]

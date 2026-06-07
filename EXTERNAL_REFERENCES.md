@@ -73,7 +73,7 @@ Then run the `setup-matt-pocock-skills` skill from inside Claude to wire it up.
 2. **Updates** — these repos change frequently; bundling a snapshot means you miss fixes.
 3. **Plugin size** — superpowers and mattpocock/skills together would more than double the plugin size, with skills not all of which Tamir uses.
 
-If you want one of these skills as an opinionated frozen snapshot inside `tamir-library`, copy its `SKILL.md` (and any `references/` it depends on) into `skills/<name>/` and re-zip.
+If you want one of these skills as an opinionated frozen snapshot inside `tamirs-superpowers`, copy its `SKILL.md` (and any `references/` it depends on) into `skills/<name>/` and re-zip.
 
 ## Can these become plugin dependencies too?
 
@@ -85,5 +85,5 @@ To depend on a plugin from `obra/superpowers` or `mattpocock/skills`:
 
 1. Add the marketplace once: `/plugin marketplace add obra/superpowers` (or `mattpocock/skills`).
 2. Inspect what plugins it publishes via `/plugin` → Discover tab.
-3. If `tamir-library` is itself hosted in a marketplace, allowlist the upstream marketplace in `marketplace.json` and add a `dependencies` entry with `{name, marketplace}`. If `tamir-library` is installed as a standalone `.plugin` file (no marketplace of its own), declare the dep with the explicit `marketplace` field and ensure the user has added that marketplace before installing.
-4. Without that step, just install the plugins manually after adding the marketplace — they behave identically once installed; only the auto-install on `tamir-library` install is lost.
+3. If `tamirs-superpowers` is itself hosted in a marketplace, allowlist the upstream marketplace in `marketplace.json` and add a `dependencies` entry with `{name, marketplace}`. If `tamirs-superpowers` is installed as a standalone `.plugin` file (no marketplace of its own), declare the dep with the explicit `marketplace` field and ensure the user has added that marketplace before installing.
+4. Without that step, just install the plugins manually after adding the marketplace — they behave identically once installed; only the auto-install on `tamirs-superpowers` install is lost.

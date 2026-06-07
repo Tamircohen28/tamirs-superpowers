@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/banner.png" alt="tamir-library" width="600" />
+  <img src="assets/banner.png" alt="tamirs-superpowers" width="600" />
 </p>
 
 <p align="center">
@@ -14,7 +14,7 @@
   </a>
 </p>
 
-# tamir-library
+# tamirs-superpowers
 
 A personal Claude Code plugin that bundles 15 skills, smart worktree hooks, and MCP server stubs — installed with a single `/plugin install` command and kept current via marketplace auto-update.
 
@@ -46,7 +46,7 @@ A personal Claude Code plugin that bundles 15 skills, smart worktree hooks, and 
 /plugin marketplace add TamirCohen28/tamirs-superpowers
 
 # 3. Install — dependencies auto-install alongside
-/plugin install tamir-library
+/plugin install tamirs-superpowers
 
 # 4. Reload
 /reload-plugins

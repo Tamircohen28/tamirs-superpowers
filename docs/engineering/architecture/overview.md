@@ -2,10 +2,10 @@
 
 ## What this repo is
 
-`tamir-library` is a Claude Code plugin distributed through a self-hosted marketplace. The repo serves a dual role:
+`tamirs-superpowers` is a Claude Code plugin distributed through a self-hosted marketplace. The repo serves a dual role:
 
 1. **Marketplace** — `marketplace.json` at the root registers this GitHub repo as a Claude Code plugin marketplace under the name `tamirs-superpowers`.
-2. **Plugin** — `.claude-plugin/plugin.json` at the same root registers the `tamir-library` plugin, pointing `source: "."` so the plugin and marketplace coexist in one repo.
+2. **Plugin** — `.claude-plugin/plugin.json` at the same root registers the `tamirs-superpowers` plugin, pointing `source: "."` so the plugin and marketplace coexist in one repo.
 
 ## Component map
 
@@ -54,7 +54,7 @@ Skills are stateless Markdown instructions. They declare `allowed-tools:` in fro
 
 ## Dependency resolution
 
-`plugin.json` declares 9 plugin dependencies. When a user runs `/plugin install tamir-library`, Claude Code:
+`plugin.json` declares 9 plugin dependencies. When a user runs `/plugin install tamirs-superpowers`, Claude Code:
 
 1. Reads the `dependencies` array
 2. For each dependency, resolves the plugin from the named marketplace

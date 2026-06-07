@@ -1,6 +1,6 @@
 # Documentation
 
-Welcome to the `tamir-library` docs. Choose your audience:
+Welcome to the `tamirs-superpowers` docs. Choose your audience:
 
 | I want to… | Go to |
 |---|---|

@@ -1,8 +1,8 @@
 # Concepts
 
-## What is tamir-library?
+## What is tamirs-superpowers?
 
-`tamir-library` is a **Claude Code plugin** — a bundle of skills, hooks, and configuration that extends what Claude can do inside your terminal. Once installed, it adds slash commands (`/plan-dev`, `/pr-dev`, etc.) to your Claude Code session and wires up automatic behaviors via hooks.
+`tamirs-superpowers` is a **Claude Code plugin** — a bundle of skills, hooks, and configuration that extends what Claude can do inside your terminal. Once installed, it adds slash commands (`/plan-dev`, `/pr-dev`, etc.) to your Claude Code session and wires up automatic behaviors via hooks.
 
 ## Plugins vs skills
 
@@ -12,7 +12,7 @@ A **plugin** is a distributable unit that Claude Code installs from a marketplac
 - **MCP servers** — declared in `.mcp.json`, providing tools Claude can call
 - **A statusline** — a script that renders in your Claude Code footer
 
-`tamir-library` ships all four. The plugin manifest (`.claude-plugin/plugin.json`) also declares **dependencies** — other plugins that auto-install alongside it.
+`tamirs-superpowers` ships all four. The plugin manifest (`.claude-plugin/plugin.json`) also declares **dependencies** — other plugins that auto-install alongside it.
 
 ## How the worktree hooks work
 
@@ -32,7 +32,7 @@ Skills are plain Markdown files (`SKILL.md`) with YAML frontmatter. Claude Code 
 
 This repo doubles as a Claude Code marketplace. `marketplace.json` at the root declares:
 - The marketplace name (`tamirs-superpowers`)
-- The single plugin it publishes (`tamir-library`, source: `.`)
+- The single plugin it publishes (`tamirs-superpowers`, source: `.`)
 - Which third-party marketplaces are allowed as cross-marketplace dependency sources
 
-When you run `/plugin marketplace add TamirCohen28/tamirs-superpowers`, Claude Code reads `marketplace.json` and knows how to resolve `tamir-library` and its cross-marketplace dependencies.
+When you run `/plugin marketplace add TamirCohen28/tamirs-superpowers`, Claude Code reads `marketplace.json` and knows how to resolve `tamirs-superpowers` and its cross-marketplace dependencies.

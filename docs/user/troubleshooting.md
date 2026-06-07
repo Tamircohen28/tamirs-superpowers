@@ -2,7 +2,7 @@
 
 ## Plugin fails to install — "dependency unresolved"
 
-**Symptom:** `/plugin install tamir-library` fails with a message about an unresolved dependency.
+**Symptom:** `/plugin install tamirs-superpowers` fails with a message about an unresolved dependency.
 
 **Cause:** One of the three third-party marketplaces hasn't been registered yet.
 
@@ -11,7 +11,7 @@
 /plugin marketplace add warpdotdev/claude-code-warp
 /plugin marketplace add anthropics/knowledge-work-plugins
 /plugin marketplace add obra/superpowers
-/plugin install tamir-library
+/plugin install tamirs-superpowers
 ```
 
 ---
@@ -65,4 +65,4 @@ The worktree hooks use `jq` to parse session state JSON.
 
 **Cause:** Claude Code only installs cross-marketplace dependencies if the target marketplace is already registered AND allowlisted in `marketplace.json`. If you skipped Step 1 of the Quick Start, the marketplaces aren't registered.
 
-**Fix:** Re-run the three `/plugin marketplace add` commands from [Quick Start](quick-start.md), then `/plugin install tamir-library` again.
+**Fix:** Re-run the three `/plugin marketplace add` commands from [Quick Start](quick-start.md), then `/plugin install tamirs-superpowers` again.

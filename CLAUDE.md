@@ -1,4 +1,4 @@
-# CLAUDE.md — tamir-library
+# CLAUDE.md — tamirs-superpowers
 
 Claude Code guidance for contributors working on this plugin.
 

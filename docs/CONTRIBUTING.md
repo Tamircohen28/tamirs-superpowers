@@ -1,4 +1,4 @@
-# Contributing to tamir-library
+# Contributing to tamirs-superpowers
 
 Thanks for your interest. This is a personal plugin, but PRs for bug fixes and general-purpose skill improvements are welcome.
 

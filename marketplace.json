@@ -8,7 +8,7 @@
   ],
   "plugins": [
     {
-      "name": "tamir-library",
+      "name": "tamirs-superpowers",
       "source": "."
     }
   ]

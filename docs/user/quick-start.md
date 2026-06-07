@@ -1,6 +1,6 @@
 # Quick Start
 
-Install `tamir-library` and run your first skill in under 5 minutes.
+Install `tamirs-superpowers` and run your first skill in under 5 minutes.
 
 ## Prerequisites
 
@@ -27,7 +27,7 @@ These are needed once per machine so Claude Code can resolve all plugin dependen
 ## Step 3 — Install the plugin
 
 ```
-/plugin install tamir-library
+/plugin install tamirs-superpowers
 ```
 
 Claude Code resolves and installs the 9 declared dependencies automatically. You'll see them listed in the install output.
@@ -75,7 +75,7 @@ Note: plugin dependencies (Atlassian, Sourcegraph, etc.) will not auto-install v
 
 The plugin ships stubs for GitHub, Slack, Context7, and Desktop Commander. To activate one:
 
-1. Find the plugin install directory: `/plugin list` → look for `tamir-library` path
+1. Find the plugin install directory: `/plugin list` → look for `tamirs-superpowers` path
 2. Open `.mcp.json` in that directory
 3. Set the required env vars (e.g. `GITHUB_PERSONAL_ACCESS_TOKEN`)
 4. Restart Claude Code

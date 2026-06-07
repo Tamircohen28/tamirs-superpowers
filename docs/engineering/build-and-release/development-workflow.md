@@ -40,10 +40,10 @@ Releases are created via the [Release workflow](.github/workflows/release.yml) �
 
 1. Bumps the version in `.claude-plugin/plugin.json`
 2. Commits the bump
-3. Creates `v<version>` and `tamir-library--v<version>` git tags
+3. Creates `v<version>` and `tamirs-superpowers--v<version>` git tags
 4. Creates a GitHub Release
 
-The `tamir-library--v<version>` tag follows the Claude Code marketplace convention for version resolution — it allows users to pin dependencies to specific versions via `{ "name": "tamir-library", "version": "~0.6.0" }` in their own plugin.json.
+The `tamirs-superpowers--v<version>` tag follows the Claude Code marketplace convention for version resolution — it allows users to pin dependencies to specific versions via `{ "name": "tamirs-superpowers", "version": "~0.6.0" }` in their own plugin.json.
 
 ## Testing a skill locally
 

@@ -1,6 +1,6 @@
 # Skill Reference
 
-Complete reference for all 15 skills bundled in `tamir-library`. Each becomes a slash command in Claude Code.
+Complete reference for all 15 skills bundled in `tamirs-superpowers`. Each becomes a slash command in Claude Code.
 
 ---
 
