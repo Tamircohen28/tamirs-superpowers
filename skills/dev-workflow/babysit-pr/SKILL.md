@@ -1,6 +1,12 @@
 ---
 name: babysit-pr
 description: Babysit a GitHub pull request after creation by continuously polling review comments, CI checks/workflow runs, and mergeability state until the PR is merged/closed or user help is required. Diagnose failures, retry likely flaky failures up to 3 times, auto-fix/push branch-related issues when appropriate, and keep watching open PRs so fresh review feedback is surfaced promptly. Use when the user asks Claude to monitor a PR, watch CI, handle review comments, or keep an eye on failures and feedback on an open PR.
+allowed-tools:
+  - Bash
+  - Read
+  - Edit
+  - WebFetch
+  - Monitor
 ---
 
 # PR Babysitter

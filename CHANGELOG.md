@@ -1,22 +1,66 @@
 # Changelog
 
 All notable changes to `tamir-library` are recorded here.
+Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
+
+## [Unreleased]
+
+## [1.0.0] - 2026-06-07
+
+First public release. Cleaned of all internal tooling references and scaffolded with full open-source infrastructure.
+
+### Added
+- **7 new general-purpose skills:**
+  - `plan-dev` — plan work into phases and create GitHub issues
+  - `start-dev` — create worktree, implement, validate, push, open PR
+  - `pr-dev` — address review threads, fix CI, squash-merge, clean up
+  - `docs-review` — audit and fix Markdown docs (5 axes)
+  - `task-audit` — audit a completed branch for quality and PR readiness
+  - `targeted-debug` — scope-bounded debug from stack trace (reads only named files)
+  - `changelog-review` — fetch live Claude Code docs; answer questions, diff versions
+- **`marketplace.json`** at repo root — repo now doubles as a Claude Code marketplace (`TamirCohen28/tamirs-superpowers`). Cross-marketplace dependencies (`claude-code-warp`, `knowledge-work-plugins`, `superpowers-dev`) are allowlisted so no manual `/plugin marketplace add` steps are required after install.
+- Full documentation tree: `docs/user/` (concepts, quick-start, troubleshooting, skill reference) and `docs/engineering/` (architecture overview, dev workflow, CI workflow, 2 ADRs).
+- `CLAUDE.md` — contributor guidance for Claude Code sessions.
+- `Makefile` — `validate`, `lint`, `test` targets (shellcheck + JSON validation + SKILL.md frontmatter check).
+- `.github/workflows/ci.yml` — 4-job CI: shellcheck, JSON validation, SKILL.md frontmatter, secret scan.
+- `.github/workflows/release.yml` — manual version bump + tag + GitHub Release workflow.
+- `.github/dependabot.yml` — weekly GitHub Actions dependency updates.
+- `.github/pull_request_template.md`, issue templates (`bug_report.yml`, `feature_request.yml`), `CODEOWNERS`.
+- `SECURITY.md` — responsible disclosure policy.
+- `assets/banner.png` — 1280×640 banner image.
+
+### Changed
+- **LICENSE** replaced — was proprietary "all rights reserved"; now MIT.
+- **Version** bumped to 1.0.0.
+- **Skill renames:** `user-find-skill` → `find-skill`; `user-dark-terminal-doc` → `dark-terminal-doc`. Slash commands are now `/find-skill` and `/dark-terminal-doc`.
+- **`babysit-pr`** — added missing `allowed-tools` frontmatter field.
+- **`mcp-pagination`** — added missing `allowed-tools` frontmatter field.
+- **`mcp-builder`**, **`algorithmic-art`** — fixed `license: Complete terms in LICENSE.txt` → `license: MIT` (file is `LICENSE`, not `LICENSE.txt`).
+- **`.gitignore`** — added `.claude/worktrees/`, `.claude/outputs/`, `.claude/sessions/`.
+- **`hooks/hooks.json`** — fixed trailing comma (was invalid JSON).
+- **Author** updated throughout: `tamirc@wix.com` → `https://github.com/TamirCohen28`.
+
+### Removed
+- **11 Wix-internal skills** — all tools specific to internal infrastructure:
+  - `skills/observability/` (entire directory, 8 skills): `query-app-logs`, `query-bi`, `query-captains-log`, `query-error-logs`, `query-fire-console`, `query-ft-conductions`, `query-prod-db`, `query-request`
+  - `skills/dev-workflow/strict-tdd-scala` — "Loom Prime" internal framework
+  - `skills/dev-workflow/fix-flaky-test` — Wix-specific Bazel examples
+  - `skills/dev-workflow/run-bazel-tests` — Wix-specific package naming
+- **`hooks/validate-report-links.sh`** — Wix-specific domain checks (`wix-analytics`, `app-analytics`); removed from `hooks/hooks.json` PostToolUse entry.
+
+---
 
 ## [0.6.0] - 2026-05-25
 
 ### Added
 - Four new auto-installed dependencies:
   - `data` (from `knowledge-work-plugins`) — datasets/SQL/visualizations.
-  - `enterprise-search` (from `knowledge-work-plugins`) — enterprise
-    knowledge search via Claude Cowork.
+  - `enterprise-search` (from `knowledge-work-plugins`) — enterprise knowledge search.
   - `productivity` (from `knowledge-work-plugins`) — productivity toolkit.
-  - `superpowers` (from `superpowers-dev` / `obra/superpowers`) — Jesse
-    Vincent's skills framework.
+  - `superpowers` (from `superpowers-dev` / `obra/superpowers`) — Jesse Vincent's skills framework.
 
 ### Required marketplaces
-- `anthropics/knowledge-work-plugins` and `obra/superpowers` must each be
-  registered once on a fresh machine via `/plugin marketplace add`. See
-  README for the exact commands.
+- `anthropics/knowledge-work-plugins` and `obra/superpowers` must each be registered once on a fresh machine via `/plugin marketplace add`. See README for the exact commands.
 
 ## [0.5.0] - 2026-05-25
 
@@ -25,74 +69,39 @@ All notable changes to `tamir-library` are recorded here.
   - `sourcegraph` (from `claude-plugins-official`) — code search & navigation.
   - `atlassian` (from `claude-plugins-official`) — Jira + Confluence access.
   - `warp` (from `claude-code-warp` marketplace) — Warp terminal integration.
-    Requires `/plugin marketplace add warpdotdev/claude-code-warp` once.
-
-### Not added (intentionally)
-- `data` — Astronomer's Airflow plugin exists in the official marketplace but
-  was confirmed not to be the intended target.
-- `enterprise-search` and `productivity` — no plugin by those names exists in
-  the Anthropic-official or Wix marketplaces. `productivity` is a *category*
-  (39 plugins), not a single dependency.
 
 ## [0.4.0] - 2026-05-25
 
 ### Added
-- Vendored Tamir's global hooks under `hooks/` (with `hooks/hooks.json` wiring
-  them via `${CLAUDE_PLUGIN_ROOT}`):
-  - `protect-other-branches.sh` (PreToolUse / Bash) — blocks closing PRs from
-    other authors.
-  - `enforce-worktree-edits.sh` (PreToolUse / Edit|Write|MultiEdit|NotebookEdit)
-    — refuses repo edits outside the dedicated worktree.
-  - `show-changelog.sh` + `session-init.sh` (SessionStart) — display the
-    Claude Code changelog on update and seed per-session state.
-  - `capture-task-slug.sh` (UserPromptSubmit) — derive task slug from first
-    prompt, create global worktree, expose `$CLAUDE_SESSION_FILES_DIR`.
-  - `worktree-create.sh` / `worktree-remove.sh` (WorktreeCreate /
-    WorktreeRemove) — manage global worktrees under `~/.claude/worktrees/`.
-  - `validate-report-links.sh` (PostToolUse / Write) — sanity-check URLs in
-    written reports.
-  - Inline Notification osascript hook (mac-only) preserved.
+- Vendored global hooks under `hooks/` with `hooks/hooks.json` wiring:
+  - `protect-other-branches.sh` — blocks closing PRs from other authors.
+  - `enforce-worktree-edits.sh` — refuses repo edits outside the dedicated worktree.
+  - `show-changelog.sh` + `session-init.sh` — display changelog on update; seed per-session state.
+  - `capture-task-slug.sh` — derive task slug, create global worktree, expose `$CLAUDE_SESSION_FILES_DIR`.
+  - `worktree-create.sh` / `worktree-remove.sh` — manage global worktrees.
+  - `validate-report-links.sh` — sanity-check URLs in written reports *(removed in 1.0.0)*.
+  - Inline Notification osascript hook (macOS).
   - Shared `hooks/lib/worktree-common.sh`.
-- Vendored `statusline.sh` and wired it via `statusLine` in `plugin.json`.
-
-### Note
-- Other parts of `~/.claude/settings.json` (env, permissions, enabledPlugins,
-  extraKnownMarketplaces, theme, worktree config, etc.) are user-level
-  settings and were intentionally **not** bundled. A private API secret
-  in the original settings.json was excluded.
+- Vendored `statusline.sh` wired via `statusLine` in `plugin.json`.
 
 ## [0.3.0] - 2026-05-25
 
 ### Removed
-- Dropped the `production-master` dependency (and the prerequisite
-  `/plugin marketplace add production-master` step).
-  Only `skill-creator` and `session-report` (both from the official
-  `claude-plugins-official` marketplace) remain as auto-installed dependencies.
+- Dropped the `production-master` internal dependency.
 
 ### Fixed
-- Removed invalid `Task(agent-name)` matcher syntax from `allowed-tools` in
-  `query-app-logs`, `query-bi`, `query-request` skills (now plain `Task`).
-- Added missing `name:` field to `run-bazel-tests`, `strict-tdd-scala`,
-  `proto-docs`, `query-captains-log`, `query-fire-console`, `query-prod-db`.
-- Aligned `name:` with directory name for `user-find-skill` and
-  `user-dark-terminal-doc`.
-- Removed non-standard frontmatter fields (`user-invocable`, `when_to_use`,
-  `model`) from `user-find-skill`.
+- Removed invalid `Task(agent-name)` matcher syntax from `allowed-tools`.
+- Added missing `name:` fields to several skills.
 - Updated `babysit-pr` description from Codex to Claude.
 
 ### Changed
-- Pruned `.mcp.json` to four real, installable MCP servers
-  (`github`, `context7`, `slack`, `desktop-commander`). Removed stubs for
-  non-existent npm packages (`@anthropic/excalidraw-mcp`,
-  `@anthropic/powerpoint-mcp`) and the not-officially-published
-  Gmail / Google Drive / Google Calendar servers.
-- Dropped the non-schema `_comment` key from `.mcp.json`.
+- Pruned `.mcp.json` to four real, installable MCP servers.
 
 ### Added
-- `LICENSE` file (proprietary / all rights reserved).
+- `LICENSE` file.
 - `CHANGELOG.md`.
-- `.gitignore` covering `.DS_Store` and common noise.
+- `.gitignore`.
 
 ## [0.2.1] - prior
 
-Initial public version of the personal library plugin.
+Initial private version of the personal library plugin.

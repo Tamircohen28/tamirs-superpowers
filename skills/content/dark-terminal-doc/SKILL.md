@@ -1,5 +1,5 @@
 ---
-name: user-dark-terminal-doc
+name: dark-terminal-doc
 description: >
   Create rich technical HTML documents — comparison tables, reference sheets,
   feature breakdowns, changelogs, release notes — using a dark terminal-inspired

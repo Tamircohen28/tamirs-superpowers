@@ -1,5 +1,5 @@
 ---
-name: user-find-skill
+name: find-skill
 description: "Search the leading skill / agent / plugin marketplaces in real time and rank the top N matches for a user query. Use when the user asks 'find a skill for X', 'is there a plugin that does Y', 'what skill should I use to Z', 'recommend an agent for W', 'compare skills for ...'. Queries Anthropic claude-plugins-official, OpenAI Codex Directory, Gemini CLI Extensions, Smithery, mcp.directory, VoltAgent/awesome-agent-skills, wshobson/agents, obra/superpowers, mattpocock/skills, and Claude marketplace aggregators. Returns a numbered list with a match score (0-100), a quality score (0-10), name, description, and URL. Trigger words: 'find skill', 'find a plugin', 'skill for', 'plugin for', 'agent for', 'recommend a skill', 'search skills'."
 allowed-tools:
   - WebSearch

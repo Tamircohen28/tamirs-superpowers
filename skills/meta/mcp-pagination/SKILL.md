@@ -1,6 +1,7 @@
 ---
 name: mcp-pagination
 description: When using MCP tools that support pagination (Jira, Slack, Google Calendar, Trino, GitHub, etc.), ALWAYS include pagination parameters. Use this skill whenever working with list/search MCP operations to enforce mandatory pagination.
+allowed-tools: []
 ---
 
 # MCP Pagination - MANDATORY

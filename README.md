@@ -84,14 +84,14 @@ To enable MCP servers, open `.mcp.json` in the plugin install directory and set 
 | `/changelog-review` | Fetch live Claude Code docs; answer questions and diff versions. |
 | `/mcp-builder` | Build MCP servers. |
 | `/mcp-pagination` | Always include pagination params on MCP list/search calls. |
-| `/user-find-skill` | Discover installed skills and what they do. |
+| `/find-skill` | Search skill marketplaces and rank matches for a query. |
 
 **`skills/content/` (2)**
 
 | Skill | What it does |
 |---|---|
 | `/algorithmic-art` | Generate algorithmic art with p5.js. |
-| `/user-dark-terminal-doc` | Document for dark-terminal display. |
+| `/dark-terminal-doc` | Generate polished HTML docs with a dark terminal design system. |
 
 ## Plugin Dependencies (auto-installed)
 
@@ -124,6 +124,7 @@ To enable MCP servers, open `.mcp.json` in the plugin install directory and set 
 ## Documentation
 
 - [User docs](docs/user/README.md) — concepts, quick start, troubleshooting
+- [Skill reference](docs/user/reference.md) — every skill explained with examples
 - [Engineering docs](docs/engineering/README.md) — architecture, development workflow, decisions
 - [Changelog](CHANGELOG.md)
 - [Contributing](docs/CONTRIBUTING.md)
