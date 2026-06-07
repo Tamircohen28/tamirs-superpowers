@@ -63,3 +63,13 @@ jobs:
             exit 1
           fi
           echo "No secrets found"
+
+  plugin-validate:
+    name: claude plugin validate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Claude Code CLI
+        run: npm install -g @anthropic-ai/claude-code
+      - name: Run claude plugin validate
+        run: claude plugin validate .

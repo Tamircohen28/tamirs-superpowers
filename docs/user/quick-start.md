@@ -45,7 +45,7 @@ Or restart Claude Code entirely.
 Open Claude Code in any git repo and try:
 
 ```
-/changelog-review what hooks are available in Claude Code?
+/tamirs-superpowers:changelog-review what hooks are available in Claude Code?
 ```
 
 This fetches live Claude Code docs and answers from them — a good sanity check that the plugin loaded correctly.
@@ -53,7 +53,7 @@ This fetches live Claude Code docs and answers from them — a good sanity check
 For a dev workflow demo, try:
 
 ```
-/plan-dev add a README to this repo
+/tamirs-superpowers:plan-dev add a README to this repo
 ```
 
 Claude will propose a phased plan and create GitHub issues after you approve.

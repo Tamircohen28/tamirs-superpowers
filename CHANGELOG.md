@@ -5,6 +5,23 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [1.0.2] - 2026-06-08
+
+Full plugin spec compliance pass based on official Claude Code plugins guide.
+
+### Fixed
+- **`marketplace.json` location** — was at repo root; moved to `.claude-plugin/marketplace.json`. This was the root cause of `claude plugin marketplace add` failing — Claude Code looks for `.claude-plugin/marketplace.json`, not a root-level file.
+- **Skill namespace** — all skill references in README, docs, and quick-start now use the correct `tamirs-superpowers:plan-dev` format instead of bare `/plan-dev`.
+
+### Added
+- **`plugin.json`** — `$schema`, `displayName`, `homepage`, `repository`, `defaultEnabled: true`
+- **`.claude-plugin/marketplace.json`** — `$schema`, `description`, `displayName`, `category`, `tags`, `homepage`, `repository` on the plugin entry
+- **Dynamic context injection** (`!`cmd`` blocks) in `pr-dev`, `start-dev`, `task-audit`, `targeted-debug` — live git/gh state is injected before Claude reads the skill, enabling more accurate responses without waiting for tool calls
+- **`context: fork`** on `targeted-debug` — runs in an isolated subagent context (Explore-style), keeping the main conversation clean
+- **`SessionEnd` hook** (`hooks/session-end.sh`) — archives session files to persistent store and prunes stale worktrees on session close
+- **CI job** — `claude plugin validate` step added; passes `✔ Validation passed`
+- **Makefile** — `plugin-validate` target now recommended as primary validator
+
 ## [1.0.1] - 2026-06-08
 
 Comprehensive quality pass: latest Claude Code feature adoption, Wix IP cleanup, and documentation gaps filled.

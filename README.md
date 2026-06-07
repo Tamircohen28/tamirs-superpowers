@@ -62,36 +62,36 @@ To enable MCP servers, open `.mcp.json` in the plugin install directory and set 
 
 | Skill | What it does |
 |---|---|
-| `/plan-dev` | Plan work into phases and create GitHub issues. |
-| `/start-dev` | Create worktree, implement, validate, push, and open a PR. |
-| `/pr-dev` | Address review threads, fix CI, squash-merge, and clean up. |
-| `/docs-review` | Audit and fix Markdown docs — freshness, links, stale files. |
-| `/task-audit` | Audit a completed branch for quality and PR readiness. |
-| `/targeted-debug` | Scope-bounded debug from a stack trace — reads only named files. |
-| `/babysit-pr` | Watch a PR and react to checks, review comments, and merges. |
+| `/tamirs-superpowers:plan-dev` | Plan work into phases and create GitHub issues. |
+| `/tamirs-superpowers:start-dev` | Create worktree, implement, validate, push, and open a PR. |
+| `/tamirs-superpowers:pr-dev` | Address review threads, fix CI, squash-merge, and clean up. |
+| `/tamirs-superpowers:docs-review` | Audit and fix Markdown docs — freshness, links, stale files. |
+| `/tamirs-superpowers:task-audit` | Audit a completed branch for quality and PR readiness. |
+| `/tamirs-superpowers:targeted-debug` | Scope-bounded debug from a stack trace — reads only named files. |
+| `/tamirs-superpowers:babysit-pr` | Watch a PR and react to checks, review comments, and merges. |
 
 **`skills/integrations/` (2)**
 
 | Skill | What it does |
 |---|---|
-| `/slack-cli` | Drive Slack via the official CLI. |
-| `/proto-docs` | Generate API documentation from proto files. |
+| `/tamirs-superpowers:slack-cli` | Drive Slack via the official CLI. |
+| `/tamirs-superpowers:proto-docs` | Generate API documentation from proto files. |
 
 **`skills/meta/` (4)**
 
 | Skill | What it does |
 |---|---|
-| `/changelog-review` | Fetch live Claude Code docs; answer questions and diff versions. |
-| `/mcp-builder` | Build MCP servers. |
-| `/mcp-pagination` | Always include pagination params on MCP list/search calls. |
-| `/find-skill` | Search skill marketplaces and rank matches for a query. |
+| `/tamirs-superpowers:changelog-review` | Fetch live Claude Code docs; answer questions and diff versions. |
+| `/tamirs-superpowers:mcp-builder` | Build MCP servers. |
+| `/tamirs-superpowers:mcp-pagination` | Always include pagination params on MCP list/search calls. |
+| `/tamirs-superpowers:find-skill` | Search skill marketplaces and rank matches for a query. |
 
 **`skills/content/` (2)**
 
 | Skill | What it does |
 |---|---|
-| `/algorithmic-art` | Generate algorithmic art with p5.js. |
-| `/dark-terminal-doc` | Generate polished HTML docs with a dark terminal design system. |
+| `/tamirs-superpowers:algorithmic-art` | Generate algorithmic art with p5.js. |
+| `/tamirs-superpowers:dark-terminal-doc` | Generate polished HTML docs with a dark terminal design system. |
 
 ## Plugin Dependencies (auto-installed)
 

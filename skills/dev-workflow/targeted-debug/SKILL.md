@@ -1,5 +1,6 @@
 ---
 name: targeted-debug
+context: fork
 disable-model-invocation: true
 description: "Focused debug of a specific production issue — read only files named in the stack trace, error message, or user input; form a hypothesis from observable evidence; do NOT explore the codebase broadly. Use when the user wants to understand a specific bug or error WITHOUT spinning up a full /investigate pipeline."
 when_to_use: "User asks to debug, look at, or understand a specific error / stack trace / ticket WITHOUT requesting the full investigation pipeline. Trigger phrases include 'targeted debug', 'just look at', 'why does X fail', 'debug this error', or any debug request that explicitly mentions a single error / file / function."
@@ -24,6 +25,10 @@ metadata:
     - workflow
   updated-date: "2026-05-09"
 ---
+
+## Live context
+!`git rev-parse --show-toplevel 2>/dev/null && echo "repo: $(basename $(git rev-parse --show-toplevel))" || echo "not a git repo"`
+!`git branch --show-current 2>/dev/null | sed 's/^/branch: /' || true`
 
 # targeted-debug
 

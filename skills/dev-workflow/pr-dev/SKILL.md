@@ -24,6 +24,10 @@ metadata:
   updated-date: "2026-06-07"
 ---
 
+## Live context
+!`gh pr view --json number,title,state,headRefName,reviewDecision,mergeable 2>/dev/null | jq -r '"PR #\(.number): \(.title) [\(.state)] branch:\(.headRefName) reviews:\(.reviewDecision) mergeable:\(.mergeable)"' 2>/dev/null || echo "no open PR on current branch — provide a PR number"`
+!`git branch --show-current 2>/dev/null | sed 's/^/current branch: /' || true`
+
 # pr-dev
 
 Drive a pull request through review and merge: address every unresolved thread, fix CI, validate readiness, then (after explicit user approval) squash-merge and clean up.

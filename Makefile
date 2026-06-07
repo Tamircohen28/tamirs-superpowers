@@ -5,9 +5,9 @@ HOOKS_DIR  := hooks
 
 help:
 	@echo "Available targets:"
-	@echo "  validate        — shellcheck + JSON validation + SKILL.md frontmatter"
+	@echo "  validate        — shellcheck + JSON validation + SKILL.md frontmatter + orphan check"
 	@echo "  lint            — shellcheck .sh files only"
-	@echo "  plugin-validate — run 'claude plugin validate' (requires Claude Code CLI)"
+	@echo "  plugin-validate — run 'claude plugin validate' (primary validator, requires Claude Code CLI)"
 	@echo "  test            — alias for validate"
 
 validate: lint
@@ -26,7 +26,7 @@ validate: lint
 	  base=$$(basename "$$f"); \
 	  grep -q "$$base" $(HOOKS_DIR)/hooks.json || { echo "  WARN  $$f not referenced in hooks.json"; }; \
 	done
-	@echo "All checks passed."
+	@echo "All local checks passed. Run 'make plugin-validate' for full Claude Code validation."
 
 lint:
 	@echo "--- shellcheck ---"
@@ -37,11 +37,12 @@ lint:
 	fi
 
 plugin-validate:
-	@echo "--- claude plugin validate ---"
+	@echo "--- claude plugin validate (primary validator) ---"
 	@if command -v claude >/dev/null 2>&1; then \
 	  claude plugin validate . && echo "  plugin validate passed"; \
 	else \
-	  echo "  claude CLI not found — skipping (install from claude.ai/code)"; \
+	  echo "  claude CLI not found — install from claude.ai/code"; \
+	  exit 1; \
 	fi
 
 test: validate

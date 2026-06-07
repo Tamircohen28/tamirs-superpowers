@@ -72,6 +72,17 @@
       ]
     }
   ],
+  "SessionEnd": [
+    {
+      "hooks": [
+        {
+          "type": "command",
+          "command": "bash ${CLAUDE_PLUGIN_ROOT}/hooks/session-end.sh",
+          "timeout": 30
+        }
+      ]
+    }
+  ],
   "Notification": [
     {
       "hooks": [

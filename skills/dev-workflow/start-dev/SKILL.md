@@ -22,8 +22,13 @@ metadata:
     - worktree
     - pr
     - workflow
-  updated-date: "2026-06-07"
+  updated-date: "2026-06-08"
 ---
+
+## Live context
+!`git branch --show-current 2>/dev/null | sed 's/^/current branch: /' || echo "not a git repo"`
+!`gh repo view --json defaultBranchRef --jq '"default branch: \(.defaultBranchRef.name)"' 2>/dev/null || true`
+!`gh issue list --state open --limit 5 --json number,title --jq '.[] | "  #\(.number): \(.title)"' 2>/dev/null | head -5 || true`
 
 # start-dev
 

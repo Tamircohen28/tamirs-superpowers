@@ -1,18 +1,23 @@
 {
+  "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "tamirs-superpowers",
-  "version": "1.0.1",
-  "description": "Tamir's personal library of agents, skills, and configurations for Claude. Bundles his own skills and references third-party plugins via dependencies so they auto-install and stay current.",
+  "displayName": "Tamir's Superpowers",
+  "version": "1.0.2",
+  "description": "15 bundled skills, smart worktree hooks, and MCP server stubs — plan, implement, review, debug, and audit code from one plugin.",
+  "homepage": "https://github.com/TamirCohen28/tamirs-superpowers",
+  "repository": "https://github.com/TamirCohen28/tamirs-superpowers",
   "author": {
     "name": "Tamir Cohen",
     "url": "https://github.com/TamirCohen28"
   },
   "keywords": [
-    "personal-library",
     "skills",
-    "agents",
+    "hooks",
+    "developer-tools",
     "mcp",
     "claude-code",
-    "developer-tools"
+    "worktree",
+    "workflow"
   ],
   "dependencies": [
     {
@@ -53,6 +58,7 @@
     }
   ],
   "license": "MIT",
+  "defaultEnabled": true,
   "statusLine": {
     "type": "command",
     "command": "bash ${CLAUDE_PLUGIN_ROOT}/statusline.sh"

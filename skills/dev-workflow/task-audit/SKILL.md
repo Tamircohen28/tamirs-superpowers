@@ -27,6 +27,11 @@ metadata:
   updated-date: "2026-06-07"
 ---
 
+## Live context
+!`git branch --show-current 2>/dev/null | sed 's/^/current branch: /' || echo "not a git repo"`
+!`git log --oneline origin/$(git rev-parse --abbrev-ref --symbolic-full-name @{u} 2>/dev/null | sed 's|origin/||' || echo main)...HEAD 2>/dev/null | head -5 | sed 's/^/  commit: /' || echo "  (no upstream branch found — run git push -u origin HEAD first)"`
+!`git diff --stat origin/$(git rev-parse --abbrev-ref --symbolic-full-name @{u} 2>/dev/null | sed 's|origin/||' || echo main)...HEAD 2>/dev/null | tail -1 | sed 's/^/  diff: /' || true`
+
 # task-audit
 
 Inspect a completed branch's changes end-to-end and produce a structured `task-audit.md` report that flags quality gaps, missing tests, leftover work markers, and PR-readiness issues — before a human reviewer sees it.

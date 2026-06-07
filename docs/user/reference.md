@@ -6,7 +6,7 @@ Complete reference for all 15 skills bundled in `tamirs-superpowers`. Each becom
 
 ## Dev Workflow
 
-### `/plan-dev`
+### `/tamirs-superpowers:plan-dev`
 
 **When to use:** Before writing any code. You have a task, spec, list of fixes, or GitHub issue URL and want to break it into reviewable phases before Claude starts implementing.
 
@@ -16,11 +16,11 @@ Complete reference for all 15 skills bundled in `tamirs-superpowers`. Each becom
 3. Presents the plan and waits for your approval
 4. Creates GitHub issues after explicit approval
 
-**Example:** `/plan-dev add OAuth2 login to this app`
+**Example:** `/tamirs-superpowers:plan-dev add OAuth2 login to this app`
 
 ---
 
-### `/start-dev`
+### `/tamirs-superpowers:start-dev`
 
 **When to use:** After approving a plan, or when you have a GitHub issue/task and want Claude to implement it end-to-end.
 
@@ -31,11 +31,11 @@ Complete reference for all 15 skills bundled in `tamirs-superpowers`. Each becom
 4. Runs available tests/lint
 5. Pushes and opens a PR
 
-**Example:** `/start-dev #42`
+**Example:** `/tamirs-superpowers:start-dev #42`
 
 ---
 
-### `/pr-dev`
+### `/tamirs-superpowers:pr-dev`
 
 **When to use:** After opening a PR. You want Claude to handle the full review → merge cycle.
 
@@ -46,53 +46,53 @@ Complete reference for all 15 skills bundled in `tamirs-superpowers`. Each becom
 4. Pauses for your explicit "approved" before merging
 5. Squash-merges, closes linked issues, and removes the worktree
 
-**Example:** `/pr-dev 42`
+**Example:** `/tamirs-superpowers:pr-dev 42`
 
 ---
 
-### `/docs-review`
+### `/tamirs-superpowers:docs-review`
 
 **When to use:** When docs feel stale, links may be broken, or you want a quality pass before a release.
 
 **What it does:** Sweeps every `*.md` under `README.md` and `docs/` across 5 axes: visual cleanliness, freshness vs git history, stray plan files, link validity, and cross-reference consistency. Fixes in-place, writes a findings report.
 
-**Example:** `/docs-review` or `/docs-review docs/user/`
+**Example:** `/tamirs-superpowers:docs-review` or `/docs-review docs/user/`
 
 ---
 
-### `/task-audit`
+### `/tamirs-superpowers:task-audit`
 
 **When to use:** After finishing a branch, before requesting review. Verify quality before human eyes see it.
 
 **What it does:** Audits the branch diff across 7 dimensions: scope, commit quality, test coverage, leftover markers (TODO/FIXME/debugger), breaking changes, docs sync, and PR readiness. Writes a `task-audit.md` report.
 
-**Example:** `/task-audit` (current branch) or `/task-audit feat/add-auth`
+**Example:** `/tamirs-superpowers:task-audit` (current branch) or `/task-audit feat/add-auth`
 
 ---
 
-### `/targeted-debug`
+### `/tamirs-superpowers:targeted-debug`
 
 **When to use:** You have a specific stack trace or error and want a focused hypothesis — not a broad codebase exploration.
 
 **What it does:** Reads **only** files named in the stack trace. Forms a hypothesis from the trace alone before opening any file. Produces a structured report with root cause, suggested fix, and out-of-scope follow-ups. Never launches a broad investigation without asking.
 
-**Example:** `/targeted-debug NullPointerException at UserService.java:142`
+**Example:** `/tamirs-superpowers:targeted-debug NullPointerException at UserService.java:142`
 
 ---
 
-### `/babysit-pr`
+### `/tamirs-superpowers:babysit-pr`
 
 **When to use:** After opening a PR, when you want Claude to monitor it autonomously in the background — polling CI, surfacing review comments, retrying flaky failures.
 
 **What it does:** Continuously polls the PR until merged/closed or user help is needed. Retries likely-flaky CI failures up to 3 times, auto-fixes branch-related issues, surfaces review feedback promptly.
 
-**Example:** `/babysit-pr 42`
+**Example:** `/tamirs-superpowers:babysit-pr 42`
 
 ---
 
 ## Integrations
 
-### `/slack-cli`
+### `/tamirs-superpowers:slack-cli`
 
 **When to use:** Any Slack operation — sending messages, reading channels, managing auth.
 
@@ -102,7 +102,7 @@ Complete reference for all 15 skills bundled in `tamirs-superpowers`. Each becom
 
 ---
 
-### `/proto-docs`
+### `/tamirs-superpowers:proto-docs`
 
 **When to use:** You have `.proto` files and need API documentation.
 
@@ -112,7 +112,7 @@ Complete reference for all 15 skills bundled in `tamirs-superpowers`. Each becom
 
 ## Meta
 
-### `/changelog-review`
+### `/tamirs-superpowers:changelog-review`
 
 **When to use:** Any question about Claude Code features, hooks, plugins, settings, or "what changed between vX and vY".
 
@@ -121,11 +121,11 @@ Complete reference for all 15 skills bundled in `tamirs-superpowers`. Each becom
 - **Diff** — changelog between two versions
 - **Review** — audit your Claude Code config against current docs
 
-**Example:** `/changelog-review what hook events are available?` or `/changelog-review diff v2.0 v2.1`
+**Example:** `/tamirs-superpowers:changelog-review what hook events are available?` or `/changelog-review diff v2.0 v2.1`
 
 ---
 
-### `/mcp-builder`
+### `/tamirs-superpowers:mcp-builder`
 
 **When to use:** Building a new MCP server to integrate an external API or service.
 
@@ -133,7 +133,7 @@ Complete reference for all 15 skills bundled in `tamirs-superpowers`. Each becom
 
 ---
 
-### `/mcp-pagination`
+### `/tamirs-superpowers:mcp-pagination`
 
 **When to use:** Working with any MCP tool that supports pagination (Jira, Slack, GitHub, etc.).
 
@@ -141,19 +141,19 @@ Complete reference for all 15 skills bundled in `tamirs-superpowers`. Each becom
 
 ---
 
-### `/find-skill`
+### `/tamirs-superpowers:find-skill`
 
 **When to use:** "Is there a skill for X?" or "What skill should I use to do Y?"
 
 **What it does:** Searches leading skill/plugin marketplaces in real time (Anthropic official, obra/superpowers, mattpocock/skills, Smithery, mcp.directory, and more) and returns ranked matches with quality scores.
 
-**Example:** `/find-skill something that reviews PRs automatically`
+**Example:** `/tamirs-superpowers:find-skill something that reviews PRs automatically`
 
 ---
 
 ## Content
 
-### `/dark-terminal-doc`
+### `/tamirs-superpowers:dark-terminal-doc`
 
 **When to use:** You need a polished, shareable HTML document — comparison table, reference sheet, changelog, release notes — with a dark terminal aesthetic.
 
@@ -161,7 +161,7 @@ Complete reference for all 15 skills bundled in `tamirs-superpowers`. Each becom
 
 ---
 
-### `/algorithmic-art`
+### `/tamirs-superpowers:algorithmic-art`
 
 **When to use:** You want generative art created with code.
 
