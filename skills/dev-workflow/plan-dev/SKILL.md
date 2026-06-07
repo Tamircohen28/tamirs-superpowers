@@ -4,6 +4,7 @@ description: "Plan development work — structure tasks into phases, review with
 when_to_use: "User wants to plan or structure development work into phases and create GitHub issues — invoked as /plan-dev or when the user asks to 'plan this', 'break this into phases', 'create issues for', or 'decompose this spec/task'."
 argument-hint: "[task description, file paths, review doc, or GitHub issue URL]"
 model: claude-sonnet-4-6
+effort: high
 allowed-tools:
   - Bash
   - Read

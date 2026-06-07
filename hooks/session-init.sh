@@ -136,6 +136,7 @@ cat <<EOF
 {
   "hookSpecificOutput": {
     "hookEventName": "SessionStart",
+    "sessionTitle": $(echo "$slug" | jq -Rs .),
     "additionalContext": $(echo "$additional_context" | jq -Rs .)
   }
 }

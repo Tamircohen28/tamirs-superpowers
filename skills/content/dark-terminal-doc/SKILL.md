@@ -7,6 +7,17 @@ description: >
   page, or technical comparison that should look sharp and developer-facing.
   Triggers on: "make a comparison table", "write a reference doc", "create a
   feature breakdown", "produce a technical document", "styled HTML doc".
+when_to_use: "User asks for a polished, shareable HTML technical document — comparison table, reference sheet, changelog, release notes, feature breakdown. Trigger phrases: 'make a comparison table', 'write a reference doc', 'create a feature breakdown', 'styled HTML doc', 'dark terminal doc'."
+argument-hint: "[document type and topic — e.g. 'comparison table: Claude vs GPT-4', 'reference sheet: git commands']"
+metadata:
+  capability: document-generation
+  tags:
+    - html
+    - documentation
+    - design
+    - content
+    - dark-terminal
+  updated-date: "2026-06-08"
 ---
 
 # Dark Terminal Document Design System

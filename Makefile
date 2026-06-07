@@ -1,13 +1,14 @@
-.PHONY: validate lint test help
+.PHONY: validate lint test plugin-validate help
 
 SKILLS_DIR := skills
 HOOKS_DIR  := hooks
 
 help:
 	@echo "Available targets:"
-	@echo "  validate  — shellcheck all .sh files + validate all .json files"
-	@echo "  lint      — shellcheck .sh files only"
-	@echo "  test      — alias for validate"
+	@echo "  validate        — shellcheck + JSON validation + SKILL.md frontmatter"
+	@echo "  lint            — shellcheck .sh files only"
+	@echo "  plugin-validate — run 'claude plugin validate' (requires Claude Code CLI)"
+	@echo "  test            — alias for validate"
 
 validate: lint
 	@echo "--- Validating JSON files ---"
@@ -20,6 +21,11 @@ validate: lint
 	  grep -q '^description:' "$$f" || { echo "  MISSING description: $$f"; exit 1; }; \
 	  echo "  OK  $$f"; \
 	done
+	@echo "--- Checking for orphan hook scripts (not referenced in hooks.json) ---"
+	@find $(HOOKS_DIR) -maxdepth 1 -name '*.sh' | while read f; do \
+	  base=$$(basename "$$f"); \
+	  grep -q "$$base" $(HOOKS_DIR)/hooks.json || { echo "  WARN  $$f not referenced in hooks.json"; }; \
+	done
 	@echo "All checks passed."
 
 lint:
@@ -28,6 +34,14 @@ lint:
 	  find $(HOOKS_DIR) -name '*.sh' | xargs shellcheck -S warning --exclude SC2034 && echo "  shellcheck passed"; \
 	else \
 	  echo "  shellcheck not installed — skipping (brew install shellcheck)"; \
+	fi
+
+plugin-validate:
+	@echo "--- claude plugin validate ---"
+	@if command -v claude >/dev/null 2>&1; then \
+	  claude plugin validate . && echo "  plugin validate passed"; \
+	else \
+	  echo "  claude CLI not found — skipping (install from claude.ai/code)"; \
 	fi
 
 test: validate

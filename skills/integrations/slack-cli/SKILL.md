@@ -1,10 +1,20 @@
 ---
 name: slack-cli
-description: Interact with Slack workspaces and manage authentication using the official Slack CLI. Use when working with Slack channels, messages, users, or when the user mentions Slack operations.
+description: Interact with Slack workspaces and manage authentication using the official Slack CLI. Use when working with Slack app development, workspace authentication, datastore operations, or environment variable management via the Slack CLI.
+when_to_use: "User asks to do something with Slack via CLI — authenticate a workspace, manage a Slack app, work with Slack datastores, or manage Slack environment variables. Trigger phrases: 'slack cli', 'slack auth', 'slack app', 'slack workspace', 'slack datastore'."
+argument-hint: "[optional: specific Slack CLI command or operation]"
 allowed-tools:
   - Bash(slack:*)
   - Read
   - Write
+metadata:
+  capability: slack-integration
+  tags:
+    - slack
+    - cli
+    - authentication
+    - integrations
+  updated-date: "2026-06-08"
 ---
 
 # Slack CLI Skill
@@ -13,11 +23,23 @@ The official Slack CLI (`slack` command) provides command-line access to Slack w
 
 ## Installation
 
-The Slack CLI is already installed at `/Users/rango/.local/bin/slack`.
+Install the Slack CLI via npm or the official installer:
+```bash
+# npm
+npm install -g @slack/cli
+
+# or via the official installer (macOS/Linux)
+curl -fsSL https://downloads.slack-edge.com/slack-cli/install.sh | bash
+```
 
 **Verify installation:**
 ```bash
 slack version
+```
+
+If the command is not found, ensure the install directory is on your `PATH`:
+```bash
+which slack || echo "slack not in PATH — check your shell profile"
 ```
 
 ## Authentication
@@ -38,7 +60,7 @@ For programmatic access, generate a service token:
 slack auth token
 ```
 
-This generates a reusable token that won't expire, useful for CI/CD and automation.
+This generates a reusable token useful for CI/CD and automation.
 
 ### Logout
 ```bash
@@ -49,143 +71,89 @@ slack auth logout
 
 ### App Management
 ```bash
-# Create a new Slack app
-slack create
-
-# List teams where app is installed
-slack app list
-
-# Install app to a team
-slack app install
-
-# Uninstall from a team
-slack app uninstall
+slack create          # Create a new Slack app
+slack app list        # List teams where app is installed
+slack app install     # Install app to a team
+slack app uninstall   # Uninstall from a team
 ```
 
 ### Workspace Authentication
 ```bash
-# List all authorized accounts
-slack auth list
-
-# Revoke an authentication token
-slack auth revoke
+slack auth list       # List all authorized accounts
+slack auth revoke     # Revoke an authentication token
 ```
 
 ### Datastore Operations
 ```bash
-# Put an item in datastore
-slack datastore put <key> <value>
-
-# Get an item from datastore
-slack datastore get <key>
-
-# Query datastore items
-slack datastore query
-
-# Delete an item
-slack datastore delete <key>
-
-# Bulk operations
-slack datastore bulk-put
-slack datastore bulk-get
-slack datastore bulk-delete
+slack datastore put <key> <value>   # Put an item
+slack datastore get <key>           # Get an item
+slack datastore query               # Query items
+slack datastore delete <key>        # Delete an item
+slack datastore bulk-put            # Bulk put
+slack datastore bulk-get            # Bulk get
+slack datastore bulk-delete         # Bulk delete
 ```
 
 ### Environment Variables
 ```bash
-# List all environment variables
-slack env list
-
-# Add an environment variable
-slack env add VAR_NAME
-
-# Remove an environment variable
-slack env remove VAR_NAME
+slack env list                  # List all environment variables
+slack env add VAR_NAME          # Add an environment variable
+slack env remove VAR_NAME       # Remove an environment variable
 ```
 
-### Help and Documentation
+### Help
 ```bash
-# Show all available commands
-slack help
-
-# Show help for a specific command
-slack help <command>
-
-# Example: Help for app commands
-slack help app
+slack help              # All available commands
+slack help <command>    # Help for a specific command
 ```
 
 ## Common Workflows
 
-### 1. Getting Help
+### Getting Started
 ```bash
-slack help auth          # Authentication help
-slack help app           # App management help
-slack help datastore     # Datastore operations help
+slack auth list              # Check current auth
+slack auth login             # Authenticate a workspace
+slack app list               # See installed apps
 ```
 
-### 2. Working with Slack Apps
+### Working with Slack Apps
 ```bash
-# Create a new app
-slack create
-
-# Link an existing app to your project
-slack app link
-
-# List where your app is installed
-slack app list
-
-# Install to a new workspace
-slack app install
+slack create                 # Create a new app
+slack app link               # Link an existing app
+slack app install            # Install to a workspace
 ```
 
-### 3. Managing Tokens for CI/CD
+### Managing Tokens for CI/CD
 ```bash
-# Generate a service token (non-expiring)
-slack auth token
-
-# List current authentication
-slack auth list
-
-# Revoke a token when no longer needed
-slack auth revoke
+slack auth token             # Generate a service token
+slack auth list              # Verify authentication
+slack auth revoke            # Revoke a token
 ```
 
 ## Troubleshooting
 
 ### Authentication Issues
 ```bash
-# Check if you're properly authenticated
-slack auth list
-
-# If you get permission errors, log in again
-slack auth login
+slack auth list              # Check if authenticated
+slack auth login             # Re-authenticate if needed
 ```
 
 ### Command Not Found
 ```bash
-# Ensure slack CLI is in PATH
-which slack
-
-# If not found, add to PATH
-export PATH="/Users/rango/.local/bin:$PATH"
+which slack                  # Find the binary location
+# Add to PATH if needed (edit your shell profile)
+export PATH="$HOME/.local/bin:$PATH"
 ```
 
 ### View Debug Logs
 ```bash
-# Logs are saved in:
-cat /Users/rango/.slack/logs/slack-debug-*.log
+ls ~/.slack/logs/            # Find log files
+cat ~/.slack/logs/slack-debug-*.log   # Read latest log
 ```
 
 ## Important Notes
 
-- **Service tokens** are long-lived and non-expiring. Store them securely.
-- **Official CLI scope**: The Slack CLI is primarily designed for Slack app development and automation, not general workspace operations.
-- **SSO support**: If your workspace uses SSO, authenticate via the login flow which respects your workspace's SSO configuration.
-- For **direct workspace operations** (messages, channels, users), consider alternative tools designed for workspace automation.
-
-## Getting Help
-
-- View command help: `slack help <command>`
-- Check documentation: https://docs.slack.dev/tools/slack-cli/
-- View debug logs: `/Users/rango/.slack/logs/slack-debug-*.log`
+- **Service tokens** are long-lived and non-expiring — store them securely.
+- The Slack CLI is primarily for Slack app development, not general workspace messaging.
+- For workspace messaging/channels/users, use the Slack MCP server (declared in `.mcp.json`).
+- If your workspace uses SSO, authenticate via the login flow which respects SSO configuration.

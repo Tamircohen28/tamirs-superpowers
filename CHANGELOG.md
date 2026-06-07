@@ -5,6 +5,34 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [1.0.1] - 2026-06-08
+
+Comprehensive quality pass: latest Claude Code feature adoption, Wix IP cleanup, and documentation gaps filled.
+
+### Added
+- `effort: high` on `plan-dev`, `start-dev`, `pr-dev` — ensures full model capability for complex workflow skills
+- `disallowed-tools` on `task-audit` (blocks Edit/MultiEdit/NotebookEdit — audit is read+report only) and `docs-review` (blocks Task/Agent/Workflow — sweep is local)
+- `paths` frontmatter on `docs-review` — skill auto-activates when Markdown files are in context
+- `when_to_use`, `argument-hint`, `metadata` added to all 15 skills (previously missing on 5: `babysit-pr`, `mcp-builder`, `mcp-pagination`, `algorithmic-art`, `dark-terminal-doc`)
+- `notify.sh` hook — replaces inline `osascript` in hooks.json; uses `terminalSequence` output field (v2.1.141+) with osascript fallback
+- `docs/engineering/statusline.md` — full engineering doc for the statusline: input schema, output format, color coding, helper functions, branch hyperlinking
+- `docs/user/quick-start.md` — documents `.claude/skills/` auto-load as marketplace-free install alternative
+- Makefile `plugin-validate` target and orphan-script check; CI orphan-script step added
+- `${CLAUDE_SKILL_DIR}` variable used in `targeted-debug` SKILL.md for portable script references
+
+### Fixed
+- `protect-other-branches.sh` — removed hardcoded `TamirCohen-Wix` GitHub handle and internal colleague names; hook now reads `GITHUB_OWNER_LOGIN` env var or falls back to `gh api user`
+- `session-init.sh` — now emits `sessionTitle` in `hookSpecificOutput` (new field, improves session labeling in Claude Code UI)
+- `algorithmic-art/SKILL.md` — corrected `license: MIT` → `license: Apache-2.0` (the bundled `LICENSE.txt` is Apache 2.0)
+- `slack-cli/SKILL.md` — removed 3 hardcoded `/Users/rango/` paths; generalized all install and log paths
+- `proto-docs/SKILL.md` — full rewrite removing all Wix-specific content (tech writer guidelines, SPI annotations, internal Slack channels, Jira project, `dev.wix.com` URLs); now a generic gRPC/protobuf documentation skill
+- `docs/user/README.md` — added link to `reference.md`
+- `docs/engineering/README.md` — added links to `statusline.md` and `ci-workflow.md`
+- Notification hook: removed empty `"matcher": ""` field; replaced inline osascript with `notify.sh` script
+
+### Removed
+- `hooks/init-output-dir.sh` — orphaned dead code (superseded by `session-init.sh`)
+
 ## [1.0.0] - 2026-06-07
 
 First public release. Cleaned of all internal tooling references and scaffolded with full open-source infrastructure.

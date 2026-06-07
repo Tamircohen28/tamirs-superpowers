@@ -11,6 +11,14 @@ allowed-tools:
   - Edit
   - Glob
   - Grep
+disallowed-tools:
+  - Task
+  - Agent
+  - Workflow
+paths:
+  - "**/docs/**"
+  - "**/README.md"
+  - "**/*.md"
 metadata:
   capability: documentation-quality
   tags:

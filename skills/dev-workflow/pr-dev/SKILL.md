@@ -4,6 +4,7 @@ description: "Manage PR lifecycle — fetch fresh PR state, address every unreso
 when_to_use: "User asks to handle, finish, ship, merge, address review on, or close out a PR — invoked as /pr-dev or with phrases like 'finish this PR', 'address comments', 'merge after review', 'clean up the PR'."
 argument-hint: "[PR number]"
 model: claude-sonnet-4-6
+effort: high
 allowed-tools:
   - Bash
   - Read

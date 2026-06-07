@@ -75,7 +75,7 @@ The user gives you one or more of:
 Extract the in-scope file set. The helper script does this deterministically:
 
 ```bash
-bash .claude/skills/targeted-debug/scripts/extract-error-paths.sh "$INPUT"
+bash "${CLAUDE_SKILL_DIR}/scripts/extract-error-paths.sh" "$INPUT"
 ```
 
 It reads stdin or `$1` and emits a newline-separated list of file paths

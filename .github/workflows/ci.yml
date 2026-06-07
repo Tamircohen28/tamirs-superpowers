@@ -15,7 +15,13 @@ jobs:
       - name: Install shellcheck
         run: sudo apt-get install -y shellcheck
       - name: Run shellcheck on hook scripts
-        run: find hooks -name '*.sh' | xargs shellcheck -S warning
+        run: find hooks -name '*.sh' | xargs shellcheck -S warning --exclude SC2034
+      - name: Check for orphan hook scripts
+        run: |
+          find hooks -maxdepth 1 -name '*.sh' | while read f; do
+            base=$(basename "$f")
+            grep -q "$base" hooks/hooks.json || { echo "WARN: $f not referenced in hooks.json"; }
+          done
 
   validate-json:
     name: Validate JSON

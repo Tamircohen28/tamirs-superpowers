@@ -4,6 +4,7 @@ description: "Start development — create worktree, implement tasks, validate, 
 when_to_use: "User says to start, begin, implement, build, code, or work on a task — typically with an issue number, task description, or path to a spec — and expects commits and a PR at the end."
 argument-hint: "[issue number(s), task description, or file path to spec]"
 model: claude-sonnet-4-6
+effort: high
 allowed-tools:
   - Bash
   - Read

@@ -1,6 +1,6 @@
 {
   "name": "tamir-library",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Tamir's personal library of agents, skills, and configurations for Claude. Bundles his own skills and references third-party plugins via dependencies so they auto-install and stay current.",
   "author": {
     "name": "Tamir Cohen",

@@ -9,6 +9,13 @@ allowed-tools:
   - Read
   - Grep
   - Glob
+  - Write
+disallowed-tools:
+  - Edit
+  - MultiEdit
+  - NotebookEdit
+  - Task
+  - Agent
 metadata:
   capability: task-quality-audit
   tags:

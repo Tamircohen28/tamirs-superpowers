@@ -1,12 +1,23 @@
 ---
 name: babysit-pr
 description: Babysit a GitHub pull request after creation by continuously polling review comments, CI checks/workflow runs, and mergeability state until the PR is merged/closed or user help is required. Diagnose failures, retry likely flaky failures up to 3 times, auto-fix/push branch-related issues when appropriate, and keep watching open PRs so fresh review feedback is surfaced promptly. Use when the user asks Claude to monitor a PR, watch CI, handle review comments, or keep an eye on failures and feedback on an open PR.
+when_to_use: "User asks Claude to monitor or babysit a PR — watch CI, handle review comments, wait for merge. Trigger phrases: 'babysit this PR', 'watch PR #N', 'monitor CI on my PR', 'keep an eye on this PR', 'wait for my PR to merge'."
+argument-hint: "[PR number or URL]"
 allowed-tools:
   - Bash
   - Read
   - Edit
   - WebFetch
   - Monitor
+metadata:
+  capability: pr-monitoring
+  tags:
+    - pr
+    - ci
+    - monitoring
+    - github
+    - workflow
+  updated-date: "2026-06-08"
 ---
 
 # PR Babysitter
