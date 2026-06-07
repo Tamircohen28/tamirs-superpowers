@@ -58,14 +58,14 @@ All notable changes to `tamir-library` are recorded here.
 ### Note
 - Other parts of `~/.claude/settings.json` (env, permissions, enabledPlugins,
   extraKnownMarketplaces, theme, worktree config, etc.) are user-level
-  settings and were intentionally **not** bundled. A `USER_ACCESS_KEY` secret
+  settings and were intentionally **not** bundled. A private API secret
   in the original settings.json was excluded.
 
 ## [0.3.0] - 2026-05-25
 
 ### Removed
 - Dropped the `production-master` dependency (and the prerequisite
-  `/plugin marketplace add wix-private/production-master` step).
+  `/plugin marketplace add production-master` step).
   Only `skill-creator` and `session-report` (both from the official
   `claude-plugins-official` marketplace) remain as auto-installed dependencies.
 

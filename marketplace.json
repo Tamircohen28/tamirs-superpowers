@@ -1,0 +1,15 @@
+{
+  "name": "tamirs-superpowers",
+  "owner": { "name": "Tamir Cohen", "github": "TamirCohen28" },
+  "allowCrossMarketplaceDependenciesOn": [
+    "claude-code-warp",
+    "knowledge-work-plugins",
+    "superpowers-dev"
+  ],
+  "plugins": [
+    {
+      "name": "tamir-library",
+      "source": "."
+    }
+  ]
+}

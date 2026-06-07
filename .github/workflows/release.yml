@@ -1,0 +1,61 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to release (e.g. 1.0.0)"
+        required: true
+        type: string
+
+jobs:
+  release:
+    name: Create release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate semver format
+        run: |
+          if ! echo "${{ inputs.version }}" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9.]+)?$'; then
+            echo "Invalid semver: ${{ inputs.version }}"
+            exit 1
+          fi
+
+      - name: Check tag does not already exist
+        run: |
+          if git ls-remote --tags origin "v${{ inputs.version }}" | grep -q .; then
+            echo "Tag v${{ inputs.version }} already exists"
+            exit 1
+          fi
+
+      - name: Bump version in plugin.json
+        run: |
+          jq --arg v "${{ inputs.version }}" '.version = $v' \
+            .claude-plugin/plugin.json > /tmp/plugin.json
+          mv /tmp/plugin.json .claude-plugin/plugin.json
+
+      - name: Commit version bump
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add .claude-plugin/plugin.json
+          git commit -m "chore(release): bump version to ${{ inputs.version }}"
+          git push
+
+      - name: Create and push tag
+        run: |
+          git tag -a "v${{ inputs.version }}" -m "Release v${{ inputs.version }}"
+          git tag -a "tamir-library--v${{ inputs.version }}" -m "tamir-library v${{ inputs.version }}"
+          git push origin "v${{ inputs.version }}" "tamir-library--v${{ inputs.version }}"
+
+      - name: Create GitHub Release
+        run: |
+          gh release create "v${{ inputs.version }}" \
+            --title "v${{ inputs.version }}" \
+            --notes "See [CHANGELOG.md](CHANGELOG.md) for details." \
+            --latest
+        env:
+          GH_TOKEN: ${{ github.token }}

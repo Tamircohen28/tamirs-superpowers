@@ -1,0 +1,49 @@
+name: Bug report
+description: Report a broken skill, hook, or MCP stub
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report a bug. Please fill in as much detail as possible.
+
+  - type: input
+    id: component
+    attributes:
+      label: Affected component
+      description: Which skill, hook, or file is broken?
+      placeholder: "e.g. hooks/capture-task-slug.sh, skills/dev-workflow/pr-dev"
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: What happened?
+      description: What did you expect vs what actually happened?
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Run `/pr-dev 42`
+        2. ...
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Claude Code version
+      placeholder: "e.g. 2.1.0 (run `claude --version`)"
+    validations:
+      required: false
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional context
+      description: Hook output, error messages, relevant settings.json snippets

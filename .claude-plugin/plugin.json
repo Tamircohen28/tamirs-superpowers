@@ -3,17 +3,16 @@
   "version": "0.6.0",
   "description": "Tamir's personal library of agents, skills, and configurations for Claude. Bundles his own skills and references third-party plugins via dependencies so they auto-install and stay current.",
   "author": {
-    "name": "Tamir Noy",
-    "email": "tamirc@wix.com"
+    "name": "Tamir Cohen",
+    "url": "https://github.com/TamirCohen28"
   },
   "keywords": [
     "personal-library",
     "skills",
     "agents",
     "mcp",
-    "wix",
     "claude-code",
-    "cowork"
+    "developer-tools"
   ],
   "dependencies": [
     {
@@ -53,7 +52,7 @@
       "marketplace": "superpowers-dev"
     }
   ],
-  "license": "UNLICENSED",
+  "license": "MIT",
   "statusLine": {
     "type": "command",
     "command": "bash ${CLAUDE_PLUGIN_ROOT}/statusline.sh"
