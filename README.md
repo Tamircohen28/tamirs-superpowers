@@ -20,9 +20,9 @@ A personal Claude Code plugin that bundles 15 skills, smart worktree hooks, and 
 
 ## Features
 
-- **15 bundled skills** across dev-workflow, integrations, meta, and content — plan, implement, review, debug, audit docs, and more, all from the Claude Code prompt
+- **15 bundled skills** across dev-workflow, meta, and content — plan, implement, review, debug, audit docs, create and benchmark skills, and more, all from the Claude Code prompt
 - **Smart worktree hooks** that automatically create isolated git worktrees per task, derive task slugs from your first prompt, enforce edit isolation, and show Claude Code changelogs on update
-- **Auto-installed plugin dependencies** — skill-creator, session-report, and superpowers pull in automatically when you install this plugin
+- **Auto-installed plugin dependencies** — superpowers pulls in automatically when you install this plugin
 - **MCP server stubs** for GitHub and Context7 — fill in your tokens and they're live
 - **Statusline** showing git branch, worktree state, and session context in your Claude Code footer
 - **Cross-marketplace dependencies** wired in `marketplace.json` so all third-party plugins resolve automatically
@@ -56,7 +56,7 @@ To enable MCP servers, open `.mcp.json` in the plugin install directory and set 
 
 `skills/<topic>/<skill-name>/SKILL.md` — discovery is recursive.
 
-**`skills/dev-workflow/` (8)**
+**`skills/dev-workflow/` (7)**
 
 | Skill | What it does |
 |---|---|
@@ -68,14 +68,7 @@ To enable MCP servers, open `.mcp.json` in the plugin install directory and set 
 | `/tamirs-superpowers:targeted-debug` | Scope-bounded debug from a stack trace — reads only named files. |
 | `/tamirs-superpowers:babysit-pr` | Watch a PR and react to checks, review comments, and merges. |
 
-**`skills/integrations/` (2)**
-
-| Skill | What it does |
-|---|---|
-| `/tamirs-superpowers:slack-cli` | Drive Slack via the official CLI. |
-| `/tamirs-superpowers:proto-docs` | Generate API documentation from proto files. |
-
-**`skills/meta/` (4)**
+**`skills/meta/` (6)**
 
 | Skill | What it does |
 |---|---|
@@ -83,6 +76,8 @@ To enable MCP servers, open `.mcp.json` in the plugin install directory and set 
 | `/tamirs-superpowers:mcp-builder` | Build MCP servers. |
 | `/tamirs-superpowers:mcp-pagination` | Always include pagination params on MCP list/search calls. |
 | `/tamirs-superpowers:find-skill` | Search skill marketplaces and rank matches for a query. |
+| `/tamirs-superpowers:skill-creator` | Create, improve, and benchmark Claude Code skills. |
+| `/tamirs-superpowers:session-report` | Generate an HTML report of session token usage. |
 
 **`skills/content/` (2)**
 
@@ -95,8 +90,6 @@ To enable MCP servers, open `.mcp.json` in the plugin install directory and set 
 
 | Plugin | Marketplace | What it does |
 |---|---|---|
-| `skill-creator` | `claude-plugins-official` | Create / improve / benchmark skills. |
-| `session-report` | `claude-plugins-official` | HTML report of session token usage. |
 | `superpowers` | `superpowers-dev` | Jesse Vincent's skills framework. |
 
 ## Hooks
