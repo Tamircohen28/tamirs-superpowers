@@ -5,6 +5,11 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [1.0.6] - 2026-06-08
+
+### Fixed
+- **GitHub MCP** — replaced broken `stdio` + `sh -c` + `npx` approach with the official HTTP-based server (`https://api.githubcopilot.com/mcp/`). Set `GITHUB_PERSONAL_ACCESS_TOKEN` in your environment to activate. No npx, no Docker, no `gh` CLI dependency in the MCP config.
+
 ## [1.0.5] - 2026-06-08
 
 ### Added
