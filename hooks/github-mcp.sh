@@ -18,6 +18,6 @@ elif command -v docker &>/dev/null; then
     -e GITHUB_PERSONAL_ACCESS_TOKEN \
     ghcr.io/github/github-mcp-server stdio
 else
-  echo '{"jsonrpc":"2.0","error":{"code":-32000,"message":"Install github-mcp-server: brew install github/tap/github-mcp-server"}}' >&2
+  echo '{"jsonrpc":"2.0","error":{"code":-32000,"message":"Install github-mcp-server: brew install github-mcp-server"}}' >&2
   exit 1
 fi
