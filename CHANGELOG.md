@@ -5,6 +5,11 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [1.0.7] - 2026-06-08
+
+### Fixed
+- **GitHub MCP zero-config** — replaced HTTP Bearer token approach (required manual `GITHUB_PERSONAL_ACCESS_TOKEN` setup) with `hooks/github-mcp.sh`, a wrapper script that auto-derives the token from `gh auth token`. No manual token setup needed — if `gh` is authenticated, GitHub MCP works. Tries the official `github-mcp-server` binary first (`brew install github/tap/github-mcp-server`), falls back to Docker (`ghcr.io/github/github-mcp-server`).
+
 ## [1.0.6] - 2026-06-08
 
 ### Fixed
