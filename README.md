@@ -20,7 +20,7 @@ A personal Claude Code plugin that bundles 15 skills, smart worktree hooks, and 
 
 ## Features
 
-- **15 bundled skills** across dev-workflow, meta, and content — plan, implement, review, debug, audit docs, create and benchmark skills, and more, all from the Claude Code prompt
+- **15 bundled skills** — plan, implement, review, debug, audit docs, create and benchmark skills, and more, all from the Claude Code prompt
 - **Smart worktree hooks** that automatically create isolated git worktrees per task, derive task slugs from your first prompt, enforce edit isolation, and show Claude Code changelogs on update
 - **Auto-installed plugin dependencies** — superpowers pulls in automatically when you install this plugin
 - **MCP server stubs** for GitHub and Context7 — fill in your tokens and they're live
@@ -54,9 +54,7 @@ To enable MCP servers, open `.mcp.json` in the plugin install directory and set 
 
 ## Bundled Skills
 
-`skills/<topic>/<skill-name>/SKILL.md` — discovery is recursive.
-
-**`skills/dev-workflow/` (7)**
+Each skill lives at `skills/<skill-name>/SKILL.md`.
 
 | Skill | What it does |
 |---|---|
@@ -67,22 +65,12 @@ To enable MCP servers, open `.mcp.json` in the plugin install directory and set 
 | `/tamirs-superpowers:task-audit` | Audit a completed branch for quality and PR readiness. |
 | `/tamirs-superpowers:targeted-debug` | Scope-bounded debug from a stack trace — reads only named files. |
 | `/tamirs-superpowers:babysit-pr` | Watch a PR and react to checks, review comments, and merges. |
-
-**`skills/meta/` (6)**
-
-| Skill | What it does |
-|---|---|
 | `/tamirs-superpowers:changelog-review` | Fetch live Claude Code docs; answer questions and diff versions. |
 | `/tamirs-superpowers:mcp-builder` | Build MCP servers. |
 | `/tamirs-superpowers:mcp-pagination` | Always include pagination params on MCP list/search calls. |
 | `/tamirs-superpowers:find-skill` | Search skill marketplaces and rank matches for a query. |
 | `/tamirs-superpowers:skill-creator` | Create, improve, and benchmark Claude Code skills. |
 | `/tamirs-superpowers:session-report` | Generate an HTML report of session token usage. |
-
-**`skills/content/` (2)**
-
-| Skill | What it does |
-|---|---|
 | `/tamirs-superpowers:algorithmic-art` | Generate algorithmic art with p5.js. |
 | `/tamirs-superpowers:dark-terminal-doc` | Generate polished HTML docs with a dark terminal design system. |
 

@@ -17,7 +17,7 @@ A Claude Code plugin (marketplace + bundled skills + hooks). It is **not** a Nod
 | `hooks/hooks.json` | Hook event wiring (PreToolUse, SessionStart, etc.) |
 | `hooks/*.sh` | Hook scripts |
 | `hooks/lib/worktree-common.sh` | Shared bash helpers for all worktree hooks |
-| `skills/<topic>/<name>/SKILL.md` | Bundled skill definitions |
+| `skills/<name>/SKILL.md` | Bundled skill definitions |
 
 ## Commands
 
@@ -50,7 +50,7 @@ Scopes: `skills`, `hooks`, `marketplace`, `ci`, `docs`
 
 ## Adding a skill
 
-1. Create `skills/<topic>/<skill-name>/SKILL.md`
+1. Create `skills/<skill-name>/SKILL.md`
 2. Add frontmatter: `name`, `description`, `allowed-tools`
 3. Update `README.md` skill count and table
 4. Run `make validate`
