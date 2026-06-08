@@ -13,22 +13,6 @@
       "type": "stdio",
       "command": "npx",
       "args": ["-y", "@upstash/context7-mcp"]
-    },
-
-    "slack": {
-      "type": "stdio",
-      "command": "npx",
-      "args": ["-y", "@modelcontextprotocol/server-slack"],
-      "env": {
-        "SLACK_BOT_TOKEN": "${SLACK_BOT_TOKEN}",
-        "SLACK_TEAM_ID": "${SLACK_TEAM_ID}"
-      }
-    },
-
-    "desktop-commander": {
-      "type": "stdio",
-      "command": "npx",
-      "args": ["-y", "@wonderwhy-er/desktop-commander"]
     }
   }
 }

@@ -29,30 +29,6 @@
       "marketplace": "claude-plugins-official"
     },
     {
-      "name": "sourcegraph",
-      "marketplace": "claude-plugins-official"
-    },
-    {
-      "name": "atlassian",
-      "marketplace": "claude-plugins-official"
-    },
-    {
-      "name": "warp",
-      "marketplace": "claude-code-warp"
-    },
-    {
-      "name": "data",
-      "marketplace": "knowledge-work-plugins"
-    },
-    {
-      "name": "enterprise-search",
-      "marketplace": "knowledge-work-plugins"
-    },
-    {
-      "name": "productivity",
-      "marketplace": "knowledge-work-plugins"
-    },
-    {
       "name": "superpowers",
       "marketplace": "superpowers-dev"
     }
