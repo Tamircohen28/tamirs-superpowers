@@ -7,8 +7,6 @@
     "github": "Tamircohen28"
   },
   "allowCrossMarketplaceDependenciesOn": [
-    "claude-code-warp",
-    "knowledge-work-plugins",
     "superpowers-dev"
   ],
   "plugins": [

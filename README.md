@@ -22,8 +22,8 @@ A personal Claude Code plugin that bundles 15 skills, smart worktree hooks, and 
 
 - **15 bundled skills** across dev-workflow, integrations, meta, and content — plan, implement, review, debug, audit docs, and more, all from the Claude Code prompt
 - **Smart worktree hooks** that automatically create isolated git worktrees per task, derive task slugs from your first prompt, enforce edit isolation, and show Claude Code changelogs on update
-- **Auto-installed plugin dependencies** — Atlassian, Sourcegraph, session-report, skill-creator, Warp, and more pull in automatically when you install this plugin
-- **MCP server stubs** for GitHub, Slack, Context7, and Desktop Commander — fill in your tokens and they're live
+- **Auto-installed plugin dependencies** — skill-creator, session-report, and superpowers pull in automatically when you install this plugin
+- **MCP server stubs** for GitHub and Context7 — fill in your tokens and they're live
 - **Statusline** showing git branch, worktree state, and session context in your Claude Code footer
 - **Cross-marketplace dependencies** wired in `marketplace.json` so all third-party plugins resolve automatically
 
@@ -38,8 +38,6 @@ A personal Claude Code plugin that bundles 15 skills, smart worktree hooks, and 
 
 ```bash
 # 1. Register third-party marketplaces (one-time, new machine)
-/plugin marketplace add warpdotdev/claude-code-warp
-/plugin marketplace add anthropics/knowledge-work-plugins
 /plugin marketplace add obra/superpowers
 
 # 2. Add this marketplace
@@ -99,12 +97,6 @@ To enable MCP servers, open `.mcp.json` in the plugin install directory and set 
 |---|---|---|
 | `skill-creator` | `claude-plugins-official` | Create / improve / benchmark skills. |
 | `session-report` | `claude-plugins-official` | HTML report of session token usage. |
-| `sourcegraph` | `claude-plugins-official` | Code search across repos. |
-| `atlassian` | `claude-plugins-official` | Jira + Confluence search/create/update. |
-| `warp` | `claude-code-warp` | Warp terminal integration. |
-| `data` | `knowledge-work-plugins` | SQL, datasets, dashboards. |
-| `enterprise-search` | `knowledge-work-plugins` | Enterprise knowledge search. |
-| `productivity` | `knowledge-work-plugins` | General productivity toolkit. |
 | `superpowers` | `superpowers-dev` | Jesse Vincent's skills framework. |
 
 ## Hooks
