@@ -21,7 +21,7 @@ These are needed once per machine so Claude Code can resolve all plugin dependen
 ## Step 2 — Add this marketplace
 
 ```
-/plugin marketplace add TamirCohen28/tamirs-superpowers
+/plugin marketplace add Tamircohen28/tamirs-superpowers
 ```
 
 ## Step 3 — Install the plugin
@@ -63,7 +63,7 @@ Claude will propose a phased plan and create GitHub issues after you approve.
 If you don't want to use the marketplace system, clone directly into Claude Code's local skills directory:
 
 ```bash
-git clone https://github.com/TamirCohen28/tamirs-superpowers.git \
+git clone https://github.com/Tamircohen28/tamirs-superpowers.git \
   ~/.claude/skills/tamirs-superpowers
 ```
 

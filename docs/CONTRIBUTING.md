@@ -14,7 +14,7 @@ Thanks for your interest. This is a personal plugin, but PRs for bug fixes and g
 ## Development setup
 
 ```bash
-git clone https://github.com/TamirCohen28/tamirs-superpowers.git
+git clone https://github.com/Tamircohen28/tamirs-superpowers.git
 cd tamirs-superpowers
 brew install shellcheck jq  # if not already installed
 make validate               # should pass with zero errors
@@ -60,4 +60,4 @@ Topic conventions:
 
 ## Code review
 
-All PRs are reviewed by @TamirCohen28. Response time is best-effort — this is a personal project.
+All PRs are reviewed by @Tamircohen28. Response time is best-effort — this is a personal project.

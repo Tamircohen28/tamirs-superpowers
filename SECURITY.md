@@ -17,7 +17,7 @@ This repository contains Markdown skill files, Bash hook scripts, and JSON confi
 
 Please **do not** open a public GitHub issue for security vulnerabilities.
 
-Email: open a private [GitHub Security Advisory](https://github.com/TamirCohen28/tamirs-superpowers/security/advisories/new) instead.
+Email: open a private [GitHub Security Advisory](https://github.com/Tamircohen28/tamirs-superpowers/security/advisories/new) instead.
 
 Include:
 - A description of the vulnerability

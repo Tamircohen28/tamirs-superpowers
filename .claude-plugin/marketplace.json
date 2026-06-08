@@ -4,7 +4,7 @@
   "description": "Tamir Cohen's personal Claude Code plugin — 15 bundled skills, smart worktree hooks, statusline, and MCP server stubs for a complete developer workflow.",
   "owner": {
     "name": "Tamir Cohen",
-    "github": "TamirCohen28"
+    "github": "Tamircohen28"
   },
   "allowCrossMarketplaceDependenciesOn": [
     "claude-code-warp",
@@ -26,8 +26,8 @@
         "statusline",
         "developer-tools"
       ],
-      "homepage": "https://github.com/TamirCohen28/tamirs-superpowers",
-      "repository": "https://github.com/TamirCohen28/tamirs-superpowers"
+      "homepage": "https://github.com/Tamircohen28/tamirs-superpowers",
+      "repository": "https://github.com/Tamircohen28/tamirs-superpowers"
     }
   ]
 }

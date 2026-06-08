@@ -10,7 +10,7 @@ With a single plugin to publish, maintaining two repos adds overhead with no ben
 
 ## Decision
 
-Use a single GitHub repo (`TamirCohen28/tamirs-superpowers`) that serves as both the marketplace and the plugin source. `marketplace.json` sits at the repo root with `"source": "."`, pointing the marketplace at the root of the same repo as the plugin location.
+Use a single GitHub repo (`Tamircohen28/tamirs-superpowers`) that serves as both the marketplace and the plugin source. `marketplace.json` sits at the repo root with `"source": "."`, pointing the marketplace at the root of the same repo as the plugin location.
 
 ## Consequences
 

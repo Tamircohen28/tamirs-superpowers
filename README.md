@@ -3,8 +3,8 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/TamirCohen28/tamirs-superpowers/actions/workflows/ci.yml">
-    <img src="https://github.com/TamirCohen28/tamirs-superpowers/actions/workflows/ci.yml/badge.svg" alt="CI" />
+  <a href="https://github.com/Tamircohen28/tamirs-superpowers/actions/workflows/ci.yml">
+    <img src="https://github.com/Tamircohen28/tamirs-superpowers/actions/workflows/ci.yml/badge.svg" alt="CI" />
   </a>
   <a href="LICENSE">
     <img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="MIT License" />
@@ -43,7 +43,7 @@ A personal Claude Code plugin that bundles 15 skills, smart worktree hooks, and 
 /plugin marketplace add obra/superpowers
 
 # 2. Add this marketplace
-/plugin marketplace add TamirCohen28/tamirs-superpowers
+/plugin marketplace add Tamircohen28/tamirs-superpowers
 
 # 3. Install — dependencies auto-install alongside
 /plugin install tamirs-superpowers
@@ -139,4 +139,4 @@ MIT — see [LICENSE](LICENSE).
 
 ---
 
-Tamir Cohen · https://github.com/TamirCohen28
+Tamir Cohen · https://github.com/Tamircohen28

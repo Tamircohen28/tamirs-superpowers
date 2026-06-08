@@ -35,4 +35,4 @@ This repo doubles as a Claude Code marketplace. `marketplace.json` at the root d
 - The single plugin it publishes (`tamirs-superpowers`, source: `.`)
 - Which third-party marketplaces are allowed as cross-marketplace dependency sources
 
-When you run `/plugin marketplace add TamirCohen28/tamirs-superpowers`, Claude Code reads `marketplace.json` and knows how to resolve `tamirs-superpowers` and its cross-marketplace dependencies.
+When you run `/plugin marketplace add Tamircohen28/tamirs-superpowers`, Claude Code reads `marketplace.json` and knows how to resolve `tamirs-superpowers` and its cross-marketplace dependencies.

@@ -3,7 +3,7 @@
 ## Setup
 
 ```bash
-git clone https://github.com/TamirCohen28/tamirs-superpowers.git
+git clone https://github.com/Tamircohen28/tamirs-superpowers.git
 cd tamirs-superpowers
 brew install shellcheck jq gh   # if not already installed
 make validate                   # confirm all checks pass

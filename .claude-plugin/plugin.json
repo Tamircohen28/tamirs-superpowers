@@ -4,11 +4,11 @@
   "displayName": "Tamir's Superpowers",
   "version": "1.0.2",
   "description": "15 bundled skills, smart worktree hooks, and MCP server stubs — plan, implement, review, debug, and audit code from one plugin.",
-  "homepage": "https://github.com/TamirCohen28/tamirs-superpowers",
-  "repository": "https://github.com/TamirCohen28/tamirs-superpowers",
+  "homepage": "https://github.com/Tamircohen28/tamirs-superpowers",
+  "repository": "https://github.com/Tamircohen28/tamirs-superpowers",
   "author": {
     "name": "Tamir Cohen",
-    "url": "https://github.com/TamirCohen28"
+    "url": "https://github.com/Tamircohen28"
   },
   "keywords": [
     "skills",

@@ -63,7 +63,7 @@ First public release. Cleaned of all internal tooling references and scaffolded 
   - `task-audit` — audit a completed branch for quality and PR readiness
   - `targeted-debug` — scope-bounded debug from stack trace (reads only named files)
   - `changelog-review` — fetch live Claude Code docs; answer questions, diff versions
-- **`marketplace.json`** at repo root — repo now doubles as a Claude Code marketplace (`TamirCohen28/tamirs-superpowers`). Cross-marketplace dependencies (`claude-code-warp`, `knowledge-work-plugins`, `superpowers-dev`) are allowlisted so no manual `/plugin marketplace add` steps are required after install.
+- **`marketplace.json`** at repo root — repo now doubles as a Claude Code marketplace (`Tamircohen28/tamirs-superpowers`). Cross-marketplace dependencies (`claude-code-warp`, `knowledge-work-plugins`, `superpowers-dev`) are allowlisted so no manual `/plugin marketplace add` steps are required after install.
 - Full documentation tree: `docs/user/` (concepts, quick-start, troubleshooting, skill reference) and `docs/engineering/` (architecture overview, dev workflow, CI workflow, 2 ADRs).
 - `CLAUDE.md` — contributor guidance for Claude Code sessions.
 - `Makefile` — `validate`, `lint`, `test` targets (shellcheck + JSON validation + SKILL.md frontmatter check).
@@ -83,7 +83,7 @@ First public release. Cleaned of all internal tooling references and scaffolded 
 - **`mcp-builder`**, **`algorithmic-art`** — fixed `license: Complete terms in LICENSE.txt` → `license: MIT` (file is `LICENSE`, not `LICENSE.txt`).
 - **`.gitignore`** — added `.claude/worktrees/`, `.claude/outputs/`, `.claude/sessions/`.
 - **`hooks/hooks.json`** — fixed trailing comma (was invalid JSON).
-- **Author** updated throughout: `tamirc@wix.com` → `https://github.com/TamirCohen28`.
+- **Author** updated throughout: `tamirc@wix.com` → `https://github.com/Tamircohen28`.
 
 ### Removed
 - **11 Wix-internal skills** — all tools specific to internal infrastructure:
