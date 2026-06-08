@@ -28,10 +28,9 @@ tamirs-superpowers/              ← GitHub repo root
 │   ├── worktree-remove.sh       ← WorktreeRemove: clean up global worktree
 │   └── init-output-dir.sh       ← Helper: create session output dir
 └── skills/
-    ├── dev-workflow/            ← 8 skills: plan-dev, start-dev, pr-dev, …
-    ├── integrations/            ← 2 skills: slack-cli, proto-docs
-    ├── meta/                    ← 4 skills: changelog-review, mcp-builder, …
-    └── content/                 ← 2 skills: algorithmic-art, user-dark-terminal-doc
+    ├── dev-workflow/            ← 7 skills: plan-dev, start-dev, pr-dev, …
+    ├── meta/                    ← 6 skills: changelog-review, mcp-builder, skill-creator, …
+    └── content/                 ← 2 skills: algorithmic-art, dark-terminal-doc
 ```
 
 ## Hook system

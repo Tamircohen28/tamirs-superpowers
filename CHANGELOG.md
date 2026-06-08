@@ -5,6 +5,17 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [1.0.5] - 2026-06-08
+
+### Added
+- **`skill-creator` bundled** (`skills/meta/skill-creator/`) — create, improve, and benchmark Claude Code skills, now shipped directly in this plugin
+- **`session-report` bundled** (`skills/meta/session-report/`) — HTML token usage reports, now shipped directly in this plugin
+
+### Removed
+- **`skills/integrations/slack-cli`** — enterprise-specific, removed for public release
+- **`skills/integrations/proto-docs`** — enterprise-specific, removed for public release
+- **`skill-creator` and `session-report` from `dependencies`** — both were declared as external dependencies on `claude-plugins-official` plugins that have no `version` field, causing permanent `/doctor` failures; bundling them directly resolves this
+
 ## [1.0.2] - 2026-06-08
 
 Full plugin spec compliance pass based on official Claude Code plugins guide.
@@ -83,7 +94,7 @@ First public release. Cleaned of all internal tooling references and scaffolded 
 - **`mcp-builder`**, **`algorithmic-art`** — fixed `license: Complete terms in LICENSE.txt` → `license: MIT` (file is `LICENSE`, not `LICENSE.txt`).
 - **`.gitignore`** — added `.claude/worktrees/`, `.claude/outputs/`, `.claude/sessions/`.
 - **`hooks/hooks.json`** — fixed trailing comma (was invalid JSON).
-- **Author** updated throughout: `tamirc@wix.com` → `https://github.com/Tamircohen28`.
+- **Author** updated throughout: `tamircohen2468@gmail.com` → `https://github.com/Tamircohen28`.
 
 ### Removed
 - **11 Wix-internal skills** — all tools specific to internal infrastructure:
