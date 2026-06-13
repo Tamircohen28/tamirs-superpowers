@@ -155,15 +155,19 @@ hash_port_for_branch() {
 }
 
 # Write a per-worktree DEV_PORT into .env.local (without clobbering an existing one).
+# Only writes when .env.local is gitignored or already exists — avoids leaving an
+# untracked file that would block cleanup_stale_worktrees' porcelain check.
 write_worktree_env_local() {
   local worktree_path="$1"
   local branch_name="$2"
   local port
   port="$(hash_port_for_branch "$branch_name")"
-  if [[ -f "${worktree_path}/.env.local" ]]; then
-    grep -q '^DEV_PORT=' "${worktree_path}/.env.local" 2>/dev/null || echo "DEV_PORT=${port}" >> "${worktree_path}/.env.local"
-  else
-    echo "DEV_PORT=${port}" > "${worktree_path}/.env.local"
+
+  local env_local="${worktree_path}/.env.local"
+  if [[ -f "$env_local" ]]; then
+    grep -q '^DEV_PORT=' "$env_local" 2>/dev/null || echo "DEV_PORT=${port}" >> "$env_local"
+  elif git -C "$worktree_path" check-ignore -q .env.local 2>/dev/null; then
+    echo "DEV_PORT=${port}" > "$env_local"
   fi
 }
 
@@ -268,7 +272,7 @@ cleanup_stale_worktrees() {
     [[ -d "$wt_dir/.git" || -f "$wt_dir/.git" ]] || continue
 
     local mtime
-    mtime="$(stat -f %m "$wt_dir" 2>/dev/null || stat -c %Y "$wt_dir" 2>/dev/null || echo 0)"
+    mtime="$(stat -c %Y "$wt_dir" 2>/dev/null || stat -f %m "$wt_dir" 2>/dev/null || echo 0)"
     [[ "$mtime" -lt "$cutoff_epoch" ]] || continue
 
     if [[ -n "$(git -C "$wt_dir" status --porcelain 2>/dev/null)" ]]; then
@@ -295,7 +299,7 @@ prune_session_files_archive() {
 
   find "$SESSION_FILES_ARCHIVE" -mindepth 1 -maxdepth 1 -type d 2>/dev/null | while read -r dir; do
     local mtime
-    mtime="$(stat -f %m "$dir" 2>/dev/null || stat -c %Y "$dir" 2>/dev/null || echo 0)"
+    mtime="$(stat -c %Y "$dir" 2>/dev/null || stat -f %m "$dir" 2>/dev/null || echo 0)"
     [[ "$mtime" -lt "$cutoff_epoch" ]] && rm -rf "$dir"
   done
 }
