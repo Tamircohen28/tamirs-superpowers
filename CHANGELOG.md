@@ -5,6 +5,19 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-06-13
+
+### Fixed
+- **Statusline now activates on install** — `statusLine` was declared as a top-level `plugin.json` field, which the plugin manifest schema does not define; Claude Code silently ignored it. Moved under the schema-supported `settings` object so it merges into user settings while the plugin is enabled.
+- **Install Quick Start corrected** — removed broken `marketplace add Tamircohen28/tamirs-superpowers` instruction (the per-repo `marketplace.json` was removed in v1.0.8). Install via `tamirs-superpowers@tamirs-plugins` instead.
+- Removed non-existent `/reload-plugins` command from docs.
+- Fixed stale "wired in marketplace.json" dependency claim.
+
+### Added
+- Shell-based (`claude plugin …`) install path documented alongside in-Claude slash commands.
+- Statusline troubleshooting note for manual fallback if settings-merge path doesn't activate it.
+- `repo-polish` skill added to the skills table (was missing despite being bundled since v1.0.9).
+
 ## [1.0.7] - 2026-06-08
 
 ### Fixed
