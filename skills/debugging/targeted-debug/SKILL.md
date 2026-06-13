@@ -40,12 +40,11 @@ user explicitly asks for them in this turn.
 
 ## Why this skill exists
 
-The `/insights` report flagged "Claude went into wide codebase exploration when
-the user wanted targeted debug" as a top-3 friction category. The full
-`/investigate` pipeline is the right tool for "I don't know what's happening,
-investigate the whole thing." This skill is the right tool for "here's the
-stack trace, tell me what's wrong" — and the explicit constraint that makes it
-work is a hard scope rule.
+When given a bug report or stack trace, the temptation is to start grepping
+the codebase broadly — but that adds noise and misses the signal. The right
+tool for "I don't know what's happening, investigate the whole thing" is a
+full investigation session. This skill is for "here's the stack trace, tell me
+what's wrong" — the explicit scope constraint is what makes it fast and precise.
 
 ## Hard rules
 
@@ -72,20 +71,15 @@ ask** — don't quietly read 10 more files.
 ### 1. Parse the input
 
 The user gives you one or more of:
-- A ticket key (e.g. `SCHED-46824`)
 - A stack trace pasted inline
-- An error signature (`NullPointerException at BookingsConfirmService:142`)
+- An error signature (e.g. `NullPointerException at UserService:142`)
 - One or more file paths
+- A ticket/issue number or description
 
-Extract the in-scope file set. The helper script does this deterministically:
-
-```bash
-bash "${CLAUDE_SKILL_DIR}/scripts/extract-error-paths.sh" "$INPUT"
-```
-
-It reads stdin or `$1` and emits a newline-separated list of file paths
-detected in stack-trace format. Cross-check the output with what the user
-pasted — only those files plus the user-named ones are in scope.
+Extract the in-scope file set by scanning the input for file paths in
+stack-trace format (`at ClassName.method(FileName.java:42)`, Python tracebacks,
+`File "path/to/file.py", line N`, etc.). Cross-check with what the user
+explicitly named — only those files are in scope.
 
 ### 2. Form a hypothesis from the stack trace ALONE
 
@@ -115,8 +109,7 @@ outcomes:
 
 ### 5. Output
 
-Produce a short report with these sections (use `templates/report.md` as
-the skeleton if helpful):
+Produce a short report:
 
 ```
 ## Hypothesis (from stack trace)
@@ -132,35 +125,27 @@ the skeleton if helpful):
 …
 
 ## Out-of-scope follow-ups
-- Files we did NOT read but might be relevant (with one-line justification)
-- MCP queries that would confirm/refute (Grafana log query, Slack thread search)
-- Whether `/investigate <ticket>` is now warranted
+- Files NOT read but potentially relevant (with one-line justification for each)
+- Whether a broader investigation is now warranted
 ```
 
 The "Out-of-scope follow-ups" section is the **escape hatch** — if the user
-wants the broader investigation, they invoke `/investigate` with that
-context. This skill stops at the boundary instead of crossing it silently.
+wants the broader investigation, they ask for it explicitly. This skill stops
+at the boundary instead of crossing it silently.
 
 ## Anti-patterns
 
 - ❌ Reading the entire test directory to "see how things are normally done."
 - ❌ `Grep` for the exception class across the repo to find similar uses.
-- ❌ Auto-invoking `/investigate` "just to be thorough." If the user wanted
-   that, they'd have asked.
-- ❌ Auto-invoking MCP tools (Grafana, Slack, Jira) to "gather context."
+- ❌ Launching a broader investigation "just to be thorough" — if the user wanted that, they'd have asked.
 - ❌ Reading `node_modules`, `dist/`, generated code, or build outputs unless
    the stack trace literally points there.
 - ❌ Adding speculative root causes in the report that aren't supported by
    in-scope evidence.
 
-## When to escalate to `/investigate`
+## When to escalate
 
-If the user's question is genuinely "I don't know what's happening with this
-ticket," that's `/investigate` territory. Tell them so. This skill is for
-when there's already a concrete error and the question is "why and where."
-
-## References
-
-- **[`scripts/extract-error-paths.sh`](scripts/extract-error-paths.sh)** — deterministic path extraction from stack-trace strings.
-- **[`references/scope-decisions.md`](references/scope-decisions.md)** — examples of "in scope" vs "out of scope" decisions.
-- **[`evals/evals.json`](evals/evals.json)** — pins the no-broad-exploration / no-MCP / no-investigate-launch rules.
+If the user's question is genuinely "I don't know what's happening" with no
+concrete stack trace, that warrants a full investigation session, not this
+skill. Tell them so. This skill is for when there's already a concrete error
+and the question is "why and where."
