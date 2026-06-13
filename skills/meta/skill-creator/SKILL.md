@@ -1,6 +1,8 @@
 ---
 name: skill-creator
-description: Use when creating a new Claude Code skill from scratch, editing or improving an existing SKILL.md, running eval benchmarks to test skill quality, optimizing a skill description for better triggering accuracy, or iterating on a skill based on test case feedback. Also use when a user says "make this a skill", "turn this workflow into a skill", "my skill isn't triggering", or "help me write a skill". Covers the full draft → test → evaluate → improve loop.
+description: "Use when creating or improving a Claude Code skill, optimizing its description for triggering, or running skill evals. Triggers: 'make this a skill', 'turn this into a skill', 'my skill isn't triggering', 'write a skill', 'improve this SKILL.md'."
+when_to_use: "User wants to create, edit, benchmark, or fix triggering for a SKILL.md — phrases like 'make this a skill', 'skill isn't triggering', 'improve skill description', 'run skill evals'."
+argument-hint: "[skill name or path to SKILL.md]"
 model: claude-sonnet-4-6
 allowed-tools:
   - Bash
@@ -13,6 +15,12 @@ allowed-tools:
   - Skill
   - Agent
 metadata:
+  capability: meta
+  tags:
+    - skill
+    - authoring
+    - evals
+    - triggering
   updated-date: "2026-06-13"
 ---
 

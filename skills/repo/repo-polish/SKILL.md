@@ -1,6 +1,7 @@
 ---
 name: repo-polish
-description: "Use when a user wants to prepare a personal project for public GitHub release, clean up employer IP, scaffold world-class repo infrastructure, or publish to GitHub. Triggers: 'polish this repo', 'prepare project for GitHub', 'make it public-ready', 'clean up and publish', 'world-class repo', 'repo-polish', 'open-source this', 'publish my project', 'scan for employer IP'. Adds README, docs, CI/CD, PR templates, CLAUDE.md, CHANGELOG, CONTRIBUTING, LICENSE, then optionally creates a GitHub repo."
+description: "Use when preparing a personal project for public GitHub — scan employer IP, scaffold docs/CI, publish. Triggers: 'polish this repo', 'prepare for GitHub', 'make public-ready', 'repo-polish', 'open-source this', 'scan for employer IP'."
+disable-model-invocation: true
 user-invocable: true
 when_to_use: "User wants to prepare a personal project for GitHub publication — scan for employer IP, add docs, set up CI/CD, upload to GitHub."
 argument-hint: "<path-to-project-directory>"
@@ -37,7 +38,29 @@ Prepare a personal project for world-class open-source publication on GitHub.
 
 Publishing a project directly from a work environment almost always leaks employer IP: internal CI runners (`runs-on: [self-hosted]`), internal service URLs, hardcoded tokens, or references to private GitHub orgs. Beyond that, most personal projects lack the infrastructure (README, docs tree, CI, PR templates, CLAUDE.md) that signals a maintained, trustworthy project to contributors and future employers. This skill automates both the forensic cleanup and the scaffolding in a gated, user-approved flow — so nothing lands on GitHub without review.
 
-## Step-by-step workflow
+## Internal skills
+
+Quality audits are delegated to companion skills — invoke them with the **Skill tool**, not by reimplementing their checklists inline:
+
+| Skill | Role | When repo-polish invokes it |
+|-------|------|----------------------------|
+| `repo-review` | Repo health audit (read-only report) | After scaffolding (Step 6a); optional early pass after Step 1 if repo is already large |
+| `docs-review` | Doc sweep — fixes README + `docs/**` in place | After docs exist (Step 6b); re-run if Step 6a fixes touched docs |
+| `changelog-review` | Claude Code plugin pattern audit | Step 6c — only if project has `.claude/` or is a Claude Code plugin |
+
+All three are internal-only (`user-invocable: false`). Users run `repo-polish`; these skills run automatically during Step 6.
+
+**Before every internal skill invocation:**
+
+```bash
+cd "$PROJECT_DIR"
+```
+
+Pass `$PROJECT_DIR` as context so the child skill audits the target project, not the plugin cache.
+
+**Mandatory Step 6 order:** `repo-review` → apply P1 repo fixes → `docs-review` → apply doc fixes → `changelog-review` (if plugin) → apply P1 plugin-doc fixes. Do not skip to Step 7 until all invoked audits pass or remaining findings are explicitly P2/P3 deferred.
+
+---
 
 ### Step 0 — Resolve project directory
 
@@ -317,28 +340,65 @@ If absent or sparse, generate a comprehensive one for the detected stack.
 * @<your-github-username>
 ```
 
-### Step 6 — Quality audits
+### Step 6 — Quality audits (mandatory)
 
-Run specialist audit skills. Address P1 findings before writing the summary report.
+Run specialist audit skills against `$PROJECT_DIR`. Address **all P1 findings** before Step 7. P2/P3 may be noted in the summary as deferred.
 
-**6a. Documentation quality:**
+```bash
+cd "$PROJECT_DIR"
 ```
-Skill("docs-review")
-```
 
-**6b. Repository health:**
+#### 6a. Repository health (repo-review)
+
+Invoke first — surfaces structural issues before doc polish:
+
 ```
 Skill("repo-review")
 ```
 
-Review the output and apply P1 fixes (broken links, empty dirs, dead scripts).
+Context to pass: `$PROJECT_DIR` is the repo root. The skill writes a read-only report to `docs/repo-review-<date>.md`.
 
-**6c. Claude Code pattern audit** (only if the project is a Claude Code plugin or has a `.claude/` directory):
+After the report returns:
+1. Read every **P1** finding (empty dirs, CI-breaking layout, misplaced governance files).
+2. Apply fixes in `$PROJECT_DIR` using `Edit` — repo-review does not edit files itself.
+3. If P1 fixes changed structure or deleted stale files, note them for 6b.
+
+#### 6b. Documentation quality (docs-review)
+
+Invoke after Step 5 scaffolding (and after 6a P1 fixes) so README + `docs/**` exist:
+
+```
+Skill("docs-review")
+```
+
+Context to pass: audit `$PROJECT_DIR/README.md` and `$PROJECT_DIR/docs/**`. Optional argument: `docs/**` if the tree is large.
+
+`docs-review` fixes docs in place. After it returns:
+1. Review its summary for remaining broken links or stale counts.
+2. Fix any P1 items it flagged but did not auto-fix.
+3. If you applied manual doc fixes, re-run `Skill("docs-review")` once to confirm clean.
+
+#### 6c. Claude Code pattern audit (changelog-review)
+
+**Only** if the project is a Claude Code plugin or has a `.claude/` directory:
+
 ```
 Skill("changelog-review")
 ```
 
-Pass the project's `.claude/`, `plugin.json`, `SKILL.md` files, and `hooks.json` as review input.
+Pass as review input: `.claude/`, `plugin.json` or `.claude-plugin/plugin.json`, `SKILL.md` files, `hooks/hooks.json`, and any `.mcp.json`.
+
+Apply P1 findings (invalid frontmatter, stale hook wiring, broken skill paths) before continuing.
+
+#### 6d. Audit gate
+
+Before Step 7, confirm:
+
+- [ ] `repo-review` invoked — all P1 repo findings fixed or explicitly deferred with reason
+- [ ] `docs-review` invoked — README + docs link-clean; no stray plan files tracked
+- [ ] `changelog-review` invoked if plugin — or N/A noted in summary
+
+If any P1 item remains open, do not ask the user to push to GitHub.
 
 ### Step 7 — Report and confirm
 
@@ -397,6 +457,8 @@ Print the final repo URL and a brief next-steps checklist (add a banner image, e
 
 ## Hard rules
 
+- **Always invoke `repo-review` and `docs-review` in Step 6** — do not skip audits or substitute a manual skim
+- **Apply all P1 audit findings** before Step 7; defer P2/P3 only with explicit user-visible note
 - **Never push to GitHub without explicit user approval** — "yes", "go ahead", or equivalent
 - **Employer IP scan must be clean** before writing the final report or pushing
 - **Never use `runs-on: [self-hosted]`** in any generated CI workflow — always `ubuntu-latest`
@@ -423,7 +485,8 @@ Print the final repo URL and a brief next-steps checklist (add a banner image, e
 [ ] Step 4  Employer IP removed — scan re-run and clean
 [ ] Step 4b Stale remote branches deleted
 [ ] Step 5  Repo infrastructure scaffolded
-[ ] Step 6  Quality audits run (docs-review, repo-review, changelog-review if plugin)
+[ ] Step 6  Quality audits: repo-review (P1 fixed) → docs-review (clean) → changelog-review if plugin
+[ ] Step 6d Audit gate passed — no open P1 findings
 [ ] Step 7  Summary table shown — user has approved GitHub push
 [ ] Step 8  GitHub repo created and pushed
 ```

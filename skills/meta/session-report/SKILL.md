@@ -1,17 +1,20 @@
 ---
 name: session-report
-description: >
-  Use when the user wants to see how many tokens Claude Code has used, which projects consumed the most tokens, how effective prompt caching has been, which skills or subagents are expensive, or which prompts cost the most. Generates a self-contained interactive HTML report from ~/.claude/projects session transcripts. Synonyms: usage report, cost report, token breakdown, session summary, claude analytics, spend report.
+description: "Use when the user wants token usage, cache stats, skill costs, or session analytics from Claude Code. Triggers: 'session report', 'token usage', 'how many tokens', 'cache hit rate', 'which project costs most', 'claude analytics'."
+argument-hint: "[optional time window — e.g. '7d', '30d', 'since Monday']"
 allowed-tools:
   - Bash
   - Read
   - Edit
-when_to_use: >
-  "show me my Claude usage", "how many tokens did I use this week", "which project is burning the most tokens",
-  "generate a session report", "token usage report", "cache hit rate", "what's costing me the most",
-  "subagent cost breakdown", "claude analytics", "expensive prompts"
+when_to_use: "User asks for usage analytics — 'show my Claude usage', 'token report', 'session report', 'cache hit rate', 'expensive prompts', 'subagent cost breakdown'."
 model: claude-sonnet-4-6
 metadata:
+  capability: meta
+  tags:
+    - analytics
+    - tokens
+    - usage
+    - report
   updated-date: "2026-06-13"
 ---
 

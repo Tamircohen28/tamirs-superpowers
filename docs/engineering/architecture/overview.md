@@ -2,63 +2,57 @@
 
 ## What this repo is
 
-`tamirs-superpowers` is a Claude Code plugin distributed through a self-hosted marketplace. The repo serves a dual role:
-
-1. **Marketplace** — `marketplace.json` at the root registers this GitHub repo as a Claude Code plugin marketplace under the name `tamirs-superpowers`.
-2. **Plugin** — `.claude-plugin/plugin.json` at the same root registers the `tamirs-superpowers` plugin, pointing `source: "."` so the plugin and marketplace coexist in one repo.
+`tamirs-superpowers` is a Claude Code plugin distributed through the [`tamirs-plugins`](https://github.com/Tamircohen28/plugins) marketplace catalog. The repo is the plugin source — install with `/plugin install tamirs-superpowers@tamirs-plugins`.
 
 ## Component map
 
 ```
 tamirs-superpowers/              ← GitHub repo root
-├── marketplace.json             ← Marketplace manifest (declares the plugin + cross-marketplace allowlist)
 ├── .claude-plugin/
-│   └── plugin.json              ← Plugin manifest (name, version, dependencies, statusLine)
-├── .mcp.json                    ← MCP server declarations (4 npm-installable servers)
-├── statusline.sh                ← Statusline script (wired via plugin.json statusLine.command)
+│   └── plugin.json              ← Plugin manifest (name, version, skills paths, statusLine)
+├── .mcp.json                    ← MCP server stubs (github, context7)
+├── statusline.sh                ← Statusline script (wired via plugin.json settings.statusLine)
 ├── hooks/
-│   ├── hooks.json               ← Event wiring (7 hook entries)
+│   ├── hooks.json               ← Event wiring
 │   ├── lib/worktree-common.sh   ← Shared bash library (slugify, session state, worktree paths)
-│   ├── capture-task-slug.sh     ← UserPromptSubmit: slug + worktree creation
-│   ├── enforce-worktree-edits.sh ← PreToolUse(Edit|Write…): block main-checkout edits
-│   ├── protect-other-branches.sh ← PreToolUse(Bash): block PR ops on foreign branches
-│   ├── session-init.sh          ← SessionStart: seed session state JSON
-│   ├── show-changelog.sh        ← SessionStart: show Claude Code changelog on version bump
-│   ├── worktree-create.sh       ← WorktreeCreate: create global worktree
-│   ├── worktree-remove.sh       ← WorktreeRemove: clean up global worktree
-│   └── init-output-dir.sh       ← Helper: create session output dir
-└── skills/
-    ├── dev-workflow/            ← 7 skills: plan-dev, start-dev, pr-dev, …
-    ├── meta/                    ← 6 skills: changelog-review, mcp-builder, skill-creator, …
-    └── content/                 ← 2 skills: algorithmic-art, dark-terminal-doc
+│   ├── capture-task-slug.sh   ← UserPromptSubmit: slug + worktree creation
+│   ├── enforce-worktree-edits.sh ← PreToolUse: block main-checkout edits
+│   ├── protect-other-branches.sh ← PreToolUse: block PR ops on foreign branches
+│   ├── session-init.sh          ← SessionStart: seed session state
+│   ├── show-changelog.sh        ← SessionStart: Claude Code changelog on version bump
+│   ├── worktree-create.sh       ← WorktreeCreate
+│   └── worktree-remove.sh       ← WorktreeRemove
+└── skills/                      ← 15 skills in 7 domains (see CLAUDE.md)
+    ├── creative/                ← algorithmic-art
+    ├── debugging/               ← targeted-debug
+    ├── dev-workflow/            ← babysit-pr, plan-dev, start-dev
+    ├── documentation/           ← changelog-review, dark-terminal-doc, docs-review
+    ├── mcp/                     ← mcp-builder, mcp-pagination
+    ├── meta/                    ← find-skill, session-report, skill-creator
+    └── repo/                    ← repo-polish, repo-review
 ```
 
 ## Hook system
 
-Hooks are shell scripts registered in `hooks/hooks.json`. Claude Code executes them at lifecycle events and passes JSON on stdin. Each hook reads the JSON, does its work, and emits either `{"suppressOutput": true}` (silent) or a structured response that injects context into the session.
+Hooks are shell scripts registered in `hooks/hooks.json`. Claude Code executes them at lifecycle events and passes JSON on stdin.
 
 The most complex hook is `capture-task-slug.sh` (UserPromptSubmit):
 
-1. Reads session state from `~/.claude/sessions/<session_id>.json` (managed by `worktree-common.sh`)
-2. On the first prompt of a session, derives a slug from the prompt text via `slugify_text()`
-3. Creates a git worktree at `~/.claude/worktrees/<repo>/<slug>/` using `git worktree add`
-4. Exposes `CLAUDE_TASK_SLUG`, `CLAUDE_WORKTREE_PATH`, and `CLAUDE_SESSION_FILES_DIR` as env vars via `$CLAUDE_ENV_FILE`
-5. Injects `additionalContext` into the session to tell Claude where to work
+1. Reads session state from `~/.claude/sessions/<session_id>.json`
+2. On the first prompt, derives a slug from the prompt text
+3. Creates a git worktree at `~/.claude/worktrees/<repo>/<slug>/`
+4. Exposes `CLAUDE_TASK_SLUG`, `CLAUDE_WORKTREE_PATH`, and `CLAUDE_SESSION_FILES_DIR` via `$CLAUDE_ENV_FILE`
+5. Injects `additionalContext` so Claude knows where to work
 
 ## Skill loading
 
-Claude Code discovers skills by scanning for `SKILL.md` files recursively under the plugin's root. No registration step is needed — any valid `SKILL.md` with `name:` and `description:` frontmatter becomes a slash command.
+Claude Code discovers skills via the `skills` array in `plugin.json`, which points at domain directories under `skills/`. Each skill is a folder with a `SKILL.md` file. The **directory name** is the slash-command name (e.g. `skills/dev-workflow/plan-dev/` → `/plan-dev`).
 
-Skills are stateless Markdown instructions. They declare `allowed-tools:` in frontmatter to restrict which Claude tools the skill can invoke.
+Internal skills (`user-invocable: false`) are hidden from the `/` menu but invokable via `Skill("name")` from parent skills (e.g. `repo-polish` → `docs-review`).
 
 ## Dependency resolution
 
-`plugin.json` declares 9 plugin dependencies. When a user runs `/plugin install tamirs-superpowers`, Claude Code:
-
-1. Reads the `dependencies` array
-2. For each dependency, resolves the plugin from the named marketplace
-3. Installs all dependencies in parallel, then the root plugin
-4. Cross-marketplace dependencies (e.g. `warp` from `claude-code-warp`) are allowed because `marketplace.json` lists those marketplaces in `allowCrossMarketplaceDependenciesOn`
+`plugin.json` declares one dependency: `superpowers@superpowers-dev`. When a user installs via `tamirs-plugins`, Claude Code resolves and installs the dependency marketplace plugin alongside this one.
 
 ## Data flow for a skill invocation
 

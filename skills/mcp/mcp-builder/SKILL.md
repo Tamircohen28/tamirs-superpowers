@@ -30,6 +30,28 @@ metadata:
 
 Wrapping an external API in an MCP server sounds simple, but naive implementations fail Claude in practice: tools return walls of JSON that exhaust context, list operations return unbounded results that time out, error messages say "400 Bad Request" without guidance, and tool names are so generic (`get`, `list`) that the model picks wrong ones. This guide enforces the patterns — pagination-first, structured output, actionable errors, consistent naming — that make the difference between a server Claude can use reliably and one it struggles with.
 
+## Internal skills
+
+Pagination guardrails live in a companion skill — **do not duplicate or guess limits inline**:
+
+```
+Skill("mcp-pagination")
+```
+
+`mcp-pagination` is internal-only (`user-invocable: false`). Invoke it with the **Skill tool** whenever this workflow touches list/search operations. It owns limit defaults, cursor conventions, SQL `LIMIT` enforcement, and the pre-ship checklist.
+
+**Invoke `mcp-pagination` when any of these apply:**
+
+| Trigger | Phase |
+|---------|-------|
+| Planning tool inventory and any endpoint returns a collection | Phase 1 |
+| Before writing each `list_*`, `search_*`, or array-returning tool | Phase 3 |
+| Before adding or changing SQL-executing tools | Phase 3 |
+| After implementing list/search tools — audit against checklist | Phase 4 |
+| Eval questions require multi-page fetches — verify caller-driven pagination | Phase 5 |
+
+Skip invocation only when the server has **zero** list, search, or bulk-read operations (e.g. a single `create_*` write tool).
+
 ---
 
 ## Language selection
@@ -77,15 +99,17 @@ WebFetch("https://raw.githubusercontent.com/modelcontextprotocol/python-sdk/main
 
 Review authentication method, rate limits, pagination strategy (cursor vs. offset), and which endpoints map to the most common user tasks. Deprioritize rarely-used admin endpoints.
 
-### 1.4 Invoke the mcp-pagination skill
+Catalog every endpoint that returns a collection or supports search — these become list/search tools in Phase 3.
 
-Before implementing any list or search tool, run the pagination guardrail skill:
+### 1.4 Apply pagination guardrails (mcp-pagination)
+
+If the catalog from 1.3 includes **any** list, search, or bulk-read operation, invoke the internal skill **before** writing tool schemas:
 
 ```
 Skill("mcp-pagination")
 ```
 
-This enforces mandatory pagination parameter conventions (`cursor`, `limit`, `next_cursor`) across all list/search tools.
+Pass the planned tool names and the target API's native pagination params. Apply its Step 1–3 output to your tool design (limit defaults, cursor/offset mapping, safe starting limits). Do not proceed to Phase 3 implementation until pagination strategy is set for every collection endpoint.
 
 ---
 
@@ -124,6 +148,16 @@ pip install fastmcp pydantic httpx
 ---
 
 ## Phase 3 — Implement tools
+
+### 3.0 Pagination gate (before each list/search tool)
+
+For **every** tool matching `list_*`, `search_*`, top-level array results, or SQL execution:
+
+1. Invoke `Skill("mcp-pagination")` if not already applied this session for this tool.
+2. Implement the limit/cursor/filter params and defaults from its workflow — do not invent your own.
+3. Return `next_cursor` (or equivalent) when results are truncated; never auto-fetch page 2+.
+
+The templates below show the expected shape; numeric defaults must match `mcp-pagination` safe ranges for the operation type.
 
 ### Naming convention
 
@@ -224,6 +258,16 @@ Test each tool in the MCP Inspector before declaring done. Check:
 - Error messages include the HTTP status, response body snippet, and a suggested fix
 - Tool descriptions are concise (under 120 chars for the summary line)
 
+### 4.1 Pagination audit (mcp-pagination)
+
+If the server includes any list/search/SQL tools, invoke:
+
+```
+Skill("mcp-pagination")
+```
+
+Run its **Quick-reference checklist** against the implemented tool set. Fix every failing item before shipping. Typical failures: missing `limit`, default above 100, auto-pagination in server code, SQL without `LIMIT`.
+
 ---
 
 ## Phase 5 — Evaluations
@@ -241,17 +285,20 @@ Create 10 read-only evaluation questions that require 3+ tool calls to answer. F
 
 Each question must be: independent, read-only, complex (multi-step), realistic, and produce a stable verifiable answer.
 
+If eval scenarios require paginated tools, confirm with `Skill("mcp-pagination")` that evals use explicit limits and caller-driven continuation — not server-side full scans.
+
 ---
 
 ## Hard rules
 
-1. **Never return unbounded lists.** Every list/search tool must have a `limit` parameter (default ≤ 25, max ≤ 100) and return a `next_cursor` field when results are truncated.
+1. **Never return unbounded lists.** Delegate limit/cursor/filter rules to `mcp-pagination` — invoke it at every trigger in the table above; do not skip for "simple" APIs.
 2. **Error messages must be actionable.** Include the HTTP status, a snippet of the response body, and a concrete next step (e.g., "Check the X_TOKEN env var" or "Use a valid repo slug").
 3. **Tool names must be unambiguous.** Always use `{service}_{verb}_{noun}` — never single-word names like `list` or `get`.
 4. **Never hardcode credentials.** Read tokens from environment variables (`process.env.X` / `os.environ["X"]`) only.
-5. **Always run `mcp-pagination` before implementing list/search tools.** Do not skip this step even for simple APIs.
+5. **Never auto-paginate server-side.** Fetch one page per tool call; expose cursor/token for the caller to continue (`mcp-pagination` Step 5).
 6. **Compilation must pass before shipping.** `npm run build` (TypeScript) or `python -m py_compile` (Python) must exit 0.
 7. **Tool descriptions must state what the tool returns**, not just what it does. Bad: "Gets issues." Good: "Returns a paginated list of open GitHub issues with title, labels, and assignee."
+8. **Phase 4 pagination audit must pass** before marking the server done.
 
 ---
 
@@ -261,7 +308,7 @@ Each question must be: independent, read-only, complex (multi-step), realistic, 
 |---|---|---|
 | Return raw API response JSON as-is | Claude reads 50KB of nested objects, wastes context | Filter to the 5–10 fields actually needed |
 | Single `api_call(endpoint, method, body)` catch-all tool | Claude can't discover what the API supports | Implement explicit tools per operation |
-| No pagination — return all results | Times out on large datasets; floods context | Add `limit` + `cursor` to every list tool |
+| No pagination — return all results | Times out on large datasets; floods context | Invoke `Skill("mcp-pagination")`; add `limit` + cursor per its checklist |
 | `throw new Error("Error")` on API failure | Claude retries blindly with no fix | Include status code, body snippet, env var hint |
 | Put auth tokens in the source code | Security leak | Use env vars; document required vars in README |
 | Skip MCP Inspector testing | Broken tools ship silently | Always run Inspector before marking done |

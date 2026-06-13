@@ -6,12 +6,8 @@ allowed-tools:
   - WebFetch
   - Bash
   - Skill
-when_to_use: |
-  - "find a skill for code review"
-  - "is there a plugin that generates release notes from git commits?"
-  - "what skill should I use to compare PDFs?"
-  - "recommend an agent for GitHub automation"
-  - "search skills for Python testing"
+when_to_use: "User asks to find, recommend, or search for a skill, plugin, or agent — e.g. 'find a skill for code review', 'is there a plugin for X', 'recommend an agent for GitHub'."
+argument-hint: "[what you need a skill or plugin for — e.g. 'PDF comparison', 'PR review automation']"
 model: claude-sonnet-4-6
 metadata:
   capability: skill-discovery

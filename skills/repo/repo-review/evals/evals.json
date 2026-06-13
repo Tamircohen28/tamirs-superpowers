@@ -1,0 +1,39 @@
+{
+  "skill_name": "repo-review",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "run a full repo review and tell me what needs cleanup",
+      "expected_output": "A complete docs/repo-review-<date>.md report covering all 7 sections: directory violations, misplaced files, unclear names, redundant/stale files, over-commented scripts, dev env gaps, and a pipeline reorg proposal. Each finding has a path, reason, and prioritised action.",
+      "assertions": [
+        "Report file created at docs/repo-review-*.md",
+        "All 7 section headings present in the report",
+        "Executive summary table with totals is present",
+        "pipeline/scripts/pipeline/ reorganisation proposal included with per-group file counts",
+        "No files were edited, moved, or deleted (read-only run)",
+        "P1/P2/P3 priority tags present on at least one finding"
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "audit the repo for stale files and any places where we still reference deleted agents like pm-step-runner or pm-skeptic",
+      "expected_output": "Report focused on section 4 (Redundant/Stale) and section 6 (Dev Env Gaps), listing files that still reference deleted agents with exact file paths. Should still run all 7 sections, not just stale refs.",
+      "assertions": [
+        "Report file created",
+        "Section 4 lists specific files referencing pm-step-runner or other deleted agents",
+        "known-regressions-archive.md is NOT flagged (it is exempt)",
+        "All 7 sections present even if some are empty"
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "what dirs in the repo have too many or too few files, and what's the plan for reorganising plugin/scripts/pipeline?",
+      "expected_output": "Report with Section 1 (Directory Violations) clearly listing overfull/sparse dirs, and Section 7 with the full pipeline reorganisation proposal showing file counts per proposed sub-directory.",
+      "assertions": [
+        "plugin/scripts/pipeline appears in the allowlisted-but-bloated section (85 files)",
+        "Section 7 shows all 9 proposed groups with file counts that sum to ~85",
+        "No files were moved or modified"
+      ]
+    }
+  ]
+}

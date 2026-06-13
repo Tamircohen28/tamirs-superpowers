@@ -1,33 +1,54 @@
 ---
 name: babysit-pr
-description: "Use when the user asks Claude to monitor, watch, or babysit a GitHub pull request — phrases like 'babysit this PR', 'watch PR #N', 'monitor CI on my PR', 'keep an eye on this PR', 'wait for my PR to merge', 'handle review comments while I'm away'. Continuously polls review comments, CI check/workflow run state, and mergeability until the PR is merged/closed or user help is required. Diagnoses CI failures, retries likely-flaky failures (up to 3x), auto-fixes branch-related issues and pushes them, and surfaces new review comments promptly."
-when_to_use: "User says: 'babysit this PR', 'watch PR #N', 'monitor CI', 'keep an eye on my PR', 'wait for merge', 'handle review comments for me'."
+description: "Use when the user asks to babysit, monitor, watch, or drive a PR to merge — 'babysit this PR', 'watch PR #N', 'monitor CI', 'finish this PR', 'address review', 'merge after review'. Polls CI and review threads, fixes failures, retries flakes (max 3×), addresses review (Drive mode), waits for explicit merge approval, squash-merges and cleans up."
+disable-model-invocation: true
+when_to_use: "User says: 'babysit this PR', 'watch PR #N', 'monitor CI', 'keep an eye on my PR', 'finish this PR', 'address comments', 'merge after review', 'drive the PR to merge', 'clean up the PR'."
 argument-hint: "[PR number, PR URL, or omit to infer from current branch]"
 model: claude-sonnet-4-6
+effort: high
 allowed-tools:
   - Bash
   - Read
-  - Edit
   - Write
+  - Edit
+  - Glob
+  - Grep
+  - WebFetch
+  - Agent
   - Monitor
 metadata:
-  capability: pr-monitoring
+  capability: pr-lifecycle
   tags:
     - pr
     - ci
     - monitoring
+    - review
+    - merge
     - github
     - workflow
   updated-date: "2026-06-13"
 ---
 
-# PR Babysitter
+# babysit-pr
+
+Drive a pull request from open → green CI → review addressed → merged, or watch it continuously until merged/closed or user help is required.
 
 ## Why this skill exists
 
-After a PR is opened, the real work is staying on top of CI failures, reviewer feedback, and merge conflicts — often across minutes or hours. Manually refreshing GitHub tabs is tedious and error-prone; walking away means missing time-sensitive review requests or letting a flaky CI failure sit unretried. This skill runs a persistent monitor loop using native `gh` CLI commands so Claude can triage failures, push fixes, retry flakes, and surface review comments without the user watching.
+After a PR is opened, the work is staying on top of CI failures, reviewer feedback, and merge conflicts — often across minutes or hours. Manually refreshing GitHub is tedious; walking away means missing review requests or letting a flaky failure sit unretried.
 
-A naive "check once and report" approach misses failures that arrive after the initial check, and leaves the PR stalled when a simple retry or two-line fix would have unblocked it.
+This skill runs a persistent loop using `gh` CLI (and helper scripts in this skill directory) so Claude can triage failures, push fixes, retry flakes, address review threads, and — when the user wants to ship — squash-merge and clean up without them watching every tab.
+
+## Modes
+
+Pick the mode from user intent at startup:
+
+| Mode | User intent | Behavior |
+|------|-------------|----------|
+| **Watch** | babysit, watch, monitor, keep an eye on | Fix branch-related CI; surface human review comments for approval before replying; keep looping until merged/closed or blocked |
+| **Drive** | finish, ship, merge, address review, drive PR | Actively reply to and resolve every review thread (canonical templates), fix CI, validate readiness, **stop for explicit `approved`**, then squash-merge and clean up |
+
+Both modes share the same monitoring loop, CI classification, and fix-push-restart behavior. Drive mode adds structured review replies, the merge-approval gate, and post-merge cleanup.
 
 ## Inputs
 
@@ -39,21 +60,40 @@ Accept any of the following (resolve once at startup, then reuse throughout):
 | PR number `42` | Use directly |
 | PR URL | Extract number from URL |
 
-## Core Workflow
+If no PR is found, ask for the PR number and stop.
+
+## Hard rules
+
+- **Never rely on cached PR state** — re-fetch before each major decision (`fetch-pr-state.sh` or `gh pr view`).
+- **Never stop merely because a single poll returns idle** — CI may still be queued.
+- **Never push changes to any branch other than the PR head branch.**
+- **Never prefix commits with `[skip ci]`** — required status checks must run; skipping forces admin bypass merges.
+- **Never post a reply to a human review comment without explicit user approval** (Watch mode always; Drive mode only after user confirms reply text if they asked to babysit first).
+- **Never fix flaky/infra failures by changing code or CI config** unless logs prove the failure is branch-related.
+- **Never retry a flaky run more than 3 times** — then report to the user.
+- **Never run multiple concurrent watch loops for the same PR.**
+- **Always restart monitoring in the same turn after pushing a fix** — a push is not a terminal outcome.
+- **Never use `gh pr merge --admin`** unless the user explicitly authorizes it in this conversation.
+- **Stop only when:** PR is merged/closed, OR user intervention is required and you cannot safely proceed, OR (Drive mode) merge + cleanup completed.
+
+## Core workflow
 
 ### 1. Resolve the PR
 
 ```bash
-# Infer from current branch
-PR=$(gh pr view --json number -q .number)
+PR=$(gh pr view --json number -q .number)   # or user-provided number/URL
 REPO=$(gh repo view --json nameWithOwner -q .nameWithOwner)
-
-# Or from a number/URL provided by the user
-PR=42
-REPO=owner/repo
 ```
 
-### 2. Snapshot current state
+### 2. Fetch fresh state
+
+**Always** start with the helper script (structured PR JSON, checks summary, unresolved threads):
+
+```bash
+bash "$CLAUDE_SKILL_DIR/scripts/fetch-pr-state.sh" "$PR"
+```
+
+For quick snapshots inside the loop:
 
 ```bash
 gh pr view "$PR" --repo "$REPO" \
@@ -61,143 +101,179 @@ gh pr view "$PR" --repo "$REPO" \
 reviewDecision,statusCheckRollup,headRefOid,headRefName
 ```
 
-### 3. Poll CI checks
+### 3. Monitoring loop
+
+```
+loop:
+  snapshot = fetch-pr-state.sh (or gh pr view + gh pr checks)
+  if PR merged/closed → report terminal state; STOP
+
+  for each new human review comment/thread:
+    Watch mode  → if actionable: patch + push; surface reply to user for approval
+                  if needs answer only → surface; STOP for confirmation
+    Drive mode  → read thread; assess agree/partial/disagree
+                  reply (templates/review-reply.md.tmpl); fix code; resolve thread
+                  (see "Address review threads" below)
+
+  for each failed CI run:
+    fetch logs → classify (table below)
+    if branch-related → patch, commit, push, restart loop
+    if flaky (retries < 3) → gh run rerun --failed; restart loop
+    if flaky (retries ≥ 3) → report; STOP
+    if unrelated → report; STOP
+
+  if Drive mode AND green + mergeable + 0 unresolved threads:
+    → merge readiness gate (below); may STOP for approval
+
+  if green + no open review issues:
+    emit one-time "CI green, watching…" update; continue
+
+  sleep(cadence); goto loop
+```
+
+### 4. Poll CI checks
+
+Quick wait:
 
 ```bash
-# List all check runs for the head SHA
 gh pr checks "$PR" --repo "$REPO" --watch
+```
 
-# Or get structured JSON for scripted inspection
+Long CI cycles (5+ min) or parallel work — use the Monitor `until`-loop in `references/ci-monitor-loop.md`.
+
+Structured inspection:
+
+```bash
 gh api "repos/$REPO/commits/$(gh pr view $PR --repo $REPO --json headRefOid -q .headRefOid)/check-runs" \
   --jq '.check_runs[] | {name,status,conclusion,details_url}'
 ```
 
-### 4. Diagnose a failed CI run
+### 5. Diagnose a failed CI run
 
 ```bash
-# Get the failed run ID
 RUN_ID=$(gh run list --repo "$REPO" \
   --commit "$(gh pr view $PR --repo $REPO --json headRefOid -q .headRefOid)" \
   --json databaseId,conclusion --jq '.[] | select(.conclusion=="failure") | .databaseId' | head -1)
 
-# Fetch failed-job logs
 gh run view "$RUN_ID" --repo "$REPO" --log-failed
-
-# Or per-job logs (faster, available before run finishes):
-gh api "repos/$REPO/actions/runs/$RUN_ID/jobs" --jq \
-  '.jobs[] | select(.conclusion=="failure") | {id,name,conclusion}'
-JOB_ID=<id from above>
-gh api "repos/$REPO/actions/jobs/$JOB_ID/logs" > /tmp/job-$JOB_ID.log
 ```
 
-### 5. Classify the failure
+### 6. Classify CI failures
 
 | Signal in logs | Classification | Action |
 |---------------|---------------|--------|
 | Test/lint/compile error in a file touched by the PR | Branch-related | Patch, commit, push |
-| `runner provisioning failed`, network timeout, registry error | Flaky/infra | Retry (max 3×) |
+| `runner provisioning failed`, network timeout, registry error | Flaky/infra | `gh run rerun "$RUN_ID" --repo "$REPO" --failed` (max 3×) |
 | Dependency outage, GitHub Actions infra error | Unrelated | Wait or stop for user |
 | Ambiguous | Ambiguous | One manual diagnosis, then decide |
 
 **Never patch flaky/infra failures by changing tests, CI config, or dependency pins** unless logs clearly connect to the PR branch.
 
-### 6. Push a branch-related fix
+### 7. Push a branch fix
 
 ```bash
-# Make the fix, then:
 git add -p                        # stage only relevant changes
-git commit -m "fix: address CI failure (PR #$PR)"
+git commit -m "fix: address CI failure (PR #$PR)
+
+Co-Authored-By: Claude <noreply@anthropic.com>"
 git push origin HEAD
 ```
 
-### 7. Retry a flaky failure
+### 8. Address review threads (Drive mode)
+
+For **each** unresolved thread:
+
+1. **Read** the comment — understand what's being asked
+2. **Assess** — `agree`, `partially agree`, or `disagree`
+3. **Reply** using shapes in `templates/review-reply.md.tmpl`:
+   - **Agree**: "Fixed: \<what changed and why it's better\>"
+   - **Partially agree**: "Partially addressed: \<changed\> but \<kept and why\>"
+   - **Disagree**: "Keeping as-is: \<reasoning based on code/architecture\>"
+4. **Fix code** if you agreed or partially agreed
+5. **Resolve the thread**:
 
 ```bash
-gh run rerun "$RUN_ID" --repo "$REPO" --failed
+bash "$CLAUDE_SKILL_DIR/scripts/resolve-thread.sh" "<THREAD_ID>"
 ```
 
-Track retries per run. Stop retrying after 3 attempts and ask the user.
+Commit and push all fixes after addressing threads (no `[skip ci]`).
 
-### 8. Check review comments
+### 9. Check review comments (Watch mode)
 
 ```bash
-# List unresolved review threads
 gh api "repos/$REPO/pulls/$PR/reviews" \
   --jq '.[] | select(.state=="CHANGES_REQUESTED") | {user:.user.login,body}'
 
 gh api "repos/$REPO/pulls/$PR/comments" \
-  --jq '.[] | {user:.user.login,path,line,body,resolved:false}'
+  --jq '.[] | {user:.user.login,path,line,body}'
 ```
 
-Address actionable human review comments by patching code and pushing. **Do not post automated replies to human review threads without explicit user confirmation.**
-
-### 9. Resolve a review thread (after pushing the fix)
-
-```bash
-# Mark thread as resolved via GraphQL
-gh api graphql -f query='
-  mutation ResolveReviewThread($id: ID!) {
-    resolveReviewThread(input: {threadId: $id}) {
-      thread { isResolved }
-    }
-  }' -f id="<thread-node-id>"
-```
+Patch actionable code; **surface suggested replies to the user** — do not post without confirmation.
 
 ### 10. Polling cadence
 
 | State | Poll interval |
-|-------|-------------|
+|-------|---------------|
 | CI pending/failing | Every 60 seconds |
-| CI green, PR open | Every 90 seconds (watch for new review comments) |
+| CI green, PR open | Every 90 seconds |
 | After any state change | Reset cadence immediately |
 | PR merged or closed | Stop immediately |
 
-## Hard Rules
+### 11. Merge readiness (Drive mode only)
 
-- **Never stop merely because a single poll returns idle** — CI may still be queued.
-- **Never push changes to any branch other than the PR head branch.**
-- **Never post a reply to a human review comment without explicit user approval.** Surface the comment and your suggested reply to the user, wait for confirmation.
-- **Never fix flaky/infra failures by changing code or CI config** unless logs prove the failure is branch-related.
-- **Never run multiple concurrent watch loops for the same PR** — keep one loop active at a time.
-- **Always restart monitoring in the same turn after pushing a fix** — a push is not a terminal outcome.
-- **Stop only when:** PR is merged/closed, OR user intervention is required and you cannot safely proceed.
+Confirm ALL of:
+
+- [ ] All CI checks green
+- [ ] No unresolved review threads (re-run `fetch-pr-state.sh`, expect 0 unresolved)
+- [ ] No blocking status checks
+- [ ] PR is up to date with base branch
+
+Print: **"PR is ready for your approval. Reply `approved` to merge."**
+
+**Do NOT merge until the user explicitly writes `approved` in this conversation.**
+
+### 12. Merge and clean up (after `approved`)
+
+```bash
+gh pr merge "$PR" --squash --delete-branch
+```
+
+Close linked issues from the PR body (`Closes #N`):
+
+```bash
+gh issue close <number> --comment "Shipped in PR #$PR"
+```
+
+Clean up local environment:
+
+```bash
+bash "$CLAUDE_SKILL_DIR/scripts/cleanup-after-merge.sh" "$PR"
+```
 
 ## Anti-patterns
 
 | Wrong | Right |
 |-------|-------|
 | Stop after CI goes green because "it's probably fine" | Keep watching — review comments may arrive later |
-| Retry a flaky runner failure 10 times | Retry max 3×, then report to user |
-| Post an automated reply to a reviewer saying "Fixed!" | Patch the code; surface to user for reply approval |
-| Modify CI config to make a flaky test not run | Retry the flake; escalate if it persists |
+| Retry a flaky runner failure 10 times | Retry max 3×, then report |
+| Post "Fixed!" to a reviewer without user OK (Watch mode) | Patch code; surface reply for approval |
+| Modify CI config to silence a flaky test | Retry the flake; escalate if it persists |
 | End the turn after pushing a fix | Restart monitoring immediately in the same turn |
+| Merge without explicit user `approved` (Drive mode) | Stop at readiness gate |
 | Fix merge conflicts on both branches without asking | Only rebase/merge the PR head; ask if unclear |
 
-## Monitoring Loop (summary)
-
-```
-loop:
-  snapshot = gh pr view + gh pr checks
-  if PR merged/closed → report terminal state; STOP
-  for each new review comment from humans:
-    if actionable → patch, commit, push, resolve thread, restart loop
-    if non-actionable/needs answer → surface to user; STOP for confirmation
-  for each failed CI run:
-    fetch logs → classify
-    if branch-related → patch, commit, push, restart loop
-    if flaky (retries < 3) → gh run rerun; restart loop
-    if flaky (retries ≥ 3) → report; STOP
-    if unrelated → report; STOP
-  if green + mergeable + no review issues:
-    emit one-time "CI green, ready to merge" update; continue watching
-  sleep(cadence); goto loop
-```
-
-## Output Format
+## Output format
 
 - **Progress updates**: brief, only on state changes (not every poll)
 - **On first green**: `CI is all green (N/N checks). Watching for review comments.`
 - **On fix push**: `Pushed fix for [issue] — resuming watch on new SHA.`
-- **On merge**: Final summary including SHA, checks passed, fixes pushed, retries used, outstanding items
+- **On merge (Drive)**: Final summary — SHA, checks passed, fixes pushed, retries used, issues closed, branches/worktree cleaned
+- Do not emit the final summary while the loop is still running
 
-Do not emit the final summary while the loop is still running.
+## References
+
+- `scripts/fetch-pr-state.sh` — fresh PR state + unresolved threads via GraphQL
+- `scripts/resolve-thread.sh` — resolve a single review thread by ID
+- `scripts/cleanup-after-merge.sh` — post-merge worktree + branch cleanup
+- `templates/review-reply.md.tmpl` — canonical agree / partial / disagree reply shapes
+- `references/ci-monitor-loop.md` — Monitor `until`-loop for long CI cycles with per-check notifications

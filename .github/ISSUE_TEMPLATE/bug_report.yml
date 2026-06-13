@@ -12,7 +12,7 @@ body:
     attributes:
       label: Affected component
       description: Which skill, hook, or file is broken?
-      placeholder: "e.g. hooks/capture-task-slug.sh, skills/dev-workflow/pr-dev"
+      placeholder: "e.g. hooks/capture-task-slug.sh, skills/dev-workflow/babysit-pr"
     validations:
       required: true
 
@@ -29,7 +29,7 @@ body:
     attributes:
       label: Steps to reproduce
       placeholder: |
-        1. Run `/pr-dev 42`
+        1. Run `/babysit-pr 42`
         2. ...
     validations:
       required: true

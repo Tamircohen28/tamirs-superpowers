@@ -1,6 +1,7 @@
 ---
 name: start-dev
-description: "Use when the user says to start, begin, implement, build, code, or work on a task — typically with a GitHub issue number, task description, or path to a spec/plan — and expects commits and a PR at the end. Triggers on: 'implement issue #N', 'build the auth feature', 'start coding this', 'work on this spec', 'begin development', 'create a PR for this'."
+description: "Use when the user says to start, implement, build, or code a task — with a GitHub issue, spec, or task description — and expects commits and a PR. Triggers: 'implement issue #N', 'build the feature', 'start coding', 'work on this spec', 'create a PR for this'."
+disable-model-invocation: true
 when_to_use: "implement, build, start, begin, code, work on, create PR for, ship — followed by an issue number, task description, or spec file path"
 argument-hint: "[issue number(s), task description, or file path to spec]"
 model: claude-sonnet-4-6
@@ -173,7 +174,7 @@ Files changed: src/auth/login.ts, tests/auth.test.ts
 Commits: 2
 Validation: PASS (npm test, npm run lint)
 PR: https://github.com/owner/repo/pull/42
-Next: wait for CI + review, then run /pr-dev 42
+Next: wait for CI + review, then run /babysit-pr 42
 ```
 
 ## Hard rules
@@ -183,7 +184,7 @@ Next: wait for CI + review, then run /pr-dev 42
 - **Never commit with `git add .`** blindly — always stage selectively with `git add -p` or by naming specific files to avoid committing secrets or build artifacts.
 - **Never make architectural decisions silently** — if the implementation requires a choice that changes the public API, schema, or module structure, surface it and ask before coding.
 - **Never create the worktree inside a path that already exists** — check first with `ls .claude/worktrees/$BRANCH 2>/dev/null`.
-- **Never merge or close the PR** — that is the job of `/pr-dev`.
+- **Never merge or close the PR** — that is the job of `/babysit-pr`.
 - **Commit messages must follow conventional commits** (`feat:`, `fix:`, `chore:`, `docs:`, `refactor:`).
 
 ## What NOT to do
@@ -211,6 +212,6 @@ Next: wait for CI + review, then run /pr-dev 42
 ## Scope boundary
 
 This skill ends at an open PR. It does NOT:
-- Merge the PR (use `/pr-dev`)
+- Merge the PR (use `/babysit-pr`)
 - Monitor CI (use `/babysit-pr`)
 - Rebase or resolve conflicts after review

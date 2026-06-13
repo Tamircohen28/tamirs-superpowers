@@ -2,9 +2,9 @@
 name: docs-review
 disable-model-invocation: true
 user-invocable: false
-description: "Internal: documentation quality sweep used by repo-polish. Audits README.md and docs/**/*.md for visual cleanliness, freshness drift, stray plan/wip files, broken links, and diagram consistency. Not for direct user invocation — run repo-polish instead."
+description: "Internal: audit and fix Markdown docs (README.md + docs/**) — visual cleanliness, freshness vs git history, stray plan files, link validation, and cross-reference consistency. Invoked by repo-polish during Step 6b after scaffolding. Not for direct user invocation — run repo-polish instead."
+when_to_use: "Invoked automatically by repo-polish Step 6b after docs are scaffolded. May also run standalone only when another skill explicitly delegates a docs sweep."
 argument-hint: "[optional: subset glob like 'docs/user/**' or single file path]"
-when_to_use: "Called by repo-polish to audit Markdown documentation quality. Not invoked directly."
 model: claude-sonnet-4-6
 allowed-tools:
   - Bash
@@ -15,169 +15,245 @@ allowed-tools:
   - Grep
 metadata:
   capability: documentation-quality
+  provider: developer-workflow
+  agents:
+    - docs-review
+  platforms:
+    - claude
   tags:
     - documentation
     - audit
-    - broken-links
+    - links
     - freshness
-    - stray-files
     - cleanup
-    - markdown
+    - workflow
   updated-date: "2026-06-13"
 ---
 
 # docs-review
 
-Internal documentation-quality sweep. Audits every Markdown file in scope against five axes and fixes issues in place. Invoked by `repo-polish`; do not call directly.
+A documentation-quality sweep: every Markdown file under `README.md` (root) and
+`docs/**` is audited against eight axes, then fixed in place. The goal is to
+finish a sweep with a clean working tree, zero broken links, no stray plan
+files in git, and every doc reflecting the current state of the codebase —
+including accurate counts of agents, skills, and commands.
+
+## When repo-polish invokes this skill
+
+| repo-polish step | Action |
+|------------------|--------|
+| **Step 6b** — after Step 5 scaffolding and Step 6a P1 repo fixes | Full audit of `$PROJECT_DIR/README.md` and `$PROJECT_DIR/docs/**` |
+| **Re-run** — after manual P1 doc fixes in 6b | Confirm link-clean and counts accurate |
+
+`repo-polish` sets `cd "$PROJECT_DIR"` before calling `Skill("docs-review")`. Treat that directory as the repo root for all axes — not the plugin install path.
+
+When invoked from `repo-polish`, report pass/fail summary at the end. Return control only when P1 doc issues are fixed or explicitly listed for repo-polish to handle.
 
 ## Why this skill exists
 
-Docs drift faster than code. Manual sweeps miss files, misclassify plan dumps as canonical reference material, and leave stale counts and broken links behind. This skill codifies the routine so the audit is exhaustive and every judgement call is explicit — reproducible across sessions without human memory.
-
-The naive approach (read docs, spot-fix what looks wrong) fails because: it skips files with no obvious surface problem, conflates "last touched" with "still accurate", and has no systematic check for broken cross-references.
+Docs drift faster than code. A sweep that's "by hand" misses files,
+mis-classifies plan dumps as canonical reference material, and leaves behind
+stale agent/skill counts. This skill codifies the routine so the audit is
+exhaustive and its judgement calls are explicit.
 
 ## Scope
 
-**In scope:** `README.md` (repo root) + every `*.md` under `docs/`.
+**Full audit (all 8 axes):** `README.md` (repo root), every `*.md` under `docs/`.
 
-If a path argument is passed, restrict per-file work to that subset — still run Step 0 first.
+**Consistency-check only (Axes 0 + 6):**
+- `CLAUDE.md` — verify agent/skill counts match filesystem; update stale claims
+- `.github/copilot-instructions.md` — verify architecture description, counts, commands
+- `docs/engineering/reference/agent-quick-ref.md` — verify every `plugin/agents/pm-*.md` has an entry
 
-**Out of scope:** Source code comments, generated files, `node_modules/`, `dist/`, `coverage/`.
+**Out of scope:** `plugin/skills/**/*.md`, `plugin/agents/*.md`, `.claude/rules/*.md` — those have their own validators (`validate-skills.sh`, `validate-agents.sh`).
 
-## Quick-reference: five audit axes
+If the user passes a path argument, restrict the per-file audit to that subset (still run Axis 0 first).
 
-| Axis | Name | What it catches |
-|------|------|-----------------|
-| 1 | Visual cleanliness | Trailing whitespace, mixed bullets, missing code-fence languages, heading level skips, long lines |
-| 2 | Freshness vs git | Doc not updated after significant file changes it references |
-| 3 | Stray plan/wip files | `-plan`, `-draft`, `-wip`, date-stamped files in `docs/` not linked from anywhere |
-| 4 | Link validity | Broken relative links, missing heading anchors, raw-path link text |
-| 5 | Cross-ref & diagram | Renamed headings in ToC, duplicate heading IDs, malformed Mermaid blocks |
+## Axis 0 — Repo State Inventory (ALWAYS FIRST)
 
-## Step 0 — Repo state inventory (ALWAYS FIRST)
-
-Run before any per-file work. Produces the file manifest.
+**Run before any per-file work.** Generates ground truth used by Axes 6 and 7.
 
 ```bash
-{ find . -maxdepth 1 -name 'README.md'; find docs -name '*.md' -type f 2>/dev/null; } \
-  | sort > /tmp/review-docs-manifest.txt
-TOTAL=$(wc -l < /tmp/review-docs-manifest.txt | tr -d ' ')
-echo "=== $TOTAL files queued for audit ==="
-cat /tmp/review-docs-manifest.txt
+AGENT_COUNT=$(ls plugin/agents/pm-*.md 2>/dev/null | wc -l | tr -d ' ')
+PLUGIN_SKILL_COUNT=$(ls -d plugin/skills/*/ 2>/dev/null | wc -l | tr -d ' ')
+DEV_SKILL_COUNT=$(ls -d .claude/skills/*/ 2>/dev/null | wc -l | tr -d ' ')
+HOOK_COUNT=$(jq '.hooks | length' plugin/hooks/hooks.json 2>/dev/null || echo "?")
+CLAUDE_AGENT_CLAIM=$(grep -oP '\d+(?= sub-agent)' CLAUDE.md | head -1)
+CLAUDE_SKILL_CLAIM=$(grep -oP '\d+(?= MCP skill)' CLAUDE.md | head -1)
 ```
 
-Print the manifest before starting so the caller can see scope.
+Print an inventory table:
+```
+=== Axis 0 — Repo State Inventory ===
+agents:        20  (CLAUDE.md claims: 20) ✓
+plugin skills: 32  (CLAUDE.md claims: 29) ✗ → NEEDS UPDATE
+dev skills:    11
+hooks:         13
+```
 
-## Per-file audit — axes 1–5
+If counts differ, run the regen script to update CLAUDE.md automatically:
+```bash
+bash tooling/ci/regen-claude-md.sh
+```
 
-Walk each in-scope file once and apply all five checks. Fix in place. Print `[✓] path — N fixes applied` or `[·] path — clean` per file.
+Then generate the per-file manifest:
+```bash
+{ find . -maxdepth 1 -name 'README.md'; find docs -name '*.md' -type f 2>/dev/null; } | sort > /tmp/review-docs-manifest.txt
+TOTAL=$(wc -l < /tmp/review-docs-manifest.txt)
+echo "=== $TOTAL files queued for audit ==="
+```
+
+## The five doc audit axes
+
+The skill walks each in-scope file once and applies all five checks. Fixes are
+applied in-place. Findings are appended to `docs/review-${DATE}.md`.
 
 ### Axis 1 — Visual cleanliness
 
-Fix:
-- Trailing whitespace; mixed tabs/spaces.
-- Code fences without language hints (` ``` ` → ` ```bash `, ` ```json `, ` ```yaml `, etc.).
-- Tables with misaligned or mismatched column counts.
-- Lines over 200 characters inside prose paragraphs (soft cap 120, hard 200).
-- Mixed bullet styles within one file (`-`, `*`, `+`) — normalize to `-`.
-- Heading level skips (`####` directly after `#` with no `##`/`###` in between).
+Goal: a reader scanning the doc isn't tripped by formatting noise.
 
-Leave alone: deliberate ASCII diagrams; legitimately long single-line commands inside code blocks.
+What to fix:
+- Stray trailing whitespace, mixed tabs/spaces, inconsistent heading levels.
+- Code fences without language hints (` ``` ` instead of ` ```bash `).
+- Tables with mismatched column counts.
+- Long lines inside paragraphs (soft 100 chars; hard cap 200).
+- Bullets: pick `-` consistently (avoid mixing `-`, `*`, `+` within one file).
+
+What to leave alone:
+- Deliberate ASCII diagrams. Code blocks of legitimately long single-line commands.
 
 ### Axis 2 — Freshness vs git history
 
-```bash
-DOC_FILE="<path>"
-DOC_UPDATED=$(git log -1 --format="%ai" -- "$DOC_FILE" 2>/dev/null)
-echo "Doc last updated: $DOC_UPDATED"
-git log --since="$DOC_UPDATED" --oneline --name-only -- . \
-  | grep -v '^[a-f0-9]' | grep -v '^$' | sort -u | head -40
-```
-
-When significant repo files changed after the doc's last update, READ the doc and check if it references those files. Common fixes: rename broken links, remove references to deleted scripts or commands, update counts and version numbers. Fix only what drifted — do NOT rewrite wholesale.
-
-### Axis 3 — Stray plan / wip files
+Goal: every doc reflects the current state of the codebase.
 
 ```bash
-find docs -name '*.md' -type f 2>/dev/null | while read f; do
-  base=$(basename "$f")
-  if echo "$base" | grep -qiE '([-_](plan|research|analysis|review|notes|draft|wip|temp)|[-_]2[0-9]{3}[-_])'; then
-    linked=$(grep -rl "$(basename "$f")" docs README.md 2>/dev/null | grep -v "^${f}$" | wc -l | tr -d ' ')
-    [ "$linked" -eq 0 ] && echo "CANDIDATE (unlinked plan file): $f"
-  fi
-done
+bash .claude/skills/review-docs/scripts/file-freshness.sh <FILE>
 ```
 
-Signals: filename has `-plan`, `-draft`, `-wip`, `-research`, or a date stamp; not linked from any canonical doc; last commit message says "wip" or "from claude session".
+Prints `last_doc_update`, `repo_changes_since`, and `verdict` (`fresh` / `review` / `stale`).
 
-For each candidate: **ask the user before removing**. Suggested action: `git rm --cached <file>` and add the pattern to `.gitignore`.
+When verdict is `stale`: read the listed downstream changes and update the doc.
+Common fixes: rename broken links, remove references to deleted scripts/agents,
+update counts. Do NOT rewrite wholesale — fix only what drifted.
 
-### Axis 4 — Link / cross-reference validity
+### Axis 3 — Stray plan / work files
+
+Goal: `docs/` is canonical reference material, not a dumping ground.
 
 ```bash
-DOC_FILE="<path>"
-DOC_DIR=$(dirname "$DOC_FILE")
-grep -oP '\]\(\K[^)]+' "$DOC_FILE" \
-  | grep -v '^https\?://' \
-  | sed 's/#.*//' \
-  | grep -v '^$' \
-  | while read link; do
-      target="${DOC_DIR}/${link}"
-      [ ! -e "$target" ] && echo "BROKEN: $link  (in $DOC_FILE)"
-    done
+bash .claude/skills/review-docs/scripts/detect-plan-files.sh
 ```
 
-Also check:
-- `#anchor` links pointing to headings that don't exist in the target file.
-- Raw-path link text: `[./architecture.md](./architecture.md)` → `[Architecture Overview](./architecture.md)`.
+Signals: filename has `-plan`, `-research`, `-analysis`, `-review`, or ticket id;
+located directly under `docs/` and not linked from any README; last commit says
+"wip" or "from claude session".
 
-External `https://` URLs: sample but do not block the sweep — flag only obviously dead ones (connection refused, 404).
+For each confirmed one-off: `git rm --cached <file>` and add pattern to `.gitignore`.
 
-Fix broken relative links or remove them if the target no longer exists. **Never invent a link target.**
+Orphan check:
+```bash
+python3 tooling/check-doc-orphans.py
+```
 
-### Axis 5 — Cross-reference and diagram consistency
+### Axis 4 — Template / standard conformance
 
-- Table of contents entries pointing to renamed headings.
-- Duplicate heading IDs in the same file (two `## Installation` sections).
-- Mermaid blocks: verify opening keyword (`graph`, `sequenceDiagram`, `flowchart`, `classDiagram`, `erDiagram`, `gantt`) and that the block closes with a bare ` ``` `.
+Goal: every doc complies with `.claude/rules/documentation-standards.md`.
+
+```bash
+bash .claude/skills/review-docs/scripts/check-template.sh <FILE>
+```
+
+Reports: audience path match, `docs/user/**` footer presence, Mermaid violations
+(no `classDef`, `class`, `style`, `fill:`), has-purpose-sentence.
+
+### Axis 5 — Link / cross-reference / diagram validity
+
+Goal: every link resolves; every Mermaid diagram parses.
+
+```bash
+bash .claude/skills/review-docs/scripts/validate-links.sh <FILE>
+```
+
+Reports: broken relative links (with line number), missing heading anchors,
+unparseable Mermaid blocks, raw-file-path link text.
+
+External `https://` URLs are sampled but not blocked on (`--skip-external` accepted).
+
+## Axis 6 — CLAUDE.md + Copilot Consistency Check
+
+After Axis 0, verify the consistency-check-only files:
+
+1. **CLAUDE.md** — run `bash tooling/ci/regen-claude-md.sh --dry-run` and show diff. Update if any count or table drifted.
+2. **`.github/copilot-instructions.md`** — READ the file and check:
+   - Agent count matches `$AGENT_COUNT`
+   - Skill count matches `$PLUGIN_SKILL_COUNT`
+   - Investigation style: "linear pipeline" not "hypothesis-driven loop"
+   - No references to `src/`, `dev-env/`, `platforms/` (not active directories)
+   - Commands list reflects skills-based approach; no `plugin/commands/` references
+   - Agent registration: "1 file: `plugin/agents/pm-name.md`" not "4 registrations in src/"
+   - Apply fixes in-place for any stale content found
+3. **`docs/engineering/reference/agent-quick-ref.md`** — verify every `plugin/agents/pm-*.md` has an entry; flag missing ones for the user to fill.
+
+## Axis 7 — Recent Changes Sync
+
+Flag docs that reference entities deleted in the last 45 days:
+
+```bash
+git log --since=45.days.ago --oneline --name-only | grep -v '^[a-f0-9]' | sort -u
+```
+
+Specifically flag docs that still mention:
+- Deleted agents: `pm-step-runner`, `pm-skeptic`, `pm-verifier`, `pm-hypothesis-specificity-check`, `pm-evidence-synthesizer`, `pm-artifact-resolver`, `pm-html-generator`
+- `plugin/commands/` (deleted — migrated to skills)
+- Agent/skill counts that no longer match the Axis 0 inventory
+
+For each flagged doc: READ it, remove or update the stale references.
 
 ## End-to-end sweep procedure
 
-1. **Step 0** — build manifest; print file list.
-2. **Per-file audit** — for each file in `/tmp/review-docs-manifest.txt`:
-   - READ the file (mandatory — never mark reviewed without reading).
-   - Apply Axes 1–5; fix in place.
-   - Print status line: `[✓] path — N fixes` or `[·] path — clean`.
-3. **Stray-file sweep** — run Axis 3 across all docs; list candidates; wait for user confirmation before any deletion.
-4. **Print summary** to stdout — do NOT write a review report into `docs/`; that would create exactly the kind of stray file Axis 3 detects.
+1. **Axis 0** — generate inventory + manifest; update CLAUDE.md if counts differ.
+2. **Axis 6** — check consistency-check-only files; fix in-place.
+3. **Axis 7** — scan recent changes; flag stale doc references.
+4. **Per-file audit** — for each file in `/tmp/review-docs-manifest.txt`:
+   - READ the file (required — no skipping based on git alone)
+   - Run Axes 1–5; apply fixes in-place
+   - Print `[✓] path/to/file.md — N fixes applied` or `[·] path/to/file.md — clean`
+5. **Untrack plan files** — for Axis 3 hits confirmed by the user.
+6. **Run validators**:
+   ```bash
+   python3 tooling/check-doc-orphans.py
+   bash tooling/ci/validate-skills.sh plugin/skills
+   bash tests/unit/skills/footer-center-aligned.sh
+   ```
+7. **Render review report** — fill `templates/review-report.md.tmpl`; save to `docs/review-${DATE}.md`.
+8. **Final summary** — print: `Reviewed X/N files. Y fixes applied. Z files untracked.`
 
-```
-Docs review complete — <DATE>
-  Files reviewed : N
-  Fixes applied  : M
-  Broken links   : K fixed
-  Stray files    : J flagged (awaiting confirmation)
-  Manual review  : list any items needing human judgement
-```
-
-## Hard rules
+## Hard rules (do NOT break these)
 
 - **Never mark a file as reviewed without reading it.** `[✓]` requires: file read + all 5 axes checked. Scanning git log is not a substitute.
-- **Step 0 MUST run before any per-file audit.** Never skip it, even on partial sweeps.
-- **Never delete a doc without user confirmation.** Untrack first (`git rm --cached`), retain working-tree copy.
-- **Never rewrite a whole doc wholesale.** Fix only the drifted or broken parts.
-- **Never invent links.** If a target doesn't exist, remove the link or flag it for the user.
-- **Never write the review report into `docs/`.** Output to stdout only — a report file in `docs/` is a stray plan file by Axis 3's own definition.
-- **Never paraphrase command names, file paths, or identifiers.** Use canonical forms from the codebase.
+- **Axis 0 MUST run before any per-file audit.** Never skip it, even on partial sweeps.
+- **Never delete a doc the user has not confirmed.** Untrack first, retain working-tree copy.
+- **Never rewrite a whole doc wholesale.** Fix only the drifted parts.
+- **Never invent links.** If a target doesn't exist, remove the link or flag for the user.
+- **Never paraphrase command names, file paths, or agent names.** Use canonical forms from `CLAUDE.md`.
+- **Plan files are not always trash.** The detector flags candidates; the human confirms.
 
-## Anti-patterns
+## References
 
-| Wrong | Right |
-|-------|-------|
-| Skipping Step 0 and guessing which files exist | Always build the manifest first |
-| Marking a file `[✓]` after only reading git log | Read the actual file content |
-| Rewriting entire docs because they feel outdated | Fix only what the git history proves has drifted |
-| Deleting a stray file without asking | Flag as CANDIDATE; ask before any removal |
-| Writing `docs/review-YYYY-MM-DD.md` to capture findings | Print summary to stdout; never add report files to `docs/` |
-| Treating `https://` link failures as blocking | Flag external broken links; don't stall the sweep |
-| Fixing long lines inside code blocks | Only fix long lines in prose paragraphs |
+- **[`scripts/file-freshness.sh`](scripts/file-freshness.sh)** — git-history-driven freshness verdict.
+- **[`scripts/detect-plan-files.sh`](scripts/detect-plan-files.sh)** — stray plan/work file detector.
+- **[`scripts/check-template.sh`](scripts/check-template.sh)** — audience/footer/Mermaid/purpose checks.
+- **[`scripts/validate-links.sh`](scripts/validate-links.sh)** — relative-link, anchor, Mermaid, link-text checks.
+- **[`templates/review-report.md.tmpl`](templates/review-report.md.tmpl)** — canonical report shape.
+- **[`references/sweep-checklist.md`](references/sweep-checklist.md)** — quick-reference checklist.
+- **[`references/known-canonical-plans.md`](references/known-canonical-plans.md)** — plan-shaped filenames that must NOT be untracked.
+- **[`evals/evals.json`](evals/evals.json)** — pinned behaviors: orphan detection, freshness verdict, footer compliance, link validity.
+
+## Existing repo validators this skill defers to
+
+- `tooling/check-doc-orphans.py` — orphan detection for `docs/user/` and `docs/engineering/`.
+- `tests/unit/skills/footer-center-aligned.sh` — footer block conformance.
+- `.claude/rules/documentation-standards.md` — the rule the skill enforces.
+- `tooling/ci/regen-claude-md.sh` / `regen-testing-md.sh` — auto-regenerated counts.
+
+This skill orchestrates them; it does NOT re-implement them.
