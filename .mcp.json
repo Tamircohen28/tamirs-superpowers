@@ -3,11 +3,9 @@
     "github": {
       "type": "stdio",
       "command": "bash",
-      "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/github-mcp.sh"]
-    },
-    "context7": {
-      "type": "http",
-      "url": "https://mcp.context7.com/mcp"
+      "args": [
+        "${CLAUDE_PLUGIN_ROOT}/hooks/github-mcp.sh"
+      ]
     }
   }
 }
