@@ -5,14 +5,14 @@ Examples of how to apply the targeted-debug hard rules in real situations.
 ## Example 1 — Java NullPointerException
 
 **User input:**
-> "Why is this failing? `at com.wixpress.scheduler.BookingsConfirmService.confirm(BookingsConfirmService.scala:142)` — caused by NullPointerException"
+> "Why is this failing? `at com.example.scheduler.BookingService.confirm(BookingService.java:142)` — caused by NullPointerException"
 
 **In scope (read these):**
-- `BookingsConfirmService.scala` — the file in the trace, around line 142
+- `BookingService.java` — the file in the trace, around line 142
 
 **Out of scope (do NOT read):**
 - Other services in the scheduler package
-- Tests for BookingsConfirmService
+- Tests for BookingService
 - Callers of `confirm()` elsewhere in the repo
 
 **Out-of-scope follow-ups (note in report):**
@@ -65,12 +65,12 @@ scope.
 
 **User input:**
 > "Booking confirms fail with HTTP 500. Logs say:  
->   `at PaymentClient.charge(PaymentClient.scala:88)`  
->   `at BookingsConfirmService.confirm(BookingsConfirmService.scala:142)`"
+>   `at PaymentClient.charge(PaymentClient.java:88)`  
+>   `at BookingService.confirm(BookingService.java:142)`"
 
 **In scope:**
-- `PaymentClient.scala` line 88
-- `BookingsConfirmService.scala` line 142
+- `PaymentClient.java` line 88
+- `BookingService.java` line 142
 
 **Out of scope:**
 - The actual payment-service code (different repo / artifact)

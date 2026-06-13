@@ -36,8 +36,8 @@ if [[ -n "$PATTERNS_FILE" && -f "$PATTERNS_FILE" ]]; then
   done < "$PATTERNS_FILE"
 fi
 
-# Merge patterns
-PATTERNS=("${BUILTIN_PATTERNS[@]}" "${FILE_PATTERNS[@]}")
+# Merge patterns — use array expansion guard for empty FILE_PATTERNS (bash -u safe on macOS)
+PATTERNS=("${BUILTIN_PATTERNS[@]}" ${FILE_PATTERNS[@]+"${FILE_PATTERNS[@]}"})
 
 # File extensions to scan
 INCLUDE_ARGS=(

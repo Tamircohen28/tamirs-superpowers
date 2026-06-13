@@ -143,6 +143,55 @@ bash "$SCANNER" "$PROJECT_DIR"
 
 If any employer IP remains, fix it before Step 5.
 
+### Step 4b — Delete stale remote branches
+
+After IP fixes are clean, prune merged and closed-PR branches from the remote.
+
+```bash
+cd "$PROJECT_DIR"
+
+REMOTE=$(git remote | head -1)
+DEFAULT_BRANCH=$(git remote show "$REMOTE" 2>/dev/null | grep 'HEAD branch' | cut -d: -f2 | tr -d ' ')
+echo "Default branch: $DEFAULT_BRANCH  Remote: $REMOTE"
+
+# Branches fully merged into the default branch
+MERGED=$(git branch -r --merged "origin/$DEFAULT_BRANCH" \
+  | grep -v "origin/HEAD\|origin/$DEFAULT_BRANCH" \
+  | sed 's|origin/||' | tr -d ' ')
+
+# Branches whose PRs are already merged or closed (requires gh)
+PR_CLOSED=()
+if command -v gh &>/dev/null; then
+  while IFS= read -r branch; do
+    git ls-remote --exit-code origin "$branch" &>/dev/null && PR_CLOSED+=("$branch")
+  done < <(gh pr list --state closed --base "$DEFAULT_BRANCH" --json headRefName \
+    --jq '.[].headRefName' 2>/dev/null || true)
+fi
+
+TO_DELETE=()
+for b in $MERGED "${PR_CLOSED[@]:-}"; do
+  [[ -z "$b" ]] && continue
+  # Never delete the default branch or common protected names
+  [[ "$b" == "$DEFAULT_BRANCH" || "$b" == "main" || "$b" == "master" || "$b" == "dev" ]] && continue
+  TO_DELETE+=("$b")
+done
+
+# Deduplicate
+mapfile -t TO_DELETE < <(printf '%s\n' "${TO_DELETE[@]:-}" | sort -u)
+
+if [[ ${#TO_DELETE[@]} -eq 0 ]]; then
+  echo "No stale remote branches found."
+else
+  echo "Stale branches to delete from remote:"
+  printf '  - %s\n' "${TO_DELETE[@]}"
+  for branch in "${TO_DELETE[@]}"; do
+    git push "$REMOTE" --delete "$branch" && echo "  Deleted: $branch" || echo "  Failed to delete: $branch"
+  done
+fi
+```
+
+Report what was deleted (or "none") to the user before continuing.
+
 ### Step 5 — Scaffold world-class repo infrastructure
 
 Analyze what already exists. Only create what is missing. Never overwrite a high-quality existing file — augment or regenerate only if poor quality.
@@ -372,6 +421,7 @@ Print the final repo URL and a brief next-steps checklist (add a banner image, e
 [ ] Step 2  IP scan run — user has acknowledged findings
 [ ] Step 3  Polish plan shown — user has approved
 [ ] Step 4  Employer IP removed — scan re-run and clean
+[ ] Step 4b Stale remote branches deleted
 [ ] Step 5  Repo infrastructure scaffolded
 [ ] Step 6  Quality audits run (docs-review, repo-review, changelog-review if plugin)
 [ ] Step 7  Summary table shown — user has approved GitHub push
