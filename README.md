@@ -66,6 +66,13 @@ MCP stubs load. The bundled **MCP servers** (`github`, `context7`) are wired in
 `.mcp.json` and start automatically — the `github` server derives its token from
 your `gh` CLI auth (`gh auth login`), so there are no env vars to set by hand.
 
+> **Statusline not showing?** If the footer statusline doesn't appear after
+> restart, add it manually: run `/config` in Claude Code and set `statusLine`,
+> or add it directly to `~/.claude/settings.json`:
+> ```json
+> { "statusLine": { "type": "command", "command": "bash ~/.claude/plugins/cache/tamirs-plugins/tamirs-superpowers/<version>/statusline.sh" } }
+> ```
+
 ## Bundled Skills
 
 Each skill lives at `skills/<skill-name>/SKILL.md`.
