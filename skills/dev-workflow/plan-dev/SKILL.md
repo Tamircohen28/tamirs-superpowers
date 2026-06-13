@@ -1,6 +1,7 @@
 ---
 name: plan-dev
-description: "Use when the user wants to plan, decompose, structure, organize, or break down a task, spec, issue URL, list of fixes, or review doc into phases before coding. Triggers on 'plan this', 'break this into phases', 'create issues for', 'decompose this spec', 'structure this task', 'what are the steps to implement', 'turn this into GitHub issues'. Produces a reviewed phase plan then creates GitHub issues."
+description: "Use when the user wants to plan, decompose, or break down a task, spec, or review doc into phases before coding. Triggers: 'plan this', 'break into phases', 'create issues for', 'decompose this spec', 'turn into tickets'."
+disable-model-invocation: true
 when_to_use: "User wants to plan or structure development work into phases and create GitHub issues — invoked as /plan-dev or when the user says: 'plan this', 'break this into phases', 'create issues for this', 'decompose this spec/task', 'structure this feature', 'what order should I do this in', 'turn this into tickets', 'help me organize this work'."
 argument-hint: "[task description, file path to spec/review doc, or GitHub issue URL]"
 model: claude-sonnet-4-6
@@ -129,7 +130,7 @@ Example of a well-formed phase:
 - [ ] Add `JWT_SECRET` to `.env.example` with placeholder value
 
 ### Verification
-- [ ] `curl -H "Authorization: Bearer badtoken" http://localhost:3000/api/v1/users` returns 401
+- [ ] `curl -H "Authorization: Bearer badtoken" https://api.example.com/v1/users` returns 401
 - [ ] `npm test` passes with no regressions
 ```
 

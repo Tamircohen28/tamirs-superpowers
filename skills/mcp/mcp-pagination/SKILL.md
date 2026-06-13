@@ -7,9 +7,7 @@ allowed-tools:
   - Read
   - Bash
 model: claude-sonnet-4-6
-when_to_use: >
-  Invoked automatically by mcp-builder when generating or reviewing MCP server
-  designs that include list/search operations. Not called directly by users.
+when_to_use: "Invoked automatically by mcp-builder when generating or reviewing MCP server designs that include list/search operations. Not called directly by users."
 metadata:
   capability: mcp-guardrail
   tags:
@@ -25,11 +23,20 @@ metadata:
 
 MCP tools that return lists or search results have no built-in safety net against unbounded responses. Calling `list_issues`, `search_code`, or any similar tool without a limit parameter can return hundreds or thousands of items, consuming 10-100x more tokens than needed, slowing responses, and inflating API costs. Naive implementations skip pagination because the tool "works" without it — this guardrail enforces limits before that mistake reaches production.
 
-This skill is injected by `mcp-builder` when it detects list or search operations in a server design. It is not a user-facing guide.
+This skill is invoked by `mcp-builder` via `Skill("mcp-pagination")` when list/search operations appear in an MCP server design. It is not user-facing — users should run `mcp-builder` instead.
 
-## Workflow (invoked by mcp-builder)
+## When mcp-builder invokes this skill
 
-When `mcp-builder` invokes this skill, apply the following steps in order:
+| mcp-builder phase | Why |
+|-------------------|-----|
+| **Phase 1.4** — after cataloging collection endpoints | Set pagination strategy before any tool schemas |
+| **Phase 3.0** — before each `list_*` / `search_*` / SQL tool | Apply limits and cursor mapping per tool |
+| **Phase 4.1** — after Inspector testing | Run quick-reference checklist against implemented tools |
+| **Phase 5** — eval design | Confirm evals use caller-driven pagination, not full scans |
+
+If `mcp-builder` passes planned tool names or API pagination params, use them as input for Steps 1–3 below.
+
+## Workflow
 
 **Step 1 — Identify list/search operations in the MCP server design.**
 
@@ -161,3 +168,5 @@ Before approving any MCP server design that includes list or search tools, verif
 - [ ] No tool auto-paginates; pagination is always caller-driven
 - [ ] Date/state/author filters are available as fallback when no limit param exists
 - [ ] Default limits are at the conservative end of the safe range for the operation type
+
+When invoked from `mcp-builder` Phase 4.1, report pass/fail per item. Return control to `mcp-builder` only after all items pass or you list concrete fixes for each failure.

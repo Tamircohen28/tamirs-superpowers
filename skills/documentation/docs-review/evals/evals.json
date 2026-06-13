@@ -1,0 +1,67 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "name": "review-docs-skill-evals",
+  "description": "Pin the deterministic axes (orphan detection, freshness verdict, footer compliance, link validity) so future edits to the skill don't regress the audit accuracy.",
+  "cases": [
+    {
+      "id": "orphan-detection-runs-clean",
+      "description": "After a sweep, tooling/check-doc-orphans.py must exit 0 — every doc under docs/user/ and docs/engineering/ is reachable from a parent README.md.",
+      "input": {"command": "python3 tooling/check-doc-orphans.py"},
+      "expected_exit": 0
+    },
+    {
+      "id": "freshness-script-emits-canonical-shape",
+      "description": "file-freshness.sh emits a JSON object with file, last_doc_update, repo_changes_since, relevant_count, verdict.",
+      "input": {"command": "bash .claude/skills/review-docs/scripts/file-freshness.sh README.md"},
+      "expected_substrings": ["\"file\":", "\"last_doc_update\":", "\"verdict\":", "\"relevant_count\":"]
+    },
+    {
+      "id": "freshness-verdict-enum",
+      "description": "verdict must be one of fresh|review|stale.",
+      "input": {"command": "bash .claude/skills/review-docs/scripts/file-freshness.sh README.md"},
+      "assert": "JSON.parse(stdout).verdict matches /^(fresh|review|stale)$/"
+    },
+    {
+      "id": "plan-detector-flags-known-plan-shape",
+      "description": "Files matching *-plan.md with score>=2 must be reported as suspects.",
+      "input": {"setup": "create docs/test-plan-2026-01-01.md unlinked from any README", "command": "bash .claude/skills/review-docs/scripts/detect-plan-files.sh"},
+      "expected_substrings": ["test-plan-2026-01-01.md", "\"score\""]
+    },
+    {
+      "id": "template-check-flags-user-doc-without-footer",
+      "description": "check-template.sh against a docs/user/ file lacking the canonical footer must report footer_present=false.",
+      "input": {"shape": "validate", "audience": "user", "footer_block_absent": true},
+      "assert": "footer_present == false"
+    },
+    {
+      "id": "template-check-detects-mermaid-violations",
+      "description": "Mermaid blocks containing classDef / class / fill: / style must be counted in mermaid_violations.",
+      "input": {"shape": "validate", "mermaid": "graph TD\\n  A-->B\\n  classDef big fill:#f00\\n  class A big"},
+      "assert": "mermaid_violations >= 2"
+    },
+    {
+      "id": "validate-links-detects-broken-relative",
+      "description": "validate-links.sh must report broken_links for a target file that does not exist on disk.",
+      "input": {"shape": "validate", "link": "[broken](does-not-exist.md)"},
+      "assert": "broken_links_count == 1"
+    },
+    {
+      "id": "validate-links-detects-broken-anchor",
+      "description": "validate-links.sh must report broken_anchors when the target file exists but has no matching heading.",
+      "input": {"shape": "validate", "link": "[bad anchor](README.md#nonexistent-heading-xyz)"},
+      "assert": "broken_anchors_count == 1"
+    },
+    {
+      "id": "validate-links-flags-path-as-link-text",
+      "description": "Markdown link with text that's a raw path (e.g. [docs/user/foo.md](docs/user/foo.md)) must produce a link_text_warning per documentation-standards.md.",
+      "input": {"shape": "validate", "link": "[docs/user/troubleshooting.md](docs/user/troubleshooting.md)"},
+      "assert": "link_text_warnings_count == 1"
+    },
+    {
+      "id": "footer-test-still-passes",
+      "description": "After a sweep, the existing footer-center-aligned.sh test must still pass — the skill should NEVER produce a doc that violates the canonical footer.",
+      "input": {"command": "bash tests/unit/skills/footer-center-aligned.sh"},
+      "expected_exit": 0
+    }
+  ]
+}

@@ -2,12 +2,9 @@
 name: repo-review
 disable-model-invocation: true
 user-invocable: false
-description: "Internal: repo health audit used by repo-polish. Scans for misplaced files, overfull dirs, sparse dirs, unclear names, dead scripts, stale docs, and over-commented shell files. Outputs a prioritised findings report to docs/. Not for direct user invocation — run repo-polish instead."
+description: "Internal: read-only repository health audit — misplaced files, stale refs, directory violations, over-commented scripts, dev-env gaps. Invoked by repo-polish during Step 6a. Produces docs/repo-review-<date>.md; repo-polish applies P1 fixes. Not for direct user invocation — run repo-polish instead."
+when_to_use: "Invoked automatically by repo-polish Step 6a after scaffolding (or early after Step 1 for large repos). May also run standalone only when another skill explicitly delegates a repo audit."
 model: claude-sonnet-4-6
-when_to_use: |
-  Invoked automatically by repo-polish when the user asks for a repo health check,
-  codebase audit, cleanup sweep, dead code scan, or stale file review.
-  Never triggered directly by users — always called as a sub-skill from repo-polish.
 allowed-tools:
   - Bash
   - Read
@@ -16,231 +13,224 @@ allowed-tools:
   - Grep
 metadata:
   capability: repository-audit
+  provider: developer-workflow
+  agents:
+    - repo-review
+  platforms:
+    - claude
   tags:
     - audit
     - cleanup
     - repo-health
     - misplaced-files
     - stale-refs
-    - dead-scripts
-    - comment-density
+    - pipeline-reorg
   updated-date: "2026-06-13"
 ---
 
-# Repo Review — Internal Repository Health Audit
+# repo-review
 
-A **read-only** audit that scans a repository's structure and produces a prioritised findings report. Never edits source files — the only output is `docs/repo-review-<DATE>.md`.
+A **read-only** repository audit that scans every corner of the codebase and produces a prioritised findings report. The skill never edits files — its only output is `docs/repo-review-${DATE}.md`. **`repo-polish` reads the report and applies P1 fixes.**
+
+## When repo-polish invokes this skill
+
+| repo-polish step | Action |
+|------------------|--------|
+| **Step 6a** — after Step 5 scaffolding | Full audit of `$PROJECT_DIR`; write report under `$PROJECT_DIR/docs/` |
+| **Optional** — after Step 1 survey | Early pass if repo is large or visibly messy before planning |
+
+`repo-polish` sets `cd "$PROJECT_DIR"` before calling `Skill("repo-review")`. Use `$PROJECT_DIR` as `ROOT` for all discovery scripts:
+
+```bash
+ROOT="$PROJECT_DIR"
+bash "$CLAUDE_SKILL_DIR/scripts/check-dir-sizes.sh" "$ROOT"
+bash "$CLAUDE_SKILL_DIR/scripts/check-stale-refs.sh" "$ROOT"
+bash "$CLAUDE_SKILL_DIR/scripts/check-comment-density.sh" "$ROOT"
+```
+
+Tag every finding P1/P2/P3. **`repo-polish` must fix all P1 items** before Step 7 — return the report with a clear P1 summary at the top.
 
 ## Why this skill exists
 
-Repos accumulate debt invisibly: directories with one file, scripts nobody calls, docs that reference deleted paths, ticket-id filenames committed as permanent files, and shell scripts buried under boilerplate comments. A manual sweep takes hours and still misses things. Naive grep-and-list approaches produce false positives (e.g., flagging files as "dead" when they're loaded dynamically). This skill runs a structured mechanical sweep — combining helper scripts with inline targeted queries — and produces a single actionable report the team can triage.
+Repos accumulate clutter: dirs with one file, scripts nobody calls, docs that still say "LangGraph", ticket-specific filenames committed in the wrong place. A manual sweep takes hours and still misses things. This skill runs the sweep mechanically — bash scripts handle discovery, you handle interpretation and writing — and produces a single doc the team can act on.
 
-## Workflow (follow this order exactly)
+## Workflow (follow this order)
 
-### Step 1 — Locate the repo root
+### Step 1 — Run discovery scripts
+
+Run all three helper scripts from the repo root. Capture their output; you'll reference it throughout:
 
 ```bash
 ROOT="$(git rev-parse --show-toplevel)"
-echo "Auditing: $ROOT"
+bash "$ROOT/.claude/skills/repo-review/scripts/check-dir-sizes.sh"    "$ROOT" 2>&1
+bash "$ROOT/.claude/skills/repo-review/scripts/check-stale-refs.sh"   "$ROOT" 2>&1
+bash "$ROOT/.claude/skills/repo-review/scripts/check-comment-density.sh" "$ROOT" 2>&1
 ```
 
-### Step 2 — Run the helper scripts
-
-The helper scripts are bundled alongside this skill. `$CLAUDE_SKILL_DIR` is set to the directory containing this SKILL.md when invoked via the Skill tool from repo-polish.
+Also run these inline commands — they're fast and cover gaps the scripts don't:
 
 ```bash
-bash "$CLAUDE_SKILL_DIR/scripts/check-dir-sizes.sh"      "$ROOT" 2>&1
-bash "$CLAUDE_SKILL_DIR/scripts/check-comment-density.sh" "$ROOT" 2>&1
-```
+# Top-level docs/*.md outside docs/README.md (governance violation)
+find docs -maxdepth 1 -name '*.md' ! -name 'README.md' 2>/dev/null
 
-Capture the full output — you'll reference it in Sections 1 and 5 of the report.
+# Single-word / generic filenames in scripts
+find plugin/scripts tooling -name '*.sh' 2>/dev/null \
+  | grep -E '/(utils|helpers|common|fix|script|temp|new-|old-)' || true
 
-### Step 3 — Run inline discovery queries
+# Ticket-named files committed outside docs/engineering/
+find . -name 'sched-*.md' -o -name '*-investigation-*.md' \
+  -o -name '*-2026-*.md' 2>/dev/null \
+  | grep -v '.git' | grep -v 'known-regressions-archive' || true
 
-Run all of these from `$ROOT`. They cover gaps the scripts don't:
+# Markdown files with HTML comment blocks
+grep -rl '<!--' docs plugin/agents plugin/skills .claude 2>/dev/null || true
 
-```bash
-# Generic / unclear script names — utils.sh, helpers.sh, fix.sh, temp.sh, etc.
-find "$ROOT" -name '*.sh' 2>/dev/null \
-  | grep -E '/(utils|helpers|common|fix|script|temp|new[-_]|old[-_])' \
-  | grep -v '\.git' || true
-
-# Ticket-named or dated markdown files (likely one-off artifacts)
-find "$ROOT" -name '*.md' 2>/dev/null \
-  | grep -iE '[-_](investigation|spike|analysis|2[0-9]{3}[-_][0-9]{2})' \
-  | grep -v '\.git' || true
-
-# Markdown files containing HTML comment blocks (stale scaffolding / template placeholders)
-grep -rl '<!--' "$ROOT" --include='*.md' 2>/dev/null | grep -v '\.git' || true
-
-# Potentially dead scripts (≤1 reference across .md, .sh, .json files)
-for f in $(find "$ROOT" -name '*.sh' 2>/dev/null | grep -v '\.git' | head -60); do
+# Files that look like they might be dead (not referenced elsewhere)
+for f in $(find plugin/scripts -name '*.sh' 2>/dev/null | head -40); do
   name=$(basename "$f")
-  count=$(grep -rl "$name" "$ROOT" \
-    --include='*.md' --include='*.sh' --include='*.json' \
-    --exclude-dir='.git' --exclude-dir='node_modules' --exclude-dir='dist' \
-    2>/dev/null | wc -l | tr -d ' ')
-  [ "$count" -le 1 ] && echo "UNREFERENCED: $f (count=$count)"
+  count=$(grep -rl "$name" . --include='*.md' --include='*.sh' --include='*.json' \
+    --exclude-dir='.git' --exclude-dir='dist' 2>/dev/null | wc -l | tr -d ' ')
+  [ "$count" -le 1 ] && echo "UNREFERENCED: $f"
 done
 
-# Stale SKILL.md updated-dates (>60 days old); works on both macOS and Linux
-TODAY=$(date +%s)
-for f in $(find "$ROOT" -name 'SKILL.md' 2>/dev/null | grep -v '\.git'); do
-  date_str=$(grep 'updated-date:' "$f" 2>/dev/null | grep -oE '[0-9]{4}-[0-9]{2}-[0-9]{2}' | head -1)
-  [ -z "$date_str" ] && continue
-  # macOS: date -j -f '%Y-%m-%d'; Linux: date -d
-  file_ts=$(date -j -f '%Y-%m-%d' "$date_str" +%s 2>/dev/null \
-            || date -d "$date_str" +%s 2>/dev/null) || continue
-  age=$(( (TODAY - file_ts) / 86400 ))
-  [ "$age" -gt 60 ] && echo "STALE ($age days): $f — updated-date: $date_str"
-done
-
-# Docs referencing recently-deleted paths (last 90 days of deletions)
-git -C "$ROOT" log --since=90.days.ago --diff-filter=D --name-only --pretty=format: \
-  | grep -v '^$' | sort -u | head -30
+# Pipeline scripts by proposed group (for reorg proposal)
+ls plugin/scripts/pipeline/*.sh 2>/dev/null | wc -l
 ```
 
-### Step 4 — Reason before writing
+### Step 2 — Interpret findings
 
-Before drafting the report, classify each finding:
+Before writing the report, reason briefly about each category:
+- Which violations are P1 (break CI or governance today)?
+- Which are P2 (real quality debt, fix next PR)?
+- Which are P3 (nice-to-have, low risk)?
 
-| Priority | Criterion |
-|----------|-----------|
-| **P1** | Active quality problem — misleads contributors, breaks tooling, or causes confusion right now. Fix next PR. |
-| **P2** | Real debt — slows onboarding or causes drift. Schedule for cleanup within a sprint. |
-| **P3** | Nice-to-have — low risk, no urgency. Worth a future tidy-up PR. |
+Don't write the report until you have findings across all 7 sections — even if a section is "none found."
 
-Do not skip empty sections. If a section has no findings, mark it "No issues found."
+### Step 3 — Write the report
 
-### Step 5 — Write the report
+Write to `docs/repo-review-$(date +%Y-%m-%d).md`. Use the template in `references/report-template.md`. Fill every section; mark empty sections explicitly as "No issues found."
 
-Write to `docs/repo-review-$(date +%Y-%m-%d).md` (create `docs/` with `mkdir -p` if absent).
+Each finding entry must include:
+- **Path** — exact relative file or directory path
+- **Reason** — one sentence explaining why it's flagged
+- **Action** — concrete recommended action (P1/P2/P3 tagged)
 
-Each finding row must include: **Path**, **Reason** (one sentence), **Action** (P-tagged).
-
-## The five audit sections
+## The seven audit sections
 
 ### 1. Directory Violations
+Sources: `check-dir-sizes.sh` output.
 
-Source: `check-dir-sizes.sh` output.
-
-| Class | Threshold | Default Priority |
-|-------|-----------|-----------------|
-| **Overfull** | >10 direct files in one dir | P2 — consider splitting into subdirectories |
-| **Sparse** | ≤1 file AND 0 subdirectories | P3 — single-file dirs add navigation overhead; consider merging |
-| **Empty** | 0 files, 0 subdirs | P1 — git won't track empty dirs; add `.gitkeep` or remove |
+Flag three classes:
+- **Overfull** — >10 files, NOT in `tooling/ci/validate-dir-file-count.sh` allowlist → P1 (CI blocks new additions)
+- **Allowlisted-but-still-bloated** — in allowlist but >20 files → P2 (tracked cleanup debt)
+- **Sparse** — ≤1 file AND no subdirectories → P3 (single-file dirs add nav overhead; consider merging)
+- **Empty** — 0 files, 0 subdirs → P1 (git won't track them; usually .gitkeep candidate or stale dir)
 
 ### 2. Misplaced Files
+Cross-reference paths against `.claude/rules/file-structure-governance.md` canonical table.
 
-Flag files that appear to be in the wrong location:
-- Ticket-named files (`issue-1234-*.md`, `sched-*.md`) committed as permanent docs
-- Temporary-looking tracked files (`*.tmp`, `*.bak`, `*-copy.*`)
-- Internal architecture docs placed in user-facing `docs/` (or vice versa)
-- Top-level files that belong in a subdirectory
+Known violation patterns to check:
+- `docs/engineering/` containing user-facing how-to guides (should be `docs/user/`)
+- `docs/user/` containing architecture/internal docs (should be `docs/engineering/`)
+- `plugin/rules/` containing dev-workflow rules (should be `.claude/rules/`)
+- Top-level `docs/*.md` that isn't `docs/README.md`
+- Ticket-named files (`sched-*.md`, `*-2026-*.md`) anywhere except `docs/engineering/` or untracked
 
 ### 3. Unclear File Names
-
 Flag names that don't communicate purpose at a glance:
-- Generic single-word script names: `utils.sh`, `helpers.sh`, `common.sh`, `fix.sh`
-- Temporary-looking names: `temp-*`, `new-*`, `old-*`, `backup-*`
-- Ticket-id names committed as permanent files
 
-For every flagged file, suggest a concrete clearer name.
+- Generic single-word script names: `utils.sh`, `helpers.sh`, `common.sh`, `fix.sh`, `script.sh`
+- Generic config names with no qualifier: `config.json` (fine as `plugin.config.json`; not fine alone)
+- Temporary-looking names: `temp-*`, `new-*`, `old-*`, `backup-*`
+- Ticket-id names committed as permanent files: `sched-47012-something.md`
+
+For each: suggest a clearer name.
 
 ### 4. Redundant / Stale Files
+Sources: `check-stale-refs.sh` output + inline grep above.
 
-**4a. Dead scripts** — ≤1 reference across the repo (from the inline loop above).
-Before flagging: verify the script is not loaded dynamically via a variable or a generated list. Include the verification command and its output in the report.
+> **CRITICAL verification rule for agents:** `plugin/agents/pm-*.md` files reference their own agent names — they will ALWAYS appear in a grep for their own name. NEVER flag a `plugin/agents/` file as stale based on grep output alone. Agent files must be verified through a different path (see below).
+
+**4a. Truly deleted agents** — agents whose .md file was git-rm'd AND are no longer dispatched:
 
 ```bash
-# Confirm a specific script is truly unreferenced
-name="suspect-script.sh"
-grep -rn "$name" "$ROOT" \
-  --include='*.md' --include='*.sh' --include='*.json' \
-  --exclude-dir='.git' --exclude-dir='node_modules'
+# Step 1: find agents whose .md file was actually deleted from git
+git log --diff-filter=D --name-only -- 'plugin/agents/pm-*.md' | grep 'pm-' | sort -u
+
+# Step 2: for each candidate name, verify it is NOT still active
+grep -n '<agent-name>' plugin/skills/investigate/SKILL.md plugin/pipeline/steps.json 2>/dev/null
 ```
 
-**4b. Stale architecture references** — docs mentioning paths, tools, or frameworks that were deleted or replaced. Cross-reference the git-deleted-paths list from Step 3 against `grep -rl <deleted-path> .`.
+Only flag an agent as deleted if BOTH are true: (a) `git log --diff-filter=D` shows its .md was removed, AND (b) it is NOT referenced in `investigate/SKILL.md` or `steps.json`. If step 2 finds a reference, the agent is still active — do not flag it.
 
-**4c. One-off investigation docs** — `*.md` files with "investigation", "spike", "analysis", or date-stamped names that are not linked from any README or index.
+**4b. Old architecture references** — files (other than agent .md files) mentioning `LangGraph`, `src/agents/`, `platforms/claude/agents/`, `plugin/commands/` as an active directory. Known-regressions-archive.md is exempt.
+
+**4c. Stale investigation reports** — `docs/engineering/*-investigation-*.md` or `docs/engineering/*-2026-*.md` that predate the linear-pipeline refactor (check `git log` date)
+
+**4d. Potentially dead scripts** — scripts with ≤1 reference across the whole repo (from the inline dead-code grep); flag for human confirmation before deletion. Before flagging: verify the script is not invoked indirectly via a variable or via a list of scripts (e.g., `validate-install/SKILL.md` lists scripts by name in a loop).
 
 ### 5. Over-commented Files
+Source: `check-comment-density.sh` output.
 
-Source: `check-comment-density.sh` output (default threshold: 40%).
+- Shell scripts >40% comment lines → suggest pruning obvious boilerplate comments
+- Markdown files with `<!-- HTML comment -->` blocks → these are usually stale scaffolding or template placeholders; recommend removing
 
-| Signal | Recommendation |
-|--------|---------------|
-| Shell script >40% comment lines | Suggest pruning obvious boilerplate or outdated commentary |
-| Markdown with `<!-- HTML comment -->` blocks | Likely stale scaffolding or template placeholders; recommend removing |
+### 6. Dev Env Consistency Gaps
+Run these checks manually:
 
-## Report template
+```bash
+# SKILL.md files with updated-date > 60 days ago
+for f in $(find .claude/skills plugin/skills -name 'SKILL.md' 2>/dev/null); do
+  date_str=$(grep 'updated-date:' "$f" 2>/dev/null | grep -oP '\d{4}-\d{2}-\d{2}' | head -1)
+  [ -z "$date_str" ] && continue
+  age=$(( ( $(date +%s) - $(date -j -f '%Y-%m-%d' "$date_str" +%s 2>/dev/null || \
+            date -d "$date_str" +%s 2>/dev/null) ) / 86400 ))
+  [ "$age" -gt 60 ] && echo "$f: $date_str ($age days)"
+done
 
-```markdown
-# Repo Review — <DATE>
+# .claude/rules/ files still referencing old patterns
+grep -rl 'plugin/commands\|src/agents\|platforms/claude' .claude/rules/ 2>/dev/null || true
 
-## Summary
-Scanned <N> directories, <N> shell scripts, <N> markdown files.
-P1 issues: N | P2 issues: N | P3 issues: N
-
----
-
-## 1. Directory Violations
-| Path | Issue | Files | Action |
-|------|-------|-------|--------|
-| path/to/dir | overfull | 14 | P2: Split into two subdirectories |
-| path/to/empty | empty | 0 | P1: Add .gitkeep or remove |
-
----
-
-## 2. Misplaced Files
-| Path | Reason | Action |
-|------|--------|--------|
-| SPIKE-123-auth.md | Ticket-named file committed as permanent doc | P2: Move to docs/archive/ or delete |
-
----
-
-## 3. Unclear File Names
-| Current Path | Suggested Name |
-|-------------|---------------|
-| scripts/fix.sh | scripts/fix-broken-symlinks.sh |
-
----
-
-## 4. Redundant / Stale Files
-| Path | Evidence | Action |
-|------|----------|--------|
-| scripts/old-deploy.sh | grep count: 0 references | P1: Delete or archive |
-
----
-
-## 5. Over-commented Files
-| Path | Comment % | Action |
-|------|-----------|--------|
-| hooks/setup.sh | 62% | P3: Prune boilerplate comment blocks |
-
----
-
-## Sections with no issues
-- Section N: No issues found.
+# copilot-instructions.md count check
+actual_agents=$(ls plugin/agents/pm-*.md 2>/dev/null | wc -l | tr -d ' ')
+claimed_agents=$(grep -oP '\d+(?= agent)' .github/copilot-instructions.md 2>/dev/null | head -1)
+[ "$actual_agents" != "$claimed_agents" ] && echo "copilot-instructions.md: claims $claimed_agents agents, actual $actual_agents"
 ```
+
+Flag: stale `updated-date`, docs describing the old TypeScript/LangGraph architecture, copilot-instructions.md count drift.
+
+### 7. Pipeline Scripts Reorganization Proposal
+This section is always a **proposal only** — no files are moved.
+
+List all `plugin/scripts/pipeline/*.sh` files and assign each to a proposed sub-directory using this grouping:
+
+| Group | Pattern |
+|-------|---------|
+| `core/` | setup, config, mcp-probe, trace, now-iso |
+| `dispatch/` | dispatch-*, with-flock, with-time-budget |
+| `steps/` | write-step, finalize-step, finalize, finalize-report, with-step |
+| `evidence/` | gather-evidence-*, collect-evidence, build-evidence-*, plan-gather, extract-* |
+| `validate/` | validate-* |
+| `quality/` | quality-gate, should-publish-report, score-*, classify-*, route-*, emit-*, checklist-* |
+| `state/` | reconcile-state, state-get, cost-summary, synthesize-step-*, aggregate-* |
+| `rescue/` | rescue-* |
+| `utils/` | sanitize-json, truncate-logs, iso-to-epoch, build-grafana-url, build-platform-fact, normalize-*, md-to-html, log-priority-sql, funnel, parse-run-request |
+
+Count files per group. List any that don't fit. Note: implementing this reorganization requires updating all path references in `plugin/skills/investigate/SKILL.md` and agent files — it's a follow-up PR, not done here.
 
 ## Hard rules
 
-- **Read-only.** The only file this skill creates is the report itself. Never edit, move, or delete source files.
-- **All five sections must appear.** A missing section looks like an error. Write "No issues found." if a section is clean.
-- **Use bash, not manual enumeration.** Never type out a file list — always use `find`, `grep`, `wc`, or `git log`.
-- **Verify before recommending deletion.** For any file flagged redundant, the report must include the verification command and its actual output — not just the assertion.
-- **No false positives from dynamic loading.** Before marking a script dead, check if its name is referenced via a variable, `ls`/`find` pipeline, or sourced glob pattern.
-- **macOS/Linux portable date commands.** Use the two-variant `date -j -f` / `date -d` pattern from Step 3 — not Linux-only `date -d` alone.
-
-## What NOT to do
-
-- **Don't flag files just because they look old** — age alone is not a signal. Flag stale-date SKILL.md files only if the updated-date field is >60 days behind today.
-- **Don't open or read every file** to check for stale content — use targeted `grep -rl` queries. Reading every file is O(n) on repo size and blows token budgets.
-- **Don't write the report incrementally** — gather all findings first, then write once. Partial reports are confusing.
-- **Don't suggest renames for files outside your audit scope** — the report covers the five defined sections only.
+- **Read-only.** The only file this skill creates is the report itself. Never edit, move, or delete anything else.
+- **Report first.** Write the full report before suggesting any fixes. The report is the deliverable.
+- **Use scripts, not manual enumeration.** Never list files by typing them out — always use `find`, `grep`, `wc`, or `git log`.
+- **Never skip a section.** If a section has no findings, write "No issues found." — a blank section looks like an error.
+- **Exempt known-historical files.** `known-regressions-archive.md` intentionally references deleted agents. Don't flag it for stale refs.
+- **Never flag `plugin/agents/pm-*.md` as stale based on grep alone.** Agent files contain their own names — any grep for "pm-artifact-resolver" WILL match `pm-artifact-resolver.md`. The only valid way to confirm an agent is dead: `git log --diff-filter=D` shows its file was deleted AND it is absent from `investigate/SKILL.md` and `steps.json`.
+- **Verify before recommending deletion.** For any file flagged as redundant, the report must include the verification command and its output — not just the assertion. A finding without evidence is a guess.
 
 ## References
 
-- `scripts/check-dir-sizes.sh` — directory file-count scan (overfull, sparse, empty)
+- `scripts/check-dir-sizes.sh` — directory file-count scan (overfull + sparse)
+- `scripts/check-stale-refs.sh` — grep for deleted agents + old architecture patterns
 - `scripts/check-comment-density.sh` — comment-density scan for shell scripts
+- `references/report-template.md` — exact report structure to fill in

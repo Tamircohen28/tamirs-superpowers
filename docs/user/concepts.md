@@ -2,7 +2,7 @@
 
 ## What is tamirs-superpowers?
 
-`tamirs-superpowers` is a **Claude Code plugin** — a bundle of skills, hooks, and configuration that extends what Claude can do inside your terminal. Once installed, it adds slash commands (`/plan-dev`, `/pr-dev`, etc.) to your Claude Code session and wires up automatic behaviors via hooks.
+`tamirs-superpowers` is a **Claude Code plugin** — a bundle of skills, hooks, and configuration that extends what Claude can do inside your terminal. Once installed, it adds slash commands (`/plan-dev`, `/start-dev`, `/babysit-pr`, etc.) to your Claude Code session and wires up automatic behaviors via hooks.
 
 ## Plugins vs skills
 
@@ -30,9 +30,11 @@ Skills are plain Markdown files (`SKILL.md`) with YAML frontmatter. Claude Code 
 
 ## The marketplace structure
 
-This repo doubles as a Claude Code marketplace. `marketplace.json` at the root declares:
-- The marketplace name (`tamirs-superpowers`)
-- The single plugin it publishes (`tamirs-superpowers`, source: `.`)
-- Which third-party marketplaces are allowed as cross-marketplace dependency sources
+This plugin is published through the [`tamirs-plugins`](https://github.com/Tamircohen28/plugins) catalog — a separate marketplace repo that lists `tamirs-superpowers` as an installable plugin. Install with:
 
-When you run `/plugin marketplace add Tamircohen28/tamirs-superpowers`, Claude Code reads `marketplace.json` and knows how to resolve `tamirs-superpowers` and its cross-marketplace dependencies.
+```text
+/plugin marketplace add Tamircohen28/plugins
+/plugin install tamirs-superpowers@tamirs-plugins
+```
+
+The plugin source lives in this repo; the catalog repo handles discovery and versioning.
