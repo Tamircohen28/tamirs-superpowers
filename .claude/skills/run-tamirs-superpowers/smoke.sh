@@ -42,11 +42,11 @@ for field in name version description homepage; do
     fail "plugin.json missing .$field"
   fi
 done
-sl_type=$(jq -r '.statusLine | type' .claude-plugin/plugin.json 2>/dev/null) || sl_type="error"
+sl_type=$(jq -r '.settings.statusLine | type' .claude-plugin/plugin.json 2>/dev/null) || sl_type="error"
 if [ "$sl_type" = "object" ]; then
-  ok "plugin.json .statusLine is an object"
+  ok "plugin.json .settings.statusLine is an object"
 else
-  fail "plugin.json .statusLine must be object not $sl_type"
+  fail "plugin.json .settings.statusLine must be object not $sl_type"
 fi
 
 # ── 4. SKILL.md quality audit ─────────────────────────────────────────────
