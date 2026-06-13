@@ -16,16 +16,16 @@
 
 # tamirs-superpowers
 
-A personal Claude Code plugin that bundles 15 skills, smart worktree hooks, and MCP server stubs — installed with a single `/plugin install` command and kept current via marketplace auto-update.
+A personal Claude Code plugin that bundles 16 skills, smart worktree hooks, and MCP server stubs — installed with a single `/plugin install` command and kept current via marketplace auto-update.
 
 ## Features
 
-- **15 bundled skills** — plan, implement, review, debug, audit docs, create and benchmark skills, and more, all from the Claude Code prompt
+- **16 bundled skills** — plan, implement, review, debug, audit docs, create and benchmark skills, polish repos, and more, all from the Claude Code prompt
 - **Smart worktree hooks** that automatically create isolated git worktrees per task, derive task slugs from your first prompt, enforce edit isolation, and show Claude Code changelogs on update
 - **Auto-installed plugin dependencies** — superpowers pulls in automatically when you install this plugin
 - **MCP server stubs** for GitHub and Context7 — fill in your tokens and they're live
 - **Statusline** showing git branch, worktree state, and session context in your Claude Code footer
-- **Cross-marketplace dependencies** wired in `marketplace.json` so all third-party plugins resolve automatically
+- **Declared plugin dependencies** in `plugin.json` so `superpowers` and other required plugins resolve and install automatically
 
 ## Prerequisites
 
@@ -36,21 +36,35 @@ A personal Claude Code plugin that bundles 15 skills, smart worktree hooks, and 
 
 ## Quick Start
 
-```bash
-# 1. Register third-party marketplaces (one-time, new machine)
-/plugin marketplace add obra/superpowers
+This plugin is published through the [`tamirs-plugins`](https://github.com/Tamircohen28/plugins)
+catalog — install it from there, **not** by adding this repo as a marketplace
+(this repo no longer ships its own `marketplace.json`).
 
-# 2. Add this marketplace
-/plugin marketplace add Tamircohen28/tamirs-superpowers
+### Inside Claude Code (slash commands)
 
-# 3. Install — dependencies auto-install alongside
-/plugin install tamirs-superpowers
+```text
+# 1. Add Tamir's plugin marketplace (one-time per machine)
+/plugin marketplace add Tamircohen28/plugins
 
-# 4. Reload
-/reload-plugins
+# 2. Install — the `superpowers` dependency auto-installs alongside
+/plugin install tamirs-superpowers@tamirs-plugins
+
+# 3. Verify
+/doctor
 ```
 
-To enable MCP servers, open `.mcp.json` in the plugin install directory and set the env vars for any server you want active, then restart Claude Code.
+### From your shell (the `claude` CLI)
+
+```bash
+claude plugin marketplace add Tamircohen28/plugins
+claude plugin install tamirs-superpowers@tamirs-plugins
+claude plugin list          # confirm it's installed
+```
+
+Restart any running Claude Code session afterward so the hooks, statusline, and
+MCP stubs load. The bundled **MCP servers** (`github`, `context7`) are wired in
+`.mcp.json` and start automatically — the `github` server derives its token from
+your `gh` CLI auth (`gh auth login`), so there are no env vars to set by hand.
 
 ## Bundled Skills
 
@@ -63,6 +77,7 @@ Each skill lives at `skills/<skill-name>/SKILL.md`.
 | `/tamirs-superpowers:pr-dev` | Address review threads, fix CI, squash-merge, and clean up. |
 | `/tamirs-superpowers:docs-review` | Audit and fix Markdown docs — freshness, links, stale files. |
 | `/tamirs-superpowers:task-audit` | Audit a completed branch for quality and PR readiness. |
+| `/tamirs-superpowers:repo-polish` | Scan a project for employer IP, scaffold world-class repo infra, and publish to GitHub. |
 | `/tamirs-superpowers:targeted-debug` | Scope-bounded debug from a stack trace — reads only named files. |
 | `/tamirs-superpowers:babysit-pr` | Watch a PR and react to checks, review comments, and merges. |
 | `/tamirs-superpowers:changelog-review` | Fetch live Claude Code docs; answer questions and diff versions. |
