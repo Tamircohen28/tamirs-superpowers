@@ -60,6 +60,9 @@ if is_git_repo "$cwd"; then
     branch_name="$(branch_name_for "$session_title")"
     git -C "$repo_root" worktree add -B "$branch_name" "$worktree_path" "$(resolve_worktree_base_ref "$repo_root")" >&2 || true
     copy_worktreeinclude_files "$repo_root" "$worktree_path"
+    write_worktree_env_local "$worktree_path" "$branch_name" 2>/dev/null || true
+    # Install deps in the background so a slow npm/yarn install never blocks the hook timeout.
+    ( run_worktree_post_setup "$worktree_path" >/dev/null 2>&1 & )
   fi
     session_files_dir="$(ensure_session_files_dir "${worktree_path}/.session-files")"
   fi

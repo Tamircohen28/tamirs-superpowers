@@ -22,4 +22,7 @@ fi
 # Prune stale worktrees (older than WORKTREE_RETENTION_DAYS, no uncommitted changes)
 cleanup_stale_worktrees 2>/dev/null || true
 
+# Prune archived session-files past retention
+prune_session_files_archive 2>/dev/null || true
+
 echo '{"suppressOutput": true}'

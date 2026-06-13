@@ -104,17 +104,25 @@ Each skill lives at `skills/<skill-name>/SKILL.md`.
 
 ## Hooks
 
-`hooks/hooks.json` wires 7 lifecycle events:
+`hooks/hooks.json` wires 8 lifecycle events:
 
 | Event | Script | Purpose |
 |---|---|---|
 | `PreToolUse (Bash)` | `protect-other-branches.sh` | Block editing PRs from other authors. |
 | `PreToolUse (Edit\|Write\|…)` | `enforce-worktree-edits.sh` | Refuse repo edits outside the task worktree. |
 | `SessionStart` | `show-changelog.sh`, `session-init.sh` | Show Claude Code changelog on update; seed session state. |
-| `UserPromptSubmit` | `capture-task-slug.sh` | Derive task slug, create worktree, expose `$CLAUDE_SESSION_FILES_DIR`. |
+| `SessionEnd` | `session-end.sh` | Archive session-files, prune stale worktrees and old archives. |
+| `UserPromptSubmit` | `capture-task-slug.sh` | Derive task slug, create worktree, install deps, expose `$CLAUDE_SESSION_FILES_DIR`. |
 | `WorktreeCreate` | `worktree-create.sh` | Create global worktree under `~/.claude/worktrees/`. |
 | `WorktreeRemove` | `worktree-remove.sh` | Tear down global worktree cleanly. |
-| `Notification` | inline `osascript` | macOS notification when Claude needs attention. |
+| `Notification` | `notify.sh` | Notification (prefixed with the task slug) when Claude needs attention. |
+
+When a worktree is created, the hooks also: copy gitignored files matched by
+`~/.claude/defaults/worktreeinclude` then the repo's `.worktreeinclude` (e.g.
+`.env.local`, credentials); assign a deterministic per-branch `DEV_PORT` in
+`.env.local` so parallel worktrees don't collide; and install dependencies in
+the background (`npm ci` / `yarn` / `pnpm` / `poetry`, skipped when
+`node_modules` already exists), logging to `.session-files/worktree-setup.log`.
 
 ## Documentation
 
