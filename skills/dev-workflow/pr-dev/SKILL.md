@@ -14,6 +14,7 @@ allowed-tools:
   - Grep
   - WebFetch
   - Agent
+  - Skill
 metadata:
   capability: developer-workflow
   tags:
@@ -108,17 +109,75 @@ git push
 
 ### 3. Validate CI
 
-Re-check CI after pushing:
+**Poll until all required checks pass** — do not rely on `--watch` (it times out on slow CI). Run a polling loop instead:
+
 ```bash
-gh pr checks $PR_NUMBER --watch
+MAX_LOOPS=30
+loop=0
+while [ $loop -lt $MAX_LOOPS ]; do
+  loop=$((loop + 1))
+  echo "=== CI poll $loop/$MAX_LOOPS ==="
+
+  # Snapshot current check states
+  gh pr checks $PR_NUMBER --json name,state,conclusion 2>/dev/null \
+    | jq -r '.[] | "\(.conclusion // .state)\t\(.name)"' | sort
+
+  FAILED=$(gh pr checks $PR_NUMBER --json conclusion \
+    --jq '[.[] | select(.conclusion == "failure" or .conclusion == "timed_out")] | length' 2>/dev/null || echo 0)
+  PENDING=$(gh pr checks $PR_NUMBER --json state \
+    --jq '[.[] | select(.state == "pending" or .state == "queued" or .state == "in_progress")] | length' 2>/dev/null || echo 0)
+
+  if [ "$PENDING" -eq 0 ] && [ "$FAILED" -eq 0 ]; then
+    echo "All checks passed."
+    break
+  fi
+
+  if [ "$PENDING" -gt 0 ]; then
+    echo "$PENDING check(s) still running — waiting 60s..."
+    sleep 60
+    continue
+  fi
+
+  # Failures — diagnose before sleeping
+  echo "$FAILED check(s) failed — diagnosing..."
+  break
+done
 ```
 
-If any check fails:
-1. Read the failure: `gh run view <run-id> --job <job-id> --log-failed`
-2. Fix the issue
-3. Commit, push, and re-check
+**On failure** — diagnose, fix, and re-enter the loop:
 
-Repeat until all required checks pass.
+1. Get failing run IDs:
+   ```bash
+   gh pr checks $PR_NUMBER --json name,conclusion,detailsUrl \
+     --jq '.[] | select(.conclusion == "failure") | "\(.name): \(.detailsUrl)"'
+   ```
+
+2. Read the failure log (extract `<run-id>` from the URL):
+   ```bash
+   gh run view <run-id> --log-failed
+   ```
+
+3. Classify and act:
+   - **Flaky / transient failure** → retry first, then re-poll:
+     ```bash
+     gh run rerun <run-id> --failed
+     ```
+   - **Real code failure** → fix, commit, push, then re-poll:
+     ```bash
+     git add <files>
+     git commit -m "fix: <what broke and why>
+
+     Co-Authored-By: Claude <noreply@anthropic.com>"
+     git push
+     ```
+   - **Same check fails twice after retry** → stop. Report the failure to the user with the log excerpt and ask how to proceed.
+
+**Terminal conditions** — escalate to the user immediately if:
+- 30 poll iterations reached (≈30 min wall clock)
+- PR is closed or merged externally
+- The same check fails twice after a `--failed` retry (not transient)
+
+Repeat the polling loop until all required checks are green.
 
 ### 4. Validate merge readiness
 

@@ -1,7 +1,8 @@
 ---
 name: repo-review
-description: "Audit the entire repository and generate a structured findings report. Use when the user asks for repo cleanup, wants to find misplaced files, redundant or stale files, unclear names, over-commented scripts, or a general repo health check. Trigger on: 'repo review', 'audit the repo', 'what's messy', 'repo health', 'cleanup the repo', 'what files are misplaced', 'find stale files', 'repo-review', or any request to survey the codebase for quality issues."
-when_to_use: "User asks for a repo review, audit, cleanup survey, or repo health check — wants to find misplaced or stale files, or asks what needs cleaning up."
+disable-model-invocation: true
+user-invocable: false
+description: "Internal: repo health audit used by repo-polish. Scans for misplaced files, overfull dirs, unclear names, dead scripts, and over-commented shell files. Outputs a prioritised findings report. Not for direct user invocation — run repo-polish instead."
 model: claude-sonnet-4-6
 allowed-tools:
   - Bash

@@ -1,8 +1,8 @@
 ---
 name: changelog-review
 disable-model-invocation: true
-description: "Claude Code documentation expert. Fetches live official docs to answer questions about Claude Code features, or diffs changelogs between versions to show what changed. Use when the user asks about Claude Code capabilities, hook events, skills, subagents, MCP servers, settings, CLI flags, or asks what changed between two versions."
-when_to_use: "User asks a question about Claude Code features, hooks, skills, plugins, MCP servers, subagents, permissions, settings, or CLI behavior — or asks what changed between versions ('what changed in v1.2', 'diff v1.1 to v1.3', 'changelog'). Requires fetching live docs rather than relying on prior knowledge."
+user-invocable: false
+description: "Internal: Claude Code documentation expert used by repo-polish to audit Claude Code feature usage. Fetches live official docs to check if a repo uses up-to-date CC patterns (hooks, skills, plugins, MCP). Not for direct user invocation — run repo-polish instead."
 allowed-tools:
   - WebFetch
   - Read

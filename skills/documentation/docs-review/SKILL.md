@@ -1,8 +1,8 @@
 ---
 name: docs-review
 disable-model-invocation: true
-description: "Audit and fix every Markdown doc in this repo (README.md + docs/**) — visual cleanliness, freshness vs git history, removal of stray plan/work files, and validity of all links/cross-references. Use whenever the user wants a docs sweep, refresh, audit, cleanup, link-check, or consistency pass — even if they only mention 'check the docs' or 'README is stale'."
-when_to_use: "User asks to review, audit, clean up, refresh, sweep, or validate documentation — phrases like 'docs-review', 'review the docs', 'check README', 'docs are stale', 'untrack plan files', 'validate doc links', 'docs sweep', 'docs cleanup', 'docs are out of sync', 'tidy up docs'."
+user-invocable: false
+description: "Internal: documentation quality sweep used by repo-polish. Audits every Markdown doc (README.md + docs/**) for visual cleanliness, freshness, stray plan files, and broken links. Not for direct user invocation — run repo-polish instead."
 argument-hint: "[optional: subset glob like 'docs/user/**' or single file path]"
 model: claude-sonnet-4-6
 allowed-tools:

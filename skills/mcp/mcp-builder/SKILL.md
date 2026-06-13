@@ -4,6 +4,15 @@ description: Guide for creating high-quality MCP (Model Context Protocol) server
 license: MIT
 when_to_use: "User wants to build an MCP server to integrate an external API or service with Claude. Trigger phrases: 'build an MCP server', 'create MCP tools', 'integrate X with Claude via MCP', 'write an MCP server for', 'mcp-builder'."
 argument-hint: "[service or API to integrate — e.g. 'GitHub REST API', 'Stripe', 'internal database']"
+allowed-tools:
+  - Bash
+  - Read
+  - Write
+  - Edit
+  - Glob
+  - Grep
+  - WebFetch
+  - Skill
 metadata:
   capability: mcp-development
   tags:
@@ -217,6 +226,10 @@ Load these resources as needed during development:
   - Pagination best practices
   - Transport selection (streamable HTTP vs stdio)
   - Security and error handling standards
+- **Pagination guardrails** — before implementing any list/search tools, invoke the `mcp-pagination` skill for mandatory pagination patterns and parameter conventions:
+  ```
+  Skill("mcp-pagination")
+  ```
 
 ### SDK Documentation (Load During Phase 1/2)
 - **Python SDK**: Fetch from `https://raw.githubusercontent.com/modelcontextprotocol/python-sdk/main/README.md`

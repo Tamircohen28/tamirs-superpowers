@@ -13,6 +13,7 @@ allowed-tools:
   - Glob
   - Grep
   - Agent
+  - Skill
 metadata:
   capability: repo-polish
   provider: developer-workflow
@@ -274,7 +275,32 @@ Create `.github/CODEOWNERS`:
 * @TamirCohen28
 ```
 
-### Step 6 — Report what was done
+### Step 6 — Quality audits
+
+Run three specialist audit skills against the polished project. Address any P1 findings before writing the report.
+
+**6a. Documentation quality** — invoke `docs-review` to sweep all Markdown files for visual cleanliness, freshness vs git history, stray plan files, and broken links:
+```
+Skill("docs-review")
+```
+
+**6b. Repository health** — invoke `repo-review` to scan for directory violations, misplaced files, unclear script names, dead scripts, and over-commented shell files:
+```
+Skill("repo-review")
+```
+
+Review the report written to `docs/repo-review-<DATE>.md` and apply any P1 fixes before continuing.
+
+**6c. Claude Code pattern audit** (only if the project is a Claude Code plugin or has `.claude/` config) — invoke `changelog-review` in Mode 3 (Review) to check whether the project's Claude Code patterns (hooks, skills, plugins, MCP) are up to date with the latest Claude Code version:
+```
+Skill("changelog-review")
+```
+
+Pass the project's `.claude/` directory, `plugin.json`, `SKILL.md` files, and `hooks.json` as the review input.
+
+After all audits, address P1 findings (broken links, empty dirs, dead scripts, deprecated CC patterns) before proceeding.
+
+### Step 7 — Report what was done
 
 Produce a summary table:
 ```
@@ -294,7 +320,7 @@ Then ask:
 
 **Do NOT push to GitHub until the user types explicit approval.**
 
-### Step 7 — GitHub upload
+### Step 8 — GitHub upload
 
 Only execute after explicit user approval.
 
