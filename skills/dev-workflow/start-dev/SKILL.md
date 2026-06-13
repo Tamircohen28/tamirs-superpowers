@@ -1,7 +1,7 @@
 ---
 name: start-dev
-description: "Start development — create worktree, implement tasks, validate, push, and open a PR. Use when the user has approved a plan or wants to begin coding from a GitHub issue, task description, or spec file. Covers everything from 'here's what to build' to 'PR is open for review'."
-when_to_use: "User says to start, begin, implement, build, code, or work on a task — typically with an issue number, task description, or path to a spec — and expects commits and a PR at the end."
+description: "Use when the user says to start, begin, implement, build, code, or work on a task — typically with a GitHub issue number, task description, or path to a spec/plan — and expects commits and a PR at the end. Triggers on: 'implement issue #N', 'build the auth feature', 'start coding this', 'work on this spec', 'begin development', 'create a PR for this'."
+when_to_use: "implement, build, start, begin, code, work on, create PR for, ship — followed by an issue number, task description, or spec file path"
 argument-hint: "[issue number(s), task description, or file path to spec]"
 model: claude-sonnet-4-6
 effort: high
@@ -15,6 +15,7 @@ allowed-tools:
   - WebFetch
   - WebSearch
   - Agent
+  - Skill
 metadata:
   capability: developer-workflow
   tags:
@@ -22,7 +23,7 @@ metadata:
     - worktree
     - pr
     - workflow
-  updated-date: "2026-06-08"
+  updated-date: "2026-06-13"
 ---
 
 ## Live context
@@ -32,61 +33,93 @@ metadata:
 
 # start-dev
 
-Full implementation flow: set up workspace, implement all tasks, validate, push, and open a PR.
+Full implementation flow: workspace setup → implement → validate → push → open PR.
+
+## Why this skill exists
+
+Starting development on a GitHub issue requires a sequence of non-obvious decisions: which branch to create from, whether a git worktree is needed, how to scope commits, what validation to run for this repo's stack, and how to write a PR description that will actually get reviewed. Doing this ad-hoc produces messy histories, skipped validation, and PRs that reviewers bounce back. This skill enforces the complete flow in one invocation.
 
 ## Input
 
 Parse `$ARGUMENTS` as one of:
-- GitHub issue number(s) (e.g. `#258` or `258 259 260`)
-- A task description to implement directly
-- A file path to a spec or plan
+- GitHub issue number(s): `#258` or `258 259 260`
+- A free-text task description: `"Add rate limiting to the /login endpoint"`
+- A file path to a spec or plan: `path/to/plan.md`
 
-If empty, ask what to implement and stop.
+If `$ARGUMENTS` is empty, ask "What do you want to implement?" and stop.
 
-## Required execution flow
+## Workflow
 
-### 1. Understand the work
+### Step 1 — Understand the work
 
-- If given issue numbers: `gh issue view <number>`
-- If given a description or file: read and parse tasks from it
+```bash
+# For a GitHub issue:
+gh issue view 258
 
-### 2. Set up workspace
+# For multiple issues:
+gh issue view 258 259 260
 
-Skip if already on a feature branch inside a worktree.
+# For a spec file — read it with the Read tool, then extract task list
+```
 
-Derive a short branch name from the task (e.g. `feat/add-user-auth`, `fix/null-pointer-login`):
+Confirm your understanding in one sentence before proceeding. If the issue is ambiguous or blocked by another issue, surface that immediately.
+
+### Step 2 — Set up workspace
+
+**Skip if already on a feature branch inside a worktree** (i.e., `git status` works and the branch is not `main`/`master`/`develop`).
+
+Derive a short, slug-style branch name from the task:
+- `feat/add-rate-limiting`
+- `fix/null-pointer-on-login`
+- `chore/upgrade-eslint`
 
 ```bash
 DEFAULT_BRANCH=$(gh repo view --json defaultBranchRef --jq .defaultBranchRef.name 2>/dev/null || echo "main")
+BRANCH="feat/your-slug-here"
+
 git fetch origin
-git worktree add .claude/worktrees/<branch-name> -b <branch-name> origin/$DEFAULT_BRANCH
+git worktree add .claude/worktrees/$BRANCH -b $BRANCH origin/$DEFAULT_BRANCH
 ```
 
-All editing must happen inside the worktree directory, not the main checkout.
+All file edits happen inside `.claude/worktrees/$BRANCH/`, not in the main checkout.
 
-### 3. Implement
+### Step 3 — Implement
 
-For each task:
-1. Read the files that need modification
-2. Make the changes
-3. Commit with conventional commit format:
-   ```
-   <type>(<scope>): <description>
-
-   Co-Authored-By: Claude <noreply@anthropic.com>
-   ```
-
-One commit per task or logical unit. Group only tightly related micro-changes.
-
-### 4. Validate
-
-Run whatever validation is appropriate for this repo:
+For each task or logical unit:
+1. `Read` the files to be modified before editing
+2. Apply changes with `Edit` or `Write`
+3. Commit immediately after each logical unit:
 
 ```bash
-# JavaScript / Node
-[ -f package.json ] && (npm test 2>/dev/null || yarn test 2>/dev/null || pnpm test 2>/dev/null || true)
-[ -f package.json ] && (npm run lint 2>/dev/null || yarn lint 2>/dev/null || true)
-[ -f package.json ] && (npm run typecheck 2>/dev/null || yarn typecheck 2>/dev/null || true)
+git -C .claude/worktrees/$BRANCH add -p   # stage selectively
+git -C .claude/worktrees/$BRANCH commit -m "$(cat <<'EOF'
+feat(auth): add rate limiting to login endpoint
+
+Closes #258
+
+Co-Authored-By: Claude <noreply@anthropic.com>
+EOF
+)"
+```
+
+One commit per task or closely related change. Do not batch unrelated changes into a single commit.
+
+### Step 4 — Validate
+
+Auto-detect the stack and run the appropriate checks:
+
+```bash
+cd .claude/worktrees/$BRANCH
+
+# JSON/Markdown/plugin repos
+[ -f Makefile ] && make validate 2>/dev/null || make test 2>/dev/null || true
+
+# Node / JavaScript / TypeScript
+if [ -f package.json ]; then
+  npm test 2>/dev/null || yarn test 2>/dev/null || pnpm test 2>/dev/null || true
+  npm run lint 2>/dev/null || yarn lint 2>/dev/null || true
+  npm run typecheck 2>/dev/null || npx tsc --noEmit 2>/dev/null || true
+fi
 
 # Python
 [ -f pyproject.toml ] || [ -f setup.py ] && (pytest 2>/dev/null || python -m pytest 2>/dev/null || true)
@@ -94,54 +127,90 @@ Run whatever validation is appropriate for this repo:
 # Go
 [ -f go.mod ] && go test ./... 2>/dev/null || true
 
-# Make
-[ -f Makefile ] && (make test 2>/dev/null || true)
+# Rust
+[ -f Cargo.toml ] && cargo test 2>/dev/null || true
 ```
 
-Fix any failures before pushing.
+Fix every failure before proceeding. Do not push broken code.
 
-### 5. Push and open PR
+### Step 5 — Push and open PR
 
 ```bash
-git push -u origin HEAD
+git -C .claude/worktrees/$BRANCH push -u origin HEAD
 ```
 
-Detect the default branch if not already known, then open PR:
 ```bash
-ISSUES=""
-# If issue number(s) were given, add "Closes #N" for each
+# Build Closes lines for each linked issue
+CLOSES="Closes #258"   # adjust per actual issue number(s)
+
 gh pr create \
-  --title "<concise imperative title matching the task>" \
-  --body "$(cat <<'EOF'
+  --title "feat: add rate limiting to login endpoint" \
+  --body "$(cat <<EOF
 ## Summary
-<what was changed and why — 2-3 sentences>
+[2-3 sentences: what changed and why]
 
 ## Changes
-- <key change 1>
-- <key change 2>
+- Added token-bucket rate limiter to \`POST /login\`
+- Configurable via \`RATE_LIMIT_MAX\` env var (default: 5 req/min)
 
 ## Test plan
-- [ ] <how to verify the feature/fix works>
-- [ ] All existing tests pass
+- [ ] Hit /login 6+ times in a minute — 6th request returns 429
+- [ ] All existing auth tests pass
 
-${ISSUES}
+$CLOSES
 
 🤖 Generated with [Claude Code](https://claude.ai/code)
 EOF
 )"
 ```
 
-### 6. Report
+### Step 6 — Report
 
-Print:
-- Files changed and commits made
-- Validation outcome
-- PR URL
-- Suggested next step: "Wait for CI + review, then run `/pr-dev <PR number>`"
+Print a concise summary:
 
-## What this skill does NOT do
+```
+Files changed: src/auth/login.ts, tests/auth.test.ts
+Commits: 2
+Validation: PASS (npm test, npm run lint)
+PR: https://github.com/owner/repo/pull/42
+Next: wait for CI + review, then run /pr-dev 42
+```
 
-- Make architectural decisions without asking
-- Push directly to the default branch
-- Merge the PR (use `/pr-dev` for that)
-- Skip validation even if the user asks to "just push"
+## Hard rules
+
+- **Never push directly to the default branch** (`main`, `master`, `develop`). Always use a feature branch.
+- **Never skip Step 4 validation**, even if the user says "just push it" or "it's urgent". Run the checks.
+- **Never commit with `git add .`** blindly — always stage selectively with `git add -p` or by naming specific files to avoid committing secrets or build artifacts.
+- **Never make architectural decisions silently** — if the implementation requires a choice that changes the public API, schema, or module structure, surface it and ask before coding.
+- **Never create the worktree inside a path that already exists** — check first with `ls .claude/worktrees/$BRANCH 2>/dev/null`.
+- **Never merge or close the PR** — that is the job of `/pr-dev`.
+- **Commit messages must follow conventional commits** (`feat:`, `fix:`, `chore:`, `docs:`, `refactor:`).
+
+## What NOT to do
+
+| Wrong | Right |
+|---|---|
+| `git add . && git commit -m "wip"` | Stage specific files; use a descriptive conventional commit |
+| Push to `main` directly | Create a branch; open a PR |
+| Skip validation because tests are "probably fine" | Run the stack's test/lint commands; fix failures |
+| Open the PR with title "Fix stuff" | Write an imperative-mood title: "fix: prevent null dereference in login handler" |
+| Create a worktree in an arbitrary path | Always use `.claude/worktrees/<branch-name>` |
+| Batch all changes into one giant commit | One commit per logical unit |
+
+## Quick reference
+
+| Situation | Action |
+|---|---|
+| Already on a feature branch | Skip Step 2; implement directly |
+| Issue is blocked by another | Surface the blocker; do not start implementation |
+| Multiple issues in one PR | Add `Closes #N` per issue in PR body; group related commits |
+| Validation script not found | Check `package.json` scripts, `Makefile`, `README` for project-specific commands |
+| Worktree already exists | `git worktree list` to find it; `cd` into it; continue |
+| Tests fail after changes | Fix the failures; never `--no-verify` or skip |
+
+## Scope boundary
+
+This skill ends at an open PR. It does NOT:
+- Merge the PR (use `/pr-dev`)
+- Monitor CI (use `/babysit-pr`)
+- Rebase or resolve conflicts after review

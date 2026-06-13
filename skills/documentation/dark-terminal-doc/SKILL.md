@@ -1,14 +1,24 @@
 ---
 name: dark-terminal-doc
 description: >
-  Create rich technical HTML documents — comparison tables, reference sheets,
-  feature breakdowns, changelogs, release notes — using a dark terminal-inspired
-  design system. Use when the user asks to produce a polished HTML doc, reference
-  page, or technical comparison that should look sharp and developer-facing.
-  Triggers on: "make a comparison table", "write a reference doc", "create a
-  feature breakdown", "produce a technical document", "styled HTML doc".
-when_to_use: "User asks for a polished, shareable HTML technical document — comparison table, reference sheet, changelog, release notes, feature breakdown. Trigger phrases: 'make a comparison table', 'write a reference doc', 'create a feature breakdown', 'styled HTML doc', 'dark terminal doc'."
-argument-hint: "[document type and topic — e.g. 'comparison table: Claude vs GPT-4', 'reference sheet: git commands']"
+  Use when the user wants a polished, shareable single-file HTML technical
+  document with a dark developer aesthetic — comparison tables, reference sheets,
+  changelogs, release notes, feature breakdowns, API docs, cheatsheets. Triggers
+  on: "make a comparison table", "write a reference doc", "create a feature
+  breakdown", "styled HTML doc", "dark terminal doc", "developer-facing HTML",
+  "comparison cheatsheet", "technical reference page".
+when_to_use: >
+  User asks for a polished, shareable HTML technical document — comparison table,
+  reference sheet, changelog, release notes, feature breakdown, API cheatsheet.
+  Trigger phrases: "make a comparison table", "write a reference doc", "create a
+  feature breakdown", "styled HTML doc", "dark terminal doc", "produce a technical
+  document", "offline HTML doc", "single-file HTML page".
+argument-hint: "[document type and topic — e.g. 'comparison table: Claude vs GPT-4', 'reference sheet: git commands', 'release notes: v2.0']"
+model: claude-sonnet-4-6
+allowed-tools:
+  - Write
+  - Read
+  - Bash
 metadata:
   capability: document-generation
   tags:
@@ -17,25 +27,39 @@ metadata:
     - design
     - content
     - dark-terminal
-  updated-date: "2026-06-08"
+    - comparison-table
+    - reference-sheet
+    - single-file
+  updated-date: "2026-06-13"
 ---
 
 # Dark Terminal Document Design System
 
-This skill produces single-file HTML technical documents with a consistent dark,
-developer-aesthetic design system. The output of `cursor-vs-claude-code.html`
-is the canonical reference for this style.
+## Why this skill exists
+
+Standard markdown renders poorly in meetings, portfolios, and async handoffs. Notion exports are generic, Confluence is ugly, and spinning up a React/Next.js site for a one-off comparison table is overkill. This skill produces a **single self-contained HTML file** — no dependencies, no build step, no framework — that looks like a polished internal developer tool: dark IDE aesthetic, dense tables, semantic status colors. The output opens directly in any browser, can be emailed as an attachment, or dropped into GitHub Pages.
+
+Naive approaches fail because: ad-hoc inline styles drift from the design system, font loading order breaks the monospace/sans split, and brand accent colors used directly in body text create contrast issues (they need pastelizing).
 
 ---
 
-## Design DNA
+## Workflow
 
-**Aesthetic:** Dark IDE / terminal. Dense but readable. Monospace accents on
-a sans-serif body. Brand colors used as semantic signals, not decoration.
-Think: a beautiful internal tool, not a marketing page.
+1. **Confirm the document type** from the user's request:
+   - Comparison doc (two subjects side by side)
+   - Reference/cheatsheet (one subject, many rows)
+   - Changelog/release notes (chronological, minimal columns)
+   - Feature breakdown (one product, feature × status)
 
-**NOT:** Light background, Inter/Roboto, purple gradients, rounded hero cards,
-shadcn-style component libraries, glassmorphism excess.
+2. **Identify brand colors** for comparison docs. For single-subject docs, pick one `--brand-a` and omit `--brand-b`.
+
+3. **Copy the CSS token block verbatim** (see [Exact Token Reference](#exact-token-reference)). Override only `--brand-a` and `--brand-b`.
+
+4. **Structure the HTML** using the skeleton below. Fill section headers with emoji prefixes. Every row that has a clear winner gets a `winner-badge` in the notes column.
+
+5. **Write the file** as a single `.html` file using the `Write` tool. No external CSS files, no JS frameworks, no CDN scripts (Google Fonts import is the only external call and it degrades gracefully offline).
+
+6. **Verify** by describing the output structure to the user — number of sections, rows, and which brand wins the summary.
 
 ---
 
@@ -64,9 +88,9 @@ Copy these CSS variables verbatim as the foundation of every document:
   --no:       #E05A5A;   /* not supported / red */
   --partial:  #D4A843;   /* partial / yellow */
 
-  /* Brand — override per document with the two subjects being compared/highlighted */
-  --brand-a:  #D97757;   /* warm accent (e.g. Claude orange) */
-  --brand-b:  #6E7FD9;   /* cool accent (e.g. Cursor blue) */
+  /* Brand — override per document */
+  --brand-a:  #D97757;   /* warm accent */
+  --brand-b:  #6E7FD9;   /* cool accent */
 }
 ```
 
@@ -113,8 +137,6 @@ Use multiples of 4. Generous vertical padding (48–80px) at page edges.
 
 ## Table System
 
-The workhorse of this design. Every comparison or reference doc uses this table pattern.
-
 ```css
 .table-wrap {
   overflow-x: auto;
@@ -128,7 +150,6 @@ table {
   font-size: 14px;
 }
 
-/* Header row */
 thead tr {
   background: var(--surface);
   border-bottom: 1px solid var(--border);
@@ -143,12 +164,10 @@ th {
   white-space: nowrap;
 }
 
-/* Color thead columns by subject */
 th.th-brand-a { color: var(--brand-a); }
 th.th-brand-b { color: var(--brand-b); }
 th.th-meta    { color: var(--muted); }
 
-/* Section header rows — group related rows */
 .section-header td {
   background: var(--surface2);
   border-top: 1px solid var(--border);
@@ -161,7 +180,6 @@ th.th-meta    { color: var(--muted); }
   color: var(--muted);
 }
 
-/* Data rows */
 tbody tr:not(.section-header) {
   border-bottom: 1px solid var(--border);
   transition: background 0.15s;
@@ -176,7 +194,6 @@ td {
   line-height: 1.6;
 }
 
-/* Column roles */
 td.col-label   { font-weight: 600; font-size: 13px; color: var(--text); white-space: nowrap; }
 td.col-meta    { font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: var(--muted); white-space: nowrap; }
 td.col-brand-a { color: #EBA98C; }   /* lightened brand-a for body text */
@@ -184,18 +201,13 @@ td.col-brand-b { color: #A8B4F0; }   /* lightened brand-b for body text */
 td.col-notes   { color: var(--muted); font-size: 13px; }
 ```
 
-**Column lightening rule:** Brand accent colors (`--brand-a`, `--brand-b`) are
-vivid for headers/labels. For body text in data cells, use lightened/pastelized
-versions so they're readable without overwhelming. Typical shift: add ~40%
-lightness. Example: `#D97757` → `#EBA98C`, `#6E7FD9` → `#A8B4F0`.
+**Column lightening rule:** `--brand-a` / `--brand-b` are vivid for headers. For body text in data cells, use pastelized versions (~40% lighter). Example: `#D97757` → `#EBA98C`, `#6E7FD9` → `#A8B4F0`.
 
 ---
 
 ## Component Library
 
 ### Tags / Badges
-
-Used inline in table cells to signal status at a glance.
 
 ```css
 .tag {
@@ -209,7 +221,7 @@ Used inline in table cells to signal status at a glance.
   margin-bottom: 2px;
 }
 
-/* Pattern: 12-15% opacity fill, 25-30% opacity border, full-opacity text */
+/* 12-15% opacity fill, 25-30% opacity border */
 .tag-yes     { background: rgba(76,175,125,0.15);  color: var(--yes);     border: 1px solid rgba(76,175,125,0.3); }
 .tag-no      { background: rgba(224,90,90,0.12);   color: var(--no);      border: 1px solid rgba(224,90,90,0.25); }
 .tag-partial { background: rgba(212,168,67,0.12);  color: var(--partial); border: 1px solid rgba(212,168,67,0.25); }
@@ -217,7 +229,6 @@ Used inline in table cells to signal status at a glance.
 .tag-brand-b { background: rgba(110,127,217,0.15); color: var(--brand-b); border: 1px solid rgba(110,127,217,0.3); }
 ```
 
-HTML pattern:
 ```html
 <span class="tag tag-yes">✓ yes</span>
 <span class="tag tag-no">✗ no</span>
@@ -225,8 +236,6 @@ HTML pattern:
 ```
 
 ### Winner Badge
-
-A tiny inline label to declare which side wins a comparison row.
 
 ```css
 .winner-badge {
@@ -243,7 +252,6 @@ A tiny inline label to declare which side wins a comparison row.
 .winner-tie     { background: rgba(255,255,255,0.08); color: var(--muted); }
 ```
 
-HTML pattern:
 ```html
 <span class="winner-badge winner-brand-a">brand-a wins</span>
 <span class="winner-badge winner-tie">tie</span>
@@ -264,8 +272,6 @@ code {
 
 ### Legend Dots
 
-Used in the header area to explain status colors.
-
 ```css
 .legend { display: flex; gap: 20px; align-items: center; flex-wrap: wrap; }
 .legend-item {
@@ -278,41 +284,24 @@ Used in the header area to explain status colors.
 .dot-partial { background: var(--partial); }
 ```
 
-### Summary Cards (footer row)
+### Summary Cards (footer)
 
-Three-column summary at the bottom of the document.
+Three-column summary at the bottom of comparison documents.
 
-```css
-/* Used inline via style attributes, or extract to a .summary-card class */
-/* Pattern for each card: */
-background: rgba(VAR_R, VAR_G, VAR_B, 0.08);
-border: 1px solid rgba(VAR_R, VAR_G, VAR_B, 0.2);
-border-radius: 12px;
-padding: 20px 24px;
-flex: 1;
-min-width: 240px;
-
-/* Card heading */
-color: var(--brand-x);
-font-weight: 700;
-font-size: 13px;
-margin-bottom: 10px;
-font-family: 'IBM Plex Mono', monospace;
-
-/* Card body */
-font-size: 13px;
-line-height: 1.8;
-color: <lightened brand-x>;   /* e.g. #C0C8F0 for brand-b, #F0C8B0 for brand-a */
-```
-
-Container:
 ```html
 <div style="max-width:1200px; margin:32px auto 0; display:flex; gap:20px; flex-wrap:wrap;">
-  <div style="flex:1; min-width:240px; ...card styles...">
-    <div style="...heading styles...">BRAND A WINS AT</div>
-    <div style="...body styles...">Feature 1<br>Feature 2</div>
+  <div style="flex:1; min-width:240px; background:rgba(217,119,87,0.08); border:1px solid rgba(217,119,87,0.2); border-radius:12px; padding:20px 24px;">
+    <div style="color:var(--brand-a); font-weight:700; font-size:13px; margin-bottom:10px; font-family:'IBM Plex Mono',monospace;">TOOL A WINS AT</div>
+    <div style="font-size:13px; line-height:1.8; color:#EBA98C;">Context awareness<br>Offline capability</div>
   </div>
-  ...
+  <div style="flex:1; min-width:240px; background:rgba(110,127,217,0.08); border:1px solid rgba(110,127,217,0.2); border-radius:12px; padding:20px 24px;">
+    <div style="color:var(--brand-b); font-weight:700; font-size:13px; margin-bottom:10px; font-family:'IBM Plex Mono',monospace;">TOOL B WINS AT</div>
+    <div style="font-size:13px; line-height:1.8; color:#A8B4F0;">IDE integration<br>Speed</div>
+  </div>
+  <div style="flex:1; min-width:240px; background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.1); border-radius:12px; padding:20px 24px;">
+    <div style="color:var(--muted); font-weight:700; font-size:13px; margin-bottom:10px; font-family:'IBM Plex Mono',monospace;">TIE</div>
+    <div style="font-size:13px; line-height:1.8; color:var(--muted);">Pricing<br>Basic completions</div>
+  </div>
 </div>
 ```
 
@@ -326,22 +315,22 @@ Container:
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Your Title Here</title>
+<title>Tool A vs Tool B — Technical Comparison</title>
 <style>
-  /* Paste full CSS here */
+  /* === PASTE FULL CSS HERE === */
 </style>
 </head>
 <body>
 
 <header>
   <div>
-    <h1><span class="brand-a-name">Brand A</span> vs <span class="brand-b-name">Brand B</span></h1>
-    <p class="subtitle">// subtitle in monospace · date or version</p>
+    <h1><span style="color:var(--brand-a)">Tool A</span> vs <span style="color:var(--brand-b)">Tool B</span></h1>
+    <p style="font-family:'IBM Plex Mono',monospace; color:var(--muted); font-size:13px; margin-top:8px;">// technical comparison · June 2026</p>
   </div>
   <div class="legend">
     <div class="legend-item"><div class="dot dot-yes"></div> supported</div>
     <div class="legend-item"><div class="dot dot-no"></div> not supported</div>
-    <div class="legend-item"><div class="dot dot-partial"></div> partial</div>
+    <div class="legend-item"><div class="dot dot-partial"></div> partial / limited</div>
   </div>
 </header>
 
@@ -350,26 +339,24 @@ Container:
   <thead>
     <tr>
       <th class="th-meta">Feature</th>
-      <th class="th-meta">Aspect</th>
-      <th class="th-brand-a">Brand A</th>
-      <th class="th-brand-b">Brand B</th>
+      <th class="th-meta">Category</th>
+      <th class="th-brand-a">Tool A</th>
+      <th class="th-brand-b">Tool B</th>
       <th class="th-meta">Notes</th>
     </tr>
   </thead>
   <tbody>
 
-    <!-- Section group -->
     <tr class="section-header">
-      <td colspan="5">⚡ Section Name</td>
+      <td colspan="5">⚡ Core Capabilities</td>
     </tr>
 
-    <!-- Data row -->
     <tr>
-      <td class="col-label">Feature name</td>
-      <td class="col-meta">category</td>
-      <td class="col-brand-a"><span class="tag tag-yes">✓ yes</span> — description</td>
-      <td class="col-brand-b"><span class="tag tag-no">✗ no</span></td>
-      <td class="col-notes"><span class="winner-badge winner-brand-a">brand-a wins</span> reason</td>
+      <td class="col-label">Context window</td>
+      <td class="col-meta">capacity</td>
+      <td class="col-brand-a"><span class="tag tag-yes">✓ 200k</span></td>
+      <td class="col-brand-b"><span class="tag tag-partial">~ 128k</span></td>
+      <td class="col-notes"><span class="winner-badge winner-brand-a">tool-a wins</span> Larger projects fit without chunking</td>
     </tr>
 
   </tbody>
@@ -378,7 +365,7 @@ Container:
 
 <!-- Summary cards -->
 <div style="max-width:1200px; margin:32px auto 0; display:flex; gap:20px; flex-wrap:wrap;">
-  <!-- card per brand + tie -->
+  <!-- one card per brand + one tie card -->
 </div>
 
 </body>
@@ -387,39 +374,47 @@ Container:
 
 ---
 
-## Rules of Thumb
+## Hard Rules
 
-1. **Subtitle always monospace.** The `// subtitle · date` pattern in IBM Plex Mono
-   signals "technical artifact". Always include it under the h1.
+1. **Always produce a single self-contained `.html` file.** No external CSS files, no JavaScript frameworks, no CDN scripts beyond the Google Fonts import.
+2. **Never use solid backgrounds for tags or badges.** All fills must use `rgba` with 12–15% opacity so the dark `--bg` bleeds through.
+3. **Brand accent colors (`--brand-a`, `--brand-b`) must be pastelized for body text** in data cells. Using the full-saturation color directly on body text causes glare and contrast issues.
+4. **Winner badges belong in the notes column, after the explanatory text** — badge is a visual summary, not a lead-in.
+5. **Never use light backgrounds, Inter/Roboto fonts, purple gradients, glassmorphism, or rounded hero cards.** This is a terminal aesthetic, not a marketing page.
+6. **Summary cards are mandatory for comparison docs** — three boxes: brand-a wins / brand-b wins / tie. Single-subject docs (cheatsheets, changelogs) may omit them.
+7. **Max-width is 1200px throughout,** not 960px — comparison tables need horizontal breathing room.
+8. **Section headers must use `text-transform: uppercase`, `letter-spacing: 2px`, and an emoji prefix** to create visual rhythm and scanability in long tables.
 
-2. **Section headers break the table rhythm.** Use `letter-spacing: 2px` +
-   `text-transform: uppercase` + `font-size: 11px`. They visually chunk the table
-   into scannable groups. Add an emoji prefix for quick visual scanning.
+---
 
-3. **Accent colors have three roles:**
-   - Full saturation → headers, labels, section titles
-   - Lightened pastel → body text in data cells (readable without glare)
-   - Low-opacity fill → card backgrounds, tag fills
+## What NOT To Do
 
-4. **Never use solid backgrounds for tags.** Always `rgba` with ~12-15% opacity.
-   The transparency lets the dark `--bg` bleed through, maintaining depth.
+| Wrong | Right |
+|-------|-------|
+| `color: #D97757` in a table data cell | `color: #EBA98C` (pastelized) |
+| `.tag { background: #4CAF7D; }` | `.tag-yes { background: rgba(76,175,125,0.15); }` |
+| `<span class="winner-badge">wins</span> Context is better` | `Context is better <span class="winner-badge winner-brand-a">brand-a wins</span>` |
+| Splitting CSS into a separate `.css` file | All styles inline in `<style>` block |
+| `font-family: Inter, sans-serif` | `font-family: 'Syne', sans-serif` |
+| `box-shadow` on `.table-wrap` | `border: 1px solid var(--border)` only |
+| `border-radius: 8px` on `.table-wrap` | `border-radius: 16px` |
+| Prose descriptions using IBM Plex Mono | Prose in Syne; metadata/labels in IBM Plex Mono |
 
-5. **Monospace is for metadata, not content.** Column role labels (`col-meta`),
-   subtitles, legends, tag text, and inline code all use IBM Plex Mono.
-   Prose content and feature descriptions stay in Syne.
+---
 
-6. **The hover state is subtle.** `rgba(255,255,255,0.025)` — barely perceptible.
-   Just enough to confirm interactivity without breaking the dark aesthetic.
+## Quick-Reference Checklist
 
-7. **Winner badges go in the notes column, after the reason.** Not before.
-   The human explanation comes first, the badge is a visual summary.
+Before handing off the HTML file, verify:
 
-8. **Summary cards at the bottom are mandatory for comparison docs.**
-   They synthesize the table into a 3-box takeaway: brand-a wins / brand-b wins / tie.
-   Use `min-width: 240px` and `flex: 1` so they collapse gracefully on mobile.
-
-9. **`border-radius: 16px` on the table wrapper** gives the table a contained,
-   card-like feel without adding drop shadows. Do not use `box-shadow` here.
-
-10. **Max-width 1200px throughout.** Wider than typical (960px) because comparison
-    tables need breathing room for multi-column content.
+- [ ] Single `.html` file — no external dependencies except Google Fonts import
+- [ ] CSS variables match the token reference exactly (`--bg`, `--surface`, `--surface2`, `--border`, `--text`, `--muted`, `--yes`, `--no`, `--partial`, `--brand-a`, `--brand-b`)
+- [ ] `--brand-a` and `--brand-b` overridden to match the document's subjects
+- [ ] Table header columns use `th-brand-a`, `th-brand-b`, `th-meta` classes
+- [ ] Data cells use `col-brand-a`/`col-brand-b` with pastelized hex values, not full-saturation vars
+- [ ] Section headers: uppercase, 2px letter-spacing, emoji prefix
+- [ ] Tags use rgba fills (not solid colors)
+- [ ] Winner badges placed after explanatory text in notes column
+- [ ] Summary cards present (for comparison docs)
+- [ ] Subtitle under h1 in IBM Plex Mono with `// title · date` pattern
+- [ ] `max-width: 1200px` on all top-level containers
+- [ ] `border-radius: 16px` on `.table-wrap`

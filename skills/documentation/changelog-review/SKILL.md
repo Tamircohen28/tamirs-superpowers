@@ -2,7 +2,9 @@
 name: changelog-review
 disable-model-invocation: true
 user-invocable: false
-description: "Internal: Claude Code documentation expert used by repo-polish to audit Claude Code feature usage. Fetches live official docs to check if a repo uses up-to-date CC patterns (hooks, skills, plugins, MCP). Not for direct user invocation — run repo-polish instead."
+description: "Internal: audits Claude Code feature usage in a project against live official docs. Checks hooks, skills, plugins, MCP, settings, CLAUDE.md patterns for deprecations, misuse, and missed capabilities. Used by repo-polish. Not for direct user invocation — run repo-polish instead."
+when_to_use: "Invoked automatically by repo-polish when the target project contains .claude/ config, plugin.json, hooks.json, SKILL.md, or .mcp.json files."
+model: claude-sonnet-4-6
 allowed-tools:
   - WebFetch
   - Read
@@ -18,290 +20,185 @@ metadata:
   tags:
     - documentation
     - claude-code
+    - audit
     - reference
-  updated-date: "2026-05-15"
+  updated-date: "2026-06-13"
 ---
 
-# fetch-docs
+# changelog-review — Claude Code Pattern Audit
 
-You are a Claude Code documentation expert. Your answers are grounded **exclusively** in
-content you fetch live from the official Claude Code documentation URLs. You may not use
-prior training knowledge about Claude Code — only fetched content counts.
+Internal skill invoked by `repo-polish`. Audits a project's Claude Code configuration against the latest live official documentation to surface bugs, deprecated patterns, and missed capabilities.
 
-Claude Code evolves rapidly. This skill fetches live documentation so answers about hooks,
-skills, plugins, MCP servers, subagents, permissions, settings, and CLI behavior are always
-current and authoritative.
+## Why this skill exists
 
-> **Hard constraint**: If any fetch fails, stop and return the error.
-> If the answer is not in the fetched content, say so — do not guess.
-> Every response must cite the exact URL(s) used.
+Claude Code evolves rapidly — hook event names change, frontmatter fields are renamed, MCP transport defaults shift, and new features (agent teams, channels, `.claude/rules/`) land without broad awareness. A static audit using training knowledge produces false positives and misses recent deprecations. This skill fetches live docs first, then audits — so every finding is backed by a current authoritative source.
 
----
+Naive approaches fail because: (1) training knowledge is frozen at a cutoff, (2) Claude Code's own docs are the ground truth, not secondary guides, and (3) deprecations accumulate silently between releases.
 
-## Mode Selection
+## Invocation contract
 
-| User asks... | Mode |
-|---|---|
-| A question about any Claude Code feature/config/behavior | **[MODE 1] Answer** |
-| "What changed between X and Y" / "diff X Y" / changelog between versions | **[MODE 2] Diff** |
-| "Review my code/config/skill/plugin" / "audit my Claude Code setup" | **[MODE 3] Review** |
+`repo-polish` calls this skill and passes the relevant project files in context. Expected inputs:
+- Contents of `hooks/hooks.json` (if present)
+- Contents of `.claude/settings.json` or `settings.json` (if present)
+- Contents of `.mcp.json` (if present)
+- Contents of any `SKILL.md` files (if present)
+- Contents of `plugin.json` / `.claude-plugin/plugin.json` (if present)
+- Contents of `CLAUDE.md` or `.claude/rules/` files (if present)
 
-If ambiguous, default to **Mode 1**.
+## Workflow
 
----
+### Step 1: Fetch baseline docs (always required)
 
-## MODE 1 — Answer Questions
+Fetch these two URLs first, regardless of what's in the input:
 
-### Step 1: Map question to relevant URLs
-
-**For any version-sensitive question**, always include:
-- `https://github.com/anthropics/claude-code/releases`
-- `https://code.claude.com/docs/en/changelog` or `https://code.claude.com/docs/en/whats-new`
-
-**Topic → URL heuristics:**
-- Hooks / lifecycle events → `/hooks` + `/hooks-guide`
-- Skills / SKILL.md → `/skills`
-- Plugins / plugin.json → `/plugins` + `/plugins-reference`
-- Subagents / `.claude/agents/` / frontmatter → `/sub-agents`
-- Agent teams / SendMessage → `/agent-teams`
-- MCP / .mcp.json / OAuth → `/mcp`
-- settings.json / permissions → `/settings` + `/permission-modes`
-- CLAUDE.md / memory / rules → `/memory`
-- Model / sonnet / opus / adaptive thinking → `/model-config`
-- CLI flags / -p / --agents → `/cli-reference`
-- /commands / slash commands → `/commands`
-- Channels / push events → `/channels` + `/channels-reference`
-- GitHub Actions / CI → `/github-actions`
-- GitLab CI → `/gitlab-ci-cd`
-- Bedrock / Vertex / enterprise → `/third-party-integrations`
-- Environment variables → `/env-vars`
-- Context window / compaction → `/context-window`
-
-All permitted URLs are in `references/urls.md`.
-
-### Step 2: Fetch
-
-Use `WebFetch` on each relevant URL. Fetch only what you need.
-
-If any fetch returns an error:
 ```
-⛔ FETCH ERROR
+https://github.com/anthropics/claude-code/releases
+https://code.claude.com/docs/en/whats-new
+```
+
+If any fetch fails, stop immediately and return:
+```
+FETCH ERROR
 URL: <url>
-Error: <error message>
+Error: <message>
 
-Cannot answer — required source could not be fetched.
-```
-Stop. Do not proceed.
-
-### Step 3: Answer
-
-```
-## Answer
-
-[Answer based strictly on fetched content]
-
----
-## Version Context
-Latest Claude Code version: **vX.Y.Z** (released YYYY-MM-DD)
-
----
-## Sources
-- [Topic](URL) — what you used from it
+Cannot complete audit — required source could not be fetched.
 ```
 
-**Rules:**
-- If not found: "This was not found in the official docs at: [URLs]. I cannot answer without a source."
-- Quote exact config keys, frontmatter fields, or flag names in `code` formatting
-- Do not infer or fill gaps from training knowledge
+### Step 2: Fetch topic-specific docs
 
-### Step 4: Error Recovery
+Based on what's present in the input, fetch the relevant URL(s). Fetch only what you need.
 
-If the primary page doesn't have the answer, try a related URL from the mapping above.
-After 3+ relevant URLs with no answer: "This is not documented in the official sources I checked."
-
-If information contradicts across pages: quote both, state which is primary authority
-(topic-specific beats general; current docs beat old changelogs).
-
----
-
-## MODE 2 — Diff (Changelog Between Two Versions)
-
-### Step 1: Fetch release data (all three required)
-
-1. `https://github.com/anthropics/claude-code/releases`
-2. `https://code.claude.com/docs/en/changelog`
-3. `https://code.claude.com/docs/en/whats-new`
-
-If any fails → stop and report error.
-
-### Step 2: Parse versions
-
-Find all releases between version A (exclusive) and B (inclusive).
-"latest" resolves to the most recent tag on the releases page.
-
-If a version isn't found:
-```
-⛔ VERSION NOT FOUND
-Version "X.Y.Z" was not found at: https://github.com/anthropics/claude-code/releases
-Versions found near that range: [list]
-```
-
-### Step 3: Output
-
-```
-## Claude Code: v{A} → v{B} Changelog
-
-**Versions included:** vA+1, ..., vB
-**Date range:** {date A+1} → {date B}
-**Total releases:** N
-
----
-
-### New Features
-[Grouped by theme: hooks / skills / plugins / MCP / models / CLI / etc.]
-- **Feature** (added in vX.Y.Z): description
-
-### Changes & Improvements
-- description (vX.Y.Z)
-
-### Bug Fixes
-- description (vX.Y.Z)
-
-### Breaking Changes
-- description (vX.Y.Z) — migration: [what to do]
-
-### Version Summary Table
-| Version | Date | Highlights |
-|---|---|---|
-| vX.Y.Z | YYYY-MM-DD | one-liner |
-
----
-## Sources
-- [GitHub Releases](https://github.com/anthropics/claude-code/releases)
-- [Changelog](https://code.claude.com/docs/en/changelog)
-- [What's New](https://code.claude.com/docs/en/whats-new)
-```
-
----
-
-## MODE 3 — Review (Audit Claude Code Feature Usage)
-
-### Step 1: Establish baseline (always fetch these first)
-
-1. `https://github.com/anthropics/claude-code/releases`
-2. `https://code.claude.com/docs/en/whats-new`
-
-Then fetch topic-specific docs based on what's in the input:
-
-| Input contains... | Also fetch |
+| Input contains | URLs to fetch |
 |---|---|
-| hooks / hooks.json / PreToolUse / PostToolUse | `/hooks` + `/hooks-guide` |
-| SKILL.md / skills/ directory | `/skills` |
-| plugin.json | `/plugins` + `/plugins-reference` |
-| agents/ / subagent frontmatter | `/sub-agents` |
-| agent teams / SendMessage | `/agent-teams` |
-| .mcp.json / mcp servers | `/mcp` |
-| settings.json / permissions | `/settings` + `/permission-modes` |
-| CLAUDE.md / .claude/rules/ | `/memory` |
-| CLI invocations / bash scripts using claude | `/cli-reference` |
-| channels / --channels | `/channels` + `/channels-reference` |
+| `hooks.json` / `PreToolUse` / `PostToolUse` / hook event names | `https://code.claude.com/docs/en/hooks` + `https://code.claude.com/docs/en/hooks-guide` |
+| `SKILL.md` / `skills/` directory / frontmatter fields | `https://code.claude.com/docs/en/skills` |
+| `plugin.json` / `.claude-plugin/` | `https://code.claude.com/docs/en/plugins` + `https://code.claude.com/docs/en/plugins-reference` |
+| `.claude/agents/` / subagent frontmatter | `https://code.claude.com/docs/en/sub-agents` |
+| `SendMessage` / agent teams | `https://code.claude.com/docs/en/agent-teams` |
+| `.mcp.json` / MCP server config | `https://code.claude.com/docs/en/mcp` |
+| `settings.json` / `permissions` / `allowedTools` / `denyList` | `https://code.claude.com/docs/en/settings` + `https://code.claude.com/docs/en/permission-modes` |
+| `CLAUDE.md` / `.claude/rules/` | `https://code.claude.com/docs/en/memory` |
+| CLI invocations / `claude -p` / `--agents` flags | `https://code.claude.com/docs/en/cli-reference` |
+| `--channels` / channels config | `https://code.claude.com/docs/en/channels` + `https://code.claude.com/docs/en/channels-reference` |
 
-### Step 2: Analyze
+Full URL allowlist is in `references/urls.md`. Do not fetch URLs outside that list.
 
-Look for:
+### Step 3: Analyze against fetched docs
 
-**Misuse / Bugs:**
-- Deprecated fields, flags, or patterns
-- Incorrect frontmatter field names or values
-- Hook event names that don't exist
-- Tool names in permission rules that don't match official names
-- Missing required fields in plugin.json or agent frontmatter
-- Security risks (e.g., `bypassPermissions` without safeguards)
-- Circular agent dependencies
+Check for all three categories:
 
-**Missed Capabilities:**
-- Hook events that would be valuable but aren't configured
-- Skills that could replace repetitive prompt patterns
-- Subagents to isolate heavy operations
-- Agent teams for parallelizable work
-- MCP servers for integrations done via Bash
-- `context: fork` where isolation would be cleaner
-- `auto memory` not being leveraged
-- `.claude/rules/` path-scoped rules not used
+**Misuse / Bugs** — things that are actively broken or incorrect:
+- Deprecated frontmatter field names (e.g., renamed keys between versions)
+- Hook event names that no longer exist or were renamed
+- Tool names in `allowedTools`/`denyList` that don't match official tool name strings
+- Missing required fields in `plugin.json`, agent frontmatter, or `SKILL.md`
+- `bypassPermissions` used without documented safeguards
+- Circular subagent dependencies
+- SSE transport where HTTP is now recommended for MCP
 
-**Outdated Patterns:**
-- `project` scope where `local` is now default for MCP
-- SSE transport where HTTP is now recommended
-- Custom /commands that should migrate to the skills system
+**Missed Capabilities** — unused features that would improve the project:
+- Hook events that apply to this project's workflow but aren't configured
+- `.claude/rules/` path-scoped rules instead of monolithic CLAUDE.md
+- `context: fork` for operations that modify shared state
+- Agent teams / `SendMessage` for parallelizable work being done sequentially
+- MCP servers for integrations being done with raw `Bash` calls
+- `auto memory` not configured when the project would benefit from it
+
+**Outdated Patterns** — deprecated approaches:
 - `ignorePatterns` (deprecated — use `permissions.deny`)
+- `project` MCP scope where `local` is now the default
+- Custom `/commands` that should migrate to the skills system
+- Legacy `SSE` transport in `.mcp.json` instead of `http`
 
-### Step 3: Output
+### Step 4: Output
 
-```
-## Claude Code Review
+Return structured audit results in this format:
+
+```markdown
+## Claude Code Audit
 
 **Reviewed against:** Claude Code vX.Y.Z (released YYYY-MM-DD)
-**Input analyzed:** [list files/artifacts]
+**Files analyzed:** [list each file checked]
 
 ---
 
 ### Critical Issues (Misuse / Bugs)
 **Issue:** [title]
-**Location:** [filename:line or config key]
-**Problem:** [what's wrong]
-**Fix:** [corrected code/config]
+**Location:** [filename:key or line reference]
+**Problem:** [what's wrong, quoting the relevant field/value]
+**Fix:**
+\`\`\`json
+// corrected snippet
+\`\`\`
 **Source:** [URL]
 
 ---
 
 ### Missed Opportunities (Underutilized Features)
 **Feature:** [name]
-**Where it applies:** [location]
-**Why it helps:** [benefit]
-**How to add it:** [minimal example]
+**Applies to:** [location or scenario]
+**Benefit:** [why it helps]
+**Minimal example:**
+\`\`\`json
+// minimal config to add
+\`\`\`
 **Source:** [URL]
 
 ---
 
 ### Outdated Patterns
 **Pattern:** [what they're doing]
-**Location:** [where]
+**Location:** [file/key]
 **Modern equivalent:** [what to use instead]
 **Source:** [URL]
 
 ---
 
-### What's Being Done Well
-[Brief acknowledgment of correct usage]
+### What's Correct
+[One sentence per item — acknowledge correct usage]
 
 ---
 
-### Summary Table
-| Severity | Count | Category |
-|---|---|---|
-| Critical | N | Misuse / Bugs |
-| Opportunity | N | Underutilized Features |
-| Outdated | N | Deprecated Patterns |
-| Good | N | Correct Usage |
+### Summary
+| Category | Count |
+|---|---|
+| Critical (broken/misuse) | N |
+| Missed capabilities | N |
+| Outdated patterns | N |
+| Correct usage | N |
 
 ---
-## Sources
+### Sources
 - [URL] — used for [what]
 ```
 
-**Rules:**
-- Every finding MUST cite the documentation URL that backs it up
-- Do not flag something as an issue unless docs explicitly define the correct behavior
-- Prioritize by impact: broken functionality first, then missed features
+## Hard rules
 
----
+1. **Fetch before auditing.** Never flag an issue based on training knowledge alone — every finding must cite a fetched URL.
+2. **Hard stop on fetch errors.** Report the error and URL; do not proceed with a partial audit.
+3. **Citations are mandatory.** Every finding includes the documentation URL that backs it up.
+4. **Do not flag uncertain issues.** If docs don't explicitly define the correct behavior, do not flag it as a bug.
+5. **Identify the latest CC version.** Always state which version you audited against.
+6. **Fetch only from the allowlist.** Only use URLs in `references/urls.md` — no external sources.
+7. **Conflict resolution.** When docs contradict across pages, cite both; topic-specific docs beat general docs.
 
-## General Rules (All Modes)
+## What NOT to do
 
-1. **Fetch before answering.** Never answer from training knowledge alone.
-2. **Hard stop on fetch errors.** Report the error and URL. Do not proceed.
-3. **Citations are mandatory.** Every response ends with a Sources section.
-4. **Version pinning.** Always identify the latest version and state it in the response.
-5. **No hallucination.** If it's not in the fetched pages, say so.
-6. **Scope discipline.** Only fetch URLs from `references/urls.md`.
-7. **Conflict resolution.** When docs contradict, cite both; topic-specific beats general.
+- **Do not answer general Claude Code questions.** This skill is an auditor, not a documentation chatbot. If invoked directly by a human asking "how do hooks work?", respond: "This is an internal audit skill. Run `/repo-polish` to trigger it on your project."
+- **Do not produce findings without citations.** A finding with no URL is speculation, not an audit.
+- **Do not skip the fetch step** because the answer "seems obvious" from training knowledge. Claude Code changes frequently.
+- **Do not fetch URLs not in `references/urls.md`** — even plausible-looking official docs URLs.
+- **Do not audit file types you weren't passed.** Only analyze what `repo-polish` explicitly included in the invocation context.
+
+## Quick-reference: audit checklist
+
+| File | Key fields to verify |
+|---|---|
+| `hooks/hooks.json` | Event names match official list; `matcher` regex valid; `command` paths exist |
+| `settings.json` | `allowedTools` strings match official tool names; `denyList` not using deprecated `ignorePatterns` |
+| `.mcp.json` | Transport is `http` not `sse`; scope is `local` not `project` (if applicable) |
+| `plugin.json` | `name`, `version`, `description`, `statusLine` all present and schema-valid |
+| `SKILL.md` | `name` matches directory; `description` starts with "Use when..."; `allowed-tools` exhaustive |
+| `CLAUDE.md` | Consider splitting into `.claude/rules/` for path-scoped rules |
+| `.claude/agents/*.md` | Required frontmatter: `name`, `description`, `model`, `allowed-tools` |

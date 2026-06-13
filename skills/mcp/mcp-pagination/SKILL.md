@@ -2,205 +2,162 @@
 name: mcp-pagination
 disable-model-invocation: true
 user-invocable: false
-description: "Internal guardrail: mandatory pagination patterns for MCP tools. Used by mcp-builder when designing MCP servers. Not intended for direct user invocation."
-allowed-tools: []
+description: "Internal: pagination and result-limiting guardrails for MCP tool calls. Used by mcp-builder when designing MCP servers or auditing MCP tool usage. Not for direct user invocation — run mcp-builder instead."
+allowed-tools:
+  - Read
+  - Bash
+model: claude-sonnet-4-6
+when_to_use: >
+  Invoked automatically by mcp-builder when generating or reviewing MCP server
+  designs that include list/search operations. Not called directly by users.
 metadata:
   capability: mcp-guardrail
   tags:
     - mcp
     - pagination
     - guardrail
-  updated-date: "2026-06-08"
+  updated-date: "2026-06-13"
 ---
 
-# MCP Pagination - MANDATORY
+# MCP Pagination Guardrails (Internal)
 
-**CRITICAL:** When calling ANY MCP tool that supports pagination, you MUST include pagination parameters. This is not optional or situational.
+## Why this skill exists
 
-## Tools Requiring Pagination
+MCP tools that return lists or search results have no built-in safety net against unbounded responses. Calling `list_issues`, `search_code`, or any similar tool without a limit parameter can return hundreds or thousands of items, consuming 10-100x more tokens than needed, slowing responses, and inflating API costs. Naive implementations skip pagination because the tool "works" without it — this guardrail enforces limits before that mistake reaches production.
 
-| Tool | Parameter | Start Limit |
-|------|-----------|------------|
-| `mcp__jira__get-issues` | `maxResults` | 10-20 |
-| `mcp__slack__slack_list_channels` | `limit` | 50-100 |
-| `mcp__slack__slack_get_channel_history` | `limit` | 10-20 |
-| `mcp__google-calendar__list-calendars` | `pageToken` | N/A (use for continuation) |
-| `mcp__octocode__githubSearchCode` | `limit` | 5-10 (max 20) |
-| `mcp__octocode__githubSearchRepositories` | `limit` | 5-10 (max 20) |
-| `mcp__octocode__githubSearchPullRequests` | `limit` | 5-10 (max 10) |
-| `mcp__trino__execute-trino-sql-query` | SQL `LIMIT` clause | Required |
-| `mcp__gradual-feature-release__query-feature-toggles` | `limit` | 10-50 |
-| `mcp__gradual-feature-release__list-releases` | `limit` | 10-50 |
+This skill is injected by `mcp-builder` when it detects list or search operations in a server design. It is not a user-facing guide.
 
-## MANDATORY Pattern
+## Workflow (invoked by mcp-builder)
 
-Before making ANY MCP call from the table above, verify you're including pagination:
+When `mcp-builder` invokes this skill, apply the following steps in order:
 
-### ❌ Anti-Patterns (NEVER DO THIS)
-```
-mcp__jira__get-issues with projectKey="MY-PROJECT"
-mcp__slack__slack_list_channels
-mcp__octocode__githubSearchRepositories with keywordsToSearch=["auth"]
-mcp__google-calendar__list-calendars with timeMin=... timeMax=...
-```
+**Step 1 — Identify list/search operations in the MCP server design.**
 
-### ✅ Correct Patterns (ALWAYS DO THIS)
-```
-mcp__jira__get-issues with projectKey="MY-PROJECT" maxResults=10
-mcp__slack__slack_list_channels with limit=50
-mcp__octocode__githubSearchRepositories with keywordsToSearch=["auth"] limit=10
-mcp__google-calendar__list-calendars with pageToken="<token>" (if fetching next page)
-mcp__trino__execute-trino-sql-query with sql="SELECT * FROM table LIMIT 100" description="..."
-```
+Any tool whose name matches these patterns needs a limit strategy:
+- `list_*` — always paginated
+- `search_*` — always paginated
+- `get_*` that returns an array at the top level — treat as paginated
+- SQL-executing tools — require `LIMIT` clause enforcement
 
-## Alternative Pagination Strategies
+**Step 2 — Verify each operation has a limiting mechanism.**
 
-When official pagination parameters don't exist or aren't sufficient, use these filtering techniques to limit result sets:
+For each identified operation, confirm one of the following is present:
 
-### 1. Date/Time Filtering
-Narrow results by time window instead of fetching everything:
+| Mechanism | When to use | Example parameter |
+|-----------|-------------|-------------------|
+| `limit` / `max_results` / `per_page` | Primary list endpoints | `limit=20` |
+| `page` + `per_page` | Cursor-style or offset pagination | `page=1, per_page=10` |
+| `cursor` / `page_token` | Token-based continuation | `cursor="<token>"` |
+| SQL `LIMIT` clause | Any tool that executes raw SQL | `SELECT ... LIMIT 50` |
+| Date/time filter | When no explicit limit param exists | `since="2024-06-01T00:00:00Z"` |
 
-```
-# Jira - filter by date range
-jql="project = MY-PROJECT AND created >= -7d"
-jql="project = MY-PROJECT AND updated >= 2024-01-01 AND updated <= 2024-01-31"
+**Step 3 — Set safe starting limits.**
 
-# GitHub PRs - filter by date
-created=">2024-01-01"
-updated=">=2024-06-01"
-merged-at="2024-01-01..2024-01-31"
+Use these defaults unless the tool's documentation specifies lower maximums:
 
-# Slack - use oldest/latest timestamps
-oldest="1704067200"  # Unix timestamp
-latest="1706745600"
+| Operation type | Safe starting limit | Rationale |
+|----------------|--------------------|-|
+| Code search | 5-10 | Results are large; 10 is usually enough to find the target |
+| Issue / PR search | 10-20 | Each item has metadata; 20 fits comfortably in context |
+| Channel / message list | 50-100 | Lightweight items; higher limit reduces round-trips |
+| SQL queries | 50-100 | Depends on row width — prefer lower for wide schemas |
+| Generic list | 20 | Safe default when no guidance exists |
 
-# Calendar - always use timeMin/timeMax
-timeMin="2024-01-01T00:00:00Z"
-timeMax="2024-01-31T23:59:59Z"
-```
+**Step 4 — Add alternative filters when no limit param exists.**
 
-### 2. Owner/Author Filtering
-Filter by specific users to reduce scope:
+If a tool has no pagination parameter, narrow scope with filters before fetching:
 
-```
-# Jira
-jql="project = MY-PROJECT AND assignee = currentUser()"
-jql="project = MY-PROJECT AND reporter = 'john.doe'"
+```bash
+# Date filtering — prefer ISO 8601 with timezone
+since="2024-06-01T00:00:00Z"
+before="2024-07-01T00:00:00Z"
 
-# GitHub
+# State filtering — exclude irrelevant items
+state="open"       # or "closed", "merged"
+status="active"    # or "inactive", "archived"
+
+# Owner/author filtering
 author="username"
 assignee="username"
-involves="username"
-reviewed-by="username"
 
-# Slack
-from="<@USER_ID>"
-```
-
-### 3. Status/State Filtering
-Only fetch what's relevant:
-
-```
-# Jira
-jql="project = MY-PROJECT AND status = 'In Progress'"
-jql="project = MY-PROJECT AND resolution = Unresolved"
-
-# GitHub PRs
-state="open"        # or "closed"
-merged=true         # only merged PRs
-draft=false         # exclude drafts
-
-# Feature toggles
-status="ACTIVE"     # or "INACTIVE", "ARCHIVED"
-```
-
-### 4. Label/Category Filtering
-Use labels or categories to narrow scope:
-
-```
-# Jira
-jql="project = MY-PROJECT AND labels = 'bug'"
-jql="project = MY-PROJECT AND component = 'backend'"
-
-# GitHub
-label="bug"
-label=["bug", "priority-high"]  # multiple labels
-```
-
-### 5. Path/Scope Filtering
-Limit to specific areas:
-
-```
-# GitHub code search
+# Path/extension filtering (code search)
 path="src/api"
 extension="ts"
-filename="config"
-
-# Repository search
-owner="wix"
-repo="specific-repo"
 ```
 
-### 6. Sorting + Limit Combo
-Sort to get most relevant first, then limit:
+**Step 5 — Enforce incremental fetching.**
+
+The server design must not auto-paginate through all results. The correct pattern:
 
 ```
-# GitHub - most recent first
-sort="updated"
-order="desc"
-limit=10
-
-# Jira
-jql="project = MY-PROJECT ORDER BY updated DESC"
-maxResults=10
-
-# Feature toggles
-sortField="modifiedDate"
-sortOrder="desc"
-limit=10
+1. Fetch first page with safe limit
+2. Return results to caller
+3. Only fetch next page if caller explicitly requests more
 ```
 
-## Combining Strategies
+Do NOT pre-fetch all pages and merge results — this defeats the guardrail entirely.
 
-For best results, combine multiple filtering strategies:
+## Hard Rules
 
+1. **Never generate or approve a list/search MCP tool that has no limiting strategy** — every such tool must expose at least one of: `limit`, `max_results`, `per_page`, `cursor`, or a date filter parameter.
+2. **Never set a default limit above 100** — even if the tool supports higher values; the caller can increase it explicitly.
+3. **Never auto-paginate** — fetching page 2+ without an explicit caller request is forbidden; it silently multiplies token consumption.
+4. **Always start at the low end of the safe range** — prefer 10 over 50 when context size is unknown.
+5. **SQL-executing tools must reject queries without a `LIMIT` clause** — validate the SQL string server-side before executing.
+6. **Do not hardcode absolute paths or employer-specific tool names** in server designs — keep examples generic (`owner="my-org"`, not a real org name).
+
+## Anti-patterns
+
+**Missing limit entirely:**
 ```
-# Example: Recent bugs assigned to me
-mcp__jira__get-issues
-  jql="project = MY-PROJECT AND assignee = currentUser() AND type = Bug AND updated >= -30d ORDER BY updated DESC"
-  maxResults=20
+# BAD — no limit; can return thousands of items
+list_issues(repo="my-repo", state="open")
 
-# Example: Recent merged PRs in specific path
-mcp__octocode__githubSearchPullRequests
-  owner="wix"
-  repo="my-repo"
-  state="closed"
-  merged=true
-  merged-at=">=2024-01-01"
-  limit=10
+# GOOD
+list_issues(repo="my-repo", state="open", limit=20)
 ```
 
-## Enforcement Rules
+**Auto-paginating all results:**
+```
+# BAD — fetches every page and returns merged array
+results = []
+page = 1
+while True:
+    batch = list_issues(repo="my-repo", page=page, per_page=100)
+    if not batch: break
+    results.extend(batch)
+    page += 1
+return results
 
-1. **BEFORE calling any list/search MCP tool**: Check if it's in the table above
-2. **IF it's in the table**: ALWAYS add the pagination parameter
-3. **IF official pagination doesn't exist**: Use date/owner/status filtering to limit scope
-4. **IF you need more results**: Only fetch additional pages after examining the first page
-5. **NEVER**: Call a paginated MCP tool without any limiting strategy
+# GOOD — return page 1 and expose a cursor for the caller to continue
+return list_issues(repo="my-repo", page=1, per_page=20, cursor=None)
+```
 
-## Why This Matters
+**Unbounded SQL:**
+```sql
+-- BAD
+SELECT * FROM events WHERE user_id = $1
 
-- **Token efficiency**: Large result sets can consume 10-100x more tokens
-- **Performance**: Smaller queries return faster
-- **Relevance**: Filtered results are more likely to be useful
-- **Cost**: Fewer tokens = lower API costs
+-- GOOD
+SELECT * FROM events WHERE user_id = $1 ORDER BY created_at DESC LIMIT 50
+```
 
-## Default Starting Limits
+**Overly broad search without filters:**
+```
+# BAD — searches entire GitHub with no scope
+search_code(query="auth")
 
-When in doubt, use these:
-- **Search APIs** (GitHub, code search): Start with 5-10
-- **Jira/Trino queries**: Start with 10-20
-- **Slack channels/events**: Start with 50-100
-- **Calendar/Feature toggles**: Start with 10-50
+# GOOD
+search_code(query="auth", repo="my-org/my-repo", path="src/auth", limit=10)
+```
 
-Never exceed the "max" values listed in the tools table above.
+## Quick-reference checklist
+
+Before approving any MCP server design that includes list or search tools, verify:
+
+- [ ] Every `list_*` tool has `limit` or `per_page` with a documented default <= 100
+- [ ] Every `search_*` tool has `limit` or `max_results` with a documented default <= 20
+- [ ] SQL-executing tools validate for a `LIMIT` clause before running
+- [ ] No tool auto-paginates; pagination is always caller-driven
+- [ ] Date/state/author filters are available as fallback when no limit param exists
+- [ ] Default limits are at the conservative end of the safe range for the operation type
