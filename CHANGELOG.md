@@ -5,6 +5,16 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Added
+- **Per-worktree dev ports** — new worktrees get a deterministic `DEV_PORT` (hashed from the branch name) written to `.env.local`, so parallel worktrees no longer collide on the same dev-server port (`write_worktree_env_local`).
+- **Automatic dependency install** — fresh worktrees install dependencies in the background, matching the project's package manager (`npm ci` / `yarn --immutable` / `pnpm --frozen-lockfile` / `poetry install`), skipped when `node_modules` is already present. Logs to `.session-files/worktree-setup.log` (`run_worktree_post_setup`).
+- **Global `.worktreeinclude` defaults** — `copy_worktreeinclude_files` now reads `~/.claude/defaults/worktreeinclude` before the repo-level `.worktreeinclude`, so a default set of gitignored files copies into every worktree.
+- **Archive retention pruning** — `session-end.sh` now prunes archived session-files older than `WORKTREE_RETENTION_DAYS`, alongside the existing stale-worktree cleanup (`prune_session_files_archive`).
+
+### Changed
+- **`.worktreeinclude` is now gitignore-aware** — patterns copy only gitignored files (the files that actually need copying, since tracked files already exist in the worktree) and support trailing-slash directory patterns and globs (`copy_pattern_if_gitignored`).
+- **Notifications include the task slug** — `notify.sh` prefixes the desktop notification with the session's task slug (`<slug>: …`) so you can tell which parallel session pinged you, while keeping the portable terminal-OSC + `osascript` fallback.
+
 ## [1.1.0] - 2026-06-13
 
 ### Fixed

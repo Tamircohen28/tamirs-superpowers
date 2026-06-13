@@ -50,6 +50,9 @@ else
 fi
 
 copy_worktreeinclude_files "$repo_root" "$worktree_path"
+write_worktree_env_local "$worktree_path" "$branch_name" 2>/dev/null || true
+# Install deps in the background so a slow npm/yarn install never blocks the hook timeout.
+( run_worktree_post_setup "$worktree_path" >/dev/null 2>&1 & )
 
 now_iso="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 state="$(echo "$state" | jq \
