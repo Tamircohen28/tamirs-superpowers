@@ -3,8 +3,8 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/TamirCohen28/tamirs-superpowers/actions/workflows/ci.yml">
-    <img src="https://github.com/TamirCohen28/tamirs-superpowers/actions/workflows/ci.yml/badge.svg" alt="CI" />
+  <a href="https://github.com/Tamircohen28/tamirs-superpowers/actions/workflows/ci.yml">
+    <img src="https://github.com/Tamircohen28/tamirs-superpowers/actions/workflows/ci.yml/badge.svg" alt="CI" />
   </a>
   <a href="LICENSE">
     <img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="MIT License" />
@@ -16,16 +16,16 @@
 
 # tamirs-superpowers
 
-A personal Claude Code plugin that bundles 15 skills, smart worktree hooks, and MCP server stubs — installed with a single `/plugin install` command and kept current via marketplace auto-update.
+A personal Claude Code plugin that bundles 16 skills, smart worktree hooks, and MCP server stubs — installed with a single `/plugin install` command and kept current via marketplace auto-update.
 
 ## Features
 
-- **15 bundled skills** across dev-workflow, integrations, meta, and content — plan, implement, review, debug, audit docs, and more, all from the Claude Code prompt
+- **16 bundled skills** — plan, implement, review, debug, audit docs, create and benchmark skills, polish repos, and more, all from the Claude Code prompt
 - **Smart worktree hooks** that automatically create isolated git worktrees per task, derive task slugs from your first prompt, enforce edit isolation, and show Claude Code changelogs on update
-- **Auto-installed plugin dependencies** — Atlassian, Sourcegraph, session-report, skill-creator, Warp, and more pull in automatically when you install this plugin
-- **MCP server stubs** for GitHub, Slack, Context7, and Desktop Commander — fill in your tokens and they're live
+- **Auto-installed plugin dependencies** — superpowers pulls in automatically when you install this plugin
+- **MCP server stubs** for GitHub and Context7 — fill in your tokens and they're live
 - **Statusline** showing git branch, worktree state, and session context in your Claude Code footer
-- **Cross-marketplace dependencies** wired in `marketplace.json` so all third-party plugins resolve automatically
+- **Declared plugin dependencies** in `plugin.json` so `superpowers` and other required plugins resolve and install automatically
 
 ## Prerequisites
 
@@ -36,29 +36,46 @@ A personal Claude Code plugin that bundles 15 skills, smart worktree hooks, and 
 
 ## Quick Start
 
-```bash
-# 1. Register third-party marketplaces (one-time, new machine)
-/plugin marketplace add warpdotdev/claude-code-warp
-/plugin marketplace add anthropics/knowledge-work-plugins
-/plugin marketplace add obra/superpowers
+This plugin is published through the [`tamirs-plugins`](https://github.com/Tamircohen28/plugins)
+catalog — install it from there, **not** by adding this repo as a marketplace
+(this repo no longer ships its own `marketplace.json`).
 
-# 2. Add this marketplace
-/plugin marketplace add TamirCohen28/tamirs-superpowers
+### Inside Claude Code (slash commands)
 
-# 3. Install — dependencies auto-install alongside
-/plugin install tamirs-superpowers
+```text
+# 1. Add Tamir's plugin marketplace (one-time per machine)
+/plugin marketplace add Tamircohen28/plugins
 
-# 4. Reload
-/reload-plugins
+# 2. Install — the `superpowers` dependency auto-installs alongside
+/plugin install tamirs-superpowers@tamirs-plugins
+
+# 3. Verify
+/doctor
 ```
 
-To enable MCP servers, open `.mcp.json` in the plugin install directory and set the env vars for any server you want active, then restart Claude Code.
+### From your shell (the `claude` CLI)
+
+```bash
+claude plugin marketplace add Tamircohen28/plugins
+claude plugin install tamirs-superpowers@tamirs-plugins
+claude plugin list          # confirm it's installed
+```
+
+Restart any running Claude Code session afterward so the hooks, statusline, and
+MCP stubs load. The bundled **MCP servers** (`github`, `context7`) are wired in
+`.mcp.json` and start automatically — the `github` server derives its token from
+your `gh` CLI auth (`gh auth login`), so there are no env vars to set by hand.
+
+> **Statusline not showing?** If the footer statusline doesn't appear after
+> restart, add it manually: run `/config` in Claude Code and set `statusLine`,
+> or add it directly to `~/.claude/settings.json`:
+> ```json
+> { "statusLine": { "type": "command", "command": "bash ~/.claude/plugins/cache/tamirs-plugins/tamirs-superpowers/<version>/statusline.sh" } }
+> ```
 
 ## Bundled Skills
 
-`skills/<topic>/<skill-name>/SKILL.md` — discovery is recursive.
-
-**`skills/dev-workflow/` (8)**
+Each skill lives at `skills/<skill-name>/SKILL.md`.
 
 | Skill | What it does |
 |---|---|
@@ -67,29 +84,15 @@ To enable MCP servers, open `.mcp.json` in the plugin install directory and set 
 | `/tamirs-superpowers:pr-dev` | Address review threads, fix CI, squash-merge, and clean up. |
 | `/tamirs-superpowers:docs-review` | Audit and fix Markdown docs — freshness, links, stale files. |
 | `/tamirs-superpowers:task-audit` | Audit a completed branch for quality and PR readiness. |
+| `/tamirs-superpowers:repo-polish` | Scan a project for employer IP, scaffold world-class repo infra, and publish to GitHub. |
 | `/tamirs-superpowers:targeted-debug` | Scope-bounded debug from a stack trace — reads only named files. |
 | `/tamirs-superpowers:babysit-pr` | Watch a PR and react to checks, review comments, and merges. |
-
-**`skills/integrations/` (2)**
-
-| Skill | What it does |
-|---|---|
-| `/tamirs-superpowers:slack-cli` | Drive Slack via the official CLI. |
-| `/tamirs-superpowers:proto-docs` | Generate API documentation from proto files. |
-
-**`skills/meta/` (4)**
-
-| Skill | What it does |
-|---|---|
 | `/tamirs-superpowers:changelog-review` | Fetch live Claude Code docs; answer questions and diff versions. |
 | `/tamirs-superpowers:mcp-builder` | Build MCP servers. |
 | `/tamirs-superpowers:mcp-pagination` | Always include pagination params on MCP list/search calls. |
 | `/tamirs-superpowers:find-skill` | Search skill marketplaces and rank matches for a query. |
-
-**`skills/content/` (2)**
-
-| Skill | What it does |
-|---|---|
+| `/tamirs-superpowers:skill-creator` | Create, improve, and benchmark Claude Code skills. |
+| `/tamirs-superpowers:session-report` | Generate an HTML report of session token usage. |
 | `/tamirs-superpowers:algorithmic-art` | Generate algorithmic art with p5.js. |
 | `/tamirs-superpowers:dark-terminal-doc` | Generate polished HTML docs with a dark terminal design system. |
 
@@ -97,29 +100,29 @@ To enable MCP servers, open `.mcp.json` in the plugin install directory and set 
 
 | Plugin | Marketplace | What it does |
 |---|---|---|
-| `skill-creator` | `claude-plugins-official` | Create / improve / benchmark skills. |
-| `session-report` | `claude-plugins-official` | HTML report of session token usage. |
-| `sourcegraph` | `claude-plugins-official` | Code search across repos. |
-| `atlassian` | `claude-plugins-official` | Jira + Confluence search/create/update. |
-| `warp` | `claude-code-warp` | Warp terminal integration. |
-| `data` | `knowledge-work-plugins` | SQL, datasets, dashboards. |
-| `enterprise-search` | `knowledge-work-plugins` | Enterprise knowledge search. |
-| `productivity` | `knowledge-work-plugins` | General productivity toolkit. |
 | `superpowers` | `superpowers-dev` | Jesse Vincent's skills framework. |
 
 ## Hooks
 
-`hooks/hooks.json` wires 7 lifecycle events:
+`hooks/hooks.json` wires 8 lifecycle events:
 
 | Event | Script | Purpose |
 |---|---|---|
 | `PreToolUse (Bash)` | `protect-other-branches.sh` | Block editing PRs from other authors. |
 | `PreToolUse (Edit\|Write\|…)` | `enforce-worktree-edits.sh` | Refuse repo edits outside the task worktree. |
 | `SessionStart` | `show-changelog.sh`, `session-init.sh` | Show Claude Code changelog on update; seed session state. |
-| `UserPromptSubmit` | `capture-task-slug.sh` | Derive task slug, create worktree, expose `$CLAUDE_SESSION_FILES_DIR`. |
+| `SessionEnd` | `session-end.sh` | Archive session-files, prune stale worktrees and old archives. |
+| `UserPromptSubmit` | `capture-task-slug.sh` | Derive task slug, create worktree, install deps, expose `$CLAUDE_SESSION_FILES_DIR`. |
 | `WorktreeCreate` | `worktree-create.sh` | Create global worktree under `~/.claude/worktrees/`. |
 | `WorktreeRemove` | `worktree-remove.sh` | Tear down global worktree cleanly. |
-| `Notification` | inline `osascript` | macOS notification when Claude needs attention. |
+| `Notification` | `notify.sh` | Notification (prefixed with the task slug) when Claude needs attention. |
+
+When a worktree is created, the hooks also: copy gitignored files matched by
+`~/.claude/defaults/worktreeinclude` then the repo's `.worktreeinclude` (e.g.
+`.env.local`, credentials); assign a deterministic per-branch `DEV_PORT` in
+`.env.local` so parallel worktrees don't collide; and install dependencies in
+the background (`npm ci` / `yarn` / `pnpm` / `poetry`, skipped when
+`node_modules` already exists), logging to `.session-files/worktree-setup.log`.
 
 ## Documentation
 
@@ -139,4 +142,4 @@ MIT — see [LICENSE](LICENSE).
 
 ---
 
-Tamir Cohen · https://github.com/TamirCohen28
+Tamir Cohen · https://github.com/Tamircohen28

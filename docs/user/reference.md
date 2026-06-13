@@ -90,26 +90,6 @@ Complete reference for all 15 skills bundled in `tamirs-superpowers`. Each becom
 
 ---
 
-## Integrations
-
-### `/tamirs-superpowers:slack-cli`
-
-**When to use:** Any Slack operation — sending messages, reading channels, managing auth.
-
-**What it does:** Drives Slack via the official `slack` CLI tool. Handles auth, channel operations, and message sending.
-
-**Requires:** Slack CLI installed (`brew install slack-cli`) and authenticated.
-
----
-
-### `/tamirs-superpowers:proto-docs`
-
-**When to use:** You have `.proto` files and need API documentation.
-
-**What it does:** Generates API documentation from Protocol Buffer definitions — descriptions, intro articles, and usage guides.
-
----
-
 ## Meta
 
 ### `/tamirs-superpowers:changelog-review`
@@ -148,6 +128,26 @@ Complete reference for all 15 skills bundled in `tamirs-superpowers`. Each becom
 **What it does:** Searches leading skill/plugin marketplaces in real time (Anthropic official, obra/superpowers, mattpocock/skills, Smithery, mcp.directory, and more) and returns ranked matches with quality scores.
 
 **Example:** `/tamirs-superpowers:find-skill something that reviews PRs automatically`
+
+---
+
+### `/tamirs-superpowers:skill-creator`
+
+**When to use:** You want to create a new Claude Code skill, improve an existing one, or measure skill quality.
+
+**What it does:** Guides the full skill lifecycle — authoring new skills from scratch, iteratively improving description and trigger accuracy, running evals, and benchmarking performance with variance analysis.
+
+**Example:** `/tamirs-superpowers:skill-creator` or `/tamirs-superpowers:skill-creator improve description for my-skill`
+
+---
+
+### `/tamirs-superpowers:session-report`
+
+**When to use:** After a long session, or when you want to understand token spend, cache hit rates, and which skills were used.
+
+**What it does:** Scans `~/.claude/projects` transcripts and generates a self-contained HTML report showing total tokens, cache savings, subagent calls, skill invocations, and most expensive prompts.
+
+**Example:** `/tamirs-superpowers:session-report`
 
 ---
 

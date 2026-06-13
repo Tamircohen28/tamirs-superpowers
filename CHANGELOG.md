@@ -5,6 +5,50 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Added
+- **Per-worktree dev ports** — new worktrees get a deterministic `DEV_PORT` (hashed from the branch name) written to `.env.local`, so parallel worktrees no longer collide on the same dev-server port (`write_worktree_env_local`).
+- **Automatic dependency install** — fresh worktrees install dependencies in the background, matching the project's package manager (`npm ci` / `yarn --immutable` / `pnpm --frozen-lockfile` / `poetry install`), skipped when `node_modules` is already present. Logs to `.session-files/worktree-setup.log` (`run_worktree_post_setup`).
+- **Global `.worktreeinclude` defaults** — `copy_worktreeinclude_files` now reads `~/.claude/defaults/worktreeinclude` before the repo-level `.worktreeinclude`, so a default set of gitignored files copies into every worktree.
+- **Archive retention pruning** — `session-end.sh` now prunes archived session-files older than `WORKTREE_RETENTION_DAYS`, alongside the existing stale-worktree cleanup (`prune_session_files_archive`).
+
+### Changed
+- **`.worktreeinclude` is now gitignore-aware** — patterns copy only gitignored files (the files that actually need copying, since tracked files already exist in the worktree) and support trailing-slash directory patterns and globs (`copy_pattern_if_gitignored`).
+- **Notifications include the task slug** — `notify.sh` prefixes the desktop notification with the session's task slug (`<slug>: …`) so you can tell which parallel session pinged you, while keeping the portable terminal-OSC + `osascript` fallback.
+
+## [1.1.0] - 2026-06-13
+
+### Fixed
+- **Statusline now activates on install** — `statusLine` was declared as a top-level `plugin.json` field, which the plugin manifest schema does not define; Claude Code silently ignored it. Moved under the schema-supported `settings` object so it merges into user settings while the plugin is enabled.
+- **Install Quick Start corrected** — removed broken `marketplace add Tamircohen28/tamirs-superpowers` instruction (the per-repo `marketplace.json` was removed in v1.0.8). Install via `tamirs-superpowers@tamirs-plugins` instead.
+- Removed non-existent `/reload-plugins` command from docs.
+- Fixed stale "wired in marketplace.json" dependency claim.
+
+### Added
+- Shell-based (`claude plugin …`) install path documented alongside in-Claude slash commands.
+- Statusline troubleshooting note for manual fallback if settings-merge path doesn't activate it.
+- `repo-polish` skill added to the skills table (was missing despite being bundled since v1.0.9).
+
+## [1.0.7] - 2026-06-08
+
+### Fixed
+- **GitHub MCP zero-config** — replaced HTTP Bearer token approach (required manual `GITHUB_PERSONAL_ACCESS_TOKEN` setup) with `hooks/github-mcp.sh`, a wrapper script that auto-derives the token from `gh auth token`. No manual token setup needed — if `gh` is authenticated, GitHub MCP works. Tries the official `github-mcp-server` binary first (`brew install github/tap/github-mcp-server`), falls back to Docker (`ghcr.io/github/github-mcp-server`).
+
+## [1.0.6] - 2026-06-08
+
+### Fixed
+- **GitHub MCP** — replaced broken `stdio` + `sh -c` + `npx` approach with the official HTTP-based server (`https://api.githubcopilot.com/mcp/`). Set `GITHUB_PERSONAL_ACCESS_TOKEN` in your environment to activate. No npx, no Docker, no `gh` CLI dependency in the MCP config.
+
+## [1.0.5] - 2026-06-08
+
+### Added
+- **`skill-creator` bundled** (`skills/meta/skill-creator/`) — create, improve, and benchmark Claude Code skills, now shipped directly in this plugin
+- **`session-report` bundled** (`skills/meta/session-report/`) — HTML token usage reports, now shipped directly in this plugin
+
+### Removed
+- **`skills/integrations/slack-cli`** — enterprise-specific, removed for public release
+- **`skills/integrations/proto-docs`** — enterprise-specific, removed for public release
+- **`skill-creator` and `session-report` from `dependencies`** — both were declared as external dependencies on `claude-plugins-official` plugins that have no `version` field, causing permanent `/doctor` failures; bundling them directly resolves this
+
 ## [1.0.2] - 2026-06-08
 
 Full plugin spec compliance pass based on official Claude Code plugins guide.
@@ -63,7 +107,7 @@ First public release. Cleaned of all internal tooling references and scaffolded 
   - `task-audit` — audit a completed branch for quality and PR readiness
   - `targeted-debug` — scope-bounded debug from stack trace (reads only named files)
   - `changelog-review` — fetch live Claude Code docs; answer questions, diff versions
-- **`marketplace.json`** at repo root — repo now doubles as a Claude Code marketplace (`TamirCohen28/tamirs-superpowers`). Cross-marketplace dependencies (`claude-code-warp`, `knowledge-work-plugins`, `superpowers-dev`) are allowlisted so no manual `/plugin marketplace add` steps are required after install.
+- **`marketplace.json`** at repo root — repo now doubles as a Claude Code marketplace (`Tamircohen28/tamirs-superpowers`). Cross-marketplace dependencies (`claude-code-warp`, `knowledge-work-plugins`, `superpowers-dev`) are allowlisted so no manual `/plugin marketplace add` steps are required after install.
 - Full documentation tree: `docs/user/` (concepts, quick-start, troubleshooting, skill reference) and `docs/engineering/` (architecture overview, dev workflow, CI workflow, 2 ADRs).
 - `CLAUDE.md` — contributor guidance for Claude Code sessions.
 - `Makefile` — `validate`, `lint`, `test` targets (shellcheck + JSON validation + SKILL.md frontmatter check).
@@ -83,7 +127,7 @@ First public release. Cleaned of all internal tooling references and scaffolded 
 - **`mcp-builder`**, **`algorithmic-art`** — fixed `license: Complete terms in LICENSE.txt` → `license: MIT` (file is `LICENSE`, not `LICENSE.txt`).
 - **`.gitignore`** — added `.claude/worktrees/`, `.claude/outputs/`, `.claude/sessions/`.
 - **`hooks/hooks.json`** — fixed trailing comma (was invalid JSON).
-- **Author** updated throughout: `tamirc@wix.com` → `https://github.com/TamirCohen28`.
+- **Author** updated throughout: `tamircohen2468@gmail.com` → `https://github.com/Tamircohen28`.
 
 ### Removed
 - **11 Wix-internal skills** — all tools specific to internal infrastructure:

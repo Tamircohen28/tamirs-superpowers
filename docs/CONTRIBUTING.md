@@ -14,7 +14,7 @@ Thanks for your interest. This is a personal plugin, but PRs for bug fixes and g
 ## Development setup
 
 ```bash
-git clone https://github.com/TamirCohen28/tamirs-superpowers.git
+git clone https://github.com/Tamircohen28/tamirs-superpowers.git
 cd tamirs-superpowers
 brew install shellcheck jq  # if not already installed
 make validate               # should pass with zero errors
@@ -54,10 +54,10 @@ docs: update quick-start with correct marketplace URL
 
 Topic conventions:
 - `dev-workflow` — git, PR, review, planning, debugging workflows
-- `integrations` — external tool integrations (Slack, proto, etc.)
+- `integrations` — external tool integrations (reserved for future use)
 - `meta` — Claude Code itself, skill authoring, MCP
 - `content` — creative or content-generation skills
 
 ## Code review
 
-All PRs are reviewed by @TamirCohen28. Response time is best-effort — this is a personal project.
+All PRs are reviewed by @Tamircohen28. Response time is best-effort — this is a personal project.

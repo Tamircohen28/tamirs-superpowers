@@ -2,13 +2,13 @@
   "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "tamirs-superpowers",
   "displayName": "Tamir's Superpowers",
-  "version": "1.0.2",
-  "description": "15 bundled skills, smart worktree hooks, and MCP server stubs — plan, implement, review, debug, and audit code from one plugin.",
-  "homepage": "https://github.com/TamirCohen28/tamirs-superpowers",
-  "repository": "https://github.com/TamirCohen28/tamirs-superpowers",
+  "version": "1.1.0",
+  "description": "16 bundled skills, smart worktree hooks, statusline, and MCP server stubs — plan, implement, review, debug, and audit code from one plugin.",
+  "homepage": "https://github.com/Tamircohen28/tamirs-superpowers",
+  "repository": "https://github.com/Tamircohen28/tamirs-superpowers",
   "author": {
     "name": "Tamir Cohen",
-    "url": "https://github.com/TamirCohen28"
+    "url": "https://github.com/Tamircohen28"
   },
   "keywords": [
     "skills",
@@ -21,46 +21,25 @@
   ],
   "dependencies": [
     {
-      "name": "skill-creator",
-      "marketplace": "claude-plugins-official"
-    },
-    {
-      "name": "session-report",
-      "marketplace": "claude-plugins-official"
-    },
-    {
-      "name": "sourcegraph",
-      "marketplace": "claude-plugins-official"
-    },
-    {
-      "name": "atlassian",
-      "marketplace": "claude-plugins-official"
-    },
-    {
-      "name": "warp",
-      "marketplace": "claude-code-warp"
-    },
-    {
-      "name": "data",
-      "marketplace": "knowledge-work-plugins"
-    },
-    {
-      "name": "enterprise-search",
-      "marketplace": "knowledge-work-plugins"
-    },
-    {
-      "name": "productivity",
-      "marketplace": "knowledge-work-plugins"
-    },
-    {
       "name": "superpowers",
       "marketplace": "superpowers-dev"
     }
   ],
   "license": "MIT",
   "defaultEnabled": true,
-  "statusLine": {
-    "type": "command",
-    "command": "bash ${CLAUDE_PLUGIN_ROOT}/statusline.sh"
+  "skills": [
+    "./skills/creative",
+    "./skills/debugging",
+    "./skills/dev-workflow",
+    "./skills/documentation",
+    "./skills/mcp",
+    "./skills/meta",
+    "./skills/repo"
+  ],
+  "settings": {
+    "statusLine": {
+      "type": "command",
+      "command": "bash ${CLAUDE_PLUGIN_ROOT}/statusline.sh"
+    }
   }
 }
