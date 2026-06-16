@@ -1,0 +1,51 @@
+{
+  "skill_name": "session-report",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "Show me my Claude usage for the last 7 days. I want to know which projects are eating the most tokens and whether my cache hit rate is healthy.",
+      "expected_output": "The skill runs analyze-sessions.mjs --json --since 7d, reads the output, copies template.html to a dated session-report-YYYYMMDD-HHMM.html file in the current directory, injects the JSON data blob into the <script id=\"report-data\"> tag, writes 3-5 anomaly findings using the .take.bad/.take.good/.take.info markup, writes 1-4 optimization callouts, and reports the saved file path. The response includes the file path and a brief plain-text summary of the top 2-3 findings.",
+      "files": [],
+      "expectations": [
+        "Runs node analyze-sessions.mjs --json --since 7d before doing anything else",
+        "Copies template.html to ./session-report-YYYYMMDD-HHMM.html (not /tmp/)",
+        "Uses Edit (not Write) to patch the report file",
+        "Injects the full JSON blob into <script id=\"report-data\" type=\"application/json\">",
+        "Writes at least 3 anomaly divs using .take.bad/.take.good/.take.info classes with .fig and .txt children",
+        "Figures in anomaly divs are expressed as percentages of total (e.g. '41.2%') not raw token counts",
+        "Writes at least 1 optimization callout naming a specific project or skill from the JSON",
+        "Reports the saved file path to the user",
+        "Does not hallucinate numbers — all figures reference actual JSON field values"
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "session report for the last 24 hours",
+      "expected_output": "The skill parses '24 hours' as --since 24h, runs the analyzer with that flag, and produces a report. If the 24h window yields zero api_calls, it asks the user if they want to widen the window rather than silently producing a blank report. If data exists, follows the same template injection and anomaly-writing workflow as the 7d case.",
+      "files": [],
+      "expectations": [
+        "Passes --since 24h to analyze-sessions.mjs (not --since 7d)",
+        "If overall.api_calls is 0 or the JSON has no data, asks the user to widen the window rather than silently writing a blank report",
+        "If data exists, produces the same dated HTML output file in the current directory",
+        "The output filename uses the pattern session-report-YYYYMMDD-HHMM.html",
+        "Does not hardcode an absolute user path — uses $SKILL_DIR or resolved path from plugin root"
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "What's consuming most of my Claude tokens? Give me a full breakdown — by project, by skill, and show me the most expensive individual prompts. All time.",
+      "expected_output": "The skill recognizes 'all time' as no --since flag, runs analyze-sessions.mjs --json (without --since), reads the full by_project, by_skill, and top_prompts sections of the JSON. The anomaly block identifies the top project by token share (with % of total), the top skill by invocation count or token cost, and at least one top-prompt finding citing the specific prompt text snippet and its % of total. Optimizations reference specific data rows.",
+      "files": [],
+      "expectations": [
+        "Runs analyze-sessions.mjs --json WITHOUT --since flag for all-time analysis",
+        "Anomaly block includes a finding about the top project by % of total tokens",
+        "Anomaly block includes a finding about the top skill or subagent type",
+        "Anomaly block includes at least one finding about a top prompt, naming its text snippet from top_prompts[0].text",
+        "All percentage figures use actual decimals from JSON (e.g. '23.7%' not '24%')",
+        "Optimizations section contains at least 1 callout referencing a named project or skill from the JSON data",
+        "Output file is saved to current working directory with correct date-stamped filename",
+        "The skill does not invent any project name, skill name, or token count not present in the JSON"
+      ]
+    }
+  ]
+}
