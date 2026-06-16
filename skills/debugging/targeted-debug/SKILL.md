@@ -2,8 +2,8 @@
 name: targeted-debug
 context: fork
 disable-model-invocation: true
-description: "Use when the user wants to debug a specific error, stack trace, crash, or broken function without launching a full investigation pipeline. Reads only files named in the stack trace or by the user. Triggers: 'debug this error', 'why does X fail', 'targeted debug', 'what causes NullPointerException', 'look at this stack trace', 'why is this crashing', 'traceback', 'segfault', 'AttributeError', 'TypeError', 'just look at this file'."
-when_to_use: "User pastes a stack trace, error message, crash log, or names a specific broken function/file and asks what's wrong. Does not require a full investigation — the error is already concrete. Trigger phrases: 'debug this', 'why does X fail', 'stack trace', 'what causes this error', 'targeted debug', 'traceback', 'look at this crash'."
+description: "Use when the user pastes a stack trace, traceback, panic, crash log, or error message WITH a file:line reference and wants to know the root cause. Triggers on: 'debug this error', 'look at this stack trace', 'why does X crash', 'what causes this exception', 'why is this panicking', 'look at this file:line', error types (NullPointerException, AttributeError, TypeError, nil pointer dereference, unwrap on None, index out of bounds, segfault, unbound variable, cannot read properties of undefined). Does NOT trigger on vague 'something is broken' or 'why is it slow' without a concrete error signal."
+when_to_use: "User provides a concrete error: stack trace, panic output, crash log, or names a specific file:line and asks what's wrong. Error is already in hand — no broad codebase exploration needed. Do not use when the user has no stack trace or no concrete error message."
 argument-hint: "<error-message-or-stack-trace> [file:line ...]"
 model: claude-sonnet-4-6
 allowed-tools:
@@ -26,7 +26,10 @@ metadata:
     - error
     - crash
     - traceback
-  updated-date: "2026-06-13"
+    - panic
+    - rust
+    - go
+  updated-date: "2026-06-16"
 ---
 
 ## Live context
@@ -62,7 +65,13 @@ Recognized trace shapes:
 | JavaScript | `at Object.<anon> (/repo/lib/foo.js:12:7)` | `/repo/lib/foo.js` |
 | Python | `File "/repo/src/parser.py", line 87, in parse` | `/repo/src/parser.py` |
 | Bash | `script.sh: line 42:` | `script.sh` |
+| Rust | `at src/handlers/payment.rs:91:42` | `src/handlers/payment.rs` |
+| Go | `\t/app/services/order.go:114 +0x1c2` | `/app/services/order.go` |
 | Generic (Vim) | `path/to/file.py:42` | `path/to/file.py` |
+
+**Vendor/stdlib exclusion:** The extractor automatically suppresses paths from `~/.cargo/`, `~/go/pkg/mod/`, `/usr/local/go/src/`, and `node_modules/`. If a trace mixes project files with runtime internals, only project-source paths remain in the output.
+
+For language-specific panic patterns and scope rules (Rust unwrap, Go nil pointer, Bash set -u), see `references/language-patterns.md`.
 
 ## Workflow
 

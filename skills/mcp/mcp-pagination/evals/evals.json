@@ -1,0 +1,86 @@
+{
+  "skill_name": "mcp-pagination",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "I'm designing an MCP server for a GitHub integration. It will expose these tools: list_repositories, search_issues, get_pull_request, list_comments. Apply pagination guardrails and tell me which tools need limits, what the safe defaults should be, and flag any anti-patterns.",
+      "expected_output": "The skill identifies list_repositories, search_issues, and list_comments as requiring limits (get_pull_request returns a single item and is exempt). It specifies safe defaults: list_repositories limit=20, search_issues limit=10, list_comments limit=50. It flags any tool design that auto-paginates or returns unbounded arrays. It produces a pass/fail checklist.",
+      "files": [],
+      "expectations": [
+        "get_pull_request is NOT flagged as needing a limit (single-item fetch)",
+        "list_repositories gets a recommended limit <= 100",
+        "search_issues gets a recommended limit <= 20",
+        "list_comments gets a recommended limit between 20 and 100",
+        "The output includes a checklist or table format",
+        "Auto-pagination is explicitly flagged as an anti-pattern"
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "Review this MCP tool definition and tell me if it passes pagination guardrails:\n\n```json\n{\n  \"name\": \"search_events\",\n  \"description\": \"Search calendar events\",\n  \"inputSchema\": {\n    \"type\": \"object\",\n    \"properties\": {\n      \"query\": {\"type\": \"string\"},\n      \"calendar_id\": {\"type\": \"string\"}\n    },\n    \"required\": [\"query\"]\n  }\n}\n```",
+      "expected_output": "The skill flags this tool as FAILING the guardrail because it has no limit, max_results, per_page, or date filter parameter. It recommends adding at least one of: max_results (default 10), per_page with page, or date range filters (since/before). It shows a corrected schema.",
+      "files": [],
+      "expectations": [
+        "The tool is marked as FAILING the pagination guardrail",
+        "The specific missing parameter is identified (no limit/max_results/per_page/cursor)",
+        "A concrete fix is proposed (add max_results or date filters)",
+        "The recommended default limit is <= 20 for a search operation",
+        "A corrected schema or parameter list is shown"
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "I'm building an MCP tool called execute_query that runs raw SQL against a Postgres database. The input is just { sql: string }. Does this pass your SQL pagination guardrail? What should I change?",
+      "expected_output": "The skill flags the tool as FAILING because it executes raw SQL with no LIMIT enforcement. It recommends: (1) validate that the SQL string contains a LIMIT clause before executing, (2) reject queries that don't include LIMIT, (3) optionally inject LIMIT automatically as a safety net. It warns about SELECT * with no LIMIT returning unbounded rows.",
+      "files": [],
+      "expectations": [
+        "The tool is flagged as FAILING the SQL guardrail",
+        "The fix explicitly mentions validating for a LIMIT clause in the SQL string",
+        "Server-side validation is recommended (not relying on callers)",
+        "The risk of unbounded rows / token explosion is mentioned",
+        "A concrete code example or pseudocode for the fix is provided"
+      ]
+    },
+    {
+      "id": 4,
+      "prompt": "I'm designing a GraphQL-based MCP server wrapping a Linear API. It will expose: list_issues (uses Linear's `issues` query with Relay cursor pagination), get_issue (single item by ID), list_projects (uses `projects` query), update_issue (mutation). Which tools need pagination guardrails and what GraphQL-specific parameters should I expose?",
+      "expected_output": "The skill identifies list_issues and list_projects as requiring Relay-style cursor pagination. get_issue (single item) and update_issue (mutation) are exempt. For list_issues and list_projects it recommends exposing 'first' (default 20, max 50) and 'after' (cursor string) parameters, returning 'pageInfo.endCursor' and 'pageInfo.hasNextPage' to the caller. It warns against auto-following cursors.",
+      "files": [],
+      "expectations": [
+        "get_issue is NOT flagged — single-item fetch is exempt",
+        "update_issue is NOT flagged — mutation, not a list operation",
+        "list_issues and list_projects are both flagged as needing pagination",
+        "The recommended GraphQL parameter is 'first' (not 'limit') with default <= 50",
+        "The 'after' cursor parameter is mentioned for continuation",
+        "Auto-following cursors (fetching all pages) is flagged as an anti-pattern",
+        "pageInfo.endCursor or equivalent is mentioned as the continuation token to return"
+      ]
+    },
+    {
+      "id": 5,
+      "prompt": "I have an MCP tool called get_recent_activity that fetches the last N activity events for a user. The name starts with 'get_' not 'list_', so I assumed it doesn't need pagination. Is that correct?",
+      "expected_output": "The skill explains that tool name prefix alone does not determine whether pagination is needed — what matters is whether the return type is an array. get_recent_activity returns an array of events, so it DOES need a limit parameter even though it starts with get_. The skill recommends adding a 'limit' parameter (default 20) and optionally a 'since' date filter. It clarifies the rule: any tool that returns a top-level array needs a limiting strategy regardless of name prefix.",
+      "files": [],
+      "expectations": [
+        "The skill does NOT exempt get_recent_activity just because of the 'get_' prefix",
+        "The key rule is stated: tools returning top-level arrays need limits regardless of name",
+        "A 'limit' parameter with a safe default (<= 50) is recommended",
+        "A date filter (since/before) is mentioned as an alternative or complement",
+        "The response clarifies the distinction between single-item getters and array-returning getters"
+      ]
+    },
+    {
+      "id": 6,
+      "prompt": "I'm building an MCP tool that wraps an OpenAI streaming endpoint — it streams chat completion tokens back to the caller. Does this need pagination guardrails? Also I have a list_fine_tunes tool that returns all fine-tuning jobs. Evaluate both.",
+      "expected_output": "The skill correctly distinguishes: (1) the streaming completion tool does NOT need pagination — it is a generative/streaming operation, not a collection-listing operation. (2) list_fine_tunes DOES need a limit — it returns a collection of job objects. Safe default: limit=20. The skill does not misapply the guardrail to the streaming tool.",
+      "files": [],
+      "expectations": [
+        "The streaming completion tool is correctly exempted from pagination guardrails",
+        "The reason for exemption is stated: streaming is generative, not a collection listing",
+        "list_fine_tunes is flagged as needing a limit parameter",
+        "A safe default for list_fine_tunes is provided (<= 50)",
+        "The skill does not conflate 'streaming' with 'pagination' — these are orthogonal concerns"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,55 @@
+{
+  "skill_name": "dark-terminal-doc",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "Create a dark terminal-style HTML comparison doc: Claude Code vs Cursor. Cover these feature areas: context window size, offline support, IDE integration, file editing tools, multi-agent support, pricing, and code completion speed. Use Claude Code brand color orange-red and Cursor brand color blue-purple. Output a single self-contained HTML file called claude-vs-cursor.html.",
+      "expected_output": "A single self-contained HTML file (claude-vs-cursor.html) with dark terminal aesthetic. Must include: CSS variables token block with --bg, --surface, --surface2, --border, --text, --muted, --yes, --no, --partial, custom --brand-a and --brand-b. Table with section headers (uppercase, letter-spacing, emoji prefix). Tags using rgba fills (tag-yes/tag-no/tag-partial). Winner badges placed after explanatory text in notes column. Three summary cards at the bottom (brand-a wins / brand-b wins / tie). IBM Plex Mono + Syne font import. max-width 1200px throughout. No external CSS files, no JS frameworks.",
+      "files": [],
+      "expectations": [
+        "Output file is a single .html file with all CSS inline in a <style> block",
+        "CSS :root block contains all required tokens: --bg, --surface, --surface2, --border, --text, --muted, --yes, --no, --partial, --brand-a, --brand-b",
+        "Table includes at least 3 section-header rows with uppercase text and emoji prefix",
+        "Tags use rgba() fills (not solid hex background colors)",
+        "Winner badges appear after explanatory text in td.col-notes cells",
+        "Three summary cards appear at the bottom of the document",
+        "Google Fonts import includes IBM Plex Mono and Syne",
+        "max-width: 1200px applied to top-level containers",
+        "border-radius: 16px on .table-wrap",
+        "Data cells use pastelized hex colors for brand text, not full-saturation CSS vars"
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "Make me a git commands reference cheatsheet as a dark HTML page. Include sections for: staging & committing, branching & merging, remote operations, undoing changes, and advanced rebase/cherry-pick. Each row should show the command name, the exact syntax with code formatting, and a short description. Output as git-cheatsheet.html.",
+      "expected_output": "A single self-contained HTML cheatsheet file (git-cheatsheet.html) with dark terminal aesthetic. No summary cards (single-subject doc). Table columns: Command / Syntax / Description. Section headers for each of the 5 areas (uppercase, letter-spacing, emoji prefix). Inline code styling for command syntax. IBM Plex Mono used for all code/label content. At least 15 rows of git commands across all sections.",
+      "files": [],
+      "expectations": [
+        "Output file is a single .html file with all CSS inline",
+        "CSS :root token block present with all required variables",
+        "At least 5 section-header rows covering the requested topic areas",
+        "At least 15 data rows of git commands",
+        "Command syntax uses <code> tags with IBM Plex Mono styling",
+        "No summary cards (this is a single-subject reference doc)",
+        "Google Fonts import includes IBM Plex Mono and Syne",
+        "Section headers use text-transform uppercase and letter-spacing"
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "Write release notes for a fictional developer tool v2.0 as a styled dark HTML page. The tool is called 'Nexus CLI'. Include sections for: Breaking Changes, New Features, Performance Improvements, and Bug Fixes. Each entry should have a change title, impact level (high/medium/low as colored tags), and a description. Output as nexus-v2-release-notes.html.",
+      "expected_output": "A single self-contained HTML release notes file (nexus-v2-release-notes.html) with dark terminal aesthetic. Table columns: Change / Impact / Description. Impact column uses tag-no (red) for high, tag-partial (yellow) for medium, tag-yes (green) for low. At least 8 entries across all 4 sections. Section headers with emoji prefix and uppercase styling. No comparison summary cards. Header subtitle follows // pattern in IBM Plex Mono.",
+      "files": [],
+      "expectations": [
+        "Output file is a single .html file with all CSS inline",
+        "CSS :root token block present with all required variables",
+        "4 section-header rows: Breaking Changes, New Features, Performance Improvements, Bug Fixes",
+        "At least 8 data rows spread across sections",
+        "Impact tags use tag-yes/tag-no/tag-partial CSS classes with rgba fills",
+        "No summary cards (release notes, not comparison doc)",
+        "Header subtitle uses // nexus-cli v2.0 · [date] pattern in IBM Plex Mono",
+        "Section headers have emoji prefix and uppercase styling"
+      ]
+    }
+  ]
+}

@@ -1,9 +1,9 @@
 ---
 name: start-dev
-description: "Use when the user says to start, implement, build, or code a task — with a GitHub issue, spec, or task description — and expects commits and a PR. Triggers: 'implement issue #N', 'build the feature', 'start coding', 'work on this spec', 'create a PR for this'."
+description: "Use when the user wants to implement, build, code, or ship a task that will result in commits and a pull request — given a GitHub issue number, free-text task description, or spec file. Triggers: 'implement issue #N', 'start coding X', 'build the feature', 'work on this spec', 'create a PR for this', 'ship issue #N', 'code up the feature', 'begin implementation of X'."
 disable-model-invocation: true
-when_to_use: "implement, build, start, begin, code, work on, create PR for, ship — followed by an issue number, task description, or spec file path"
-argument-hint: "[issue number(s), task description, or file path to spec]"
+when_to_use: "implement, build, start coding, begin implementation, work on, create PR for, ship, code up — followed by an issue number (#N), a task description, or a spec/plan file path"
+argument-hint: "[issue number(s) e.g. #42, free-text task description, or path/to/spec.md]"
 model: claude-sonnet-4-6
 effort: high
 allowed-tools:
@@ -24,7 +24,7 @@ metadata:
     - worktree
     - pr
     - workflow
-  updated-date: "2026-06-13"
+  updated-date: "2026-06-16"
 ---
 
 ## Live context
@@ -78,8 +78,13 @@ Derive a short, slug-style branch name from the task:
 DEFAULT_BRANCH=$(gh repo view --json defaultBranchRef --jq .defaultBranchRef.name 2>/dev/null || echo "main")
 BRANCH="feat/your-slug-here"
 
-git fetch origin
-git worktree add .claude/worktrees/$BRANCH -b $BRANCH origin/$DEFAULT_BRANCH
+# Check if the worktree already exists — resume rather than re-create
+if [ -d ".claude/worktrees/$BRANCH" ]; then
+  echo "Worktree already exists at .claude/worktrees/$BRANCH — resuming"
+else
+  git fetch origin
+  git worktree add ".claude/worktrees/$BRANCH" -b "$BRANCH" "origin/$DEFAULT_BRANCH"
+fi
 ```
 
 All file edits happen inside `.claude/worktrees/$BRANCH/`, not in the main checkout.
@@ -107,32 +112,28 @@ One commit per task or closely related change. Do not batch unrelated changes in
 
 ### Step 4 — Validate
 
-Auto-detect the stack and run the appropriate checks:
+Use the bundled `scripts/detect-stack.sh` to identify which validation commands apply to this repo, then run each one:
 
 ```bash
 cd .claude/worktrees/$BRANCH
 
-# JSON/Markdown/plugin repos
-[ -f Makefile ] && make validate 2>/dev/null || make test 2>/dev/null || true
+# Detect commands for this repo's stack
+SKILL_DIR="$(dirname "$0")"   # or use $CLAUDE_SKILL_DIR if available
+CMDS=$(bash "$SKILL_DIR/scripts/detect-stack.sh" .)
 
-# Node / JavaScript / TypeScript
-if [ -f package.json ]; then
-  npm test 2>/dev/null || yarn test 2>/dev/null || pnpm test 2>/dev/null || true
-  npm run lint 2>/dev/null || yarn lint 2>/dev/null || true
-  npm run typecheck 2>/dev/null || npx tsc --noEmit 2>/dev/null || true
+if [ -z "$CMDS" ]; then
+  echo "No validation commands detected — check README or package.json scripts manually."
+else
+  while IFS= read -r cmd; do
+    echo "Running: $cmd"
+    eval "$cmd"
+  done <<< "$CMDS"
 fi
-
-# Python
-[ -f pyproject.toml ] || [ -f setup.py ] && (pytest 2>/dev/null || python -m pytest 2>/dev/null || true)
-
-# Go
-[ -f go.mod ] && go test ./... 2>/dev/null || true
-
-# Rust
-[ -f Cargo.toml ] && cargo test 2>/dev/null || true
 ```
 
-Fix every failure before proceeding. Do not push broken code.
+`detect-stack.sh` covers: Makefile (`make validate` / `make test`), Node/TS (`npm test`, `npm run lint`, `npx tsc --noEmit`), Python (`pytest`), Go (`go test ./...`, `go vet`), Rust (`cargo test`, `cargo clippy`), Ruby (`bundle exec rspec`).
+
+Fix every failure before proceeding. Do not push broken code. Do not use `--no-verify` or skip tests because the user says "it's urgent".
 
 ### Step 5 — Push and open PR
 
@@ -140,22 +141,24 @@ Fix every failure before proceeding. Do not push broken code.
 git -C .claude/worktrees/$BRANCH push -u origin HEAD
 ```
 
+Read `references/pr-templates.md` in this skill directory to choose the right PR body template (feature/bug-fix/spec-task/multi-issue/chore). Fill in all `[…]` placeholders — never leave them literally in the PR body.
+
 ```bash
-# Build Closes lines for each linked issue
-CLOSES="Closes #258"   # adjust per actual issue number(s)
+# Build Closes lines for each linked issue (omit if no issue number)
+CLOSES="Closes #42"   # adjust per actual issue number(s)
 
 gh pr create \
-  --title "feat: add rate limiting to login endpoint" \
+  --title "feat(auth): add rate limiting to login endpoint" \
   --body "$(cat <<EOF
 ## Summary
-[2-3 sentences: what changed and why]
+Added a token-bucket rate limiter to POST /login. Prevents brute-force attacks by returning 429 after 5 failed attempts per IP per minute.
 
 ## Changes
 - Added token-bucket rate limiter to \`POST /login\`
 - Configurable via \`RATE_LIMIT_MAX\` env var (default: 5 req/min)
 
 ## Test plan
-- [ ] Hit /login 6+ times in a minute — 6th request returns 429
+- [ ] Hit /login 6+ times in a minute — 6th request returns 429 with Retry-After header
 - [ ] All existing auth tests pass
 
 $CLOSES

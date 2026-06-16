@@ -2,8 +2,8 @@
 name: docs-review
 disable-model-invocation: true
 user-invocable: false
-description: "Internal: audit and fix Markdown docs (README.md + docs/**) — visual cleanliness, freshness vs git history, stray plan files, link validation, and cross-reference consistency. Invoked by repo-polish during Step 6b after scaffolding. Not for direct user invocation — run repo-polish instead."
-when_to_use: "Invoked automatically by repo-polish Step 6b after docs are scaffolded. May also run standalone only when another skill explicitly delegates a docs sweep."
+description: "Internal docs-quality sweep invoked by repo-polish Step 6b. Audits README.md and docs/** across 8 axes: repo inventory, visual cleanliness, git freshness, stray plan files, template conformance, broken links/anchors, CLAUDE.md consistency, and recent-change sync. Returns pass/fail summary to caller."
+when_to_use: "Called by repo-polish after scaffolding (Step 6b). Also valid when another skill explicitly needs a full documentation audit — e.g. 'run docs-review on $PROJECT_DIR'. Not for direct user invocation."
 argument-hint: "[optional: subset glob like 'docs/user/**' or single file path]"
 model: claude-sonnet-4-6
 allowed-tools:
@@ -27,7 +27,7 @@ metadata:
     - freshness
     - cleanup
     - workflow
-  updated-date: "2026-06-13"
+  updated-date: "2026-06-16"
 ---
 
 # docs-review
@@ -45,9 +45,18 @@ including accurate counts of agents, skills, and commands.
 | **Step 6b** — after Step 5 scaffolding and Step 6a P1 repo fixes | Full audit of `$PROJECT_DIR/README.md` and `$PROJECT_DIR/docs/**` |
 | **Re-run** — after manual P1 doc fixes in 6b | Confirm link-clean and counts accurate |
 
-`repo-polish` sets `cd "$PROJECT_DIR"` before calling `Skill("docs-review")`. Treat that directory as the repo root for all axes — not the plugin install path.
+`repo-polish` sets the working directory to `$PROJECT_DIR` before calling this skill. **Always treat the current working directory as the repo root** for all axes — never use the plugin install path or absolute paths from this skill's own directory.
 
-When invoked from `repo-polish`, report pass/fail summary at the end. Return control only when P1 doc issues are fixed or explicitly listed for repo-polish to handle.
+When invoked from `repo-polish`, print a pass/fail summary at the end (format below). Return control only when all P1 doc issues are fixed or explicitly listed for repo-polish to handle.
+
+```
+=== docs-review complete ===
+Files audited: N
+Fixes applied: N
+Broken links: N (0 = pass)
+Stale docs updated: N
+Plan files flagged: N (user confirmation pending)
+```
 
 ## Why this skill exists
 
@@ -71,15 +80,16 @@ If the user passes a path argument, restrict the per-file audit to that subset (
 
 ## Axis 0 — Repo State Inventory (ALWAYS FIRST)
 
-**Run before any per-file work.** Generates ground truth used by Axes 6 and 7.
+**Run before any per-file work.** Generates ground truth used by Axes 6 and 7. All paths are relative to the repo root (current working directory when this skill is invoked).
 
 ```bash
+# Count entities — gracefully handle repos that lack these paths
 AGENT_COUNT=$(ls plugin/agents/pm-*.md 2>/dev/null | wc -l | tr -d ' ')
 PLUGIN_SKILL_COUNT=$(ls -d plugin/skills/*/ 2>/dev/null | wc -l | tr -d ' ')
 DEV_SKILL_COUNT=$(ls -d .claude/skills/*/ 2>/dev/null | wc -l | tr -d ' ')
 HOOK_COUNT=$(jq '.hooks | length' plugin/hooks/hooks.json 2>/dev/null || echo "?")
-CLAUDE_AGENT_CLAIM=$(grep -oP '\d+(?= sub-agent)' CLAUDE.md | head -1)
-CLAUDE_SKILL_CLAIM=$(grep -oP '\d+(?= MCP skill)' CLAUDE.md | head -1)
+CLAUDE_AGENT_CLAIM=$(grep -oP '\d+(?= sub-agent)' CLAUDE.md 2>/dev/null | head -1 || echo "?")
+CLAUDE_SKILL_CLAIM=$(grep -oP '\d+(?= MCP skill)' CLAUDE.md 2>/dev/null | head -1 || echo "?")
 ```
 
 Print an inventory table:
@@ -91,10 +101,11 @@ dev skills:    11
 hooks:         13
 ```
 
-If counts differ, run the regen script to update CLAUDE.md automatically:
+If counts differ AND `tooling/ci/regen-claude-md.sh` exists, run it to auto-update CLAUDE.md:
 ```bash
-bash tooling/ci/regen-claude-md.sh
+[[ -f tooling/ci/regen-claude-md.sh ]] && bash tooling/ci/regen-claude-md.sh
 ```
+If the script doesn't exist, update the stale counts in CLAUDE.md manually via Edit.
 
 Then generate the per-file manifest:
 ```bash
@@ -102,6 +113,8 @@ Then generate the per-file manifest:
 TOTAL=$(wc -l < /tmp/review-docs-manifest.txt)
 echo "=== $TOTAL files queued for audit ==="
 ```
+
+If `docs/` does not exist in this repo, note it in the summary and skip Axes 2–5 for that directory.
 
 ## The five doc audit axes
 
@@ -126,8 +139,9 @@ What to leave alone:
 
 Goal: every doc reflects the current state of the codebase.
 
+Locate the skill's own scripts directory relative to `$CLAUDE_SKILL_DIR` (set automatically when the skill runs):
 ```bash
-bash .claude/skills/review-docs/scripts/file-freshness.sh <FILE>
+bash "$CLAUDE_SKILL_DIR/scripts/file-freshness.sh" <FILE>
 ```
 
 Prints `last_doc_update`, `repo_changes_since`, and `verdict` (`fresh` / `review` / `stale`).
@@ -141,7 +155,7 @@ update counts. Do NOT rewrite wholesale — fix only what drifted.
 Goal: `docs/` is canonical reference material, not a dumping ground.
 
 ```bash
-bash .claude/skills/review-docs/scripts/detect-plan-files.sh
+bash "$CLAUDE_SKILL_DIR/scripts/detect-plan-files.sh"
 ```
 
 Signals: filename has `-plan`, `-research`, `-analysis`, `-review`, or ticket id;
@@ -150,17 +164,17 @@ located directly under `docs/` and not linked from any README; last commit says
 
 For each confirmed one-off: `git rm --cached <file>` and add pattern to `.gitignore`.
 
-Orphan check:
+Orphan check (skip gracefully if script doesn't exist):
 ```bash
-python3 tooling/check-doc-orphans.py
+[[ -f tooling/check-doc-orphans.py ]] && python3 tooling/check-doc-orphans.py
 ```
 
 ### Axis 4 — Template / standard conformance
 
-Goal: every doc complies with `.claude/rules/documentation-standards.md`.
+Goal: every doc complies with `.claude/rules/documentation-standards.md` (if present).
 
 ```bash
-bash .claude/skills/review-docs/scripts/check-template.sh <FILE>
+bash "$CLAUDE_SKILL_DIR/scripts/check-template.sh" <FILE>
 ```
 
 Reports: audience path match, `docs/user/**` footer presence, Mermaid violations
@@ -171,7 +185,7 @@ Reports: audience path match, `docs/user/**` footer presence, Mermaid violations
 Goal: every link resolves; every Mermaid diagram parses.
 
 ```bash
-bash .claude/skills/review-docs/scripts/validate-links.sh <FILE>
+bash "$CLAUDE_SKILL_DIR/scripts/validate-links.sh" <FILE>
 ```
 
 Reports: broken relative links (with line number), missing heading anchors,
@@ -216,17 +230,17 @@ For each flagged doc: READ it, remove or update the stale references.
 3. **Axis 7** — scan recent changes; flag stale doc references.
 4. **Per-file audit** — for each file in `/tmp/review-docs-manifest.txt`:
    - READ the file (required — no skipping based on git alone)
-   - Run Axes 1–5; apply fixes in-place
+   - Run Axes 1–5 using scripts from `$CLAUDE_SKILL_DIR/scripts/`; apply fixes in-place
    - Print `[✓] path/to/file.md — N fixes applied` or `[·] path/to/file.md — clean`
 5. **Untrack plan files** — for Axis 3 hits confirmed by the user.
-6. **Run validators**:
+6. **Run validators** (skip any that don't exist in this repo):
    ```bash
-   python3 tooling/check-doc-orphans.py
-   bash tooling/ci/validate-skills.sh plugin/skills
-   bash tests/unit/skills/footer-center-aligned.sh
+   [[ -f tooling/check-doc-orphans.py ]] && python3 tooling/check-doc-orphans.py
+   [[ -f tooling/ci/validate-skills.sh ]] && bash tooling/ci/validate-skills.sh plugin/skills
+   [[ -f tests/unit/skills/footer-center-aligned.sh ]] && bash tests/unit/skills/footer-center-aligned.sh
    ```
-7. **Render review report** — fill `templates/review-report.md.tmpl`; save to `docs/review-${DATE}.md`.
-8. **Final summary** — print: `Reviewed X/N files. Y fixes applied. Z files untracked.`
+7. **Render review report** — fill `$CLAUDE_SKILL_DIR/templates/review-report.md.tmpl`; save to `docs/review-${DATE}.md`.
+8. **Final summary** — print the structured block from the "When repo-polish invokes this skill" section above.
 
 ## Hard rules (do NOT break these)
 
@@ -240,14 +254,16 @@ For each flagged doc: READ it, remove or update the stale references.
 
 ## References
 
+All paths below are relative to `$CLAUDE_SKILL_DIR` (this skill's install directory), not the repo being audited.
+
 - **[`scripts/file-freshness.sh`](scripts/file-freshness.sh)** — git-history-driven freshness verdict.
 - **[`scripts/detect-plan-files.sh`](scripts/detect-plan-files.sh)** — stray plan/work file detector.
 - **[`scripts/check-template.sh`](scripts/check-template.sh)** — audience/footer/Mermaid/purpose checks.
 - **[`scripts/validate-links.sh`](scripts/validate-links.sh)** — relative-link, anchor, Mermaid, link-text checks.
 - **[`templates/review-report.md.tmpl`](templates/review-report.md.tmpl)** — canonical report shape.
-- **[`references/sweep-checklist.md`](references/sweep-checklist.md)** — quick-reference checklist.
+- **[`references/sweep-checklist.md`](references/sweep-checklist.md)** — quick-reference per-file checklist (load when doing a partial sweep).
 - **[`references/known-canonical-plans.md`](references/known-canonical-plans.md)** — plan-shaped filenames that must NOT be untracked.
-- **[`evals/evals.json`](evals/evals.json)** — pinned behaviors: orphan detection, freshness verdict, footer compliance, link validity.
+- **[`evals/evals.json`](evals/evals.json)** — pinned behaviors for CI regression testing.
 
 ## Existing repo validators this skill defers to
 

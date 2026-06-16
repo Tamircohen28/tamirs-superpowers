@@ -1,9 +1,9 @@
 ---
 name: algorithmic-art
-description: "Use when the user asks to create generative art, algorithmic art, flow fields, particle systems, noise-based visuals, or interactive code art. Triggers: 'create generative art', 'make a flow field', 'particle system sketch', 'p5.js art', 'algorithmic art', 'make art with code', 'creative coding', 'procedural art', 'visual algorithm'."
+description: "Use when the user wants to create generative art, algorithmic art, creative coding, or code-driven visuals — including flow fields, particle systems, noise-based art, Lissajous figures, recursive trees, Voronoi patterns, L-systems, fractals, or any interactive p5.js sketch. Trigger phrases: 'generative art', 'algorithmic art', 'flow field', 'particle system', 'make art with code', 'creative coding', 'p5.js sketch', 'procedural art', 'noise art', 'make something visual with code', 'code art'."
 license: Apache-2.0
-when_to_use: "User asks to create generative or algorithmic art using code. Trigger phrases: 'create algorithmic art', 'generative art', 'flow field', 'particle system', 'make art with p5.js', 'create visual art with code', 'procedural visuals', 'noise art'."
-argument-hint: "[art style or concept — e.g. 'flow field', 'particle system', 'geometric patterns']"
+when_to_use: "User asks to create generative or algorithmic art using code. Trigger phrases: 'create algorithmic art', 'generative art', 'flow field', 'particle system', 'make art with p5.js', 'create visual art with code', 'procedural visuals', 'noise art', 'Lissajous figures', 'recursive tree art', 'fractal art'."
+argument-hint: "[art style or concept — e.g. 'flow field', 'particle system', 'Lissajous figures', 'recursive tree', 'Voronoi']"
 model: claude-sonnet-4-6
 allowed-tools:
   - Read
@@ -17,7 +17,7 @@ metadata:
     - generative
     - creative
     - content
-  updated-date: "2026-06-13"
+  updated-date: "2026-06-16"
 ---
 
 # Algorithmic Art — Generative Art with p5.js
@@ -223,3 +223,21 @@ The artifact is self-contained (p5.js from CDN, no external files). Structure:
 - [ ] Regenerate, Reset, Download PNG buttons present and functional
 - [ ] No external files — everything inline, p5.js from CDN
 - [ ] Canvas renders immediately with no user setup
+
+---
+
+## Supporting Files
+
+### Color palettes (`references/palettes.md`)
+
+Load this when the user asks for specific moods or when choosing a palette. It contains 8 named palettes (dark and light background), gradient helpers for depth/velocity/age mapping, and anti-patterns to avoid. Use it to select `params.palette` before writing code.
+
+### Artifact validator (`scripts/validate_artifact.sh`)
+
+After generating the HTML artifact, run this script to verify all required structural elements are present:
+
+```bash
+bash scripts/validate_artifact.sh <path-to-artifact.html>
+```
+
+Checks: `randomSeed`/`noiseSeed` calls, 1200×1200 canvas, p5.js CDN link, seed navigation UI, Regenerate/Reset/Download buttons, no local `.js` file references. Exit 0 = all pass.

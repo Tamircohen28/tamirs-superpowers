@@ -1,0 +1,129 @@
+{
+  "skill_name": "algorithmic-art",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "Create a generative flow field artwork. I want particles following a Perlin noise field that accumulate into dense, organic trails. Give it a dark background with warm amber and rust tones.",
+      "expected_output": "A self-contained HTML file with: (1) a named algorithmic philosophy document output first as a .md artifact, (2) a p5.js sketch with randomSeed and noiseSeed called in setup(), (3) a params object with seed, particleCount, noiseScale, forceStrength, trailAlpha, and a palette, (4) a Particle class with reset/update/draw methods, (5) a sidebar with seed prev/next/random/jump controls and sliders for every param, (6) Regenerate / Reset / Download PNG buttons, (7) canvas 1200x1200, (8) p5.js loaded from CDN inline, no external JS files.",
+      "files": [],
+      "assertions": [
+        {
+          "id": "philosophy-first",
+          "text": "A named algorithmic movement with 3-5 paragraphs of philosophy is output BEFORE any code",
+          "type": "qualitative"
+        },
+        {
+          "id": "seeds-called",
+          "text": "Both randomSeed(params.seed) and noiseSeed(params.seed) appear inside setup()",
+          "type": "string_contains",
+          "value": "randomSeed"
+        },
+        {
+          "id": "seed-navigation",
+          "text": "HTML includes prev, next, and random seed buttons",
+          "type": "string_contains",
+          "value": "prevSeed"
+        },
+        {
+          "id": "canvas-size",
+          "text": "createCanvas is called with 1200, 1200",
+          "type": "string_contains",
+          "value": "createCanvas(1200, 1200)"
+        },
+        {
+          "id": "self-contained",
+          "text": "p5.js is loaded from CDN; no separate .js files are created",
+          "type": "string_contains",
+          "value": "cdnjs.cloudflare.com"
+        },
+        {
+          "id": "download-button",
+          "text": "A Download PNG button calling saveCanvas is present",
+          "type": "string_contains",
+          "value": "saveCanvas"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "Make me an interactive algorithmic art piece based on a Lissajous figure system — overlapping parametric curves that evolve over time, with controls for frequency ratios and phase shift. Keep it minimalist: black background, white/silver lines.",
+      "expected_output": "A self-contained HTML file with: (1) algorithmic philosophy output first, (2) p5.js implementation of Lissajous-based curves with a, b, delta params exposed as sliders, (3) time-evolving phase, (4) seeded randomness (even if the core math is deterministic, seed controls must exist), (5) sidebar controls, (6) seed navigation, (7) 1200x1200 canvas. The philosophy should articulate the resonance/harmony theme mathematically.",
+      "files": [],
+      "assertions": [
+        {
+          "id": "philosophy-first",
+          "text": "Philosophy is written first before code, framing the Lissajous system as a computational worldview",
+          "type": "qualitative"
+        },
+        {
+          "id": "params-object",
+          "text": "A params object is defined with at least seed and frequency/phase parameters",
+          "type": "string_contains",
+          "value": "params"
+        },
+        {
+          "id": "seeds-called",
+          "text": "randomSeed(params.seed) appears in setup()",
+          "type": "string_contains",
+          "value": "randomSeed"
+        },
+        {
+          "id": "canvas-size",
+          "text": "Canvas is 1200x1200",
+          "type": "string_contains",
+          "value": "createCanvas(1200, 1200)"
+        },
+        {
+          "id": "seed-navigation",
+          "text": "Prev/Next/Random seed buttons are present",
+          "type": "qualitative"
+        },
+        {
+          "id": "self-contained",
+          "text": "Single HTML file, no external scripts besides p5.js CDN",
+          "type": "qualitative"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "I want a recursive tree algorithm that grows procedurally, with noise-perturbed branch angles and colors that shift from deep root-brown at the base to pale blossom-pink at the tips. Make it feel alive.",
+      "expected_output": "A self-contained HTML file with: (1) a philosophy document framing recursion, branching, and natural growth as the computational worldview, (2) a recursive draw function with branch angle, length decay, depth, and noise perturbation as tunable params, (3) color interpolation from root to tip driven by recursion depth, (4) seeded randomness and noise, (5) sidebar with sliders for depth, angle spread, length decay, noise influence, (6) seed nav controls, (7) 1200x1200 canvas.",
+      "files": [],
+      "assertions": [
+        {
+          "id": "philosophy-first",
+          "text": "Philosophy articulates recursive self-similarity and natural growth as the algorithmic worldview before any code",
+          "type": "qualitative"
+        },
+        {
+          "id": "recursion-present",
+          "text": "A recursive branch-drawing function is implemented",
+          "type": "qualitative"
+        },
+        {
+          "id": "seeds-called",
+          "text": "Both randomSeed and noiseSeed are called in setup()",
+          "type": "string_contains",
+          "value": "randomSeed"
+        },
+        {
+          "id": "color-by-depth",
+          "text": "Color or stroke changes based on recursion depth (root-to-tip gradient)",
+          "type": "qualitative"
+        },
+        {
+          "id": "canvas-size",
+          "text": "Canvas is 1200x1200",
+          "type": "string_contains",
+          "value": "createCanvas(1200, 1200)"
+        },
+        {
+          "id": "self-contained",
+          "text": "Single HTML file with all code inline",
+          "type": "qualitative"
+        }
+      ]
+    }
+  ]
+}

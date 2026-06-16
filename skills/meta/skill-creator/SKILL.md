@@ -1,7 +1,7 @@
 ---
 name: skill-creator
-description: "Use when creating or improving a Claude Code skill, optimizing its description for triggering, or running skill evals. Triggers: 'make this a skill', 'turn this into a skill', 'my skill isn't triggering', 'write a skill', 'improve this SKILL.md'."
-when_to_use: "User wants to create, edit, benchmark, or fix triggering for a SKILL.md — phrases like 'make this a skill', 'skill isn't triggering', 'improve skill description', 'run skill evals'."
+description: "Use when creating or improving a Claude Code skill (SKILL.md), fixing a skill that isn't triggering, optimizing its description, or running skill evals/benchmarks. Triggers: 'make this a skill', 'turn this into a skill', 'write a SKILL.md', 'my skill isn't triggering', 'skill keeps missing', 'add evals to my skill', 'benchmark my skill', 'improve this skill', 'create a new skill for X'."
+when_to_use: "User wants to create a new SKILL.md from scratch, improve or rewrite an existing skill, fix a skill that under- or over-triggers, add test cases or evals, run a skill benchmark, or optimize the description for triggering accuracy. Key phrases: 'make this a skill', 'skill isn't triggering', 'write a skill', 'add evals', 'benchmark this skill', 'improve the description'."
 argument-hint: "[skill name or path to SKILL.md]"
 model: claude-sonnet-4-6
 allowed-tools:
@@ -21,7 +21,7 @@ metadata:
     - authoring
     - evals
     - triggering
-  updated-date: "2026-06-13"
+  updated-date: "2026-06-16"
 ---
 
 # Skill Creator

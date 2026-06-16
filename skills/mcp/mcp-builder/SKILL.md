@@ -1,10 +1,10 @@
 ---
 name: mcp-builder
-description: "Use when building an MCP (Model Context Protocol) server to expose an external API or service as Claude tools. Covers TypeScript SDK and Python FastMCP, tool design, pagination, error handling, and evaluation. Trigger phrases: 'build an MCP server', 'create MCP tools', 'integrate X with Claude via MCP', 'write an MCP server for', 'add MCP support', 'make Claude able to call', 'expose API via MCP'."
+description: "Use when the user wants to build, scaffold, or implement an MCP (Model Context Protocol) server — wrapping a REST API, database, or service so Claude can call it as tools. Triggers on: 'build an MCP server', 'create MCP tools', 'write an MCP server for', 'integrate X with Claude via MCP', 'expose API via MCP', 'add MCP support for', 'make Claude able to call X', 'MCP server for Stripe/GitHub/Postgres', 'scaffold MCP', 'wrap this API in MCP', 'Claude tool for X API', 'FastMCP server', 'TypeScript MCP'. Do NOT trigger for: reading/inspecting an existing MCP server, MCP client configuration only, or non-MCP integrations."
 license: MIT
 model: claude-sonnet-4-6
-when_to_use: "User wants to build or scaffold an MCP server to integrate an external API or service with Claude. Trigger phrases: 'build an MCP server', 'create MCP tools', 'integrate X with Claude via MCP', 'write an MCP server for', 'mcp-builder', 'add MCP support', 'expose API as tools'."
-argument-hint: "[service or API to integrate — e.g. 'GitHub REST API', 'Stripe', 'internal Postgres DB']"
+when_to_use: "User wants to build or scaffold an MCP server to integrate an external API or service with Claude. Example phrases: 'build an MCP server for Stripe', 'create MCP tools for our Postgres DB', 'write a FastMCP server for GitHub', 'expose our REST API via MCP', 'add MCP support for OpenWeatherMap', 'scaffold a TypeScript MCP server'."
+argument-hint: "[service or API to integrate — e.g. 'GitHub REST API', 'Stripe', 'internal Postgres DB', 'OpenWeatherMap']"
 allowed-tools:
   - Bash
   - Read
@@ -21,7 +21,7 @@ metadata:
     - server
     - integration
     - developer-tools
-  updated-date: "2026-06-13"
+  updated-date: "2026-06-16"
 ---
 
 # MCP Server Development Guide
@@ -29,6 +29,17 @@ metadata:
 ## Why this skill exists
 
 Wrapping an external API in an MCP server sounds simple, but naive implementations fail Claude in practice: tools return walls of JSON that exhaust context, list operations return unbounded results that time out, error messages say "400 Bad Request" without guidance, and tool names are so generic (`get`, `list`) that the model picks wrong ones. This guide enforces the patterns — pagination-first, structured output, actionable errors, consistent naming — that make the difference between a server Claude can use reliably and one it struggles with.
+
+## Supporting files
+
+| File | When to use |
+|------|-------------|
+| `scripts/scaffold.sh` | Run at the start of Phase 2 to generate a project skeleton. Usage: `bash $CLAUDE_SKILL_DIR/scripts/scaffold.sh <name> [ts\|py] [prefix]` |
+| `references/quick-reference.md` | Read during Phase 1 and Phase 3 for SDK URLs, Zod patterns, annotation hints, return shapes, naming examples, and error message templates. |
+
+At the start of **Phase 2**, run the scaffold script to bootstrap the project, then replace the placeholder tools in Phase 3.
+
+---
 
 ## Internal skills
 
@@ -69,41 +80,40 @@ Skip invocation only when the server has **zero** list, search, or bulk-read ope
 
 ## Phase 1 — Research and planning
 
-### 1.1 Load MCP specification
+### 1.1 Load MCP specification and quick reference
 
-```bash
-# Fetch the MCP spec sitemap to find relevant pages
-curl -s https://modelcontextprotocol.io/sitemap.xml | grep -o '<loc>[^<]*</loc>' | sed 's/<[^>]*>//g'
+Read the bundled quick reference first (URLs, patterns, naming cheat sheet):
+
+```
+Read("$CLAUDE_SKILL_DIR/references/quick-reference.md")
 ```
 
-Then fetch key pages with WebFetch, appending `.md` for Markdown format:
+Then fetch authoritative SDK docs with WebFetch:
 
 ```
 WebFetch("https://modelcontextprotocol.io/specification/draft.md")
 WebFetch("https://modelcontextprotocol.io/docs/concepts/tools.md")
 ```
 
-### 1.2 Load SDK documentation
-
-**TypeScript (recommended):**
+**TypeScript SDK:**
 ```
 WebFetch("https://raw.githubusercontent.com/modelcontextprotocol/typescript-sdk/main/README.md")
 ```
 
-**Python:**
+**Python (FastMCP):**
 ```
 WebFetch("https://raw.githubusercontent.com/modelcontextprotocol/python-sdk/main/README.md")
 ```
 
-### 1.3 Understand the target API
+### 1.2 Understand the target API
 
 Review authentication method, rate limits, pagination strategy (cursor vs. offset), and which endpoints map to the most common user tasks. Deprioritize rarely-used admin endpoints.
 
 Catalog every endpoint that returns a collection or supports search — these become list/search tools in Phase 3.
 
-### 1.4 Apply pagination guardrails (mcp-pagination)
+### 1.3 Apply pagination guardrails (mcp-pagination)
 
-If the catalog from 1.3 includes **any** list, search, or bulk-read operation, invoke the internal skill **before** writing tool schemas:
+If the catalog from 1.2 includes **any** list, search, or bulk-read operation, invoke the internal skill **before** writing tool schemas:
 
 ```
 Skill("mcp-pagination")
@@ -115,7 +125,23 @@ Pass the planned tool names and the target API's native pagination params. Apply
 
 ## Phase 2 — Project setup
 
-### TypeScript
+### Use the scaffold script
+
+The fastest way to start is the bundled scaffold:
+
+```bash
+# TypeScript
+bash $CLAUDE_SKILL_DIR/scripts/scaffold.sh my-mcp-server ts myservice
+
+# Python (FastMCP)
+bash $CLAUDE_SKILL_DIR/scripts/scaffold.sh my-mcp-server py myservice
+```
+
+This generates `package.json` / `requirements.txt`, entry file with two example tools, `README.md` with env var table, and `tsconfig.json` (TS only). Then replace the placeholder tools in Phase 3.
+
+### Manual setup (if scaffold doesn't fit)
+
+**TypeScript:**
 
 ```bash
 mkdir my-mcp-server && cd my-mcp-server
@@ -126,18 +152,7 @@ npx tsc --init --target ES2022 --module NodeNext --moduleResolution NodeNext --o
 mkdir src
 ```
 
-`package.json` scripts:
-```json
-{
-  "scripts": {
-    "build": "tsc",
-    "start": "node dist/index.js",
-    "dev": "ts-node src/index.ts"
-  }
-}
-```
-
-### Python
+**Python:**
 
 ```bash
 mkdir my-mcp-server && cd my-mcp-server

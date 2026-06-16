@@ -1,8 +1,8 @@
 ---
 name: babysit-pr
-description: "Use when the user asks to babysit, monitor, watch, or drive a PR to merge — 'babysit this PR', 'watch PR #N', 'monitor CI', 'finish this PR', 'address review', 'merge after review'. Polls CI and review threads, fixes failures, retries flakes (max 3×), addresses review (Drive mode), waits for explicit merge approval, squash-merges and cleans up."
+description: "Use for active, ongoing pull request management — when the user wants Claude to monitor, fix, and drive an existing PR to merge rather than perform a single task. Invoke when the user asks to babysit, watch, or ship a PR; address reviewer comments or respond to a reviewer; fix CI failures on a PR; resolve merge conflicts; retry flaky checks; or merge after approval. The defining signal is that the user wants automated PR lifecycle management — not one-off actions like creating a PR, reviewing code for bugs, or explaining a CI error. Trigger phrases: 'babysit PR #N', 'watch my PR', 'ship the PR', 'drive to merge', 'my PR is stuck', 'fix CI on my PR', 'address reviewer feedback', 'retry flaky CI', 'PR has merge conflicts'."
 disable-model-invocation: true
-when_to_use: "User says: 'babysit this PR', 'watch PR #N', 'monitor CI', 'keep an eye on my PR', 'finish this PR', 'address comments', 'merge after review', 'drive the PR to merge', 'clean up the PR'."
+when_to_use: "User says: 'babysit this PR', 'babysit PR #N', 'watch PR #N', 'monitor my PR', 'monitor CI', 'keep an eye on my PR', 'finish this PR', 'address review comments', 'merge after review', 'drive the PR to merge', 'ship this PR', 'clean up the PR', 'CI is failing on my PR', 'respond to the reviewer', 'my PR has merge conflicts', 'fix the merge conflict on my PR', 'retry the flaky CI', 'my PR is stuck waiting for CI', 'unblock my PR', 'the reviewer approved, merge it'."
 argument-hint: "[PR number, PR URL, or omit to infer from current branch]"
 model: claude-sonnet-4-6
 effort: high
@@ -26,7 +26,7 @@ metadata:
     - merge
     - github
     - workflow
-  updated-date: "2026-06-13"
+  updated-date: "2026-06-16"
 ---
 
 # babysit-pr
@@ -219,7 +219,36 @@ Patch actionable code; **surface suggested replies to the user** — do not post
 | After any state change | Reset cadence immediately |
 | PR merged or closed | Stop immediately |
 
-### 11. Merge readiness (Drive mode only)
+### 11. Handle merge conflicts
+
+When `mergeable=CONFLICTING` is detected in PR state:
+
+1. **Identify conflicting files**:
+```bash
+gh pr view "$PR" --repo "$REPO" --json mergeable,mergeStateStatus
+git fetch origin
+git checkout "$BRANCH"
+git merge origin/"$BASE_BRANCH" --no-commit --no-ff 2>&1 | grep "CONFLICT"
+git merge --abort
+```
+
+2. **Rebase instead of merge** (preferred — keeps history clean):
+```bash
+git fetch origin
+git rebase origin/"$BASE_BRANCH"
+# resolve conflicts file by file
+git add <resolved-file>
+git rebase --continue
+git push origin HEAD --force-with-lease
+```
+
+3. **Never force-push without `--force-with-lease`** — this guards against overwriting work pushed since your last fetch.
+
+4. **If the conflict is in files you did NOT touch** in this PR: surface to user with a description of the conflicting files and stop — do not auto-resolve conflicts in code you haven't reviewed.
+
+5. **After resolving and pushing**: restart the monitoring loop; the rebase triggers a new CI run.
+
+### 12. Merge readiness (Drive mode only)
 
 Confirm ALL of:
 
@@ -277,3 +306,4 @@ bash "$CLAUDE_SKILL_DIR/scripts/cleanup-after-merge.sh" "$PR"
 - `scripts/cleanup-after-merge.sh` — post-merge worktree + branch cleanup
 - `templates/review-reply.md.tmpl` — canonical agree / partial / disagree reply shapes
 - `references/ci-monitor-loop.md` — Monitor `until`-loop for long CI cycles with per-check notifications
+- `references/edge-cases.md` — handling PR-already-merged, flaky retry exhaustion, multi-reviewer conflicts, and other edge cases

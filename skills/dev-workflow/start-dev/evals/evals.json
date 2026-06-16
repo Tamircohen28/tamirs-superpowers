@@ -1,0 +1,53 @@
+{
+  "skill_name": "start-dev",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "implement issue #42",
+      "expected_output": "The skill reads the GitHub issue, derives a feature branch name, creates a git worktree, implements changes with at least one conventional commit, runs the project's validation suite, pushes the branch, and opens a PR with a descriptive title and Closes #42 in the body. A summary is printed at the end with files changed, commit count, validation result, and PR URL.",
+      "files": [],
+      "expectations": [
+        "The skill fetches and reads the content of issue #42 before starting implementation",
+        "A feature branch is created (not main/master/develop) with a slug derived from the issue title",
+        "A git worktree is created at .claude/worktrees/<branch-name>",
+        "At least one commit is made using conventional commit format (feat/fix/chore:)",
+        "Validation commands are run (make validate, npm test, or equivalent) before pushing",
+        "The branch is pushed to origin with git push -u",
+        "A PR is opened via gh pr create with a title and body",
+        "The PR body contains 'Closes #42'",
+        "A final summary is printed listing files changed, commits, validation status, and PR URL"
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "start coding: add rate limiting middleware to the Express API — max 100 req/min per IP, return 429 with Retry-After header",
+      "expected_output": "The skill parses the free-text description (no issue number), derives a branch slug like 'feat/add-rate-limiting-middleware', sets up the workspace, implements the rate limiting logic, runs tests/lint, and opens a PR. The PR title reflects the task (not 'Fix stuff'), and no git push to main/master occurs.",
+      "files": [],
+      "expectations": [
+        "The skill derives a branch name from the free-text description (e.g. feat/add-rate-limiting or similar kebab-case slug)",
+        "Implementation touches the relevant file(s) (middleware, route handler, or similar) rather than doing nothing",
+        "At least one commit is made before pushing",
+        "The commit message uses conventional commit format and references rate limiting",
+        "Validation is run before pushing (npm test / yarn test / or equivalent if no test suite found)",
+        "git push is NOT run against main or master directly",
+        "A PR is opened with a title that references rate limiting (not a generic title)",
+        "The PR body includes a test plan section"
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "build the feature described in plan.md",
+      "expected_output": "The skill reads plan.md, extracts the task list, derives a branch name, implements each task with a separate commit per logical unit, runs validation, and opens a PR. Because there is no GitHub issue number, no 'Closes #N' line is added but the PR body still references plan.md or the task description.",
+      "files": ["evals/files/plan.md"],
+      "expectations": [
+        "The skill reads the spec file (plan.md) using the Read tool before implementing",
+        "A branch slug is derived from the plan title or first task description",
+        "Implementation produces at least one file change (Edit or Write tool call)",
+        "Multiple commits are made if the plan contains multiple logical units (not one giant commit)",
+        "Validation is run before pushing",
+        "A PR is opened referencing the plan content in the body",
+        "The skill does NOT halt asking for clarification — it proceeds autonomously from the spec file"
+      ]
+    }
+  ]
+}

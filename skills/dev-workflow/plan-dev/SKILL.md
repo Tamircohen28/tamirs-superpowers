@@ -1,9 +1,9 @@
 ---
 name: plan-dev
-description: "Use when the user wants to plan, decompose, or break down a task, spec, or review doc into phases before coding. Triggers: 'plan this', 'break into phases', 'create issues for', 'decompose this spec', 'turn into tickets'."
+description: "Use when the user wants to convert an informal task, feature request, spec, or review doc into a structured implementation plan before any code is written. User's intent is organization and sequencing — phases, dependency ordering, and GitHub issues that make work trackable and reviewable. Invoke for: 'plan this', 'break into phases', 'create issues for', 'decompose this spec', 'turn into tickets', 'what order should I tackle these', 'help me organize this work', 'structure this feature', 'plan-dev'. This is distinct from architecture analysis of existing code, how-to questions, or direct coding requests — the output is a roadmap, not code."
 disable-model-invocation: true
-when_to_use: "User wants to plan or structure development work into phases and create GitHub issues — invoked as /plan-dev or when the user says: 'plan this', 'break this into phases', 'create issues for this', 'decompose this spec/task', 'structure this feature', 'what order should I do this in', 'turn this into tickets', 'help me organize this work'."
-argument-hint: "[task description, file path to spec/review doc, or GitHub issue URL]"
+when_to_use: "User wants to plan or structure development work into phases and create GitHub issues — invoked as /plan-dev or when the user says: 'plan this', 'break this into phases', 'create issues for this', 'decompose this spec/task', 'structure this feature', 'what order should I do this in', 'turn this into tickets', 'help me organize this work', 'I have a review doc with N items help me organize it'."
+argument-hint: "[task description, file path to spec/review doc, or GitHub issue URL/number]"
 model: claude-sonnet-4-6
 effort: high
 allowed-tools:
@@ -26,7 +26,7 @@ metadata:
     - workflow
     - tickets
     - spec
-  updated-date: "2026-06-13"
+  updated-date: "2026-06-16"
 ---
 
 ## Live context
@@ -251,6 +251,21 @@ Every task must name specific files and describe the exact change.
 | Multiple unrelated fixes | One phase per fix, or group if truly trivial |
 | Spec with 20+ items | Group by domain/area into 4–8 phases |
 | Cross-cutting infra change | Always Phase 1 — everything else depends on it |
+
+## Supporting files
+
+| File | Purpose |
+|---|---|
+| `scripts/validate_plan.py` | Static validator — checks phase structure, task counts, dependency refs before approval |
+| `references/phase-grouping-guide.md` | Extended guide for dependency graphs, monorepo scenarios, risk isolation, and anti-patterns |
+| `evals/evals.json` | 3 realistic test cases covering free-text tasks, review-doc decomposition, and GitHub issue URL input |
+
+Load `references/phase-grouping-guide.md` when:
+- The input has 20+ items or complex cross-cutting dependencies
+- The user asks about monorepo considerations or parallel vs sequential ordering
+- Phasing decisions are non-obvious (diamond dependencies, circular refs)
+
+Run `scripts/validate_plan.py <plan.md>` optionally to self-check a plan draft before showing it to the user.
 
 ## Handoff
 

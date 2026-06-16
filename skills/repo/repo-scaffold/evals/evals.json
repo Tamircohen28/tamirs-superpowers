@@ -1,0 +1,53 @@
+{
+  "skill_name": "repo-scaffold",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "/repo-scaffold job-tracker-cli -- A CLI tool that syncs job applications from a spreadsheet to a local SQLite database and sends Slack alerts for deadlines --tech node",
+      "expected_output": "A new private GitHub repo TamirCohen28/job-tracker-cli is created with: README (hero section, CI badge, MIT badge, Claude Code badge), docs/ tree (user/quick-start.md, user/usage.md, user/troubleshooting.md, user/reference/commands.md, engineering/architecture/overview.md, engineering/decisions/ADR-001.md, engineering/guides/getting-started.md, engineering/build-and-release/README.md), CLAUDE.md (200-350 lines covering overview, architecture, commands, coding standards, commit convention, constraints), .claude/settings.json with tamirs-plugins marketplace + node permissions, .claude/rules/constraints.md, .claude/skills/run-job-tracker-cli/SKILL.md, .github/workflows/ci.yml (job named 'CI', uses actions/setup-node@v4), .github/workflows/claude.yml, .github/workflows/release.yml, .github/pull_request_template.md, CODEOWNERS (* @TamirCohen28), LICENSE (MIT 2026 Tamir Cohen), CONTRIBUTING.md, CODE_OF_CONDUCT.md, SECURITY.md, Makefile (with npm commands), .gitignore (node), .nvmrc (content: 22), CHANGELOG.md — all committed to master and branch protection applied requiring 1 review + CI check.",
+      "files": [],
+      "expectations": [
+        "A GitHub repo TamirCohen28/job-tracker-cli is created (gh repo view confirms it)",
+        "README.md contains CI badge linking to TamirCohen28/job-tracker-cli/actions/workflows/ci.yml",
+        "ci.yml has a job named exactly 'CI' (required for branch protection)",
+        ".nvmrc contains '22'",
+        "CLAUDE.md is between 200 and 350 lines",
+        "Branch protection requires status check named 'CI' and 1 approving review",
+        ".claude/settings.json includes tamirs-plugins marketplace entry",
+        "docs/ has all 8 required subdocs (quick-start, usage, troubleshooting, commands reference, architecture overview, ADR-001, getting-started, build-and-release)",
+        "No placeholder strings like '{{REPO_NAME}}' or '{{DESCRIPTION}}' appear in any generated file",
+        "A project-specific run skill exists at .claude/skills/run-job-tracker-cli/SKILL.md"
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "scaffold a new repo -- A FastAPI microservice that classifies customer support tickets using OpenAI embeddings and routes them to the right team --tech python",
+      "expected_output": "A new private GitHub repo is created for the Python project. ci.yml uses actions/setup-python@v5 with python-version 3.12. Makefile uses pip and pytest. .gitignore includes Python artifacts (__pycache__/, .venv/, etc.). No .nvmrc is created. CLAUDE.md reflects Python project structure and commands. The repo is pushed to master and branch protection is set.",
+      "files": [],
+      "expectations": [
+        "ci.yml uses actions/setup-python@v5, not actions/setup-node",
+        "No .nvmrc file is created (Python project)",
+        ".gitignore includes '__pycache__/' and '.venv/'",
+        "Makefile uses 'pip install' and 'pytest' commands",
+        "CLAUDE.md Commands section lists 'make install', 'make test', 'make lint' with Python tooling",
+        "ci.yml job is named exactly 'CI'",
+        "Branch protection is applied"
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "create a new repo called world-cup-scores -- real-time World Cup score tracker with a Next.js frontend and Supabase backend",
+      "expected_output": "A new private GitHub repo TamirCohen28/world-cup-scores is created. Tech stack auto-detected as 'nextjs' from 'Next.js' keyword. ci.yml uses actions/setup-node@v4 with node-version-file: .nvmrc. .nvmrc contains '22'. .claude/settings.json includes npm/npx permissions. Makefile uses npm ci. The README has a centered hero with the CI badge, MIT badge, and Claude Code badge (color D97757). All content is project-specific — no generic placeholder text.",
+      "files": [],
+      "expectations": [
+        "Tech stack is detected as 'nextjs' (not 'generic') from the description",
+        "ci.yml uses actions/setup-node@v4 with 'node-version-file: .nvmrc'",
+        ".nvmrc exists with content '22'",
+        "README.md contains the Claude Code badge with color D97757",
+        ".claude/settings.json permissions include 'Bash(npm *)' and 'Bash(npx *)'",
+        "No template placeholders remain unfilled in any file",
+        "Repo is private (gh repo view --json isPrivate confirms)"
+      ]
+    }
+  ]
+}

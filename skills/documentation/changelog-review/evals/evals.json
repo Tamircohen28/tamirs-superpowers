@@ -1,0 +1,62 @@
+{
+  "skill_name": "changelog-review",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "Audit this Claude Code plugin project for misuse and outdated patterns. The project has a plugin.json with statusLine as a string (not an object), a hooks/hooks.json with a PostToolUse event named 'PostTool' (non-standard), and two SKILL.md files — one with user-invocable: false and no disable-model-invocation field, and another with a description over 600 characters. Return a structured review with critical issues and sources.",
+      "expected_output": "A structured Mode 3 review output with: (1) Critical Issues section flagging statusLine as wrong type (should be object), flagging 'PostTool' as an invalid hook event name (official name is PostToolUse), and flagging the missing disable-model-invocation field alongside user-invocable: false; (2) each finding citing a documentation URL from references/urls.md; (3) a Sources section at the end. The description length issue should also be noted.",
+      "files": [],
+      "expectations": [
+        "Output follows the Mode 3 structured review template with Critical Issues and Sources sections",
+        "Flags statusLine type mismatch (string vs object) citing the plugins-reference doc",
+        "Flags 'PostTool' as an invalid hook event name, citing the hooks reference",
+        "Flags missing disable-model-invocation when user-invocable is false",
+        "Every finding includes a URL citation from references/urls.md",
+        "Output ends with a Sources section listing fetched URLs",
+        "References the validate-plugin-json.sh script output or equivalent deterministic check for statusLine finding"
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "What changed in Claude Code between v1.5.0 and v1.8.0? Summarize new hook events, skill system changes, and any breaking changes. Use the official changelog and GitHub releases only.",
+      "expected_output": "A Mode 2 diff output showing all releases between v1.5.0 and v1.8.0. Sections for New Features, Changes & Improvements, Bug Fixes, and Breaking Changes (if any). A Version Summary Table with one row per release. Sources section citing github.com/anthropics/claude-code/releases and code.claude.com/docs/en/changelog. If a version is not found, the response should include a VERSION NOT FOUND block with nearby versions listed.",
+      "files": [],
+      "expectations": [
+        "Output follows the Mode 2 changelog diff template",
+        "Fetches all three P0 URLs: GitHub releases, in-docs changelog, and what's new",
+        "Includes a Version Summary Table with version, date, and highlights columns",
+        "Sections are grouped by theme (hooks, skills, MCP, CLI, etc.)",
+        "Sources section cites the three P0 URLs",
+        "If any version is missing, returns a VERSION NOT FOUND block rather than guessing"
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "Does Claude Code support scoped rules using path-based CLAUDE.md files in subdirectories? How does the memory system decide which CLAUDE.md to load? Cite the official documentation.",
+      "expected_output": "A Mode 1 answer grounded strictly in the memory documentation. Should describe how CLAUDE.md files are discovered (project root, user home, subdirectories), how path scoping works, and what 'auto memory' means if documented. Must cite code.claude.com/docs/en/memory. Must not include anything not found in the fetched source. Ends with Sources section.",
+      "files": [],
+      "expectations": [
+        "Output follows the Mode 1 answer template with Sources section",
+        "Fetches code.claude.com/docs/en/memory before answering",
+        "Answer is strictly limited to what the fetched page contains",
+        "If scoped subdirectory CLAUDE.md is not documented, says so explicitly rather than guessing",
+        "Cites exact config keys or file paths in code formatting",
+        "Does not use training knowledge to fill gaps"
+      ]
+    },
+    {
+      "id": 4,
+      "prompt": "Review my hooks.json. It contains: {\"hooks\": {\"PreToolUse\": [{\"matcher\": \"Bash\", \"hooks\": [{\"type\": \"command\", \"command\": \"./hooks/pre-bash.sh\"}]}]}}. Is this configuration valid? Are there any missing fields or patterns I should adopt? Check against the official docs.",
+      "expected_output": "A Mode 3 review that: (1) fetches the hooks reference and hooks-guide URLs before answering; (2) validates the structure against official docs; (3) flags any issues such as missing 'timeout' field, missing 'environment' field if recommended, or confirms the structure is correct; (4) mentions any missed opportunities like PostToolUse or SessionStart hooks if they would be valuable; (5) ends with a Sources section citing the hooks URLs fetched.",
+      "files": [],
+      "expectations": [
+        "Fetches at least one of the hooks reference URLs before answering",
+        "Output follows Mode 3 review template with at least Critical Issues or Missed Opportunities sections",
+        "Evaluates the PreToolUse Bash matcher as valid or flags it if incorrect",
+        "Sources section cites fetched hooks documentation URLs",
+        "Does not answer from training knowledge alone — must cite fetched content",
+        "If hooks structure is valid, explicitly says so rather than only listing issues"
+      ]
+    }
+  ]
+}
