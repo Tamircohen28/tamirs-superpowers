@@ -19,12 +19,6 @@
     "worktree",
     "workflow"
   ],
-  "dependencies": [
-    {
-      "name": "superpowers",
-      "marketplace": "superpowers-dev"
-    }
-  ],
   "license": "MIT",
   "defaultEnabled": true,
   "skills": [
