@@ -1,0 +1,23 @@
+{
+  "skill_name": "pr-dev",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "Finish PR #42. Address any review comments and get it merged.",
+      "expected_output": "Skill runs a persistent loop: fetches PR state, identifies unresolved review threads, states each reply in conversation before posting, applies any code fixes, resolves threads, watches CI, and only stops when it prints the readiness gate checklist and waits for `approved`. Does NOT merge without that explicit word.",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "Drive PR #17 to merge. CI is currently failing.",
+      "expected_output": "Skill fetches the failed CI run logs, classifies the failure (branch-related vs flaky vs unrelated), patches the code if branch-related and pushes (then restarts the loop), or retries up to 3x if flaky. After CI goes green and threads resolve, prints readiness summary and waits for `approved`. Never stops mid-loop just because one check is still pending.",
+      "files": []
+    },
+    {
+      "id": 3,
+      "prompt": "Address the review on my PR and merge it when done.",
+      "expected_output": "Skill infers PR from current branch, fetches unresolved threads, for each: states the assess+reply in conversation (agree/partial/disagree), posts reply, applies fix if needed, resolves thread. Then monitors CI until green. Reaches readiness gate, stops, and prints checklist. After user types `approved`, squash-merges with --delete-branch and runs cleanup-after-merge.sh.",
+      "files": []
+    }
+  ]
+}
