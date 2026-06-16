@@ -1,0 +1,47 @@
+{
+  "skill_name": "skill-creator",
+  "description": "Trigger-accuracy evals — verify skill-creator fires on the right prompts and stays silent on adjacent ones.",
+  "evals": [
+    {
+      "id": 1,
+      "name": "create-new-skill",
+      "prompt": "I want to make a skill that runs a repo health check every time I open a new Claude Code session. It should scan for stale branches, check CI status, and print a summary.",
+      "expected_output": "skill-creator triggers and guides the user through intent capture, writing a SKILL.md, and adding test cases for the repo-health-check skill.",
+      "should_trigger": true,
+      "expectations": [
+        "The skill-creator skill is invoked (not a general-purpose response)",
+        "The assistant asks clarifying questions or begins capturing intent (trigger phrases, expected output, tool list)",
+        "A SKILL.md draft is proposed or the user is walked through the creation steps",
+        "The assistant does NOT just write raw code without framing it as a skill"
+      ],
+      "files": []
+    },
+    {
+      "id": 2,
+      "name": "fix-undertriggering-description",
+      "prompt": "My babysit-pr skill never triggers even when I say 'watch my PR'. The description says 'Use when monitoring a pull request' but it keeps missing. How do I fix it?",
+      "expected_output": "skill-creator triggers into Description Optimization mode — proposes trigger eval queries, offers to run the run_loop.py optimization script, and shows a before/after diff of the improved description.",
+      "should_trigger": true,
+      "expectations": [
+        "skill-creator triggers (not a generic Claude Code troubleshooting response)",
+        "The assistant identifies this as a description/triggering problem, not a skill body problem",
+        "The assistant proposes concrete trigger eval queries (should-trigger and should-not-trigger examples)",
+        "The assistant references or offers to run the description optimization loop (run_loop.py or equivalent)"
+      ],
+      "files": []
+    },
+    {
+      "id": 3,
+      "name": "no-trigger-on-general-bash-question",
+      "prompt": "How do I write a bash script that monitors a directory for new files and sends a Slack notification when one appears?",
+      "expected_output": "skill-creator does NOT trigger. The assistant answers with a direct bash/inotify solution — no skill authoring framing.",
+      "should_trigger": false,
+      "expectations": [
+        "skill-creator is NOT invoked — this is a coding question, not a skill authoring request",
+        "The assistant provides a bash/inotifywait or fswatch solution directly",
+        "The assistant does not ask about SKILL.md, frontmatter, or trigger conditions"
+      ],
+      "files": []
+    }
+  ]
+}
