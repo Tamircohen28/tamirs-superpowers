@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "name": "review-docs-skill-evals",
-  "description": "Pin the deterministic axes (orphan detection, freshness verdict, footer compliance, link validity) so future edits to the skill don't regress the audit accuracy.",
+  "name": "docs-review-skill-evals",
+  "description": "Pin the deterministic axes (orphan detection, freshness verdict, footer compliance, link validity) so future edits to the skill don't regress the audit accuracy. Script paths use $CLAUDE_SKILL_DIR-relative form — callers must resolve before running.",
   "cases": [
     {
       "id": "orphan-detection-runs-clean",
@@ -11,21 +11,36 @@
     },
     {
       "id": "freshness-script-emits-canonical-shape",
-      "description": "file-freshness.sh emits a JSON object with file, last_doc_update, repo_changes_since, relevant_count, verdict.",
-      "input": {"command": "bash .claude/skills/review-docs/scripts/file-freshness.sh README.md"},
+      "description": "file-freshness.sh emits a JSON object with file, last_doc_update, repo_changes_since, relevant_count, verdict. Script is invoked via $CLAUDE_SKILL_DIR.",
+      "input": {"command": "bash \"$CLAUDE_SKILL_DIR/scripts/file-freshness.sh\" README.md"},
       "expected_substrings": ["\"file\":", "\"last_doc_update\":", "\"verdict\":", "\"relevant_count\":"]
     },
     {
       "id": "freshness-verdict-enum",
       "description": "verdict must be one of fresh|review|stale.",
-      "input": {"command": "bash .claude/skills/review-docs/scripts/file-freshness.sh README.md"},
+      "input": {"command": "bash \"$CLAUDE_SKILL_DIR/scripts/file-freshness.sh\" README.md"},
       "assert": "JSON.parse(stdout).verdict matches /^(fresh|review|stale)$/"
+    },
+    {
+      "id": "freshness-no-git-history-returns-review",
+      "description": "Edge case: file-freshness.sh run against a newly created file with no git history must return verdict='review' and a descriptive reason, not crash.",
+      "input": {"setup": "touch /tmp/brand-new-doc.md", "command": "bash \"$CLAUDE_SKILL_DIR/scripts/file-freshness.sh\" /tmp/brand-new-doc.md"},
+      "assert": "JSON.parse(stdout).verdict === 'review' && stdout includes 'no git history'"
     },
     {
       "id": "plan-detector-flags-known-plan-shape",
       "description": "Files matching *-plan.md with score>=2 must be reported as suspects.",
-      "input": {"setup": "create docs/test-plan-2026-01-01.md unlinked from any README", "command": "bash .claude/skills/review-docs/scripts/detect-plan-files.sh"},
+      "input": {"setup": "create docs/test-plan-2026-01-01.md unlinked from any README", "command": "bash \"$CLAUDE_SKILL_DIR/scripts/detect-plan-files.sh\""},
       "expected_substrings": ["test-plan-2026-01-01.md", "\"score\""]
+    },
+    {
+      "id": "plan-detector-skips-known-canonical",
+      "description": "Edge case: a file listed in references/known-canonical-plans.md must NOT appear in detector output even if its filename matches the plan pattern.",
+      "input": {
+        "setup": "file docs/engineering/build-and-release/release-plan.md is tracked and listed in known-canonical-plans.md",
+        "command": "bash \"$CLAUDE_SKILL_DIR/scripts/detect-plan-files.sh\""
+      },
+      "assert": "stdout does NOT contain 'release-plan.md'"
     },
     {
       "id": "template-check-flags-user-doc-without-footer",
@@ -56,6 +71,18 @@
       "description": "Markdown link with text that's a raw path (e.g. [docs/user/foo.md](docs/user/foo.md)) must produce a link_text_warning per documentation-standards.md.",
       "input": {"shape": "validate", "link": "[docs/user/troubleshooting.md](docs/user/troubleshooting.md)"},
       "assert": "link_text_warnings_count == 1"
+    },
+    {
+      "id": "validate-links-clean-file-returns-empty-arrays",
+      "description": "Edge case: a file with no links at all must return empty arrays for all four error categories (not null, not missing keys).",
+      "input": {"setup": "create a minimal docs/user/empty-links.md with only a title and one paragraph, no markdown links", "command": "bash \"$CLAUDE_SKILL_DIR/scripts/validate-links.sh\" docs/user/empty-links.md"},
+      "assert": "broken_links_count == 0 && broken_anchors_count == 0 && mermaid_parse_errors_count == 0 && link_text_warnings_count == 0"
+    },
+    {
+      "id": "sweep-summary-structure",
+      "description": "After a full sweep, the skill must print a structured summary block containing 'Files audited', 'Fixes applied', and 'Broken links' — so repo-polish can parse the result.",
+      "input": {"shape": "end-to-end", "scenario": "repo with README.md and two docs/ files, all clean"},
+      "assert": "stdout contains 'Files audited:' && stdout contains 'Fixes applied:' && stdout contains 'Broken links:'"
     },
     {
       "id": "footer-test-still-passes",

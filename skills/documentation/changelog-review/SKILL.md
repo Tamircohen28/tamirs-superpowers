@@ -2,8 +2,16 @@
 name: changelog-review
 disable-model-invocation: true
 user-invocable: false
-description: "Internal: Claude Code plugin pattern audit — fetches live official docs to validate hooks, skills, plugin.json, and MCP config. Invoked by repo-polish Step 6c for plugin projects. Not for direct user invocation — run repo-polish instead."
-when_to_use: "Invoked automatically by repo-polish Step 6c when the target project has .claude/ or is a Claude Code plugin. Otherwise standalone only when another skill delegates a Claude Code docs question."
+description: "Internal skill invoked by repo-polish (Step 6c) to audit Claude Code plugin projects. Fetches live docs and runs scripts/validate-plugin-json.sh + scripts/check-skill-frontmatter.sh to detect misuse, broken hook paths, stale patterns, and missed capabilities. Returns structured P1 findings before GitHub push. Never invoke directly — use repo-polish. Also callable by other skills needing live-doc-grounded answers about Claude Code hooks, skills, plugin.json, or MCP config."
+when_to_use: |
+  Invoked by repo-polish Step 6c on Claude Code plugin projects.
+  Also callable by other skills when they need a live-doc-grounded answer
+  about Claude Code hooks, skills, plugin.json, MCP, or changelog diffs.
+  Trigger phrases (from delegating skills):
+  - "audit this plugin project for Claude Code misuse"
+  - "what changed between Claude Code vX and vY"
+  - "review my hooks.json / SKILL.md / plugin.json against official docs"
+  - "is this Claude Code config correct"
 allowed-tools:
   - WebFetch
   - Read
@@ -12,28 +20,53 @@ allowed-tools:
 metadata:
   capability: documentation
   provider: developer-workflow
-  agents:
-    - changelog-review
   platforms:
     - claude
   tags:
     - documentation
     - claude-code
     - reference
-  updated-date: "2026-06-13"
+    - audit
+    - changelog
+  updated-date: "2026-06-16"
+  scripts:
+    - scripts/validate-plugin-json.sh
+    - scripts/check-skill-frontmatter.sh
 ---
 
-# fetch-docs
+# changelog-review
 
 You are a Claude Code documentation expert. Your answers are grounded **exclusively** in
 content you fetch live from the official Claude Code documentation URLs. You may not use
 prior training knowledge about Claude Code — only fetched content counts.
+
+**Permitted URLs:** Read `references/urls.md` in this skill directory for the full list of
+allowed source URLs, organized by topic and priority (P0/P1/P2). Only fetch URLs from that
+list.
+
+**Test cases:** See `evals/evals.json` for 4 realistic test prompts covering Mode 1, 2,
+Mode 3 (audit), and hooks.json review with verifiable expectations.
+
+**Scripts:** Two helper scripts in `scripts/` perform deterministic checks before the LLM
+does semantic review — run them first in Mode 3 (see below).
 
 ## When repo-polish invokes this skill
 
 **Step 6c only** — when `$PROJECT_DIR` contains `.claude/` or `.claude-plugin/plugin.json`.
 
 Review input from repo-polish: `.claude/`, `plugin.json` / `.claude-plugin/plugin.json`, all `SKILL.md` files, `hooks/hooks.json`, `.mcp.json`.
+
+Before running Mode 3 analysis, run the bundled scripts for fast deterministic checks:
+
+```bash
+# Validate plugin.json structure (statusLine type, name, version, skills array)
+bash $CLAUDE_SKILL_DIR/scripts/validate-plugin-json.sh /path/to/plugin.json
+
+# Validate each SKILL.md frontmatter (required fields, internal-only consistency)
+bash $CLAUDE_SKILL_DIR/scripts/check-skill-frontmatter.sh /path/to/skills/domain/name/SKILL.md
+```
+
+Include script findings in your Mode 3 report. Each finding already includes `severity` and `field` — map them directly to the Critical Issues or Outdated Patterns sections.
 
 Return P1 findings (invalid frontmatter, broken hook paths, stale skill references) for repo-polish to fix before GitHub push.
 

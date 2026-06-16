@@ -1,9 +1,9 @@
 ---
 name: repo-polish
-description: "Use when preparing a personal project for public GitHub — scan employer IP, scaffold docs/CI, publish. Triggers: 'polish this repo', 'prepare for GitHub', 'make public-ready', 'repo-polish', 'open-source this', 'scan for employer IP'."
+description: "Use when a user wants to publish, open-source, or share a personal project on GitHub — including 'polish this repo', 'prepare for GitHub', 'make public-ready', 'open-source this', 'publish my project', 'clean up and publish', 'scan for employer IP', 'remove internal references', 'world-class repo', or any request to get a project ready for a personal GitHub account."
 disable-model-invocation: true
 user-invocable: true
-when_to_use: "User wants to prepare a personal project for GitHub publication — scan for employer IP, add docs, set up CI/CD, upload to GitHub."
+when_to_use: "User wants to prepare a personal project for GitHub publication — scan for employer IP, add docs, set up CI/CD, upload to TamirCohen28."
 argument-hint: "<path-to-project-directory>"
 model: claude-sonnet-4-6
 allowed-tools:
@@ -27,7 +27,7 @@ metadata:
     - ci-cd
     - ip-scan
     - cleanup
-  updated-date: "2026-06-13"
+  updated-date: "2026-06-16"
 ---
 
 # repo-polish
@@ -91,7 +91,7 @@ for f in README.md package.json pyproject.toml go.mod Cargo.toml; do
 done
 ```
 
-Note: project name, language/stack, primary purpose, existing docs, existing CI.
+Note: project name, language/stack, primary purpose, existing docs, existing CI. Also note if this is a Claude Code plugin (has `.claude/` or `plugin.json`) — needed for Step 6c.
 
 ### Step 2 — Employer IP scan (MANDATORY before anything else)
 
@@ -194,12 +194,10 @@ fi
 TO_DELETE=()
 for b in $MERGED "${PR_CLOSED[@]:-}"; do
   [[ -z "$b" ]] && continue
-  # Never delete the default branch or common protected names
   [[ "$b" == "$DEFAULT_BRANCH" || "$b" == "main" || "$b" == "master" || "$b" == "dev" ]] && continue
   TO_DELETE+=("$b")
 done
 
-# Deduplicate
 mapfile -t TO_DELETE < <(printf '%s\n' "${TO_DELETE[@]:-}" | sort -u)
 
 if [[ ${#TO_DELETE[@]} -eq 0 ]]; then
@@ -217,128 +215,20 @@ Report what was deleted (or "none") to the user before continuing.
 
 ### Step 5 — Scaffold world-class repo infrastructure
 
+Read `references/scaffold-templates.md` now — it has the exact file structure, content requirements, and CI YAML templates for each artifact below.
+
 Analyze what already exists. Only create what is missing. Never overwrite a high-quality existing file — augment or regenerate only if poor quality.
 
-#### 5a. README.md
+Files to create (see `references/scaffold-templates.md` for full specs):
 
-Structure:
-- `<p align="center">` hero image placeholder (shields.io badge as stand-in if no banner)
-- Project name as `# Title`
-- Badges row: CI status, license
-- One-paragraph hook: what this is and who it is for
-- **Feature highlights** — 4–6 bullets with bolded lead words
-- **Prerequisites** — runtime, tools, accounts required
-- **Quick Start** — 3–5 steps, zero to running
-- **Documentation** → link to `docs/`
-- **Contributing** → link to `docs/CONTRIBUTING.md`
-- **License** line
-
-Use real project content. Never write placeholder text.
-
-#### 5b. docs/ tree
-
-```
-docs/
-  README.md                          doc map — index of all docs
-  CHANGELOG.md                       ## [Unreleased] header, Keep a Changelog format
-  CONTRIBUTING.md                    PR workflow, code style, how to contribute
-
-  user/
-    README.md                        user doc index
-    concepts.md                      key concepts
-    quick-start.md                   first-run walkthrough (≤5 min)
-    troubleshooting.md               common failures + fixes
-
-  engineering/
-    README.md                        engineering doc index
-    architecture/
-      overview.md                    system components, data flow
-    build-and-release/
-      development-workflow.md        how to contribute code
-      ci-workflow.md                 what CI checks
-    decisions/
-      README.md                      ADR index and format
-      001-<first-key-decision>.md    first ADR based on actual design choice
-```
-
-Every file must contain project-specific content derived from reading the actual code.
-
-#### 5c. .github/ infrastructure
-
-**CI workflow** (`.github/workflows/ci.yml`):
-```yaml
-on:
-  pull_request:
-  push:
-    branches: [main]
-  workflow_dispatch:
-
-jobs:
-  lint:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      # detect project type and add appropriate linter
-  test:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      # Node.js: npm test | Python: pytest | Go: go test ./... | Shell: shellcheck
-  secret-scan:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Scan for secrets
-        run: |
-          grep -rn \
-            -E "['\"]?[A-Za-z_]*(SECRET|TOKEN|PASSWORD|API_KEY)['\"]?\s*[:=]\s*['\"][^'\"]{8,}" \
-            --include="*.yml" --include="*.json" --include="*.env*" \
-            --exclude-dir=.git . && echo "SECRETS FOUND — fix before merge" && exit 1 || exit 0
-```
-
-**Release workflow** (`.github/workflows/release.yml`): manual `workflow_dispatch` with `version` input, validates, creates git tag, creates GitHub Release.
-
-**Dependabot** (`.github/dependabot.yml`): enable for detected ecosystem (npm, pip, github-actions).
-
-**PR template** (`.github/pull_request_template.md`):
-```markdown
-## Summary
-<!-- What does this PR do? 1-3 bullets. -->
--
-
-## Test plan
-- [ ] Tests pass locally
-- [ ] Tested manually
-
-## Documentation
-- [ ] CHANGELOG.md updated under [Unreleased]
-
-Closes #
-```
-
-**Issue templates** (`.github/ISSUE_TEMPLATE/`): `bug_report.yml` and `feature_request.yml`.
-
-#### 5d. CLAUDE.md
-
-Generate at repo root with: project overview (1 paragraph), key file locations table, build command, test command, commit message convention, and hard constraints (things Claude must never change).
-
-#### 5e. Makefile
-
-If absent, create with targets: `install`, `test`, `lint`, `build` (if applicable), `clean`.
-
-#### 5f. LICENSE
-
-If absent, create MIT license with current year and the project owner's name.
-
-#### 5g. .gitignore
-
-If absent or sparse, generate a comprehensive one for the detected stack.
-
-#### 5h. CODEOWNERS
-
-```
-* @<your-github-username>
-```
+- **5a. README.md** — hero, badges, hook, features, quick start, docs link
+- **5b. docs/ tree** — `user/`, `engineering/`, CHANGELOG.md, CONTRIBUTING.md (all with project-specific content)
+- **5c. .github/** — `ci.yml` (lint + test + secret-scan), `release.yml`, `dependabot.yml`, PR template, issue templates
+- **5d. CLAUDE.md** — project overview, file map, build/test commands, hard constraints
+- **5e. Makefile** — `install`, `test`, `lint`, `build`, `clean` targets (if absent)
+- **5f. LICENSE** — MIT, current year, owner name (if absent)
+- **5g. .gitignore** — comprehensive for detected stack (if absent or sparse)
+- **5h. CODEOWNERS** — `* @<your-github-username>`
 
 ### Step 6 — Quality audits (mandatory)
 
@@ -356,27 +246,17 @@ Invoke first — surfaces structural issues before doc polish:
 Skill("repo-review")
 ```
 
-Context to pass: `$PROJECT_DIR` is the repo root. The skill writes a read-only report to `docs/repo-review-<date>.md`.
-
-After the report returns:
-1. Read every **P1** finding (empty dirs, CI-breaking layout, misplaced governance files).
-2. Apply fixes in `$PROJECT_DIR` using `Edit` — repo-review does not edit files itself.
-3. If P1 fixes changed structure or deleted stale files, note them for 6b.
+Context to pass: `$PROJECT_DIR` is the repo root. After the report returns: read every P1 finding, apply fixes using `Edit`. If P1 fixes changed structure, note them for 6b.
 
 #### 6b. Documentation quality (docs-review)
 
-Invoke after Step 5 scaffolding (and after 6a P1 fixes) so README + `docs/**` exist:
+Invoke after Step 5 scaffolding (and after 6a P1 fixes):
 
 ```
 Skill("docs-review")
 ```
 
-Context to pass: audit `$PROJECT_DIR/README.md` and `$PROJECT_DIR/docs/**`. Optional argument: `docs/**` if the tree is large.
-
-`docs-review` fixes docs in place. After it returns:
-1. Review its summary for remaining broken links or stale counts.
-2. Fix any P1 items it flagged but did not auto-fix.
-3. If you applied manual doc fixes, re-run `Skill("docs-review")` once to confirm clean.
+`docs-review` fixes docs in place. After it returns: fix any P1 items it flagged but did not auto-fix. If you applied manual doc fixes, re-run `Skill("docs-review")` once to confirm clean.
 
 #### 6c. Claude Code pattern audit (changelog-review)
 
@@ -385,8 +265,6 @@ Context to pass: audit `$PROJECT_DIR/README.md` and `$PROJECT_DIR/docs/**`. Opti
 ```
 Skill("changelog-review")
 ```
-
-Pass as review input: `.claude/`, `plugin.json` or `.claude-plugin/plugin.json`, `SKILL.md` files, `hooks/hooks.json`, and any `.mcp.json`.
 
 Apply P1 findings (invalid frontmatter, stale hook wiring, broken skill paths) before continuing.
 
@@ -435,17 +313,17 @@ REPO_NAME="$(basename "$PROJECT_DIR" | tr '[:upper:]' '[:lower:]' | tr ' ' '-')"
 DESCRIPTION="$(grep -m1 '.' README.md | sed 's/^#* *//')"
 
 # Create and push
-gh repo create "<your-github-username>/$REPO_NAME" \
+gh repo create "TamirCohen28/$REPO_NAME" \
   --public \
   --description "$DESCRIPTION" \
   --source . \
   --remote origin \
   --push
 
-echo "Pushed to: https://github.com/<your-github-username>/$REPO_NAME"
+echo "Pushed to: https://github.com/TamirCohen28/$REPO_NAME"
 
 # Add topics
-gh api "repos/<your-github-username>/$REPO_NAME/topics" \
+gh api "repos/TamirCohen28/$REPO_NAME/topics" \
   --method PUT \
   --field names[]="<tag1>" \
   --field names[]="<tag2>"
@@ -479,12 +357,12 @@ Print the final repo URL and a brief next-steps checklist (add a banner image, e
 
 ```
 [ ] Step 0  Project directory resolved and canonicalized
-[ ] Step 1  Project surveyed (language, stack, purpose)
+[ ] Step 1  Project surveyed (language, stack, purpose, Claude Code plugin?)
 [ ] Step 2  IP scan run — user has acknowledged findings
 [ ] Step 3  Polish plan shown — user has approved
 [ ] Step 4  Employer IP removed — scan re-run and clean
 [ ] Step 4b Stale remote branches deleted
-[ ] Step 5  Repo infrastructure scaffolded
+[ ] Step 5  Repo infrastructure scaffolded (see references/scaffold-templates.md)
 [ ] Step 6  Quality audits: repo-review (P1 fixed) → docs-review (clean) → changelog-review if plugin
 [ ] Step 6d Audit gate passed — no open P1 findings
 [ ] Step 7  Summary table shown — user has approved GitHub push

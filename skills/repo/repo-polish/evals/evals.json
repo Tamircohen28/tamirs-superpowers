@@ -1,0 +1,48 @@
+{
+  "skill_name": "repo-polish",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "Polish this repo for GitHub: /tmp/my-cli-tool. It's a Node.js CLI I wrote at work and I want to open-source it under my personal account TamirCohen28.",
+      "expected_output": "Skill runs ip-scan.sh on /tmp/my-cli-tool, reports findings to user, pauses for acknowledgment, presents a polish plan, waits for approval, applies fixes, scaffolds missing docs/CI/README, runs repo-review and docs-review, presents a final summary table, and asks for explicit GitHub push approval before running gh repo create.",
+      "files": [],
+      "expectations": [
+        "ip-scan.sh is executed against the project directory before any other action",
+        "The user is shown scan findings and asked to acknowledge before proceeding to the polish plan",
+        "A plan is presented (IP remediation, files to delete, docs to create, GitHub settings) and user approval is requested",
+        "Step 5 scaffolding creates README.md, docs/ tree, and .github/ CI workflow",
+        "The generated CI workflow uses runs-on: ubuntu-latest, never self-hosted",
+        "repo-review and docs-review skills are invoked as part of Step 6",
+        "A summary table of all changes is shown before asking to push to GitHub",
+        "gh repo create is NOT executed until the user explicitly approves"
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "I want to make my Python scraper project public-ready. It's at ~/projects/price-scraper and has a .github/workflows/ci.yml that uses runs-on: [self-hosted]. Help me clean it up.",
+      "expected_output": "Skill identifies the self-hosted runner as employer IP, shows it to the user, replaces runs-on: [self-hosted] with ubuntu-latest in all workflows, re-runs the scanner to confirm clean, then proceeds to scaffold any missing infrastructure and run quality audits.",
+      "files": [],
+      "expectations": [
+        "ip-scan.sh detects and reports the runs-on: [self-hosted] pattern",
+        "The self-hosted runner finding is shown to the user before the polish plan",
+        "The CI workflow is edited to replace self-hosted with ubuntu-latest using Edit (not a full rewrite)",
+        "The scanner is re-run after fixes and confirmed clean before Step 5",
+        "No runs-on: self-hosted appears in any generated or edited workflow file"
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "Prepare my repo for open-source. It's a Claude Code plugin at /tmp/my-claude-plugin — it has hooks/ and .claude-plugin/plugin.json.",
+      "expected_output": "Skill runs ip-scan.sh, scaffolds missing docs, detects it's a Claude Code plugin (has .claude/ or plugin.json), invokes changelog-review in Step 6c in addition to repo-review and docs-review, applies all P1 findings, and presents a final summary before pushing.",
+      "files": [],
+      "expectations": [
+        "ip-scan.sh is run as Step 2",
+        "The project is identified as a Claude Code plugin during Step 1 survey",
+        "changelog-review is invoked in Step 6c because the project has .claude-plugin/plugin.json",
+        "All three audit skills (repo-review, docs-review, changelog-review) are invoked in Step 6",
+        "The audit gate (Step 6d) is explicitly checked before proceeding to Step 7",
+        "The scaffold includes a CLAUDE.md at repo root describing the plugin"
+      ]
+    }
+  ]
+}

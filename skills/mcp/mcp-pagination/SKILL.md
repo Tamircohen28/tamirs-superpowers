@@ -2,7 +2,7 @@
 name: mcp-pagination
 disable-model-invocation: true
 user-invocable: false
-description: "Internal: pagination and result-limiting guardrails for MCP tool calls. Used by mcp-builder when designing MCP servers or auditing MCP tool usage. Not for direct user invocation — run mcp-builder instead."
+description: "Internal guardrail invoked by mcp-builder only. Audits MCP tool definitions that contain list_*, search_*, find_*, get_all_*, or SQL-executing operations for missing pagination/limit parameters. NOT triggered by general MCP questions, single-item getters, or mutation tools. mcp-builder calls this at Phase 1.4 (after cataloging endpoints), Phase 3.0 (before writing each list/search tool schema), Phase 4.1 (post-Inspector checklist), and Phase 5 (eval design). Skip invocation when all tools are single-item getters or mutations only."
 allowed-tools:
   - Read
   - Bash
@@ -14,7 +14,7 @@ metadata:
     - mcp
     - pagination
     - guardrail
-  updated-date: "2026-06-13"
+  updated-date: "2026-06-16"
 ---
 
 # MCP Pagination Guardrails (Internal)
@@ -43,8 +43,15 @@ If `mcp-builder` passes planned tool names or API pagination params, use them as
 Any tool whose name matches these patterns needs a limit strategy:
 - `list_*` — always paginated
 - `search_*` — always paginated
-- `get_*` that returns an array at the top level — treat as paginated
+- `get_*` that returns an array at the top level — treat as paginated (name prefix alone does not exempt a tool; return type is what matters)
 - SQL-executing tools — require `LIMIT` clause enforcement
+
+**Exempt from guardrails (do not flag these):**
+- Single-item getters: `get_issue(id)`, `get_user(id)` — return one object, not an array
+- Mutations: `create_*`, `update_*`, `delete_*` — not collection operations
+- Streaming/generative tools: LLM completion streams, SSE feeds, WebSocket subscriptions — these push generated data, not paginated lists
+
+For API-specific pagination parameter names (GitHub REST `per_page`, GraphQL `first`/`after`, Slack `cursor`, Notion `page_size`, etc.), load `references/pagination-patterns.md`.
 
 **Step 2 — Verify each operation has a limiting mechanism.**
 
@@ -52,9 +59,10 @@ For each identified operation, confirm one of the following is present:
 
 | Mechanism | When to use | Example parameter |
 |-----------|-------------|-------------------|
-| `limit` / `max_results` / `per_page` | Primary list endpoints | `limit=20` |
-| `page` + `per_page` | Cursor-style or offset pagination | `page=1, per_page=10` |
-| `cursor` / `page_token` | Token-based continuation | `cursor="<token>"` |
+| `limit` / `max_results` / `per_page` | Primary list endpoints (REST) | `limit=20` |
+| `page` + `per_page` | Offset pagination | `page=1, per_page=10` |
+| `cursor` / `page_token` | Token-based continuation (REST) | `cursor="<token>"` |
+| `first` + `after` | GraphQL Relay cursor pagination | `first=20, after="<endCursor>"` |
 | SQL `LIMIT` clause | Any tool that executes raw SQL | `SELECT ... LIMIT 50` |
 | Date/time filter | When no explicit limit param exists | `since="2024-06-01T00:00:00Z"` |
 
@@ -68,6 +76,7 @@ Use these defaults unless the tool's documentation specifies lower maximums:
 | Issue / PR search | 10-20 | Each item has metadata; 20 fits comfortably in context |
 | Channel / message list | 50-100 | Lightweight items; higher limit reduces round-trips |
 | SQL queries | 50-100 | Depends on row width — prefer lower for wide schemas |
+| GraphQL list | 20 | Use `first=20`; avoid `last` unless reverse pagination needed |
 | Generic list | 20 | Safe default when no guidance exists |
 
 **Step 4 — Add alternative filters when no limit param exists.**
@@ -106,12 +115,14 @@ Do NOT pre-fetch all pages and merge results — this defeats the guardrail enti
 
 ## Hard Rules
 
-1. **Never generate or approve a list/search MCP tool that has no limiting strategy** — every such tool must expose at least one of: `limit`, `max_results`, `per_page`, `cursor`, or a date filter parameter.
+1. **Never generate or approve a list/search MCP tool that has no limiting strategy** — every such tool must expose at least one of: `limit`, `max_results`, `per_page`, `cursor`, `first`, or a date filter parameter.
 2. **Never set a default limit above 100** — even if the tool supports higher values; the caller can increase it explicitly.
 3. **Never auto-paginate** — fetching page 2+ without an explicit caller request is forbidden; it silently multiplies token consumption.
 4. **Always start at the low end of the safe range** — prefer 10 over 50 when context size is unknown.
 5. **SQL-executing tools must reject queries without a `LIMIT` clause** — validate the SQL string server-side before executing.
-6. **Do not hardcode absolute paths or employer-specific tool names** in server designs — keep examples generic (`owner="my-org"`, not a real org name).
+6. **Do not exempt a tool from guardrails based on name prefix alone** — a `get_*` tool that returns an array needs limits just like `list_*`.
+7. **Do not apply guardrails to streaming/generative tools** — LLM completions, SSE, and WebSocket tools are not collection-listing operations.
+8. **Do not hardcode absolute paths or employer-specific tool names** in server designs — keep examples generic (`owner="my-org"`, not a real org name).
 
 ## Anti-patterns
 
@@ -158,14 +169,35 @@ search_code(query="auth")
 search_code(query="auth", repo="my-org/my-repo", path="src/auth", limit=10)
 ```
 
+**GraphQL auto-cursor-following:**
+```python
+# BAD — follows all cursors before returning
+cursor = None
+all_items = []
+while True:
+    page = client.issues(first=100, after=cursor)
+    all_items.extend(page.nodes)
+    if not page.pageInfo.hasNextPage:
+        break
+    cursor = page.pageInfo.endCursor
+return all_items
+
+# GOOD — return first page with cursor for caller to continue
+page = client.issues(first=20, after=after_cursor)
+return {"items": page.nodes, "endCursor": page.pageInfo.endCursor, "hasNextPage": page.pageInfo.hasNextPage}
+```
+
 ## Quick-reference checklist
 
 Before approving any MCP server design that includes list or search tools, verify:
 
-- [ ] Every `list_*` tool has `limit` or `per_page` with a documented default <= 100
+- [ ] Every `list_*` tool has `limit` or `per_page` (REST) or `first` (GraphQL) with a documented default <= 100
 - [ ] Every `search_*` tool has `limit` or `max_results` with a documented default <= 20
+- [ ] GraphQL list tools expose `first` + `after` and return `pageInfo.endCursor` + `pageInfo.hasNextPage`
 - [ ] SQL-executing tools validate for a `LIMIT` clause before running
 - [ ] No tool auto-paginates; pagination is always caller-driven
+- [ ] Streaming/generative tools (LLM completions, SSE, WebSocket) are correctly exempted
+- [ ] `get_*` tools that return arrays are treated as list operations (not exempted by name prefix)
 - [ ] Date/state/author filters are available as fallback when no limit param exists
 - [ ] Default limits are at the conservative end of the safe range for the operation type
 

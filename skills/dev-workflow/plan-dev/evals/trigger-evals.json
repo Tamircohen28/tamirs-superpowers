@@ -1,0 +1,22 @@
+[
+  {"query": "plan this feature for me — I need to add dark mode to my Next.js app", "should_trigger": true},
+  {"query": "break this into phases: add Stripe subscriptions to my SaaS app", "should_trigger": true},
+  {"query": "help me decompose this spec into tickets I can work on one at a time", "should_trigger": true},
+  {"query": "turn this GitHub issue into sub-tasks: #47", "should_trigger": true},
+  {"query": "create issues for the auth refactor I described", "should_trigger": true},
+  {"query": "what order should I implement these features in? I have search, export, and notifications to build", "should_trigger": true},
+  {"query": "structure this work into phases before I start coding", "should_trigger": true},
+  {"query": "plan-dev my new payments integration feature", "should_trigger": true},
+  {"query": "I have a review doc with 15 items, help me organize it into PRs", "should_trigger": true},
+  {"query": "decompose this task: migrate our REST API to GraphQL", "should_trigger": true},
+  {"query": "fix the login bug in src/auth/login.ts where the session isn't being cleared", "should_trigger": false},
+  {"query": "write me a SQL migration to add a users table", "should_trigger": false},
+  {"query": "review my PR and leave comments", "should_trigger": false},
+  {"query": "start implementing issue #23", "should_trigger": false},
+  {"query": "what's the difference between useEffect and useLayoutEffect in React?", "should_trigger": false},
+  {"query": "run the tests and show me what's failing", "should_trigger": false},
+  {"query": "update my CHANGELOG for the v2 release", "should_trigger": false},
+  {"query": "how do I set up a GitHub Actions workflow for my project?", "should_trigger": false},
+  {"query": "analyze my codebase architecture and suggest improvements", "should_trigger": false},
+  {"query": "search this repo for all usages of the old API client", "should_trigger": false}
+]
