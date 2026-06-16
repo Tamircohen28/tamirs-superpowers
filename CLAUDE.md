@@ -48,13 +48,13 @@ Scopes: `skills`, `hooks`, `marketplace`, `ci`, `docs`
 - **Never modify `hooks/lib/worktree-common.sh`** without running shellcheck and testing both `capture-task-slug.sh` and `worktree-create.sh`
 - **SKILL.md files must have valid YAML frontmatter** with at least `name` and `description` fields
 
-## Skill domains (17 skills total)
+## Skill domains (18 skills total)
 
 | Domain | Skills |
 |--------|--------|
 | `creative` | algorithmic-art |
 | `debugging` | targeted-debug |
-| `dev-workflow` | babysit-pr, plan-dev, pr-dev, start-dev |
+| `dev-workflow` | babysit-pr, plan-dev, plugin-compat, pr-dev, start-dev |
 | `documentation` | changelog-review, dark-terminal-doc, docs-review |
 | `mcp` | mcp-builder, mcp-pagination |
 | `meta` | find-skill, session-report, skill-creator |

@@ -16,11 +16,11 @@
 
 # tamirs-superpowers
 
-A personal Claude Code plugin that bundles 16 skills, smart worktree hooks, and MCP server stubs — installed with a single `/plugin install` command and kept current via marketplace auto-update.
+A personal Claude Code plugin that bundles 17 skills, smart worktree hooks, and MCP server stubs — installed with a single `/plugin install` command and kept current via marketplace auto-update.
 
 ## Features
 
-- **16 bundled skills** — plan, implement, babysit PRs, debug, audit docs, create and benchmark skills, polish repos, and more, all from the Claude Code prompt
+- **17 bundled skills** — plan, implement, babysit PRs, debug, audit docs, create and benchmark skills, polish repos, make repos multi-platform AI compatible, and more, all from the Claude Code prompt
 - **Smart worktree hooks** that automatically create isolated git worktrees per task, derive task slugs from your first prompt, enforce edit isolation, and show Claude Code changelogs on update
 - **Auto-installed plugin dependencies** — superpowers pulls in automatically when you install this plugin
 - **MCP server stubs** for GitHub and Context7 — fill in your tokens and they're live
@@ -82,6 +82,7 @@ Each skill lives at `skills/<skill-name>/SKILL.md`.
 | `/tamirs-superpowers:plan-dev` | Plan work into phases and create GitHub issues. |
 | `/tamirs-superpowers:start-dev` | Create worktree, implement, validate, push, and open a PR. |
 | `/tamirs-superpowers:babysit-pr` | Watch or drive a PR — fix CI, address review, merge and clean up. |
+| `/tamirs-superpowers:plugin-compat` | Make a repo compatible with Claude Code, Cursor, and OpenAI Codex — fetches latest platform docs and generates all required config files. |
 | `/tamirs-superpowers:targeted-debug` | Scope-bounded debug from a stack trace — reads only named files. |
 | `/tamirs-superpowers:repo-polish` | Scan a project for employer IP, scaffold repo infra, publish to GitHub. |
 | `/tamirs-superpowers:repo-scaffold` | Create a new private GitHub repo from scratch — README badges, docs, CLAUDE.md, .claude/ config, CI/CD, branch protection, and project skills. |
