@@ -1,0 +1,44 @@
+{
+  "skill_name": "find-skill",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "find a skill for python code review",
+      "expected_output": "A ranked markdown table of top 10 Claude Code skills / MCP servers for Python code review, with columns: #, Match, Name, Description, Quality, URL. At least 3 sources were searched. Every row has a clickable URL. A one-line explanation of the top result's biggest match and quality driver follows the table.",
+      "files": [],
+      "expectations": [
+        "Output contains a markdown table with columns # | Match | Name | Description | Quality | URL",
+        "At least 3 distinct source URLs are cited (e.g. github.com, smithery.ai, mcp.directory)",
+        "Every result row includes a URL — no results without a link",
+        "The response includes a one-line explanation after the table about why the top result ranked first",
+        "Output does not return npm packages, VS Code extensions, or general software — only skills/MCP/plugins"
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "is there an MCP server for interacting with Jira tickets?",
+      "expected_output": "Search results from mcp.directory and Smithery (at minimum) for Jira MCP servers. Returns a ranked table with match and quality scores. If sources fail, notes them as footnotes. Does not invent URLs.",
+      "files": [],
+      "expectations": [
+        "Output searches at least mcp.directory or Smithery (both are primary MCP registries)",
+        "Output contains a ranked table with Match and Quality score columns",
+        "Output does not fabricate URLs — every link must resolve to a real-looking domain",
+        "If a source returns an error or no results, the skill mentions it as a footnote rather than silently dropping it",
+        "Results are scoped to MCP servers or Claude Code skills, not generic Jira integrations or REST clients"
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "/find-skill 5 generate release notes from git commits",
+      "expected_output": "Exactly 5 results returned (N=5 parsed correctly from the invocation). Results are for release-notes / changelog generation skills. Ranked table with Match and Quality scores. Sources from at least wshobson/agents, Smithery, or web fallback are checked.",
+      "files": [],
+      "expectations": [
+        "Response returns exactly 5 rows in the results table (N=5 parsed from invocation prefix)",
+        "All results are relevant to release notes, changelog generation, or git commit summarization",
+        "A one-line plan is echoed before searching (e.g. 'Searching 6+ marketplaces for release notes skills — returning top 5')",
+        "The table includes both Match (0-100) and Quality (0-10) score columns",
+        "At least one source from Smithery, wshobson/agents, or mattpocock/skills was attempted"
+      ]
+    }
+  ]
+}
