@@ -48,7 +48,7 @@ Scopes: `skills`, `hooks`, `marketplace`, `ci`, `docs`
 - **Never modify `hooks/lib/worktree-common.sh`** without running shellcheck and testing both `capture-task-slug.sh` and `worktree-create.sh`
 - **SKILL.md files must have valid YAML frontmatter** with at least `name` and `description` fields
 
-## Skill domains (15 skills total)
+## Skill domains (16 skills total)
 
 | Domain | Skills |
 |--------|--------|
@@ -58,7 +58,7 @@ Scopes: `skills`, `hooks`, `marketplace`, `ci`, `docs`
 | `documentation` | changelog-review, dark-terminal-doc, docs-review |
 | `mcp` | mcp-builder, mcp-pagination |
 | `meta` | find-skill, session-report, skill-creator |
-| `repo` | repo-polish, repo-review |
+| `repo` | repo-polish, repo-review, repo-scaffold |
 
 ## User-invocable vs internal skills
 

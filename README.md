@@ -16,11 +16,11 @@
 
 # tamirs-superpowers
 
-A personal Claude Code plugin that bundles 15 skills, smart worktree hooks, and MCP server stubs — installed with a single `/plugin install` command and kept current via marketplace auto-update.
+A personal Claude Code plugin that bundles 16 skills, smart worktree hooks, and MCP server stubs — installed with a single `/plugin install` command and kept current via marketplace auto-update.
 
 ## Features
 
-- **15 bundled skills** — plan, implement, babysit PRs, debug, audit docs, create and benchmark skills, polish repos, and more, all from the Claude Code prompt
+- **16 bundled skills** — plan, implement, babysit PRs, debug, audit docs, create and benchmark skills, polish repos, and more, all from the Claude Code prompt
 - **Smart worktree hooks** that automatically create isolated git worktrees per task, derive task slugs from your first prompt, enforce edit isolation, and show Claude Code changelogs on update
 - **Auto-installed plugin dependencies** — superpowers pulls in automatically when you install this plugin
 - **MCP server stubs** for GitHub and Context7 — fill in your tokens and they're live
@@ -84,6 +84,7 @@ Each skill lives at `skills/<skill-name>/SKILL.md`.
 | `/tamirs-superpowers:babysit-pr` | Watch or drive a PR — fix CI, address review, merge and clean up. |
 | `/tamirs-superpowers:targeted-debug` | Scope-bounded debug from a stack trace — reads only named files. |
 | `/tamirs-superpowers:repo-polish` | Scan a project for employer IP, scaffold repo infra, publish to GitHub. |
+| `/tamirs-superpowers:repo-scaffold` | Create a new private GitHub repo from scratch — README badges, docs, CLAUDE.md, .claude/ config, CI/CD, branch protection, and project skills. |
 | `/tamirs-superpowers:mcp-builder` | Build MCP servers (auto-invokes `mcp-pagination` for list/search tools). |
 | `/tamirs-superpowers:find-skill` | Search skill marketplaces and rank matches for a query. |
 | `/tamirs-superpowers:skill-creator` | Create, improve, and benchmark Claude Code skills. |
