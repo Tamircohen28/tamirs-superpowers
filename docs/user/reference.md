@@ -1,6 +1,6 @@
 # Skill Reference
 
-Complete reference for all 15 skills bundled in `tamirs-superpowers`. Each user-facing skill becomes a slash command in Claude Code.
+Complete reference for all 17 skills bundled in `tamirs-superpowers`. Each user-facing skill becomes a slash command in Claude Code.
 
 Four skills are **internal** — invoked automatically by parent skills (`repo-polish`, `mcp-builder`) and hidden from the `/` menu.
 
@@ -37,15 +37,28 @@ Four skills are **internal** — invoked automatically by parent skills (`repo-p
 
 ---
 
-### `/tamirs-superpowers:babysit-pr`
+### `/tamirs-superpowers:pr-dev`
 
-**When to use:** After opening a PR — watch it in the background, or drive it through review and merge.
+**When to use:** After a PR is open — drive it through review and merge end-to-end.
 
-**What it does:** Unified PR lifecycle skill with two modes:
-- **Watch** — poll CI, fix branch-related failures, retry flakes (max 3×), surface review comments
-- **Drive** — address every review thread, fix CI, wait for your explicit `approved`, squash-merge, close issues, clean up worktree
+**What it does:** Runs a persistent drive loop until the PR is merge-ready:
+1. Fetches current PR state (re-fetches before every decision)
+2. Addresses all unresolved review threads (states reply in conversation first)
+3. Diagnoses CI failures, patches branch-related ones, retries flakes (max 3×)
+4. Surfaces blockers if CI is infra-related or a thread can't be resolved
+5. Prints readiness summary and **stops** — waits for you to type `approved` before merging
 
-**Example:** `/tamirs-superpowers:babysit-pr 42`
+**Example:** `/tamirs-superpowers:pr-dev 42`
+
+---
+
+### `/tamirs-superpowers:plugin-compat`
+
+**When to use:** You want your repo to work as a plugin or tool for Claude Code, Cursor, and/or OpenAI Codex.
+
+**What it does:** Fetches the latest platform docs and generates all required config files — `CLAUDE.md`, `.cursor/rules/`, `AGENTS.md` — so the repo is compatible with all three AI coding assistants.
+
+**Example:** `/tamirs-superpowers:plugin-compat` (targets all three platforms by default)
 
 ---
 
@@ -72,6 +85,16 @@ Four skills are **internal** — invoked automatically by parent skills (`repo-p
 4. Creates GitHub repo and pushes after explicit approval
 
 **Example:** `/tamirs-superpowers:repo-polish ~/projects/my-app`
+
+---
+
+### `/tamirs-superpowers:repo-scaffold`
+
+**When to use:** Starting a brand-new project — you want a fully wired GitHub repo in one command.
+
+**What it does:** Creates a private GitHub repo from an idea or description with production-ready infrastructure: README with badges, docs tree, CI/CD, CLAUDE.md, `.claude/` config, branch protection, and project skills.
+
+**Example:** `/tamirs-superpowers:repo-scaffold my-new-tool -- "A CLI that does X"`
 
 ---
 

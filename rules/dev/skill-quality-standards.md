@@ -48,7 +48,7 @@ metadata:
 
 | Type | `user-invocable` | `disable-model-invocation` | Examples |
 |------|------------------|----------------------------|----------|
-| User slash command | `true` (default) | `true` | plan-dev, start-dev, babysit-pr |
+| User slash command | `true` (default) | `true` | plan-dev, start-dev, pr-dev |
 | Auto-trigger discovery | `true` (default) | `false` (default) | find-skill, mcp-builder |
 | Internal companion | `false` | `true` | docs-review, repo-review, mcp-pagination |
 

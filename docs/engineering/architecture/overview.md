@@ -22,14 +22,14 @@ tamirs-superpowers/              ← GitHub repo root
 │   ├── show-changelog.sh        ← SessionStart: Claude Code changelog on version bump
 │   ├── worktree-create.sh       ← WorktreeCreate
 │   └── worktree-remove.sh       ← WorktreeRemove
-└── skills/                      ← 15 skills in 7 domains (see CLAUDE.md)
+└── skills/                      ← 17 skills in 7 domains (see CLAUDE.md)
     ├── creative/                ← algorithmic-art
     ├── debugging/               ← targeted-debug
-    ├── dev-workflow/            ← babysit-pr, plan-dev, start-dev
+    ├── dev-workflow/            ← plan-dev, plugin-compat, pr-dev, start-dev
     ├── documentation/           ← changelog-review, dark-terminal-doc, docs-review
     ├── mcp/                     ← mcp-builder, mcp-pagination
     ├── meta/                    ← find-skill, session-report, skill-creator
-    └── repo/                    ← repo-polish, repo-review
+    └── repo/                    ← repo-polish, repo-review, repo-scaffold
 ```
 
 ## Hook system

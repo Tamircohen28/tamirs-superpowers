@@ -1,0 +1,34 @@
+---
+description: "Commit message format and branch conventions for this repo — use when committing or creating PRs"
+alwaysApply: false
+---
+
+# Commit conventions
+
+## Format
+
+```
+<type>(<scope>): <description>
+
+Co-Authored-By: Claude <noreply@anthropic.com>
+```
+
+**Types:** `feat`, `fix`, `chore`, `docs`, `refactor`
+
+**Scopes:** `skills`, `hooks`, `marketplace`, `ci`, `docs`
+
+## Examples
+
+```
+feat(skills): add pr-dev skill for persistent PR drive loop
+fix(hooks): handle missing session state in capture-task-slug
+docs(skills): update reference.md with plugin-compat and repo-scaffold
+chore(ci): switch ubuntu runner to ubuntu-latest
+```
+
+## Rules
+
+- One commit per logical change — never batch unrelated fixes
+- Never commit with `git add .` — stage specific files to avoid secrets or build artifacts
+- Never push directly to `main` — always use a feature branch and open a PR
+- `make validate` must pass before committing (JSON + shellcheck + SKILL.md frontmatter)

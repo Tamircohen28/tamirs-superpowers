@@ -1,6 +1,6 @@
 ---
 alwaysApply: false
-globs: ["tooling/**/*", ".github/**/*", ".claude/skills/{plan-dev,start-dev,babysit-pr}/**/*"]
+globs: ["tooling/**/*", ".github/**/*", ".claude/skills/{plan-dev,start-dev,pr-dev}/**/*"]
 ---
 
 # gh CLI Preference in Dev Context

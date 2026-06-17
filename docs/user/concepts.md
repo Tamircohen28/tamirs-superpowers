@@ -2,7 +2,7 @@
 
 ## What is tamirs-superpowers?
 
-`tamirs-superpowers` is a **Claude Code plugin** — a bundle of skills, hooks, and configuration that extends what Claude can do inside your terminal. Once installed, it adds slash commands (`/plan-dev`, `/start-dev`, `/babysit-pr`, etc.) to your Claude Code session and wires up automatic behaviors via hooks.
+`tamirs-superpowers` is a **Claude Code plugin** — a bundle of skills, hooks, and configuration that extends what Claude can do inside your terminal. Once installed, it adds slash commands (`/plan-dev`, `/start-dev`, `/pr-dev`, etc.) to your Claude Code session and wires up automatic behaviors via hooks.
 
 ## Plugins vs skills
 
