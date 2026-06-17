@@ -1,0 +1,54 @@
+---
+description: "Constraints and patterns for editing hook scripts — use when modifying hooks/*.sh or hooks/hooks.json"
+alwaysApply: false
+globs: "hooks/**/*"
+---
+
+# Hooks guide
+
+Hooks are shell scripts registered in `hooks/hooks.json`. Claude Code executes them at lifecycle events and passes JSON on stdin.
+
+## Critical rule
+
+**Never modify `hooks/lib/worktree-common.sh`** without:
+1. Running `shellcheck hooks/lib/worktree-common.sh`
+2. Manually testing `capture-task-slug.sh` and `worktree-create.sh`
+
+`worktree-common.sh` is sourced by multiple hooks — a syntax error there silently breaks all worktree behavior.
+
+## hooks.json format
+
+```json
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          { "type": "command", "command": "bash hooks/my-hook.sh" }
+        ]
+      }
+    ]
+  }
+}
+```
+
+## Shell scripts
+
+- All `.sh` files must pass `shellcheck` — run `make lint` before committing
+- Scripts read JSON from stdin (use `jq` to parse)
+- Scripts can write `additionalContext` to `$CLAUDE_ENV_FILE` to inject context into Claude's session
+- Exit 0 = allow; non-zero = deny (for PreToolUse hooks)
+
+## Wired events
+
+| Event | Script | Purpose |
+|-------|--------|---------|
+| `PreToolUse (Bash)` | `protect-other-branches.sh` | Block editing PRs from other authors |
+| `PreToolUse (Edit\|Write\|…)` | `enforce-worktree-edits.sh` | Refuse repo edits outside the task worktree |
+| `SessionStart` | `show-changelog.sh`, `session-init.sh` | Show changelog on update; seed session state |
+| `SessionEnd` | `session-end.sh` | Archive session files, prune stale worktrees |
+| `UserPromptSubmit` | `capture-task-slug.sh` | Derive task slug, create worktree |
+| `WorktreeCreate` | `worktree-create.sh` | Create global worktree |
+| `WorktreeRemove` | `worktree-remove.sh` | Tear down global worktree |
+| `Notification` | `notify.sh` | Prefixed notification when Claude needs attention |

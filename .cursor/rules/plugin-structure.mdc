@@ -1,0 +1,34 @@
+---
+description: "Core facts about this repo — what it is, what NOT to do, and how it is distributed"
+alwaysApply: true
+---
+
+# tamirs-superpowers — plugin structure
+
+This repo is a **Claude Code plugin** (Markdown + JSON + Bash only). There is no build step, no `package.json`, no compiled output.
+
+## What lives where
+
+| Path | Purpose |
+|------|---------|
+| `.claude-plugin/plugin.json` | Plugin manifest |
+| `skills/<domain>/<name>/SKILL.md` | One skill per folder; directory name = slash command |
+| `hooks/hooks.json` | Hook event wiring |
+| `hooks/*.sh` | Hook scripts (all must pass shellcheck) |
+| `hooks/lib/worktree-common.sh` | Shared bash library — do not modify without testing |
+| `statusline.sh` | Footer statusline |
+| `.mcp.json` | MCP server stubs (env var placeholders only — no real tokens) |
+
+## Hard constraints
+
+- No `runs-on: [self-hosted]` in any CI workflow — use `ubuntu-latest`
+- No secrets or tokens committed — `.mcp.json` uses `${ENV_VAR}` syntax only
+- No Wix-internal references anywhere
+- No `marketplace.json` in this repo — it is published through `Tamircohen28/plugins`
+- Every `SKILL.md` needs valid YAML frontmatter with at least `name` and `description`
+
+## Validate after every change
+
+```bash
+make validate   # JSON lint + shellcheck + SKILL.md frontmatter
+```

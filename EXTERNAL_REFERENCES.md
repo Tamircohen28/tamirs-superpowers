@@ -65,7 +65,6 @@ Then run the `setup-matt-pocock-skills` skill from inside Claude to wire it up.
 |---|---|---|
 | `anthropics/claude-plugins-official` | Source for `session-report` plugin and the upstream `skill-creator` plugin. | `git clone https://github.com/anthropics/claude-plugins-official` |
 | `anthropics/skills` | Source for `skill-creator` and `mcp-builder` (already bundled here). | `git clone https://github.com/anthropics/skills` |
-| `openai/codex` | Source for `babysit-pr` (already bundled here). The skill lives under `.codex/skills/babysit-pr/`. | `git clone https://github.com/openai/codex` |
 
 ## Why these aren't bundled
 
