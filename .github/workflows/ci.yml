@@ -11,7 +11,7 @@ jobs:
     name: shellcheck
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - name: Install shellcheck
         run: sudo apt-get install -y shellcheck
       - name: Run shellcheck on hook scripts
@@ -27,7 +27,7 @@ jobs:
     name: Validate JSON
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - name: Validate all JSON files
         run: |
           find . -name '*.json' -not -path '*/.git/*' | while read f; do
@@ -38,7 +38,7 @@ jobs:
     name: Validate SKILL.md frontmatter
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - name: Check name + description fields
         run: |
           failed=0
@@ -52,7 +52,7 @@ jobs:
     name: Secret scan
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - name: Scan for high-signal secret patterns
         run: |
           if grep -rE \
@@ -68,7 +68,7 @@ jobs:
     name: claude plugin validate
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - name: Install Claude Code CLI
         run: npm install -g @anthropic-ai/claude-code
       - name: Run claude plugin validate
