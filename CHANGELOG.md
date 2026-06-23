@@ -18,6 +18,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ### Fixed
 - **Plugin scaffold CI** — template and gold fixture now include `package-lock.json` so generated workflows can run `npm ci`
 - **Plugin build stub** — `build.mjs` concatenates all `canonical/rules/*.md` files into Codex/Cursor adapters (not just `core.md`)
+- **Plugin-gold contract** — `PK1-14` requires `package-lock.json` so scaffolds fail the local gate before CI hits `npm ci` without a lockfile
 
 ## [1.2.0] - 2026-06-13
 

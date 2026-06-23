@@ -21,6 +21,7 @@ agent_kit_config=$(exists "$ROOT/agent-kit.config.json")
 build_script=$(exists "$ROOT/scripts/build.mjs")
 validate_script=$(exists "$ROOT/scripts/validate.mjs")
 package_json=$(exists "$ROOT/package.json")
+package_lock_json=$(exists "$ROOT/package-lock.json")
 marketplace_json=$(exists "$ROOT/.claude-plugin/marketplace.json")
 
 plugin_wrapper=false
@@ -91,6 +92,7 @@ jq -nc \
   --argjson build_script "$build_script" \
   --argjson validate_script "$validate_script" \
   --argjson package_json "$package_json" \
+  --argjson package_lock_json "$package_lock_json" \
   --argjson marketplace_json "$marketplace_json" \
   --argjson plugin_wrapper "$plugin_wrapper" \
   --argjson plugin_manifest "$plugin_manifest" \
@@ -116,6 +118,7 @@ jq -nc \
     },
     scripts: { build_mjs: $build_script, validate_mjs: $validate_script },
     package_json: $package_json,
+    package_lock_json: $package_lock_json,
     marketplace_json: $marketplace_json,
     plugin_wrapper: {
       exists: $plugin_wrapper,
