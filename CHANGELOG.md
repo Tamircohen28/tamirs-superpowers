@@ -15,6 +15,10 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ### Changed
 - Renamed skill domain `meta` → `toolkit` (`find-skill`, `session-report`, `skill-creator`)
 
+### Fixed
+- **Plugin scaffold CI** — template and gold fixture now include `package-lock.json` so generated workflows can run `npm ci`
+- **Plugin build stub** — `build.mjs` concatenates all `canonical/rules/*.md` files into Codex/Cursor adapters (not just `core.md`)
+
 ## [1.2.0] - 2026-06-13
 
 ### Added

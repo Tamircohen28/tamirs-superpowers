@@ -8,6 +8,7 @@
     "skillsDir": "canonical/skills",
     "templatesDir": "canonical/templates"
   },
+  "rulesOrder": ["core", "testing", "security", "frontend", "backend"],
   "dist": {
     "codex": "dist/codex",
     "cursor": "dist/cursor",
