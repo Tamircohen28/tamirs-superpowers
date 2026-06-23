@@ -6,10 +6,10 @@ Copy and fill placeholders when invoking child skills from repo-standards.
 
 ```text
 Target repository: $TARGET_ROOT
-Run multi-agent-repo review only.
-Write report under docs/agent-guidelines/ in the target repo.
-Return executive summary and P1/P2/P3 counts for merge into repo-standards report appendix.
-Do not edit files outside the multi-agent review report path.
+Run multi-agent-repo review in read-only summary mode.
+Do NOT write any report files under docs/agent-guidelines/ or elsewhere in the target repo.
+Return executive summary and P1/P2/P3 counts inline only for merge into repo-standards report appendix.
+Do not edit any files in the target repo.
 ```
 
 ## multi-agent-repo (dev — polish phase 5)

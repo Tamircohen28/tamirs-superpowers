@@ -35,7 +35,17 @@ pr_template=false
 dependabot=false
 if [[ -d "$ROOT/.github/workflows" ]]; then
   find "$ROOT/.github/workflows" -name '*.yml' -o -name '*.yaml' 2>/dev/null | grep -q . && ci_workflow=true
-  grep -rq 'secret' "$ROOT/.github/workflows" 2>/dev/null && secret_scan_job=true
+  while IFS= read -r wf; do
+    [[ -f "$wf" ]] || continue
+    if grep -Eiq '^[[:space:]]{2}[a-zA-Z0-9_-]*(secret[-_]?scan|scan[-_]?secret)' "$wf" 2>/dev/null; then
+      secret_scan_job=true
+      break
+    fi
+    if grep -Eiq 'gitleaks|trufflehog|detect-secrets' "$wf" 2>/dev/null; then
+      secret_scan_job=true
+      break
+    fi
+  done < <(find "$ROOT/.github/workflows" \( -name '*.yml' -o -name '*.yaml' \) 2>/dev/null)
 fi
 [[ -f "$ROOT/.github/pull_request_template.md" ]] && pr_template=true
 [[ -f "$ROOT/.github/dependabot.yml" ]] && dependabot=true

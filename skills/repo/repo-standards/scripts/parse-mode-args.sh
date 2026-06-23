@@ -12,16 +12,21 @@ usage() { sed -n '2,9p' "$0" | sed 's/^# \?//'; exit "${1:-0}"; }
 if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then usage 0; fi
 
 find_repo_root() {
+  local start="$1"
+  if git -C "$start" rev-parse --show-toplevel &>/dev/null; then
+    git -C "$start" rev-parse --show-toplevel
+    return 0
+  fi
   local dir
-  dir="$(cd "$1" && pwd)"
+  dir="$(cd "$start" && pwd)"
   while [[ "$dir" != "/" ]]; do
-    if [[ -d "$dir/.git" ]]; then
+    if [[ -d "$dir/.git" || -f "$dir/.git" ]]; then
       echo "$dir"
       return 0
     fi
     dir="$(dirname "$dir")"
   done
-  echo "$(cd "$1" && pwd)"
+  echo "$(cd "$start" && pwd)"
 }
 
 MODE="review"

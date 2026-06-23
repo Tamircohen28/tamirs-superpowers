@@ -13,7 +13,9 @@ empty_dirs=0
 self_hosted_ci=0
 
 if [[ -d "$ROOT/docs" ]]; then
-  misplaced_docs=$(find "$ROOT/docs" -maxdepth 1 -name '*.md' ! -name 'README.md' 2>/dev/null | wc -l | tr -d ' ')
+  misplaced_docs=$(find "$ROOT/docs" -maxdepth 1 -name '*.md' \
+    ! -name 'README.md' ! -name 'CHANGELOG.md' ! -name 'CONTRIBUTING.md' \
+    2>/dev/null | wc -l | tr -d ' ')
 fi
 
 ticket_named=$(find "$ROOT" \
