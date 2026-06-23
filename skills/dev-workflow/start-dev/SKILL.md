@@ -1,30 +1,38 @@
 ---
 name: start-dev
-description: "Use when the user wants to implement, build, code, or ship a task that will result in commits and a pull request — given a GitHub issue number, free-text task description, or spec file. Triggers: 'implement issue #N', 'start coding X', 'build the feature', 'work on this spec', 'create a PR for this', 'ship issue #N', 'code up the feature', 'begin implementation of X'."
+description: 'Use when the user wants to implement, build, code, or ship a task that will result in commits and a pull request — given a GitHub issue number, free-text task description, or spec file. Triggers: ''implement issue #N'', ''start coding X'', ''build the feature'', ''work on this spec'', ''create a PR for this'', ''ship issue #N'', ''code up the feature'', ''begin implementation of X''.'
+when_to_use: implement, build, start coding, begin implementation, work on, create PR for, ship, code up — followed by an issue number (#N), a task description, or a spec/plan file path
+argument-hint: '[issue number(s) e.g. #42, free-text task description, or path/to/spec.md]'
+arguments: []
 disable-model-invocation: true
-when_to_use: "implement, build, start coding, begin implementation, work on, create PR for, ship, code up — followed by an issue number (#N), a task description, or a spec/plan file path"
-argument-hint: "[issue number(s) e.g. #42, free-text task description, or path/to/spec.md]"
+user-invocable: true
+allowed-tools:
+- Bash
+- Read
+- Write
+- Edit
+- Glob
+- Grep
+- WebFetch
+- WebSearch
+- Agent
+- Skill
+disallowed-tools: []
 model: claude-sonnet-4-6
 effort: high
-allowed-tools:
-  - Bash
-  - Read
-  - Write
-  - Edit
-  - Glob
-  - Grep
-  - WebFetch
-  - WebSearch
-  - Agent
-  - Skill
+context: ''
+agent: ''
+hooks: {}
+paths: []
+shell: bash
 metadata:
   capability: developer-workflow
   tags:
-    - implementation
-    - worktree
-    - pr
-    - workflow
-  updated-date: "2026-06-16"
+  - implementation
+  - worktree
+  - pr
+  - workflow
+  updated-date: '2026-06-16'
 ---
 
 ## Live context

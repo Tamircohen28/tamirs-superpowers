@@ -1,12 +1,24 @@
 ---
 name: run-tamirs-superpowers
-description: "Use when running, validating, or testing the tamirs-superpowers Claude Code plugin — checks JSON validity, shellcheck hooks, SKILL.md frontmatter, statusline output, hook wiring, and absence of hardcoded paths or internal references. Trigger phrases: 'run the plugin health check', 'validate the plugin', 'test tamirs-superpowers', 'smoke test the plugin', 'check the plugin', 'is the plugin clean'."
-when_to_use: "User wants to validate, test, or run a health check on this plugin. Also auto-load whenever editing SKILL.md files, hooks, or plugin.json."
+description: 'Use when running, validating, or testing the tamirs-superpowers Claude Code plugin — checks JSON validity, shellcheck hooks, SKILL.md frontmatter, statusline output, hook wiring, and absence of hardcoded paths or internal references. Trigger phrases: ''run the plugin health check'', ''validate the plugin'', ''test tamirs-superpowers'', ''smoke test the plugin'', ''check the plugin'', ''is the plugin clean''.'
+when_to_use: User wants to validate, test, or run a health check on this plugin. Also auto-load whenever editing SKILL.md files, hooks, or plugin.json.
+argument-hint: '[none — runs full plugin health check]'
+arguments: []
+disable-model-invocation: false
+user-invocable: true
 allowed-tools:
-  - Bash
-  - Read
+- Bash
+- Read
+disallowed-tools: []
+model: claude-sonnet-4-6
+effort: low
+context: ''
+agent: ''
+hooks: {}
+paths: []
+shell: bash
 metadata:
-  updated-date: "2026-06-13"
+  updated-date: '2026-06-13'
 ---
 
 # run-tamirs-superpowers
@@ -33,10 +45,10 @@ bash .claude/skills/run-tamirs-superpowers/smoke.sh
 
 | Check | What it does |
 |---|---|
-| 1. `make validate` | shellcheck all hooks, validate all JSON, check SKILL.md frontmatter |
+| 1. `make validate` | shellcheck all hooks, validate all JSON, validate full SKILL.md frontmatter (16 official fields) |
 | 2. `statusline.sh` | runs the live statusline and checks it produces output |
 | 3. `plugin.json` | all required fields present, `.statusLine` is an object not a string |
-| 4. SKILL.md quality | name, description, allowed-tools, when_to_use, updated-date per skill |
+| 4. SKILL.md quality | `python3 scripts/validate-skill-frontmatter.py` — all 16 official fields + metadata.updated-date |
 | 5. Hook wiring | every `.sh` in `hooks/` is referenced in `hooks.json` |
 | 6. No `/Users/` paths | skills must use `$CLAUDE_SKILL_DIR` or relative paths, not hardcoded absolutes |
 | 7. No Wix/internal refs | employer-specific patterns must be absent from skill files |

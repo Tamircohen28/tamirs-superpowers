@@ -1,33 +1,41 @@
 ---
 name: repo-polish
-description: "Use when a user wants to publish, open-source, or share a personal project on GitHub — including 'polish this repo', 'prepare for GitHub', 'make public-ready', 'open-source this', 'publish my project', 'clean up and publish', 'scan for employer IP', 'remove internal references', 'world-class repo', or any request to get a project ready for a personal GitHub account."
+description: Use when a user wants to publish, open-source, or share a personal project on GitHub — including 'polish this repo', 'prepare for GitHub', 'make public-ready', 'open-source this', 'publish my project', 'clean up and publish', 'scan for employer IP', 'remove internal references', 'world-class repo', or any request to get a project ready for a personal GitHub account.
+when_to_use: User wants to prepare a personal project for GitHub publication — scan for employer IP, add docs, set up CI/CD, upload to TamirCohen28.
+argument-hint: <path-to-project-directory>
+arguments: []
 disable-model-invocation: true
 user-invocable: true
-when_to_use: "User wants to prepare a personal project for GitHub publication — scan for employer IP, add docs, set up CI/CD, upload to TamirCohen28."
-argument-hint: "<path-to-project-directory>"
-model: claude-sonnet-4-6
 allowed-tools:
-  - Bash
-  - Read
-  - Write
-  - Edit
-  - Glob
-  - Grep
-  - Agent
-  - Skill
+- Bash
+- Read
+- Write
+- Edit
+- Glob
+- Grep
+- Agent
+- Skill
+disallowed-tools: []
+model: claude-sonnet-4-6
+effort: high
+context: ''
+agent: ''
+hooks: {}
+paths: []
+shell: bash
 metadata:
   capability: repo-polish
   provider: developer-workflow
   platforms:
-    - claude
+  - claude
   tags:
-    - open-source
-    - github
-    - docs
-    - ci-cd
-    - ip-scan
-    - cleanup
-  updated-date: "2026-06-16"
+  - open-source
+  - github
+  - docs
+  - ci-cd
+  - ip-scan
+  - cleanup
+  updated-date: '2026-06-16'
 ---
 
 # repo-polish

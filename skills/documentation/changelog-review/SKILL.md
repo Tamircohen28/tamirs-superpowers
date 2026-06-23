@@ -1,37 +1,55 @@
 ---
 name: changelog-review
+description: Internal skill invoked by repo-polish (Step 6c) to audit Claude Code plugin projects. Fetches live docs and runs scripts/validate-plugin-json.sh + scripts/validate-skill-frontmatter.sh to detect misuse, broken hook paths, stale patterns, and missed capabilities. Returns structured P1 findings before GitHub push. Never invoke directly — use repo-polish. Also callable by other skills needing live-doc-grounded answers about Claude Code hooks, skills, plugin.json, or MCP config.
+when_to_use: 'Invoked by repo-polish Step 6c on Claude Code plugin projects.
+
+  Also callable by other skills when they need a live-doc-grounded answer
+
+  about Claude Code hooks, skills, plugin.json, MCP, or changelog diffs.
+
+  Trigger phrases (from delegating skills):
+
+  - "audit this plugin project for Claude Code misuse"
+
+  - "what changed between Claude Code vX and vY"
+
+  - "review my hooks.json / SKILL.md / plugin.json against official docs"
+
+  - "is this Claude Code config correct"
+
+  '
+argument-hint: '[plugin project path or omit for current repo]'
+arguments: []
 disable-model-invocation: true
 user-invocable: false
-description: "Internal skill invoked by repo-polish (Step 6c) to audit Claude Code plugin projects. Fetches live docs and runs scripts/validate-plugin-json.sh + scripts/check-skill-frontmatter.sh to detect misuse, broken hook paths, stale patterns, and missed capabilities. Returns structured P1 findings before GitHub push. Never invoke directly — use repo-polish. Also callable by other skills needing live-doc-grounded answers about Claude Code hooks, skills, plugin.json, or MCP config."
-when_to_use: |
-  Invoked by repo-polish Step 6c on Claude Code plugin projects.
-  Also callable by other skills when they need a live-doc-grounded answer
-  about Claude Code hooks, skills, plugin.json, MCP, or changelog diffs.
-  Trigger phrases (from delegating skills):
-  - "audit this plugin project for Claude Code misuse"
-  - "what changed between Claude Code vX and vY"
-  - "review my hooks.json / SKILL.md / plugin.json against official docs"
-  - "is this Claude Code config correct"
 allowed-tools:
-  - WebFetch
-  - Read
-  - Grep
-  - Glob
+- WebFetch
+- Read
+- Grep
+- Glob
+disallowed-tools: []
+model: claude-sonnet-4-6
+effort: low
+context: ''
+agent: ''
+hooks: {}
+paths: []
+shell: bash
 metadata:
   capability: documentation
   provider: developer-workflow
   platforms:
-    - claude
+  - claude
   tags:
-    - documentation
-    - claude-code
-    - reference
-    - audit
-    - changelog
-  updated-date: "2026-06-16"
+  - documentation
+  - claude-code
+  - reference
+  - audit
+  - changelog
+  updated-date: '2026-06-16'
   scripts:
-    - scripts/validate-plugin-json.sh
-    - scripts/check-skill-frontmatter.sh
+  - scripts/validate-plugin-json.sh
+  - scripts/check-skill-frontmatter.sh
 ---
 
 # changelog-review

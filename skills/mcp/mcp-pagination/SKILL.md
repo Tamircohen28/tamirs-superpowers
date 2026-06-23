@@ -1,20 +1,29 @@
 ---
 name: mcp-pagination
+description: Internal guardrail invoked by mcp-builder only. Audits MCP tool definitions that contain list_*, search_*, find_*, get_all_*, or SQL-executing operations for missing pagination/limit parameters. NOT triggered by general MCP questions, single-item getters, or mutation tools. mcp-builder calls this at Phase 1.4 (after cataloging endpoints), Phase 3.0 (before writing each list/search tool schema), Phase 4.1 (post-Inspector checklist), and Phase 5 (eval design). Skip invocation when all tools are single-item getters or mutations only.
+when_to_use: Invoked automatically by mcp-builder when generating or reviewing MCP server designs that include list/search operations. Not called directly by users.
+argument-hint: '[path to MCP tool schema or server source file]'
+arguments: []
 disable-model-invocation: true
 user-invocable: false
-description: "Internal guardrail invoked by mcp-builder only. Audits MCP tool definitions that contain list_*, search_*, find_*, get_all_*, or SQL-executing operations for missing pagination/limit parameters. NOT triggered by general MCP questions, single-item getters, or mutation tools. mcp-builder calls this at Phase 1.4 (after cataloging endpoints), Phase 3.0 (before writing each list/search tool schema), Phase 4.1 (post-Inspector checklist), and Phase 5 (eval design). Skip invocation when all tools are single-item getters or mutations only."
 allowed-tools:
-  - Read
-  - Bash
+- Read
+- Bash
+disallowed-tools: []
 model: claude-sonnet-4-6
-when_to_use: "Invoked automatically by mcp-builder when generating or reviewing MCP server designs that include list/search operations. Not called directly by users."
+effort: low
+context: ''
+agent: ''
+hooks: {}
+paths: []
+shell: bash
 metadata:
   capability: mcp-guardrail
   tags:
-    - mcp
-    - pagination
-    - guardrail
-  updated-date: "2026-06-16"
+  - mcp
+  - pagination
+  - guardrail
+  updated-date: '2026-06-16'
 ---
 
 # MCP Pagination Guardrails (Internal)

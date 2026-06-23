@@ -1,27 +1,37 @@
 ---
 name: mcp-builder
-description: "Use when the user wants to build, scaffold, or implement an MCP (Model Context Protocol) server — wrapping a REST API, database, or service so Claude can call it as tools. Triggers on: 'build an MCP server', 'create MCP tools', 'write an MCP server for', 'integrate X with Claude via MCP', 'expose API via MCP', 'add MCP support for', 'make Claude able to call X', 'MCP server for Stripe/GitHub/Postgres', 'scaffold MCP', 'wrap this API in MCP', 'Claude tool for X API', 'FastMCP server', 'TypeScript MCP'. Do NOT trigger for: reading/inspecting an existing MCP server, MCP client configuration only, or non-MCP integrations."
-license: MIT
-model: claude-sonnet-4-6
-when_to_use: "User wants to build or scaffold an MCP server to integrate an external API or service with Claude. Example phrases: 'build an MCP server for Stripe', 'create MCP tools for our Postgres DB', 'write a FastMCP server for GitHub', 'expose our REST API via MCP', 'add MCP support for OpenWeatherMap', 'scaffold a TypeScript MCP server'."
-argument-hint: "[service or API to integrate — e.g. 'GitHub REST API', 'Stripe', 'internal Postgres DB', 'OpenWeatherMap']"
+description: 'Use when the user wants to build, scaffold, or implement an MCP (Model Context Protocol) server — wrapping a REST API, database, or service so Claude can call it as tools. Triggers on: ''build an MCP server'', ''create MCP tools'', ''write an MCP server for'', ''integrate X with Claude via MCP'', ''expose API via MCP'', ''add MCP support for'', ''make Claude able to call X'', ''MCP server for Stripe/GitHub/Postgres'', ''scaffold MCP'', ''wrap this API in MCP'', ''Claude tool for X API'', ''FastMCP server'', ''TypeScript MCP''. Do NOT trigger for: reading/inspecting an existing MCP server, MCP client configuration only, or non-MCP integrations.'
+when_to_use: 'User wants to build or scaffold an MCP server to integrate an external API or service with Claude. Example phrases: ''build an MCP server for Stripe'', ''create MCP tools for our Postgres DB'', ''write a FastMCP server for GitHub'', ''expose our REST API via MCP'', ''add MCP support for OpenWeatherMap'', ''scaffold a TypeScript MCP server''.'
+argument-hint: '[service or API to integrate — e.g. ''GitHub REST API'', ''Stripe'', ''internal Postgres DB'', ''OpenWeatherMap'']'
+arguments: []
+disable-model-invocation: false
+user-invocable: true
 allowed-tools:
-  - Bash
-  - Read
-  - Write
-  - Edit
-  - Glob
-  - Grep
-  - WebFetch
-  - Skill
+- Bash
+- Read
+- Write
+- Edit
+- Glob
+- Grep
+- WebFetch
+- Skill
+disallowed-tools: []
+model: claude-sonnet-4-6
+effort: medium
+context: ''
+agent: ''
+hooks: {}
+paths: []
+shell: bash
+license: MIT
 metadata:
   capability: mcp-development
   tags:
-    - mcp
-    - server
-    - integration
-    - developer-tools
-  updated-date: "2026-06-16"
+  - mcp
+  - server
+  - integration
+  - developer-tools
+  updated-date: '2026-06-16'
 ---
 
 # MCP Server Development Guide

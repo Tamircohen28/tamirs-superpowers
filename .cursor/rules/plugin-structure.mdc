@@ -25,10 +25,10 @@ This repo is a **Claude Code plugin** (Markdown + JSON + Bash only). There is no
 - No secrets or tokens committed — `.mcp.json` uses `${ENV_VAR}` syntax only
 - No Wix-internal references anywhere
 - No `marketplace.json` in this repo — it is published through `Tamircohen28/plugins`
-- Every `SKILL.md` needs valid YAML frontmatter with at least `name` and `description`
+- Every `SKILL.md` needs valid YAML frontmatter with **all 16 official Claude Code fields** plus `metadata.updated-date` (see `skills/meta/skill-creator/references/frontmatter-template.md`)
 
 ## Validate after every change
 
 ```bash
-make validate   # JSON lint + shellcheck + SKILL.md frontmatter
+make validate   # JSON lint + shellcheck + full SKILL.md frontmatter
 ```

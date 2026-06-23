@@ -1,21 +1,31 @@
 ---
 name: session-report
-description: "Use when the user asks about Claude token usage, session analytics, cache performance, or wants to know what's consuming their Claude budget. Triggers: 'session report', 'token usage', 'how many tokens', 'cache hit rate', 'which project costs most', 'claude analytics', 'show my usage', 'what am I spending on Claude', 'most expensive session', 'usage report', 'claude stats', 'token breakdown'. Also triggers for time-windowed queries like 'usage this week', 'last 7 days', 'usage since Monday'."
-argument-hint: "[optional time window — e.g. '7d', '30d', 'since Monday', '24h']"
+description: 'Use when the user asks about Claude token usage, session analytics, cache performance, or wants to know what''s consuming their Claude budget. Triggers: ''session report'', ''token usage'', ''how many tokens'', ''cache hit rate'', ''which project costs most'', ''claude analytics'', ''show my usage'', ''what am I spending on Claude'', ''most expensive session'', ''usage report'', ''claude stats'', ''token breakdown''. Also triggers for time-windowed queries like ''usage this week'', ''last 7 days'', ''usage since Monday''.'
+when_to_use: User asks for usage analytics — 'show my Claude usage', 'token report', 'session report', 'cache hit rate', 'expensive prompts', 'subagent cost breakdown', 'what did I spend on Claude this week', 'usage breakdown by project'.
+argument-hint: '[optional time window — e.g. ''7d'', ''30d'', ''since Monday'', ''24h'']'
+arguments: []
+disable-model-invocation: false
+user-invocable: true
 allowed-tools:
-  - Bash
-  - Read
-  - Edit
-when_to_use: "User asks for usage analytics — 'show my Claude usage', 'token report', 'session report', 'cache hit rate', 'expensive prompts', 'subagent cost breakdown', 'what did I spend on Claude this week', 'usage breakdown by project'."
+- Bash
+- Read
+- Edit
+disallowed-tools: []
 model: claude-sonnet-4-6
+effort: medium
+context: ''
+agent: ''
+hooks: {}
+paths: []
+shell: bash
 metadata:
   capability: meta
   tags:
-    - analytics
-    - tokens
-    - usage
-    - report
-  updated-date: "2026-06-16"
+  - analytics
+  - tokens
+  - usage
+  - report
+  updated-date: '2026-06-16'
 ---
 
 # Session Report

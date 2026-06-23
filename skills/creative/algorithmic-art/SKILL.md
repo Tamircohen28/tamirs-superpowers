@@ -1,23 +1,33 @@
 ---
 name: algorithmic-art
-description: "Use when the user wants to create generative art, algorithmic art, creative coding, or code-driven visuals — including flow fields, particle systems, noise-based art, Lissajous figures, recursive trees, Voronoi patterns, L-systems, fractals, or any interactive p5.js sketch. Trigger phrases: 'generative art', 'algorithmic art', 'flow field', 'particle system', 'make art with code', 'creative coding', 'p5.js sketch', 'procedural art', 'noise art', 'make something visual with code', 'code art'."
-license: Apache-2.0
-when_to_use: "User asks to create generative or algorithmic art using code. Trigger phrases: 'create algorithmic art', 'generative art', 'flow field', 'particle system', 'make art with p5.js', 'create visual art with code', 'procedural visuals', 'noise art', 'Lissajous figures', 'recursive tree art', 'fractal art'."
-argument-hint: "[art style or concept — e.g. 'flow field', 'particle system', 'Lissajous figures', 'recursive tree', 'Voronoi']"
-model: claude-sonnet-4-6
+description: 'Use when the user wants to create generative art, algorithmic art, creative coding, or code-driven visuals — including flow fields, particle systems, noise-based art, Lissajous figures, recursive trees, Voronoi patterns, L-systems, fractals, or any interactive p5.js sketch. Trigger phrases: ''generative art'', ''algorithmic art'', ''flow field'', ''particle system'', ''make art with code'', ''creative coding'', ''p5.js sketch'', ''procedural art'', ''noise art'', ''make something visual with code'', ''code art''.'
+when_to_use: 'User asks to create generative or algorithmic art using code. Trigger phrases: ''create algorithmic art'', ''generative art'', ''flow field'', ''particle system'', ''make art with p5.js'', ''create visual art with code'', ''procedural visuals'', ''noise art'', ''Lissajous figures'', ''recursive tree art'', ''fractal art''.'
+argument-hint: '[art style or concept — e.g. ''flow field'', ''particle system'', ''Lissajous figures'', ''recursive tree'', ''Voronoi'']'
+arguments: []
+disable-model-invocation: false
+user-invocable: true
 allowed-tools:
-  - Read
-  - Write
-  - Bash
+- Read
+- Write
+- Bash
+disallowed-tools: []
+model: claude-sonnet-4-6
+effort: medium
+context: ''
+agent: ''
+hooks: {}
+paths: []
+shell: bash
+license: Apache-2.0
 metadata:
   capability: creative-coding
   tags:
-    - art
-    - p5js
-    - generative
-    - creative
-    - content
-  updated-date: "2026-06-16"
+  - art
+  - p5js
+  - generative
+  - creative
+  - content
+  updated-date: '2026-06-16'
 ---
 
 # Algorithmic Art — Generative Art with p5.js
