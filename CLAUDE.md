@@ -22,9 +22,10 @@ A Claude Code plugin (marketplace + bundled skills + hooks). It is **not** a Nod
 ## Commands
 
 ```bash
-make validate    # validate all JSON files and shellcheck all .sh files
-make lint        # shellcheck only
-make test        # same as validate
+make validate           # shellcheck + JSON + frontmatter + contract test
+make test-repo-contract # assert scaffold-gold passes app-gold profile
+make lint               # shellcheck only
+make test               # same as validate
 ```
 
 There is no install step — this is a plugin, not a standalone tool.
@@ -59,6 +60,8 @@ Scopes: `skills`, `hooks`, `marketplace`, `ci`, `docs`
 | `mcp` | mcp-builder, mcp-pagination |
 | `meta` | find-skill, session-report, skill-creator |
 | `repo` | multi-agent-repo, repo-scaffold, repo-standards |
+
+**Shared contract:** `skills/repo/_contract/` — canonical templates, scoring scripts, and `scaffold-gold` fixture. `repo-scaffold` and `repo-standards` both consume it; `make test-repo-contract` enforces alignment.
 
 ## User-invocable vs internal skills
 

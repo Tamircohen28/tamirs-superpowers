@@ -73,7 +73,7 @@ Three skills are **internal** — invoked automatically by parent skills (`repo-
 **What it does:**
 1. **review** (default) — standards inventory, IP scan, multi-agent-repo review appendix; writes `docs/engineering/repo-standards-review-<date>.md`
 2. **plan** — phased remediation (phases 0–7)
-3. **polish** — implements on `feat/repo-standards-setup`, delegates to `multi-agent-repo`, `docs-review`, `changelog-review`; opens PR (does not merge or create new remote repo)
+3. **polish** — implements on `feat/repo-standards-setup`, delegates to `multi-agent-repo`, `docs-review`, `changelog-review`; `assert-contract.sh app-gold` must pass; opens PR (does not merge or create new remote repo)
 
 **Example:** `/tamirs-superpowers:repo-standards review ~/projects/my-app`
 
@@ -83,7 +83,7 @@ Three skills are **internal** — invoked automatically by parent skills (`repo-
 
 **When to use:** Starting a brand-new project — you want a fully wired GitHub repo in one command.
 
-**What it does:** Creates a private GitHub repo from an idea or description with production-ready infrastructure: README with badges, docs tree, CI/CD, CLAUDE.md, `.claude/` config, branch protection, and project skills.
+**What it does:** Creates a private GitHub repo from an idea or description with production-ready infrastructure: README with badges, docs tree, CI/CD, AGENTS.md + multi-agent adapters, branch protection, and project skills. Output must pass the shared `app-gold` contract (`make test-repo-contract`).
 
 **Example:** `/tamirs-superpowers:repo-scaffold my-new-tool -- "A CLI that does X"`
 

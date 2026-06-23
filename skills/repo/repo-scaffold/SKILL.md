@@ -76,25 +76,20 @@ When `--src` is a GitHub URL, fetch the root file listing to check for `package.
 
 These patterns are distilled from TamirCohen28's repos. Apply them to every generated repo.
 
-**README structure:** centered hero section, badges row (CI, MIT, Claude Code `D97757`), elevator pitch, features list, quick-start, architecture overview, links to docs.
+**README structure:** centered hero, badges (CI, MIT, Claude Code `D97757`), elevator pitch, features, **Prerequisites**, Quick Start, architecture, docs links.
 
-**Docs tree:**
+**Docs tree** (canonical — see `skills/repo/_contract/standards-contract.json`):
 ```
 docs/
-  README.md            ← canonical index
+  README.md
+  CHANGELOG.md
+  CONTRIBUTING.md
   user/
-    quick-start.md
-    usage.md
-    troubleshooting.md
-    reference/commands.md
   engineering/
-    architecture/overview.md
-    decisions/ADR-001-initial-architecture.md
-    guides/getting-started.md
-    build-and-release/README.md
+  agent-guidelines/
 ```
 
-**Root file checklist:** `CLAUDE.md`, `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md`, `SECURITY.md`, `LICENSE` (MIT), `Makefile`, `.gitignore`, `CODEOWNERS`, `.nvmrc` (node/nextjs only).
+**Root file checklist:** `AGENTS.md`, `CLAUDE.md` (line 1: `@AGENTS.md`), `LICENSE`, `Makefile` (with `agent:check`), `.gitignore`, `CODEOWNERS`, `CODE_OF_CONDUCT.md`, `SECURITY.md`, `scripts/check-agent-drift.sh`, `.cursor/rules/000-project.mdc`, `.nvmrc` (node/nextjs only).
 
 **Branch strategy:** `master` (default), `stable` (releases). Feature: `feat/`, fixes: `fix/`.
 
@@ -105,13 +100,13 @@ docs/
 Co-Authored-By: Claude <noreply@anthropic.com>
 ```
 
-**CLAUDE.md:** 200-350 lines. Sections: Overview, Architecture, Quick Start, Commands, Coding Standards, Commit Convention, Constraints, Working With Claude Code.
+**CLAUDE.md:** Line 1 `@AGENTS.md`; Claude-only addenda ~30 lines max. Full portable policy in `AGENTS.md` (100–200 lines).
 
-**CI:** Three workflows: `ci.yml` (job MUST be named exactly `CI`), `claude.yml`, `release.yml`. All use `ubuntu-latest` except Swift which uses `macos-latest`.
+**CI:** `ci.yml` with jobs named exactly `CI` and `secret-scan`; plus `claude.yml`, `release.yml`, `dependabot.yml`. All use `ubuntu-latest` except Swift (`macos-latest`).
 
 **Branch protection on `master`:** require 1 PR review, require `CI` status check, no direct pushes.
 
-Read `$CLAUDE_SKILL_DIR/references/templates.md` for exact template content for README, CLAUDE.md, .claude/settings.json, CI workflows, Makefile, and .gitignore — use those templates, do not invent formats.
+**Contract:** `CONTRACT_ROOT="$(cd "$CLAUDE_SKILL_DIR/../_contract" && pwd)"`. Read `$CONTRACT_ROOT/templates/INDEX.md` and stack bodies in `legacy-scaffold-templates.md` — do not invent formats.
 
 ---
 
@@ -155,9 +150,9 @@ ls "$REPO_ROOT"
 
 ### Stage 3: Parallel Content Generation
 
-Fan out 4 agents IN THE SAME TURN (one message with 4 Agent tool calls). Each agent writes its files directly to `REPO_ROOT`. They operate on non-overlapping directories.
+Fan out **5 agents** IN THE SAME TURN (one message with 5 Agent tool calls). Each agent writes its files directly to `REPO_ROOT`. They operate on non-overlapping directories.
 
-Pass to every agent: `REPO_NAME`, `DESCRIPTION`, `TECH`, `REPO_ROOT`, `SKILL_DIR=$CLAUDE_SKILL_DIR`.
+Pass to every agent: `REPO_NAME`, `DESCRIPTION`, `TECH`, `REPO_ROOT`, `CONTRACT_ROOT="$(cd "$CLAUDE_SKILL_DIR/../_contract" && pwd)"`.
 
 ---
 
@@ -171,25 +166,27 @@ Description: DESCRIPTION
 Tech stack: TECH
 Repo root: REPO_ROOT
 
-Read templates from: SKILL_DIR/references/templates.md
+Read templates from: CONTRACT_ROOT/templates/INDEX.md and legacy-scaffold-templates.md
 
 Write these files (fully populated — no template placeholders left unfilled):
 
-1. REPO_ROOT/README.md — hero README per template (CI badge, MIT badge, Claude Code badge D97757)
+1. REPO_ROOT/README.md — hero README with Prerequisites + Quick Start (CI badge, MIT badge, Claude Code badge D97757)
 2. REPO_ROOT/docs/README.md — canonical docs index
-3. REPO_ROOT/docs/user/quick-start.md — 10-15 step guide
-4. REPO_ROOT/docs/user/usage.md — common workflows
-5. REPO_ROOT/docs/user/troubleshooting.md — common issues + fixes
-6. REPO_ROOT/docs/user/reference/commands.md — command reference table
-7. REPO_ROOT/docs/engineering/architecture/overview.md — components, data flow, key decisions
-8. REPO_ROOT/docs/engineering/decisions/ADR-001-initial-architecture.md — first ADR
-9. REPO_ROOT/docs/engineering/guides/getting-started.md — developer onboarding
-10. REPO_ROOT/docs/engineering/build-and-release/README.md — how to build, test, release
+3. REPO_ROOT/docs/CHANGELOG.md — Unreleased + 0.1.0 stub
+4. REPO_ROOT/docs/CONTRIBUTING.md — fork, branch naming, commit convention, PR process
+5. REPO_ROOT/docs/user/quick-start.md — 10-15 step guide
+6. REPO_ROOT/docs/user/usage.md — common workflows
+7. REPO_ROOT/docs/user/troubleshooting.md — common issues + fixes
+8. REPO_ROOT/docs/user/reference/commands.md — command reference table
+9. REPO_ROOT/docs/engineering/architecture/overview.md — components, data flow, key decisions
+10. REPO_ROOT/docs/engineering/decisions/ADR-001-initial-architecture.md — first ADR
+11. REPO_ROOT/docs/engineering/guides/getting-started.md — developer onboarding
+12. REPO_ROOT/docs/engineering/build-and-release/README.md — how to build, test, release
 ```
 
 ---
 
-**Agent B — .claude/ Configuration** (writes `.claude/` and `CLAUDE.md`)
+**Agent B — .claude/ Configuration** (writes `.claude/` only — `CLAUDE.md` is Agent E)
 
 ```
 You are setting up the Claude Code workspace config for a new GitHub repo.
@@ -199,17 +196,15 @@ Description: DESCRIPTION
 Tech stack: TECH
 Repo root: REPO_ROOT
 
-Read templates from: SKILL_DIR/references/templates.md
+Read templates from: CONTRACT_ROOT/templates/legacy-scaffold-templates.md
 
 Write these files:
 
-1. REPO_ROOT/CLAUDE.md — 200-350 lines per template (Overview, Architecture, Quick Start, Commands, Coding Standards, Commit Convention, Constraints, Working With Claude Code)
+1. REPO_ROOT/.claude/settings.json — per template, with TECH-appropriate permissions added to the allow list
 
-2. REPO_ROOT/.claude/settings.json — per template, with TECH-appropriate permissions added to the allow list
+2. REPO_ROOT/.claude/rules/constraints.md — project hard constraints (no secrets, no force-push to master, no .github/workflows/ edits without review, plus 3-5 TECH-appropriate constraints)
 
-3. REPO_ROOT/.claude/rules/constraints.md — project hard constraints (no secrets, no force-push to master, no .github/workflows/ edits without review, plus 3-5 TECH-appropriate constraints)
-
-4. REPO_ROOT/.claude/skills/run-REPO_NAME/SKILL.md — utility skill to build and run the project locally (30-50 lines, correct commands for TECH)
+3. REPO_ROOT/.claude/skills/run-REPO_NAME/SKILL.md — utility skill to build and run the project locally (30-50 lines, correct commands for TECH)
 ```
 
 ---
@@ -224,19 +219,21 @@ Description: DESCRIPTION
 Tech stack: TECH
 Repo root: REPO_ROOT
 
-Read CI templates from: SKILL_DIR/references/templates.md
+Read CI templates from: CONTRACT_ROOT/templates/github/ci.yml.tmpl and legacy-scaffold-templates.md
 
 Write these files:
 
-1. REPO_ROOT/.github/workflows/ci.yml — job MUST be named exactly "CI". Use TECH-appropriate setup action. ubuntu-latest except Swift uses macos-latest.
+1. REPO_ROOT/.github/workflows/ci.yml — jobs `CI` and `secret-scan`. TECH-appropriate setup in `CI`. ubuntu-latest except Swift uses macos-latest.
 
 2. REPO_ROOT/.github/workflows/claude.yml — Claude Code automation per template
 
 3. REPO_ROOT/.github/workflows/release.yml — per template
 
-4. REPO_ROOT/.github/pull_request_template.md — Summary, Type of change (checkbox), Test plan, Notes, "Generated with Claude Code" footer
+4. REPO_ROOT/.github/pull_request_template.md — Summary, Type of change (checkbox), Test plan, Notes
 
-5. REPO_ROOT/CODEOWNERS — "* @TamirCohen28"
+5. REPO_ROOT/.github/dependabot.yml — per CONTRACT_ROOT/templates/github/dependabot.yml.tmpl
+
+6. REPO_ROOT/CODEOWNERS — "* @TamirCohen28"
 ```
 
 ---
@@ -254,30 +251,53 @@ Repo root: REPO_ROOT
 Write these files:
 
 1. REPO_ROOT/LICENSE — MIT license, copyright "2026 Tamir Cohen"
-2. REPO_ROOT/CONTRIBUTING.md — fork, branch naming, commit convention, PR process
-3. REPO_ROOT/CODE_OF_CONDUCT.md — Contributor Covenant 2.1 short form
-4. REPO_ROOT/SECURITY.md — supported versions, report to tamircohen2468@gmail.com
-5. REPO_ROOT/Makefile — per template for TECH (help default, install, build, test, lint, dev, clean)
-6. REPO_ROOT/.gitignore — comprehensive for TECH per template
-7. REPO_ROOT/.nvmrc — ONLY if TECH is node or nextjs; content: "22"
-8. REPO_ROOT/CHANGELOG.md — stub with ## [Unreleased] and ## [0.1.0] sections
+2. REPO_ROOT/CODE_OF_CONDUCT.md — Contributor Covenant 2.1 short form
+3. REPO_ROOT/SECURITY.md — supported versions, report to tamircohen2468@gmail.com
+4. REPO_ROOT/Makefile — per template for TECH (help default, install, build, test, lint, dev, clean, **agent:check** running scripts/check-agent-drift.sh)
+5. REPO_ROOT/.gitignore — comprehensive for TECH per template
+6. REPO_ROOT/.nvmrc — ONLY if TECH is node or nextjs; content: "22"
+7. REPO_ROOT/scripts/check-agent-drift.sh — copy from CONTRACT_ROOT/templates/check-agent-drift.sh.tmpl (executable)
 ```
 
 ---
 
-### Stage 4: Assemble, Push, and Protect
+**Agent E — Multi-agent** (writes `AGENTS.md`, `CLAUDE.md`, `.cursor/rules/`)
 
-After all 4 agents complete:
+```
+Project: REPO_NAME
+Description: DESCRIPTION
+Tech stack: TECH
+Repo root: REPO_ROOT
+
+Follow multi-agent-repo references/platform-setup.md (phases 0–1):
+
+1. REPO_ROOT/AGENTS.md — canonical portable rules (100–200 lines, exact make/npm commands)
+2. REPO_ROOT/CLAUDE.md — line 1: @AGENTS.md; Claude-only addenda only
+3. REPO_ROOT/.cursor/rules/000-project.mdc — alwaysApply: true, points to AGENTS.md
+4. REPO_ROOT/docs/agent-guidelines/README.md — stub index linking to AGENTS.md
+```
+
+---
+
+### Stage 4: Assemble, Contract Gate, Push, and Protect
+
+After all 5 agents complete:
 
 ```bash
 cd "$REPO_ROOT"
+CONTRACT_ROOT="$(cd "$CLAUDE_SKILL_DIR/../_contract" && pwd)"
+bash "$CONTRACT_ROOT/scripts/assert-contract.sh" "$REPO_ROOT" app-gold
+```
+
+If assert-contract fails, fix gaps and re-run **before** committing.
+
+```bash
 git add -A
 git commit -m "$(cat <<'EOF'
 chore(scaffold): initial repo scaffold
 
-Generated by repo-scaffold skill with production-master style patterns.
-Includes: README, docs, CLAUDE.md, .claude/ config, CI/CD workflows,
-branch protection setup, and project-specific skill.
+Generated by repo-scaffold skill — passes app-gold contract profile.
+Includes: README, docs, AGENTS.md, CLAUDE.md, .claude/, CI/CD, multi-agent adapters.
 
 Co-Authored-By: Claude <noreply@anthropic.com>
 EOF
@@ -322,7 +342,8 @@ Save them to REPO_ROOT/.claude/skills/ and push to origin master.
 Print:
 ```
 ✓ Repo created:       https://github.com/TamirCohen28/REPO_NAME
-✓ Files committed:    README, docs/, CLAUDE.md, .claude/, .github/workflows/, root infra
+✓ Contract:          app-gold profile passed (assert-contract.sh)
+✓ Files committed:    README, docs/, AGENTS.md, CLAUDE.md, .claude/, .github/, root infra
 ✓ Branch protection:  master — 1 required review + CI check
 ✓ skill-creator:      ran — check .claude/skills/ for generated skills
 

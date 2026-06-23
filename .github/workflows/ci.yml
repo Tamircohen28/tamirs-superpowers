@@ -70,3 +70,11 @@ jobs:
         run: npm install -g @anthropic-ai/claude-code
       - name: Run claude plugin validate
         run: claude plugin validate .
+
+  contract-test:
+    name: Repo contract (scaffold-gold)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Assert app-gold contract fixture
+        run: make test-repo-contract

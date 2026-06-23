@@ -34,6 +34,7 @@ tamirs-superpowers/              ← GitHub repo root
     ├── mcp/                     ← mcp-builder, mcp-pagination
     ├── meta/                    ← find-skill, session-report, skill-creator
     └── repo/                    ← multi-agent-repo, repo-scaffold, repo-standards
+        └── _contract/           ← shared templates, scripts, scaffold-gold fixture (not a skill)
 ```
 
 ## Hook system

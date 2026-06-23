@@ -55,16 +55,19 @@ Publishing or maintaining a repo without a unified checklist leaks employer IP, 
 
 | Path | When to read |
 |------|----------------|
+| `../_contract/README.md` | Contract change workflow; canonical paths |
+| `../_contract/standards-contract.json` | Machine contract (`app-gold` profile) |
+| `../_contract/templates/INDEX.md` | Polish phase 1–4 templates |
 | `references/mode-contracts.md` | Parse args; stop conditions |
-| `references/standards-rubric.md` | Review checklist S1–S8 |
+| `references/standards-rubric.md` | Pointer → `_contract/standards-rubric.md` |
 | `references/polish-phases.md` | Polish implementation order |
 | `references/delegation.md` | Skill() prompts for child skills |
-| `references/scaffold-templates.md` | README, docs, CI, branch protection |
+| `references/scaffold-templates.md` | Pointer → `_contract/templates/` |
 | `scripts/parse-mode-args.sh` | Mode/target/doc_path parsing |
-| `scripts/standards-inventory.sh` | Deterministic standards JSON |
-| `scripts/score-standards-gaps.sh` | Auto P1/P2/P3 gaps |
+| `scripts/standards-inventory.sh` | Re-export → `_contract/scripts/` |
+| `scripts/score-contract-gaps.sh` | Merged standards + multi-agent gaps |
+| `scripts/assert-contract.sh` | Polish exit gate (app-gold P1/P2/P3 = 0) |
 | `scripts/ip-scan.sh` | Employer IP scan |
-| `scripts/check-repo-hygiene.sh` | Generalized hygiene signals |
 | `templates/*.md.tmpl` | Report, plan, PR body |
 
 ## Required execution flow
@@ -78,6 +81,7 @@ Publishing or maintaining a repo without a unified checklist leaks employer IP, 
 
 ```bash
 SKILL_DIR="$CLAUDE_SKILL_DIR"
+CONTRACT_ROOT="$(cd "$SKILL_DIR/../_contract" && pwd)"
 PARSED="$(bash "$SKILL_DIR/scripts/parse-mode-args.sh" $ARGUMENTS)"
 MODE="$(echo "$PARSED" | jq -r '.mode')"
 TARGET_ROOT="$(echo "$PARSED" | jq -r '.target')"
@@ -85,7 +89,7 @@ DOC_PATH="$(echo "$PARSED" | jq -r '.doc_path // empty')"
 CONSTRAINTS="$(echo "$PARSED" | jq -r '.constraints')"
 DATE="$(date +%Y-%m-%d)"
 INVENTORY="$(bash "$SKILL_DIR/scripts/standards-inventory.sh" "$TARGET_ROOT")"
-GAPS="$(echo "$INVENTORY" | bash "$SKILL_DIR/scripts/score-standards-gaps.sh")"
+GAPS="$(bash "$SKILL_DIR/scripts/score-contract-gaps.sh" "$TARGET_ROOT" app-gold)"
 IP_SCAN="$(bash "$SKILL_DIR/scripts/ip-scan.sh" "$TARGET_ROOT" 2>&1 || true)"
 REVIEW_PATH="$TARGET_ROOT/docs/engineering/repo-standards-review-$DATE.md"
 PLAN_PATH="$TARGET_ROOT/docs/engineering/repo-standards-plan-$DATE.md"
@@ -164,10 +168,10 @@ cd "$TARGET_ROOT"
 git checkout -b feat/repo-standards-setup 2>/dev/null || git checkout -b "feat/repo-standards-setup-$(date +%s)"
 ```
 
-5. **Phases 1–4:** Implement per plan using `references/scaffold-templates.md` (README, docs, `.github/`, CODEOWNERS, branch protection via `gh api`).
+5. **Phases 1–4:** Implement per plan using `$CONTRACT_ROOT/templates/` (see `INDEX.md`).
 6. **Phase 5:** `Skill("multi-agent-repo")` per `references/delegation.md` on the same branch.
 7. **Phase 6:** `Skill("docs-review")`; if plugin, `Skill("changelog-review")`. Fix all P1 findings.
-8. **Phase 7:** Re-run inventory + gap scoring; P1 must be 0.
+8. **Phase 7:** `bash "$SKILL_DIR/scripts/assert-contract.sh" "$TARGET_ROOT" app-gold` — P1/P2/P3 must be 0.
 9. Commit in logical chunks; push; `gh pr create` with `templates/pr-body.md.tmpl`.
 10. Print PR URL.
 

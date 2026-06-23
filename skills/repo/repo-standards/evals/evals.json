@@ -32,6 +32,15 @@
         { "name": "pr_not_merged", "description": "PR opened, not merged" },
         { "name": "no_gh_repo_create", "description": "gh repo create not run" }
       ]
+    },
+    {
+      "id": 4,
+      "prompt": "Run score-contract-gaps on skills/repo/_contract/fixtures/scaffold-gold with CONTRACT_OFFLINE=1. Expect P1=P2=P3=0.",
+      "expected_output": "Merged gap report with zero deterministic gaps for app-gold profile.",
+      "files": ["../../_contract/fixtures/scaffold-gold"],
+      "assertions": [
+        { "name": "zero_gaps", "description": "counts.p1, p2, p3 all zero" }
+      ]
     }
   ]
 }

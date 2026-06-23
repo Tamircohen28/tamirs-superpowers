@@ -14,7 +14,9 @@
         "CLAUDE.md is between 200 and 350 lines",
         "Branch protection requires status check named 'CI' and 1 approving review",
         ".claude/settings.json includes tamirs-plugins marketplace entry",
+        "docs/ has CONTRIBUTING.md and CHANGELOG.md under docs/",
         "docs/ has all 8 required subdocs (quick-start, usage, troubleshooting, commands reference, architecture overview, ADR-001, getting-started, build-and-release)",
+        "assert-contract.sh app-gold passes on REPO_ROOT before push",
         "No placeholder strings like '{{REPO_NAME}}' or '{{DESCRIPTION}}' appear in any generated file",
         "A project-specific run skill exists at .claude/skills/run-job-tracker-cli/SKILL.md"
       ]

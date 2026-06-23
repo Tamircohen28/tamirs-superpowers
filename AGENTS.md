@@ -10,7 +10,7 @@ Install via the `tamirs-plugins` marketplace catalog:
 
 ## Working agreements
 
-- Validate after every change: `make validate` (shellcheck + JSON lint + full SKILL.md frontmatter audit)
+- Validate after every change: `make validate` (shellcheck + JSON lint + frontmatter + `make test-repo-contract`)
 - Commit format: `<type>(<scope>): <description>` — types: `feat`, `fix`, `chore`, `docs`, `refactor` — scopes: `skills`, `hooks`, `marketplace`, `ci`, `docs`
 - Never add `runs-on: [self-hosted]` to any CI workflow — use `ubuntu-latest`
 - Never commit secrets or tokens — `.mcp.json` uses `${ENV_VAR}` placeholders only
@@ -31,9 +31,8 @@ Install via the `tamirs-plugins` marketplace catalog:
 | `hooks/hooks.json` | Hook event wiring (PreToolUse, SessionStart, etc.) |
 | `hooks/lib/worktree-common.sh` | Shared bash helpers for all worktree hooks — do not modify without shellchecking |
 | `skills/<domain>/<name>/SKILL.md` | Bundled skill definitions — grouped by domain |
-| `statusline.sh` | Statusline script wired via `plugin.json` |
-| `.mcp.json` | MCP server stubs — fill env vars to activate |
-| `Makefile` | `validate`, `lint`, `test` targets |
+| `skills/repo/_contract/` | Shared repo scaffold/standards contract (not a skill) |
+| `Makefile` | `validate`, `lint`, `test`, `test-repo-contract` |
 
 ## Off-limits
 
