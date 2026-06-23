@@ -13,7 +13,7 @@ Use when `$CONTRACT_PROFILE` is `plugin-gold` or `inventory-agent-setup.sh` repo
 
 ## Auto-scored (PK* gaps)
 
-Deterministic checks via `score-plugin-gaps.sh`: canonical layout, marketplace manifest, plugin wrapper, dist/ GENERATED markers, validate CI job, CODEOWNERS paths.
+Deterministic checks via `score-plugin-gaps.sh`: canonical layout, marketplace manifest, plugin wrapper, `package-lock.json` (for `npm ci`), dist/ GENERATED markers, validate CI job, CODEOWNERS paths.
 
 ## Manual review axes (v1)
 

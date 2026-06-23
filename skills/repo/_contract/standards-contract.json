@@ -1,5 +1,5 @@
 {
-  "version": "1.1.0",
+  "version": "1.1.1",
   "profiles": {
     "app-gold": {
       "repo_type": "app",
@@ -77,6 +77,7 @@
           "scripts/build.mjs",
           "scripts/validate.mjs",
           "agent-kit.config.json",
+          "package-lock.json",
           "dist/codex/AGENTS.md",
           "dist/cursor/.cursor/rules/000-core.mdc"
         ],
@@ -84,7 +85,8 @@
         "require_plugin_wrapper": true,
         "require_generated_markers": true,
         "codeowners_paths": ["canonical/", "plugins/", "scripts/", "hooks/"],
-        "require_package_json": true
+        "require_package_json": true,
+        "require_package_lock": true
       },
       "exit_gate": { "p1": 0, "p2": 0, "p3": 0 },
       "offline_scoring": {
