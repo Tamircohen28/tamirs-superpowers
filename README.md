@@ -84,8 +84,8 @@ Each skill lives at `skills/<skill-name>/SKILL.md`.
 | `/tamirs-superpowers:pr-dev` | Drive a PR to merge — address review threads, fix CI, squash-merge after explicit approval. |
 | `/tamirs-superpowers:multi-agent-repo` | Audit, plan, and implement canonical multi-agent setup (AGENTS.md + thin adapters + drift checks) across Claude Code, Cursor, and Codex — review / plan / dev modes. Replaces former `plugin-compat`. |
 | `/tamirs-superpowers:targeted-debug` | Scope-bounded debug from a stack trace — reads only named files. |
-| `/tamirs-superpowers:repo-standards` | Audit, plan, and polish repos to Tamir Cohen standards — README, docs, CI/CD, branch rules, employer IP scan, hygiene, and multi-agent setup (review / plan / polish modes). |
-| `/tamirs-superpowers:repo-scaffold` | Create a new private GitHub repo from scratch — README badges, docs, CLAUDE.md, .claude/ config, CI/CD, branch protection, and project skills. |
+| `/tamirs-superpowers:repo-standards` | Audit, plan, and polish repos to Tamir Cohen standards — README, docs, CI/CD, branch rules, employer IP scan, hygiene, and multi-agent setup. Auto-detects `app-gold` vs `plugin-gold` (agent-kit repos with `canonical/`). |
+| `/tamirs-superpowers:repo-scaffold` | Create a new private GitHub repo from scratch — app repos (`app-gold`) or agent-kit plugin distribution repos (`--type plugin` → `plugin-gold`: canonical rules/skills, marketplace, dist/ adapters). |
 | `/tamirs-superpowers:mcp-builder` | Build MCP servers (auto-invokes `mcp-pagination` for list/search tools). |
 | `/tamirs-superpowers:find-skill` | Search skill marketplaces and rank matches for a query. |
 | `/tamirs-superpowers:skill-creator` | Create, improve, and benchmark Claude Code skills. |
@@ -127,6 +127,7 @@ the background (`npm ci` / `yarn` / `pnpm` / `poetry`, skipped when
 
 - [User docs](docs/user/README.md) — concepts, quick start, troubleshooting
 - [Skill reference](docs/user/reference.md) — every skill explained with examples
+- [Agent-kit repos](docs/user/agent-kit.md) — scaffold and maintain multi-platform rule/skill distribution repos (`repo-scaffold --type plugin`)
 - [Engineering docs](docs/engineering/README.md) — architecture, development workflow, decisions
 - [Changelog](CHANGELOG.md)
 - [Contributing](docs/CONTRIBUTING.md)

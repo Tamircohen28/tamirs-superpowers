@@ -45,7 +45,9 @@ metadata:
 
 # repo-standards
 
-Audit, plan, and implement **Tamir Cohen repo standards**: README + docs tree, GitHub CI/CD, branch governance, employer-IP clean, repo hygiene, and **multi-agent** support (via `multi-agent-repo`).
+Audit, plan, and implement **Tamir Cohen repo standards**: README + docs tree, GitHub CI/CD, branch governance, employer-IP clean, repo hygiene, and **multi-agent** support (via `multi-agent-repo`). Auto-detects `app-gold` vs `plugin-gold` (agent-kit repos).
+
+**User guide (agent-kit):** [docs/user/agent-kit.md](../../../docs/user/agent-kit.md)
 
 ## Why this skill exists
 
@@ -62,6 +64,7 @@ Publishing or maintaining a repo without a unified checklist leaks employer IP, 
 | `references/standards-rubric.md` | Pointer → `_contract/standards-rubric.md` |
 | `references/polish-phases.md` | Polish implementation order |
 | `references/delegation.md` | Skill() prompts for child skills |
+| `references/plugin-review.md` | Agent-kit / plugin-gold manual review axes |
 | `references/scaffold-templates.md` | Pointer → `_contract/templates/` |
 | `scripts/parse-mode-args.sh` | Mode/target/doc_path parsing |
 | `scripts/standards-inventory.sh` | Re-export → `_contract/scripts/` |
@@ -88,8 +91,9 @@ TARGET_ROOT="$(echo "$PARSED" | jq -r '.target')"
 DOC_PATH="$(echo "$PARSED" | jq -r '.doc_path // empty')"
 CONSTRAINTS="$(echo "$PARSED" | jq -r '.constraints')"
 DATE="$(date +%Y-%m-%d)"
+CONTRACT_PROFILE="$(bash "$CONTRACT_ROOT/scripts/detect-contract-profile.sh" "$TARGET_ROOT")"
 INVENTORY="$(bash "$SKILL_DIR/scripts/standards-inventory.sh" "$TARGET_ROOT")"
-GAPS="$(bash "$SKILL_DIR/scripts/score-contract-gaps.sh" "$TARGET_ROOT" app-gold)"
+GAPS="$(bash "$SKILL_DIR/scripts/score-contract-gaps.sh" "$TARGET_ROOT" "$CONTRACT_PROFILE")"
 IP_SCAN="$(bash "$SKILL_DIR/scripts/ip-scan.sh" "$TARGET_ROOT" 2>&1 || true)"
 REVIEW_PATH="$TARGET_ROOT/docs/engineering/repo-standards-review-$DATE.md"
 PLAN_PATH="$TARGET_ROOT/docs/engineering/repo-standards-plan-$DATE.md"
@@ -103,8 +107,8 @@ PLAN_PATH="$TARGET_ROOT/docs/engineering/repo-standards-plan-$DATE.md"
 
 ### Steps
 
-1. Read `references/standards-rubric.md`.
-2. Start findings from `$GAPS` JSON; walk rubric for qualitative gaps (README prose, doc content).
+1. Read `references/standards-rubric.md`. If `$CONTRACT_PROFILE` is `plugin-gold`, also read `references/plugin-review.md`.
+2. Start findings from `$GAPS` JSON (profile: `$CONTRACT_PROFILE`); walk rubric for qualitative gaps (README prose, doc content).
 3. Include `$IP_SCAN` summary; flag S7-01 P1 if not CLEAN.
 4. `cd "$TARGET_ROOT"` then `Skill("multi-agent-repo")` using `references/delegation.md` review prompt. Append child summary to report — do not duplicate full child report.
 5. Read-only docs pass: summarize README + `docs/**` issues without calling `Skill("docs-review")` (it mutates files).
@@ -117,7 +121,8 @@ PLAN_PATH="$TARGET_ROOT/docs/engineering/repo-standards-plan-$DATE.md"
 # Repo standards review — [repo name]
 ## Executive summary
 ## Severity summary
-## Standards gaps (S1–S7)
+## Standards gaps (S1–S7 + PK* if plugin-gold)
+## Plugin / agent-kit appendix (if plugin-gold)
 ## Employer IP scan
 ## Multi-agent appendix
 ## Docs read-only notes
@@ -138,7 +143,7 @@ PLAN_PATH="$TARGET_ROOT/docs/engineering/repo-standards-plan-$DATE.md"
 1. If no review doc, run **review mode** first.
 2. Read review (`$DOC_PATH`, user path, or latest `repo-standards-review-*.md`).
 3. Group P1/P2 into phases 0–7 per `references/polish-phases.md`.
-4. Note `Skill("multi-agent-repo")` for phase 5 and `docs-review` / `changelog-review` for phase 6.
+4. Note `Skill("multi-agent-repo")` for phase 5 (add `--constraints plugin` when `$CONTRACT_PROFILE=plugin-gold`) and `docs-review` / `changelog-review` for phase 6.
 5. Write `$PLAN_PATH` from `templates/remediation-plan.md.tmpl`.
 6. Present plan summary.
 
@@ -170,8 +175,8 @@ git checkout -b feat/repo-standards-setup 2>/dev/null || git checkout -b "feat/r
 
 5. **Phases 1–4:** Implement per plan using `$CONTRACT_ROOT/templates/` (see `INDEX.md`).
 6. **Phase 5:** `Skill("multi-agent-repo")` per `references/delegation.md` on the same branch.
-7. **Phase 6:** `Skill("docs-review")`; if plugin, `Skill("changelog-review")`. Fix all P1 findings.
-8. **Phase 7:** `bash "$SKILL_DIR/scripts/assert-contract.sh" "$TARGET_ROOT" app-gold` — P1/P2/P3 must be 0.
+7. **Phase 6:** `Skill("docs-review")`; if plugin or agent-kit repo, `Skill("changelog-review")`. Fix all P1 findings.
+8. **Phase 7:** `bash "$SKILL_DIR/scripts/assert-contract.sh" "$TARGET_ROOT" "$CONTRACT_PROFILE"` — P1/P2/P3 must be 0.
 9. Commit in logical chunks; push; `gh pr create` with `templates/pr-body.md.tmpl`.
 10. Print PR URL.
 

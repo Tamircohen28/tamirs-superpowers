@@ -8,6 +8,7 @@ Use this reference when classifying `$TARGET_ROOT` at the start of every mode.
 |------|---------|----------------|-------|
 | **app/library** | `package.json`, `pyproject.toml`, `Cargo.toml`, `go.mod`, etc.; no `.claude-plugin/plugin.json` | `.agents/skills/<name>/SKILL.md` | Canonical portable layout |
 | **claude-plugin** | `.claude-plugin/plugin.json` + `skills/` domain dirs | `skills/<domain>/<name>/SKILL.md` per manifest | Do not force `.agents/skills/` |
+| **agent-kit** | `canonical/rules/` + `plugins/<name>/` + `.claude-plugin/marketplace.json` | `canonical/skills/` (source) → `plugins/<name>/skills/` (generated) | Distribution repo — see below |
 | **hybrid** | Both app artifacts and plugin manifest | Document per-tool paths in review report | Common in monorepos |
 
 ## Recommended app/library layout
@@ -53,6 +54,42 @@ repo/
 ├── .cursor-plugin/plugin.json        # optional
 └── hooks/hooks.json
 ```
+
+## Recommended agent-kit layout (distribution repo)
+
+One canonical source, multiple generated adapters. Scaffolded by `repo-scaffold --type plugin`.
+
+```
+repo/
+├── agent-kit.config.json
+├── canonical/
+│   ├── rules/                        # tool-neutral policy (source of truth)
+│   │   ├── core.md
+│   │   ├── testing.md
+│   │   ├── security.md
+│   │   ├── frontend.md
+│   │   └── backend.md
+│   ├── skills/<name>/SKILL.md        # portable skills (source)
+│   └── templates/*.hbs               # future Handlebars pipeline
+├── scripts/
+│   ├── build.mjs                     # generates dist/ + plugin skills
+│   └── validate.mjs
+├── dist/
+│   ├── codex/AGENTS.md               # GENERATED — consumer Codex rules
+│   └── cursor/.cursor/rules/*.mdc    # GENERATED — consumer Cursor rules
+├── plugins/<name>/
+│   ├── .claude-plugin/plugin.json
+│   ├── skills/                       # GENERATED copy from canonical/skills
+│   ├── commands/
+│   ├── agents/
+│   └── hooks/hooks.json
+├── .claude-plugin/marketplace.json   # catalog → ./plugins/<name>
+├── AGENTS.md                         # contributor rules for THIS repo
+├── CLAUDE.md                         # @AGENTS.md + Claude addenda
+└── package.json                      # build, validate, agent:check
+```
+
+**Principle:** edit `canonical/` only; run `npm run build`; never hand-edit `dist/` or generated plugin skills.
 
 ## Size and format constraints
 

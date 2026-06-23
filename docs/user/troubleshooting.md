@@ -66,3 +66,52 @@ The worktree hooks use `jq` to parse session state JSON.
 **Cause:** Claude Code only installs cross-marketplace dependencies if the target marketplace is already registered AND allowlisted in `marketplace.json`. If you skipped Step 1 of the Quick Start, the marketplaces aren't registered.
 
 **Fix:** Re-run the three `/plugin marketplace add` commands from [Quick Start](quick-start.md), then `/plugin install tamirs-superpowers` again.
+
+---
+
+## Agent-kit: `npm run validate` fails after scaffold
+
+**Symptom:** `validate.mjs` reports missing paths or `NO GENERATED MARKER`.
+
+**Cause:** `dist/` was not built, or someone edited generated files by hand.
+
+**Fix:**
+
+```bash
+npm run build
+npm run validate
+```
+
+Only edit files under `canonical/`. See [Agent-kit repos](agent-kit.md).
+
+---
+
+## Agent-kit: `repo-standards polish` uses wrong contract profile
+
+**Symptom:** Polish gate expects `app-gold` checks but you have an agent-kit repo (or vice versa).
+
+**Cause:** Profile is auto-detected from `canonical/rules/` — if that directory is missing or misnamed, detection falls back to `app-gold`.
+
+**Fix:** Ensure `canonical/rules/core.md` exists. Re-run review:
+
+```text
+/tamirs-superpowers:repo-standards review
+```
+
+Confirm the report lists `plugin-gold` as the contract profile.
+
+---
+
+## Agent-kit: marketplace install fails with relative path error
+
+**Symptom:** `/plugin marketplace add` works but plugin entry with `source: "./plugins/..."` fails when marketplace was added via URL instead of git path.
+
+**Cause:** Claude Code resolves relative `source` paths only when the marketplace is added from a git repo checkout.
+
+**Fix:** Add marketplace via GitHub repo path:
+
+```text
+/plugin marketplace add TamirCohen28/my-agent-kit
+```
+
+See [Agent-kit repos — Install as a Claude Code plugin](agent-kit.md#install-as-a-claude-code-plugin).

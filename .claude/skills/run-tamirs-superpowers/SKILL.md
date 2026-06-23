@@ -111,7 +111,7 @@ Frontmatter fields required by the smoke test (in addition to `name` and `descri
 - **`statusLine` in `plugin.json` must be an object** — `{"type": "command", "command": "..."}` — not a string. Setting it to a plain string causes Claude Code to silently ignore it.
 - **`make validate` does not run `claude plugin validate`** — the Makefile's `validate` target is local-only. The authoritative validator is `claude plugin validate .` (requires the CLI).
 - **`set -euo pipefail` in smoke scripts exits on first grep non-match** — health check scripts must not use `set -e`; they need to complete all checks before reporting.
-- **`find` in `skills/` returns `skills/meta/skill-creator/SKILL.md` with a `/Users/` path** — the workflow-agent-improved version has this; file it as a WARN, not FAIL, until it's cleaned.
+- **`find` in `skills/` returns `skills/toolkit/skill-creator/SKILL.md` with a `/Users/` path** — the workflow-agent-improved version has this; file it as a WARN, not FAIL, until it's cleaned.
 
 ## Troubleshooting
 

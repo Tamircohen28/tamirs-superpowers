@@ -55,7 +55,7 @@ docs: update quick-start with correct marketplace URL
 Topic conventions:
 - `dev-workflow` — git, PR, review, planning, debugging workflows
 - `integrations` — external tool integrations (reserved for future use)
-- `meta` — Claude Code itself, skill authoring, MCP
+- `toolkit` — skill discovery, authoring, session analytics
 - `content` — creative or content-generation skills
 
 ## Code review

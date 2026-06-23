@@ -32,10 +32,12 @@ tamirs-superpowers/              ← GitHub repo root
     ├── dev-workflow/            ← plan-dev, pr-dev, start-dev
     ├── documentation/           ← changelog-review, dark-terminal-doc, docs-review
     ├── mcp/                     ← mcp-builder, mcp-pagination
-    ├── meta/                    ← find-skill, session-report, skill-creator
+    ├── toolkit/                 ← find-skill, session-report, skill-creator
     └── repo/                    ← multi-agent-repo, repo-scaffold, repo-standards
-        └── _contract/           ← shared templates, scripts, scaffold-gold fixture (not a skill)
+        └── _contract/           ← shared templates, scripts, scaffold-gold + scaffold-plugin-gold fixtures (not a skill)
 ```
+
+Contract profiles: `app-gold` (default apps), `plugin-gold` (agent-kit repos with `canonical/`). Detected via `detect-contract-profile.sh`; scored by `score-contract-gaps.sh` + `score-plugin-gaps.sh`. **User guide:** [docs/user/agent-kit.md](../../../docs/user/agent-kit.md).
 
 ## Hook system
 

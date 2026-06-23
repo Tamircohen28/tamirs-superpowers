@@ -5,6 +5,16 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Added
+- **`repo-scaffold --type plugin`** — scaffolds agent-kit distribution repos (canonical rules/skills, build/validate stubs, marketplace + plugin wrapper, `dist/` adapters)
+- **`plugin-gold` contract profile** — `detect-contract-profile.sh`, `score-plugin-gaps.sh`, `scaffold-plugin-gold` fixture; CI runs both app-gold and plugin-gold in `make test-repo-contract`
+- **`repo-standards` plugin awareness** — auto-detects contract profile; `references/plugin-review.md` for agent-kit manual review axes
+- **multi-agent-repo Layer 9** — agent-kit distribution rubric + target layout in `target-layouts.md`
+- **User docs** — README skill table, `docs/user/reference.md`, `docs/user/concepts.md`, and **`docs/user/agent-kit.md`** (full walkthrough); quick-start Step 6; troubleshooting agent-kit section
+
+### Changed
+- Renamed skill domain `meta` → `toolkit` (`find-skill`, `session-report`, `skill-creator`)
+
 ## [1.2.0] - 2026-06-13
 
 ### Added

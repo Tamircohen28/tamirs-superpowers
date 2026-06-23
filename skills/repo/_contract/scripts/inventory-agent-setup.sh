@@ -37,7 +37,9 @@ count_skills() {
 
 # --- repo type ---
 repo_type="app"
-if [[ -f "$ROOT/.claude-plugin/plugin.json" ]]; then
+if [[ -d "$ROOT/canonical/rules" ]]; then
+  repo_type="agent-kit"
+elif [[ -f "$ROOT/.claude-plugin/plugin.json" ]]; then
   if [[ -f "$ROOT/package.json" || -f "$ROOT/pyproject.toml" || -f "$ROOT/Cargo.toml" || -f "$ROOT/go.mod" ]]; then
     repo_type="hybrid"
   else

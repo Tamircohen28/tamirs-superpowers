@@ -58,6 +58,16 @@ For a dev workflow demo, try:
 
 Claude will propose a phased plan and create GitHub issues after you approve.
 
+## Step 6 — Agent-kit repo (optional)
+
+To scaffold a **multi-platform rule and skill distribution repo** (canonical source → Claude/Cursor/Codex adapters):
+
+```
+/tamirs-superpowers:repo-scaffold my-agent-kit -- "Shared engineering rules for the team" --type plugin
+```
+
+See the full guide: [Agent-kit repos](agent-kit.md).
+
 ## Alternative: install without a marketplace
 
 If you don't want to use the marketplace system, clone directly into Claude Code's local skills directory:

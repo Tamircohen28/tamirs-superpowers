@@ -1,0 +1,17 @@
+{
+  "name": "scaffold-plugin-gold",
+  "displayName": "Scaffold Plugin Gold",
+  "version": "0.1.0",
+  "description": "Contract gold fixture for plugin-gold profile validation.",
+  "canonical": {
+    "rulesDir": "canonical/rules",
+    "skillsDir": "canonical/skills",
+    "templatesDir": "canonical/templates"
+  },
+  "dist": {
+    "codex": "dist/codex",
+    "cursor": "dist/cursor",
+    "claudePlugin": "plugins/scaffold-plugin-gold"
+  },
+  "generatedMarker": "GENERATED FILE. DO NOT EDIT DIRECTLY."
+}

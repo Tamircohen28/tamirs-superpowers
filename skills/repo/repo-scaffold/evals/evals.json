@@ -50,6 +50,21 @@
         "No template placeholders remain unfilled in any file",
         "Repo is private (gh repo view --json isPrivate confirms)"
       ]
+    },
+    {
+      "id": 4,
+      "prompt": "/repo-scaffold my-agent-kit -- Shared engineering rules and skills for the team --type plugin",
+      "expected_output": "A new private GitHub agent-kit repo with canonical/rules/, canonical/skills/, scripts/build.mjs, scripts/validate.mjs, agent-kit.config.json, .claude-plugin/marketplace.json, plugins/my-agent-kit/.claude-plugin/plugin.json, dist/codex/AGENTS.md and dist/cursor rules with GENERATED markers, CI jobs CI+validate+secret-scan, package.json with build/validate/agent:check scripts, CODEOWNERS covering canonical/plugins/scripts/hooks. assert-contract.sh plugin-gold passes before push.",
+      "files": [],
+      "expectations": [
+        "canonical/rules/core.md exists",
+        "canonical/skills/ contains at least one SKILL.md",
+        "npm run build && npm run validate pass locally",
+        "assert-contract.sh plugin-gold passes on REPO_ROOT",
+        ".claude-plugin/marketplace.json references plugins/my-agent-kit",
+        "CI workflow includes validate job",
+        "dist/codex/AGENTS.md contains GENERATED FILE marker"
+      ]
     }
   ]
 }

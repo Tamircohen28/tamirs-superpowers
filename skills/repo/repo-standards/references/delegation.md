@@ -23,6 +23,20 @@ Do not open a separate PR — continue on the current feature branch.
 Do not merge.
 ```
 
+## multi-agent-repo (dev — polish phase 5, plugin-gold / agent-kit)
+
+```text
+Target repository: $TARGET_ROOT
+Contract profile: plugin-gold (agent-kit distribution repo).
+Run multi-agent-repo dev on branch feat/repo-standards-setup.
+Follow agent-kit layout in multi-agent-repo references/target-layouts.md:
+- Contributor AGENTS.md at repo root (not consumer policy — that lives in canonical/rules/)
+- Do not force .agents/skills/ — skills ship via canonical/skills/ + plugins/<name>/skills/
+- Ensure npm run build regenerates dist/ after adapter changes
+Read repo-standards references/plugin-review.md for manual axes.
+Do not merge.
+```
+
 ## docs-review (polish phase 6)
 
 ```text

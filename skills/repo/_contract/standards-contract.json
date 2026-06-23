@@ -1,5 +1,5 @@
 {
-  "version": "1.0.0",
+  "version": "1.1.0",
   "profiles": {
     "app-gold": {
       "repo_type": "app",
@@ -31,6 +31,60 @@
         "require_drift_script": true,
         "require_agent_check_target": true,
         "portable_skills_dirs": [".agents/skills", "skills", ".claude/skills"]
+      },
+      "exit_gate": { "p1": 0, "p2": 0, "p3": 0 },
+      "offline_scoring": {
+        "skip_check_ids": ["S4-02", "S4-03"]
+      }
+    },
+    "plugin-gold": {
+      "extends": "app-gold",
+      "repo_type": "agent-kit",
+      "paths": {
+        "contributing": "docs/CONTRIBUTING.md",
+        "changelog": "docs/CHANGELOG.md",
+        "license": "LICENSE",
+        "agents_md": "AGENTS.md",
+        "codeowners": "CODEOWNERS",
+        "docs_readme": "docs/README.md"
+      },
+      "readme": {
+        "required_headings": ["Prerequisites", "Quick Start"],
+        "required_badges": ["ci", "license"]
+      },
+      "docs": {
+        "required_dirs": ["docs/user", "docs/engineering"],
+        "allowed_root_md": ["README.md", "CHANGELOG.md", "CONTRIBUTING.md"]
+      },
+      "ci": {
+        "required_jobs": ["secret-scan", "validate"],
+        "forbidden_patterns": ["runs-on:\\s*\\[self-hosted"]
+      },
+      "multi_agent": {
+        "require_agents_md": true,
+        "require_claude_imports_agents": true,
+        "require_cursor_mdc": true,
+        "require_agent_guidelines_dir": true,
+        "require_drift_script": true,
+        "require_agent_check_target": true,
+        "portable_skills_dirs": [".agents/skills", "skills", ".claude/skills", "canonical/skills"]
+      },
+      "plugin": {
+        "require_marketplace": true,
+        "require_agent_kit_config": true,
+        "required_paths": [
+          "canonical/rules/core.md",
+          "scripts/build.mjs",
+          "scripts/validate.mjs",
+          "agent-kit.config.json",
+          "dist/codex/AGENTS.md",
+          "dist/cursor/.cursor/rules/000-core.mdc"
+        ],
+        "require_canonical_skill": true,
+        "require_plugin_wrapper": true,
+        "require_generated_markers": true,
+        "codeowners_paths": ["canonical/", "plugins/", "scripts/", "hooks/"],
+        "require_package_json": true
       },
       "exit_gate": { "p1": 0, "p2": 0, "p3": 0 },
       "offline_scoring": {

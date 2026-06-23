@@ -23,7 +23,7 @@
     "./skills/dev-workflow",
     "./skills/documentation",
     "./skills/mcp",
-    "./skills/meta",
+    "./skills/toolkit",
     "./skills/repo"
   ],
   "mcpServers": "./.mcp.json"

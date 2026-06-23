@@ -76,5 +76,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - name: Assert app-gold contract fixture
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: skills/repo/_contract/fixtures/scaffold-plugin-gold/.nvmrc
+      - name: Assert contract fixtures (app-gold + plugin-gold)
         run: make test-repo-contract

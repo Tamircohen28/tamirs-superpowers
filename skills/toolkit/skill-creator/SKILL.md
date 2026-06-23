@@ -25,7 +25,7 @@ hooks: {}
 paths: []
 shell: bash
 metadata:
-  capability: meta
+  capability: toolkit
   tags:
   - skill
   - authoring

@@ -8,7 +8,7 @@ help:
 	@echo "Available targets:"
 	@echo "  validate           — shellcheck + JSON validation + SKILL.md frontmatter + contract test"
 	@echo "  lint               — shellcheck .sh files only"
-	@echo "  test-repo-contract — assert scaffold-gold passes app-gold profile"
+	@echo "  test-repo-contract — assert scaffold-gold (app-gold) + scaffold-plugin-gold (plugin-gold)"
 	@echo "  plugin-validate    — run 'claude plugin validate' (primary validator, requires Claude Code CLI)"
 	@echo "  test               — alias for validate"
 
@@ -36,9 +36,13 @@ lint:
 	fi
 
 test-repo-contract:
-	@echo "--- Repo contract (scaffold-gold) ---"
+	@echo "--- Repo contract (scaffold-gold / app-gold) ---"
 	@CONTRACT_OFFLINE=1 bash $(CONTRACT_DIR)/scripts/assert-contract.sh \
 	  $(CONTRACT_DIR)/fixtures/scaffold-gold app-gold
+	@echo "--- Repo contract (scaffold-plugin-gold / plugin-gold) ---"
+	@cd $(CONTRACT_DIR)/fixtures/scaffold-plugin-gold && npm run build
+	@CONTRACT_OFFLINE=1 bash $(CONTRACT_DIR)/scripts/assert-contract.sh \
+	  $(CONTRACT_DIR)/fixtures/scaffold-plugin-gold plugin-gold
 
 plugin-validate:
 	@echo "--- claude plugin validate (primary validator) ---"

@@ -8,7 +8,7 @@ globs: ["skills/**/SKILL.md", ".claude/skills/**/SKILL.md"]
 Every `SKILL.md` must include **all 16 official Claude Code frontmatter fields**
 plus `metadata.updated-date`. CI enforces via `scripts/validate-skill-frontmatter.py`.
 
-Template: `skills/meta/skill-creator/references/frontmatter-template.md`
+Template: `skills/toolkit/skill-creator/references/frontmatter-template.md`
 Docs: https://code.claude.com/docs/en/skills
 
 ## Required fields

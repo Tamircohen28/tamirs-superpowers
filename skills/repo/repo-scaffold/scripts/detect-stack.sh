@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # detect-stack.sh — Auto-detect tech stack from a description string and/or a source directory.
 # Usage: detect-stack.sh "<description>" [<src-path-or-url>]
-# Outputs one of: nextjs | node | python | swift | generic
+# Outputs one of: nextjs | node | python | swift | generic | plugin-hint
 # Exit 0 always; writes detected stack to stdout.
 
 set -euo pipefail
@@ -15,6 +15,9 @@ description_lower="$(echo "$DESCRIPTION" | tr '[:upper:]' '[:lower:]')"
 
 detect_from_description() {
   local d="$1"
+  if echo "$d" | grep -qE '\b(plugin|agent-kit|marketplace|claude code plugin|skills distribution)\b'; then
+    echo "plugin-hint"; return
+  fi
   if echo "$d" | grep -qE '\b(next\.?js|nextjs|vercel)\b'; then
     echo "nextjs"; return
   fi

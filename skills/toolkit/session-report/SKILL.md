@@ -19,7 +19,7 @@ hooks: {}
 paths: []
 shell: bash
 metadata:
-  capability: meta
+  capability: toolkit
   tags:
   - analytics
   - tokens
@@ -43,8 +43,8 @@ Claude Code stores full JSONL transcripts per project under `~/.claude/projects/
 Before running any script, locate the skill directory. Try in order:
 
 1. Use `$CLAUDE_SKILL_DIR` if set
-2. Use `$CLAUDE_PLUGIN_ROOT/skills/meta/session-report` if `$CLAUDE_PLUGIN_ROOT` is set
-3. Resolve via: `find ~/.claude/plugins -path "*/meta/session-report/analyze-sessions.mjs" -print -quit | xargs dirname`
+2. Use `$CLAUDE_PLUGIN_ROOT/skills/toolkit/session-report` if `$CLAUDE_PLUGIN_ROOT` is set
+3. Resolve via: `find ~/.claude/plugins -path "*/toolkit/session-report/analyze-sessions.mjs" -print -quit | xargs dirname`
 
 Assign the resolved path to `SKILL_DIR`. If none of the above produces a valid path with `analyze-sessions.mjs` present, stop and tell the user the plugin root could not be found.
 

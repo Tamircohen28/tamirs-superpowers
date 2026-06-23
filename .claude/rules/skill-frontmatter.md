@@ -10,7 +10,7 @@ Every `SKILL.md` in this repo must include **all 16 official Claude Code frontma
 fields** plus `metadata.updated-date`. CI enforces this via
 `scripts/validate-skill-frontmatter.py`.
 
-Reference: `skills/meta/skill-creator/references/frontmatter-template.md`
+Reference: `skills/toolkit/skill-creator/references/frontmatter-template.md`
 Official docs: https://code.claude.com/docs/en/skills
 
 ## Required fields
