@@ -25,6 +25,7 @@ plugins/<name>/skills/
 plugins/<name>/hooks/hooks.json    # optional empty stub
 .claude-plugin/marketplace.json
 package.json                       # build, validate, agent:check scripts
+package-lock.json                  # required for npm ci in CI/Makefile
 ```
 
 ## CI
