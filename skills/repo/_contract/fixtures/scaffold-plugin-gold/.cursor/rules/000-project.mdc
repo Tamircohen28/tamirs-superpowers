@@ -1,0 +1,7 @@
+---
+description: Project-wide conventions — AGENTS.md is canonical
+globs:
+alwaysApply: true
+---
+
+Follow [AGENTS.md](../../AGENTS.md) as the canonical source of truth for commands and constraints.

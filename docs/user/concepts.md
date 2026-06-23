@@ -38,3 +38,19 @@ This plugin is published through the [`tamirs-plugins`](https://github.com/Tamir
 ```
 
 The plugin source lives in this repo; the catalog repo handles discovery and versioning.
+
+## Repo contract profiles (`repo-scaffold` / `repo-standards`)
+
+Both skills share `skills/repo/_contract/`:
+
+| Profile | Repo type | How it's chosen |
+|---------|-----------|-----------------|
+| `app-gold` | Apps, libraries, flat Claude plugins (e.g. tamirs-superpowers) | Default when no `canonical/rules/` |
+| `plugin-gold` | Agent-kit distribution repos | Auto-detected when `canonical/rules/` exists, or scaffolded with `repo-scaffold --type plugin` |
+
+**Full walkthrough:** [Agent-kit repos](agent-kit.md) — architecture, scaffold, contributor workflow, marketplace install, security.
+
+**Quick commands:**
+
+- Scaffold: `/tamirs-superpowers:repo-scaffold <name> -- "<description>" --type plugin`
+- Polish: `/tamirs-superpowers:repo-standards polish` (on a repo with `canonical/rules/`)

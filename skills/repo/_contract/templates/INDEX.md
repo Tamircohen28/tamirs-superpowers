@@ -12,6 +12,8 @@ Canonical templates for `repo-scaffold` and `repo-standards` polish. Contract ve
 | [`legacy-scaffold-templates.md`](legacy-scaffold-templates.md) | Full stack-specific bodies (Node, Python, Swift, CLAUDE.md, workflows) |
 | [`check-agent-drift.sh.tmpl`](check-agent-drift.sh.tmpl) | Drift script copied to target `scripts/` |
 | [`../fixtures/scaffold-gold/`](../fixtures/scaffold-gold/) | Gold reference tree — must pass `assert-contract.sh` |
+| [`scaffold-requirements-plugin.md`](scaffold-requirements-plugin.md) | Agent-kit / `--type plugin` layout |
+| [`plugin/`](plugin/) | Canonical rules, build stubs, marketplace, plugin manifest templates |
 
 ## Canonical paths (app-gold)
 

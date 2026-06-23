@@ -124,6 +124,26 @@ Severity guide:
 
 ---
 
+## Layer 9 — Agent-kit distribution
+
+Use when `repo_type` is `agent-kit` or contract profile is `plugin-gold`.
+
+| ID | Check | P |
+|----|-------|---|
+| L9-01 | `canonical/rules/core.md` exists and is tool-neutral | P1 |
+| L9-02 | `scripts/build.mjs` + `scripts/validate.mjs` present | P1 |
+| L9-03 | `.claude-plugin/marketplace.json` lists `plugins/<name>` | P1 |
+| L9-04 | `plugins/<name>/.claude-plugin/plugin.json` declares skills path | P1 |
+| L9-05 | `dist/codex/AGENTS.md` and `dist/cursor/` rules have GENERATED markers | P2 |
+| L9-06 | CI includes `validate` job (`npm run build && npm run validate`) | P2 |
+| L9-07 | CODEOWNERS covers `canonical/`, `plugins/`, `scripts/`, `hooks/` | P2 |
+| L9-08 | README documents marketplace install + build workflow | P2 |
+| L9-09 | Skills authored in `canonical/skills/` — plugin copy is generated | P1 |
+
+Auto-scored PK* gaps overlap L9-01–L9-07 — use inventory JSON + `score-plugin-gaps.sh` first.
+
+---
+
 ## Report format
 
 For each gap, record in the review report:

@@ -29,6 +29,9 @@ bash scripts/assert-contract.sh "$REPO_ROOT" app-gold
 
 | Profile | Use |
 |---------|-----|
-| `app-gold` | Greenfield app repos from `repo-scaffold`; polish target for `repo-standards` |
+| `app-gold` | Greenfield app repos from `repo-scaffold`; polish target for `repo-standards` (default) |
+| `plugin-gold` | Agent-kit distribution repos from `repo-scaffold --type plugin`; auto-detected when `canonical/rules/` exists |
 
-Exit gate: P1 = P2 = P3 = 0 on merged standards + multi-agent deterministic checks.
+Detect profile: `bash scripts/detect-contract-profile.sh <repo-root>`
+
+Exit gate: P1 = P2 = P3 = 0 on merged standards + multi-agent + plugin (if plugin-gold) deterministic checks.

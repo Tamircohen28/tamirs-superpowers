@@ -26,7 +26,7 @@ metadata:
   platforms:
   - claude
   tags:
-  - meta
+  - toolkit
   - marketplace
   - discovery
   - search

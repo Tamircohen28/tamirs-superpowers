@@ -11,7 +11,7 @@ Skills are plain Markdown files (`SKILL.md`) with YAML frontmatter. Claude Code 
 ## Frontmatter — all fields required
 
 Every skill must declare **all 16 official Claude Code fields** plus `metadata.updated-date`.
-See `skills/meta/skill-creator/references/frontmatter-template.md` for presets and skeleton.
+See `skills/toolkit/skill-creator/references/frontmatter-template.md` for presets and skeleton.
 
 ```yaml
 ---
@@ -64,5 +64,7 @@ effort: low
 | `dev-workflow` | plan-dev, pr-dev, start-dev |
 | `documentation` | changelog-review, dark-terminal-doc, docs-review |
 | `mcp` | mcp-builder, mcp-pagination |
-| `meta` | find-skill, session-report, skill-creator |
+| `toolkit` | find-skill, session-report, skill-creator |
 | `repo` | multi-agent-repo, repo-scaffold, repo-standards |
+
+**User guide:** [docs/user/agent-kit.md](../../docs/user/agent-kit.md) — agent-kit distribution repos (`repo-scaffold --type plugin`).

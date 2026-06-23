@@ -66,16 +66,22 @@ Three skills are **internal** — invoked automatically by parent skills (`repo-
 
 ## Repo
 
+Agent-kit distribution repos (`--type plugin`) have a dedicated guide: **[Agent-kit repos](agent-kit.md)**.
+
 ### `/tamirs-superpowers:repo-standards`
 
 **When to use:** Auditing or polishing an existing repo to Tamir Cohen standards — README, docs tree, CI/CD, branch protection, employer IP, hygiene, and multi-agent support.
 
 **What it does:**
-1. **review** (default) — standards inventory, IP scan, multi-agent-repo review appendix; writes `docs/engineering/repo-standards-review-<date>.md`
+1. **review** (default) — standards inventory, IP scan, multi-agent-repo review appendix; writes `docs/engineering/repo-standards-review-<date>.md`. For agent-kit repos (`canonical/rules/`), includes plugin-gold (PK*) gaps and manual plugin-review axes.
 2. **plan** — phased remediation (phases 0–7)
-3. **polish** — implements on `feat/repo-standards-setup`, delegates to `multi-agent-repo`, `docs-review`, `changelog-review`; `assert-contract.sh app-gold` must pass; opens PR (does not merge or create new remote repo)
+3. **polish** — implements on `feat/repo-standards-setup`, delegates to `multi-agent-repo`, `docs-review`, `changelog-review` (always for plugin/agent-kit repos); exit gate uses auto-detected profile (`app-gold` or `plugin-gold`); opens PR (does not merge or create new remote repo)
 
-**Example:** `/tamirs-superpowers:repo-standards review ~/projects/my-app`
+**Contract profiles:** `app-gold` (default apps and flat Claude plugins like tamirs-superpowers) · `plugin-gold` (agent-kit distribution repos with `canonical/` — auto-detected)
+
+**Examples:**
+- App: `/tamirs-superpowers:repo-standards review ~/projects/my-app`
+- Agent-kit: `/tamirs-superpowers:repo-standards polish` (on a repo with `canonical/rules/`)
 
 ---
 
@@ -83,9 +89,13 @@ Three skills are **internal** — invoked automatically by parent skills (`repo-
 
 **When to use:** Starting a brand-new project — you want a fully wired GitHub repo in one command.
 
-**What it does:** Creates a private GitHub repo from an idea or description with production-ready infrastructure: README with badges, docs tree, CI/CD, AGENTS.md + multi-agent adapters, branch protection, and project skills. Output must pass the shared `app-gold` contract (`make test-repo-contract`).
+**What it does:** Creates a private GitHub repo from an idea or description with production-ready infrastructure: README with badges, docs tree, CI/CD, AGENTS.md + multi-agent adapters, branch protection, and project skills. Default output passes `app-gold`; use `--type plugin` for agent-kit distribution repos (canonical → dist/ adapters + marketplace) passing `plugin-gold`.
 
-**Example:** `/tamirs-superpowers:repo-scaffold my-new-tool -- "A CLI that does X"`
+**Examples:**
+- App: `/tamirs-superpowers:repo-scaffold my-new-tool -- "A CLI that does X"`
+- Plugin: `/tamirs-superpowers:repo-scaffold my-agent-kit -- "Shared team rules and skills" --type plugin`
+
+**Agent-kit output (`--type plugin`):** see [Agent-kit repos](agent-kit.md) for full layout, workflow, and install steps. Contract templates: `skills/repo/_contract/templates/plugin/`.
 
 ---
 

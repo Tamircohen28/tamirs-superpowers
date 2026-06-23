@@ -8,7 +8,7 @@ globs: ["skills/**/SKILL.md", ".claude/skills/**/SKILL.md"]
 Rules for creating and maintaining skills in `skills/<domain>/<skill-name>/`.
 
 Based on [Claude Code Skills](https://code.claude.com/docs/en/skills) and
-`skills/meta/skill-creator/references/frontmatter-template.md`.
+`skills/toolkit/skill-creator/references/frontmatter-template.md`.
 
 ## Directory layout
 

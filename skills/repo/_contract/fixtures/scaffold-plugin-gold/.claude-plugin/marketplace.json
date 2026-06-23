@@ -1,0 +1,14 @@
+{
+  "name": "scaffold-plugin-tools",
+  "owner": {
+    "name": "Tamir Cohen",
+    "email": "tamircohen2468@gmail.com"
+  },
+  "plugins": [
+    {
+      "name": "scaffold-plugin-gold",
+      "source": "./plugins/scaffold-plugin-gold",
+      "description": "Contract gold fixture for plugin-gold profile validation."
+    }
+  ]
+}

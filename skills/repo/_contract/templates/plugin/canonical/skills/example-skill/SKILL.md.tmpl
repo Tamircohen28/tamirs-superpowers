@@ -1,0 +1,32 @@
+---
+name: example-skill
+description: 'Use when demonstrating the agent-kit skill format. Triggers: example skill, agent-kit demo.'
+when_to_use: Demonstration only — replace with project-specific skills in canonical/skills/.
+argument-hint: '[task]'
+arguments: []
+disable-model-invocation: false
+user-invocable: true
+allowed-tools:
+- Read
+- Bash
+disallowed-tools: []
+model: claude-sonnet-4-6
+effort: low
+context: ''
+agent: ''
+hooks: {}
+paths: []
+shell: bash
+metadata:
+  updated-date: '{{DATE}}'
+---
+
+# Example Skill
+
+Portable skill template for agent-kit distribution repos.
+
+## Workflow
+
+1. Understand the user request.
+2. Read only relevant files.
+3. Report findings concisely.
