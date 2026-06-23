@@ -40,6 +40,7 @@ test-repo-contract:
 	@CONTRACT_OFFLINE=1 bash $(CONTRACT_DIR)/scripts/assert-contract.sh \
 	  $(CONTRACT_DIR)/fixtures/scaffold-gold app-gold
 	@echo "--- Repo contract (scaffold-plugin-gold / plugin-gold) ---"
+	@cd $(CONTRACT_DIR)/fixtures/scaffold-plugin-gold && npm run build
 	@CONTRACT_OFFLINE=1 bash $(CONTRACT_DIR)/scripts/assert-contract.sh \
 	  $(CONTRACT_DIR)/fixtures/scaffold-plugin-gold plugin-gold
 
