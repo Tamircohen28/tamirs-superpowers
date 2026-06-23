@@ -38,8 +38,9 @@ agent_check=$(echo "$INV" | jq -r '.enforcement.has_agent_check')
 has_ci=$(echo "$INV" | jq -r '.enforcement.has_ci')
 guidelines=$(echo "$INV" | jq -r '.docs.agent_guidelines_dir')
 agents_skills=$(echo "$INV" | jq -r '.skills.agents_dir')
-plugin_skills=$(echo "$INV" | jq -r '.skills.plugin_skills_dir')
 plugin_manifest=$(echo "$INV" | jq -r '.manifests.claude_plugin')
+plugin_skills=$(echo "$INV" | jq -r '.skills.plugin_skills_dir')
+plugin_skill_count=$(echo "$INV" | jq -r '.skills.plugin_skill_count')
 
 if [[ "$agents_exists" != true ]]; then
   add_gap "L1-01" "P1" "AGENTS.md missing at repo root" 0; inc P1
@@ -66,6 +67,8 @@ if [[ "$repo_type" == "app" && "$agents_skills" != true && "$plugin_skills" != t
 fi
 if [[ "$repo_type" == "claude-plugin" && "$plugin_manifest" != true ]]; then
   add_gap "L4-03" "P1" "Claude plugin repo missing .claude-plugin/plugin.json" 3; inc P1
+elif [[ "$plugin_skills" == true && "$plugin_skill_count" -gt 0 && "$plugin_manifest" != true ]]; then
+  add_gap "L4-03" "P1" "Plugin-like repo (skills/) missing .claude-plugin/plugin.json" 3; inc P1
 fi
 if [[ "$guidelines" != true ]]; then
   add_gap "L5-01" "P2" "docs/agent-guidelines/ missing" 2; inc P2

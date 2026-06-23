@@ -43,6 +43,10 @@ if [[ -f "$ROOT/.claude-plugin/plugin.json" ]]; then
   else
     repo_type="claude-plugin"
   fi
+elif [[ -d "$ROOT/skills" ]] && [[ "$(count_skills "$ROOT/skills")" -gt 0 ]]; then
+  if [[ -f "$ROOT/hooks/hooks.json" || -d "$ROOT/.claude-plugin" ]]; then
+    repo_type="claude-plugin"
+  fi
 fi
 
 # --- AGENTS.md ---

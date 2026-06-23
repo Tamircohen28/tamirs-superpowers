@@ -5,14 +5,30 @@
 #   parse-mode-args.sh [args...]
 #   parse-mode-args.sh -h | --help
 #
-# Output JSON: { "mode", "target", "constraints" }
+# Output JSON: { mode, target, doc_path, constraints }
+#   target    — repo root directory (never a .md file)
+#   doc_path  — optional review/plan markdown path when user passes a .md file
 set -euo pipefail
 
-usage() { sed -n '2,8p' "$0" | sed 's/^# \?//'; exit "${1:-0}"; }
+usage() { sed -n '2,11p' "$0" | sed 's/^# \?//'; exit "${1:-0}"; }
 if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then usage 0; fi
+
+find_repo_root() {
+  local dir
+  dir="$(cd "$1" && pwd)"
+  while [[ "$dir" != "/" ]]; do
+    if [[ -d "$dir/.git" ]]; then
+      echo "$dir"
+      return 0
+    fi
+    dir="$(dirname "$dir")"
+  done
+  echo "$(cd "$1" && pwd)"
+}
 
 MODE="review"
 TARGET=""
+DOC_PATH=""
 CONSTRAINTS=""
 REST=("$@")
 
@@ -27,7 +43,8 @@ if [[ ${#REST[@]} -gt 0 ]]; then
     TARGET="$(cd "$FIRST" && pwd)"
     CONSTRAINTS="${REST[*]:1}"
   elif [[ -f "$FIRST" && "$FIRST" == *.md ]]; then
-    TARGET="$(cd "$(dirname "$FIRST")" && pwd)/$(basename "$FIRST")"
+    DOC_PATH="$(cd "$(dirname "$FIRST")" && pwd)/$(basename "$FIRST")"
+    TARGET="$(find_repo_root "$(dirname "$FIRST")")"
     CONSTRAINTS="${REST[*]:1}"
   else
     CONSTRAINTS="${REST[*]}"
@@ -42,5 +59,6 @@ fi
 jq -nc \
   --arg mode "$MODE" \
   --arg target "$TARGET" \
+  --arg doc_path "$DOC_PATH" \
   --arg constraints "$CONSTRAINTS" \
-  '{mode: $mode, target: $target, constraints: $constraints}'
+  '{mode: $mode, target: $target, doc_path: ($doc_path | if . == "" then null else . end), constraints: $constraints}'

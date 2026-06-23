@@ -14,7 +14,7 @@
 | L3-02 | `cursor_rules.non_mdc_count > 0` | P1 |
 | L3-04 | `cursor_rules.always_apply_count > 2` | P1 |
 | L4-02 | `repo_type == app` and no skills dirs | P2 |
-| L4-03 | `repo_type == claude-plugin` and no plugin manifest | P1 |
+| L4-03 | `skills/plugin_skills_dir` with SKILL.md files and no `manifests.claude_plugin` | P1 |
 | L5-01 | `docs.agent_guidelines_dir == false` | P2 |
 | L6-03 | `enforcement.has_agent_check == false` | P1 |
 | L6-04 | CI exists but no agent check | P1 |

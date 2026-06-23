@@ -81,6 +81,7 @@ SKILL_DIR="$CLAUDE_SKILL_DIR"
 PARSED="$(bash "$SKILL_DIR/scripts/parse-mode-args.sh" $ARGUMENTS)"
 MODE="$(echo "$PARSED" | jq -r '.mode')"
 TARGET_ROOT="$(echo "$PARSED" | jq -r '.target')"
+DOC_PATH="$(echo "$PARSED" | jq -r '.doc_path // empty')"
 CONSTRAINTS="$(echo "$PARSED" | jq -r '.constraints')"
 DATE="$(date +%Y-%m-%d)"
 INVENTORY="$(bash "$SKILL_DIR/scripts/inventory-agent-setup.sh" "$TARGET_ROOT")"
@@ -135,7 +136,7 @@ ALWAYS include these sections in order:
 ### Steps
 
 1. If user did not pass a review doc path, run **review mode** first in the same turn.
-2. Read the review report (user path or latest `multi-agent-review-*.md` under `docs/agent-guidelines/`).
+2. Read the review report (`$DOC_PATH`, user path, or latest `multi-agent-review-*.md` under `docs/agent-guidelines/`).
 3. Group P1/P2 gaps into phases:
 
 | Phase | Focus |
@@ -168,7 +169,7 @@ ALWAYS include these sections in order:
 ### Steps
 
 1. If no plan doc in arguments, run **plan mode** first.
-2. Read plan doc (user path or `$PLAN_PATH`).
+2. Read plan doc (`$DOC_PATH`, user path, or `$PLAN_PATH`).
 3. Create branch:
 
 ```bash
