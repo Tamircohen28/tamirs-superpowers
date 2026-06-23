@@ -28,7 +28,7 @@ validate: lint
 lint:
 	@echo "--- shellcheck ---"
 	@if command -v shellcheck >/dev/null 2>&1; then \
-	  find $(HOOKS_DIR) -name '*.sh' | xargs shellcheck -S warning --exclude SC2034 && echo "  shellcheck passed"; \
+	  find $(HOOKS_DIR) scripts -maxdepth 1 -name '*.sh' 2>/dev/null | xargs shellcheck -S warning --exclude SC2034 && echo "  shellcheck passed"; \
 	else \
 	  echo "  shellcheck not installed — skipping (brew install shellcheck)"; \
 	fi

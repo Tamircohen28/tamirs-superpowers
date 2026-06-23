@@ -52,3 +52,7 @@ Hooks are shell scripts registered in `hooks/hooks.json`. Claude Code executes t
 | `WorktreeCreate` | `worktree-create.sh` | Create global worktree |
 | `WorktreeRemove` | `worktree-remove.sh` | Tear down global worktree |
 | `Notification` | `notify.sh` | Prefixed notification when Claude needs attention |
+
+## MCP scripts
+
+`scripts/github-mcp.sh` launches the GitHub MCP server via `.mcp.json` — it is **not** a lifecycle hook and does not belong in `hooks.json`.

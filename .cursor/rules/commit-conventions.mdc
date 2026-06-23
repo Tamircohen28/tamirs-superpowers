@@ -22,7 +22,7 @@ Co-Authored-By: Claude <noreply@anthropic.com>
 ```
 feat(skills): add pr-dev skill for persistent PR drive loop
 fix(hooks): handle missing session state in capture-task-slug
-docs(skills): update reference.md with plugin-compat and repo-scaffold
+docs(skills): update reference.md with multi-agent-repo and repo-scaffold
 chore(ci): switch ubuntu runner to ubuntu-latest
 ```
 

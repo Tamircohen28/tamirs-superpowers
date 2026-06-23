@@ -10,8 +10,10 @@
 tamirs-superpowers/              ← GitHub repo root
 ├── .claude-plugin/
 │   └── plugin.json              ← Plugin manifest (name, version, skills paths, statusLine)
-├── .mcp.json                    ← MCP server stubs (github, context7)
+├── .mcp.json                    ← MCP server stubs (github via scripts/github-mcp.sh)
 ├── statusline.sh                ← Statusline script (wired via plugin.json settings.statusLine)
+├── scripts/
+│   └── github-mcp.sh            ← GitHub MCP stdio launcher (gh auth token → server)
 ├── hooks/
 │   ├── hooks.json               ← Event wiring
 │   ├── lib/worktree-common.sh   ← Shared bash library (slugify, session state, worktree paths)
@@ -21,7 +23,9 @@ tamirs-superpowers/              ← GitHub repo root
 │   ├── session-init.sh          ← SessionStart: seed session state
 │   ├── show-changelog.sh        ← SessionStart: Claude Code changelog on version bump
 │   ├── worktree-create.sh       ← WorktreeCreate
-│   └── worktree-remove.sh       ← WorktreeRemove
+│   ├── worktree-remove.sh       ← WorktreeRemove
+│   ├── session-end.sh           ← SessionEnd
+│   └── notify.sh                ← Notification
 └── skills/                      ← 17 skills in 7 domains (see CLAUDE.md)
     ├── creative/                ← algorithmic-art
     ├── debugging/               ← targeted-debug
