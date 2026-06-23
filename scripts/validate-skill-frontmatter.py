@@ -56,15 +56,32 @@ SHELL_VALUES = frozenset({"bash", "powershell"})
 KEBAB_NAME = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 
 
+def extract_frontmatter_text(text: str) -> tuple[str | None, str | None]:
+    """Extract YAML between first two --- delimiters; tolerates CRLF."""
+    normalized = text.replace("\r\n", "\n").replace("\r", "\n")
+    if not normalized.startswith("---"):
+        return None, "missing opening ---"
+    lines = normalized.split("\n")
+    if not lines or lines[0].strip() != "---":
+        return None, "missing opening ---"
+    end = None
+    for idx in range(1, len(lines)):
+        if lines[idx].strip() == "---":
+            end = idx
+            break
+    if end is None:
+        return None, "missing closing ---"
+    return "\n".join(lines[1:end]), None
+
+
 def parse_frontmatter(path: Path) -> tuple[dict[str, Any] | None, str | None]:
     text = path.read_text(encoding="utf-8")
-    if not text.startswith("---"):
-        return None, "missing opening ---"
-    match = re.match(r"^---\n(.*?)\n---", text, re.DOTALL)
-    if not match:
-        return None, "missing closing ---"
+    frontmatter_text, parse_error = extract_frontmatter_text(text)
+    if parse_error:
+        return None, parse_error
+    assert frontmatter_text is not None
     try:
-        data = yaml.safe_load(match.group(1))
+        data = yaml.safe_load(frontmatter_text)
     except yaml.YAMLError as exc:
         return None, f"invalid YAML: {exc}"
     if not isinstance(data, dict):
@@ -100,12 +117,16 @@ def validate_frontmatter(path: Path, fm: dict[str, Any]) -> list[str]:
     description = fm.get("description")
     if not isinstance(description, str) or not description.strip():
         errors.append("description must be a non-empty string")
-    elif len(description) > 1536:
-        errors.append(f"description length {len(description)} exceeds 1536-char listing cap")
 
     when_to_use = fm.get("when_to_use")
     if not isinstance(when_to_use, str) or not when_to_use.strip():
         errors.append("when_to_use must be a non-empty string")
+    elif isinstance(description, str):
+        combined_len = len(description.strip()) + len(when_to_use.strip())
+        if combined_len > 1536:
+            errors.append(
+                f"description + when_to_use length {combined_len} exceeds 1536-char listing cap"
+            )
 
     argument_hint = fm.get("argument-hint")
     if not isinstance(argument_hint, str) or not argument_hint.strip():

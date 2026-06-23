@@ -29,9 +29,8 @@ metadata:
 
 ```bash
 brew install shellcheck jq   # shellcheck for hook lint, jq for JSON checks
+python3 -m pip install -q -r scripts/requirements-validate.txt  # PyYAML for frontmatter validator
 ```
-
-Both were verified installed and used in this session.
 
 ## Run (agent path) — smoke.sh
 

@@ -1,6 +1,6 @@
 ---
 name: changelog-review
-description: Internal skill invoked by repo-polish (Step 6c) to audit Claude Code plugin projects. Fetches live docs and runs scripts/validate-plugin-json.sh + scripts/validate-skill-frontmatter.sh to detect misuse, broken hook paths, stale patterns, and missed capabilities. Returns structured P1 findings before GitHub push. Never invoke directly — use repo-polish. Also callable by other skills needing live-doc-grounded answers about Claude Code hooks, skills, plugin.json, or MCP config.
+description: Internal skill invoked by repo-polish (Step 6c) to audit Claude Code plugin projects. Fetches live docs and runs scripts/validate-plugin-json.sh + scripts/validate-skill-frontmatter.py (via scripts/check-skill-frontmatter.sh) to detect misuse, broken hook paths, stale patterns, and missed capabilities. Returns structured P1 findings before GitHub push. Never invoke directly — use repo-polish. Also callable by other skills needing live-doc-grounded answers about Claude Code hooks, skills, plugin.json, or MCP config.
 when_to_use: 'Invoked by repo-polish Step 6c on Claude Code plugin projects.
 
   Also callable by other skills when they need a live-doc-grounded answer

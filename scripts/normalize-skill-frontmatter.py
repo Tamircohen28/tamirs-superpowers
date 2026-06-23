@@ -3,7 +3,6 @@
 
 from __future__ import annotations
 
-import re
 from pathlib import Path
 from typing import Any
 
@@ -90,11 +89,22 @@ OVERRIDES: dict[str, dict[str, Any]] = {
 
 def parse_skill(path: Path) -> tuple[dict[str, Any], str]:
     text = path.read_text(encoding="utf-8")
-    match = re.match(r"^(---\n.*?\n---\n)(.*)$", text, re.DOTALL)
-    if not match:
+    normalized = text.replace("\r\n", "\n").replace("\r", "\n")
+    lines = normalized.split("\n")
+    if not lines or lines[0].strip() != "---":
         raise ValueError(f"no frontmatter: {path}")
-    fm = yaml.safe_load(match.group(1)[4:-4])
-    body = match.group(2)
+    end = None
+    for idx in range(1, len(lines)):
+        if lines[idx].strip() == "---":
+            end = idx
+            break
+    if end is None:
+        raise ValueError(f"no frontmatter: {path}")
+    fm_text = "\n".join(lines[1:end])
+    body = "\n".join(lines[end + 1 :])
+    if body and not body.startswith("\n"):
+        body = "\n" + body
+    fm = yaml.safe_load(fm_text)
     if not isinstance(fm, dict):
         raise ValueError(f"invalid frontmatter: {path}")
     return fm, body
@@ -108,7 +118,7 @@ def dump_frontmatter(fm: dict[str, Any]) -> str:
     for key in sorted(fm.keys()):
         if key not in ordered:
             ordered[key] = fm[key]
-    return yaml.dump(
+    return yaml.safe_dump(
         ordered,
         default_flow_style=False,
         allow_unicode=True,

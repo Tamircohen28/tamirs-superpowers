@@ -1,12 +1,22 @@
 ---
 name: dark-terminal-doc
-description: 'Use when the user wants a polished, shareable single-file HTML technical document with a dark developer / terminal aesthetic — including comparison tables (A vs B), reference sheets, cheatsheets, changelogs, release notes, feature breakdowns, and API docs. Trigger phrases: "make a comparison table", "write a reference doc", "create a feature breakdown", "styled HTML doc", "dark terminal doc", "developer-facing HTML", "comparison cheatsheet", "technical reference page", "release notes HTML", "offline HTML doc", "single-file HTML page", "API cheatsheet", "git cheatsheet", "vs comparison".
-
-  '
-when_to_use: 'User asks for a polished, shareable HTML technical document — comparison table, reference sheet, changelog, release notes, feature breakdown, API cheatsheet. Trigger phrases: "make a comparison table", "write a reference doc", "create a feature breakdown", "styled HTML doc", "dark terminal doc", "produce a technical document", "offline HTML doc", "single-file HTML page", "release notes HTML", "API reference page", "git cheatsheet", "vs comparison doc".
-
-  '
-argument-hint: '[document type and topic — e.g. ''comparison table: Claude vs GPT-4'', ''reference sheet: git commands'', ''release notes: v2.0'']'
+description: >
+  Use when the user wants a polished, shareable single-file HTML technical
+  document with a dark developer / terminal aesthetic — including comparison
+  tables (A vs B), reference sheets, cheatsheets, changelogs, release notes,
+  feature breakdowns, and API docs. Trigger phrases: "make a comparison table",
+  "write a reference doc", "create a feature breakdown", "styled HTML doc",
+  "dark terminal doc", "developer-facing HTML", "comparison cheatsheet",
+  "technical reference page", "release notes HTML", "offline HTML doc",
+  "single-file HTML page", "API cheatsheet", "git cheatsheet", "vs comparison".
+when_to_use: >
+  User asks for a polished, shareable HTML technical document — comparison table,
+  reference sheet, changelog, release notes, feature breakdown, API cheatsheet.
+  Trigger phrases: "make a comparison table", "write a reference doc", "create a
+  feature breakdown", "styled HTML doc", "dark terminal doc", "produce a technical
+  document", "offline HTML doc", "single-file HTML page", "release notes HTML",
+  "API reference page", "git cheatsheet", "vs comparison doc".
+argument-hint: "[document type and topic — e.g. 'comparison table: Claude vs GPT-4', 'reference sheet: git commands', 'release notes: v2.0']"
 arguments: []
 disable-model-invocation: false
 user-invocable: true

@@ -10,7 +10,7 @@
 # Exit codes:
 #   0 = file parsed, output is valid JSON (check .passed for pass/fail)
 #   1 = usage error or file not found
-set -uo pipefail
+set -euo pipefail
 
 usage() { sed -n '2,14p' "$0" | sed 's/^# \?//'; exit "${1:-0}"; }
 if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then usage 0; fi
@@ -28,7 +28,38 @@ if [[ ! -f "$VALIDATOR" ]]; then
   exit 1
 fi
 
-RESULT="$(python3 "$VALIDATOR" --json "$FILE" 2>/dev/null | tail -1)"
+VALIDATOR_ERR="$(mktemp)"
+trap 'rm -f "$VALIDATOR_ERR"' EXIT
+
+if ! RESULT="$(python3 "$VALIDATOR" --json "$FILE" 2>"$VALIDATOR_ERR" | tail -1)"; then
+  echo "ERROR: validator failed for $FILE" >&2
+  cat "$VALIDATOR_ERR" >&2
+  jq -nc \
+    --arg file "$FILE" \
+    --arg err "$(tr '\n' ' ' <"$VALIDATOR_ERR")" \
+    '{
+      file: $file,
+      fields: {name: "", description_length: 0},
+      passed: false,
+      findings: [{severity: "critical", field: "frontmatter", message: $err}]
+    }'
+  exit 0
+fi
+
+if [[ -z "$RESULT" ]]; then
+  echo "ERROR: validator produced no JSON output for $FILE" >&2
+  cat "$VALIDATOR_ERR" >&2
+  jq -nc \
+    --arg file "$FILE" \
+  '{
+    file: $file,
+    fields: {name: "", description_length: 0},
+    passed: false,
+    findings: [{severity: "critical", field: "frontmatter", message: "validator produced no output"}]
+  }'
+  exit 0
+fi
+
 PASSED="$(echo "$RESULT" | jq -r '.passed')"
 ERRORS_JSON="$(echo "$RESULT" | jq -c '.errors')"
 
