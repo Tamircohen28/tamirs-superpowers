@@ -41,7 +41,7 @@ context: ''
 agent: ''
 ```
 
-Examples: `find-skill`, `mcp-builder`, `plugin-compat`.
+Examples: `find-skill`, `mcp-builder`, `multi-agent-repo`.
 
 ### Slash-command workflow (manual invoke)
 

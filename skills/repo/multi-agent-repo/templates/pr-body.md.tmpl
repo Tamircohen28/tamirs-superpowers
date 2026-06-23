@@ -1,0 +1,28 @@
+## Summary
+
+- Audits and remediates multi-agent development setup for Claude Code, Cursor, and Codex
+- Establishes `AGENTS.md` as canonical source of truth with thin adapter files
+- Adds drift prevention and CI-enforced `agent:check` validation
+
+## Changes
+
+{{CHANGES_BULLETS}}
+
+## Gaps closed
+
+| Area | Before | After |
+|------|--------|-------|
+{{GAPS_TABLE}}
+
+## Test plan
+
+- [ ] `bash scripts/check-agent-drift.sh` passes
+- [ ] `{{VALIDATION_COMMAND}}` passes
+- [ ] `AGENTS.md` ≤ 32 KiB and contains exact lint/test commands
+- [ ] `CLAUDE.md` imports `@AGENTS.md` without duplicating policy
+- [ ] ≤ 2 Cursor rules with `alwaysApply: true`
+
+## Review notes
+
+Plan document: `{{PLAN_PATH}}`
+Review document: `{{REVIEW_PATH}}`

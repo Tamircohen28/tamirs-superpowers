@@ -1,0 +1,9 @@
+{
+  "name": "minimal-node-fixture",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Eval fixture — intentionally missing AGENTS.md and agent config",
+  "scripts": {
+    "test": "node -e \"console.log('ok')\""
+  }
+}

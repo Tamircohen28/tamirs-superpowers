@@ -25,11 +25,11 @@ tamirs-superpowers/              ← GitHub repo root
 └── skills/                      ← 17 skills in 7 domains (see CLAUDE.md)
     ├── creative/                ← algorithmic-art
     ├── debugging/               ← targeted-debug
-    ├── dev-workflow/            ← plan-dev, plugin-compat, pr-dev, start-dev
+    ├── dev-workflow/            ← plan-dev, pr-dev, start-dev
     ├── documentation/           ← changelog-review, dark-terminal-doc, docs-review
     ├── mcp/                     ← mcp-builder, mcp-pagination
     ├── meta/                    ← find-skill, session-report, skill-creator
-    └── repo/                    ← repo-polish, repo-review, repo-scaffold
+    └── repo/                    ← multi-agent-repo, repo-polish, repo-review, repo-scaffold
 ```
 
 ## Hook system
