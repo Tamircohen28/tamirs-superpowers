@@ -17,23 +17,33 @@ when_to_use: >
   document", "offline HTML doc", "single-file HTML page", "release notes HTML",
   "API reference page", "git cheatsheet", "vs comparison doc".
 argument-hint: "[document type and topic — e.g. 'comparison table: Claude vs GPT-4', 'reference sheet: git commands', 'release notes: v2.0']"
-model: claude-sonnet-4-6
+arguments: []
+disable-model-invocation: false
+user-invocable: true
 allowed-tools:
-  - Write
-  - Read
-  - Bash
+- Write
+- Read
+- Bash
+disallowed-tools: []
+model: claude-sonnet-4-6
+effort: medium
+context: ''
+agent: ''
+hooks: {}
+paths: []
+shell: bash
 metadata:
   capability: document-generation
   tags:
-    - html
-    - documentation
-    - design
-    - content
-    - dark-terminal
-    - comparison-table
-    - reference-sheet
-    - single-file
-  updated-date: "2026-06-16"
+  - html
+  - documentation
+  - design
+  - content
+  - dark-terminal
+  - comparison-table
+  - reference-sheet
+  - single-file
+  updated-date: '2026-06-16'
 ---
 
 # Dark Terminal Document Design System

@@ -1,35 +1,43 @@
 ---
 name: targeted-debug
-context: fork
+description: 'Use when the user pastes a stack trace, traceback, panic, crash log, or error message WITH a file:line reference and wants to know the root cause. Triggers on: ''debug this error'', ''look at this stack trace'', ''why does X crash'', ''what causes this exception'', ''why is this panicking'', ''look at this file:line'', error types (NullPointerException, AttributeError, TypeError, nil pointer dereference, unwrap on None, index out of bounds, segfault, unbound variable, cannot read properties of undefined). Does NOT trigger on vague ''something is broken'' or ''why is it slow'' without a concrete error signal.'
+when_to_use: 'User provides a concrete error: stack trace, panic output, crash log, or names a specific file:line and asks what''s wrong. Error is already in hand — no broad codebase exploration needed. Do not use when the user has no stack trace or no concrete error message.'
+argument-hint: <error-message-or-stack-trace> [file:line ...]
+arguments: []
 disable-model-invocation: true
-description: "Use when the user pastes a stack trace, traceback, panic, crash log, or error message WITH a file:line reference and wants to know the root cause. Triggers on: 'debug this error', 'look at this stack trace', 'why does X crash', 'what causes this exception', 'why is this panicking', 'look at this file:line', error types (NullPointerException, AttributeError, TypeError, nil pointer dereference, unwrap on None, index out of bounds, segfault, unbound variable, cannot read properties of undefined). Does NOT trigger on vague 'something is broken' or 'why is it slow' without a concrete error signal."
-when_to_use: "User provides a concrete error: stack trace, panic output, crash log, or names a specific file:line and asks what's wrong. Error is already in hand — no broad codebase exploration needed. Do not use when the user has no stack trace or no concrete error message."
-argument-hint: "<error-message-or-stack-trace> [file:line ...]"
-model: claude-sonnet-4-6
+user-invocable: true
 allowed-tools:
-  - Read
-  - Grep
-  - Glob
-  - Bash
+- Read
+- Grep
+- Glob
+- Bash
+disallowed-tools: []
+model: claude-sonnet-4-6
+effort: medium
+context: fork
+agent: Explore
+hooks: {}
+paths: []
+shell: bash
 metadata:
   capability: focused-debugging
   provider: developer-workflow
   agents:
-    - targeted-debug
+  - targeted-debug
   platforms:
-    - claude
+  - claude
   tags:
-    - debugging
-    - focused
-    - targeted
-    - stack-trace
-    - error
-    - crash
-    - traceback
-    - panic
-    - rust
-    - go
-  updated-date: "2026-06-16"
+  - debugging
+  - focused
+  - targeted
+  - stack-trace
+  - error
+  - crash
+  - traceback
+  - panic
+  - rust
+  - go
+  updated-date: '2026-06-16'
 ---
 
 ## Live context

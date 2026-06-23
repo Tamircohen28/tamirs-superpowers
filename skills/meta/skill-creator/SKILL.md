@@ -1,27 +1,37 @@
 ---
 name: skill-creator
-description: "Use when creating or improving a Claude Code skill (SKILL.md), fixing a skill that isn't triggering, optimizing its description, or running skill evals/benchmarks. Triggers: 'make this a skill', 'turn this into a skill', 'write a SKILL.md', 'my skill isn't triggering', 'skill keeps missing', 'add evals to my skill', 'benchmark my skill', 'improve this skill', 'create a new skill for X'."
-when_to_use: "User wants to create a new SKILL.md from scratch, improve or rewrite an existing skill, fix a skill that under- or over-triggers, add test cases or evals, run a skill benchmark, or optimize the description for triggering accuracy. Key phrases: 'make this a skill', 'skill isn't triggering', 'write a skill', 'add evals', 'benchmark this skill', 'improve the description'."
-argument-hint: "[skill name or path to SKILL.md]"
-model: claude-sonnet-4-6
+description: 'Use when creating or improving a Claude Code skill (SKILL.md), fixing a skill that isn''t triggering, optimizing its description, or running skill evals/benchmarks. Triggers: ''make this a skill'', ''turn this into a skill'', ''write a SKILL.md'', ''my skill isn''t triggering'', ''skill keeps missing'', ''add evals to my skill'', ''benchmark my skill'', ''improve this skill'', ''create a new skill for X''.'
+when_to_use: 'User wants to create a new SKILL.md from scratch, improve or rewrite an existing skill, fix a skill that under- or over-triggers, add test cases or evals, run a skill benchmark, or optimize the description for triggering accuracy. Key phrases: ''make this a skill'', ''skill isn''t triggering'', ''write a skill'', ''add evals'', ''benchmark this skill'', ''improve the description''.'
+argument-hint: '[skill name or path to SKILL.md]'
+arguments: []
+disable-model-invocation: false
+user-invocable: true
 allowed-tools:
-  - Bash
-  - Read
-  - Write
-  - Edit
-  - Glob
-  - Grep
-  - WebFetch
-  - Skill
-  - Agent
+- Bash
+- Read
+- Write
+- Edit
+- Glob
+- Grep
+- WebFetch
+- Skill
+- Agent
+disallowed-tools: []
+model: claude-sonnet-4-6
+effort: medium
+context: ''
+agent: ''
+hooks: {}
+paths: []
+shell: bash
 metadata:
   capability: meta
   tags:
-    - skill
-    - authoring
-    - evals
-    - triggering
-  updated-date: "2026-06-16"
+  - skill
+  - authoring
+  - evals
+  - triggering
+  updated-date: '2026-06-16'
 ---
 
 # Skill Creator
@@ -65,14 +75,30 @@ Use available MCP tools or subagents to research similar skills or relevant docs
 
 ### 3. Write the SKILL.md
 
-Fill in the frontmatter first:
+Fill in **all 16 official frontmatter fields** plus `metadata.updated-date`. Copy the skeleton from `references/frontmatter-template.md` and pick the skill-type preset (user slash, auto-trigger, internal companion, or forked subagent).
+
+Required fields: `name`, `description`, `when_to_use`, `argument-hint`, `arguments`, `disable-model-invocation`, `user-invocable`, `allowed-tools`, `disallowed-tools`, `model`, `effort`, `context`, `agent`, `hooks`, `paths`, `shell`, `metadata`.
+
+Key authoring notes:
 
 - **name**: kebab-case, matches directory name
 - **description**: Start with "Use when..." — triggering conditions only. Include synonyms, error message fragments, command names. Skills undertrigger by default — lean slightly pushy. Under 500 chars.
-- **model**: `claude-sonnet-4-6` unless there is a specific reason for another
-- **allowed-tools**: exhaustive list of every tool the skill body actually uses
 - **when_to_use**: 3-5 concrete trigger phrases a user would type
-- **metadata.updated-date**: today's date
+- **argument-hint**: autocomplete hint; use `[none]` when the skill takes no args
+- **arguments**: `[]` unless using `$name` positional substitution
+- **allowed-tools**: exhaustive list of every tool the skill body actually uses
+- **disallowed-tools**: `[]` unless blocking specific tools while active
+- **model**: `claude-sonnet-4-6` unless there is a specific reason for another
+- **effort**: `low` / `medium` / `high` / `xhigh` / `max` per skill type preset
+- **context** / **agent**: `''` unless `context: fork` (then set `agent`, e.g. `Explore`)
+- **hooks** / **paths**: `{}` and `[]` when unused; **shell**: `bash`
+- **metadata.updated-date**: today's date (`YYYY-MM-DD`)
+
+After writing, run:
+
+```bash
+python3 scripts/validate-skill-frontmatter.py path/to/SKILL.md
+```
 
 #### Skill directory anatomy
 

@@ -1,27 +1,37 @@
 ---
 name: plugin-compat
-description: "Use when the user wants to make a plugin, extension, or tool repo compatible with one or more AI coding assistants — Claude Code, Cursor, or OpenAI Codex. Triggers: 'make this compatible with Claude and Cursor', 'add Codex support', 'port this plugin to Cursor', 'make this work with all AI assistants', 'add AGENTS.md', 'add cursor rules', 'generate .cursor/rules', 'add claude code plugin files', 'plugin compatibility', 'multi-platform AI support', 'set up for Claude Cursor and Codex'."
-when_to_use: "User wants to generate or update platform-specific config files so their repo works as a plugin/extension for Claude Code, Cursor, and/or OpenAI Codex. Example phrases: 'make this compatible with Claude and Cursor', 'add Codex AGENTS.md', 'generate cursor rules for this repo', 'set up plugin files for all three AI assistants', 'add multi-platform AI support'."
-argument-hint: "[platform(s) to target — e.g. 'all', 'cursor', 'codex', 'claude' — defaults to all three]"
-model: claude-sonnet-4-6
+description: 'Use when the user wants to make a plugin, extension, or tool repo compatible with one or more AI coding assistants — Claude Code, Cursor, or OpenAI Codex. Triggers: ''make this compatible with Claude and Cursor'', ''add Codex support'', ''port this plugin to Cursor'', ''make this work with all AI assistants'', ''add AGENTS.md'', ''add cursor rules'', ''generate .cursor/rules'', ''add claude code plugin files'', ''plugin compatibility'', ''multi-platform AI support'', ''set up for Claude Cursor and Codex''.'
+when_to_use: 'User wants to generate or update platform-specific config files so their repo works as a plugin/extension for Claude Code, Cursor, and/or OpenAI Codex. Example phrases: ''make this compatible with Claude and Cursor'', ''add Codex AGENTS.md'', ''generate cursor rules for this repo'', ''set up plugin files for all three AI assistants'', ''add multi-platform AI support''.'
+argument-hint: '[platform(s) to target — e.g. ''all'', ''cursor'', ''codex'', ''claude'' — defaults to all three]'
+arguments: []
+disable-model-invocation: false
+user-invocable: true
 allowed-tools:
-  - Bash
-  - Read
-  - Write
-  - Edit
-  - Glob
-  - Grep
-  - WebFetch
+- Bash
+- Read
+- Write
+- Edit
+- Glob
+- Grep
+- WebFetch
+disallowed-tools: []
+model: claude-sonnet-4-6
+effort: medium
+context: ''
+agent: ''
+hooks: {}
+paths: []
+shell: bash
 metadata:
   capability: developer-workflow
   tags:
-    - plugin
-    - compatibility
-    - claude-code
-    - cursor
-    - codex
-    - multi-platform
-  updated-date: "2026-06-17"
+  - plugin
+  - compatibility
+  - claude-code
+  - cursor
+  - codex
+  - multi-platform
+  updated-date: '2026-06-17'
 ---
 
 # plugin-compat
@@ -131,7 +141,7 @@ Work through each platform. Apply schemas from the live fetch; use `references/p
 
 **`hooks/hooks.json`** — if `hooks/*.sh` files exist but `hooks.json` is absent, wire them. Use only events supported per the fetched docs. Each entry needs `matcher` and `hooks` array with `type` + `command`.
 
-**`SKILL.md` frontmatter audit** — for each existing `SKILL.md`, check that `name` and `description` are present (minimum). Report any that are missing required fields but do not silently modify skills without reporting the change.
+**`SKILL.md` frontmatter audit** — for each existing `SKILL.md`, run `python3 scripts/validate-skill-frontmatter.py` and report failures. All 16 official Claude Code fields plus `metadata.updated-date` are required in this repo.
 
 ### Cursor
 

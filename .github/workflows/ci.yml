@@ -39,14 +39,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - name: Check name + description fields
-        run: |
-          failed=0
-          find skills -name 'SKILL.md' | while read f; do
-            grep -q '^name:' "$f" || { echo "MISSING name: in $f"; failed=1; }
-            grep -q '^description:' "$f" || { echo "MISSING description: in $f"; failed=1; }
-          done
-          exit $failed
+      - name: Install PyYAML
+        run: pip install pyyaml
+      - name: Validate all official frontmatter fields
+        run: python3 scripts/validate-skill-frontmatter.py
+
 
   secret-scan:
     name: Secret scan

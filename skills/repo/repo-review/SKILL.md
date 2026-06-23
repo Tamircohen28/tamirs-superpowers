@@ -1,31 +1,40 @@
 ---
 name: repo-review
+description: 'Internal read-only repository health audit invoked by repo-polish (Step 6a or optional early pass). Scans the repo at $PROJECT_DIR for: directory violations (overfull/sparse/empty), misplaced files (wrong docs/ subdirectory), unclear file names, redundant/stale files (deleted-agent refs, old LangGraph patterns, dead scripts), over-commented shell scripts, dev-env consistency gaps (stale SKILL.md dates, copilot-instructions count drift), and pipeline reorganisation proposals. Produces docs/repo-review-<date>.md — never edits other files. repo-polish reads the report and applies all P1 findings.'
+when_to_use: Invoked automatically by repo-polish Step 6a after scaffolding completes (or as an early optional pass after Step 1 for large/messy repos). May also run when another skill explicitly delegates a full repository health audit.
+argument-hint: '[project directory path — defaults to repo root]'
+arguments: []
 disable-model-invocation: true
 user-invocable: false
-description: "Internal read-only repository health audit invoked by repo-polish (Step 6a or optional early pass). Scans the repo at $PROJECT_DIR for: directory violations (overfull/sparse/empty), misplaced files (wrong docs/ subdirectory), unclear file names, redundant/stale files (deleted-agent refs, old LangGraph patterns, dead scripts), over-commented shell scripts, dev-env consistency gaps (stale SKILL.md dates, copilot-instructions count drift), and pipeline reorganisation proposals. Produces docs/repo-review-<date>.md — never edits other files. repo-polish reads the report and applies all P1 findings."
-when_to_use: "Invoked automatically by repo-polish Step 6a after scaffolding completes (or as an early optional pass after Step 1 for large/messy repos). May also run when another skill explicitly delegates a full repository health audit."
-model: claude-sonnet-4-6
 allowed-tools:
-  - Bash
-  - Read
-  - Write
-  - Glob
-  - Grep
+- Bash
+- Read
+- Write
+- Glob
+- Grep
+disallowed-tools: []
+model: claude-sonnet-4-6
+effort: low
+context: ''
+agent: ''
+hooks: {}
+paths: []
+shell: bash
 metadata:
   capability: repository-audit
   provider: developer-workflow
   agents:
-    - repo-review
+  - repo-review
   platforms:
-    - claude
+  - claude
   tags:
-    - audit
-    - cleanup
-    - repo-health
-    - misplaced-files
-    - stale-refs
-    - pipeline-reorg
-  updated-date: "2026-06-16"
+  - audit
+  - cleanup
+  - repo-health
+  - misplaced-files
+  - stale-refs
+  - pipeline-reorg
+  updated-date: '2026-06-16'
 ---
 
 # repo-review

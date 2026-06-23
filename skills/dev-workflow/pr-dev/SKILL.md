@@ -1,31 +1,40 @@
 ---
 name: pr-dev
-description: "Use when the user wants to actively drive a PR to completion — 'finish this PR', 'address review comments', 'ship/land/close the PR', 'drive PR #N to merge', 'fix CI and merge', 'clean up this PR'. Persistently loops: addresses all review threads, fixes branch-related CI, retries flakes (max 3×), and stops only when ready (asks for `approved`) or blocked (asks for help)."
-when_to_use: "User says: finish this PR, address comments, ship/land/merge the PR, drive PR #N, handle review feedback, fix CI and merge, squash-merge, clean up PR branch — or provides a PR number/URL and asks to drive it to done."
-argument-hint: "[PR number, PR URL, or omit to infer from current branch]"
+description: 'Use when the user wants to actively drive a PR to completion — ''finish this PR'', ''address review comments'', ''ship/land/close the PR'', ''drive PR #N to merge'', ''fix CI and merge'', ''clean up this PR''. Persistently loops: addresses all review threads, fixes branch-related CI, retries flakes (max 3×), and stops only when ready (asks for `approved`) or blocked (asks for help).'
+when_to_use: 'User says: finish this PR, address comments, ship/land/merge the PR, drive PR #N, handle review feedback, fix CI and merge, squash-merge, clean up PR branch — or provides a PR number/URL and asks to drive it to done.'
+argument-hint: '[PR number, PR URL, or omit to infer from current branch]'
+arguments: []
+disable-model-invocation: false
+user-invocable: true
+allowed-tools:
+- Bash
+- Read
+- Write
+- Edit
+- Glob
+- Grep
+- WebFetch
+- Agent
+- Monitor
+- Skill
+disallowed-tools: []
 model: claude-sonnet-4-6
 effort: high
-allowed-tools:
-  - Bash
-  - Read
-  - Write
-  - Edit
-  - Glob
-  - Grep
-  - WebFetch
-  - Agent
-  - Monitor
-  - Skill
+context: ''
+agent: ''
+hooks: {}
+paths: []
+shell: bash
 metadata:
   capability: pr-drive
   tags:
-    - pr
-    - review
-    - ci
-    - merge
-    - workflow
-    - github
-  updated-date: "2026-06-16"
+  - pr
+  - review
+  - ci
+  - merge
+  - workflow
+  - github
+  updated-date: '2026-06-16'
 ---
 
 # pr-dev

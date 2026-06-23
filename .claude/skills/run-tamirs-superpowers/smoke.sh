@@ -49,34 +49,14 @@ else
   fail "plugin.json .settings.statusLine must be object not $sl_type"
 fi
 
-# ── 4. SKILL.md quality audit ─────────────────────────────────────────────
+# ── 4. SKILL.md frontmatter (full official field set) ─────────────────────
 echo ""
-echo "=== 4. SKILL.md quality audit ==="
-while IFS= read -r f; do
-  name=$(grep '^name:' "$f" | head -1 | sed 's/^name: *//')
-  desc=$(grep '^description:' "$f" | head -1 | sed 's/^description: *//')
-  tools=$(grep '^allowed-tools:' "$f" | head -1)
-  when=$(grep '^when_to_use:' "$f" | head -1)
-  upd=$(grep 'updated-date:' "$f" | grep -oE '[0-9]{4}-[0-9]{2}-[0-9]{2}' | head -1)
-  internal=0
-  grep -q '^user-invocable: false' "$f" 2>/dev/null && internal=1 || true
-
-  issues=""
-  [ -z "$name" ]  && issues="$issues missing-name"
-  [ -z "$desc" ]  && issues="$issues missing-description"
-  [ -z "$tools" ] && issues="$issues missing-allowed-tools"
-  if [ "$internal" = "0" ]; then
-    [ -z "$when" ] && issues="$issues missing-when_to_use"
-  fi
-  [ -z "$upd" ]   && issues="$issues missing-updated-date"
-
-  skill_slug=$(basename "$(dirname "$f")")
-  if [ -n "$issues" ]; then
-    warn "$skill_slug:$issues"
-  else
-    ok "$skill_slug"
-  fi
-done < <(find skills -name 'SKILL.md' | sort)
+echo "=== 4. SKILL.md frontmatter ==="
+if python3 scripts/validate-skill-frontmatter.py >/dev/null 2>&1; then
+  ok "all SKILL.md frontmatter fields"
+else
+  fail "SKILL.md frontmatter — run: python3 scripts/validate-skill-frontmatter.py"
+fi
 
 # ── 5. Hook wiring check ──────────────────────────────────────────────────
 echo ""

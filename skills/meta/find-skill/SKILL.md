@@ -1,29 +1,39 @@
 ---
 name: find-skill
-description: "Use when the user asks 'find a skill for X', 'is there a plugin that does Y', 'what skill should I use for Z', 'recommend an agent for W', 'compare skills for ...', or 'search for a Claude Code skill'. Searches public skill and plugin marketplaces in real time and returns top N ranked matches. Trigger words: find skill, find plugin, skill for, plugin for, agent for, recommend skill, search skills, skill discovery, mcp server for, claude code plugin."
+description: 'Use when the user asks ''find a skill for X'', ''is there a plugin that does Y'', ''what skill should I use for Z'', ''recommend an agent for W'', ''compare skills for ...'', or ''search for a Claude Code skill''. Searches public skill and plugin marketplaces in real time and returns top N ranked matches. Trigger words: find skill, find plugin, skill for, plugin for, agent for, recommend skill, search skills, skill discovery, mcp server for, claude code plugin.'
+when_to_use: User asks to find, recommend, or search for a skill, plugin, or agent — e.g. 'find a skill for code review', 'is there a plugin for X', 'recommend an agent for GitHub'.
+argument-hint: '[what you need a skill or plugin for — e.g. ''PDF comparison'', ''PR review automation'']'
+arguments: []
+disable-model-invocation: false
+user-invocable: true
 allowed-tools:
-  - WebSearch
-  - WebFetch
-  - Bash
-  - Skill
-when_to_use: "User asks to find, recommend, or search for a skill, plugin, or agent — e.g. 'find a skill for code review', 'is there a plugin for X', 'recommend an agent for GitHub'."
-argument-hint: "[what you need a skill or plugin for — e.g. 'PDF comparison', 'PR review automation']"
+- WebSearch
+- WebFetch
+- Bash
+- Skill
+disallowed-tools: []
 model: claude-sonnet-4-6
+effort: medium
+context: ''
+agent: ''
+hooks: {}
+paths: []
+shell: bash
 metadata:
   capability: skill-discovery
   provider: developer-workflow
   agents: []
   platforms:
-    - claude
+  - claude
   tags:
-    - meta
-    - marketplace
-    - discovery
-    - search
-    - skills
-    - plugins
-    - agents
-  updated-date: "2026-06-13"
+  - meta
+  - marketplace
+  - discovery
+  - search
+  - skills
+  - plugins
+  - agents
+  updated-date: '2026-06-13'
 ---
 
 # find-skill — real-time search across skill and plugin marketplaces

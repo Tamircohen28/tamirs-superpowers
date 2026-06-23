@@ -1,33 +1,41 @@
 ---
 name: docs-review
+description: 'Internal docs-quality sweep invoked by repo-polish Step 6b. Audits README.md and docs/** across 8 axes: repo inventory, visual cleanliness, git freshness, stray plan files, template conformance, broken links/anchors, CLAUDE.md consistency, and recent-change sync. Returns pass/fail summary to caller.'
+when_to_use: Called by repo-polish after scaffolding (Step 6b). Also valid when another skill explicitly needs a full documentation audit — e.g. 'run docs-review on $PROJECT_DIR'. Not for direct user invocation.
+argument-hint: '[optional: subset glob like ''docs/user/**'' or single file path]'
+arguments: []
 disable-model-invocation: true
 user-invocable: false
-description: "Internal docs-quality sweep invoked by repo-polish Step 6b. Audits README.md and docs/** across 8 axes: repo inventory, visual cleanliness, git freshness, stray plan files, template conformance, broken links/anchors, CLAUDE.md consistency, and recent-change sync. Returns pass/fail summary to caller."
-when_to_use: "Called by repo-polish after scaffolding (Step 6b). Also valid when another skill explicitly needs a full documentation audit — e.g. 'run docs-review on $PROJECT_DIR'. Not for direct user invocation."
-argument-hint: "[optional: subset glob like 'docs/user/**' or single file path]"
-model: claude-sonnet-4-6
 allowed-tools:
-  - Bash
-  - Read
-  - Write
-  - Edit
-  - Glob
-  - Grep
+- Bash
+- Read
+- Write
+- Edit
+- Glob
+- Grep
+disallowed-tools: []
+model: claude-sonnet-4-6
+effort: low
+context: ''
+agent: ''
+hooks: {}
+paths: []
+shell: bash
 metadata:
   capability: documentation-quality
   provider: developer-workflow
   agents:
-    - docs-review
+  - docs-review
   platforms:
-    - claude
+  - claude
   tags:
-    - documentation
-    - audit
-    - links
-    - freshness
-    - cleanup
-    - workflow
-  updated-date: "2026-06-16"
+  - documentation
+  - audit
+  - links
+  - freshness
+  - cleanup
+  - workflow
+  updated-date: '2026-06-16'
 ---
 
 # docs-review

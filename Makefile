@@ -15,12 +15,9 @@ validate: lint
 	@find . -name '*.json' -not -path '*/.git/*' | while read f; do \
 	  jq empty "$$f" 2>&1 && echo "  OK  $$f" || { echo "  FAIL $$f"; exit 1; }; \
 	done
-	@echo "--- Validating SKILL.md frontmatter (name + description fields) ---"
-	@find $(SKILLS_DIR) -name 'SKILL.md' | while read f; do \
-	  grep -q '^name:' "$$f" || { echo "  MISSING name: $$f"; exit 1; }; \
-	  grep -q '^description:' "$$f" || { echo "  MISSING description: $$f"; exit 1; }; \
-	  echo "  OK  $$f"; \
-	done
+	@echo "--- Validating SKILL.md frontmatter (all official Claude Code fields) ---"
+	@python3 -c "import yaml" 2>/dev/null || python3 -m pip install -q -r scripts/requirements-validate.txt
+	@python3 scripts/validate-skill-frontmatter.py
 	@echo "--- Checking for orphan hook scripts (not referenced in hooks.json) ---"
 	@find $(HOOKS_DIR) -maxdepth 1 -name '*.sh' | while read f; do \
 	  base=$$(basename "$$f"); \

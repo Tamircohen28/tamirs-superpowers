@@ -10,7 +10,7 @@ Install via the `tamirs-plugins` marketplace catalog:
 
 ## Working agreements
 
-- Validate after every change: `make validate` (shellcheck + JSON lint + SKILL.md frontmatter audit)
+- Validate after every change: `make validate` (shellcheck + JSON lint + full SKILL.md frontmatter audit)
 - Commit format: `<type>(<scope>): <description>` — types: `feat`, `fix`, `chore`, `docs`, `refactor` — scopes: `skills`, `hooks`, `marketplace`, `ci`, `docs`
 - Never add `runs-on: [self-hosted]` to any CI workflow — use `ubuntu-latest`
 - Never commit secrets or tokens — `.mcp.json` uses `${ENV_VAR}` placeholders only
@@ -20,7 +20,7 @@ Install via the `tamirs-plugins` marketplace catalog:
 
 - All JSON files must be valid — checked by `make validate`
 - All `.sh` files must pass `shellcheck` — checked by `make lint`
-- Every `SKILL.md` must have valid YAML frontmatter with at least `name` and `description`
+- Every `SKILL.md` must include all 16 official Claude Code frontmatter fields plus `metadata.updated-date` — validated by `scripts/validate-skill-frontmatter.py`
 - No install step exists — this is a plugin, not a standalone tool
 
 ## Key files

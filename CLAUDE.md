@@ -46,7 +46,7 @@ Scopes: `skills`, `hooks`, `marketplace`, `ci`, `docs`
 - **Never commit secrets or tokens** — `.mcp.json` uses `${ENV_VAR}` placeholders only
 - **Never add Wix-internal references** (internal domains, private GitHub orgs, internal tooling names)
 - **Never modify `hooks/lib/worktree-common.sh`** without running shellcheck and testing both `capture-task-slug.sh` and `worktree-create.sh`
-- **SKILL.md files must have valid YAML frontmatter** with at least `name` and `description` fields
+- **SKILL.md files must have valid YAML frontmatter** with all 16 official Claude Code fields plus `metadata.updated-date` — see `skills/meta/skill-creator/references/frontmatter-template.md`; CI runs `scripts/validate-skill-frontmatter.py`
 
 ## Skill domains (17 skills total)
 
@@ -78,7 +78,7 @@ Skills can be restricted to internal use (invoked by other skills only, never by
 ## Adding a skill
 
 1. Create `skills/<domain>/<skill-name>/SKILL.md`
-2. Add frontmatter: `name`, `description`, `allowed-tools`
+2. Add frontmatter per `skills/meta/skill-creator/references/frontmatter-template.md` (all 16 official fields + metadata)
 3. If the skill is internal-only: add `user-invocable: false` and `disable-model-invocation: true`
 4. Update `README.md` skill count and table
 5. Run `make validate`

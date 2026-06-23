@@ -1,42 +1,52 @@
 ---
 alwaysApply: false
-globs: ["skills/**/SKILL.md"]
+globs: ["skills/**/SKILL.md", ".claude/skills/**/SKILL.md"]
 ---
 
 # Skill Quality Standards — tamirs-superpowers
 
 Rules for creating and maintaining skills in `skills/<domain>/<skill-name>/`.
 
-Based on [Claude Code Skills](https://code.claude.com/docs/en/skills) and [Plugins reference](https://code.claude.com/docs/en/plugins-reference).
+Based on [Claude Code Skills](https://code.claude.com/docs/en/skills) and
+`skills/meta/skill-creator/references/frontmatter-template.md`.
 
 ## Directory layout
 
 ```
 skills/<domain>/<skill-name>/
-├── SKILL.md              # Required — frontmatter + instructions (<500 lines)
+├── SKILL.md              # Required — full frontmatter + instructions (<500 lines)
 ├── references/           # Deep docs loaded on demand
-├── scripts/                # Deterministic bash/node helpers
+├── scripts/              # Deterministic bash/node helpers
 ├── templates/            # Reply bodies, issue templates, etc.
-└── evals/evals.json        # Optional golden cases
+└── evals/evals.json      # Optional golden cases
 ```
 
 **Invocation name** comes from the **directory name** (`<skill-name>`), not frontmatter `name` — keep them identical.
 
-## Frontmatter (required)
+## Frontmatter (all fields required)
+
+CI validates every skill via `scripts/validate-skill-frontmatter.py`.
 
 ```yaml
 ---
 name: <skill-name>                    # MUST match directory name
-description: "Use when ..."           # ≤1,536 chars; key trigger first
+description: "Use when ..."           # ≤1,536 chars combined with when_to_use
 when_to_use: "Concrete trigger phrases"
 argument-hint: "[what the user passes]"
-model: claude-sonnet-4-6
+arguments: []
+disable-model-invocation: false       # true for slash-only workflows
+user-invocable: true                  # false for internal companions
 allowed-tools:                        # Every tool the body uses
   - Bash
-  - Skill                            # Required if invoking internal skills
-disable-model-invocation: true        # Slash-command-only workflow skills
-user-invocable: false                 # Internal skills (invoked via Skill tool)
-effort: high                          # Optional — complex workflow skills
+  - Skill
+disallowed-tools: []
+model: claude-sonnet-4-6
+effort: medium                        # low | medium | high | xhigh | max
+context: ''                           # fork + agent for subagent skills
+agent: ''
+hooks: {}
+paths: []
+shell: bash
 metadata:
   capability: <domain-capability>
   tags: [<tag>, ...]
@@ -46,11 +56,12 @@ metadata:
 
 ### Internal vs user-facing
 
-| Type | `user-invocable` | `disable-model-invocation` | Examples |
-|------|------------------|----------------------------|----------|
-| User slash command | `true` (default) | `true` | plan-dev, start-dev, pr-dev |
-| Auto-trigger discovery | `true` (default) | `false` (default) | find-skill, mcp-builder |
-| Internal companion | `false` | `true` | docs-review, repo-review, mcp-pagination |
+| Type | `user-invocable` | `disable-model-invocation` | `effort` | Examples |
+|------|------------------|----------------------------|----------|----------|
+| User slash command | `true` | `true` | `high` | plan-dev, start-dev, pr-dev |
+| Auto-trigger discovery | `true` | `false` | `medium` | find-skill, mcp-builder |
+| Internal companion | `false` | `true` | `low` | docs-review, repo-review, mcp-pagination |
+| Forked subagent | `true` | `true` | `medium` | targeted-debug (`context: fork`, `agent: Explore`) |
 
 Parent skills invoke internal companions with `Skill("skill-name")` — never duplicate their checklists inline.
 
@@ -65,27 +76,20 @@ Parent skills invoke internal companions with `Skill("skill-name")` — never du
 
 ## Quality checklist
 
+- [ ] All 16 official frontmatter fields + `metadata.updated-date` present
+- [ ] `python3 scripts/validate-skill-frontmatter.py` passes
 - [ ] `name` matches directory name
 - [ ] `description` + `when_to_use` combined ≤1,536 characters
 - [ ] SKILL.md under 500 lines (`wc -l`)
 - [ ] `allowed-tools` lists every tool used in the body
 - [ ] Script paths use `$CLAUDE_SKILL_DIR`, never hardcoded absolute paths
-- [ ] Internal skills marked `user-invocable: false`
-- [ ] Workflow slash commands have `disable-model-invocation: true`
-- [ ] `metadata.updated-date` reflects last edit
+- [ ] Internal skills: `user-invocable: false` + `disable-model-invocation: true`
 - [ ] No employer IP, internal domains, or private org references
-
-## Plugin enhancements (from plugins-reference)
-
-- **`effort: high`** on plan-dev, start-dev, babysit-pr — full model capability for multi-step workflows
-- **`!`cmd`` live context blocks** — inject git/gh state at skill load (start-dev, plan-dev pattern)
-- **`Skill` tool** — parent skills delegate to internal companions (repo-polish, mcp-builder)
-- **`Monitor` tool** — long-running CI watch loops (babysit-pr)
-- **Reload after non-SKILL changes** — hooks, `.mcp.json`, `plugin.json` need `/reload-plugins`
 
 ## Validation
 
 ```bash
-make validate          # frontmatter name + description
+python3 scripts/validate-skill-frontmatter.py path/to/SKILL.md
+make validate          # shellcheck + JSON + all skills
 make plugin-validate   # full Claude Code plugin schema (requires claude CLI)
 ```

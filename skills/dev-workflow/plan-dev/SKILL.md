@@ -1,32 +1,40 @@
 ---
 name: plan-dev
-description: "Use when the user wants to convert an informal task, feature request, spec, or review doc into a structured implementation plan before any code is written. User's intent is organization and sequencing — phases, dependency ordering, and GitHub issues that make work trackable and reviewable. Invoke for: 'plan this', 'break into phases', 'create issues for', 'decompose this spec', 'turn into tickets', 'what order should I tackle these', 'help me organize this work', 'structure this feature', 'plan-dev'. This is distinct from architecture analysis of existing code, how-to questions, or direct coding requests — the output is a roadmap, not code."
+description: 'Use when the user wants to convert an informal task, feature request, spec, or review doc into a structured implementation plan before any code is written. User''s intent is organization and sequencing — phases, dependency ordering, and GitHub issues that make work trackable and reviewable. Invoke for: ''plan this'', ''break into phases'', ''create issues for'', ''decompose this spec'', ''turn into tickets'', ''what order should I tackle these'', ''help me organize this work'', ''structure this feature'', ''plan-dev''. This is distinct from architecture analysis of existing code, how-to questions, or direct coding requests — the output is a roadmap, not code.'
+when_to_use: 'User wants to plan or structure development work into phases and create GitHub issues — invoked as /plan-dev or when the user says: ''plan this'', ''break this into phases'', ''create issues for this'', ''decompose this spec/task'', ''structure this feature'', ''what order should I do this in'', ''turn this into tickets'', ''help me organize this work'', ''I have a review doc with N items help me organize it''.'
+argument-hint: '[task description, file path to spec/review doc, or GitHub issue URL/number]'
+arguments: []
 disable-model-invocation: true
-when_to_use: "User wants to plan or structure development work into phases and create GitHub issues — invoked as /plan-dev or when the user says: 'plan this', 'break this into phases', 'create issues for this', 'decompose this spec/task', 'structure this feature', 'what order should I do this in', 'turn this into tickets', 'help me organize this work', 'I have a review doc with N items help me organize it'."
-argument-hint: "[task description, file path to spec/review doc, or GitHub issue URL/number]"
+user-invocable: true
+allowed-tools:
+- Bash
+- Read
+- Write
+- Edit
+- Glob
+- Grep
+- WebFetch
+- WebSearch
+- Agent
+disallowed-tools: []
 model: claude-sonnet-4-6
 effort: high
-allowed-tools:
-  - Bash
-  - Read
-  - Write
-  - Edit
-  - Glob
-  - Grep
-  - WebFetch
-  - WebSearch
-  - Agent
+context: ''
+agent: ''
+hooks: {}
+paths: []
+shell: bash
 metadata:
   capability: developer-workflow
   tags:
-    - planning
-    - phases
-    - github-issues
-    - decomposition
-    - workflow
-    - tickets
-    - spec
-  updated-date: "2026-06-16"
+  - planning
+  - phases
+  - github-issues
+  - decomposition
+  - workflow
+  - tickets
+  - spec
+  updated-date: '2026-06-16'
 ---
 
 ## Live context

@@ -8,37 +8,52 @@ globs: "skills/**/*"
 
 Skills are plain Markdown files (`SKILL.md`) with YAML frontmatter. Claude Code loads them as slash commands. The **directory name** under `skills/<domain>/` is the slash-command name.
 
-## Required frontmatter fields
+## Frontmatter — all fields required
+
+Every skill must declare **all 16 official Claude Code fields** plus `metadata.updated-date`.
+See `skills/meta/skill-creator/references/frontmatter-template.md` for presets and skeleton.
 
 ```yaml
 ---
 name: skill-name
-description: "Trigger description — how Claude decides when to auto-invoke"
+description: "Use when …"
+when_to_use: "User says …"
+argument-hint: "[args]"
+arguments: []
+disable-model-invocation: false
+user-invocable: true
 allowed-tools:
   - Bash
   - Read
+disallowed-tools: []
+model: claude-sonnet-4-6
+effort: medium
+context: ''
+agent: ''
+hooks: {}
+paths: []
+shell: bash
+metadata:
+  updated-date: "YYYY-MM-DD"
 ---
 ```
 
-Optional: `when_to_use`, `argument-hint`, `model`, `effort`, `user-invocable`, `disable-model-invocation`.
-
 ## Internal-only skills
 
-Add both flags to hide a skill from the `/` menu (invokable by other skills only):
-
 ```yaml
-user-invocable: false
 disable-model-invocation: true
+user-invocable: false
+effort: low
 ```
 
 ## Adding a skill
 
-1. Create `skills/<domain>/<skill-name>/SKILL.md`
-2. Add frontmatter with at least `name`, `description`, `allowed-tools`
+1. Create `skills/<domain>/<skill-name>/SKILL.md` using `skill-creator` + template
+2. Run `python3 scripts/validate-skill-frontmatter.py skills/<domain>/<skill-name>/SKILL.md`
 3. Update `README.md` skill count and table
 4. Run `make validate`
 
-**Never hand-write a SKILL.md from scratch** — use the bundled `skill-creator` skill to ensure evals, references, and the quality bar are met.
+**Never hand-write a SKILL.md from scratch** — use the bundled `skill-creator` skill.
 
 ## Skill domains (17 skills total)
 

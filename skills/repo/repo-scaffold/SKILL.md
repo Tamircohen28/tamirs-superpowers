@@ -1,34 +1,42 @@
 ---
 name: repo-scaffold
-description: "Use when the user wants to create a new GitHub repository from scratch with production-ready infrastructure. Triggers: 'scaffold a repo', 'create a new repo', 'set up a new project', 'new github repo', 'bootstrap a project', 'forge a repo', '/repo-scaffold', 'start a new repo', 'initialize a project', 'make me a repo'. Does NOT trigger for repo-polish (existing repo) or when the user only wants docs."
+description: 'Use when the user wants to create a new GitHub repository from scratch with production-ready infrastructure. Triggers: ''scaffold a repo'', ''create a new repo'', ''set up a new project'', ''new github repo'', ''bootstrap a project'', ''forge a repo'', ''/repo-scaffold'', ''start a new repo'', ''initialize a project'', ''make me a repo''. Does NOT trigger for repo-polish (existing repo) or when the user only wants docs.'
+when_to_use: User wants to create a brand-new private GitHub repo from an idea or description — fully scaffolded with docs, CI, Claude Code tooling, and branch protection.
+argument-hint: <repo-name> -- <description> [--src <github-url-or-local-path>] [--tech <stack>]
+arguments: []
+disable-model-invocation: false
 user-invocable: true
-when_to_use: "User wants to create a brand-new private GitHub repo from an idea or description — fully scaffolded with docs, CI, Claude Code tooling, and branch protection."
-argument-hint: "<repo-name> -- <description> [--src <github-url-or-local-path>] [--tech <stack>]"
+allowed-tools:
+- Bash
+- Read
+- Write
+- Edit
+- Glob
+- Grep
+- Agent
+- Skill
+- WebFetch
+disallowed-tools: []
 model: claude-sonnet-4-6
 effort: high
-allowed-tools:
-  - Bash
-  - Read
-  - Write
-  - Edit
-  - Glob
-  - Grep
-  - Agent
-  - Skill
-  - WebFetch
+context: ''
+agent: ''
+hooks: {}
+paths: []
+shell: bash
 metadata:
   capability: repo-scaffold
   provider: developer-workflow
   platforms:
-    - claude
+  - claude
   tags:
-    - github
-    - scaffold
-    - docs
-    - ci-cd
-    - claude-code
-    - bootstrap
-  updated-date: "2026-06-16"
+  - github
+  - scaffold
+  - docs
+  - ci-cd
+  - claude-code
+  - bootstrap
+  updated-date: '2026-06-16'
 ---
 
 # repo-scaffold
