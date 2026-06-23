@@ -16,11 +16,11 @@
 
 # tamirs-superpowers
 
-A personal Claude Code plugin that bundles 17 skills, smart worktree hooks, and MCP server stubs — installed with a single `/plugin install` command and kept current via marketplace auto-update.
+A personal Claude Code plugin that bundles 16 skills, smart worktree hooks, and MCP server stubs — installed with a single `/plugin install` command and kept current via marketplace auto-update.
 
 ## Features
 
-- **17 bundled skills** — plan, implement, drive PRs to merge, audit multi-agent repo setup, debug, audit docs, create and benchmark skills, polish repos, and more, all from the Claude Code prompt
+- **16 bundled skills** — plan, implement, drive PRs to merge, audit repo standards, multi-agent setup, debug, create and benchmark skills, and more, all from the Claude Code prompt
 - **Smart worktree hooks** that automatically create isolated git worktrees per task, derive task slugs from your first prompt, enforce edit isolation, and show Claude Code changelogs on update
 - **Auto-installed plugin dependencies** — superpowers pulls in automatically when you install this plugin
 - **MCP server stubs** for GitHub and Context7 — fill in your tokens and they're live
@@ -84,7 +84,7 @@ Each skill lives at `skills/<skill-name>/SKILL.md`.
 | `/tamirs-superpowers:pr-dev` | Drive a PR to merge — address review threads, fix CI, squash-merge after explicit approval. |
 | `/tamirs-superpowers:multi-agent-repo` | Audit, plan, and implement canonical multi-agent setup (AGENTS.md + thin adapters + drift checks) across Claude Code, Cursor, and Codex — review / plan / dev modes. Replaces former `plugin-compat`. |
 | `/tamirs-superpowers:targeted-debug` | Scope-bounded debug from a stack trace — reads only named files. |
-| `/tamirs-superpowers:repo-polish` | Scan a project for employer IP, scaffold repo infra, publish to GitHub. |
+| `/tamirs-superpowers:repo-standards` | Audit, plan, and polish repos to Tamir Cohen standards — README, docs, CI/CD, branch rules, employer IP scan, hygiene, and multi-agent setup (review / plan / polish modes). |
 | `/tamirs-superpowers:repo-scaffold` | Create a new private GitHub repo from scratch — README badges, docs, CLAUDE.md, .claude/ config, CI/CD, branch protection, and project skills. |
 | `/tamirs-superpowers:mcp-builder` | Build MCP servers (auto-invokes `mcp-pagination` for list/search tools). |
 | `/tamirs-superpowers:find-skill` | Search skill marketplaces and rank matches for a query. |
@@ -93,7 +93,7 @@ Each skill lives at `skills/<skill-name>/SKILL.md`.
 | `/tamirs-superpowers:algorithmic-art` | Generate algorithmic art with p5.js. |
 | `/tamirs-superpowers:dark-terminal-doc` | Generate polished HTML docs with a dark terminal design system. |
 
-Internal skills (invoked by parent skills, not shown in `/` menu): `docs-review`, `repo-review`, `changelog-review`, `mcp-pagination`.
+Internal skills (invoked by parent skills, not shown in `/` menu): `docs-review`, `changelog-review`, `mcp-pagination`.
 
 ## Plugin Dependencies (auto-installed)
 

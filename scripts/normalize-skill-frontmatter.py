@@ -60,7 +60,11 @@ OVERRIDES: dict[str, dict[str, Any]] = {
     "start-dev": {"disable-model-invocation": True, "effort": "high"},
     "pr-dev": {"effort": "high"},
     "repo-scaffold": {"effort": "high"},
-    "repo-polish": {"disable-model-invocation": True, "effort": "high"},
+    "repo-standards": {
+        "argument-hint": "[review|plan|polish] [target path]",
+        "disable-model-invocation": True,
+        "effort": "high",
+    },
     "changelog-review": {
         "argument-hint": "[plugin project path or omit for current repo]",
         "disable-model-invocation": True,
@@ -74,12 +78,6 @@ OVERRIDES: dict[str, dict[str, Any]] = {
     },
     "mcp-pagination": {
         "argument-hint": "[path to MCP tool schema or server source file]",
-        "disable-model-invocation": True,
-        "user-invocable": False,
-        "effort": "low",
-    },
-    "repo-review": {
-        "argument-hint": "[project directory path — defaults to repo root]",
         "disable-model-invocation": True,
         "user-invocable": False,
         "effort": "low",

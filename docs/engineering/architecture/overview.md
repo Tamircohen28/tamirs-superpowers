@@ -26,14 +26,14 @@ tamirs-superpowers/              ← GitHub repo root
 │   ├── worktree-remove.sh       ← WorktreeRemove
 │   ├── session-end.sh           ← SessionEnd
 │   └── notify.sh                ← Notification
-└── skills/                      ← 17 skills in 7 domains (see CLAUDE.md)
+└── skills/                      ← 16 skills in 7 domains (see CLAUDE.md)
     ├── creative/                ← algorithmic-art
     ├── debugging/               ← targeted-debug
     ├── dev-workflow/            ← plan-dev, pr-dev, start-dev
     ├── documentation/           ← changelog-review, dark-terminal-doc, docs-review
     ├── mcp/                     ← mcp-builder, mcp-pagination
     ├── meta/                    ← find-skill, session-report, skill-creator
-    └── repo/                    ← multi-agent-repo, repo-polish, repo-review, repo-scaffold
+    └── repo/                    ← multi-agent-repo, repo-scaffold, repo-standards
 ```
 
 ## Hook system
@@ -52,7 +52,7 @@ The most complex hook is `capture-task-slug.sh` (UserPromptSubmit):
 
 Claude Code discovers skills via the `skills` array in `plugin.json`, which points at domain directories under `skills/`. Each skill is a folder with a `SKILL.md` file. The **directory name** is the slash-command name (e.g. `skills/dev-workflow/plan-dev/` → `/plan-dev`).
 
-Internal skills (`user-invocable: false`) are hidden from the `/` menu but invokable via `Skill("name")` from parent skills (e.g. `repo-polish` → `docs-review`).
+Internal skills (`user-invocable: false`) are hidden from the `/` menu but invokable via `Skill("name")` from parent skills (e.g. `repo-standards` → `docs-review`).
 
 ## Dependency resolution
 

@@ -8,7 +8,7 @@
 ## Test plan
 - [ ] `make validate` passes locally
 - [ ] Tested skill/hook change manually in Claude Code
-- [ ] No employer IP introduced (`bash skills/repo/repo-polish/ip-scan.sh .`)
+- [ ] No employer IP introduced (`bash skills/repo/repo-standards/scripts/ip-scan.sh .`)
 
 ## Documentation
 - [ ] CHANGELOG.md updated under `[Unreleased]`

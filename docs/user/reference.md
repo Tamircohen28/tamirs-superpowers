@@ -1,8 +1,8 @@
 # Skill Reference
 
-Complete reference for all 17 skills bundled in `tamirs-superpowers`. Each user-facing skill becomes a slash command in Claude Code.
+Complete reference for all 16 skills bundled in `tamirs-superpowers`. Each user-facing skill becomes a slash command in Claude Code.
 
-Four skills are **internal** — invoked automatically by parent skills (`repo-polish`, `mcp-builder`) and hidden from the `/` menu.
+Three skills are **internal** — invoked automatically by parent skills (`repo-standards`, `mcp-builder`) and hidden from the `/` menu.
 
 ---
 
@@ -66,17 +66,16 @@ Four skills are **internal** — invoked automatically by parent skills (`repo-p
 
 ## Repo
 
-### `/tamirs-superpowers:repo-polish`
+### `/tamirs-superpowers:repo-standards`
 
-**When to use:** Preparing a personal project for public GitHub — scan employer IP, scaffold docs/CI, publish.
+**When to use:** Auditing or polishing an existing repo to Tamir Cohen standards — README, docs tree, CI/CD, branch protection, employer IP, hygiene, and multi-agent support.
 
 **What it does:**
-1. Scans for employer IP and waits for your acknowledgment
-2. Scaffolds README, docs tree, CI, PR templates, CLAUDE.md
-3. Automatically invokes internal audits: `repo-review` → `docs-review` → `changelog-review` (plugins only)
-4. Creates GitHub repo and pushes after explicit approval
+1. **review** (default) — standards inventory, IP scan, multi-agent-repo review appendix; writes `docs/engineering/repo-standards-review-<date>.md`
+2. **plan** — phased remediation (phases 0–7)
+3. **polish** — implements on `feat/repo-standards-setup`, delegates to `multi-agent-repo`, `docs-review`, `changelog-review`; opens PR (does not merge or create new remote repo)
 
-**Example:** `/tamirs-superpowers:repo-polish ~/projects/my-app`
+**Example:** `/tamirs-superpowers:repo-standards review ~/projects/my-app`
 
 ---
 
@@ -169,7 +168,6 @@ These run via `Skill("…")` from parent skills — you cannot type `/skill-name
 
 | Skill | Invoked by | Purpose |
 |-------|-----------|---------|
-| `docs-review` | `repo-polish` Step 6b | Audit and fix README + `docs/**` |
-| `repo-review` | `repo-polish` Step 6a | Read-only repo health report |
-| `changelog-review` | `repo-polish` Step 6c | Claude Code plugin pattern audit |
+| `docs-review` | `repo-standards` polish phase 6 | Audit and fix README + `docs/**` |
+| `changelog-review` | `repo-standards` polish phase 6 (plugins) | Claude Code plugin pattern audit |
 | `mcp-pagination` | `mcp-builder` | Pagination guardrails for list/search MCP tools |

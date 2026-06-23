@@ -250,7 +250,7 @@ EOF
 
 | Skill | When to use instead |
 |-------|---------------------|
-| `repo-review` | General repo hygiene (misplaced files, stale refs) — not multi-agent layout |
+| `repo-standards` | Full Tamir repo standards (README, docs, CI, multi-agent) — use instead for existing repos |
 | `plan-dev` | Break arbitrary features into GitHub issues |
 | `start-dev` | Implement a feature issue, not agent infrastructure |
 | `pr-dev` | Drive the PR to merge after dev mode opens it |

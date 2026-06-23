@@ -1,6 +1,6 @@
 # tamirs-superpowers
 
-A Claude Code plugin that bundles 17 skills, smart worktree hooks, and MCP server stubs. It is **not** a Node/Python/Go app — there is no build step, no `package.json`, no compiled output. All content is Markdown, JSON, and Bash.
+A Claude Code plugin that bundles 16 skills, smart worktree hooks, and MCP server stubs. It is **not** a Node/Python/Go app — there is no build step, no `package.json`, no compiled output. All content is Markdown, JSON, and Bash.
 
 Install via the `tamirs-plugins` marketplace catalog:
 ```

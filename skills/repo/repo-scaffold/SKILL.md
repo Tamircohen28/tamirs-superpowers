@@ -1,6 +1,6 @@
 ---
 name: repo-scaffold
-description: 'Use when the user wants to create a new GitHub repository from scratch with production-ready infrastructure. Triggers: ''scaffold a repo'', ''create a new repo'', ''set up a new project'', ''new github repo'', ''bootstrap a project'', ''forge a repo'', ''/repo-scaffold'', ''start a new repo'', ''initialize a project'', ''make me a repo''. Does NOT trigger for repo-polish (existing repo) or when the user only wants docs.'
+description: 'Use when the user wants to create a new GitHub repository from scratch with production-ready infrastructure. Triggers: ''scaffold a repo'', ''create a new repo'', ''set up a new project'', ''new github repo'', ''bootstrap a project'', ''forge a repo'', ''/repo-scaffold'', ''start a new repo'', ''initialize a project'', ''make me a repo''. Does NOT trigger for repo-standards (existing repo polish) or when the user only wants docs.'
 when_to_use: User wants to create a brand-new private GitHub repo from an idea or description — fully scaffolded with docs, CI, Claude Code tooling, and branch protection.
 argument-hint: <repo-name> -- <description> [--src <github-url-or-local-path>] [--tech <stack>]
 arguments: []

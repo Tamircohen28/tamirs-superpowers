@@ -163,7 +163,7 @@ Types: `feat`, `fix`, `chore`, `docs`, `refactor`, `test`
 /plugin install jose-claudinho@tamirs-plugins
 ```
 
-Available skills after install: `/repo-scaffold`, `/repo-polish`, `/repo-review`, `/deep-research`, and more.
+Available skills after install: `/repo-scaffold`, `/repo-standards`, `/multi-agent-repo`, and more.
 See [docs/engineering/guides/getting-started.md](docs/engineering/guides/getting-started.md) for full setup.
 ```
 

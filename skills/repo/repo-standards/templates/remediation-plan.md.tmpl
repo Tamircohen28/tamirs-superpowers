@@ -1,0 +1,83 @@
+# Repo standards remediation plan — {{REPO_NAME}}
+
+**Date:** {{DATE}}
+**Target:** `{{TARGET_ROOT}}`
+**Based on:** {{REVIEW_PATH}}
+
+## Goal
+
+Bring repository to Tamir Cohen standards: README, docs tree, GitHub CI/CD, branch governance, employer-IP clean, and multi-agent support.
+
+## Phases
+
+### Phase 0 — Employer IP
+
+| Action | Files | Approach |
+|--------|-------|----------|
+| {{PHASE_0_ACTIONS}} | all tracked | `ip-scan.sh` until clean |
+
+---
+
+### Phase 1 — README + root files
+
+| Action | Files | Approach |
+|--------|-------|----------|
+| {{PHASE_1_ACTIONS}} | README.md, LICENSE, .gitignore | scaffold-templates |
+
+---
+
+### Phase 2 — docs/ tree
+
+| Action | Files | Approach |
+|--------|-------|----------|
+| {{PHASE_2_ACTIONS}} | docs/** | scaffold-templates |
+
+---
+
+### Phase 3 — GitHub infra
+
+| Action | Files | Approach |
+|--------|-------|----------|
+| {{PHASE_3_ACTIONS}} | .github/** | scaffold-templates |
+
+---
+
+### Phase 4 — Branch governance
+
+| Action | Files | Approach |
+|--------|-------|----------|
+| {{PHASE_4_ACTIONS}} | CODEOWNERS, gh protection | scaffold-templates |
+
+---
+
+### Phase 5 — Multi-agent
+
+| Action | Files | Delegate |
+|--------|-------|----------|
+| {{PHASE_5_ACTIONS}} | AGENTS.md, adapters, drift CI | `Skill("multi-agent-repo")` |
+
+---
+
+### Phase 6 — Quality audits
+
+| Action | Files | Delegate |
+|--------|-------|----------|
+| {{PHASE_6_ACTIONS}} | docs, plugin files | docs-review, changelog-review |
+
+---
+
+### Phase 7 — Validate
+
+| Command | Expected |
+|---------|----------|
+| {{VALIDATION_COMMAND}} | P1 gaps = 0 |
+
+---
+
+## Risk notes
+
+{{RISK_NOTES}}
+
+## Next step
+
+Run `/repo-standards polish` on branch `feat/repo-standards-setup`.

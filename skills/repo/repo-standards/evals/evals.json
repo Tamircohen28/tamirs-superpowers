@@ -1,0 +1,37 @@
+{
+  "skill_name": "repo-standards",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "Run repo-standards review on skills/repo/repo-standards/evals/fixtures/bare-repo. Write report to docs/engineering/ in that fixture only. Do not edit other files.",
+      "expected_output": "Unified repo-standards-review report with S1/S5 P1 gaps, IP scan section, multi-agent appendix note. No implementation.",
+      "files": ["evals/fixtures/bare-repo"],
+      "assertions": [
+        { "name": "report_path", "description": "Report under docs/engineering/repo-standards-review-*.md" },
+        { "name": "s1_01", "description": "Flags missing README standards or S1 gaps" },
+        { "name": "no_license_created", "description": "LICENSE not created in review mode" }
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "repo-standards plan using docs/engineering/repo-standards-review-2026-06-23.md in current repo. Produce phases 0-7 with delegation notes.",
+      "expected_output": "Plan doc with phases 0-7, multi-agent-repo and docs-review delegation in phases 5-6. No file implementation.",
+      "files": [],
+      "assertions": [
+        { "name": "phases_0_7", "description": "Plan lists phases 0 through 7" },
+        { "name": "delegation_noted", "description": "Phases 5-6 mention child skills" }
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "repo-standards polish on this repo — implement standards plan, multi-agent setup, open PR on feat/repo-standards-setup. Do not merge or create new remote repo.",
+      "expected_output": "Branch feat/repo-standards-setup, standards + multi-agent changes, gh pr create URL, no merge.",
+      "files": [],
+      "assertions": [
+        { "name": "feature_branch", "description": "Work on feat/repo-standards-setup" },
+        { "name": "pr_not_merged", "description": "PR opened, not merged" },
+        { "name": "no_gh_repo_create", "description": "gh repo create not run" }
+      ]
+    }
+  ]
+}
