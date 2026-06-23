@@ -18,7 +18,7 @@ hooks: {}
 paths: []
 shell: bash
 metadata:
-  updated-date: '2026-06-13'
+  updated-date: '2026-06-23'
 ---
 
 # run-tamirs-superpowers
@@ -64,9 +64,9 @@ Exit 0 = all 7 sections pass. Exit 1 = at least one FAIL (not WARN).
 Plugin health: OK (warnings=4)
 ```
 
-Known warnings (not failures):
-- `github-mcp.sh` not in `hooks.json` — intentional, it's a setup helper
-- `github-mcp.sh` in hooks.json warn is expected
+Known warnings (not failures): none when `hooks/` contains only lifecycle scripts wired in `hooks.json`.
+
+`scripts/github-mcp.sh` is wired via `.mcp.json`, not `hooks.json`.
 
 ## Run (human path) — make validate
 
@@ -112,7 +112,6 @@ Frontmatter fields required by the smoke test (in addition to `name` and `descri
 - **`make validate` does not run `claude plugin validate`** — the Makefile's `validate` target is local-only. The authoritative validator is `claude plugin validate .` (requires the CLI).
 - **`set -euo pipefail` in smoke scripts exits on first grep non-match** — health check scripts must not use `set -e`; they need to complete all checks before reporting.
 - **`find` in `skills/` returns `skills/meta/skill-creator/SKILL.md` with a `/Users/` path** — the workflow-agent-improved version has this; file it as a WARN, not FAIL, until it's cleaned.
-- **`github-mcp.sh` will always WARN** — it is a one-time setup helper, intentionally not wired into `hooks.json`.
 
 ## Troubleshooting
 

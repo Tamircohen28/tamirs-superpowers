@@ -52,15 +52,7 @@ Four skills are **internal** — invoked automatically by parent skills (`repo-p
 
 ---
 
-### `/tamirs-superpowers:plugin-compat`
-
-**When to use:** You want your repo to work as a plugin or tool for Claude Code, Cursor, and/or OpenAI Codex.
-
-**What it does:** Fetches the latest platform docs and generates all required config files — `CLAUDE.md`, `.cursor/rules/`, `AGENTS.md` — so the repo is compatible with all three AI coding assistants.
-
-**Example:** `/tamirs-superpowers:plugin-compat` (targets all three platforms by default)
-
----
+## Debugging
 
 ### `/tamirs-superpowers:targeted-debug`
 
@@ -95,6 +87,19 @@ Four skills are **internal** — invoked automatically by parent skills (`repo-p
 **What it does:** Creates a private GitHub repo from an idea or description with production-ready infrastructure: README with badges, docs tree, CI/CD, CLAUDE.md, `.claude/` config, branch protection, and project skills.
 
 **Example:** `/tamirs-superpowers:repo-scaffold my-new-tool -- "A CLI that does X"`
+
+---
+
+### `/tamirs-superpowers:multi-agent-repo`
+
+**When to use:** Audit, plan, or implement canonical multi-agent development setup for Claude Code, Cursor, and Codex — or make an existing repo compatible with all three assistants.
+
+**What it does:**
+1. **review** (default) — inventories agent config, auto-scores gaps, walks full rubric, writes `docs/agent-guidelines/multi-agent-review-<date>.md`
+2. **plan** — turns review gaps into phased remediation (AGENTS.md → adapters → skills → drift CI)
+3. **dev** — implements the plan on `feat/multi-agent-setup`, fetches live platform docs, opens a PR (does not merge)
+
+**Example:** `/tamirs-superpowers:multi-agent-repo review ../my-app`
 
 ---
 

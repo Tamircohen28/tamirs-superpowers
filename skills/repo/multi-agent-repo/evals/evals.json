@@ -1,0 +1,73 @@
+{
+  "skill_name": "multi-agent-repo",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "Run a multi-agent-repo review on the eval fixture at skills/repo/multi-agent-repo/evals/fixtures/minimal-node (README + package.json only — no AGENTS.md, CLAUDE.md, or .cursor/rules/). List P1 gaps and write the report under docs/agent-guidelines/ in that fixture — do not edit any other files.",
+      "expected_output": "Review mode runs parse-mode-args, inventory-agent-setup.sh, score-inventory-gaps.sh, manual rubric pass, produces docs/agent-guidelines/multi-agent-review-<date>.md with P1 gaps L1-01, L2-01, L6-03 at minimum. No implementation changes outside report path.",
+      "files": ["evals/fixtures/minimal-node"],
+      "assertions": [
+        {
+          "name": "runs_inventory_script",
+          "description": "Output or report references inventory-agent-setup.sh JSON"
+        },
+        {
+          "name": "reports_l1_01",
+          "description": "Findings include L1-01 AGENTS.md missing as P1"
+        },
+        {
+          "name": "no_agents_md_created",
+          "description": "AGENTS.md was not created in review mode"
+        },
+        {
+          "name": "report_under_agent_guidelines",
+          "description": "Report written to docs/agent-guidelines/multi-agent-review-*.md"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "multi-agent-repo plan — use the review report at docs/agent-guidelines/multi-agent-review-2026-06-23.md in the current repo. Produce a phased remediation plan with platform-setup steps noted for phases 0–1.",
+      "expected_output": "Plan mode reads the review doc, groups gaps into phases 0–5, writes docs/agent-guidelines/multi-agent-plan-<date>.md with platform-setup.md approach for AGENTS.md and CLAUDE.md generation. Stops without implementing.",
+      "files": [],
+      "assertions": [
+        {
+          "name": "phases_0_through_5",
+          "description": "Plan document lists phases 0–5"
+        },
+        {
+          "name": "platform_setup_phases_0_1",
+          "description": "Phases 0–1 reference platform-setup.md or live doc fetch"
+        },
+        {
+          "name": "no_file_implementation",
+          "description": "No AGENTS.md or CLAUDE.md edits in plan mode"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "multi-agent-repo dev on this repo — implement the multi-agent plan: canonical AGENTS.md, CLAUDE.md with @AGENTS.md, 000-project.mdc, check-agent-drift.sh, and open a PR on feat/multi-agent-setup. Do not merge.",
+      "expected_output": "Dev mode creates branch feat/multi-agent-setup, implements phases via platform-setup.md and local scripts, runs check-agent-drift.sh, pushes, returns gh pr create URL. Stops at PR without merging.",
+      "files": [],
+      "assertions": [
+        {
+          "name": "feature_branch",
+          "description": "Work on feat/multi-agent-setup branch"
+        },
+        {
+          "name": "claude_imports_agents",
+          "description": "CLAUDE.md line 1 references @AGENTS.md or AGENTS.md"
+        },
+        {
+          "name": "drift_script_present",
+          "description": "scripts/check-agent-drift.sh exists and passes"
+        },
+        {
+          "name": "pr_opened_not_merged",
+          "description": "gh pr create URL returned; merge not performed"
+        }
+      ]
+    }
+  ]
+}

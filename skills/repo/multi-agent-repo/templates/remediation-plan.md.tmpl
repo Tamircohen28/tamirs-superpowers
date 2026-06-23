@@ -1,0 +1,73 @@
+# Multi-agent remediation plan — {{REPO_NAME}}
+
+**Date:** {{DATE}}
+**Target:** `{{TARGET_ROOT}}`
+**Based on:** {{REVIEW_PATH}}
+
+## Goal
+
+Establish canonical `AGENTS.md` + thin adapters for Claude Code, Cursor, and Codex, with CI-enforced validation and drift prevention.
+
+## Phases
+
+### Phase 0 — Canonical AGENTS.md
+
+**Blocker:** all other phases depend on this.
+
+| Action | Files | Approach |
+|--------|-------|----------|
+| {{PHASE_0_ACTIONS}} | `AGENTS.md` | `references/platform-setup.md` |
+
+**Validation:** `wc -c AGENTS.md` ≤ 32768; plain Markdown only.
+
+---
+
+### Phase 1 — Thin adapters
+
+| Action | Files | Approach |
+|--------|-------|----------|
+| {{PHASE_1_ACTIONS}} | `CLAUDE.md`, `.cursor/rules/000-project.mdc` | `references/platform-setup.md` |
+
+**Validation:** `bash scripts/check-agent-drift.sh`
+
+---
+
+### Phase 2 — Scoped rules + long docs
+
+| Action | Files | Delegate |
+|--------|-------|----------|
+| {{PHASE_2_ACTIONS}} | `.cursor/rules/*.mdc`, `docs/agent-guidelines/*.md` | local |
+
+---
+
+### Phase 3 — Portable skills
+
+| Action | Files | Delegate |
+|--------|-------|----------|
+| {{PHASE_3_ACTIONS}} | `.agents/skills/` or `skills/` per repo type | local |
+
+---
+
+### Phase 4 — Drift checker + agent:check + CI
+
+| Action | Files | Delegate |
+|--------|-------|----------|
+| {{PHASE_4_ACTIONS}} | `scripts/check-agent-drift.sh`, Makefile/package.json, `.github/workflows/` | local |
+
+---
+
+### Phase 5 — Validate
+
+| Command | Expected |
+|---------|----------|
+| {{VALIDATION_COMMAND}} | All checks pass; inventory P1 gaps = 0 |
+
+---
+
+## Risk notes
+
+{{RISK_NOTES}}
+
+## Next step
+
+Run `/multi-agent-repo dev` to implement this plan on branch `feat/multi-agent-setup` and open a PR.
