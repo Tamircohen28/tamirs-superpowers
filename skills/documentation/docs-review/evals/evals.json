@@ -80,7 +80,7 @@
     },
     {
       "id": "sweep-summary-structure",
-      "description": "After a full sweep, the skill must print a structured summary block containing 'Files audited', 'Fixes applied', and 'Broken links' — so repo-polish can parse the result.",
+      "description": "After a full sweep, the skill must print a structured summary block containing 'Files audited', 'Fixes applied', and 'Broken links' — so repo-standards can parse the result.",
       "input": {"shape": "end-to-end", "scenario": "repo with README.md and two docs/ files, all clean"},
       "assert": "stdout contains 'Files audited:' && stdout contains 'Fixes applied:' && stdout contains 'Broken links:'"
     },

@@ -22,9 +22,10 @@ A Claude Code plugin (marketplace + bundled skills + hooks). It is **not** a Nod
 ## Commands
 
 ```bash
-make validate    # validate all JSON files and shellcheck all .sh files
-make lint        # shellcheck only
-make test        # same as validate
+make validate           # shellcheck + JSON + frontmatter + contract test
+make test-repo-contract # assert scaffold-gold passes app-gold profile
+make lint               # shellcheck only
+make test               # same as validate
 ```
 
 There is no install step — this is a plugin, not a standalone tool.
@@ -48,7 +49,7 @@ Scopes: `skills`, `hooks`, `marketplace`, `ci`, `docs`
 - **Never modify `hooks/lib/worktree-common.sh`** without running shellcheck and testing both `capture-task-slug.sh` and `worktree-create.sh`
 - **SKILL.md files must have valid YAML frontmatter** with all 16 official Claude Code fields plus `metadata.updated-date` — see `skills/meta/skill-creator/references/frontmatter-template.md`; CI runs `scripts/validate-skill-frontmatter.py`
 
-## Skill domains (17 skills total)
+## Skill domains (16 skills total)
 
 | Domain | Skills |
 |--------|--------|
@@ -58,7 +59,9 @@ Scopes: `skills`, `hooks`, `marketplace`, `ci`, `docs`
 | `documentation` | changelog-review, dark-terminal-doc, docs-review |
 | `mcp` | mcp-builder, mcp-pagination |
 | `meta` | find-skill, session-report, skill-creator |
-| `repo` | multi-agent-repo, repo-polish, repo-review, repo-scaffold |
+| `repo` | multi-agent-repo, repo-scaffold, repo-standards |
+
+**Shared contract:** `skills/repo/_contract/` — canonical templates, scoring scripts, and `scaffold-gold` fixture. `repo-scaffold` and `repo-standards` both consume it; `make test-repo-contract` enforces alignment.
 
 ## User-invocable vs internal skills
 
@@ -68,12 +71,11 @@ Skills can be restricted to internal use (invoked by other skills only, never by
 - `disable-model-invocation: true` — prevents the model from auto-triggering the skill based on context
 
 **Currently internal-only skills** (not user-invocable):
-- `changelog-review` — used by `repo-polish` for Claude Code pattern audits
-- `docs-review` — used by `repo-polish` for documentation quality sweeps
-- `repo-review` — used by `repo-polish` for repository health audits
+- `changelog-review` — used by `repo-standards` for Claude Code pattern audits
+- `docs-review` — used by `repo-standards` for documentation quality sweeps
 - `mcp-pagination` — used by `mcp-builder` for pagination guardrails
 
-**repo-polish is the only user-invocable skill in the `repo` domain.**
+**repo-standards is the primary user-invocable skill in the `repo` domain for existing repos** (alongside `multi-agent-repo`, `repo-scaffold`).
 
 ## Adding a skill
 

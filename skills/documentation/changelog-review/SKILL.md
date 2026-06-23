@@ -1,7 +1,7 @@
 ---
 name: changelog-review
-description: Internal skill invoked by repo-polish (Step 6c) to audit Claude Code plugin projects. Fetches live docs and runs scripts/validate-plugin-json.sh + scripts/validate-skill-frontmatter.py (via scripts/check-skill-frontmatter.sh) to detect misuse, broken hook paths, stale patterns, and missed capabilities. Returns structured P1 findings before GitHub push. Never invoke directly — use repo-polish. Also callable by other skills needing live-doc-grounded answers about Claude Code hooks, skills, plugin.json, or MCP config.
-when_to_use: 'Invoked by repo-polish Step 6c on Claude Code plugin projects.
+description: Internal skill invoked by repo-standards polish phase 6 to audit Claude Code plugin projects. Fetches live docs and runs scripts/validate-plugin-json.sh + scripts/validate-skill-frontmatter.py (via scripts/check-skill-frontmatter.sh) to detect misuse, broken hook paths, stale patterns, and missed capabilities. Returns structured P1 findings before PR. Never invoke directly — use repo-standards. Also callable by other skills needing live-doc-grounded answers about Claude Code hooks, skills, plugin.json, or MCP config.
+when_to_use: 'Invoked by repo-standards polish phase 6 on Claude Code plugin projects.
 
   Also callable by other skills when they need a live-doc-grounded answer
 
@@ -68,11 +68,11 @@ Mode 3 (audit), and hooks.json review with verifiable expectations.
 **Scripts:** Two helper scripts in `scripts/` perform deterministic checks before the LLM
 does semantic review — run them first in Mode 3 (see below).
 
-## When repo-polish invokes this skill
+## When repo-standards invokes this skill
 
-**Step 6c only** — when `$PROJECT_DIR` contains `.claude/` or `.claude-plugin/plugin.json`.
+**Polish phase 6** — when `$TARGET_ROOT` contains `.claude/` or `.claude-plugin/plugin.json`.
 
-Review input from repo-polish: `.claude/`, `plugin.json` / `.claude-plugin/plugin.json`, all `SKILL.md` files, `hooks/hooks.json`, `.mcp.json`.
+Review input from repo-standards: `.claude/`, `plugin.json` / `.claude-plugin/plugin.json`, all `SKILL.md` files, `hooks/hooks.json`, `.mcp.json`.
 
 Before running Mode 3 analysis, run the bundled scripts for fast deterministic checks:
 
@@ -86,7 +86,7 @@ bash $CLAUDE_SKILL_DIR/scripts/check-skill-frontmatter.sh /path/to/skills/domain
 
 Include script findings in your Mode 3 report. Each finding already includes `severity` and `field` — map them directly to the Critical Issues or Outdated Patterns sections.
 
-Return P1 findings (invalid frontmatter, broken hook paths, stale skill references) for repo-polish to fix before GitHub push.
+Return P1 findings (invalid frontmatter, broken hook paths, stale skill references) for repo-standards to fix before opening the PR.
 
 Claude Code evolves rapidly. This skill fetches live documentation so answers about hooks,
 skills, plugins, MCP servers, subagents, permissions, settings, and CLI behavior are always

@@ -1,16 +1,18 @@
-.PHONY: validate lint test plugin-validate help
+.PHONY: validate lint test plugin-validate test-repo-contract help
 
 SKILLS_DIR := skills
 HOOKS_DIR  := hooks
+CONTRACT_DIR := skills/repo/_contract
 
 help:
 	@echo "Available targets:"
-	@echo "  validate        — shellcheck + JSON validation + SKILL.md frontmatter + orphan check"
-	@echo "  lint            — shellcheck .sh files only"
-	@echo "  plugin-validate — run 'claude plugin validate' (primary validator, requires Claude Code CLI)"
-	@echo "  test            — alias for validate"
+	@echo "  validate           — shellcheck + JSON validation + SKILL.md frontmatter + contract test"
+	@echo "  lint               — shellcheck .sh files only"
+	@echo "  test-repo-contract — assert scaffold-gold passes app-gold profile"
+	@echo "  plugin-validate    — run 'claude plugin validate' (primary validator, requires Claude Code CLI)"
+	@echo "  test               — alias for validate"
 
-validate: lint
+validate: lint test-repo-contract
 	@echo "--- Validating JSON files ---"
 	@find . -name '*.json' -not -path '*/.git/*' | while read f; do \
 	  jq empty "$$f" 2>&1 && echo "  OK  $$f" || { echo "  FAIL $$f"; exit 1; }; \
@@ -28,10 +30,15 @@ validate: lint
 lint:
 	@echo "--- shellcheck ---"
 	@if command -v shellcheck >/dev/null 2>&1; then \
-	  find $(HOOKS_DIR) scripts -maxdepth 1 -name '*.sh' 2>/dev/null | xargs shellcheck -S warning --exclude SC2034 && echo "  shellcheck passed"; \
+	  find $(HOOKS_DIR) scripts $(CONTRACT_DIR)/scripts -maxdepth 1 -name '*.sh' 2>/dev/null | xargs shellcheck -S warning --exclude SC2034 && echo "  shellcheck passed"; \
 	else \
 	  echo "  shellcheck not installed — skipping (brew install shellcheck)"; \
 	fi
+
+test-repo-contract:
+	@echo "--- Repo contract (scaffold-gold) ---"
+	@CONTRACT_OFFLINE=1 bash $(CONTRACT_DIR)/scripts/assert-contract.sh \
+	  $(CONTRACT_DIR)/fixtures/scaffold-gold app-gold
 
 plugin-validate:
 	@echo "--- claude plugin validate (primary validator) ---"

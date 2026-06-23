@@ -55,7 +55,7 @@ effort: low
 
 **Never hand-write a SKILL.md from scratch** — use the bundled `skill-creator` skill.
 
-## Skill domains (17 skills total)
+## Skill domains (16 skills total)
 
 | Domain | Skills |
 |--------|--------|
@@ -65,4 +65,4 @@ effort: low
 | `documentation` | changelog-review, dark-terminal-doc, docs-review |
 | `mcp` | mcp-builder, mcp-pagination |
 | `meta` | find-skill, session-report, skill-creator |
-| `repo` | multi-agent-repo, repo-polish, repo-review, repo-scaffold |
+| `repo` | multi-agent-repo, repo-scaffold, repo-standards |

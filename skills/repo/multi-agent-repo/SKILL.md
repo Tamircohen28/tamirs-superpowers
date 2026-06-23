@@ -62,9 +62,9 @@ Teams running Claude Code, Cursor, and Codex in parallel often maintain three di
 | `references/platform-setup.md` | Fetch docs + generate AGENTS.md and thin adapters (phases 0–1) |
 | `references/platform-specs.md` | Schema fallback when live doc fetch fails |
 | `scripts/parse-mode-args.sh` | Deterministic mode/target parsing |
-| `scripts/inventory-agent-setup.sh` | Deterministic JSON snapshot |
-| `scripts/score-inventory-gaps.sh` | Auto-score P1/P2/P3 from inventory |
-| `scripts/check-agent-drift.sh` | Verify wrappers reference AGENTS.md |
+| `scripts/inventory-agent-setup.sh` | Re-export → `../_contract/scripts/` |
+| `scripts/score-inventory-gaps.sh` | Re-export → `../_contract/scripts/` |
+| `scripts/check-agent-drift.sh` | Re-export → `../_contract/scripts/` |
 | `templates/*.md.tmpl` | Report, plan, and PR body shapes |
 
 ## Required execution flow
@@ -250,7 +250,8 @@ EOF
 
 | Skill | When to use instead |
 |-------|---------------------|
-| `repo-review` | General repo hygiene (misplaced files, stale refs) — not multi-agent layout |
+| `repo-standards` | Full Tamir repo standards (README, docs, CI, multi-agent) — uses shared `_contract` |
+| `repo-scaffold` | Greenfield repos — output must pass `app-gold` contract |
 | `plan-dev` | Break arbitrary features into GitHub issues |
 | `start-dev` | Implement a feature issue, not agent infrastructure |
 | `pr-dev` | Drive the PR to merge after dev mode opens it |

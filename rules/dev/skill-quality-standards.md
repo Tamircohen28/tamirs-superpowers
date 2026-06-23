@@ -60,7 +60,7 @@ metadata:
 |------|------------------|----------------------------|----------|----------|
 | User slash command | `true` | `true` | `high` | plan-dev, start-dev, pr-dev |
 | Auto-trigger discovery | `true` | `false` | `medium` | find-skill, mcp-builder |
-| Internal companion | `false` | `true` | `low` | docs-review, repo-review, mcp-pagination |
+| Internal companion | `false` | `true` | `low` | docs-review, mcp-pagination, changelog-review |
 | Forked subagent | `true` | `true` | `medium` | targeted-debug (`context: fork`, `agent: Explore`) |
 
 Parent skills invoke internal companions with `Skill("skill-name")` — never duplicate their checklists inline.

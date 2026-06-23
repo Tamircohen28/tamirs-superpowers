@@ -1,0 +1,28 @@
+## Summary
+
+- Brings repository to Tamir Cohen standards (README, docs, CI/CD, branch governance)
+- Establishes multi-agent development setup (AGENTS.md + thin adapters)
+- Remediates employer IP and repo hygiene findings
+
+## Changes
+
+{{CHANGES_BULLETS}}
+
+## Gaps closed
+
+| Area | Before | After |
+|------|--------|-------|
+{{GAPS_TABLE}}
+
+## Test plan
+
+- [ ] `bash skills/repo/repo-standards/scripts/ip-scan.sh .` — CLEAN
+- [ ] `make validate` or project test/lint command passes
+- [ ] `bash scripts/check-agent-drift.sh` passes (if added)
+- [ ] Branch protection + required CI checks configured
+- [ ] README badges and docs tree complete
+
+## Review notes
+
+Plan: `{{PLAN_PATH}}`
+Review: `{{REVIEW_PATH}}`

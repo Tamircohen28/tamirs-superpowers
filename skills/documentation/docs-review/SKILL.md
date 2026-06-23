@@ -1,7 +1,7 @@
 ---
 name: docs-review
-description: 'Internal docs-quality sweep invoked by repo-polish Step 6b. Audits README.md and docs/** across 8 axes: repo inventory, visual cleanliness, git freshness, stray plan files, template conformance, broken links/anchors, CLAUDE.md consistency, and recent-change sync. Returns pass/fail summary to caller.'
-when_to_use: Called by repo-polish after scaffolding (Step 6b). Also valid when another skill explicitly needs a full documentation audit — e.g. 'run docs-review on $PROJECT_DIR'. Not for direct user invocation.
+description: 'Internal docs-quality sweep invoked by repo-standards polish phase 6. Audits README.md and docs/** across 8 axes: repo inventory, visual cleanliness, git freshness, stray plan files, template conformance, broken links/anchors, CLAUDE.md consistency, and recent-change sync. Returns pass/fail summary to caller.'
+when_to_use: Called by repo-standards polish phase 6. Also valid when another skill explicitly needs a full documentation audit — e.g. 'run docs-review on $PROJECT_DIR'. Not for direct user invocation.
 argument-hint: '[optional: subset glob like ''docs/user/**'' or single file path]'
 arguments: []
 disable-model-invocation: true
@@ -46,16 +46,16 @@ finish a sweep with a clean working tree, zero broken links, no stray plan
 files in git, and every doc reflecting the current state of the codebase —
 including accurate counts of agents, skills, and commands.
 
-## When repo-polish invokes this skill
+## When repo-standards invokes this skill
 
-| repo-polish step | Action |
-|------------------|--------|
-| **Step 6b** — after Step 5 scaffolding and Step 6a P1 repo fixes | Full audit of `$PROJECT_DIR/README.md` and `$PROJECT_DIR/docs/**` |
-| **Re-run** — after manual P1 doc fixes in 6b | Confirm link-clean and counts accurate |
+| repo-standards step | Action |
+|---------------------|--------|
+| **Polish phase 6** — after standards scaffolding and multi-agent setup | Full audit of `$TARGET_ROOT/README.md` and `docs/**` |
+| **Re-run** — after manual P1 doc fixes | Confirm link-clean and counts accurate |
 
-`repo-polish` sets the working directory to `$PROJECT_DIR` before calling this skill. **Always treat the current working directory as the repo root** for all axes — never use the plugin install path or absolute paths from this skill's own directory.
+`repo-standards` sets the working directory to `$TARGET_ROOT` before calling this skill. **Always treat the current working directory as the repo root** for all axes — never use the plugin install path or absolute paths from this skill's own directory.
 
-When invoked from `repo-polish`, print a pass/fail summary at the end (format below). Return control only when all P1 doc issues are fixed or explicitly listed for repo-polish to handle.
+When invoked from `repo-standards`, print a pass/fail summary at the end (format below). Return control only when all P1 doc issues are fixed or explicitly listed for repo-standards to handle.
 
 ```
 === docs-review complete ===
@@ -248,7 +248,7 @@ For each flagged doc: READ it, remove or update the stale references.
    [[ -f tests/unit/skills/footer-center-aligned.sh ]] && bash tests/unit/skills/footer-center-aligned.sh
    ```
 7. **Render review report** — fill `$CLAUDE_SKILL_DIR/templates/review-report.md.tmpl`; save to `docs/review-${DATE}.md`.
-8. **Final summary** — print the structured block from the "When repo-polish invokes this skill" section above.
+8. **Final summary** — print the structured block from the "When repo-standards invokes this skill" section above.
 
 ## Hard rules (do NOT break these)
 

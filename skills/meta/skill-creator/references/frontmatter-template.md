@@ -53,7 +53,7 @@ context: ''
 agent: ''
 ```
 
-Examples: `plan-dev`, `start-dev`, `repo-polish`.
+Examples: `plan-dev`, `start-dev`, `repo-standards`.
 
 ### Internal companion (Skill tool only)
 
@@ -65,7 +65,7 @@ context: ''
 agent: ''
 ```
 
-Examples: `docs-review`, `repo-review`, `mcp-pagination`, `changelog-review`.
+Examples: `docs-review`, `mcp-pagination`, `changelog-review`.
 
 ### Forked subagent
 
