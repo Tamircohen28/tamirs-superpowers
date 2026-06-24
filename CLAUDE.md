@@ -49,11 +49,11 @@ Scopes: `skills`, `hooks`, `marketplace`, `ci`, `docs`
 - **Never modify `hooks/lib/worktree-common.sh`** without running shellcheck and testing both `capture-task-slug.sh` and `worktree-create.sh`
 - **SKILL.md files must have valid YAML frontmatter** with all 16 official Claude Code fields plus `metadata.updated-date` — see `skills/toolkit/skill-creator/references/frontmatter-template.md`; CI runs `scripts/validate-skill-frontmatter.py`
 
-## Skill domains (16 skills total)
+## Skill domains (17 skills total)
 
 | Domain | Skills |
 |--------|--------|
-| `creative` | algorithmic-art |
+| `creative` | algorithmic-art, field-notebook-ui |
 | `debugging` | targeted-debug |
 | `dev-workflow` | plan-dev, pr-dev, start-dev |
 | `documentation` | changelog-review, dark-terminal-doc, docs-review |
