@@ -5,6 +5,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [1.4.0] - 2026-06-24
+
+### Added
+- **`field-notebook-ui` skill** — generates interactive React artifacts in the engineer's field-notebook visual design system (warm stone-paper palette, Space Grotesk / Inter / JetBrains Mono typography, canonical `Card`, `AirGap`, `CodeBlock`, `TabBtn` components). Triggers on "build a UI for", "create a dashboard", "field-notebook style", and similar prompts.
+
+### Changed
+- Plugin version bumped to **1.4.0**
+
 ## [1.3.0] - 2026-06-23
 
 ### Added
