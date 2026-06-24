@@ -16,11 +16,11 @@
 
 # tamirs-superpowers
 
-A personal Claude Code plugin that bundles 16 skills, smart worktree hooks, and MCP server stubs — installed with a single `/plugin install` command and kept current via marketplace auto-update.
+A personal Claude Code plugin that bundles 17 skills, smart worktree hooks, and MCP server stubs — installed with a single `/plugin install` command and kept current via marketplace auto-update.
 
 ## Features
 
-- **16 bundled skills** — plan, implement, drive PRs to merge, audit repo standards, multi-agent setup, debug, create and benchmark skills, and more, all from the Claude Code prompt
+- **17 bundled skills** — plan, implement, drive PRs to merge, audit repo standards, multi-agent setup, debug, create and benchmark skills, and more, all from the Claude Code prompt
 - **Smart worktree hooks** that automatically create isolated git worktrees per task, derive task slugs from your first prompt, enforce edit isolation, and show Claude Code changelogs on update
 - **Auto-installed plugin dependencies** — superpowers pulls in automatically when you install this plugin
 - **MCP server stubs** for GitHub and Context7 — fill in your tokens and they're live
@@ -91,6 +91,7 @@ Each skill lives at `skills/<skill-name>/SKILL.md`.
 | `/tamirs-superpowers:skill-creator` | Create, improve, and benchmark Claude Code skills. |
 | `/tamirs-superpowers:session-report` | Generate an HTML report of session token usage. |
 | `/tamirs-superpowers:algorithmic-art` | Generate algorithmic art with p5.js. |
+| `/tamirs-superpowers:field-notebook-ui` | Generate interactive React artifacts in the engineer's field-notebook visual style. |
 | `/tamirs-superpowers:dark-terminal-doc` | Generate polished HTML docs with a dark terminal design system. |
 
 Internal skills (invoked by parent skills, not shown in `/` menu): `docs-review`, `changelog-review`, `mcp-pagination`.
