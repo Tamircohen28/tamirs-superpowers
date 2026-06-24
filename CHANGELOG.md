@@ -5,6 +5,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [1.3.0] - 2026-06-23
+
 ### Added
 - **`repo-scaffold --type plugin`** — scaffolds agent-kit distribution repos (canonical rules/skills, build/validate stubs, marketplace + plugin wrapper, `dist/` adapters)
 - **`plugin-gold` contract profile** — `detect-contract-profile.sh`, `score-plugin-gaps.sh`, `scaffold-plugin-gold` fixture; CI runs both app-gold and plugin-gold in `make test-repo-contract`
@@ -14,6 +16,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Changed
 - Renamed skill domain `meta` → `toolkit` (`find-skill`, `session-report`, `skill-creator`)
+- Plugin version bumped to **1.3.0**
 
 ### Fixed
 - **Plugin scaffold CI** — template and gold fixture now include `package-lock.json` so generated workflows can run `npm ci`
