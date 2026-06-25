@@ -30,6 +30,12 @@ fi
 
 mkdir -p "$CLAUDE_DIR"
 
+# Preserve enabledPlugins from existing settings (install.sh overwrites the file)
+ENABLED_PLUGINS=""
+if [[ -f "$SETTINGS_FILE" ]] && command -v jq &>/dev/null; then
+  ENABLED_PLUGINS="$(jq '.enabledPlugins // empty' "$SETTINGS_FILE" 2>/dev/null || true)"
+fi
+
 # --- Write base settings ---
 cat > "$SETTINGS_FILE" <<'SETTINGS'
 {
@@ -87,6 +93,13 @@ cat > "$SETTINGS_FILE" <<'SETTINGS'
 SETTINGS
 
 printf 'Wrote %s\n' "$SETTINGS_FILE"
+
+# Merge enabledPlugins back in if we had any
+if [[ -n "$ENABLED_PLUGINS" ]] && command -v jq &>/dev/null; then
+  jq --argjson ep "$ENABLED_PLUGINS" '. + {enabledPlugins: $ep}' "$SETTINGS_FILE" > "${SETTINGS_FILE}.tmp" \
+    && mv "${SETTINGS_FILE}.tmp" "$SETTINGS_FILE"
+  printf 'Preserved enabledPlugins (%d entries)\n' "$(echo "$ENABLED_PLUGINS" | jq 'length')"
+fi
 
 PLUGIN_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
