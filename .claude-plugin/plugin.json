@@ -34,7 +34,7 @@
   "settings": {
     "statusLine": {
       "type": "command",
-      "command": "bash ${CLAUDE_PLUGIN_ROOT}/statusline.sh"
+      "command": "f=$(ls $HOME/.claude/plugins/cache/tamirs-plugins/tamirs-superpowers/*/statusline.sh 2>/dev/null | sort -rV | head -1) && [ -n \"$f\" ] && bash \"$f\""
     }
   }
 }
