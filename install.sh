@@ -30,6 +30,12 @@ fi
 
 mkdir -p "$CLAUDE_DIR"
 
+# Preserve enabledPlugins from existing settings (install.sh overwrites the file)
+ENABLED_PLUGINS=""
+if [[ -f "$SETTINGS_FILE" ]] && command -v jq &>/dev/null; then
+  ENABLED_PLUGINS="$(jq '.enabledPlugins // empty' "$SETTINGS_FILE" 2>/dev/null || true)"
+fi
+
 # --- Write base settings ---
 cat > "$SETTINGS_FILE" <<'SETTINGS'
 {
@@ -88,7 +94,24 @@ SETTINGS
 
 printf 'Wrote %s\n' "$SETTINGS_FILE"
 
+# Merge enabledPlugins back in if we had any
+if [[ -n "$ENABLED_PLUGINS" ]] && command -v jq &>/dev/null; then
+  jq --argjson ep "$ENABLED_PLUGINS" '. + {enabledPlugins: $ep}' "$SETTINGS_FILE" > "${SETTINGS_FILE}.tmp" \
+    && mv "${SETTINGS_FILE}.tmp" "$SETTINGS_FILE"
+  printf 'Preserved enabledPlugins (%d entries)\n' "$(echo "$ENABLED_PLUGINS" | jq 'length')"
+fi
+
 PLUGIN_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# Wire statusLine — finds the latest installed plugin version at runtime
+# so the path survives plugin updates without needing to re-run install.sh.
+if command -v jq &>/dev/null; then
+  # shellcheck disable=SC2016  # single quotes intentional: $HOME must expand at runtime, not here
+  STATUS_CMD='f=$(ls "$HOME"/.claude/plugins/cache/tamirs-plugins/tamirs-superpowers/*/statusline.sh 2>/dev/null | sort -rV | head -1) && [ -n "$f" ] && bash "$f"'
+  jq --arg cmd "$STATUS_CMD" '. + {statusLine: {type: "command", command: $cmd}}' \
+    "$SETTINGS_FILE" > "${SETTINGS_FILE}.tmp" && mv "${SETTINGS_FILE}.tmp" "$SETTINGS_FILE"
+  printf 'Wired statusLine (finds latest installed version at runtime)\n'
+fi
 
 # --- Install specialist agents to ~/.claude/agents/ ---
 # The plugin validator doesn't yet support an "agents" manifest key,
