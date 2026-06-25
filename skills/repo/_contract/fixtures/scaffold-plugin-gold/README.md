@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="assets/banner.svg" alt="scaffold-plugin-gold" width="600" />
+</p>
+
 <div align="center">
 
 # scaffold-plugin-gold

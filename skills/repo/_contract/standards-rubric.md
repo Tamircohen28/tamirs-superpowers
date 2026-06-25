@@ -10,8 +10,9 @@ Auto-scored IDs map to `score-standards-gaps.sh`. Manual follow-up required for 
 | S1-02 | CI + license badges | P2 |
 | S1-03 | Prerequisites section | P2 |
 | S1-04 | Quick Start section | P2 |
+| S1-05 | Hero banner (`assets/banner.svg` referenced in README) | P2 |
 
-Manual: hero banner, features bullets, docs link, no placeholder prose.
+Manual: features bullets, docs link, no placeholder prose.
 
 ## S2 docs/
 

@@ -19,6 +19,7 @@ r_badges=$(echo "$INV" | jq -r '.readme.has_badges')
 r_prereq=$(echo "$INV" | jq -r '.readme.has_prerequisites')
 r_qs=$(echo "$INV" | jq -r '.readme.has_quick_start')
 r_lic=$(echo "$INV" | jq -r '.readme.has_license_line')
+r_banner=$(echo "$INV" | jq -r '.readme.has_banner')
 d_user=$(echo "$INV" | jq -r '.docs.user_dir')
 d_eng=$(echo "$INV" | jq -r '.docs.engineering_dir')
 d_cl=$(echo "$INV" | jq -r '.docs.changelog')
@@ -39,6 +40,7 @@ h_self=$(echo "$INV" | jq -r '.hygiene.self_hosted_ci')
 
 [[ "$r_exists" != true ]] && { add_gap "S1-01" "P1" "README.md missing" 1; inc P1; }
 [[ "$r_exists" == true && "$r_badges" != true ]] && { add_gap "S1-02" "P2" "README missing CI/license badges" 1; inc P2; }
+[[ "$r_exists" == true && "$r_banner" != true ]] && { add_gap "S1-05" "P2" "README missing hero banner (add assets/banner.svg and reference it)" 1; inc P2; }
 [[ "$r_prereq" != true ]] && { add_gap "S1-03" "P2" "README missing Prerequisites section" 1; inc P2; }
 [[ "$r_qs" != true ]] && { add_gap "S1-04" "P2" "README missing Quick Start section" 1; inc P2; }
 [[ "$d_user" != true ]] && { add_gap "S2-01" "P2" "docs/user/ missing" 2; inc P2; }

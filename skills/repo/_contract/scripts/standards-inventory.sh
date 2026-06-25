@@ -14,11 +14,20 @@ readme_has_badges=false
 readme_has_prereq=false
 readme_has_quickstart=false
 readme_has_license_line=false
+readme_has_banner=false
 if [[ -f "$ROOT/README.md" ]]; then
   grep -q 'img.shields.io\|badge' "$ROOT/README.md" 2>/dev/null && readme_has_badges=true
   grep -qi 'prerequisite' "$ROOT/README.md" 2>/dev/null && readme_has_prereq=true
   grep -qi 'quick start\|getting started' "$ROOT/README.md" 2>/dev/null && readme_has_quickstart=true
   grep -qi 'license' "$ROOT/README.md" 2>/dev/null && readme_has_license_line=true
+  # Banner: README references assets/banner.* OR the asset file itself exists
+  if grep -qiE 'assets/banner\.(svg|png|jpg|webp)' "$ROOT/README.md" 2>/dev/null; then
+    readme_has_banner=true
+  else
+    for _ext in svg png jpg webp; do
+      [[ -f "$ROOT/assets/banner.$_ext" ]] && { readme_has_banner=true; break; }
+    done
+  fi
 fi
 
 docs_readme=$(exists "$ROOT/docs/README.md")
@@ -81,6 +90,7 @@ jq -nc \
   --argjson readme_has_prereq "$readme_has_prereq" \
   --argjson readme_has_quickstart "$readme_has_quickstart" \
   --argjson readme_has_license_line "$readme_has_license_line" \
+  --argjson readme_has_banner "$readme_has_banner" \
   --argjson docs_readme "$docs_readme" \
   --argjson changelog "$changelog" \
   --argjson contributing "$contributing" \
@@ -105,7 +115,8 @@ jq -nc \
       has_badges: $readme_has_badges,
       has_prerequisites: $readme_has_prereq,
       has_quick_start: $readme_has_quickstart,
-      has_license_line: $readme_has_license_line
+      has_license_line: $readme_has_license_line,
+      has_banner: $readme_has_banner
     },
     docs: {
       readme: $docs_readme,

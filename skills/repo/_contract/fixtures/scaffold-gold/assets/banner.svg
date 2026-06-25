@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="600" height="200" viewBox="0 0 600 200">
+  <rect width="600" height="200" fill="#0F1117"/>
+  <rect width="600" height="3" y="197" fill="#0F6E56"/>
+  <text x="300" y="105" font-family="'Segoe UI', Helvetica, Arial, sans-serif" font-size="36" font-weight="700" fill="#E6EDF3" text-anchor="middle">scaffold-gold</text>
+  <text x="300" y="135" font-family="'Segoe UI', Helvetica, Arial, sans-serif" font-size="14" fill="#8B949E" text-anchor="middle">Contract gold fixture — app-gold profile</text>
+</svg>

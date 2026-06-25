@@ -82,7 +82,7 @@ When `--src` is a GitHub URL, fetch the root file listing to check for `package.
 
 These patterns are distilled from TamirCohen28's repos. Apply them to every generated repo.
 
-**README structure:** centered hero, badges (CI, MIT, Claude Code `D97757`), elevator pitch, features, **Prerequisites**, Quick Start, architecture, docs links.
+**README structure:** centered hero banner (`<p align="center"><img src="assets/banner.svg" alt="REPO_NAME" width="600" /></p>`), badges (CI, MIT, Claude Code `D97757`), elevator pitch, features, **Prerequisites**, Quick Start, architecture, docs links.
 
 **Docs tree** (canonical — see `skills/repo/_contract/standards-contract.json`):
 ```
@@ -95,7 +95,7 @@ docs/
   agent-guidelines/
 ```
 
-**Root file checklist:** `AGENTS.md`, `CLAUDE.md` (line 1: `@AGENTS.md`), `LICENSE`, `Makefile` (with `agent:check`), `.gitignore`, `CODEOWNERS`, `CODE_OF_CONDUCT.md`, `SECURITY.md`, `scripts/check-agent-drift.sh`, `.cursor/rules/000-project.mdc`, `.nvmrc` (node/nextjs only).
+**Root file checklist:** `AGENTS.md`, `CLAUDE.md` (line 1: `@AGENTS.md`), `LICENSE`, `Makefile` (with `agent:check`), `.gitignore`, `CODEOWNERS`, `CODE_OF_CONDUCT.md`, `SECURITY.md`, `scripts/check-agent-drift.sh`, `.cursor/rules/000-project.mdc`, `.nvmrc` (node/nextjs only), `assets/banner.svg`.
 
 **Branch strategy:** `master` (default), `stable` (releases). Feature: `feat/`, fixes: `fix/`.
 
@@ -184,8 +184,13 @@ If SCAFFOLD_TYPE=plugin, also read scaffold-requirements-plugin.md and plugin/do
 
 Write these files (fully populated — no template placeholders left unfilled):
 
-1. REPO_ROOT/README.md — hero README with Prerequisites + Quick Start (CI badge, MIT badge, Claude Code badge D97757)
+1. REPO_ROOT/README.md — hero README with Prerequisites + Quick Start (CI badge, MIT badge, Claude Code badge D97757).
+   Open with: <p align="center"><img src="assets/banner.svg" alt="REPO_NAME" width="600" /></p>
    If plugin: add Install as Claude Code plugin, Build adapters (npm run build), Security model sections
+1a. REPO_ROOT/assets/banner.svg — SVG hero banner (600×200). Center the repo name in Space Grotesk bold on a
+    dark background (#0F1117), subtitle line in gray (#8B949E), subtle accent stripe in the project's primary
+    color. Keep it minimal — name + one-line description, no clip-art. The SVG must be self-contained (no
+    external font references — embed a web-safe fallback stack).
 2. REPO_ROOT/docs/README.md — canonical docs index
 3. REPO_ROOT/docs/CHANGELOG.md — Unreleased + 0.1.0 stub
 4. REPO_ROOT/docs/CONTRIBUTING.md — fork, branch naming, commit convention, PR process
