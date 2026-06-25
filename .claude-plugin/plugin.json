@@ -30,7 +30,6 @@
     "./skills/toolkit",
     "./skills/repo"
   ],
-  "agents": "./agents",
   "commands": "./commands",
   "settings": {
     "statusLine": {

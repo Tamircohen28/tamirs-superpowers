@@ -88,6 +88,17 @@ SETTINGS
 
 printf 'Wrote %s\n' "$SETTINGS_FILE"
 
+# --- Install specialist agents to ~/.claude/agents/ ---
+# The plugin validator doesn't yet support an "agents" manifest key,
+# so agents are shipped in agents/ and installed here instead.
+AGENTS_SRC="${PLUGIN_DIR}/agents"
+AGENTS_DEST="${CLAUDE_DIR}/agents"
+if [[ -d "$AGENTS_SRC" ]]; then
+  mkdir -p "$AGENTS_DEST"
+  cp "${AGENTS_SRC}"/*.md "$AGENTS_DEST/"
+  printf 'Installed %d agent(s) to %s\n' "$(ls "${AGENTS_SRC}"/*.md | wc -l | tr -d ' ')" "$AGENTS_DEST"
+fi
+
 # --- Optional: configure ensure-exit.sh ---
 PLUGIN_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 EXIT_PROXY="${CLAUDE_EXIT_PROXY:-}"
