@@ -1,12 +1,14 @@
 # tamirs-superpowers
 
-A Claude Code plugin that bundles 16 skills, smart worktree hooks, and MCP server stubs. It is **not** a Node/Python/Go app — there is no build step, no `package.json`, no compiled output. All content is Markdown, JSON, and Bash.
+A multi-platform agent plugin (Claude Code, Cursor, Codex) that bundles 17 skills, smart worktree hooks, and MCP server stubs. It is **not** a Node/Python/Go app — there is no build step, no `package.json`, no compiled output. All content is Markdown, JSON, and Bash.
 
-Install via the `tamirs-plugins` marketplace catalog:
+**Install (Claude Code)** — `tamirs-plugins` marketplace:
 ```
 /plugin marketplace add Tamircohen28/plugins
 /plugin install tamirs-superpowers@tamirs-plugins
 ```
+
+**Install (Cursor / Codex)** — enable the plugin from this repo via `.cursor-plugin/plugin.json` or `.codex-plugin/plugin.json` (same `skills/` tree).
 
 ## Working agreements
 
@@ -27,12 +29,27 @@ Install via the `tamirs-plugins` marketplace catalog:
 
 | Path | Purpose |
 |------|---------|
-| `.claude-plugin/plugin.json` | Plugin manifest — name, version, dependencies, statusLine |
-| `hooks/hooks.json` | Hook event wiring (PreToolUse, SessionStart, etc.) |
+| `.claude-plugin/plugin.json` | Claude Code plugin manifest |
+| `.cursor-plugin/plugin.json` | Cursor plugin manifest (skills + MCP; no hooks) |
+| `.codex-plugin/plugin.json` | Codex plugin manifest (skills + hooks + MCP) |
+| `rules/dev/*.md` | Canonical contributor rules (all agents) |
+| `hooks/hooks.json` | Hook event wiring (Claude Code + Codex) |
 | `hooks/lib/worktree-common.sh` | Shared bash helpers for all worktree hooks — do not modify without shellchecking |
 | `skills/<domain>/<name>/SKILL.md` | Bundled skill definitions — grouped by domain |
 | `skills/repo/_contract/` | Shared repo scaffold/standards contract (not a skill) |
 | `Makefile` | `validate`, `lint`, `test`, `test-repo-contract` |
+
+## Contributor rules (`rules/dev/`)
+
+| Rule | Applies when |
+|------|----------------|
+| `dev-files-workspace.md` | Session plans/reviews — use `.dev-files/` only |
+| `git-worktree-agent-workflow.md` | Branch work — one task per worktree under `.<agent>/.worktrees/` |
+| `skill-quality-standards.md` | Authoring or editing `skills/**/SKILL.md` |
+| `gh-cli-preference.md` | CI scripts, hooks, dev-workflow skill scripts |
+| `user-facing-script-standards.md` | User-facing or skill helper scripts |
+
+Cursor loads thin adapters from `.cursor/rules/dev-*.mdc` pointing at these files. Claude Code loads `rules/dev/` directly. Codex reads `AGENTS.md` plus `rules/dev/` when contributing.
 
 ## Off-limits
 

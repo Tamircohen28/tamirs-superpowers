@@ -5,13 +5,16 @@ alwaysApply: true
 
 # tamirs-superpowers — plugin structure
 
-This repo is a **Claude Code plugin** (Markdown + JSON + Bash only). There is no build step, no `package.json`, no compiled output.
+This repo is a **multi-platform agent plugin** (Markdown + JSON + Bash only) for Claude Code, Cursor, and Codex. There is no build step, no `package.json`, no compiled output.
 
 ## What lives where
 
 | Path | Purpose |
 |------|---------|
-| `.claude-plugin/plugin.json` | Plugin manifest |
+| `.claude-plugin/plugin.json` | Claude Code manifest |
+| `.cursor-plugin/plugin.json` | Cursor manifest |
+| `.codex-plugin/plugin.json` | Codex manifest |
+| `rules/dev/*.md` | Canonical contributor rules (all platforms) |
 | `skills/<domain>/<name>/SKILL.md` | One skill per folder; directory name = slash command |
 | `hooks/hooks.json` | Hook event wiring |
 | `hooks/*.sh` | Hook scripts (all must pass shellcheck) |

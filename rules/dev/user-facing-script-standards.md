@@ -6,10 +6,13 @@ alwaysApply: false
 
 User-facing scripts must expose a consistent CLI interface and self-documentation.
 
+Applies when authoring scripts for this repo regardless of agent (Claude Code, Cursor, Codex).
+
 ## Scope
 
 This rule applies to scripts intended for direct human invocation, including:
 - Repository-root scripts (for example install/build helper scripts)
+- Skill helper scripts under `skills/**/scripts/` invoked by users or agents
 
 This rule does not require internal-only helper scripts to expose the same UX surface.
 
@@ -37,7 +40,15 @@ Every new user-facing script must:
 
 ## Hook Script Standards
 
-Hook scripts (files under `plugin/scripts/hooks/`) must never use `echo` to produce output. This rule exists because hook scripts run as subprocesses of Claude Code — unexpected stdout output can interfere with hook response parsing.
+Hook scripts (`hooks/*.sh`, wired via `hooks/hooks.json`) must never use `echo` to produce output. This rule applies to platforms that load plugin hooks:
+
+| Platform | Loads `hooks/hooks.json` |
+|----------|--------------------------|
+| Claude Code | Yes (`.claude-plugin/plugin.json`) |
+| Codex | Yes (`.codex-plugin/plugin.json`) |
+| Cursor | No — `.cursor-plugin/plugin.json` does not wire hooks |
+
+Unexpected stdout from hook subprocesses can interfere with hook response parsing on Claude Code and Codex.
 
 **Required alternatives:**
 

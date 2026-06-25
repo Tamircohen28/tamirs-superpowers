@@ -34,7 +34,7 @@ metadata:
   - merge
   - workflow
   - github
-  updated-date: '2026-06-16'
+  updated-date: '2026-06-25'
 ---
 
 # pr-dev
@@ -59,6 +59,29 @@ Resolve once at startup; reuse throughout:
 
 If no PR resolves, ask and stop.
 
+## Skill directory (Claude Code, Cursor, Codex)
+
+Resolve once at startup as `SKILL_DIR` — all `scripts/`, `templates/`, and `references/` paths use this variable (not hardcoded absolute paths).
+
+Try in order:
+
+1. `$CLAUDE_SKILL_DIR` when set (Claude Code sets this automatically)
+2. `$CLAUDE_PLUGIN_ROOT/skills/dev-workflow/pr-dev` when the plugin root is known
+3. `<git-root>/skills/dev-workflow/pr-dev` when developing this repo from a checkout
+4. `find ~/.claude/plugins -path "*/dev-workflow/pr-dev/scripts/fetch-pr-state.sh" -print -quit | xargs dirname` as a last resort for installed Claude plugins
+
+If none resolve to a directory containing `scripts/fetch-pr-state.sh`, stop and tell the user the skill directory could not be found.
+
+**Platform notes**
+
+| Platform | Typical resolution |
+|----------|-------------------|
+| Claude Code | `$CLAUDE_SKILL_DIR` or `$CLAUDE_PLUGIN_ROOT/skills/dev-workflow/pr-dev` |
+| Cursor | Git repo path `skills/dev-workflow/pr-dev` when the plugin is opened from source; otherwise the installed plugin skills root + `dev-workflow/pr-dev` |
+| Codex | Same as Cursor — prefer git-root path when contributing to this repo |
+
+In bash examples below, `$SKILL_DIR` means the path resolved above. Claude Code users may substitute `$CLAUDE_SKILL_DIR` when it is already set.
+
 ## Hard rules
 
 These rules exist because past implementations broke in the specific ways listed.
@@ -72,6 +95,7 @@ These rules exist because past implementations broke in the specific ways listed
 - **Never retry a flaky run more than 3×** — after that it's an infra problem requiring human judgment.
 - **Always restart the loop immediately after any push** — a push triggers new CI; stopping now abandons the run.
 - **Never call `gh pr merge` until the user writes `approved` in this conversation** — protects against accidental merges.
+- **Always delete the remote branch after merge** — pass `--delete-branch` to `gh pr merge`, then run `cleanup-after-merge.sh` to verify `origin/<head>` is gone (covers UI merges that skipped branch deletion).
 - **Never use `--admin`** unless the user explicitly authorizes it.
 
 ## Core drive loop
@@ -82,8 +106,9 @@ startup:
   HEAD = pr head branch name
 
 loop:
-  state = bash $CLAUDE_SKILL_DIR/scripts/fetch-pr-state.sh $PR
-  if PR merged or closed → report; STOP
+  state = bash $SKILL_DIR/scripts/fetch-pr-state.sh $PR
+  if PR merged → run cleanup-after-merge.sh; report; STOP
+  if PR closed (not merged) → report; STOP
 
   # Review threads
   unresolved = threads where isResolved==false and isOutdated==false
@@ -92,7 +117,7 @@ loop:
     state reply text in conversation          ← user can redirect
     post reply via gh api
     if agreed/partial: apply code fix; commit; push
-    bash $CLAUDE_SKILL_DIR/scripts/resolve-thread.sh $THREAD_ID
+    bash $SKILL_DIR/scripts/resolve-thread.sh $THREAD_ID
   if any thread needed a push → restart loop immediately (no sleep)
 
   # CI
@@ -115,7 +140,7 @@ loop:
 ## Fetch fresh state
 
 ```bash
-bash "$CLAUDE_SKILL_DIR/scripts/fetch-pr-state.sh" "$PR"
+bash "$SKILL_DIR/scripts/fetch-pr-state.sh" "$PR"
 ```
 
 Quick snapshot inside the loop:
@@ -130,7 +155,7 @@ reviewDecision,statusCheckRollup,headRefOid,headRefName
 
 1. **Read** the full thread body — understand what the reviewer is asking.
 2. **Assess** and state in conversation: `agree`, `partially agree`, or `disagree`.
-3. **State the reply** (user can redirect before it's posted). Use `$CLAUDE_SKILL_DIR/templates/review-reply.md.tmpl` shapes.
+3. **State the reply** (user can redirect before it's posted). Use `$SKILL_DIR/templates/review-reply.md.tmpl` shapes.
 4. **Post** the reply:
    ```bash
    gh api "repos/$REPO/pulls/$PR/comments" \
@@ -139,7 +164,7 @@ reviewDecision,statusCheckRollup,headRefOid,headRefName
 5. **Fix code** if agreed or partially agreed.
 6. **Resolve** the thread:
    ```bash
-   bash "$CLAUDE_SKILL_DIR/scripts/resolve-thread.sh" "$THREAD_ID"
+   bash "$SKILL_DIR/scripts/resolve-thread.sh" "$THREAD_ID"
    ```
 7. Commit and push all fixes; then restart the loop.
 
@@ -178,7 +203,7 @@ Then **restart the loop immediately** — never treat a push as a terminal outco
 
 For short cycles: `gh pr checks "$PR" --watch`
 
-For long cycles (5+ min) or when other work can run in parallel, use the Monitor `until`-loop. See `$CLAUDE_SKILL_DIR/references/ci-monitor-loop.md`.
+For long cycles (5+ min) or when other work can run in parallel, use the Monitor `until`-loop. See `$SKILL_DIR/references/ci-monitor-loop.md`.
 
 ## Polling cadence
 
@@ -206,12 +231,14 @@ PR #N is ready to merge.
   ✓ 0 unresolved review threads
   ✓ Branch up to date with base
 
-Reply `approved` to squash-merge and clean up.
+Reply `approved` to squash-merge, delete the remote branch, and clean up.
 ```
 
 **Do not call `gh pr merge` until the user writes `approved`.**
 
 ## Merge and clean up (after `approved`)
+
+Squash-merge and delete the remote head branch on GitHub:
 
 ```bash
 gh pr merge "$PR" --squash --delete-branch
@@ -223,11 +250,15 @@ Close issues linked in the PR body (`Closes #N`, `Fixes #N`):
 gh issue close <N> --comment "Shipped in PR #$PR."
 ```
 
-Then clean up the local environment:
+Then clean up local worktree, local branch, and any leftover remote ref:
 
 ```bash
-bash "$CLAUDE_SKILL_DIR/scripts/cleanup-after-merge.sh" "$PR"
+bash "$SKILL_DIR/scripts/cleanup-after-merge.sh" "$PR"
 ```
+
+`cleanup-after-merge.sh` deletes `origin/<head>` with `git push origin --delete` when the branch still exists (e.g. merged via the GitHub UI without "Delete branch"). Confirm `git branch -a` shows no `origin/<head>` before reporting done.
+
+If the PR was already merged when the loop starts, skip `gh pr merge` and run only `cleanup-after-merge.sh`.
 
 ## Blocked state
 
@@ -265,4 +296,4 @@ Never silently stop, guess, or take a destructive action without confirmation.
 - **On flake retry**: `Retried flaky run (attempt N/3). Watching.`
 - **On thread resolved**: `Thread "<snippet>": agreed/partial/disagree — replied and resolved.`
 - **At readiness gate**: full readiness summary above; then stop
-- **After merge**: single-line summary — SHA, checks, fixes pushed, retries, issues closed
+- **After merge**: single-line summary — SHA, checks, fixes pushed, retries, issues closed, remote branch deleted

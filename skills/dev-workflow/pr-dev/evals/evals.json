@@ -16,7 +16,7 @@
     {
       "id": 3,
       "prompt": "Address the review on my PR and merge it when done.",
-      "expected_output": "Skill infers PR from current branch, fetches unresolved threads, for each: states the assess+reply in conversation (agree/partial/disagree), posts reply, applies fix if needed, resolves thread. Then monitors CI until green. Reaches readiness gate, stops, and prints checklist. After user types `approved`, squash-merges with --delete-branch and runs cleanup-after-merge.sh.",
+      "expected_output": "Skill resolves SKILL_DIR (CLAUDE_SKILL_DIR, plugin root, or git-root path), infers PR from current branch, fetches unresolved threads, for each: states the assess+reply in conversation (agree/partial/disagree), posts reply, applies fix if needed, resolves thread. Then monitors CI until green. Reaches readiness gate, stops, and prints checklist. After user types `approved`, squash-merges with --delete-branch, runs cleanup-after-merge.sh via SKILL_DIR, and confirms origin/<head> is gone.",
       "files": []
     }
   ]
