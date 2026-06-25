@@ -53,7 +53,7 @@ if is_git_repo "$cwd"; then
   worktree_path="$(worktree_path_for "$repo_name" "$session_title")"
 
   if is_global_worktree_path "$cwd"; then
-    session_files_dir="$(ensure_session_files_dir "${cwd}/.session-files")"
+    session_files_dir="$(ensure_session_files_dir "${cwd}/session-files")"
   else
   if [[ ! -d "$worktree_path" ]]; then
     mkdir -p "${WORKTREE_ROOT}/${repo_name}"
@@ -64,7 +64,7 @@ if is_git_repo "$cwd"; then
     # Install deps in the background so a slow npm/yarn install never blocks the hook timeout.
     ( run_worktree_post_setup "$worktree_path" >/dev/null 2>&1 & )
   fi
-    session_files_dir="$(ensure_session_files_dir "${worktree_path}/.session-files")"
+    session_files_dir="$(ensure_session_files_dir "${worktree_path}/session-files")"
   fi
 
   state="$(echo "$state" | jq \
@@ -98,7 +98,7 @@ else
   short_id="${session_id:0:8}"
   session_slug="${session_title:-session-${short_id}}"
   session_dir="${HOME}/.claude/outputs/${session_slug}"
-  session_files_dir="$(ensure_session_files_dir "${session_dir}/.session-files")"
+  session_files_dir="$(ensure_session_files_dir "${session_dir}/session-files")"
   sync_session_files_archive "$session_files_dir" "$session_slug"
 
   state="$(echo "$state" | jq \
