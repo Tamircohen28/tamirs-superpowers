@@ -1,18 +1,24 @@
 ---
 alwaysApply: false
-globs: ["tooling/**/*", ".github/**/*", ".claude/skills/{plan-dev,start-dev,pr-dev}/**/*"]
+globs:
+  - "tooling/**/*"
+  - ".github/**/*"
+  - "skills/dev-workflow/{plan-dev,start-dev,pr-dev}/**/*"
+  - "hooks/**/*"
 ---
 
 # gh CLI Preference in Dev Context
 
 In **development context** (contributor tooling, CI scripts, governance checks), use `gh` CLI for all GitHub operations. Do NOT use GitHub MCP tools for dev-time work.
 
+Applies regardless of which agent edits the repo (Claude Code, Cursor, or Codex).
+
 ## Rule
 
 | Context | Use |
 |---------|-----|
 | Writing CI scripts, governance checks, build tooling | `gh` CLI |
-| Writing `dev-env/` rules or commands | `gh` CLI examples |
+| Writing `rules/dev/` rules or skill scripts | `gh` CLI examples |
 | Plugin runtime agents investigating production issues | GitHub MCP (`octocode`, `githubSearchCode`, etc.) |
 
 ## Why
@@ -28,8 +34,8 @@ GitHub MCP tools are authenticated via `MCP_ACCESS_KEY` — a runtime credential
 
 ```bash
 # CORRECT — dev context
-gh pr list --repo anthropics/production-master --state open
-gh issue create --repo anthropics/production-master --title "..."
+gh pr list --repo Tamircohen28/tamirs-superpowers --state open
+gh issue create --repo Tamircohen28/tamirs-superpowers --title "..."
 gh api repos/anthropics/claude-code/releases/latest
 
 # WRONG — dev context

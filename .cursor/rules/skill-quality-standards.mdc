@@ -1,0 +1,16 @@
+---
+description: "Skill authoring standards for skills/ — shared across Claude Code, Cursor, and Codex plugin manifests"
+globs: "skills/**/SKILL.md"
+alwaysApply: false
+---
+
+# Skill Quality Standards
+
+Canonical rule: `rules/dev/skill-quality-standards.md`.
+
+Skills in `skills/<domain>/<name>/` ship via `.claude-plugin/plugin.json`, `.cursor-plugin/plugin.json`, and `.codex-plugin/plugin.json`. Keep bodies portable — do not assume Claude Code only.
+
+- All 16 frontmatter fields + `metadata.updated-date` required; run `make validate`
+- Directory name = slash command name = frontmatter `name`
+- Use `$CLAUDE_SKILL_DIR` in Claude-oriented script paths; Cursor/Codex resolve the skill directory containing `SKILL.md`
+- Never hand-write a new skill from scratch — use `skill-creator`

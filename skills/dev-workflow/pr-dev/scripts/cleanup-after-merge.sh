@@ -7,12 +7,13 @@
 #
 # Steps:
 #   1. cd to repo root
-#   2. git checkout master && git pull
+#   2. git checkout default branch && git pull
 #   3. Remove the worktree for this PR's branch (if any)
-#   4. Delete the local branch
-#   5. git remote prune origin
-#   6. Force-remove ghost refs via git branch -r -d origin/<branch>
-#   7. Print git branch -a for verification
+#   4. Delete the remote branch on origin (if it still exists)
+#   5. Delete the local branch
+#   6. git remote prune origin
+#   7. Force-remove ghost refs via git branch -r -d origin/<branch>
+#   8. Print git branch -a for verification
 set -euo pipefail
 
 usage() {
@@ -60,6 +61,10 @@ git pull --ff-only
 WORKTREE_PATH=$(git worktree list --porcelain | awk -v b="$BRANCH" '/^worktree /{p=$2} /^branch refs\/heads\//{if($2=="refs/heads/"b){print p; exit}}')
 if [[ -n "$WORKTREE_PATH" && -d "$WORKTREE_PATH" ]]; then
   git worktree remove "$WORKTREE_PATH" || git worktree remove --force "$WORKTREE_PATH"
+fi
+
+if git ls-remote --exit-code --heads origin "$BRANCH" >/dev/null 2>&1; then
+  git push origin --delete "$BRANCH"
 fi
 
 git branch -D "$BRANCH" 2>/dev/null || true

@@ -5,6 +5,11 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Changed
+- **`rules/dev/`** — contributor rules now document Claude Code, Cursor, and Codex paths (worktrees, plugin manifests, hook loading); added Cursor `.mdc` adapters
+- **`pr-dev`** — enforces remote branch deletion after merge; portable `SKILL_DIR` resolution across platforms; `cleanup-after-merge.sh` deletes `origin/<head>` when still present
+- **`AGENTS.md`** — multi-platform install notes and `rules/dev/` index
+
 ## [1.4.0] - 2026-06-24
 
 ### Added

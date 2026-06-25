@@ -23,7 +23,14 @@ dist/
 build/
 *.log
 
-# Claude Code worktrees and session state
+# Agent worktrees (repo-local) and session state
+.claude/.worktrees/
 .claude/worktrees/
 .claude/outputs/
 .claude/sessions/
+.cursor/.worktrees/
+.codex/.worktrees/
+
+# Session-local dev artifacts (only .dev-files/README.md is tracked)
+.dev-files/*
+!.dev-files/README.md

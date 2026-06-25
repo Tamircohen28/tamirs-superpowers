@@ -1,14 +1,35 @@
 ---
 alwaysApply: false
-globs: ["skills/**/SKILL.md", ".claude/skills/**/SKILL.md"]
+globs: ["skills/**/SKILL.md"]
 ---
 
 # Skill Quality Standards — tamirs-superpowers
 
 Rules for creating and maintaining skills in `skills/<domain>/<skill-name>/`.
 
+Applies when authoring plugin skills consumed by **Claude Code**, **Cursor**, and **Codex** (see multi-platform distribution below).
+
 Based on [Claude Code Skills](https://code.claude.com/docs/en/skills) and
 `skills/toolkit/skill-creator/references/frontmatter-template.md`.
+
+## Multi-platform distribution
+
+This repo ships the same `skills/` tree through three plugin manifests:
+
+| Platform | Manifest | Skills path |
+|----------|----------|-------------|
+| Claude Code | `.claude-plugin/plugin.json` | `./skills/<domain>` |
+| Cursor | `.cursor-plugin/plugin.json` | `./skills/<domain>` |
+| Codex | `.codex-plugin/plugin.json` | `./skills/<domain>` |
+
+Keep skill bodies **portable** — policy and workflows must not assume only Claude Code is available. Platform-specific mechanics belong in short callouts (e.g. `$CLAUDE_SKILL_DIR`, `EnterWorktree`, Cursor subagents).
+
+| Concern | Claude Code | Cursor | Codex |
+|---------|-------------|--------|-------|
+| Skill discovery | Plugin `skills/` + `/skill-name` | Plugin `skills/` + agent skills | Plugin `skills/` + `AGENTS.md` pointers |
+| Script dir variable | `$CLAUDE_SKILL_DIR` | Resolve as directory containing the active `SKILL.md` | Same as Cursor |
+| Hooks | `hooks/hooks.json` (Claude + Codex plugins) | Not loaded from `.cursor-plugin` | `hooks/hooks.json` |
+| Contributor rules | `rules/dev/*.md` | `.cursor/rules/*.mdc` adapters | `AGENTS.md` + `rules/dev/` |
 
 ## Directory layout
 
@@ -82,14 +103,21 @@ Parent skills invoke internal companions with `Skill("skill-name")` — never du
 - [ ] `description` + `when_to_use` combined ≤1,536 characters
 - [ ] SKILL.md under 500 lines (`wc -l`)
 - [ ] `allowed-tools` lists every tool used in the body
-- [ ] Script paths use `$CLAUDE_SKILL_DIR`, never hardcoded absolute paths
+- [ ] Script paths use `$CLAUDE_SKILL_DIR` in Claude-oriented skills; document equivalent resolution for Cursor/Codex when scripts are required
 - [ ] Internal skills: `user-invocable: false` + `disable-model-invocation: true`
 - [ ] No employer IP, internal domains, or private org references
+- [ ] No Claude-only assumptions without a Cursor/Codex fallback note where behavior differs
 
 ## Validation
 
 ```bash
 python3 scripts/validate-skill-frontmatter.py path/to/SKILL.md
-make validate          # shellcheck + JSON + all skills
+make validate          # shellcheck + JSON + all skills + plugin manifests
 make plugin-validate   # full Claude Code plugin schema (requires claude CLI)
+```
+
+After changing skills, confirm all three manifests still list the same `skills/` roots:
+
+```bash
+jq -r '.skills[]' .claude-plugin/plugin.json .cursor-plugin/plugin.json .codex-plugin/plugin.json
 ```
