@@ -5,9 +5,11 @@
 ```json
 "statusLine": {
   "type": "command",
-  "command": "bash ${CLAUDE_PLUGIN_ROOT}/statusline.sh"
+  "command": "f=$(ls $HOME/.claude/plugins/cache/tamirs-plugins/tamirs-superpowers/*/statusline.sh 2>/dev/null | sort -rV | head -1) && [ -n \"$f\" ] && bash \"$f\""
 }
 ```
+
+The command uses a `$HOME`-based glob rather than `${CLAUDE_PLUGIN_ROOT}` because Claude Code only sets `CLAUDE_PLUGIN_ROOT` during hook execution — it is not set when running the `statusLine` command. The glob finds the latest installed version automatically, so the path survives plugin updates.
 
 Claude Code invokes the script and passes a JSON blob on stdin containing session context. The script parses it and emits colored ANSI lines.
 
