@@ -29,6 +29,16 @@ if is_global_worktree_path "$cwd"; then
 fi
 
 repo_root="$(repo_root_for "$cwd")"
+
+file_path="$(echo "$input" | jq -r '.tool_input.file_path // empty')"
+if [[ -n "$file_path" && "$file_path" != "null" ]]; then
+  # Only enforce if the file being edited is inside this repo
+  case "$file_path" in
+    "$repo_root"/*) ;;  # inside repo — fall through to deny
+    *) exit 0 ;;        # outside repo — allow
+  esac
+fi
+
 repo_name="$(repo_name_for "$cwd")"
 state="$(load_session_state "$session_id")"
 task_slug="$(echo "$state" | jq -r '.task_slug // empty')"
