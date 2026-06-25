@@ -16,12 +16,14 @@
 
 # tamirs-superpowers
 
-A personal Claude Code plugin that bundles 17 skills, smart worktree hooks, and MCP server stubs — installed with a single `/plugin install` command and kept current via marketplace auto-update.
+A personal Claude Code plugin that bundles 17 skills, 6 specialist agents, smart worktree hooks, slash commands, and MCP server stubs — installed with a single `/plugin install` command and kept current via marketplace auto-update.
 
 ## Features
 
 - **17 bundled skills** — plan, implement, drive PRs to merge, audit repo standards, multi-agent setup, debug, create and benchmark skills, and more, all from the Claude Code prompt
-- **Smart worktree hooks** that automatically create isolated git worktrees per task, derive task slugs from your first prompt, enforce edit isolation, and show Claude Code changelogs on update
+- **6 specialist agents** — architecture-reviewer, debugging-specialist, performance-reviewer, research-agent, security-reviewer, test-engineer; available via the Agent tool in any session
+- **`/retro` command** — session postmortem that finds friction and proposes rule/hook/skill/memory updates
+- **Smart worktree hooks** that automatically create isolated git worktrees per task, derive task slugs from your first prompt, enforce edit isolation, guard sensitive files, and show Claude Code changelogs on update
 - **Auto-installed plugin dependencies** — superpowers pulls in automatically when you install this plugin
 - **MCP server stubs** for GitHub and Context7 — fill in your tokens and they're live
 - **Statusline** showing git branch, worktree state, and session context in your Claude Code footer
@@ -40,16 +42,25 @@ This plugin is published through the [`tamirs-plugins`](https://github.com/Tamir
 catalog — install it from there, **not** by adding this repo as a marketplace
 (this repo no longer ships its own `marketplace.json`).
 
+### New machine setup
+
+```bash
+# 1. Clone the plugin repo and bootstrap ~/.claude/settings.json
+git clone git@github.com:Tamircohen28/tamirs-superpowers.git
+bash tamirs-superpowers/install.sh
+# Optional: set CLAUDE_EXIT_PROXY and CLAUDE_EXIT_PUBLIC_IP env vars to also configure the exit-node guard
+```
+
 ### Inside Claude Code (slash commands)
 
 ```text
-# 1. Add Tamir's plugin marketplace (one-time per machine)
+# 2. Add Tamir's plugin marketplace (one-time per machine)
 /plugin marketplace add Tamircohen28/plugins
 
-# 2. Install — the `superpowers` dependency auto-installs alongside
+# 3. Install — the `superpowers` dependency auto-installs alongside
 /plugin install tamirs-superpowers@tamirs-plugins
 
-# 3. Verify
+# 4. Verify
 /doctor
 ```
 
@@ -104,18 +115,22 @@ Internal skills (invoked by parent skills, not shown in `/` menu): `docs-review`
 
 ## Hooks
 
-`hooks/hooks.json` wires 8 lifecycle events:
+`hooks/hooks.json` wires 10 lifecycle events:
 
-| Event | Script | Purpose |
+| Event | Script(s) | Purpose |
 |---|---|---|
 | `PreToolUse (Bash)` | `protect-other-branches.sh` | Block editing PRs from other authors. |
 | `PreToolUse (Edit\|Write\|…)` | `enforce-worktree-edits.sh` | Refuse repo edits outside the task worktree. |
+| `PreToolUse (Edit\|Write\|…)` | `guard-sensitive-files.sh`, `skill-creator-guard.sh` | Block edits to lockfiles/build output; enforce `/skill-creator` for SKILL.md edits. |
+| `PostToolUse (Edit\|Write)` | `plugin-reload-reminder.sh`, `wix-ip-guard.sh` | Remind to reload after plugin file edits; warn on Wix IP references. |
+| `PostToolUse (Write)` | `validate-report-links.sh` | Validate URLs in report.md files. |
 | `SessionStart` | `show-changelog.sh`, `session-init.sh` | Show Claude Code changelog on update; seed session state. |
 | `SessionEnd` | `session-end.sh` | Archive session-files, prune stale worktrees and old archives. |
-| `UserPromptSubmit` | `capture-task-slug.sh` | Derive task slug, create worktree, install deps, expose `$CLAUDE_SESSION_FILES_DIR`. |
+| `UserPromptSubmit` | `capture-task-slug.sh`, `goal-compact-reminder.sh`, `ensure-exit.sh` | Derive task slug, create worktree; remind to compact before /goal; check exit node. |
 | `WorktreeCreate` | `worktree-create.sh` | Create global worktree under `~/.claude/worktrees/`. |
 | `WorktreeRemove` | `worktree-remove.sh` | Tear down global worktree cleanly. |
 | `Notification` | `notify.sh` | Notification (prefixed with the task slug) when Claude needs attention. |
+| `Stop` | `check-done.sh` | Remind to verify lint/tests before claiming done. |
 
 When a worktree is created, the hooks also: copy gitignored files matched by
 `~/.claude/defaults/worktreeinclude` then the repo's `.worktreeinclude` (e.g.
