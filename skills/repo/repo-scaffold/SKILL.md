@@ -257,7 +257,12 @@ Write these files:
 
 4. REPO_ROOT/.github/pull_request_template.md — Summary, Type of change (checkbox), Test plan, Notes
 
-5. REPO_ROOT/.github/dependabot.yml — per CONTRACT_ROOT/templates/github/dependabot.yml.tmpl
+5. REPO_ROOT/.github/dependabot.yml — generate with only the ecosystems present in this repo.
+   Always include a `github-actions` block (monthly schedule, grouped, limit 2, label: chore).
+   Add an `npm` block when TECH is `node` or `nextjs`. Add a `pip` block when TECH is `python`.
+   Conservative settings for all npm/pip blocks: weekly schedule (monday 09:00), group all minor+patch
+   into one PR per ecosystem, ignore automatic major-version PRs, `open-pull-requests-limit: 3`, label: chore.
+   Never use daily schedules. Never open one PR per dependency. Reference CONTRACT_ROOT/templates/github/dependabot.yml.tmpl for exact field names.
 
 6. REPO_ROOT/CODEOWNERS — "* @TamirCohen28"; if plugin add canonical/, plugins/, scripts/, hooks/ lines
 ```
@@ -300,7 +305,14 @@ Repo root: REPO_ROOT
 
 Follow multi-agent-repo references/platform-setup.md (phases 0–1):
 
-1. REPO_ROOT/AGENTS.md — if app: canonical portable rules (100–200 lines). If plugin: **contributor workflow** for this agent-kit repo (edit canonical/, npm run build, never edit dist/)
+1. REPO_ROOT/AGENTS.md — if app: canonical portable rules (100–200 lines). If plugin: **contributor workflow** for this agent-kit repo (edit canonical/, npm run build, never edit dist/).
+   AGENTS.md must include a "## Dependency management" section with these rules:
+   - Configure dependabot.yml with only the ecosystems present in this repo.
+   - Weekly cadence for npm/pip, monthly for GitHub Actions. Never daily.
+   - Group minor and patch updates into one PR per ecosystem (groups).
+   - Block automatic major-version PRs (ignore: version-update:semver-major).
+   - Set open-pull-requests-limit: 3 or lower. Never one PR per dependency.
+   - Do not blindly merge Dependabot PRs — require CI to pass first.
 2. REPO_ROOT/CLAUDE.md — line 1: @AGENTS.md; Claude-only addenda only
 3. REPO_ROOT/.cursor/rules/000-project.mdc — alwaysApply: true, points to AGENTS.md
 4. REPO_ROOT/docs/agent-guidelines/README.md — stub index linking to AGENTS.md
