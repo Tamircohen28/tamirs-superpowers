@@ -48,6 +48,7 @@ Scopes: `skills`, `hooks`, `marketplace`, `ci`, `docs`
 - **Never add Wix-internal references** (internal domains, private GitHub orgs, internal tooling names)
 - **Never modify `hooks/lib/worktree-common.sh`** without running shellcheck and testing both `capture-task-slug.sh` and `worktree-create.sh`
 - **SKILL.md files must have valid YAML frontmatter** with all 16 official Claude Code fields plus `metadata.updated-date` — see `skills/toolkit/skill-creator/references/frontmatter-template.md`; CI runs `scripts/validate-skill-frontmatter.py`
+- **Version sync:** whenever `.claude-plugin/plugin.json` version is bumped, `.codex-plugin/plugin.json` and `.cursor-plugin/plugin.json` must be bumped to the same version in the same commit. Check all three before opening a release PR.
 
 ## Skill domains (17 skills total)
 
