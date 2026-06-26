@@ -4,7 +4,7 @@ description: 'Use when the user wants to convert an informal task, feature reque
 when_to_use: 'User wants to plan or structure development work into phases and create GitHub issues — invoked as /plan-dev or when the user says: ''plan this'', ''break this into phases'', ''create issues for this'', ''decompose this spec/task'', ''structure this feature'', ''what order should I do this in'', ''turn this into tickets'', ''help me organize this work'', ''I have a review doc with N items help me organize it''.'
 argument-hint: '[task description, file path to spec/review doc, or GitHub issue URL/number]'
 arguments: []
-disable-model-invocation: true
+disable-model-invocation: false
 user-invocable: true
 allowed-tools:
 - Bash
