@@ -4,7 +4,7 @@ description: 'Use when the user wants to implement, build, code, or ship a task 
 when_to_use: implement, build, start coding, begin implementation, work on, create PR for, ship, code up — followed by an issue number (#N), a task description, or a spec/plan file path
 argument-hint: '[issue number(s) e.g. #42, free-text task description, or path/to/spec.md]'
 arguments: []
-disable-model-invocation: true
+disable-model-invocation: false
 user-invocable: true
 allowed-tools:
 - Bash

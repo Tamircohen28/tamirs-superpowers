@@ -6,7 +6,7 @@ argument-hint: '[review|plan|dev] [repo path, review/plan doc path, or free-text
 arguments:
 - mode
 - target
-disable-model-invocation: true
+disable-model-invocation: false
 user-invocable: true
 allowed-tools:
 - Bash

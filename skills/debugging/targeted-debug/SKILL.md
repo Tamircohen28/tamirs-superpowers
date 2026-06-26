@@ -4,7 +4,7 @@ description: 'Use when the user pastes a stack trace, traceback, panic, crash lo
 when_to_use: 'User provides a concrete error: stack trace, panic output, crash log, or names a specific file:line and asks what''s wrong. Error is already in hand — no broad codebase exploration needed. Do not use when the user has no stack trace or no concrete error message.'
 argument-hint: <error-message-or-stack-trace> [file:line ...]
 arguments: []
-disable-model-invocation: true
+disable-model-invocation: false
 user-invocable: true
 allowed-tools:
 - Read

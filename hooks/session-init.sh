@@ -40,19 +40,19 @@ if is_git_repo "$cwd"; then
   repo_name="$(repo_name_for "$cwd")"
 
   if is_global_worktree_path "$cwd"; then
-    session_files_dir="$(ensure_session_files_dir "${cwd}/.session-files")"
+    session_files_dir="$(ensure_session_files_dir "${cwd}/session-files")"
     worktree_path="$cwd"
   elif [[ -n "$worktree_path" && "$worktree_path" != "null" && -d "$worktree_path" ]]; then
-    session_files_dir="$(ensure_session_files_dir "${worktree_path}/.session-files")"
+    session_files_dir="$(ensure_session_files_dir "${worktree_path}/session-files")"
   elif [[ -n "$task_slug" && "$task_slug" != "null" ]]; then
     worktree_path="$(worktree_path_for "$repo_name" "$task_slug")"
-    session_files_dir="$(ensure_session_files_dir "${worktree_path}/.session-files")"
+    session_files_dir="$(ensure_session_files_dir "${worktree_path}/session-files")"
   else
-    session_files_dir="$(ensure_session_files_dir "${output_dir}/.session-files")"
+    session_files_dir="$(ensure_session_files_dir "${output_dir}/session-files")"
     sync_session_files_archive "$session_files_dir" "$slug"
   fi
 else
-  session_files_dir="$(ensure_session_files_dir "${output_dir}/.session-files")"
+  session_files_dir="$(ensure_session_files_dir "${output_dir}/session-files")"
   sync_session_files_archive "$session_files_dir" "$slug"
 fi
 

@@ -173,10 +173,10 @@ write_worktree_env_local() {
 
 # Install dependencies in a freshly created worktree, matching the project's
 # package manager. Skips when node_modules is already present (e.g. symlinked).
-# Logs to .session-files/worktree-setup.log; never fatal to the caller.
+# Logs to session-files/worktree-setup.log; never fatal to the caller.
 run_worktree_post_setup() {
   local worktree_path="$1"
-  local logfile="${worktree_path}/.session-files/worktree-setup.log"
+  local logfile="${worktree_path}/session-files/worktree-setup.log"
   mkdir -p "$(dirname "$logfile")"
   local stamp errors=()
   stamp="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
