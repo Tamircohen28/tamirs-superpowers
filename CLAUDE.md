@@ -18,6 +18,7 @@ A Claude Code plugin (marketplace + bundled skills + hooks). It is **not** a Nod
 | `hooks/*.sh` | Hook scripts |
 | `hooks/lib/worktree-common.sh` | Shared bash helpers for all worktree hooks |
 | `skills/<domain>/<name>/SKILL.md` | Bundled skill definitions — grouped by domain |
+| `.claude/memory/` | Project memory (lessons, feedback, project facts) — see below |
 
 ## Commands
 
@@ -85,3 +86,21 @@ Skills can be restricted to internal use (invoked by other skills only, never by
 3. If the skill is internal-only: add `user-invocable: false` and `disable-model-invocation: true`
 4. Update `README.md` skill count and table
 5. Run `make validate`
+
+## Project memory
+
+Session lessons are stored in **two places** — keep them in sync:
+
+| Location | Purpose |
+|----------|---------|
+| `.claude/memory/` (this repo) | Versioned backup — survives machine changes, reviewable in PRs |
+| `~/.claude/projects/-Users-<you>-Projects-tamirs-superpowers/memory/` | Auto-loaded by Claude Code each session |
+
+**Restoring memory on a new machine:**
+```bash
+MEMORY_DIR=~/.claude/projects/-Users-$(whoami)-Projects-tamirs-superpowers/memory
+mkdir -p "$MEMORY_DIR"
+cp .claude/memory/* "$MEMORY_DIR/"
+```
+
+**After adding a new memory file:** commit it to `.claude/memory/` in this repo so it isn't lost.
