@@ -11,7 +11,7 @@ jobs:
     name: shellcheck
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
       - name: Install shellcheck
         run: sudo apt-get install -y shellcheck
       - name: Run shellcheck on hook scripts
@@ -27,7 +27,7 @@ jobs:
     name: Validate JSON
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
       - name: Validate all JSON files
         run: |
           find . -name '*.json' -not -path '*/.git/*' | while read f; do
@@ -38,7 +38,7 @@ jobs:
     name: Validate SKILL.md frontmatter
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
       - name: Install PyYAML
         run: pip install pyyaml
       - name: Validate all official frontmatter fields
@@ -49,7 +49,7 @@ jobs:
     name: Secret scan
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
       - name: Scan for high-signal secret patterns
         run: |
           if grep -rE \
@@ -65,7 +65,7 @@ jobs:
     name: claude plugin validate
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
       - name: Install Claude Code CLI
         run: npm install -g @anthropic-ai/claude-code
       - name: Run claude plugin validate
@@ -75,9 +75,24 @@ jobs:
     name: Repo contract (scaffold-gold)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version-file: skills/repo/_contract/fixtures/scaffold-plugin-gold/.nvmrc
       - name: Assert contract fixtures (app-gold + plugin-gold)
         run: make test-repo-contract
+
+  hol-scanner:
+    name: HOL Plugin Scanner
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+      - name: Install pipx
+        run: pip install pipx && pipx ensurepath
+      - name: Lint plugin structure
+        run: pipx run plugin-scanner lint .
+      - name: Verify plugin publish-readiness
+        # MCP stdio execution is intentionally skipped by the scanner in CI for
+        # safety — this warning is unavoidable for plugins that ship MCP servers.
+        continue-on-error: true
+        run: pipx run plugin-scanner verify .
