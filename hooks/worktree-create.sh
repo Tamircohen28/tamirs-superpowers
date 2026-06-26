@@ -36,7 +36,7 @@ fi
 
 worktree_path="$(worktree_path_for "$repo_name" "$task_slug")"
 branch_name="$(branch_name_for "$task_slug")"
-session_files_dir="$(ensure_session_files_dir "${worktree_path}/.session-files")"
+session_files_dir="$(ensure_session_files_dir "${worktree_path}/session-files")"
 
 mkdir -p "${WORKTREE_ROOT}/${repo_name}"
 

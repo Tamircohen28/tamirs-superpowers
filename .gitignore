@@ -34,3 +34,6 @@ build/
 # Session-local dev artifacts (only .dev-files/README.md is tracked)
 .dev-files/*
 !.dev-files/README.md
+
+# Session files (plans, reviews, investigations — visible but not committed)
+session-files/
