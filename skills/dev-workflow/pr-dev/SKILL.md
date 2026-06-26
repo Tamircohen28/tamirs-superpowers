@@ -34,18 +34,18 @@ metadata:
   - merge
   - workflow
   - github
-  updated-date: '2026-06-25'
+  updated-date: '2026-06-26'
 ---
 
 # pr-dev
 
-Drive a pull request from open → review addressed → CI green → merge-ready, then stop and wait for explicit user approval before merging.
+Drive a pull request from open → review addressed → CI green → merge automatically.
 
 ## Why this skill exists
 
 After a PR opens, the real work is staying on top of CI failures, reviewer threads, and merge conflicts — often across many minutes. A one-shot "check and report" leaves the PR stalled whenever a simple retry or two-line fix would have unblocked it, and it misses threads that arrive after the initial check.
 
-This skill runs a **persistent drive loop** — re-fetch, act, push, loop — so you never babysit GitHub tabs. It stops at exactly two states: **ready** (asks for `approved`) or **blocked** (asks for help).
+This skill runs a **persistent drive loop** — re-fetch, act, push, loop — so you never babysit GitHub tabs. It stops at exactly two states: **merged** (auto-merges when ready) or **blocked** (asks for help).
 
 ## Inputs
 
@@ -94,9 +94,9 @@ These rules exist because past implementations broke in the specific ways listed
 - **Never change tests/CI config to silence a flaky failure** unless logs prove it's branch-related.
 - **Never retry a flaky run more than 3×** — after that it's an infra problem requiring human judgment.
 - **Always restart the loop immediately after any push** — a push triggers new CI; stopping now abandons the run.
-- **Never call `gh pr merge` until the user writes `approved` in this conversation** — protects against accidental merges.
+- **Merge automatically once all checks pass and threads are resolved** — no user approval needed.
 - **Always delete the remote branch after merge** — pass `--delete-branch` to `gh pr merge`, then run `cleanup-after-merge.sh` to verify `origin/<head>` is gone (covers UI merges that skipped branch deletion).
-- **Never use `--admin`** unless the user explicitly authorizes it.
+- **Use `--admin`** when CI fails solely due to insufficient billing — do not retry, just merge with `gh pr merge "$PR" --squash --delete-branch --admin`.
 
 ## Core drive loop
 
@@ -132,7 +132,7 @@ loop:
 
   # Readiness
   if all checks green AND unresolved==0 AND mergeStateStatus==CLEAN:
-    print readiness summary; STOP — wait for `approved`
+    print readiness summary; proceed to merge immediately
 
   sleep(cadence); restart loop
 ```
@@ -226,17 +226,15 @@ Confirm ALL before printing:
 Print:
 
 ```
-PR #N is ready to merge.
+PR #N is ready to merge — merging now.
   ✓ N/N CI checks green
   ✓ 0 unresolved review threads
   ✓ Branch up to date with base
-
-Reply `approved` to squash-merge, delete the remote branch, and clean up.
 ```
 
-**Do not call `gh pr merge` until the user writes `approved`.**
+Proceed immediately to merge and clean up.
 
-## Merge and clean up (after `approved`)
+## Merge and clean up
 
 Squash-merge and delete the remote head branch on GitHub:
 
@@ -285,7 +283,7 @@ Never silently stop, guess, or take a destructive action without confirmation.
 | Stop after pushing a fix | Restart loop immediately |
 | Retry a flaky runner 10× | Max 3×; then surface to user |
 | Post reply without stating it first | State in conversation; then post |
-| Merge without explicit `approved` | Stop at readiness gate; wait |
+| Stop at readiness gate waiting for user | Merge automatically when all green |
 | Patch CI config to silence flaky test | Retry; escalate if it persists |
 | Batch unrelated fixes in one commit | One commit per logical fix |
 
