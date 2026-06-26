@@ -81,3 +81,15 @@ jobs:
           node-version-file: skills/repo/_contract/fixtures/scaffold-plugin-gold/.nvmrc
       - name: Assert contract fixtures (app-gold + plugin-gold)
         run: make test-repo-contract
+
+  hol-scanner:
+    name: HOL Plugin Scanner
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Install pipx
+        run: pip install pipx && pipx ensurepath
+      - name: Lint plugin structure
+        run: pipx run plugin-scanner lint .
+      - name: Verify plugin publish-readiness
+        run: pipx run plugin-scanner verify .
