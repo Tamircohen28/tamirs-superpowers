@@ -16,11 +16,11 @@
 
 # tamirs-superpowers
 
-A personal Claude Code plugin that bundles 17 skills, 6 specialist agents, smart worktree hooks, slash commands, and MCP server stubs — installed with a single `/plugin install` command and kept current via marketplace auto-update.
+A personal Claude Code plugin that bundles 18 skills, 6 specialist agents, smart worktree hooks, slash commands, and MCP server stubs — installed with a single `/plugin install` command and kept current via marketplace auto-update.
 
 ## Features
 
-- **17 bundled skills** — plan, implement, drive PRs to merge, audit repo standards, multi-agent setup, debug, create and benchmark skills, and more, all from the Claude Code prompt
+- **18 bundled skills** — plan, implement, drive PRs to merge, audit repo standards, multi-agent setup, debug, create and benchmark skills, and more, all from the Claude Code prompt
 - **6 specialist agents** — architecture-reviewer, debugging-specialist, performance-reviewer, research-agent, security-reviewer, test-engineer; available via the Agent tool in any session
 - **`/retro` command** — session postmortem that finds friction and proposes rule/hook/skill/memory updates
 - **Smart worktree hooks** that automatically create isolated git worktrees per task, derive task slugs from your first prompt, enforce edit isolation, guard sensitive files, and show Claude Code changelogs on update
@@ -97,6 +97,7 @@ Each skill lives at `skills/<skill-name>/SKILL.md`.
 | `/tamirs-superpowers:targeted-debug` | Scope-bounded debug from a stack trace — reads only named files. |
 | `/tamirs-superpowers:repo-standards` | Audit, plan, and polish repos to Tamir Cohen standards — README, docs, CI/CD, branch rules, employer IP scan, hygiene, and multi-agent setup. Auto-detects `app-gold` vs `plugin-gold` (agent-kit repos with `canonical/`). |
 | `/tamirs-superpowers:repo-scaffold` | Create a new private GitHub repo from scratch — app repos (`app-gold`) or agent-kit plugin distribution repos (`--type plugin` → `plugin-gold`: canonical rules/skills, marketplace, dist/ adapters). |
+| `/tamirs-superpowers:cleanup` | Full repo housekeeping: delete merged/stale remote branches, drive all open PRs via sub-agents, remove unused local worktrees, rescue or discard uncommitted work, delete build artifacts, and reset local env to match remote. |
 | `/tamirs-superpowers:mcp-builder` | Build MCP servers (auto-invokes `mcp-pagination` for list/search tools). |
 | `/tamirs-superpowers:find-skill` | Search skill marketplaces and rank matches for a query. |
 | `/tamirs-superpowers:skill-creator` | Create, improve, and benchmark Claude Code skills. |
