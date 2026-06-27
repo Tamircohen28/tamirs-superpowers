@@ -97,7 +97,7 @@ Each skill lives at `skills/<skill-name>/SKILL.md`.
 | `/tamirs-superpowers:targeted-debug` | Scope-bounded debug from a stack trace — reads only named files. |
 | `/tamirs-superpowers:repo-standards` | Audit, plan, and polish repos to Tamir Cohen standards — README, docs, CI/CD, branch rules, employer IP scan, hygiene, and multi-agent setup. Auto-detects `app-gold` vs `plugin-gold` (agent-kit repos with `canonical/`). |
 | `/tamirs-superpowers:repo-scaffold` | Create a new private GitHub repo from scratch — app repos (`app-gold`) or agent-kit plugin distribution repos (`--type plugin` → `plugin-gold`: canonical rules/skills, marketplace, dist/ adapters). |
-| `/tamirs-superpowers:repo-cleanup` | Full repo housekeeping: delete merged/stale remote branches, drive all open PRs via sub-agents, remove unused local worktrees, rescue or discard uncommitted work, delete build artifacts, and reset local env to match remote. |
+| `/tamirs-superpowers:cleanup` | Full repo housekeeping: delete merged/stale remote branches, drive all open PRs via sub-agents, remove unused local worktrees, rescue or discard uncommitted work, delete build artifacts, and reset local env to match remote. |
 | `/tamirs-superpowers:mcp-builder` | Build MCP servers (auto-invokes `mcp-pagination` for list/search tools). |
 | `/tamirs-superpowers:find-skill` | Search skill marketplaces and rank matches for a query. |
 | `/tamirs-superpowers:skill-creator` | Create, improve, and benchmark Claude Code skills. |

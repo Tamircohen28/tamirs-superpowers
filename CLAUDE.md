@@ -59,7 +59,7 @@ Scopes: `skills`, `hooks`, `marketplace`, `ci`, `docs`
 | `documentation` | changelog-review, dark-terminal-doc, docs-review |
 | `mcp` | mcp-builder, mcp-pagination |
 | `toolkit` | find-skill, session-report, skill-creator |
-| `repo` | multi-agent-repo, repo-cleanup, repo-scaffold, repo-standards |
+| `repo` | cleanup, multi-agent-repo, repo-scaffold, repo-standards |
 
 **Shared contract:** `skills/repo/_contract/` — canonical templates, scoring scripts, and gold fixtures (`scaffold-gold`, `scaffold-plugin-gold`). Profiles: `app-gold` (apps), `plugin-gold` (agent-kit repos with `canonical/`). `repo-scaffold --type plugin` and `repo-standards` both consume it; `make test-repo-contract` enforces alignment. **User guide:** [docs/user/agent-kit.md](docs/user/agent-kit.md).
 
