@@ -49,7 +49,7 @@ Scopes: `skills`, `hooks`, `marketplace`, `ci`, `docs`
 - **Never modify `hooks/lib/worktree-common.sh`** without running shellcheck and testing both `capture-task-slug.sh` and `worktree-create.sh`
 - **SKILL.md files must have valid YAML frontmatter** with all 16 official Claude Code fields plus `metadata.updated-date` — see `skills/toolkit/skill-creator/references/frontmatter-template.md`; CI runs `scripts/validate-skill-frontmatter.py`
 
-## Skill domains (17 skills total)
+## Skill domains (18 skills total)
 
 | Domain | Skills |
 |--------|--------|
@@ -59,7 +59,7 @@ Scopes: `skills`, `hooks`, `marketplace`, `ci`, `docs`
 | `documentation` | changelog-review, dark-terminal-doc, docs-review |
 | `mcp` | mcp-builder, mcp-pagination |
 | `toolkit` | find-skill, session-report, skill-creator |
-| `repo` | multi-agent-repo, repo-scaffold, repo-standards |
+| `repo` | multi-agent-repo, repo-cleanup, repo-scaffold, repo-standards |
 
 **Shared contract:** `skills/repo/_contract/` — canonical templates, scoring scripts, and gold fixtures (`scaffold-gold`, `scaffold-plugin-gold`). Profiles: `app-gold` (apps), `plugin-gold` (agent-kit repos with `canonical/`). `repo-scaffold --type plugin` and `repo-standards` both consume it; `make test-repo-contract` enforces alignment. **User guide:** [docs/user/agent-kit.md](docs/user/agent-kit.md).
 
