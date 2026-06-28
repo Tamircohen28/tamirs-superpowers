@@ -1,0 +1,17 @@
+{
+  "skill_name": "platform-sync-codex",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "Check .codex-plugin/plugin.json for this repo. There is no AGENTS.md file in the repo root. What Codex CLI features am I missing?",
+      "expected_output": "Should fetch the Codex CLI README and AGENTS.md spec from GitHub, identify that AGENTS.md is missing from the repo root, explain that Codex CLI reads this for agent-level instructions (analogous to CLAUDE.md), and provide a starter AGENTS.md template with the correct format. Must cite github.com/openai/codex URLs.",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "Audit .codex-plugin/plugin.json — it has version set to 1.0.0 and only declares skill paths. What fields or features from the latest Codex CLI are not being used?",
+      "expected_output": "Should fetch openai/codex releases to find the latest version, compare the local plugin.json schema against what the README documents as available fields, identify any fields or capabilities not yet used (MCP servers, hooks, new config options), and provide concrete plugin.json additions. Must cite release and README URLs.",
+      "files": []
+    }
+  ]
+}
