@@ -16,11 +16,11 @@
 
 # tamirs-superpowers
 
-A personal Claude Code plugin that bundles 18 skills, 6 specialist agents, smart worktree hooks, slash commands, and MCP server stubs — installed with a single `/plugin install` command and kept current via marketplace auto-update.
+A personal Claude Code plugin that bundles 22 skills, 6 specialist agents, smart worktree hooks, slash commands, and MCP server stubs — installed with a single `/plugin install` command and kept current via marketplace auto-update.
 
 ## Features
 
-- **18 bundled skills** — plan, implement, drive PRs to merge, audit repo standards, multi-agent setup, debug, create and benchmark skills, and more, all from the Claude Code prompt
+- **22 bundled skills** — plan, implement, drive PRs to merge, audit repo standards, multi-agent setup, debug, create and benchmark skills, and more, all from the Claude Code prompt
 - **6 specialist agents** — architecture-reviewer, debugging-specialist, performance-reviewer, research-agent, security-reviewer, test-engineer; available via the Agent tool in any session
 - **`/retro` command** — session postmortem that finds friction and proposes rule/hook/skill/memory updates
 - **Smart worktree hooks** that automatically create isolated git worktrees per task, derive task slugs from your first prompt, enforce edit isolation, guard sensitive files, and show Claude Code changelogs on update
@@ -105,8 +105,9 @@ Each skill lives at `skills/<skill-name>/SKILL.md`.
 | `/tamirs-superpowers:algorithmic-art` | Generate algorithmic art with p5.js. |
 | `/tamirs-superpowers:field-notebook-ui` | Generate interactive React artifacts in the engineer's field-notebook visual style. |
 | `/tamirs-superpowers:dark-terminal-doc` | Generate polished HTML docs with a dark terminal design system. |
+| `/tamirs-superpowers:platform-sync` | Audit a plugin repo against the latest Claude Code, Codex CLI, and Cursor docs — fetch live docs, identify unused new features, synthesize a numbered improvement plan. |
 
-Internal skills (invoked by parent skills, not shown in `/` menu): `docs-review`, `changelog-review`, `mcp-pagination`.
+Internal skills (invoked by parent skills, not shown in `/` menu): `docs-review`, `changelog-review`, `mcp-pagination`, `platform-sync-claude`, `platform-sync-codex`, `platform-sync-cursor`.
 
 ## Plugin Dependencies (auto-installed)
 

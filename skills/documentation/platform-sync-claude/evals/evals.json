@@ -1,0 +1,17 @@
+{
+  "skill_name": "platform-sync-claude",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "Analyze this Claude Code plugin. The hooks/hooks.json only uses PreToolUse, PostToolUse, SessionStart, SessionEnd, and UserPromptSubmit events. Check the latest Claude Code docs to see if there are newer hook events not yet configured.",
+      "expected_output": "Should fetch hooks docs from code.claude.com/docs/en/hooks, identify hook events not configured (e.g., PostCompact, Notification, Stop, WorktreeCreate, WorktreeRemove, channels-related events), explain why each would be valuable for a plugin repo, and provide concrete hooks.json snippets. Every finding must cite the hooks documentation URL.",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "Review this Claude Code plugin. It has skills/ and hooks/ but no .claude/agents/ directory and no custom subagents defined anywhere in the plugin config.",
+      "expected_output": "Should fetch sub-agents docs from code.claude.com/docs/en/sub-agents, identify that custom subagents could be added to the plugin, explain the benefit (specialist roles, isolation, parallelism), and provide an example agent frontmatter skeleton showing the required fields. Must cite the sub-agents documentation URL.",
+      "files": []
+    }
+  ]
+}
