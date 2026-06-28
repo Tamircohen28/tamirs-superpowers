@@ -6,11 +6,14 @@ Claude Code guidance for contributors working on this plugin.
 
 A Claude Code plugin (marketplace + bundled skills + hooks). It is **not** a Node/Python/Go app — there is no build step, no package.json, no compiled output. All content is Markdown, JSON, and Bash.
 
+## Agent contributors
+
+See [`AGENTS.md`](AGENTS.md) for working agreements, allowed commands, and contributor policies applicable to all agents (Claude Code, Cursor, Codex).
+
 ## Key file locations
 
 | Path | Purpose |
 |------|---------|
-| `marketplace.json` | Marketplace manifest — declares this repo as a plugin marketplace |
 | `.claude-plugin/plugin.json` | Plugin manifest — name, version, dependencies, statusLine |
 | `.mcp.json` | MCP server stubs — fill env vars to activate |
 | `statusline.sh` | Statusline script wired via `plugin.json` |
