@@ -294,7 +294,14 @@ Write these files:
 5. REPO_ROOT/.gitignore — comprehensive for TECH per template
 6. REPO_ROOT/.nvmrc — if TECH is node, nextjs, or SCAFFOLD_TYPE=plugin; content: "22"
 7. REPO_ROOT/scripts/check-agent-drift.sh — copy from CONTRACT_ROOT/templates/check-agent-drift.sh.tmpl (executable)
-8. If SCAFFOLD_TYPE=plugin: REPO_ROOT/package.json from CONTRACT_ROOT/templates/plugin/package.json.tmpl (build, validate, agent:check scripts) and REPO_ROOT/package-lock.json from package-lock.json.tmpl (enables npm ci in CI)
+8. If TECH is node or nextjs: REPO_ROOT/vitest.config.ts — minimal config with `passWithNoTests: true` so CI never fails when no test files exist yet:
+   ```typescript
+   import { defineConfig } from 'vitest/config';
+   export default defineConfig({
+     test: { environment: 'node', passWithNoTests: true },
+   });
+   ```
+9. If SCAFFOLD_TYPE=plugin: REPO_ROOT/package.json from CONTRACT_ROOT/templates/plugin/package.json.tmpl (build, validate, agent:check scripts) and REPO_ROOT/package-lock.json from package-lock.json.tmpl (enables npm ci in CI)
 ```
 
 ---
