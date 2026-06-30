@@ -16,13 +16,13 @@ help:
 	@echo "  test               — alias for validate"
 
 install:
-	@bash install.sh
+	@bash scripts/install.sh
 
 update:
-	@bash update.sh
+	@bash scripts/update.sh
 
 uninstall:
-	@bash uninstall.sh
+	@bash scripts/uninstall.sh
 
 validate: lint test-repo-contract
 	@echo "--- Validating JSON files ---"
@@ -42,7 +42,7 @@ validate: lint test-repo-contract
 lint:
 	@echo "--- shellcheck ---"
 	@if command -v shellcheck >/dev/null 2>&1; then \
-	  find $(HOOKS_DIR) scripts $(CONTRACT_DIR)/scripts . -maxdepth 1 -name '*.sh' 2>/dev/null | xargs shellcheck -S warning --exclude SC2034 && echo "  shellcheck passed"; \
+	  find $(HOOKS_DIR) scripts $(CONTRACT_DIR)/scripts -maxdepth 1 -name '*.sh' 2>/dev/null | xargs shellcheck -S warning --exclude SC2034 && echo "  shellcheck passed"; \
 	else \
 	  echo "  shellcheck not installed — skipping (brew install shellcheck)"; \
 	fi

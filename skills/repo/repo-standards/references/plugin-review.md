@@ -25,7 +25,7 @@ Walk these in review mode; record pass/gap in the plugin appendix.
 | PR1-02 | Skills authored in `canonical/skills/` — not duplicated ad hoc in `plugins/*/skills/` | P1 |
 | PR1-03 | `dist/` and generated adapter files have GENERATED header; contributors warned not to hand-edit | P1 |
 | PR2-01 | Plugin version strategy documented — `docs/engineering/build-and-release/versioning.md` | P2 |
-| PR2-02 | `hooks/` and install scripts have CODEOWNERS + no hidden postinstall/network fetch | P2 |
+| PR2-02 | `hooks/` and `scripts/` install helpers have CODEOWNERS + no hidden postinstall/network fetch | P2 |
 | PR2-03 | README documents **all** supported targets + `make install` / `make update` / `make uninstall` | P2 |
 | PR2-04 | README badge rows: author, CI, license, version, AI targets (see `readme-badges.md`) | P2 |
 | PR2-05 | Security model section covers supply-chain (skills/hooks as executable surface) | P2 |
