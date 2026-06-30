@@ -1,8 +1,11 @@
 #!/usr/bin/env bash
 # uninstall.sh — remove plugin-installed artifacts from ~/.claude (does not remove marketplace entry).
+#
+# Usage: make uninstall  |  bash scripts/uninstall.sh
 set -euo pipefail
 
-PLUGIN_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PLUGIN_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 AGENTS_SRC="${PLUGIN_DIR}/agents"
 AGENTS_DEST="${HOME}/.claude/agents"
 

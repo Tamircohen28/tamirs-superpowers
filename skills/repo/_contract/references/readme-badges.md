@@ -61,5 +61,7 @@ Every repo with installable artifacts must expose:
 App repos: `install` → `npm ci`; `update` → `npm update` or documented upgrade;
 `uninstall` → remove `node_modules` / venv.
 
-Plugin repos: shell scripts called from Makefile; never require a multi-step bash
-block as the only documented path.
+Plugin repos: lifecycle scripts live under `scripts/` (`install.sh`, `update.sh`,
+`uninstall.sh`, `statusline.sh`); **never** loose `.sh` files at repo root. Makefile
+targets call `bash scripts/<name>.sh`. Never require a multi-step bash block as the only
+documented path.

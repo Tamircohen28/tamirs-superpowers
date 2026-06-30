@@ -16,14 +16,16 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ### Changed
 - **`plan-dev`** — issue bodies include Resume + Agent routing; `agent:any` label on create
 - **`start-dev`** — platform-aware worktrees via `resolve-worktree.sh`; loads Resume before coding
-- **`pr-dev`** — suggests handoff when blocked on human input
+- **`pr-dev`** — suggests handoff when blocked on human input; enforces remote branch deletion after merge; portable `SKILL_DIR` resolution across platforms
+- **`scripts/install.sh`**, **`scripts/update.sh`**, **`scripts/uninstall.sh`** — moved from repo root; `Makefile` targets updated
+- **`repo-standards` S6-05** — no `.sh` files at repo root; user-facing scripts belong in `scripts/`
+- **`scripts/statusline.sh`** — moved from repo root; `plugin.json`, `install.sh`, and docs updated
 - **`CODEOWNERS`** — single root file; removed duplicate `.github/CODEOWNERS`
 - **`platform-sync`** — detects AI targets in any repo (CLAUDE.md, AGENTS.md, `.cursor/rules/`, manifests, etc.); not plugin-manifest-only
 - **`repo-standards` contract v1.2** — Makefile `install`/`update`/`uninstall`, README badge rows, multi-target install docs, versioning policy (`S10-*`)
 - **README** — multi-platform install (Claude Code, Cursor, Codex); badge rows; `make install` / `make update` / `make uninstall`
 - **`Makefile`** — `install`, `update`, `uninstall` targets; `update.sh` / `uninstall.sh`
 - **`rules/dev/`** — contributor rules now document Claude Code, Cursor, and Codex paths (worktrees, plugin manifests, hook loading); added Cursor `.mdc` adapters
-- **`pr-dev`** — enforces remote branch deletion after merge; portable `SKILL_DIR` resolution across platforms; `cleanup-after-merge.sh` deletes `origin/<head>` when still present
 - **`AGENTS.md`** — multi-platform install notes and `rules/dev/` index
 
 ### Removed

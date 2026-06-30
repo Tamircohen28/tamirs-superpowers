@@ -11,8 +11,11 @@ Applies when authoring scripts for this repo regardless of agent (Claude Code, C
 ## Scope
 
 This rule applies to scripts intended for direct human invocation, including:
-- Repository-root scripts (for example install/build helper scripts)
+- `scripts/` at repo root (`install.sh`, `update.sh`, `uninstall.sh`, and similar helpers)
 - Skill helper scripts under `skills/**/scripts/` invoked by users or agents
+
+**Never** place user-facing `.sh` files at the repository root — use `scripts/` and wire
+via `Makefile` targets (`make install`, etc.).
 
 This rule does not require internal-only helper scripts to expose the same UX surface.
 

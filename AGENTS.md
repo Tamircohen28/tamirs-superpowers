@@ -48,6 +48,9 @@ make uninstall # remove agents + uninstall plugin when possible
 | `skills/<domain>/<name>/SKILL.md` | Bundled skill definitions — grouped by domain |
 | `skills/repo/_contract/` | Shared repo scaffold/standards contract (not a skill) |
 | `Makefile` | `install`, `update`, `uninstall`, `validate`, `lint`, `test`, `test-repo-contract` |
+| `scripts/install.sh` | Bootstrap `~/.claude/settings.json` + agents (`make install`) |
+| `scripts/update.sh` | Refresh plugin + agents (`make update`) |
+| `scripts/uninstall.sh` | Remove installed artifacts (`make uninstall`) |
 | `scripts/statusline.sh` | Claude Code footer statusline (wired via `plugin.json`) |
 
 ## Contributor rules (`rules/dev/`)
