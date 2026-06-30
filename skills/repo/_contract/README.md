@@ -15,7 +15,7 @@
 ## Commands
 
 ```bash
-# Offline fixture test (skips branch-protection probes S4-02/S4-03)
+# Offline fixture test (skips GitHub API probes S4-02–S4-06)
 CONTRACT_OFFLINE=1 bash scripts/assert-contract.sh fixtures/scaffold-gold app-gold
 
 # Full gap report

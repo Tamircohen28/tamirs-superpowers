@@ -76,9 +76,46 @@ See scaffold-templates section 5c below for full YAML shapes.
 
 ---
 
+## Repository merge settings (polish phase 4)
+
+Before branch protection, enable PR auto-merge and delete head branch on merge. Required for `start-dev` / `pr-dev` (`gh pr merge --auto --delete-branch`).
+
+```bash
+REPO=$(gh repo view --json nameWithOwner -q .nameWithOwner)
+
+gh api -X PATCH "repos/$REPO" \
+  -f allow_auto_merge=true \
+  -f delete_branch_on_merge=true
+```
+
+When scaffolding from `tamirs-superpowers`, prefer the contract helper:
+
+```bash
+bash "$CONTRACT_ROOT/scripts/enable-repo-merge-settings.sh" "$REPO"
+```
+
+Confirm:
+
+```bash
+gh api "repos/$(gh repo view --json nameWithOwner -q .nameWithOwner)" \
+  --jq '{allow_auto_merge, delete_branch_on_merge}'
+```
+
+---
+
 ## Branch protection (polish phase 4)
 
-After CI workflow exists with a job named `CI`:
+After CI workflow exists with a job named `CI` and merge settings are enabled:
+
+```bash
+REPO=$(gh repo view --json nameWithOwner -q .nameWithOwner)
+DEFAULT_BRANCH=$(git symbolic-ref refs/remotes/origin/HEAD 2>/dev/null | sed 's@^refs/remotes/origin/@@' || echo master)
+
+# Apply if missing, then verify (1 review + CI check)
+bash "$CONTRACT_ROOT/scripts/ensure-branch-protection.sh" "$REPO" "$DEFAULT_BRANCH"
+```
+
+Or inline (when `CONTRACT_ROOT` is unavailable):
 
 ```bash
 REPO=$(gh repo view --json nameWithOwner -q .nameWithOwner)
@@ -92,6 +129,15 @@ gh api "repos/$REPO/branches/$DEFAULT_BRANCH/protection" \
   -F 'required_pull_request_reviews[required_approving_review_count]=1' \
   -F 'enforce_admins=false' \
   -F 'restrictions=null'
+
+gh api "repos/$REPO/branches/$DEFAULT_BRANCH/protection" \
+  --jq '{reviews: .required_pull_request_reviews.required_approving_review_count, checks: .required_status_checks.contexts}'
 ```
 
-Adjust `contexts[]` to match actual required check names from `ci.yml`.
+Verify only (audit / after manual edits):
+
+```bash
+bash "$CONTRACT_ROOT/scripts/ensure-branch-protection.sh" --verify-only
+```
+
+Adjust `REQUIRED_CHECK` if your CI job is not named `CI` (must match `ci.yml`).

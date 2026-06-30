@@ -138,16 +138,27 @@ agents_md=$(exists "$ROOT/AGENTS.md")
 
 branch_protection=false
 required_reviews=0
+requires_ci_check=false
+allow_auto_merge=false
+delete_branch_on_merge=false
 if command -v gh &>/dev/null && git -C "$ROOT" rev-parse --is-inside-work-tree &>/dev/null; then
   remote_url=$(git -C "$ROOT" remote get-url origin 2>/dev/null || true)
   if [[ "$remote_url" =~ github.com[:/]([^/]+)/([^/.]+) ]]; then
     owner="${BASH_REMATCH[1]}"
     repo="${BASH_REMATCH[2]%.git}"
     default_branch=$(git -C "$ROOT" symbolic-ref refs/remotes/origin/HEAD 2>/dev/null | sed 's@^refs/remotes/origin/@@' || echo master)
+    repo_meta=$(gh api "repos/$owner/$repo" 2>/dev/null || true)
+    if [[ -n "$repo_meta" ]]; then
+      allow_auto_merge=$(echo "$repo_meta" | jq -r '.allow_auto_merge // false')
+      delete_branch_on_merge=$(echo "$repo_meta" | jq -r '.delete_branch_on_merge // false')
+    fi
     prot=$(gh api "repos/$owner/$repo/branches/$default_branch/protection" 2>/dev/null || true)
     if [[ -n "$prot" ]]; then
       branch_protection=true
       required_reviews=$(echo "$prot" | jq -r '.required_pull_request_reviews.required_approving_review_count // 0')
+      if echo "$prot" | jq -e '(.required_status_checks.contexts // []) | index("CI") != null' >/dev/null; then
+        requires_ci_check=true
+      fi
     fi
   fi
 fi
@@ -192,6 +203,9 @@ jq -nc \
   --argjson agents_md "$agents_md" \
   --argjson branch_protection "$branch_protection" \
   --argjson required_reviews "$required_reviews" \
+  --argjson requires_ci_check "$requires_ci_check" \
+  --argjson allow_auto_merge "$allow_auto_merge" \
+  --argjson delete_branch_on_merge "$delete_branch_on_merge" \
   --argjson hygiene "$hygiene" \
   '{
     root: $root,
@@ -243,7 +257,10 @@ jq -nc \
     },
     branch_governance: {
       protection_enabled: $branch_protection,
-      required_approving_reviews: $required_reviews
+      required_approving_reviews: $required_reviews,
+      requires_ci_check: $requires_ci_check,
+      allow_auto_merge: $allow_auto_merge,
+      delete_branch_on_merge: $delete_branch_on_merge
     },
     hygiene: $hygiene.hygiene
   }'

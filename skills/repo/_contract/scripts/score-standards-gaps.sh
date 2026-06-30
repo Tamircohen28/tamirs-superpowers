@@ -48,6 +48,9 @@ co=$(echo "$INV" | jq -r '.root_files.codeowners')
 gi=$(echo "$INV" | jq -r '.root_files.gitignore')
 bp=$(echo "$INV" | jq -r '.branch_governance.protection_enabled')
 rv=$(echo "$INV" | jq -r '.branch_governance.required_approving_reviews')
+ci_check=$(echo "$INV" | jq -r '.branch_governance.requires_ci_check')
+auto_merge=$(echo "$INV" | jq -r '.branch_governance.allow_auto_merge')
+delete_branch=$(echo "$INV" | jq -r '.branch_governance.delete_branch_on_merge')
 h_mis=$(echo "$INV" | jq -r '.hygiene.misplaced_top_level_docs')
 h_ticket=$(echo "$INV" | jq -r '.hygiene.ticket_named_outside_engineering')
 h_empty=$(echo "$INV" | jq -r '.hygiene.empty_dirs')
@@ -86,6 +89,9 @@ fi
 if [[ "${CONTRACT_OFFLINE:-}" != "1" ]]; then
   [[ "$bp" != true ]] && { add_gap "S4-02" "P2" "Branch protection not configured" 4; inc P2; }
   [[ "$bp" == true && "$rv" -lt 1 ]] && { add_gap "S4-03" "P2" "Branch protection requires at least 1 approving review" 4; inc P2; }
+  [[ "$bp" == true && "$ci_check" != true ]] && { add_gap "S4-06" "P2" "Branch protection missing required CI status check" 4; inc P2; }
+  [[ "$auto_merge" != true ]] && { add_gap "S4-04" "P2" "PR auto-merge not enabled (allow_auto_merge)" 4; inc P2; }
+  [[ "$delete_branch" != true ]] && { add_gap "S4-05" "P3" "delete_branch_on_merge not enabled" 4; inc P3; }
 fi
 (( h_mis > 0 )) && { add_gap "S6-01" "P1" "docs/*.md files outside docs/README.md at docs root" 0; inc P1; }
 (( h_ticket > 0 )) && { add_gap "S6-02" "P2" "Ticket-named markdown outside docs/engineering/" 0; inc P2; }

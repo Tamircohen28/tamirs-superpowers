@@ -17,6 +17,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - **`plan-dev`** — issue bodies include Resume + Agent routing; `agent:any` label on create
 - **`start-dev`** — platform-aware worktrees via `resolve-worktree.sh`; loads Resume before coding
 - **`pr-dev`** — suggests handoff when blocked on human input; always enables auto-merge (`--auto --squash --delete-branch`); polls until GitHub merges
+- **`repo-scaffold` / contract** — `enable-repo-merge-settings.sh` + `ensure-branch-protection.sh` (apply/verify master: 1 review + CI); `repo-standards` S4-04–S4-06 audit
 - **`start-dev`** — enables auto-merge immediately after `gh pr create`
 - **`scripts/install.sh`**, **`scripts/update.sh`**, **`scripts/uninstall.sh`** — moved from repo root; `Makefile` targets updated
 - **`repo-standards` S6-05** — no `.sh` files at repo root; user-facing scripts belong in `scripts/`

@@ -175,6 +175,12 @@ git checkout -b feat/repo-standards-setup 2>/dev/null || git checkout -b "feat/r
 ```
 
 5. **Phases 1–4:** Implement per plan using `$CONTRACT_ROOT/templates/` (see `INDEX.md`).
+   **Phase 4 (branch governance)** — after CI workflow is on the default branch:
+   ```bash
+   bash "$CONTRACT_ROOT/scripts/enable-repo-merge-settings.sh"
+   bash "$CONTRACT_ROOT/scripts/ensure-branch-protection.sh"
+   ```
+   Use `--verify-only` on `ensure-branch-protection.sh` when the user asked to skip applying rules (audit only).
    **Banner (phase 1):** If S1-05 is a gap, generate `assets/banner.svg` — a 600×200 SVG with the repo name centered in bold on a dark background (#0F1117), subtitle in gray (#8B949E), and a subtle accent stripe. Use web-safe font stack (no external references). Add `<p align="center"><img src="assets/banner.svg" alt="REPO_NAME" width="600" /></p>` as the first line of README.md.
 6. **Phase 5:** `Skill("multi-agent-repo")` per `references/delegation.md` on the same branch.
 7. **Phase 6:** `Skill("docs-review")`; if plugin or agent-kit repo, `Skill("changelog-review")`. Fix all P1 findings.
