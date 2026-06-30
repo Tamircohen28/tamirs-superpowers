@@ -33,7 +33,7 @@ Three skills are **internal** — invoked automatically by parent skills (`repo-
 2. Creates an isolated git worktree on a new branch
 3. Implements the changes with conventional commits
 4. Runs available tests/lint
-5. Pushes and opens a PR
+5. Pushes, opens a PR, and enables **auto-merge** (`gh pr merge --auto --squash --delete-branch`)
 
 **Example:** `/tamirs-superpowers:start-dev #42`
 
@@ -63,7 +63,7 @@ Three skills are **internal** — invoked automatically by parent skills (`repo-
 2. Addresses all unresolved review threads (states reply in conversation first)
 3. Diagnoses CI failures, patches branch-related ones, retries flakes (max 3×)
 4. Surfaces blockers if CI is infra-related or a thread can't be resolved
-5. Prints readiness summary and **stops** — waits for you to type `approved` before merging
+5. Enables **auto-merge** (`gh pr merge --auto --squash --delete-branch`) and polls until GitHub merges when CI and branch protection are satisfied
 
 **Example:** `/tamirs-superpowers:pr-dev 42`
 
