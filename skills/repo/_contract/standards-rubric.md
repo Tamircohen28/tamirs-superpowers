@@ -54,6 +54,9 @@ Manual: issue templates, release workflow, no self-hosted runners.
 | S4-01 | CODEOWNERS | P2 |
 | S4-02 | Branch protection enabled | P2 |
 | S4-03 | ≥1 required approving review | P2 |
+| S4-04 | `allow_auto_merge` enabled | P2 |
+| S4-05 | `delete_branch_on_merge` enabled | P3 |
+| S4-06 | Required `CI` status check on default branch | P2 |
 
 ## S5 Root legal/ops
 

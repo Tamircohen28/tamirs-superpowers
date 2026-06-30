@@ -377,23 +377,16 @@ EOF
 git push origin master
 ```
 
-Apply branch protection:
+Enable PR auto-merge (required for `start-dev` / `pr-dev`):
 
 ```bash
-gh api repos/TamirCohen28/$REPO_NAME/branches/master/protection \
-  --method PUT \
-  --silent \
-  -F 'required_status_checks[strict]=true' \
-  -F 'required_status_checks[contexts][]=CI' \
-  -F 'required_pull_request_reviews[required_approving_review_count]=1' \
-  -F 'enforce_admins=false' \
-  -F 'restrictions=null'
+bash "$CONTRACT_ROOT/scripts/enable-repo-merge-settings.sh" "TamirCohen28/$REPO_NAME"
 ```
 
-Confirm:
+Apply branch protection on `master` (create if missing, verify 1 review + `CI` check):
+
 ```bash
-gh api repos/TamirCohen28/$REPO_NAME/branches/master/protection \
-  --jq '.required_status_checks.contexts, .required_pull_request_reviews.required_approving_review_count'
+bash "$CONTRACT_ROOT/scripts/ensure-branch-protection.sh" "TamirCohen28/$REPO_NAME" master
 ```
 
 ### Stage 5: Run skill-creator
