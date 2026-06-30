@@ -2,10 +2,11 @@
 # install.sh — bootstrap ~/.claude/settings.json for a new machine.
 #
 # Usage:
-#   bash install.sh
+#   make install
+#   bash scripts/install.sh
 #
 # Optional — configure proxy exit-node guard (sets up ~/.claude/ensure-exit.sh):
-#   CLAUDE_EXIT_PROXY=http://proxy:port CLAUDE_EXIT_PUBLIC_IP=1.2.3.4 bash install.sh
+#   CLAUDE_EXIT_PROXY=http://proxy:port CLAUDE_EXIT_PUBLIC_IP=1.2.3.4 make install
 #
 # What this does:
 #   1. Backs up existing ~/.claude/settings.json (if any) to settings.json.bak.<timestamp>
@@ -17,6 +18,9 @@
 #   - (The marketplace URL is already configured in extraKnownMarketplaces below)
 
 set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PLUGIN_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
 CLAUDE_DIR="${HOME}/.claude"
 SETTINGS_FILE="${CLAUDE_DIR}/settings.json"
@@ -100,8 +104,6 @@ if [[ -n "$ENABLED_PLUGINS" ]] && command -v jq &>/dev/null; then
     && mv "${SETTINGS_FILE}.tmp" "$SETTINGS_FILE"
   printf 'Preserved enabledPlugins (%d entries)\n' "$(echo "$ENABLED_PLUGINS" | jq 'length')"
 fi
-
-PLUGIN_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # Wire statusLine — finds the latest installed plugin version at runtime
 # so the path survives plugin updates without needing to re-run install.sh.

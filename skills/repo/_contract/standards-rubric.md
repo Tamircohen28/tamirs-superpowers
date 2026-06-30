@@ -83,6 +83,7 @@ Manual: git tag matches declared version; release workflow; semver bump discipli
 | S6-02 | No ticket-named md outside engineering | P2 |
 | S6-03 | Excessive empty directories | P3 |
 | S6-04 | Self-hosted CI | P1 |
+| S6-05 | No `.sh` files at repo root (use `scripts/`) | P2 |
 
 ## S7 Employer IP
 

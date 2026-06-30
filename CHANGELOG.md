@@ -6,6 +6,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ## [Unreleased]
 
 ### Changed
+- **`scripts/install.sh`**, **`scripts/update.sh`**, **`scripts/uninstall.sh`** — moved from repo root; `Makefile` targets updated
+- **`repo-standards` S6-05** — no `.sh` files at repo root; user-facing scripts belong in `scripts/`
 - **`scripts/statusline.sh`** — moved from repo root; `plugin.json`, `install.sh`, and docs updated
 - **`CODEOWNERS`** — single root file; removed duplicate `.github/CODEOWNERS`
 - **`platform-sync`** — detects AI targets in any repo (CLAUDE.md, AGENTS.md, `.cursor/rules/`, manifests, etc.); not plugin-manifest-only

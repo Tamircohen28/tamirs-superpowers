@@ -52,6 +52,7 @@ h_mis=$(echo "$INV" | jq -r '.hygiene.misplaced_top_level_docs')
 h_ticket=$(echo "$INV" | jq -r '.hygiene.ticket_named_outside_engineering')
 h_empty=$(echo "$INV" | jq -r '.hygiene.empty_dirs')
 h_self=$(echo "$INV" | jq -r '.hygiene.self_hosted_ci')
+h_root_sh=$(echo "$INV" | jq -r '.hygiene.root_shell_scripts')
 
 [[ "$r_exists" != true ]] && { add_gap "S1-01" "P1" "README.md missing" 1; inc P1; }
 [[ "$r_exists" == true && "$r_badges" != true ]] && { add_gap "S1-02" "P2" "README missing CI/license badges" 1; inc P2; }
@@ -90,6 +91,7 @@ fi
 (( h_ticket > 0 )) && { add_gap "S6-02" "P2" "Ticket-named markdown outside docs/engineering/" 0; inc P2; }
 (( h_empty > 5 )) && { add_gap "S6-03" "P3" "Many empty directories ($h_empty)" 0; inc P3; }
 [[ "$h_self" == true ]] && { add_gap "S6-04" "P1" "Self-hosted CI runner in workflows" 3; inc P1; }
+(( h_root_sh > 0 )) && { add_gap "S6-05" "P2" "Shell scripts at repo root ($h_root_sh) — move to scripts/" 0; inc P2; }
 
 GAPS_JSON="["
 for i in "${!GAPS[@]}"; do

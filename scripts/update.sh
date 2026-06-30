@@ -1,9 +1,12 @@
 #!/usr/bin/env bash
 # update.sh — refresh installed plugin artifacts (agents, statusline wiring).
 # Marketplace plugin update still requires Claude Code: /plugin update tamirs-superpowers@tamirs-plugins
+#
+# Usage: make update  |  bash scripts/update.sh
 set -euo pipefail
 
-PLUGIN_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PLUGIN_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 AGENTS_SRC="${PLUGIN_DIR}/agents"
 AGENTS_DEST="${HOME}/.claude/agents"
 

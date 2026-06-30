@@ -71,6 +71,7 @@ See scaffold-templates section 5c below for full YAML shapes.
 - `CHANGELOG.md` — root mirror; keep in sync with `docs/CHANGELOG.md`
 - `CLAUDE.md` — `@AGENTS.md` import + Claude-only addenda
 - `Makefile` — **required targets:** `install`, `update`, `uninstall`, plus `test`/`lint` when applicable
+- `scripts/` — user-facing shell scripts only (`install.sh`, `update.sh`, `uninstall.sh`, helpers); **no** `.sh` at repo root
 - `docs/engineering/build-and-release/versioning.md` — semver + tagging policy (see `references/versioning-policy.md`)
 
 ---
