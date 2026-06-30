@@ -54,13 +54,13 @@ Scopes: `skills`, `hooks`, `marketplace`, `ci`, `docs`
 - **SKILL.md files must have valid YAML frontmatter** with all 16 official Claude Code fields plus `metadata.updated-date` — see `skills/toolkit/skill-creator/references/frontmatter-template.md`; CI runs `scripts/validate-skill-frontmatter.py`
 - **Version sync:** whenever `.claude-plugin/plugin.json` version is bumped, `.codex-plugin/plugin.json` and `.cursor-plugin/plugin.json` must be bumped to the same version in the same commit. Check all three before opening a release PR.
 
-## Skill domains (22 skills total)
+## Skill domains (23 skills total)
 
 | Domain | Skills |
 |--------|--------|
 | `creative` | algorithmic-art, field-notebook-ui |
 | `debugging` | targeted-debug |
-| `dev-workflow` | plan-dev, pr-dev, start-dev |
+| `dev-workflow` | plan-dev, pr-dev, start-dev, switch-dev |
 | `documentation` | changelog-review, dark-terminal-doc, docs-review, platform-sync, platform-sync-claude, platform-sync-codex, platform-sync-cursor |
 | `mcp` | mcp-builder, mcp-pagination |
 | `toolkit` | find-skill, session-report, skill-creator |

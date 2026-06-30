@@ -31,11 +31,11 @@
 
 # tamirs-superpowers
 
-A multi-platform agent plugin (Claude Code, Cursor, Codex) that bundles 22 skills, 6 specialist agents, smart worktree hooks, slash commands, and MCP server stubs — installed with one command per platform and kept current via marketplace auto-update.
+A multi-platform agent plugin (Claude Code, Cursor, Codex) that bundles 23 skills, 6 specialist agents, smart worktree hooks, slash commands, and MCP server stubs — installed with one command per platform and kept current via marketplace auto-update.
 
 ## Features
 
-- **22 bundled skills** — plan, implement, drive PRs to merge, audit repo standards, multi-agent setup, debug, create and benchmark skills, and more, all from the Claude Code prompt
+- **23 bundled skills** — plan, implement, hand off across Claude/Cursor/Codex, drive PRs to merge, audit repo standards, multi-agent setup, debug, create and benchmark skills, and more, all from the Claude Code prompt
 - **6 specialist agents** — architecture-reviewer, debugging-specialist, performance-reviewer, research-agent, security-reviewer, test-engineer; available via the Agent tool in any session
 - **`/retro` command** — session postmortem that finds friction and proposes rule/hook/skill/memory updates
 - **Smart worktree hooks** that automatically create isolated git worktrees per task, derive task slugs from your first prompt, enforce edit isolation, guard sensitive files, and show Claude Code changelogs on update
@@ -102,8 +102,9 @@ Each skill lives at `skills/<skill-name>/SKILL.md`.
 
 | Skill | What it does |
 |---|---|
-| `/tamirs-superpowers:plan-dev` | Plan work into phases and create GitHub issues. |
-| `/tamirs-superpowers:start-dev` | Create worktree, implement, validate, push, and open a PR. |
+| `/tamirs-superpowers:plan-dev` | Plan work into phases and create GitHub issues (with Resume blocks for cross-platform handoff). |
+| `/tamirs-superpowers:start-dev` | Create platform worktree, implement, validate, push, and open a PR. |
+| `/tamirs-superpowers:switch-dev` | Hand off, resume, or list status for work across Claude Code, Cursor, and Codex via GitHub issue Resume blocks. |
 | `/tamirs-superpowers:pr-dev` | Drive a PR to merge — address review threads, fix CI, squash-merge after explicit approval. |
 | `/tamirs-superpowers:multi-agent-repo` | Audit, plan, and implement canonical multi-agent setup (AGENTS.md + thin adapters + drift checks) across Claude Code, Cursor, and Codex — review / plan / dev modes. Replaces former `plugin-compat`. |
 | `/tamirs-superpowers:targeted-debug` | Scope-bounded debug from a stack trace — reads only named files. |
@@ -139,7 +140,7 @@ Internal skills (invoked by parent skills, not shown in `/` menu): `docs-review`
 | `PostToolUse (Edit\|Write)` | `plugin-reload-reminder.sh`, `wix-ip-guard.sh` | Remind to reload after plugin file edits; warn on Wix IP references. |
 | `PostToolUse (Write)` | `validate-report-links.sh` | Validate URLs in report.md files. |
 | `SessionStart` | `show-changelog.sh`, `session-init.sh` | Show Claude Code changelog on update; seed session state. |
-| `SessionEnd` | `session-end.sh` | Archive session-files, prune stale worktrees and old archives. |
+| `SessionEnd` | `session-end.sh`, `handoff-reminder.sh` | Archive session-files, prune stale worktrees; remind to run `/switch-dev handoff` from active worktrees. |
 | `UserPromptSubmit` | `capture-task-slug.sh`, `goal-compact-reminder.sh`, `ensure-exit.sh` | Derive task slug, create worktree; remind to compact before /goal; check exit node. |
 | `WorktreeCreate` | `worktree-create.sh` | Create global worktree under `~/.claude/worktrees/`. |
 | `WorktreeRemove` | `worktree-remove.sh` | Tear down global worktree cleanly. |

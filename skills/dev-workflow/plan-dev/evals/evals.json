@@ -25,8 +25,9 @@
         "The refactor (extract PaymentProcessor) is placed in an earlier phase than the retry logic that depends on it",
         "Tests are linked to the retry logic phase or placed after it — not before",
         "Plan is shown for approval before gh issue create runs",
+        "Created issue bodies include Resume and Agent routing sections with agent:any label",
         "Each task names the specific area: 'src/payments/', 'PaymentProcessor', 'Stripe', etc.",
-        "The skill suggests /start-dev or equivalent next step after issues are created"
+        "The skill suggests /start-dev or /switch-dev resume as next step after issues are created"
       ]
     },
     {

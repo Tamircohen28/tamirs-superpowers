@@ -4,19 +4,19 @@
     {
       "id": 1,
       "prompt": "Finish PR #42. Address any review comments and get it merged.",
-      "expected_output": "Skill runs a persistent loop: fetches PR state, identifies unresolved review threads, states each reply in conversation before posting, applies any code fixes, resolves threads, watches CI, and only stops when it prints the readiness gate checklist and waits for `approved`. Does NOT merge without that explicit word.",
+      "expected_output": "Skill runs a persistent loop: enables auto-merge at startup, fetches PR state, addresses threads, fixes CI, re-enables auto-merge after pushes, polls until merged. Does NOT call gh pr merge without --auto.",
       "files": []
     },
     {
       "id": 2,
       "prompt": "Drive PR #17 to merge. CI is currently failing.",
-      "expected_output": "Skill fetches the failed CI run logs, classifies the failure (branch-related vs flaky vs unrelated), patches the code if branch-related and pushes (then restarts the loop), or retries up to 3x if flaky. After CI goes green and threads resolve, prints readiness summary and waits for `approved`. Never stops mid-loop just because one check is still pending.",
+      "expected_output": "Skill classifies CI failure, patches if branch-related, pushes, re-enables auto-merge, restarts loop. When green with 0 threads, enables auto-merge and waits for GitHub to merge.",
       "files": []
     },
     {
       "id": 3,
       "prompt": "Address the review on my PR and merge it when done.",
-      "expected_output": "Skill resolves SKILL_DIR (CLAUDE_SKILL_DIR, plugin root, or git-root path), infers PR from current branch, fetches unresolved threads, for each: states the assess+reply in conversation (agree/partial/disagree), posts reply, applies fix if needed, resolves thread. Then monitors CI until green. Reaches readiness gate, stops, and prints checklist. After user types `approved`, squash-merges with --delete-branch, runs cleanup-after-merge.sh via SKILL_DIR, and confirms origin/<head> is gone.",
+      "expected_output": "Skill resolves threads, monitors CI, enables gh pr merge --auto --squash --delete-branch, polls until MERGED, runs cleanup-after-merge.sh. Does not require user to type approved when auto-merge handles merge.",
       "files": []
     }
   ]

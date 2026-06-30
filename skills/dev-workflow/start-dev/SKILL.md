@@ -32,7 +32,7 @@ metadata:
   - worktree
   - pr
   - workflow
-  updated-date: '2026-06-16'
+  updated-date: '2026-06-30'
 ---
 
 ## Live context
@@ -73,6 +73,20 @@ gh issue view 258 259 260
 
 Confirm your understanding in one sentence before proceeding. If the issue is ambiguous or blocked by another issue, surface that immediately.
 
+### Step 1.5 — Load Resume (issue-linked)
+
+When working from a GitHub issue number, read the Resume block before coding:
+
+```bash
+REPO_ROOT="$(git rev-parse --show-toplevel)"
+SHARED_DIR="$REPO_ROOT/skills/dev-workflow/_shared/scripts"
+bash "$SHARED_DIR/parse-issue-resume.sh" <issue_number>
+```
+
+- Surface **Next**, **Decisions**, and **Blocked** to the user
+- If `blocked` is not `none` or empty → stop and report
+- Use **Branch** from Resume when resuming mid-task (skip branch derivation if set)
+
 ### Step 2 — Set up workspace
 
 **Skip if already on a feature branch inside a worktree** (i.e., `git status` works and the branch is not `main`/`master`/`develop`).
@@ -83,19 +97,18 @@ Derive a short, slug-style branch name from the task:
 - `chore/upgrade-eslint`
 
 ```bash
-DEFAULT_BRANCH=$(gh repo view --json defaultBranchRef --jq .defaultBranchRef.name 2>/dev/null || echo "main")
-BRANCH="feat/your-slug-here"
+REPO_ROOT="$(git rev-parse --show-toplevel)"
+SHARED_DIR="$REPO_ROOT/skills/dev-workflow/_shared/scripts"
+BRANCH="feat/your-slug-here"   # or from Resume block when resuming
 
-# Check if the worktree already exists — resume rather than re-create
-if [ -d ".claude/worktrees/$BRANCH" ]; then
-  echo "Worktree already exists at .claude/worktrees/$BRANCH — resuming"
-else
-  git fetch origin
-  git worktree add ".claude/worktrees/$BRANCH" -b "$BRANCH" "origin/$DEFAULT_BRANCH"
-fi
+WT_JSON="$(bash "$SHARED_DIR/resolve-worktree.sh" "$REPO_ROOT" "$BRANCH")"
+WORKTREE="$(echo "$WT_JSON" | jq -r .worktree_path)"
+PLATFORM="$(echo "$WT_JSON" | jq -r .platform)"
+
+echo "Platform: $PLATFORM — worktree: $WORKTREE"
 ```
 
-All file edits happen inside `.claude/worktrees/$BRANCH/`, not in the main checkout.
+All file edits happen inside `$WORKTREE`, not in the main checkout. Paths follow `.<platform>/.worktrees/<slug>/` per `rules/dev/git-worktree-agent-workflow.md`.
 
 ### Step 3 — Implement
 
@@ -105,8 +118,8 @@ For each task or logical unit:
 3. Commit immediately after each logical unit:
 
 ```bash
-git -C .claude/worktrees/$BRANCH add -p   # stage selectively
-git -C .claude/worktrees/$BRANCH commit -m "$(cat <<'EOF'
+git -C "$WORKTREE" add -p   # stage selectively
+git -C "$WORKTREE" commit -m "$(cat <<'EOF'
 feat(auth): add rate limiting to login endpoint
 
 Closes #258
@@ -123,7 +136,7 @@ One commit per task or closely related change. Do not batch unrelated changes in
 Use the bundled `scripts/detect-stack.sh` to identify which validation commands apply to this repo, then run each one:
 
 ```bash
-cd .claude/worktrees/$BRANCH
+cd "$WORKTREE"
 
 # Detect commands for this repo's stack
 SKILL_DIR="$(dirname "$0")"   # or use $CLAUDE_SKILL_DIR if available
@@ -146,7 +159,7 @@ Fix every failure before proceeding. Do not push broken code. Do not use `--no-v
 ### Step 5 — Push and open PR
 
 ```bash
-git -C .claude/worktrees/$BRANCH push -u origin HEAD
+git -C "$WORKTREE" push -u origin HEAD
 ```
 
 Read `references/pr-templates.md` in this skill directory to choose the right PR body template (feature/bug-fix/spec-task/multi-issue/chore). Fill in all `[…]` placeholders — never leave them literally in the PR body.
@@ -176,6 +189,15 @@ EOF
 )"
 ```
 
+Capture the PR number from `gh pr create` output (last line URL or `gh pr view --json number -q .number` on the current branch), then **always enable auto-merge**:
+
+```bash
+PR_NUM="$(gh pr view --json number -q .number)"
+gh pr merge "$PR_NUM" --auto --squash --delete-branch
+```
+
+Auto-merge queues the PR to squash-merge as soon as required checks pass and branch protection is satisfied (including approving reviews). Re-run the command after pushing new commits — it is idempotent when auto-merge is already enabled.
+
 ### Step 6 — Report
 
 Print a concise summary:
@@ -185,8 +207,12 @@ Files changed: src/auth/login.ts, tests/auth.test.ts
 Commits: 2
 Validation: PASS (npm test, npm run lint)
 PR: https://github.com/owner/repo/pull/42
-Next: wait for CI + review, then run /pr-dev 42
+Auto-merge: enabled (squash + delete branch on merge)
+Next: run /pr-dev 42 to drive CI/review until merge completes
+On rate limit or pause: run /switch-dev handoff #N before switching platforms
 ```
+
+See `skills/dev-workflow/switch-dev/references/platform-capabilities.md` for staying on the same platform longer (Codex `/goal`, Cursor `/multitask`, Claude subagents).
 
 ## Hard rules
 
@@ -194,8 +220,8 @@ Next: wait for CI + review, then run /pr-dev 42
 - **Never skip Step 4 validation**, even if the user says "just push it" or "it's urgent". Run the checks.
 - **Never commit with `git add .`** blindly — always stage selectively with `git add -p` or by naming specific files to avoid committing secrets or build artifacts.
 - **Never make architectural decisions silently** — if the implementation requires a choice that changes the public API, schema, or module structure, surface it and ask before coding.
-- **Never create the worktree inside a path that already exists** — check first with `ls .claude/worktrees/$BRANCH 2>/dev/null`.
-- **Never merge or close the PR** — that is the job of `/pr-dev`.
+- **Never create the worktree inside a path that already exists** — `resolve-worktree.sh` resumes existing paths.
+- **Always enable auto-merge after opening a PR** — `gh pr merge "$PR" --auto --squash --delete-branch`.
 - **Commit messages must follow conventional commits** (`feat:`, `fix:`, `chore:`, `docs:`, `refactor:`).
 
 ## What NOT to do
@@ -206,8 +232,8 @@ Next: wait for CI + review, then run /pr-dev 42
 | Push to `main` directly | Create a branch; open a PR |
 | Skip validation because tests are "probably fine" | Run the stack's test/lint commands; fix failures |
 | Open the PR with title "Fix stuff" | Write an imperative-mood title: "fix: prevent null dereference in login handler" |
-| Create a worktree in an arbitrary path | Always use `.claude/worktrees/<branch-name>` |
-| Batch all changes into one giant commit | One commit per logical unit |
+| Create a worktree in an arbitrary path | Use `resolve-worktree.sh` → `.<platform>/.worktrees/<slug>` |
+| Open PR without enabling auto-merge | Always run `gh pr merge --auto --squash --delete-branch` after `gh pr create` |
 
 ## Quick reference
 
@@ -217,7 +243,7 @@ Next: wait for CI + review, then run /pr-dev 42
 | Issue is blocked by another | Surface the blocker; do not start implementation |
 | Multiple issues in one PR | Add `Closes #N` per issue in PR body; group related commits |
 | Validation script not found | Check `package.json` scripts, `Makefile`, `README` for project-specific commands |
-| Worktree already exists | `git worktree list` to find it; `cd` into it; continue |
+| Worktree already exists | `resolve-worktree.sh` resumes; `cd` into returned path |
 | Tests fail after changes | Fix the failures; never `--no-verify` or skip |
 
 ## Scope boundary

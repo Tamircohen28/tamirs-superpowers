@@ -34,7 +34,7 @@ metadata:
   - workflow
   - tickets
   - spec
-  updated-date: '2026-06-16'
+  updated-date: '2026-06-30'
 ---
 
 ## Live context
@@ -162,6 +162,7 @@ After approval, create each phase as a GitHub issue in sequence:
 gh issue create \
   --title "<issue title from plan>" \
   --label "<type>" \
+  --label "agent:any" \
   --body "$(cat <<'EOF'
 ## Summary
 <2-sentence description of the phase goal and why it's a standalone unit>
@@ -176,6 +177,19 @@ gh issue create \
 
 ## Dependencies
 <"None" or "Blocked by #N">
+
+## Resume
+- **Done:** (none yet)
+- **Next:** <first task from Tasks list>
+- **Decisions:** (none yet)
+- **Blocked:** none
+- **Branch:** (unset — assigned at start-dev)
+- **Worktree:** (unset)
+- **Last agent:** (unset)
+
+## Agent routing
+- **Owner:** agent:any
+- **Suggested platform:** <claude|cursor|codex|any> — based on task type
 
 🤖 Generated with Claude Code
 EOF
@@ -198,7 +212,7 @@ After all issues are created, print a summary table:
 | 2 | #43 | https://github.com/<repo>/issues/43 |
 ```
 
-Suggest next step: "Run `/start-dev <issue numbers>` to begin implementation."
+Suggest next step: "Run `/start-dev <issue numbers>` to begin implementation, or `/switch-dev resume <issue numbers>` to pick up on another platform."
 
 ## Hard rules
 
@@ -208,7 +222,7 @@ Suggest next step: "Run `/start-dev <issue numbers>` to begin implementation."
 - **Never create phases with more than 10 file changes.** Split instead.
 - **Never write code or make commits.** This skill plans only; `/start-dev` implements.
 - **Never push to any branch.** Planning produces GitHub issues, not commits.
-- **Always use the `--label` flag.** Unlabeled issues are harder to triage and filter.
+- **Always add `agent:any` label** alongside the type label on every created issue.
 
 ## What NOT to do
 

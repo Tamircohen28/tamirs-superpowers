@@ -47,7 +47,7 @@ Hooks are shell scripts registered in `hooks/hooks.json`. Claude Code executes t
 | `PreToolUse (Bash)` | `protect-other-branches.sh` | Block editing PRs from other authors |
 | `PreToolUse (Edit\|Write\|…)` | `enforce-worktree-edits.sh` | Refuse repo edits outside the task worktree |
 | `SessionStart` | `show-changelog.sh`, `session-init.sh` | Show changelog on update; seed session state |
-| `SessionEnd` | `session-end.sh` | Archive session files, prune stale worktrees |
+| `SessionEnd` | `session-end.sh`, `handoff-reminder.sh` | Archive session files, prune stale worktrees; handoff reminder |
 | `UserPromptSubmit` | `capture-task-slug.sh` | Derive task slug, create worktree |
 | `WorktreeCreate` | `worktree-create.sh` | Create global worktree |
 | `WorktreeRemove` | `worktree-remove.sh` | Tear down global worktree |

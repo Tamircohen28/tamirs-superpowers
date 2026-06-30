@@ -39,6 +39,8 @@ This plugin is published through the [`tamirs-plugins`](https://github.com/Tamir
 
 The plugin source lives in this repo; the catalog repo handles discovery and versioning.
 
+**Cross-platform handoff:** When rate-limited or switching between Claude Code, Cursor, and Codex mid-task, use `/switch-dev` to persist context in GitHub issue Resume blocks. See [Cross-platform workflow](cross-platform-workflow.md).
+
 ## Repo contract profiles (`repo-scaffold` / `repo-standards`)
 
 Both skills share `skills/repo/_contract/`:
