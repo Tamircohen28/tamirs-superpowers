@@ -3,7 +3,7 @@
   "name": "tamirs-superpowers",
   "displayName": "Tamir's Superpowers",
   "version": "1.5.1",
-  "description": "18 bundled skills, 6 specialist agents, smart worktree hooks, statusline, slash commands, and MCP server stubs — plan, implement, review, debug, multi-agent setup, and audit code from one plugin.",
+  "description": "22 bundled skills, 6 specialist agents, smart worktree hooks, statusline, slash commands, and MCP server stubs — plan, implement, review, debug, multi-agent setup, and audit code from one plugin.",
   "homepage": "https://github.com/Tamircohen28/tamirs-superpowers",
   "repository": "https://github.com/Tamircohen28/tamirs-superpowers",
   "author": {

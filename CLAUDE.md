@@ -6,11 +6,14 @@ Claude Code guidance for contributors working on this plugin.
 
 A Claude Code plugin (marketplace + bundled skills + hooks). It is **not** a Node/Python/Go app — there is no build step, no package.json, no compiled output. All content is Markdown, JSON, and Bash.
 
+## Agent contributors
+
+See [`AGENTS.md`](AGENTS.md) for working agreements, allowed commands, and contributor policies applicable to all agents (Claude Code, Cursor, Codex).
+
 ## Key file locations
 
 | Path | Purpose |
 |------|---------|
-| `marketplace.json` | Marketplace manifest — declares this repo as a plugin marketplace |
 | `.claude-plugin/plugin.json` | Plugin manifest — name, version, dependencies, statusLine |
 | `.mcp.json` | MCP server stubs — fill env vars to activate |
 | `statusline.sh` | Statusline script wired via `plugin.json` |
@@ -51,14 +54,14 @@ Scopes: `skills`, `hooks`, `marketplace`, `ci`, `docs`
 - **SKILL.md files must have valid YAML frontmatter** with all 16 official Claude Code fields plus `metadata.updated-date` — see `skills/toolkit/skill-creator/references/frontmatter-template.md`; CI runs `scripts/validate-skill-frontmatter.py`
 - **Version sync:** whenever `.claude-plugin/plugin.json` version is bumped, `.codex-plugin/plugin.json` and `.cursor-plugin/plugin.json` must be bumped to the same version in the same commit. Check all three before opening a release PR.
 
-## Skill domains (18 skills total)
+## Skill domains (22 skills total)
 
 | Domain | Skills |
 |--------|--------|
 | `creative` | algorithmic-art, field-notebook-ui |
 | `debugging` | targeted-debug |
 | `dev-workflow` | plan-dev, pr-dev, start-dev |
-| `documentation` | changelog-review, dark-terminal-doc, docs-review |
+| `documentation` | changelog-review, dark-terminal-doc, docs-review, platform-sync, platform-sync-claude, platform-sync-codex, platform-sync-cursor |
 | `mcp` | mcp-builder, mcp-pagination |
 | `toolkit` | find-skill, session-report, skill-creator |
 | `repo` | cleanup, multi-agent-repo, repo-scaffold, repo-standards |
@@ -76,6 +79,9 @@ Skills can be restricted to internal use (invoked by other skills only, never by
 - `changelog-review` — used by `repo-standards` for Claude Code pattern audits
 - `docs-review` — used by `repo-standards` for documentation quality sweeps
 - `mcp-pagination` — used by `mcp-builder` for pagination guardrails
+- `platform-sync-claude` — used by `platform-sync` for Claude Code improvement analysis
+- `platform-sync-codex` — used by `platform-sync` for Codex CLI improvement analysis
+- `platform-sync-cursor` — used by `platform-sync` for Cursor improvement analysis
 
 **repo-standards is the primary user-invocable skill in the `repo` domain for existing repos** (alongside `multi-agent-repo`, `repo-scaffold`).
 

@@ -1,0 +1,17 @@
+{
+  "skill_name": "platform-sync-cursor",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "Review .cursor-plugin/plugin.json. The repo has a .cursorrules file in the root but no .cursor/rules/ directory. Is there a newer Cursor rules format I should be using?",
+      "expected_output": "Should fetch docs.cursor.com/context/rules, identify that .cursor/rules/ directory-based rules is the modern approach supporting per-path glob scoping, explain the migration from .cursorrules flat file, and provide concrete migration steps with a sample .cursor/rules/ file structure. Must cite the Cursor rules documentation URL.",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "Audit my cursor plugin — .cursor-plugin/plugin.json exists but there is no .cursor/mcp.json or MCP config anywhere. What Cursor MCP integration am I missing?",
+      "expected_output": "Should fetch docs.cursor.com/tools/mcp and docs.cursor.com/changelog, confirm whether Cursor supports MCP (and the current version), and if so provide a concrete .cursor/mcp.json example wiring an MCP server. Must cite the Cursor MCP documentation URL.",
+      "files": []
+    }
+  ]
+}
