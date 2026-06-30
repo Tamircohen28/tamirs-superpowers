@@ -11,7 +11,7 @@ tamirs-superpowers/              ← GitHub repo root
 ├── .claude-plugin/
 │   └── plugin.json              ← Plugin manifest (name, version, skills paths, statusLine)
 ├── .mcp.json                    ← MCP server stubs (github via scripts/github-mcp.sh)
-├── statusline.sh                ← Statusline script (wired via plugin.json settings.statusLine)
+├── scripts/statusline.sh        ← Statusline script (wired via plugin.json settings.statusLine)
 ├── scripts/
 │   └── github-mcp.sh            ← GitHub MCP stdio launcher (gh auth token → server)
 ├── hooks/

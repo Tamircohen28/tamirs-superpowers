@@ -19,7 +19,7 @@ This repo is a **multi-platform agent plugin** (Markdown + JSON + Bash only) for
 | `hooks/hooks.json` | Hook event wiring |
 | `hooks/*.sh` | Hook scripts (all must pass shellcheck) |
 | `hooks/lib/worktree-common.sh` | Shared bash library — do not modify without testing |
-| `statusline.sh` | Footer statusline |
+| `scripts/statusline.sh` | Footer statusline |
 | `.mcp.json` | MCP server stubs (env var placeholders only — no real tokens) |
 
 ## Hard constraints

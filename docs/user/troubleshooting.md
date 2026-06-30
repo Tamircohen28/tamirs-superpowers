@@ -53,7 +53,7 @@ The worktree hooks use `jq` to parse session state JSON.
 
 **Symptom:** The statusline area in Claude Code is blank.
 
-**Cause:** `statusline.sh` requires `git` to be on the PATH in the shell Claude Code launches.
+**Cause:** `scripts/statusline.sh` requires `git` to be on the PATH in the shell Claude Code launches.
 
 **Fix:** Ensure `git` is on your PATH. Test with: `which git` in your terminal.
 

@@ -1,18 +1,20 @@
 ---
 name: platform-sync
 description: >-
-  Use when auditing a plugin repo against the latest Claude Code, OpenAI Codex CLI, or Cursor
-  docs. Detects which platform manifests exist (.claude-plugin/, .codex-plugin/,
-  .cursor-plugin/), fetches live docs for each via sub-skills, identifies unused new features,
-  and synthesizes a numbered improvement plan. Synonyms: "sync my plugin", "check against
-  latest docs", "what features am I missing", "audit all platforms", "/platform-sync".
+  Use when auditing any repo that uses Claude Code, OpenAI Codex CLI, or Cursor — plugin
+  repos, app repos, or hybrids. Detects target usage via manifests, CLAUDE.md, AGENTS.md,
+  .cursor/rules/, skills/, hooks/, and related signals; fetches live docs per target;
+  identifies unused new features; synthesizes a numbered improvement plan. Synonyms: "sync my
+  plugin", "check against latest docs", "what features am I missing", "audit all platforms",
+  "/platform-sync".
 when_to_use: |
   - User runs "/platform-sync"
-  - "check my plugin against latest docs"
-  - "what new features am I missing from Claude Code / Codex / Cursor"
+  - "check my repo against latest Claude Code / Codex / Cursor docs"
+  - "what new features am I missing"
   - "sync my plugin with latest platform features"
   - "audit all three platforms"
   - "platform-sync"
+  - App repo with CLAUDE.md, AGENTS.md, or .cursor/rules/ — not only plugin manifests
   - Triggered via systemMessage from plugin-version-watch Stop hook after 24h without a check
 argument-hint: "[repo path or omit for cwd]"
 arguments: []
@@ -46,36 +48,42 @@ metadata:
     - platform
     - audit
     - planning
-  updated-date: '2026-06-28'
+  updated-date: '2026-06-30'
 ---
 
 # platform-sync
 
-You are a multi-platform plugin improvement planner. Detect which AI coding assistant platforms
-have plugin manifests in this repo, fetch live docs for each via internal sub-skills, and
-synthesize a concrete numbered improvement plan the user can act on immediately.
+You are a multi-platform improvement planner. Detect which AI coding assistant targets a repo
+**actually uses** (not only plugin manifests), fetch live docs for each via internal
+sub-skills, and synthesize a concrete numbered improvement plan.
 
 **Hard constraint:** Never guess what's new — every improvement step must cite a URL from the
 fetched documentation. If a sub-skill returns a fetch error, report it and skip that platform
 rather than guessing.
 
+**Detection reference:** Read `$CLAUDE_SKILL_DIR/references/detection.md` before Step 1.
+
 ---
 
-## Step 1 — Detect platforms
+## Step 1 — Detect targets
 
-Check for these manifest files in the repo root (or path passed as argument):
+Glob and read the repo root (or path passed as argument). For each platform, check **all**
+signals in `references/detection.md` — invoke a sub-skill when **any** signal matches.
 
-| Manifest file | Platform |
+| Platform | Sub-skill when detected |
 |---|---|
-| `.claude-plugin/plugin.json` | Claude Code |
-| `.codex-plugin/plugin.json` | OpenAI Codex CLI |
-| `.cursor-plugin/plugin.json` | Cursor |
+| Claude Code | `tamirs-superpowers:platform-sync-claude` |
+| Cursor | `tamirs-superpowers:platform-sync-cursor` |
+| Codex CLI | `tamirs-superpowers:platform-sync-codex` |
 
-**If none found:** output exactly:
+Record which signals triggered each platform (e.g. `CLAUDE.md + skills/`).
+
+**If no platform signals match:** output exactly:
 ```
-No platform plugin manifests found in this repo.
-This skill is intended for repos that bundle plugin configurations for Claude Code,
-OpenAI Codex CLI, or Cursor (.claude-plugin/, .codex-plugin/, .cursor-plugin/).
+No AI coding assistant usage detected in this repo.
+platform-sync looks for Claude Code (CLAUDE.md, .claude-plugin/, skills/, hooks/),
+Cursor (.cursor/rules/, .cursor-plugin/), or Codex (AGENTS.md, .codex-plugin/).
+Add agent config for at least one platform, then re-run /platform-sync.
 ```
 Then stop.
 
@@ -83,17 +91,12 @@ Then stop.
 
 ## Step 2 — Invoke per-platform analysis
 
-For each detected platform, invoke the corresponding internal skill via the Skill tool:
-
-| Platform detected | Skill to invoke |
-|---|---|
-| `.claude-plugin/plugin.json` present | `tamirs-superpowers:platform-sync-claude` |
-| `.codex-plugin/plugin.json` present | `tamirs-superpowers:platform-sync-codex` |
-| `.cursor-plugin/plugin.json` present | `tamirs-superpowers:platform-sync-cursor` |
+For each detected platform, invoke the corresponding internal skill via the Skill tool.
 
 Collect all outputs before synthesizing. Each sub-skill returns a structured section:
 ```
 ## [Platform] — vX.Y detected → vA.B latest
+**Signals:** [list paths that triggered detection]
 ### Improvement Steps
 1. ...
 ### Already Well-Used
@@ -116,6 +119,7 @@ Merge all platform outputs into a single prioritized plan. Sort by:
 # Platform Sync — Improvement Plan
 **Repo:** [path]
 **Platforms analyzed:** [Claude Code | Codex | Cursor] (only those detected)
+**Detection signals:** [per-platform path list]
 **Date:** [today's date]
 
 ---

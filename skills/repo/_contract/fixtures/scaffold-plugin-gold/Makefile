@@ -1,10 +1,18 @@
-.PHONY: help install test lint agent:check build validate
+.PHONY: help install update uninstall test lint agent:check build validate
 
 help:
-	@echo "install build validate test lint agent:check"
+	@echo "install update uninstall build validate test lint agent:check"
 
 install:
 	npm ci
+	npm run build
+
+update:
+	npm update
+	npm run build
+
+uninstall:
+	rm -rf node_modules dist
 
 build:
 	npm run build

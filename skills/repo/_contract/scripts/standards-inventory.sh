@@ -15,11 +15,25 @@ readme_has_prereq=false
 readme_has_quickstart=false
 readme_has_license_line=false
 readme_has_banner=false
+readme_has_author_badge=false
+readme_has_version_badge=false
+readme_has_ai_targets=false
+readme_has_multi_install=false
 if [[ -f "$ROOT/README.md" ]]; then
   grep -q 'img.shields.io\|badge' "$ROOT/README.md" 2>/dev/null && readme_has_badges=true
   grep -qi 'prerequisite' "$ROOT/README.md" 2>/dev/null && readme_has_prereq=true
   grep -qi 'quick start\|getting started' "$ROOT/README.md" 2>/dev/null && readme_has_quickstart=true
   grep -qi 'license' "$ROOT/README.md" 2>/dev/null && readme_has_license_line=true
+  if grep -qiE 'author|Tamircohen28|github\.com/[^/]+)\]' "$ROOT/README.md" 2>/dev/null; then
+    readme_has_author_badge=true
+  fi
+  if grep -qiE 'version-|badge/version|version-[0-9]' "$ROOT/README.md" 2>/dev/null; then
+    readme_has_version_badge=true
+  fi
+  if grep -qiE 'Claude Code|Cursor|Codex' "$ROOT/README.md" 2>/dev/null \
+    && grep -qiE 'AI target|badge.*Claude|badge.*Cursor|badge.*Codex' "$ROOT/README.md" 2>/dev/null; then
+    readme_has_ai_targets=true
+  fi
   # Banner: README references assets/banner.* OR the asset file itself exists
   if grep -qiE 'assets/banner\.(svg|png|jpg|webp)' "$ROOT/README.md" 2>/dev/null; then
     readme_has_banner=true
@@ -28,11 +42,68 @@ if [[ -f "$ROOT/README.md" ]]; then
       [[ -f "$ROOT/assets/banner.$_ext" ]] && { readme_has_banner=true; break; }
     done
   fi
+  # Multi-target install: Claude + Cursor and/or Codex headings under Quick Start
+  claude_qs=false
+  cursor_qs=false
+  codex_qs=false
+  grep -qiE '### Claude|## Claude|Claude Code' "$ROOT/README.md" 2>/dev/null && claude_qs=true
+  grep -qiE '### Cursor|## Cursor' "$ROOT/README.md" 2>/dev/null && cursor_qs=true
+  grep -qiE '### Codex|## Codex' "$ROOT/README.md" 2>/dev/null && codex_qs=true
+  platform_docs=0
+  [[ "$claude_qs" == true ]] && platform_docs=$((platform_docs + 1))
+  [[ "$cursor_qs" == true ]] && platform_docs=$((platform_docs + 1))
+  [[ "$codex_qs" == true ]] && platform_docs=$((platform_docs + 1))
+  if (( platform_docs >= 2 )); then
+    readme_has_multi_install=true
+  fi
 fi
 
+root_changelog=$(exists "$ROOT/CHANGELOG.md")
+versioning_doc=$(exists "$ROOT/docs/engineering/build-and-release/versioning.md")
+changelog_unreleased=false
+if [[ -f "$ROOT/docs/CHANGELOG.md" ]]; then
+  grep -q '\[Unreleased\]' "$ROOT/docs/CHANGELOG.md" 2>/dev/null && changelog_unreleased=true
+fi
+agents_references_versioning=false
+if [[ -f "$ROOT/AGENTS.md" ]]; then
+  grep -qiE 'versioning|semver|changelog' "$ROOT/AGENTS.md" 2>/dev/null && agents_references_versioning=true
+fi
+
+makefile_install=false
+makefile_update=false
+makefile_uninstall=false
+if [[ -f "$ROOT/Makefile" ]]; then
+  grep -qE '^install:' "$ROOT/Makefile" 2>/dev/null && makefile_install=true
+  grep -qE '^update:' "$ROOT/Makefile" 2>/dev/null && makefile_update=true
+  grep -qE '^uninstall:' "$ROOT/Makefile" 2>/dev/null && makefile_uninstall=true
+fi
+
+ai_platform_count=0
+[[ -f "$ROOT/.claude-plugin/plugin.json" || -f "$ROOT/CLAUDE.md" || -d "$ROOT/.claude/rules" ]] && ai_platform_count=$((ai_platform_count + 1))
+[[ -f "$ROOT/.cursor-plugin/plugin.json" || -d "$ROOT/.cursor/rules" || -f "$ROOT/.cursorrules" ]] && ai_platform_count=$((ai_platform_count + 1))
+[[ -f "$ROOT/.codex-plugin/plugin.json" || -f "$ROOT/AGENTS.md" ]] && ai_platform_count=$((ai_platform_count + 1))
+
+manifest_versions_match=true
+manifest_version=""
+for manifest in .claude-plugin/plugin.json .cursor-plugin/plugin.json .codex-plugin/plugin.json; do
+  if [[ -f "$ROOT/$manifest" ]] && command -v jq &>/dev/null; then
+    v=$(jq -r '.version // empty' "$ROOT/$manifest" 2>/dev/null || true)
+    [[ -z "$v" ]] && continue
+    if [[ -z "$manifest_version" ]]; then
+      manifest_version="$v"
+    elif [[ "$v" != "$manifest_version" ]]; then
+      manifest_versions_match=false
+    fi
+  fi
+done
+manifest_count=0
+[[ -f "$ROOT/.claude-plugin/plugin.json" ]] && manifest_count=$((manifest_count + 1))
+[[ -f "$ROOT/.cursor-plugin/plugin.json" ]] && manifest_count=$((manifest_count + 1))
+[[ -f "$ROOT/.codex-plugin/plugin.json" ]] && manifest_count=$((manifest_count + 1))
+
 docs_readme=$(exists "$ROOT/docs/README.md")
-changelog=$(exists "$ROOT/docs/CHANGELOG.md")
 contributing=$(exists "$ROOT/docs/CONTRIBUTING.md")
+changelog=$(exists "$ROOT/docs/CHANGELOG.md")
 user_docs=false
 eng_docs=false
 [[ -d "$ROOT/docs/user" ]] && user_docs=true
@@ -91,6 +162,20 @@ jq -nc \
   --argjson readme_has_quickstart "$readme_has_quickstart" \
   --argjson readme_has_license_line "$readme_has_license_line" \
   --argjson readme_has_banner "$readme_has_banner" \
+  --argjson readme_has_author_badge "$readme_has_author_badge" \
+  --argjson readme_has_version_badge "$readme_has_version_badge" \
+  --argjson readme_has_ai_targets "$readme_has_ai_targets" \
+  --argjson readme_has_multi_install "$readme_has_multi_install" \
+  --argjson root_changelog "$root_changelog" \
+  --argjson versioning_doc "$versioning_doc" \
+  --argjson changelog_unreleased "$changelog_unreleased" \
+  --argjson agents_references_versioning "$agents_references_versioning" \
+  --argjson makefile_install "$makefile_install" \
+  --argjson makefile_update "$makefile_update" \
+  --argjson makefile_uninstall "$makefile_uninstall" \
+  --argjson ai_platform_count "$ai_platform_count" \
+  --argjson manifest_versions_match "$manifest_versions_match" \
+  --argjson manifest_count "$manifest_count" \
   --argjson docs_readme "$docs_readme" \
   --argjson changelog "$changelog" \
   --argjson contributing "$contributing" \
@@ -116,8 +201,26 @@ jq -nc \
       has_prerequisites: $readme_has_prereq,
       has_quick_start: $readme_has_quickstart,
       has_license_line: $readme_has_license_line,
-      has_banner: $readme_has_banner
+      has_banner: $readme_has_banner,
+      has_author_badge: $readme_has_author_badge,
+      has_version_badge: $readme_has_version_badge,
+      has_ai_targets: $readme_has_ai_targets,
+      has_multi_install: $readme_has_multi_install
     },
+    makefile: {
+      install: $makefile_install,
+      update: $makefile_update,
+      uninstall: $makefile_uninstall
+    },
+    versioning: {
+      root_changelog: $root_changelog,
+      versioning_doc: $versioning_doc,
+      changelog_unreleased: $changelog_unreleased,
+      agents_references_versioning: $agents_references_versioning,
+      manifest_versions_match: $manifest_versions_match,
+      manifest_count: $manifest_count
+    },
+    ai_platforms: { count: $ai_platform_count },
     docs: {
       readme: $docs_readme,
       changelog: $changelog,

@@ -3,6 +3,9 @@
 </p>
 
 <p align="center">
+  <a href="https://github.com/Tamircohen28">
+    <img src="https://img.shields.io/badge/author-Tamir%20Cohen-181717?logo=github" alt="Author" />
+  </a>
   <a href="https://github.com/Tamircohen28/tamirs-superpowers/actions/workflows/ci.yml">
     <img src="https://github.com/Tamircohen28/tamirs-superpowers/actions/workflows/ci.yml/badge.svg" alt="CI" />
   </a>
@@ -10,13 +13,25 @@
     <img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="MIT License" />
   </a>
   <a href=".claude-plugin/plugin.json">
-    <img src="https://img.shields.io/badge/claude--code-plugin-blueviolet" alt="Claude Code Plugin" />
+    <img src="https://img.shields.io/badge/version-1.5.1-blue" alt="Version" />
+  </a>
+</p>
+
+<p align="center">
+  <a href=".claude-plugin/plugin.json">
+    <img src="https://img.shields.io/badge/Claude%20Code-1.5.1-blueviolet" alt="Claude Code" />
+  </a>
+  <a href=".cursor-plugin/plugin.json">
+    <img src="https://img.shields.io/badge/Cursor-1.5.1-000000" alt="Cursor" />
+  </a>
+  <a href=".codex-plugin/plugin.json">
+    <img src="https://img.shields.io/badge/Codex-1.5.1-412991" alt="Codex" />
   </a>
 </p>
 
 # tamirs-superpowers
 
-A personal Claude Code plugin that bundles 22 skills, 6 specialist agents, smart worktree hooks, slash commands, and MCP server stubs — installed with a single `/plugin install` command and kept current via marketplace auto-update.
+A multi-platform agent plugin (Claude Code, Cursor, Codex) that bundles 22 skills, 6 specialist agents, smart worktree hooks, slash commands, and MCP server stubs — installed with one command per platform and kept current via marketplace auto-update.
 
 ## Features
 
@@ -31,57 +46,54 @@ A personal Claude Code plugin that bundles 22 skills, 6 specialist agents, smart
 
 ## Prerequisites
 
-- [Claude Code](https://claude.ai/code) v2.0+
+- **Claude Code** v2.0+ and/or **Cursor** and/or **OpenAI Codex CLI** (see per-target install below)
 - `jq` (for hooks): `brew install jq`
 - `git` 2.30+ (for worktree hooks)
 - `gh` CLI (for `pr-dev`, `plan-dev`, `start-dev` skills): `brew install gh`
 
 ## Quick Start
 
-This plugin is published through the [`tamirs-plugins`](https://github.com/Tamircohen28/plugins)
-catalog — install it from there, **not** by adding this repo as a marketplace
-(this repo no longer ships its own `marketplace.json`).
-
-### New machine setup
+### All platforms — bootstrap from clone
 
 ```bash
-# 1. Clone the plugin repo and bootstrap ~/.claude/settings.json
 git clone git@github.com:Tamircohen28/tamirs-superpowers.git
-bash tamirs-superpowers/install.sh
-# Optional: set CLAUDE_EXIT_PROXY and CLAUDE_EXIT_PUBLIC_IP env vars to also configure the exit-node guard
+cd tamirs-superpowers
+make install    # ~/.claude/settings.json + specialist agents
 ```
 
-### Inside Claude Code (slash commands)
+`make update` refreshes agents and runs `claude plugin update` when the CLI is available.
+`make uninstall` removes installed agents and attempts plugin uninstall.
+
+### Claude Code
+
+Published through [`tamirs-plugins`](https://github.com/Tamircohen28/plugins) — not this repo's marketplace.
 
 ```text
-# 2. Add Tamir's plugin marketplace (one-time per machine)
 /plugin marketplace add Tamircohen28/plugins
-
-# 3. Install — the `superpowers` dependency auto-installs alongside
 /plugin install tamirs-superpowers@tamirs-plugins
-
-# 4. Verify
+/reload-plugins
 /doctor
 ```
 
-### From your shell (the `claude` CLI)
+**Alternative (shell):** `claude plugin marketplace add Tamircohen28/plugins && claude plugin install tamirs-superpowers@tamirs-plugins`
 
-```bash
-claude plugin marketplace add Tamircohen28/plugins
-claude plugin install tamirs-superpowers@tamirs-plugins
-claude plugin list          # confirm it's installed
-```
+### Cursor
 
-Restart any running Claude Code session afterward so the hooks, statusline, and
-MCP stubs load. The bundled **MCP servers** (`github`, `context7`) are wired in
-`.mcp.json` and start automatically — the `github` server derives its token from
-your `gh` CLI auth (`gh auth login`), so there are no env vars to set by hand.
+Enable the plugin from this repo via [`.cursor-plugin/plugin.json`](.cursor-plugin/plugin.json) — same `skills/` tree, MCP stubs in [`.mcp.json`](.mcp.json). Point Cursor's plugin settings at this directory (or your installed copy).
+
+### Codex
+
+Enable via [`.codex-plugin/plugin.json`](.codex-plugin/plugin.json) — includes `skills/`, [`hooks/hooks.json`](hooks/hooks.json), and MCP stubs. Codex reads root [`AGENTS.md`](AGENTS.md) for working agreements.
+
+### Verify
+
+Restart the IDE or run `/reload-plugins` (Claude Code). MCP servers (`github`, `context7`) wire from `.mcp.json`; `github` uses `gh auth login` — no manual token env vars.
 
 > **Statusline not showing?** If the footer statusline doesn't appear after
 > restart, add it manually: run `/config` in Claude Code and set `statusLine`,
 > or add it directly to `~/.claude/settings.json`:
 > ```json
-> { "statusLine": { "type": "command", "command": "bash ~/.claude/plugins/cache/tamirs-plugins/tamirs-superpowers/<version>/statusline.sh" } }
+> { "statusLine": { "type": "command", "command": "bash ~/.claude/plugins/cache/tamirs-plugins/tamirs-superpowers/<version>/scripts/statusline.sh" } }
 > ```
 
 ## Bundled Skills
@@ -105,7 +117,7 @@ Each skill lives at `skills/<skill-name>/SKILL.md`.
 | `/tamirs-superpowers:algorithmic-art` | Generate algorithmic art with p5.js. |
 | `/tamirs-superpowers:field-notebook-ui` | Generate interactive React artifacts in the engineer's field-notebook visual style. |
 | `/tamirs-superpowers:dark-terminal-doc` | Generate polished HTML docs with a dark terminal design system. |
-| `/tamirs-superpowers:platform-sync` | Audit a plugin repo against the latest Claude Code, Codex CLI, and Cursor docs — fetch live docs, identify unused new features, synthesize a numbered improvement plan. |
+| `/tamirs-superpowers:platform-sync` | Audit **any** repo using Claude Code, Codex, or Cursor — detect targets via manifests, CLAUDE.md, AGENTS.md, `.cursor/rules/`, etc.; fetch live docs; synthesize a numbered improvement plan. |
 
 Internal skills (invoked by parent skills, not shown in `/` menu): `docs-review`, `changelog-review`, `mcp-pagination`, `platform-sync-claude`, `platform-sync-codex`, `platform-sync-cursor`.
 

@@ -45,7 +45,7 @@ bash .claude/skills/run-tamirs-superpowers/smoke.sh
 | Check | What it does |
 |---|---|
 | 1. `make validate` | shellcheck all hooks, validate all JSON, validate full SKILL.md frontmatter (16 official fields) |
-| 2. `statusline.sh` | runs the live statusline and checks it produces output |
+| 2. `scripts/statusline.sh` | runs the live statusline and checks it produces output |
 | 3. `plugin.json` | all required fields present, `.statusLine` is an object not a string |
 | 4. SKILL.md quality | `python3 scripts/validate-skill-frontmatter.py` — all 16 official fields + metadata.updated-date |
 | 5. Hook wiring | every `.sh` in `hooks/` is referenced in `hooks.json` |
@@ -88,7 +88,7 @@ make plugin-validate
 The statusline script runs automatically in every Claude Code session. To test it in isolation:
 
 ```bash
-bash statusline.sh
+bash scripts/statusline.sh
 ```
 
 Expected output format: `[<branch>] ctx:<n> | <model> | ...`
@@ -120,5 +120,5 @@ Frontmatter fields required by the smoke test (in addition to `name` and `descri
 | `make validate` fails on shellcheck | Run `shellcheck hooks/<script>.sh` and fix the flagged line |
 | `make validate` fails on JSON | Run `jq empty .claude-plugin/plugin.json` to get the parse error |
 | SKILL.md missing `description:` | The YAML block must have `description:` as its own line (not nested) |
-| `plugin.json .statusLine` is wrong type | Set `"statusLine": {"type": "command", "command": "bash ${CLAUDE_PLUGIN_ROOT}/statusline.sh"}` |
+| `plugin.json .statusLine` is wrong type | Set `"statusLine": {"type": "command", "command": "bash ${CLAUDE_PLUGIN_ROOT}/scripts/statusline.sh"}` |
 | Smoke test exits early | The script must not use `set -euo pipefail`; remove it if added |

@@ -20,6 +20,21 @@ r_prereq=$(echo "$INV" | jq -r '.readme.has_prerequisites')
 r_qs=$(echo "$INV" | jq -r '.readme.has_quick_start')
 r_lic=$(echo "$INV" | jq -r '.readme.has_license_line')
 r_banner=$(echo "$INV" | jq -r '.readme.has_banner')
+r_author=$(echo "$INV" | jq -r '.readme.has_author_badge')
+r_version_badge=$(echo "$INV" | jq -r '.readme.has_version_badge')
+r_ai_targets=$(echo "$INV" | jq -r '.readme.has_ai_targets')
+r_multi_install=$(echo "$INV" | jq -r '.readme.has_multi_install')
+mf_install=$(echo "$INV" | jq -r '.makefile.install')
+mf_update=$(echo "$INV" | jq -r '.makefile.update')
+mf_uninstall=$(echo "$INV" | jq -r '.makefile.uninstall')
+ai_count=$(echo "$INV" | jq -r '.ai_platforms.count')
+root_cl=$(echo "$INV" | jq -r '.versioning.root_changelog')
+ver_doc=$(echo "$INV" | jq -r '.versioning.versioning_doc')
+cl_unrel=$(echo "$INV" | jq -r '.versioning.changelog_unreleased')
+agents_ver=$(echo "$INV" | jq -r '.versioning.agents_references_versioning')
+manifest_match=$(echo "$INV" | jq -r '.versioning.manifest_versions_match')
+manifest_count=$(echo "$INV" | jq -r '.versioning.manifest_count')
+agents_root=$(echo "$INV" | jq -r '.root_files.agents_md')
 d_user=$(echo "$INV" | jq -r '.docs.user_dir')
 d_eng=$(echo "$INV" | jq -r '.docs.engineering_dir')
 d_cl=$(echo "$INV" | jq -r '.docs.changelog')
@@ -41,6 +56,13 @@ h_self=$(echo "$INV" | jq -r '.hygiene.self_hosted_ci')
 [[ "$r_exists" != true ]] && { add_gap "S1-01" "P1" "README.md missing" 1; inc P1; }
 [[ "$r_exists" == true && "$r_badges" != true ]] && { add_gap "S1-02" "P2" "README missing CI/license badges" 1; inc P2; }
 [[ "$r_exists" == true && "$r_banner" != true ]] && { add_gap "S1-05" "P2" "README missing hero banner (add assets/banner.svg and reference it)" 1; inc P2; }
+[[ "$r_exists" == true && "$r_author" != true ]] && { add_gap "S1-06" "P2" "README missing author badge (link to GitHub profile)" 1; inc P2; }
+[[ "$r_exists" == true && "$r_version_badge" != true ]] && { add_gap "S1-07" "P2" "README missing version badge" 1; inc P2; }
+[[ "$mf_install" != true || "$mf_update" != true || "$mf_uninstall" != true ]] && { add_gap "S1-08" "P2" "Makefile must define install, update, and uninstall targets" 1; inc P2; }
+if (( ai_count >= 2 )); then
+  [[ "$r_ai_targets" != true ]] && { add_gap "S1-09" "P2" "Multi-platform repo: README missing AI-target badges row" 1; inc P2; }
+  [[ "$r_multi_install" != true ]] && { add_gap "S1-10" "P2" "Multi-platform repo: README missing per-target Quick Start subsections" 1; inc P2; }
+fi
 [[ "$r_prereq" != true ]] && { add_gap "S1-03" "P2" "README missing Prerequisites section" 1; inc P2; }
 [[ "$r_qs" != true ]] && { add_gap "S1-04" "P2" "README missing Quick Start section" 1; inc P2; }
 [[ "$d_user" != true ]] && { add_gap "S2-01" "P2" "docs/user/ missing" 2; inc P2; }
@@ -53,6 +75,12 @@ h_self=$(echo "$INV" | jq -r '.hygiene.self_hosted_ci')
 [[ "$g_dep" != true ]] && { add_gap "S3-04" "P3" "Missing dependabot.yml" 3; inc P3; }
 [[ "$lic" != true ]] && { add_gap "S5-01" "P1" "LICENSE missing" 1; inc P1; }
 [[ "$gi" != true ]] && { add_gap "S5-02" "P2" ".gitignore missing" 1; inc P2; }
+[[ "$root_cl" != true ]] && { add_gap "S5-03" "P2" "Root CHANGELOG.md missing" 1; inc P2; }
+[[ "$agents_root" != true ]] && { add_gap "S5-04" "P1" "AGENTS.md missing at repo root" 1; inc P1; }
+[[ "$d_cl" == true && "$cl_unrel" != true ]] && { add_gap "S10-01" "P2" "docs/CHANGELOG.md missing [Unreleased] section" 2; inc P2; }
+[[ "$ver_doc" != true ]] && { add_gap "S10-02" "P2" "docs/engineering/build-and-release/versioning.md missing" 2; inc P2; }
+[[ "$agents_root" == true && "$agents_ver" != true ]] && { add_gap "S10-03" "P3" "AGENTS.md should reference versioning/changelog policy" 1; inc P3; }
+(( manifest_count >= 2 )) && [[ "$manifest_match" != true ]] && { add_gap "S10-04" "P1" "Plugin manifest versions drift (.claude/.cursor/.codex plugin.json)" 1; inc P1; }
 [[ "$co" != true ]] && { add_gap "S4-01" "P2" "CODEOWNERS missing" 4; inc P2; }
 if [[ "${CONTRACT_OFFLINE:-}" != "1" ]]; then
   [[ "$bp" != true ]] && { add_gap "S4-02" "P2" "Branch protection not configured" 4; inc P2; }
