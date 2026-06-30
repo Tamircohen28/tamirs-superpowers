@@ -8,6 +8,7 @@ Canonical templates for `repo-scaffold` and `repo-standards` polish. Contract ve
 |------|---------|
 | [`github/ci.yml.tmpl`](github/ci.yml.tmpl) | `CI` + `secret-scan` jobs, `ubuntu-latest` |
 | [`github/dependabot.yml.tmpl`](github/dependabot.yml.tmpl) | Weekly GitHub Actions updates |
+| [`github/agent_task.yml.tmpl`](github/agent_task.yml.tmpl) | Agent-task issue template with Resume block for switch-dev |
 | [`scaffold-requirements.md`](scaffold-requirements.md) | README sections, docs tree, branch protection |
 | [`legacy-scaffold-templates.md`](legacy-scaffold-templates.md) | Full stack-specific bodies (Node, Python, Swift, CLAUDE.md, workflows) |
 | [`check-agent-drift.sh.tmpl`](check-agent-drift.sh.tmpl) | Drift script copied to target `scripts/` |

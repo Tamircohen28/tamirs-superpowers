@@ -119,6 +119,8 @@ git remote prune origin
 
 When driving a PR with `pr-dev` (Claude Code `/tamirs-superpowers:pr-dev`, Cursor/Codex plugin skill of the same name), run `cleanup-after-merge.sh` after merge — it performs remote deletion, worktree removal, and local branch cleanup in one step.
 
+For cross-platform handoff between sessions, see [`cross-platform-handoff.md`](cross-platform-handoff.md). `start-dev` uses `skills/dev-workflow/_shared/scripts/resolve-worktree.sh` for platform-scoped worktrees.
+
 Prune stale worktree metadata:
 
 ```bash

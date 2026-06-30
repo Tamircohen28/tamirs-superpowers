@@ -275,6 +275,8 @@ Which do you prefer?
 
 Never silently stop, guess, or take a destructive action without confirmation.
 
+If the PR is blocked waiting on human input for an extended period, suggest updating the linked issue Resume via `/switch-dev handoff #N` so another session or platform can resume without losing context.
+
 ## Anti-patterns
 
 | Wrong | Right |

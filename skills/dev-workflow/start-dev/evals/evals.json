@@ -9,7 +9,7 @@
       "expectations": [
         "The skill fetches and reads the content of issue #42 before starting implementation",
         "A feature branch is created (not main/master/develop) with a slug derived from the issue title",
-        "A git worktree is created at .claude/worktrees/<branch-name>",
+        "A git worktree is created via resolve-worktree.sh at .<platform>/.worktrees/<branch-slug> (not hardcoded .claude/ only)",
         "At least one commit is made using conventional commit format (feat/fix/chore:)",
         "Validation commands are run (make validate, npm test, or equivalent) before pushing",
         "The branch is pushed to origin with git push -u",

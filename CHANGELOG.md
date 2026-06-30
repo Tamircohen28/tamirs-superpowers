@@ -5,8 +5,18 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Added
+- **`switch-dev` skill** — `handoff`, `resume`, and `status` modes for cross-platform work via GitHub issue Resume blocks and `agent:*` labels
+- **`skills/dev-workflow/_shared/scripts/`** — `detect-platform`, `resolve-worktree`, `parse-issue-resume`, `update-issue-resume`, `list-agent-worktrees`
+- **`.github/ISSUE_TEMPLATE/agent_task.yml`** — agent-task template with Resume + Agent routing sections
+- **`hooks/handoff-reminder.sh`** — SessionEnd reminder to run `/switch-dev handoff` from active worktrees
+- **`rules/dev/cross-platform-handoff.md`** — contributor rule + Cursor adapter
+- **`docs/user/cross-platform-workflow.md`** — user guide for Claude/Cursor/Codex handoff
+
 ### Changed
-- **`scripts/statusline.sh`** — moved from repo root; `plugin.json`, `install.sh`, and docs updated
+- **`plan-dev`** — issue bodies include Resume + Agent routing; `agent:any` label on create
+- **`start-dev`** — platform-aware worktrees via `resolve-worktree.sh`; loads Resume before coding
+- **`pr-dev`** — suggests handoff when blocked on human input
 - **`CODEOWNERS`** — single root file; removed duplicate `.github/CODEOWNERS`
 - **`platform-sync`** — detects AI targets in any repo (CLAUDE.md, AGENTS.md, `.cursor/rules/`, manifests, etc.); not plugin-manifest-only
 - **`repo-standards` contract v1.2** — Makefile `install`/`update`/`uninstall`, README badge rows, multi-target install docs, versioning policy (`S10-*`)

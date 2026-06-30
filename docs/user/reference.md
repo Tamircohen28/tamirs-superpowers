@@ -1,8 +1,10 @@
 # Skill Reference
 
-Complete reference for all 16 skills bundled in `tamirs-superpowers`. Each user-facing skill becomes a slash command in Claude Code.
+Complete reference for all user-facing skills bundled in `tamirs-superpowers`. Each skill becomes a slash command in Claude Code.
 
-Three skills are **internal** — invoked automatically by parent skills (`repo-standards`, `mcp-builder`) and hidden from the `/` menu.
+**Cross-platform workflow:** [cross-platform-workflow.md](cross-platform-workflow.md)
+
+Three skills are **internal** — invoked automatically by parent skills (`repo-standards`, `mcp-builder`, `platform-sync`) and hidden from the `/` menu.
 
 ---
 
@@ -34,6 +36,21 @@ Three skills are **internal** — invoked automatically by parent skills (`repo-
 5. Pushes and opens a PR
 
 **Example:** `/tamirs-superpowers:start-dev #42`
+
+---
+
+### `/tamirs-superpowers:switch-dev`
+
+**When to use:** Rate-limited or pausing mid-task; switching between Claude Code, Cursor, and Codex; resuming work started on another platform.
+
+**Modes:**
+- `handoff #N [platform]` — update issue Resume block, swap `agent:*` label, post handoff comment
+- `resume #N` — load Resume, create/resume platform worktree, print continuation checklist
+- `status` — list agent-labeled issues and platform worktrees
+
+**Example:** `/tamirs-superpowers:switch-dev handoff #42 cursor`
+
+**Guide:** [cross-platform-workflow.md](cross-platform-workflow.md)
 
 ---
 
