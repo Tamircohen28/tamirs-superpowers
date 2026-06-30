@@ -189,6 +189,15 @@ EOF
 )"
 ```
 
+Capture the PR number from `gh pr create` output (last line URL or `gh pr view --json number -q .number` on the current branch), then **always enable auto-merge**:
+
+```bash
+PR_NUM="$(gh pr view --json number -q .number)"
+gh pr merge "$PR_NUM" --auto --squash --delete-branch
+```
+
+Auto-merge queues the PR to squash-merge as soon as required checks pass and branch protection is satisfied (including approving reviews). Re-run the command after pushing new commits — it is idempotent when auto-merge is already enabled.
+
 ### Step 6 — Report
 
 Print a concise summary:
@@ -198,7 +207,8 @@ Files changed: src/auth/login.ts, tests/auth.test.ts
 Commits: 2
 Validation: PASS (npm test, npm run lint)
 PR: https://github.com/owner/repo/pull/42
-Next: wait for CI + review, then run /pr-dev 42
+Auto-merge: enabled (squash + delete branch on merge)
+Next: run /pr-dev 42 to drive CI/review until merge completes
 On rate limit or pause: run /switch-dev handoff #N before switching platforms
 ```
 
@@ -211,7 +221,7 @@ See `skills/dev-workflow/switch-dev/references/platform-capabilities.md` for sta
 - **Never commit with `git add .`** blindly — always stage selectively with `git add -p` or by naming specific files to avoid committing secrets or build artifacts.
 - **Never make architectural decisions silently** — if the implementation requires a choice that changes the public API, schema, or module structure, surface it and ask before coding.
 - **Never create the worktree inside a path that already exists** — `resolve-worktree.sh` resumes existing paths.
-- **Never merge or close the PR** — that is the job of `/pr-dev`.
+- **Always enable auto-merge after opening a PR** — `gh pr merge "$PR" --auto --squash --delete-branch`.
 - **Commit messages must follow conventional commits** (`feat:`, `fix:`, `chore:`, `docs:`, `refactor:`).
 
 ## What NOT to do
@@ -223,7 +233,7 @@ See `skills/dev-workflow/switch-dev/references/platform-capabilities.md` for sta
 | Skip validation because tests are "probably fine" | Run the stack's test/lint commands; fix failures |
 | Open the PR with title "Fix stuff" | Write an imperative-mood title: "fix: prevent null dereference in login handler" |
 | Create a worktree in an arbitrary path | Use `resolve-worktree.sh` → `.<platform>/.worktrees/<slug>` |
-| Batch all changes into one giant commit | One commit per logical unit |
+| Open PR without enabling auto-merge | Always run `gh pr merge --auto --squash --delete-branch` after `gh pr create` |
 
 ## Quick reference
 

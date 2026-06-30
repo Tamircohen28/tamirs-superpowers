@@ -1,6 +1,6 @@
 ---
 name: pr-dev
-description: 'Use when the user wants to actively drive a PR to completion — ''finish this PR'', ''address review comments'', ''ship/land/close the PR'', ''drive PR #N to merge'', ''fix CI and merge'', ''clean up this PR''. Persistently loops: addresses all review threads, fixes branch-related CI, retries flakes (max 3×), and stops only when ready (asks for `approved`) or blocked (asks for help).'
+description: 'Use when the user wants to actively drive a PR to completion — ''finish this PR'', ''address review comments'', ''ship/land/close the PR'', ''drive PR #N to merge'', ''fix CI and merge'', ''clean up this PR''. Persistently loops: addresses all review threads, fixes branch-related CI, retries flakes (max 3×), always enables auto-merge, and stops when merged or blocked (asks for help).'
 when_to_use: 'User says: finish this PR, address comments, ship/land/merge the PR, drive PR #N, handle review feedback, fix CI and merge, squash-merge, clean up PR branch — or provides a PR number/URL and asks to drive it to done.'
 argument-hint: '[PR number, PR URL, or omit to infer from current branch]'
 arguments: []
@@ -34,7 +34,7 @@ metadata:
   - merge
   - workflow
   - github
-  updated-date: '2026-06-26'
+  updated-date: '2026-06-30'
 ---
 
 # pr-dev
@@ -45,7 +45,7 @@ Drive a pull request from open → review addressed → CI green → merge autom
 
 After a PR opens, the real work is staying on top of CI failures, reviewer threads, and merge conflicts — often across many minutes. A one-shot "check and report" leaves the PR stalled whenever a simple retry or two-line fix would have unblocked it, and it misses threads that arrive after the initial check.
 
-This skill runs a **persistent drive loop** — re-fetch, act, push, loop — so you never babysit GitHub tabs. It stops at exactly two states: **merged** (auto-merges when ready) or **blocked** (asks for help).
+This skill runs a **persistent drive loop** — re-fetch, act, push, loop — so you never babysit GitHub tabs. It **always enables auto-merge** (`gh pr merge --auto --squash --delete-branch`) so the PR merges as soon as CI and branch protection (including reviews) are satisfied. It stops when **merged** (cleanup + report) or **blocked** (needs human input on something other than waiting for review).
 
 ## Inputs
 
@@ -86,6 +86,7 @@ In bash examples below, `$SKILL_DIR` means the path resolved above. Claude Code 
 
 These rules exist because past implementations broke in the specific ways listed.
 
+- **Always enable auto-merge** — at startup and after every push, run `gh pr merge "$PR" --auto --squash --delete-branch`. Never use a bare `gh pr merge` without `--auto` except `--admin` billing bypass.
 - **Re-fetch before every decision** — cached state causes wrong merge-readiness calls after fast CI flips.
 - **Never stop on an idle poll** — CI is often queued a few seconds after the push; one clean poll ≠ done.
 - **Never push to any branch other than the PR head branch** — avoids touching base or other PRs.
@@ -93,10 +94,10 @@ These rules exist because past implementations broke in the specific ways listed
 - **State every review reply in conversation before posting** — user may redirect the tone or content; surprises erode trust.
 - **Never change tests/CI config to silence a flaky failure** unless logs prove it's branch-related.
 - **Never retry a flaky run more than 3×** — after that it's an infra problem requiring human judgment.
-- **Always restart the loop immediately after any push** — a push triggers new CI; stopping now abandons the run.
-- **Merge automatically once all checks pass and threads are resolved** — no user approval needed.
-- **Always delete the remote branch after merge** — pass `--delete-branch` to `gh pr merge`, then run `cleanup-after-merge.sh` to verify `origin/<head>` is gone (covers UI merges that skipped branch deletion).
-- **Use `--admin`** when CI fails solely due to insufficient billing — do not retry, just merge with `gh pr merge "$PR" --squash --delete-branch --admin`.
+- **Always restart the loop immediately after any push** — a push triggers new CI; re-enable auto-merge after each push.
+- **Do not stop solely because review is pending** when auto-merge is enabled — GitHub merges automatically once an approver satisfies branch protection. Report "auto-merge enabled; waiting for review" and keep polling until merged or blocked on CI/threads.
+- **Always delete the remote branch after merge** — `--delete-branch` on auto-merge handles remote deletion; run `cleanup-after-merge.sh` after merge to verify `origin/<head>` is gone.
+- **Use `--admin`** only when CI fails solely due to insufficient billing — `gh pr merge "$PR" --squash --delete-branch --admin` (not for bypassing required reviews).
 
 ## Core drive loop
 
@@ -104,6 +105,7 @@ These rules exist because past implementations broke in the specific ways listed
 startup:
   resolve PR number and REPO
   HEAD = pr head branch name
+  gh pr merge "$PR" --auto --squash --delete-branch
 
 loop:
   state = bash $SKILL_DIR/scripts/fetch-pr-state.sh $PR
@@ -111,28 +113,25 @@ loop:
   if PR closed (not merged) → report; STOP
 
   # Review threads
-  unresolved = threads where isResolved==false and isOutdated==false
-  for each thread:
-    read body; assess: agree / partially agree / disagree
-    state reply text in conversation          ← user can redirect
-    post reply via gh api
-    if agreed/partial: apply code fix; commit; push
-    bash $SKILL_DIR/scripts/resolve-thread.sh $THREAD_ID
-  if any thread needed a push → restart loop immediately (no sleep)
+  ...
+  if any thread needed a push →
+    gh pr merge "$PR" --auto --squash --delete-branch
+    restart loop immediately (no sleep)
 
   # CI
-  if any check failing:
-    RUN_ID = first failed run for current HEAD commit
-    gh run view $RUN_ID --log-failed   → classify (table below)
-    branch-related  → patch, commit, push; restart loop
-    flaky, retry<3  → gh run rerun $RUN_ID --failed; retry++; restart loop
-    flaky, retry≥3  → surface to user; STOP (blocked)
-    infra/unrelated → surface to user; STOP (blocked)
-  if any check pending/queued → wait (cadence below); restart loop
+  ...
+  if branch-related fix pushed →
+    gh pr merge "$PR" --auto --squash --delete-branch
+    restart loop immediately
 
-  # Readiness
-  if all checks green AND unresolved==0 AND mergeStateStatus==CLEAN:
-    print readiness summary; proceed to merge immediately
+  # Readiness — enable auto-merge (idempotent), then wait for GitHub to merge
+  if all checks green AND unresolved==0:
+    gh pr merge "$PR" --auto --squash --delete-branch
+    if autoMergeRequest enabled OR mergeStateStatus in (CLEAN, BEHIND blocked only by review):
+      print "Auto-merge enabled — waiting for GitHub to merge when requirements met"
+      poll until merged or new failure; restart loop
+    if mergeStateStatus==CLEAN and mergeable:
+      poll for merge completion (auto-merge may be in flight)
 
   sleep(cadence); restart loop
 ```
@@ -212,51 +211,59 @@ For long cycles (5+ min) or when other work can run in parallel, use the Monitor
 | CI pending/queued/running | 60 s |
 | Fix just pushed | Immediate restart — no sleep |
 | CI green, threads still open | 45 s |
-| All green + 0 threads | Readiness gate — STOP |
+| All green + 0 threads | Enable auto-merge; poll until merged |
+
+## Enable auto-merge
+
+Run at **startup**, after **every push**, and at the **readiness gate**:
+
+```bash
+gh pr merge "$PR" --auto --squash --delete-branch
+```
+
+Check status:
+
+```bash
+gh pr view "$PR" --json state,autoMergeRequest,mergeStateStatus,mergeable \
+  --jq '{state, autoMerge: .autoMergeRequest.enabledAt, mergeStateStatus, mergeable}'
+```
+
+When `autoMergeRequest` is set and CI is green with 0 unresolved threads, GitHub merges without a manual `gh pr merge`. If branch protection requires a human review, auto-merge completes **after** approval — do not treat `REVIEW_REQUIRED` alone as blocked.
 
 ## Readiness gate
 
-Confirm ALL before printing:
+Confirm ALL before enabling/waiting on auto-merge:
 
 - [ ] All CI checks green (no pending, no failing)
 - [ ] 0 unresolved review threads (re-run fetch-pr-state.sh)
-- [ ] `mergeStateStatus` is `CLEAN`
-- [ ] PR is not behind the base branch
+- [ ] PR is not behind the base branch (or auto-merge will wait)
 
 Print:
 
 ```
-PR #N is ready to merge — merging now.
+PR #N is ready — auto-merge enabled (squash + delete branch).
   ✓ N/N CI checks green
   ✓ 0 unresolved review threads
-  ✓ Branch up to date with base
+  ✓ Waiting for GitHub to merge when branch protection is satisfied
 ```
 
-Proceed immediately to merge and clean up.
+Poll `gh pr view --json state` until `MERGED`, then run cleanup.
 
-## Merge and clean up
-
-Squash-merge and delete the remote head branch on GitHub:
-
-```bash
-gh pr merge "$PR" --squash --delete-branch
-```
-
-Close issues linked in the PR body (`Closes #N`, `Fixes #N`):
-
-```bash
-gh issue close <N> --comment "Shipped in PR #$PR."
-```
-
-Then clean up local worktree, local branch, and any leftover remote ref:
+## After merge
 
 ```bash
 bash "$SKILL_DIR/scripts/cleanup-after-merge.sh" "$PR"
 ```
 
+Close issues linked in the PR body if still open (`Closes #N`, `Fixes #N`):
+
+```bash
+gh issue close <N> --comment "Shipped in PR #$PR."
+```
+
 `cleanup-after-merge.sh` deletes `origin/<head>` with `git push origin --delete` when the branch still exists (e.g. merged via the GitHub UI without "Delete branch"). Confirm `git branch -a` shows no `origin/<head>` before reporting done.
 
-If the PR was already merged when the loop starts, skip `gh pr merge` and run only `cleanup-after-merge.sh`.
+If the PR was already merged when the loop starts (including via auto-merge), skip `gh pr merge` and run only `cleanup-after-merge.sh`.
 
 ## Blocked state
 
@@ -285,7 +292,8 @@ If the PR is blocked waiting on human input for an extended period, suggest upda
 | Stop after pushing a fix | Restart loop immediately |
 | Retry a flaky runner 10× | Max 3×; then surface to user |
 | Post reply without stating it first | State in conversation; then post |
-| Stop at readiness gate waiting for user | Merge automatically when all green |
+| Stop at readiness gate waiting for user | Enable auto-merge; poll until merged |
+| Call `gh pr merge` without `--auto` | Always `--auto --squash --delete-branch` |
 | Patch CI config to silence flaky test | Retry; escalate if it persists |
 | Batch unrelated fixes in one commit | One commit per logical fix |
 
