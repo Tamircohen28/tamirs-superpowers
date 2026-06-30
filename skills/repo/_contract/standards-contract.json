@@ -1,5 +1,5 @@
 {
-  "version": "1.1.1",
+  "version": "1.2.0",
   "profiles": {
     "app-gold": {
       "repo_type": "app",
@@ -13,7 +13,10 @@
       },
       "readme": {
         "required_headings": ["Prerequisites", "Quick Start"],
-        "required_badges": ["ci", "license"]
+        "required_badges": ["ci", "license", "author", "version"],
+        "require_makefile_lifecycle": true,
+        "require_root_changelog": true,
+        "versioning_doc": "docs/engineering/build-and-release/versioning.md"
       },
       "docs": {
         "required_dirs": ["docs/user", "docs/engineering"],
@@ -50,7 +53,10 @@
       },
       "readme": {
         "required_headings": ["Prerequisites", "Quick Start"],
-        "required_badges": ["ci", "license"]
+        "required_badges": ["ci", "license", "author", "version"],
+        "require_makefile_lifecycle": true,
+        "require_root_changelog": true,
+        "versioning_doc": "docs/engineering/build-and-release/versioning.md"
       },
       "docs": {
         "required_dirs": ["docs/user", "docs/engineering"],

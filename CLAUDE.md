@@ -16,7 +16,7 @@ See [`AGENTS.md`](AGENTS.md) for working agreements, allowed commands, and contr
 |------|---------|
 | `.claude-plugin/plugin.json` | Plugin manifest — name, version, dependencies, statusLine |
 | `.mcp.json` | MCP server stubs — fill env vars to activate |
-| `statusline.sh` | Statusline script wired via `plugin.json` |
+| `scripts/statusline.sh` | Statusline script wired via `plugin.json` |
 | `hooks/hooks.json` | Hook event wiring (PreToolUse, SessionStart, etc.) |
 | `hooks/*.sh` | Hook scripts |
 | `hooks/lib/worktree-common.sh` | Shared bash helpers for all worktree hooks |

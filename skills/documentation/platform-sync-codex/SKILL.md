@@ -6,7 +6,8 @@ description: >-
   not yet leveraged, and returns structured improvement steps. Not user-invocable — called
   by the platform-sync umbrella skill.
 when_to_use: |
-  Invoked by the platform-sync umbrella when .codex-plugin/plugin.json is detected.
+  Invoked by platform-sync when any Codex usage is detected (.codex-plugin/, AGENTS.md,
+  .codex/ config).
   Also callable by other skills needing live Codex CLI improvement suggestions:
   - "audit my codex plugin"
   - "what Codex CLI features am I missing"
@@ -37,7 +38,7 @@ metadata:
     - openai
     - audit
     - planning
-  updated-date: '2026-06-28'
+  updated-date: '2026-06-30'
 ---
 
 # platform-sync-codex
@@ -74,15 +75,17 @@ Also fetch (P1) based on local config:
 
 ## Step 2 — Read local config
 
-Read `.codex-plugin/plugin.json`. Note:
-- `version` field (current plugin version)
-- `skills` paths declared
-- `mcpServers` or MCP config (if any)
-- `hooks` path (if any)
-- Any other fields present
+Read from repo root — all paths that triggered detection:
 
-Also check the repo root for:
-- `AGENTS.md` file (Codex CLI reads this for agent instructions, analogous to CLAUDE.md)
+| Path | What to note |
+|------|----------------|
+| `.codex-plugin/plugin.json` | `version`, `skills`, `hooks`, `mcpServers` |
+| `AGENTS.md` | Size (≤32 KiB), commands, working agreements |
+| `.codex/` or `codex.config.*` | CLI config overrides |
+| `Makefile` | Install/update commands Codex agents should use |
+
+For **app repos** with only `AGENTS.md`, compare against latest Codex CLI docs for
+AGENTS.md best practices, config, and features not yet documented for agents.
 
 ---
 
@@ -111,7 +114,8 @@ hook support and compare against what's configured.
 ## Step 4 — Output
 
 ```
-## Codex CLI — v{version from .codex-plugin/plugin.json or "not set"} detected → v{latest tag from releases} latest
+## Codex CLI — v{version from .codex-plugin/plugin.json or "project-only"} detected → v{latest tag from releases} latest
+**Signals:** [paths that triggered detection]
 
 ### Improvement Steps
 1. [Feature name] — [one sentence why it applies to this repo]

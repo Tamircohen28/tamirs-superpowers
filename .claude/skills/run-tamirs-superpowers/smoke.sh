@@ -24,7 +24,7 @@ fi
 # ── 2. Statusline script ───────────────────────────────────────────────────
 echo ""
 echo "=== 2. statusline.sh ==="
-output=$(bash statusline.sh 2>&1) || true
+output=$(bash scripts/statusline.sh 2>&1) || true
 if echo "$output" | grep -qE '(ctx:|h:)'; then
   ok "statusline.sh — output: $(echo "$output" | head -1)"
 else

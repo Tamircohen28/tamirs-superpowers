@@ -107,7 +107,7 @@ PLUGIN_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # so the path survives plugin updates without needing to re-run install.sh.
 if command -v jq &>/dev/null; then
   # shellcheck disable=SC2016  # single quotes intentional: $HOME must expand at runtime, not here
-  STATUS_CMD='f=$(ls "$HOME"/.claude/plugins/cache/tamirs-plugins/tamirs-superpowers/*/statusline.sh 2>/dev/null | sort -rV | head -1) && [ -n "$f" ] && bash "$f"'
+  STATUS_CMD='f=$(ls "$HOME"/.claude/plugins/cache/tamirs-plugins/tamirs-superpowers/*/scripts/statusline.sh 2>/dev/null | sort -rV | head -1) && [ -n "$f" ] && bash "$f"'
   jq --arg cmd "$STATUS_CMD" '. + {statusLine: {type: "command", command: $cmd}}' \
     "$SETTINGS_FILE" > "${SETTINGS_FILE}.tmp" && mv "${SETTINGS_FILE}.tmp" "$SETTINGS_FILE"
   printf 'Wired statusLine (finds latest installed version at runtime)\n'

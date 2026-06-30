@@ -6,7 +6,8 @@ description: >-
   the latest docs NOT yet used, and returns structured improvement steps. Not
   user-invocable — called by the platform-sync umbrella skill.
 when_to_use: |
-  Invoked by the platform-sync umbrella skill when .claude-plugin/plugin.json is detected.
+  Invoked by platform-sync when any Claude Code usage is detected (.claude-plugin/,
+  CLAUDE.md, .claude/rules/, .claude/skills/, skills/ + hooks/, .mcp.json, commands/).
   Also callable by other skills needing live-doc-grounded Claude Code improvement suggestions:
   - "audit this Claude Code plugin config"
   - "what Claude Code features am I missing"
@@ -37,7 +38,7 @@ metadata:
     - claude-code
     - audit
     - planning
-  updated-date: '2026-06-28'
+  updated-date: '2026-06-30'
 ---
 
 # platform-sync-claude
@@ -88,13 +89,24 @@ Use base URL `https://code.claude.com/docs/en/<topic>` for all P1 docs.
 
 ## Step 2 — Read local config
 
-Read these files if they exist (use $CLAUDE_SKILL_DIR relative to repo root is not correct
-— read from the repo root where the plugin lives):
-- `.claude-plugin/plugin.json` → note `version`, `skills`, `hooks`, `settings`
-- All `SKILL.md` files under `skills/` (glob `skills/**/*.md`) → note skill names, tool usage, hook wiring
-- `hooks/hooks.json` → note which hook events and matchers are configured
-- `.mcp.json` → note which MCP servers are declared
-- `CLAUDE.md` and `.claude/rules/*.md` if present → note scoping patterns used
+Read from the **repo root** (app, plugin, or hybrid). Scan every path that triggered
+platform-sync detection, plus:
+
+| Path | What to note |
+|------|----------------|
+| `.claude-plugin/plugin.json` | `version`, `skills`, `hooks`, `settings`, `commands` |
+| `skills/**/SKILL.md` | Skill names, frontmatter fields, tool usage |
+| `.claude/skills/**/SKILL.md` | Project-scoped skills |
+| `hooks/hooks.json` | Hook events, matchers, scripts |
+| `.mcp.json` | MCP servers declared |
+| `CLAUDE.md` | Memory imports, commands, constraints |
+| `.claude/rules/*.md` | Path-scoped rule patterns |
+| `commands/` | Slash command definitions |
+| `agents/*.md` | Specialist subagents (if present) |
+
+For **app repos** without a plugin manifest, focus on `CLAUDE.md`, `.claude/rules/`,
+`.claude/skills/`, and any `hooks/hooks.json` — compare against latest docs for project
+memory, rules, skills, and hooks the app could adopt.
 
 ---
 
@@ -129,7 +141,8 @@ agent-teams approach instead.
 ## Step 4 — Output
 
 ```
-## Claude Code — v{version from .claude-plugin/plugin.json} detected → v{latest from releases} latest
+## Claude Code — v{version from .claude-plugin/plugin.json or "project-only"} detected → v{latest from releases} latest
+**Signals:** [paths that triggered detection]
 
 ### Improvement Steps
 1. [Feature name] — [one sentence why it applies to this repo]

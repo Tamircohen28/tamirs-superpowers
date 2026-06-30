@@ -6,7 +6,8 @@ description: >-
   returns structured improvement steps. Not user-invocable — called by the platform-sync
   umbrella skill.
 when_to_use: |
-  Invoked by the platform-sync umbrella when .cursor-plugin/plugin.json is detected.
+  Invoked by platform-sync when any Cursor usage is detected (.cursor-plugin/,
+  .cursor/rules/*.mdc, .cursorrules).
   Also callable by other skills needing live Cursor improvement suggestions:
   - "audit my cursor plugin"
   - "what Cursor features am I missing"
@@ -36,7 +37,7 @@ metadata:
     - cursor
     - audit
     - planning
-  updated-date: '2026-06-28'
+  updated-date: '2026-06-30'
 ---
 
 # platform-sync-cursor
@@ -77,16 +78,18 @@ Then fetch P1 docs based on local config:
 
 ## Step 2 — Read local config
 
-Read `.cursor-plugin/plugin.json`. Note:
-- `version` field
-- `skills` paths declared
-- `mcpServers` config (if any)
-- Any other fields
+Read from repo root — all paths that triggered detection:
 
-Also check the repo root for Cursor-specific files:
-- `.cursorrules` (legacy rules file)
-- `.cursor/rules/` directory (modern scoped rules)
-- `.cursor/mcp.json` (Cursor MCP config)
+| Path | What to note |
+|------|----------------|
+| `.cursor-plugin/plugin.json` | `version`, `skills`, `mcpServers` |
+| `.cursor/rules/*.mdc` | `alwaysApply`, `globs`, body pointers to AGENTS.md |
+| `.cursorrules` | Legacy rules content (recommend migration to `.mdc`) |
+| `.cursor/mcp.json` | MCP servers (if present) |
+| `AGENTS.md` | Whether Cursor rules import canonical agent policy |
+
+For **app repos** without a Cursor plugin manifest, focus on `.cursor/rules/` and
+recommend features from latest Cursor docs (rules, MCP, skills integration).
 
 ---
 

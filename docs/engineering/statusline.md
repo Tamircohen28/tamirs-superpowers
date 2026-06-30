@@ -1,11 +1,11 @@
 # Statusline
 
-`statusline.sh` renders a 2-3 line status display in the Claude Code footer on every turn. It is wired via the `statusLine` field in `.claude-plugin/plugin.json`:
+`scripts/statusline.sh` renders a 2-3 line status display in the Claude Code footer on every turn. It is wired via the `statusLine` field in `.claude-plugin/plugin.json`:
 
 ```json
 "statusLine": {
   "type": "command",
-  "command": "f=$(ls $HOME/.claude/plugins/cache/tamirs-plugins/tamirs-superpowers/*/statusline.sh 2>/dev/null | sort -rV | head -1) && [ -n \"$f\" ] && bash \"$f\""
+  "command": "f=$(ls $HOME/.claude/plugins/cache/tamirs-plugins/tamirs-superpowers/*/scripts/statusline.sh 2>/dev/null | sort -rV | head -1) && [ -n \"$f\" ] && bash \"$f\""
 }
 ```
 
@@ -87,8 +87,8 @@ The URL is resolved by reading the git remote for the current branch (falls back
 
 ## Modifying the statusline
 
-1. Edit `statusline.sh`
-2. Test locally: `echo '{}' | bash statusline.sh`
+1. Edit `scripts/statusline.sh`
+2. Test locally: `echo '{}' | bash scripts/statusline.sh`
 3. Test with real data: copy a sample JSON payload from Claude Code's debug output and pipe it in
 4. Run `make lint` to confirm shellcheck passes
 5. Reload the plugin: `/reload-plugins`

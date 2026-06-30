@@ -10,14 +10,18 @@ Required sections in order:
 
 1. Centered hero image or badge placeholder
 2. Project name as `# Title`
-3. Badges row: CI status, license
-4. One-paragraph hook
-5. Feature highlights (4–6 bullets)
-6. Prerequisites
-7. Quick Start (3–5 steps)
-8. Documentation link to `docs/`
-9. Contributing link to `docs/CONTRIBUTING.md`
-10. License line
+3. **Badge row 1:** author (GitHub profile link), CI status, license, version
+4. **Badge row 2 (optional):** npm/PyPI, live site, framework versions — omit row if N/A
+5. **Badge row 3 (when ≥2 AI targets):** Claude Code / Cursor / Codex version badges
+6. One-paragraph hook
+7. Feature highlights (4–6 bullets)
+8. Prerequisites
+9. Quick Start — **one-liner `make install` first**; per-target subsections when multi-platform
+10. Documentation link to `docs/`
+11. Contributing link to `docs/CONTRIBUTING.md`
+12. License line
+
+See [`references/readme-badges.md`](../references/readme-badges.md) for badge markdown examples.
 
 Never use placeholder text. Derive content from the actual codebase.
 
@@ -63,8 +67,11 @@ See scaffold-templates section 5c below for full YAML shapes.
 
 - `LICENSE` — MIT, current year
 - `CODEOWNERS` — `* @TamirCohen28` (or project owner)
-- `CLAUDE.md` — overview, key files, commands, constraints
-- `Makefile` — install, test, lint when applicable
+- `AGENTS.md` — canonical agent policy (required)
+- `CHANGELOG.md` — root mirror; keep in sync with `docs/CHANGELOG.md`
+- `CLAUDE.md` — `@AGENTS.md` import + Claude-only addenda
+- `Makefile` — **required targets:** `install`, `update`, `uninstall`, plus `test`/`lint` when applicable
+- `docs/engineering/build-and-release/versioning.md` — semver + tagging policy (see `references/versioning-policy.md`)
 
 ---
 
