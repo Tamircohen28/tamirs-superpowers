@@ -1,6 +1,6 @@
 ---
 name: repo-standards
-description: 'Use when auditing or polishing a repository to Tamir Cohen standards — README badges, docs tree, CI/CD, branch protection, employer IP scan, repo hygiene, and multi-agent setup. Triggers: repo standards, polish this repo, prepare for GitHub, world-class repo, publish-ready, scan employer IP, fix repo hygiene, repo-standards review/plan/polish, standards audit.'
+description: 'Use when auditing or polishing a repository to Tamir Cohen standards — README badges (author, version, AI targets), Makefile install/update/uninstall, docs tree, CI/CD, changelog + versioning policy, branch protection, employer IP scan, repo hygiene, and multi-agent setup. Triggers: repo standards, polish this repo, prepare for GitHub, world-class repo, publish-ready, scan employer IP, fix repo hygiene, repo-standards review/plan/polish, standards audit.'
 when_to_use: 'User wants to review, plan, or implement full repo standards — README and docs layout, GitHub CI/CD, branch rules, IP-clean publish prep, and multi-agent support via multi-agent-repo. Phrases: polish this repo, repo standards review, make publish-ready, audit repo hygiene, standards plan, standards polish.'
 argument-hint: '[review|plan|polish] [repo path, review/plan doc path, or free-text constraints — default: review + cwd]'
 arguments:
@@ -65,7 +65,8 @@ Publishing or maintaining a repo without a unified checklist leaks employer IP, 
 | `references/polish-phases.md` | Polish implementation order |
 | `references/delegation.md` | Skill() prompts for child skills |
 | `references/plugin-review.md` | Agent-kit / plugin-gold manual review axes |
-| `references/scaffold-templates.md` | Pointer → `_contract/templates/` |
+| `../_contract/references/readme-badges.md` | Badge rows, Makefile lifecycle, multi-target README |
+| `../_contract/references/versioning-policy.md` | Semver, tagging, changelog enforcement |
 | `scripts/parse-mode-args.sh` | Mode/target/doc_path parsing |
 | `scripts/standards-inventory.sh` | Re-export → `_contract/scripts/` |
 | `scripts/score-contract-gaps.sh` | Merged standards + multi-agent gaps |
@@ -174,6 +175,12 @@ git checkout -b feat/repo-standards-setup 2>/dev/null || git checkout -b "feat/r
 ```
 
 5. **Phases 1–4:** Implement per plan using `$CONTRACT_ROOT/templates/` (see `INDEX.md`).
+   **Phase 4 (branch governance)** — after CI workflow is on the default branch:
+   ```bash
+   bash "$CONTRACT_ROOT/scripts/enable-repo-merge-settings.sh"
+   bash "$CONTRACT_ROOT/scripts/ensure-branch-protection.sh"
+   ```
+   Use `--verify-only` on `ensure-branch-protection.sh` when the user asked to skip applying rules (audit only).
    **Banner (phase 1):** If S1-05 is a gap, generate `assets/banner.svg` — a 600×200 SVG with the repo name centered in bold on a dark background (#0F1117), subtitle in gray (#8B949E), and a subtle accent stripe. Use web-safe font stack (no external references). Add `<p align="center"><img src="assets/banner.svg" alt="REPO_NAME" width="600" /></p>` as the first line of README.md.
 6. **Phase 5:** `Skill("multi-agent-repo")` per `references/delegation.md` on the same branch.
 7. **Phase 6:** `Skill("docs-review")`; if plugin or agent-kit repo, `Skill("changelog-review")`. Fix all P1 findings.

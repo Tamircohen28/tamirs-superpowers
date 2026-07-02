@@ -18,6 +18,11 @@ Minimal Node fixture for repo contract validation.
 - Never commit secrets or `.env` files
 - CI uses `ubuntu-latest` only
 
+## Versioning
+
+See [docs/engineering/build-and-release/versioning.md](docs/engineering/build-and-release/versioning.md).
+Update `docs/CHANGELOG.md` and root `CHANGELOG.md` under `[Unreleased]` before each release.
+
 ## Dependency management
 
 - Configure `.github/dependabot.yml` with only the ecosystems present in this repo.

@@ -55,16 +55,16 @@ effort: low
 
 **Never hand-write a SKILL.md from scratch** — use the bundled `skill-creator` skill.
 
-## Skill domains (16 skills total)
+## Skill domains (23 skills total)
 
 | Domain | Skills |
 |--------|--------|
-| `creative` | algorithmic-art |
+| `creative` | algorithmic-art, field-notebook-ui |
 | `debugging` | targeted-debug |
-| `dev-workflow` | plan-dev, pr-dev, start-dev |
-| `documentation` | changelog-review, dark-terminal-doc, docs-review |
+| `dev-workflow` | plan-dev, pr-dev, start-dev, switch-dev |
+| `documentation` | changelog-review, dark-terminal-doc, docs-review, platform-sync, platform-sync-claude, platform-sync-codex, platform-sync-cursor |
 | `mcp` | mcp-builder, mcp-pagination |
 | `toolkit` | find-skill, session-report, skill-creator |
-| `repo` | multi-agent-repo, repo-scaffold, repo-standards |
+| `repo` | cleanup, multi-agent-repo, repo-scaffold, repo-standards |
 
 **User guide:** [docs/user/agent-kit.md](../../docs/user/agent-kit.md) — agent-kit distribution repos (`repo-scaffold --type plugin`).

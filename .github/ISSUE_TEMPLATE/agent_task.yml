@@ -1,0 +1,78 @@
+name: Agent task
+description: Structured implementation task for plan-dev / switch-dev cross-platform workflow
+labels:
+  - agent:any
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this template for agent-driven implementation work. Resume and Agent routing sections are updated by `/switch-dev handoff`.
+
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: 2-sentence goal for this task
+    validations:
+      required: true
+
+  - type: textarea
+    id: tasks
+    attributes:
+      label: Tasks
+      description: Checkbox list of concrete implementation steps
+      value: |
+        - [ ] Task 1
+    validations:
+      required: true
+
+  - type: textarea
+    id: verification
+    attributes:
+      label: Verification
+      description: How to confirm this task is done
+      value: |
+        - [ ] Run project validation (make validate / npm test)
+    validations:
+      required: true
+
+  - type: input
+    id: dependencies
+    attributes:
+      label: Dependencies
+      description: '"None" or "Blocked by #N"'
+      value: None
+
+  - type: dropdown
+    id: suggested_platform
+    attributes:
+      label: Suggested platform
+      options:
+        - any
+        - claude
+        - cursor
+        - codex
+    validations:
+      required: true
+
+  - type: textarea
+    id: resume
+    attributes:
+      label: Resume (managed by agents)
+      description: Do not edit manually unless necessary — switch-dev updates this
+      value: |
+        - **Done:** (none yet)
+        - **Next:** Task 1
+        - **Decisions:** (none yet)
+        - **Blocked:** none
+        - **Branch:** (unset)
+        - **Worktree:** (unset)
+        - **Last agent:** (unset)
+
+  - type: textarea
+    id: agent_routing
+    attributes:
+      label: Agent routing
+      value: |
+        - **Owner:** agent:any
+        - **Suggested platform:** any

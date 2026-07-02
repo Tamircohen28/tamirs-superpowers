@@ -294,7 +294,14 @@ Write these files:
 5. REPO_ROOT/.gitignore — comprehensive for TECH per template
 6. REPO_ROOT/.nvmrc — if TECH is node, nextjs, or SCAFFOLD_TYPE=plugin; content: "22"
 7. REPO_ROOT/scripts/check-agent-drift.sh — copy from CONTRACT_ROOT/templates/check-agent-drift.sh.tmpl (executable)
-8. If SCAFFOLD_TYPE=plugin: REPO_ROOT/package.json from CONTRACT_ROOT/templates/plugin/package.json.tmpl (build, validate, agent:check scripts) and REPO_ROOT/package-lock.json from package-lock.json.tmpl (enables npm ci in CI)
+8. If TECH is node or nextjs: REPO_ROOT/vitest.config.ts — minimal config with `passWithNoTests: true` so CI never fails when no test files exist yet:
+   ```typescript
+   import { defineConfig } from 'vitest/config';
+   export default defineConfig({
+     test: { environment: 'node', passWithNoTests: true },
+   });
+   ```
+9. If SCAFFOLD_TYPE=plugin: REPO_ROOT/package.json from CONTRACT_ROOT/templates/plugin/package.json.tmpl (build, validate, agent:check scripts) and REPO_ROOT/package-lock.json from package-lock.json.tmpl (enables npm ci in CI)
 ```
 
 ---
@@ -377,23 +384,16 @@ EOF
 git push origin master
 ```
 
-Apply branch protection:
+Enable PR auto-merge (required for `start-dev` / `pr-dev`):
 
 ```bash
-gh api repos/TamirCohen28/$REPO_NAME/branches/master/protection \
-  --method PUT \
-  --silent \
-  -F 'required_status_checks[strict]=true' \
-  -F 'required_status_checks[contexts][]=CI' \
-  -F 'required_pull_request_reviews[required_approving_review_count]=1' \
-  -F 'enforce_admins=false' \
-  -F 'restrictions=null'
+bash "$CONTRACT_ROOT/scripts/enable-repo-merge-settings.sh" "TamirCohen28/$REPO_NAME"
 ```
 
-Confirm:
+Apply branch protection on `master` (create if missing, verify 1 review + `CI` check):
+
 ```bash
-gh api repos/TamirCohen28/$REPO_NAME/branches/master/protection \
-  --jq '.required_status_checks.contexts, .required_pull_request_reviews.required_approving_review_count'
+bash "$CONTRACT_ROOT/scripts/ensure-branch-protection.sh" "TamirCohen28/$REPO_NAME" master
 ```
 
 ### Stage 5: Run skill-creator

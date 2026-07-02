@@ -9,11 +9,12 @@
       "expectations": [
         "The skill fetches and reads the content of issue #42 before starting implementation",
         "A feature branch is created (not main/master/develop) with a slug derived from the issue title",
-        "A git worktree is created at .claude/worktrees/<branch-name>",
+        "A git worktree is created via resolve-worktree.sh at .<platform>/.worktrees/<branch-slug> (not hardcoded .claude/ only)",
         "At least one commit is made using conventional commit format (feat/fix/chore:)",
         "Validation commands are run (make validate, npm test, or equivalent) before pushing",
         "The branch is pushed to origin with git push -u",
         "A PR is opened via gh pr create with a title and body",
+        "Auto-merge is enabled via gh pr merge --auto --squash --delete-branch after PR creation",
         "The PR body contains 'Closes #42'",
         "A final summary is printed listing files changed, commits, validation status, and PR URL"
       ]

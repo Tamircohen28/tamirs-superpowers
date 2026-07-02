@@ -1,0 +1,12 @@
+---
+alwaysApply: false
+globs: [".claude/.worktrees/**/*", ".cursor/.worktrees/**/*", ".codex/.worktrees/**/*"]
+---
+
+# Cross-Platform Handoff
+
+Canonical rule: `rules/dev/cross-platform-handoff.md`.
+
+Before ending a session in a worktree: push commits and run `/switch-dev handoff #N`.
+
+Resume on a new platform: `/switch-dev resume #N` then continue **Next** from the issue Resume block.

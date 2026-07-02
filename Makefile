@@ -1,4 +1,4 @@
-.PHONY: validate lint test plugin-validate test-repo-contract help
+.PHONY: help install update uninstall validate lint test plugin-validate test-repo-contract
 
 SKILLS_DIR := skills
 HOOKS_DIR  := hooks
@@ -6,11 +6,23 @@ CONTRACT_DIR := skills/repo/_contract
 
 help:
 	@echo "Available targets:"
+	@echo "  install            — bootstrap ~/.claude/settings.json and specialist agents"
+	@echo "  update             — refresh plugin + agents (see also /plugin update in Claude Code)"
+	@echo "  uninstall          — remove installed agents and uninstall plugin when possible"
 	@echo "  validate           — shellcheck + JSON validation + SKILL.md frontmatter + contract test"
 	@echo "  lint               — shellcheck .sh files only"
 	@echo "  test-repo-contract — assert scaffold-gold (app-gold) + scaffold-plugin-gold (plugin-gold)"
-	@echo "  plugin-validate    — run 'claude plugin validate' (primary validator, requires Claude Code CLI)"
+	@echo "  plugin-validate    — run 'claude plugin validate' (requires Claude Code CLI)"
 	@echo "  test               — alias for validate"
+
+install:
+	@bash scripts/install.sh
+
+update:
+	@bash scripts/update.sh
+
+uninstall:
+	@bash scripts/uninstall.sh
 
 validate: lint test-repo-contract
 	@echo "--- Validating JSON files ---"

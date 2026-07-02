@@ -1,18 +1,28 @@
 # tamirs-superpowers
 
-A multi-platform agent plugin (Claude Code, Cursor, Codex) that bundles 17 skills, smart worktree hooks, and MCP server stubs. It is **not** a Node/Python/Go app — there is no build step, no `package.json`, no compiled output. All content is Markdown, JSON, and Bash.
+A multi-platform agent plugin (Claude Code, Cursor, Codex) that bundles 23 skills, smart worktree hooks, and MCP server stubs. It is **not** a Node/Python/Go app — there is no build step, no `package.json`, no compiled output. All content is Markdown, JSON, and Bash.
 
-**Install (Claude Code)** — `tamirs-plugins` marketplace:
+**Install (all platforms)** — from a clone:
+
+```bash
+make install   # bootstrap Claude settings + agents
+make update    # refresh plugin + agents
+make uninstall # remove agents + uninstall plugin when possible
+```
+
+**Claude Code (marketplace)** — `tamirs-plugins` catalog:
+
 ```
 /plugin marketplace add Tamircohen28/plugins
 /plugin install tamirs-superpowers@tamirs-plugins
 ```
 
-**Install (Cursor / Codex)** — enable the plugin from this repo via `.cursor-plugin/plugin.json` or `.codex-plugin/plugin.json` (same `skills/` tree).
+**Cursor / Codex** — enable via `.cursor-plugin/plugin.json` or `.codex-plugin/plugin.json` (same `skills/` tree).
 
 ## Working agreements
 
 - Validate after every change: `make validate` (shellcheck + JSON lint + frontmatter + `make test-repo-contract`)
+- Versioning: see [docs/engineering/build-and-release/versioning.md](docs/engineering/build-and-release/versioning.md) — bump all plugin manifests together; tag `vX.Y.Z` on release
 - Commit format: `<type>(<scope>): <description>` — types: `feat`, `fix`, `chore`, `docs`, `refactor` — scopes: `skills`, `hooks`, `marketplace`, `ci`, `docs`
 - Never add `runs-on: [self-hosted]` to any CI workflow — use `ubuntu-latest`
 - Never commit secrets or tokens — `.mcp.json` uses `${ENV_VAR}` placeholders only
@@ -23,7 +33,7 @@ A multi-platform agent plugin (Claude Code, Cursor, Codex) that bundles 17 skill
 - All JSON files must be valid — checked by `make validate`
 - All `.sh` files must pass `shellcheck` — checked by `make lint`
 - Every `SKILL.md` must include all 16 official Claude Code frontmatter fields plus `metadata.updated-date` — validated by `scripts/validate-skill-frontmatter.py`
-- No install step exists — this is a plugin, not a standalone tool
+- No install step for plugin **content** — use `make install` to bootstrap Claude machine settings and agents
 
 ## Key files
 
@@ -37,7 +47,11 @@ A multi-platform agent plugin (Claude Code, Cursor, Codex) that bundles 17 skill
 | `hooks/lib/worktree-common.sh` | Shared bash helpers for all worktree hooks — do not modify without shellchecking |
 | `skills/<domain>/<name>/SKILL.md` | Bundled skill definitions — grouped by domain |
 | `skills/repo/_contract/` | Shared repo scaffold/standards contract (not a skill) |
-| `Makefile` | `validate`, `lint`, `test`, `test-repo-contract` |
+| `Makefile` | `install`, `update`, `uninstall`, `validate`, `lint`, `test`, `test-repo-contract` |
+| `scripts/install.sh` | Bootstrap `~/.claude/settings.json` + agents (`make install`) |
+| `scripts/update.sh` | Refresh plugin + agents (`make update`) |
+| `scripts/uninstall.sh` | Remove installed artifacts (`make uninstall`) |
+| `scripts/statusline.sh` | Claude Code footer statusline (wired via `plugin.json`) |
 
 ## Contributor rules (`rules/dev/`)
 

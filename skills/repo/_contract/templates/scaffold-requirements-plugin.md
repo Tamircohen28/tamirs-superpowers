@@ -39,7 +39,9 @@ Must include paths: `canonical/`, `plugins/`, `scripts/`, `hooks/`
 
 ## Contract profile
 
-Exit gate: `assert-contract.sh <root> plugin-gold` (P1=P2=P3=0 offline except branch protection).
+Exit gate: `assert-contract.sh <root> plugin-gold` (P1=P2=P3=0 offline except branch protection and merge settings).
+
+Apply `enable-repo-merge-settings.sh` and `ensure-branch-protection.sh` in polish phase 4 (same as app-gold).
 
 ## Templates
 

@@ -2,10 +2,11 @@
 # install.sh — bootstrap ~/.claude/settings.json for a new machine.
 #
 # Usage:
-#   bash install.sh
+#   make install
+#   bash scripts/install.sh
 #
 # Optional — configure proxy exit-node guard (sets up ~/.claude/ensure-exit.sh):
-#   CLAUDE_EXIT_PROXY=http://proxy:port CLAUDE_EXIT_PUBLIC_IP=1.2.3.4 bash install.sh
+#   CLAUDE_EXIT_PROXY=http://proxy:port CLAUDE_EXIT_PUBLIC_IP=1.2.3.4 make install
 #
 # What this does:
 #   1. Backs up existing ~/.claude/settings.json (if any) to settings.json.bak.<timestamp>
@@ -17,6 +18,9 @@
 #   - (The marketplace URL is already configured in extraKnownMarketplaces below)
 
 set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PLUGIN_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
 CLAUDE_DIR="${HOME}/.claude"
 SETTINGS_FILE="${CLAUDE_DIR}/settings.json"
@@ -101,13 +105,11 @@ if [[ -n "$ENABLED_PLUGINS" ]] && command -v jq &>/dev/null; then
   printf 'Preserved enabledPlugins (%d entries)\n' "$(echo "$ENABLED_PLUGINS" | jq 'length')"
 fi
 
-PLUGIN_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-
 # Wire statusLine — finds the latest installed plugin version at runtime
 # so the path survives plugin updates without needing to re-run install.sh.
 if command -v jq &>/dev/null; then
   # shellcheck disable=SC2016  # single quotes intentional: $HOME must expand at runtime, not here
-  STATUS_CMD='f=$(ls "$HOME"/.claude/plugins/cache/tamirs-plugins/tamirs-superpowers/*/statusline.sh 2>/dev/null | sort -rV | head -1) && [ -n "$f" ] && bash "$f"'
+  STATUS_CMD='f=$(ls "$HOME"/.claude/plugins/cache/tamirs-plugins/tamirs-superpowers/*/scripts/statusline.sh 2>/dev/null | sort -rV | head -1) && [ -n "$f" ] && bash "$f"'
   jq --arg cmd "$STATUS_CMD" '. + {statusLine: {type: "command", command: $cmd}}' \
     "$SETTINGS_FILE" > "${SETTINGS_FILE}.tmp" && mv "${SETTINGS_FILE}.tmp" "$SETTINGS_FILE"
   printf 'Wired statusLine (finds latest installed version at runtime)\n'

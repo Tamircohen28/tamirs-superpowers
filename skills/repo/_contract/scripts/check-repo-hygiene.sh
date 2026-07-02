@@ -11,6 +11,9 @@ misplaced_docs=0
 ticket_named=0
 empty_dirs=0
 self_hosted_ci=0
+root_shell_scripts=0
+
+root_shell_scripts=$(find "$ROOT" -maxdepth 1 -name '*.sh' 2>/dev/null | wc -l | tr -d ' ')
 
 if [[ -d "$ROOT/docs" ]]; then
   misplaced_docs=$(find "$ROOT/docs" -maxdepth 1 -name '*.md' \
@@ -47,4 +50,5 @@ jq -nc \
   --argjson ticket_named "$ticket_named" \
   --argjson empty_dirs "$empty_dirs" \
   --argjson self_hosted_ci "$self_hosted_ci" \
-  '{root: $root, hygiene: {misplaced_top_level_docs: $misplaced_docs, ticket_named_outside_engineering: $ticket_named, empty_dirs: $empty_dirs, self_hosted_ci: ($self_hosted_ci == 1)}}'
+  --argjson root_shell_scripts "$root_shell_scripts" \
+  '{root: $root, hygiene: {misplaced_top_level_docs: $misplaced_docs, ticket_named_outside_engineering: $ticket_named, empty_dirs: $empty_dirs, self_hosted_ci: ($self_hosted_ci == 1), root_shell_scripts: $root_shell_scripts}}'

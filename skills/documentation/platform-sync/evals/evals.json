@@ -4,19 +4,25 @@
     {
       "id": 1,
       "prompt": "Run /platform-sync — this repo has all three manifests: .claude-plugin/plugin.json, .codex-plugin/plugin.json, and .cursor-plugin/plugin.json",
-      "expected_output": "Should detect all three platform manifests, invoke platform-sync-claude, platform-sync-codex, and platform-sync-cursor in sequence, then synthesize a Unified Improvement Plan with sections tagged [Claude Code], [Codex], and [Cursor]. Plan must include concrete snippets and source URLs for each step.",
+      "expected_output": "Should detect all three platform targets, invoke platform-sync-claude, platform-sync-codex, and platform-sync-cursor, then synthesize a Unified Improvement Plan with sections tagged [Claude Code], [Codex], and [Cursor]. Plan must list detection signals per platform and include concrete snippets and source URLs for each step.",
       "files": []
     },
     {
       "id": 2,
       "prompt": "/platform-sync — this repo only has a .claude-plugin/ directory with a plugin.json. There is no .codex-plugin/ or .cursor-plugin/.",
-      "expected_output": "Should detect only the Claude Code manifest, invoke only platform-sync-claude, and output an improvement plan tagged [Claude Code] only. Must not attempt to invoke platform-sync-codex or platform-sync-cursor.",
+      "expected_output": "Should detect Claude Code via .claude-plugin/plugin.json, invoke only platform-sync-claude, and output an improvement plan tagged [Claude Code] only. Must not attempt to invoke platform-sync-codex or platform-sync-cursor.",
       "files": []
     },
     {
       "id": 3,
-      "prompt": "/platform-sync — I'm running this in a regular Next.js app repo. There is no .claude-plugin/, .codex-plugin/, or .cursor-plugin/ directory.",
-      "expected_output": "Should detect no platform manifests and output the exact message: 'No platform plugin manifests found in this repo. This skill is intended for repos that bundle plugin configurations for Claude Code, OpenAI Codex CLI, or Cursor (.claude-plugin/, .codex-plugin/, .cursor-plugin/).' Then stop — no sub-skill invocations.",
+      "prompt": "/platform-sync — I'm running this in a regular Next.js app repo. There is no plugin manifest, but the repo has CLAUDE.md, AGENTS.md, and .cursor/rules/000-project.mdc.",
+      "expected_output": "Should detect Claude Code (CLAUDE.md), Codex (AGENTS.md), and Cursor (.cursor/rules/) without plugin manifests. Invoke platform-sync-claude, platform-sync-codex, and platform-sync-cursor. Must NOT output the 'no usage detected' stop message.",
+      "files": []
+    },
+    {
+      "id": 4,
+      "prompt": "/platform-sync — plain library repo with no CLAUDE.md, AGENTS.md, .cursor/rules/, or any plugin manifest.",
+      "expected_output": "Should detect no AI coding assistant usage and output the exact 'No AI coding assistant usage detected' message from detection.md, then stop with no sub-skill invocations.",
       "files": []
     }
   ]

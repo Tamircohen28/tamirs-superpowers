@@ -1,13 +1,8 @@
-#!/bin/bash
-# Stop hook — lightweight 24h cache check for plugin repos.
-# If this repo has at least one platform plugin manifest AND 24h have elapsed
-# since the last check, emits a systemMessage nudging the user to run /platform-sync.
-# No web fetches here — those stay inside the platform-sync skill.
-
+#!/usr/bin/env bash
+# plugin-version-watch.sh — Stop hook: 24h nudge to run /platform-sync when repo uses any AI target.
 set -euo pipefail
 
 CACHE_FILE="${HOME}/.claude/cache/platform-sync-last-check.json"
-PLUGIN_MARKERS=(".claude-plugin" ".codex-plugin" ".cursor-plugin")
 
 # Read cwd from hook input (Stop hook provides JSON on stdin)
 input="$(cat)"
@@ -16,16 +11,22 @@ if [ -z "$CWD" ]; then
   CWD="$(pwd)"
 fi
 
-# Early exit: only run in repos with at least one plugin manifest
-IS_PLUGIN_REPO=false
-for marker in "${PLUGIN_MARKERS[@]}"; do
-  if [ -d "${CWD}/${marker}" ]; then
-    IS_PLUGIN_REPO=true
-    break
-  fi
-done
+# Early exit: only run when repo uses at least one AI coding assistant target
+uses_ai_target() {
+  local root="$1"
+  [[ -f "${root}/.claude-plugin/plugin.json" ]] && return 0
+  [[ -f "${root}/.cursor-plugin/plugin.json" ]] && return 0
+  [[ -f "${root}/.codex-plugin/plugin.json" ]] && return 0
+  [[ -f "${root}/CLAUDE.md" ]] && return 0
+  [[ -f "${root}/AGENTS.md" ]] && return 0
+  [[ -d "${root}/.cursor/rules" ]] && return 0
+  [[ -f "${root}/.cursorrules" ]] && return 0
+  [[ -d "${root}/.claude/rules" ]] && return 0
+  if [[ -f "${root}/hooks/hooks.json" ]]; then return 0; fi
+  return 1
+}
 
-if [ "$IS_PLUGIN_REPO" = "false" ]; then
+if ! uses_ai_target "$CWD"; then
   echo '{"suppressOutput":true}'
   exit 0
 fi
@@ -43,16 +44,14 @@ if [ -f "$CACHE_FILE" ]; then
   fi
 fi
 
-# Exit silently if cache is still fresh (< 24h)
 if [ "$HOURS_SINCE" -lt 24 ]; then
   echo '{"suppressOutput":true}'
   exit 0
 fi
 
-# Cache is stale — update it and emit a nudge for the next turn
 mkdir -p "$(dirname "$CACHE_FILE")"
 printf '{"ts":%d,"cwd":"%s"}\n' "$NOW" "$CWD" > "$CACHE_FILE"
 
-MSG="Platform docs check: it has been ${HOURS_SINCE}h since the last /platform-sync run in this plugin repo. Run /platform-sync to verify your plugin configs against the latest Claude Code, Codex, and Cursor docs."
+MSG="Platform docs check: it has been ${HOURS_SINCE}h since the last /platform-sync run. Run /platform-sync to compare this repo against the latest Claude Code, Codex, and Cursor docs."
 MSG_ESCAPED=$(printf '%s' "$MSG" | jq -Rs .)
 printf '{"suppressOutput":true,"systemMessage":%s}\n' "$MSG_ESCAPED"

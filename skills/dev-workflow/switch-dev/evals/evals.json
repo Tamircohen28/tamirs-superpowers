@@ -1,0 +1,43 @@
+{
+  "skill_name": "switch-dev",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "/switch-dev handoff #42 — I'm rate limited on Claude, switching to Cursor for the UI work. Branch is feat/auth-ui and worktree is .claude/.worktrees/feat-auth-ui.",
+      "expected_output": "Updates issue #42 Resume block with Done/Next/Decisions, sets agent:cursor label, posts handoff comment, prints copy-paste resume prompt for Cursor. Does not write code.",
+      "files": [],
+      "expectations": [
+        "Runs or describes update-issue-resume.sh with Resume fields",
+        "Sets target label to agent:cursor based on user intent",
+        "Warns about pushing unpushed commits before handoff",
+        "Prints a continuation prompt referencing issue #42 Resume section",
+        "Does not merge PRs or implement code"
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "/switch-dev resume #42",
+      "expected_output": "Loads issue Resume via parse-issue-resume.sh, resolves platform worktree with resolve-worktree.sh, claims agent label for current platform, prints continuation checklist.",
+      "files": [],
+      "expectations": [
+        "Calls parse-issue-resume.sh or gh issue view to load Resume fields",
+        "Uses resolve-worktree.sh for current platform path not hardcoded .claude/",
+        "Stops if Blocked field is not none",
+        "Suggests /start-dev if branch unset",
+        "Prints Next item clearly for continuation"
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "/switch-dev status",
+      "expected_output": "Lists open issues with agent:* labels and platform worktrees from list-agent-worktrees.sh in a table format. Read-only.",
+      "files": [],
+      "expectations": [
+        "Queries gh issue list filtered by agent labels or equivalent",
+        "Runs list-agent-worktrees.sh or git worktree list for .claude/.cursor/.codex paths",
+        "Does not modify issues or code",
+        "Presents tabular or structured summary"
+      ]
+    }
+  ]
+}

@@ -5,10 +5,33 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Added
+- **`switch-dev` skill** — `handoff`, `resume`, and `status` modes for cross-platform work via GitHub issue Resume blocks and `agent:*` labels
+- **`skills/dev-workflow/_shared/scripts/`** — `detect-platform`, `resolve-worktree`, `parse-issue-resume`, `update-issue-resume`, `list-agent-worktrees`
+- **`.github/ISSUE_TEMPLATE/agent_task.yml`** — agent-task template with Resume + Agent routing sections
+- **`hooks/handoff-reminder.sh`** — SessionEnd reminder to run `/switch-dev handoff` from active worktrees
+- **`rules/dev/cross-platform-handoff.md`** — contributor rule + Cursor adapter
+- **`docs/user/cross-platform-workflow.md`** — user guide for Claude/Cursor/Codex handoff
+
 ### Changed
+- **`plan-dev`** — issue bodies include Resume + Agent routing; `agent:any` label on create
+- **`start-dev`** — platform-aware worktrees via `resolve-worktree.sh`; loads Resume before coding
+- **`pr-dev`** — suggests handoff when blocked on human input; always enables auto-merge (`--auto --squash --delete-branch`); polls until GitHub merges
+- **`repo-scaffold` / contract** — `enable-repo-merge-settings.sh` + `ensure-branch-protection.sh` (apply/verify master: 1 review + CI); `repo-standards` S4-04–S4-06 audit
+- **`start-dev`** — enables auto-merge immediately after `gh pr create`
+- **`scripts/install.sh`**, **`scripts/update.sh`**, **`scripts/uninstall.sh`** — moved from repo root; `Makefile` targets updated
+- **`repo-standards` S6-05** — no `.sh` files at repo root; user-facing scripts belong in `scripts/`
+- **`scripts/statusline.sh`** — moved from repo root; `plugin.json`, `install.sh`, and docs updated
+- **`CODEOWNERS`** — single root file; removed duplicate `.github/CODEOWNERS`
+- **`platform-sync`** — detects AI targets in any repo (CLAUDE.md, AGENTS.md, `.cursor/rules/`, manifests, etc.); not plugin-manifest-only
+- **`repo-standards` contract v1.2** — Makefile `install`/`update`/`uninstall`, README badge rows, multi-target install docs, versioning policy (`S10-*`)
+- **README** — multi-platform install (Claude Code, Cursor, Codex); badge rows; `make install` / `make update` / `make uninstall`
+- **`Makefile`** — `install`, `update`, `uninstall` targets; `update.sh` / `uninstall.sh`
 - **`rules/dev/`** — contributor rules now document Claude Code, Cursor, and Codex paths (worktrees, plugin manifests, hook loading); added Cursor `.mdc` adapters
-- **`pr-dev`** — enforces remote branch deletion after merge; portable `SKILL_DIR` resolution across platforms; `cleanup-after-merge.sh` deletes `origin/<head>` when still present
 - **`AGENTS.md`** — multi-platform install notes and `rules/dev/` index
+
+### Removed
+- **`EXTERNAL_REFERENCES.md`** — stale orphan doc (no in-repo links; `superpowers` is a declared dependency)
 
 ## [1.4.0] - 2026-06-24
 
