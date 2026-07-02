@@ -36,7 +36,7 @@ metadata:
   - ci-cd
   - ip-scan
   - multi-agent
-  updated-date: '2026-06-23'
+  updated-date: '2026-07-02'
 ---
 
 ## Live context
@@ -185,8 +185,9 @@ git checkout -b feat/repo-standards-setup 2>/dev/null || git checkout -b "feat/r
 6. **Phase 5:** `Skill("multi-agent-repo")` per `references/delegation.md` on the same branch.
 7. **Phase 6:** `Skill("docs-review")`; if plugin or agent-kit repo, `Skill("changelog-review")`. Fix all P1 findings.
 8. **Phase 7:** `bash "$SKILL_DIR/scripts/assert-contract.sh" "$TARGET_ROOT" "$CONTRACT_PROFILE"` — P1/P2/P3 must be 0.
-9. Commit in logical chunks; push; `gh pr create` with `templates/pr-body.md.tmpl`.
-10. Print PR URL.
+9. `$REVIEW_PATH` and `$PLAN_PATH` are session scratch notes, not deliverables — remove them from the branch before the final commit so they never ship in the PR: `git rm --ignore-unmatch "$REVIEW_PATH" "$PLAN_PATH"` (or plain `rm` if untracked).
+10. Commit in logical chunks; push; `gh pr create` with `templates/pr-body.md.tmpl`.
+11. Print PR URL.
 
 **Stop at PR.**
 
