@@ -6,6 +6,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ## [Unreleased]
 
 ### Added
+- **`check-manifest-version-alignment.sh`** — CI gate + `repo-standards` S10-05 check verifying `plugin.json` manifests match each other and the latest release tag (no unreleased manifest bumps sitting on `main`)
+
+### Fixed
+- **`release.yml`** — now bumps every present `plugin.json` manifest (`.claude-plugin`, `.cursor-plugin`, `.codex-plugin`) atomically instead of `.claude-plugin` only, which had let the other two manifests drift ahead of the last cut release
+
+## [1.5.1] - 2026-07-02
+
+### Added
 - **`switch-dev` skill** — `handoff`, `resume`, and `status` modes for cross-platform work via GitHub issue Resume blocks and `agent:*` labels
 - **`skills/dev-workflow/_shared/scripts/`** — `detect-platform`, `resolve-worktree`, `parse-issue-resume`, `update-issue-resume`, `list-agent-worktrees`
 - **`.github/ISSUE_TEMPLATE/agent_task.yml`** — agent-task template with Resume + Agent routing sections

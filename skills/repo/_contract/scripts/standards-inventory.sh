@@ -101,6 +101,21 @@ manifest_count=0
 [[ -f "$ROOT/.cursor-plugin/plugin.json" ]] && manifest_count=$((manifest_count + 1))
 [[ -f "$ROOT/.codex-plugin/plugin.json" ]] && manifest_count=$((manifest_count + 1))
 
+# S10-05: declared manifest version must match the latest release tag (no
+# unreleased version bumps sitting on main). Only evaluated when the repo
+# has at least one manifest and at least one semver-looking tag — a repo
+# that hasn't cut its first release yet can't drift.
+manifest_version_tag_match=true
+release_tags_exist=false
+if (( manifest_count > 0 )) && [[ -n "$manifest_version" ]] && command -v git &>/dev/null; then
+  latest_tag_ver=$(cd "$ROOT" && git tag -l 'v[0-9]*.[0-9]*.[0-9]*' 2>/dev/null \
+    | sed 's/^v//' | sort -t. -k1,1n -k2,2n -k3,3n | tail -1 || true)
+  if [[ -n "$latest_tag_ver" ]]; then
+    release_tags_exist=true
+    [[ "$latest_tag_ver" != "$manifest_version" ]] && manifest_version_tag_match=false
+  fi
+fi
+
 docs_readme=$(exists "$ROOT/docs/README.md")
 contributing=$(exists "$ROOT/docs/CONTRIBUTING.md")
 changelog=$(exists "$ROOT/docs/CHANGELOG.md")
@@ -187,6 +202,8 @@ jq -nc \
   --argjson ai_platform_count "$ai_platform_count" \
   --argjson manifest_versions_match "$manifest_versions_match" \
   --argjson manifest_count "$manifest_count" \
+  --argjson manifest_version_tag_match "$manifest_version_tag_match" \
+  --argjson release_tags_exist "$release_tags_exist" \
   --argjson docs_readme "$docs_readme" \
   --argjson changelog "$changelog" \
   --argjson contributing "$contributing" \
@@ -232,7 +249,9 @@ jq -nc \
       changelog_unreleased: $changelog_unreleased,
       agents_references_versioning: $agents_references_versioning,
       manifest_versions_match: $manifest_versions_match,
-      manifest_count: $manifest_count
+      manifest_count: $manifest_count,
+      manifest_version_tag_match: $manifest_version_tag_match,
+      release_tags_exist: $release_tags_exist
     },
     ai_platforms: { count: $ai_platform_count },
     docs: {

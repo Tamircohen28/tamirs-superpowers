@@ -40,3 +40,12 @@ jobs:
             exit 1
           fi
           echo "No secrets found"
+
+  manifest-version-alignment:
+    name: Manifest/tag version alignment
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - run: bash scripts/check-manifest-version-alignment.sh .

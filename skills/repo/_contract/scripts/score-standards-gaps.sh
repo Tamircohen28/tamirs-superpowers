@@ -34,6 +34,8 @@ cl_unrel=$(echo "$INV" | jq -r '.versioning.changelog_unreleased')
 agents_ver=$(echo "$INV" | jq -r '.versioning.agents_references_versioning')
 manifest_match=$(echo "$INV" | jq -r '.versioning.manifest_versions_match')
 manifest_count=$(echo "$INV" | jq -r '.versioning.manifest_count')
+manifest_tag_match=$(echo "$INV" | jq -r '.versioning.manifest_version_tag_match')
+release_tags_exist=$(echo "$INV" | jq -r '.versioning.release_tags_exist')
 agents_root=$(echo "$INV" | jq -r '.root_files.agents_md')
 d_user=$(echo "$INV" | jq -r '.docs.user_dir')
 d_eng=$(echo "$INV" | jq -r '.docs.engineering_dir')
@@ -85,6 +87,7 @@ fi
 [[ "$ver_doc" != true ]] && { add_gap "S10-02" "P2" "docs/engineering/build-and-release/versioning.md missing" 2; inc P2; }
 [[ "$agents_root" == true && "$agents_ver" != true ]] && { add_gap "S10-03" "P3" "AGENTS.md should reference versioning/changelog policy" 1; inc P3; }
 (( manifest_count >= 2 )) && [[ "$manifest_match" != true ]] && { add_gap "S10-04" "P1" "Plugin manifest versions drift (.claude/.cursor/.codex plugin.json)" 1; inc P1; }
+(( manifest_count >= 1 )) && [[ "$release_tags_exist" == true && "$manifest_tag_match" != true ]] && { add_gap "S10-05" "P1" "plugin.json version has no matching release tag (manifest ahead of/behind last release)" 1; inc P1; }
 [[ "$co" != true ]] && { add_gap "S4-01" "P2" "CODEOWNERS missing" 4; inc P2; }
 if [[ "${CONTRACT_OFFLINE:-}" != "1" ]]; then
   [[ "$bp" != true ]] && { add_gap "S4-02" "P2" "Branch protection not configured" 4; inc P2; }

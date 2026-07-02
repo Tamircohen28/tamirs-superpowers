@@ -75,6 +75,7 @@ Manual: issue templates, release workflow, no self-hosted runners.
 | S10-02 | `docs/engineering/build-and-release/versioning.md` exists | P2 |
 | S10-03 | `AGENTS.md` references versioning policy | P3 |
 | S10-04 | Multi-manifest plugin repos: all `plugin.json` versions match | P1 |
+| S10-05 | Declared `plugin.json` version has a matching release tag (no unreleased manifest bumps on main) | P1 |
 
 Manual: git tag matches declared version; release workflow; semver bump discipline per `versioning-policy.md`.
 

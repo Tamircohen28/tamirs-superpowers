@@ -50,14 +50,37 @@ git tag -l "v${VER}" | grep -q . || echo "missing tag v${VER}"
 
 ## Enforcement checklist (repo-standards)
 
-| ID | Check |
-|----|-------|
-| S10-01 | `docs/CHANGELOG.md` exists with `[Unreleased]` section |
-| S10-02 | Root `CHANGELOG.md` exists (mirror of docs or primary) |
-| S10-03 | `docs/engineering/build-and-release/versioning.md` documents bump rules |
-| S10-04 | `AGENTS.md` links to versioning doc |
-| S10-05 | Latest git tag matches declared version (manual in review; scriptable when `gh` available) |
-| S10-06 | Multi-manifest repos: all plugin.json versions equal |
+IDs below match `standards-rubric.md` and `score-standards-gaps.sh` exactly —
+keep all three in sync when adding/renumbering a check.
+
+| ID | Check | Severity |
+|----|-------|----------|
+| S10-01 | `docs/CHANGELOG.md` exists with `[Unreleased]` section | P2 |
+| S10-02 | `docs/engineering/build-and-release/versioning.md` documents bump rules | P2 |
+| S10-03 | `AGENTS.md` references versioning policy | P3 |
+| S10-04 | Multi-manifest repos: all `plugin.json` versions equal | P1 |
+| S10-05 | Declared `plugin.json` version has a matching release tag (no unreleased manifest bumps on `main`) — scripted in `standards-inventory.sh` (`versioning.manifest_version_tag_match`) + `score-standards-gaps.sh` | P1 |
+
+S10-05 is skipped (never flagged) for a repo with zero release tags yet — there's
+nothing to have drifted from before the first release.
+
+## CI enforcement (required, not just repo-standards audit)
+
+Manifest/tag drift must be a **hard CI gate**, not just an advisory finding in a
+periodic `/repo-standards` review — the drift that motivated S10-05 sat silently
+on `main` for weeks (manifest bumped ahead of the last cut release) before anyone
+re-ran the audit.
+
+Every plugin repo (any repo with `.claude-plugin/`, `.cursor-plugin/`, and/or
+`.codex-plugin/plugin.json`) should vendor
+`skills/repo/_contract/scripts/check-manifest-version-alignment.sh` and wire it
+into CI as a required job on every `pull_request` and `push` to the default
+branch (see `multi-agent-repo`'s drift-check pattern for how other repos vendor
+shared scripts from this repo). The script fails when:
+
+- present manifests disagree with each other, or
+- the manifest version has no matching `vX.Y.Z` git tag, given the repo already
+  has at least one release tag.
 
 ## Dependabot
 

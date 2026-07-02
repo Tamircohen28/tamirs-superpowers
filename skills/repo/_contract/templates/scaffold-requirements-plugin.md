@@ -30,8 +30,12 @@ package-lock.json                  # required for npm ci in CI/Makefile
 
 ## CI
 
-- Jobs: `CI`, `validate`, `secret-scan`
+- Jobs: `CI`, `validate`, `secret-scan`, `manifest-version-alignment`
 - `validate` job runs `npm run build` then `npm run validate`
+- `manifest-version-alignment` runs `scripts/check-manifest-version-alignment.sh .`
+  (copied from `check-manifest-version-alignment.sh.tmpl`) with `fetch-depth: 0` so
+  tags are visible — required for any repo with `.claude-plugin/`,
+  `.cursor-plugin/`, and/or `.codex-plugin/plugin.json` (S10-04/S10-05)
 
 ## CODEOWNERS
 

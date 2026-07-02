@@ -1,4 +1,4 @@
-.PHONY: help install update uninstall validate lint test plugin-validate test-repo-contract
+.PHONY: help install update uninstall validate lint test plugin-validate test-repo-contract check-manifest-versions
 
 SKILLS_DIR := skills
 HOOKS_DIR  := hooks
@@ -13,6 +13,7 @@ help:
 	@echo "  lint               — shellcheck .sh files only"
 	@echo "  test-repo-contract — assert scaffold-gold (app-gold) + scaffold-plugin-gold (plugin-gold)"
 	@echo "  plugin-validate    — run 'claude plugin validate' (requires Claude Code CLI)"
+	@echo "  check-manifest-versions — plugin.json manifests agree with each other and the latest release tag"
 	@echo "  test               — alias for validate"
 
 install:
@@ -24,7 +25,7 @@ update:
 uninstall:
 	@bash scripts/uninstall.sh
 
-validate: lint test-repo-contract
+validate: lint test-repo-contract check-manifest-versions
 	@echo "--- Validating JSON files ---"
 	@find . -name '*.json' -not -path '*/.git/*' | while read f; do \
 	  jq empty "$$f" 2>&1 && echo "  OK  $$f" || { echo "  FAIL $$f"; exit 1; }; \
@@ -55,6 +56,11 @@ test-repo-contract:
 	@cd $(CONTRACT_DIR)/fixtures/scaffold-plugin-gold && npm run build
 	@CONTRACT_OFFLINE=1 bash $(CONTRACT_DIR)/scripts/assert-contract.sh \
 	  $(CONTRACT_DIR)/fixtures/scaffold-plugin-gold plugin-gold
+
+check-manifest-versions:
+	@echo "--- Manifest/tag version alignment ---"
+	@git fetch --tags --quiet 2>/dev/null || true
+	@bash $(CONTRACT_DIR)/scripts/check-manifest-version-alignment.sh .
 
 plugin-validate:
 	@echo "--- claude plugin validate (primary validator) ---"
