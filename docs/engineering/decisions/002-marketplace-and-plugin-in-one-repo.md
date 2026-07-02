@@ -17,7 +17,7 @@ Use a single GitHub repo (`Tamircohen28/tamirs-superpowers`) that serves as both
 **Easier:**
 - One repo to clone, one CI pipeline, one release workflow
 - `marketplace.json` and `.claude-plugin/plugin.json` are always in sync — same commit, same version
-- The `tamirs-superpowers--v<version>` git tag used for version resolution is created in the same repo where the plugin source lives
+- The `v<version>` git tag used for version resolution is created in the same repo where the plugin source lives
 
 **Harder:**
 - If a second plugin is added later, the repo structure needs a refactor: the current plugin would need to move into a subdirectory (e.g. `tamirs-superpowers/`) and `marketplace.json` would need `"source": "./tamirs-superpowers"`. This is a one-time migration.
