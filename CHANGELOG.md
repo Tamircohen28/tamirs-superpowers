@@ -14,6 +14,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ## [1.5.1] - 2026-07-02
 
 ### Added
+- **`cleanup` skill** — full repo-cleanup sweep: prune merged/stale remote branches, drive open PRs to merge-ready in parallel, remove idle local worktrees (rescuing uncommitted work), wipe build/cache artifacts, and reset the local checkout to match remote (`--remote-only` / `--local-only` / `--dry-run`)
 - **`switch-dev` skill** — `handoff`, `resume`, and `status` modes for cross-platform work via GitHub issue Resume blocks and `agent:*` labels
 - **`skills/dev-workflow/_shared/scripts/`** — `detect-platform`, `resolve-worktree`, `parse-issue-resume`, `update-issue-resume`, `list-agent-worktrees`
 - **`.github/ISSUE_TEMPLATE/agent_task.yml`** — agent-task template with Resume + Agent routing sections
@@ -25,6 +26,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - **`plan-dev`** — issue bodies include Resume + Agent routing; `agent:any` label on create
 - **`start-dev`** — platform-aware worktrees via `resolve-worktree.sh`; loads Resume before coding
 - **`pr-dev`** — suggests handoff when blocked on human input; always enables auto-merge (`--auto --squash --delete-branch`); polls until GitHub merges
+- **`repo-scaffold` vitest config** — generates `vitest.config.ts` with `passWithNoTests` for node repos so scaffolded CI passes before any tests exist
 - **`repo-scaffold` / contract** — `enable-repo-merge-settings.sh` + `ensure-branch-protection.sh` (apply/verify master: 1 review + CI); `repo-standards` S4-04–S4-06 audit
 - **`start-dev`** — enables auto-merge immediately after `gh pr create`
 - **`scripts/install.sh`**, **`scripts/update.sh`**, **`scripts/uninstall.sh`** — moved from repo root; `Makefile` targets updated
@@ -41,6 +43,25 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ### Removed
 - **`EXTERNAL_REFERENCES.md`** — stale orphan doc (no in-repo links; `superpowers` is a declared dependency)
 
+## [1.5.0] - 2026-06-26
+
+### Added
+- **6 specialist subagents** (`agents/`) — `architecture-reviewer`, `debugging-specialist`, `performance-reviewer`, `research-agent`, `security-reviewer`, `test-engineer`; bootstrapped into `~/.claude` by `install.sh` on a fresh plugin install
+- **`/retro` command** (`commands/retro.md`) — session-retrospective slash command that captures lessons and proposes rule/hook/skill updates
+- **8 environment hooks** — `goal-compact-reminder`, `guard-sensitive-files`, `skill-creator-guard`, `plugin-reload-reminder`, `check-done`, `validate-report-links`, `wix-ip-guard`, and opt-in `ensure-exit`; wired into new `PostToolUse`/`Stop` events and extended `PreToolUse`/`UserPromptSubmit` coverage in `hooks.json`
+- **`install.sh`** — idempotent `settings.json` bootstrap that consolidates a complete `~/.claude` environment (agents, commands, hooks) from a fresh plugin install
+- **`repo-standards` S1-05** — every repo must ship a hero banner (`assets/banner.svg` referenced in `README.md`); auto-scored as a P2 gap by the inventory and gap scripts
+- **Conservative Dependabot defaults** — `dependabot.yml.tmpl` with grouped minor+patch updates, weekly/monthly schedules, no auto-major, and PR limits; `repo-scaffold` emits stack-aware ecosystem blocks (npm/pip/github-actions) plus an AGENTS.md "Dependency management" section
+- **HOL Plugin Scanner CI job** — runs the `awesome-ai-plugins` listing scanner in CI (required by `hashgraph-online/awesome-ai-plugins`)
+
+### Changed
+- **Model auto-invocation enabled** — `disable-model-invocation: false` on all user-invocable skills (`plan-dev`, `start-dev`, `targeted-debug`, `repo-standards`, `multi-agent-repo`) so Claude can trigger them from context, not only explicit slash commands; internal-only skills unchanged
+- **`session-files`** — renamed from `.session-files` (dropped the leading dot) so session artifacts (plans, reviews, investigations) are visible in file explorers; added to `.gitignore`
+- **`enforce-worktree-edits`** — only denies edits to files inside the repo root, fixing false-positive blocks on `~/.claude/plans/` and similar paths
+- **Multi-platform contributor rules** — `rules/dev/` and `pr-dev` aligned for Claude Code, Cursor, and Codex (platform worktree paths, Cursor `.mdc` adapters, remote branch deletion on merge, portable `SKILL_DIR` resolution)
+- **`statusLine` command** — resolves via a `HOME` glob instead of `CLAUDE_PLUGIN_ROOT` so it works regardless of install path
+- Plugin version bumped to **1.5.0**
+
 ## [1.4.0] - 2026-06-24
 
 ### Added
@@ -52,6 +73,10 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ## [1.3.0] - 2026-06-23
 
 ### Added
+- **`repo-standards` skill** — merges legacy `repo-polish` + `repo-review` into one user-invocable skill with review/plan/polish modes, orchestrating `multi-agent-repo` plus internal `docs-review`/`changelog-review`; polish ends at a feature-branch PR without auto-publish
+- **`multi-agent-repo` skill** — multi-platform agent setup consolidated into a review/plan/dev pipeline with deterministic inventory scripts (absorbs the former `plugin-compat` platform generation)
+- **SKILL.md frontmatter CI gate** — `scripts/validate-skill-frontmatter.py` enforces all 16 official Claude Code frontmatter fields plus `metadata.updated-date` on every skill, wired into `make validate` and CI
+- **Cursor + Codex plugin manifests** — `.cursor-plugin/plugin.json` and `.codex-plugin/plugin.json` (plus `AGENTS.md` and `.cursor/rules/*.mdc`) so the same skill bundle installs across Claude Code, Cursor, and Codex
 - **`repo-scaffold --type plugin`** — scaffolds agent-kit distribution repos (canonical rules/skills, build/validate stubs, marketplace + plugin wrapper, `dist/` adapters)
 - **`plugin-gold` contract profile** — `detect-contract-profile.sh`, `score-plugin-gaps.sh`, `scaffold-plugin-gold` fixture; CI runs both app-gold and plugin-gold in `make test-repo-contract`
 - **`repo-standards` plugin awareness** — auto-detects contract profile; `references/plugin-review.md` for agent-kit manual review axes
@@ -59,8 +84,12 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - **User docs** — README skill table, `docs/user/reference.md`, `docs/user/concepts.md`, and **`docs/user/agent-kit.md`** (full walkthrough); quick-start Step 6; troubleshooting agent-kit section
 
 ### Changed
+- **16-skill quality pass via `skill-creator`** — added evals, strengthened trigger descriptions, and added scripts/references/templates across every skill that was missing them
 - Renamed skill domain `meta` → `toolkit` (`find-skill`, `session-report`, `skill-creator`)
 - Plugin version bumped to **1.3.0**
+
+### Removed
+- **`babysit-pr` skill** — removed; `pr-dev` restored as the PR lifecycle skill, reversing the 1.2.0 merge
 
 ### Fixed
 - **Plugin scaffold CI** — template and gold fixture now include `package-lock.json` so generated workflows can run `npm ci`
