@@ -54,7 +54,7 @@ Scopes: `skills`, `hooks`, `marketplace`, `ci`, `docs`
 - **SKILL.md files must have valid YAML frontmatter** with all 16 official Claude Code fields plus `metadata.updated-date` — see `skills/toolkit/skill-creator/references/frontmatter-template.md`; CI runs `scripts/validate-skill-frontmatter.py`
 - **Version sync:** whenever `.claude-plugin/plugin.json` version is bumped, `.codex-plugin/plugin.json` and `.cursor-plugin/plugin.json` must be bumped to the same version in the same commit. Check all three before opening a release PR.
 
-## Skill domains (23 skills total)
+## Skill domains (24 skills total)
 
 | Domain | Skills |
 |--------|--------|
@@ -63,7 +63,7 @@ Scopes: `skills`, `hooks`, `marketplace`, `ci`, `docs`
 | `dev-workflow` | plan-dev, pr-dev, start-dev, switch-dev |
 | `documentation` | changelog-review, dark-terminal-doc, docs-review, platform-sync, platform-sync-claude, platform-sync-codex, platform-sync-cursor |
 | `mcp` | mcp-builder, mcp-pagination |
-| `toolkit` | find-skill, session-report, skill-creator |
+| `toolkit` | find-skill, retro, session-report, skill-creator |
 | `repo` | cleanup, multi-agent-repo, repo-scaffold, repo-standards |
 
 **Shared contract:** `skills/repo/_contract/` — canonical templates, scoring scripts, and gold fixtures (`scaffold-gold`, `scaffold-plugin-gold`). Profiles: `app-gold` (apps), `plugin-gold` (agent-kit repos with `canonical/`). `repo-scaffold --type plugin` and `repo-standards` both consume it; `make test-repo-contract` enforces alignment. **User guide:** [docs/user/agent-kit.md](docs/user/agent-kit.md).
