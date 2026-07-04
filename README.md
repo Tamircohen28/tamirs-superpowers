@@ -31,13 +31,12 @@
 
 # tamirs-superpowers
 
-A multi-platform agent plugin (Claude Code, Cursor, Codex) that bundles 23 skills, 6 specialist agents, smart worktree hooks, slash commands, and MCP server stubs — installed with one command per platform and kept current via marketplace auto-update.
+A multi-platform agent plugin (Claude Code, Cursor, Codex) that bundles 24 skills, 6 specialist agents, smart worktree hooks, and MCP server stubs — installed with one command per platform and kept current via marketplace auto-update.
 
 ## Features
 
-- **23 bundled skills** — plan, implement, hand off across Claude/Cursor/Codex, drive PRs to merge, audit repo standards, multi-agent setup, debug, create and benchmark skills, and more, all from the Claude Code prompt
+- **24 bundled skills** — plan, implement, hand off across Claude/Cursor/Codex, drive PRs to merge, audit repo standards, multi-agent setup, debug, run session retrospectives, create and benchmark skills, and more, all from the Claude Code prompt
 - **6 specialist agents** — architecture-reviewer, debugging-specialist, performance-reviewer, research-agent, security-reviewer, test-engineer; available via the Agent tool in any session
-- **`/retro` command** — session postmortem that finds friction and proposes rule/hook/skill/memory updates
 - **Smart worktree hooks** that automatically create isolated git worktrees per task, derive task slugs from your first prompt, enforce edit isolation, guard sensitive files, and show Claude Code changelogs on update
 - **Auto-installed plugin dependencies** — superpowers pulls in automatically when you install this plugin
 - **MCP server stubs** for GitHub and Context7 — fill in your tokens and they're live
@@ -113,6 +112,7 @@ Each skill lives at `skills/<skill-name>/SKILL.md`.
 | `/tamirs-superpowers:cleanup` | Full repo housekeeping: delete merged/stale remote branches, drive all open PRs via sub-agents, remove unused local worktrees, rescue or discard uncommitted work, delete build artifacts, and reset local env to match remote. |
 | `/tamirs-superpowers:mcp-builder` | Build MCP servers (auto-invokes `mcp-pagination` for list/search tools). |
 | `/tamirs-superpowers:find-skill` | Search skill marketplaces and rank matches for a query. |
+| `/tamirs-superpowers:retro` | Session postmortem — find friction (low quality, looping, missed parallelism) and propose rule/hook/memory/skill improvements. Proposes, then waits for approval before writing any files. |
 | `/tamirs-superpowers:skill-creator` | Create, improve, and benchmark Claude Code skills. |
 | `/tamirs-superpowers:session-report` | Generate an HTML report of session token usage. |
 | `/tamirs-superpowers:algorithmic-art` | Generate algorithmic art with p5.js. |
