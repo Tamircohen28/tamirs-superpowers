@@ -15,6 +15,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ### Changed
 - **`AGENTS.md`**, **`CLAUDE.md`**, **`docs/agent-guidelines/overview.md`**, **`docs/engineering/build-and-release/development-workflow.md`**, **`docs/engineering/build-and-release/versioning.md`**, **`.cursor/rules/plugin-structure.mdc`** — document version-bump requirement and post-release user refresh steps
 - **`docs/user/troubleshooting.md`** — "already at latest version" and missing-skills troubleshooting
+- **`.github/workflows/ci.yml`** — manifest/tag alignment uses `--manifests-only` on pull requests so release PRs can bump version before the tag exists
 
 ### Fixed
 - **`release.yml`** — now bumps every present `plugin.json` manifest (`.claude-plugin`, `.cursor-plugin`, `.codex-plugin`) atomically instead of `.claude-plugin` only, which had let the other two manifests drift ahead of the last cut release

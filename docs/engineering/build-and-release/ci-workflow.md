@@ -68,7 +68,9 @@ Runs `make test-repo-contract` to assert the `app-gold` and `plugin-gold` gold f
 
 Runs `skills/repo/_contract/scripts/check-manifest-version-alignment.sh` to confirm `.claude-plugin/plugin.json` is in sync with the Codex/Cursor manifests and the latest release tag.
 
-**Fails on:** a version mismatch across the three plugin manifests or against the git tag.
+On **pull requests**, the job passes `--manifests-only` so release PRs can bump manifests before the `vX.Y.Z` tag exists (full tag check still runs on push to `master`).
+
+**Fails on:** a version mismatch across the three plugin manifests, or (on `master` pushes) manifest version with no matching git tag.
 
 ### `HOL Plugin Scanner`
 
