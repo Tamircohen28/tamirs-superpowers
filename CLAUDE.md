@@ -53,6 +53,7 @@ Scopes: `skills`, `hooks`, `marketplace`, `ci`, `docs`
 - **Never modify `hooks/lib/worktree-common.sh`** without running shellcheck and testing both `capture-task-slug.sh` and `worktree-create.sh`
 - **SKILL.md files must have valid YAML frontmatter** with all 16 official Claude Code fields plus `metadata.updated-date` — see `skills/toolkit/skill-creator/references/frontmatter-template.md`; CI runs `scripts/validate-skill-frontmatter.py`
 - **Version sync:** whenever `.claude-plugin/plugin.json` version is bumped, `.codex-plugin/plugin.json` and `.cursor-plugin/plugin.json` must be bumped to the same version in the same commit. Check all three before opening a release PR.
+- **Version bump required for marketplace delivery:** Claude Code treats `plugin.json` `version` as the update cache key. New skills, hooks, or other shipped changes **must** include a semver bump (PATCH/MINOR/MAJOR per [versioning.md](docs/engineering/build-and-release/versioning.md)) or installed users stay on the cached copy. `/reload-plugins` does not fetch from GitHub. See [`rules/dev/plugin-version-bump.md`](rules/dev/plugin-version-bump.md).
 
 ## Skill domains (24 skills total)
 

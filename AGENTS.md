@@ -22,7 +22,7 @@ make uninstall # remove agents + uninstall plugin when possible
 ## Working agreements
 
 - Validate after every change: `make validate` (shellcheck + JSON lint + frontmatter + `make test-repo-contract`)
-- Versioning: see [docs/engineering/build-and-release/versioning.md](docs/engineering/build-and-release/versioning.md) — bump all plugin manifests together; tag `vX.Y.Z` on release
+- **Version bump after shipped changes:** Claude Code uses `plugin.json` `version` as the update cache key — commits without a bump do not reach installed users (`/plugin update` reports "already at latest"). After changing `skills/`, `hooks/`, `agents/`, manifests, or `scripts/`, bump all three plugin manifests together, update `CHANGELOG.md` + `README.md` badges, open a PR, then run the Release workflow to tag `vX.Y.Z`. See [`rules/dev/plugin-version-bump.md`](rules/dev/plugin-version-bump.md) and [versioning.md](docs/engineering/build-and-release/versioning.md).
 - Commit format: `<type>(<scope>): <description>` — types: `feat`, `fix`, `chore`, `docs`, `refactor` — scopes: `skills`, `hooks`, `marketplace`, `ci`, `docs`
 - Never add `runs-on: [self-hosted]` to any CI workflow — use `ubuntu-latest`
 - Never commit secrets or tokens — `.mcp.json` uses `${ENV_VAR}` placeholders only
@@ -62,8 +62,9 @@ make uninstall # remove agents + uninstall plugin when possible
 | `skill-quality-standards.md` | Authoring or editing `skills/**/SKILL.md` |
 | `gh-cli-preference.md` | CI scripts, hooks, dev-workflow skill scripts |
 | `user-facing-script-standards.md` | User-facing or skill helper scripts |
+| `plugin-version-bump.md` | After shipped plugin changes — bump all manifests, changelog, release tag |
 
-Cursor loads thin adapters from `.cursor/rules/dev-*.mdc` pointing at these files. Claude Code loads `rules/dev/` directly. Codex reads `AGENTS.md` plus `rules/dev/` when contributing.
+Cursor loads thin adapters from `.cursor/rules/*.mdc` pointing at these files. Claude Code loads `rules/dev/` directly. Codex reads `AGENTS.md` plus `rules/dev/` when contributing.
 
 ## Off-limits
 

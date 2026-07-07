@@ -35,3 +35,7 @@ This repo is a **multi-platform agent plugin** (Markdown + JSON + Bash only) for
 ```bash
 make validate   # JSON lint + shellcheck + full SKILL.md frontmatter
 ```
+
+## Version bump after shipped changes
+
+Claude Code uses `plugin.json` `version` as the update cache key. Bump all three manifests together after changing `skills/`, `hooks/`, `agents/`, or `scripts/`. Canonical rule: `rules/dev/plugin-version-bump.md`.

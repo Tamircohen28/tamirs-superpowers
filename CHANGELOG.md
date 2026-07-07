@@ -5,8 +5,16 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [1.5.2] - 2026-07-07
+
 ### Added
 - **`check-manifest-version-alignment.sh`** — CI gate + `repo-standards` S10-05 check verifying `plugin.json` manifests match each other and the latest release tag (no unreleased manifest bumps sitting on `main`)
+- **`rules/dev/plugin-version-bump.md`** — contributor rule: bump all plugin manifests after shipped changes so Claude Code marketplace users receive updates (version is the update cache key)
+- **`.cursor/rules/plugin-version-bump.mdc`** — Cursor adapter for the version-bump rule
+
+### Changed
+- **`AGENTS.md`**, **`CLAUDE.md`**, **`docs/agent-guidelines/overview.md`**, **`docs/engineering/build-and-release/development-workflow.md`**, **`docs/engineering/build-and-release/versioning.md`**, **`.cursor/rules/plugin-structure.mdc`** — document version-bump requirement and post-release user refresh steps
+- **`docs/user/troubleshooting.md`** — "already at latest version" and missing-skills troubleshooting
 
 ### Fixed
 - **`release.yml`** — now bumps every present `plugin.json` manifest (`.claude-plugin`, `.cursor-plugin`, `.codex-plugin`) atomically instead of `.claude-plugin` only, which had let the other two manifests drift ahead of the last cut release
