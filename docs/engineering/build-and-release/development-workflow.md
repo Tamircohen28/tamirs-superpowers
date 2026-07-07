@@ -32,16 +32,27 @@ There is no build step — all content is Markdown, JSON, and Bash.
 3. Run `make validate`
 4. Update `CHANGELOG.md` under `[Unreleased]`
 5. If you added/removed a skill, update `README.md`
-6. Push and open a PR
+6. If you changed **shipped plugin content** (`skills/`, `hooks/`, `agents/`, manifests, `scripts/`), bump all three `plugin.json` manifests and `README.md` badges in the release PR — see [`rules/dev/plugin-version-bump.md`](../../../rules/dev/plugin-version-bump.md)
+7. Push and open a PR
 
 ## Releasing
 
 Releases are created via the [Release workflow](.github/workflows/release.yml) — trigger it manually from the Actions tab with a semver version string. The workflow:
 
-1. Bumps the version in `.claude-plugin/plugin.json`
-2. Commits the bump
-3. Creates a `v<version>` git tag
+1. Bumps the version in every present `plugin.json` manifest (skip if the release PR already bumped them)
+2. Commits the bump when needed
+3. Creates a `v<version>` git tag (required — CI fails if manifest version has no matching tag)
 4. Creates a GitHub Release
+
+**Claude Code users** must refresh after a release:
+
+```text
+/plugin marketplace update tamirs-plugins
+/plugin update tamirs-superpowers@tamirs-plugins
+/reload-plugins
+```
+
+Without a version bump, `/plugin update` reports "already at the latest version" even when new commits exist on GitHub.
 
 ## Testing a skill locally
 

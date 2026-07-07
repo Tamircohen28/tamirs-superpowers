@@ -44,8 +44,42 @@ The worktree hooks use `jq` to parse session state JSON.
 
 **Fix:**
 1. Check the plugin is enabled: `/plugin list`
-2. Reload: `/reload-plugins`
-3. Confirm the SKILL.md file exists under `skills/dev-workflow/plan-dev/SKILL.md` in the install directory
+2. Confirm your installed version matches the release you expect: `/plugin list` (compare to [README](https://github.com/Tamircohen28/tamirs-superpowers))
+3. Refresh from marketplace (version bump required for new skills to appear):
+
+   ```text
+   /plugin marketplace update tamirs-plugins
+   /plugin update tamirs-superpowers@tamirs-plugins
+   /reload-plugins
+   ```
+
+4. Confirm the SKILL.md file exists under `skills/` in the install directory (`~/.claude/plugins/cache/tamirs-plugins/tamirs-superpowers/<version>/`)
+
+---
+
+## Plugin update says "already at the latest version" but skills are missing
+
+**Symptom:** `/plugin update` reports the current version (e.g. `1.5.1`) is already installed; new skills or hooks from a recent release are not visible.
+
+**Cause:** Claude Code caches plugins by the `version` field in `plugin.json`. If the publisher shipped changes without bumping `version`, or your marketplace clone is stale, `/plugin update` skips the download. `/reload-plugins` only reloads the existing cache.
+
+**Fix:**
+1. Ensure the publisher released a new semver (check [releases](https://github.com/Tamircohen28/tamirs-superpowers/releases))
+2. Refresh marketplace + plugin:
+
+   ```text
+   /plugin marketplace update tamirs-plugins
+   /plugin update tamirs-superpowers@tamirs-plugins
+   /reload-plugins
+   ```
+
+3. If still stale, clear cache and reinstall:
+
+   ```bash
+   rm -rf ~/.claude/plugins/cache/tamirs-plugins/tamirs-superpowers/
+   ```
+
+   Then in Claude Code: `/plugin install tamirs-superpowers@tamirs-plugins` and `/reload-plugins`
 
 ---
 

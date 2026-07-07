@@ -23,7 +23,7 @@ make lint        # shellcheck only
 |------|----------|
 | `skills/<domain>/<name>/SKILL.md` | Use `skill-creator` skill; never hand-write frontmatter |
 | `hooks/*.sh` | Run shellcheck; do not modify `hooks/lib/worktree-common.sh` without testing both hook scripts |
-| `.claude-plugin/plugin.json` | Bump version in all three manifests: `.claude-plugin/`, `.cursor-plugin/`, `.codex-plugin/` |
+| `.claude-plugin/plugin.json` | Bump version in all three manifests + `README.md` badges after shipped changes — see `rules/dev/plugin-version-bump.md` |
 | `docs/**` | Edit freely; run `make validate` after |
 | `.github/workflows/` | Never add `runs-on: [self-hosted]`; use `ubuntu-latest` |
 

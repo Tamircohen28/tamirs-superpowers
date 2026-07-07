@@ -26,14 +26,14 @@ Omit the entire row if none apply.
 Show each supported target and its configured version:
 
 ```markdown
-[![Claude Code](https://img.shields.io/badge/Claude%20Code-1.5.1-blueviolet)](...)
-[![Cursor](https://img.shields.io/badge/Cursor-1.5.1-000000)](...)
-[![Codex](https://img.shields.io/badge/Codex-1.5.1-412991)](...)
+[![Claude Code](https://img.shields.io/badge/Claude%20Code-1.5.2-blueviolet)](...)
+[![Cursor](https://img.shields.io/badge/Cursor-1.5.2-000000)](...)
+[![Codex](https://img.shields.io/badge/Codex-1.5.2-412991)](...)
 ```
 
 Or a single line under badges:
 
-`AI targets: Claude Code 1.5.1 · Cursor 1.5.1 · Codex 1.5.1`
+`AI targets: Claude Code 1.5.2 · Cursor 1.5.2 · Codex 1.5.2`
 
 Derive versions from `.claude-plugin/plugin.json`, `.cursor-plugin/plugin.json`,
 `.codex-plugin/plugin.json`, or `AGENTS.md` install section — they must match in

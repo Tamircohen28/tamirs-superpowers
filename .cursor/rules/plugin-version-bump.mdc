@@ -1,0 +1,17 @@
+---
+description: "Bump plugin.json version after shipped changes — Claude Code uses version as cache key; /plugin update skips when unchanged"
+alwaysApply: true
+---
+
+# Plugin version bump
+
+Canonical rule: `rules/dev/plugin-version-bump.md` (shared by Claude Code, Cursor, and Codex).
+
+**After changing shipped plugin content** (`skills/`, `hooks/`, `agents/`, manifests, `scripts/`):
+
+1. Bump `version` in **all three** manifests (`.claude-plugin/`, `.cursor-plugin/`, `.codex-plugin/`) + `README.md` badges — same semver in one commit.
+2. Update `CHANGELOG.md` under the new `[X.Y.Z]` section.
+3. Open a PR; after merge run the Release workflow to create `vX.Y.Z` (CI requires manifest ↔ tag match).
+4. Users need `/plugin marketplace update tamirs-plugins` then `/plugin update tamirs-superpowers@tamirs-plugins` — `/reload-plugins` alone only reloads cache.
+
+Pushing commits without a version bump does **not** update installed Claude Code plugins.
