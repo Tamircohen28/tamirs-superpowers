@@ -72,3 +72,18 @@ Cursor loads thin adapters from `.cursor/rules/*.mdc` pointing at these files. C
 - Never commit to `main` directly — always use a feature branch and PR
 - Never add a `marketplace.json` to this repo — it is published through the separate `Tamircohen28/plugins` catalog
 - Never hand-write a `SKILL.md` from scratch — use the `skill-creator` skill to ensure evals, references, and quality standards are met
+
+## Cursor Cloud specific instructions
+
+This repo is a Markdown/JSON/Bash plugin — there is **no app server, dev server, or build output**. "Running" it means exercising the validation harness and runtime scripts (commands are in the `Makefile` and `README.md`):
+
+- Full validation: `make validate` (shellcheck + JSON lint + SKILL.md frontmatter + repo-contract + manifest/tag alignment).
+- Plugin health check (7 categories): `bash .claude/skills/run-tamirs-superpowers/smoke.sh </dev/null`.
+- Live statusline render: `echo '<session-json>' | bash scripts/statusline.sh`.
+
+Non-obvious gotchas:
+
+- `scripts/statusline.sh` reads a JSON session payload from **stdin** (`input=$(cat)`). Running it with no piped input blocks forever (and in a non-interactive tool shell shows up as a spawn/abort). Always pipe JSON in, or redirect stdin. Because `smoke.sh` invokes the statusline with inherited stdin, run the smoke test as `smoke.sh </dev/null` so it doesn't hang.
+- `shellcheck` is required for `make lint`/`make validate` shell coverage; if it is absent, those targets **silently skip** shellcheck instead of failing. It is installed via `apt`, not the repo.
+- The smoke test reports one expected `WARN` (hardcoded `/Users/` path in `skills/toolkit/skill-creator/SKILL.md`) — this is a known, documented warning, not a failure. Health is OK when `FAIL: 0`.
+- `make check-manifest-versions` fetches git tags; it passes offline against the current checkout but needs network to compare against the latest release tag.
