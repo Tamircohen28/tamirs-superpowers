@@ -29,6 +29,18 @@ if [ -f "$ROOT/Makefile" ]; then
   elif grep -q "^lint:" "$ROOT/Makefile" 2>/dev/null; then
     emit "make lint"
   fi
+
+  # Multi-platform / agent-kit pre-PR gate (after stack validate) — mandatory in start-dev + pr-dev
+  PRE_PR_SCRIPT="$ROOT/skills/dev-workflow/_shared/scripts/run-pre-pr-gates.sh"
+  if [ -f "$PRE_PR_SCRIPT" ]; then
+    emit "bash \"$PRE_PR_SCRIPT\" \"$ROOT\""
+  elif grep -qE '^repo-standards-gate:' "$ROOT/Makefile" 2>/dev/null; then
+    emit "make repo-standards-gate"
+  elif grep -qE '^agent-polish-gate:' "$ROOT/Makefile" 2>/dev/null; then
+    emit "make agent-polish-gate"
+  elif grep -qE '^agent\\:check:' "$ROOT/Makefile" 2>/dev/null; then
+    emit "make agent:check"
+  fi
 fi
 
 # ---------- Node / JavaScript / TypeScript ----------

@@ -34,7 +34,7 @@ metadata:
   - merge
   - workflow
   - github
-  updated-date: '2026-06-30'
+  updated-date: '2026-07-09'
 ---
 
 # pr-dev
@@ -94,6 +94,7 @@ These rules exist because past implementations broke in the specific ways listed
 - **State every review reply in conversation before posting** — user may redirect the tone or content; surprises erode trust.
 - **Never change tests/CI config to silence a flaky failure** unless logs prove it's branch-related.
 - **Never retry a flaky run more than 3×** — after that it's an infra problem requiring human judgment.
+- **Always run pre-PR gates before every push** when the PR repo defines them (`run-pre-pr-gates.sh` or `make repo-standards-gate`). Fix failures before `git push`; never push and hope CI catches it.
 - **Always restart the loop immediately after any push** — a push triggers new CI; re-enable auto-merge after each push.
 - **Do not stop solely because review is pending** when auto-merge is enabled — GitHub merges automatically once an approver satisfies branch protection. Report "auto-merge enabled; waiting for review" and keep polling until merged or blocked on CI/threads.
 - **Always delete the remote branch after merge** — `--delete-branch` on auto-merge handles remote deletion; run `cleanup-after-merge.sh` after merge to verify `origin/<head>` is gone.
@@ -189,6 +190,12 @@ gh run view "$RUN_ID" --repo "$REPO" --log-failed
 ## Push a fix
 
 ```bash
+REPO_ROOT="$(git rev-parse --show-toplevel)"
+SHARED_DIR="$REPO_ROOT/skills/dev-workflow/_shared/scripts"
+if [ -f "$SHARED_DIR/run-pre-pr-gates.sh" ]; then
+  bash "$SHARED_DIR/run-pre-pr-gates.sh" "$REPO_ROOT"
+fi
+
 git add -p                    # stage only the relevant change
 git commit -m "fix: <what and why>
 
@@ -234,6 +241,7 @@ When `autoMergeRequest` is set and CI is green with 0 unresolved threads, GitHub
 
 Confirm ALL before enabling/waiting on auto-merge:
 
+- [ ] Pre-PR gates green (`bash skills/dev-workflow/_shared/scripts/run-pre-pr-gates.sh` when Makefile defines agent targets)
 - [ ] All CI checks green (no pending, no failing)
 - [ ] 0 unresolved review threads (re-run fetch-pr-state.sh)
 - [ ] PR is not behind the base branch (or auto-merge will wait)

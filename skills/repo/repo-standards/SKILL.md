@@ -198,7 +198,7 @@ git checkout -b feat/repo-standards-setup 2>/dev/null || git checkout -b "feat/r
 
 ## Agent execution rule
 
-Agents run `make repo-standards-gate` (or `make agent:check` mid-work) on the target repo — **never** instruct the user to run `bash scripts/check-*.sh` directly.
+Agents run `make repo-standards-gate` during repo-standards polish **and** via `start-dev` / `pr-dev` (`run-pre-pr-gates.sh`) before every push/PR — **never** instruct the user to run `bash scripts/check-*.sh` directly.
 
 ## Hard rules
 
