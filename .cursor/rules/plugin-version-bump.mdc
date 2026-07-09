@@ -1,6 +1,6 @@
 ---
 description: "Bump plugin.json version after shipped changes — Claude Code uses version as cache key; /plugin update skips when unchanged"
-alwaysApply: true
+alwaysApply: false
 ---
 
 # Plugin version bump

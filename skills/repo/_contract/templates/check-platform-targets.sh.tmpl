@@ -91,7 +91,8 @@ if [[ "$SYNC" == true && -f "$TARGETS_JSON" ]] && command -v curl >/dev/null 2>&
   codex_latest=""
   codex_latest=$(curl -fsSL "https://api.github.com/repos/openai/codex/releases/latest" 2>/dev/null \
     | jq -r '.tag_name // empty' 2>/dev/null | sed 's/^v//' || true)
-  if [[ -n "$codex_latest" ]]; then
+  # Codex GitHub releases use rust-v* tags — only sync semver-style versions.
+  if [[ -n "$codex_latest" && "$codex_latest" =~ ^[0-9]+\.[0-9]+\.[0-9]+ ]]; then
     tmp=$(mktemp)
     jq --arg v "$codex_latest" '.targets.codex.latest_known = $v' "$TARGETS_JSON" >"$tmp"
     mv "$tmp" "$TARGETS_JSON"

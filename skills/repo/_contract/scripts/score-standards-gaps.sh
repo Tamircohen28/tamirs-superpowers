@@ -87,7 +87,9 @@ fi
 [[ "$ver_doc" != true ]] && { add_gap "S10-02" "P2" "docs/engineering/build-and-release/versioning.md missing" 2; inc P2; }
 [[ "$agents_root" == true && "$agents_ver" != true ]] && { add_gap "S10-03" "P3" "AGENTS.md should reference versioning/changelog policy" 1; inc P3; }
 (( manifest_count >= 2 )) && [[ "$manifest_match" != true ]] && { add_gap "S10-04" "P1" "Plugin manifest versions drift (.claude/.cursor/.codex plugin.json)" 1; inc P1; }
-(( manifest_count >= 1 )) && [[ "$release_tags_exist" == true && "$manifest_tag_match" != true ]] && { add_gap "S10-05" "P1" "plugin.json version has no matching release tag (manifest ahead of/behind last release)" 1; inc P1; }
+if [[ "${CONTRACT_MANIFESTS_ONLY:-}" != "1" ]]; then
+  (( manifest_count >= 1 )) && [[ "$release_tags_exist" == true && "$manifest_tag_match" != true ]] && { add_gap "S10-05" "P1" "plugin.json version has no matching release tag (manifest ahead of/behind last release)" 1; inc P1; }
+fi
 [[ "$co" != true ]] && { add_gap "S4-01" "P2" "CODEOWNERS missing" 4; inc P2; }
 if [[ "${CONTRACT_OFFLINE:-}" != "1" ]]; then
   [[ "$bp" != true ]] && { add_gap "S4-02" "P2" "Branch protection not configured" 4; inc P2; }

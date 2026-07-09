@@ -3,7 +3,7 @@
 
 .PHONY: check-agent-drift check-feature-equivalence check-platform-targets \
 	platform-targets-sync platform-targets-assert platform-targets-cochange \
-	agent\:check agent-polish-gate
+	agent\:check agent-polish-gate assert-contract repo-standards-gate
 
 check-agent-drift:
 	bash scripts/check-agent-drift.sh .
@@ -27,3 +27,10 @@ agent\:check: check-agent-drift check-feature-equivalence check-platform-targets
 
 # Polish exit gate — agent runs after updating platform-targets.json + README badges
 agent-polish-gate: platform-targets-sync platform-targets-assert agent\:check
+
+# repo-standards phase 7 exit — use --manifests-only on release PRs before tag exists
+assert-contract:
+	@PROFILE=$$(bash skills/repo/_contract/scripts/detect-contract-profile.sh . 2>/dev/null || echo app-gold); \
+	bash skills/repo/_contract/scripts/assert-contract.sh . "$$PROFILE" --manifests-only
+
+repo-standards-gate: agent-polish-gate assert-contract

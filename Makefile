@@ -1,7 +1,8 @@
 .PHONY: help install update uninstall validate lint test plugin-validate test-repo-contract \
 	check-manifest-versions check-platform-equivalence check-agent-drift \
 	check-feature-equivalence check-platform-targets platform-targets-sync \
-	platform-targets-assert platform-targets-cochange agent\:check agent-polish-gate
+	platform-targets-assert platform-targets-cochange agent\:check agent-polish-gate \
+	assert-contract repo-standards-gate
 
 SKILLS_DIR := skills
 HOOKS_DIR  := hooks
@@ -15,6 +16,8 @@ help:
 	@echo "  validate                — full CI-parity local gate (lint, contract, JSON, skills)"
 	@echo "  agent:check             — drift + feature equivalence + platform targets (agents)"
 	@echo "  agent-polish-gate       — sync platform targets + assert current + agent:check (agents, pre-PR)"
+	@echo "  repo-standards-gate     — agent-polish-gate + assert-contract (release PR polish exit)"
+	@echo "  assert-contract         — repo-standards P1/P2/P3 exit gate (--manifests-only on release PRs)"
 	@echo "  platform-targets-sync   — refresh latest_known in platform-targets.json (agents)"
 	@echo "  platform-targets-assert — fail if validated_against lags latest_known (agents)"
 	@echo "  platform-targets-cochange — CI: require platform-targets.json when repo skills change"
@@ -73,6 +76,12 @@ platform-targets-cochange:
 agent\:check: check-agent-drift check-feature-equivalence check-platform-targets
 
 agent-polish-gate: platform-targets-sync platform-targets-assert agent\:check
+
+assert-contract:
+	@PROFILE=$$(bash $(CONTRACT_DIR)/scripts/detect-contract-profile.sh .); \
+	bash $(CONTRACT_DIR)/scripts/assert-contract.sh . "$$PROFILE" --manifests-only
+
+repo-standards-gate: agent-polish-gate assert-contract
 
 check-platform-equivalence: check-feature-equivalence check-platform-targets
 

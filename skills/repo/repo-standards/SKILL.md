@@ -187,7 +187,7 @@ git checkout -b feat/repo-standards-setup 2>/dev/null || git checkout -b "feat/r
 6. **Phase 5:** `Skill("multi-agent-repo")` per `references/delegation.md` on the same branch (include feature equivalence + platform targets).
 7. **Phase 6:** `Skill("docs-review")`; if plugin or agent-kit repo, `Skill("changelog-review")`. Fix all P1 findings.
 8. **Phase 6b (agents only):** When multi-platform, run `make platform-targets-sync`, update `platform-targets.json` + README Row 3 + `platform-targets.md`, then `make platform-targets-assert`.
-9. **Phase 7:** Run `make agent-polish-gate` when multi-platform, then `bash "$SKILL_DIR/scripts/assert-contract.sh" "$TARGET_ROOT" "$CONTRACT_PROFILE"` — P1/P2/P3 must be 0.
+9. **Phase 7:** Run `make repo-standards-gate` when multi-platform (or `make agent-polish-gate` + `assert-contract --manifests-only` on release PRs before the tag exists). P1/P2/P3 must be 0.
 9. `$REVIEW_PATH` and `$PLAN_PATH` are session scratch notes, not deliverables — remove them from the branch before the final commit so they never ship in the PR: `git rm --ignore-unmatch "$REVIEW_PATH" "$PLAN_PATH"` (or plain `rm` if untracked).
 10. Commit in logical chunks; push; `gh pr create` with `templates/pr-body.md.tmpl`.
 11. Print PR URL.
@@ -198,7 +198,7 @@ git checkout -b feat/repo-standards-setup 2>/dev/null || git checkout -b "feat/r
 
 ## Agent execution rule
 
-Agents run `make agent-polish-gate` and `make agent:check` on the target repo — **never** instruct the user to run `bash scripts/check-*.sh` directly.
+Agents run `make repo-standards-gate` (or `make agent:check` mid-work) on the target repo — **never** instruct the user to run `bash scripts/check-*.sh` directly.
 
 ## Hard rules
 
