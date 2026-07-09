@@ -37,6 +37,32 @@ EXCLUDE_DIRS=(".git" "node_modules" "vendor" ".venv" "dist" "build" "__pycache__
 EXCLUDE_ARGS=()
 for d in "${EXCLUDE_DIRS[@]}"; do EXCLUDE_ARGS+=("--exclude-dir=$d"); done
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ALLOWLIST_FILE="$SCRIPT_DIR/scan-allowlist.txt"
+
+filter_allowlisted() {
+  local input="${1:-}"
+  [[ -z "$input" ]] && return 0
+  if [[ ! -f "$ALLOWLIST_FILE" ]]; then
+    printf '%s\n' "$input"
+    return 0
+  fi
+  local line allow keep
+  while IFS= read -r line; do
+    [[ -z "$line" ]] && continue
+    keep=1
+    while IFS= read -r allow || [[ -n "$allow" ]]; do
+      [[ -z "$allow" || "$allow" == \#* ]] && continue
+      if echo "$line" | grep -qE "$allow"; then
+        keep=0
+        break
+      fi
+    done < "$ALLOWLIST_FILE"
+    [[ "$keep" -eq 1 ]] && printf '%s\n' "$line"
+  done <<< "$input"
+  return 0
+}
+
 echo "=== Employer IP Scan: $DIR ==="
 echo "Scanned at: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
 echo ""
@@ -46,6 +72,7 @@ TOTAL_HITS=0
 
 for pattern in "${PATTERNS[@]}"; do
   matches=$(grep -rn "${INCLUDE_ARGS[@]}" "${EXCLUDE_ARGS[@]}" -E "$pattern" "$DIR" 2>/dev/null || true)
+  matches=$(filter_allowlisted "$matches")
   if [[ -n "$matches" ]]; then
     FOUND_ANY=1
     count=$(echo "$matches" | wc -l | tr -d ' ')
