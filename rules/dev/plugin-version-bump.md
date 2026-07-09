@@ -39,7 +39,8 @@ Full policy: [`docs/engineering/build-and-release/versioning.md`](../../docs/eng
 ## Agent checklist (after plugin content changes)
 
 1. Run `make validate`
-2. Move `[Unreleased]` entries in `CHANGELOG.md` under `[X.Y.Z] - YYYY-MM-DD`
+2. When changing `skills/repo/**` or platform specs, agent runs `make platform-targets-sync` and update `docs/engineering/build-and-release/platform-targets.json` + README Row 3 badges
+3. Move `[Unreleased]` entries in `CHANGELOG.md` under `[X.Y.Z] - YYYY-MM-DD`
 3. Bump all three `plugin.json` manifests + `README.md` badges to the same `X.Y.Z`
 4. Open a PR — **never** push manifest bumps directly to `master` without a PR
 5. After merge, run the [Release workflow](.github/workflows/release.yml) with `X.Y.Z` to create the `vX.Y.Z` git tag (required for CI manifest/tag alignment)

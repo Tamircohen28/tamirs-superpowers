@@ -8,7 +8,7 @@
     "validate": "node scripts/validate.mjs",
     "test": "npm run validate",
     "lint": "node -e \"process.exit(0)\"",
-    "agent:check": "npm run validate && bash scripts/check-agent-drift.sh .",
+    "agent:check": "make agent:check",
     "agent:update": "echo 'Install to target repo — implement sync-to-repo.mjs in a follow-up'"
   }
 }

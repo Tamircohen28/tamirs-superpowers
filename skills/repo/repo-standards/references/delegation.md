@@ -52,3 +52,15 @@ Audit Claude Code plugin patterns in $TARGET_ROOT.
 Apply P1 findings (frontmatter, hooks, skill paths).
 Return structured summary for repo-standards polish gate.
 ```
+
+## multi-agent-repo (dev — polish phase 5, agent make targets)
+
+```text
+After implementing multi-agent files, agent MUST run on $TARGET_ROOT:
+  make repo-standards-gate
+Do not ask the user to run checks manually.
+```
+
+## Dev-workflow enforcement (automatic — not optional)
+
+`start-dev` Step 4 and `pr-dev` before every push call `skills/dev-workflow/_shared/scripts/run-pre-pr-gates.sh`, which runs `make repo-standards-gate` when the Makefile defines it. `plan-dev` adds `make repo-standards-gate` to issue Verification on multi-platform repos. Agents do not rely on users remembering this.

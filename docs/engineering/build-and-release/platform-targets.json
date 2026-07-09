@@ -1,0 +1,38 @@
+{
+  "schema_version": 1,
+  "last_reviewed": "2026-07-09",
+  "reviewed_by_skill": "tamirs-superpowers@1.6.0",
+  "targets": {
+    "claude_code": {
+      "supported_min": "2.0.0",
+      "validated_against": "2.0.0",
+      "latest_known": "2.0.0",
+      "doc_urls": [
+        "https://code.claude.com/docs/en/plugins-reference",
+        "https://code.claude.com/docs/en/skills"
+      ],
+      "features_adopted": [
+        "multi-platform-manifests",
+        "skills-frontmatter-v2",
+        "mcp-server-stubs"
+      ]
+    },
+    "cursor": {
+      "supported_min": "0.45.0",
+      "validated_against": "0.45.0",
+      "latest_known": "0.45.0",
+      "doc_urls": ["https://cursor.com/docs/context/rules"],
+      "features_adopted": ["cursor-plugin-manifest", "mdc-rules"]
+    },
+    "codex": {
+      "supported_min": "0.40.0",
+      "validated_against": "0.40.0",
+      "latest_known": "0.40.0",
+      "doc_urls": [
+        "https://developers.openai.com/codex/guides/agents-md",
+        "https://developers.openai.com/codex/config-basic"
+      ],
+      "features_adopted": ["codex-plugin-manifest", "agents-md", "hooks-field"]
+    }
+  }
+}

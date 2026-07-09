@@ -5,6 +5,26 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [1.6.0] - 2026-07-09
+
+### Added
+- **Feature equivalence contract (E-layer)** — `feature-equivalence.json`, `check-feature-equivalence.sh`, and auto-scored gaps for skill bridges, multi-manifest parity, MCP/hooks mapping across Claude Code, Cursor, and Codex
+- **Platform target versions (V-layer)** — `docs/engineering/build-and-release/platform-targets.json` records validated platform tool versions; README Row 3 badges show platform versions (not plugin semver)
+- **`check-platform-targets.sh`** — offline badge sync, `--sync` for Codex latest-known, `--require-co-change` CI gate when repo skills change
+- **`scaffold-claude-plugin-gold`** fixture — flat claude-plugin contract test target
+- **`docs/agent-guidelines/platform-equivalence.md`** — capability mapping and intentional asymmetry (Claude-only statusline, Cursor hook substitute)
+- **`makefile-agent-targets.mk.tmpl`** — `make agent:check`, `make agent-polish-gate`, `make platform-targets-*` (agents run these; users use skills)
+
+### Changed
+- **`multi-agent-repo`** / **`repo-standards`** — phases 5–6 cover feature equivalence + platform target sync via `platform-sync`
+- **`readme-badges.md`** — Row 3 uses `platform-targets.json` validated versions
+- **`build.mjs` template** — generates `dist/codex/.codex/config.toml` for agent-kit repos
+- **`scaffold-gold`** — `.agents/skills/` canonical bridge; platform-targets files
+- **`.claude-plugin/plugin.json`** — adds `mcpServers` for cross-manifest MCP parity
+
+### Fixed
+- **`score-equivalence-gaps.sh`** — jq `// true` no longer masks boolean `false` from inventory JSON
+
 ## [1.5.2] - 2026-07-07
 
 ### Added

@@ -32,3 +32,12 @@ After auto-scoring, verify in `audit-rubric.md`:
 - L7-03–L7-05 — cross-file policy consistency
 
 Merge auto + manual gaps into the review report. Deduplicate by rubric ID.
+
+
+## Auto-scored E-layer (feature equivalence)
+
+See `score-equivalence-gaps.sh` — E1-01 through E5-01.
+
+## Auto-scored V-layer (platform targets)
+
+See `score-platform-target-gaps.sh` — V1-01 through V1-05.

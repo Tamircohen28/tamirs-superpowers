@@ -22,9 +22,15 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/Claude%20Code-supported-blueviolet" alt="Claude Code" />
-  <img src="https://img.shields.io/badge/Cursor-supported-000000" alt="Cursor" />
-  <img src="https://img.shields.io/badge/Codex-supported-412991" alt="Codex" />
+  <a href="docs/engineering/build-and-release/platform-targets.json">
+    <img src="https://img.shields.io/badge/Claude%20Code-2.0.0-blueviolet" alt="Claude Code" />
+  </a>
+  <a href="docs/engineering/build-and-release/platform-targets.json">
+    <img src="https://img.shields.io/badge/Cursor-0.45.0-000000" alt="Cursor" />
+  </a>
+  <a href="docs/engineering/build-and-release/platform-targets.json">
+    <img src="https://img.shields.io/badge/Codex-0.40.0-412991" alt="Codex" />
+  </a>
 </p>
 
 # scaffold-gold

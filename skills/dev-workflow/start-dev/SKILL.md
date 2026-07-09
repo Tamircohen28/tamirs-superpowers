@@ -32,7 +32,7 @@ metadata:
   - worktree
   - pr
   - workflow
-  updated-date: '2026-06-30'
+  updated-date: '2026-07-09'
 ---
 
 ## Live context
@@ -131,32 +131,37 @@ EOF
 
 One commit per task or closely related change. Do not batch unrelated changes into a single commit.
 
-### Step 4 — Validate
+### Step 4 — Validate (blocking)
 
-Use the bundled `scripts/detect-stack.sh` to identify which validation commands apply to this repo, then run each one:
+Use `scripts/detect-stack.sh` to emit **every** validation command for this repo, then run each one in order — **abort on first failure**:
 
 ```bash
 cd "$WORKTREE"
+REPO_ROOT="$(git -C "$WORKTREE" rev-parse --show-toplevel)"
+SHARED_DIR="$REPO_ROOT/skills/dev-workflow/_shared/scripts"
+SKILL_DIR="$REPO_ROOT/skills/dev-workflow/start-dev"   # or $CLAUDE_SKILL_DIR when set
 
-# Detect commands for this repo's stack
-SKILL_DIR="$(dirname "$0")"   # or use $CLAUDE_SKILL_DIR if available
-CMDS=$(bash "$SKILL_DIR/scripts/detect-stack.sh" .)
-
+CMDS=$(bash "$SKILL_DIR/scripts/detect-stack.sh" "$WORKTREE")
 if [ -z "$CMDS" ]; then
   echo "No validation commands detected — check README or package.json scripts manually."
 else
   while IFS= read -r cmd; do
     echo "Running: $cmd"
-    eval "$cmd"
+    eval "$cmd" || exit 1
   done <<< "$CMDS"
+fi
+
+# Belt-and-suspenders: multi-platform repos MUST pass pre-PR gates before push/PR
+if bash "$SHARED_DIR/detect-multi-platform-repo.sh" "$WORKTREE"; then
+  bash "$SHARED_DIR/run-pre-pr-gates.sh" "$WORKTREE"
 fi
 ```
 
-`detect-stack.sh` covers: Makefile (`make validate` / `make test`), Node/TS (`npm test`, `npm run lint`, `npx tsc --noEmit`), Python (`pytest`), Go (`go test ./...`, `go vet`), Rust (`cargo test`, `cargo clippy`), Ruby (`bundle exec rspec`).
+`detect-stack.sh` emits stack checks (`make validate`, `npm test`, …) **and** `run-pre-pr-gates.sh` / `make repo-standards-gate` when the Makefile defines agent targets.
 
 Fix every failure before proceeding. Do not push broken code. Do not use `--no-verify` or skip tests because the user says "it's urgent".
 
-### Step 5 — Push and open PR
+### Step 5 — Push and open PR (only after Step 4 is green)
 
 ```bash
 git -C "$WORKTREE" push -u origin HEAD
@@ -217,7 +222,7 @@ See `skills/dev-workflow/switch-dev/references/platform-capabilities.md` for sta
 ## Hard rules
 
 - **Never push directly to the default branch** (`main`, `master`, `develop`). Always use a feature branch.
-- **Never skip Step 4 validation**, even if the user says "just push it" or "it's urgent". Run the checks.
+- **Never skip Step 4 validation**, even if the user says "just push it" or "it's urgent". Run every command from `detect-stack.sh`; on multi-platform repos `run-pre-pr-gates.sh` is mandatory and blocks push/PR.
 - **Never commit with `git add .`** blindly — always stage selectively with `git add -p` or by naming specific files to avoid committing secrets or build artifacts.
 - **Never make architectural decisions silently** — if the implementation requires a choice that changes the public API, schema, or module structure, surface it and ask before coding.
 - **Never create the worktree inside a path that already exists** — `resolve-worktree.sh` resumes existing paths.
@@ -231,6 +236,7 @@ See `skills/dev-workflow/switch-dev/references/platform-capabilities.md` for sta
 | `git add . && git commit -m "wip"` | Stage specific files; use a descriptive conventional commit |
 | Push to `main` directly | Create a branch; open a PR |
 | Skip validation because tests are "probably fine" | Run the stack's test/lint commands; fix failures |
+| Open PR without `make repo-standards-gate` on agent-kit repos | `detect-stack.sh` + `run-pre-pr-gates.sh` run in Step 4 before `git push` |
 | Open the PR with title "Fix stuff" | Write an imperative-mood title: "fix: prevent null dereference in login handler" |
 | Create a worktree in an arbitrary path | Use `resolve-worktree.sh` → `.<platform>/.worktrees/<slug>` |
 | Open PR without enabling auto-merge | Always run `gh pr merge --auto --squash --delete-branch` after `gh pr create` |

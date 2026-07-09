@@ -1,0 +1,28 @@
+{
+  "schema_version": 1,
+  "last_reviewed": "2026-07-09",
+  "reviewed_by_skill": "tamirs-superpowers@1.6.0",
+  "targets": {
+    "claude_code": {
+      "supported_min": "2.0.0",
+      "validated_against": "2.0.0",
+      "latest_known": "2.0.0",
+      "doc_urls": ["https://code.claude.com/docs/en/plugins-reference"],
+      "features_adopted": ["agent-kit-build", "marketplace"]
+    },
+    "cursor": {
+      "supported_min": "0.45.0",
+      "validated_against": "0.45.0",
+      "latest_known": "0.45.0",
+      "doc_urls": ["https://cursor.com/docs"],
+      "features_adopted": ["dist-cursor-rules"]
+    },
+    "codex": {
+      "supported_min": "0.40.0",
+      "validated_against": "0.40.0",
+      "latest_known": "0.40.0",
+      "doc_urls": ["https://developers.openai.com/codex/guides/agents-md"],
+      "features_adopted": ["dist-codex-agents-md"]
+    }
+  }
+}

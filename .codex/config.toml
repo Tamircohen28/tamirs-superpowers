@@ -1,0 +1,5 @@
+# Project-level Codex CLI overrides (stubs — fill MCP env vars locally)
+project_doc_max_bytes = 32768
+
+# MCP servers are declared in .codex-plugin/plugin.json (mcpServers: ./.mcp.json)
+# Activate by setting env vars documented in .mcp.json

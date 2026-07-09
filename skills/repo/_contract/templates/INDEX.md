@@ -14,6 +14,7 @@ Canonical templates for `repo-scaffold` and `repo-standards` polish. Contract ve
 | [`../scripts/ensure-branch-protection.sh`](../scripts/ensure-branch-protection.sh) | Apply/verify default-branch protection (1 review + CI) |
 | [`legacy-scaffold-templates.md`](legacy-scaffold-templates.md) | Full stack-specific bodies (Node, Python, Swift, CLAUDE.md, workflows) |
 | [`check-agent-drift.sh.tmpl`](check-agent-drift.sh.tmpl) | Drift script copied to target `scripts/` |
+| [`makefile-agent-targets.mk.tmpl`](makefile-agent-targets.mk.tmpl) | `make agent:check`, `make agent-polish-gate`, platform-targets-* targets — agents only |
 | [`check-manifest-version-alignment.sh.tmpl`](check-manifest-version-alignment.sh.tmpl) | Plugin repos only: manifest-vs-manifest and manifest-vs-tag version drift, copied to target `scripts/`, wired as a required CI job (see `plugin/ci-plugin.yml.tmpl`) |
 | [`../fixtures/scaffold-gold/`](../fixtures/scaffold-gold/) | Gold reference tree — must pass `assert-contract.sh` |
 | [`scaffold-requirements-plugin.md`](scaffold-requirements-plugin.md) | Agent-kit / `--type plugin` layout |

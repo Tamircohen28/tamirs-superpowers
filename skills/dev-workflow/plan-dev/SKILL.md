@@ -34,7 +34,7 @@ metadata:
   - workflow
   - tickets
   - spec
-  updated-date: '2026-06-30'
+  updated-date: '2026-07-09'
 ---
 
 ## Live context
@@ -118,6 +118,7 @@ Print the full plan using this format for every phase:
 ### Verification
 - [ ] <concrete check — command or manual step>
 - [ ] <edge case to confirm>
+- [ ] `make repo-standards-gate` passes before PR (multi-platform / agent-kit repos only)
 
 ---
 ```
@@ -154,6 +155,23 @@ After printing all phases, say exactly:
 
 If the user requests changes — merge phases, reorder, add tasks, adjust scope — update the plan and re-display it. Repeat steps 3–4 until approved.
 
+### 5b. Multi-platform verification line (agent-kit repos)
+
+Before creating issues, detect multi-platform layout:
+
+```bash
+REPO_ROOT="$(git rev-parse --show-toplevel)"
+bash "$REPO_ROOT/skills/dev-workflow/_shared/scripts/detect-multi-platform-repo.sh" "$REPO_ROOT"
+```
+
+When exit code is 0, **every** phase Verification section must include:
+
+```
+- [ ] `make repo-standards-gate` passes (agent runs before push/PR — wired in start-dev Step 4)
+```
+
+Phases that touch `skills/`, `hooks/`, plugin manifests, or `docs/engineering/build-and-release/platform-targets.json` must also note: update `platform-targets.json` + README Row 3 when platform behavior changes.
+
 ### 6. Create GitHub issues
 
 After approval, create each phase as a GitHub issue in sequence:
@@ -174,6 +192,7 @@ gh issue create \
 ## Verification
 - [ ] <verification step 1>
 - [ ] <verification step 2>
+- [ ] `make repo-standards-gate` passes before PR (include when multi-platform repo)
 
 ## Dependencies
 <"None" or "Blocked by #N">
@@ -223,6 +242,7 @@ Suggest next step: "Run `/start-dev <issue numbers>` to begin implementation, or
 - **Never write code or make commits.** This skill plans only; `/start-dev` implements.
 - **Never push to any branch.** Planning produces GitHub issues, not commits.
 - **Always add `agent:any` label** alongside the type label on every created issue.
+- **Always add `make repo-standards-gate` to Verification** on multi-platform repos (detect via `detect-multi-platform-repo.sh`) so start-dev enforces it before PR.
 
 ## What NOT to do
 

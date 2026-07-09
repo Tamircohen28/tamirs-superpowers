@@ -55,3 +55,20 @@ Body: one paragraph pointing to `AGENTS.md` as source of truth; no full policy c
 - Do not commit from review/plan modes; dev mode commits per SKILL.md
 
 After phases 0–1, continue multi-agent-repo dev mode at Phase 2 locally.
+
+
+## Phase 1b — Codex project config (when MCP documented)
+
+Create `.codex/config.toml` stub with `project_doc_max_bytes = 32768` and a comment pointing to `.codex-plugin/plugin.json` MCP wiring.
+
+## Phase 3b — App skill bridge
+
+Create `.agents/skills/` as canonical. Sync or symlink `.claude/skills/` to match. Document bridge in `AGENTS.md` if paths differ.
+
+## Phase 5b — Platform targets
+
+Write `docs/engineering/build-and-release/platform-targets.json` and sync README Row 3 badges. Agent runs `make platform-targets-sync` before `make agent-polish-gate`.
+
+## Phase 4 — Makefile targets
+
+Copy `makefile-agent-targets.mk.tmpl` into the target `Makefile` (or merge targets). Agents use `make agent:check` and `make agent-polish-gate` only.

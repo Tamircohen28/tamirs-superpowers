@@ -11,7 +11,8 @@ Minimal Node fixture for repo contract validation.
 | `make install` | Install dependencies |
 | `make test` | Run tests |
 | `make lint` | Run linter |
-| `make agent:check` | Verify thin adapters reference this file |
+| `make agent:check` | Drift + feature equivalence + platform targets |
+| `make agent-polish-gate` | Pre-PR gate (agents only) |
 
 ## Constraints
 

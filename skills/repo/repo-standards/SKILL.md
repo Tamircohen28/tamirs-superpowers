@@ -36,7 +36,7 @@ metadata:
   - ci-cd
   - ip-scan
   - multi-agent
-  updated-date: '2026-07-02'
+  updated-date: '2026-07-09'
 ---
 
 ## Live context
@@ -104,7 +104,7 @@ PLAN_PATH="$TARGET_ROOT/docs/engineering/repo-standards-plan-$DATE.md"
 
 ## Mode: review (read-only)
 
-**Goal:** Unified gap report (standards S1–S7 + multi-agent S8). **No repo edits** except the report file.
+**Goal:** Unified gap report (standards S1–S7 + multi-agent S8 + E/V feature equivalence). **No repo edits** except the report file.
 
 ### Steps
 
@@ -126,6 +126,8 @@ PLAN_PATH="$TARGET_ROOT/docs/engineering/repo-standards-plan-$DATE.md"
 ## Plugin / agent-kit appendix (if plugin-gold)
 ## Employer IP scan
 ## Multi-agent appendix
+## Feature equivalence appendix (E-layer)
+## Platform targets appendix (V-layer)
 ## Docs read-only notes
 ## Inventory appendix (JSON)
 ## Next steps
@@ -182,9 +184,10 @@ git checkout -b feat/repo-standards-setup 2>/dev/null || git checkout -b "feat/r
    ```
    Use `--verify-only` on `ensure-branch-protection.sh` when the user asked to skip applying rules (audit only).
    **Banner (phase 1):** If S1-05 is a gap, generate `assets/banner.svg` — a 600×200 SVG with the repo name centered in bold on a dark background (#0F1117), subtitle in gray (#8B949E), and a subtle accent stripe. Use web-safe font stack (no external references). Add `<p align="center"><img src="assets/banner.svg" alt="REPO_NAME" width="600" /></p>` as the first line of README.md.
-6. **Phase 5:** `Skill("multi-agent-repo")` per `references/delegation.md` on the same branch.
+6. **Phase 5:** `Skill("multi-agent-repo")` per `references/delegation.md` on the same branch (include feature equivalence + platform targets).
 7. **Phase 6:** `Skill("docs-review")`; if plugin or agent-kit repo, `Skill("changelog-review")`. Fix all P1 findings.
-8. **Phase 7:** `bash "$SKILL_DIR/scripts/assert-contract.sh" "$TARGET_ROOT" "$CONTRACT_PROFILE"` — P1/P2/P3 must be 0.
+8. **Phase 6b (agents only):** When multi-platform, run `make platform-targets-sync`, update `platform-targets.json` + README Row 3 + `platform-targets.md`, then `make platform-targets-assert`.
+9. **Phase 7:** Run `make repo-standards-gate` when multi-platform (or `make agent-polish-gate` + `assert-contract --manifests-only` on release PRs before the tag exists). P1/P2/P3 must be 0.
 9. `$REVIEW_PATH` and `$PLAN_PATH` are session scratch notes, not deliverables — remove them from the branch before the final commit so they never ship in the PR: `git rm --ignore-unmatch "$REVIEW_PATH" "$PLAN_PATH"` (or plain `rm` if untracked).
 10. Commit in logical chunks; push; `gh pr create` with `templates/pr-body.md.tmpl`.
 11. Print PR URL.
@@ -192,6 +195,10 @@ git checkout -b feat/repo-standards-setup 2>/dev/null || git checkout -b "feat/r
 **Stop at PR.**
 
 ---
+
+## Agent execution rule
+
+Agents run `make repo-standards-gate` during repo-standards polish **and** via `start-dev` / `pr-dev` (`run-pre-pr-gates.sh`) before every push/PR — **never** instruct the user to run `bash scripts/check-*.sh` directly.
 
 ## Hard rules
 

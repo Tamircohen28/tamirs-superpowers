@@ -12,6 +12,7 @@
         "A git worktree is created via resolve-worktree.sh at .<platform>/.worktrees/<branch-slug> (not hardcoded .claude/ only)",
         "At least one commit is made using conventional commit format (feat/fix/chore:)",
         "Validation commands are run (make validate, npm test, or equivalent) before pushing",
+        "On multi-platform repos, run-pre-pr-gates.sh or make repo-standards-gate runs and passes before git push",
         "The branch is pushed to origin with git push -u",
         "A PR is opened via gh pr create with a title and body",
         "Auto-merge is enabled via gh pr merge --auto --squash --delete-branch after PR creation",

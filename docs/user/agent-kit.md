@@ -49,6 +49,24 @@ flowchart TB
 **Contributor rule:** edit `canonical/` only. Run `npm run build`. Never hand-edit `dist/` or generated plugin skill copies.
 
 ---
+## Platform capability parity
+
+Agent-kit repos target **capability parity** across Claude Code, Cursor, and Codex — not identical files on every platform.
+
+| Concern | Source | Generated / per-platform |
+|---------|--------|---------------------------|
+| Policy | `canonical/rules/` | `dist/codex/AGENTS.md`, `dist/cursor/.cursor/rules/` |
+| Skills | `canonical/skills/` | `plugins/<name>/skills/` |
+| Platform versions | `docs/engineering/build-and-release/platform-targets.json` | README Row 3 badges |
+
+After changing canonical content or repo skills:
+
+1. `npm run build && npm run validate`
+2. `make agent:check`
+3. `make platform-targets-sync (agent)` and update `validated_against` when adopting new platform APIs
+
+See [`platform-equivalence.md`](../agent-guidelines/platform-equivalence.md) for intentional asymmetry (hooks, Claude-only features).
+
 
 ## Directory layout (after scaffold)
 

@@ -36,7 +36,7 @@ metadata:
   - audit
   - compatibility
   - plugin
-  updated-date: '2026-06-23'
+  updated-date: '2026-07-09'
 ---
 
 ## Live context
@@ -145,8 +145,10 @@ ALWAYS include these sections in order:
 | 1 | Thin adapters: `CLAUDE.md` (`@AGENTS.md`), `.cursor/rules/000-project.mdc` |
 | 2 | Scoped `.mdc` rules + `docs/agent-guidelines/{testing,security,style}.md` |
 | 3 | Portable skills (`.agents/skills/` or plugin `skills/` per repo type) |
-| 4 | `scripts/check-agent-drift.sh` + `agent:check` in Makefile/package.json + CI |
-| 5 | Run validation; re-inventory; P1 must be 0 |
+| 4 | Copy check scripts + `makefile-agent-targets.mk.tmpl` into Makefile; wire `agent:check` in CI |
+| 5 | Feature equivalence — manifests, bridges, MCP, `platform-equivalence.md` (see `_contract/feature-equivalence.json`) |
+| 5b | Platform targets — `Skill("platform-sync")` read-only; update `platform-targets.json` + README Row 3 badges |
+| 6 | Run validation scripts; re-inventory; P1 must be 0 |
 
 4. For each phase list: actions, files, implementation notes (`references/platform-setup.md` for phases 0–1), validation command, risk.
 5. Write `$PLAN_PATH` from `templates/remediation-plan.md.tmpl`.
@@ -193,14 +195,21 @@ Follow `references/platform-setup.md` for live doc fetch, AGENTS.md, CLAUDE.md (
 
 **Phase 4 — enforcement**
 
-- Copy or adapt `scripts/check-agent-drift.sh` from this skill into target `scripts/`
+- Copy or adapt `scripts/check-agent-drift.sh`, `check-feature-equivalence.sh`, and `check-platform-targets.sh` from `_contract/scripts/` into target `scripts/`
 - For Node repos: copy `templates/check-no-agent-drift.mjs.tmpl` → `scripts/check-no-agent-drift.mjs`
 - Wire `agent:rules` or extend `validate` in Makefile / `package.json` scripts
 - Add CI step if `.github/workflows/` exists (mirror AGENTS.md validation command)
 
-**Phase 5 — validate**
+**Phase 5 — feature equivalence + platform targets**
+
+- Scaffold missing manifests, `.agents/skills/` bridges, `platform-equivalence.md`, and `platform-targets.json` per `_contract/feature-equivalence.json`
+- Optional: `Skill("platform-sync")` read-only for latest platform versions
+
+**Phase 6 — validate**
 
 ```bash
+make agent-polish-gate
+make platform-targets-sync (then update JSON/badges) and make platform-targets-assert
 bash scripts/check-agent-drift.sh
 # plus stack-specific command from AGENTS.md
 bash "$SKILL_DIR/scripts/inventory-agent-setup.sh" "$TARGET_ROOT"
@@ -222,6 +231,18 @@ EOF
 **Stop at PR.** User or `pr-dev` merges after approval.
 
 ---
+
+## Agent execution rule
+
+**Agents run Make targets — never ask the user to run bash scripts.**
+
+| When | Agent runs |
+|------|------------|
+| After wiring scripts/Makefile | `make agent:check` |
+| Before polish PR (multi-platform) | `make agent-polish-gate` (syncs targets, asserts current, full check) |
+| After changing repo skills (tamirs-superpowers) | `make platform-targets-sync` then update `platform-targets.json` + README Row 3 |
+
+Users invoke `/repo-standards polish` or `/multi-agent-repo dev` — not manual `make` commands.
 
 ## Anti-patterns (do not do these)
 

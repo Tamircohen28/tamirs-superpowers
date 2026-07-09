@@ -14,14 +14,18 @@ jobs:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
       - name: Install shellcheck
         run: sudo apt-get install -y shellcheck
-      - name: Run shellcheck on hook scripts
-        run: find hooks -name '*.sh' | xargs shellcheck -S warning --exclude SC2034
+      - name: Run shellcheck
+        run: make lint
       - name: Check for orphan hook scripts
         run: |
-          find hooks -maxdepth 1 -name '*.sh' | while read f; do
-            base=$(basename "$f")
-            grep -q "$base" hooks/hooks.json || { echo "WARN: $f not referenced in hooks.json"; }
-          done
+          if [ -d hooks ] && [ -f hooks/hooks.json ]; then
+            find hooks -maxdepth 1 -name '*.sh' | while read f; do
+              base=$(basename "$f")
+              grep -q "$base" hooks/hooks.json || { echo "WARN: $f not referenced in hooks.json"; }
+            done
+          else
+            echo "hooks/ absent — skipping"
+          fi
 
   validate-json:
     name: Validate JSON
@@ -96,6 +100,16 @@ jobs:
             ARGS+=" --manifests-only"
           fi
           bash skills/repo/_contract/scripts/check-manifest-version-alignment.sh $ARGS
+
+  platform-targets:
+    name: Platform targets co-change
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        with:
+          fetch-depth: 0
+      - name: Require platform-targets.json when repo skills change
+        run: make platform-targets-cochange
 
   hol-scanner:
     name: HOL Plugin Scanner
