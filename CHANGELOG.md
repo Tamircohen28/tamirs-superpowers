@@ -5,6 +5,15 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [1.6.1] - 2026-07-09
+
+### Fixed
+- **`ip-scan.sh`** — `scan-allowlist.txt` filters doc-only false positives (policy prohibitions, MCP placeholder tokens); fix `set -e` exit when last match is allowlisted
+- **`AGENTS.md`** — skill count aligned to 24 (matches README and bundled skills tree)
+
+### Added
+- **`assets/social-preview.png`** — GitHub social preview image
+
 ## [1.6.0] - 2026-07-09
 
 ### Added

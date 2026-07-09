@@ -1,0 +1,10 @@
+# Lines matching any pattern below are excluded from ip-scan results.
+# Use extended regex (grep -E). One pattern per line; # comments allowed.
+
+# MCP builder docs — placeholder env example, not a real credential
+your-token-here
+
+# Policy prohibitions — docs that forbid self-hosted runners, not CI using them
+Never add.*self-hosted
+Never `runs-on
+No `runs-on

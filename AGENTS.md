@@ -1,6 +1,6 @@
 # tamirs-superpowers
 
-A multi-platform agent plugin (Claude Code, Cursor, Codex) that bundles 23 skills, smart worktree hooks, and MCP server stubs. It is **not** a Node/Python/Go app — there is no build step, no `package.json`, no compiled output. All content is Markdown, JSON, and Bash.
+A multi-platform agent plugin (Claude Code, Cursor, Codex) that bundles 24 skills, smart worktree hooks, and MCP server stubs. It is **not** a Node/Python/Go app — there is no build step, no `package.json`, no compiled output. All content is Markdown, JSON, and Bash.
 
 **Install (all platforms)** — from a clone:
 
