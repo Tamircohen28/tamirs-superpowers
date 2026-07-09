@@ -73,17 +73,30 @@ Cursor loads thin adapters from `.cursor/rules/*.mdc` pointing at these files. C
 - Never add a `marketplace.json` to this repo — it is published through the separate `Tamircohen28/plugins` catalog
 - Never hand-write a `SKILL.md` from scratch — use the `skill-creator` skill to ensure evals, references, and quality standards are met
 
-## Cursor Cloud specific instructions
+## Cloud and headless agent runbook
 
-This repo is a Markdown/JSON/Bash plugin — there is **no app server, dev server, or build output**. "Running" it means exercising the validation harness and runtime scripts (commands are in the `Makefile` and `README.md`):
+Applies to **Cursor Cloud**, **Codex sandboxes**, **Claude Code remote sessions**, and CI — any non-interactive shell working on this repo.
 
-- Full validation: `make validate` (shellcheck + JSON lint + SKILL.md frontmatter + repo-contract + manifest/tag alignment).
-- Plugin health check (7 categories): `bash .claude/skills/run-tamirs-superpowers/smoke.sh </dev/null`.
-- Live statusline render: `echo '<session-json>' | bash scripts/statusline.sh`.
+This repo is Markdown/JSON/Bash — there is **no app server, dev server, or build output**. "Running" it means exercising the validation harness and runtime scripts:
 
-Non-obvious gotchas:
+| Check | Command |
+|-------|---------|
+| Full validation | `make validate` (shellcheck + JSON + SKILL.md frontmatter + repo-contract + manifest/tag alignment) |
+| Repo-standards gate | `make repo-standards-gate` (multi-platform repos — runs before push/PR via `start-dev` / `pr-dev`) |
+| Plugin health (7 categories) | `bash .claude/skills/run-tamirs-superpowers/smoke.sh </dev/null` |
+| Statusline render (Claude Code) | `echo '<session-json>' | bash scripts/statusline.sh` |
 
-- `scripts/statusline.sh` reads a JSON session payload from **stdin** (`input=$(cat)`). Running it with no piped input blocks forever (and in a non-interactive tool shell shows up as a spawn/abort). Always pipe JSON in, or redirect stdin. Because `smoke.sh` invokes the statusline with inherited stdin, run the smoke test as `smoke.sh </dev/null` so it doesn't hang.
-- `shellcheck` is required for `make lint`/`make validate` shell coverage; if it is absent, those targets **silently skip** shellcheck instead of failing. It is installed via `apt`, not the repo.
-- The smoke test reports one expected `WARN` (hardcoded `/Users/` path in `skills/toolkit/skill-creator/SKILL.md`) — this is a known, documented warning, not a failure. Health is OK when `FAIL: 0`.
-- `make check-manifest-versions` fetches git tags; it passes offline against the current checkout but needs network to compare against the latest release tag.
+**Gotchas (all platforms):**
+
+- `scripts/statusline.sh` reads JSON from **stdin** (`input=$(cat)`). With no piped input it blocks forever in non-interactive shells. Always pipe JSON in or redirect stdin. Because `smoke.sh` invokes the statusline with inherited stdin, run the smoke test as `smoke.sh </dev/null`.
+- `shellcheck` is required for `make lint`/`make validate` shell coverage; if absent, those targets **silently skip** shellcheck instead of failing. Install via system package manager (`apt`, `brew`, etc.) — not bundled in the repo.
+- The smoke test reports one expected `WARN` (hardcoded `/Users/` path in `skills/toolkit/skill-creator/SKILL.md`) — known, documented; health is OK when `FAIL: 0`.
+- `make check-manifest-versions` fetches git tags; works offline against the current checkout but needs network to compare against the latest release tag.
+
+**Platform-specific addenda:**
+
+| Platform | Where to read more |
+|----------|-------------------|
+| Claude Code | [`CLAUDE.md`](CLAUDE.md) — marketplace cache, statusline wiring, project memory, remote sessions |
+| Cursor | `.cursor-plugin/plugin.json` + `.cursor/rules/*.mdc`; Cloud agents boot in a fresh Linux VM — ensure `shellcheck` and PyYAML (`pip install -r scripts/requirements-validate.txt`) are present |
+| Codex | `.codex-plugin/plugin.json` + optional `.codex/config.toml`; this file (`AGENTS.md`) and `rules/dev/` are the canonical policy sources |
