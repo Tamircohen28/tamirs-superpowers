@@ -72,3 +72,31 @@ Cursor loads thin adapters from `.cursor/rules/*.mdc` pointing at these files. C
 - Never commit to `main` directly — always use a feature branch and PR
 - Never add a `marketplace.json` to this repo — it is published through the separate `Tamircohen28/plugins` catalog
 - Never hand-write a `SKILL.md` from scratch — use the `skill-creator` skill to ensure evals, references, and quality standards are met
+
+## Cloud and headless agent runbook
+
+Applies to **Cursor Cloud**, **Codex sandboxes**, **Claude Code remote sessions**, and CI — any non-interactive shell working on this repo.
+
+This repo is Markdown/JSON/Bash — there is **no app server, dev server, or build output**. "Running" it means exercising the validation harness and runtime scripts:
+
+| Check | Command |
+|-------|---------|
+| Full validation | `make validate` (shellcheck + JSON + SKILL.md frontmatter + repo-contract + manifest/tag alignment) |
+| Repo-standards gate | `make repo-standards-gate` (multi-platform repos — runs before push/PR via `start-dev` / `pr-dev`) |
+| Plugin health (7 categories) | `bash .claude/skills/run-tamirs-superpowers/smoke.sh </dev/null` |
+| Statusline render (Claude Code) | `echo '<session-json>' | bash scripts/statusline.sh` |
+
+**Gotchas (all platforms):**
+
+- `scripts/statusline.sh` reads JSON from **stdin** (`input=$(cat)`). With no piped input it blocks forever in non-interactive shells. Always pipe JSON in or redirect stdin. Because `smoke.sh` invokes the statusline with inherited stdin, run the smoke test as `smoke.sh </dev/null`.
+- `shellcheck` is required for `make lint`/`make validate` shell coverage; if absent, those targets **silently skip** shellcheck instead of failing. Install via system package manager (`apt`, `brew`, etc.) — not bundled in the repo.
+- The smoke test reports one expected `WARN` (hardcoded `/Users/` path in `skills/toolkit/skill-creator/SKILL.md`) — known, documented; health is OK when `FAIL: 0`.
+- `make check-manifest-versions` fetches git tags; works offline against the current checkout but needs network to compare against the latest release tag.
+
+**Platform-specific addenda:**
+
+| Platform | Where to read more |
+|----------|-------------------|
+| Claude Code | [`CLAUDE.md`](CLAUDE.md) — marketplace cache, statusline wiring, project memory, remote sessions |
+| Cursor | `.cursor-plugin/plugin.json` + `.cursor/rules/*.mdc`; Cloud agents boot in a fresh Linux VM — ensure `shellcheck` and PyYAML (`pip install -r scripts/requirements-validate.txt`) are present |
+| Codex | `.codex-plugin/plugin.json` + optional `.codex/config.toml`; this file (`AGENTS.md`) and `rules/dev/` are the canonical policy sources |
