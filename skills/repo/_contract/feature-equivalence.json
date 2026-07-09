@@ -1,0 +1,149 @@
+{
+  "version": "1.0.0",
+  "model": "capability_parity",
+  "repo_types": {
+    "app": {
+      "capabilities": {
+        "instructions": {
+          "severity": "P1",
+          "claude": [
+            "CLAUDE.md with @AGENTS.md"
+          ],
+          "cursor": [
+            ".cursor/rules/000-project.mdc \u2192 AGENTS.md"
+          ],
+          "codex": [
+            "AGENTS.md"
+          ]
+        },
+        "skills": {
+          "severity": "P1",
+          "canonical": ".agents/skills/",
+          "claude": [
+            ".agents/skills/ or synced .claude/skills/"
+          ],
+          "cursor": [
+            ".agents/skills/"
+          ],
+          "codex": [
+            ".agents/skills/"
+          ],
+          "bridge_required_when": [
+            ".claude/skills without .agents/skills"
+          ]
+        },
+        "mcp": {
+          "severity": "P2",
+          "when": "README or AGENTS.md documents MCP",
+          "claude": [
+            ".mcp.json"
+          ],
+          "cursor": [
+            ".mcp.json referenced in docs"
+          ],
+          "codex": [
+            ".codex/config.toml stub"
+          ]
+        },
+        "hooks": {
+          "severity": "n/a"
+        },
+        "platform_targets": {
+          "severity": "P1",
+          "when": "ai_platforms.count >= 2",
+          "artifact": "docs/engineering/build-and-release/platform-targets.json"
+        }
+      }
+    },
+    "claude-plugin": {
+      "capabilities": {
+        "instructions": {
+          "severity": "P1",
+          "claude": [
+            "CLAUDE.md with @AGENTS.md"
+          ],
+          "cursor": [
+            ".cursor/rules/*.mdc"
+          ],
+          "codex": [
+            "AGENTS.md"
+          ]
+        },
+        "skills": {
+          "severity": "P1",
+          "canonical": "skills/",
+          "manifests": [
+            ".claude-plugin/plugin.json",
+            ".cursor-plugin/plugin.json",
+            ".codex-plugin/plugin.json"
+          ],
+          "paths_must_match": true
+        },
+        "mcp": {
+          "severity": "P1",
+          "when": ".mcp.json exists",
+          "all_manifests": "mcpServers field must reference .mcp.json"
+        },
+        "hooks": {
+          "severity": "P1",
+          "when": "hooks/hooks.json exists",
+          "claude": [
+            "hooks/hooks.json"
+          ],
+          "codex": [
+            ".codex-plugin/plugin.json hooks field"
+          ],
+          "cursor_substitute": "docs/agent-guidelines/platform-equivalence.md"
+        },
+        "platform_targets": {
+          "severity": "P1",
+          "artifact": "docs/engineering/build-and-release/platform-targets.json"
+        }
+      }
+    },
+    "agent-kit": {
+      "extends": "claude-plugin",
+      "capabilities": {
+        "skills": {
+          "severity": "P1",
+          "canonical": "canonical/skills/",
+          "generated": [
+            "plugins/*/skills/",
+            "dist/codex/AGENTS.md",
+            "dist/cursor/.cursor/rules/"
+          ]
+        },
+        "build": {
+          "severity": "P1",
+          "scripts": [
+            "scripts/build.mjs",
+            "scripts/validate.mjs"
+          ]
+        }
+      }
+    },
+    "hybrid": {
+      "extends": "app",
+      "merge_rules": [
+        "claude-plugin.manifests",
+        "claude-plugin.mcp",
+        "app.skills_bridge"
+      ]
+    }
+  },
+  "rubric_layers": {
+    "E": "feature_equivalence",
+    "V": "platform_target_versions"
+  },
+  "validation_scripts": [
+    "scripts/check-feature-equivalence.sh",
+    "scripts/check-platform-targets.sh"
+  ],
+  "make_targets": {
+    "agent_check": "make agent:check",
+    "agent_polish_gate": "make agent-polish-gate",
+    "platform_targets_sync": "make platform-targets-sync",
+    "platform_targets_assert": "make platform-targets-assert",
+    "platform_targets_cochange": "make platform-targets-cochange"
+  }
+}

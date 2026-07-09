@@ -165,3 +165,16 @@ Summarize at top:
 | P2 | N |
 | P3 | N |
 ```
+
+
+---
+
+## Layer 10 — Feature equivalence (E-layer)
+
+Auto-scored via `score-equivalence-gaps.sh`. Spec: `_contract/feature-equivalence.json`.
+
+---
+
+## Layer 11 — Platform target versions (V-layer)
+
+Auto-scored via `score-platform-target-gaps.sh`. Canonical file: `docs/engineering/build-and-release/platform-targets.json`.

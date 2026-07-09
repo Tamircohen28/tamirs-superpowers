@@ -49,6 +49,14 @@ fs.writeFileSync(
   `${marker}# AGENTS.md\n\nThis file is generated from \`canonical/rules/*\`.\n\n${allRules}\n`
 );
 
+// dist/codex/.codex/config.toml (GENERATED stub for Codex project config)
+const codexConfigDir = path.join(codexDir, '.codex');
+fs.mkdirSync(codexConfigDir, { recursive: true });
+fs.writeFileSync(
+  path.join(codexConfigDir, 'config.toml'),
+  `# GENERATED FILE. DO NOT EDIT DIRECTLY.\n# Source: agent-kit build\n# Run: npm run build\n\nproject_doc_max_bytes = 32768\n`
+);
+
 // dist/cursor/.cursor/rules/000-core.mdc
 const cursorRuleDir = path.join(root, 'dist/cursor/.cursor/rules');
 fs.mkdirSync(cursorRuleDir, { recursive: true });

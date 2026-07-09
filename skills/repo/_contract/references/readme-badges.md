@@ -23,21 +23,21 @@ Omit the entire row if none apply.
 
 ## Row 3 — AI targets (when repo supports ≥1 platform)
 
-Show each supported target and its configured version:
+Show each supported target and its **platform tool version** from `docs/engineering/build-and-release/platform-targets.json` (`validated_against`):
 
 ```markdown
-[![Claude Code](https://img.shields.io/badge/Claude%20Code-1.5.2-blueviolet)](...)
-[![Cursor](https://img.shields.io/badge/Cursor-1.5.2-000000)](...)
-[![Codex](https://img.shields.io/badge/Codex-1.5.2-412991)](...)
+[![Claude Code](https://img.shields.io/badge/Claude%20Code-2.0.0-blueviolet)](...)
+[![Cursor](https://img.shields.io/badge/Cursor-0.45.0-000000)](...)
+[![Codex](https://img.shields.io/badge/Codex-0.40.0-412991)](...)
 ```
 
 Or a single line under badges:
 
-`AI targets: Claude Code 1.5.2 · Cursor 1.5.2 · Codex 1.5.2`
+`AI targets: Claude Code 2.0.0 · Cursor 0.45.0 · Codex 0.40.0`
 
-Derive versions from `.claude-plugin/plugin.json`, `.cursor-plugin/plugin.json`,
-`.codex-plugin/plugin.json`, or `AGENTS.md` install section — they must match in
-multi-target plugin repos.
+**Do not** reuse plugin manifest semver on Row 3 — that belongs on Row 1 only.
+
+When repo skills adopt new platform APIs, bump `platform-targets.json`, this row, and `platform-targets.md` in the same PR. Agents run `make platform-targets-sync` (users use `/repo-standards polish`).
 
 ## Multi-target install docs
 

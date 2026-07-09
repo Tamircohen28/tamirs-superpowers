@@ -1,0 +1,29 @@
+# Multi-agent + platform-target validation (copy into consumer Makefile or include).
+# Agents run these targets — users should not run bash scripts directly.
+
+.PHONY: check-agent-drift check-feature-equivalence check-platform-targets \
+	platform-targets-sync platform-targets-assert platform-targets-cochange \
+	agent\:check agent-polish-gate
+
+check-agent-drift:
+	bash scripts/check-agent-drift.sh .
+
+check-feature-equivalence:
+	bash scripts/check-feature-equivalence.sh .
+
+check-platform-targets:
+	bash scripts/check-platform-targets.sh .
+
+platform-targets-sync:
+	bash scripts/check-platform-targets.sh . --sync
+
+platform-targets-assert:
+	bash scripts/check-platform-targets.sh . --assert-current
+
+platform-targets-cochange:
+	bash scripts/check-platform-targets.sh . --require-co-change
+
+agent\:check: check-agent-drift check-feature-equivalence check-platform-targets
+
+# Polish exit gate — agent runs after updating platform-targets.json + README badges
+agent-polish-gate: platform-targets-sync platform-targets-assert agent\:check

@@ -13,19 +13,19 @@
     <img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="MIT License" />
   </a>
   <a href=".claude-plugin/plugin.json">
-    <img src="https://img.shields.io/badge/version-1.5.2-blue" alt="Version" />
+    <img src="https://img.shields.io/badge/version-1.6.0-blue" alt="Version" />
   </a>
 </p>
 
 <p align="center">
-  <a href=".claude-plugin/plugin.json">
-    <img src="https://img.shields.io/badge/Claude%20Code-1.5.2-blueviolet" alt="Claude Code" />
+  <a href="docs/engineering/build-and-release/platform-targets.json">
+    <img src="https://img.shields.io/badge/Claude%20Code-2.0.0-blueviolet" alt="Claude Code" />
   </a>
-  <a href=".cursor-plugin/plugin.json">
-    <img src="https://img.shields.io/badge/Cursor-1.5.2-000000" alt="Cursor" />
+  <a href="docs/engineering/build-and-release/platform-targets.json">
+    <img src="https://img.shields.io/badge/Cursor-0.45.0-000000" alt="Cursor" />
   </a>
-  <a href=".codex-plugin/plugin.json">
-    <img src="https://img.shields.io/badge/Codex-1.5.2-412991" alt="Codex" />
+  <a href="docs/engineering/build-and-release/platform-targets.json">
+    <img src="https://img.shields.io/badge/Codex-0.40.0-412991" alt="Codex" />
   </a>
 </p>
 

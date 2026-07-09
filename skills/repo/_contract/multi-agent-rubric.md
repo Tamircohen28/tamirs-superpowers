@@ -14,5 +14,8 @@ Auto-scored IDs from `score-inventory-gaps.sh`. Full rubric: [`../../multi-agent
 | L5-01 | `docs/agent-guidelines/` | P2 |
 | L6-03 | `agent:check` in Makefile or package.json | P1 |
 | L7-01 | `scripts/check-agent-drift.sh` | P2 |
+| E1-01 | `.agents/skills/` or documented bridge (app repos) | P1 |
+| E2-01 | All three plugin manifests when skills ship | P1 |
+| V1-01 | `platform-targets.json` when multi-platform | P1 |
 
-Merged with standards S1–S7 via `score-contract-gaps.sh`.
+Merged with standards S1–S7 via `score-contract-gaps.sh`. E/V via `score-equivalence-gaps.sh` and `score-platform-target-gaps.sh`.

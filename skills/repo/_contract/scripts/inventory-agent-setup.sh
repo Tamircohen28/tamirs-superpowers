@@ -124,7 +124,7 @@ done
 
 # --- CI / agent:check ---
 has_agent_check=false
-if [[ -f "$ROOT/Makefile" ]] && grep -qE 'agent:check|agent:rules|validate-skill-frontmatter' "$ROOT/Makefile" 2>/dev/null; then
+if [[ -f "$ROOT/Makefile" ]] && grep -qE 'agent\\:check|agent:check|agent-polish-gate|agent:rules|validate-skill-frontmatter' "$ROOT/Makefile" 2>/dev/null; then
   has_agent_check=true
 fi
 if [[ -f "$ROOT/package.json" ]] && grep -qE '"agent:check"|"agent:rules"' "$ROOT/package.json" 2>/dev/null; then
@@ -139,6 +139,122 @@ fi
 is_git_repo=false
 if git -C "$ROOT" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
   is_git_repo=true
+fi
+
+# --- skill bridge ---
+skill_dir_names() {
+  local base="$1"
+  [[ -d "$base" ]] || return 0
+  find "$base" -mindepth 1 -maxdepth 1 -type d -exec basename {} \; 2>/dev/null | sort | tr '\n' '|'
+}
+
+bridge_ok=true
+bridge_documented=false
+if [[ -f "$ROOT/AGENTS.md" ]] && grep -qE '\.agents/skills|skill bridge|skills bridge' "$ROOT/AGENTS.md" 2>/dev/null; then
+  bridge_documented=true
+fi
+if [[ -f "$ROOT/docs/agent-guidelines/platform-equivalence.md" ]]; then
+  bridge_documented=true
+fi
+if [[ "$agents_skills_dir" == true && "$claude_project_skills" == true ]]; then
+  a_names=$(skill_dir_names "$ROOT/.agents/skills")
+  c_names=$(skill_dir_names "$ROOT/.claude/skills")
+  [[ "$a_names" == "$c_names" ]] || bridge_ok=false
+elif [[ "$agents_skills_dir" != true && "$claude_project_skills" == true && "$bridge_documented" != true ]]; then
+  bridge_ok=false
+fi
+
+# --- manifest skills paths ---
+manifest_skills_match=true
+if [[ "$claude_plugin_manifest" == true && "$cursor_plugin_manifest" == true && "$codex_plugin_manifest" == true ]] \
+  && command -v jq >/dev/null 2>&1; then
+  c_skills=$(jq -c '.skills // [] | if type == "string" then [.] else . end | map(tostring) | sort' "$ROOT/.claude-plugin/plugin.json" 2>/dev/null || echo "[]")
+  u_skills=$(jq -c '.skills // [] | if type == "string" then [.] else . end | map(tostring) | sort' "$ROOT/.cursor-plugin/plugin.json" 2>/dev/null || echo "[]")
+  x_skills=$(jq -c '.skills // [] | if type == "string" then [.] else . end | map(tostring) | sort' "$ROOT/.codex-plugin/plugin.json" 2>/dev/null || echo "[]")
+  [[ "$c_skills" == "$u_skills" && "$c_skills" == "$x_skills" ]] || manifest_skills_match=false
+fi
+
+# --- MCP ---
+mcp_stub=false
+mcp_refs_match=true
+mcp_documented=false
+[[ -f "$ROOT/.mcp.json" ]] && mcp_stub=true
+if [[ "$mcp_stub" == true ]]; then
+  for m in .claude-plugin/plugin.json .cursor-plugin/plugin.json .codex-plugin/plugin.json; do
+    [[ -f "$ROOT/$m" ]] || continue
+    ref=$(jq -r '.mcpServers // empty' "$ROOT/$m" 2>/dev/null || true)
+    [[ -n "$ref" ]] || mcp_refs_match=false
+  done
+fi
+for f in "$ROOT/README.md" "$ROOT/AGENTS.md"; do
+  [[ -f "$f" ]] && grep -qiE '\bmcp\b' "$f" 2>/dev/null && mcp_documented=true && break
+done
+
+# --- hooks ---
+hooks_claude=false
+hooks_codex=false
+hooks_cursor_doc=false
+[[ -f "$ROOT/hooks/hooks.json" ]] && hooks_claude=true
+if [[ -f "$ROOT/.codex-plugin/plugin.json" ]]; then
+  h=$(jq -r '.hooks // empty' "$ROOT/.codex-plugin/plugin.json" 2>/dev/null || true)
+  [[ -n "$h" ]] && hooks_codex=true
+fi
+if [[ -f "$ROOT/docs/agent-guidelines/platform-equivalence.md" ]] \
+  && grep -qiE 'cursor|hook' "$ROOT/docs/agent-guidelines/platform-equivalence.md" 2>/dev/null; then
+  hooks_cursor_doc=true
+fi
+
+# --- codex config ---
+codex_config=false
+[[ -f "$ROOT/.codex/config.toml" ]] && codex_config=true
+
+# --- platform equivalence doc ---
+platform_equiv_doc=false
+[[ -f "$ROOT/docs/agent-guidelines/platform-equivalence.md" ]] && platform_equiv_doc=true
+
+# --- platform targets ---
+pt_multi=false
+pt_file=false
+pt_md=false
+pt_badges_match=true
+pt_stale=false
+pt_review_stale=false
+ai_platform_count=0
+[[ -f "$ROOT/AGENTS.md" ]] && ai_platform_count=$((ai_platform_count + 1))
+[[ -f "$ROOT/CLAUDE.md" ]] && ai_platform_count=$((ai_platform_count + 1))
+[[ -d "$cursor_rules_dir" && "$cursor_count" -gt 0 ]] && ai_platform_count=$((ai_platform_count + 1))
+(( ai_platform_count >= 2 )) && pt_multi=true
+
+PT_JSON="$ROOT/docs/engineering/build-and-release/platform-targets.json"
+PT_MD="$ROOT/docs/engineering/build-and-release/platform-targets.md"
+[[ -f "$PT_JSON" ]] && pt_file=true
+[[ -f "$PT_MD" ]] && pt_md=true
+
+if [[ "$pt_file" == true && -f "$ROOT/README.md" ]] && command -v jq >/dev/null 2>&1; then
+  for key in claude_code cursor codex; do
+    validated=$(jq -r ".targets.$key.validated_against // empty" "$PT_JSON" 2>/dev/null || true)
+    [[ -n "$validated" ]] || continue
+    case "$key" in
+      claude_code) prefix="Claude%20Code" ;;
+      cursor) prefix="Cursor" ;;
+      codex) prefix="Codex" ;;
+    esac
+    grep -qF "${prefix}-${validated}" "$ROOT/README.md" 2>/dev/null || pt_badges_match=false
+  done
+  for key in claude_code cursor codex; do
+    v=$(jq -r ".targets.$key.validated_against // empty" "$PT_JSON" 2>/dev/null || true)
+    l=$(jq -r ".targets.$key.latest_known // empty" "$PT_JSON" 2>/dev/null || true)
+    if [[ -n "$v" && -n "$l" && "$v" != "$l" ]]; then pt_stale=true; fi
+  done
+  last_rev=$(jq -r '.last_reviewed // empty' "$PT_JSON" 2>/dev/null || true)
+  if [[ -n "$last_rev" ]]; then
+    if date -v-90d +%Y-%m-%d >/dev/null 2>&1; then
+      cutoff=$(date -v-90d +%Y-%m-%d)
+    else
+      cutoff=$(date -d '90 days ago' +%Y-%m-%d 2>/dev/null || echo "")
+    fi
+    [[ -n "$cutoff" && "$last_rev" < "$cutoff" ]] && pt_review_stale=true
+  fi
 fi
 
 jq -nc \
@@ -168,6 +284,23 @@ jq -nc \
   --argjson has_agent_check "$has_agent_check" \
   --argjson has_ci "$has_ci" \
   --argjson is_git_repo "$is_git_repo" \
+  --argjson bridge_ok "$bridge_ok" \
+  --argjson bridge_documented "$bridge_documented" \
+  --argjson manifest_skills_match "$manifest_skills_match" \
+  --argjson mcp_stub "$mcp_stub" \
+  --argjson mcp_refs_match "$mcp_refs_match" \
+  --argjson mcp_documented "$mcp_documented" \
+  --argjson hooks_claude "$hooks_claude" \
+  --argjson hooks_codex "$hooks_codex" \
+  --argjson hooks_cursor_doc "$hooks_cursor_doc" \
+  --argjson codex_config "$codex_config" \
+  --argjson platform_equiv_doc "$platform_equiv_doc" \
+  --argjson pt_multi "$pt_multi" \
+  --argjson pt_file "$pt_file" \
+  --argjson pt_md "$pt_md" \
+  --argjson pt_badges_match "$pt_badges_match" \
+  --argjson pt_stale "$pt_stale" \
+  --argjson pt_review_stale "$pt_review_stale" \
   '{
     root: $root,
     repo_type: $repo_type,
@@ -185,14 +318,32 @@ jq -nc \
       plugin_skills_dir: $plugin_skills,
       plugin_skill_count: $plugin_skill_count,
       claude_project_skills: $claude_project_skills,
-      claude_project_skill_count: $claude_project_skill_count
+      claude_project_skill_count: $claude_project_skill_count,
+      bridge_ok: $bridge_ok,
+      bridge_documented: $bridge_documented
     },
     manifests: {
       claude_plugin: $claude_plugin_manifest,
       cursor_plugin: $cursor_plugin_manifest,
-      codex_plugin: $codex_plugin_manifest
+      codex_plugin: $codex_plugin_manifest,
+      skills_paths_match: $manifest_skills_match
     },
-    docs: { agent_guidelines_dir: $agent_guidelines_dir, markdown_count: $agent_guidelines_count },
+    mcp: { stub_exists: $mcp_stub, manifest_refs_match: $mcp_refs_match, documented: $mcp_documented },
+    hooks: { claude_exists: $hooks_claude, codex_declared: $hooks_codex, cursor_substitute_doc: $hooks_cursor_doc },
+    codex: { config_exists: $codex_config },
+    docs: {
+      agent_guidelines_dir: $agent_guidelines_dir,
+      markdown_count: $agent_guidelines_count,
+      platform_equivalence: $platform_equiv_doc
+    },
+    platform_targets: {
+      multi_platform: $pt_multi,
+      file_exists: $pt_file,
+      md_exists: $pt_md,
+      readme_badges_match: $pt_badges_match,
+      stale: $pt_stale,
+      review_stale: $pt_review_stale
+    },
     enforcement: { drift_script: $drift_script, has_agent_check: $has_agent_check, has_ci: $has_ci },
     git: { is_repo: $is_git_repo }
   }'

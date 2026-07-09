@@ -52,3 +52,11 @@ Audit Claude Code plugin patterns in $TARGET_ROOT.
 Apply P1 findings (frontmatter, hooks, skill paths).
 Return structured summary for repo-standards polish gate.
 ```
+
+## multi-agent-repo (dev — polish phase 5, agent make targets)
+
+```text
+After implementing multi-agent files, agent MUST run on $TARGET_ROOT:
+  make agent-polish-gate
+Do not ask the user to run checks manually.
+```

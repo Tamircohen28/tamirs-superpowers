@@ -11,7 +11,10 @@ ROOT="${1:-.}"
 PROFILE="${2:-app-gold}"
 
 STD_JSON="$(bash "$SCRIPT_DIR/standards-inventory.sh" "$ROOT" | bash "$SCRIPT_DIR/score-standards-gaps.sh")"
-MA_JSON="$(bash "$SCRIPT_DIR/inventory-agent-setup.sh" "$ROOT" | bash "$SCRIPT_DIR/score-inventory-gaps.sh")"
+INV_JSON="$(bash "$SCRIPT_DIR/inventory-agent-setup.sh" "$ROOT")"
+MA_JSON="$(echo "$INV_JSON" | bash "$SCRIPT_DIR/score-inventory-gaps.sh")"
+EQ_JSON="$(echo "$INV_JSON" | bash "$SCRIPT_DIR/score-equivalence-gaps.sh")"
+PT_JSON="$(echo "$INV_JSON" | bash "$SCRIPT_DIR/score-platform-target-gaps.sh")"
 
 PLUGIN_JSON='{"gaps":[],"counts":{"p1":0,"p2":0,"p3":0}}'
 if [[ "$PROFILE" == "plugin-gold" ]]; then
@@ -28,10 +31,12 @@ jq -nc \
   --arg profile "$PROFILE" \
   --argjson std "$STD_JSON" \
   --argjson ma "$MA_JSON" \
+  --argjson eq "$EQ_JSON" \
+  --argjson pt "$PT_JSON" \
   --argjson plugin "$PLUGIN_JSON" \
   --argjson skip "$SKIP_IDS" \
   '
-  ($std.gaps + $ma.gaps + $plugin.gaps) as $all |
+  ($std.gaps + $ma.gaps + $eq.gaps + $pt.gaps + $plugin.gaps) as $all |
   [ $all[] | select(.id as $id | ($skip | index($id) | not)) ] as $filtered |
   {
     profile: $profile,
@@ -41,6 +46,12 @@ jq -nc \
       p2: ([$filtered[] | select(.severity == "P2")] | length),
       p3: ([$filtered[] | select(.severity == "P3")] | length)
     },
-    sources: { standards: $std.counts, multi_agent: $ma.counts, plugin: $plugin.counts }
+    sources: {
+      standards: $std.counts,
+      multi_agent: $ma.counts,
+      equivalence: $eq.counts,
+      platform_targets: $pt.counts,
+      plugin: $plugin.counts
+    }
   }
   '
