@@ -6,36 +6,42 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=lib/worktree-common.sh
 source "${SCRIPT_DIR}/lib/worktree-common.sh"
+# shellcheck source=lib/hook-output.sh
+source "${SCRIPT_DIR}/lib/hook-output.sh"
 
 input="$(cat)"
+hook_detect_platform "$input"
 tool_name="$(echo "$input" | jq -r '.tool_name // empty')"
-session_id="$(echo "$input" | jq -r '.session_id // empty')"
+session_id="$(echo "$input" | jq -r '.session_id // .conversation_id // empty')"
 cwd="$(echo "$input" | jq -r '.cwd // empty')"
+if [[ -z "$cwd" ]]; then
+  cwd="$(echo "$input" | jq -r '.workspace_roots[0] // empty')"
+fi
 
 case "$tool_name" in
-  Edit|Write|MultiEdit|NotebookEdit) ;;
-  *) exit 0 ;;
+  Edit|Write|MultiEdit|NotebookEdit|StrReplace) ;;
+  *) hook_allow ;;
 esac
 
 if [[ -z "$cwd" ]]; then
-  exit 0
+  hook_allow
 fi
 if ! is_git_repo "$cwd"; then
-  exit 0
+  hook_allow
 fi
 
 if is_global_worktree_path "$cwd"; then
-  exit 0
+  hook_allow
 fi
 
 repo_root="$(repo_root_for "$cwd")"
 
-file_path="$(echo "$input" | jq -r '.tool_input.file_path // empty')"
+file_path="$(echo "$input" | jq -r '.tool_input.file_path // .tool_input.path // empty')"
 if [[ -n "$file_path" && "$file_path" != "null" ]]; then
   # Only enforce if the file being edited is inside this repo
   case "$file_path" in
     "$repo_root"/*) ;;  # inside repo — fall through to deny
-    *) exit 0 ;;        # outside repo — allow
+    *) hook_allow ;;    # outside repo — allow
   esac
 fi
 
@@ -57,12 +63,4 @@ else
   reason="${reason} Submit your task prompt first so the worktree slug is derived from it, then cd into the worktree."
 fi
 
-cat <<EOF
-{
-  "hookSpecificOutput": {
-    "hookEventName": "PreToolUse",
-    "permissionDecision": "deny",
-    "permissionDecisionReason": $(echo "$reason" | jq -Rs .)
-  }
-}
-EOF
+hook_deny "$reason"

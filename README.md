@@ -13,7 +13,7 @@
     <img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="MIT License" />
   </a>
   <a href=".claude-plugin/plugin.json">
-    <img src="https://img.shields.io/badge/version-1.6.1-blue" alt="Version" />
+    <img src="https://img.shields.io/badge/version-1.6.2-blue" alt="Version" />
   </a>
 </p>
 
@@ -134,7 +134,7 @@ Internal skills (invoked by parent skills, not shown in `/` menu): `docs-review`
 
 | Event | Script(s) | Purpose |
 |---|---|---|
-| `PreToolUse (Bash)` | `protect-other-branches.sh` | Block editing PRs from other authors. |
+| `PreToolUse (Bash\|Shell)` | `protect-other-branches.sh` | Block editing PRs from other authors. |
 | `PreToolUse (Edit\|Write\|…)` | `enforce-worktree-edits.sh` | Refuse repo edits outside the task worktree. |
 | `PreToolUse (Edit\|Write\|…)` | `guard-sensitive-files.sh`, `skill-creator-guard.sh` | Block edits to lockfiles/build output; enforce `/skill-creator` for SKILL.md edits. |
 | `PostToolUse (Edit\|Write)` | `plugin-reload-reminder.sh`, `wix-ip-guard.sh` | Remind to reload after plugin file edits; warn on Wix IP references. |
