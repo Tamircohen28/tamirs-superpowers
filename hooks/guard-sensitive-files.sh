@@ -3,23 +3,30 @@
 # Override for an intentional edit: set PM_ALLOW_PROTECTED=1 in the environment.
 set -uo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=lib/hook-output.sh
+source "${SCRIPT_DIR}/lib/hook-output.sh"
+
 input=$(cat)
+hook_detect_platform "$input"
 file=$(printf '%s' "$input" | python3 -c "
 import sys, json
 try:
     d = json.load(sys.stdin)
-    print(d.get('tool_input', {}).get('file_path', '') or '')
+    ti = d.get('tool_input', {}) or {}
+    print(ti.get('file_path', '') or ti.get('path', '') or '')
 except Exception:
     print('')
 " 2>/dev/null)
 
-[ -z "$file" ] && exit 0
-[ "${PM_ALLOW_PROTECTED:-0}" = "1" ] && exit 0
+[ -z "$file" ] && hook_allow
+[ "${PM_ALLOW_PROTECTED:-0}" = "1" ] && hook_allow
 
 case "$file" in
   *.lock|*/.yarn/releases/*|*/dist/*|*/build/*|*/src/components/ui/*|*/.github/workflows/*)
-    echo "BLOCKED: '$file' is a protected/generated file (lockfile, build output, generated shadcn UI, .yarn binary, or GitHub workflow). Don't hand-edit it — regenerate via the package manager / shadcn CLI, or edit workflows via the GitHub MCP. If this edit is genuinely intended and the user asked for it, set PM_ALLOW_PROTECTED=1 in the environment and retry." >&2
-    exit 2
+    reason="BLOCKED: '$file' is a protected/generated file (lockfile, build output, generated shadcn UI, .yarn binary, or GitHub workflow). Don't hand-edit it — regenerate via the package manager / shadcn CLI, or edit workflows via the GitHub MCP. If this edit is genuinely intended and the user asked for it, set PM_ALLOW_PROTECTED=1 in the environment and retry."
+    echo "$reason" >&2
+    hook_deny "$reason"
     ;;
 esac
-exit 0
+hook_allow
