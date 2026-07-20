@@ -66,13 +66,13 @@ Scopes: `skills`, `hooks`, `marketplace`, `ci`, `docs`
 - **Version sync:** whenever `.claude-plugin/plugin.json` version is bumped, `.codex-plugin/plugin.json` and `.cursor-plugin/plugin.json` must be bumped to the same version in the same commit. Check all three before opening a release PR.
 - **Version bump required for marketplace delivery:** Claude Code treats `plugin.json` `version` as the update cache key. New skills, hooks, or other shipped changes **must** include a semver bump (PATCH/MINOR/MAJOR per [versioning.md](docs/engineering/build-and-release/versioning.md)) or installed users stay on the cached copy. `/reload-plugins` does not fetch from GitHub. See [`rules/dev/plugin-version-bump.md`](rules/dev/plugin-version-bump.md).
 
-## Skill domains (24 skills total)
+## Skill domains (25 skills total)
 
 | Domain | Skills |
 |--------|--------|
 | `creative` | algorithmic-art, field-notebook-ui |
 | `debugging` | targeted-debug |
-| `dev-workflow` | plan-dev, pr-dev, start-dev, switch-dev |
+| `dev-workflow` | decision, plan-dev, pr-dev, start-dev, switch-dev |
 | `documentation` | changelog-review, dark-terminal-doc, docs-review, platform-sync, platform-sync-claude, platform-sync-codex, platform-sync-cursor |
 | `mcp` | mcp-builder, mcp-pagination |
 | `toolkit` | find-skill, retro, session-report, skill-creator |

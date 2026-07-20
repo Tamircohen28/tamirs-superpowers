@@ -6,6 +6,10 @@ All notable changes are recorded here and in [`../CHANGELOG.md`](../CHANGELOG.md
 
 See root [CHANGELOG.md](../CHANGELOG.md#unreleased) for in-progress entries.
 
+## [1.7.0] - 2026-07-20
+
+New `decision` skill (`dev-workflow`). See root [CHANGELOG.md](../CHANGELOG.md#170---2026-07-20).
+
 ## [1.5.2] - 2026-07-07
 
 Contributor version-bump rule, troubleshooting for stale plugin cache, and manifest/tag alignment CI. See root [CHANGELOG.md](../CHANGELOG.md#152---2026-07-07).
