@@ -13,7 +13,7 @@
     <img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="MIT License" />
   </a>
   <a href=".claude-plugin/plugin.json">
-    <img src="https://img.shields.io/badge/version-1.6.2-blue" alt="Version" />
+    <img src="https://img.shields.io/badge/version-1.7.0-blue" alt="Version" />
   </a>
 </p>
 
@@ -31,11 +31,11 @@
 
 # tamirs-superpowers
 
-A multi-platform agent plugin (Claude Code, Cursor, Codex) that bundles 24 skills, 6 specialist agents, smart worktree hooks, and MCP server stubs — installed with one command per platform and kept current via marketplace auto-update.
+A multi-platform agent plugin (Claude Code, Cursor, Codex) that bundles 25 skills, 6 specialist agents, smart worktree hooks, and MCP server stubs — installed with one command per platform and kept current via marketplace auto-update.
 
 ## Features
 
-- **24 bundled skills** — plan, implement, hand off across Claude/Cursor/Codex, drive PRs to merge, audit repo standards, multi-agent setup, debug, run session retrospectives, create and benchmark skills, and more, all from the Claude Code prompt
+- **25 bundled skills** — plan, implement, hand off across Claude/Cursor/Codex, drive PRs to merge, audit repo standards, multi-agent setup, debug, run session retrospectives, create and benchmark skills, and more, all from the Claude Code prompt
 - **6 specialist agents** — architecture-reviewer, debugging-specialist, performance-reviewer, research-agent, security-reviewer, test-engineer; available via the Agent tool in any session
 - **Smart worktree hooks** that automatically create isolated git worktrees per task, derive task slugs from your first prompt, enforce edit isolation, guard sensitive files, and show Claude Code changelogs on update
 - **Auto-installed plugin dependencies** — superpowers pulls in automatically when you install this plugin
@@ -105,6 +105,7 @@ Each skill lives at `skills/<skill-name>/SKILL.md`.
 | `/tamirs-superpowers:start-dev` | Create platform worktree, implement, validate, push, and open a PR. |
 | `/tamirs-superpowers:switch-dev` | Hand off, resume, or list status for work across Claude Code, Cursor, and Codex via GitHub issue Resume blocks. |
 | `/tamirs-superpowers:pr-dev` | Drive a PR to merge — address review threads, fix CI, squash-merge after explicit approval. |
+| `/tamirs-superpowers:decision` | Summarize a pending decision or GitHub issue/PR in plain language and hand it back as an `AskUserQuestion` menu — walks through multiple open decisions/action items one at a time. |
 | `/tamirs-superpowers:multi-agent-repo` | Audit, plan, and implement canonical multi-agent setup (AGENTS.md + thin adapters + drift checks) across Claude Code, Cursor, and Codex — review / plan / dev modes. Replaces former `plugin-compat`. |
 | `/tamirs-superpowers:targeted-debug` | Scope-bounded debug from a stack trace — reads only named files. |
 | `/tamirs-superpowers:repo-standards` | Audit, plan, and polish repos to Tamir Cohen standards — README, docs, CI/CD, branch rules, employer IP scan, hygiene, and multi-agent setup. Auto-detects `app-gold` vs `plugin-gold` (agent-kit repos with `canonical/`). |

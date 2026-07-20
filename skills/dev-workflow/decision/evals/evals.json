@@ -1,0 +1,24 @@
+{
+  "skill_name": "decision",
+  "notes": "This skill's primary output is a call to the built-in AskUserQuestion tool, which requires a live human respondent. Automated with-skill/baseline subagent benchmarking cannot meaningfully grade the actual menu interaction (no one is present to answer). These prompts are kept for manual/live regression checks — run them in a real session and confirm: (1) the right input-resolution branch is taken, (2) the plain-language summary appears before any menu, (3) AskUserQuestion is called with options grounded in real context, and (4) multi-decision requests walk through one at a time rather than batching.",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "We just spent this whole conversation debating whether to store user sessions in Redis or in Postgres with a TTL column, and never landed on one. Display that decision to me simply and let me choose.",
+      "expected_output": "A 1-3 sentence plain-language summary of the Redis-vs-Postgres tradeoff (grounded in whatever was actually discussed earlier in the conversation), followed by a single AskUserQuestion call with 2-4 options (Redis, Postgres+TTL, etc.) — not a prose question.",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "summarize issue #57 and give me options",
+      "expected_output": "Fetches the issue via `gh issue view 57 --json title,body,comments,url` (inferring repo from the current git checkout), writes a plain-language summary of what's being asked, then calls AskUserQuestion with options drawn from the issue body/comments — not invented options.",
+      "files": []
+    },
+    {
+      "id": 3,
+      "prompt": "walk me through the open decisions",
+      "expected_output": "Scans the whole conversation for every unresolved decision/action item, first lists them in one short line each, then presents each one via its own separate AskUserQuestion call in the order raised — never batches multiple decisions into one call — and ends with a short recap of all choices made.",
+      "files": []
+    }
+  ]
+}
