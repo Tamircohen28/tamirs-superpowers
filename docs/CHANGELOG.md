@@ -6,6 +6,14 @@ All notable changes are recorded here and in [`../CHANGELOG.md`](../CHANGELOG.md
 
 See root [CHANGELOG.md](../CHANGELOG.md#unreleased) for in-progress entries.
 
+## [1.8.1] - 2026-07-21
+
+`pr-dev` `cleanup-after-merge.sh` worktree-aware fix. See root [CHANGELOG.md](../CHANGELOG.md#181---2026-07-21).
+
+## [1.8.0] - 2026-07-21
+
+`cleanup` and `retro` model-invocable; headless `cleanup.sh` script. See root [CHANGELOG.md](../CHANGELOG.md#180---2026-07-21).
+
 ## [1.7.0] - 2026-07-20
 
 New `decision` skill (`dev-workflow`). See root [CHANGELOG.md](../CHANGELOG.md#170---2026-07-20).
