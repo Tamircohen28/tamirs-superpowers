@@ -79,12 +79,15 @@ metadata:
 
 | Type | `user-invocable` | `disable-model-invocation` | `effort` | Examples |
 |------|------------------|----------------------------|----------|----------|
-| User slash command | `true` | `true` | `high` | plan-dev, start-dev, pr-dev |
+| User workflow (slash + auto-trigger) | `true` | `false` | `high` | plan-dev, start-dev, pr-dev, repo-standards, cleanup |
 | Auto-trigger discovery | `true` | `false` | `medium` | find-skill, mcp-builder |
+| Explicit-only (slash, no auto-trigger) | `true` | `true` | `high` | retro, switch-dev |
 | Internal companion | `false` | `true` | `low` | docs-review, mcp-pagination, changelog-review |
 | Forked subagent | `true` | `true` | `medium` | targeted-debug (`context: fork`, `agent: Explore`) |
 
 Parent skills invoke internal companions with `Skill("skill-name")` — never duplicate their checklists inline.
+
+**`disable-model-invocation: true` also blocks sub-agent and Workflow orchestration** (a sub-agent invoking a skill is model invocation). Reserve it for skills that must never run autonomously — internal companions, or meta-skills that mutate memory/config (`retro`). Destructive skills that still need to be orchestrated (e.g. `cleanup`) stay model-invocable and enforce safety *inside* the skill (confirmation gates, dry-run defaults, a script that only touches provably-safe targets) rather than via the flag.
 
 ## Body structure
 
