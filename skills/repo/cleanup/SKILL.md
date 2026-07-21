@@ -6,7 +6,7 @@ argument-hint: '[--remote-only | --local-only | --dry-run] [repo path, defaults 
 arguments:
 - flags
 - target
-disable-model-invocation: true
+disable-model-invocation: false
 user-invocable: true
 allowed-tools:
 - Bash
@@ -32,7 +32,7 @@ metadata:
   - hygiene
   - pr-dev
   - github
-  updated-date: "2026-06-27"
+  updated-date: "2026-07-21"
 ---
 
 ## Live context
@@ -47,6 +47,8 @@ Full repository housekeeping: prune remote branches, drive open PRs in parallel 
 
 Repos accumulate cruft quickly — merged branches that weren't deleted, PRs that stalled, worktrees from old tasks, temp build files, and local checkouts that drifted from `main`. Doing this manually is error-prone and tedious. This skill sweeps all of it in one pass, asks for confirmation before any destructive action, and parallelizes PR work across sub-agents so the whole process finishes faster.
 
+**Why this skill is model-invocable** (`disable-model-invocation: false`): cleanup is meant to be *orchestrated* — an operator points sub-agents (or a Workflow) at many repos and fans out one cleanup per repo. Gating a skill with `disable-model-invocation: true` also blocks that path, because a sub-agent invoking a skill is itself model invocation. So safety lives **inside** the skill — every destructive step shows a plan and waits for confirmation, and dry-run mode changes nothing — not in the invocation flag. The flag is reserved for skills that must *never* be invoked autonomously (internal companions), which cleanup is not.
+
 ## Scope flags
 
 | Flag | Effect |
@@ -57,6 +59,21 @@ Repos accumulate cruft quickly — merged branches that weren't deleted, PRs tha
 | (none) | Full sweep — all phases |
 
 Parse flags from args at startup. Default = full sweep.
+
+## Headless / non-interactive use
+
+For fan-out across many repos — one sub-agent (or Workflow stage) per repo — use the companion script instead of the interactive flow:
+
+```bash
+bash scripts/cleanup.sh [--dry-run] [--remote-only | --local-only] [--yes] [REPO_PATH]
+```
+
+`scripts/cleanup.sh` is the **provably-safe deterministic core** of this skill: it performs only the deletions that need no human judgment — remote branches fully merged into the default branch, auxiliary worktrees that are clean *and* merged/gone, git-ignored build/cache directories, and a fast-forward-only sync of the default branch. Anything requiring judgment — dirty worktrees, unpushed commits, unmerged branches, non-ignored files, a diverged default branch — is **reported and left untouched**.
+
+- It is **dry-run by default**; it changes nothing unless `--yes` is passed.
+- It never drives PRs, never rescues uncommitted work, and never drops anything a human would want to review.
+
+The full interactive skill below remains the default for a single repo — it adds per-item confirmation, rescuing uncommitted work, and driving open PRs in parallel via `pr-dev`. Reach for the script when you need cleanup to run **unattended at scale**; reach for the skill when a human is in the loop.
 
 ## Startup checks
 

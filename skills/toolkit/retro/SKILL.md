@@ -1,10 +1,10 @@
 ---
 name: retro
-description: "Use when the user types '/retro', 'retrospective', 'session retrospective', 'postmortem', 'what went wrong', 'find friction in this session', 'improve the workflow', 'capture lessons', 'lessons learned', or wants to turn session failures into durable improvements (CLAUDE.md rules, hooks, memory, skills). Also triggers for 'add lessons from this session', 'what should we improve', or 'run a retro'."
-when_to_use: "User says '/retro', 'run a retrospective', 'what went wrong this session', 'find friction', 'postmortem', 'capture lessons from this session', 'improve the workflow', 'add lessons to memory'."
+description: "Use when a session should become durable improvements (CLAUDE.md rules, hooks, memory, skills) — the user asks ('/retro', 'retrospective', 'postmortem', 'what went wrong', 'find friction', 'capture lessons', 'lessons learned', 'run a retro'), OR a session is wrapping up after notable friction (repeated failures, rework, multiple corrections) with no retro yet. Offer it proactively at session end; retro only proposes and never writes without approval, so offering is safe."
+when_to_use: "User says '/retro', 'run a retrospective', 'what went wrong this session', 'find friction', 'postmortem', 'capture lessons', 'improve the workflow', 'add lessons to memory' — or the session is wrapping up after a rough stretch (repeated failures, rework, multiple corrections) and no retro has run."
 argument-hint: "[none]"
 arguments: []
-disable-model-invocation: true
+disable-model-invocation: false
 user-invocable: true
 allowed-tools:
   - Read
@@ -26,13 +26,23 @@ metadata:
     - postmortem
     - self-improvement
     - memory
-  updated-date: "2026-07-04"
+  updated-date: "2026-07-21"
 ---
 
 # /retro — session postmortem & self-improvement
 
 Analyze **this session's transcript** and turn its friction into durable improvements. Do NOT write
 any files until the user approves the proposal.
+
+## Timing — when to self-trigger
+
+A retro belongs at the **end** of a session. This skill is model-invocable so it can catch rough sessions the user forgot to review — but do not let it derail active work:
+
+- **Mid-task:** if you notice a rough stretch while work is still in progress, do **not** launch a full retro. Finish the task first, then briefly offer one: *"This was a bumpy stretch — want a quick retro to capture the lessons?"*
+- **Session wrap-up / user signals done:** proactively offer the retro when there was real friction (repeated failures, rework, multiple corrections) and none has run yet.
+- **User asks explicitly:** run it now.
+
+Because retro only *proposes* changes and never writes without approval, offering is always safe — the cost of a mistimed offer is one declined suggestion.
 
 ## 1. Friction report
 
