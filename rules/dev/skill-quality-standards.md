@@ -79,12 +79,15 @@ metadata:
 
 | Type | `user-invocable` | `disable-model-invocation` | `effort` | Examples |
 |------|------------------|----------------------------|----------|----------|
-| User slash command | `true` | `true` | `high` | plan-dev, start-dev, pr-dev |
+| User workflow (slash + auto-trigger) | `true` | `false` | `high` | plan-dev, start-dev, pr-dev, repo-standards, cleanup, retro |
 | Auto-trigger discovery | `true` | `false` | `medium` | find-skill, mcp-builder |
+| Explicit-only (slash, no auto-trigger) | `true` | `true` | `high` | switch-dev |
 | Internal companion | `false` | `true` | `low` | docs-review, mcp-pagination, changelog-review |
 | Forked subagent | `true` | `true` | `medium` | targeted-debug (`context: fork`, `agent: Explore`) |
 
 Parent skills invoke internal companions with `Skill("skill-name")` — never duplicate their checklists inline.
+
+**`disable-model-invocation: true` also blocks sub-agent and Workflow orchestration** (a sub-agent invoking a skill is model invocation). Reserve it for skills that must never run autonomously — internal companions, or a skill whose autonomous run would take an unwanted irreversible action with no confirmation. Prefer safety *inside* the skill over gating: `cleanup` stays model-invocable with confirmation gates + dry-run + a provably-safe script; `retro` stays model-invocable because it only proposes changes and never writes without approval. `switch-dev` stays gated — its "switch" triggers are common in ordinary chat and it mutates working context.
 
 ## Body structure
 

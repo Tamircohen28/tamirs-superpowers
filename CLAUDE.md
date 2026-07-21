@@ -87,6 +87,16 @@ Skills can be restricted to internal use (invoked by other skills only, never by
 - `user-invocable: false` — blocks user `/skill-name` invocation; the skill can still be called by another skill via the `Skill` tool
 - `disable-model-invocation: true` — prevents the model from auto-triggering the skill based on context
 
+**Invocation tiers** — pick the pair deliberately:
+
+| Tier | `user-invocable` | `disable-model-invocation` | Examples |
+|------|:---:|:---:|----------|
+| User + auto-trigger (default) | `true` | `false` | plan-dev, start-dev, pr-dev, repo-standards, cleanup, retro |
+| Explicit-only (slash, no auto) | `true` | `true` | switch-dev |
+| Internal companion | `false` | `true` | docs-review, mcp-pagination, platform-sync-* |
+
+**Gating warning:** `disable-model-invocation: true` also blocks **sub-agent and Workflow orchestration** — a sub-agent invoking a skill *is* model invocation, so a gated skill cannot be fanned out across sub-agents. Only gate a skill when it must *never* be invoked autonomously (internal companions, or a skill whose autonomous run would take an unwanted irreversible action with no confirmation). Prefer putting safety **inside** the skill over gating it: `cleanup` stays model-invocable with confirmation gates + dry-run + a script that only touches provably-safe targets; `retro` stays model-invocable because it only *proposes* changes and never writes without approval, so a mistimed auto-trigger costs nothing.
+
 **Currently internal-only skills** (not user-invocable):
 - `changelog-review` — used by `repo-standards` for Claude Code pattern audits
 - `docs-review` — used by `repo-standards` for documentation quality sweeps
