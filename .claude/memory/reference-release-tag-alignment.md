@@ -17,4 +17,6 @@ gh workflow run release.yml -f version=<new-manifest-version>
 
 It is idempotent on the bump (skips the commit when manifests already match), then creates + pushes `v<version>` and a GitHub Release marked `--latest`. To confirm the fix on an already-red master run, `gh run rerun <run-id> --failed` — the re-checkout (fetch-depth 0) picks up the new tag.
 
+Caveat: once `release.yml` has pushed the tag, **do not re-run the whole workflow** — its "Check tag does not already exist" step hard-fails on the existing `v<version>`. Only rerun the failed CI job.
+
 Corollary: a **docs/memory-only PR must NOT bump the manifest** — bumping without a release would re-red master. See [[feedback-json-manifest-edits]] for the safe way to edit a manifest version, and [[project-admin-merge-personal-repo]] for the merge path.
