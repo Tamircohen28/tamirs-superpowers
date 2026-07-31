@@ -23,7 +23,8 @@ repo_root="$(repo_root_for "$cwd")"
 repo_name="$(repo_name_for "$cwd")"
 
 state="$(load_session_state "$session_id")"
-task_slug="$(echo "$state" | jq -r '.task_slug // empty')"
+# Re-slugify on read — state files poisoned with multi-line slugs self-heal.
+task_slug="$(slugify_text "$(echo "$state" | jq -r '.task_slug // empty')" 48)"
 
 if [[ -z "$task_slug" || "$task_slug" == "null" ]]; then
   task_slug="$(slugify_text "$requested_name" 48)"

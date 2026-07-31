@@ -15,10 +15,16 @@ source_kind="$(echo "$input" | jq -r '.source // "startup"')"
 cleanup_stale_worktrees >/dev/null 2>&1 || true
 
 state="$(load_session_state "$session_id")"
-task_slug="$(echo "$state" | jq -r '.task_slug // empty')"
+# Sanitize values read back from state: files written before slugify_text
+# stripped newlines can carry multi-line slugs/paths — re-slugify the slug and
+# discard any path with an embedded newline so it gets recomputed cleanly.
+task_slug="$(slugify_text "$(echo "$state" | jq -r '.task_slug // empty')" 48)"
 worktree_path="$(echo "$state" | jq -r '.worktree_path // empty')"
+case "$worktree_path" in *$'\n'*) worktree_path="" ;; esac
 session_files_dir="$(echo "$state" | jq -r '.session_files_dir // empty')"
+case "$session_files_dir" in *$'\n'*) session_files_dir="" ;; esac
 session_slug="$(echo "$state" | jq -r '.session_slug // empty')"
+case "$session_slug" in *$'\n'*) session_slug="" ;; esac
 
 short_id="${session_id:0:8}"
 date_stamp="$(date +%Y-%m-%d)"
