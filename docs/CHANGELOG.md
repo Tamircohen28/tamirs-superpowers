@@ -6,6 +6,10 @@ All notable changes are recorded here and in [`../CHANGELOG.md`](../CHANGELOG.md
 
 See root [CHANGELOG.md](../CHANGELOG.md#unreleased) for in-progress entries.
 
+## [1.8.2] - 2026-08-01
+
+Worktree-hook fixes: multi-line prompts no longer mangle task slugs/paths, and `enforce-worktree-edits.sh` accepts any registered `.claude/worktrees` session worktree. See root [CHANGELOG.md](../CHANGELOG.md#182---2026-08-01).
+
 ## [1.8.1] - 2026-07-21
 
 `pr-dev` `cleanup-after-merge.sh` worktree-aware fix. See root [CHANGELOG.md](../CHANGELOG.md#181---2026-07-21).

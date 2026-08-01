@@ -15,7 +15,9 @@ cwd="$(echo "$input" | jq -r '.cwd // empty')"
 
 state="$(load_session_state "$session_id")"
 prompt_count="$(echo "$state" | jq -r '.prompt_count // 0')"
-task_slug="$(echo "$state" | jq -r '.task_slug // empty')"
+# Re-slugify on read so a state file poisoned with a multi-line slug (written
+# before slugify_text stripped newlines) self-heals instead of mangling paths.
+task_slug="$(slugify_text "$(echo "$state" | jq -r '.task_slug // empty')" 48)"
 now_iso="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 
 if [[ "$prompt_count" == "0" || -z "$task_slug" || "$task_slug" == "null" ]]; then
@@ -39,8 +41,9 @@ if [[ "$prompt_count" == "0" || -z "$task_slug" || "$task_slug" == "null" ]]; th
     }')"
   save_session_state "$session_id" "$state"
 else
-  state="$(echo "$state" | jq --argjson prompt_count $((prompt_count + 1)) --arg now "$now_iso" \
-    '. + {prompt_count: $prompt_count, updated_at: $now}')"
+  # Write the sanitized slug back so later readers see a clean value too.
+  state="$(echo "$state" | jq --arg task_slug "$task_slug" --argjson prompt_count $((prompt_count + 1)) --arg now "$now_iso" \
+    '. + {task_slug: $task_slug, prompt_count: $prompt_count, updated_at: $now}')"
   save_session_state "$session_id" "$state"
 fi
 

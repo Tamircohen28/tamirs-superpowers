@@ -6,10 +6,14 @@ SESSION_STATE_DIR="${HOME}/.claude/session-state"
 SESSION_FILES_ARCHIVE="${HOME}/.claude/session-files"
 WORKTREE_RETENTION_DAYS="${WORKTREE_RETENTION_DAYS:-3}"
 
+# Always emits a single line: newlines are folded to spaces BEFORE the
+# line-oriented sed/cut stages, otherwise a multi-line prompt yields a
+# multi-line "slug" that poisons every derived path and branch name.
 slugify_text() {
   local text="$1"
   local max_len="${2:-48}"
-  echo "$text" \
+  printf '%s' "$text" \
+    | tr '\n\r\t' '   ' \
     | tr '[:upper:]' '[:lower:]' \
     | sed -E 's/^[[:space:]]+//; s/[[:space:]]+$//' \
     | sed -E 's/[^a-z0-9]+/-/g; s/-+/-/g; s/^-//; s/-$//' \
@@ -57,6 +61,31 @@ repo_name_for() {
 is_global_worktree_path() {
   local path="$1"
   [[ "$path" == "${WORKTREE_ROOT}/"* ]]
+}
+
+# True when dir is inside a REGISTERED git worktree that lives under a
+# .claude/worktrees/ directory — either the ~/.claude/worktrees/<repo>/<slug>
+# layout or Claude Code's native <repo>/.claude/worktrees/<name> layout — and
+# is checked out on a session branch (wt/* or claude/*). Such a worktree is a
+# dedicated session workspace regardless of whether its name matches a slug
+# rebuilt from session state, so enforcement must not string-match paths.
+is_registered_claude_worktree() {
+  local dir="$1"
+  local top branch
+  top="$(git -C "$dir" rev-parse --show-toplevel 2>/dev/null)" || return 1
+  case "$top" in
+    "${WORKTREE_ROOT}"/*) ;;
+    */.claude/worktrees/*) ;;
+    *) return 1 ;;
+  esac
+  # A linked (registered) worktree has a .git FILE at its top level; the main
+  # checkout has a .git directory. An unregistered/pruned copy fails rev-parse.
+  [[ -f "${top}/.git" ]] || return 1
+  branch="$(git -C "$dir" symbolic-ref --quiet --short HEAD 2>/dev/null)" || return 1
+  case "$branch" in
+    wt/*|claude/*) return 0 ;;
+    *) return 1 ;;
+  esac
 }
 
 worktree_path_for() {

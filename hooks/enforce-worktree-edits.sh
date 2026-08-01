@@ -34,6 +34,13 @@ if is_global_worktree_path "$cwd"; then
   hook_allow
 fi
 
+# Any registered session worktree is compliant — including Claude Code's native
+# <repo>/.claude/worktrees/<name> layout on a claude/* branch. Never deny based
+# on a path rebuilt from session state; the state slug can be stale or mangled.
+if is_registered_claude_worktree "$cwd"; then
+  hook_allow
+fi
+
 repo_root="$(repo_root_for "$cwd")"
 
 file_path="$(echo "$input" | jq -r '.tool_input.file_path // .tool_input.path // empty')"
@@ -47,8 +54,11 @@ fi
 
 repo_name="$(repo_name_for "$cwd")"
 state="$(load_session_state "$session_id")"
-task_slug="$(echo "$state" | jq -r '.task_slug // empty')"
+# Re-slugify on read: state files written before slugify_text stripped newlines
+# can carry multi-line slugs/paths that would mangle the suggested worktree.
+task_slug="$(slugify_text "$(echo "$state" | jq -r '.task_slug // empty')" 48)"
 worktree_path="$(echo "$state" | jq -r '.worktree_path // empty')"
+case "$worktree_path" in *$'\n'*) worktree_path="" ;; esac
 
 if [[ -z "$worktree_path" || "$worktree_path" == "null" ]]; then
   if [[ -n "$task_slug" && "$task_slug" != "null" ]]; then
