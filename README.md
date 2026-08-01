@@ -88,12 +88,20 @@ Enable via [`.codex-plugin/plugin.json`](.codex-plugin/plugin.json) — includes
 
 Restart the IDE or run `/reload-plugins` (Claude Code). MCP servers (`github`, `context7`) wire from `.mcp.json`; `github` uses `gh auth login` — no manual token env vars.
 
-> **Statusline not showing?** If the footer statusline doesn't appear after
-> restart, add it manually: run `/config` in Claude Code and set `statusLine`,
-> or add it directly to `~/.claude/settings.json`:
+> **Statusline not showing?** The statusline is wired automatically via
+> [`.claude-plugin/plugin.json`](.claude-plugin/plugin.json) `settings.statusLine` — no manual
+> setup is normally needed. If the footer statusline doesn't appear after restart, add it
+> manually: run `/config` in Claude Code and set `statusLine`, or add it directly to
+> `~/.claude/settings.json`. Use the **same version-agnostic glob as the manifest** so the entry
+> keeps working across plugin updates:
 > ```json
-> { "statusLine": { "type": "command", "command": "bash ~/.claude/plugins/cache/tamirs-plugins/tamirs-superpowers/<version>/scripts/statusline.sh" } }
+> { "statusLine": { "type": "command", "command": "f=$(ls $HOME/.claude/plugins/cache/tamirs-plugins/tamirs-superpowers/*/scripts/statusline.sh 2>/dev/null | sort -rV | head -1) && [ -n \"$f\" ] && bash \"$f\"" } }
 > ```
+> Do **not** hardcode a version directory, and do not drop the `scripts/` path segment. A pinned
+> or mistyped path stops matching, and because the command guards with `&& [ -n "$f" ]`, Claude
+> Code renders an empty statusline rather than an error — the breakage is silent. A user-level
+> `statusLine` entry also takes precedence over the manifest's, so a stale manual copy will
+> shadow the working default.
 
 ## Bundled Skills
 
