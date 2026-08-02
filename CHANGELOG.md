@@ -5,12 +5,23 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [1.10.0] - 2026-08-02
+
 ### Fixed
 - **Master CI no longer reds on every version-bumping merge.** `Manifest/tag version alignment` compared the manifest to the latest release tag on push-to-master, but a bump merges *before* `release.yml` can tag it — the tag provably cannot exist yet. Observed on PR #72: the job read `v1.8.2` at `12:06:00`; `v1.9.0` published at `12:06:14`. The push event now passes `--allow-pending-release`, which reports "Release pending" as a `::warning::` instead of failing. Manifest *behind* the latest tag still fails under every flag — nothing legitimate moves a manifest backwards past a cut release, and that was the only drift the strict check could actually catch.
 - **`check-manifest-version-alignment.sh --help` no longer prints `# ` on every line** on macOS. The comment-stripping `sed` used `\?`, a GNU extension BSD sed ignores — the same portability bug fixed in `pr-dev`'s `cleanup-after-merge.sh` in 1.8.1.
+- **Forked sessions reload their session-files again.** Claude Code 2.1.214 changed SessionStart to report source `"fork"` for forked sessions (previously `"resume"`); `session-init.sh` now treats `fork` like `resume`, so a forked session inherits prior session-files context instead of starting cold.
+- **`targeted-debug` stays inline.** Claude Code 2.1.218 runs `context: fork` skills in the background by default; added `background: false` so stack-trace root-cause findings keep landing in the current conversation. Frontmatter tooling (`validate-skill-frontmatter.py`, `normalize-skill-frontmatter.py`) now recognizes the official optional `background` field.
+
+### Added
+- **`DirectoryAdded` hook (Claude Code 2.1.219+).** When `/add-dir` registers a main checkout mid-session, `hooks/directory-added.sh` warns immediately that repo edits there will be denied by the worktree policy and points at the worktree flow — moving feedback from the first denied Edit to registration time. Advisory only; never blocks.
 
 ### Changed
 - Error messages from the alignment check now name the direction of the drift (ahead vs behind) and, when ahead, print the exact `gh workflow run release.yml -f version=<v>` command to fix it.
+- **`plugin-reload-reminder` no longer nags on SKILL.md edits.** Since Claude Code 2.1.216, skills and commands changed during a session are picked up without a restart; the reminder now fires only for manifests and hooks (`plugin.json`, `hooks.json`, `marketplace.json`, `.claude-plugin/`).
+
+### Docs
+- **Platform targets: validated against Claude Code 2.1.220** (was 2.0.0). Reviewed the 2.0.0 → 2.1.220 changelog for plugin-facing changes: hooks stay compatible (all hook commands already use `${CLAUDE_PLUGIN_ROOT}` exec-style paths, unaffected by the 2.1.207 `${user_config.*}` shell-form rejection); hook matchers use exact tool names, unaffected by the 2.1.195 hyphen exact-match fix; no reliance on removed features (`/agents` wizard, `TeamCreate`/`TeamDelete`). Updated `platform-targets.json`, the `platform-targets.md` mirror, and the README Claude Code badge. `supported_min` stays 2.0.0 — no newer-version APIs are required.
 
 ## [1.9.0] - 2026-08-02
 

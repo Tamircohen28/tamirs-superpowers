@@ -6,7 +6,7 @@ This repo ships as a **multi-platform plugin** (Claude Code, Cursor, Codex). Row
 
 | Platform | Min supported | Validated against | Latest known |
 |----------|---------------|-------------------|--------------|
-| Claude Code | 2.0.0 | 2.0.0 | 2.0.0 |
+| Claude Code | 2.0.0 | 2.1.220 | 2.1.220 |
 | Cursor | 0.45.0 | 0.45.0 | 0.45.0 |
 | Codex | 0.40.0 | 0.40.0 | 0.40.0 |
 

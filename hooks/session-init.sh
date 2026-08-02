@@ -128,7 +128,9 @@ if is_git_repo "$cwd"; then
   fi
 fi
 
-if [[ -d "$session_files_dir" ]] && { [[ "$source_kind" == "resume" ]] || [[ -n "$task_slug" && "$task_slug" != "null" ]]; }; then
+# Claude Code 2.1.214+: forked sessions report source "fork" (previously
+# "resume"), so treat both as continuations that should reload session-files.
+if [[ -d "$session_files_dir" ]] && { [[ "$source_kind" == "resume" || "$source_kind" == "fork" ]] || [[ -n "$task_slug" && "$task_slug" != "null" ]]; }; then
   files_context="$(read_session_files_context "$session_files_dir")"
   if [[ -n "$files_context" ]]; then
     context_parts+=("Prior session files from ${session_files_dir}:")

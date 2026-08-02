@@ -23,6 +23,7 @@ FIELD_ORDER = [
     "model",
     "effort",
     "context",
+    "background",
     "agent",
     "hooks",
     "paths",
