@@ -1,12 +1,12 @@
 {
   "schema_version": 1,
-  "last_reviewed": "2026-07-09",
-  "reviewed_by_skill": "tamirs-superpowers@1.6.0",
+  "last_reviewed": "2026-08-02",
+  "reviewed_by_skill": "tamirs-superpowers@1.8.2",
   "targets": {
     "claude_code": {
       "supported_min": "2.0.0",
-      "validated_against": "2.0.0",
-      "latest_known": "2.0.0",
+      "validated_against": "2.1.220",
+      "latest_known": "2.1.220",
       "doc_urls": [
         "https://code.claude.com/docs/en/plugins-reference",
         "https://code.claude.com/docs/en/skills"
