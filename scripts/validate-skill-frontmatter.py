@@ -48,6 +48,11 @@ OFFICIAL_FIELDS = frozenset(
     }
 )
 
+# Official optional fields — recognized by Claude Code but not required in
+# every SKILL.md. `background` (Claude Code 2.1.218+) opts a `context: fork`
+# skill out of the new run-in-background default.
+OFFICIAL_OPTIONAL_FIELDS = frozenset({"background"})
+
 # Repo-specific optional extensions (allowed but not required by Claude Code).
 REPO_OPTIONAL_FIELDS = frozenset({"metadata", "license"})
 
@@ -97,7 +102,9 @@ def validate_frontmatter(path: Path, fm: dict[str, Any]) -> list[str]:
     if missing:
         errors.append(f"missing official field(s): {', '.join(missing)}")
 
-    unexpected = sorted(set(fm.keys()) - OFFICIAL_FIELDS - REPO_OPTIONAL_FIELDS)
+    unexpected = sorted(
+        set(fm.keys()) - OFFICIAL_FIELDS - OFFICIAL_OPTIONAL_FIELDS - REPO_OPTIONAL_FIELDS
+    )
     if unexpected:
         errors.append(f"unexpected field(s): {', '.join(unexpected)}")
 

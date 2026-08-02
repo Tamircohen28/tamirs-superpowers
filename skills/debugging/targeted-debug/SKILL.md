@@ -15,6 +15,7 @@ disallowed-tools: []
 model: claude-sonnet-4-6
 effort: medium
 context: fork
+background: false
 agent: Explore
 hooks: {}
 paths: []
