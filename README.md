@@ -19,7 +19,7 @@
 
 <p align="center">
   <a href="docs/engineering/build-and-release/platform-targets.json">
-    <img src="https://img.shields.io/badge/Claude%20Code-2.0.0-blueviolet" alt="Claude Code" />
+    <img src="https://img.shields.io/badge/Claude%20Code-2.1.220-blueviolet" alt="Claude Code" />
   </a>
   <a href="docs/engineering/build-and-release/platform-targets.json">
     <img src="https://img.shields.io/badge/Cursor-0.45.0-000000" alt="Cursor" />
