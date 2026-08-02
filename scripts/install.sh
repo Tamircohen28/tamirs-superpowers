@@ -143,8 +143,56 @@ if [[ -n "$EXIT_PROXY" && -n "$EXIT_IP" ]]; then
   fi
 fi
 
+# --- Optional: configure Pushover phone notifications ---
+# Opt-in: skipped entirely unless BOTH credentials are supplied, e.g.
+#   PUSHOVER_TOKEN=... PUSHOVER_USER=... bash scripts/install.sh
+# Complements hooks/notify.sh (macOS banner) — both fire, so you get a desktop
+# alert at the machine and a phone push when away from it.
+PUSHOVER_TOKEN_IN="${PUSHOVER_TOKEN:-}"
+PUSHOVER_USER_IN="${PUSHOVER_USER:-}"
+
+if [[ -n "$PUSHOVER_TOKEN_IN" && -n "$PUSHOVER_USER_IN" ]]; then
+  # Credentials live outside the plugin cache: that directory is version-pathed
+  # and replaced wholesale on every update, which would delete them.
+  PUSHOVER_ENV_FILE="${CLAUDE_DIR}/pushover.env"
+  umask 077
+  cat > "$PUSHOVER_ENV_FILE" <<PUSHOVER_CREDS
+# Pushover credentials for scripts/notify-pushover.sh — keep private, never commit.
+PUSHOVER_TOKEN=${PUSHOVER_TOKEN_IN}
+PUSHOVER_USER=${PUSHOVER_USER_IN}
+PUSHOVER_CREDS
+  chmod 600 "$PUSHOVER_ENV_FILE"
+  printf 'Wrote Pushover credentials to %s (mode 600)\n' "$PUSHOVER_ENV_FILE"
+
+  if command -v jq &> /dev/null; then
+    # shellcheck disable=SC2016  # single quotes intentional: $HOME must expand at runtime, not here
+    PUSH_CMD='f=$(ls "$HOME"/.claude/plugins/cache/tamirs-plugins/tamirs-superpowers/*/scripts/notify-pushover.sh 2>/dev/null | sort -rV | head -1) && [ -n "$f" ] && bash "$f"'
+    # Append without clobbering other Notification hooks, and drop any previous
+    # pushover entry first so re-running install.sh stays idempotent.
+    jq --arg cmd "$PUSH_CMD" '
+      .hooks //= {} |
+      .hooks.Notification = (
+        ((.hooks.Notification // [])
+          | map(select(
+              [(.hooks // [])[] | .command // "" | test("notify-pushover")] | any | not
+            )))
+        + [{hooks: [{type: "command", command: $cmd, timeout: 10}]}]
+      )
+    ' "$SETTINGS_FILE" > "${SETTINGS_FILE}.tmp" && mv "${SETTINGS_FILE}.tmp" "$SETTINGS_FILE"
+    printf 'Wired Pushover Notification hook (finds latest installed version at runtime)\n'
+  else
+    printf 'jq not found — skipped Pushover hook wiring. Install jq and re-run.\n'
+  fi
+elif [[ -n "$PUSHOVER_TOKEN_IN" || -n "$PUSHOVER_USER_IN" ]]; then
+  printf 'Pushover: need BOTH PUSHOVER_TOKEN and PUSHOVER_USER — skipped.\n'
+  printf '  Token: https://pushover.net/apps/build   User key: https://pushover.net\n'
+fi
+
 printf '\nDone. Next steps:\n'
 printf '  1. Open Claude Code\n'
 printf '  2. Go to Settings > Plugins > Add marketplace: tamirs-plugins\n'
 printf '  3. Install tamirs-superpowers\n'
 printf '  4. Run /reload-plugins\n'
+if [[ -z "${PUSHOVER_TOKEN_IN}" || -z "${PUSHOVER_USER_IN}" ]]; then
+  printf '\nOptional: phone notifications via Pushover — run /tamirs-superpowers:notify-setup\n'
+fi

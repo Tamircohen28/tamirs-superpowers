@@ -67,7 +67,7 @@ Scopes: `skills`, `hooks`, `marketplace`, `ci`, `docs`
 - **Version bump required for marketplace delivery:** Claude Code treats `plugin.json` `version` as the update cache key. New skills, hooks, or other shipped changes **must** include a semver bump (PATCH/MINOR/MAJOR per [versioning.md](docs/engineering/build-and-release/versioning.md)) or installed users stay on the cached copy. `/reload-plugins` does not fetch from GitHub. See [`rules/dev/plugin-version-bump.md`](rules/dev/plugin-version-bump.md).
 - **Cut the release after merging a manifest bump:** the push-to-master CI job **Manifest/tag version alignment** enforces `latest v* release tag == manifest version`. After a manifest-bumping PR merges, run `gh workflow run release.yml -f version=<new-version>` to create the matching `v<version>` tag + GitHub Release — otherwise master CI stays red (it was red across 1.7.0→1.8.1 for exactly this reason). Corollary: a **docs/memory-only PR must not bump the manifest**, or it reds master with no release to match. Edit a manifest version with a targeted string replace, never a `json.dump`/`jq` full rewrite (it escapes unicode and reformats).
 
-## Skill domains (25 skills total)
+## Skill domains (26 skills total)
 
 | Domain | Skills |
 |--------|--------|
@@ -76,7 +76,7 @@ Scopes: `skills`, `hooks`, `marketplace`, `ci`, `docs`
 | `dev-workflow` | decision, plan-dev, pr-dev, start-dev, switch-dev |
 | `documentation` | changelog-review, dark-terminal-doc, docs-review, platform-sync, platform-sync-claude, platform-sync-codex, platform-sync-cursor |
 | `mcp` | mcp-builder, mcp-pagination |
-| `toolkit` | find-skill, retro, session-report, skill-creator |
+| `toolkit` | find-skill, notify-setup, retro, session-report, skill-creator |
 | `repo` | cleanup, multi-agent-repo, repo-scaffold, repo-standards |
 
 **Shared contract:** `skills/repo/_contract/` — canonical templates, scoring scripts, and gold fixtures (`scaffold-gold`, `scaffold-plugin-gold`). Profiles: `app-gold` (apps), `plugin-gold` (agent-kit repos with `canonical/`). `repo-scaffold --type plugin` and `repo-standards` both consume it; `make test-repo-contract` enforces alignment. **User guide:** [docs/user/agent-kit.md](docs/user/agent-kit.md).

@@ -2,7 +2,7 @@
   "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "tamirs-superpowers",
   "displayName": "Tamir's Superpowers",
-  "version": "1.8.2",
+  "version": "1.9.0",
   "description": "25 bundled skills, 6 specialist agents, smart worktree hooks, statusline, and MCP server stubs — plan, implement, review, debug, multi-agent setup, and audit code from one plugin.",
   "homepage": "https://github.com/Tamircohen28/tamirs-superpowers",
   "repository": "https://github.com/Tamircohen28/tamirs-superpowers",
