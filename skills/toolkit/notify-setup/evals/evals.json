@@ -1,0 +1,45 @@
+{
+  "skill_name": "notify-setup",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "I keep missing it when Claude finishes a task while I'm away from my desk. Set up notifications to my phone.",
+      "expected_output": "The skill explains that Pushover needs two separate credentials (application token starting with 'a' from pushover.net/apps/build, user key starting with 'u' from the dashboard) and asks the user for both before writing anything. It does not invent, guess, or proceed with placeholder credentials.",
+      "files": [],
+      "expectations": [
+        "Both credentials are requested — application/API token AND user key — not just one",
+        "The 'a' vs 'u' prefix distinction is stated so the user can tell them apart",
+        "No credentials are written to disk and no send is attempted before the user supplies real values",
+        "It is stated that this complements, not replaces, the existing macOS desktop notification",
+        "No fabricated success claim — delivery is never asserted without an API response"
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "Here's my Pushover key: u46cj64eyovssko7276jpwdgijqdqv — set it up and send me a test.",
+      "expected_output": "The skill recognizes only the user key was supplied (it starts with 'u'), asks for the application token as well, and does not attempt a send with one credential. Once both are present it validates via /1/users/validate.json, writes ~/.claude/pushover.env at mode 600, sends a test through scripts/notify-pushover.sh with PUSHOVER_DEBUG=1, and reports the raw API response.",
+      "files": [],
+      "expectations": [
+        "Identifies the supplied value as the user key (u-prefix) and requests the missing application token",
+        "Does not call /1/messages.json with only one credential",
+        "Credentials are written to ~/.claude/pushover.env with mode 600, never inside the plugin cache directory",
+        "The test send goes through scripts/notify-pushover.sh rather than a hand-rolled curl",
+        "The raw {\"status\":1,...} response is shown as evidence of delivery",
+        "The user is told hooks load at session start, so the wiring applies to the next session"
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "My phone notifications from Claude Code just stopped working after I updated the plugin. Nothing arrives and there's no error.",
+      "expected_output": "The skill diagnoses using the troubleshooting table: checks that ~/.claude/pushover.env still exists and holds both values, confirms the settings.json hook uses the version-resolving glob rather than a hardcoded version path (the likely cause after an update), and re-runs a test with PUSHOVER_DEBUG=1 to surface the API response instead of silence.",
+      "files": [],
+      "expectations": [
+        "Identifies a hardcoded version path in settings.json as the probable cause of breakage after a plugin update",
+        "Checks whether ~/.claude/pushover.env survived the update",
+        "Uses PUSHOVER_DEBUG=1 to convert the silent failure into a visible API response",
+        "Explains that the script exits 0 silently when unconfigured, which is why there is no error",
+        "Proposes re-running the installer to restore the glob-resolving hook command"
+      ]
+    }
+  ]
+}

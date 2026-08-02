@@ -13,7 +13,7 @@
     <img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="MIT License" />
   </a>
   <a href=".claude-plugin/plugin.json">
-    <img src="https://img.shields.io/badge/version-1.8.2-blue" alt="Version" />
+    <img src="https://img.shields.io/badge/version-1.9.0-blue" alt="Version" />
   </a>
 </p>
 
@@ -31,16 +31,17 @@
 
 # tamirs-superpowers
 
-A multi-platform agent plugin (Claude Code, Cursor, Codex) that bundles 25 skills, 6 specialist agents, smart worktree hooks, and MCP server stubs — installed with one command per platform and kept current via marketplace auto-update.
+A multi-platform agent plugin (Claude Code, Cursor, Codex) that bundles 26 skills, 6 specialist agents, smart worktree hooks, and MCP server stubs — installed with one command per platform and kept current via marketplace auto-update.
 
 ## Features
 
-- **25 bundled skills** — plan, implement, hand off across Claude/Cursor/Codex, drive PRs to merge, audit repo standards, multi-agent setup, debug, run session retrospectives, create and benchmark skills, and more, all from the Claude Code prompt
+- **26 bundled skills** — plan, implement, hand off across Claude/Cursor/Codex, drive PRs to merge, audit repo standards, multi-agent setup, debug, run session retrospectives, create and benchmark skills, and more, all from the Claude Code prompt
 - **6 specialist agents** — architecture-reviewer, debugging-specialist, performance-reviewer, research-agent, security-reviewer, test-engineer; available via the Agent tool in any session
 - **Smart worktree hooks** that automatically create isolated git worktrees per task, derive task slugs from your first prompt, enforce edit isolation, guard sensitive files, and show Claude Code changelogs on update
 - **Auto-installed plugin dependencies** — superpowers pulls in automatically when you install this plugin
 - **MCP server stubs** for GitHub and Context7 — fill in your tokens and they're live
 - **Statusline** showing git branch, worktree state, and session context in your Claude Code footer
+- **Phone notifications (opt-in)** via [Pushover](https://pushover.net) — get pushed when Claude goes idle or needs permission, alongside the macOS desktop banner. Inert until configured; set up with `/tamirs-superpowers:notify-setup`
 - **Declared plugin dependencies** in `plugin.json` so `superpowers` and other required plugins resolve and install automatically
 
 ## Prerequisites
@@ -124,6 +125,7 @@ Each skill lives at `skills/<skill-name>/SKILL.md`.
 | `/tamirs-superpowers:retro` | Session postmortem — find friction (low quality, looping, missed parallelism) and propose rule/hook/memory/skill improvements. Proposes, then waits for approval before writing any files. |
 | `/tamirs-superpowers:skill-creator` | Create, improve, and benchmark Claude Code skills. |
 | `/tamirs-superpowers:session-report` | Generate an HTML report of session token usage. |
+| `/tamirs-superpowers:notify-setup` | Set up opt-in Pushover phone notifications so Claude reaches you away from the desk — collects both credentials, validates, wires the hook, sends a test. Complements the macOS desktop banner. |
 | `/tamirs-superpowers:algorithmic-art` | Generate algorithmic art with p5.js. |
 | `/tamirs-superpowers:field-notebook-ui` | Generate interactive React artifacts in the engineer's field-notebook visual style. |
 | `/tamirs-superpowers:dark-terminal-doc` | Generate polished HTML docs with a dark terminal design system. |
@@ -153,7 +155,8 @@ Internal skills (invoked by parent skills, not shown in `/` menu): `docs-review`
 | `UserPromptSubmit` | `capture-task-slug.sh`, `goal-compact-reminder.sh`, `ensure-exit.sh` | Derive task slug, create worktree; remind to compact before /goal; check exit node. |
 | `WorktreeCreate` | `worktree-create.sh` | Create global worktree under `~/.claude/worktrees/`. |
 | `WorktreeRemove` | `worktree-remove.sh` | Tear down global worktree cleanly. |
-| `Notification` | `notify.sh` | Notification (prefixed with the task slug) when Claude needs attention. |
+| `Notification` | `notify.sh` | macOS desktop banner (prefixed with the task slug) when Claude needs attention. |
+| `Notification` | `notify-pushover.sh` | **Opt-in** — phone push via [Pushover](https://pushover.net) so Claude reaches you away from the desk. Fires alongside `notify.sh`; inert until configured. See [Phone notifications](docs/user/phone-notifications.md) or run `/tamirs-superpowers:notify-setup`. |
 | `Stop` | `check-done.sh` | Remind to verify lint/tests before claiming done. |
 
 When a worktree is created, the hooks also: copy gitignored files matched by
