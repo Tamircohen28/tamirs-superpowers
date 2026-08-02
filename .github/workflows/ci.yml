@@ -96,9 +96,16 @@ jobs:
       - name: Check manifest versions
         run: |
           ARGS="."
-          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
-            ARGS+=" --manifests-only"
-          fi
+          case "${{ github.event_name }}" in
+            pull_request)
+              # The tag for a proposed bump cannot exist yet — manifests only.
+              ARGS+=" --manifests-only" ;;
+            push)
+              # A version-bumping merge lands on master before the release
+              # workflow can tag it, so "manifest ahead" is a pending release,
+              # not drift. Warns instead of failing; moving backwards still fails.
+              ARGS+=" --allow-pending-release" ;;
+          esac
           bash skills/repo/_contract/scripts/check-manifest-version-alignment.sh $ARGS
 
   platform-targets:
