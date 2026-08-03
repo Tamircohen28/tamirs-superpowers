@@ -1,14 +1,25 @@
 {
-  "schema_version": 1,
-  "last_reviewed": "2026-08-02",
-  "reviewed_by_skill": "tamirs-superpowers@1.8.2",
+  "schema_version": 2,
+  "last_reviewed": "2026-08-03",
+  "reviewed_by_skill": "tamirs-superpowers@1.12.0",
+  "supported_targets": [
+    "claude_code",
+    "cursor",
+    "codex",
+    "opencode"
+  ],
   "targets": {
     "claude_code": {
       "supported_min": "2.0.0",
+      "supported_min_source": "manifest format (.claude-plugin/plugin.json) stable since 2.0.0",
       "validated_against": "2.1.220",
       "latest_known": "2.1.220",
+      "verified_on": "2026-08-03",
+      "verification_method": "claude --version on the maintainer machine; latest from registry.npmjs.org/@anthropic-ai/claude-code",
+      "install_doc": "docs/user/install/claude-code.md",
       "doc_urls": [
         "https://code.claude.com/docs/en/plugins-reference",
+        "https://code.claude.com/docs/en/plugin-marketplaces",
         "https://code.claude.com/docs/en/skills"
       ],
       "features_adopted": [
@@ -19,24 +30,51 @@
         "background-fork-skills-optout-2.1.218",
         "hot-skill-reload-2.1.216",
         "directory-added-hook-2.1.219"
+      ],
+      "capabilities": [
+        "skills",
+        "agents",
+        "hooks",
+        "mcp",
+        "statusline",
+        "marketplace"
       ]
     },
     "cursor": {
-      "supported_min": "0.45.0",
-      "validated_against": "0.45.0",
-      "latest_known": "0.45.0",
+      "supported_min": "3.14.7",
+      "supported_min_source": "Cursor documents no minimum version for plugins; the floor is set to the version actually validated rather than guessed",
+      "validated_against": "3.14.7",
+      "latest_known": "3.14.7",
+      "verified_on": "2026-08-03",
+      "verification_method": "cursor --version on the maintainer machine",
+      "install_doc": "docs/user/install/cursor.md",
       "doc_urls": [
+        "https://cursor.com/docs/plugins",
         "https://cursor.com/docs/context/rules"
       ],
       "features_adopted": [
         "cursor-plugin-manifest",
-        "mdc-rules"
+        "mdc-rules",
+        "team-marketplace-import-from-repo"
+      ],
+      "capabilities": [
+        "skills",
+        "rules",
+        "agents",
+        "commands",
+        "hooks",
+        "mcp",
+        "marketplace"
       ]
     },
     "codex": {
       "supported_min": "0.40.0",
-      "validated_against": "0.40.0",
-      "latest_known": "0.40.0",
+      "supported_min_source": "earliest release this repo has claimed AGENTS.md + .codex-plugin manifest support for",
+      "validated_against": "0.146.0",
+      "latest_known": "0.146.0",
+      "verified_on": "2026-08-03",
+      "verification_method": "codex --version on the maintainer machine; latest from api.github.com/repos/openai/codex/releases/latest (tag rust-v0.146.0)",
+      "install_doc": "docs/user/install/codex.md",
       "doc_urls": [
         "https://developers.openai.com/codex/guides/agents-md",
         "https://developers.openai.com/codex/config-basic"
@@ -45,7 +83,45 @@
         "codex-plugin-manifest",
         "agents-md",
         "hooks-field"
+      ],
+      "capabilities": [
+        "skills",
+        "agents",
+        "hooks",
+        "mcp",
+        "marketplace"
       ]
+    },
+    "opencode": {
+      "supported_min": "1.16.2",
+      "supported_min_source": "oldest version on which recursive (domain-nested) SKILL.md discovery was verified with `opencode debug skill`",
+      "validated_against": "1.18.11",
+      "latest_known": "1.18.11",
+      "verified_on": "2026-08-03",
+      "verification_method": "opencode --version on the maintainer machine; latest from registry.npmjs.org/opencode-ai; skill discovery verified with `opencode debug skill`",
+      "install_doc": "docs/user/install/opencode.md",
+      "doc_urls": [
+        "https://opencode.ai/docs/skills/",
+        "https://opencode.ai/docs/agents/",
+        "https://opencode.ai/docs/plugins/",
+        "https://opencode.ai/config.json"
+      ],
+      "features_adopted": [
+        "native-skill-discovery",
+        "recursive-skill-scan",
+        "opencode-agent-adapters",
+        "skills-paths-config"
+      ],
+      "capabilities": [
+        "skills",
+        "agents",
+        "mcp"
+      ],
+      "capability_gaps": {
+        "hooks": "OpenCode has no hooks.json — lifecycle automation is JS/TS plugin modules only, so the worktree hooks in hooks/ do not port.",
+        "statusline": "No plugin-declared statusline.",
+        "marketplace": "No plugin marketplace — install is by path (symlink or skills.paths)."
+      }
     }
   }
 }

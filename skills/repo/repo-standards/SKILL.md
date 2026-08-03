@@ -36,7 +36,7 @@ metadata:
   - ci-cd
   - ip-scan
   - multi-agent
-  updated-date: '2026-07-09'
+  updated-date: '2026-08-03'
 ---
 
 ## Live context
@@ -113,8 +113,9 @@ PLAN_PATH="$TARGET_ROOT/docs/engineering/repo-standards-plan-$DATE.md"
 3. Include `$IP_SCAN` summary; flag S7-01 P1 if not CLEAN.
 4. `cd "$TARGET_ROOT"` then `Skill("multi-agent-repo")` using `references/delegation.md` review prompt. Append child summary to report — do not duplicate full child report.
 5. Read-only docs pass: summarize README + `docs/**` issues without calling `Skill("docs-review")` (it mutates files).
-6. `mkdir -p "$TARGET_ROOT/docs/engineering"`
-7. Write `$REVIEW_PATH` from `templates/review-report.md.tmpl`.
+6. When multi-platform, walk **Per-target parity (V-layer)** for every declared target and record V-01…V-05 gaps as P1.
+7. `mkdir -p "$TARGET_ROOT/docs/engineering"`
+8. Write `$REVIEW_PATH` from `templates/review-report.md.tmpl`.
 
 ### Report structure
 
@@ -186,15 +187,36 @@ git checkout -b feat/repo-standards-setup 2>/dev/null || git checkout -b "feat/r
    **Banner (phase 1):** If S1-05 is a gap, generate `assets/banner.svg` — a 600×200 SVG with the repo name centered in bold on a dark background (#0F1117), subtitle in gray (#8B949E), and a subtle accent stripe. Use web-safe font stack (no external references). Add `<p align="center"><img src="assets/banner.svg" alt="REPO_NAME" width="600" /></p>` as the first line of README.md.
 6. **Phase 5:** `Skill("multi-agent-repo")` per `references/delegation.md` on the same branch (include feature equivalence + platform targets).
 7. **Phase 6:** `Skill("docs-review")`; if plugin or agent-kit repo, `Skill("changelog-review")`. Fix all P1 findings.
-8. **Phase 6b (agents only):** When multi-platform, run `make platform-targets-sync`, update `platform-targets.json` + README Row 3 + `platform-targets.md`, then `make platform-targets-assert`.
+8. **Phase 6b (agents only):** When multi-platform, run `make platform-targets-sync`, update `platform-targets.json` + README Row 3 + `platform-targets.md`, then `make platform-targets-assert`. Close every V-01…V-05 gap from the review in this phase — a declared target with a missing artifact must either be completed or dropped from `supported_targets`, never left half-supported.
 9. **Phase 7:** Run `make repo-standards-gate` when multi-platform (or `make agent-polish-gate` + `assert-contract --manifests-only` on release PRs before the tag exists). P1/P2/P3 must be 0.
-9. `$REVIEW_PATH` and `$PLAN_PATH` are session scratch notes, not deliverables — remove them from the branch before the final commit so they never ship in the PR: `git rm --ignore-unmatch "$REVIEW_PATH" "$PLAN_PATH"` (or plain `rm` if untracked).
-10. Commit in logical chunks; push; `gh pr create` with `templates/pr-body.md.tmpl`.
-11. Print PR URL.
+10. `$REVIEW_PATH` and `$PLAN_PATH` are session scratch notes, not deliverables — remove them from the branch before the final commit so they never ship in the PR: `git rm --ignore-unmatch "$REVIEW_PATH" "$PLAN_PATH"` (or plain `rm` if untracked).
+11. Commit in logical chunks; push; `gh pr create` with `templates/pr-body.md.tmpl`.
+12. Print PR URL.
 
 **Stop at PR.**
 
 ---
+
+## Per-target parity (V-layer)
+
+A repo that declares support for a target owes that target a full set of artifacts. Partial support is worse than no support: the target appears in the README, users install against it, and the gaps surface as "the plugin is broken" rather than "this target was never finished".
+
+For **every** key in `platform-targets.json` → `supported_targets`, confirm all five exist. Report a missing one as **P1**:
+
+| # | Artifact | Failure mode when missing |
+|---|----------|---------------------------|
+| V-01 | Manifest or config for the target | Target cannot load the content at all |
+| V-02 | `docs/user/install/<target>.md`, linked from the install README | Users have no documented path in |
+| V-03 | `targets.<key>` entry with `validated_against`, `verified_on`, `verification_method`, `install_doc` | Version support is a guess; nothing can assert staleness |
+| V-04 | A per-target sub-skill under the platform-sync umbrella | `/platform-sync` skips the target **silently** and reports success — reads as "no improvements found" |
+| V-05 | The target named in README.md and AGENTS.md | Invisible to users and to other agents |
+
+Two failure modes to check for specifically, because both fail quietly:
+
+- **Marketplace declaration shape.** Claude Code's `extraKnownMarketplaces` is a **record keyed by marketplace name**, never an array. An array is dropped with no error and no warning, and a valid global `~/.claude/settings.json` can mask the broken project-level file for months. Nested form is `source: {source, repo}` (GitHub) or `source: {source, url}` (git); there is no `sourceUrl` field. Verify with `claude doctor`.
+- **Capability assumptions across targets.** Do not recommend a fix that assumes a capability the target lacks — OpenCode has no plugin manifest, no marketplace, no `hooks.json`, and no plugin-declared statusline. Record each such gap in `capability_gaps` so later passes do not re-propose it.
+
+`make check-doc-claims` enforces V-02, V-03, and V-05; `make check-platform-targets` enforces V-04; `make check-marketplace-schema` enforces the record shape. All three run inside `make validate`.
 
 ## Agent execution rule
 
@@ -207,6 +229,7 @@ Agents run `make repo-standards-gate` during repo-standards polish **and** via `
 - **Never merge** the PR from this skill.
 - **IP scan clean** before final PR.
 - **Apply all P1** standards + multi-agent gaps before PR.
+- **No half-supported targets** — every key in `supported_targets` carries all five V-layer artifacts, or it comes out of the list.
 - **AGENTS.md canonical** — delegate multi-agent file generation to `multi-agent-repo`.
 
 ## Relationship to other skills

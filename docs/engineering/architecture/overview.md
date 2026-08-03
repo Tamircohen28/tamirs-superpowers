@@ -29,14 +29,15 @@ tamirs-superpowers/              ← GitHub repo root
 │   ├── worktree-remove.sh       ← WorktreeRemove
 │   ├── session-end.sh           ← SessionEnd
 │   └── notify.sh                ← Notification
-└── skills/                      ← 16 skills in 7 domains (see CLAUDE.md)
-    ├── creative/                ← algorithmic-art
+└── skills/                      ← 27 skills in 7 domains (see CLAUDE.md)
+    ├── creative/                ← algorithmic-art, field-notebook-ui
     ├── debugging/               ← targeted-debug
-    ├── dev-workflow/            ← plan-dev, pr-dev, start-dev
-    ├── documentation/           ← changelog-review, dark-terminal-doc, docs-review
+    ├── dev-workflow/            ← decision, plan-dev, pr-dev, start-dev, switch-dev
+    ├── documentation/           ← changelog-review, dark-terminal-doc, docs-review,
+    │                              platform-sync + 4 per-target sub-skills
     ├── mcp/                     ← mcp-builder, mcp-pagination
-    ├── toolkit/                 ← find-skill, session-report, skill-creator
-    └── repo/                    ← multi-agent-repo, repo-scaffold, repo-standards
+    ├── toolkit/                 ← find-skill, notify-setup, retro, session-report, skill-creator
+    └── repo/                    ← cleanup, multi-agent-repo, repo-scaffold, repo-standards
         └── _contract/           ← shared templates, scripts, scaffold-gold + scaffold-plugin-gold fixtures (not a skill)
 ```
 

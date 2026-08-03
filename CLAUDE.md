@@ -68,7 +68,7 @@ Scopes: `skills`, `hooks`, `marketplace`, `ci`, `docs`
 - **Cut the release after merging a manifest bump:** after a manifest-bumping PR merges, run `gh workflow run release.yml -f version=<new-version>` to create the matching `v<version>` tag + GitHub Release. The push-to-master CI job **Manifest/tag version alignment** reports this as a `::warning::` ("Release pending") rather than failing — the tag provably cannot exist at merge time, so failing there was a race, not a signal. Master stays green; the warning is your reminder. Leaving it unreleased still strands installed users on the cached copy, so cut it. Edit a manifest version with a targeted string replace, never a `json.dump`/`jq` full rewrite (it escapes unicode and reformats).
 - **Never move a manifest version backwards** past a cut release — that is real drift and fails CI on every event, `--allow-pending-release` included.
 
-## Skill domains (26 skills total)
+## Skill domains (27 skills total)
 
 | Domain | Skills |
 |--------|--------|

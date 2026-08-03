@@ -48,6 +48,8 @@ if [[ "$REQUIRE_CO_CHANGE" == true ]]; then
     'skills/documentation/platform-sync-claude/'
     'skills/documentation/platform-sync-cursor/'
     'skills/documentation/platform-sync-codex/'
+    'skills/documentation/platform-sync-opencode/'
+    'docs/user/install/'
   )
   changed=false
   targets_changed=false
@@ -79,6 +81,7 @@ ai_count=0
 [[ -f "$ROOT/.claude-plugin/plugin.json" ]] && ai_count=$((ai_count + 1))
 [[ -f "$ROOT/.cursor-plugin/plugin.json" ]] && ai_count=$((ai_count + 1))
 [[ -f "$ROOT/.codex-plugin/plugin.json" ]] && ai_count=$((ai_count + 1))
+[[ -f "$ROOT/opencode.json" ]] && ai_count=$((ai_count + 1))
 (( ai_count >= 2 )) && multi_platform=true
 
 if [[ "$multi_platform" != true ]]; then
@@ -98,6 +101,21 @@ if [[ "$SYNC" == true && -f "$TARGETS_JSON" ]] && command -v curl >/dev/null 2>&
     mv "$tmp" "$TARGETS_JSON"
     echo "Updated codex.latest_known to $codex_latest"
   fi
+
+  # npm-distributed targets. Cursor has no public version endpoint — bump it by hand.
+  sync_npm_latest() {
+    local key="$1" pkg="$2" latest tmpf
+    jq -e ".targets.$key" "$TARGETS_JSON" >/dev/null 2>&1 || return 0
+    latest=$(curl -fsSL "https://registry.npmjs.org/${pkg}/latest" 2>/dev/null \
+      | jq -r '.version // empty' 2>/dev/null || true)
+    [[ "$latest" =~ ^[0-9]+\.[0-9]+\.[0-9]+ ]] || return 0
+    tmpf=$(mktemp)
+    jq --arg v "$latest" ".targets.$key.latest_known = \$v" "$TARGETS_JSON" >"$tmpf"
+    mv "$tmpf" "$TARGETS_JSON"
+    echo "Updated $key.latest_known to $latest"
+  }
+  sync_npm_latest opencode opencode-ai
+  sync_npm_latest claude_code @anthropic-ai/claude-code
 fi
 
 # --- offline validation ---
@@ -111,9 +129,45 @@ if ! jq empty "$TARGETS_JSON" 2>/dev/null; then
   exit 1
 fi
 
-for key in claude_code cursor codex; do
+# Which targets to enforce: the JSON's own supported_targets list when present,
+# otherwise the legacy three (keeps schema_version 1 files passing unchanged).
+TARGET_KEYS=$(jq -r '(.supported_targets // ["claude_code","cursor","codex"]) | join(" ")' "$TARGETS_JSON")
+
+badge_prefix() {
+  case "$1" in
+    claude_code) echo "Claude%20Code" ;;
+    cursor)      echo "Cursor" ;;
+    codex)       echo "Codex" ;;
+    opencode)    echo "OpenCode" ;;
+    *)           echo "" ;;
+  esac
+}
+
+# Sub-skill directory name per target key (platform-sync-<name>).
+subskill_name() {
+  case "$1" in
+    claude_code) echo "platform-sync-claude" ;;
+    cursor)      echo "platform-sync-cursor" ;;
+    codex)       echo "platform-sync-codex" ;;
+    opencode)    echo "platform-sync-opencode" ;;
+    *)           echo "" ;;
+  esac
+}
+
+# shellcheck disable=SC2086
+for key in $TARGET_KEYS; do
   jq -e ".targets.$key.validated_against" "$TARGETS_JSON" >/dev/null 2>&1 \
     || err "platform-targets.json missing targets.$key.validated_against"
+
+  # A supported target with no platform-sync sub-skill is invisible to /platform-sync:
+  # the umbrella silently analyses the other targets and reports success, so the gap
+  # reads as "no improvements found" rather than "this target was never checked".
+  sub=$(subskill_name "$key")
+  if [[ -z "$sub" ]]; then
+    err "platform-targets.json declares unknown target '$key' — add it to subskill_name() and badge_prefix() in $(basename "$0")"
+  elif [[ -d "$ROOT/skills/documentation" && ! -d "$ROOT/skills/documentation/$sub" ]]; then
+    err "supported target '$key' has no skills/documentation/$sub/ — /platform-sync cannot audit it"
+  fi
 done
 
 last_reviewed=$(jq -r '.last_reviewed // empty' "$TARGETS_JSON")
@@ -126,22 +180,24 @@ fi
 # README badge vs JSON
 if [[ -f "$README" ]]; then
   check_badge() {
-    local key="$1" prefix="$2"
+    local key="$1" prefix
     local validated
+    prefix=$(badge_prefix "$key")
+    [[ -n "$prefix" ]] || return 0
     validated=$(jq -r ".targets.$key.validated_against // empty" "$TARGETS_JSON")
     [[ -n "$validated" ]] || return 0
     if ! grep -qF "${prefix}-${validated}" "$README" 2>/dev/null; then
       err "README missing $key badge for validated_against=$validated (expected ${prefix}-${validated})"
     fi
   }
-  check_badge claude_code "Claude%20Code"
-  check_badge cursor "Cursor"
-  check_badge codex "Codex"
+  # shellcheck disable=SC2086
+  for key in $TARGET_KEYS; do check_badge "$key"; done
 fi
 
 # stale targets
 if [[ "$ASSERT_CURRENT" == true ]]; then
-  for key in claude_code cursor codex; do
+  # shellcheck disable=SC2086
+  for key in $TARGET_KEYS; do
     v=$(jq -r ".targets.$key.validated_against // empty" "$TARGETS_JSON")
     l=$(jq -r ".targets.$key.latest_known // empty" "$TARGETS_JSON")
     if [[ -n "$v" && -n "$l" && "$v" != "$l" ]]; then

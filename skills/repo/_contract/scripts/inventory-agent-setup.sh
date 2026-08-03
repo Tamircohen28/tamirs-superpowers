@@ -231,17 +231,24 @@ PT_MD="$ROOT/docs/engineering/build-and-release/platform-targets.md"
 [[ -f "$PT_MD" ]] && pt_md=true
 
 if [[ "$pt_file" == true && -f "$ROOT/README.md" ]] && command -v jq >/dev/null 2>&1; then
-  for key in claude_code cursor codex; do
+  # Enforce the JSON's own supported_targets; fall back to the legacy three so
+  # schema_version 1 files keep behaving exactly as before.
+  pt_keys=$(jq -r '(.supported_targets // ["claude_code","cursor","codex"]) | join(" ")' "$PT_JSON" 2>/dev/null || echo "claude_code cursor codex")
+  # shellcheck disable=SC2086
+  for key in $pt_keys; do
     validated=$(jq -r ".targets.$key.validated_against // empty" "$PT_JSON" 2>/dev/null || true)
     [[ -n "$validated" ]] || continue
     case "$key" in
       claude_code) prefix="Claude%20Code" ;;
       cursor) prefix="Cursor" ;;
       codex) prefix="Codex" ;;
+      opencode) prefix="OpenCode" ;;
+      *) continue ;;
     esac
     grep -qF "${prefix}-${validated}" "$ROOT/README.md" 2>/dev/null || pt_badges_match=false
   done
-  for key in claude_code cursor codex; do
+  # shellcheck disable=SC2086
+  for key in $pt_keys; do
     v=$(jq -r ".targets.$key.validated_against // empty" "$PT_JSON" 2>/dev/null || true)
     l=$(jq -r ".targets.$key.latest_known // empty" "$PT_JSON" 2>/dev/null || true)
     if [[ -n "$v" && -n "$l" && "$v" != "$l" ]]; then pt_stale=true; fi
