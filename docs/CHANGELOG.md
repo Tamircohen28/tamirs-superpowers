@@ -6,6 +6,10 @@ All notable changes are recorded here and in [`../CHANGELOG.md`](../CHANGELOG.md
 
 See root [CHANGELOG.md](../CHANGELOG.md#unreleased) for in-progress entries.
 
+## [1.11.0] - 2026-08-03
+
+The statusline now ends line 1 with a dim Claude Code version (`v2.1.220`), read from the `version` field already present on the statusline stdin payload. Makes it visible which CLI build a session is running — including when a plugin auto-update lands mid-session. See root [CHANGELOG.md](../CHANGELOG.md#1110---2026-08-03).
+
 ## [1.10.0] - 2026-08-02
 
 Claude Code 2.1.214–2.1.220 adoption: new `DirectoryAdded` hook warns when `/add-dir` registers a main checkout, forked sessions reload session-files again, `targeted-debug` stays inline, and `plugin-reload-reminder` no longer nags on SKILL.md edits. Also fixes the master-CI manifest/tag alignment race. See root [CHANGELOG.md](../CHANGELOG.md#1100---2026-08-02).
