@@ -5,6 +5,9 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Added
+- **Statusline shows the running Claude Code version.** Line 1 now ends with a dim `vX.Y.Z` after `ctx:` — useful for confirming which CLI build a session is on when behavior differs across versions, and for spotting that an auto-update landed mid-session. Read from the documented top-level `version` field already present on the statusline stdin payload, so it costs nothing extra (no `claude --version` subprocess on every repaint). Omitted entirely when the field is absent or `null`, matching how every other optional field in the script degrades.
+
 ## [1.10.0] - 2026-08-02
 
 ### Fixed

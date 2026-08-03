@@ -13,6 +13,7 @@ seven_pct=$(echo "$input" | jq -r '.rate_limits.seven_day.used_percentage // emp
 seven_resets=$(echo "$input" | jq -r '.rate_limits.seven_day.resets_at // empty')
 duration_ms=$(echo "$input" | jq -r '.cost.total_duration_ms // empty')
 total_cost=$(echo "$input" | jq -r '.cost.total_cost_usd // empty')
+cc_version=$(echo "$input" | jq -r '.version // empty')
 
 fmt_model() {
   local name="$1"
@@ -211,6 +212,14 @@ fmt_branch() {
   printf '%b' "${yellow}${label}${reset}"
 }
 
+fmt_version() {
+  local ver="$1"
+  local dim='\033[2m'
+  local reset='\033[0m'
+
+  printf '%b' "${dim}v${ver}${reset}"
+}
+
 if [ -z "$branch" ] && [ -n "$current_dir" ]; then
   branch=$(git -C "$current_dir" branch --show-current 2>/dev/null || true)
 fi
@@ -229,6 +238,7 @@ first_line="$first_line]"
 [ -n "$branch" ] && first_line="$first_line $(fmt_branch "$branch" "$repo_url")"
 first_line="$first_line ctx:${ctx_fmt}"
 [ "$ctx_fmt" != "--" ] && first_line="${first_line}%"
+[ -n "$cc_version" ] && [ "$cc_version" != "null" ] && first_line="$first_line $(fmt_version "$cc_version")"
 
 reset='\033[0m'
 duration_fmt=$(fmt_duration "$duration_ms")

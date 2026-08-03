@@ -16,12 +16,12 @@ Claude Code invokes the script and passes a JSON blob on stdin containing sessio
 ## Output format
 
 ```
-[Sonnet 4.6 (1M) ● High] 📁 my-repo ⎇ feat/add-auth ctx:12%
+[Sonnet 4.6 (1M) ● High] 📁 my-repo ⎇ feat/add-auth ctx:12% v2.1.220
 5h: ████████░░ 78% | resets in 1h 23m | 4m12s | $0.43
 7d: ███░░░░░░░ 31% | resets in 3d 4h
 ```
 
-**Line 1:** Model name (color-coded by tier), effort level, repo name, git branch (hyperlinked to GitHub), context window usage.
+**Line 1:** Model name (color-coded by tier), effort level, repo name, git branch (hyperlinked to GitHub), context window usage, Claude Code version (dim). The version is omitted entirely when Claude Code does not supply it.
 
 **Line 2:** 5-hour rate limit bar, percentage, reset time, session duration, session cost.
 
@@ -44,6 +44,7 @@ Claude Code passes a JSON object on stdin with these fields (all optional — th
 | `rate_limits.seven_day.resets_at` | number | Unix epoch |
 | `cost.total_duration_ms` | number | Session wall-clock time in ms |
 | `cost.total_cost_usd` | number | Cumulative session cost in USD |
+| `version` | string | Claude Code version, e.g. `"2.1.220"` |
 
 ## Color coding
 
@@ -57,6 +58,7 @@ Claude Code passes a JSON object on stdin with these fields (all optional — th
 | Rate limit bar: ≥90% | Red |
 | Repo name | Bold green |
 | Branch name | Yellow (hyperlinked) |
+| Claude Code version | Dim |
 
 ## Helper functions
 
@@ -68,6 +70,7 @@ Claude Code passes a JSON object on stdin with these fields (all optional — th
 | `fmt_resets` | Formats epoch to "resets in Xh Ym" |
 | `fmt_duration` | Formats ms to "Xd Yh Zm" |
 | `fmt_cost` | Formats USD as "$X.XX" |
+| `fmt_version` | Renders the Claude Code version dim as "vX.Y.Z" |
 | `build_bar` | Renders a 10-character block progress bar (█░) |
 | `bar_color` | Returns ANSI color code based on percentage |
 | `github_repo_url` | Resolves remote URL → GitHub HTTPS URL for hyperlinking |
