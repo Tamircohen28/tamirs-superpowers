@@ -13,7 +13,7 @@
     <img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="MIT License" />
   </a>
   <a href=".claude-plugin/plugin.json">
-    <img src="https://img.shields.io/badge/version-1.10.0-blue" alt="Version" />
+    <img src="https://img.shields.io/badge/version-1.11.0-blue" alt="Version" />
   </a>
 </p>
 
