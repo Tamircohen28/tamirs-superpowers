@@ -13,7 +13,7 @@
     <img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="MIT License" />
   </a>
   <a href=".claude-plugin/plugin.json">
-    <img src="https://img.shields.io/badge/version-1.11.0-blue" alt="Version" />
+    <img src="https://img.shields.io/badge/version-1.12.0-blue" alt="Version" />
   </a>
 </p>
 
@@ -22,31 +22,34 @@
     <img src="https://img.shields.io/badge/Claude%20Code-2.1.220-blueviolet" alt="Claude Code" />
   </a>
   <a href="docs/engineering/build-and-release/platform-targets.json">
-    <img src="https://img.shields.io/badge/Cursor-0.45.0-000000" alt="Cursor" />
+    <img src="https://img.shields.io/badge/Cursor-3.14.7-000000" alt="Cursor" />
   </a>
   <a href="docs/engineering/build-and-release/platform-targets.json">
-    <img src="https://img.shields.io/badge/Codex-0.40.0-412991" alt="Codex" />
+    <img src="https://img.shields.io/badge/Codex-0.146.0-412991" alt="Codex" />
+  </a>
+  <a href="docs/engineering/build-and-release/platform-targets.json">
+    <img src="https://img.shields.io/badge/OpenCode-1.18.11-fab283" alt="OpenCode" />
   </a>
 </p>
 
 # tamirs-superpowers
 
-A multi-platform agent plugin (Claude Code, Cursor, Codex) that bundles 26 skills, 6 specialist agents, smart worktree hooks, and MCP server stubs — installed with one command per platform and kept current via marketplace auto-update.
+A multi-platform agent plugin for the **four supported targets — Claude Code, Cursor, Codex, and OpenCode** — bundling 26 skills, 6 specialist agents, smart worktree hooks, and MCP server stubs. It installs **standalone from this repo** on every target, and is also published through the [`tamirs-plugins`](https://github.com/Tamircohen28/plugins) catalog.
+
+**Per-target install guides:** [Claude Code](docs/user/install/claude-code.md) · [Cursor](docs/user/install/cursor.md) · [Codex](docs/user/install/codex.md) · [OpenCode](docs/user/install/opencode.md) · [index](docs/user/install/README.md)
 
 ## Features
 
 - **26 bundled skills** — plan, implement, hand off across Claude/Cursor/Codex, drive PRs to merge, audit repo standards, multi-agent setup, debug, run session retrospectives, create and benchmark skills, and more, all from the Claude Code prompt
 - **6 specialist agents** — architecture-reviewer, debugging-specialist, performance-reviewer, research-agent, security-reviewer, test-engineer; available via the Agent tool in any session
 - **Smart worktree hooks** that automatically create isolated git worktrees per task, derive task slugs from your first prompt, enforce edit isolation, guard sensitive files, and show Claude Code changelogs on update
-- **Auto-installed plugin dependencies** — superpowers pulls in automatically when you install this plugin
 - **MCP server stubs** for GitHub and Context7 — fill in your tokens and they're live
 - **Statusline** showing git branch, worktree state, and session context in your Claude Code footer
 - **Phone notifications (opt-in)** via [Pushover](https://pushover.net) — get pushed when Claude goes idle or needs permission, alongside the macOS desktop banner. Inert until configured; set up with `/tamirs-superpowers:notify-setup`
-- **Declared plugin dependencies** in `plugin.json` so `superpowers` and other required plugins resolve and install automatically
 
 ## Prerequisites
 
-- **Claude Code** v2.0+ and/or **Cursor** and/or **OpenAI Codex CLI** (see per-target install below)
+- At least one supported target — **Claude Code** 2.0+, **Cursor** 3.14.7+, **OpenAI Codex CLI** 0.40+, or **OpenCode** 1.16.2+ (see [per-target install](docs/user/install/README.md))
 - `jq` (for hooks): `brew install jq`
 - `git` 2.30+ (for worktree hooks)
 - `gh` CLI (for `pr-dev`, `plan-dev`, `start-dev` skills): `brew install gh`
@@ -64,26 +67,45 @@ make install    # ~/.claude/settings.json + specialist agents
 `make update` refreshes agents and runs `claude plugin update` when the CLI is available.
 `make uninstall` removes installed agents and attempts plugin uninstall.
 
-### Claude Code
+### Claude Code — [full guide](docs/user/install/claude-code.md)
 
-Published through [`tamirs-plugins`](https://github.com/Tamircohen28/plugins) — not this repo's marketplace.
+Via the catalog, or standalone from this repo:
 
 ```text
 /plugin marketplace add Tamircohen28/plugins
 /plugin install tamirs-superpowers@tamirs-plugins
 /reload-plugins
-/doctor
 ```
 
-**Alternative (shell):** `claude plugin marketplace add Tamircohen28/plugins && claude plugin install tamirs-superpowers@tamirs-plugins`
+```text
+/plugin marketplace add Tamircohen28/tamirs-superpowers   # standalone
+/plugin install tamirs-superpowers
+```
 
-### Cursor
+### Cursor — [full guide](docs/user/install/cursor.md)
 
-Enable the plugin from this repo via [`.cursor-plugin/plugin.json`](.cursor-plugin/plugin.json) — same `skills/` tree, MCP stubs in [`.mcp.json`](.mcp.json). Point Cursor's plugin settings at this directory (or your installed copy).
+Dashboard → **Plugins** → **Team Marketplaces** → **Add Marketplace** → **Import from Repo**, pointed at `Tamircohen28/tamirs-superpowers` (or `Tamircohen28/plugins`). Cursor reads [`.cursor-plugin/plugin.json`](.cursor-plugin/plugin.json), `skills/`, [`.cursor/rules/`](.cursor/rules), `agents/`, hooks, and MCP stubs. Enable **Auto Refresh** and pushes propagate without a version bump.
 
-### Codex
+### Codex — [full guide](docs/user/install/codex.md)
 
-Enable via [`.codex-plugin/plugin.json`](.codex-plugin/plugin.json) — includes `skills/`, [`hooks/hooks.json`](hooks/hooks.json), and MCP stubs. Codex reads root [`AGENTS.md`](AGENTS.md) for working agreements.
+```bash
+codex plugin marketplace add Tamircohen28/tamirs-superpowers
+codex plugin add tamirs-superpowers@tamirs-superpowers
+```
+
+Backed by [`.agents/plugins/marketplace.json`](.agents/plugins/marketplace.json) (the manifest Codex actually resolves) and [`.codex-plugin/plugin.json`](.codex-plugin/plugin.json) — `skills/`, [`hooks/hooks.json`](hooks/hooks.json), MCP stubs. Codex reads root [`AGENTS.md`](AGENTS.md) for working agreements.
+
+### OpenCode — [full guide](docs/user/install/opencode.md)
+
+OpenCode has no plugin marketplace; it reads skills from disk. Symlink the clone into a scanned path:
+
+```bash
+git clone https://github.com/Tamircohen28/tamirs-superpowers.git ~/src/tamirs-superpowers
+ln -s ~/src/tamirs-superpowers/skills ~/.config/opencode/skills
+cp ~/src/tamirs-superpowers/.opencode/agent/*.md ~/.config/opencode/agent/
+```
+
+Agents ship pre-translated in [`.opencode/agent/`](.opencode/agent) because OpenCode rejects Claude's agent frontmatter. Hooks do not port — OpenCode has no `hooks.json`.
 
 ### Verify
 
@@ -133,11 +155,13 @@ Each skill lives at `skills/<skill-name>/SKILL.md`.
 
 Internal skills (invoked by parent skills, not shown in `/` menu): `docs-review`, `changelog-review`, `mcp-pagination`, `platform-sync-claude`, `platform-sync-codex`, `platform-sync-cursor`.
 
-## Plugin Dependencies (auto-installed)
+## Companion plugins (install separately)
+
+`.claude-plugin/plugin.json` declares **no** `dependencies` — nothing auto-installs alongside this plugin. These pair well with it and are worth adding by hand:
 
 | Plugin | Marketplace | What it does |
 |---|---|---|
-| `superpowers` | `superpowers-dev` | Jesse Vincent's skills framework. |
+| `superpowers` | `obra/superpowers` | Jesse Vincent's skills framework. |
 
 ## Hooks
 

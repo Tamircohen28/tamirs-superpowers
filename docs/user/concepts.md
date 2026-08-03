@@ -12,7 +12,9 @@ A **plugin** is a distributable unit that Claude Code installs from a marketplac
 - **MCP servers** — declared in `.mcp.json`, providing tools Claude can call
 - **A statusline** — a script that renders in your Claude Code footer
 
-`tamirs-superpowers` ships all four. The plugin manifest (`.claude-plugin/plugin.json`) also declares **dependencies** — other plugins that auto-install alongside it.
+`tamirs-superpowers` ships all four. A manifest may also declare **dependencies** — other plugins that auto-install alongside it — though this one declares none, so nothing installs with it implicitly.
+
+The same content is packaged for three other targets: `.cursor-plugin/plugin.json` for Cursor, `.codex-plugin/plugin.json` plus `.agents/plugins/marketplace.json` for Codex, and `opencode.json` + `.opencode/agent/` for OpenCode, which has no plugin manifest and reads skills from disk. See [platform-equivalence.md](../agent-guidelines/platform-equivalence.md).
 
 ## How the worktree hooks work
 

@@ -5,6 +5,29 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [1.12.0] - 2026-08-03
+
+### Added
+- **OpenCode is now a supported target — four in total: Claude Code, Cursor, Codex, OpenCode.** Recorded in `platform-targets.json` (`schema_version` 2, new `supported_targets` array) with per-target `capabilities` and, for OpenCode, an explicit `capability_gaps` block. Every version floor now carries a `supported_min_source` explaining how it was set, because two of the old floors were guesses.
+- **`.opencode/agent/` — 6 generated agent adapters**, built by `scripts/build-opencode-agents.sh` (`make opencode-agents`). OpenCode validates agent frontmatter strictly and refuses to start on a bad field: Claude's `tools: Read, Grep, Glob, Bash` comma string must be an object of tool→boolean, and `model: sonnet` needs a provider prefix. The translated output is committed so installing from a clone needs no build step; `make agent:check` now runs `--check` and fails on drift.
+- **`opencode.json`** declaring `skills.paths`. Entries are per-domain, with the four `skills/repo/*` skills listed individually — pointing at `skills/repo` wholesale also loads the two gold-fixture skills under `skills/repo/_contract/fixtures/`.
+- **`.agents/plugins/marketplace.json` is now committed.** This is the manifest Codex actually resolves — *not* `.codex-plugin/marketplace.json`. Without it in the repo, `codex plugin marketplace add` on a clone failed with `marketplace root does not contain a supported manifest`, so standalone Codex install was broken for everyone but the machine that had the file untracked locally.
+- **Per-target install guides** under `docs/user/install/` — one each for [Claude Code](docs/user/install/claude-code.md), [Cursor](docs/user/install/cursor.md), [Codex](docs/user/install/codex.md), and [OpenCode](docs/user/install/opencode.md), plus an [index](docs/user/install/README.md) with the version matrix and a component-coverage table. Each guide states what that target does *not* get.
+- **`make opencode-agents` / `make opencode-agents-check`**, and `--sync` now refreshes `latest_known` for OpenCode and Claude Code from the npm registry (Cursor has no public version endpoint and stays manual).
+
+### Fixed
+- **Platform target versions were badly stale.** Cursor read `0.45.0` — a version that predates Cursor's plugin system entirely — and Codex read `0.40.0` against a current `0.146.0`. Both are now validated against locally installed CLIs (Cursor 3.14.7, Codex 0.146.0, Claude Code 2.1.220, OpenCode 1.18.11) rather than against changelogs. README badges updated to match.
+- **All three plugin manifests advertised "25 bundled skills"** against an actual 26.
+- **Removed false plugin-dependency claims** from `README.md`, `docs/user/quick-start.md`, and `docs/user/concepts.md`. `.claude-plugin/plugin.json` has no `dependencies` field, so nothing has ever auto-installed alongside this plugin; the quick start also claimed "9 declared dependencies". Companion plugins are now listed as a manual install.
+- **`docs/user/quick-start.md` pointed at a different marketplace than the README.** Both paths (catalog and standalone) are now documented side by side, on every target.
+
+### Changed
+- `check-platform-targets.sh` and `inventory-agent-setup.sh` enforce the target list from the JSON's own `supported_targets` instead of a hardcoded `claude_code cursor codex`. Files without the field fall back to those three, so `schema_version` 1 repos — including the contract gold fixtures — keep passing unchanged.
+- `docs/agent-guidelines/platform-equivalence.md` gains an OpenCode column throughout, plus an Agents section and an install/distribution matrix. The old "specialist agents not mirrored on Cursor/Codex" claim was wrong and is gone.
+
+### Docs
+- **OpenCode's published skill docs are wrong about nested discovery.** They state the loader "does not support nested subdirectories" and matches only `skills/*/SKILL.md`. Verified otherwise with `opencode debug skill` on both 1.16.2 and 1.18.11: the domain-nested `skills/<domain>/<name>/SKILL.md` layout is discovered as-is, symlinks are followed, and `skills.paths` accepts absolute, relative, and zero-level paths. OpenCode's own bundled `customize-opencode` skill confirms the loader scans `**/SKILL.md`. `supported_min` is set to 1.16.2 — the oldest version this was actually verified on, not a guess.
+
 ## [1.11.0] - 2026-08-03
 
 ### Added

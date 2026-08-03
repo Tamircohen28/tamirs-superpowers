@@ -2,7 +2,7 @@
 	check-manifest-versions check-platform-equivalence check-agent-drift \
 	check-feature-equivalence check-platform-targets platform-targets-sync \
 	platform-targets-assert platform-targets-cochange agent\:check agent-polish-gate \
-	assert-contract repo-standards-gate
+	assert-contract repo-standards-gate opencode-agents opencode-agents-check
 
 SKILLS_DIR := skills
 HOOKS_DIR  := hooks
@@ -21,6 +21,8 @@ help:
 	@echo "  platform-targets-sync   — refresh latest_known in platform-targets.json (agents)"
 	@echo "  platform-targets-assert — fail if validated_against lags latest_known (agents)"
 	@echo "  platform-targets-cochange — CI: require platform-targets.json when repo skills change"
+	@echo "  opencode-agents         — regenerate .opencode/agent/*.md from agents/*.md"
+	@echo "  opencode-agents-check   — fail if .opencode/agent/ has drifted from agents/"
 	@echo "  lint                    — shellcheck .sh files only"
 	@echo "  test-repo-contract      — contract fixtures (app-gold, plugin-gold, claude-plugin-gold)"
 	@echo "  plugin-validate         — claude plugin validate (requires Claude Code CLI)"
@@ -73,7 +75,13 @@ platform-targets-assert:
 platform-targets-cochange:
 	@bash scripts/check-platform-targets.sh . --require-co-change
 
-agent\:check: check-agent-drift check-feature-equivalence check-platform-targets
+opencode-agents:
+	@bash scripts/build-opencode-agents.sh .
+
+opencode-agents-check:
+	@bash scripts/build-opencode-agents.sh . --check
+
+agent\:check: check-agent-drift check-feature-equivalence check-platform-targets opencode-agents-check
 
 agent-polish-gate: platform-targets-sync platform-targets-assert agent\:check
 

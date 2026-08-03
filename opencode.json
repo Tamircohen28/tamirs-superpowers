@@ -1,0 +1,17 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "skills": {
+    "paths": [
+      "skills/creative",
+      "skills/debugging",
+      "skills/dev-workflow",
+      "skills/documentation",
+      "skills/mcp",
+      "skills/toolkit",
+      "skills/repo/cleanup",
+      "skills/repo/multi-agent-repo",
+      "skills/repo/repo-scaffold",
+      "skills/repo/repo-standards"
+    ]
+  }
+}

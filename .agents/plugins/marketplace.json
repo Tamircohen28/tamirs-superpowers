@@ -1,0 +1,20 @@
+{
+  "name": "tamirs-superpowers",
+  "interface": {
+    "displayName": "Tamir's Superpowers"
+  },
+  "plugins": [
+    {
+      "name": "tamirs-superpowers",
+      "source": {
+        "source": "local",
+        "path": "./"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Developer Tools"
+    }
+  ]
+}

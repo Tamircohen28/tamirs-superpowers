@@ -6,6 +6,10 @@ All notable changes are recorded here and in [`../CHANGELOG.md`](../CHANGELOG.md
 
 See root [CHANGELOG.md](../CHANGELOG.md#unreleased) for in-progress entries.
 
+## [1.12.0] - 2026-08-03
+
+OpenCode joins Claude Code, Cursor, and Codex as a supported target — four in total — and the plugin now installs standalone from this repo on every one of them. Adds per-target install guides under [`user/install/`](user/install/README.md), generated OpenCode agent adapters, and a committed `.agents/plugins/marketplace.json` (the manifest Codex actually resolves) that unbroke standalone Codex install. Also refreshes badly stale Cursor and Codex version floors and removes long-standing false claims about auto-installed plugin dependencies. See root [CHANGELOG.md](../CHANGELOG.md#1120---2026-08-03).
+
 ## [1.11.0] - 2026-08-03
 
 The statusline now ends line 1 with a dim Claude Code version (`v2.1.220`), read from the `version` field already present on the statusline stdin payload. Makes it visible which CLI build a session is running — including when a plugin auto-update lands mid-session. See root [CHANGELOG.md](../CHANGELOG.md#1110---2026-08-03).

@@ -2,37 +2,46 @@
 
 Install `tamirs-superpowers` and run your first skill in under 5 minutes.
 
+Four targets are supported — **Claude Code, Cursor, Codex, and OpenCode**. This page walks the Claude Code path; the other three have full guides:
+
+| Target | Guide |
+|--------|-------|
+| Claude Code | this page, or [install/claude-code.md](install/claude-code.md) |
+| Cursor | [install/cursor.md](install/cursor.md) |
+| Codex | [install/codex.md](install/codex.md) |
+| OpenCode | [install/opencode.md](install/opencode.md) |
+
 ## Prerequisites
 
 - Claude Code v2.0+ installed
 - `jq` installed: `brew install jq`
 - `git` 2.30+
 
-## Step 1 — Register third-party marketplaces
+## Step 1 — Add a marketplace
 
-These are needed once per machine so Claude Code can resolve all plugin dependencies:
+Either the catalog (recommended — it carries the whole plugin family):
 
 ```
-/plugin marketplace add warpdotdev/claude-code-warp
-/plugin marketplace add anthropics/knowledge-work-plugins
-/plugin marketplace add obra/superpowers
+/plugin marketplace add Tamircohen28/plugins
 ```
 
-## Step 2 — Add this marketplace
+…or this repo standalone, which ships its own manifest:
 
 ```
 /plugin marketplace add Tamircohen28/tamirs-superpowers
 ```
 
-## Step 3 — Install the plugin
+## Step 2 — Install the plugin
 
 ```
-/plugin install tamirs-superpowers
+/plugin install tamirs-superpowers@tamirs-plugins
 ```
 
-Claude Code resolves and installs the 9 declared dependencies automatically. You'll see them listed in the install output.
+Use `/plugin install tamirs-superpowers` if you added the standalone marketplace.
 
-## Step 4 — Reload
+The plugin declares **no** dependencies — nothing else installs alongside it.
+
+## Step 3 — Reload
 
 ```
 /reload-plugins
@@ -40,23 +49,33 @@ Claude Code resolves and installs the 9 declared dependencies automatically. You
 
 Or restart Claude Code entirely.
 
-## Step 5 — Try a skill
+## Step 4 — Try a skill
 
 Open Claude Code in any git repo and try:
 
 ```
-/tamirs-superpowers:changelog-review what hooks are available in Claude Code?
+/tamirs-superpowers:find-skill
 ```
 
-This fetches live Claude Code docs and answers from them — a good sanity check that the plugin loaded correctly.
+That lists all 26 bundled skills — a good sanity check that the plugin loaded.
 
-For a dev workflow demo, try:
+For a dev workflow demo:
 
 ```
 /tamirs-superpowers:plan-dev add a README to this repo
 ```
 
 Claude will propose a phased plan and create GitHub issues after you approve.
+
+## Step 5 — Optional companion marketplaces
+
+A few bundled skills reference plugins from other catalogs. Register them once per machine if you want those skills to resolve everything they mention:
+
+```
+/plugin marketplace add warpdotdev/claude-code-warp
+/plugin marketplace add anthropics/knowledge-work-plugins
+/plugin marketplace add obra/superpowers
+```
 
 ## Step 6 — Agent-kit repo (optional)
 
@@ -70,7 +89,7 @@ See the full guide: [Agent-kit repos](agent-kit.md).
 
 ## Alternative: install without a marketplace
 
-If you don't want to use the marketplace system, clone directly into Claude Code's local skills directory:
+Clone directly into Claude Code's local skills directory:
 
 ```bash
 git clone https://github.com/Tamircohen28/tamirs-superpowers.git \
@@ -79,7 +98,7 @@ git clone https://github.com/Tamircohen28/tamirs-superpowers.git \
 
 Claude Code auto-loads any plugin placed under `~/.claude/skills/`. No `/plugin marketplace add` or `/plugin install` needed. Reload with `/reload-plugins`.
 
-Note: plugin dependencies (Atlassian, Sourcegraph, etc.) will not auto-install via this method — you'll need to install them separately.
+Trade-off: no automatic updates — `git pull` to refresh.
 
 ## Enable MCP servers (optional)
 
