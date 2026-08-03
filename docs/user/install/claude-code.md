@@ -4,7 +4,8 @@
 |---|---|
 | **Validated against** | Claude Code **2.1.220** |
 | **Minimum supported** | **2.0.0** |
-| **Manifest** | `.claude-plugin/plugin.json` |
+| **Plugin manifest** | `.claude-plugin/plugin.json` |
+| **Marketplace manifest** | `.claude-plugin/marketplace.json` |
 | **Official docs** | [Plugins reference](https://code.claude.com/docs/en/plugins-reference) · [Marketplaces](https://code.claude.com/docs/en/plugin-marketplaces) · [Skills](https://code.claude.com/docs/en/skills) |
 
 Check your version:
@@ -40,7 +41,7 @@ To pick up a new release later:
 
 ## Method B — standalone, straight from this repo
 
-No catalog needed. The repo carries its own `.claude-plugin/plugin.json`, so Claude Code can install it directly:
+No catalog needed. The repo carries its own `.claude-plugin/marketplace.json` alongside the plugin manifest, so Claude Code can install it directly:
 
 ```
 /plugin marketplace add Tamircohen28/tamirs-superpowers
@@ -115,6 +116,7 @@ Should list all 26 skills. Also check the statusline appears at the bottom of th
 | Symptom | Fix |
 |---------|-----|
 | `/plugin update` does nothing | The release didn't bump `plugin.json` `version`. Check the [releases page](https://github.com/Tamircohen28/tamirs-superpowers/releases). |
+| `Marketplace file not found` | You're on a revision older than 1.12.0, before `.claude-plugin/marketplace.json` was added. Use the catalog (Method A) or update the clone. |
 | Skills don't appear after install | `/reload-plugins`, then restart Claude Code. `/reload-plugins` does **not** re-fetch from GitHub — it only reloads what's cached. |
 | Statusline blank | Confirm `~/.claude/settings.json` has `statusLine` as an **object** (`{"type":"command","command":"..."}`), not a string. |
 | Hooks not firing | Check the plugin is enabled: `/plugin list`. |
