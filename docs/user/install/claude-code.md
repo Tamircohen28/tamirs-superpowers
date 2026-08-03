@@ -103,7 +103,7 @@ The plugin ships stubs for GitHub, Slack, Context7, and Desktop Commander in `.m
 /tamirs-superpowers:find-skill
 ```
 
-Should list all 26 skills. Also check the statusline appears at the bottom of the terminal — that confirms `settings.statusLine` resolved.
+Should list all 27 skills. Also check the statusline appears at the bottom of the terminal — that confirms `settings.statusLine` resolved.
 
 ## What Claude Code gets that others don't
 

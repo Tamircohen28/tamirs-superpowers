@@ -1,20 +1,22 @@
 ---
 name: platform-sync
 description: >-
-  Use when auditing any repo that uses Claude Code, OpenAI Codex CLI, or Cursor — plugin
-  repos, app repos, or hybrids. Detects target usage via manifests, CLAUDE.md, AGENTS.md,
-  .cursor/rules/, skills/, hooks/, and related signals; fetches live docs per target;
+  Use when auditing any repo that uses Claude Code, OpenAI Codex CLI, Cursor, or OpenCode —
+  plugin repos, app repos, or hybrids. Detects target usage via manifests, CLAUDE.md,
+  AGENTS.md, .cursor/rules/, opencode.json, skills/, hooks/, and related signals; fetches
+  live docs per target;
   identifies unused new features; synthesizes a numbered improvement plan. Synonyms: "sync my
   plugin", "check against latest docs", "what features am I missing", "audit all platforms",
   "/platform-sync".
 when_to_use: |
   - User runs "/platform-sync"
-  - "check my repo against latest Claude Code / Codex / Cursor docs"
+  - "check my repo against latest Claude Code / Codex / Cursor / OpenCode docs"
   - "what new features am I missing"
   - "sync my plugin with latest platform features"
-  - "audit all three platforms"
+  - "audit all four platforms"
   - "platform-sync"
-  - App repo with CLAUDE.md, AGENTS.md, or .cursor/rules/ — not only plugin manifests
+  - App repo with CLAUDE.md, AGENTS.md, .cursor/rules/, or opencode.json — not only
+    plugin manifests
   - Triggered via systemMessage from plugin-version-watch Stop hook after 24h without a check
 argument-hint: "[repo path or omit for cwd]"
 arguments: []
@@ -40,15 +42,17 @@ metadata:
     - claude
     - codex
     - cursor
+    - opencode
   tags:
     - documentation
     - claude-code
     - codex
     - cursor
+    - opencode
     - platform
     - audit
     - planning
-  updated-date: '2026-06-30'
+  updated-date: '2026-08-03'
 ---
 
 # platform-sync
@@ -75,6 +79,7 @@ signals in `references/detection.md` — invoke a sub-skill when **any** signal 
 | Claude Code | `tamirs-superpowers:platform-sync-claude` |
 | Cursor | `tamirs-superpowers:platform-sync-cursor` |
 | Codex CLI | `tamirs-superpowers:platform-sync-codex` |
+| OpenCode | `tamirs-superpowers:platform-sync-opencode` |
 
 Record which signals triggered each platform (e.g. `CLAUDE.md + skills/`).
 
@@ -82,7 +87,8 @@ Record which signals triggered each platform (e.g. `CLAUDE.md + skills/`).
 ```
 No AI coding assistant usage detected in this repo.
 platform-sync looks for Claude Code (CLAUDE.md, .claude-plugin/, skills/, hooks/),
-Cursor (.cursor/rules/, .cursor-plugin/), or Codex (AGENTS.md, .codex-plugin/).
+Cursor (.cursor/rules/, .cursor-plugin/), Codex (AGENTS.md, .codex-plugin/), or
+OpenCode (opencode.json, .opencode/).
 Add agent config for at least one platform, then re-run /platform-sync.
 ```
 Then stop.
@@ -118,7 +124,7 @@ Merge all platform outputs into a single prioritized plan. Sort by:
 ```
 # Platform Sync — Improvement Plan
 **Repo:** [path]
-**Platforms analyzed:** [Claude Code | Codex | Cursor] (only those detected)
+**Platforms analyzed:** [Claude Code | Codex | Cursor | OpenCode] (only those detected)
 **Detection signals:** [per-platform path list]
 **Date:** [today's date]
 
@@ -152,7 +158,7 @@ Merge all platform outputs into a single prioritized plan. Sort by:
 
 ### Rules
 - Every step must include a concrete snippet — no vague "consider using X"
-- Platform tags in step headers: [Claude Code], [Codex], [Cursor]
+- Platform tags in step headers: [Claude Code], [Codex], [Cursor], [OpenCode]
 - If a platform has no improvements: include a line "No improvements found for [Platform] — config is current."
 - If a sub-skill fails with a fetch error: report it under a "## Fetch Errors" section at the end
 - Do not duplicate steps that apply to multiple platforms — merge and tag both

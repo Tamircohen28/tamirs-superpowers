@@ -2,7 +2,8 @@
 	check-manifest-versions check-platform-equivalence check-agent-drift \
 	check-feature-equivalence check-platform-targets platform-targets-sync \
 	platform-targets-assert platform-targets-cochange agent\:check agent-polish-gate \
-	assert-contract repo-standards-gate opencode-agents opencode-agents-check
+	assert-contract repo-standards-gate opencode-agents opencode-agents-check \
+	check-marketplace-schema check-doc-claims
 
 SKILLS_DIR := skills
 HOOKS_DIR  := hooks
@@ -27,6 +28,8 @@ help:
 	@echo "  test-repo-contract      — contract fixtures (app-gold, plugin-gold, claude-plugin-gold)"
 	@echo "  plugin-validate         — claude plugin validate (requires Claude Code CLI)"
 	@echo "  check-manifest-versions — plugin manifests agree with each other"
+	@echo "  check-marketplace-schema — extraKnownMarketplaces is a record, not an array"
+	@echo "  check-doc-claims        — skill counts and target coverage match reality"
 	@echo "  test                    — alias for validate"
 
 install:
@@ -38,7 +41,7 @@ update:
 uninstall:
 	@bash scripts/uninstall.sh
 
-validate: lint test-repo-contract check-manifest-versions check-platform-equivalence
+validate: lint test-repo-contract check-manifest-versions check-platform-equivalence check-marketplace-schema check-doc-claims
 	@echo "--- Validating JSON files ---"
 	@find . -name '*.json' -not -path '*/.git/*' | while read f; do \
 	  jq empty "$$f" 2>&1 && echo "  OK  $$f" || { echo "  FAIL $$f"; exit 1; }; \
@@ -65,6 +68,12 @@ check-feature-equivalence:
 
 check-platform-targets:
 	@bash scripts/check-platform-targets.sh .
+
+check-marketplace-schema:
+	@bash scripts/check-marketplace-schema.sh .
+
+check-doc-claims:
+	@bash scripts/check-doc-claims.sh .
 
 platform-targets-sync:
 	@bash scripts/check-platform-targets.sh . --sync

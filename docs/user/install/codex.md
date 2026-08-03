@@ -69,7 +69,7 @@ Update with `git pull` — no re-add needed.
 
 | Field | Contents |
 |-------|----------|
-| `skills` | The 7 skill domain directories — 26 skills |
+| `skills` | The 7 skill domain directories — 27 skills |
 | `hooks` | `./hooks/hooks.json` |
 | `mcpServers` | `./.mcp.json` |
 

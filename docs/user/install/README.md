@@ -17,7 +17,7 @@ Versions verified 2026-08-03. The machine-readable source of truth is [`platform
 
 | Component | Claude Code | Cursor | Codex | OpenCode |
 |-----------|:---:|:---:|:---:|:---:|
-| 26 skills | ✅ | ✅ | ✅ | ✅ |
+| 27 skills | ✅ | ✅ | ✅ | ✅ |
 | 6 specialist agents | ✅ | ✅ | ✅ | ✅ via `.opencode/agent/` |
 | Worktree hooks | ✅ | ✅ | ✅ | ❌ — see [opencode.md](opencode.md#what-does-not-port) |
 | Statusline | ✅ | ❌ | ❌ | ❌ |

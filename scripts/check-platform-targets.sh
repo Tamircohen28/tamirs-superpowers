@@ -48,6 +48,8 @@ if [[ "$REQUIRE_CO_CHANGE" == true ]]; then
     'skills/documentation/platform-sync-claude/'
     'skills/documentation/platform-sync-cursor/'
     'skills/documentation/platform-sync-codex/'
+    'skills/documentation/platform-sync-opencode/'
+    'docs/user/install/'
   )
   changed=false
   targets_changed=false
@@ -141,10 +143,31 @@ badge_prefix() {
   esac
 }
 
+# Sub-skill directory name per target key (platform-sync-<name>).
+subskill_name() {
+  case "$1" in
+    claude_code) echo "platform-sync-claude" ;;
+    cursor)      echo "platform-sync-cursor" ;;
+    codex)       echo "platform-sync-codex" ;;
+    opencode)    echo "platform-sync-opencode" ;;
+    *)           echo "" ;;
+  esac
+}
+
 # shellcheck disable=SC2086
 for key in $TARGET_KEYS; do
   jq -e ".targets.$key.validated_against" "$TARGETS_JSON" >/dev/null 2>&1 \
     || err "platform-targets.json missing targets.$key.validated_against"
+
+  # A supported target with no platform-sync sub-skill is invisible to /platform-sync:
+  # the umbrella silently analyses the other targets and reports success, so the gap
+  # reads as "no improvements found" rather than "this target was never checked".
+  sub=$(subskill_name "$key")
+  if [[ -z "$sub" ]]; then
+    err "platform-targets.json declares unknown target '$key' — add it to subskill_name() and badge_prefix() in $(basename "$0")"
+  elif [[ -d "$ROOT/skills/documentation" && ! -d "$ROOT/skills/documentation/$sub" ]]; then
+    err "supported target '$key' has no skills/documentation/$sub/ — /platform-sync cannot audit it"
+  fi
 done
 
 last_reviewed=$(jq -r '.last_reviewed // empty' "$TARGETS_JSON")

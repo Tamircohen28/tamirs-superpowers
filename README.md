@@ -34,7 +34,7 @@
 
 # tamirs-superpowers
 
-A multi-platform agent plugin for the **four supported targets — Claude Code, Cursor, Codex, and OpenCode** — bundling 26 skills, 6 specialist agents, smart worktree hooks, and MCP server stubs. It installs **standalone from this repo** on every target, and is also published through the [`tamirs-plugins`](https://github.com/Tamircohen28/plugins) catalog.
+A multi-platform agent plugin for the **four supported targets — Claude Code, Cursor, Codex, and OpenCode** — bundling 27 skills, 6 specialist agents, smart worktree hooks, and MCP server stubs. It installs **standalone from this repo** on every target, and is also published through the [`tamirs-plugins`](https://github.com/Tamircohen28/plugins) catalog.
 
 **Per-target install guides:** [Claude Code](docs/user/install/claude-code.md) · [Cursor](docs/user/install/cursor.md) · [Codex](docs/user/install/codex.md) · [OpenCode](docs/user/install/opencode.md) · [index](docs/user/install/README.md)
 

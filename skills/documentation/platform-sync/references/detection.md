@@ -40,6 +40,23 @@ A repo may use zero, one, or many targets. Scan the repo root (or path argument)
 
 **Invoke:** `tamirs-superpowers:platform-sync-codex` when **any** Codex signal is present.
 
+## OpenCode
+
+| Signal | Path / pattern | Strength |
+|--------|----------------|----------|
+| Config file | `opencode.json` at repo root | strong |
+| Agent adapters | `.opencode/agent/*.md` | strong |
+| Plugin modules | `.opencode/plugin/*.{js,ts}` | medium |
+| Config directory | `.opencode/` (any contents) | medium |
+| Global config only | `~/.config/opencode/opencode.json` | weak — repo may rely on user config |
+
+**Invoke:** `tamirs-superpowers:platform-sync-opencode` when **any** OpenCode signal is present.
+
+> OpenCode has **no plugin manifest** — there is no `.opencode-plugin/plugin.json` to look
+> for, and no marketplace entry. A repo that supports OpenCode is identified by
+> `opencode.json` and `.opencode/`, not by a versioned manifest. Do not treat the absence
+> of a manifest as absence of the target.
+
 ## No targets detected
 
 If **no** signals match any platform, output:
@@ -47,7 +64,8 @@ If **no** signals match any platform, output:
 ```
 No AI coding assistant usage detected in this repo.
 platform-sync looks for Claude Code (CLAUDE.md, .claude-plugin/, skills/, hooks/),
-Cursor (.cursor/rules/, .cursor-plugin/), or Codex (AGENTS.md, .codex-plugin/).
+Cursor (.cursor/rules/, .cursor-plugin/), Codex (AGENTS.md, .codex-plugin/), or
+OpenCode (opencode.json, .opencode/).
 Add agent config for at least one platform, then re-run /platform-sync.
 ```
 

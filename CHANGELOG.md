@@ -5,6 +5,21 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Added
+- **`skills/documentation/platform-sync-opencode/` — the fourth per-target sub-skill.** OpenCode was added to `supported_targets` in 1.12.0 but had no sub-skill, so `/platform-sync` analysed the other three, found nothing wrong with OpenCode because it never looked, and reported success. The gap read as "no improvements found" rather than "this target was never checked". The sub-skill carries its own `references/urls.md` and a hard constraint against recommending anything that assumes a marketplace, `hooks.json`, or a plugin-declared statusline — none of which OpenCode has.
+- **`make check-marketplace-schema`** — guards `extraKnownMarketplaces` shape in real settings files *and* in the scaffold templates that generate them. Claude Code expects a record keyed by marketplace name; an array is dropped with **no error and no warning**, and a valid global `~/.claude/settings.json` masks the broken project-level file indefinitely. Also rejects the non-existent `sourceUrl` field and a missing `source.source`.
+- **`make check-doc-claims`** — asserts prose matches the tree. Every "N skills" claim in any `*.md` and every "N bundled skills" in a plugin/marketplace manifest description must match the actual `SKILL.md` count, and every declared target must be named in README.md and AGENTS.md with an `install_doc` that exists. Both counts had drifted before, in separate releases, with nothing failing.
+- **Per-target parity gate (V-01…V-05) in `repo-standards`.** A key in `supported_targets` now owes five artifacts — manifest, install doc, `platform-targets.json` entry, platform-sync sub-skill, and a prose mention. Missing any is P1: partial support is worse than none, because users install against it and the gaps surface as "the plugin is broken".
+
+### Fixed
+- **The scaffold template emitted an invalid marketplace declaration.** `legacy-scaffold-templates.md` wrote `extraKnownMarketplaces` as an array, so every repo scaffolded from it got a settings file Claude Code silently ignored. Now emits the record form, with the silent-drop behaviour and the `claude doctor` verification documented inline.
+- **All four manifest descriptions advertised "26 bundled skills"** against an actual 27 — the same drift 1.12.0 fixed at 25→26. Now enforced by `check-doc-claims` rather than by remembering.
+- **`check-platform-targets.sh` accepted a supported target with no sub-skill.** It validated `validated_against` and README badges but never checked that `/platform-sync` could actually audit the target. Now fails on a missing `skills/documentation/platform-sync-<target>/`, and on an unrecognised target key rather than skipping it silently.
+- **`docs/engineering/architecture/overview.md` claimed "16 skills in 7 domains"** while the tree shipped 27, with a stale per-domain listing to match.
+
+### Changed
+- **`rules/dev/plugin-version-bump.md` rewritten for four targets.** It said "bump all three manifests" without explaining that `opencode.json` has no version field and shouldn't get one; had two steps numbered `3.`; claimed the alignment CI job fails on bump PRs when pull requests actually run `--manifests-only`; and — worst — told agents to **edit files directly under `~/.claude/plugins/cache/`**. That is the anti-pattern that cost real time this cycle: `autoUpdate` replaced the version directory mid-session and the `sort -rV | head -1` version glob moved to the newer unpatched copy, so a hand-applied patch vanished and the symptom looked like a bug in the feature. Now: symlink-only guidance, the two destruction mechanisms spelled out, a post-release step that diffs the `vX.Y.Z` tag against `origin/master` before announcing, and sync steps for marketplace declarations, install guides, skill counts, and `platform-targets.json`.
+
 ## [1.12.0] - 2026-08-03
 
 ### Added

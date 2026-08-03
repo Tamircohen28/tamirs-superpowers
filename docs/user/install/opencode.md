@@ -100,7 +100,7 @@ opencode debug agent security-reviewer
 opencode debug config          # resolved config, including skills.paths
 ```
 
-`opencode debug skill` should list all 26 skills and no fixture skills (`demo`, `example-skill`). If those two appear, a `skills.paths` entry is pointing at `skills/repo` rather than the four individual skill directories.
+`opencode debug skill` should list all 27 skills and no fixture skills (`demo`, `example-skill`). If those two appear, a `skills.paths` entry is pointing at `skills/repo` rather than the four individual skill directories.
 
 ## What does not port
 

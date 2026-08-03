@@ -171,14 +171,26 @@ See [docs/engineering/guides/getting-started.md](docs/engineering/guides/getting
 
 ## .claude/settings.json Template
 
+> **`extraKnownMarketplaces` is a record keyed by marketplace name — never an array.**
+> Claude Code validates this key against a schema and **silently drops the whole key**
+> when the shape is wrong: no error at startup, no warning, the marketplace simply never
+> registers. A scaffolded repo can therefore look correct for months while every
+> `enabledPlugins` entry resolves only because a *global* `~/.claude/settings.json`
+> happens to declare the same marketplace. There is no `sourceUrl` field — the nested
+> object is `source: { source, repo }` for GitHub or `source: { source, url }` for git.
+> Verify with `claude doctor` after scaffolding; it reports
+> `Expected record, but received array` when this is wrong.
+
 ```json
 {
-  "extraKnownMarketplaces": [
-    {
-      "name": "tamirs-plugins",
-      "sourceUrl": "https://github.com/Tamircohen28/plugins"
+  "extraKnownMarketplaces": {
+    "tamirs-plugins": {
+      "source": {
+        "source": "github",
+        "repo": "Tamircohen28/plugins"
+      }
     }
-  ],
+  },
   "enabledPlugins": {
     "tamirs-superpowers@tamirs-plugins": true,
     "headhunter@tamirs-plugins": true,

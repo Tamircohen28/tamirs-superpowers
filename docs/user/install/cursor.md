@@ -21,7 +21,7 @@ Cursor auto-discovers these from the plugin root, no per-item registration neede
 
 | Directory | Contents |
 |-----------|----------|
-| `skills/` | 26 skills (also listed explicitly in `.cursor-plugin/plugin.json`) |
+| `skills/` | 27 skills (also listed explicitly in `.cursor-plugin/plugin.json`) |
 | `.cursor/rules/` | 10 `.mdc` rule files — commit conventions, worktree workflow, skill standards |
 | `agents/` | 6 specialist agents |
 | `hooks/hooks.json` | Lifecycle hooks |

@@ -1,6 +1,8 @@
 # tamirs-superpowers
 
-A multi-platform agent plugin (Claude Code, Cursor, Codex) that bundles 25 skills, smart worktree hooks, and MCP server stubs. It is **not** a Node/Python/Go app — there is no build step, no `package.json`, no compiled output. All content is Markdown, JSON, and Bash.
+A multi-platform agent plugin for the four supported targets — Claude Code, Cursor, Codex, and OpenCode — that bundles 27 skills, 6 specialist agents, smart worktree hooks, and MCP server stubs. It is **not** a Node/Python/Go app — there is no build step, no `package.json`, no compiled output. All content is Markdown, JSON, and Bash.
+
+Worktree hooks and the statusline do not port to OpenCode; see [`docs/user/install/opencode.md`](docs/user/install/opencode.md#what-does-not-port). The machine-readable target list is [`platform-targets.json`](docs/engineering/build-and-release/platform-targets.json).
 
 **Install (all platforms)** — from a clone:
 
@@ -22,7 +24,7 @@ make uninstall # remove agents + uninstall plugin when possible
 ## Working agreements
 
 - Validate after every change: `make validate` (shellcheck + JSON lint + frontmatter + `make test-repo-contract`)
-- **Version bump after shipped changes:** Claude Code uses `plugin.json` `version` as the update cache key — commits without a bump do not reach installed users (`/plugin update` reports "already at latest"). After changing `skills/`, `hooks/`, `agents/`, manifests, or `scripts/`, bump all three plugin manifests together, update `CHANGELOG.md` + `README.md` badges, open a PR, then run the Release workflow to tag `vX.Y.Z`. See [`rules/dev/plugin-version-bump.md`](rules/dev/plugin-version-bump.md) and [versioning.md](docs/engineering/build-and-release/versioning.md).
+- **Version bump after shipped changes:** Claude Code uses `plugin.json` `version` as the update cache key — commits without a bump do not reach installed users (`/plugin update` reports "already at latest"). After changing `skills/`, `hooks/`, `agents/`, manifests, or `scripts/`, bump the three versioned plugin manifests together (`opencode.json` has no version field), update `CHANGELOG.md` + `README.md` badges, refresh anything the change falsified — documented skill counts, `platform-targets.json`, `docs/user/install/<target>.md` — open a PR, then run the Release workflow to tag `vX.Y.Z` and verify the tag contains the change. See [`rules/dev/plugin-version-bump.md`](rules/dev/plugin-version-bump.md) and [versioning.md](docs/engineering/build-and-release/versioning.md).
 - Commit format: `<type>(<scope>): <description>` — types: `feat`, `fix`, `chore`, `docs`, `refactor` — scopes: `skills`, `hooks`, `marketplace`, `ci`, `docs`
 - Never add `runs-on: [self-hosted]` to any CI workflow — use `ubuntu-latest`
 - Never commit secrets or tokens — `.mcp.json` uses `${ENV_VAR}` placeholders only
@@ -62,7 +64,7 @@ make uninstall # remove agents + uninstall plugin when possible
 | `skill-quality-standards.md` | Authoring or editing `skills/**/SKILL.md` |
 | `gh-cli-preference.md` | CI scripts, hooks, dev-workflow skill scripts |
 | `user-facing-script-standards.md` | User-facing or skill helper scripts |
-| `plugin-version-bump.md` | After shipped plugin changes — bump all manifests, changelog, release tag |
+| `plugin-version-bump.md` | After shipped plugin changes — bump manifests, changelog, per-target install docs, release tag |
 
 Cursor loads thin adapters from `.cursor/rules/*.mdc` pointing at these files. Claude Code loads `rules/dev/` directly. Codex reads `AGENTS.md` plus `rules/dev/` when contributing.
 
