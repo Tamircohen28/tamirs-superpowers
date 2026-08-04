@@ -41,7 +41,10 @@ Use `/plugin install tamirs-superpowers` if you added the standalone marketplace
 
 The plugin declares **no** dependencies — nothing else installs alongside it.
 
-## Step 3 — Reload
+## Step 3 — Reload (Claude Code < 2.1.221 only)
+
+Since Claude Code 2.1.221, plugins installed with `/plugin install` activate
+immediately when safe — skip this step. On older versions:
 
 ```
 /reload-plugins

@@ -61,7 +61,7 @@ The worktree hooks use `jq` to parse session state JSON.
 
 **Symptom:** `/plugin update` reports the current version (e.g. `1.5.1`) is already installed; new skills or hooks from a recent release are not visible.
 
-**Cause:** Claude Code caches plugins by the `version` field in `plugin.json`. If the publisher shipped changes without bumping `version`, or your marketplace clone is stale, `/plugin update` skips the download. `/reload-plugins` only reloads the existing cache.
+**Cause:** Claude Code caches plugins by the `version` field in `plugin.json`. If the publisher shipped changes without bumping `version`, or your marketplace clone is stale, `/plugin update` skips the download. `/reload-plugins` only reloads the existing cache. (Since 2.1.221, `/plugin install` refreshes a stale marketplace catalog and retries on its own — the manual `marketplace update` below matters mainly for `/plugin update` flows and older versions.)
 
 **Fix:**
 1. Ensure the publisher released a new semver (check [releases](https://github.com/Tamircohen28/tamirs-superpowers/releases))
