@@ -18,7 +18,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - **`docs/engineering/architecture/overview.md` claimed "16 skills in 7 domains"** while the tree shipped 27, with a stale per-domain listing to match.
 
 ### Changed
-- **Platform target: Claude Code 2.1.221** (from 2.1.220). Docs-only bump — no shipped
+- **Platform target: Claude Code 2.1.222** (from 2.1.220). Docs-only bump — no shipped
   plugin content changed, so no version bump. Install guides and quick-start now reflect
   two 2.1.221 install-flow improvements: plugins installed with `/plugin install` activate
   immediately when safe (no `/reload-plugins` step), and `/plugin install` refreshes a
@@ -26,6 +26,12 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   `/reload-plugins` guidance stays for older versions and for manifest/hook edits
   (`hooks/plugin-reload-reminder.sh` is unchanged — manifests and hooks still need a
   reload). `platform-targets.json` records the bump and the two adopted behaviours.
+  The 2.1.222 delta needs no plugin changes: its worktree hardening (isolation now
+  covers file edits and Bash in every session type, and worktree-isolated sessions
+  can no longer run destructive git against the main checkout) lands on the host
+  side and *complements* this plugin's `enforce-worktree-edits.sh` / worktree hook
+  system rather than replacing it — the hooks guard the plugin's own
+  `~/.claude/worktrees/` flow, which native session isolation doesn't manage.
 
 - **`rules/dev/plugin-version-bump.md` rewritten for four targets.** It said "bump all three manifests" without explaining that `opencode.json` has no version field and shouldn't get one; had two steps numbered `3.`; claimed the alignment CI job fails on bump PRs when pull requests actually run `--manifests-only`; and — worst — told agents to **edit files directly under `~/.claude/plugins/cache/`**. That is the anti-pattern that cost real time this cycle: `autoUpdate` replaced the version directory mid-session and the `sort -rV | head -1` version glob moved to the newer unpatched copy, so a hand-applied patch vanished and the symptom looked like a bug in the feature. Now: symlink-only guidance, the two destruction mechanisms spelled out, a post-release step that diffs the `vX.Y.Z` tag against `origin/master` before announcing, and sync steps for marketplace declarations, install guides, skill counts, and `platform-targets.json`.
 
