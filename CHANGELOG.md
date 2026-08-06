@@ -18,6 +18,22 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - **`docs/engineering/architecture/overview.md` claimed "16 skills in 7 domains"** while the tree shipped 27, with a stale per-domain listing to match.
 
 ### Changed
+- **Platform target: Claude Code 2.1.223** (from 2.1.222). Docs-only bump — no shipped
+  plugin content changed, so no version bump. The 2.1.223 delta is security-and-fix
+  focused and needs no plugin changes, but it is a strong reason for users to update
+  their host: it closes a Bash permission bypass (a crafted command could hide parts
+  of itself from permission checks), stops commands padded with tabs or invisible
+  Unicode from hiding content in the approval dialog, and closes a workflow-script
+  sandbox escape via dynamic `import()`. This plugin's PreToolUse guards
+  (`protect-other-branches.sh`, `enforce-worktree-edits.sh`, `guard-sensitive-files.sh`)
+  sit on the same permission surface those fixes harden — they keep working unchanged
+  and are now backed by a host that can't be spoofed past them as easily. The
+  `/review` → `/code-review` consolidation touches nothing here (no skill or doc
+  references `/review`), and the context-window enforcement changes
+  (`CLAUDE_CODE_DISABLE_1M_CONTEXT` scope, unknown-model auto-compact) are
+  host-side knobs this plugin doesn't set. `platform-targets.json` re-reviewed
+  2026-08-06.
+
 - **Platform target: Claude Code 2.1.222** (from 2.1.220). Docs-only bump — no shipped
   plugin content changed, so no version bump. Install guides and quick-start now reflect
   two 2.1.221 install-flow improvements: plugins installed with `/plugin install` activate
