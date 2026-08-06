@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| **Validated against** | Claude Code **2.1.222** |
+| **Validated against** | Claude Code **2.1.223** |
 | **Minimum supported** | **2.0.0** |
 | **Plugin manifest** | `.claude-plugin/plugin.json` |
 | **Marketplace manifest** | `.claude-plugin/marketplace.json` |
@@ -16,7 +16,7 @@ claude --version
 
 ## Prerequisites
 
-- Claude Code 2.0.0 or newer (2.1.222 is what this release was validated on)
+- Claude Code 2.0.0 or newer (2.1.223 is what this release was validated on)
 - `jq` — `brew install jq`
 - `git` 2.30+
 
