@@ -17,11 +17,11 @@ Row 3 README badges show **platform tool versions** validated in this release �
 
 ## Versions
 
-Verified **2026-08-06** — Claude Code from registry.npmjs.org + the official changelog (automated nightly review); other CLIs by running each on the maintainer machine (2026-08-03).
+Verified **2026-08-07** — Claude Code from registry.npmjs.org + the official changelog (automated nightly review); other CLIs by running each on the maintainer machine (2026-08-03).
 
 | Platform | Min supported | Validated against | Latest known | Install guide |
 |----------|---------------|-------------------|--------------|---------------|
-| Claude Code | 2.0.0 | 2.1.223 | 2.1.223 | [claude-code.md](../../user/install/claude-code.md) |
+| Claude Code | 2.0.0 | 2.1.224 | 2.1.224 | [claude-code.md](../../user/install/claude-code.md) |
 | Cursor | 3.14.7 | 3.14.7 | 3.14.7 | [cursor.md](../../user/install/cursor.md) |
 | Codex | 0.40.0 | 0.146.0 | 0.146.0 | [codex.md](../../user/install/codex.md) |
 | OpenCode | 1.16.2 | 1.18.11 | 1.18.11 | [opencode.md](../../user/install/opencode.md) |
