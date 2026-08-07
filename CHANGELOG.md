@@ -18,6 +18,33 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - **`docs/engineering/architecture/overview.md` claimed "16 skills in 7 domains"** while the tree shipped 27, with a stale per-domain listing to match.
 
 ### Changed
+- **Platform target: Claude Code 2.1.224** (from 2.1.223). Docs-only bump — no shipped
+  plugin content changed, so no version bump. The 2.1.224 delta reviewed against the
+  plugin surface:
+  - **Cross-session `SendMessage` + `ListAgents`** (Claude Code sessions on any of
+    your machines can now message each other, macOS and Linux; the new
+    `crossSessionInbound`/`dialogExpiry` settings hold messages to a
+    bypassed-permissions session for approval) is noted in
+    `docs/user/cross-platform-workflow.md` as the live, Claude-Code-only complement
+    to the `switch-dev` handoff flow — it does not replace it, because handoff is
+    the only path that carries state across *platforms* (Cursor, Codex, OpenCode)
+    and across time via GitHub Issues. `hooks/notify.sh` and the Pushover hook
+    notify a *human*, a different surface than session-to-session messaging, so
+    nothing hand-rolled becomes deletable.
+  - **`archive` plugin source** (install from a zip over HTTPS, no git or npm,
+    optional SHA-256 pinning) is documented in the Claude Code install guide as a
+    no-git channel; this repo publishes no zip artifacts yet, so the git-based
+    methods stay the recommended paths.
+  - **Sandbox fixes need no plugin change:** the trailing-slash `denyRead` bypass
+    fix and the new credential-masking options touch nothing here —
+    `scripts/install.sh` writes only `permissions.allow`, no sandbox deny rules,
+    and the Pushover credentials live in `~/.claude/pushover.env` outside any
+    sandbox config this plugin manages.
+  - **Removed 200-subagent-per-session cap:** no skill or doc referenced or worked
+    around it (checked `skill-creator`'s eval fan-out, which spawns subagent pairs
+    per test case).
+  `platform-targets.json` re-reviewed 2026-08-07.
+
 - **Platform target: Claude Code 2.1.223** (from 2.1.222). Docs-only bump — no shipped
   plugin content changed, so no version bump. The 2.1.223 delta is security-and-fix
   focused and needs no plugin changes, but it is a strong reason for users to update
