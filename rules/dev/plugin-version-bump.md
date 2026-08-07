@@ -14,7 +14,7 @@ Applies when you change **shipped plugin content** in this repo: `skills/`, `hoo
 - `/plugin update` reports **"already at the latest version"** and keeps the cached copy.
 - `/reload-plugins` reloads from the **local cache** only — it does not fetch from GitHub.
 
-Published through [`Tamircohen28/plugins`](https://github.com/Tamircohen28/plugins) (`tamirs-superpowers@tamirs-plugins`).
+Published through [`Tamircohen28/tamirs-marketplace`](https://github.com/Tamircohen28/tamirs-marketplace) (`tamirs-superpowers@tamirs-marketplace`).
 
 ## What a bump has to touch
 
@@ -73,8 +73,8 @@ Marketplace declarations are per-target and not interchangeable. Claude Code's `
 8. Tell users to refresh:
 
    ```text
-   /plugin marketplace update tamirs-plugins
-   /plugin update tamirs-superpowers@tamirs-plugins
+   /plugin marketplace update tamirs-marketplace
+   /plugin update tamirs-superpowers@tamirs-marketplace
    /reload-plugins
    ```
 
@@ -96,11 +96,11 @@ Point the cache at your working tree — **do not edit the cache in place**:
 
 ```bash
 # Find the installed version directory
-ls ~/.claude/plugins/cache/tamirs-plugins/tamirs-superpowers/
+ls ~/.claude/plugins/cache/tamirs-marketplace/tamirs-superpowers/
 
 # Replace it with a symlink to your clone
-mv ~/.claude/plugins/cache/tamirs-plugins/tamirs-superpowers/X.Y.Z{,.bak}
-ln -s /path/to/your/clone ~/.claude/plugins/cache/tamirs-plugins/tamirs-superpowers/X.Y.Z
+mv ~/.claude/plugins/cache/tamirs-marketplace/tamirs-superpowers/X.Y.Z{,.bak}
+ln -s /path/to/your/clone ~/.claude/plugins/cache/tamirs-marketplace/tamirs-superpowers/X.Y.Z
 ```
 
 Then `/reload-plugins`.
@@ -119,7 +119,7 @@ Do **not** assume `/plugin update` or `/reload-plugins` will pull from your loca
 Old versions accumulate, and every one is a candidate for a version glob to land on. After confirming an update installed:
 
 ```bash
-ls ~/.claude/plugins/cache/tamirs-plugins/tamirs-superpowers/   # keep only the current version
+ls ~/.claude/plugins/cache/tamirs-marketplace/tamirs-superpowers/   # keep only the current version
 ```
 
 ## CI enforcement

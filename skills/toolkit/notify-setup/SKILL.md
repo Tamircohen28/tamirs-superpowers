@@ -94,7 +94,7 @@ subscription.
    ```
 
    This path is deliberate. The plugin cache at
-   `~/.claude/plugins/cache/tamirs-plugins/tamirs-superpowers/<version>/` is
+   `~/.claude/plugins/cache/tamirs-marketplace/tamirs-superpowers/<version>/` is
    version-pathed and replaced wholesale on every plugin update — credentials
    stored there would vanish on upgrade.
 
@@ -111,7 +111,7 @@ subscription.
    {
      "hooks": [{
        "type": "command",
-       "command": "f=$(ls \"$HOME\"/.claude/plugins/cache/tamirs-plugins/tamirs-superpowers/*/scripts/notify-pushover.sh 2>/dev/null | sort -rV | head -1) && [ -n \"$f\" ] && bash \"$f\"",
+       "command": "f=$(ls \"$HOME\"/.claude/plugins/cache/tamirs-marketplace/tamirs-superpowers/*/scripts/notify-pushover.sh 2>/dev/null | sort -rV | head -1) && [ -n \"$f\" ] && bash \"$f\"",
        "timeout": 10
      }]
    }

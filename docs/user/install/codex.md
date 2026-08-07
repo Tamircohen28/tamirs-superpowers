@@ -42,11 +42,11 @@ Refresh after a new release:
 codex plugin marketplace upgrade
 ```
 
-## Method B — via the tamirs-plugins catalog
+## Method B — via the tamirs-marketplace catalog
 
 ```bash
-codex plugin marketplace add Tamircohen28/plugins
-codex plugin add tamirs-superpowers@tamirs-plugins
+codex plugin marketplace add Tamircohen28/tamirs-marketplace
+codex plugin add tamirs-superpowers@tamirs-marketplace
 ```
 
 ## Method C — local clone

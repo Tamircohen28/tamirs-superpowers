@@ -8,7 +8,7 @@ A Claude Code plugin marketplace is a GitHub repo carrying `.claude-plugin/marke
 
 With a single plugin to publish, maintaining two repos adds overhead with no benefit: two sets of CI, two release workflows, two git histories.
 
-Since this ADR was first written the repo also became publishable through the [`tamirs-plugins`](https://github.com/Tamircohen28/plugins) catalog, and the target list grew from one platform to four. Colocation still holds — but the details recorded in the original decision had drifted from what the repo actually contains.
+Since this ADR was first written the repo also became publishable through the [`tamirs-marketplace`](https://github.com/Tamircohen28/tamirs-marketplace) catalog, and the target list grew from one platform to four. Colocation still holds — but the details recorded in the original decision had drifted from what the repo actually contains.
 
 ## Decision
 

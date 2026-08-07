@@ -13,6 +13,6 @@ Canonical rule: `rules/dev/plugin-version-bump.md` (shared by all four targets �
 2. Update `CHANGELOG.md` under the new `[X.Y.Z]` section, and mirror in `docs/CHANGELOG.md`.
 3. Update whatever the change falsified: documented skill counts, `platform-targets.json`, and `docs/user/install/<target>.md`. `make validate` fails on stale counts and missing per-target install docs.
 4. Open a PR; after merge run the Release workflow to create `vX.Y.Z`, then verify the tag actually contains the change (`git diff vX.Y.Z origin/master -- skills/`).
-5. Users need `/plugin marketplace update tamirs-plugins` then `/plugin update tamirs-superpowers@tamirs-plugins` — `/reload-plugins` alone only reloads cache.
+5. Users need `/plugin marketplace update tamirs-marketplace` then `/plugin update tamirs-superpowers@tamirs-marketplace` — `/reload-plugins` alone only reloads cache.
 
 Pushing commits without a version bump does **not** update installed Claude Code plugins. Never hand-edit `~/.claude/plugins/cache/` to test — `autoUpdate` and version-glob resolution both discard the patch silently; symlink your clone instead.
