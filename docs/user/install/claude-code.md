@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| **Validated against** | Claude Code **2.1.223** |
+| **Validated against** | Claude Code **2.1.224** |
 | **Minimum supported** | **2.0.0** |
 | **Plugin manifest** | `.claude-plugin/plugin.json` |
 | **Marketplace manifest** | `.claude-plugin/marketplace.json` |
@@ -16,7 +16,7 @@ claude --version
 
 ## Prerequisites
 
-- Claude Code 2.0.0 or newer (2.1.223 is what this release was validated on)
+- Claude Code 2.0.0 or newer (2.1.224 is what this release was validated on)
 - `jq` — `brew install jq`
 - `git` 2.30+
 
@@ -67,6 +67,12 @@ git clone https://github.com/Tamircohen28/tamirs-superpowers.git \
 Claude Code auto-loads anything under `~/.claude/skills/`. Reload with `/reload-plugins`.
 
 Trade-off: no automatic updates — `git pull` to refresh.
+
+> **No-git machines:** Claude Code 2.1.224 added an `archive` plugin source —
+> plugins can be installed from a zip archive over HTTPS, without git or npm,
+> with optional SHA-256 pinning. This repo does not publish release zip
+> artifacts yet, so Methods A–C above remain the supported paths here; if you
+> mirror the repo internally, an archive source is now a viable no-git channel.
 
 ## Optional companion marketplaces
 
