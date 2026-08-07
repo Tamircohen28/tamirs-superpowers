@@ -48,12 +48,12 @@ The worktree hooks use `jq` to parse session state JSON.
 3. Refresh from marketplace (version bump required for new skills to appear):
 
    ```text
-   /plugin marketplace update tamirs-plugins
-   /plugin update tamirs-superpowers@tamirs-plugins
+   /plugin marketplace update tamirs-marketplace
+   /plugin update tamirs-superpowers@tamirs-marketplace
    /reload-plugins
    ```
 
-4. Confirm the SKILL.md file exists under `skills/` in the install directory (`~/.claude/plugins/cache/tamirs-plugins/tamirs-superpowers/<version>/`)
+4. Confirm the SKILL.md file exists under `skills/` in the install directory (`~/.claude/plugins/cache/tamirs-marketplace/tamirs-superpowers/<version>/`)
 
 ---
 
@@ -68,18 +68,18 @@ The worktree hooks use `jq` to parse session state JSON.
 2. Refresh marketplace + plugin:
 
    ```text
-   /plugin marketplace update tamirs-plugins
-   /plugin update tamirs-superpowers@tamirs-plugins
+   /plugin marketplace update tamirs-marketplace
+   /plugin update tamirs-superpowers@tamirs-marketplace
    /reload-plugins
    ```
 
 3. If still stale, clear cache and reinstall:
 
    ```bash
-   rm -rf ~/.claude/plugins/cache/tamirs-plugins/tamirs-superpowers/
+   rm -rf ~/.claude/plugins/cache/tamirs-marketplace/tamirs-superpowers/
    ```
 
-   Then in Claude Code: `/plugin install tamirs-superpowers@tamirs-plugins` and `/reload-plugins`
+   Then in Claude Code: `/plugin install tamirs-superpowers@tamirs-marketplace` and `/reload-plugins`
 
 ---
 

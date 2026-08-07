@@ -65,13 +65,13 @@ Hooks are read at **session start**, so the wiring takes effect in your next ses
 ### Why credentials live outside the plugin
 
 `~/.claude/pushover.env`, not the plugin directory. The marketplace cache lives at
-`~/.claude/plugins/cache/tamirs-plugins/tamirs-superpowers/<version>/` and is replaced
+`~/.claude/plugins/cache/tamirs-marketplace/tamirs-superpowers/<version>/` and is replaced
 wholesale on every plugin update — anything stored there is deleted on upgrade.
 
 For the same reason the hook command resolves the script path at runtime:
 
 ```bash
-f=$(ls "$HOME"/.claude/plugins/cache/tamirs-plugins/tamirs-superpowers/*/scripts/notify-pushover.sh 2>/dev/null | sort -rV | head -1) && [ -n "$f" ] && bash "$f"
+f=$(ls "$HOME"/.claude/plugins/cache/tamirs-marketplace/tamirs-superpowers/*/scripts/notify-pushover.sh 2>/dev/null | sort -rV | head -1) && [ -n "$f" ] && bash "$f"
 ```
 
 A hardcoded version path breaks on the next update. This is the same pattern the

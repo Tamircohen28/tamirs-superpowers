@@ -12,11 +12,11 @@ make update    # refresh plugin + agents
 make uninstall # remove agents + uninstall plugin when possible
 ```
 
-**Claude Code (marketplace)** — `tamirs-plugins` catalog:
+**Claude Code (marketplace)** — `tamirs-marketplace` catalog:
 
 ```
-/plugin marketplace add Tamircohen28/plugins
-/plugin install tamirs-superpowers@tamirs-plugins
+/plugin marketplace add Tamircohen28/tamirs-marketplace
+/plugin install tamirs-superpowers@tamirs-marketplace
 ```
 
 **Cursor / Codex** — enable via `.cursor-plugin/plugin.json` or `.codex-plugin/plugin.json` (same `skills/` tree).
@@ -72,7 +72,7 @@ Cursor loads thin adapters from `.cursor/rules/*.mdc` pointing at these files. C
 
 - Never modify `hooks/lib/worktree-common.sh` without running shellcheck and testing both `capture-task-slug.sh` and `worktree-create.sh`
 - Never commit to `main` directly — always use a feature branch and PR
-- Never add a `marketplace.json` to this repo — it is published through the separate `Tamircohen28/plugins` catalog
+- Never add a `marketplace.json` to this repo — it is published through the separate `Tamircohen28/tamirs-marketplace` catalog
 - Never hand-write a `SKILL.md` from scratch — use the `skill-creator` skill to ensure evals, references, and quality standards are met
 
 ## Cloud and headless agent runbook

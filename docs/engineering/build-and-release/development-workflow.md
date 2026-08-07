@@ -47,8 +47,8 @@ Releases are created via the [Release workflow](.github/workflows/release.yml) â
 **Claude Code users** must refresh after a release:
 
 ```text
-/plugin marketplace update tamirs-plugins
-/plugin update tamirs-superpowers@tamirs-plugins
+/plugin marketplace update tamirs-marketplace
+/plugin update tamirs-superpowers@tamirs-marketplace
 /reload-plugins
 ```
 

@@ -40,7 +40,7 @@ Shared runbook (validate, smoke test, stdin gotchas): see **Cloud and headless a
 
 Claude Code–specific notes:
 
-- **Marketplace cache:** installed copy lives under `~/.claude/plugins/cache/tamirs-plugins/tamirs-superpowers/<version>/`. Pushing commits without a manifest bump does not update installed users — run `/plugin marketplace update tamirs-plugins` then `/plugin update tamirs-superpowers@tamirs-plugins` after releases.
+- **Marketplace cache:** installed copy lives under `~/.claude/plugins/cache/tamirs-marketplace/tamirs-superpowers/<version>/`. Pushing commits without a manifest bump does not update installed users — run `/plugin marketplace update tamirs-marketplace` then `/plugin update tamirs-superpowers@tamirs-marketplace` after releases.
 - **Statusline:** wired via `.claude-plugin/plugin.json` `settings.statusLine` → `scripts/statusline.sh`. Test with piped JSON: `echo '<session-json>' | bash scripts/statusline.sh`.
 - **Project memory:** versioned backup in `.claude/memory/`; session copy under `~/.claude/projects/-Users-<you>-Projects-tamirs-superpowers/memory/` (see Project memory below).
 - **Remote / headless:** same validation commands as AGENTS.md; hooks in `hooks/hooks.json` apply in Claude Code sessions only.

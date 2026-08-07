@@ -14,7 +14,7 @@
 #   3. Optionally copies a configured ensure-exit.sh to ~/.claude/ensure-exit.sh
 #
 # What you still need to do manually after running this:
-#   - Open Claude Code and install tamirs-superpowers from the tamirs-plugins marketplace
+#   - Open Claude Code and install tamirs-superpowers from the tamirs-marketplace marketplace
 #   - (The marketplace URL is already configured in extraKnownMarketplaces below)
 
 set -euo pipefail
@@ -44,14 +44,16 @@ fi
 cat > "$SETTINGS_FILE" <<'SETTINGS'
 {
   "$schema": "https://json.schemastore.org/claude-code-settings.json",
-  "model": "sonnet",
-  "effortLevel": "xhigh",
+  "model": "opus",
+  "effortLevel": "high",
   "alwaysThinkingEnabled": true,
   "skipDangerousModePermissionPrompt": true,
   "skipWorkflowUsageWarning": true,
   "theme": "dark",
   "tui": "fullscreen",
   "preferredNotifChannel": "auto",
+  "agentPushNotifEnabled": true,
+  "inputNeededNotifEnabled": true,
   "autoCompactEnabled": true,
   "autoScrollEnabled": true,
   "fileCheckpointingEnabled": true,
@@ -79,10 +81,10 @@ cat > "$SETTINGS_FILE" <<'SETTINGS'
     ]
   },
   "extraKnownMarketplaces": {
-    "tamirs-plugins": {
+    "tamirs-marketplace": {
       "source": {
-        "source": "git",
-        "url": "git@github.com:Tamircohen28/plugins.git"
+        "source": "github",
+        "repo": "Tamircohen28/tamirs-marketplace"
       },
       "autoUpdate": true
     },
@@ -91,6 +93,12 @@ cat > "$SETTINGS_FILE" <<'SETTINGS'
         "source": "github",
         "repo": "anthropics/claude-plugins-official"
       }
+    },
+    "claude-code-warp": {
+      "source": {
+        "source": "github",
+        "repo": "warpdotdev/claude-code-warp"
+      }
     }
   }
 }
@@ -98,18 +106,55 @@ SETTINGS
 
 printf 'Wrote %s\n' "$SETTINGS_FILE"
 
-# Merge enabledPlugins back in if we had any
-if [[ -n "$ENABLED_PLUGINS" ]] && command -v jq &>/dev/null; then
-  jq --argjson ep "$ENABLED_PLUGINS" '. + {enabledPlugins: $ep}' "$SETTINGS_FILE" > "${SETTINGS_FILE}.tmp" \
+# --- enabledPlugins: write the canonical set, keep local choices -----------------
+# The canonical list is what makes a fresh machine match the reference setup —
+# without it, install.sh leaves you with zero plugins and a manual checklist.
+# Existing entries merge ON TOP, so a plugin deliberately disabled (or added
+# locally) survives a re-run. A new machine has nothing to preserve, so the
+# canonical set applies in full.
+CANONICAL_PLUGINS='{
+  "aws-startup-advisor@claude-plugins-official": true,
+  "chrome-devtools-mcp@claude-plugins-official": true,
+  "claude-md-management@claude-plugins-official": true,
+  "code-review@claude-plugins-official": true,
+  "code-simplifier@claude-plugins-official": true,
+  "commit-commands@claude-plugins-official": true,
+  "context7@claude-plugins-official": true,
+  "frontend-design@claude-plugins-official": true,
+  "hookify@claude-plugins-official": true,
+  "jose-claudinho@tamirs-marketplace": true,
+  "learning-output-style@claude-plugins-official": true,
+  "playground@claude-plugins-official": true,
+  "playwright@claude-plugins-official": true,
+  "pr-review-toolkit@claude-plugins-official": true,
+  "project-artifact@claude-plugins-official": true,
+  "rust-analyzer-lsp@claude-plugins-official": true,
+  "skill-creator@claude-plugins-official": true,
+  "supabase@claude-plugins-official": true,
+  "tamirs-superpowers@tamirs-marketplace": true,
+  "vercel@claude-plugins-official": true,
+  "warp@claude-code-warp": true
+}'
+
+if command -v jq &>/dev/null; then
+  # Migrate preserved keys off the pre-2.0.0 marketplace name so a re-run on an
+  # older machine doesn't leave dead `@tamirs-plugins` selectors behind.
+  PRESERVED="$(printf '%s' "${ENABLED_PLUGINS:-\{\}}" \
+    | jq 'with_entries(.key |= sub("@tamirs-plugins$"; "@tamirs-marketplace"))' 2>/dev/null || echo '{}')"
+  jq --argjson canon "$CANONICAL_PLUGINS" --argjson keep "$PRESERVED" \
+    '. + {enabledPlugins: ($canon * $keep)}' "$SETTINGS_FILE" > "${SETTINGS_FILE}.tmp" \
     && mv "${SETTINGS_FILE}.tmp" "$SETTINGS_FILE"
-  printf 'Preserved enabledPlugins (%d entries)\n' "$(echo "$ENABLED_PLUGINS" | jq 'length')"
+  printf 'Wrote enabledPlugins (%d canonical, %d preserved from this machine)\n' \
+    "$(printf '%s' "$CANONICAL_PLUGINS" | jq 'length')" "$(printf '%s' "$PRESERVED" | jq 'length')"
+else
+  printf 'jq not found — skipped enabledPlugins. Install jq and re-run.\n'
 fi
 
 # Wire statusLine — finds the latest installed plugin version at runtime
 # so the path survives plugin updates without needing to re-run install.sh.
 if command -v jq &>/dev/null; then
   # shellcheck disable=SC2016  # single quotes intentional: $HOME must expand at runtime, not here
-  STATUS_CMD='f=$(ls "$HOME"/.claude/plugins/cache/tamirs-plugins/tamirs-superpowers/*/scripts/statusline.sh 2>/dev/null | sort -rV | head -1) && [ -n "$f" ] && bash "$f"'
+  STATUS_CMD='f=$(ls "$HOME"/.claude/plugins/cache/tamirs-marketplace/tamirs-superpowers/*/scripts/statusline.sh 2>/dev/null | sort -rV | head -1) && [ -n "$f" ] && bash "$f"'
   jq --arg cmd "$STATUS_CMD" '. + {statusLine: {type: "command", command: $cmd}}' \
     "$SETTINGS_FILE" > "${SETTINGS_FILE}.tmp" && mv "${SETTINGS_FILE}.tmp" "$SETTINGS_FILE"
   printf 'Wired statusLine (finds latest installed version at runtime)\n'
@@ -124,6 +169,22 @@ if [[ -d "$AGENTS_SRC" ]]; then
   mkdir -p "$AGENTS_DEST"
   cp "${AGENTS_SRC}"/*.md "$AGENTS_DEST/"
   printf 'Installed %d agent(s) to %s\n' "$(find "${AGENTS_SRC}" -maxdepth 1 -name '*.md' | wc -l | tr -d ' ')" "$AGENTS_DEST"
+fi
+
+# --- Install global CLAUDE.md (never clobber a customised one) -------------------
+# The template carries <PLACEHOLDER> values filled in per machine, so overwriting
+# an existing file would silently discard those edits. Install only when absent;
+# otherwise drop it alongside for a manual diff.
+CLAUDE_MD_SRC="${PLUGIN_DIR}/templates/global-CLAUDE.md"
+CLAUDE_MD_DEST="${CLAUDE_DIR}/CLAUDE.md"
+if [[ -f "$CLAUDE_MD_SRC" ]]; then
+  if [[ -f "$CLAUDE_MD_DEST" ]]; then
+    cp "$CLAUDE_MD_SRC" "${CLAUDE_MD_DEST}.new"
+    printf 'CLAUDE.md exists — left untouched; template written to %s.new for comparison\n' "$CLAUDE_MD_DEST"
+  else
+    cp "$CLAUDE_MD_SRC" "$CLAUDE_MD_DEST"
+    printf 'Installed global CLAUDE.md -> %s (fill in the <PLACEHOLDER> values)\n' "$CLAUDE_MD_DEST"
+  fi
 fi
 
 # --- Optional: configure ensure-exit.sh ---
@@ -166,7 +227,7 @@ PUSHOVER_CREDS
 
   if command -v jq &> /dev/null; then
     # shellcheck disable=SC2016  # single quotes intentional: $HOME must expand at runtime, not here
-    PUSH_CMD='f=$(ls "$HOME"/.claude/plugins/cache/tamirs-plugins/tamirs-superpowers/*/scripts/notify-pushover.sh 2>/dev/null | sort -rV | head -1) && [ -n "$f" ] && bash "$f"'
+    PUSH_CMD='f=$(ls "$HOME"/.claude/plugins/cache/tamirs-marketplace/tamirs-superpowers/*/scripts/notify-pushover.sh 2>/dev/null | sort -rV | head -1) && [ -n "$f" ] && bash "$f"'
     # Append without clobbering other Notification hooks, and drop any previous
     # pushover entry first so re-running install.sh stays idempotent.
     jq --arg cmd "$PUSH_CMD" '
@@ -190,7 +251,7 @@ fi
 
 printf '\nDone. Next steps:\n'
 printf '  1. Open Claude Code\n'
-printf '  2. Go to Settings > Plugins > Add marketplace: tamirs-plugins\n'
+printf '  2. Go to Settings > Plugins > Add marketplace: tamirs-marketplace\n'
 printf '  3. Install tamirs-superpowers\n'
 printf '  4. Run /reload-plugins\n'
 if [[ -z "${PUSHOVER_TOKEN_IN}" || -z "${PUSHOVER_USER_IN}" ]]; then

@@ -6,7 +6,7 @@
     "url": "https://github.com/Tamircohen28"
   },
   "metadata": {
-    "description": "Standalone marketplace for the tamirs-superpowers plugin. Lets Claude Code install straight from this repo without the tamirs-plugins catalog."
+    "description": "Standalone marketplace for the tamirs-superpowers plugin. Lets Claude Code install straight from this repo without the tamirs-marketplace catalog."
   },
   "plugins": [
     {

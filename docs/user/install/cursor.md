@@ -35,7 +35,7 @@ This is Cursor's supported path for installing a plugin from a GitHub repo.
 2. Under **Team Marketplaces**, choose **Add Marketplace**
 3. Select **Import from Repo**
 4. Point it at either:
-   - `Tamircohen28/plugins` — the full catalog, then **Add to Marketplace** → `tamirs-superpowers`
+   - `Tamircohen28/tamirs-marketplace` — the full catalog, then **Add to Marketplace** → `tamirs-superpowers`
    - `Tamircohen28/tamirs-superpowers` — this repo standalone; its `.cursor-plugin/plugin.json` is picked up directly
 5. In **Marketplace Settings**, enable **Auto Refresh** so pushes to `master` propagate
 6. Save

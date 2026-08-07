@@ -40,11 +40,11 @@ if [[ -f "$SETTINGS_FILE" ]] && command -v jq > /dev/null 2>&1; then
 fi
 
 if command -v claude >/dev/null 2>&1; then
-  claude plugin uninstall tamirs-superpowers@tamirs-plugins 2>/dev/null \
+  claude plugin uninstall tamirs-superpowers@tamirs-marketplace 2>/dev/null \
     && printf 'Uninstalled tamirs-superpowers via claude CLI\n' \
-    || printf 'Run inside Claude Code: /plugin uninstall tamirs-superpowers@tamirs-plugins\n'
+    || printf 'Run inside Claude Code: /plugin uninstall tamirs-superpowers@tamirs-marketplace\n'
 else
-  printf 'Run inside Claude Code: /plugin uninstall tamirs-superpowers@tamirs-plugins\n'
+  printf 'Run inside Claude Code: /plugin uninstall tamirs-superpowers@tamirs-marketplace\n'
 fi
 
 printf 'Cursor/Codex: disable the plugin in IDE settings if enabled from this repo path.\n'

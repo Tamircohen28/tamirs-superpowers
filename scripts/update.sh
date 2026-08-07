@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # update.sh — refresh installed plugin artifacts (agents, statusline wiring).
-# Marketplace plugin update still requires Claude Code: /plugin update tamirs-superpowers@tamirs-plugins
+# Marketplace plugin update still requires Claude Code: /plugin update tamirs-superpowers@tamirs-marketplace
 #
 # Usage: make update  |  bash scripts/update.sh
 set -euo pipefail
@@ -11,14 +11,14 @@ AGENTS_SRC="${PLUGIN_DIR}/agents"
 AGENTS_DEST="${HOME}/.claude/agents"
 
 if command -v claude >/dev/null 2>&1; then
-  claude plugin marketplace update tamirs-plugins 2>/dev/null || true
-  if claude plugin update tamirs-superpowers@tamirs-plugins 2>/dev/null; then
+  claude plugin marketplace update tamirs-marketplace 2>/dev/null || true
+  if claude plugin update tamirs-superpowers@tamirs-marketplace 2>/dev/null; then
     printf 'Updated tamirs-superpowers via claude CLI\n'
   else
-    printf 'Run inside Claude Code: /plugin update tamirs-superpowers@tamirs-plugins\n'
+    printf 'Run inside Claude Code: /plugin update tamirs-superpowers@tamirs-marketplace\n'
   fi
 else
-  printf 'claude CLI not found — run /plugin update tamirs-superpowers@tamirs-plugins in Claude Code\n'
+  printf 'claude CLI not found — run /plugin update tamirs-superpowers@tamirs-marketplace in Claude Code\n'
 fi
 
 if [[ -d "$AGENTS_SRC" ]]; then
