@@ -82,8 +82,9 @@ On Teams/Enterprise, admins can also distribute **Team MCP** servers via the Def
 - **Side chats (3.11)** — `/side`, `/btw`, or the chat-panel plus button opens a durable secondary agent. Use it to research a skill or rule without interrupting the main thread; at-mention the side chat to pull findings back.
 - **Conversation search (3.11)** — Cmd+K in the Agents Window searches transcripts; Cmd+F searches within a conversation.
 - **Cursor Router / Auto (2026-07-22)** — Auto modes Cost / Balance / Intelligence. Prefer Balance for daily plugin work; Intelligence when porting hooks or auditing platform parity.
+- **Cursor Automations (3.8)** — `/automate` (or Dashboard → Automations) for always-on agents. Useful GitHub triggers here: **Workflow run completed** (triage `make validate` / CI reds), **PR review comment** (auto-address review threads). Enable **computer use** when you want a smoke-demo artifact attached. Marketplace templates cover failed-Actions triage and review auto-fix.
 - **Google Workspace plugins (2026-08-03)** — optional Marketplace plugins (Drive / Gmail / Calendar). Unrelated to this plugin; install from Customize / Marketplace if you want them. Never commit Workspace credentials here.
-- **iPad / Inbox (2026-07-29)** — client surfaces only; no repo change.
+- **Inbox (2026-07-29)** — useful for reviewing cloud-agent / automation PRs; no plugin code change. **iPad** / **Cursor Start** remain client/plan surfaces.
 
 ## Verify
 

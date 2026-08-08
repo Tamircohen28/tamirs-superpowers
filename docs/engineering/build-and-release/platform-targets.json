@@ -65,7 +65,8 @@
         "org-group-marketplace-access-3.10",
         "side-chats-docs-3.11",
         "cursor-hooks-schema-clarified-3.11",
-        "google-workspace-plugins-optional-2026-08-03"
+        "google-workspace-plugins-optional-2026-08-03",
+        "automations-github-triggers-docs-3.8"
       ],
       "capabilities": [
         "skills",
