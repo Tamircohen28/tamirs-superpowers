@@ -45,17 +45,27 @@
       "supported_min_source": "Cursor documents no minimum version for plugins; the floor is set to the version actually validated rather than guessed",
       "validated_against": "3.14.7",
       "latest_known": "3.14.7",
+      "changelog_feature": "3.11",
+      "changelog_date": "2026-08-03",
       "verified_on": "2026-08-03",
-      "verification_method": "cursor --version on the maintainer machine",
+      "verification_method": "cursor --version on the maintainer machine; public changelog covered through feature 3.11 and date-only entries to 2026-08-03",
       "install_doc": "docs/user/install/cursor.md",
       "doc_urls": [
         "https://cursor.com/docs/plugins",
-        "https://cursor.com/docs/context/rules"
+        "https://cursor.com/docs/context/rules",
+        "https://cursor.com/docs/hooks",
+        "https://cursor.com/docs/customize-cursor"
       ],
       "features_adopted": [
         "cursor-plugin-manifest",
         "mdc-rules",
-        "team-marketplace-import-from-repo"
+        "team-marketplace-import-from-repo",
+        "customize-page-3.9",
+        "team-mcp-marketplace-3.10",
+        "org-group-marketplace-access-3.10",
+        "side-chats-docs-3.11",
+        "cursor-hooks-schema-clarified-3.11",
+        "google-workspace-plugins-optional-2026-08-03"
       ],
       "capabilities": [
         "skills",
@@ -65,7 +75,10 @@
         "hooks",
         "mcp",
         "marketplace"
-      ]
+      ],
+      "capability_gaps": {
+        "hooks": "Claude-shaped hooks/hooks.json (PreToolUse/SessionStart) does not run under Cursor's plugin hooks schema; Cursor-native hooks bundle not shipped yet. Contributor discipline via .cursor/rules + AGENTS.md."
+      }
     },
     "codex": {
       "supported_min": "0.40.0",

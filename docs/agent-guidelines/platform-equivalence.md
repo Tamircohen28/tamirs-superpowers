@@ -39,9 +39,11 @@ Fill `${ENV_VAR}` placeholders locally — never commit tokens.
 
 | Capability | Claude Code | Cursor | Codex | OpenCode |
 |------------|-------------|--------|-------|----------|
-| Worktree hooks | `hooks/hooks.json` (when present) | No native `hooks.json` — use scoped `.mdc` rules + session discipline | `hooks` field in `.codex-plugin/plugin.json` when Claude hooks ship | ❌ none — lifecycle automation is JS/TS plugin modules only |
+| Worktree hooks | `hooks/hooks.json` (when present) | Claude-shaped `hooks/hooks.json` does **not** run — Cursor Plugins expect Cursor event names (`beforeShellExecution`, `afterFileEdit`, `sessionStart`, …). Until this repo ships a Cursor-native hooks file (manifest `hooks` field), use scoped `.mdc` rules + session discipline | `hooks` field in `.codex-plugin/plugin.json` when Claude hooks ship | ❌ none — lifecycle automation is JS/TS plugin modules only |
 
-**Cursor substitute:** enforce worktree and sensitive-file rules via contributor docs in `AGENTS.md` and path-scoped Cursor rules under `.cursor/rules/`.
+**Cursor note (3.11+):** Cursor *does* have native plugin hooks and project/cloud hooks (`.cursor/hooks.json` for cloud agents). They are a different schema from Claude Code's `PreToolUse` / `SessionStart` suite. Do not treat presence of `hooks/hooks.json` as proof the worktree guards run in Cursor.
+
+**Cursor substitute today:** enforce worktree and sensitive-file rules via contributor docs in `AGENTS.md` and path-scoped Cursor rules under `.cursor/rules/`.
 
 **OpenCode gap:** OpenCode has no `hooks.json` equivalent. Its `"plugin"` config field takes JavaScript/TypeScript modules — a different mechanism from a skill bundle — so the worktree guards in `hooks/` do not port. Rely on `AGENTS.md` discipline there.
 
