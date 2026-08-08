@@ -5,6 +5,28 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Changed
+- **Platform target: Claude Code 2.1.226** (from 2.1.224). Docs-only bump — no shipped
+  plugin content changed, so no version bump. The 2.1.225 + 2.1.226 delta reviewed
+  against the plugin surface: 2.1.226 is fix-only ("bug fixes and reliability
+  improvements") and 2.1.225 is fix-dominated with nothing touching the plugin's
+  manifests, skills frontmatter, hooks, MCP stubs, statusline, or marketplace flow.
+  One user-facing capability is worth documenting: `SendMessage` can now *start* a
+  conversation with a Remote Control session on another machine by name (previously
+  reply-only), and cross-session messages parked for headless sessions are no longer
+  held silently — the cross-platform-workflow guide's Claude Code ↔ Claude Code note
+  now covers both. Also relevant to users of this plugin's headless/cloud runbook:
+  2.1.225 fixes a transient 401 that could replace a long-lived
+  `CLAUDE_CODE_OAUTH_TOKEN` with a short-lived stored-login token, breaking headless
+  sessions until restart.
+
+### Fixed
+- **Removed a Cursor adoption commit that landed on the Claude Code nightly branch.**
+  The rolling `claude-code-update` branch briefly carried the "Cursor 3.11
+  (+2026-08-03)" doc adoption, duplicating the separate `cursor-update` nightly PR
+  and putting cursor-scoped files in a Claude Code-scoped PR; it is reverted here and
+  lives only in the cursor PR where it belongs.
+
 ## [2.0.0] — 2026-08-07
 
 ### Changed
