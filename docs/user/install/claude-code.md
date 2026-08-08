@@ -25,14 +25,8 @@ claude --version
 The catalog keeps the plugin updated and is where the rest of the plugin family lives.
 
 ```
-<<<<<<< HEAD
-/plugin marketplace add Tamircohen28/plugins
-/plugin install tamirs-superpowers@tamirs-plugins
-=======
 /plugin marketplace add Tamircohen28/tamirs-marketplace
 /plugin install tamirs-superpowers@tamirs-marketplace
-/reload-plugins
->>>>>>> origin/master
 ```
 
 Since Claude Code 2.1.221, `/plugin install` activates the plugin immediately
