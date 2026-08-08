@@ -5,15 +5,6 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
-### Changed
-- **Cursor changelog coverage through 3.11 + 2026-08-03** while keeping the CLI
-  `validated_against` pin at **3.14.7**. Added root [`.cursor-version`](.cursor-version).
-  Corrected `platform-equivalence.md`: Cursor **does** run `hooks/hooks.json` (it is
-  not a rules-only substitute). Cursor install guide now covers Customize (3.9),
-  Team MCPs + org-group marketplace access (3.10), side chats + project
-  `.cursor/hooks.json` cloud conversation hooks (3.11), and optional Google
-  Workspace marketplace plugins (2026-08-03).
-
 ## [2.0.0] — 2026-08-07
 
 ### Changed

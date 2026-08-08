@@ -39,10 +39,9 @@ Fill `${ENV_VAR}` placeholders locally — never commit tokens.
 
 | Capability | Claude Code | Cursor | Codex | OpenCode |
 |------------|-------------|--------|-------|----------|
-| Worktree / tool hooks | `hooks/hooks.json` (when present) | Same `hooks/hooks.json` (Cursor understands Claude-shaped matchers like `Shell` / `StrReplace`; empty stdout is fail-closed — see `hooks/lib/hook-output.sh`) | `hooks` field in `.codex-plugin/plugin.json` when Claude hooks ship | ❌ none — lifecycle automation is JS/TS plugin modules only |
-| Cloud conversation hooks (Cursor 3.11+) | n/a | Project `.cursor/hooks.json` (`beforeSubmitPrompt`, `afterAgentResponse`, `afterAgentThought`, `subagentStart`/`Stop`, `stop`, …). Cloud agents load **project** hooks only — `~/.cursor/hooks.json` does not apply in cloud VMs | n/a | n/a |
+| Worktree hooks | `hooks/hooks.json` (when present) | No native `hooks.json` — use scoped `.mdc` rules + session discipline | `hooks` field in `.codex-plugin/plugin.json` when Claude hooks ship | ❌ none — lifecycle automation is JS/TS plugin modules only |
 
-**Cursor notes:** plugin lifecycle hooks ship in `hooks/hooks.json` and run in the IDE when the plugin is installed. For **Cursor Cloud** agent runs against a consumer repo (or this repo as a workspace), put conversation/control hooks in that repo's `.cursor/hooks.json` — that is the 3.11 surface, separate from the plugin bundle.
+**Cursor substitute:** enforce worktree and sensitive-file rules via contributor docs in `AGENTS.md` and path-scoped Cursor rules under `.cursor/rules/`.
 
 **OpenCode gap:** OpenCode has no `hooks.json` equivalent. Its `"plugin"` config field takes JavaScript/TypeScript modules — a different mechanism from a skill bundle — so the worktree guards in `hooks/` do not port. Rely on `AGENTS.md` discipline there.
 

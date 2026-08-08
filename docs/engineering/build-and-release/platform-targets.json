@@ -1,6 +1,6 @@
 {
   "schema_version": 2,
-  "last_reviewed": "2026-08-08",
+  "last_reviewed": "2026-08-07",
   "reviewed_by_skill": "tamirs-superpowers@2.0.0",
   "supported_targets": [
     "claude_code",
@@ -47,25 +47,17 @@
       "supported_min_source": "Cursor documents no minimum version for plugins; the floor is set to the version actually validated rather than guessed",
       "validated_against": "3.14.7",
       "latest_known": "3.14.7",
-      "verified_on": "2026-08-08",
-      "verification_method": "cursor --version on the maintainer machine (3.14.7 CLI patch line); public changelog feature releases reviewed through 3.11 plus date-only entries through 2026-08-03 (https://cursor.com/changelog)",
+      "verified_on": "2026-08-03",
+      "verification_method": "cursor --version on the maintainer machine",
       "install_doc": "docs/user/install/cursor.md",
       "doc_urls": [
         "https://cursor.com/docs/plugins",
-        "https://cursor.com/docs/context/rules",
-        "https://cursor.com/changelog",
-        "https://cursor.com/docs/agent/hooks"
+        "https://cursor.com/docs/context/rules"
       ],
       "features_adopted": [
         "cursor-plugin-manifest",
         "mdc-rules",
-        "team-marketplace-import-from-repo",
-        "customize-page-3.9",
-        "team-mcp-marketplace-3.10",
-        "org-group-marketplace-access-3.10",
-        "side-chats-3.11",
-        "cloud-agent-conversation-hooks-3.11",
-        "google-workspace-plugins-2026-08-03"
+        "team-marketplace-import-from-repo"
       ],
       "capabilities": [
         "skills",
@@ -75,9 +67,7 @@
         "hooks",
         "mcp",
         "marketplace"
-      ],
-      "changelog_date": "2026-08-03",
-      "changelog_feature": "3.11"
+      ]
     },
     "codex": {
       "supported_min": "0.40.0",
@@ -130,9 +120,9 @@
         "mcp"
       ],
       "capability_gaps": {
-        "hooks": "OpenCode has no hooks.json \u2014 lifecycle automation is JS/TS plugin modules only, so the worktree hooks in hooks/ do not port.",
+        "hooks": "OpenCode has no hooks.json — lifecycle automation is JS/TS plugin modules only, so the worktree hooks in hooks/ do not port.",
         "statusline": "No plugin-declared statusline.",
-        "marketplace": "No plugin marketplace \u2014 install is by path (symlink or skills.paths)."
+        "marketplace": "No plugin marketplace — install is by path (symlink or skills.paths)."
       }
     }
   }
