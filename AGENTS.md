@@ -42,7 +42,7 @@ make uninstall # remove agents + uninstall plugin when possible
 | Path | Purpose |
 |------|---------|
 | `.claude-plugin/plugin.json` | Claude Code plugin manifest |
-| `.cursor-plugin/plugin.json` | Cursor plugin manifest (skills + MCP; no hooks) |
+| `.cursor-plugin/plugin.json` | Cursor plugin manifest (skills + MCP; hooks via `hooks/hooks.json`) |
 | `.codex-plugin/plugin.json` | Codex plugin manifest (skills + hooks + MCP) |
 | `rules/dev/*.md` | Canonical contributor rules (all agents) |
 | `hooks/hooks.json` | Hook event wiring (Claude Code + Codex) |
