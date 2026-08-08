@@ -5,6 +5,23 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [2.0.0] — 2026-08-07
+
+### Changed
+- **BREAKING — marketplace renamed `tamirs-plugins` → `tamirs-marketplace`** (repo `Tamircohen28/plugins` → `Tamircohen28/tamirs-marketplace`). The statusline and Pushover hooks glob the marketplace cache path, so both are repointed. Migrate with:
+
+  ```
+  /plugin marketplace remove tamirs-plugins
+  /plugin marketplace add Tamircohen28/tamirs-marketplace
+  /plugin install tamirs-superpowers@tamirs-marketplace
+  ```
+
+- **`install.sh` reproduces a machine instead of bootstrapping a baseline.** It previously wrote defaults and left a manual checklist, so a fresh machine ended up with **zero** plugins enabled. It now writes the canonical 21-plugin `enabledPlugins` set, all three marketplaces, and matching `model`/`effortLevel`/notification preferences. Local entries merge on top, so a deliberately-disabled plugin survives a re-run; pre-2.0.0 `@tamirs-plugins` selectors are migrated automatically.
+
+### Added
+- `claude-code-warp` marketplace to the bootstrapped set.
+- **`templates/global-CLAUDE.md`** — global working agreements (npm discipline, `/doctor` verification, agent chunking, PR discipline, recovery rule, specialist-role routing) as a shareable template. `install.sh` writes it to `~/.claude/CLAUDE.md` **only when absent**; an existing file is never overwritten — the template carries `<PLACEHOLDER>` values you fill in per machine, so clobbering would discard your edits, and it lands as `CLAUDE.md.new` for a manual diff instead.
+
 ### Added
 - **`skills/documentation/platform-sync-opencode/` — the fourth per-target sub-skill.** OpenCode was added to `supported_targets` in 1.12.0 but had no sub-skill, so `/platform-sync` analysed the other three, found nothing wrong with OpenCode because it never looked, and reported success. The gap read as "no improvements found" rather than "this target was never checked". The sub-skill carries its own `references/urls.md` and a hard constraint against recommending anything that assumes a marketplace, `hooks.json`, or a plugin-declared statusline — none of which OpenCode has.
 - **`make check-marketplace-schema`** — guards `extraKnownMarketplaces` shape in real settings files *and* in the scaffold templates that generate them. Claude Code expects a record keyed by marketplace name; an array is dropped with **no error and no warning**, and a valid global `~/.claude/settings.json` masks the broken project-level file indefinitely. Also rejects the non-existent `sourceUrl` field and a missing `source.source`.

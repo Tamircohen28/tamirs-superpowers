@@ -20,13 +20,19 @@ claude --version
 - `jq` — `brew install jq`
 - `git` 2.30+
 
-## Method A — via the tamirs-plugins catalog (recommended)
+## Method A — via the tamirs-marketplace catalog (recommended)
 
 The catalog keeps the plugin updated and is where the rest of the plugin family lives.
 
 ```
+<<<<<<< HEAD
 /plugin marketplace add Tamircohen28/plugins
 /plugin install tamirs-superpowers@tamirs-plugins
+=======
+/plugin marketplace add Tamircohen28/tamirs-marketplace
+/plugin install tamirs-superpowers@tamirs-marketplace
+/reload-plugins
+>>>>>>> origin/master
 ```
 
 Since Claude Code 2.1.221, `/plugin install` activates the plugin immediately
@@ -38,8 +44,8 @@ On older versions, finish with `/reload-plugins`.
 To pick up a new release later:
 
 ```
-/plugin marketplace update tamirs-plugins
-/plugin update tamirs-superpowers@tamirs-plugins
+/plugin marketplace update tamirs-marketplace
+/plugin update tamirs-superpowers@tamirs-marketplace
 ```
 
 > Claude Code caches installed plugins by the `version` field in `plugin.json`. If a release did not bump the version, `/plugin update` is a no-op.

@@ -1,6 +1,6 @@
 # Installing tamirs-superpowers
 
-`tamirs-superpowers` is a **standalone plugin**. It installs on its own, from its own repository, on any of the four supported targets — you do not need the [`tamirs-plugins`](https://github.com/Tamircohen28/plugins) catalog, though the catalog is the easiest path on Claude Code and Cursor.
+`tamirs-superpowers` is a **standalone plugin**. It installs on its own, from its own repository, on any of the four supported targets — you do not need the [`tamirs-marketplace`](https://github.com/Tamircohen28/tamirs-marketplace) catalog, though the catalog is the easiest path on Claude Code and Cursor.
 
 ## The four supported targets
 

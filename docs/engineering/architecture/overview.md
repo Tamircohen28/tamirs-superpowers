@@ -2,7 +2,7 @@
 
 ## What this repo is
 
-`tamirs-superpowers` is a Claude Code plugin distributed through the [`tamirs-plugins`](https://github.com/Tamircohen28/plugins) marketplace catalog. The repo is the plugin source — install with `/plugin install tamirs-superpowers@tamirs-plugins`.
+`tamirs-superpowers` is a Claude Code plugin distributed through the [`tamirs-marketplace`](https://github.com/Tamircohen28/tamirs-marketplace) marketplace catalog. The repo is the plugin source — install with `/plugin install tamirs-superpowers@tamirs-marketplace`.
 
 ## Component map
 
@@ -63,7 +63,7 @@ Internal skills (`user-invocable: false`) are hidden from the `/` menu but invok
 
 ## Dependency resolution
 
-`plugin.json` declares one dependency: `superpowers@superpowers-dev`. When a user installs via `tamirs-plugins`, Claude Code resolves and installs the dependency marketplace plugin alongside this one.
+`plugin.json` declares one dependency: `superpowers@superpowers-dev`. When a user installs via `tamirs-marketplace`, Claude Code resolves and installs the dependency marketplace plugin alongside this one.
 
 ## Data flow for a skill invocation
 

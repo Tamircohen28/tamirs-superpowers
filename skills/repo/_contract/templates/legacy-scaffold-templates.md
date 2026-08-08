@@ -154,13 +154,13 @@ Types: `feat`, `fix`, `chore`, `docs`, `refactor`, `test`
 ## Working With Claude Code
 
 ```bash
-# Install tamirs-plugins marketplace
-/plugin marketplace add Tamircohen28/plugins
+# Install tamirs-marketplace marketplace
+/plugin marketplace add Tamircohen28/tamirs-marketplace
 
 # Install plugins
-/plugin install tamirs-superpowers@tamirs-plugins
-/plugin install headhunter@tamirs-plugins
-/plugin install jose-claudinho@tamirs-plugins
+/plugin install tamirs-superpowers@tamirs-marketplace
+/plugin install headhunter@tamirs-marketplace
+/plugin install jose-claudinho@tamirs-marketplace
 ```
 
 Available skills after install: `/repo-scaffold`, `/repo-standards`, `/multi-agent-repo`, and more.
@@ -184,17 +184,17 @@ See [docs/engineering/guides/getting-started.md](docs/engineering/guides/getting
 ```json
 {
   "extraKnownMarketplaces": {
-    "tamirs-plugins": {
+    "tamirs-marketplace": {
       "source": {
         "source": "github",
-        "repo": "Tamircohen28/plugins"
+        "repo": "Tamircohen28/tamirs-marketplace"
       }
     }
   },
   "enabledPlugins": {
-    "tamirs-superpowers@tamirs-plugins": true,
-    "headhunter@tamirs-plugins": true,
-    "jose-claudinho@tamirs-plugins": true
+    "tamirs-superpowers@tamirs-marketplace": true,
+    "headhunter@tamirs-marketplace": true,
+    "jose-claudinho@tamirs-marketplace": true
   },
   "permissions": {
     "allow": [

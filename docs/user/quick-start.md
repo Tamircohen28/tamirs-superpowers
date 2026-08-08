@@ -22,7 +22,7 @@ Four targets are supported — **Claude Code, Cursor, Codex, and OpenCode**. Thi
 Either the catalog (recommended — it carries the whole plugin family):
 
 ```
-/plugin marketplace add Tamircohen28/plugins
+/plugin marketplace add Tamircohen28/tamirs-marketplace
 ```
 
 …or this repo standalone, which ships its own manifest:
@@ -34,7 +34,7 @@ Either the catalog (recommended — it carries the whole plugin family):
 ## Step 2 — Install the plugin
 
 ```
-/plugin install tamirs-superpowers@tamirs-plugins
+/plugin install tamirs-superpowers@tamirs-marketplace
 ```
 
 Use `/plugin install tamirs-superpowers` if you added the standalone marketplace.

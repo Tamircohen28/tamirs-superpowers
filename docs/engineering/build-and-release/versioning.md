@@ -28,7 +28,7 @@ All three manifests **must match** before tagging a release.
 3. Run `make validate` (manifest/tag alignment fails until the tag exists — use `make validate` with manifests at current tag, or run `check-manifest-version-alignment.sh . --manifests-only` mid-release)
 4. Commit and merge the release PR
 5. Run the [Release workflow](.github/workflows/release.yml) with `X.Y.Z` to create `vX.Y.Z` if not already tagged
-6. Publish through `Tamircohen28/plugins` marketplace catalog (separate repo — no version field there; users pull via `plugin.json` version)
+6. Publish through `Tamircohen28/tamirs-marketplace` marketplace catalog (separate repo — no version field there; users pull via `plugin.json` version)
 
 ## Claude Code update behavior
 
@@ -38,7 +38,7 @@ This plugin sets an explicit `version` in `.claude-plugin/plugin.json`. Claude C
 |-----------|----------------|
 | New commits, **same** `version` | `/plugin update` → "already at the latest version"; cached copy unchanged |
 | `version` bumped + tag pushed | Update downloads new cache directory; users should `/reload-plugins` |
-| Local dev, no release yet | Edit `~/.claude/plugins/cache/tamirs-plugins/tamirs-superpowers/<version>/` or symlink dev clone |
+| Local dev, no release yet | Edit `~/.claude/plugins/cache/tamirs-marketplace/tamirs-superpowers/<version>/` or symlink dev clone |
 
 Agent contributors: see [`rules/dev/plugin-version-bump.md`](../../../rules/dev/plugin-version-bump.md).
 

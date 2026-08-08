@@ -32,11 +32,11 @@ Skills are plain Markdown files (`SKILL.md`) with YAML frontmatter. Claude Code 
 
 ## The marketplace structure
 
-This plugin is published through the [`tamirs-plugins`](https://github.com/Tamircohen28/plugins) catalog — a separate marketplace repo that lists `tamirs-superpowers` as an installable plugin. Install with:
+This plugin is published through the [`tamirs-marketplace`](https://github.com/Tamircohen28/tamirs-marketplace) catalog — a separate marketplace repo that lists `tamirs-superpowers` as an installable plugin. Install with:
 
 ```text
-/plugin marketplace add Tamircohen28/plugins
-/plugin install tamirs-superpowers@tamirs-plugins
+/plugin marketplace add Tamircohen28/tamirs-marketplace
+/plugin install tamirs-superpowers@tamirs-marketplace
 ```
 
 The plugin source lives in this repo; the catalog repo handles discovery and versioning.

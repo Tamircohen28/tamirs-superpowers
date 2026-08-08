@@ -13,7 +13,7 @@
     <img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="MIT License" />
   </a>
   <a href=".claude-plugin/plugin.json">
-    <img src="https://img.shields.io/badge/version-1.12.0-blue" alt="Version" />
+    <img src="https://img.shields.io/badge/version-2.0.0-blue" alt="Version" />
   </a>
 </p>
 
@@ -34,7 +34,7 @@
 
 # tamirs-superpowers
 
-A multi-platform agent plugin for the **four supported targets — Claude Code, Cursor, Codex, and OpenCode** — bundling 27 skills, 6 specialist agents, smart worktree hooks, and MCP server stubs. It installs **standalone from this repo** on every target, and is also published through the [`tamirs-plugins`](https://github.com/Tamircohen28/plugins) catalog.
+A multi-platform agent plugin for the **four supported targets — Claude Code, Cursor, Codex, and OpenCode** — bundling 27 skills, 6 specialist agents, smart worktree hooks, and MCP server stubs. It installs **standalone from this repo** on every target, and is also published through the [`tamirs-marketplace`](https://github.com/Tamircohen28/tamirs-marketplace) catalog.
 
 **Per-target install guides:** [Claude Code](docs/user/install/claude-code.md) · [Cursor](docs/user/install/cursor.md) · [Codex](docs/user/install/codex.md) · [OpenCode](docs/user/install/opencode.md) · [index](docs/user/install/README.md)
 
@@ -72,8 +72,8 @@ make install    # ~/.claude/settings.json + specialist agents
 Via the catalog, or standalone from this repo:
 
 ```text
-/plugin marketplace add Tamircohen28/plugins
-/plugin install tamirs-superpowers@tamirs-plugins
+/plugin marketplace add Tamircohen28/tamirs-marketplace
+/plugin install tamirs-superpowers@tamirs-marketplace
 /reload-plugins
 ```
 
@@ -84,7 +84,7 @@ Via the catalog, or standalone from this repo:
 
 ### Cursor — [full guide](docs/user/install/cursor.md)
 
-Dashboard → **Plugins** → **Team Marketplaces** → **Add Marketplace** → **Import from Repo**, pointed at `Tamircohen28/tamirs-superpowers` (or `Tamircohen28/plugins`). Cursor reads [`.cursor-plugin/plugin.json`](.cursor-plugin/plugin.json), `skills/`, [`.cursor/rules/`](.cursor/rules), `agents/`, hooks, and MCP stubs. Enable **Auto Refresh** and pushes propagate without a version bump.
+Dashboard → **Plugins** → **Team Marketplaces** → **Add Marketplace** → **Import from Repo**, pointed at `Tamircohen28/tamirs-superpowers` (or `Tamircohen28/tamirs-marketplace`). Cursor reads [`.cursor-plugin/plugin.json`](.cursor-plugin/plugin.json), `skills/`, [`.cursor/rules/`](.cursor/rules), `agents/`, hooks, and MCP stubs. Enable **Auto Refresh** and pushes propagate without a version bump.
 
 ### Codex — [full guide](docs/user/install/codex.md)
 
@@ -118,7 +118,7 @@ Restart the IDE or run `/reload-plugins` (Claude Code). MCP servers (`github`, `
 > `~/.claude/settings.json`. Use the **same version-agnostic glob as the manifest** so the entry
 > keeps working across plugin updates:
 > ```json
-> { "statusLine": { "type": "command", "command": "f=$(ls $HOME/.claude/plugins/cache/tamirs-plugins/tamirs-superpowers/*/scripts/statusline.sh 2>/dev/null | sort -rV | head -1) && [ -n \"$f\" ] && bash \"$f\"" } }
+> { "statusLine": { "type": "command", "command": "f=$(ls $HOME/.claude/plugins/cache/tamirs-marketplace/tamirs-superpowers/*/scripts/statusline.sh 2>/dev/null | sort -rV | head -1) && [ -n \"$f\" ] && bash \"$f\"" } }
 > ```
 > Do **not** hardcode a version directory, and do not drop the `scripts/` path segment. A pinned
 > or mistyped path stops matching, and because the command guards with `&& [ -n "$f" ]`, Claude

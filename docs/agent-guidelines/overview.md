@@ -32,7 +32,7 @@ make lint        # shellcheck only
 - Never commit secrets — `.mcp.json` uses `${ENV_VAR}` placeholders only
 - Never add Wix-internal references
 - Never add `runs-on: [self-hosted]` to any CI workflow
-- Never create a root `marketplace.json` — this repo is published through the `Tamircohen28/plugins` catalog
+- Never create a root `marketplace.json` — this repo is published through the `Tamircohen28/tamirs-marketplace` catalog
 
 ## Validation before PR
 
