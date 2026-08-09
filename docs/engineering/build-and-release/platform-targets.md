@@ -17,13 +17,13 @@ Row 3 README badges show **platform tool versions** validated in this release â€
 
 ## Versions
 
-Verified **2026-08-03** by running each CLI on the maintainer machine.
+Verified **2026-08-03** by running each CLI on the maintainer machine. Codex was revalidated against the **0.147.0** release on **2026-08-09** by reviewing the official release delta against this repo's plugin, hooks, skills, MCP, marketplace, and `AGENTS.md` integration.
 
 | Platform | Min supported | Validated against | Latest known | Install guide |
 |----------|---------------|-------------------|--------------|---------------|
 | Claude Code | 2.0.0 | 2.1.220 | 2.1.220 | [claude-code.md](../../user/install/claude-code.md) |
 | Cursor | 3.14.7 | 3.14.7 | 3.14.7 | [cursor.md](../../user/install/cursor.md) |
-| Codex | 0.40.0 | 0.146.0 | 0.146.0 | [codex.md](../../user/install/codex.md) |
+| Codex | 0.40.0 | 0.147.0 | 0.147.0 | [codex.md](../../user/install/codex.md) |
 | OpenCode | 1.16.2 | 1.18.11 | 1.18.11 | [opencode.md](../../user/install/opencode.md) |
 
 ### How each floor was set
