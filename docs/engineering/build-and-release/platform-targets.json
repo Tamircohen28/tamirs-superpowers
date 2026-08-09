@@ -54,7 +54,8 @@
         "https://cursor.com/docs/plugins",
         "https://cursor.com/docs/context/rules",
         "https://cursor.com/docs/hooks",
-        "https://cursor.com/docs/customize-cursor"
+        "https://cursor.com/docs/customize-cursor",
+        "https://cursor.com/docs/reference/third-party-hooks"
       ],
       "features_adopted": [
         "cursor-plugin-manifest",
@@ -66,7 +67,10 @@
         "side-chats-docs-3.11",
         "cursor-hooks-schema-clarified-3.11",
         "google-workspace-plugins-optional-2026-08-03",
-        "automations-github-triggers-docs-3.8"
+        "automations-github-triggers-docs-3.8",
+        "project-cursor-hooks-3.11",
+        "third-party-claude-hooks-docs",
+        "multi-pr-sessions-docs-2026-07-29"
       ],
       "capabilities": [
         "skills",
@@ -78,7 +82,7 @@
         "marketplace"
       ],
       "capability_gaps": {
-        "hooks": "Claude-shaped hooks/hooks.json (PreToolUse/SessionStart) does not run under Cursor's plugin hooks schema; Cursor-native hooks bundle not shipped yet. Contributor discipline via .cursor/rules + AGENTS.md."
+        "hooks": "Claude-shaped plugin hooks/hooks.json (PreToolUse/SessionStart, CLAUDE_PLUGIN_ROOT) does not run under Cursor plugin installs. Project .cursor/hooks.json ships soft contributor guards for this repo as a workspace/Cloud Agent. Optional third-party Claude hooks via .claude/settings.json when enabled in Cursor Settings. Full Cursor-native plugin hooks bundle (manifest hooks field) not shipped yet."
       }
     },
     "codex": {
@@ -132,9 +136,9 @@
         "mcp"
       ],
       "capability_gaps": {
-        "hooks": "OpenCode has no hooks.json — lifecycle automation is JS/TS plugin modules only, so the worktree hooks in hooks/ do not port.",
+        "hooks": "OpenCode has no hooks.json \u2014 lifecycle automation is JS/TS plugin modules only, so the worktree hooks in hooks/ do not port.",
         "statusline": "No plugin-declared statusline.",
-        "marketplace": "No plugin marketplace — install is by path (symlink or skills.paths)."
+        "marketplace": "No plugin marketplace \u2014 install is by path (symlink or skills.paths)."
       }
     }
   }

@@ -31,11 +31,13 @@ Cursor auto-discovers these from the plugin root (see [Plugins reference](https:
 
 ### Hooks — Claude format vs Cursor format
 
-`hooks/hooks.json` in this repo is the **Claude Code** lifecycle suite (`PreToolUse`, `SessionStart`, …). Cursor Plugins discover `hooks/hooks.json` too, but expect **Cursor event names** (`beforeShellExecution`, `afterFileEdit`, `sessionStart`, … — see [Hooks](https://cursor.com/docs/hooks.md)). The Claude-shaped file does **not** give you the worktree guards on Cursor.
+`hooks/hooks.json` in this repo is the **Claude Code** (and Codex) plugin lifecycle suite (`PreToolUse`, `SessionStart`, …, with `${CLAUDE_PLUGIN_ROOT}` paths). Cursor Plugins may discover a `hooks/hooks.json` path too, but expect **Cursor event names** (`beforeShellExecution`, `afterFileEdit`, `sessionStart`, … — see [Hooks](https://cursor.com/docs/hooks.md)). The Claude-shaped plugin file does **not** give you the worktree guards when this package is installed as a Cursor plugin.
 
-On Cursor today, worktree and sensitive-file discipline comes from `.cursor/rules/*.mdc` + `AGENTS.md` (see [platform-equivalence.md](../../agent-guidelines/platform-equivalence.md)). Shipping a Cursor-native hooks bundle (separate path via the manifest `hooks` field) is tracked as a future opportunity — do not assume Claude hooks fire here.
+**Project / cloud hooks (shipped here):** when this repo is the workspace (local Agent or Cloud Agent), Cursor loads [`.cursor/hooks.json`](../../.cursor/hooks.json). That file is Cursor-native and soft-asks on force-push to `master`/`main` and on `self-hosted` runner edits (contributor policy). User `~/.cursor/hooks.json` does **not** apply in cloud VMs.
 
-Cloud agents load **project** hooks from `.cursor/hooks.json` at the repo root (user `~/.cursor/hooks.json` does not apply in cloud VMs). This plugin does not yet ship a project cloud-hooks file.
+**Third-party Claude hooks (opt-in):** Cursor can also load hooks from `.claude/settings.json` / `~/.claude/settings.json` when **Settings → Rules, Skills, Subagents → Include third-party Plugins, Skills, and other configs** is enabled ([Third-party hooks](https://cursor.com/docs/reference/third-party-hooks.md)). That maps Claude event names (`PreToolUse` → `preToolUse`, …). It does **not** auto-load the plugin package's `hooks/hooks.json` — you still need settings wiring or a Cursor-native plugin `hooks` manifest entry.
+
+For *installed* plugin consumers, full worktree / sensitive-file discipline still comes from `.cursor/rules/*.mdc` + `AGENTS.md` (see [platform-equivalence.md](../../agent-guidelines/platform-equivalence.md)). A Cursor-native **plugin** hooks bundle (manifest `hooks` field porting the highest-value Claude guards) remains a future opportunity.
 
 ## Method A — team marketplace (recommended)
 
@@ -84,7 +86,8 @@ On Teams/Enterprise, admins can also distribute **Team MCP** servers via the Def
 - **Cursor Router / Auto (2026-07-22)** — Auto modes Cost / Balance / Intelligence. Prefer Balance for daily plugin work; Intelligence when porting hooks or auditing platform parity.
 - **Cursor Automations (3.8)** — `/automate` (or Dashboard → Automations) for always-on agents. Useful GitHub triggers here: **Workflow run completed** (triage `make validate` / CI reds), **PR review comment** (auto-address review threads). Enable **computer use** when you want a smoke-demo artifact attached. Marketplace templates cover failed-Actions triage and review auto-fix.
 - **Google Workspace plugins (2026-08-03)** — optional Marketplace plugins (Drive / Gmail / Calendar). Unrelated to this plugin; install from Customize / Marketplace if you want them. Never commit Workspace credentials here.
-- **Inbox (2026-07-29)** — useful for reviewing cloud-agent / automation PRs; no plugin code change. **iPad** / **Cursor Start** remain client/plan surfaces.
+- **Inbox + multi-PR sessions (2026-07-29)** — Inbox tracks in-progress / needs-attention / in-review work. When one chat opens several PRs (e.g. catalog + plugin), open **every** PR from the session — not only the last. **iPad** / **Cursor Start** remain client/plan surfaces.
+- **Third-party hooks toggle** — if you keep Claude Code hooks in `.claude/settings.json` for dual-tool workflows, enable third-party skills/hooks in Cursor Settings so those settings-based hooks can load (see Hooks section above).
 
 ## Verify
 
@@ -114,4 +117,5 @@ Skills, rules, agents, and MCP all work. See [platform-equivalence.md](../../age
 | Plugin installs but skills are missing | The `skills` array in `.cursor-plugin/plugin.json` lists domain directories; confirm your clone has all of `skills/*`. |
 | Rules not applying | `.mdc` files must be under `.cursor/rules/` in the **project**, not only in the plugin. Method B copies them across. |
 | Changes not showing after a push | Enable **Auto Refresh** in Marketplace Settings, or re-import. |
-| Expected worktree hooks did not fire | Those hooks are Claude-shaped. On Cursor, rely on `.cursor/rules` / `AGENTS.md`, or wait for a Cursor-native hooks bundle. |
+| Expected worktree hooks did not fire | Plugin `hooks/hooks.json` is Claude-shaped. As a Cursor *plugin* install, rely on `.cursor/rules` / `AGENTS.md`, or wait for a Cursor-native plugin hooks bundle. When this repo is the *workspace*, project hooks in `.cursor/hooks.json` do run (soft contributor guards only). |
+| Claude settings hooks not loading | Enable **Include third-party Plugins, Skills, and other configs** in Cursor Settings; hooks must live under `.claude/settings.json`, not only `hooks/hooks.json`. |
