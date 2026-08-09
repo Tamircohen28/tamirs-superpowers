@@ -2,7 +2,8 @@
 
 | | |
 |---|---|
-| **Validated against** | Codex CLI **0.147.0** |
+| **Validated against** | Codex CLI **0.146.0** |
+| **Latest supported** | **0.147.0** |
 | **Minimum supported** | **0.40.0** |
 | **Plugin manifest** | `.codex-plugin/plugin.json` |
 | **Marketplace manifest** | `.agents/plugins/marketplace.json` |
@@ -14,7 +15,7 @@ Check your version:
 codex --version
 ```
 
-Codex 0.147.0 expands portable Agent Plugin/catalog discovery. This repo already ships the native Codex plugin manifest, marketplace manifest, hooks, skills, MCP stubs, and `AGENTS.md`, so no manifest migration is required.
+Codex 0.147.0 expands portable Agent Plugin/catalog discovery. This repo already ships the native Codex plugin manifest, marketplace manifest, hooks, skills, MCP stubs, and `AGENTS.md`, so no manifest migration is required. Support for 0.147.0 was reviewed against the official release delta; the last direct maintainer-machine CLI validation remains 0.146.0.
 
 > **Where the marketplace manifest lives.** Codex resolves marketplaces from `.agents/plugins/marketplace.json` at the repo root — *not* from `.codex-plugin/marketplace.json`. Point `codex plugin marketplace add` at a root without that file and it fails with `marketplace root does not contain a supported manifest`. This repo ships one, which is what makes standalone install work.
 
