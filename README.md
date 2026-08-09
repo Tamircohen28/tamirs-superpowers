@@ -74,13 +74,15 @@ Via the catalog, or standalone from this repo:
 ```text
 /plugin marketplace add Tamircohen28/tamirs-marketplace
 /plugin install tamirs-superpowers@tamirs-marketplace
-/reload-plugins
 ```
 
 ```text
 /plugin marketplace add Tamircohen28/tamirs-superpowers   # standalone
 /plugin install tamirs-superpowers
 ```
+
+Since Claude Code 2.1.221, installed plugins activate immediately when safe — no
+reload step. On older versions, finish with `/reload-plugins`.
 
 ### Cursor — [full guide](docs/user/install/cursor.md)
 

@@ -19,6 +19,11 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   2.1.225 fixes a transient 401 that could replace a long-lived
   `CLAUDE_CODE_OAUTH_TOKEN` with a short-lived stored-login token, breaking headless
   sessions until restart.
+- **Install-flow text aligned with 2.1.221 immediate plugin activation.** The README
+  install block and `scripts/install.sh` still told every user to run
+  `/reload-plugins` after `/plugin install`; both now match the install guide and
+  quick-start — reload is only needed on Claude Code older than 2.1.221, where
+  plugins don't yet activate immediately when safe.
 
 ### Fixed
 - **Removed a Cursor adoption commit that landed on the Claude Code nightly branch.**
