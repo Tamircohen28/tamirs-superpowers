@@ -73,9 +73,9 @@
       "supported_min": "0.40.0",
       "supported_min_source": "earliest release this repo has claimed AGENTS.md + .codex-plugin manifest support for",
       "validated_against": "0.146.0",
-      "latest_known": "0.146.0",
-      "verified_on": "2026-08-03",
-      "verification_method": "codex --version on the maintainer machine; latest from api.github.com/repos/openai/codex/releases/latest (tag rust-v0.146.0)",
+      "latest_known": "0.147.0",
+      "verified_on": "2026-08-09",
+      "verification_method": "0.146.0 was exercised on the maintainer machine; 0.147.0 support was reviewed against the official OpenAI release delta and is tracked by .codex-version pending the next direct CLI validation",
       "install_doc": "docs/user/install/codex.md",
       "doc_urls": [
         "https://developers.openai.com/codex/guides/agents-md",
@@ -84,7 +84,8 @@
       "features_adopted": [
         "codex-plugin-manifest",
         "agents-md",
-        "hooks-field"
+        "hooks-field",
+        "portable-agent-plugins-0.147.0"
       ],
       "capabilities": [
         "skills",
