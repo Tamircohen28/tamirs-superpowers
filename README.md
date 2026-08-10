@@ -19,7 +19,7 @@
 
 <p align="center">
   <a href="docs/engineering/build-and-release/platform-targets.json">
-    <img src="https://img.shields.io/badge/Claude%20Code-2.1.220-blueviolet" alt="Claude Code" />
+    <img src="https://img.shields.io/badge/Claude%20Code-2.1.226-blueviolet" alt="Claude Code" />
   </a>
   <a href="docs/engineering/build-and-release/platform-targets.json">
     <img src="https://img.shields.io/badge/Cursor-3.14.7-000000" alt="Cursor" />
@@ -74,13 +74,15 @@ Via the catalog, or standalone from this repo:
 ```text
 /plugin marketplace add Tamircohen28/tamirs-marketplace
 /plugin install tamirs-superpowers@tamirs-marketplace
-/reload-plugins
 ```
 
 ```text
 /plugin marketplace add Tamircohen28/tamirs-superpowers   # standalone
 /plugin install tamirs-superpowers
 ```
+
+Since Claude Code 2.1.221, installed plugins activate immediately when safe — no
+reload step. On older versions, finish with `/reload-plugins`.
 
 ### Cursor — [full guide](docs/user/install/cursor.md)
 

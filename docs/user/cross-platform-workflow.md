@@ -13,6 +13,19 @@ Hand off long-running development work between **Claude Code**, **Cursor**, and 
 
 See [platform capabilities](../../skills/dev-workflow/switch-dev/references/platform-capabilities.md) for first-party features per tool.
 
+> **Claude Code ↔ Claude Code:** since Claude Code 2.1.224, sessions can message
+> each other directly — `SendMessage` to a session on any of your machines,
+> `ListAgents` to discover them (macOS and Linux). Since 2.1.225, `SendMessage`
+> can also *start* a conversation with a Remote Control session on another
+> machine by name (previously it could only reply after that session messaged
+> first), and messages parked for a headless session are no longer held
+> silently without notice or expiry. Useful for coordinating parallel Claude
+> Code sessions live; messages to a session running with bypassed permissions
+> are held for your approval (`crossSessionInbound` setting). This complements
+> — not replaces — the handoff flow below, which is the only path that carries
+> task state **across platforms** (Cursor, Codex, OpenCode) and across time via
+> GitHub Issues.
+
 ## Pipeline
 
 ```

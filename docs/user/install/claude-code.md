@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| **Validated against** | Claude Code **2.1.220** |
+| **Validated against** | Claude Code **2.1.226** |
 | **Minimum supported** | **2.0.0** |
 | **Plugin manifest** | `.claude-plugin/plugin.json` |
 | **Marketplace manifest** | `.claude-plugin/marketplace.json` |
@@ -16,7 +16,7 @@ claude --version
 
 ## Prerequisites
 
-- Claude Code 2.0.0 or newer (2.1.220 is what this release was validated on)
+- Claude Code 2.0.0 or newer (2.1.226 is what this release was validated on)
 - `jq` — `brew install jq`
 - `git` 2.30+
 
@@ -27,8 +27,13 @@ The catalog keeps the plugin updated and is where the rest of the plugin family 
 ```
 /plugin marketplace add Tamircohen28/tamirs-marketplace
 /plugin install tamirs-superpowers@tamirs-marketplace
-/reload-plugins
 ```
+
+Since Claude Code 2.1.221, `/plugin install` activates the plugin immediately
+when safe — no `/reload-plugins` step. It also refreshes a stale marketplace
+catalog and retries before reporting a plugin not found, so a fresh
+`marketplace add` → `install` sequence no longer races the catalog cache.
+On older versions, finish with `/reload-plugins`.
 
 To pick up a new release later:
 
@@ -46,8 +51,9 @@ No catalog needed. The repo carries its own `.claude-plugin/marketplace.json` al
 ```
 /plugin marketplace add Tamircohen28/tamirs-superpowers
 /plugin install tamirs-superpowers
-/reload-plugins
 ```
+
+(As above — on Claude Code older than 2.1.221, finish with `/reload-plugins`.)
 
 ## Method C — clone into the local skills directory
 
@@ -61,6 +67,12 @@ git clone https://github.com/Tamircohen28/tamirs-superpowers.git \
 Claude Code auto-loads anything under `~/.claude/skills/`. Reload with `/reload-plugins`.
 
 Trade-off: no automatic updates — `git pull` to refresh.
+
+> **No-git machines:** Claude Code 2.1.224 added an `archive` plugin source —
+> plugins can be installed from a zip archive over HTTPS, without git or npm,
+> with optional SHA-256 pinning. This repo does not publish release zip
+> artifacts yet, so Methods A–C above remain the supported paths here; if you
+> mirror the repo internally, an archive source is now a viable no-git channel.
 
 ## Optional companion marketplaces
 
@@ -117,7 +129,7 @@ Should list all 27 skills. Also check the statusline appears at the bottom of th
 |---------|-----|
 | `/plugin update` does nothing | The release didn't bump `plugin.json` `version`. Check the [releases page](https://github.com/Tamircohen28/tamirs-superpowers/releases). |
 | `Marketplace file not found` | You're on a revision older than 1.12.0, before `.claude-plugin/marketplace.json` was added. Use the catalog (Method A) or update the clone. |
-| Skills don't appear after install | `/reload-plugins`, then restart Claude Code. `/reload-plugins` does **not** re-fetch from GitHub — it only reloads what's cached. |
+| Skills don't appear after install | On 2.1.221+ installs activate immediately when safe — if skills still don't appear, run `/reload-plugins`, then restart Claude Code. `/reload-plugins` does **not** re-fetch from GitHub — it only reloads what's cached. |
 | Statusline blank | Confirm `~/.claude/settings.json` has `statusLine` as an **object** (`{"type":"command","command":"..."}`), not a string. |
 | Hooks not firing | Check the plugin is enabled: `/plugin list`. |
 

@@ -253,7 +253,7 @@ printf '\nDone. Next steps:\n'
 printf '  1. Open Claude Code\n'
 printf '  2. Go to Settings > Plugins > Add marketplace: tamirs-marketplace\n'
 printf '  3. Install tamirs-superpowers\n'
-printf '  4. Run /reload-plugins\n'
+printf '  4. On Claude Code < 2.1.221 only: run /reload-plugins (newer versions activate plugins immediately)\n'
 if [[ -z "${PUSHOVER_TOKEN_IN}" || -z "${PUSHOVER_USER_IN}" ]]; then
   printf '\nOptional: phone notifications via Pushover — run /tamirs-superpowers:notify-setup\n'
 fi
