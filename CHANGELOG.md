@@ -5,6 +5,33 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Changed
+- **Platform target: Claude Code 2.1.226** (from 2.1.224). Docs-only bump — no shipped
+  plugin content changed, so no version bump. The 2.1.225 + 2.1.226 delta reviewed
+  against the plugin surface: 2.1.226 is fix-only ("bug fixes and reliability
+  improvements") and 2.1.225 is fix-dominated with nothing touching the plugin's
+  manifests, skills frontmatter, hooks, MCP stubs, statusline, or marketplace flow.
+  One user-facing capability is worth documenting: `SendMessage` can now *start* a
+  conversation with a Remote Control session on another machine by name (previously
+  reply-only), and cross-session messages parked for headless sessions are no longer
+  held silently — the cross-platform-workflow guide's Claude Code ↔ Claude Code note
+  now covers both. Also relevant to users of this plugin's headless/cloud runbook:
+  2.1.225 fixes a transient 401 that could replace a long-lived
+  `CLAUDE_CODE_OAUTH_TOKEN` with a short-lived stored-login token, breaking headless
+  sessions until restart.
+- **Install-flow text aligned with 2.1.221 immediate plugin activation.** The README
+  install block and `scripts/install.sh` still told every user to run
+  `/reload-plugins` after `/plugin install`; both now match the install guide and
+  quick-start — reload is only needed on Claude Code older than 2.1.221, where
+  plugins don't yet activate immediately when safe.
+
+### Fixed
+- **Removed a Cursor adoption commit that landed on the Claude Code nightly branch.**
+  The rolling `claude-code-update` branch briefly carried the "Cursor 3.11
+  (+2026-08-03)" doc adoption, duplicating the separate `cursor-update` nightly PR
+  and putting cursor-scoped files in a Claude Code-scoped PR; it is reverted here and
+  lives only in the cursor PR where it belongs.
+
 ## [2.0.0] — 2026-08-07
 
 ### Changed
@@ -35,6 +62,64 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - **`docs/engineering/architecture/overview.md` claimed "16 skills in 7 domains"** while the tree shipped 27, with a stale per-domain listing to match.
 
 ### Changed
+- **Platform target: Claude Code 2.1.224** (from 2.1.223). Docs-only bump — no shipped
+  plugin content changed, so no version bump. The 2.1.224 delta reviewed against the
+  plugin surface:
+  - **Cross-session `SendMessage` + `ListAgents`** (Claude Code sessions on any of
+    your machines can now message each other, macOS and Linux; the new
+    `crossSessionInbound`/`dialogExpiry` settings hold messages to a
+    bypassed-permissions session for approval) is noted in
+    `docs/user/cross-platform-workflow.md` as the live, Claude-Code-only complement
+    to the `switch-dev` handoff flow — it does not replace it, because handoff is
+    the only path that carries state across *platforms* (Cursor, Codex, OpenCode)
+    and across time via GitHub Issues. `hooks/notify.sh` and the Pushover hook
+    notify a *human*, a different surface than session-to-session messaging, so
+    nothing hand-rolled becomes deletable.
+  - **`archive` plugin source** (install from a zip over HTTPS, no git or npm,
+    optional SHA-256 pinning) is documented in the Claude Code install guide as a
+    no-git channel; this repo publishes no zip artifacts yet, so the git-based
+    methods stay the recommended paths.
+  - **Sandbox fixes need no plugin change:** the trailing-slash `denyRead` bypass
+    fix and the new credential-masking options touch nothing here —
+    `scripts/install.sh` writes only `permissions.allow`, no sandbox deny rules,
+    and the Pushover credentials live in `~/.claude/pushover.env` outside any
+    sandbox config this plugin manages.
+  - **Removed 200-subagent-per-session cap:** no skill or doc referenced or worked
+    around it (checked `skill-creator`'s eval fan-out, which spawns subagent pairs
+    per test case).
+  `platform-targets.json` re-reviewed 2026-08-07.
+
+- **Platform target: Claude Code 2.1.223** (from 2.1.222). Docs-only bump — no shipped
+  plugin content changed, so no version bump. The 2.1.223 delta is security-and-fix
+  focused and needs no plugin changes, but it is a strong reason for users to update
+  their host: it closes a Bash permission bypass (a crafted command could hide parts
+  of itself from permission checks), stops commands padded with tabs or invisible
+  Unicode from hiding content in the approval dialog, and closes a workflow-script
+  sandbox escape via dynamic `import()`. This plugin's PreToolUse guards
+  (`protect-other-branches.sh`, `enforce-worktree-edits.sh`, `guard-sensitive-files.sh`)
+  sit on the same permission surface those fixes harden — they keep working unchanged
+  and are now backed by a host that can't be spoofed past them as easily. The
+  `/review` → `/code-review` consolidation touches nothing here (no skill or doc
+  references `/review`), and the context-window enforcement changes
+  (`CLAUDE_CODE_DISABLE_1M_CONTEXT` scope, unknown-model auto-compact) are
+  host-side knobs this plugin doesn't set. `platform-targets.json` re-reviewed
+  2026-08-06.
+
+- **Platform target: Claude Code 2.1.222** (from 2.1.220). Docs-only bump — no shipped
+  plugin content changed, so no version bump. Install guides and quick-start now reflect
+  two 2.1.221 install-flow improvements: plugins installed with `/plugin install` activate
+  immediately when safe (no `/reload-plugins` step), and `/plugin install` refreshes a
+  stale marketplace catalog and retries before reporting a plugin not found. The
+  `/reload-plugins` guidance stays for older versions and for manifest/hook edits
+  (`hooks/plugin-reload-reminder.sh` is unchanged — manifests and hooks still need a
+  reload). `platform-targets.json` records the bump and the two adopted behaviours.
+  The 2.1.222 delta needs no plugin changes: its worktree hardening (isolation now
+  covers file edits and Bash in every session type, and worktree-isolated sessions
+  can no longer run destructive git against the main checkout) lands on the host
+  side and *complements* this plugin's `enforce-worktree-edits.sh` / worktree hook
+  system rather than replacing it — the hooks guard the plugin's own
+  `~/.claude/worktrees/` flow, which native session isolation doesn't manage.
+
 - **`rules/dev/plugin-version-bump.md` rewritten for four targets.** It said "bump all three manifests" without explaining that `opencode.json` has no version field and shouldn't get one; had two steps numbered `3.`; claimed the alignment CI job fails on bump PRs when pull requests actually run `--manifests-only`; and — worst — told agents to **edit files directly under `~/.claude/plugins/cache/`**. That is the anti-pattern that cost real time this cycle: `autoUpdate` replaced the version directory mid-session and the `sort -rV | head -1` version glob moved to the newer unpatched copy, so a hand-applied patch vanished and the symptom looked like a bug in the feature. Now: symlink-only guidance, the two destruction mechanisms spelled out, a post-release step that diffs the `vX.Y.Z` tag against `origin/master` before announcing, and sync steps for marketplace declarations, install guides, skill counts, and `platform-targets.json`.
 
 ## [1.12.0] - 2026-08-03
