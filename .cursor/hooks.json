@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "hooks": {
+    "beforeShellExecution": [
+      {
+        "command": ".cursor/hooks/warn-contributor-policy.sh",
+        "timeout": 10
+      }
+    ]
+  }
+}

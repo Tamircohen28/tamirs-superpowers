@@ -39,9 +39,11 @@ Fill `${ENV_VAR}` placeholders locally — never commit tokens.
 
 | Capability | Claude Code | Cursor | Codex | OpenCode |
 |------------|-------------|--------|-------|----------|
-| Worktree hooks | `hooks/hooks.json` (when present) | No native `hooks.json` — use scoped `.mdc` rules + session discipline | `hooks` field in `.codex-plugin/plugin.json` when Claude hooks ship | ❌ none — lifecycle automation is JS/TS plugin modules only |
+| Worktree hooks | `hooks/hooks.json` (when present) | Claude-shaped plugin `hooks/hooks.json` does **not** run for Cursor plugin installs. **Project** Cursor hooks ship in `.cursor/hooks.json` (soft contributor guards for this repo as a workspace / Cloud Agent). Optional: Cursor can load Claude hooks from `.claude/settings.json` when third-party skills/hooks are enabled. Full Claude→Cursor plugin hooks port (manifest `hooks`) still pending | `hooks` field in `.codex-plugin/plugin.json` when Claude hooks ship | ❌ none — lifecycle automation is JS/TS plugin modules only |
 
-**Cursor substitute:** enforce worktree and sensitive-file rules via contributor docs in `AGENTS.md` and path-scoped Cursor rules under `.cursor/rules/`.
+**Cursor note (3.11+):** Cursor has native plugin hooks and project/cloud hooks (`.cursor/hooks.json`). They use a different schema from Claude Code's `PreToolUse` / `SessionStart` suite. Do not treat presence of plugin `hooks/hooks.json` as proof the worktree guards run for Cursor plugin installs. See [Third-party hooks](https://cursor.com/docs/reference/third-party-hooks.md) for settings-based Claude compatibility.
+
+**Cursor substitute today:** project `.cursor/hooks.json` for contributor/cloud soft guards on this repo; for installed consumers, enforce worktree and sensitive-file rules via `AGENTS.md` and path-scoped Cursor rules under `.cursor/rules/`.
 
 **OpenCode gap:** OpenCode has no `hooks.json` equivalent. Its `"plugin"` config field takes JavaScript/TypeScript modules — a different mechanism from a skill bundle — so the worktree guards in `hooks/` do not port. Rely on `AGENTS.md` discipline there.
 
