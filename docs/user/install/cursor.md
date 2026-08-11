@@ -2,8 +2,8 @@
 
 | | |
 |---|---|
-| **Validated against** | Cursor **3.14.7** |
-| **Minimum supported** | **3.14.7** — see note below |
+| **Validated against** | Cursor **3.15.6** |
+| **Minimum supported** | **3.15.6** — see note below |
 | **Changelog covered through** | feature **3.11** + date-only entries to **2026-08-03** (see [`.cursor-version`](../../.cursor-version)) |
 | **Manifest** | `.cursor-plugin/plugin.json` |
 | **Official docs** | [Plugins](https://cursor.com/docs/plugins) · [Rules](https://cursor.com/docs/context/rules) · [Hooks](https://cursor.com/docs/hooks) · [Customize](https://cursor.com/docs/customize-cursor) |
@@ -79,8 +79,11 @@ Cursor reads `.cursor/rules/*.mdc` from the project root automatically. Update b
 
 On Teams/Enterprise, admins can also distribute **Team MCP** servers via the Default team marketplace (**Dashboard → Integrations & MCP → Add to Team Marketplace**, Cursor **3.10**) so members install approved servers from Customize without hand-editing JSON.
 
-## Working tips (3.11 → 2026-08-03)
+## Working tips (3.11 → 2026-08-03; desktop CLI 3.15.6)
 
+- **Desktop CLI patch line** — public changelog feature numbers can lag `cursor --version`. This repo's pin is **3.15.6** (download line 2026-08-06); newest feature write-up remains **3.11**, newest date-only entry **2026-08-03**.
+- **Agent Plugins standard** — Cursor loads [Agent Plugins](https://agent-plugins.org) (root `plugin.json` + skills/MCP) alongside Cursor Plugins (`.cursor-plugin/plugin.json`). This repo ships the Cursor Plugin shape; portable skills/MCP stay compatible with the open standard.
+- **`workspaceOpen` hook** — app-lifecycle hook (desktop/CLI; not Cloud Agents) can return `pluginPaths` so workspace-specific plugins load on open / folder change. Useful when contributing to this repo from a multi-root workspace; not required for marketplace installs.
 - **Side chats (3.11)** — `/side`, `/btw`, or the chat-panel plus button opens a durable secondary agent. Use it to research a skill or rule without interrupting the main thread; at-mention the side chat to pull findings back.
 - **Conversation search (3.11)** — Cmd+K in the Agents Window searches transcripts; Cmd+F searches within a conversation.
 - **Cursor Router / Auto (2026-07-22)** — Auto modes Cost / Balance / Intelligence. Prefer Balance for daily plugin work; Intelligence when porting hooks or auditing platform parity.
