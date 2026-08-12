@@ -59,7 +59,7 @@ Without a version bump, `/plugin update` reports "already at the latest version"
 Claude Code loads plugins from your configured install paths. To test a change:
 
 1. Find your plugin install dir: `/plugin list` in Claude Code
-2. Edit the skill file directly (or symlink your dev clone to the install path)
+2. Edit the skill file directly (or symlink your dev clone to the install path — safe on Claude Code 2.1.228+; earlier versions' background plugin-cache cleanup could delete a cache entry whose only version was a symlinked dev checkout)
 3. Run `/reload-plugins` in Claude Code
 4. Test the skill
 
