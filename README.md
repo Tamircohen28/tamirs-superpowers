@@ -22,7 +22,7 @@
     <img src="https://img.shields.io/badge/Claude%20Code-2.1.226-blueviolet" alt="Claude Code" />
   </a>
   <a href="docs/engineering/build-and-release/platform-targets.json">
-    <img src="https://img.shields.io/badge/Cursor-3.15.6-000000" alt="Cursor" />
+    <img src="https://img.shields.io/badge/Cursor-3.15.19-000000" alt="Cursor" />
   </a>
   <a href="docs/engineering/build-and-release/platform-targets.json">
     <img src="https://img.shields.io/badge/Codex-0.146.0-412991" alt="Codex" />
@@ -49,7 +49,7 @@ A multi-platform agent plugin for the **four supported targets — Claude Code, 
 
 ## Prerequisites
 
-- At least one supported target — **Claude Code** 2.0+, **Cursor** 3.15.6+, **OpenAI Codex CLI** 0.40+, or **OpenCode** 1.16.2+ (see [per-target install](docs/user/install/README.md))
+- At least one supported target — **Claude Code** 2.0+, **Cursor** 3.15.19+, **OpenAI Codex CLI** 0.40+, or **OpenCode** 1.16.2+ (see [per-target install](docs/user/install/README.md))
 - `jq` (for hooks): `brew install jq`
 - `git` 2.30+ (for worktree hooks)
 - `gh` CLI (for `pr-dev`, `plan-dev`, `start-dev` skills): `brew install gh`

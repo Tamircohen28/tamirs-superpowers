@@ -6,7 +6,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ## [Unreleased]
 
 ### Changed
-- **Cursor desktop pin → 3.15.6.** `.cursor-version`, `platform-targets.json` (cursor target only), README badge, and install docs now track desktop **3.15.6** (2026-08-06 download line). Changelog feature coverage remains **3.11**; newest date-only entry remains **2026-08-03** (no newer feature write-up on cursor.com/changelog).
+- **Cursor desktop pin → 3.15.19.** `.cursor-version`, `platform-targets.json` (cursor target only), README badge, and install docs now track desktop **3.15.19** (2026-08-11 download line). Changelog feature coverage remains **3.11**; newest date-only entry remains **2026-08-03** (no newer feature write-up on cursor.com/changelog).
 - **Cursor docs: `workspaceOpen` + Agent Plugins standard.** Install guide notes the app-lifecycle `workspaceOpen` hook (`pluginPaths` for workspace-specific plugins; desktop/CLI only) and that Cursor loads [Agent Plugins](https://agent-plugins.org) alongside `.cursor-plugin` Cursor Plugins.
 
 ### Added
@@ -114,7 +114,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   references `/review`), and the context-window enforcement changes
   (`CLAUDE_CODE_DISABLE_1M_CONTEXT` scope, unknown-model auto-compact) are
   host-side knobs this plugin doesn't set. `platform-targets.json` re-reviewed
-  2026-08-06.
+  2026-08-11.
 
 - **Platform target: Claude Code 2.1.222** (from 2.1.220). Docs-only bump — no shipped
   plugin content changed, so no version bump. Install guides and quick-start now reflect
