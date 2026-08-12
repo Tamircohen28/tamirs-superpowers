@@ -13,6 +13,22 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - **Cursor docs: Claude hooks ≠ Cursor hooks.** `docs/user/install/cursor.md` and `platform-equivalence.md` now state that `hooks/hooks.json` is Claude-shaped and does not fire Cursor plugin/cloud hook events; worktree guards on Cursor stay rule/AGENTS-based until a Cursor-native hooks bundle lands.
 - **Cursor coverage pin.** Root `.cursor-version` records CLI **3.14.7** plus changelog feature **3.11** / date **2026-08-03**. Cursor `features_adopted` notes Customize (3.9), Team MCP + org-group marketplace access (3.10), side chats, and optional Google Workspace plugins (2026-08-03).
 - **Cursor Automations (3.8) working tip.** Install guide documents `/automate` GitHub triggers (Workflow run completed, PR review comment) and computer-use demos for plugin CI / review triage.
+- **Platform target: Claude Code 2.1.228** (from 2.1.226). Docs-only bump — no shipped
+  plugin content changed, so no version bump. The 2.1.227 + 2.1.228 delta reviewed
+  against the plugin surface: manifests, skills frontmatter, hooks, MCP stubs,
+  statusline, and marketplace flow are all untouched. Two entries matter to this
+  plugin's own workflows and are now documented: **2.1.228 makes the
+  symlinked-dev-checkout flow safe** — background plugin-cache cleanup no longer
+  deletes a plugin's cache when its only version is a symlinked development
+  checkout, which was a real hazard for the "symlink your dev clone" local-testing
+  path (`versioning.md` and `development-workflow.md` now carry the version-scoped
+  note); and **2.1.228 hardens skills synced from claude.ai** — synced skills can no
+  longer shadow local commands or MCP prompts, so a claude.ai skill can no longer
+  mask this plugin's commands or skills under the same name. Also reviewed, host-side
+  with no plugin change needed: a Write-tool rule change (newer models may overwrite
+  a file they haven't read this session, matching Edit's rules), cross-session
+  messaging fixes (first-session inbox, inline sender/body display), and the 2.1.227
+  slash-command menu polish this plugin's commands inherit.
 - **Platform target: Claude Code 2.1.226** (from 2.1.224). Docs-only bump — no shipped
   plugin content changed, so no version bump. The 2.1.225 + 2.1.226 delta reviewed
   against the plugin surface: 2.1.226 is fix-only ("bug fixes and reliability
