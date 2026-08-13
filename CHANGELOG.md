@@ -13,6 +13,24 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - **Cursor docs: Claude hooks ≠ Cursor hooks.** `docs/user/install/cursor.md` and `platform-equivalence.md` now state that `hooks/hooks.json` is Claude-shaped and does not fire Cursor plugin/cloud hook events; worktree guards on Cursor stay rule/AGENTS-based until a Cursor-native hooks bundle lands.
 - **Cursor coverage pin.** Root `.cursor-version` records CLI **3.14.7** plus changelog feature **3.11** / date **2026-08-03**. Cursor `features_adopted` notes Customize (3.9), Team MCP + org-group marketplace access (3.10), side chats, and optional Google Workspace plugins (2026-08-03).
 - **Cursor Automations (3.8) working tip.** Install guide documents `/automate` GitHub triggers (Workflow run completed, PR review comment) and computer-use demos for plugin CI / review triage.
+- **Platform target: Claude Code 2.1.231** (from 2.1.228). Docs-only bump — no shipped
+  plugin content changed, so no version bump. The 2.1.229 + 2.1.231 delta (no 2.1.230
+  entry was published) reviewed against the plugin surface: manifests, skills
+  frontmatter, hooks, MCP stubs, statusline, and marketplace flow all remain valid.
+  One capability is adopted into the docs: **marketplace `command` sources (2.1.229)**
+  — a local command prints the plugin directory, re-resolved each session and applied
+  without a restart, with `mode: "link"` using the directory in place. This is now
+  the documented, recommended local-dev install: `development-workflow.md` gains a
+  command-source link-install walkthrough, `install/claude-code.md` gains **Method D**,
+  and `versioning.md`'s "local dev, no release yet" row points to it ahead of the
+  older cache-edit/symlink paths it effectively supersedes for 2.1.229+ users. Also
+  reviewed, host-side with no plugin change needed: the 2.1.231 MCP OAuth
+  redirect-URI fix and 2.1.229's `127.0.0.1` OAuth redirect change (the plugin's
+  `.mcp.json` stubs are env-var/token-based, not OAuth), scheduled-tasks watcher and
+  file-watcher-leak fixes, the `/commit-push-pr` auto-approval tightening for
+  dangerous git flags (the dev-workflow skills here already treat force-push as
+  guarded), sandbox IPv6-literal bracketing with fail-closed enforcement flagged by
+  `/doctor`, and a series of terminal-rendering and crash fixes.
 - **Platform target: Claude Code 2.1.228** (from 2.1.226). Docs-only bump — no shipped
   plugin content changed, so no version bump. The 2.1.227 + 2.1.228 delta reviewed
   against the plugin surface: manifests, skills frontmatter, hooks, MCP stubs,

@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| **Validated against** | Claude Code **2.1.228** |
+| **Validated against** | Claude Code **2.1.231** |
 | **Minimum supported** | **2.0.0** |
 | **Plugin manifest** | `.claude-plugin/plugin.json` |
 | **Marketplace manifest** | `.claude-plugin/marketplace.json` |
@@ -16,7 +16,7 @@ claude --version
 
 ## Prerequisites
 
-- Claude Code 2.0.0 or newer (2.1.228 is what this release was validated on)
+- Claude Code 2.0.0 or newer (2.1.231 is what this release was validated on)
 - `jq` — `brew install jq`
 - `git` 2.30+
 
@@ -68,10 +68,34 @@ Claude Code auto-loads anything under `~/.claude/skills/`. Reload with `/reload-
 
 Trade-off: no automatic updates — `git pull` to refresh.
 
+## Method D — command-source link install (2.1.229+, best for editing in place)
+
+Since Claude Code 2.1.229, a marketplace entry can use a **`command` source**: a
+local command prints the plugin directory, the result is re-resolved at each
+session start (no restart needed), and `mode: "link"` uses the directory in
+place. Register a local marketplace whose entry points at your clone:
+
+```jsonc
+{
+  "name": "tamirs-superpowers",
+  "source": {
+    "source": "command",
+    "command": ["echo", "/absolute/path/to/tamirs-superpowers"],
+    "mode": "link"
+  }
+}
+```
+
+Unlike Method C, the clone is used *as* the installed plugin — skills, hooks,
+agents, and manifests all load from your working tree, and there is no cache
+copy to fall out of date. This is the recommended path if you edit the plugin;
+see [development-workflow.md](../../engineering/build-and-release/development-workflow.md)
+for the full dev loop.
+
 > **No-git machines:** Claude Code 2.1.224 added an `archive` plugin source —
 > plugins can be installed from a zip archive over HTTPS, without git or npm,
 > with optional SHA-256 pinning. This repo does not publish release zip
-> artifacts yet, so Methods A–C above remain the supported paths here; if you
+> artifacts yet, so Methods A–D above remain the supported paths here; if you
 > mirror the repo internally, an archive source is now a viable no-git channel.
 
 ## Optional companion marketplaces
