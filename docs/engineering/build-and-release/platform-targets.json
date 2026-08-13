@@ -50,7 +50,7 @@
       "changelog_feature": "3.11",
       "changelog_date": "2026-08-13",
       "verified_on": "2026-08-13",
-      "verification_method": "latest desktop build from official Cursor download links (3.15.19) cross-checked against cursor.com/changelog (feature 3.11; date-only entries through 2026-08-13 Cloud Agent Builds)",
+      "verification_method": "latest desktop build from official Cursor download links (3.15.19) cross-checked against cursor.com/changelog (feature 3.11; date-only entries through 2026-08-13 Cloud Agent Builds); Cursor CLI changelog Aug 11 2026 (plugin hooks + sticky skills) documented",
       "install_doc": "docs/user/install/cursor.md",
       "doc_urls": [
         "https://cursor.com/docs/plugins",
@@ -79,7 +79,9 @@
         "agent-plugins-standard-docs",
         "desktop-cli-pin-3.15.19",
         "automations-memory-delete-docs",
-        "cloud-agent-builds-docs-2026-08-13"
+        "cloud-agent-builds-docs-2026-08-13",
+        "cli-plugin-hooks-docs-2026-08-11",
+        "cli-sticky-skills-docs-2026-08-11"
       ],
       "capabilities": [
         "skills",

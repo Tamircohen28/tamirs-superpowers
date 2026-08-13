@@ -6,6 +6,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ## [Unreleased]
 
 ### Changed
+- **Cursor CLI Aug 11 (desktop 3.15.19) advancement.** Install guide documents CLI sticky skills (Option+Enter), skill discovery skipping hidden dirs, and that installed-plugin hooks now execute in the CLI once a Cursor-native hooks bundle ships. `cli_changelog_date: 2026-08-11` recorded in `.cursor-version`; cursor `features_adopted` gains `cli-plugin-hooks-docs-2026-08-11` + `cli-sticky-skills-docs-2026-08-11`.
 - **Cursor changelog through 2026-08-13 (Cloud Agent Builds).** `.cursor-version` / cursor-only `platform-targets.json` fields keep desktop **3.15.19** + feature **3.11** and advance `changelog_date` to **2026-08-13**. Install guide documents Cloud Agent Builds (warm snapshots; install vs start).
 - **Cursor desktop pin → 3.15.19.** `.cursor-version`, `platform-targets.json` (cursor target only), README badge, and install docs now track desktop **3.15.19** (2026-08-11 download line). Changelog feature coverage remains **3.11**; newest date-only entry remains **2026-08-03** (no newer feature write-up on cursor.com/changelog).
 - **Cursor docs: `workspaceOpen` + Agent Plugins standard.** Install guide notes the app-lifecycle `workspaceOpen` hook (`pluginPaths` for workspace-specific plugins; desktop/CLI only) and that Cursor loads [Agent Plugins](https://agent-plugins.org) alongside `.cursor-plugin` Cursor Plugins.
