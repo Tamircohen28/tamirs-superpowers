@@ -48,9 +48,9 @@
       "validated_against": "3.15.19",
       "latest_known": "3.15.19",
       "changelog_feature": "3.11",
-      "changelog_date": "2026-08-03",
-      "verified_on": "2026-08-12",
-      "verification_method": "latest desktop build from official Cursor download links (3.15.19, 2026-08-11) cross-checked against cursor.com/changelog (feature 3.11; date-only entries through 2026-08-03); no newer feature write-up since 3.11",
+      "changelog_date": "2026-08-13",
+      "verified_on": "2026-08-13",
+      "verification_method": "latest desktop build from official Cursor download links (3.15.19) cross-checked against cursor.com/changelog (feature 3.11; date-only entries through 2026-08-13 Cloud Agent Builds)",
       "install_doc": "docs/user/install/cursor.md",
       "doc_urls": [
         "https://cursor.com/docs/plugins",
@@ -58,7 +58,8 @@
         "https://cursor.com/docs/hooks",
         "https://cursor.com/docs/customize-cursor",
         "https://cursor.com/docs/reference/third-party-hooks",
-        "https://agent-plugins.org"
+        "https://agent-plugins.org",
+        "https://cursor.com/blog/builds"
       ],
       "features_adopted": [
         "cursor-plugin-manifest",
@@ -77,7 +78,8 @@
         "workspace-open-hook-docs",
         "agent-plugins-standard-docs",
         "desktop-cli-pin-3.15.19",
-        "automations-memory-delete-docs"
+        "automations-memory-delete-docs",
+        "cloud-agent-builds-docs-2026-08-13"
       ],
       "capabilities": [
         "skills",

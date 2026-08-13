@@ -4,7 +4,7 @@
 |---|---|
 | **Validated against** | Cursor **3.15.19** |
 | **Minimum supported** | **3.15.19** — see note below |
-| **Changelog covered through** | feature **3.11** + date-only entries to **2026-08-03** (see [`.cursor-version`](../../.cursor-version)) |
+| **Changelog covered through** | feature **3.11** + date-only entries to **2026-08-13** (see [`.cursor-version`](../../.cursor-version)) |
 | **Manifest** | `.cursor-plugin/plugin.json` |
 | **Official docs** | [Plugins](https://cursor.com/docs/plugins) · [Rules](https://cursor.com/docs/context/rules) · [Hooks](https://cursor.com/docs/hooks) · [Customize](https://cursor.com/docs/customize-cursor) |
 
@@ -79,9 +79,10 @@ Cursor reads `.cursor/rules/*.mdc` from the project root automatically. Update b
 
 On Teams/Enterprise, admins can also distribute **Team MCP** servers via the Default team marketplace (**Dashboard → Integrations & MCP → Add to Team Marketplace**, Cursor **3.10**) so members install approved servers from Customize without hand-editing JSON.
 
-## Working tips (3.11 → 2026-08-03; desktop CLI 3.15.19)
+## Working tips (3.11 → 2026-08-13; desktop CLI 3.15.19)
 
-- **Desktop CLI patch line** — public changelog feature numbers can lag `cursor --version`. This repo's pin is **3.15.19** (download line 2026-08-11); newest feature write-up remains **3.11**, newest date-only entry **2026-08-03**.
+- **Desktop CLI patch line** — public changelog feature numbers can lag `cursor --version`. This repo's pin is **3.15.19** (download line 2026-08-11); newest feature write-up remains **3.11**, newest date-only entry **2026-08-13** (Cloud Agent Builds).
+- **Cloud Agent Builds (2026-08-13)** — Cursor prepares warm environment snapshots (repos + `install` already done) so Cloud Agents boot faster; broken builds never go live. For Cloud Agent work on this plugin: enable Builds on the environment's Builds tab, keep durable setup in `install`, and use `start` only for fresh per-session services. Inspect builds via the dashboard or `cursor-cloud` MCP tools. See [announcement](https://cursor.com/blog/builds).
 - **Agent Plugins standard** — Cursor loads [Agent Plugins](https://agent-plugins.org) (root `plugin.json` + skills/MCP) alongside Cursor Plugins (`.cursor-plugin/plugin.json`). This repo ships the Cursor Plugin shape; portable skills/MCP stay compatible with the open standard.
 - **`workspaceOpen` hook** — app-lifecycle hook (desktop/CLI; not Cloud Agents) can return `pluginPaths` so workspace-specific plugins load on open / folder change. Useful when contributing to this repo from a multi-root workspace; not required for marketplace installs.
 - **Side chats (3.11)** — `/side`, `/btw`, or the chat-panel plus button opens a durable secondary agent. Use it to research a skill or rule without interrupting the main thread; at-mention the side chat to pull findings back.
