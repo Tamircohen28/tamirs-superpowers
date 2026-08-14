@@ -52,16 +52,26 @@ deny_cannot_run() {
 The guard refuses to report 'free' when it could not check. Resolve the cause, or set AGENT_CLAIM_DIR to a usable location."
 }
 
-# repo_slug — owner/name for the command, from --repo/-R or the git remote.
+# repo_slug [tokens...] — owner/name for the invocation being examined.
+# An explicit --repo/-R among the given tokens wins; otherwise the git remote of
+# CWD. Only the tokens of the segment actually being guarded are consulted — a
+# `--repo` sitting in some other segment (or inside a quoted message) names a
+# different command's target.
 repo_slug() {
-  local slug
-  slug=$(printf '%s' "$COMMAND" | grep -oE -- '(--repo|-R)[= ]+[^ ]+' | head -1 | sed -E 's/^(--repo|-R)[= ]+//' | tr -d '"'"'"'')
+  local slug="" url
+  while [ "$#" -gt 0 ]; do
+    case "$1" in
+      --repo=*|-R=*) slug="${1#*=}" ;;
+      --repo|-R) [ "$#" -ge 2 ] && slug="$2" ;;
+    esac
+    shift
+  done
   if [ -n "$slug" ]; then
     printf '%s' "$slug" | sed -E 's#^https?://[^/]+/##; s#\.git$##'
     return 0
   fi
-  local url
   url=$(git -C "$CWD" remote get-url origin 2>/dev/null) || return 1
+  [ -n "$url" ] || return 1
   printf '%s' "$url" | sed -E 's#^git@[^:]+:##; s#^https?://[^/]+/##; s#\.git$##'
 }
 
@@ -75,22 +85,50 @@ add_target() { TARGETS="${TARGETS}${1}	${2}
 "; }
 
 # ------------------------------------------------------- target detection ---
+#
+# Detection is STRUCTURE-aware, never substring-aware. The command string is
+# tokenized by claim_effective_segments (hooks/lib/agent-claim.sh), so a
+# `git push` or `gh issue comment` appearing inside a quoted argument, a `-m`
+# message or a heredoc body is what it actually is — text — and only the first
+# word of a real segment can name a guarded command. Matching the raw string
+# instead reads phantom targets out of ordinary commit messages (and, having no
+# idea where a command starts, mis-attributes real ones just as easily).
 
 GH_PR_VERBS='close|merge|edit|reopen|ready|comment|review|lock|unlock|update-branch'
 GH_ISSUE_VERBS='close|edit|reopen|comment|delete|lock|unlock|pin|unpin|transfer'
 
+# The detect_* helpers below read the current segment from the caller's `toks`
+# and `ntoks` (bash is dynamically scoped); detect_targets is their only caller.
+
+# first_number_arg <from-index> — the first bare integer argument of the
+# segment. gh takes the PR/issue number positionally, but flags may precede it
+# (`gh pr comment --repo o/r 123`), so position alone cannot find it.
+first_number_arg() {
+  local i="$1"
+  while [ "$i" -lt "$ntoks" ]; do
+    case "${toks[$i]}" in
+      [0-9]*) case "${toks[$i]}" in *[!0-9]*) : ;; *) printf '%s' "${toks[$i]}"; return 0 ;; esac ;;
+    esac
+    i=$((i + 1))
+  done
+  return 1
+}
+
 detect_gh_numbered() {
   local kind="$1" verbs="$2" verb num slug
-  printf '%s' "$COMMAND" | grep -qE "(^|[;&|[:space:]])gh[[:space:]]+${kind}[[:space:]]+(${verbs})([[:space:]]|$)" || return 0
+  verb="${toks[2]:-}"
+  [ -n "$verb" ] || return 0
+  case "|${verbs}|" in
+    *"|${verb}|"*) : ;;
+    *) return 0 ;;
+  esac
 
-  verb=$(printf '%s' "$COMMAND" | grep -oE "gh[[:space:]]+${kind}[[:space:]]+(${verbs})" | head -1 | awk '{print $3}')
-  num=$(printf '%s' "$COMMAND" | grep -oE "gh[[:space:]]+${kind}[[:space:]]+(${verbs})[[:space:]]+[0-9]+" | head -1 | grep -oE '[0-9]+$')
-
-  slug=$(repo_slug) || slug=""
+  slug=$(repo_slug "${toks[@]}") || slug=""
   if [ -z "$slug" ]; then
     deny_cannot_run "'gh ${kind} ${verb}' targets a repository that could not be identified (no --repo flag and no git remote in '$CWD'), so the guard cannot tell which artifact is being touched."
   fi
 
+  num=$(first_number_arg 3) || num=""
   if [ -z "$num" ]; then
     # No explicit number: gh resolves it from the current branch. Do the same,
     # so the claim key matches what other agents would compute.
@@ -106,12 +144,24 @@ detect_gh_numbered() {
 }
 
 detect_gh_api() {
-  local path slug kind num
-  printf '%s' "$COMMAND" | grep -qE '(^|[;&|[:space:]])gh[[:space:]]+api' || return 0
-  # Mutating only: explicit method, or field flags (which make gh default to POST).
-  printf '%s' "$COMMAND" | grep -qE -- '(-X|--method)[= ]+(PATCH|POST|PUT|DELETE)|(-f|-F|--field|--raw-field)[= ]' || return 0
-
-  path=$(printf '%s' "$COMMAND" | grep -oE 'repos/[^/ "'"'"']+/[^/ "'"'"']+/(pulls|issues)/[0-9]+' | head -1)
+  local i=2 t nxt mutating=0 path="" hit slug kind num
+  while [ "$i" -lt "$ntoks" ]; do
+    t="${toks[$i]}"
+    case "$t" in
+      # Mutating only: an explicit method, or field flags (which make gh POST).
+      -X|--method)
+        nxt="${toks[$((i + 1))]:-}"
+        case "$nxt" in PATCH|POST|PUT|DELETE) mutating=1 ;; esac ;;
+      -X=*|--method=*)
+        case "${t#*=}" in PATCH|POST|PUT|DELETE) mutating=1 ;; esac ;;
+      -f|-F|--field|--raw-field|-f=*|-F=*|--field=*|--raw-field=*) mutating=1 ;;
+      *)
+        hit=$(printf '%s' "$t" | grep -oE 'repos/[^/]+/[^/]+/(pulls|issues)/[0-9]+' | head -1)
+        [ -n "$hit" ] && path="$hit" ;;
+    esac
+    i=$((i + 1))
+  done
+  [ "$mutating" -eq 1 ] || return 0
   [ -n "$path" ] || return 0
 
   slug=$(printf '%s' "$path" | sed -E 's#^repos/([^/]+/[^/]+)/.*#\1#')
@@ -136,34 +186,53 @@ push_fallback_branch() {
   if [ -n "$b" ] && [ "$b" != "HEAD" ]; then printf '%s' "$b"; fi
 }
 
+# git push is parsed whole-command (one invocation can name many destinations,
+# and several segments can each push), so it is detected outside the per-segment
+# loop — claim_push_destinations does its own segment-aware anchoring.
 detect_git_push() {
   local slug parsed rc kind value
-  printf '%s' "$COMMAND" | grep -qE '(^|[;&|[:space:]])git[[:space:]]+([^ ]+[[:space:]]+)*push([[:space:]]|$)' || return 0
+  parsed=$(claim_push_destinations "$COMMAND" "$(push_fallback_branch)")
+  rc=$?
+  [ "$rc" -eq 2 ] && return 0
 
   slug=$(repo_slug) || slug=""
   # A push outside a git repository has no artifact to protect; git will fail
   # on its own. Only guard when there IS a repository.
   [ -n "$slug" ] || return 0
 
-  # Every destination is claim-checked, not just the first: one `git push` can
-  # write several branches, and a collision on any of them is a collision.
-  parsed=$(claim_push_destinations "$COMMAND" "$(push_fallback_branch)")
-  rc=$?
-  [ "$rc" -eq 2 ] && return 0
   if [ "$rc" -ne 0 ]; then
     value="$(printf '%s' "$parsed" | head -1 | cut -f2)"
     deny_cannot_run "'git push' in '$CWD': ${value:-the destination branch could not be determined}. The guard will not fall back to a default branch — that would answer a question about a branch the command never named."
   fi
 
+  # Every destination is claim-checked, not just the first: one `git push` can
+  # write several branches, and a collision on any of them is a collision.
   while IFS=$'\t' read -r kind value; do
     [ "$kind" = "DEST" ] || continue
     add_target "git:${slug}@${value}" "branch '${value}' in ${slug}"
   done <<< "$parsed"
 }
 
-detect_gh_numbered "pr" "$GH_PR_VERBS"
-detect_gh_numbered "issue" "$GH_ISSUE_VERBS"
-detect_gh_api
+detect_targets() {
+  local seg base
+  local -a toks=()
+  local ntoks
+  while IFS= read -r seg; do
+    [ -n "$seg" ] || continue
+    IFS="$_CLAIM_TOKSEP" read -ra toks <<< "$seg"
+    ntoks=${#toks[@]}
+    [ "$ntoks" -gt 0 ] || continue
+    base="${toks[0]##*/}"
+    [ "$base" = "gh" ] || continue
+    case "${toks[1]:-}" in
+      pr)    detect_gh_numbered "pr" "$GH_PR_VERBS" ;;
+      issue) detect_gh_numbered "issue" "$GH_ISSUE_VERBS" ;;
+      api)   detect_gh_api ;;
+    esac
+  done <<< "$(claim_effective_segments "$COMMAND")"
+}
+
+detect_targets
 detect_git_push
 
 # Nothing this guard is responsible for.

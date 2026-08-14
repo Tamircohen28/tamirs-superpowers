@@ -67,14 +67,9 @@ run_hook() {
   if [ "$decision" = "deny" ]; then printf 'DENY:%s' "$reason"; else printf 'ALLOW'; fi
 }
 
-# check <name> <expect: ALLOW|BLOCKED|CANNOTRUN> <command> [claim-age-seconds]
-check() {
-  local name="$1" expect="$2" cmd="$3" age="${4:-0}"
-  local dir result ok=0
-  dir="$TMPROOT/claims.$((PASS + FAIL))"
-  plant_claim "git:acme/repo@main" "$age" "$dir"
-  result="$(run_hook "$cmd" "$dir")"
-
+# judge <name> <expect> <result>
+judge() {
+  local name="$1" expect="$2" result="$3" ok=0
   case "$expect" in
     ALLOW)     [ "$result" = "ALLOW" ] && ok=1 ;;
     BLOCKED)   case "$result" in DENY:BLOCKED*) ok=1 ;; esac ;;
@@ -86,6 +81,50 @@ check() {
   else
     FAIL=$((FAIL + 1)); FAILED_NAMES+=("$name")
     printf '  FAIL %-58s expected %s, got: %s\n' "$name" "$expect" "${result%%$'\n'*}"
+  fi
+}
+
+# check <name> <expect: ALLOW|BLOCKED|CANNOTRUN> <command> [claim-age-seconds]
+check() {
+  local name="$1" expect="$2" cmd="$3" age="${4:-0}"
+  local dir
+  dir="$TMPROOT/claims.$((PASS + FAIL))"
+  plant_claim "git:acme/repo@main" "$age" "$dir"
+  judge "$name" "$expect" "$(run_hook "$cmd" "$dir")"
+}
+
+# check_extra <name> <expect> <command> <extra-resource>
+# As check(), plus a second live claim on <extra-resource> held by another
+# agent - so a `gh` target can be asserted BLOCKED rather than merely unclaimed.
+# Without it, "not treated as a gh command" and "treated as a gh command on a
+# free artifact" both read as ALLOW and the assertion proves nothing.
+check_extra() {
+  local name="$1" expect="$2" cmd="$3" extra="$4"
+  local dir
+  dir="$TMPROOT/claims.$((PASS + FAIL))"
+  plant_claim "git:acme/repo@main" 0 "$dir"
+  plant_claim "$extra" 0 "$dir"
+  judge "$name" "$expect" "$(run_hook "$cmd" "$dir")"
+}
+
+# check_parse <name> <command> <expected-rc> [expected-dest-count]
+# Asserts on claim_push_destinations directly. This is the exact shape the
+# defect was reported in - a plain `git commit` yielding phantom destinations -
+# so it is pinned at the parser as well as end-to-end.
+check_parse() {
+  local name="$1" cmd="$2" want_rc="$3" want_n="${4:-0}"
+  local out rc n
+  out=$(bash -c 'source "$1"; claim_push_destinations "$2" main' _ \
+        "$ROOT/hooks/lib/agent-claim.sh" "$cmd")
+  rc=$?
+  n=$(printf '%s' "$out" | grep -c '^DEST')
+  [ -n "$out" ] || n=0
+  if [ "$rc" = "$want_rc" ] && [ "$n" = "$want_n" ]; then
+    PASS=$((PASS + 1)); printf '  ok   %-58s [rc=%s, %s dest]\n' "$name" "$want_rc" "$want_n"
+  else
+    FAIL=$((FAIL + 1)); FAILED_NAMES+=("$name")
+    printf '  FAIL %-58s expected rc=%s/%s dest, got rc=%s/%s dest: %s\n' \
+      "$name" "$want_rc" "$want_n" "$rc" "$n" "${out%%$'\n'*}"
   fi
 }
 
@@ -130,6 +169,49 @@ echo "--- concurrency guard: non-push targets (regression guard, must not change
 # rather than reporting 'free'.
 check "gh issue comment with non-literal number"    CANNOTRUN 'gh issue comment "$ISSUE" --body hi'
 check "unrelated command is allowed"                ALLOW   "ls -la"
+
+echo "--- concurrency guard: a mention is not an invocation ---"
+# The second defect. Target detection matched the RAW command string, so any
+# `git push` / `gh issue comment` text inside a quoted argument, a -m message or a
+# heredoc body was parsed as if it were a command being run: a plain
+# `git commit` produced four phantom push destinations, one of them `main`, and
+# was denied against the live claim. The parse must be structure-aware - only
+# the first word of a real shell segment names a command.
+check "commit message mentioning a push is allowed" ALLOW \
+  'git commit -m "fixed: git push -q origin feature-x resolved to main"'
+check_parse "that commit yields ZERO push destinations" \
+  'git commit -m "fixed: git push -q origin feature-x resolved to main"' 2 0
+check "heredoc body mentioning a push is allowed" ALLOW \
+  "$(printf 'git commit -F - <<%sMSG%s\nfix: run git push origin main afterwards\nMSG\n' "'" "'")"
+check "echo of a push instruction is allowed"       ALLOW \
+  'echo "run git push origin main to deploy"'
+check "single-quoted mention is allowed"            ALLOW \
+  "git commit -m 'see git push origin main'"
+
+# ...and the trap in the other direction: dropping quoted regions must NOT lose
+# a REAL command that follows one. A push after a quoted argument is still a
+# push, and must still be seen.
+check "real push AFTER a quoted arg is blocked"     BLOCKED \
+  'git commit -m "wip" && git push origin main'
+check "real push after quoted arg, other branch"    ALLOW \
+  'git commit -m "wip" && git push origin feature-x'
+check "push before ; is still seen"                 BLOCKED \
+  'git push origin main; echo done'
+check "push inside sh -c is still seen"             BLOCKED \
+  "bash -c 'git push origin main'"
+
+# Same two-sided test for the `gh` targets: a mention inside a quoted string is
+# text; a real invocation is still guarded exactly as before. Both run against a
+# live claim on the issue, so the two outcomes are distinguishable - without the
+# planted claim, "not a command" and "a command on a free artifact" both ALLOW.
+check_extra "gh comment quoted inside a message"    ALLOW \
+  'git commit -m "then: gh issue comment 42 --body done"' "github:acme/repo#issue-42"
+check_extra "real gh issue comment 42 is blocked"          BLOCKED \
+  'gh issue comment 42 --body done' "github:acme/repo#issue-42"
+check_extra "real gh pr comment 42 is blocked"      BLOCKED \
+  'gh pr comment 42 --body done' "github:acme/repo#pr-42"
+check_extra "real gh comment on a free issue"       ALLOW \
+  'gh issue comment 43 --body done' "github:acme/repo#issue-42"
 
 echo "--- liveness probe uses ps -p, not kill -0 ---"
 # `kill -0` returns EPERM for a live process owned by another user, which reads
