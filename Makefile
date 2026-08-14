@@ -3,7 +3,7 @@
 	check-feature-equivalence check-platform-targets platform-targets-sync \
 	platform-targets-assert platform-targets-cochange agent\:check agent-polish-gate \
 	assert-contract repo-standards-gate opencode-agents opencode-agents-check \
-	check-marketplace-schema check-doc-claims
+	check-marketplace-schema check-doc-claims test-hooks
 
 SKILLS_DIR := skills
 HOOKS_DIR  := hooks
@@ -25,6 +25,7 @@ help:
 	@echo "  opencode-agents         — regenerate .opencode/agent/*.md from agents/*.md"
 	@echo "  opencode-agents-check   — fail if .opencode/agent/ has drifted from agents/"
 	@echo "  lint                    — shellcheck .sh files only"
+	@echo "  test-hooks              — behavior tests for hooks/ (tests/test-*.sh)"
 	@echo "  test-repo-contract      — contract fixtures (app-gold, plugin-gold, claude-plugin-gold)"
 	@echo "  plugin-validate         — claude plugin validate (requires Claude Code CLI)"
 	@echo "  check-manifest-versions — plugin manifests agree with each other"
@@ -41,7 +42,13 @@ update:
 uninstall:
 	@bash scripts/uninstall.sh
 
-validate: lint test-repo-contract check-manifest-versions check-platform-equivalence check-marketplace-schema check-doc-claims
+test-hooks:
+	@echo "--- Hook behavior tests ---"
+	@find tests -maxdepth 1 -name 'test-*.sh' 2>/dev/null | sort | while read -r f; do \
+	  echo "==> $$f"; bash "$$f" || exit 1; \
+	done
+
+validate: lint test-hooks test-repo-contract check-manifest-versions check-platform-equivalence check-marketplace-schema check-doc-claims
 	@echo "--- Validating JSON files ---"
 	@find . -name '*.json' -not -path '*/.git/*' | while read f; do \
 	  jq empty "$$f" 2>&1 && echo "  OK  $$f" || { echo "  FAIL $$f"; exit 1; }; \
