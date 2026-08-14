@@ -213,7 +213,7 @@ For **every** key in `platform-targets.json` → `supported_targets`, confirm al
 
 Two failure modes to check for specifically, because both fail quietly:
 
-- **Marketplace declaration shape.** Claude Code's `extraKnownMarketplaces` is a **record keyed by marketplace name**, never an array. An array is dropped with no error and no warning, and a valid global `~/.claude/settings.json` can mask the broken project-level file for months. Nested form is `source: {source, repo}` (GitHub) or `source: {source, url}` (git); there is no `sourceUrl` field. Verify with `claude doctor`.
+- **Marketplace declaration shape.** Claude Code's `extraKnownMarketplaces` is a **record keyed by marketplace name**, never an array. An array is dropped with no error and no warning, and a valid global `~/.claude/settings.json` can mask the broken project-level file for months. Nested form is `source: {source, repo}` (GitHub) or `source: {source, url}` (git); there is no `sourceUrl` field. Verify with `claude doctor`. Since Claude Code 2.1.232, `additionalMarketplaces` is accepted as a friendlier alias (and `allowedMarketplaces` for `strictKnownMarketplaces`) — same record shape, same silent-drop trap for arrays; keep `extraKnownMarketplaces` in files that must load on older versions.
 - **Capability assumptions across targets.** Do not recommend a fix that assumes a capability the target lacks — OpenCode has no plugin manifest, no marketplace, no `hooks.json`, and no plugin-declared statusline. Record each such gap in `capability_gaps` so later passes do not re-propose it.
 
 `make check-doc-claims` enforces V-02, V-03, and V-05; `make check-platform-targets` enforces V-04; `make check-marketplace-schema` enforces the record shape. All three run inside `make validate`.
