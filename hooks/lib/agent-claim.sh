@@ -218,6 +218,138 @@ claim_write() {
   return 0
 }
 
+# ------------------------------------------------------- git push parsing ---
+#
+# WHY THIS IS A REAL PARSER AND NOT A REGEX
+#   `git push` destinations cannot be read positionally. A leading flag shifts
+#   every argument (`git push -q origin feature-x`), refspecs come in several
+#   shapes (`branch`, `HEAD:branch`, `src:dst`, `+src:dst`, `:branch`,
+#   `--delete branch`), a bare `git push` names no destination at all, and a
+#   single invocation may push MANY destinations. A positional read gets all of
+#   these wrong, and — worse — its failure mode is silence: it returns an empty
+#   branch, the caller substitutes the current/default branch, and the guard
+#   then answers a question nobody asked. That is wrong in both directions: it
+#   blocks a push to an unclaimed feature branch, and it waves through a push to
+#   a claimed branch whenever the argument shape happens to resolve elsewhere.
+#
+#   So: never guess. If the destination cannot be determined, say so loudly and
+#   let the caller deny — the same posture claim_inspect takes for ERROR.
+
+_claim_unquote() {
+  local t="$1"
+  t="${t#\"}"; t="${t%\"}"
+  t="${t#\'}"; t="${t%\'}"
+  printf '%s' "$t"
+}
+
+# claim_push_destinations <command> [fallback-branch]
+#
+# Prints one line per resolved destination: DEST<TAB><branch>
+# On failure prints exactly one line:      ERROR<TAB><reason>
+#
+# Returns 0 = destinations printed
+#         1 = destination undeterminable (caller MUST fail loud, never allow)
+#         2 = the command contains no `git push` at all (nothing to guard)
+#
+# <fallback-branch> is used ONLY where git itself would use the current branch's
+# upstream/name: a bare `git push`, `git push <remote>`, or `git push <remote>
+# HEAD`. It is never a default-branch guess; when it is empty in those cases the
+# function errors instead.
+claim_push_destinations() {
+  local cmd="$1" fallback="${2:-}"
+  local sep=$'\001' norm tok t2 i j n start=-1
+  local -a toks=() positional=()
+  local delete=0 broad="" nomoreflags=0
+
+  norm="${cmd//$'\n'/ }"
+  norm="${norm//&&/ $sep }"
+  norm="${norm//||/ $sep }"
+  norm="${norm//|/ $sep }"
+  norm="${norm//;/ $sep }"
+  read -ra toks <<< "$norm"
+  n=${#toks[@]}
+
+  # Locate `push` inside a `git` invocation (allowing `git -C dir push` etc).
+  for ((i = 0; i < n; i++)); do
+    tok="$(_claim_unquote "${toks[i]}")"
+    [ "$tok" = "git" ] || continue
+    for ((j = i + 1; j < n; j++)); do
+      t2="$(_claim_unquote "${toks[j]}")"
+      [ "$t2" = "$sep" ] && break
+      case "$t2" in
+        -C|-c|--git-dir|--work-tree|--namespace|--exec-path) j=$((j + 1)) ;;
+        push) start=$((j + 1)); break ;;
+        -*) : ;;
+        *) break ;;
+      esac
+    done
+    [ "$start" -ge 0 ] && break
+  done
+  [ "$start" -ge 0 ] || return 2
+
+  for ((i = start; i < n; i++)); do
+    tok="$(_claim_unquote "${toks[i]}")"
+    [ "$tok" = "$sep" ] && break
+    if [ "$nomoreflags" -eq 1 ]; then positional+=("$tok"); continue; fi
+    case "$tok" in
+      --) nomoreflags=1 ;;
+      -d|--delete) delete=1 ;;
+      --all|--mirror) broad="$tok" ;;
+      # Flags that consume the NEXT argument — skip both, or their value would
+      # be misread as the remote/refspec.
+      -o|--push-option|--receive-pack|--exec|--repo) i=$((i + 1)) ;;
+      -*) : ;;
+      *) positional+=("$tok") ;;
+    esac
+  done
+
+  if [ -n "$broad" ]; then
+    printf 'ERROR\tthe push uses %s, which sends every ref — the set of destination branches cannot be enumerated from the command\n' "$broad"
+    return 1
+  fi
+
+  local -a dsts=()
+  if [ "${#positional[@]}" -le 1 ]; then
+    # Bare `git push` / `git push <remote>`: git resolves the destination from
+    # the current branch's upstream. Resolve the SAME way, or fail loud.
+    if [ "$delete" -eq 1 ]; then
+      printf 'ERROR\t--delete was given with no ref to delete, so the destination branch cannot be determined\n'
+      return 1
+    fi
+    if [ -z "$fallback" ]; then
+      printf 'ERROR\tthe push names no refspec and the current branch/upstream could not be resolved, so the destination branch cannot be determined\n'
+      return 1
+    fi
+    dsts+=("$fallback")
+  else
+    local spec dst had_colon
+    for spec in "${positional[@]:1}"; do
+      dst="${spec#+}"
+      had_colon=0
+      case "$dst" in *:*) had_colon=1; dst="${dst#*:}" ;; esac
+      dst="${dst#refs/heads/}"
+      if [ "$dst" = "HEAD" ] && [ "$had_colon" -eq 0 ]; then
+        if [ -z "$fallback" ]; then
+          printf 'ERROR\tthe push targets HEAD but the current branch could not be resolved, so the destination branch cannot be determined\n'
+          return 1
+        fi
+        dst="$fallback"
+      fi
+      case "$dst" in
+        ""|HEAD|*'*'*)
+          printf 'ERROR\trefspec %s does not resolve to a single named destination branch\n' "$spec"
+          return 1
+          ;;
+      esac
+      dsts+=("$dst")
+    done
+  fi
+
+  local d
+  for d in "${dsts[@]}"; do printf 'DEST\t%s\n' "$d"; done
+  return 0
+}
+
 # claim_release_all <my-agent-id> — drop every claim held by this agent.
 claim_release_all() {
   local me="$1" f holder released=0

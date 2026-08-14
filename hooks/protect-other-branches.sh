@@ -122,22 +122,43 @@ detect_gh_api() {
   add_target "github:${slug}#${kind}-${num}" "${kind} #${num} in ${slug} (via gh api)"
 }
 
+# push_fallback_branch — what git itself would push to when no refspec is given:
+# the current branch's upstream, else the current branch. Empty when neither is
+# resolvable — the caller then fails loud rather than guessing a default branch.
+push_fallback_branch() {
+  local up b
+  up=$(git -C "$CWD" rev-parse --abbrev-ref --symbolic-full-name '@{upstream}' 2>/dev/null)
+  if [ -n "$up" ] && [ "$up" != "@{upstream}" ]; then
+    printf '%s' "${up#*/}"
+    return 0
+  fi
+  b=$(current_branch)
+  if [ -n "$b" ] && [ "$b" != "HEAD" ]; then printf '%s' "$b"; fi
+}
+
 detect_git_push() {
-  local slug branch
-  printf '%s' "$COMMAND" | grep -qE '(^|[;&|[:space:]])git[[:space:]]+(-C[[:space:]]+[^ ]+[[:space:]]+)?push([[:space:]]|$)' || return 0
+  local slug parsed rc kind value
+  printf '%s' "$COMMAND" | grep -qE '(^|[;&|[:space:]])git[[:space:]]+([^ ]+[[:space:]]+)*push([[:space:]]|$)' || return 0
 
   slug=$(repo_slug) || slug=""
   # A push outside a git repository has no artifact to protect; git will fail
   # on its own. Only guard when there IS a repository.
   [ -n "$slug" ] || return 0
 
-  branch=$(printf '%s' "$COMMAND" | grep -oE 'git[[:space:]]+push[[:space:]]+[^ -][^ ]*[[:space:]]+([^ -][^ ]*)' | head -1 | awk '{print $4}' | sed 's#^HEAD:##; s#^refs/heads/##')
-  [ -n "$branch" ] || branch=$(current_branch)
-  if [ -z "$branch" ] || [ "$branch" = "HEAD" ]; then
-    deny_cannot_run "'git push' in '$CWD' targets a branch that could not be identified, so the guard cannot tell which branch is being modified."
+  # Every destination is claim-checked, not just the first: one `git push` can
+  # write several branches, and a collision on any of them is a collision.
+  parsed=$(claim_push_destinations "$COMMAND" "$(push_fallback_branch)")
+  rc=$?
+  [ "$rc" -eq 2 ] && return 0
+  if [ "$rc" -ne 0 ]; then
+    value="$(printf '%s' "$parsed" | head -1 | cut -f2)"
+    deny_cannot_run "'git push' in '$CWD': ${value:-the destination branch could not be determined}. The guard will not fall back to a default branch — that would answer a question about a branch the command never named."
   fi
 
-  add_target "git:${slug}@${branch}" "branch '${branch}' in ${slug}"
+  while IFS=$'\t' read -r kind value; do
+    [ "$kind" = "DEST" ] || continue
+    add_target "git:${slug}@${value}" "branch '${value}' in ${slug}"
+  done <<< "$parsed"
 }
 
 detect_gh_numbered "pr" "$GH_PR_VERBS"
