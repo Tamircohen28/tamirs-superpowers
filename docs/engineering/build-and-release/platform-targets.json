@@ -34,7 +34,8 @@
         "marketplace-refresh-on-install-2.1.221",
         "command-source-dev-install-2.1.229",
         "marketplace-refresh-first-install-2.1.232",
-        "marketplace-settings-aliases-docs-2.1.232"
+        "marketplace-settings-aliases-docs-2.1.232",
+        "cross-session-messaging-refinements-2.1.232"
       ],
       "capabilities": [
         "skills",

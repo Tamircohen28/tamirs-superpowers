@@ -19,12 +19,18 @@ See [platform capabilities](../../skills/dev-workflow/switch-dev/references/plat
 > can also *start* a conversation with a Remote Control session on another
 > machine by name (previously it could only reply after that session messaged
 > first), and messages parked for a headless session are no longer held
-> silently without notice or expiry. Useful for coordinating parallel Claude
-> Code sessions live; messages to a session running with bypassed permissions
-> are held for your approval (`crossSessionInbound` setting). This complements
-> — not replaces — the handoff flow below, which is the only path that carries
-> task state **across platforms** (Cursor, Codex, OpenCode) and across time via
-> GitHub Issues.
+> silently without notice or expiry. Since 2.1.232, typing `@` in the prompt
+> mentions another live session by name and Claude sends via `SendMessage`
+> for you; a bare name that exactly matches one live session delivers
+> immediately instead of asking you to confirm with a ref first; and sessions
+> on the same machine keep unique names (a clash gets a `name-word-word`
+> variant) so a mention or bare-name send can't land on the wrong one. `/config`
+> now has rows for dialog expiry and inbound cross-session messages. Useful for
+> coordinating parallel Claude Code sessions live; messages to a session
+> running with bypassed permissions are held for your approval
+> (`crossSessionInbound` setting). This complements — not replaces — the
+> handoff flow below, which is the only path that carries task state **across
+> platforms** (Cursor, Codex, OpenCode) and across time via GitHub Issues.
 
 ## Pipeline
 
