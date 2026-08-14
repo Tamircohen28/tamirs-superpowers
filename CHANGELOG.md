@@ -17,6 +17,28 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - **Cursor docs: Claude hooks ≠ Cursor hooks.** `docs/user/install/cursor.md` and `platform-equivalence.md` now state that `hooks/hooks.json` is Claude-shaped and does not fire Cursor plugin/cloud hook events; worktree guards on Cursor stay rule/AGENTS-based until a Cursor-native hooks bundle lands.
 - **Cursor coverage pin.** Root `.cursor-version` records CLI **3.14.7** plus changelog feature **3.11** / date **2026-08-03**. Cursor `features_adopted` notes Customize (3.9), Team MCP + org-group marketplace access (3.10), side chats, and optional Google Workspace plugins (2026-08-03).
 - **Cursor Automations (3.8) working tip.** Install guide documents `/automate` GitHub triggers (Workflow run completed, PR review comment) and computer-use demos for plugin CI / review triage.
+- **Platform target: Claude Code 2.1.232** (from 2.1.231). Docs-only bump — no shipped
+  plugin content changed, so no version bump. The 2.1.232 delta reviewed against the
+  plugin surface: manifests, skills frontmatter, hooks, MCP stubs, statusline, and
+  marketplace flow all remain valid. Two entries are adopted into the docs:
+  **`/plugin install plugin@marketplace` now refreshes the marketplace first**
+  (2.1.232) — the install guide's Method A and troubleshooting's stale-plugin note
+  now carry the version-scoped story (refresh-first on 2.1.232+, refresh-and-retry
+  since 2.1.221, manual `marketplace update` before that); and **marketplace
+  settings aliases** (2.1.232) — `additionalMarketplaces` / `allowedMarketplaces`
+  accepted as friendlier names for `extraKnownMarketplaces` /
+  `strictKnownMarketplaces`. The `repo-standards` skill and the
+  `plugin-version-bump` rule note the alias alongside the record-not-array trap
+  (which applies identically under both spellings), keeping the old names as the
+  compatible default. Also reviewed, host-side with no plugin change needed: the
+  startup-race fix for concurrent `known_marketplaces.json` writes that could
+  silently unregister a marketplace (removes a failure mode this plugin's install
+  docs previously had no answer for), GitLab marketplace URLs and GitLab token
+  redaction (this plugin's family is GitHub-hosted), subagent forking on by
+  default and session `@`-mentions (host orchestration, no hook or skill here
+  keys on the old defaults), the nested-git-repo trust confirmation (worktree
+  hooks guard *edits*, not trust, and are unaffected), and the `sandbox.ripgrep`
+  project-settings restriction (this plugin sets no sandbox overrides).
 - **Platform target: Claude Code 2.1.231** (from 2.1.228). Docs-only bump — no shipped
   plugin content changed, so no version bump. The 2.1.229 + 2.1.231 delta (no 2.1.230
   entry was published) reviewed against the plugin surface: manifests, skills
