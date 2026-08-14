@@ -27,6 +27,14 @@ jobs:
             echo "hooks/ absent — skipping"
           fi
 
+  hook-tests:
+    name: Hook behavior tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+      - name: Run hook behavior tests
+        run: make test-hooks
+
   validate-json:
     name: Validate JSON
     runs-on: ubuntu-latest
