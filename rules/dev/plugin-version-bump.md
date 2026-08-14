@@ -59,7 +59,7 @@ A target is not "supported" until **all five** exist. `make validate` enforces i
 
 Never record a `validated_against` you did not observe. Run the target's own `--version` on the machine and write how you got it into `verification_method`. A guessed floor is worse than an absent one — it converts "unknown" into a false promise.
 
-Marketplace declarations are per-target and not interchangeable. Claude Code's `extraKnownMarketplaces` is a **record keyed by marketplace name** — an array is dropped silently, with no error and no warning. Cursor and Codex read their own manifests; OpenCode has no marketplace at all. `make check-marketplace-schema` guards the shape in both real settings files and the scaffold templates.
+Marketplace declarations are per-target and not interchangeable. Claude Code's `extraKnownMarketplaces` is a **record keyed by marketplace name** — an array is dropped silently, with no error and no warning. (Since Claude Code 2.1.232 the setting is also accepted under the alias `additionalMarketplaces`; identical record shape and the same silent array drop — prefer `extraKnownMarketplaces` where older versions must read the file.) Cursor and Codex read their own manifests; OpenCode has no marketplace at all. `make check-marketplace-schema` guards the shape in both real settings files and the scaffold templates.
 
 ## Agent checklist (after plugin content changes)
 
