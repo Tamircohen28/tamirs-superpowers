@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| **Validated against** | Claude Code **2.1.231** |
+| **Validated against** | Claude Code **2.1.232** |
 | **Minimum supported** | **2.0.0** |
 | **Plugin manifest** | `.claude-plugin/plugin.json` |
 | **Marketplace manifest** | `.claude-plugin/marketplace.json` |
@@ -16,7 +16,7 @@ claude --version
 
 ## Prerequisites
 
-- Claude Code 2.0.0 or newer (2.1.231 is what this release was validated on)
+- Claude Code 2.0.0 or newer (2.1.232 is what this release was validated on)
 - `jq` — `brew install jq`
 - `git` 2.30+
 
@@ -33,6 +33,9 @@ Since Claude Code 2.1.221, `/plugin install` activates the plugin immediately
 when safe — no `/reload-plugins` step. It also refreshes a stale marketplace
 catalog and retries before reporting a plugin not found, so a fresh
 `marketplace add` → `install` sequence no longer races the catalog cache.
+Since 2.1.232, `/plugin install tamirs-superpowers@tamirs-marketplace` goes one
+better and refreshes the marketplace **first**, so a release published minutes
+ago installs without any manual `marketplace update`.
 On older versions, finish with `/reload-plugins`.
 
 To pick up a new release later:
