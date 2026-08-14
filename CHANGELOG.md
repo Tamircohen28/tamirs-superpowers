@@ -20,25 +20,30 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - **Platform target: Claude Code 2.1.232** (from 2.1.231). Docs-only bump — no shipped
   plugin content changed, so no version bump. The 2.1.232 delta reviewed against the
   plugin surface: manifests, skills frontmatter, hooks, MCP stubs, statusline, and
-  marketplace flow all remain valid. Two entries are adopted into the docs:
+  marketplace flow all remain valid. Three entries are adopted into the docs:
   **`/plugin install plugin@marketplace` now refreshes the marketplace first**
   (2.1.232) — the install guide's Method A and troubleshooting's stale-plugin note
   now carry the version-scoped story (refresh-first on 2.1.232+, refresh-and-retry
-  since 2.1.221, manual `marketplace update` before that); and **marketplace
+  since 2.1.221, manual `marketplace update` before that); **marketplace
   settings aliases** (2.1.232) — `additionalMarketplaces` / `allowedMarketplaces`
   accepted as friendlier names for `extraKnownMarketplaces` /
   `strictKnownMarketplaces`. The `repo-standards` skill and the
   `plugin-version-bump` rule note the alias alongside the record-not-array trap
   (which applies identically under both spellings), keeping the old names as the
-  compatible default. Also reviewed, host-side with no plugin change needed: the
+  compatible default; and **cross-session `SendMessage` refinements** (2.1.232) —
+  `@`-mention-to-send, bare-name delivery without a confirm step, and unique
+  same-machine session names are now documented in `cross-platform-workflow.md`'s
+  Claude-Code-to-Claude-Code callout alongside the existing 2.1.224/2.1.225
+  behavior. Also reviewed, host-side with no plugin change needed: the
   startup-race fix for concurrent `known_marketplaces.json` writes that could
   silently unregister a marketplace (removes a failure mode this plugin's install
   docs previously had no answer for), GitLab marketplace URLs and GitLab token
   redaction (this plugin's family is GitHub-hosted), subagent forking on by
-  default and session `@`-mentions (host orchestration, no hook or skill here
-  keys on the old defaults), the nested-git-repo trust confirmation (worktree
-  hooks guard *edits*, not trust, and are unaffected), and the `sandbox.ripgrep`
-  project-settings restriction (this plugin sets no sandbox overrides).
+  default (tracked separately as a Future opportunity — worth a pass over the
+  fork-using skills' `background:` frontmatter), the nested-git-repo trust
+  confirmation (worktree hooks guard *edits*, not trust, and are unaffected),
+  and the `sandbox.ripgrep` project-settings restriction (this plugin sets no
+  sandbox overrides).
 - **Platform target: Claude Code 2.1.231** (from 2.1.228). Docs-only bump — no shipped
   plugin content changed, so no version bump. The 2.1.229 + 2.1.231 delta (no 2.1.230
   entry was published) reviewed against the plugin surface: manifests, skills
