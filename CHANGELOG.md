@@ -6,6 +6,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ## [Unreleased]
 
 ### Changed
+- **Cursor Builds Aug-17 readiness + CLI steer/`/goal`.** Install guide documents enable-Builds-now (default **2026-08-17**), team/environment secrets for Builds install, git-staleness threshold, CLI steer-while-running, and durable `/goal`. Cursor-only `features_adopted` gains the matching adoption tags; pins stay **3.15.19** / feature **3.11** / **2026-08-13**.
 - **Cursor CLI Aug 11 (desktop 3.15.19) advancement.** Install guide documents CLI sticky skills (Option+Enter), skill discovery skipping hidden dirs, and that installed-plugin hooks now execute in the CLI once a Cursor-native hooks bundle ships. `cli_changelog_date: 2026-08-11` recorded in `.cursor-version`; cursor `features_adopted` gains `cli-plugin-hooks-docs-2026-08-11` + `cli-sticky-skills-docs-2026-08-11`.
 - **Cursor changelog through 2026-08-13 (Cloud Agent Builds).** `.cursor-version` / cursor-only `platform-targets.json` fields keep desktop **3.15.19** + feature **3.11** and advance `changelog_date` to **2026-08-13**. Install guide documents Cloud Agent Builds (warm snapshots; install vs start).
 - **Cursor desktop pin → 3.15.19.** `.cursor-version`, `platform-targets.json` (cursor target only), README badge, and install docs now track desktop **3.15.19** (2026-08-11 download line). Changelog feature coverage remains **3.11**; newest date-only entry remains **2026-08-03** (no newer feature write-up on cursor.com/changelog).
