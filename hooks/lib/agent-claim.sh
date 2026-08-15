@@ -387,11 +387,44 @@ claim_shell_segments() {
       continue
     fi
 
+    # Redirections are not arguments, and their operands are files or file
+    # descriptors — never refs. Both halves have to go:
+    #
+    #   `2>&1`        the leading 2 is an fd, not a positional argument
+    #   `2>/dev/null` /dev/null is a path, not a positional argument
+    #
+    # Emitting either one as a token is what made `git push origin br 2>&1`
+    # read as a push to a branch named `2`, minting a 900s phantom claim on
+    # every redirected git command. Consume the operator and its operand here.
+    if [ "$c" = '>' ] || [ "$c" = '<' ] ||
+       { [ "$c" = '&' ] && [ "${s:i+1:1}" = '>' ]; }; then
+      # A pending all-digits token is this redirect's fd prefix, not an arg.
+      case "$tok" in
+        ''|*[!0-9]*) : ;;
+        *) tok=""; have_tok=0 ;;
+      esac
+      _claim_emit_tok
+      [ "$c" = '&' ] && i=$((i + 1))        # &>
+      i=$((i + 1))                          # the > or <
+      [ "${s:i:1}" = '>' ] && i=$((i + 1))  # >> append
+      [ "${s:i:1}" = '&' ] && i=$((i + 1))  # >& duplicate
+      while [ "$i" -lt "$n" ] && { [ "${s:i:1}" = ' ' ] || [ "${s:i:1}" = $'\t' ]; }; do
+        i=$((i + 1))
+      done
+      while [ "$i" -lt "$n" ]; do           # the operand word
+        c2="${s:i:1}"
+        case "$c2" in
+          ' '|$'\t'|$'\n'|';'|'&'|'|'|'('|')') break ;;
+        esac
+        i=$((i + 1))
+      done
+      continue
+    fi
+
     case "$c" in
       ' '|$'\t') _claim_emit_tok; i=$((i + 1)); continue ;;
       $'\n')     _claim_emit_seg; i=$((i + 1)); _claim_skip_heredocs; continue ;;
       ';'|'&'|'|'|'('|')') _claim_emit_seg; i=$((i + 1)); continue ;;
-      '>'|'<')   _claim_emit_tok; i=$((i + 1)); continue ;;
       '`')       _claim_emit_seg; i=$((i + 1)); continue ;;
     esac
 
