@@ -43,6 +43,49 @@ CWD=$(printf '%s' "$INPUT" | jq -r '.cwd // (.workspace_roots[0]? // "") // ""')
 SESSION=$(printf '%s' "$INPUT" | jq -r '.session_id // .conversation_id // ""')
 [ -n "$CWD" ] && [ -d "$CWD" ] || CWD="$PWD"
 
+# The payload's `.cwd` is the SESSION's directory, not the command's. An agent
+# working in a worktree writes `cd <worktree> && git push`, and resolving the
+# remote from the session directory then attributes the push to a different
+# repository entirely: every pm-marketing-site branch was claimed against
+# ProductionMasterAI/dev, blocking the repo nobody was editing while protecting
+# nothing in the one they were. Honour a leading `cd` before resolving anything
+# from CWD. (`git -C` is handled per-invocation inside repo_slug.)
+effective_cwd() {
+  local seg dir
+  local -a ctoks=()
+  while IFS= read -r seg; do
+    [ -n "$seg" ] || continue
+    IFS="$_CLAIM_TOKSEP" read -ra ctoks <<< "$seg"
+    [ "${#ctoks[@]}" -ge 2 ] || continue
+    dir=""
+    if [ "${ctoks[0]}" = "cd" ]; then
+      dir="${ctoks[1]}"
+    elif [ "${ctoks[0]##*/}" = "git" ]; then
+      # `git -C <dir>` relocates the invocation as surely as a cd does, and
+      # detect_git_push resolves the slug without access to the segment tokens.
+      local gi=1
+      while [ "$gi" -lt "${#ctoks[@]}" ]; do
+        if [ "${ctoks[$gi]}" = "-C" ] && [ $((gi + 1)) -lt "${#ctoks[@]}" ]; then
+          dir="${ctoks[$((gi + 1))]}"; break
+        fi
+        gi=$((gi + 1))
+      done
+    fi
+    [ -n "$dir" ] || continue
+    case "$dir" in
+      -|--) continue ;;
+      "~") dir="$HOME" ;;
+      "~/"*) dir="$HOME/${dir#\~/}" ;;
+    esac
+    case "$dir" in /*) : ;; *) dir="$CWD/$dir" ;; esac
+    [ -d "$dir" ] || continue
+    printf '%s' "$dir"
+    return 0
+  done <<< "$(claim_effective_segments "$COMMAND")"
+  return 1
+}
+_eff=$(effective_cwd) && [ -n "$_eff" ] && CWD="$_eff"
+
 ME="$(claim_agent_id "$SESSION")"
 
 # ---------------------------------------------------------------- helpers ---
@@ -58,11 +101,13 @@ The guard refuses to report 'free' when it could not check. Resolve the cause, o
 # `--repo` sitting in some other segment (or inside a quoted message) names a
 # different command's target.
 repo_slug() {
-  local slug="" url
+  local slug="" url dir="$CWD"
   while [ "$#" -gt 0 ]; do
     case "$1" in
       --repo=*|-R=*) slug="${1#*=}" ;;
       --repo|-R) [ "$#" -ge 2 ] && slug="$2" ;;
+      # `git -C <dir>` moves the invocation, so it moves the repo it targets.
+      -C) [ "$#" -ge 2 ] && [ -d "$2" ] && dir="$2" ;;
     esac
     shift
   done
@@ -70,7 +115,7 @@ repo_slug() {
     printf '%s' "$slug" | sed -E 's#^https?://[^/]+/##; s#\.git$##'
     return 0
   fi
-  url=$(git -C "$CWD" remote get-url origin 2>/dev/null) || return 1
+  url=$(git -C "$dir" remote get-url origin 2>/dev/null) || return 1
   [ -n "$url" ] || return 1
   printf '%s' "$url" | sed -E 's#^git@[^:]+:##; s#^https?://[^/]+/##; s#\.git$##'
 }
