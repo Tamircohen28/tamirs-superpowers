@@ -224,6 +224,72 @@ else
   printf '  FAIL %-58s\n' "claim_pid_alive must use ps -p, never kill -0"
 fi
 
+# --- redirections are not arguments (2>&1 minting a branch named "2") ---
+#
+# `2>&1` used to tokenize into a positional argument `2`, so every redirected
+# git command claimed a branch named "2" for 900s and blocked unrelated pushes.
+# Both directions: the phantom must not block, and a REAL push to the claimed
+# branch must still block when it carries the same redirect — otherwise the fix
+# is indistinguishable from switching the parser off.
+check_redir() {
+  local name="$1" expect="$2" cmd="$3" claimed="$4"
+  local dir
+  dir="$TMPROOT/claims.redir.$((PASS + FAIL))"
+  plant_claim "$claimed" 0 "$dir"
+  judge "$name" "$expect" "$(run_hook "$cmd" "$dir")"
+}
+
+echo "--- redirections are not branch names ---"
+check_redir "2>&1 does not claim a branch named 2"      ALLOW \
+  'git push origin feature-x 2>&1 | tail -4'            "git:acme/repo@2"
+check_redir "2>/dev/null does not claim /dev/null"      ALLOW \
+  'git push origin feature-x 2>/dev/null'               "git:acme/repo@/dev/null"
+check_redir ">&2 does not claim a branch named 2"       ALLOW \
+  'git push origin feature-x >&2'                       "git:acme/repo@2"
+check_redir ">out.log does not claim the log file"      ALLOW \
+  'git push origin feature-x >out.log 2>&1'             "git:acme/repo@out.log"
+# The other direction: detection still works THROUGH a redirect.
+check_redir "real push still blocked despite 2>&1"      BLOCKED \
+  'git push origin main 2>&1 | tail -4'                 "git:acme/repo@main"
+check_redir "real push still blocked despite 2>/dev/null" BLOCKED \
+  'git push origin main 2>/dev/null'                    "git:acme/repo@main"
+
+check_parse "redirect yields no phantom destination" \
+  'git push origin feature-x 2>&1 | tail -4' 0 1
+
+# --- the command's own `cd` decides which repo is claimed ---
+#
+# The hook payload's cwd is the SESSION's directory. An agent working in a
+# worktree writes `cd <worktree> && git push`, and resolving the remote from the
+# session directory attributed every push to the session's repo — blocking a
+# repository nobody was editing while protecting nothing in the one they were.
+OTHER="$TMPROOT/other"
+mkdir -p "$OTHER"
+git -C "$OTHER" init -q -b main
+git -C "$OTHER" remote add origin https://github.com/acme/other.git
+git -C "$OTHER" -c user.email=t@e -c user.name=t commit -q --allow-empty -m init
+
+echo "--- repo attribution follows the command, not the session ---"
+dir="$TMPROOT/claims.cd.1"
+plant_claim "git:acme/repo@main" 0 "$dir"
+judge "cd into another repo is not claimed against the session repo" ALLOW \
+  "$(run_hook "cd $OTHER && git push origin main" "$dir")"
+
+dir="$TMPROOT/claims.cd.2"
+plant_claim "git:acme/other@main" 0 "$dir"
+judge "cd into another repo IS claimed against that repo" BLOCKED \
+  "$(run_hook "cd $OTHER && git push origin main" "$dir")"
+
+dir="$TMPROOT/claims.cd.3"
+plant_claim "git:acme/other@main" 0 "$dir"
+judge "git -C targets the other repo too" BLOCKED \
+  "$(run_hook "git -C $OTHER push origin main" "$dir")"
+
+dir="$TMPROOT/claims.cd.4"
+plant_claim "git:acme/repo@main" 0 "$dir"
+judge "no cd: the session repo is still the target" BLOCKED \
+  "$(run_hook "git push origin main" "$dir")"
+
 echo
 echo "passed: $PASS   failed: $FAIL"
 if [ "$FAIL" -ne 0 ]; then
