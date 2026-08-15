@@ -2,8 +2,8 @@
 
 | | |
 |---|---|
-| **Validated against** | Cursor **3.15.19** |
-| **Minimum supported** | **3.15.19** — see note below |
+| **Validated against** | Cursor **3.16.17** |
+| **Minimum supported** | **3.16.17** — see note below |
 | **Changelog covered through** | feature **3.11** + date-only entries to **2026-08-13** (see [`.cursor-version`](../../.cursor-version)) |
 | **Manifest** | `.cursor-plugin/plugin.json` |
 | **Official docs** | [Plugins](https://cursor.com/docs/plugins) · [Rules](https://cursor.com/docs/context/rules) · [Hooks](https://cursor.com/docs/hooks) · [Customize](https://cursor.com/docs/customize-cursor) |
@@ -79,10 +79,10 @@ Cursor reads `.cursor/rules/*.mdc` from the project root automatically. Update b
 
 On Teams/Enterprise, admins can also distribute **Team MCP** servers via the Default team marketplace (**Dashboard → Integrations & MCP → Add to Team Marketplace**, Cursor **3.10**) so members install approved servers from Customize without hand-editing JSON.
 
-## Working tips (3.11 → 2026-08-13; desktop CLI 3.15.19)
+## Working tips (3.11 → 2026-08-13; desktop CLI 3.16.17)
 
-- **Desktop CLI patch line** — public changelog feature numbers can lag `cursor --version`. This repo's pin is **3.15.19** (download line 2026-08-11; [CLI changelog](https://cursor.com/docs/cli/changelog) Aug 11 release); newest feature write-up remains **3.11**, newest date-only entry **2026-08-13** (Cloud Agent Builds).
-- **Cloud Agent Builds (2026-08-13)** — Cursor prepares warm environment snapshots (repos + `install` already done; ~hourly refresh) so Cloud Agents boot faster; broken builds never go live. **Enable Builds now** (Builds tab) — default for all environments from **2026-08-17**. Keep durable setup in `install`, fresh services in `start`. Private-registry credentials for `install` must be **team/environment secrets** (user secrets are not available during Builds). Tune the dashboard git-staleness threshold. Inspect builds via the dashboard or `cursor-cloud` MCP tools. See [announcement](https://cursor.com/blog/builds).
+- **Desktop CLI patch line** — public changelog feature numbers can lag `cursor --version`. This repo's pin is **3.16.17** (download line 2026-08-11; [CLI changelog](https://cursor.com/docs/cli/changelog) Aug 11 release); newest feature write-up remains **3.11**, newest date-only entry **2026-08-13** (Cloud Agent Builds).
+- **Cloud Agent Builds (2026-08-13)** — Cursor prepares warm environment snapshots (repos + `install` already done; recurring refresh) so Cloud Agents boot faster; broken builds never go live. **Enable Builds now** (Builds tab) — default for all environments from **2026-08-17**. Private-registry credentials for `install` must be **team/environment secrets** (user secrets are not available during Builds). Recurring Builds **Skip** when nothing changed since the last completed Build (no new default-branch commits / config / secret changes) — a Skipped stream is healthy. Enable **Update stale builds** and set the **Staleness threshold** (default **24 hours**; `0` = always pull latest default-branch at agent start). Phase split: durable work in `install` (Build-time), fresh services in `start`, shared app processes in `terminals` (both at agent start). Inspect builds via the dashboard or `cursor-cloud` MCP tools. See [announcement](https://cursor.com/blog/builds) · [Builds docs](https://cursor.com/docs/cloud-agent/builds).
 - **CLI sticky skills (Aug 11)** — in Cursor CLI, a skill slash entry attaches once on Enter; **Option+Enter** invokes a mode-backed skill as a sticky custom mode until you exit it. Useful for `/tamirs-superpowers:repo-standards` or `/tamirs-superpowers:pr-dev` sessions that should keep the skill active across turns.
 - **CLI steer + `/goal` (Aug 11)** — while the agent is working, **Enter** steers the active turn (queues guidance at a safe boundary); Enter again interrupts. Optional durable **`/goal`** keeps an active/paused goal across idle and headless runs (rolling out / gated) — useful for long `/tamirs-superpowers:pr-dev` or validation sessions.
 - **Skill layout** — CLI skill discovery skips hidden directories. Keep skills under `skills/<domain>/` (not under `.cursor/` or other dot-dirs) so they stay discoverable — this repo already does.
