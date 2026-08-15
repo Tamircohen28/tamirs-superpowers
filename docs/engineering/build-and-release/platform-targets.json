@@ -1,6 +1,6 @@
 {
   "schema_version": 2,
-  "last_reviewed": "2026-08-14",
+  "last_reviewed": "2026-08-15",
   "reviewed_by_skill": "tamirs-superpowers@2.0.0",
   "supported_targets": [
     "claude_code",
@@ -12,9 +12,9 @@
     "claude_code": {
       "supported_min": "2.0.0",
       "supported_min_source": "manifest format (.claude-plugin/plugin.json) stable since 2.0.0",
-      "validated_against": "2.1.232",
-      "latest_known": "2.1.232",
-      "verified_on": "2026-08-14",
+      "validated_against": "2.1.233",
+      "latest_known": "2.1.233",
+      "verified_on": "2026-08-15",
       "verification_method": "latest from registry.npmjs.org/@anthropic-ai/claude-code cross-checked against code.claude.com/docs/en/changelog (automated nightly review); previously claude --version on the maintainer machine",
       "install_doc": "docs/user/install/claude-code.md",
       "doc_urls": [

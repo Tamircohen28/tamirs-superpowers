@@ -13,6 +13,34 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - **Concurrency guard: `git push` destinations are parsed, never guessed.** `hooks/protect-other-branches.sh` read the remote and refspec by argument *position*, so any leading flag (`git push -q origin feature-x`) shifted them, the parse came back empty, and the hook silently fell back to the current branch — blocking a push to an unclaimed feature branch while a claim on `main` was live, and (with multiple refspecs) waving through a push that *did* target the claimed branch. Replaced with a real parser (`claim_push_destinations` in `hooks/lib/agent-claim.sh`) that skips all flags including `--opt=value` and next-argument forms, handles `<branch>`, `HEAD:<branch>`, `<src>:<dst>`, `+<src>:<dst>`, `:<branch>`, `--delete`, and a bare `git push` (resolved via upstream, as git does), and claim-checks **every** destination. When the destination genuinely cannot be determined (`--all`, `--mirror`, no resolvable upstream) the guard now fails loud with `CONCURRENCY GUARD CANNOT RUN` instead of substituting a default branch. Covered end-to-end by `tests/test-concurrency-guard.sh`, wired into `make test-hooks` and the CI `Hook behavior tests` job.
 
 ### Changed
+- **Platform target: Claude Code 2.1.233** (from 2.1.232). Docs-only bump — no shipped
+  plugin content changed, so no version bump. The single-day 2.1.233 delta reviewed
+  against the plugin surface: manifests, skills frontmatter, hooks, MCP stubs,
+  statusline, and marketplace flow all remain valid; `claude plugin validate .`
+  and the full `run-tamirs-superpowers` smoke test both re-run clean on a local
+  Claude Code **2.1.233** install (34/34 SKILL.md files, 35/35 concurrency-guard
+  assertions). No entry in this delta is adoptable as a repo capability — it is
+  bug fixes plus enterprise/infra features this plugin doesn't touch. Reviewed
+  with no plugin change needed: **`claude plugin validate` now checks
+  `.claude/skills` directories** (this repo's plugin-root skill,
+  `.claude/skills/run-tamirs-superpowers/`, was already covered by this
+  repo's own `validate-skill-frontmatter.py`; it now also gets native
+  coverage — confirmed passing, no doc change required); the Notification-hook
+  fix for permission prompts in Claude Desktop/VS Code (this plugin's
+  `Notification` hook, `hooks/notify.sh`, benefits automatically, no config
+  change needed); the skill/command argument-substitution re-expansion fix and
+  the bundled-skill-alias "Unknown command" fix (this plugin defines no skill
+  aliases and its `argument-hint`/`arguments` fields are unaffected); GitLab
+  merge-request URL support for `--worktree` (this plugin's family is
+  GitHub-hosted); `forward_user_identity` apps-gateway spend attribution,
+  optional Bash memory-cgroup support, and `CLAUDE_CODE_WEBFETCH_CACHE_TTL_MS`
+  (none of `.mcp.json`, hooks, or skills configure a gateway, cgroups, or
+  WebFetch caching); and the Todo/task-tracking tools deprecation on newer
+  models (Opus 4.8+, Sonnet 5+) — no skill or agent in this repo instructs
+  Claude to use `TodoWrite`/task-tracking tools, the six `agents/*.md`
+  reviewers carry no `Task`-family tool anyway, and the 34 `SKILL.md` files
+  pin an explicit `model:` (e.g. `claude-sonnet-4-6`) rather than the
+  floating `sonnet`/`opus` alias the deprecation targets.
 - **Cursor hooks docs corrected for third-party compatibility.** Install guide + `platform-equivalence.md` document Cursor's opt-in Claude settings hooks ([Third-party hooks](https://cursor.com/docs/reference/third-party-hooks.md)), distinguish project `.cursor/hooks.json` from plugin `hooks/hooks.json`, and note Inbox **multi-PR sessions** (2026-07-29).
 - **Cursor docs: Claude hooks ≠ Cursor hooks.** `docs/user/install/cursor.md` and `platform-equivalence.md` now state that `hooks/hooks.json` is Claude-shaped and does not fire Cursor plugin/cloud hook events; worktree guards on Cursor stay rule/AGENTS-based until a Cursor-native hooks bundle lands.
 - **Cursor coverage pin.** Root `.cursor-version` records CLI **3.14.7** plus changelog feature **3.11** / date **2026-08-03**. Cursor `features_adopted` notes Customize (3.9), Team MCP + org-group marketplace access (3.10), side chats, and optional Google Workspace plugins (2026-08-03).
