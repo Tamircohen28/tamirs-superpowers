@@ -86,7 +86,9 @@
         "builds-team-env-secrets-docs",
         "cli-steer-and-goal-docs-2026-08-11",
         "builds-skipped-and-staleness-24h-docs",
-        "builds-install-start-terminals-docs"
+        "builds-install-start-terminals-docs",
+        "grok-4.6-docs-2026-08-14",
+        "builds-t1-default-readiness-2026-08-16"
       ],
       "capabilities": [
         "skills",
