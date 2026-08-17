@@ -1,6 +1,6 @@
 {
   "schema_version": 2,
-  "last_reviewed": "2026-08-08",
+  "last_reviewed": "2026-08-11",
   "reviewed_by_skill": "tamirs-superpowers@2.0.0",
   "supported_targets": [
     "claude_code",
@@ -43,21 +43,25 @@
       ]
     },
     "cursor": {
-      "supported_min": "3.14.7",
+      "supported_min": "3.16.17",
       "supported_min_source": "Cursor documents no minimum version for plugins; the floor is set to the version actually validated rather than guessed",
-      "validated_against": "3.14.7",
-      "latest_known": "3.14.7",
+      "validated_against": "3.16.17",
+      "latest_known": "3.16.17",
       "changelog_feature": "3.11",
-      "changelog_date": "2026-08-03",
-      "verified_on": "2026-08-03",
-      "verification_method": "cursor --version on the maintainer machine; public changelog covered through feature 3.11 and date-only entries to 2026-08-03",
+      "changelog_date": "2026-08-17",
+      "verified_on": "2026-08-17",
+      "verification_method": "latest desktop build from official Cursor download links (3.16.17, 2026-08-14 stable) cross-checked against cursor.com/changelog (feature 3.11; date-only entries through 2026-08-17 Origin); Cursor CLI changelog Aug 11 2026 documented; Builds now default (2026-08-17); Origin early-beta docs 2026-08-17",
       "install_doc": "docs/user/install/cursor.md",
       "doc_urls": [
         "https://cursor.com/docs/plugins",
         "https://cursor.com/docs/context/rules",
         "https://cursor.com/docs/hooks",
         "https://cursor.com/docs/customize-cursor",
-        "https://cursor.com/docs/reference/third-party-hooks"
+        "https://cursor.com/docs/reference/third-party-hooks",
+        "https://agent-plugins.org",
+        "https://cursor.com/blog/builds",
+        "https://cursor.com/docs/origin",
+        "https://cursor.com/codebase"
       ],
       "features_adopted": [
         "cursor-plugin-manifest",
@@ -72,7 +76,23 @@
         "automations-github-triggers-docs-3.8",
         "project-cursor-hooks-3.11",
         "third-party-claude-hooks-docs",
-        "multi-pr-sessions-docs-2026-07-29"
+        "multi-pr-sessions-docs-2026-07-29",
+        "workspace-open-hook-docs",
+        "agent-plugins-standard-docs",
+        "desktop-cli-pin-3.16.17",
+        "automations-memory-delete-docs",
+        "cloud-agent-builds-docs-2026-08-13",
+        "cli-plugin-hooks-docs-2026-08-11",
+        "cli-sticky-skills-docs-2026-08-11",
+        "cloud-agent-builds-aug17-default-readiness",
+        "builds-team-env-secrets-docs",
+        "cli-steer-and-goal-docs-2026-08-11",
+        "builds-skipped-and-staleness-24h-docs",
+        "builds-install-start-terminals-docs",
+        "grok-4.6-docs-2026-08-14",
+        "builds-t1-default-readiness-2026-08-16",
+        "origin-git-forge-docs-2026-08-17",
+        "builds-now-default-2026-08-17"
       ],
       "capabilities": [
         "skills",

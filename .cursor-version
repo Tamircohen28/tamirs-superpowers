@@ -1,3 +1,5 @@
-3.14.7
+3.16.17
 changelog_feature: 3.11
-changelog_date: 2026-08-03
+changelog_date: 2026-08-17
+cli_changelog_date: 2026-08-11
+frontier_model: grok-4.6

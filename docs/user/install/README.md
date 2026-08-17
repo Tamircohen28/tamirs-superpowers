@@ -7,7 +7,7 @@
 | Target | Install guide | Validated against | Min supported |
 |--------|---------------|-------------------|---------------|
 | Claude Code | [claude-code.md](claude-code.md) | 2.1.226 | 2.0.0 |
-| Cursor | [cursor.md](cursor.md) | 3.14.7 | 3.14.7 |
+| Cursor | [cursor.md](cursor.md) | 3.16.17 | 3.16.17 |
 | Codex | [codex.md](codex.md) | 0.146.0 | 0.40.0 |
 | OpenCode | [opencode.md](opencode.md) | 1.18.11 | 1.16.2 |
 
