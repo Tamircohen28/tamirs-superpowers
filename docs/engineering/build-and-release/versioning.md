@@ -38,7 +38,7 @@ This plugin sets an explicit `version` in `.claude-plugin/plugin.json`. Claude C
 |-----------|----------------|
 | New commits, **same** `version` | `/plugin update` → "already at the latest version"; cached copy unchanged |
 | `version` bumped + tag pushed | Update downloads new cache directory; users should `/reload-plugins` |
-| Local dev, no release yet | Edit `~/.claude/plugins/cache/tamirs-marketplace/tamirs-superpowers/<version>/` or symlink dev clone |
+| Local dev, no release yet | Best: a `command`-source marketplace entry with `mode: "link"` (Claude Code 2.1.229+) — the dev clone is used in place and re-resolved each session, so the cache never enters the picture. Otherwise edit `~/.claude/plugins/cache/tamirs-marketplace/tamirs-superpowers/<version>/` or symlink the dev clone (safe on 2.1.228+ — earlier, background plugin-cache cleanup could delete a plugin's cache entry when its only version was a symlinked development checkout) |
 
 Agent contributors: see [`rules/dev/plugin-version-bump.md`](../../../rules/dev/plugin-version-bump.md).
 
