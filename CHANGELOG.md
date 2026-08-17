@@ -6,6 +6,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ## [Unreleased]
 
 ### Changed
+- **Cursor Origin + Builds default (2026-08-17).** Documented [Origin](https://cursor.com/docs/origin) (early-beta Cursor git forge; GitHub remains canonical for marketplace installs) and flipped Cloud Agent Builds language to **now default**. Cursor-only pin bump: `changelog_date` **2026-08-13 → 2026-08-17**; desktop **3.16.17** / feature **3.11** unchanged.
 - **Cursor Grok 4.6 + Builds T-1 readiness (2026-08-16).** Install guide documents Grok 4.6 for long-running / visual sessions and a T-1 Builds checklist before the **2026-08-17** default. Cursor-only `features_adopted` tags added; pins stay **3.16.17** / feature **3.11** / **2026-08-13**.
 - **Cursor desktop 3.16.17 + Builds skipped/staleness docs.** Desktop/`validated_against` pin **3.15.19 → 3.16.17** (stable 2026-08-14; no separate feature write-up). Install guide documents Builds Skipped recurring checks, **Staleness threshold** default **24h**, and `install`/`start`/`terminals`. Feature/date pins stay **3.11** / **2026-08-13**.
 - **Cursor Builds Aug-17 readiness + CLI steer/`/goal`.** Install guide documents enable-Builds-now (default **2026-08-17**), team/environment secrets for Builds install, git-staleness threshold, CLI steer-while-running, and durable `/goal`. Cursor-only `features_adopted` gains the matching adoption tags; pins stay **3.16.17** / feature **3.11** / **2026-08-13**.
