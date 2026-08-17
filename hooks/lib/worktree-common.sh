@@ -293,7 +293,57 @@ append_env_exports() {
   done
 }
 
+# Retiring stale worktrees, detached from the caller.
+#
+# The work itself is `rm -rf` of a whole checkout. A JS worktree carries its own
+# node_modules — measured at ~1.2 GB and hundreds of thousands of inodes, with
+# 16 GB across all worktrees on one machine — so retiring a few in one pass is
+# seconds of pure disk work, and it ran INLINE in the SessionStart hook, which
+# blocks the session until it returns. Measured over 430 runs: 468 ms typical,
+# 27 s worst case. The worst case is not an anomaly, it is simply the run that
+# had several JS worktrees to delete.
+#
+# No caller consumes the result — both discard output and ignore failure — so
+# this returns immediately and lets the deletion finish on its own time. The
+# subshell keeps stdout and stderr off the caller's: SessionStart parses this
+# hook's stdout as JSON, and an inherited descriptor would hold that pipe open
+# and stall the very thing being fixed.
 cleanup_stale_worktrees() {
+  ( _cleanup_stale_worktrees_blocking ) >/dev/null 2>&1 &
+  # Detach where the shell supports it, so the hook exiting cannot SIGHUP the
+  # deletion half-done and leave a partially-removed worktree behind.
+  disown 2>/dev/null || true
+}
+
+# Single-flight, because sessions overlap.
+#
+# Sessions start concurrently (430 SessionStart runs in three days here), and
+# without a lock each one would walk the same directories and race the same
+# `rm -rf` — duplicated disk work, and `git worktree remove` failing against a
+# tree another run already took. The lock is a mkdir, which is atomic on every
+# filesystem this runs on; a lock left behind by a killed run is reclaimed once
+# it is older than the retention pass could plausibly take.
+_cleanup_stale_worktrees_blocking() {
+  local lock="${WORKTREE_ROOT}/.cleanup.lock"
+  mkdir -p "$WORKTREE_ROOT" 2>/dev/null || return 0
+
+  if ! mkdir "$lock" 2>/dev/null; then
+    local lock_mtime now
+    lock_mtime="$(stat -f %m "$lock" 2>/dev/null || stat -c %Y "$lock" 2>/dev/null || echo 0)"
+    now="$(date +%s)"
+    # 30 min is far longer than a real pass and short enough that a crashed run
+    # does not disable cleanup until someone notices.
+    if (( now - lock_mtime < 1800 )); then
+      return 0
+    fi
+    rmdir "$lock" 2>/dev/null || true
+    mkdir "$lock" 2>/dev/null || return 0
+  fi
+  # Released explicitly at the end rather than from a trap: the trap body runs
+  # at SHELL exit, by which point `local lock` is out of scope, so it both fails
+  # to remove the lock and trips `set -u`. A run that dies before the release
+  # leaves the lock behind, which is what the staleness reclaim above is for.
+
   local cutoff_epoch
   cutoff_epoch="$(date -v-"${WORKTREE_RETENTION_DAYS}"d +%s 2>/dev/null || date -d "${WORKTREE_RETENTION_DAYS} days ago" +%s)"
 
@@ -317,6 +367,8 @@ cleanup_stale_worktrees() {
       rm -rf "$wt_dir"
     fi
   done
+
+  rmdir "$lock" 2>/dev/null || true
 }
 
 # Prune archived session-files older than WORKTREE_RETENTION_DAYS.

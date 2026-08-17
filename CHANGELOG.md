@@ -5,6 +5,16 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Changed
+- **Cursor Origin + Builds default (2026-08-17).** Documented [Origin](https://cursor.com/docs/origin) (early-beta Cursor git forge; GitHub remains canonical for marketplace installs) and flipped Cloud Agent Builds language to **now default**. Cursor-only pin bump: `changelog_date` **2026-08-13 → 2026-08-17**; desktop **3.16.17** / feature **3.11** unchanged.
+- **Cursor Grok 4.6 + Builds T-1 readiness (2026-08-16).** Install guide documents Grok 4.6 for long-running / visual sessions and a T-1 Builds checklist before the **2026-08-17** default. Cursor-only `features_adopted` tags added; pins stay **3.16.17** / feature **3.11** / **2026-08-13**.
+- **Cursor desktop 3.16.17 + Builds skipped/staleness docs.** Desktop/`validated_against` pin **3.15.19 → 3.16.17** (stable 2026-08-14; no separate feature write-up). Install guide documents Builds Skipped recurring checks, **Staleness threshold** default **24h**, and `install`/`start`/`terminals`. Feature/date pins stay **3.11** / **2026-08-13**.
+- **Cursor Builds Aug-17 readiness + CLI steer/`/goal`.** Install guide documents enable-Builds-now (default **2026-08-17**), team/environment secrets for Builds install, git-staleness threshold, CLI steer-while-running, and durable `/goal`. Cursor-only `features_adopted` gains the matching adoption tags; pins stay **3.16.17** / feature **3.11** / **2026-08-13**.
+- **Cursor CLI Aug 11 (desktop 3.16.17) advancement.** Install guide documents CLI sticky skills (Option+Enter), skill discovery skipping hidden dirs, and that installed-plugin hooks now execute in the CLI once a Cursor-native hooks bundle ships. `cli_changelog_date: 2026-08-11` recorded in `.cursor-version`; cursor `features_adopted` gains `cli-plugin-hooks-docs-2026-08-11` + `cli-sticky-skills-docs-2026-08-11`.
+- **Cursor changelog through 2026-08-13 (Cloud Agent Builds).** `.cursor-version` / cursor-only `platform-targets.json` fields keep desktop **3.16.17** + feature **3.11** and advance `changelog_date` to **2026-08-13**. Install guide documents Cloud Agent Builds (warm snapshots; install vs start).
+- **Cursor desktop pin → 3.16.17.** `.cursor-version`, `platform-targets.json` (cursor target only), README badge, and install docs now track desktop **3.16.17** (2026-08-11 download line). Changelog feature coverage remains **3.11**; newest date-only entry remains **2026-08-03** (no newer feature write-up on cursor.com/changelog).
+- **Cursor docs: `workspaceOpen` + Agent Plugins standard.** Install guide notes the app-lifecycle `workspaceOpen` hook (`pluginPaths` for workspace-specific plugins; desktop/CLI only) and that Cursor loads [Agent Plugins](https://agent-plugins.org) alongside `.cursor-plugin` Cursor Plugins.
+
 ### Added
 - **Cursor project hooks (3.11 cloud/conversation hooks).** `.cursor/hooks.json` + `.cursor/hooks/warn-contributor-policy.sh` soft-ask on force-push to `master`/`main` and on `self-hosted` runner edits when this repo is the workspace / Cloud Agent target. Not a full Claude→Cursor plugin hooks port.
 
@@ -203,7 +213,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   references `/review`), and the context-window enforcement changes
   (`CLAUDE_CODE_DISABLE_1M_CONTEXT` scope, unknown-model auto-compact) are
   host-side knobs this plugin doesn't set. `platform-targets.json` re-reviewed
-  2026-08-06.
+  2026-08-11.
 
 - **Platform target: Claude Code 2.1.222** (from 2.1.220). Docs-only bump — no shipped
   plugin content changed, so no version bump. Install guides and quick-start now reflect
