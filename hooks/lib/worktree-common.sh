@@ -100,14 +100,22 @@ is_registered_claude_worktree() {
   esac
 }
 
+# Both refuse an empty slug rather than composing a path or branch around the
+# gap. `wt/` and `<root>/<repo>/` are not degraded names, they are different
+# things entirely — and a caller that reached here with nothing has a bug the
+# caller must handle, not one to paper over with a placeholder. This is the
+# last line of defence behind the callers' own guards: the observed leak was a
+# `wt/session-` branch built from a slug that carried no information at all.
 worktree_path_for() {
   local repo_name="$1"
   local task_slug="$2"
+  [[ -n "$repo_name" && -n "$task_slug" ]] || return 1
   echo "${WORKTREE_ROOT}/${repo_name}/${task_slug}"
 }
 
 branch_name_for() {
   local task_slug="$1"
+  [[ -n "$task_slug" ]] || return 1
   echo "wt/${task_slug}"
 }
 

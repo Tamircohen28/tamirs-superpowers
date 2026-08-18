@@ -12,7 +12,36 @@ source "${SCRIPT_DIR}/lib/objective-common.sh"
 # shellcheck source=lib/hook-output.sh
 source "${SCRIPT_DIR}/lib/hook-output.sh"
 
+# A minimal, valid UserPromptSubmit response and nothing else. Used for every
+# "I have no usable information" exit: the harness must not be disrupted (so
+# exit 0, valid JSON), but no worktree, branch, or state may be created.
+emit_noop_and_exit() {
+  local title="${1:-}"
+  if [[ -n "$title" ]]; then
+    cat <<EOF
+{
+  "hookSpecificOutput": {
+    "hookEventName": "UserPromptSubmit",
+    "sessionTitle": "${title}"
+  }
+}
+EOF
+  else
+    printf '%s\n' '{"hookSpecificOutput":{"hookEventName":"UserPromptSubmit"}}'
+  fi
+  exit 0
+}
+
 input="$(hook_read_stdin)"
+
+# An empty or unparseable payload carries no instruction. Every field below
+# would be empty, and the code downstream would then invent values for them —
+# so stop here rather than letting jq fail mid-script (which exited non-zero
+# and disrupted the harness for no benefit).
+if [[ -z "$input" ]] || ! printf '%s' "$input" | jq -e . >/dev/null 2>&1; then
+  emit_noop_and_exit
+fi
+
 session_id="$(echo "$input" | jq -r '.session_id // empty')"
 prompt="$(echo "$input" | jq -r '.prompt // empty')"
 cwd="$(echo "$input" | jq -r '.cwd // empty')"
@@ -27,7 +56,20 @@ now_iso="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 if [[ "$prompt_count" == "0" || -z "$task_slug" || "$task_slug" == "null" ]]; then
   task_slug="$(slugify_text "$prompt" 48)"
   if [[ -z "$task_slug" ]]; then
+    # The prompt yielded nothing sluggable (absent, or whitespace/punctuation
+    # only). The session id is a legitimate fallback because it still IDENTIFIES
+    # this session — but only when there IS one. With both empty the old code
+    # produced the literal slug "session-", and that placeholder is precisely
+    # what turns "no information" into a real branch and worktree: `wt/session-`
+    # on the first call, then `wt/session` once the self-heal re-slugify strips
+    # the trailing hyphen. One content-free invocation, two junk branches.
+    #
+    # So the fallback is guarded, not defaulted: no identity, no slug, no
+    # worktree.
     short_id="${session_id:0:8}"
+    if [[ -z "$short_id" ]]; then
+      emit_noop_and_exit
+    fi
     task_slug="session-${short_id}"
   fi
 
@@ -52,7 +94,15 @@ else
 fi
 
 context_lines=()
-session_title="$(echo "$state" | jq -r '.task_slug')"
+session_title="$(echo "$state" | jq -r '.task_slug // empty')"
+
+# jq renders a missing key as the STRING "null", which is non-empty and would
+# sail through every downstream check to produce a `wt/null` branch. Same
+# family as `wt/session-`: a placeholder standing in for information nobody
+# had.
+if [[ -z "$session_title" || "$session_title" == "null" ]]; then
+  emit_noop_and_exit
+fi
 
 # A payload with no cwd is malformed, not an invitation to guess. Falling back
 # to the process's working directory made this hook create a `wt/<slug>` branch
@@ -61,15 +111,7 @@ session_title="$(echo "$state" | jq -r '.task_slug')"
 # the hook returned promptly. There is nothing useful to do without a cwd, so
 # do nothing.
 if [[ -z "$cwd" ]]; then
-  cat <<EOF
-{
-  "hookSpecificOutput": {
-    "hookEventName": "UserPromptSubmit",
-    "sessionTitle": "${session_title}"
-  }
-}
-EOF
-  exit 0
+  emit_noop_and_exit "$session_title"
 fi
 
 if is_git_repo "$cwd"; then

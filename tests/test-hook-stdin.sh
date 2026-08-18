@@ -185,6 +185,37 @@ if git clone -q --local --no-hardlinks "$ROOT" "$LEAKREPO" 2>/dev/null; then
         "worktree count went $before -> $after: $(git -C "$LEAKREPO" worktree list | tail -n +2 | tr '\n' ' ')"
   fi
 
+  # The empty-CWD path was the first trigger found. These are the others: a
+  # payload that parses but carries no task, and one that does not parse at
+  # all. Each reaches the slug derivation by a different route, and each used
+  # to invent a placeholder there. Case 2 is the one that produced BOTH
+  # observed branches from a single call (`wt/session-`, then `wt/session`
+  # after the self-heal re-slugify).
+  export HOME="$TMPROOT/leakhome2"; mkdir -p "$HOME/.claude"
+  ( cd "$LEAKREPO" && jq -n --arg c "$LEAKREPO" '{cwd:$c, prompt:"   ", session_id:""}' \
+      | bash "$ROOT/hooks/capture-task-slug.sh" >/dev/null 2>&1 )
+  ( cd "$LEAKREPO" && jq -n --arg c "$LEAKREPO" '{cwd:$c}' \
+      | bash "$ROOT/hooks/capture-task-slug.sh" >/dev/null 2>&1 )
+  ( cd "$LEAKREPO" && printf 'this is not json' \
+      | bash "$ROOT/hooks/capture-task-slug.sh" >/dev/null 2>&1 )
+  after2="$(git -C "$LEAKREPO" worktree list | wc -l | tr -d ' ')"
+  if [ "$before" = "$after2" ]; then
+    ok "a task-less payload (blank prompt / no session_id / non-JSON) creates no worktree"
+  else
+    bad "a task-less payload creates no worktree" \
+        "count went $before -> $after2: $(git -C "$LEAKREPO" worktree list | tail -n +2 | tr '\n' ' ')"
+  fi
+
+  # An unparseable payload must not merely avoid damage — it must exit 0, or the
+  # harness treats a content-free prompt as a hook failure.
+  ( cd "$LEAKREPO" && printf 'this is not json' | bash "$ROOT/hooks/capture-task-slug.sh" >/dev/null 2>&1 )
+  rc=$?
+  if [ "$rc" = 0 ]; then
+    ok "an unparseable payload exits 0 (harness not disrupted)"
+  else
+    bad "an unparseable payload exits 0" "exited $rc"
+  fi
+
   strays="$(git -C "$LEAKREPO" branch --list 'wt/*' | tr -d ' ' | tr '\n' ' ')"
   if [ -z "$strays" ]; then
     ok "an empty payload creates no wt/* branch"
