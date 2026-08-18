@@ -54,6 +54,24 @@ fi
 context_lines=()
 session_title="$(echo "$state" | jq -r '.task_slug')"
 
+# A payload with no cwd is malformed, not an invitation to guess. Falling back
+# to the process's working directory made this hook create a `wt/<slug>` branch
+# and a worktree in whatever repo it happened to be launched from — including
+# the developer's real checkout, from a test harness that only meant to check
+# the hook returned promptly. There is nothing useful to do without a cwd, so
+# do nothing.
+if [[ -z "$cwd" ]]; then
+  cat <<EOF
+{
+  "hookSpecificOutput": {
+    "hookEventName": "UserPromptSubmit",
+    "sessionTitle": "${session_title}"
+  }
+}
+EOF
+  exit 0
+fi
+
 if is_git_repo "$cwd"; then
   repo_root="$(repo_root_for "$cwd")"
   repo_name="$(repo_name_for "$cwd")"

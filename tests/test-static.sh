@@ -409,21 +409,52 @@ EOF
 judge "the GNU-ism detector flags all four unguarded calls" 4 "$(set -- $ctrl_dirty; echo $#)"
 judge "and exonerates every BSD-first fallback" "" "$ctrl_clean"
 # Stdin must never block (rules/dev/user-facing-script-standards.md §4). The
-# observed failure was scripts/statusline.sh doing `input=$(cat)`, which waits
-# forever on an idle terminal or an inherited descriptor — since fixed with bash's
-# builtin `read -t` (correctly NOT timeout(1), which is absent on macOS).
+# failure is not merely a hang: hooks/lib/hook-output.sh fail-closes on empty
+# PreToolUse stdout on Cursor, so a hook killed by its hooks.json timeout DENIES
+# the user's tool call for a reason unrelated to what it guards. A guard whose
+# answer would have been ALLOW turns into a block.
 #
-# ADVISORY, not a gate: an unguarded `$(cat)` is a strong smell but not proof. A
-# hook is always handed JSON on stdin by its harness, and a filter script may
-# legitimately require a pipe and document it. Flagging all of them as failures
-# would assert a defect in files this suite has not individually validated.
+# TWO MATCHING RULES, both learned from misses in the first version of this check:
+#   1. The QUOTED form counts. `input="$(cat)"` is the spelling 14 of this repo's
+#      19 stdin-reading hooks actually used; a regex anchored on `=\$\(` saw none
+#      of them and under-reported the population by three quarters.
+#   2. Comments do not count. A header comment describing the defect is
+#      documentation; flagging it is how a check earns a blanket ignore.
+STDIN_CAT_RE='=[[:space:]]*"?\$\([[:space:]]*cat[[:space:]]*\)"?'
+STDIN_GUARD_RE='read[[:space:]]+(-r[[:space:]]+)?-t|-t[[:space:]]+0|command -v timeout|portable_timeout|hook_read_stdin'
+
+# stdin_unbounded <file> — 0 when the file reads stdin with no bound. Comments are
+# stripped first. (`sed 's/#.*$//'` also blanks a `#` inside a string literal; that
+# can only cause an under-report, never a false accusation, which is the right way
+# for this to be wrong.)
+stdin_unbounded() {
+  sed 's/[[:space:]]*#.*$//' "$1" 2>/dev/null | grep -qE "$STDIN_CAT_RE" || return 1
+  grep -qE "$STDIN_GUARD_RE" "$1" 2>/dev/null && return 1
+  return 0
+}
+
 blocking=""
 while IFS= read -r f; do
   [ -f "$f" ] || continue
-  grep -qE '=[[:space:]]*\$\([[:space:]]*cat[[:space:]]*\)' "$f" 2>/dev/null || continue
-  grep -qE 'read[[:space:]]+(-r[[:space:]]+)?-t|-t[[:space:]]+0|command -v timeout|portable_timeout' "$f" 2>/dev/null && continue
-  blocking="$blocking $f"
+  stdin_unbounded "$f" && blocking="$blocking $f"
 done < <(files_matching '\.sh$')
+
+# Positive control. Every hook in the tree has since been fixed, so the real scan
+# is expected to be clean — which is exactly the state in which a broken detector
+# is indistinguishable from a healthy repo. These four fixtures pin both matching
+# rules and both guard forms.
+SCTRL="$CTRL/stdin"
+mkdir -p "$SCTRL"
+printf '#!/usr/bin/env bash\ninput=$(cat)\n'                                    > "$SCTRL/bare.sh"
+printf '#!/usr/bin/env bash\ninput="$(cat)"\n'                                  > "$SCTRL/quoted.sh"
+printf '#!/usr/bin/env bash\n# reads stdin with input="$(cat)" — prose only\nx=1\n' > "$SCTRL/comment.sh"
+printf '#!/usr/bin/env bash\ninput="$(cat)"\nwhile read -r -t 2 l; do :; done\n' > "$SCTRL/guarded.sh"
+
+judge "the stdin detector catches the bare form"        yes "$(stdin_unbounded "$SCTRL/bare.sh"    && echo yes || echo no)"
+judge "the stdin detector catches the QUOTED form"      yes "$(stdin_unbounded "$SCTRL/quoted.sh"  && echo yes || echo no)"
+judge "the stdin detector ignores a comment describing it" no "$(stdin_unbounded "$SCTRL/comment.sh" && echo yes || echo no)"
+judge "the stdin detector exonerates a bounded read"    no  "$(stdin_unbounded "$SCTRL/guarded.sh" && echo yes || echo no)"
+
 if [ -z "$blocking" ]; then
   ok "no shipped .sh reads stdin with an unbounded \$(cat)"
 elif [ "$STRICT" = true ]; then

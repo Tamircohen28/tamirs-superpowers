@@ -44,7 +44,19 @@ save_session_state() {
   echo "$json" > "$(session_state_path "$session_id")"
 }
 
+# is_git_repo [dir] — true when dir is inside a git repository.
+#
+# An EXPLICIT empty argument is false, not "use the current directory". The
+# `${1:-.}` default exists for callers that pass nothing at all, but a hook
+# reading `.cwd` from a malformed or absent payload passes an empty STRING —
+# and silently reinterpreting that as "wherever this process happens to be
+# running" is how a hook ends up creating a branch and a worktree in the
+# developer's real checkout instead of doing nothing. Absent input must mean
+# "I don't know", never "here".
 is_git_repo() {
+  if [[ $# -gt 0 && -z "$1" ]]; then
+    return 1
+  fi
   local dir="${1:-.}"
   git -C "$dir" rev-parse --git-dir >/dev/null 2>&1
 }

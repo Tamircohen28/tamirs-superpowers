@@ -73,11 +73,23 @@ ok "watchdog kills an over-running command and reports 124"
 # The hook's own exit status is irrelevant here — a hook handed an empty
 # payload may legitimately exit non-zero ("missing cwd"). The ONLY question is
 # whether it returned at all.
+# NEVER RUN A HOOK FROM THE REAL REPO.
+#   A hook handed an empty payload has no cwd to work from, and a hook that
+#   then falls back to the process's working directory will act on whatever
+#   repository the test happens to be launched in — the developer's checkout.
+#   This suite ran hooks in place and registered two stray worktrees and two
+#   `wt/session*` branches in the real repo before that was caught. The hooks
+#   are fixed to stand down without a cwd; running from a scratch directory is
+#   the second lock, so a future hook that reintroduces the fallback damages
+#   nothing but a temp dir.
+SCRATCH_CWD="$TMPROOT/scratch"
+mkdir -p "$SCRATCH_CWD"
+
 returns_promptly() {
   local hook="$1" label="$2" stdin_spec="$3" secs="${4:-6}"
   local name
   name="$(basename "$hook") [$label]"
-  run_with_timeout "$secs" bash -c 'bash "$1" '"$stdin_spec"' >/dev/null 2>&1' _ "$hook"
+  run_with_timeout "$secs" bash -c 'cd "$2" || exit 1; bash "$1" '"$stdin_spec"' >/dev/null 2>&1' _ "$hook" "$SCRATCH_CWD"
   if [ $? = 124 ]; then
     bad "$name" "TIMED OUT after ${secs}s — this hook blocks on stdin"
     return 1
@@ -151,6 +163,47 @@ if printf '%s' "$out" | jq -e . >/dev/null 2>&1; then
   ok "an allow decision is still emitted as valid JSON"
 else
   bad "an allow decision is still emitted as valid JSON" "got: '$out'"
+fi
+
+echo "--- an empty payload creates nothing (worktree leak regression) ---"
+
+# A local clone stands in for "the developer's repo": if a hook reaches for a
+# repository it was never given, it damages this instead of the real one, and
+# the assertion sees it. Asserting on the real repo would be both unsafe and
+# useless — the leak it is looking for is already there.
+LEAKREPO="$TMPROOT/leakrepo"
+if git clone -q --local --no-hardlinks "$ROOT" "$LEAKREPO" 2>/dev/null; then
+  before="$(git -C "$LEAKREPO" worktree list | wc -l | tr -d ' ')"
+  for h in "$ROOT/hooks/capture-task-slug.sh" "$ROOT/hooks/session-init.sh" "$ROOT/hooks/worktree-create.sh"; do
+    ( cd "$LEAKREPO" && bash "$h" </dev/null >/dev/null 2>&1 )
+  done
+  after="$(git -C "$LEAKREPO" worktree list | wc -l | tr -d ' ')"
+  if [ "$before" = "$after" ]; then
+    ok "an empty payload registers no worktree (was: wt/session, wt/session-)"
+  else
+    bad "an empty payload registers no worktree" \
+        "worktree count went $before -> $after: $(git -C "$LEAKREPO" worktree list | tail -n +2 | tr '\n' ' ')"
+  fi
+
+  strays="$(git -C "$LEAKREPO" branch --list 'wt/*' | tr -d ' ' | tr '\n' ' ')"
+  if [ -z "$strays" ]; then
+    ok "an empty payload creates no wt/* branch"
+  else
+    bad "an empty payload creates no wt/* branch" "created: $strays"
+  fi
+
+  # And the positive half: a WELL-FORMED payload must still create one, or the
+  # fix above would "pass" by breaking the feature outright.
+  export HOME="$TMPROOT/leakhome"; mkdir -p "$HOME/.claude"
+  ( cd "$LEAKREPO" && jq -n --arg c "$LEAKREPO" '{session_id:"leak-1", prompt:"add a widget", cwd:$c}' \
+      | bash "$ROOT/hooks/capture-task-slug.sh" >/dev/null 2>&1 )
+  if [ -d "$HOME/.claude/worktrees/leakrepo/add-a-widget" ]; then
+    ok "a well-formed payload still creates its worktree"
+  else
+    bad "a well-formed payload still creates its worktree" "nothing at \$HOME/.claude/worktrees/leakrepo/add-a-widget"
+  fi
+else
+  bad "worktree leak regression" "could not clone $ROOT to test against"
 fi
 
 echo
