@@ -294,6 +294,15 @@ capabilities were marked `native` on that basis. A probe then showed the extensi
 `agents/*.md` outright. The spec was not wrong about Gemini in general; it was wrong about
 *this repo on* Gemini, which is the only question the registry asks.
 
+**A note on checking prose against this registry.** Sweeping the repo for documentation
+that contradicts a row is worth doing, but it cannot find an error *in* the row — a doc
+faithfully restating a wrong note reads as correct, and every doc downstream of it
+inherits the error while passing the check. That happened here: an imprecise clause in
+the `gemini_cli.hooks` note ("has its own event vocabulary") propagated into two other
+files, and the sweep cleared all three. Only re-reading the primary evidence caught it.
+When a row's wording is load-bearing, verify it against the source — the shipped bundle,
+the CLI, the error text — not against the things that quote it.
+
 So: a specification, a vendor changelog, or a documentation page is a reason to go and
 measure, never a substitute for having measured. When a measurement contradicts a row,
 the row is what changes — and its note should carry the observed error text, so the next

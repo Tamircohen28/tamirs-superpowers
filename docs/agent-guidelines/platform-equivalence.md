@@ -80,11 +80,22 @@ Fill `${ENV_VAR}` placeholders locally — never commit tokens.
 **Cursor substitute today:** project `.cursor/hooks.json` for contributor/cloud soft guards on this repo; for installed consumers, enforce worktree and sensitive-file rules via `AGENTS.md` and path-scoped Cursor rules under `.cursor/rules/`.
 
 **Gemini note:** Gemini reads `hooks/hooks.json` from the extension root and accepts the
-same outer `{"hooks": {...}}` shape as Claude — but it has its own event vocabulary and
-accepts unknown event names without complaint, so acceptance proves nothing about whether a
-hook fires. Whether Claude event names ever fire was never measured, so nothing is claimed
-in either direction; check the registry for the live status rather than trusting this
-paragraph. `gemini hooks migrate --from-claude` exists for users who want to translate them.
+same outer `{"hooks": {...}}` shape as Claude — and it accepts a completely invented event
+name just as silently, so the file loading proves nothing about a hook firing.
+
+The vocabularies **partially overlap** rather than differ wholesale, which matters because
+"they're different" invites dropping the Claude file in and assuming it does nothing.
+Measured against this repo's ten declared events on 0.55.1:
+
+| Claude events | Gemini status |
+|---|---|
+| `SessionStart`, `SessionEnd`, `Notification` | real Gemini events — but firing was never tested |
+| `PreToolUse`, `PostToolUse`, `UserPromptSubmit`, `Stop` | exist only in the `gemini hooks migrate --from-claude` mapping table |
+| `DirectoryAdded`, `WorktreeCreate`, `WorktreeRemove` | no counterpart at all |
+
+So the worktree guards need real translation nobody has done, and three handlers might
+already be live and unverified. Nothing is claimed in either direction — check the registry
+for the live status rather than trusting this paragraph.
 
 **OpenCode gap:** OpenCode has no `hooks.json` equivalent. Its `"plugin"` config field takes JavaScript/TypeScript modules — a different mechanism from a skill bundle — so the worktree guards in `hooks/` do not port. Rely on `AGENTS.md` discipline there.
 

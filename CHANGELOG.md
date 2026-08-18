@@ -5,6 +5,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [3.0.0] — 2026-08-19
+
 ### Added
 - **Portable orchestration framework — objective → one PR.** A user objective is now decomposed into tasks with disjoint write scopes, each ending at **commit + handoff** rather than at a pull request, merged onto a single `objective/<slug>` integration branch, reviewed as one combined diff, and delivered as **one** PR. State lives in plain files under `.dev-files/objectives/<id>/` (schemas in `core/workflow/`), so an objective resumes after a crash, a `/clear`, a new session — or under a different platform, because nothing in the state names a provider. Policy: `core/policies/delivery.md`.
 - **`orchestrate-dev`, `worker-dev`, `deliver-dev`.** `orchestrate-dev` owns the objective (task graph, capability-gated dispatch, integration, combined-diff review, delivery); `worker-dev` executes exactly one task and is explicitly forbidden from opening a PR, enabling auto-merge, merging the base branch, or running the full repo suite; `deliver-dev` is the only place an objective's PR is created. **The sequential, no-subagent path is a first-class mode**, not a fallback footnote: same task graph, same handoffs, same integration, same single PR, only the concurrency is gone.

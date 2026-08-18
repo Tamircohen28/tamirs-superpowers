@@ -18,7 +18,7 @@ A multi-platform agent plugin (skills, agents, hooks, MCP stubs) shipped to Clau
 | MCP | ✅ `github` | `${extensionPath}` keeps it portable |
 | Skills | ✅ | generated symlink mirror at `.gemini/skills/` |
 | Sub-agents | ✅ | generated at `.gemini/agents/`, `tools` translated to Gemini names |
-| Hooks | ❌ none shipped | By design, not a verdict on Gemini. Its events differ from Claude's and it accepts unknown ones silently, so a dropped-in Claude file would look live and be inert |
+| Hooks | ❌ none shipped | By design, not a verdict on Gemini. Of this repo's ten hook events, three (`SessionStart`, `SessionEnd`, `Notification`) name real Gemini events and are simply untested; four translate only through `gemini hooks migrate --from-claude`; three have no counterpart. Gemini accepts unknown event names silently, so a dropped-in Claude file would look live while most of it did nothing |
 
 ## `.gemini/skills/` and `.gemini/agents/` are GENERATED
 
