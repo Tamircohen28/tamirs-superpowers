@@ -6,6 +6,11 @@ on:
     branches: [main, master]
   workflow_dispatch:
 
+# Supersede in-flight runs for the same PR; never cancel a push to a release branch.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   lint:
     name: shellcheck
@@ -26,6 +31,69 @@ jobs:
           else
             echo "hooks/ absent — skipping"
           fi
+
+  full-validate:
+    name: make validate (full local-parity gate)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: skills/repo/_contract/fixtures/scaffold-plugin-gold/.nvmrc
+      - name: Install validation dependencies
+        run: |
+          sudo apt-get install -y shellcheck
+          pip install -r scripts/requirements-validate.txt
+      - name: Run the full gate
+        run: make validate
+
+  orchestration-tests:
+    name: Orchestration simulation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+      - name: Simulate objective -> workers -> integration -> one PR
+        run: bash tests/test-orchestration.sh
+
+  skill-contract:
+    name: Skill contract
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+      - name: Install PyYAML
+        run: pip install -r scripts/requirements-validate.txt
+      - name: Assert the portable skill contract
+        run: bash tests/test-skill-contract.sh
+
+  static-and-docs:
+    name: Static repo + docs tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+      - name: Install shellcheck
+        run: sudo apt-get install -y shellcheck
+      - name: Static repository tests
+        run: bash tests/test-static.sh
+      - name: Documentation tests
+        run: bash tests/test-docs.sh
+
+  platform-contract:
+    name: Platform contract (${{ matrix.platform }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        platform: [gemini, opencode]
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+      - name: Install PyYAML
+        run: pip install -r scripts/requirements-validate.txt
+      # The platform CLIs are absent on ubuntu-latest, so each suite runs its
+      # always-on schema/contract half and skips the live-CLI half with a notice.
+      - name: Contract assertions
+        run: bash tests/test-${{ matrix.platform }}-adapter.sh
 
   hook-tests:
     name: Hook behavior tests
@@ -53,7 +121,7 @@ jobs:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
       - name: Install PyYAML
         run: pip install pyyaml
-      - name: Validate all official frontmatter fields
+      - name: Validate portable + tamirs + claude frontmatter tiers
         run: python3 scripts/validate-skill-frontmatter.py
 
 
