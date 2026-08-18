@@ -126,9 +126,25 @@ Session lessons are stored in **two places** — keep them in sync:
 | `.claude/memory/` (this repo) | Versioned backup — survives machine changes, reviewable in PRs |
 | `~/.claude/projects/-Users-<you>-Projects-tamirs-superpowers/memory/` | Auto-loaded by Claude Code each session |
 
+The transcript directory name is derived from the clone's absolute path, so it differs per
+machine/username and shifts if the clone moves. Since **Claude Code 2.1.234**,
+`CLAUDE_CODE_PROJECT_DIR_NAME` overrides that derivation — set it (e.g. in `~/.zshrc` /
+`~/.bashrc`, or per-session) to pin a fixed transcript directory name regardless of clone
+location:
+
+```bash
+export CLAUDE_CODE_PROJECT_DIR_NAME=tamirs-superpowers
+```
+
+With the pin set, the path below is stable across machines; without it, substitute your
+derived `-Users-<you>-...` directory name.
+
 **Restoring memory on a new machine:**
 ```bash
-MEMORY_DIR=~/.claude/projects/-Users-$(whoami)-Projects-tamirs-superpowers/memory
+# If CLAUDE_CODE_PROJECT_DIR_NAME is pinned, it names the transcript dir directly;
+# otherwise Claude Code derives it from the clone's absolute path (shown here for
+# the default clone location).
+MEMORY_DIR=~/.claude/projects/${CLAUDE_CODE_PROJECT_DIR_NAME:--Users-$(whoami)-Projects-tamirs-superpowers}/memory
 mkdir -p "$MEMORY_DIR"
 cp .claude/memory/* "$MEMORY_DIR/"
 ```

@@ -6,6 +6,32 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ## [Unreleased]
 
 ### Changed
+- **Platform target: Claude Code 2.1.234** (from 2.1.233). Docs-only bump — no shipped
+  plugin content changed, so no version bump. The single-day 2.1.234 delta reviewed
+  against the plugin surface: manifests, skills frontmatter, hooks, MCP stubs,
+  statusline, and marketplace flow all remain valid; `claude plugin validate .`
+  and the full `run-tamirs-superpowers` smoke test both re-run clean on a local
+  Claude Code **2.1.234** install. One capability is adopted into the docs:
+  **`CLAUDE_CODE_PROJECT_DIR_NAME`** — the "Project memory" section of `CLAUDE.md`
+  documented restoring `.claude/memory/` into the auto-loaded transcript directory
+  via a path *derived* from the clone's absolute location
+  (`-Users-<you>-Projects-tamirs-superpowers`), which shifts per machine/username
+  and breaks if the clone moves. The new env var pins that directory name directly,
+  so the restore command now prefers it when set and falls back to the old derived
+  path otherwise — no more re-deriving the path per machine. Also reviewed, host-side
+  with no plugin change needed: GitLab MR badge in footer/statusline (this plugin's
+  family is GitHub-hosted), auto-continue on usage-limit reset and account-email-only
+  identification (session/account behavior, no manifest or skill surface),
+  `selection:clear` keybinding and slash-command polish (`/permissions`/`/add-dir`
+  usable mid-turn, `/goal` + `GOAL_CHECKIN_MINUTES`) — this plugin ships no `/goal`
+  usage, Remote Control cross-session/org-switch and `SendMessage`/`ListAgents`
+  session-list fixes (`cross-platform-workflow.md`'s existing callout is unaffected),
+  the claude-api skill's ~200k→~25k context reduction (this repo bundles no
+  `claude-api` skill), removal of the "Default teammate model" setting so agent-team
+  teammates use the leader's model (none of the six `agents/*.md` reviewers or any
+  skill here documents a per-teammate model setting), background-task notifications
+  now arriving as system-reminders, and the Windows NT-namespace path-read hardening
+  (host-security fix, no plugin surface).
 - **Cursor Origin + Builds default (2026-08-17).** Documented [Origin](https://cursor.com/docs/origin) (early-beta Cursor git forge; GitHub remains canonical for marketplace installs) and flipped Cloud Agent Builds language to **now default**. Cursor-only pin bump: `changelog_date` **2026-08-13 → 2026-08-17**; desktop **3.16.17** / feature **3.11** unchanged.
 - **Cursor Grok 4.6 + Builds T-1 readiness (2026-08-16).** Install guide documents Grok 4.6 for long-running / visual sessions and a T-1 Builds checklist before the **2026-08-17** default. Cursor-only `features_adopted` tags added; pins stay **3.16.17** / feature **3.11** / **2026-08-13**.
 - **Cursor desktop 3.16.17 + Builds skipped/staleness docs.** Desktop/`validated_against` pin **3.15.19 → 3.16.17** (stable 2026-08-14; no separate feature write-up). Install guide documents Builds Skipped recurring checks, **Staleness threshold** default **24h**, and `install`/`start`/`terminals`. Feature/date pins stay **3.11** / **2026-08-13**.
