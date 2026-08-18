@@ -17,7 +17,7 @@ Row 3 README badges show **platform tool versions** directly validated in this r
 
 ## Versions
 
-Verified **2026-08-15** — Claude Code from the official changelog (automated nightly review, through **2.1.233**); other CLIs by running each on the maintainer machine (2026-08-03). Codex **0.147.0** was reviewed on **2026-08-09** against the official release delta and is the version this repo now supports/tracks; direct CLI validation remains at 0.146.0 until the next maintainer-machine run.
+Verified **2026-08-17** — Cursor against **3.16.17** on 2026-08-17 (the most recent verification of any target, and therefore the `last_reviewed` date); Claude Code from the official changelog (automated nightly review, through **2.1.233**) on 2026-08-15; the remaining CLIs by running each on the maintainer machine (2026-08-03). Codex **0.147.0** was reviewed on **2026-08-09** against the official release delta and is the version this repo now supports/tracks; direct CLI validation remains at 0.146.0 until the next maintainer-machine run.
 
 | Platform | Min supported | Validated against | Latest known | Install guide |
 |----------|---------------|-------------------|--------------|---------------|
