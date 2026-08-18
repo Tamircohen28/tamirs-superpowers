@@ -66,6 +66,24 @@ a `summary` of what it means and a `degradation` line stating what a skill does 
 it. Definitions live in one place so "hooks" cannot quietly mean two different things in
 two platform entries.
 
+## What a row is about
+
+**A capability row describes THIS REPO'S ARTIFACTS ON THAT PLATFORM — not the platform's
+abstract feature set.** The question a row answers is *"if I install this plugin on
+Gemini, do my hooks run?"*, never *"is Gemini a hooks-capable product?"* The second is a
+vendor question, and this registry is not a vendor comparison.
+
+This is not a new rule; it is what every existing row already means. `cursor.hooks` is
+`partial` because *our* bundle does not fully run there, not because Cursor lacks hooks.
+`opencode.hooks` is `unsupported` because *we* ship no plugin module, not because OpenCode
+lacks a plugin API — it has one. Read the other way, both rows are simply wrong, and a
+definition that falsifies most of the existing data is the wrong definition.
+
+The practical consequence, row by row: **when a row says `unsupported`, it means our
+artifact does not work there.** A reader who wants to know what the vendor's product can
+do has to go and measure it themselves — this registry will not tell them, and was never
+trying to.
+
 ## Status values
 
 | Status | Meaning | Skill should |
@@ -75,7 +93,7 @@ two platform entries.
 | `partial` | Present with material limits, spelled out in `notes`. | Use it inside the stated limits. |
 | `emulated` | The framework builds it from lower primitives, usually shell + git. | Use it; expect the manual steps. |
 | `adapter` | Provided through a platform-specific translation, not the canonical artifact. | Use the adapter; never hand-edit generated output. |
-| `unsupported` | Verified absent. | Take the `fallback`. |
+| `unsupported` | Verified absent **for our artifact on that platform** — see [What a row is about](#what-a-row-is-about). Not a claim about the vendor's product. | Take the `fallback`. |
 | `unknown` | Not verified. | **Treat exactly as `unsupported`.** |
 
 `unknown` is the load-bearing value. It exists so the registry can be honest about the
@@ -302,6 +320,26 @@ the `gemini_cli.hooks` note ("has its own event vocabulary") propagated into two
 files, and the sweep cleared all three. Only re-reading the primary evidence caught it.
 When a row's wording is load-bearing, verify it against the source — the shipped bundle,
 the CLI, the error text — not against the things that quote it.
+
+**Ask how a claim was measured before building on it — including when it comes from a
+teammate.** "Measurements outrank declarations" is not only a rule about rows in this
+file; it governs claims arriving in review comments, handoff notes and messages. A
+secondhand assertion used as the load-bearing premise of an argument is a declaration
+wearing a measurement's clothes, and it does not become evidence by being repeated
+confidently by someone closer to the platform. This registry had a row challenged on the
+strength of an event list that turned out to be a summarised documentation fetch; the
+challenge dissolved the moment someone read the shipped bundle. Ask for the provenance
+first. It is one question, and it is cheaper than the correction.
+
+**Re-sweep staged patches, not just shipped prose.** A correction's blast radius is bigger
+than the file that carried the original claim, and the most dangerous copies are the ones
+not yet applied: a paste-ready patch sitting in a request file, a suggested diff in a
+review comment, a snippet in a handoff note. Shipped prose gets re-read by whoever owns
+the file; a staged patch gets pasted by someone with no reason to re-derive it, straight
+into an artifact its author never touches. Both instances of the stale Gemini hooks
+wording that survived the first sweep were of this kind — one in a request file's
+paste-ready JSON patch, one in a request item asserting a CHANGELOG section was missing
+after it had been added. When you correct a measurement, grep the in-flight work too.
 
 So: a specification, a vendor changelog, or a documentation page is a reason to go and
 measure, never a substitute for having measured. When a measurement contradicts a row,
