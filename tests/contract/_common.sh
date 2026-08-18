@@ -13,6 +13,13 @@
 #   command was missing is useful; a silent pass is a lie (REFACTOR-SPEC §22.4).
 # shellcheck shell=bash
 
+# Fragment, not an entrypoint: sourced by tests/contract/run.sh. Run standalone it would die on
+# the first helper call with an opaque 127, so say what to run instead.
+if ! declare -f judge >/dev/null 2>&1; then
+  printf 'This file is a test fragment, not an entrypoint.\nRun: bash tests/contract/run.sh\n' >&2
+  exit 2
+fi
+
 REG="$REPO_ROOT/core/capabilities/platforms.json"
 
 # reg <platform-key> <jq-filter>

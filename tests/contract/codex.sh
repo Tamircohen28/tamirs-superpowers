@@ -2,6 +2,13 @@
 # Platform contract — OpenAI Codex CLI.
 # shellcheck shell=bash
 
+# Fragment, not an entrypoint: sourced by tests/contract/run.sh. Run standalone it would die on
+# the first helper call with an opaque 127, so say what to run instead.
+if ! declare -f judge >/dev/null 2>&1; then
+  printf 'This file is a test fragment, not an entrypoint.\nRun: bash tests/contract/run.sh\n' >&2
+  exit 2
+fi
+
 section "platform contract: Codex"
 
 contract_registry_entry codex "Codex CLI"

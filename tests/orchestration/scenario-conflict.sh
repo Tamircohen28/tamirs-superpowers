@@ -8,6 +8,13 @@
 # fix it — the integrator, on the integration branch, never a worker.
 # shellcheck shell=bash
 
+# Fragment, not an entrypoint: sourced by tests/test-orchestration.sh. Run standalone it would die on
+# the first helper call with an opaque 127, so say what to run instead.
+if ! declare -f judge >/dev/null 2>&1; then
+  printf 'This file is a test fragment, not an entrypoint.\nRun: bash tests/test-orchestration.sh\n' >&2
+  exit 2
+fi
+
 section "merge conflict — resolved by the integrator, on the integration branch"
 
 sim_new "$(harness_tmpdir)" conflicting "Conflicting writes"

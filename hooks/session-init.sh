@@ -36,8 +36,21 @@ if [[ -n "$task_slug" && "$task_slug" != "null" ]]; then
 elif [[ -n "$session_slug" && "$session_slug" != "null" ]]; then
   slug="${session_slug}"
 else
+  # Compose from the parts that actually carry information, rather than
+  # interpolating every slot unconditionally. `basename ""` is empty and
+  # `${session_id:0:8}` is empty without a session, so the unconditional form
+  # yielded names like "2026-08-19__" — a directory, and a repointed `_latest`
+  # symlink, standing for nothing. Same shape as the `wt/session-` leak: a
+  # placeholder assembled around missing values. Degrading to just the date is
+  # coarse but honest; it never invents an identity that was not supplied.
   cwd_slug="$(basename "$cwd" | tr -c 'A-Za-z0-9' '-' | sed 's/-\+/-/g; s/^-//; s/-$//')"
-  slug="${date_stamp}_${cwd_slug}_${short_id}"
+  slug="${date_stamp}"
+  if [[ -n "$cwd_slug" ]]; then
+    slug="${slug}_${cwd_slug}"
+  fi
+  if [[ -n "$short_id" ]]; then
+    slug="${slug}_${short_id}"
+  fi
 fi
 
 output_dir="${HOME}/.claude/outputs/${slug}"

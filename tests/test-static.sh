@@ -454,6 +454,75 @@ judge "the stdin detector catches the bare form"        yes "$(stdin_unbounded "
 judge "the stdin detector catches the QUOTED form"      yes "$(stdin_unbounded "$SCTRL/quoted.sh"  && echo yes || echo no)"
 judge "the stdin detector ignores a comment describing it" no "$(stdin_unbounded "$SCTRL/comment.sh" && echo yes || echo no)"
 judge "the stdin detector exonerates a bounded read"    no  "$(stdin_unbounded "$SCTRL/guarded.sh" && echo yes || echo no)"
+# ---------------------------------------------------------------------------
+# Placeholder composed from a possibly-empty substring.
+#
+# The shape behind two real bugs in this repo, suggested as a check by
+# hooks-audit after the second one:
+#
+#     short_id="${session_id:0:8}"      # empty when there is no session id
+#     task_slug="session-${short_id}"   # -> "session-", a real branch name
+#
+# A default that is correct for one caller shape and INVENTS information for
+# another. `is_git_repo ""` falling through `${1:-.}` to `.` is the same mistake.
+#
+# SCOPE, stated honestly — this is a cheap grep, not dataflow analysis:
+#   - Only identifier-sized substrings (N<=16) count. `${url:0:120}` is display
+#     truncation, benign, and was 10 of the 13 hits before this bound was added.
+#   - A guard on either the derived or the source variable ANYWHERE in the file
+#     exonerates every use in that file. So it under-reports: it catches "never
+#     guarded at all" (which is what both real bugs looked like) and will miss a
+#     second unguarded use in a file that guards elsewhere.
+#   - A hit is not automatically a bug. A composition with another
+#     provably-non-empty component (`"${date_stamp}_${cwd_slug}_${short_id}"`)
+#     still identifies something. Hence advisory, not a gate.
+placeholders=""
+while IFS= read -r f; do
+  [ -f "$f" ] || continue
+  while IFS= read -r hit; do
+    [ -n "$hit" ] || continue
+    ln="${hit%%:*}"
+    lhs="$(printf '%s' "$hit" | sed -nE 's/^[0-9]+:[[:space:]]*([A-Za-z_][A-Za-z0-9_]*)=.*/\1/p')"
+    src="$(printf '%s' "$hit" | sed -nE 's/.*\$\{([A-Za-z_][A-Za-z0-9_]*):0:[0-9]+\}.*/\1/p')"
+    guarded=no
+    for v in "$lhs" "$src"; do
+      [ -n "$v" ] || continue
+      grep -qE "[-][nz][[:space:]]+\"?\\\$\{?$v" "$f" 2>/dev/null && guarded=yes
+    done
+    [ "$guarded" = yes ] && continue
+    placeholders="$placeholders
+    $f:$ln  ($lhs from $src)"
+  done < <(sed 's/[[:space:]]*#.*$//' "$f" 2>/dev/null \
+           | grep -nE '^[^=]*[A-Za-z_][A-Za-z0-9_]*=[^=]*\$\{[A-Za-z_][A-Za-z0-9_]*:0:([0-9]|1[0-6])\}' || true)
+done < <(files_matching '\.sh$')
+
+# Positive control: both real bugs are fixed, so the tree is expected to be
+# near-clean — the state in which a broken detector looks identical to a healthy
+# repo. Fixture 1 is the original bug verbatim; fixture 2 is the same line with
+# the guard that fixed it; fixture 3 is display truncation, which must not fire.
+PCTRL="$CTRL/placeholder"
+mkdir -p "$PCTRL"
+printf '#!/usr/bin/env bash\nshort_id="${session_id:0:8}"\ntask_slug="session-${short_id}"\n' > "$PCTRL/bug.sh"
+printf '#!/usr/bin/env bash\nshort_id="${session_id:0:8}"\nif [[ -z "$short_id" ]]; then exit 0; fi\ntask_slug="session-${short_id}"\n' > "$PCTRL/fixed.sh"
+printf '#!/usr/bin/env bash\nmsg="truncated: ${url:0:120}"\n' > "$PCTRL/display.sh"
+
+ph_hits() {
+  sed 's/[[:space:]]*#.*$//' "$1" | grep -qE '^[^=]*[A-Za-z_][A-Za-z0-9_]*=[^=]*\$\{[A-Za-z_][A-Za-z0-9_]*:0:([0-9]|1[0-6])\}' || return 1
+  grep -qE '[-][nz][[:space:]]+"?\$\{?(short_id|session_id)' "$1" && return 1
+  return 0
+}
+judge "the placeholder detector catches the original bug shape" yes "$(ph_hits "$PCTRL/bug.sh"     && echo yes || echo no)"
+judge "the placeholder detector exonerates the guarded form"    no  "$(ph_hits "$PCTRL/fixed.sh"   && echo yes || echo no)"
+judge "the placeholder detector ignores display truncation"     no  "$(ph_hits "$PCTRL/display.sh" && echo yes || echo no)"
+
+if [ -z "$placeholders" ]; then
+  ok "no identifier is composed from an unguarded possibly-empty substring"
+elif [ "$STRICT" = true ]; then
+  bad "no identifier is composed from an unguarded possibly-empty substring" "$placeholders"
+else
+  warn "identifier composed from an unguarded possibly-empty substring (advisory — a non-empty sibling component may make it benign):$placeholders"
+fi
+
 
 if [ -z "$blocking" ]; then
   ok "no shipped .sh reads stdin with an unbounded \$(cat)"
