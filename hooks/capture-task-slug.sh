@@ -199,8 +199,13 @@ if is_git_repo "$cwd"; then
     context_lines+=("Do NOT use repo .dev-files/ — use \$CLAUDE_SESSION_FILES_DIR instead.")
   fi
 else
-  short_id="${session_id:0:8}"
-  session_slug="${session_title:-session-${short_id}}"
+  # session_title is guaranteed non-empty here: the guard above exits before
+  # this point when it is empty or the string "null". The old
+  # `${session_title:-session-${short_id}}` default was therefore unreachable —
+  # but it was also the exact placeholder shape that produced `wt/session-`,
+  # and a dead default is one moved guard away from being live again. Stating
+  # the invariant beats re-arming the bug.
+  session_slug="$session_title"
   session_dir="${HOME}/.claude/outputs/${session_slug}"
   session_files_dir="$(ensure_session_files_dir "${session_dir}/session-files")"
   sync_session_files_archive "$session_files_dir" "$session_slug"
