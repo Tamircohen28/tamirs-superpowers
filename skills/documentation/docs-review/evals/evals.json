@@ -1,37 +1,57 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "name": "docs-review-skill-evals",
-  "description": "Pin the deterministic axes (orphan detection, freshness verdict, footer compliance, link validity) so future edits to the skill don't regress the audit accuracy. Script paths use $CLAUDE_SKILL_DIR-relative form — callers must resolve before running.",
+  "description": "Pin the deterministic axes (orphan detection, freshness verdict, footer compliance, link validity) so future edits to the skill don't regress the audit accuracy. Script paths use $CLAUDE_SKILL_DIR-relative form \u2014 callers must resolve before running.",
   "cases": [
     {
       "id": "orphan-detection-runs-clean",
-      "description": "After a sweep, tooling/check-doc-orphans.py must exit 0 — every doc under docs/user/ and docs/engineering/ is reachable from a parent README.md.",
-      "input": {"command": "python3 tooling/check-doc-orphans.py"},
+      "description": "After a sweep, tooling/check-doc-orphans.py must exit 0 \u2014 every doc under docs/user/ and docs/engineering/ is reachable from a parent README.md.",
+      "input": {
+        "command": "python3 tooling/check-doc-orphans.py"
+      },
       "expected_exit": 0
     },
     {
       "id": "freshness-script-emits-canonical-shape",
       "description": "file-freshness.sh emits a JSON object with file, last_doc_update, repo_changes_since, relevant_count, verdict. Script is invoked via $CLAUDE_SKILL_DIR.",
-      "input": {"command": "bash \"$CLAUDE_SKILL_DIR/scripts/file-freshness.sh\" README.md"},
-      "expected_substrings": ["\"file\":", "\"last_doc_update\":", "\"verdict\":", "\"relevant_count\":"]
+      "input": {
+        "command": "bash \"$CLAUDE_SKILL_DIR/scripts/file-freshness.sh\" README.md"
+      },
+      "expected_substrings": [
+        "\"file\":",
+        "\"last_doc_update\":",
+        "\"verdict\":",
+        "\"relevant_count\":"
+      ]
     },
     {
       "id": "freshness-verdict-enum",
       "description": "verdict must be one of fresh|review|stale.",
-      "input": {"command": "bash \"$CLAUDE_SKILL_DIR/scripts/file-freshness.sh\" README.md"},
+      "input": {
+        "command": "bash \"$CLAUDE_SKILL_DIR/scripts/file-freshness.sh\" README.md"
+      },
       "assert": "JSON.parse(stdout).verdict matches /^(fresh|review|stale)$/"
     },
     {
       "id": "freshness-no-git-history-returns-review",
       "description": "Edge case: file-freshness.sh run against a newly created file with no git history must return verdict='review' and a descriptive reason, not crash.",
-      "input": {"setup": "touch /tmp/brand-new-doc.md", "command": "bash \"$CLAUDE_SKILL_DIR/scripts/file-freshness.sh\" /tmp/brand-new-doc.md"},
+      "input": {
+        "setup": "touch /tmp/brand-new-doc.md",
+        "command": "bash \"$CLAUDE_SKILL_DIR/scripts/file-freshness.sh\" /tmp/brand-new-doc.md"
+      },
       "assert": "JSON.parse(stdout).verdict === 'review' && stdout includes 'no git history'"
     },
     {
       "id": "plan-detector-flags-known-plan-shape",
       "description": "Files matching *-plan.md with score>=2 must be reported as suspects.",
-      "input": {"setup": "create docs/test-plan-2026-01-01.md unlinked from any README", "command": "bash \"$CLAUDE_SKILL_DIR/scripts/detect-plan-files.sh\""},
-      "expected_substrings": ["test-plan-2026-01-01.md", "\"score\""]
+      "input": {
+        "setup": "create docs/test-plan-2026-01-01.md unlinked from any README",
+        "command": "bash \"$CLAUDE_SKILL_DIR/scripts/detect-plan-files.sh\""
+      },
+      "expected_substrings": [
+        "test-plan-2026-01-01.md",
+        "\"score\""
+      ]
     },
     {
       "id": "plan-detector-skips-known-canonical",
@@ -45,50 +65,127 @@
     {
       "id": "template-check-flags-user-doc-without-footer",
       "description": "check-template.sh against a docs/user/ file lacking the canonical footer must report footer_present=false.",
-      "input": {"shape": "validate", "audience": "user", "footer_block_absent": true},
+      "input": {
+        "shape": "validate",
+        "audience": "user",
+        "footer_block_absent": true
+      },
       "assert": "footer_present == false"
     },
     {
       "id": "template-check-detects-mermaid-violations",
       "description": "Mermaid blocks containing classDef / class / fill: / style must be counted in mermaid_violations.",
-      "input": {"shape": "validate", "mermaid": "graph TD\\n  A-->B\\n  classDef big fill:#f00\\n  class A big"},
+      "input": {
+        "shape": "validate",
+        "mermaid": "graph TD\\n  A-->B\\n  classDef big fill:#f00\\n  class A big"
+      },
       "assert": "mermaid_violations >= 2"
     },
     {
       "id": "validate-links-detects-broken-relative",
       "description": "validate-links.sh must report broken_links for a target file that does not exist on disk.",
-      "input": {"shape": "validate", "link": "[broken](does-not-exist.md)"},
+      "input": {
+        "shape": "validate",
+        "link": "[broken](does-not-exist.md)"
+      },
       "assert": "broken_links_count == 1"
     },
     {
       "id": "validate-links-detects-broken-anchor",
       "description": "validate-links.sh must report broken_anchors when the target file exists but has no matching heading.",
-      "input": {"shape": "validate", "link": "[bad anchor](README.md#nonexistent-heading-xyz)"},
+      "input": {
+        "shape": "validate",
+        "link": "[bad anchor](README.md#nonexistent-heading-xyz)"
+      },
       "assert": "broken_anchors_count == 1"
     },
     {
       "id": "validate-links-flags-path-as-link-text",
       "description": "Markdown link with text that's a raw path (e.g. [docs/user/foo.md](docs/user/foo.md)) must produce a link_text_warning per documentation-standards.md.",
-      "input": {"shape": "validate", "link": "[docs/user/troubleshooting.md](docs/user/troubleshooting.md)"},
+      "input": {
+        "shape": "validate",
+        "link": "[docs/user/troubleshooting.md](docs/user/troubleshooting.md)"
+      },
       "assert": "link_text_warnings_count == 1"
     },
     {
       "id": "validate-links-clean-file-returns-empty-arrays",
       "description": "Edge case: a file with no links at all must return empty arrays for all four error categories (not null, not missing keys).",
-      "input": {"setup": "create a minimal docs/user/empty-links.md with only a title and one paragraph, no markdown links", "command": "bash \"$CLAUDE_SKILL_DIR/scripts/validate-links.sh\" docs/user/empty-links.md"},
+      "input": {
+        "setup": "create a minimal docs/user/empty-links.md with only a title and one paragraph, no markdown links",
+        "command": "bash \"$CLAUDE_SKILL_DIR/scripts/validate-links.sh\" docs/user/empty-links.md"
+      },
       "assert": "broken_links_count == 0 && broken_anchors_count == 0 && mermaid_parse_errors_count == 0 && link_text_warnings_count == 0"
     },
     {
       "id": "sweep-summary-structure",
-      "description": "After a full sweep, the skill must print a structured summary block containing 'Files audited', 'Fixes applied', and 'Broken links' — so repo-standards can parse the result.",
-      "input": {"shape": "end-to-end", "scenario": "repo with README.md and two docs/ files, all clean"},
-      "assert": "stdout contains 'Files audited:' && stdout contains 'Fixes applied:' && stdout contains 'Broken links:'"
+      "description": "After a full sweep, the skill must print a structured summary block containing 'Files audited', 'Fixes applied', 'Broken links', and the repo-wide axis lines 'Platform doc inconsistencies', 'Install commands verified' and 'Generated tables' \u2014 so repo-standards can parse the result.",
+      "input": {
+        "shape": "end-to-end",
+        "scenario": "repo with README.md and two docs/ files, all clean"
+      },
+      "assert": "stdout contains 'Files audited:' && stdout contains 'Fixes applied:' && stdout contains 'Broken links:' && stdout contains 'Platform doc inconsistencies:' && stdout contains 'Install commands verified:' && stdout contains 'Generated tables:'"
     },
     {
       "id": "footer-test-still-passes",
-      "description": "After a sweep, the existing footer-center-aligned.sh test must still pass — the skill should NEVER produce a doc that violates the canonical footer.",
-      "input": {"command": "bash tests/unit/skills/footer-center-aligned.sh"},
+      "description": "After a sweep, the existing footer-center-aligned.sh test must still pass \u2014 the skill should NEVER produce a doc that violates the canonical footer.",
+      "input": {
+        "command": "bash tests/unit/skills/footer-center-aligned.sh"
+      },
       "expected_exit": 0
+    },
+    {
+      "id": "axis8-platform-set-resolved-from-registry",
+      "description": "Axis 8 must resolve the supported-platform set from core/capabilities/platforms.json (falling back to platform-targets.json), never from a list written into the skill, and must report the diff in BOTH directions when a doc disagrees.",
+      "input": {
+        "shape": "repo-wide",
+        "scenario": "README names claude-code, codex, cursor; registry lists six platforms including gemini and opencode"
+      },
+      "assert": "stdout names gemini and opencode as in-registry-but-undocumented && stdout cites core/capabilities/platforms.json as the source && no hardcoded platform list is used"
+    },
+    {
+      "id": "axis8-rejects-claims-on-unsupported-capabilities",
+      "description": "A doc claiming a feature works on a platform whose registry entry marks that capability unsupported or unknown is a finding; the claim is removed, not softened.",
+      "input": {
+        "shape": "repo-wide",
+        "scenario": "docs claim hooks and a statusline work under OpenCode; registry marks both unsupported"
+      },
+      "assert": "stdout flags both claims && the fix removes them rather than rewording to 'may support'"
+    },
+    {
+      "id": "axis9-verifies-install-commands-without-running-them",
+      "description": "Every documented install/update/uninstall command is verified with make -n, bash -n, or a manifest name match. The audit must never execute an install.",
+      "input": {
+        "shape": "repo-wide",
+        "scenario": "README documents `make install-plugin` (target does not exist) and a valid /plugin install command"
+      },
+      "assert": "stdout reports the missing make target as a failure && no install command was executed && summary contains 'Install commands verified:'"
+    },
+    {
+      "id": "axis10-counts-and-tables-match-filesystem",
+      "description": "Axis 10 compares skill counts, domain tables and per-skill rows against `find skills -name SKILL.md` ground truth, fixing every occurrence of a stale count rather than the first.",
+      "input": {
+        "shape": "repo-wide",
+        "scenario": "README claims 27 skills in three places; 28 SKILL.md exist; one domain directory has no table row"
+      },
+      "assert": "all three count occurrences are corrected to 28 && the missing domain row is added && stdout reports the table diff in both directions"
+    },
+    {
+      "id": "axis10-generated-tables-are-regenerated-not-hand-edited",
+      "description": "A table marked as generated must be fixed by fixing and rerunning its generator; hand-editing a generated table is a finding in itself.",
+      "input": {
+        "shape": "repo-wide",
+        "scenario": "CLAUDE.md contains a generated skill table that drifted, and tooling/ci/regen-claude-md.sh exists"
+      },
+      "assert": "the generator is run && the table is not hand-edited"
+    },
+    {
+      "id": "axis7-deleted-entities-derived-from-git",
+      "description": "Axis 7 must derive the deleted-entity list from git log --diff-filter=D, not from a list baked into the skill, so it stays correct as the repo evolves.",
+      "input": {
+        "command": "git log --since=45.days.ago --diff-filter=D --name-only --pretty=format:"
+      },
+      "assert": "the deleted-entity list comes from git output && no hardcoded agent or skill names are used"
     }
   ]
 }

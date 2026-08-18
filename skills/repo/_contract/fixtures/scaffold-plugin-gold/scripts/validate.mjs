@@ -16,6 +16,9 @@ const required = [
   '.claude-plugin/marketplace.json',
   'dist/codex/AGENTS.md',
   'dist/cursor/.cursor/rules/000-core.mdc',
+  'dist/gemini/gemini-extension.json',
+  'dist/gemini/GEMINI.md',
+  'dist/opencode/opencode.json',
 ];
 
 let failed = 0;
@@ -27,7 +30,11 @@ for (const rel of required) {
   }
 }
 
-for (const rel of ['dist/codex/AGENTS.md', 'dist/cursor/.cursor/rules/000-core.mdc']) {
+for (const rel of [
+  'dist/codex/AGENTS.md',
+  'dist/cursor/.cursor/rules/000-core.mdc',
+  'dist/gemini/GEMINI.md',
+]) {
   const text = fs.readFileSync(path.join(root, rel), 'utf8');
   if (!text.includes('GENERATED FILE')) {
     console.error(`NO GENERATED MARKER: ${rel}`);

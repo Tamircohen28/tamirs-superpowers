@@ -57,9 +57,11 @@ should name the helper file the user could add to scope.
 **Action:** Stop. Ask the user for an error message, stack trace, or specific
 file. This skill cannot operate without concrete evidence — that's the point.
 
-If the user replies "no, just figure it out," redirect to `/investigate
-<ticket>` (the broad-exploration tool) instead of stretching this skill's
-scope.
+If the user replies "no, just figure it out," say that a broad-exploration
+session is the right tool and hand the request back, instead of stretching
+this skill's scope. There is no `/investigate` skill in this plugin — do not
+name one; describe the kind of session that is needed and let the user or the
+orchestrator choose the tool.
 
 ## Example 5 — Stack trace that crosses a service boundary
 
@@ -78,8 +80,9 @@ scope.
 
 The right move is to read the two in-scope files, hypothesize, and note in
 "Out-of-scope follow-ups": "If the root cause is in payment-service, the user
-should escalate to `/investigate` for cross-service evidence." Don't try to
-hop to another repo silently.
+needs a broad-exploration session with access to that repo for cross-service
+evidence." Don't try to hop to another repo silently, and don't name a
+command that does not exist.
 
 ## Decision rule (when in doubt)
 

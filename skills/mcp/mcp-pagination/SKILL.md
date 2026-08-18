@@ -1,6 +1,6 @@
 ---
 name: mcp-pagination
-description: Internal guardrail invoked by mcp-builder only. Audits MCP tool definitions that contain list_*, search_*, find_*, get_all_*, or SQL-executing operations for missing pagination/limit parameters. NOT triggered by general MCP questions, single-item getters, or mutation tools. mcp-builder calls this at Phase 1.4 (after cataloging endpoints), Phase 3.0 (before writing each list/search tool schema), Phase 4.1 (post-Inspector checklist), and Phase 5 (eval design). Skip invocation when all tools are single-item getters or mutations only.
+description: Internal guardrail invoked by mcp-builder only. Audits MCP tool definitions that contain list_*, search_*, find_*, get_all_*, or SQL-executing operations for missing pagination/limit parameters. NOT triggered by general MCP questions, single-item getters, or mutation tools. mcp-builder calls this at Phase 1.3 (after cataloging endpoints), Phase 3.0 (before writing each list/search tool schema), Phase 4.1 (post-Inspector checklist), and Phase 5 (eval design). Skip invocation when all tools are single-item getters or mutations only.
 when_to_use: Invoked automatically by mcp-builder when generating or reviewing MCP server designs that include list/search operations. Not called directly by users.
 argument-hint: '[path to MCP tool schema or server source file]'
 arguments: []
@@ -18,12 +18,24 @@ hooks: {}
 paths: []
 shell: bash
 metadata:
+  tamirs:
+    visibility: internal
+    category: mcp
+    role: reviewer
+    validation-tier: 1
+    updated-date: '2026-08-19'
+    capabilities:
+      required:
+        - skills
+      optional:
+        - shell
+    tags:
+      - mcp
+      - pagination
+      - guardrail
+      - portable
   capability: mcp-guardrail
-  tags:
-  - mcp
-  - pagination
-  - guardrail
-  updated-date: '2026-06-16'
+  updated-date: '2026-08-19'
 ---
 
 # MCP Pagination Guardrails (Internal)
@@ -38,7 +50,7 @@ This skill is invoked by `mcp-builder` via `Skill("mcp-pagination")` when list/s
 
 | mcp-builder phase | Why |
 |-------------------|-----|
-| **Phase 1.4** — after cataloging collection endpoints | Set pagination strategy before any tool schemas |
+| **Phase 1.3** — after cataloging collection endpoints | Set pagination strategy before any tool schemas |
 | **Phase 3.0** — before each `list_*` / `search_*` / SQL tool | Apply limits and cursor mapping per tool |
 | **Phase 4.1** — after Inspector testing | Run quick-reference checklist against implemented tools |
 | **Phase 5** — eval design | Confirm evals use caller-driven pagination, not full scans |

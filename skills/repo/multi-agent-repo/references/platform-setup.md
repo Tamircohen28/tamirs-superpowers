@@ -11,6 +11,8 @@ Use this reference when implementing phases 0–1 in **dev** mode (or quick file
 | Claude Code | `https://code.claude.com/docs/en/plugins`, `https://code.claude.com/docs/en/skills` |
 | Cursor | `https://cursor.com/docs/rules` |
 | Codex | `https://developers.openai.com/codex/guides/agents-md`, `https://developers.openai.com/codex/config-basic` |
+| Gemini CLI | `https://google-gemini.github.io/gemini-cli/docs/extensions/` |
+| OpenCode | `https://opencode.ai/docs/skills/`, `https://opencode.ai/docs/agents/`, `https://opencode.ai/config.json` |
 
 Cross-check live fetches against `references/platform-specs.md`; prefer live docs on conflict.
 
@@ -61,13 +63,42 @@ After phases 0–1, continue multi-agent-repo dev mode at Phase 2 locally.
 
 Create `.codex/config.toml` stub with `project_doc_max_bytes = 32768` and a comment pointing to `.codex-plugin/plugin.json` MCP wiring.
 
+## Phase 1c — Gemini CLI extension (when gemini_cli is a declared target)
+
+Write `gemini-extension.json` reusing the canonical `skills/` tree — never a copy. Set
+`contextFileName` to a file that exists. Add MCP and hooks fields only for payloads the
+repo actually ships. Keep it dependency-free: declarative extension content needs no Node
+toolchain. Record `gemini extensions validate .` output, or record explicitly that the CLI
+was unavailable — an unrun validation is `"validated_against": "unknown"`, not a guess.
+
+## Phase 1d — OpenCode config (when opencode is a declared target)
+
+Write `opencode.json` with `skills.paths` pointing at the canonical tree, plus `mcp` when
+MCP ships. Generate `.opencode/agent/` from the canonical agent definitions and add the
+drift check — never hand-copy an agent file. Do not expect `hooks.json`, a marketplace, or
+a statusline; the registry records all three as unavailable, and guards move into the
+skills and CI instead.
+
 ## Phase 3b — App skill bridge
 
 Create `.agents/skills/` as canonical. Sync or symlink `.claude/skills/` to match. Document bridge in `AGENTS.md` if paths differ.
 
+## Phase 5a — Capability registry (do this before platform targets)
+
+Write `core/capabilities/schema.json` and `core/capabilities/platforms.json` from
+`_contract/templates/core/capabilities/*.tmpl`. This is the **only** place the repo states
+what each target can do; every other file derives from it. Give every target an explicit
+status for every capability key — `unknown` where unverified, never an omission, and never
+a `native` claim without a validation command.
+
 ## Phase 5b — Platform targets
 
-Write `docs/engineering/build-and-release/platform-targets.json` and sync README Row 3 badges. Agent runs `make platform-targets-sync` before `make agent-polish-gate`.
+Write `docs/engineering/build-and-release/platform-targets.json` with `supported_targets`
+equal to the registry's platforms minus runtime surfaces, then run
+`make platform-targets-sync-capabilities` to generate the derived `capabilities` /
+`capability_gaps` mirror — do not type those fields by hand. Sync README Row 3 badges (one
+per validated target; a target still at `"validated_against": "unknown"` gets no badge
+yet). Agent runs `make platform-targets-sync` before `make agent-polish-gate`.
 
 ## Phase 4 — Makefile targets
 

@@ -1,77 +1,54 @@
-# Platform detection — platform-sync
+# Platform detection — `platform-sync`
 
-Detect which AI coding assistant **targets** a repo uses before invoking sub-skills.
-A repo may use zero, one, or many targets. Scan the repo root (or path argument) for
-**any** signal below — manifests are the strongest signal but not required.
+Detect which AI coding assistant **targets** a repo uses before running any analysis. A repo
+may use zero, one, or many targets. Manifests are the strongest signal but are never
+required — an app repo with only `CLAUDE.md` uses Claude Code just as truly as a plugin repo.
 
-## Claude Code
+## How detection works now
 
-| Signal | Path / pattern | Strength |
-|--------|----------------|----------|
-| Plugin manifest | `.claude-plugin/plugin.json` | strong |
-| Project memory | `CLAUDE.md` | strong |
-| Scoped rules | `.claude/rules/*.md` | strong |
-| Project skills | `.claude/skills/**/SKILL.md` | strong |
-| Plugin skills tree | `skills/**/SKILL.md` + `hooks/hooks.json` | medium |
-| Hooks only | `hooks/hooks.json` (Claude hook events) | medium |
-| MCP stub | `.mcp.json` | weak |
-| Slash commands | `commands/` directory | weak |
+Detection signals are **per-target data**, not a list in this file. For each target
+resolved by `registry.md`, read the "Detection signals" table in
+`references/platforms/<id>.md` and treat the target as detected when **any** signal matches.
 
-**Invoke:** `tamirs-superpowers:platform-sync-claude` when **any** Claude Code signal is present.
+This file holds only the rules that apply across every target.
 
-## Cursor
+## Cross-target rules
 
-| Signal | Path / pattern | Strength |
-|--------|----------------|----------|
-| Plugin manifest | `.cursor-plugin/plugin.json` | strong |
-| Project rules | `.cursor/rules/*.mdc` | strong |
-| Legacy rules | `.cursorrules` | medium |
-| MCP config | `.cursor/mcp.json` or `mcpServers` in plugin manifest | weak |
+**Shared signals fire for every target that claims them.** `AGENTS.md` is claimed by Codex
+(strong), Gemini CLI (medium) and OpenCode (medium). A repo with `AGENTS.md` and nothing
+else legitimately detects three targets. Do not arbitrate; report each with the signal that
+triggered it and its strength.
 
-**Invoke:** `tamirs-superpowers:platform-sync-cursor` when **any** Cursor signal is present.
+**Record what triggered each target.** Every output section names its signals, e.g.
+`CLAUDE.md + skills/`. A finding whose provenance cannot be traced to a signal is not
+actionable.
 
-## OpenAI Codex CLI
+**Weak signals still count, but say so.** A target detected only by weak signals (e.g. a
+bare `.mcp.json`) is reported with `(weak signal only)` next to the signal list, so the
+reader can judge whether the audit is worth acting on.
 
-| Signal | Path / pattern | Strength |
-|--------|----------------|----------|
-| Plugin manifest | `.codex-plugin/plugin.json` | strong |
-| Agents file | `AGENTS.md` at repo root | strong |
-| Codex config | `.codex/` or `codex.config.*` | medium |
+**Runtime surfaces are not detected separately.** A registry entry with
+`runtime_surface_of` is covered by detecting its underlying target — `claude-desktop` is
+covered by Claude Code detection. See `registry.md`.
 
-**Invoke:** `tamirs-superpowers:platform-sync-codex` when **any** Codex signal is present.
-
-## OpenCode
-
-| Signal | Path / pattern | Strength |
-|--------|----------------|----------|
-| Config file | `opencode.json` at repo root | strong |
-| Agent adapters | `.opencode/agent/*.md` | strong |
-| Plugin modules | `.opencode/plugin/*.{js,ts}` | medium |
-| Config directory | `.opencode/` (any contents) | medium |
-| Global config only | `~/.config/opencode/opencode.json` | weak — repo may rely on user config |
-
-**Invoke:** `tamirs-superpowers:platform-sync-opencode` when **any** OpenCode signal is present.
-
-> OpenCode has **no plugin manifest** — there is no `.opencode-plugin/plugin.json` to look
-> for, and no marketplace entry. A repo that supports OpenCode is identified by
-> `opencode.json` and `.opencode/`, not by a versioned manifest. Do not treat the absence
-> of a manifest as absence of the target.
+**Absence of a manifest is not absence of a target.** OpenCode and Gemini CLI have no
+Claude-style plugin manifest at all; Claude Code, Codex and Cursor are all usable with no
+manifest in an app repo. Never gate detection on a manifest.
 
 ## No targets detected
 
-If **no** signals match any platform, output:
+If no signal matches any resolved target, output exactly:
 
 ```
 No AI coding assistant usage detected in this repo.
 platform-sync looks for Claude Code (CLAUDE.md, .claude-plugin/, skills/, hooks/),
-Cursor (.cursor/rules/, .cursor-plugin/), Codex (AGENTS.md, .codex-plugin/), or
+Cursor (.cursor/rules/, .cursor-plugin/), Codex (AGENTS.md, .codex-plugin/),
+Gemini CLI (.gemini/, GEMINI.md, gemini-extension.json), or
 OpenCode (opencode.json, .opencode/).
 Add agent config for at least one platform, then re-run /platform-sync.
 ```
 
-Then stop — do not invoke sub-skills or guess.
+Then stop — do not fetch anything and do not guess.
 
-## Sub-skill local config scope
-
-Each sub-skill must read **all** detected local artifacts for its platform (not only
-plugin manifests). See each sub-skill's "Read local config" step for the full file list.
+If the registry resolved a different target set than the one named above, list that set
+instead. The message must describe what was actually looked for.

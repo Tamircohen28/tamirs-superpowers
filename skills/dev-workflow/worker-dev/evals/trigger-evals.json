@@ -1,0 +1,18 @@
+[
+  {"query": "run task-002 of objective auth-system", "should_trigger": true},
+  {"query": "implement your assigned task and hand off", "should_trigger": true},
+  {"query": "do task-001 in this worktree, scope is src/auth/**", "should_trigger": true},
+  {"query": "resume task-003 — it was left running", "should_trigger": true},
+  {"query": "execute the worker task and emit the handoff json", "should_trigger": true},
+  {"query": "you're the implementer for task-004, get it committed", "should_trigger": true},
+  {"query": "work this single task, don't open a PR", "should_trigger": true},
+  {"query": "implement the whole notifications spec", "should_trigger": false},
+  {"query": "open the PR for objective auth-system", "should_trigger": false},
+  {"query": "drive PR #42 to merge", "should_trigger": false},
+  {"query": "plan this feature into phases and create issues", "should_trigger": false},
+  {"query": "merge the worker branches into the objective branch", "should_trigger": false},
+  {"query": "start implementing issue #23", "should_trigger": false},
+  {"query": "run the full test suite and tell me what's red", "should_trigger": false},
+  {"query": "what does task-002 depend on?", "should_trigger": false},
+  {"query": "review the combined diff before we ship", "should_trigger": false}
+]

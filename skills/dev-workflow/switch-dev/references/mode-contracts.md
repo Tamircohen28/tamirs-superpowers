@@ -3,54 +3,65 @@
 ## Argument parsing
 
 ```bash
-SHARED_DIR="$(cd "$CLAUDE_SKILL_DIR/../_shared/scripts" 2>/dev/null && pwd)"
 SKILL_DIR="${CLAUDE_SKILL_DIR:-$(git rev-parse --show-toplevel)/skills/dev-workflow/switch-dev}"
+SHARED_DIR="$(cd "$SKILL_DIR/../_shared/scripts" && pwd)"
 bash "$SKILL_DIR/scripts/parse-mode-args.sh" $ARGUMENTS
 ```
 
+Output JSON: `{ mode, issue, objective, task, target_platform, constraints }`
+
 | Position | Name | Default | Values |
 |----------|------|---------|--------|
-| 1 | `mode` | `handoff` when issue given, else infer | `handoff`, `resume`, `status` |
-| 2+ | `issue` | — | `#N` or `N` |
-| optional | `target_platform` | `any` on handoff | `claude`, `cursor`, `codex`, `any` |
+| 1 | `mode` | `handoff` | `handoff`, `resume`, `status` |
+| any | `issue` | — | `#N` or `N` |
+| any | `objective` | — | `objective=<slug>` or `obj:<slug>` |
+| any | `task` | — | `task-NNN` or `task=task-NNN` |
+| any | `target_platform` | `any` on handoff | `claude`, `cursor`, `codex`, `gemini`, `opencode`, `any` (also `agent:<x>`, `claude-code`) |
 
-If user says `/switch-dev #42` with no mode → `handoff`.
-If user says `/switch-dev resume #42` → `resume`.
+Unrecognised words become `constraints` — free text passed through to the handoff note.
+
+`/switch-dev #42` → handoff. `/switch-dev resume #42` → resume. `/switch-dev status` → status (no arguments needed; the parser handles the empty-argument case).
 
 ## Shared scripts
 
-Resolve `SHARED_DIR` as sibling of `switch-dev`:
-
-```
-skills/dev-workflow/_shared/scripts/
-```
+`SHARED_DIR` is `skills/dev-workflow/_shared/scripts/`:
 
 | Script | Purpose |
 |--------|---------|
 | `detect-platform.sh` | Current platform |
-| `resolve-worktree.sh` | Platform worktree path |
-| `parse-issue-resume.sh` | Read Resume block |
-| `update-issue-resume.sh` | Write Resume + label + comment |
+| `resolve-worktree.sh` | Worktree path for a branch (understands legacy `.<platform>/.worktrees/` and objective worktrees) |
+| `objective-state.sh` | Read/write `.dev-files/objectives/<id>/` — primary state |
+| `handoff.sh` | `emit` / `show` / `list` / `validate` `handoffs/<task-id>.json` |
+| `parse-issue-resume.sh` | Read a Resume block (optional GitHub mirror) |
+| `update-issue-resume.sh` | Write Resume + label + comment (optional GitHub mirror) |
 | `list-agent-worktrees.sh` | Active worktrees |
+
+Every GitHub-touching script is **optional**: when `gh` is missing or the repo has no remote, the mode still completes on local state alone and says so.
 
 ## handoff mode
 
-**Purpose:** Persist session context to GitHub issue before switching platforms or ending session.
+**Purpose:** persist enough state that another tool — or the same tool tomorrow — can continue without re-explaining the task.
 
-**Stop condition:** Issue updated, comment posted, resume prompt printed.
+**Does:** push commits; write/update the local handoff record; mirror to the GitHub issue Resume block when `gh` and an issue are available; print a resume prompt for the target platform, including any capability degradation.
 
-**Must not:** Write code or open PRs.
+**Stop condition:** local handoff written, mirror attempted, resume prompt printed.
+
+**Must not:** write code, open PRs, or merge.
 
 ## resume mode
 
-**Purpose:** Load issue context and prepare worktree on current platform.
+**Purpose:** load state on the current platform and get to the point of continuing.
 
-**Stop condition:** Resume summary + worktree path + continuation prompt printed.
+**Does:** read local objective/task/handoff state first, then the issue Resume block if one exists; resolve the worktree for the recorded branch; claim ownership (label swap when GitHub is available); print the continuation checklist.
 
-**May suggest:** `/start-dev #N` if no branch/worktree exists yet.
+**Stop condition:** summary + worktree path + next step printed.
+
+**May suggest:** `/start-dev` (or `worker-dev`) when no branch/worktree exists yet.
 
 ## status mode
 
-**Purpose:** Dashboard of agent-labeled issues and platform worktrees.
+**Purpose:** read-only dashboard of what is in flight.
 
-**Stop condition:** Table printed. Read-only.
+**Does:** list local objectives and their task statuses; list agent-labelled issues when `gh` is available; list active worktrees.
+
+**Stop condition:** table printed. Never mutates anything.

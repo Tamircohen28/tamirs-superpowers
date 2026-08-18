@@ -3,7 +3,7 @@
   "evals": [
     {
       "id": 1,
-      "prompt": "Audit this Claude Code plugin project for misuse and outdated patterns. The project has a plugin.json with statusLine as a string (not an object), a hooks/hooks.json with a PostToolUse event named 'PostTool' (non-standard), and two SKILL.md files — one with user-invocable: false and no disable-model-invocation field, and another with a description over 600 characters. Return a structured review with critical issues and sources.",
+      "prompt": "Audit this Claude Code plugin project for misuse and outdated patterns. The project has a plugin.json with statusLine as a string (not an object), a hooks/hooks.json with a PostToolUse event named 'PostTool' (non-standard), and two SKILL.md files \u2014 one with user-invocable: false and no disable-model-invocation field, and another with a description over 600 characters. Return a structured review with critical issues and sources.",
       "expected_output": "A structured Mode 3 review output with: (1) Critical Issues section flagging statusLine as wrong type (should be object), flagging 'PostTool' as an invalid hook event name (official name is PostToolUse), and flagging the missing disable-model-invocation field alongside user-invocable: false; (2) each finding citing a documentation URL from references/urls.md; (3) a Sources section at the end. The description length issue should also be noted.",
       "files": [],
       "expectations": [
@@ -54,9 +54,39 @@
         "Output follows Mode 3 review template with at least Critical Issues or Missed Opportunities sections",
         "Evaluates the PreToolUse Bash matcher as valid or flags it if incorrect",
         "Sources section cites fetched hooks documentation URLs",
-        "Does not answer from training knowledge alone — must cite fetched content",
+        "Does not answer from training knowledge alone \u2014 must cite fetched content",
         "If hooks structure is valid, explicitly says so rather than only listing issues"
       ]
+    },
+    {
+      "id": 5,
+      "prompt": "repo-standards is auditing this plugin repo. The version was bumped in .claude-plugin/plugin.json to 2.1.0 but .cursor-plugin/plugin.json and the README badge still say 2.0.1.",
+      "expected_output": "Mode 3 Step 0 must run scripts/check-version-truth.sh and report ITS findings, then recommend `scripts/check-version-truth.sh --sync`. It must NOT enumerate the drifted files as a manual bump checklist, and must not tell the user to 'also bump .cursor-plugin/plugin.json and the README badge' \u2014 plugin-version.json owns the consumer list.",
+      "files": []
+    },
+    {
+      "id": 6,
+      "prompt": "Audit this Claude Code plugin repo. It has no scripts/check-version-truth.sh.",
+      "expected_output": "Should report 'Version truth not verified \u2014 scripts/check-version-truth.sh is not present' and stop checking versions. Must NOT fall back to hand-comparing .claude-plugin/, .cursor-plugin/ and .codex-plugin/ manifests. An honest unverified is the expected result; a hand-rolled comparison is the failure.",
+      "files": []
+    },
+    {
+      "id": 7,
+      "prompt": "We're adding a new file that also carries the plugin version. Update changelog-review so it checks that file too.",
+      "expected_output": "Should decline to add the consumer to this skill and direct the change to plugin-version.json's `consumers` array, where scripts/check-version-truth.sh picks it up for every caller. Editing the skill to add a version consumer is exactly the duplication Step 0 exists to prevent.",
+      "files": []
+    },
+    {
+      "id": 8,
+      "prompt": "Run changelog-review against our Cursor and OpenCode configuration.",
+      "expected_output": "Should decline the scope: changelog-review audits Claude Code usage specifically, as its `compatibility` block declares, and platform-sync is the multi-platform auditor. Must not present Claude Code findings as applying to Cursor or OpenCode.",
+      "files": []
+    },
+    {
+      "id": 9,
+      "prompt": "Audit this repo \u2014 scripts/check-version-truth.sh is not available in this checkout.",
+      "expected_output": "Should report 'Version truth not verified' and stop checking versions, degrading honestly. Must not fall back to hand-comparing the manifests: an unverified result stated plainly is correct, a hand-rolled comparison that looks authoritative is not.",
+      "files": []
     }
   ]
 }

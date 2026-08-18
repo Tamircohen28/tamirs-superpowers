@@ -200,9 +200,117 @@ write_worktree_env_local() {
   fi
 }
 
+# --------------------------------------------------------- dependency setup ---
+#
+# WHY THIS IS CONFIGURABLE AND CAPPED
+#   One prompt used to mean one worktree, so one install. Under the objective
+#   model an orchestrator can stand up a dozen worker worktrees for the same
+#   objective at once, and the naive version of this function would then run a
+#   dozen simultaneous `npm ci` against the same lockfile — each one a full
+#   dependency tree on disk and all of them competing for the same CPU, network
+#   and package-manager cache locks. The install is also entirely optional: it
+#   is a convenience, never a correctness requirement.
+#
+#   So: it can be switched off, it reuses one shared package-manager cache
+#   across worktrees, it skips when the lockfiles have not changed since the
+#   last successful install in that worktree, and no more than
+#   SUPERPOWERS_MAX_CONCURRENT_INSTALLS run at once.
+#
+# ENVIRONMENT
+#   SUPERPOWERS_WORKTREE_INSTALL_DEPS   auto (default) | 0/false/off/no to disable
+#   SUPERPOWERS_MAX_CONCURRENT_INSTALLS max simultaneous installers (default 2)
+#   SUPERPOWERS_INSTALL_SLOT_WAIT       seconds to wait for a slot (default 300)
+#   SUPERPOWERS_PKG_CACHE_DIR           shared package-manager cache root
+#                                       (default ~/.claude/cache/pkg)
+
+# The stamp lives in the worktree's private git directory, NOT in the tree: an
+# untracked file at the top level makes `git status --porcelain` non-empty,
+# which is exactly the signal cleanup_stale_worktrees uses to decide a worktree
+# still holds work — a stamp in the tree would quietly disable stale cleanup.
+WORKTREE_DEPS_STAMP="superpowers-deps"
+PKG_CACHE_DIR="${SUPERPOWERS_PKG_CACHE_DIR:-${HOME}/.claude/cache/pkg}"
+INSTALL_SLOT_DIR="${PKG_CACHE_DIR}/.slots"
+
+# Path of the install stamp for a worktree — inside its git dir, falling back
+# to the tree only when git cannot answer (an unregistered directory).
+worktree_deps_stamp_path() {
+  local worktree_path="$1" gitdir
+  gitdir="$(git -C "$worktree_path" rev-parse --absolute-git-dir 2>/dev/null || true)"
+  if [[ -n "$gitdir" && -d "$gitdir" ]]; then
+    printf '%s/%s' "$gitdir" "$WORKTREE_DEPS_STAMP"
+  else
+    printf '%s/.%s' "${worktree_path%/}" "$WORKTREE_DEPS_STAMP"
+  fi
+}
+
+worktree_deps_enabled() {
+  case "$(printf '%s' "${SUPERPOWERS_WORKTREE_INSTALL_DEPS:-auto}" | tr '[:upper:]' '[:lower:]')" in
+    0|false|off|no|never|disabled) return 1 ;;
+    *) return 0 ;;
+  esac
+}
+
+# A single digest over every lockfile present. Any dependency change moves it;
+# nothing else does, so an unchanged digest is a safe skip.
+worktree_lockfile_hash() {
+  local worktree_path="$1" f
+  {
+    for f in package-lock.json yarn.lock pnpm-lock.yaml poetry.lock requirements.txt Cargo.lock go.sum; do
+      [[ -f "${worktree_path}/${f}" ]] && printf '%s ' "$f" && cat "${worktree_path}/${f}"
+    done
+  } 2>/dev/null | { shasum -a 256 2>/dev/null || sha256sum 2>/dev/null || cksum; } | awk '{print $1}'
+}
+
+# Slots are directories: mkdir is atomic on every filesystem this runs on, and
+# unlike a counter file it cannot drift when an installer is killed — a slot
+# whose holder is gone is reclaimed by age.
+_acquire_install_slot() {
+  local max="${SUPERPOWERS_MAX_CONCURRENT_INSTALLS:-2}"
+  local wait_left="${SUPERPOWERS_INSTALL_SLOT_WAIT:-300}"
+  local i slot now mtime
+  mkdir -p "$INSTALL_SLOT_DIR" 2>/dev/null || return 1
+
+  # Attempt-then-wait, not wait-then-attempt: a caller with a zero wait budget
+  # is asking "is a slot free right now", and must still get an answer.
+  while :; do
+    for ((i = 0; i < max; i++)); do
+      slot="${INSTALL_SLOT_DIR}/slot-${i}"
+      if mkdir "$slot" 2>/dev/null; then
+        printf '%s' "$slot"
+        return 0
+      fi
+      # Reclaim a slot abandoned by a killed installer.
+      mtime="$(stat -f %m "$slot" 2>/dev/null || stat -c %Y "$slot" 2>/dev/null || echo 0)"
+      now="$(date +%s)"
+      if ((now - mtime > 3600)); then
+        rmdir "$slot" 2>/dev/null || true
+      fi
+    done
+    ((wait_left > 0)) || return 1
+    sleep 5
+    wait_left=$((wait_left - 5))
+  done
+}
+
+_release_install_slot() {
+  [[ -n "${1:-}" ]] && rmdir "$1" 2>/dev/null || true
+}
+
+# Point every package manager at one shared cache, so N worktrees download a
+# package once rather than N times.
+_export_shared_pkg_cache() {
+  mkdir -p "${PKG_CACHE_DIR}" 2>/dev/null || return 0
+  export npm_config_cache="${PKG_CACHE_DIR}/npm"
+  export YARN_CACHE_FOLDER="${PKG_CACHE_DIR}/yarn"
+  export PNPM_STORE_DIR="${PKG_CACHE_DIR}/pnpm"
+  export POETRY_CACHE_DIR="${PKG_CACHE_DIR}/poetry"
+  export PIP_CACHE_DIR="${PKG_CACHE_DIR}/pip"
+}
+
 # Install dependencies in a freshly created worktree, matching the project's
-# package manager. Skips when node_modules is already present (e.g. symlinked).
-# Logs to session-files/worktree-setup.log; never fatal to the caller.
+# package manager. Skips when node_modules is already present (e.g. symlinked),
+# when deps are disabled, or when the lockfile digest matches the last
+# successful install. Logs to session-files/worktree-setup.log; never fatal.
 run_worktree_post_setup() {
   local worktree_path="$1"
   local logfile="${worktree_path}/session-files/worktree-setup.log"
@@ -210,10 +318,31 @@ run_worktree_post_setup() {
   local stamp errors=()
   stamp="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 
+  if ! worktree_deps_enabled; then
+    echo "${stamp} dependency install disabled (SUPERPOWERS_WORKTREE_INSTALL_DEPS)" >> "$logfile"
+    return 0
+  fi
+
   if [[ -L "${worktree_path}/node_modules" || -d "${worktree_path}/node_modules" ]]; then
     echo "${stamp} node_modules present (native symlink or existing install)" >> "$logfile"
     return 0
   fi
+
+  local want_hash have_hash="" stamp_file
+  stamp_file="$(worktree_deps_stamp_path "$worktree_path")"
+  want_hash="$(worktree_lockfile_hash "$worktree_path")"
+  [[ -f "$stamp_file" ]] && have_hash="$(cat "$stamp_file" 2>/dev/null || true)"
+  if [[ -n "$want_hash" && "$want_hash" == "$have_hash" ]]; then
+    echo "${stamp} lockfiles unchanged since last install (${want_hash:0:12}) — skipping" >> "$logfile"
+    return 0
+  fi
+
+  local slot=""
+  if ! slot="$(_acquire_install_slot)"; then
+    echo "${stamp} no installer slot free after ${SUPERPOWERS_INSTALL_SLOT_WAIT:-300}s — skipping install (run it manually if needed)" >> "$logfile"
+    return 0
+  fi
+  _export_shared_pkg_cache
 
   if [[ -f "${worktree_path}/package.json" ]]; then
     if [[ -f "${worktree_path}/yarn.lock" ]]; then
@@ -233,10 +362,15 @@ run_worktree_post_setup() {
     (cd "$worktree_path" && poetry install >> "$logfile" 2>&1) || errors+=("poetry install")
   fi
 
+  _release_install_slot "$slot"
+
   if ((${#errors[@]})); then
     echo "setup errors: ${errors[*]}" >> "$logfile"
     return 1
   fi
+  # Only stamp a clean run — a failed install must not be mistaken for a
+  # satisfied one on the next pass.
+  [[ -n "$want_hash" ]] && printf '%s\n' "$want_hash" > "$stamp_file"
   return 0
 }
 

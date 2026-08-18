@@ -12,6 +12,8 @@
   "dist": {
     "codex": "dist/codex",
     "cursor": "dist/cursor",
+    "gemini": "dist/gemini",
+    "opencode": "dist/opencode",
     "claudePlugin": "plugins/scaffold-plugin-gold"
   },
   "generatedMarker": "GENERATED FILE. DO NOT EDIT DIRECTLY."

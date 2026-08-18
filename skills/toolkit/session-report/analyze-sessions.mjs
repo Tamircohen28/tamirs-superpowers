@@ -6,6 +6,18 @@
  * Scans ~/.claude/projects/**.jsonl transcript files and reports token usage,
  * message counts, runtime, cache breaks, subagent and skill activity.
  *
+ * PLATFORM SCOPE: this parser reads Claude Code's own JSONL transcript format and
+ * nothing else. The structural notes below are Claude Code internals, established
+ * empirically — they are not a cross-vendor standard, and no other supported harness
+ * (Codex CLI, Cursor, Gemini CLI, OpenCode) emits them. There is deliberately no
+ * adapter for those platforms: one would have to be verified against their real
+ * output before it could be trusted, and none has been.
+ *
+ * ADAPTER EXTENSION POINT: `--dir <transcripts-dir>` is the seam. An adapter's job is
+ * to normalise another harness's logs into the JSONL shape described below and point
+ * --dir at the result. Adding one means adding a parser, a fixture, and a test that
+ * proves the token accounting — not relaxing the assumptions in this file.
+ *
  * Output is human-readable text by default; pass --json for machine-readable.
  *
  * Usage:

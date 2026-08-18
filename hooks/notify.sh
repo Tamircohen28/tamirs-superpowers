@@ -8,8 +8,10 @@
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=lib/worktree-common.sh
 source "${SCRIPT_DIR}/lib/worktree-common.sh"
+# shellcheck source=lib/hook-output.sh
+source "${SCRIPT_DIR}/lib/hook-output.sh"
 
-input="$(cat)"
+input="$(hook_read_stdin)"
 title="$(echo "$input" | jq -r '.title // "Claude Code"')"
 message="$(echo "$input" | jq -r '.message // "Claude needs your attention"')"
 session_id="$(echo "$input" | jq -r '.session_id // empty')"

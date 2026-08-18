@@ -1,0 +1,71 @@
+{
+  "schema_version": 1,
+  "description": "Search sources for find-skill. This file is DATA, not configuration baked into the skill. Users and repos override it (see references/sources.md for the resolution order) to add private registries, remove sources they do not trust, or re-weight the fan-out. find-skill must read this file rather than carry a source list in its instructions.",
+  "defaults": {
+    "min_sources": 5,
+    "result_count": 10,
+    "max_result_count": 50
+  },
+  "sources": [
+    {
+      "id": "smithery",
+      "name": "Smithery",
+      "kind": "registry",
+      "enabled": true,
+      "covers": ["mcp", "skills"],
+      "query": { "tool": "WebFetch", "url": "https://smithery.ai/search?q={query}" },
+      "fallback": { "tool": "WebSearch", "query": "site:smithery.ai {query}" },
+      "notes": "Largest open registry. Client-rendered; fall back to WebSearch when the fetch returns an empty shell."
+    },
+    {
+      "id": "mcp-directory",
+      "name": "mcp.directory",
+      "kind": "registry",
+      "enabled": true,
+      "covers": ["mcp"],
+      "query": { "tool": "WebFetch", "url": "https://mcp.directory/search?q={query}" },
+      "fallback": { "tool": "WebSearch", "query": "site:mcp.directory {query}" }
+    },
+    {
+      "id": "wshobson-agents",
+      "name": "wshobson/agents",
+      "kind": "catalog",
+      "enabled": true,
+      "covers": ["agents", "skills"],
+      "query": { "tool": "WebFetch", "url": "https://raw.githubusercontent.com/wshobson/agents/main/README.md" }
+    },
+    {
+      "id": "obra-superpowers",
+      "name": "obra/superpowers",
+      "kind": "catalog",
+      "enabled": true,
+      "covers": ["skills"],
+      "query": { "tool": "WebFetch", "url": "https://raw.githubusercontent.com/obra/superpowers/main/README.md" }
+    },
+    {
+      "id": "mattpocock-skills",
+      "name": "mattpocock/skills",
+      "kind": "catalog",
+      "enabled": true,
+      "covers": ["skills"],
+      "query": { "tool": "WebFetch", "url": "https://raw.githubusercontent.com/mattpocock/skills/main/README.md" }
+    },
+    {
+      "id": "marketplace-manifests",
+      "name": "Plugin marketplace manifests",
+      "kind": "search",
+      "enabled": true,
+      "covers": ["plugins"],
+      "query": { "tool": "WebSearch", "query": "site:github.com marketplace.json plugin {query}" }
+    },
+    {
+      "id": "web-fallback",
+      "name": "Open web",
+      "kind": "search",
+      "enabled": true,
+      "covers": ["skills", "plugins", "mcp", "agents"],
+      "query": { "tool": "WebSearch", "query": "agent skill OR plugin \"{query}\"" },
+      "notes": "Always-on backstop. Never the sole source for a recommendation."
+    }
+  ]
+}

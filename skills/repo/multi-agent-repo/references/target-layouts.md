@@ -11,6 +11,14 @@ Use this reference when classifying `$TARGET_ROOT` at the start of every mode.
 | **agent-kit** | `canonical/rules/` + `plugins/<name>/` + `.claude-plugin/marketplace.json` | `canonical/skills/` (source) → `plugins/<name>/skills/` (generated) | Distribution repo — see below |
 | **hybrid** | Both app artifacts and plugin manifest | Document per-tool paths in review report | Common in monorepos |
 
+## Canonical source, thin adapters
+
+Every repo type above follows the same rule: **one canonical body per rule, skill and
+role; one generated adapter per target.** A rule copied into a platform directory by hand
+is drift, not support. Multi-platform repos also carry
+`core/capabilities/{schema,platforms}.json` — the capability registry — so a skill can
+degrade against a target that lacks a capability instead of assuming one.
+
 ## Recommended app/library layout
 
 ```
@@ -35,6 +43,10 @@ repo/
 │       ├── testing.md
 │       ├── security.md
 │       └── style.md
+├── core/
+│   └── capabilities/
+│       ├── schema.json               # capability registry schema
+│       └── platforms.json            # THE statement of what each target can do
 ├── scripts/
 │   ├── check-agent-drift.sh
 │   └── check-no-agent-drift.mjs      # optional Node variant

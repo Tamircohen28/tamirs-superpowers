@@ -12,7 +12,10 @@ Required sections in order:
 2. Project name as `# Title`
 3. **Badge row 1:** author (GitHub profile link), CI status, license, version
 4. **Badge row 2 (optional):** npm/PyPI, live site, framework versions — omit row if N/A
-5. **Badge row 3 (when ≥2 AI targets):** Claude Code / Cursor / Codex version badges
+5. **Badge row 3 (when ≥2 AI targets):** one version badge per supported target —
+   Claude Code / Cursor / Codex / Gemini CLI / OpenCode. The badge value must equal
+   `validated_against` in `platform-targets.json`; a target still carrying
+   `"validated_against": "unknown"` is declared but unvalidated and needs no badge yet.
 6. One-paragraph hook
 7. Feature highlights (4–6 bullets)
 8. Prerequisites

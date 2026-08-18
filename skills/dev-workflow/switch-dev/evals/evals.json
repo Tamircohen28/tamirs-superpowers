@@ -1,42 +1,118 @@
 {
   "skill_name": "switch-dev",
+  "notes": "Handoff state is now local-first (.dev-files/objectives/<id>/handoffs/) with the GitHub issue Resume block as an optional mirror, across five platforms. Evals 1-3 preserve the original three-platform issue-based behaviour (backward compatibility). Evals 4-6 cover the additions: Gemini/OpenCode targets, gh-less operation, and objective/task selectors.",
   "evals": [
     {
       "id": 1,
       "prompt": "/switch-dev handoff #42 — I'm rate limited on Claude, switching to Cursor for the UI work. Branch is feat/auth-ui and worktree is .claude/.worktrees/feat-auth-ui.",
-      "expected_output": "Updates issue #42 Resume block with Done/Next/Decisions, sets agent:cursor label, posts handoff comment, prints copy-paste resume prompt for Cursor. Does not write code.",
+      "expected_output": "Writes a local handoff record, mirrors it to issue #42's Resume block, sets agent:cursor, posts the handoff comment, and prints a copy-paste resume prompt for Cursor. Warns if commits are unpushed. Writes no code.",
       "files": [],
       "expectations": [
-        "Runs or describes update-issue-resume.sh with Resume fields",
-        "Sets target label to agent:cursor based on user intent",
-        "Warns about pushing unpushed commits before handoff",
-        "Prints a continuation prompt referencing issue #42 Resume section",
-        "Does not merge PRs or implement code"
+        "A handoff record is written locally before the GitHub mirror is attempted",
+        "update-issue-resume.sh (or gh) is used to update issue #42's Resume block",
+        "The target label is agent:cursor, matching the user's stated intent",
+        "Unpushed commits are pushed, or the user is warned they will be invisible",
+        "Prior Done items are appended to, never erased",
+        "A continuation prompt for Cursor is printed",
+        "No code is written and no PR is merged",
+        "The legacy .claude/.worktrees/ path is accepted without complaint"
       ]
     },
     {
       "id": 2,
       "prompt": "/switch-dev resume #42",
-      "expected_output": "Loads issue Resume via parse-issue-resume.sh, resolves platform worktree with resolve-worktree.sh, claims agent label for current platform, prints continuation checklist.",
+      "expected_output": "Loads state — local handoff record first, issue Resume as a mirror — resolves the worktree for the recorded branch, claims the agent label for the current platform, and prints the continuation checklist. Stops if the state reports a blocker.",
       "files": [],
       "expectations": [
-        "Calls parse-issue-resume.sh or gh issue view to load Resume fields",
-        "Uses resolve-worktree.sh for current platform path not hardcoded .claude/",
-        "Stops if Blocked field is not none",
-        "Suggests /start-dev if branch unset",
-        "Prints Next item clearly for continuation"
+        "Local objective/handoff state is consulted before or alongside the issue",
+        "parse-issue-resume.sh or gh issue view is used for the mirror",
+        "resolve-worktree.sh is used rather than a hardcoded .claude/ path",
+        "If local state and the issue disagree, local state and git are preferred and the choice is stated",
+        "Execution stops when Blocked/status is not none",
+        "The Next item is printed clearly",
+        "Delivery is not implied — resuming a task does not open a PR"
       ]
     },
     {
       "id": 3,
       "prompt": "/switch-dev status",
-      "expected_output": "Lists open issues with agent:* labels and platform worktrees from list-agent-worktrees.sh in a table format. Read-only.",
+      "expected_output": "Read-only dashboard: local objectives with their task statuses, agent-labelled issues when gh is available, and active worktrees, in a table.",
       "files": [],
       "expectations": [
-        "Queries gh issue list filtered by agent labels or equivalent",
-        "Runs list-agent-worktrees.sh or git worktree list for .claude/.cursor/.codex paths",
-        "Does not modify issues or code",
-        "Presents tabular or structured summary"
+        "Local .dev-files/objectives/ are listed with task states",
+        "Agent-labelled issues are listed when gh works, and the absence of gh is reported rather than failing",
+        "list-agent-worktrees.sh or git worktree list is used",
+        "Nothing is modified"
+      ]
+    },
+    {
+      "id": 4,
+      "prompt": "/switch-dev handoff objective=auth-system task-002 gemini",
+      "expected_output": "Parses objective, task and target platform; writes .dev-files/objectives/auth-system/handoffs/task-002.json against the handoff schema; checks Gemini CLI's capabilities and names any degradation; prints a Gemini-targeted resume prompt. No GitHub issue is required.",
+      "files": [],
+      "expectations": [
+        "parse-mode-args.sh resolves objective=auth-system, task-002 and target gemini",
+        "The handoff record is written to .dev-files/objectives/auth-system/handoffs/task-002.json",
+        "commits and validation entries reflect what actually ran, not aspirations",
+        "The target platform's capabilities are checked and any degradation is stated",
+        "The flow completes without a GitHub issue number",
+        "The provider (gemini) does not appear in the branch name or worktree path"
+      ],
+      "assertions": [
+        {
+          "text": "gemini is accepted as a target platform",
+          "passed": null,
+          "evidence": ""
+        },
+        {
+          "text": "No branch or path in the output contains the provider name",
+          "passed": null,
+          "evidence": ""
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "prompt": "/switch-dev handoff — continuing this on OpenCode later. There's no GitHub remote on this repo.",
+      "expected_output": "Completes entirely on local state: writes the handoff record, states in one line that the GitHub mirror was skipped because there is no remote/gh, and prints an OpenCode-targeted resume prompt. Does not treat the missing mirror as a failure.",
+      "files": [],
+      "expectations": [
+        "The handoff record is written locally",
+        "The missing GitHub mirror is reported in one line and does not abort the handoff",
+        "opencode is recognised as a target platform",
+        "OpenCode-specific degradations (no Claude hooks, no statusline) are not assumed away"
+      ],
+      "assertions": [
+        {
+          "text": "The handoff completes successfully with no gh calls succeeding",
+          "passed": null,
+          "evidence": ""
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "prompt": "/switch-dev resume objective=auth-system",
+      "expected_output": "Loads the objective, lists its tasks and their statuses, identifies the next actionable task (dependencies satisfied, status ready), resolves its worktree, and prints the continuation checklist for that task.",
+      "files": [],
+      "expectations": [
+        "objective.json and tasks/*.json are read",
+        "The next actionable task is chosen by dependency satisfaction, not by file order alone",
+        "A worktree/branch is resolved for that task",
+        "The output names the objective, the task, and the next step"
+      ]
+    },
+    {
+      "id": 7,
+      "prompt": "/switch-dev status — gh is not installed on this machine.",
+      "expected_output": "Capability fallback case. The dashboard is produced from local .dev-files/objectives/ state and git worktrees alone. The unavailable GitHub listing is reported in one line as degraded, not as an error, and the mode still completes.",
+      "files": [],
+      "expectations": [
+        "Local objectives and task statuses are listed without any successful gh call",
+        "The unsupported GitHub listing is reported in one line and does not abort the mode",
+        "list-agent-worktrees.sh or git worktree list still runs",
+        "Nothing is modified",
+        "The output does not present an empty GitHub section as though no work exists"
       ]
     }
   ]

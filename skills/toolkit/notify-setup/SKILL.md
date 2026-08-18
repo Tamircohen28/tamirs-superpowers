@@ -1,7 +1,7 @@
 ---
 name: notify-setup
-description: 'Use when the user wants Claude Code notifications on their phone, or is fixing phone notifications that never arrive — ''notify me on my phone'', ''send notifications to my phone'', ''set up push notifications'', ''set up Pushover'', ''ping me when Claude needs input'', ''I keep missing when Claude finishes'', ''phone alerts for Claude'', ''notifications stopped working'', ''make notifications less noisy'', ''change notification priority'', ''turn off phone notifications''.'
-when_to_use: User wants phone/push notifications from Claude Code, or is debugging notifications that never arrive — e.g. 'notify me on my phone when Claude needs me', 'set up Pushover', 'I keep missing when Claude finishes', 'push notifications stopped working', 'make notifications less noisy'.
+description: 'Claude Code only — requires the Notification hook event, which no other supported harness provides. Use when the user wants Claude Code notifications on their phone, or is fixing phone notifications that never arrive — ''notify me on my phone'', ''send notifications to my phone'', ''set up push notifications'', ''set up Pushover'', ''ping me when Claude needs input'', ''I keep missing when Claude finishes'', ''phone alerts for Claude'', ''notifications stopped working'', ''make notifications less noisy'', ''change notification priority'', ''turn off phone notifications''. On any other platform this skill reports that push notifications are unavailable rather than half-configuring them.'
+when_to_use: User wants phone/push notifications from Claude Code, or is debugging notifications that never arrive — e.g. 'notify me on my phone when Claude needs me', 'set up Pushover', 'I keep missing when Claude finishes', 'push notifications stopped working', 'make notifications less noisy'. Not applicable on harnesses without a Notification hook event; say so plainly instead of proceeding.
 argument-hint: '[optional: ''test'', ''disable'', or ''troubleshoot'']'
 arguments: []
 disable-model-invocation: false
@@ -20,31 +20,99 @@ agent: ''
 hooks: {}
 paths: []
 shell: bash
+compatibility:
+  claude-code: supported
+  claude-desktop: partial
+  codex: unsupported
+  cursor: unsupported
+  gemini: unsupported
+  opencode: unsupported
 metadata:
+  tamirs:
+    visibility: public
+    category: toolkit
+    role: none
+    validation-tier: 0
+    updated-date: '2026-08-19'
+    capabilities:
+      required:
+        - hooks
+        - shell
+      optional:
+        - ask_user_question
+    tags:
+      - toolkit
+      - notifications
+      - pushover
+      - hooks
+      - mobile
+      - setup
+      - platform-specific
   capability: notification-setup
   provider: developer-workflow
   agents: []
-  platforms:
-  - claude
-  tags:
-  - toolkit
-  - notifications
-  - pushover
-  - hooks
-  - mobile
-  - setup
-  updated-date: '2026-08-02'
+  updated-date: '2026-08-19'
 ---
 
 # notify-setup
 
 Configure phone push notifications for Claude Code via [Pushover](https://pushover.net).
 
+## Platform support — check this first
+
+**This is a platform-specific capability, not a universal one.** It is built on Claude Code's
+`Notification` hook event: the harness fires a hook when the agent needs attention, and that
+hook pushes to the phone.
+
+Be precise about what is missing elsewhere. Several targets *do* have lifecycle hooks of some
+shape — the registry records Codex CLI's manifest `hooks` field as native and Cursor's as
+partial. What none of them has is an **agent-needs-attention event**. Without that event
+there is no moment to fire on, so a correctly-wired hook would simply never run.
+
+| Target | Status | Why |
+|---|---|---|
+| Claude Code | supported | Native `Notification` hook event |
+| Claude Desktop | unverified | Same plugin artifact, but the registry marks its `hooks` status `unknown` — whether the plugin hook bundle fires in Desktop sessions has not been verified. Do not claim it works; verify first |
+| Codex CLI | unsupported | Has manifest hooks, but not in Claude's shape and with no needs-attention event |
+| Cursor | unsupported | Claude-shaped plugin hooks do not run under a Cursor plugin install, and there is no needs-attention event |
+| Gemini CLI, OpenCode | unsupported | Registry marks hooks `unknown` and `unsupported` respectively; no needs-attention event either way |
+
+**Before step 1**, confirm the `hooks` capability for the current platform in
+`core/capabilities/platforms.json`, and confirm the target actually exposes a
+needs-attention event. If `hooks` is `unsupported` or `unknown`, or the event does not
+exist, stop and say so:
+
+```
+Phone push notifications are a Claude Code capability — they rely on its Notification hook
+event, which <platform> does not provide (it may have lifecycle hooks of its own, but none
+that fires when the agent needs attention). Nothing to configure here.
+What is available on <platform>: <whatever its own notification story is, or "nothing I can
+wire from this skill">.
+```
+
+Then stop. **Do not** write `~/.claude/pushover.env`, do not edit a settings file, and do not
+partially configure something that will never fire — a half-configured notifier is worse than
+none, because the user believes they are covered and stops watching the terminal.
+
+Pushover itself remains **optional even on Claude Code**. It is a paid third-party service;
+a user who declines it keeps the desktop banner and loses nothing else. Never present it as
+required.
+
+### Interaction
+
+Where `AskUserQuestion` is available, use it to collect the two credentials. Where it is not,
+ask in plain prose with numbered options — the credential collection is identical either way.
+`AskUserQuestion` is an enhancement, never a prerequisite.
+
 ## Why this exists
 
-The plugin already ships `hooks/notify.sh`, which raises a **macOS desktop banner**
-when Claude needs attention. That works at the machine and is useless away from it.
-This skill adds a second, independent Notification hook that pushes to your phone.
+The plugin already ships `hooks/notify.sh`, which raises a desktop banner when Claude needs
+attention. It emits an OSC 99 terminal sequence and lets the terminal route it to the OS —
+portable in principle, but only where the terminal emulator implements OSC 99. Its fallback
+is `osascript`, which is macOS-only, so on a Linux or Windows machine in a terminal without
+OSC 99 support there is no banner at all, and this skill's push hook is the only alert there
+is. Either way the banner works at the machine and is useless away from it. This skill adds a
+second, independent Notification hook that pushes to your phone.
 
 Both fire. You are not replacing the banner.
 

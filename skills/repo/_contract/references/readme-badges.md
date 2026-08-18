@@ -25,15 +25,34 @@ Omit the entire row if none apply.
 
 Show each supported target and its **platform tool version** from `docs/engineering/build-and-release/platform-targets.json` (`validated_against`):
 
+One badge per key in `supported_targets`, in that order. Badge label and colour per target:
+
+| Target key | Badge label | Colour |
+|---|---|---|
+| `claude_code` | `Claude%20Code` | `blueviolet` |
+| `cursor` | `Cursor` | `000000` |
+| `codex` | `Codex` | `412991` |
+| `gemini_cli` | `Gemini%20CLI` | `4285F4` |
+| `opencode` | `OpenCode` | `fab283` |
+
 ```markdown
 [![Claude Code](https://img.shields.io/badge/Claude%20Code-2.0.0-blueviolet)](...)
 [![Cursor](https://img.shields.io/badge/Cursor-0.45.0-000000)](...)
 [![Codex](https://img.shields.io/badge/Codex-0.40.0-412991)](...)
+[![Gemini CLI](https://img.shields.io/badge/Gemini%20CLI-0.55.1-4285F4)](...)
+[![OpenCode](https://img.shields.io/badge/OpenCode-1.18.11-fab283)](...)
 ```
 
 Or a single line under badges:
 
-`AI targets: Claude Code 2.0.0 · Cursor 0.45.0 · Codex 0.40.0`
+`AI targets: Claude Code 2.0.0 · Cursor 0.45.0 · Codex 0.40.0 · Gemini CLI 0.55.1 · OpenCode 1.18.11`
+
+`claude_desktop` gets **no badge**: it is a runtime surface of `claude_code`, consumes the
+same plugin, and is absent from `supported_targets` by design.
+
+A target still carrying `"validated_against": "unknown"` is declared but not yet validated
+— give it no badge rather than a fabricated version. `scripts/check-platform-targets.sh`
+warns in that state and hard-fails the moment a real version is recorded.
 
 **Do not** reuse plugin manifest semver on Row 3 — that belongs on Row 1 only.
 
@@ -43,7 +62,9 @@ When repo skills adopt new platform APIs, bump `platform-targets.json`, this row
 
 When a repo supports **more than one** AI target:
 
-- README **Quick Start** must have a subsection per target (Claude Code, Cursor, Codex).
+- README **Quick Start** must have a subsection per target in `supported_targets`
+  (Claude Code, Cursor, Codex CLI, Gemini CLI, OpenCode). Claude Desktop is covered by the
+  Claude Code subsection — it installs the same plugin.
 - Prefer **one-liner `make` commands** (`make install`, `make update`, `make uninstall`).
 - Bash blocks are allowed as *alternatives* only — label them "Alternative (manual)".
 - User docs (`docs/user/quick-start.md`) mirror the same per-target structure.

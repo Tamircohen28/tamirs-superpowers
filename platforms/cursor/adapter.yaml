@@ -1,0 +1,26 @@
+# Adapter metadata — Cursor (REFACTOR-SPEC §21).
+# Thin pointer file. Authoritative capabilities: core/capabilities/platforms.json.
+id: cursor
+display_name: Cursor
+registry_key: cursor
+
+# Coarse summary only. `agents` is the registry's `subagents` key.
+capabilities:
+  skills: native
+  agents: native
+  hooks: partial
+  mcp: native
+
+manifest: .cursor-plugin/plugin.json
+
+install:
+  type: marketplace
+  doc: docs/user/install/cursor.md
+
+validation:
+  command: jq empty .cursor-plugin/plugin.json
+
+notes: >-
+  hooks is `partial`, not `native`: the Claude-shaped plugin hook bundle does not
+  run under a Cursor plugin install. Project-level .cursor/hooks.json ships soft
+  contributor guards only, so the same rules are enforced again in CI.

@@ -34,6 +34,9 @@ hooks_claude=$(echo "$INV" | jq -r '.hooks.claude_exists')
 hooks_codex=$(echo "$INV" | jq -r '.hooks.codex_declared')
 hooks_cursor_doc=$(echo "$INV" | jq -r '.hooks.cursor_substitute_doc')
 equiv_doc=$(echo "$INV" | jq -r '.docs.platform_equivalence')
+multi_platform=$(echo "$INV" | jq -r '.platform_targets.multi_platform')
+cap_registry=$(echo "$INV" | jq -r '.capability_registry.exists')
+cap_registry_agrees=$(echo "$INV" | jq -r '.capability_registry.agrees_with_platform_targets')
 
 # E1 — app skill bridge
 if [[ "$repo_type" == "app" || "$repo_type" == "hybrid" ]]; then
@@ -71,6 +74,18 @@ if [[ "$hooks_claude" == true ]]; then
   fi
   if [[ "$hooks_cursor_doc" != true ]]; then
     add_gap "E4-01" "P1" "hooks/hooks.json exists but platform-equivalence.md lacks Cursor/hook mapping" 5; inc P1
+  fi
+fi
+
+# E6 — capability registry. One machine-readable statement of what each target can do,
+# so a skill can degrade instead of assuming, and so no document has to restate it.
+if [[ "$multi_platform" == true ]]; then
+  sev="P2"
+  [[ "$repo_type" == "claude-plugin" || "$repo_type" == "hybrid" || "$repo_type" == "agent-kit" ]] && sev="P1"
+  if [[ "$cap_registry" != true ]]; then
+    add_gap "E6-01" "$sev" "core/capabilities/platforms.json missing — capability claims have no single source of truth" 5; inc "$sev"
+  elif [[ "$cap_registry_agrees" != true ]]; then
+    add_gap "E6-02" "P1" "core/capabilities/platforms.json and platform-targets.json supported_targets name different platform sets" 5; inc P1
   fi
 fi
 

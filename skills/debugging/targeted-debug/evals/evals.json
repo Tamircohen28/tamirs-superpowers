@@ -17,7 +17,7 @@
     },
     {
       "id": 2,
-      "prompt": "Getting this in the browser console, look at this file:\n\nTypeError: Cannot read properties of undefined (reading 'map')\n    at UserList (/app/src/components/UserList.jsx:34:22)\n    at renderWithHooks (/app/node_modules/react-dom/cjs/react-dom.development.js:14985:18)\n\nJust look at UserList.jsx line 34 — what's wrong?",
+      "prompt": "Getting this in the browser console, look at this file:\n\nTypeError: Cannot read properties of undefined (reading 'map')\n    at UserList (/app/src/components/UserList.jsx:34:22)\n    at renderWithHooks (/app/node_modules/react-dom/cjs/react-dom.development.js:14985:18)\n\nJust look at UserList.jsx line 34 \u2014 what's wrong?",
       "expected_output": "A debug report that: (1) scopes to UserList.jsx only (ignores react-dom stack frames since that's a library/node_modules file), (2) hypothesizes that the component is calling .map() on a prop/state that is undefined, (3) reads only UserList.jsx around line 34, (4) identifies the specific variable that is undefined and explains why .map() fails on it, (5) suggests a defensive fix (optional chaining, default prop, or guard clause).",
       "files": [],
       "expectations": [
@@ -34,7 +34,7 @@
       "expected_output": "The skill should STOP and ask for a concrete error message, stack trace, or specific file before proceeding. It should NOT begin reading files speculatively. It should explain that targeted-debug requires a concrete error signal (stack trace, error message, crashing function) and suggest either: (a) providing a stack trace to proceed, or (b) using a broader investigation tool if no concrete error is available.",
       "files": [],
       "expectations": [
-        "The skill does NOT read any files — there is no stack trace or named file to scope to",
+        "The skill does NOT read any files \u2014 there is no stack trace or named file to scope to",
         "The skill asks the user for a concrete error message or stack trace",
         "The skill explains why it cannot proceed without a concrete error signal",
         "The skill suggests an alternative (broader investigation) if no stack trace is available",
@@ -58,7 +58,7 @@
     {
       "id": 5,
       "prompt": "Go service is crashing with a nil pointer panic. Logs:\n\ngoroutine 1 [running]:\npanic: runtime error: invalid memory address or nil pointer dereference\n[signal SIGSEGV: segmentation violation code=0x1 addr=0x0 pc=0x5d3f22]\n\ngoroutine 1 [running]:\nmain.(*OrderService).ProcessOrder(0xc0000b4000, 0xc0000c0040)\n\t/app/services/order_service.go:114 +0x1c2\nmain.handleOrderRequest(0x773f40, 0xc0000b2000, 0xc00010e000)\n\t/app/handlers/order_handler.go:52 +0x8f\n\nI think it's in order_service.go.",
-      "expected_output": "A debug report that: (1) scopes to /app/services/order_service.go (line 114) and /app/handlers/order_handler.go (line 52) — both appeared in the trace, (2) hypothesizes that a pointer receiver or field on an OrderService struct is nil at line 114, (3) reads the relevant sections of both files, (4) identifies the nil pointer (e.g., uninitialized field, missing constructor call, or nil returned from a factory), (5) suggests a concrete fix (nil guard, proper initialization, or returning an error from the constructor).",
+      "expected_output": "A debug report that: (1) scopes to /app/services/order_service.go (line 114) and /app/handlers/order_handler.go (line 52) \u2014 both appeared in the trace, (2) hypothesizes that a pointer receiver or field on an OrderService struct is nil at line 114, (3) reads the relevant sections of both files, (4) identifies the nil pointer (e.g., uninitialized field, missing constructor call, or nil returned from a factory), (5) suggests a concrete fix (nil guard, proper initialization, or returning an error from the constructor).",
       "files": [],
       "expectations": [
         "The skill reads /app/services/order_service.go around line 114 and /app/handlers/order_handler.go around line 52",
@@ -71,8 +71,8 @@
     },
     {
       "id": 6,
-      "prompt": "Bash script is failing in CI. Error output:\n\n/app/scripts/deploy.sh: line 47: DEPLOY_ENV: unbound variable\n/app/scripts/deploy.sh: line 47: exit\n\nThe script exits immediately — looks like it's set -u somewhere. Can you look at deploy.sh?",
-      "expected_output": "A debug report that: (1) scopes to /app/scripts/deploy.sh only — the file and line are explicitly named in both the error and by the user, (2) hypothesizes that set -u (nounset) causes the script to exit when DEPLOY_ENV is referenced without being set, (3) reads deploy.sh around line 47, (4) identifies exactly where DEPLOY_ENV is referenced and whether it's expected to come from the caller's environment or a .env file, (5) suggests a concrete fix: either a default fallback (${DEPLOY_ENV:-staging}), an explicit guard before the reference, or documentation that DEPLOY_ENV must be exported by the CI runner.",
+      "prompt": "Bash script is failing in CI. Error output:\n\n/app/scripts/deploy.sh: line 47: DEPLOY_ENV: unbound variable\n/app/scripts/deploy.sh: line 47: exit\n\nThe script exits immediately \u2014 looks like it's set -u somewhere. Can you look at deploy.sh?",
+      "expected_output": "A debug report that: (1) scopes to /app/scripts/deploy.sh only \u2014 the file and line are explicitly named in both the error and by the user, (2) hypothesizes that set -u (nounset) causes the script to exit when DEPLOY_ENV is referenced without being set, (3) reads deploy.sh around line 47, (4) identifies exactly where DEPLOY_ENV is referenced and whether it's expected to come from the caller's environment or a .env file, (5) suggests a concrete fix: either a default fallback (${DEPLOY_ENV:-staging}), an explicit guard before the reference, or documentation that DEPLOY_ENV must be exported by the CI runner.",
       "files": [],
       "expectations": [
         "The skill reads /app/scripts/deploy.sh and no other files",
@@ -82,6 +82,24 @@
         "The skill does NOT read CI config files, .env files, or other scripts not named in the trace",
         "The skill does NOT grep the repo for 'DEPLOY_ENV' across the whole codebase"
       ]
+    },
+    {
+      "id": 7,
+      "prompt": "Diagnose this panic and give me the finding in machine-readable form: thread 'main' panicked at 'called `Option::unwrap()` on a `None` value', src/handlers/payment.rs:91:42",
+      "expected_output": "Should read only src/handlers/payment.rs, and emit the structured finding with severity, confidence, files, evidence, recommended_fix and blocking \u2014 the same shape core/roles/reviewer.md defines. When machine-readable output is requested it must emit that JSON object and nothing else. Must not grep the repo for unwrap() or read src/db/ to 'understand' the None case; an unread file belongs under out_of_scope.",
+      "files": []
+    },
+    {
+      "id": 8,
+      "prompt": "An orchestrator dispatched three competing targeted-debug diagnoses on the same traceback. You are instance 2. Instance 1 already concluded the cause is a race in the cache layer.",
+      "expected_output": "Should ignore instance 1's conclusion entirely and reason only from the trace and its own in-scope files, reporting its own confidence honestly \u2014 including 'undetermined' with confidence: low if the in-scope files do not settle it. Must not widen scope to confirm or refute the other instance, and must not read the other instance's output. Cross-contaminated agreement is the failure mode.",
+      "files": []
+    },
+    {
+      "id": 9,
+      "prompt": "Debug this AttributeError at src/parser.py:87 \u2014 you are running on a platform with no subagent support.",
+      "expected_output": "Should run the diagnosis inline in the same session with identical scope rules and identical structured-finding output. If multiple diagnoses were requested, it should run them sequentially and state in the report that they were sequential rather than isolated, so the orchestrator can discount the independence. Must not claim parallel isolation it did not have, and must not silently skip the work because subagents were unavailable.",
+      "files": []
     }
   ]
 }

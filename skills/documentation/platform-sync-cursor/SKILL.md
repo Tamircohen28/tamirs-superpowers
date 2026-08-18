@@ -1,135 +1,78 @@
 ---
 name: platform-sync-cursor
 description: >-
-  Internal companion to platform-sync. Fetches live Cursor docs (docs.cursor.com), reads
-  the local .cursor-plugin/plugin.json, identifies new Cursor features not yet used, and
-  returns structured improvement steps. Not user-invocable — called by the platform-sync
-  umbrella skill.
+  DEPRECATED compatibility shim. Cursor analysis now runs inside the single
+  `platform-sync` engine; this skill only delegates to it and adds no behaviour of its own.
+  Kept so anything invoking it by name keeps working for one release. Not user-invocable.
+  New callers should invoke `tamirs-superpowers:platform-sync` directly.
 when_to_use: |
-  Invoked by platform-sync when any Cursor usage is detected (.cursor-plugin/,
-  .cursor/rules/*.mdc, .cursorrules).
-  Also callable by other skills needing live Cursor improvement suggestions:
-  - "audit my cursor plugin"
-  - "what Cursor features am I missing"
-  - "review .cursor-plugin against latest Cursor docs"
+  Do not reach for this skill in new work — invoke `tamirs-superpowers:platform-sync`.
+  It exists only so an existing caller that names `platform-sync-cursor` still resolves.
+  Scheduled for removal one release after the platform-sync restructure.
 argument-hint: "[none]"
 arguments: []
 disable-model-invocation: true
 user-invocable: false
 allowed-tools:
   - Read
-  - WebFetch
+  - Skill
 disallowed-tools: []
 model: claude-sonnet-4-6
-effort: medium
+effort: low
 context: ''
 agent: ''
 hooks: {}
 paths: []
 shell: bash
 metadata:
+  tamirs:
+    visibility: internal
+    category: documentation
+    role: research-agent
+    validation-tier: 0
+    updated-date: '2026-08-19'
+    capabilities:
+      required:
+        - skills
+      optional: []
+    tags:
+      - documentation
+      - platform
+      - deprecated
+      - compatibility-shim
+      - cursor
   capability: documentation
   provider: developer-workflow
-  platforms:
-    - cursor
-  tags:
-    - documentation
-    - cursor
-    - audit
-    - planning
-  updated-date: '2026-06-30'
+  updated-date: '2026-08-19'
 ---
 
-# platform-sync-cursor
+# platform-sync-cursor (deprecated shim)
 
-You are a Cursor plugin improvement analyst. Fetch live Cursor docs, compare against the
-local `.cursor-plugin/plugin.json`, and return structured improvement steps.
+This skill no longer contains any Cursor analysis logic.
 
-**Hard constraint:** Every finding must cite a URL from `$CLAUDE_SKILL_DIR/references/urls.md`.
-If any P0 fetch fails, stop and return the error. Do not guess from training knowledge.
+The four per-platform sync skills were near-identical orchestration loops that differed
+only in their source URLs, local config paths, and feature-scan areas. Those differences
+are now **data**, in
+`skills/documentation/platform-sync/references/platforms/cursor.md`, and the single loop
+that consumes them is
+`skills/documentation/platform-sync/references/analysis-protocol.md`. Adding a target no
+longer adds a skill — that is how Gemini CLI was added without a fifth sub-skill.
 
----
+## What to do when invoked
 
-## Step 1 — Fetch live docs
+1. Invoke `tamirs-superpowers:platform-sync` via the Skill tool, scoped to `cursor`.
+2. Return its `Cursor` section unchanged.
 
-Read `$CLAUDE_SKILL_DIR/references/urls.md` for the full permitted URL list.
+Do not re-implement the analysis here, and do not fetch anything yourself. If
+`platform-sync` is unavailable, say so and stop — do not fall back to training knowledge
+about Cursor.
 
-Always fetch (P0 — required):
-1. `https://docs.cursor.com/changelog` — latest version and new features
+## Migration
 
-If P0 fetch fails, stop and output:
-```
-⛔ FETCH ERROR
-URL: <url>
-Error: <error message>
-Cannot proceed — required Cursor source could not be fetched.
-```
-
-Then fetch P1 docs based on local config:
-
-| Local config contains / missing | Fetch URL |
+| Was | Now |
 |---|---|
-| .cursorrules file or rules config | `https://docs.cursor.com/context/rules` |
-| MCP servers | `https://docs.cursor.com/tools/mcp` |
-| Extensions / plugin fields | `https://docs.cursor.com/extensions` |
-| Model pinning | `https://docs.cursor.com/ai/models` |
+| `platform-sync-cursor` SKILL.md | `platform-sync/references/platforms/cursor.md` (data) |
+| its `references/urls.md` | the "Sources — P0/P1/P2" tables in that file |
+| its Step 1–4 body | `platform-sync/references/analysis-protocol.md` (shared) |
 
----
-
-## Step 2 — Read local config
-
-Read from repo root — all paths that triggered detection:
-
-| Path | What to note |
-|------|----------------|
-| `.cursor-plugin/plugin.json` | `version`, `skills`, `mcpServers` |
-| `.cursor/rules/*.mdc` | `alwaysApply`, `globs`, body pointers to AGENTS.md |
-| `.cursorrules` | Legacy rules content (recommend migration to `.mdc`) |
-| `.cursor/mcp.json` | MCP servers (if present) |
-| `AGENTS.md` | Whether Cursor rules import canonical agent policy |
-
-For **app repos** without a Cursor plugin manifest, focus on `.cursor/rules/` and
-recommend features from latest Cursor docs (rules, MCP, skills integration).
-
----
-
-## Step 3 — Identify unused features
-
-**Cursor Rules:** Is the repo using `.cursor/rules/` directory (modern, supports per-path
-scoping with glob frontmatter) rather than the legacy `.cursorrules` flat file? If using
-the legacy format, recommend migration.
-
-**MCP:** Does the changelog indicate Cursor MCP support is available? If the local config
-doesn't wire any MCP servers, flag it as an improvement opportunity.
-
-**Model config:** Are models pinned or configured in the plugin? Have new models become
-available that would improve output for this plugin's use case?
-
-**Context features:** Any new codebase indexing, doc integration, or context attachment
-features not yet leveraged by the plugin config?
-
-**Skills / commands:** Any Cursor-specific skill or command config options not yet used?
-
----
-
-## Step 4 — Output
-
-```
-## Cursor — v{version from .cursor-plugin/plugin.json or "not set"} detected → latest (from changelog)
-
-### Improvement Steps
-1. [Feature name] — [one sentence why it applies to this repo]
-   Config:
-   ```json
-   [concrete copy-pasteable snippet]
-   ```
-   Effort: low / medium / high
-   Source: [URL]
-
-2. ...
-
-### Already Well-Used
-- [feature]: [brief note] ✓
-```
-
-Return this section only — the platform-sync umbrella merges it with other platforms.
+Callers should move to `tamirs-superpowers:platform-sync` before this shim is removed.

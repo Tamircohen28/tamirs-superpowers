@@ -1,0 +1,21 @@
+[
+  { "query": "/multi-agent-repo", "should_trigger": true },
+  { "query": "audit this repo for multi-agent setup", "should_trigger": true },
+  { "query": "make this repo work with Claude and Cursor", "should_trigger": true },
+  { "query": "add Codex support to this project", "should_trigger": true },
+  { "query": "add Gemini CLI support to this repo", "should_trigger": true },
+  { "query": "add OpenCode support", "should_trigger": true },
+  { "query": "we have agent drift between CLAUDE.md and the cursor rules", "should_trigger": true },
+  { "query": "set up a canonical AGENTS.md with thin adapters", "should_trigger": true },
+  { "query": "generate the cursor rules from AGENTS.md", "should_trigger": true },
+  { "query": "this repo needs a capability registry for its targets", "should_trigger": true },
+  { "query": "multi-agent-repo plan", "should_trigger": true },
+
+  { "query": "what is AGENTS.md for", "should_trigger": false },
+  { "query": "review my pull request", "should_trigger": false },
+  { "query": "spawn three subagents to work on these files in parallel", "should_trigger": false },
+  { "query": "polish this repo to publish-ready standards", "should_trigger": false },
+  { "query": "scaffold me a brand new repo", "should_trigger": false },
+  { "query": "which AI coding assistant should I use", "should_trigger": false },
+  { "query": "fix the failing CI job", "should_trigger": false }
+]

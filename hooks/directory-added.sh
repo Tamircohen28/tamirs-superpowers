@@ -14,8 +14,10 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=lib/worktree-common.sh
 source "${SCRIPT_DIR}/lib/worktree-common.sh"
+# shellcheck source=lib/hook-output.sh
+source "${SCRIPT_DIR}/lib/hook-output.sh"
 
-input="$(cat)"
+input="$(hook_read_stdin)"
 added_dir="$(echo "$input" | jq -r '.directory // .path // .added_dir // empty')"
 
 # Unknown payload shape or missing dir — stay silent rather than guessing.

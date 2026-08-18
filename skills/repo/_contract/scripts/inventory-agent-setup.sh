@@ -225,6 +225,13 @@ ai_platform_count=0
 [[ -d "$cursor_rules_dir" && "$cursor_count" -gt 0 ]] && ai_platform_count=$((ai_platform_count + 1))
 (( ai_platform_count >= 2 )) && pt_multi=true
 
+# The capability registry is the single source of truth for what each target can do.
+# Its absence in a multi-platform repo means every capability claim in the docs is
+# unbacked; its disagreement with platform-targets.json means there are two.
+cap_registry=false
+cap_registry_agrees=true
+[[ -f "$ROOT/core/capabilities/platforms.json" ]] && cap_registry=true
+
 PT_JSON="$ROOT/docs/engineering/build-and-release/platform-targets.json"
 PT_MD="$ROOT/docs/engineering/build-and-release/platform-targets.md"
 [[ -f "$PT_JSON" ]] && pt_file=true
@@ -237,12 +244,13 @@ if [[ "$pt_file" == true && -f "$ROOT/README.md" ]] && command -v jq >/dev/null 
   # shellcheck disable=SC2086
   for key in $pt_keys; do
     validated=$(jq -r ".targets.$key.validated_against // empty" "$PT_JSON" 2>/dev/null || true)
-    [[ -n "$validated" ]] || continue
+    [[ -n "$validated" && "$validated" != "unknown" ]] || continue
     case "$key" in
       claude_code) prefix="Claude%20Code" ;;
       cursor) prefix="Cursor" ;;
       codex) prefix="Codex" ;;
       opencode) prefix="OpenCode" ;;
+      gemini_cli) prefix="Gemini%20CLI" ;;
       *) continue ;;
     esac
     grep -qF "${prefix}-${validated}" "$ROOT/README.md" 2>/dev/null || pt_badges_match=false
@@ -251,8 +259,16 @@ if [[ "$pt_file" == true && -f "$ROOT/README.md" ]] && command -v jq >/dev/null 
   for key in $pt_keys; do
     v=$(jq -r ".targets.$key.validated_against // empty" "$PT_JSON" 2>/dev/null || true)
     l=$(jq -r ".targets.$key.latest_known // empty" "$PT_JSON" 2>/dev/null || true)
+    [[ "$v" == "unknown" || "$l" == "unknown" ]] && continue
     if [[ -n "$v" && -n "$l" && "$v" != "$l" ]]; then pt_stale=true; fi
   done
+  if [[ "$cap_registry" == true ]]; then
+    reg_ids=$(jq -r '.platforms | to_entries[] | select(.value.runtime_surface_of == null) | .key' \
+      "$ROOT/core/capabilities/platforms.json" 2>/dev/null | sort | tr '\n' ' ')
+    tgt_ids=$(jq -r '(.supported_targets // []) | .[]' "$PT_JSON" 2>/dev/null | sort | tr '\n' ' ')
+    [[ "$reg_ids" == "$tgt_ids" ]] || cap_registry_agrees=false
+  fi
+
   last_rev=$(jq -r '.last_reviewed // empty' "$PT_JSON" 2>/dev/null || true)
   if [[ -n "$last_rev" ]]; then
     if date -v-90d +%Y-%m-%d >/dev/null 2>&1; then
@@ -302,6 +318,8 @@ jq -nc \
   --argjson hooks_cursor_doc "$hooks_cursor_doc" \
   --argjson codex_config "$codex_config" \
   --argjson platform_equiv_doc "$platform_equiv_doc" \
+  --argjson cap_registry "$cap_registry" \
+  --argjson cap_registry_agrees "$cap_registry_agrees" \
   --argjson pt_multi "$pt_multi" \
   --argjson pt_file "$pt_file" \
   --argjson pt_md "$pt_md" \
@@ -342,6 +360,10 @@ jq -nc \
       agent_guidelines_dir: $agent_guidelines_dir,
       markdown_count: $agent_guidelines_count,
       platform_equivalence: $platform_equiv_doc
+    },
+    capability_registry: {
+      exists: $cap_registry,
+      agrees_with_platform_targets: $cap_registry_agrees
     },
     platform_targets: {
       multi_platform: $pt_multi,

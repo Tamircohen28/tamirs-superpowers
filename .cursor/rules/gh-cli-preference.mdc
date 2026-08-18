@@ -1,0 +1,21 @@
+---
+description: "GitHub transport policy — gh is an optional feature dependency; degrade explicitly when it is absent. Canonical: rules/dev/gh-cli-preference.md"
+alwaysApply: false
+globs: ["skills/dev-workflow/**/*", "scripts/**/*", ".github/**/*", "hooks/**/*"]
+---
+
+# GitHub transport policy
+
+Canonical rule: `rules/dev/gh-cli-preference.md`.
+
+`gh` is an **optional feature dependency**, not a requirement. Objectives, worktrees, handoffs, and Tier 0–2 validation must all work with no GitHub account, no network, and no `gh` installed.
+
+When a script or skill touches GitHub, detect `gh` and degrade explicitly — skip the optional step and say so, fall back to plain git where git can do the job, or stop with a clear message naming the missing dependency. Never silently pretend a GitHub step succeeded.
+
+**The one exception:** when a GitHub action *is* the request ("open a PR", "merge #12"), a missing `gh` is a hard, reportable failure — do not invent a local substitute.
+
+Never resolve the default branch through `gh`; use `git symbolic-ref --quiet --short refs/remotes/origin/HEAD` with a `main` fallback.
+
+## In dev context, use `gh` — not GitHub MCP
+
+Contributor tooling, CI scripts, hooks, and skill scripts use the `gh` CLI. GitHub MCP tools are runtime-only: they authenticate through a session credential and make dev scripts brittle. Derive tokens with `gh auth token`; never prompt for a pasted one.

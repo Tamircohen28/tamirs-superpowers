@@ -4,11 +4,11 @@
     {
       "id": 1,
       "prompt": "Build a TypeScript MCP server that wraps the OpenWeatherMap API (https://openweathermap.org/api). It should expose three tools: get current weather for a city, get a 5-day forecast for a city, and list supported weather condition codes. The API key should come from a OPENWEATHER_API_KEY environment variable. Use proper pagination for any list operations.",
-      "expected_output": "A complete TypeScript MCP server project with: (1) package.json with correct deps (@modelcontextprotocol/sdk, zod), (2) src/index.ts with three tools named openweather_get_current, openweather_get_forecast, openweather_list_condition_codes, (3) all tools use {service}_{verb}_{noun} naming, (4) error messages include HTTP status and body snippet, (5) no hardcoded API keys — uses process.env.OPENWEATHER_API_KEY, (6) forecast list tool has limit param, (7) build passes (tsc compiles), (8) README documents required env vars.",
+      "expected_output": "A complete TypeScript MCP server project with: (1) package.json with correct deps (@modelcontextprotocol/sdk, zod), (2) src/index.ts with three tools named openweather_get_current, openweather_get_forecast, openweather_list_condition_codes, (3) all tools use {service}_{verb}_{noun} naming, (4) error messages include HTTP status and body snippet, (5) no hardcoded API keys \u2014 uses process.env.OPENWEATHER_API_KEY, (6) forecast list tool has limit param, (7) build passes (tsc compiles), (8) README documents required env vars.",
       "files": [],
       "expectations": [
         "Tool names follow {service}_{verb}_{noun} pattern (openweather_get_current, openweather_get_forecast, openweather_list_condition_codes or equivalent)",
-        "API key is read from process.env.OPENWEATHER_API_KEY — never hardcoded",
+        "API key is read from process.env.OPENWEATHER_API_KEY \u2014 never hardcoded",
         "Error handling includes HTTP status code and response body snippet, plus a hint about checking the env var",
         "List/collection tool (forecast or condition codes) includes a limit or max_items parameter",
         "package.json includes @modelcontextprotocol/sdk and zod as dependencies",
@@ -17,12 +17,12 @@
     },
     {
       "id": 2,
-      "prompt": "I need an MCP server in Python (FastMCP) that connects to our internal Postgres database and exposes these tools: query users by email, list recent orders (last N days), and get order details by ID. The DB connection string comes from a DATABASE_URL env var. Make sure list_recent_orders is safe — it should never return more than 200 rows.",
+      "prompt": "I need an MCP server in Python (FastMCP) that connects to our internal Postgres database and exposes these tools: query users by email, list recent orders (last N days), and get order details by ID. The DB connection string comes from a DATABASE_URL env var. Make sure list_recent_orders is safe \u2014 it should never return more than 200 rows.",
       "expected_output": "A Python FastMCP server with: (1) three tools using FastMCP @mcp.tool() decorator, (2) Pydantic input models with Field constraints, (3) list_recent_orders enforces LIMIT in the SQL query and has a days parameter defaulting to 7, (4) error messages are actionable with the SQL error and env var hint, (5) no hardcoded credentials, (6) py_compile passes on the file, (7) the skill delegates pagination rules to mcp-pagination.",
       "files": [],
       "expectations": [
-        "list_recent_orders (or equivalent) enforces a SQL LIMIT — never fetches unbounded rows",
-        "Database connection string is read from os.environ['DATABASE_URL'] — never hardcoded",
+        "list_recent_orders (or equivalent) enforces a SQL LIMIT \u2014 never fetches unbounded rows",
+        "Database connection string is read from os.environ['DATABASE_URL'] \u2014 never hardcoded",
         "All three tools are present: query/get by email, list orders, get order by ID",
         "Pydantic models or Field annotations are used for input validation",
         "Error messages include actionable context (SQL error text or env var hint)",
@@ -37,11 +37,17 @@
       "expectations": [
         "stripe_list_customers and stripe_list_payment_intents both have limit (defaulting to 20, max 100) and cursor/starting_after parameters",
         "Tool names use stripe_ prefix with {verb}_{noun} pattern",
-        "STRIPE_SECRET_KEY is read from process.env — not hardcoded in source",
-        "next_cursor or next_page token is returned when results are truncated — server does NOT auto-fetch additional pages",
+        "STRIPE_SECRET_KEY is read from process.env \u2014 not hardcoded in source",
+        "next_cursor or next_page token is returned when results are truncated \u2014 server does NOT auto-fetch additional pages",
         "stripe_create_payment_intent is marked with readOnlyHint: false (it's a write operation)",
         "Error responses include the Stripe error code/message and suggest checking the STRIPE_SECRET_KEY env var"
       ]
+    },
+    {
+      "id": 4,
+      "prompt": "Build the MCP server and wire it into every platform we support, including OpenCode and Gemini CLI.",
+      "expected_output": "Phase 6 should read the `mcp` capability per target from core/capabilities/platforms.json. For any target where it is unsupported or unknown, it must NOT emit a config file \u2014 it reports the gap instead. Every config it does emit must be validated by a parse check plus a server-start check before the target is claimed to work.",
+      "files": []
     }
   ]
 }

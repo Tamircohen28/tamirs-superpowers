@@ -1,12 +1,19 @@
 ---
+description: "Handing work to or from another provider — task state lives in .dev-files/objectives/. Canonical: rules/dev/cross-platform-handoff.md"
 alwaysApply: false
-globs: [".claude/.worktrees/**/*", ".cursor/.worktrees/**/*", ".codex/.worktrees/**/*"]
+globs: [".dev-files/objectives/**/*", ".agent-worktrees/**/*", ".cursor/.worktrees/**/*"]
 ---
 
-# Cross-Platform Handoff
+# Cross-Provider Handoff
 
 Canonical rule: `rules/dev/cross-platform-handoff.md`.
 
-Before ending a session in a worktree: push commits and run `/switch-dev handoff #N`.
+Local state under `.dev-files/objectives/<id>/` is primary; a GitHub issue Resume block is an optional mirror generated from it. Never require `gh` to hand off.
 
-Resume on a new platform: `/switch-dev resume #N` then continue **Next** from the issue Resume block.
+**Before ending a Cursor session mid-task:** commit, then write `handoffs/task-NNN.json` (schema: `core/workflow/handoff-schema.json`) recording commits, decisions, risks, and followups. `/switch-dev handoff` does this for you.
+
+**Resuming work started elsewhere:** `/switch-dev resume`, then read every existing handoff for the objective before touching code — recorded decisions are binding.
+
+## Cursor-specific
+
+Cursor has no subagents and does not load `hooks/hooks.json`. If an incoming handoff assumed either, degrade explicitly and say so in your own handoff — check `core/capabilities/platforms.json` rather than guessing.

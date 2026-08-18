@@ -1,0 +1,19 @@
+[
+  { "query": "/repo-standards", "should_trigger": true },
+  { "query": "polish this repo", "should_trigger": true },
+  { "query": "get this repo publish-ready", "should_trigger": true },
+  { "query": "audit this repo against our standards", "should_trigger": true },
+  { "query": "prepare this for GitHub — badges, docs, CI, branch protection", "should_trigger": true },
+  { "query": "scan this repo for employer IP before I open source it", "should_trigger": true },
+  { "query": "fix the repo hygiene issues", "should_trigger": true },
+  { "query": "make this a world-class repo", "should_trigger": true },
+  { "query": "repo-standards review", "should_trigger": true },
+
+  { "query": "scaffold a brand new repo", "should_trigger": false },
+  { "query": "review this pull request for bugs", "should_trigger": false },
+  { "query": "add a README badge for the build status", "should_trigger": false },
+  { "query": "run the linter", "should_trigger": false },
+  { "query": "what belongs in a good README", "should_trigger": false },
+  { "query": "clean up the merged branches", "should_trigger": false },
+  { "query": "bump the version and cut a release", "should_trigger": false }
+]

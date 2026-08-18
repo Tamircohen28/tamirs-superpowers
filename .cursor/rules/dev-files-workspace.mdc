@@ -1,16 +1,15 @@
 ---
-description: "Session-local plans, reviews, and scratch files belong in .dev-files/ — canonical rules/dev/dev-files-workspace.md"
+description: "Session-local plans, reviews, scratch, and objective state belong in .dev-files/ — canonical rules/dev/dev-files-workspace.md"
 alwaysApply: true
 ---
 
 # Dev-Files Workspace
 
-Canonical rule: `rules/dev/dev-files-workspace.md` (shared by Claude Code, Cursor, and Codex).
+Canonical rule: `rules/dev/dev-files-workspace.md`.
 
-Session-local development artifacts **must** live under **`.dev-files/`** at the repo root (git-ignored except `.dev-files/README.md`).
+Session-local artifacts **must** live under **`.dev-files/`** at the repo root (git-ignored except `.dev-files/README.md`).
 
-**Must go in `.dev-files/`:** plans, reviews, investigation notes, scratch — never under `skills/` or `docs/engineering/` for session-only work.
+- **Goes there:** plans, reviews, investigation notes, scratch, and objective/task/handoff state under `.dev-files/objectives/<id>/`.
+- **Does not:** shipped content (`skills/`, `hooks/`, `core/`, manifests), canonical docs (`docs/`), canonical rules (`rules/`), or anything the user asked to commit.
 
-**Must NOT use `.dev-files/` for:** shipped plugin content (`skills/`, `hooks/`, manifests), canonical docs (`docs/user/`, `docs/engineering/`), or anything the user asked to commit.
-
-Suggested subdirs: `plans/`, `reviews/`, `investigations/`, `scratch/`, `archive/`.
+Objective state is gitignored by default; checking it in is a deliberate per-repo opt-in that an agent must not flip on its own.

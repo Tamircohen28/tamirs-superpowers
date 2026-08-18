@@ -1,0 +1,262 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/TamirCohen28/tamirs-superpowers/core/schemas/skill-frontmatter.json",
+  "title": "Agent Skill frontmatter (portable core + tamirs metadata + platform extensions)",
+  "description": "Three-tier contract for every SKILL.md in this repo. Tier 1 (portable core) is the Agent Skills standard and is REQUIRED on every skill for every platform. Tier 2 (metadata.tamirs) carries this framework's semantics and is namespaced so foreign harnesses ignore it. Tier 3 (platform extensions) holds harness-specific fields that other harnesses safely ignore; they are permitted, never universally required. Validated by scripts/validate-skill-frontmatter.py.",
+  "type": "object",
+
+  "required": ["name", "description"],
+
+  "properties": {
+    "name": { "$ref": "#/$defs/skillName" },
+    "description": { "$ref": "#/$defs/description" },
+    "license": { "$ref": "#/$defs/license" },
+    "compatibility": { "$ref": "#/$defs/compatibility" },
+    "metadata": { "$ref": "#/$defs/metadata" },
+
+    "when_to_use": { "$ref": "#/$defs/claude/$defs/whenToUse" },
+    "argument-hint": { "$ref": "#/$defs/claude/$defs/argumentHint" },
+    "arguments": { "$ref": "#/$defs/claude/$defs/arguments" },
+    "disable-model-invocation": { "$ref": "#/$defs/claude/$defs/booleanFlag" },
+    "user-invocable": { "$ref": "#/$defs/claude/$defs/booleanFlag" },
+    "allowed-tools": { "$ref": "#/$defs/claude/$defs/toolList" },
+    "disallowed-tools": { "$ref": "#/$defs/claude/$defs/toolList" },
+    "model": { "$ref": "#/$defs/claude/$defs/model" },
+    "effort": { "$ref": "#/$defs/claude/$defs/effort" },
+    "context": { "$ref": "#/$defs/claude/$defs/context" },
+    "background": { "$ref": "#/$defs/claude/$defs/booleanFlag" },
+    "agent": { "$ref": "#/$defs/claude/$defs/agent" },
+    "hooks": { "$ref": "#/$defs/claude/$defs/hooks" },
+    "paths": { "$ref": "#/$defs/claude/$defs/paths" },
+    "shell": { "$ref": "#/$defs/claude/$defs/shell" }
+  },
+
+  "additionalProperties": true,
+
+  "allOf": [
+    { "$ref": "#/$defs/claude/$defs/forkPairing" },
+    { "$ref": "#/$defs/claude/$defs/invocationPairing" }
+  ],
+
+  "$defs": {
+    "skillName": {
+      "title": "Portable core: name",
+      "description": "Kebab-case skill id. MUST equal the containing directory name (exception: plugin-root .claude/skills/).",
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 64,
+      "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+    },
+
+    "description": {
+      "title": "Portable core: description",
+      "description": "What the skill does and when to use it. Every supported platform reads this; on platforms without when_to_use it is the ONLY trigger signal, so it must carry the trigger phrases.",
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 1536
+    },
+
+    "license": {
+      "title": "Portable core (optional): license",
+      "description": "SPDX identifier or license name. Part of the Agent Skills standard; ignored where unsupported.",
+      "type": "string",
+      "minLength": 1
+    },
+
+    "compatibility": {
+      "title": "Portable core (optional): compatibility",
+      "description": "Declared platform support. Keys are platform ids; values are a support level. Absence means 'assumed portable' — declare it whenever a skill is genuinely not universal.",
+      "type": "object",
+      "$comment": "A curated one-spelling-per-platform list, deliberately NOT derived from the capability registry's platform ids or their aliases. The registry uses snake_case (claude_code, gemini_cli) and the kebab mapping is not a pure transform (gemini_cli -> gemini, not gemini-cli), so it cannot be computed. Deriving from the alias sets would accept several spellings for one platform and let two skills spell the same target differently, which is worse than a short curated list. scripts/check-capability-registry.sh (owned by core-registry) asserts every value here resolves to a registry entry, so divergence fails loudly on their side.",
+      "propertyNames": {
+        "enum": [
+          "claude-code",
+          "claude-desktop",
+          "codex",
+          "cursor",
+          "gemini",
+          "opencode"
+        ]
+      },
+      "additionalProperties": {
+        "$comment": "Deliberately NOT the capability registry's 7-value status vocabulary. Registry statuses (native / native-experimental / adapter / ...) are MECHANISM claims about a platform; this field is a works/doesn't claim about a SKILL. A skill author neither knows nor should assert whether a harness implements subagents natively or via a generated adapter — from the skill's point of view a working adapter is support. `unknown` is the exception: it is epistemic, not mechanistic, and means the same thing at both levels — nobody has tested this. See docs/engineering/architecture/skill-schema.md for the mapping table.",
+        "enum": ["supported", "partial", "emulated", "unsupported", "unknown"]
+      }
+    },
+
+    "metadata": {
+      "title": "Metadata namespace container",
+      "description": "Free-form metadata mapping. This repo reserves the `tamirs` key; other keys are left untouched for forward compatibility.",
+      "type": "object",
+      "properties": {
+        "tamirs": { "$ref": "#/$defs/tamirsMetadata" },
+        "updated-date": {
+          "description": "DEPRECATED legacy location. Superseded by metadata.tamirs.updated-date; still accepted during migration.",
+          "$ref": "#/$defs/isoDate"
+        }
+      },
+      "additionalProperties": true
+    },
+
+    "tamirsMetadata": {
+      "title": "Tier 2: metadata.tamirs",
+      "description": "Framework semantics for this repo. Namespaced under `metadata` so OpenCode, Gemini CLI, Cursor and Codex ignore it without error. Optional-but-validated-when-present in this release; --require-tamirs promotes absence to a failure.",
+      "type": "object",
+      "required": ["visibility", "category", "role", "updated-date"],
+      "properties": {
+        "visibility": {
+          "description": "public = user-invocable surface; internal = companion skill invoked only by another skill or an agent.",
+          "enum": ["public", "internal"]
+        },
+        "category": {
+          "description": "Skill domain. MUST equal the domain directory under skills/ (e.g. skills/dev-workflow/plan-dev -> dev-workflow).",
+          "type": "string",
+          "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+        },
+        "capabilities": {
+          "description": "Platform capabilities this skill consumes. Members MUST be ids declared in core/capabilities/schema.json.",
+          "type": "object",
+          "properties": {
+            "required": { "$ref": "#/$defs/capabilityList" },
+            "optional": { "$ref": "#/$defs/capabilityList" }
+          },
+          "additionalProperties": false
+        },
+        "role": {
+          "description": "Orchestration role this skill plays. Roles are provider-independent (see REFACTOR-SPEC 2.3). `none` = not part of the orchestration graph.",
+          "$comment": "NOT the source of truth. core/roles/ is canonical — one <role>.md per role, per core/roles/README.md — and scripts/validate-skill-frontmatter.py derives the accepted list from that directory at runtime, plus the `none` sentinel which has no role file. This enum is documentation of record: adding an eleventh role means adding core/roles/<role>.md and nothing else, and the validator reports this enum as stale by name rather than rejecting the new role.",
+          "enum": [
+            "planner",
+            "orchestrator",
+            "implementer",
+            "test-engineer",
+            "reviewer",
+            "security-reviewer",
+            "performance-reviewer",
+            "debugger",
+            "integrator",
+            "research-agent",
+            "none"
+          ]
+        },
+        "updated-date": { "$ref": "#/$defs/isoDate" },
+        "validation-tier": {
+          "description": "Highest validation tier this skill participates in (REFACTOR-SPEC section 9): 0 edit-time, 1 worker, 2 integration, 3 delivery/CI.",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 3
+        },
+        "tags": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 },
+          "uniqueItems": true
+        }
+      },
+      "additionalProperties": false
+    },
+
+    "capabilityList": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 },
+      "uniqueItems": true
+    },
+
+    "isoDate": {
+      "type": "string",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"
+    },
+
+    "claude": {
+      "title": "Tier 3: Claude Code / Claude Desktop extension set",
+      "description": "Fields Claude Code understands and every other supported harness ignores. Permitted at top level (the standard says unknown keys are ignored), but NEVER required by the portable tier. Validated only when present, except under --profile claude-strict which requires the full official set.",
+      "$comment": "This subschema is a named container of field definitions; it is referenced field-by-field from the top-level `properties` block.",
+      "$defs": {
+        "whenToUse": {
+          "description": "Claude Code trigger text. Counts toward the 1536-char listing cap together with `description`.",
+          "type": "string",
+          "minLength": 1
+        },
+        "argumentHint": {
+          "description": "Placeholder text shown after the slash command.",
+          "type": "string",
+          "minLength": 1
+        },
+        "arguments": {
+          "description": "Structured argument declarations; [] when none.",
+          "type": "array"
+        },
+        "booleanFlag": { "type": "boolean" },
+        "toolList": {
+          "description": "Tool names. allowed-tools must be non-empty when present.",
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "model": { "type": "string", "minLength": 1 },
+        "effort": { "enum": ["low", "medium", "high", "xhigh", "max"] },
+        "context": {
+          "description": "'' for an inline skill, 'fork' to run in a subagent.",
+          "enum": ["", "fork"]
+        },
+        "agent": {
+          "description": "Subagent type; required when context is fork, '' otherwise.",
+          "type": "string"
+        },
+        "hooks": { "type": "object" },
+        "paths": { "type": "array", "items": { "type": "string" } },
+        "shell": { "enum": ["bash", "powershell"] },
+
+        "forkPairing": {
+          "$comment": "context: fork requires a non-empty agent; otherwise agent must be empty.",
+          "if": {
+            "type": "object",
+            "properties": { "context": { "const": "fork" } },
+            "required": ["context"]
+          },
+          "then": {
+            "properties": { "agent": { "type": "string", "minLength": 1 } },
+            "required": ["agent"]
+          },
+          "else": {
+            "properties": { "agent": { "const": "" } }
+          }
+        },
+
+        "invocationPairing": {
+          "$comment": "A skill users cannot invoke must also be blocked from model invocation.",
+          "if": {
+            "type": "object",
+            "properties": { "user-invocable": { "const": false } },
+            "required": ["user-invocable"]
+          },
+          "then": {
+            "properties": { "disable-model-invocation": { "const": true } },
+            "required": ["disable-model-invocation"]
+          }
+        }
+      }
+    },
+
+    "claudeStrictRequired": {
+      "$comment": "Referenced by --profile claude-strict only: the full official Claude Code field set that every SKILL.md carried before the portable split.",
+      "required": [
+        "name",
+        "description",
+        "when_to_use",
+        "argument-hint",
+        "arguments",
+        "disable-model-invocation",
+        "user-invocable",
+        "allowed-tools",
+        "disallowed-tools",
+        "model",
+        "effort",
+        "context",
+        "agent",
+        "hooks",
+        "paths",
+        "shell",
+        "metadata"
+      ]
+    }
+  }
+}

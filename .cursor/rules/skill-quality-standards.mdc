@@ -1,16 +1,17 @@
 ---
-description: "Skill authoring standards for skills/ — shared across Claude Code, Cursor, and Codex plugin manifests"
+description: "Skill authoring standards for skills/ — portable across every target. Canonical: rules/dev/skill-quality-standards.md"
 globs: "skills/**/SKILL.md"
 alwaysApply: false
 ---
 
 # Skill Quality Standards
 
-Canonical rule: `rules/dev/skill-quality-standards.md`.
+Canonical rule: `rules/dev/skill-quality-standards.md`. Portable schema: `core/schemas/skill-frontmatter.json`.
 
-Skills in `skills/<domain>/<name>/` ship via `.claude-plugin/plugin.json`, `.cursor-plugin/plugin.json`, and `.codex-plugin/plugin.json`. Keep bodies portable — do not assume Claude Code only.
+Skills in `skills/<domain>/<name>/` ship to every supported target from one tree. Keep bodies portable — never assume Claude Code.
 
-- All 16 frontmatter fields + `metadata.updated-date` required; run `make validate`
-- Directory name = slash command name = frontmatter `name`
-- Use `$CLAUDE_SKILL_DIR` in Claude-oriented script paths; Cursor/Codex resolve the skill directory containing `SKILL.md`
-- Never hand-write a new skill from scratch — use `skill-creator`
+- Frontmatter must satisfy the **portable** schema; platform-specific fields are documented extensions, validated when present, not universally required.
+- Directory name = slash-command name = frontmatter `name`.
+- Cursor resolves the skill directory containing `SKILL.md`; do not hardcode a Claude-only path variable as the only option.
+- Never hand-write a new skill — use `skill-creator`.
+- `make validate` after every `SKILL.md` change.

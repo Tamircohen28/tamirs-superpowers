@@ -6,15 +6,18 @@ globs: "hooks/**/*"
 
 # Hooks guide
 
-Hooks are shell scripts registered in `hooks/hooks.json`. Claude Code executes them at lifecycle events and passes JSON on stdin.
+Hooks are shell scripts registered in `hooks/hooks.json` and run at lifecycle events with JSON on stdin. **Cursor does not load `hooks/hooks.json`** — Claude Code and Codex do. Editing a hook from Cursor is normal; relying on one firing in a Cursor session is not. Check `core/capabilities/platforms.json` before assuming hook support anywhere.
+
+Script standards (non-blocking stdin, no `echo` in hooks, dependency detection): `rules/dev/user-facing-script-standards.md`.
 
 ## Critical rule
 
 **Never modify `hooks/lib/worktree-common.sh`** without:
-1. Running `shellcheck hooks/lib/worktree-common.sh`
+
+1. `shellcheck hooks/lib/worktree-common.sh`
 2. Manually testing `capture-task-slug.sh` and `worktree-create.sh`
 
-`worktree-common.sh` is sourced by multiple hooks — a syntax error there silently breaks all worktree behavior.
+It is sourced by multiple hooks — a syntax error there silently breaks all worktree behavior.
 
 ## hooks.json format
 
@@ -24,35 +27,20 @@ Hooks are shell scripts registered in `hooks/hooks.json`. Claude Code executes t
     "PreToolUse": [
       {
         "matcher": "Bash",
-        "hooks": [
-          { "type": "command", "command": "bash hooks/my-hook.sh" }
-        ]
+        "hooks": [{ "type": "command", "command": "bash hooks/my-hook.sh" }]
       }
     ]
   }
 }
 ```
 
-## Shell scripts
+## Writing a hook
 
-- All `.sh` files must pass `shellcheck` — run `make lint` before committing
-- Scripts read JSON from stdin (use `jq` to parse)
-- Scripts can write `additionalContext` to `$CLAUDE_ENV_FILE` to inject context into Claude's session
-- Exit 0 = allow; non-zero = deny (for PreToolUse hooks)
+- Must pass `shellcheck` — `make lint` before committing
+- Parse stdin JSON with `jq`; never block when stdin is empty or an idle TTY
+- Never use `echo` — stray stdout corrupts hook response parsing. Use `printf` or the helpers in `hooks/lib/`
+- Exit 0 = allow; non-zero = deny (PreToolUse)
 
-## Wired events
+The authoritative list of wired events is `hooks/hooks.json` itself — read it rather than a copy that drifts.
 
-| Event | Script | Purpose |
-|-------|--------|---------|
-| `PreToolUse (Bash)` | `protect-other-branches.sh` | Block editing PRs from other authors |
-| `PreToolUse (Edit\|Write\|…)` | `enforce-worktree-edits.sh` | Refuse repo edits outside the task worktree |
-| `SessionStart` | `show-changelog.sh`, `session-init.sh` | Show changelog on update; seed session state |
-| `SessionEnd` | `session-end.sh`, `handoff-reminder.sh` | Archive session files, prune stale worktrees; handoff reminder |
-| `UserPromptSubmit` | `capture-task-slug.sh` | Derive task slug, create worktree |
-| `WorktreeCreate` | `worktree-create.sh` | Create global worktree |
-| `WorktreeRemove` | `worktree-remove.sh` | Tear down global worktree |
-| `Notification` | `notify.sh` | Prefixed notification when Claude needs attention |
-
-## MCP scripts
-
-`scripts/github-mcp.sh` launches the GitHub MCP server via `.mcp.json` — it is **not** a lifecycle hook and does not belong in `hooks.json`.
+`scripts/github-mcp.sh` launches the GitHub MCP server via `.mcp.json`; it is **not** a lifecycle hook and does not belong in `hooks.json`.

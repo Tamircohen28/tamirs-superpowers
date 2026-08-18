@@ -4,49 +4,49 @@ paths:
   - ".claude/skills/**/SKILL.md"
 ---
 
-# SKILL.md frontmatter — required fields
+# SKILL.md frontmatter — Claude Code adapter view
 
-Every `SKILL.md` in this repo must include **all 16 official Claude Code frontmatter
-fields** plus `metadata.updated-date`. CI enforces this via
-`scripts/validate-skill-frontmatter.py`.
+**Canonical rule:** [`rules/dev/skill-quality-standards.md`](../../rules/dev/skill-quality-standards.md)
+**Canonical schema:** [`core/schemas/skill-frontmatter.json`](../../core/schemas/skill-frontmatter.json)
+**Reference:** [`docs/engineering/architecture/skill-schema.md`](../../docs/engineering/architecture/skill-schema.md)
 
-Reference: `skills/toolkit/skill-creator/references/frontmatter-template.md`
-Official docs: https://code.claude.com/docs/en/skills
+This file is a thin Claude Code view. It does not restate the contract — read
+the canonical rule for the full three-tier definition and for the
+`metadata.tamirs` field semantics.
 
-## Required fields
+## What Claude Code contributors need to know
 
-`name`, `description`, `when_to_use`, `argument-hint`, `arguments`,
-`disable-model-invocation`, `user-invocable`, `allowed-tools`, `disallowed-tools`,
-`model`, `effort`, `context`, `agent`, `hooks`, `paths`, `shell`, `metadata`
+1. **Only `name` and `description` are universally required.** The old "all 16
+   official fields on every skill" requirement is retired.
+2. **Claude extension fields are optional and validated when present** —
+   `when_to_use`, `argument-hint`, `arguments`, `disable-model-invocation`,
+   `user-invocable`, `allowed-tools`, `disallowed-tools`, `model`, `effort`,
+   `context`, `background`, `agent`, `hooks`, `paths`, `shell`.
+   Add one because the skill uses it, not to satisfy a validator.
+3. **`metadata.tamirs` carries the framework semantics** (visibility, category,
+   capabilities, role, updated-date). Add it to every skill you touch.
+4. `--profile claude-strict` still enforces the legacy full-field gate, so
+   existing skills must not lose fields they already have.
 
-## Defaults for unused behavior
+## Claude-specific pairings the validator enforces
 
-| Field | When not applicable |
-|-------|---------------------|
-| `arguments` | `[]` |
-| `disallowed-tools` | `[]` |
-| `hooks` | `{}` |
-| `paths` | `[]` |
-| `shell` | `bash` |
-| `context` / `agent` | `''` (empty string) unless `context: fork` |
+| Rule | Why |
+|------|-----|
+| `user-invocable: false` requires `disable-model-invocation: true` | An internal companion must be unreachable both ways |
+| `context: fork` requires a non-empty `agent` | A fork with no agent type has nothing to run |
+| `context` not `fork` requires `agent: ''` | Prevents a dead agent reference |
+| `description` + `when_to_use` <= 1536 chars | Claude Code's skill listing cap |
+| `allowed-tools` non-empty when present | An empty list silently disables the skill |
 
-## Skill-type rules
-
-| Type | `user-invocable` | `disable-model-invocation` | Typical `effort` |
-|------|------------------|----------------------------|------------------|
-| User slash workflow | `true` | `true` | `high` |
-| Auto-trigger discovery | `true` | `false` | `medium` |
-| Internal companion | `false` | `true` | `low` |
-| Forked subagent | `true` | `true` | `medium` + `context: fork` + `agent` |
-
-**Hard rule:** `user-invocable: false` must pair with `disable-model-invocation: true`.
+`disable-model-invocation: true` also blocks sub-agent and Workflow
+orchestration. See the canonical rule before gating a skill.
 
 ## After editing any SKILL.md
 
 ```bash
 python3 scripts/validate-skill-frontmatter.py path/to/SKILL.md
+python3 scripts/validate-skill-frontmatter.py --profile claude-strict
 make validate
 ```
 
-Never hand-write a skill from scratch without the `skill-creator` skill and the
-template above.
+Use the `skill-creator` skill rather than hand-writing frontmatter.

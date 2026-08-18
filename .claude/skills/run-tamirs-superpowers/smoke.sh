@@ -3,8 +3,10 @@
 # Run from repo root: bash .claude/skills/run-tamirs-superpowers/smoke.sh
 # Exit 0 = all pass, 1 = failures found
 
-ROOT="$(git rev-parse --show-toplevel)"
-cd "$ROOT"
+ROOT="$(git rev-parse --show-toplevel)" || {
+  echo "smoke.sh: not inside a git repository" >&2; exit 1
+}
+cd "$ROOT" || { echo "smoke.sh: cannot cd to repo root '$ROOT'" >&2; exit 1; }
 
 PASS=0; FAIL=0; WARN=0
 

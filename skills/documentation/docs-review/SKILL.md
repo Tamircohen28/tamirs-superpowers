@@ -1,6 +1,6 @@
 ---
 name: docs-review
-description: 'Internal docs-quality sweep invoked by repo-standards polish phase 6. Audits README.md and docs/** across 8 axes: repo inventory, visual cleanliness, git freshness, stray plan files, template conformance, broken links/anchors, CLAUDE.md consistency, and recent-change sync. Returns pass/fail summary to caller.'
+description: 'Internal docs-quality sweep invoked by repo-standards polish phase 6. Audits README.md and docs/** across 11 axes: repo inventory, visual cleanliness, git freshness, stray plan files, template conformance, broken links/anchors, agent-instruction consistency, recent-change sync, cross-platform docs consistency, install-command verification, and generated skill/platform table verification. Returns pass/fail summary to caller.'
 when_to_use: Called by repo-standards polish phase 6. Also valid when another skill explicitly needs a full documentation audit — e.g. 'run docs-review on $PROJECT_DIR'. Not for direct user invocation.
 argument-hint: '[optional: subset glob like ''docs/user/**'' or single file path]'
 arguments: []
@@ -22,20 +22,31 @@ hooks: {}
 paths: []
 shell: bash
 metadata:
+  tamirs:
+    visibility: internal
+    category: documentation
+    role: reviewer
+    validation-tier: 2
+    updated-date: '2026-08-19'
+    capabilities:
+      required:
+        - skills
+        - shell
+      optional:
+        - git
+    tags:
+      - documentation
+      - audit
+      - links
+      - freshness
+      - cleanup
+      - workflow
+      - platform-consistency
   capability: documentation-quality
   provider: developer-workflow
   agents:
   - docs-review
-  platforms:
-  - claude
-  tags:
-  - documentation
-  - audit
-  - links
-  - freshness
-  - cleanup
-  - workflow
-  updated-date: '2026-06-16'
+  updated-date: '2026-08-19'
 ---
 
 # docs-review
@@ -64,6 +75,9 @@ Fixes applied: N
 Broken links: N (0 = pass)
 Stale docs updated: N
 Plan files flagged: N (user confirmation pending)
+Platform doc inconsistencies: N (0 = pass)
+Install commands verified: N ok / N failed (0 failed = pass)
+Generated tables: N in sync / N drifted (0 drifted = pass)
 ```
 
 ## Why this skill exists
@@ -147,7 +161,7 @@ What to leave alone:
 
 Goal: every doc reflects the current state of the codebase.
 
-Locate the skill's own scripts directory relative to `$CLAUDE_SKILL_DIR` (set automatically when the skill runs):
+Locate the skill's own scripts directory. On Claude Code it is `$CLAUDE_SKILL_DIR`, set automatically; on any harness that does not set it, resolve the skill directory from the path this SKILL.md was loaded from and substitute it everywhere `$CLAUDE_SKILL_DIR` appears below. The scripts themselves are plain bash and depend only on `git`, `grep` and `sed` — they are not platform-specific.
 ```bash
 bash "$CLAUDE_SKILL_DIR/scripts/file-freshness.sh" <FILE>
 ```
@@ -201,9 +215,9 @@ unparseable Mermaid blocks, raw-file-path link text.
 
 External `https://` URLs are sampled but not blocked on (`--skip-external` accepted).
 
-## Axis 6 — CLAUDE.md + Copilot Consistency Check
+## Axis 6 — Agent-instruction file consistency
 
-After Axis 0, verify the consistency-check-only files:
+After Axis 0, verify the consistency-check-only files. Repos differ in which of these exist — check the ones present, skip the rest without comment:
 
 1. **CLAUDE.md** — run `bash tooling/ci/regen-claude-md.sh --dry-run` and show diff. Update if any count or table drifted.
 2. **`.github/copilot-instructions.md`** — READ the file and check:
@@ -224,18 +238,138 @@ Flag docs that reference entities deleted in the last 45 days:
 git log --since=45.days.ago --oneline --name-only | grep -v '^[a-f0-9]' | sort -u
 ```
 
-Specifically flag docs that still mention:
-- Deleted agents: `pm-step-runner`, `pm-skeptic`, `pm-verifier`, `pm-hypothesis-specificity-check`, `pm-evidence-synthesizer`, `pm-artifact-resolver`, `pm-html-generator`
-- `plugin/commands/` (deleted — migrated to skills)
-- Agent/skill counts that no longer match the Axis 0 inventory
+Derive the deleted-entity list **from git**, not from a hardcoded list — a list baked into
+this skill goes stale the moment the repo moves on:
+
+```bash
+# files deleted in the window, whose basenames may still be referenced in docs
+git log --since=45.days.ago --diff-filter=D --name-only --pretty=format: \
+  | grep -E '\.(md|sh|py|json)$' | sort -u
+```
+
+For each deleted path, grep `README.md` and `docs/**` for its basename and for its
+directory. Then flag docs that still mention:
+
+- any entity deleted in the window (agents, skills, scripts, commands, directories);
+- agent/skill counts that no longer match the Axis 0 inventory.
 
 For each flagged doc: READ it, remove or update the stale references.
+
+## Axis 8 — Cross-platform docs consistency
+
+Goal: a repo that supports several agent platforms documents them **once**, and every
+platform-facing file agrees with the canonical source instead of drifting from it.
+
+Resolve the platform list from the capability registry, exactly as `platform-sync` does —
+`core/capabilities/platforms.json`, else
+`docs/engineering/build-and-release/platform-targets.json`. Never hardcode a platform list
+in a doc or in this audit; a hardcoded list is the drift.
+
+```bash
+# which platform-facing docs exist here?
+ls -1 CLAUDE.md AGENTS.md GEMINI.md 2>/dev/null
+ls -1 .cursor/rules/*.mdc .claude/rules/*.md 2>/dev/null
+ls -1 opencode.json .mcp.json 2>/dev/null
+```
+
+Check, for each platform-facing file that exists:
+
+1. **Canonical-source discipline.** Per-platform files should *point at* the canonical
+   policy (usually `AGENTS.md`), not restate it. Flag any passage of substantive policy
+   duplicated verbatim across two platform files — that is a future divergence, and it is
+   a finding even while the two copies still agree.
+2. **Platform-set agreement.** Every doc that enumerates supported platforms must list the
+   same set the registry does. A doc naming four targets when the registry has six is a
+   P1 finding. Report the diff both ways: documented-but-not-in-registry, and
+   in-registry-but-undocumented.
+3. **Capability honesty.** A doc must not claim a feature on a platform whose registry
+   entry marks that capability `unsupported` or `unknown`. Cross-check every "works with X"
+   claim. Silence is better than a false claim; an `unknown` documented as working is the
+   worst case, because nobody will re-check it.
+4. **Per-platform install/config paths** named in docs must match what the adapters
+   actually use (`.claude-plugin/`, `.cursor/rules/`, `.codex-plugin/`, `.gemini/`,
+   `opencode.json`). Verify the path exists in the repo, or that the doc is describing the
+   user's machine rather than this repo — and says so.
+
+Report each finding with the file, the line, and the registry fact that contradicts it.
+
+## Axis 9 — Install-command verification
+
+Goal: every command a reader is told to run is real. A wrong install command is the single
+highest-cost documentation defect — it fails at the reader's first contact with the project.
+
+Extract every command from fenced blocks in `README.md` and `docs/**` that installs,
+updates, or removes the project:
+
+```bash
+grep -rnE '^\s*(make (install|update|uninstall)|bash scripts/[a-z-]+\.sh|/plugin (marketplace )?(install|update)|npm i(nstall)? -g|pip install|brew install|curl .*\| *(ba)?sh)' \
+  README.md docs/ 2>/dev/null
+```
+
+For each extracted command, verify **without executing anything that mutates the system**:
+
+| Command shape | Verification |
+|---|---|
+| `make <target>` | `make -n <target>` exits 0 — the target exists |
+| `bash scripts/<x>.sh` | the file exists and is executable; `bash -n` parses it |
+| `/plugin install <name>@<marketplace>` | the marketplace name and plugin name match the manifest |
+| package-manager install | the package name matches the one this repo publishes |
+| `curl ... \| sh` | flag it — a piped remote script in docs needs an explicit reason |
+
+Never run an install command to test it. `make -n`, `bash -n`, and reading the manifest are
+the verification; actually installing mutates the user's machine and is out of scope for a
+docs audit.
+
+Also verify **version strings**: any version quoted in install docs or badges must match the
+canonical version source (`plugin-version.json` where present, else the manifests). Defer to
+`scripts/check-version-truth.sh` when it exists rather than re-deriving the comparison here.
+
+Report: `N commands verified, N failed`, each failure with file, line, command, and reason.
+
+## Axis 10 — Generated skill / platform table verification
+
+Goal: tables that enumerate skills, agents, or platforms match the filesystem. These are the
+tables that silently rot, because nothing fails when they do.
+
+```bash
+# ground truth
+find skills -name SKILL.md -not -path '*/_contract/*' | wc -l    # skill count
+find skills -mindepth 1 -maxdepth 1 -type d | sed 's|.*/||' | sort  # domains
+find agents -name '*.md' 2>/dev/null | wc -l                     # agent count
+```
+
+Then, for every table or count claim in `README.md`, `CLAUDE.md`, `AGENTS.md` and `docs/**`:
+
+1. **Counts** — "27 skills" must equal the ground-truth count. Check every occurrence; a
+   repo typically states the count in three or four places and updates two of them.
+2. **Domain tables** — every domain directory on disk has a row, and every row has a
+   directory. Report both directions.
+3. **Per-skill rows** — every `SKILL.md` on disk appears, and every listed skill exists.
+   A skill added without a table row is invisible to users; a row for a deleted skill sends
+   them at nothing.
+4. **Platform tables** — the platform set matches the registry (Axis 8 rule 2).
+5. **Generated-file marker** — if a table is generated, it must say so and name the
+   generator. Fix the generator and regenerate; never hand-edit a generated table. If a
+   table is hand-maintained and drifts repeatedly, recommend generating it.
+
+Where a repo ships a regeneration script, run it and commit its output instead of editing by
+hand:
+
+```bash
+[[ -f tooling/ci/regen-claude-md.sh ]] && bash tooling/ci/regen-claude-md.sh
+```
+
+Report: `N tables in sync, N drifted`, each drift with the file, the claim, and the truth.
+
 
 ## End-to-end sweep procedure
 
 1. **Axis 0** — generate inventory + manifest; update CLAUDE.md if counts differ.
 2. **Axis 6** — check consistency-check-only files; fix in-place.
 3. **Axis 7** — scan recent changes; flag stale doc references.
+3a. **Axis 8** — cross-platform docs consistency against the capability registry.
+3b. **Axis 9** — install-command verification (`make -n` / `bash -n` / manifest match).
+3c. **Axis 10** — generated skill/platform table verification against the filesystem.
 4. **Per-file audit** — for each file in `/tmp/review-docs-manifest.txt`:
    - READ the file (required — no skipping based on git alone)
    - Run Axes 1–5 using scripts from `$CLAUDE_SKILL_DIR/scripts/`; apply fixes in-place
@@ -259,6 +393,12 @@ For each flagged doc: READ it, remove or update the stale references.
 - **Never invent links.** If a target doesn't exist, remove the link or flag for the user.
 - **Never paraphrase command names, file paths, or agent names.** Use canonical forms from `CLAUDE.md`.
 - **Plan files are not always trash.** The detector flags candidates; the human confirms.
+- **Never hardcode a platform list.** Axes 8 and 10 resolve platforms from the capability
+  registry. A list written into this skill is the drift it is supposed to catch.
+- **Never execute an install command to verify it.** `make -n`, `bash -n`, and reading the
+  manifest are the verification. Mutating the machine is out of scope for a docs audit.
+- **Never let a doc claim a capability the registry marks `unsupported` or `unknown`.**
+  Removing an unverified claim is always correct; leaving it because it might be true is not.
 
 ## References
 

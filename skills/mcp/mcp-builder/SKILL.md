@@ -1,7 +1,7 @@
 ---
 name: mcp-builder
-description: 'Use when the user wants to build, scaffold, or implement an MCP (Model Context Protocol) server — wrapping a REST API, database, or service so Claude can call it as tools. Triggers on: ''build an MCP server'', ''create MCP tools'', ''write an MCP server for'', ''integrate X with Claude via MCP'', ''expose API via MCP'', ''add MCP support for'', ''make Claude able to call X'', ''MCP server for Stripe/GitHub/Postgres'', ''scaffold MCP'', ''wrap this API in MCP'', ''Claude tool for X API'', ''FastMCP server'', ''TypeScript MCP''. Do NOT trigger for: reading/inspecting an existing MCP server, MCP client configuration only, or non-MCP integrations.'
-when_to_use: 'User wants to build or scaffold an MCP server to integrate an external API or service with Claude. Example phrases: ''build an MCP server for Stripe'', ''create MCP tools for our Postgres DB'', ''write a FastMCP server for GitHub'', ''expose our REST API via MCP'', ''add MCP support for OpenWeatherMap'', ''scaffold a TypeScript MCP server''.'
+description: 'Use when the user wants to build, scaffold, or implement an MCP (Model Context Protocol) server — wrapping a REST API, database, or service so an MCP client (Claude Code, Claude Desktop, Cursor, Codex, Gemini CLI, OpenCode, or any other host) can call it as tools. Triggers on: ''build an MCP server'', ''create MCP tools'', ''write an MCP server for'', ''integrate X with Claude via MCP'', ''expose API via MCP'', ''add MCP support for'', ''make Claude able to call X'', ''MCP server for Stripe/GitHub/Postgres'', ''scaffold MCP'', ''wrap this API in MCP'', ''Claude tool for X API'', ''FastMCP server'', ''TypeScript MCP'', ''MCP server for Cursor/Codex/Gemini/OpenCode''. Do NOT trigger for: reading/inspecting an existing MCP server, MCP client configuration only, or non-MCP integrations.'
+when_to_use: 'User wants to build or scaffold an MCP server to integrate an external API or service with an agent host. Example phrases: ''build an MCP server for Stripe'', ''create MCP tools for our Postgres DB'', ''write a FastMCP server for GitHub'', ''expose our REST API via MCP'', ''add MCP support for OpenWeatherMap'', ''scaffold a TypeScript MCP server'', ''wire this MCP server into Cursor and Codex too''.'
 argument-hint: '[service or API to integrate — e.g. ''GitHub REST API'', ''Stripe'', ''internal Postgres DB'', ''OpenWeatherMap'']'
 arguments: []
 disable-model-invocation: false
@@ -25,26 +25,50 @@ paths: []
 shell: bash
 license: MIT
 metadata:
+  tamirs:
+    visibility: public
+    category: mcp
+    role: implementer
+    validation-tier: 1
+    updated-date: '2026-08-19'
+    capabilities:
+      required:
+        - skills
+        - shell
+      optional:
+        - mcp
+    tags:
+      - mcp
+      - server
+      - integration
+      - developer-tools
+      - portable
   capability: mcp-development
-  tags:
-  - mcp
-  - server
-  - integration
-  - developer-tools
-  updated-date: '2026-06-16'
+  updated-date: '2026-08-19'
 ---
 
 # MCP Server Development Guide
 
 ## Why this skill exists
 
-Wrapping an external API in an MCP server sounds simple, but naive implementations fail Claude in practice: tools return walls of JSON that exhaust context, list operations return unbounded results that time out, error messages say "400 Bad Request" without guidance, and tool names are so generic (`get`, `list`) that the model picks wrong ones. This guide enforces the patterns — pagination-first, structured output, actionable errors, consistent naming — that make the difference between a server Claude can use reliably and one it struggles with.
+Wrapping an external API in an MCP server sounds simple, but naive implementations fail in practice: tools return walls of JSON that exhaust context, list operations return unbounded results that time out, error messages say "400 Bad Request" without guidance, and tool names are so generic (`get`, `list`) that the model picks wrong ones. This guide enforces the patterns — pagination-first, structured output, actionable errors, consistent naming — that make the difference between a server a model can use reliably and one it struggles with.
+
+**MCP is a protocol, not a Claude feature.** The server you build here is host-neutral: the
+same stdio or HTTP server is consumed by Claude Code, Claude Desktop, Cursor, Codex CLI,
+Gemini CLI, OpenCode and anything else speaking MCP. Nothing in the server implementation
+may assume a particular host. What *does* differ per host is the **client config file** that
+registers the server — that difference is confined to Phase 6, where it is generated and
+validated per target, and it never leaks into the server code.
+
+Throughout this guide, "the client" or "the host" means whichever agent runtime is calling
+your tools. Where a passage says Claude, it is naming one client among several, not a
+requirement.
 
 ## Supporting files
 
 | File | When to use |
 |------|-------------|
-| `scripts/scaffold.sh` | Run at the start of Phase 2 to generate a project skeleton. Usage: `bash $CLAUDE_SKILL_DIR/scripts/scaffold.sh <name> [ts\|py] [prefix]` |
+| `scripts/scaffold.sh` | Run at the start of Phase 2 to generate a project skeleton. Usage: `bash <skill-dir>/scripts/scaffold.sh <name> [ts\|py] [prefix]` (`$CLAUDE_SKILL_DIR` on Claude Code; substitute the skill directory on other hosts) |
 | `references/quick-reference.md` | Read during Phase 1 and Phase 3 for SDK URLs, Zod patterns, annotation hints, return shapes, naming examples, and error message templates. |
 
 At the start of **Phase 2**, run the scaffold script to bootstrap the project, then replace the placeholder tools in Phase 3.
@@ -95,7 +119,7 @@ Skip invocation only when the server has **zero** list, search, or bulk-read ope
 Read the bundled quick reference first (URLs, patterns, naming cheat sheet):
 
 ```
-Read("$CLAUDE_SKILL_DIR/references/quick-reference.md")
+Read("<skill-dir>/references/quick-reference.md")   # $CLAUDE_SKILL_DIR on Claude Code
 ```
 
 Then fetch authoritative SDK docs with WebFetch:
@@ -141,10 +165,10 @@ The fastest way to start is the bundled scaffold:
 
 ```bash
 # TypeScript
-bash $CLAUDE_SKILL_DIR/scripts/scaffold.sh my-mcp-server ts myservice
+bash <skill-dir>/scripts/scaffold.sh my-mcp-server ts myservice
 
 # Python (FastMCP)
-bash $CLAUDE_SKILL_DIR/scripts/scaffold.sh my-mcp-server py myservice
+bash <skill-dir>/scripts/scaffold.sh my-mcp-server py myservice
 ```
 
 This generates `package.json` / `requirements.txt`, entry file with two example tools, `README.md` with env var table, and `tsconfig.json` (TS only). Then replace the placeholder tools in Phase 3.
@@ -278,7 +302,7 @@ python -m py_compile my_server.py
 fastmcp dev my_server.py   # opens Inspector UI
 ```
 
-Test each tool in the MCP Inspector before declaring done. Check:
+Test each tool in the MCP Inspector before declaring done. The Inspector is host-neutral — it speaks the protocol directly, so a server that passes there works for every client. Check:
 - `list_*` tools return `next_cursor` when truncated
 - Error messages include the HTTP status, response body snippet, and a suggested fix
 - Tool descriptions are concise (under 120 chars for the summary line)
@@ -297,7 +321,7 @@ Run its **Quick-reference checklist** against the implemented tool set. Fix ever
 
 ## Phase 5 — Evaluations
 
-Create 10 read-only evaluation questions that require 3+ tool calls to answer. Format:
+Create 10 read-only evaluation questions that require 3+ tool calls to answer. These test the server through the protocol, so they are valid for every host. Format:
 
 ```xml
 <evaluation>
@@ -314,6 +338,79 @@ If eval scenarios require paginated tools, confirm with `Skill("mcp-pagination")
 
 ---
 
+## Phase 6 — Register the server with each target host
+
+The server is host-neutral. **Registration is not.** Each host reads a different config file
+with a different shape, and a server that works perfectly is still unreachable if the config
+it is registered in is wrong. Generate config only for the targets the user actually uses —
+detect them the way `platform-sync` does (see
+`skills/documentation/platform-sync/references/detection.md`), or ask.
+
+### 6.1 Check the capability first
+
+Read the `mcp` capability for each target in `core/capabilities/platforms.json`. If a target
+marks `mcp` as `unsupported` or `unknown`, do **not** emit a config file for it. Say so:
+
+```
+<target>: MCP is <unsupported|not verified> per the capability registry — no config emitted.
+```
+
+Never write a config file on the assumption a host supports MCP.
+
+### 6.2 Config shape per target
+
+| Target | Config path | Shape |
+|---|---|---|
+| Claude Code (project) | `.mcp.json` | `{"mcpServers": {"<name>": {"command", "args", "env"}}}` |
+| Claude Code (user) | `~/.claude.json` | same `mcpServers` object |
+| Claude Desktop | `claude_desktop_config.json` (OS-specific dir) | same `mcpServers` object |
+| Cursor | `.cursor/mcp.json` | `{"mcpServers": {...}}` |
+| Codex CLI | `.codex/config.toml` (or the path the fetched Codex docs name) | TOML `[mcp_servers.<name>]` table |
+| Gemini CLI | `.gemini/settings.json` | `mcpServers` object |
+| OpenCode | `opencode.json` | `mcp` object, entries typed `local` (command array) or `remote` (url) |
+
+Shapes drift between releases. **Verify the current shape against the target's live docs**
+before writing — the URL lists live in
+`skills/documentation/platform-sync/references/platforms/<id>.md`. If you cannot fetch them,
+emit the config and label it unverified; do not present a remembered shape as current.
+
+### 6.3 Secrets
+
+Config files carry `${ENV_VAR}` placeholders and nothing else. Never write a literal token
+into a config file, in any host's format, even in an example. Document the required
+variables in the server README.
+
+### 6.4 Validate what you generated
+
+Per target, run a check that actually parses the file:
+
+```bash
+jq empty .mcp.json                 # Claude Code / Cursor / Gemini / Claude Desktop
+jq empty .cursor/mcp.json
+jq empty .gemini/settings.json
+jq empty opencode.json
+python3 -c 'import tomllib,sys; tomllib.load(open(sys.argv[1],"rb"))' .codex/config.toml
+```
+
+Then confirm the server actually starts under the command the config names:
+
+```bash
+# the exact command string from the config's "command" + "args"
+node dist/index.js < /dev/null    # stdio server should start and wait, not crash
+```
+
+A config that parses but names a wrong path is the most common failure — check that the
+command path resolves from the directory the host will launch it in (usually the project
+root, not the server directory).
+
+### 6.5 Report honestly
+
+State per target: config written, validated how, and anything unverified. "Works with
+Cursor" is a claim that needs the parse check plus the start check behind it — evidence
+over declarations.
+
+---
+
 ## Hard rules
 
 1. **Never return unbounded lists.** Delegate limit/cursor/filter rules to `mcp-pagination` — invoke it at every trigger in the table above; do not skip for "simple" APIs.
@@ -324,6 +421,12 @@ If eval scenarios require paginated tools, confirm with `Skill("mcp-pagination")
 6. **Compilation must pass before shipping.** `npm run build` (TypeScript) or `python -m py_compile` (Python) must exit 0.
 7. **Tool descriptions must state what the tool returns**, not just what it does. Bad: "Gets issues." Good: "Returns a paginated list of open GitHub issues with title, labels, and assignee."
 8. **Phase 4 pagination audit must pass** before marking the server done.
+9. **Never assume a host.** The server implementation must not branch on which client is
+   calling it. Host differences belong in Phase 6 config generation only.
+10. **Never emit a client config for a target whose `mcp` capability is `unsupported` or
+   `unknown`** in `core/capabilities/platforms.json`. Report the gap instead.
+11. **Every generated config must be validated** by a parse check and a server-start check
+   before you claim the target works.
 
 ---
 
@@ -331,9 +434,9 @@ If eval scenarios require paginated tools, confirm with `Skill("mcp-pagination")
 
 | Anti-pattern | Why it fails | Fix |
 |---|---|---|
-| Return raw API response JSON as-is | Claude reads 50KB of nested objects, wastes context | Filter to the 5–10 fields actually needed |
-| Single `api_call(endpoint, method, body)` catch-all tool | Claude can't discover what the API supports | Implement explicit tools per operation |
+| Return raw API response JSON as-is | The client reads 50KB of nested objects, wasting context | Filter to the 5–10 fields actually needed |
+| Single `api_call(endpoint, method, body)` catch-all tool | The client can't discover what the API supports | Implement explicit tools per operation |
 | No pagination — return all results | Times out on large datasets; floods context | Invoke `Skill("mcp-pagination")`; add `limit` + cursor per its checklist |
-| `throw new Error("Error")` on API failure | Claude retries blindly with no fix | Include status code, body snippet, env var hint |
+| `throw new Error("Error")` on API failure | The client retries blindly with no fix | Include status code, body snippet, env var hint |
 | Put auth tokens in the source code | Security leak | Use env vars; document required vars in README |
 | Skip MCP Inspector testing | Broken tools ship silently | Always run Inspector before marking done |

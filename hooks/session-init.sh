@@ -6,8 +6,10 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=lib/worktree-common.sh
 source "${SCRIPT_DIR}/lib/worktree-common.sh"
+# shellcheck source=lib/hook-output.sh
+source "${SCRIPT_DIR}/lib/hook-output.sh"
 
-input="$(cat)"
+input="$(hook_read_stdin)"
 session_id="$(echo "$input" | jq -r '.session_id // empty')"
 cwd="$(echo "$input" | jq -r '.cwd // empty')"
 source_kind="$(echo "$input" | jq -r '.source // "startup"')"

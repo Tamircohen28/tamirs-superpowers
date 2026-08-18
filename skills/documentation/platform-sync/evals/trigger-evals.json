@@ -1,0 +1,66 @@
+[
+  {
+    "query": "/platform-sync",
+    "should_trigger": true
+  },
+  {
+    "query": "check my repo against the latest Claude Code and Cursor docs",
+    "should_trigger": true
+  },
+  {
+    "query": "what new platform features am I missing",
+    "should_trigger": true
+  },
+  {
+    "query": "sync my plugin with the latest platform features",
+    "should_trigger": true
+  },
+  {
+    "query": "audit every platform this repo targets",
+    "should_trigger": true
+  },
+  {
+    "query": "we added a GEMINI.md \u2014 audit our agent config against current docs",
+    "should_trigger": true
+  },
+  {
+    "query": "are we using the newest Codex CLI capabilities",
+    "should_trigger": true
+  },
+  {
+    "query": "review our opencode.json against the latest OpenCode release",
+    "should_trigger": true
+  },
+  {
+    "query": "update the version in plugin.json",
+    "should_trigger": false
+  },
+  {
+    "query": "what's new in Claude Code this week",
+    "should_trigger": false
+  },
+  {
+    "query": "install this plugin on Cursor for me",
+    "should_trigger": false
+  },
+  {
+    "query": "our docs are stale, do a documentation sweep",
+    "should_trigger": false
+  },
+  {
+    "query": "fix the broken hook path in hooks.json",
+    "should_trigger": false
+  },
+  {
+    "query": "scaffold a new plugin repo",
+    "should_trigger": false
+  },
+  {
+    "query": "compare Claude Code and Cursor as products",
+    "should_trigger": false
+  },
+  {
+    "query": "bump the plugin version and cut a release",
+    "should_trigger": false
+  }
+]

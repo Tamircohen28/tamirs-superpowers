@@ -1,0 +1,66 @@
+[
+  {
+    "query": "debug this: NullPointerException at UserService.java:142",
+    "should_trigger": true
+  },
+  {
+    "query": "why does this crash? thread 'main' panicked at 'unwrap on None', src/pay.rs:91",
+    "should_trigger": true
+  },
+  {
+    "query": "AttributeError: 'NoneType' object has no attribute 'id' \u2014 File \"src/parser.py\", line 87",
+    "should_trigger": true
+  },
+  {
+    "query": "look at this stack trace and tell me the root cause",
+    "should_trigger": true
+  },
+  {
+    "query": "nil pointer dereference at /app/services/order.go:114",
+    "should_trigger": true
+  },
+  {
+    "query": "TypeError: cannot read properties of undefined at lib/foo.js:12:7",
+    "should_trigger": true
+  },
+  {
+    "query": "what causes this exception, here's the traceback",
+    "should_trigger": true
+  },
+  {
+    "query": "look at src/handlers/payment.rs:91 \u2014 index out of bounds",
+    "should_trigger": true
+  },
+  {
+    "query": "something is broken, can you find the bug",
+    "should_trigger": false
+  },
+  {
+    "query": "why is the app slow",
+    "should_trigger": false
+  },
+  {
+    "query": "it's not working, check everything",
+    "should_trigger": false
+  },
+  {
+    "query": "review this PR for correctness issues",
+    "should_trigger": false
+  },
+  {
+    "query": "write a test that reproduces a null pointer case",
+    "should_trigger": false
+  },
+  {
+    "query": "explain what a NullPointerException is",
+    "should_trigger": false
+  },
+  {
+    "query": "our error rate went up this week, investigate",
+    "should_trigger": false
+  },
+  {
+    "query": "refactor this function so it can't return null",
+    "should_trigger": false
+  }
+]

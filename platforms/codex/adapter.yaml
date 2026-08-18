@@ -1,0 +1,26 @@
+# Adapter metadata — OpenAI Codex CLI (REFACTOR-SPEC §21).
+# Thin pointer file. Authoritative capabilities: core/capabilities/platforms.json.
+id: codex
+display_name: Codex CLI
+registry_key: codex
+
+# Coarse summary only. `agents` is the registry's `subagents` key.
+capabilities:
+  skills: native
+  agents: native
+  hooks: native
+  mcp: native
+
+manifest: .codex-plugin/plugin.json
+
+install:
+  type: marketplace
+  doc: docs/user/install/codex.md
+
+validation:
+  command: jq empty .codex-plugin/plugin.json
+
+notes: >-
+  Hooks are declared through the manifest's `hooks` field, which is not the same
+  shape as Claude's hooks/hooks.json. MCP servers are configured in
+  .codex/config.toml rather than .mcp.json.

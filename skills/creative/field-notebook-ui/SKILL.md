@@ -31,15 +31,27 @@ hooks: {}
 paths: []
 shell: bash
 metadata:
+  tamirs:
+    visibility: public
+    category: creative
+    role: implementer
+    validation-tier: 1
+    updated-date: '2026-08-19'
+    capabilities:
+      required:
+        - skills
+      optional:
+        - artifacts
+        - shell
+    tags:
+      - ui
+      - react
+      - design-system
+      - artifact
+      - creative
+      - interactive
   capability: creative-ui
-  tags:
-    - ui
-    - react
-    - design-system
-    - artifact
-    - creative
-    - interactive
-  updated-date: "2026-06-24"
+  updated-date: '2026-08-19'
 ---
 
 # Field-Notebook UI Skill
@@ -368,27 +380,77 @@ Never use an accent purely decoratively. It must encode meaning.
 3. Assign semantic accents to content types (2–3 max per view)
 4. Decide where the AirGap annotation belongs (one key insight per tab)
 5. Build the artifact following the token system, components, and layout rules above
-6. Inject fonts and global CSS via `useEffect` at component mount
+6. Inject fonts and global CSS at mount (`useEffect` in Mode A, a `<style>` block in Mode B) — always with a system-font fallback stack
 7. Every interactive element gets `className="nb-focus"` and `transition: "... 0.15s"`
 
-The artifact must be a self-contained React component with a default export.
-All tokens, components, and styles are defined inline — no external imports beyond React.
+The output is self-contained: all tokens, components and styles defined inline, no external
+imports beyond the UI runtime itself.
 
-## Output delivery — required
+---
 
-**Always write the artifact to a `.jsx` file. Never output it inline in chat.**
+## Output delivery — pick the target before you write a line
 
-Steps:
-1. Derive a short snake_case filename from the user's request (e.g. `helm_explainer.jsx`, `k8s_glossary.jsx`)
-2. Write the complete component to a `.jsx` file using the Write tool
-3. Report the file path to the user
+The **design system above is fully portable** — tokens, spacing, type scale, components and
+layout rules are plain CSS values and carry to any target unchanged. What is *not* portable
+is the container the design ships in. Choose it deliberately.
 
-Do not paste the JSX into the conversation. Do not use a code block as the deliverable.
-The file is the deliverable.
+### Mode A — React component (`.jsx`)
+
+A bare `.jsx` file with `import { useState } from "react"` and a default export is **not a
+runnable program**. It runs only where a host supplies the React runtime and renders the
+component for you — Claude Artifacts and Claude Desktop do this; a plain browser, a terminal
+agent, and a repo with no bundler do not.
+
+Use Mode A when **all** of these hold:
+- the `artifacts` capability is available on the current platform
+  (`core/capabilities/platforms.json`), **or** the user has an existing React project to drop
+  the component into; and
+- the user asked for a React component, or the destination is a React codebase.
+
+### Mode B — single-file HTML (`.html`) — **the portable default**
+
+One `.html` file with inline `<style>` and inline `<script>`, opened directly from
+`file://`. No build step, no bundler, no runtime supplied by a host. This is what you produce
+whenever Mode A's conditions are not met — which includes every platform whose `artifacts`
+capability is `unsupported` or `unknown`.
+
+Mode B carries the identical design system. Translate the components the obvious way: the
+token object becomes CSS custom properties on `:root`, `useState` becomes a small amount of
+vanilla JS, tab switching becomes class toggling. Nothing in the aesthetic is lost.
+
+### Never do this
+
+- **Never emit a bare `.jsx` on a platform with no React runtime** and describe it as
+  finished. That hands the user a file they cannot open. If you are unsure whether the host
+  renders React, produce Mode B — it works everywhere, including inside a React host.
+- **Never claim the output "will render as an artifact"** unless the `artifacts` capability
+  is actually present. State which mode you produced and what is needed to view it.
+- **Never require a build step, package install, or dev server** in either mode.
+
+### Fonts and network
+
+The template injects Google Fonts. That is a **view-time network dependency**, and it fails
+offline and under a strict Content-Security-Policy. Always declare a real fallback stack —
+`'Space Grotesk', system-ui, sans-serif` and `'Inter', system-ui, sans-serif` — so the page
+degrades to system faces rather than to a broken layout. Fonts are the only permitted remote
+asset; everything else is inline.
+
+### Steps (both modes)
+
+1. Derive a short snake_case filename from the user's request (e.g. `helm_explainer`,
+   `k8s_glossary`) and append `.jsx` (Mode A) or `.html` (Mode B).
+2. Write the complete file with the Write tool.
+3. Report the file path, **the mode you chose, and why** — plus how to view it.
+
+**Never paste the source into the conversation as the deliverable.** The file is the
+deliverable, in both modes.
 
 ---
 
 ## Quick-reference template
+
+**Mode A (React).** For Mode B, the same structure with CSS custom properties on `:root`
+and vanilla JS for the tab state — the tokens, components and layout rules are unchanged.
 
 ```jsx
 import { useState, useEffect } from "react";
@@ -404,11 +466,11 @@ export default function App() {
 
   return (
     <div style={{ background: T.bg, minHeight: "100vh", color: T.ink,
-                  fontFamily: "'Inter', sans-serif" }}>
+                  fontFamily: "'Inter', system-ui, sans-serif" }}>
       {/* Header */}
       <header style={{ padding: "20px 28px 16px", borderBottom: `1px solid ${T.rule}` }}>
         <Eyebrow>context · domain</Eyebrow>
-        <h1 style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: "22px",
+        <h1 style={{ fontFamily: "'Space Grotesk', system-ui, sans-serif", fontSize: "22px",
                      fontWeight: 700, color: T.ink }}>
           Artifact title
         </h1>

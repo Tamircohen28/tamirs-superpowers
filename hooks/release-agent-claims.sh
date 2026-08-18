@@ -11,7 +11,7 @@ source "${SCRIPT_DIR}/lib/hook-output.sh"
 # shellcheck source=lib/agent-claim.sh
 source "${SCRIPT_DIR}/lib/agent-claim.sh"
 
-INPUT=$(cat)
+INPUT="$(hook_read_stdin)"
 hook_detect_platform "$INPUT"
 
 if ! claim_require_deps; then

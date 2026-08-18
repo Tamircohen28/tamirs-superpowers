@@ -3,47 +3,15 @@ alwaysApply: false
 globs: ["skills/**/SKILL.md", ".claude/skills/**/SKILL.md"]
 ---
 
-# SKILL.md frontmatter — required fields
+# SKILL.md frontmatter
 
-Every `SKILL.md` must include **all 16 official Claude Code frontmatter fields**
-plus `metadata.updated-date`. CI enforces via `scripts/validate-skill-frontmatter.py`.
+Canonical schema: `core/schemas/skill-frontmatter.json`. Authoring rules: `rules/dev/skill-quality-standards.md`.
 
-Template: `skills/toolkit/skill-creator/references/frontmatter-template.md`
-Docs: https://code.claude.com/docs/en/skills
-
-## Required fields
-
-`name`, `description`, `when_to_use`, `argument-hint`, `arguments`,
-`disable-model-invocation`, `user-invocable`, `allowed-tools`, `disallowed-tools`,
-`model`, `effort`, `context`, `agent`, `hooks`, `paths`, `shell`, `metadata`
-
-## Defaults when a behavior is unused
-
-| Field | Value |
-|-------|-------|
-| `arguments` | `[]` |
-| `disallowed-tools` | `[]` |
-| `hooks` | `{}` |
-| `paths` | `[]` |
-| `shell` | `bash` |
-| `context` / `agent` | `''` unless `context: fork` |
-
-## Skill-type presets
-
-| Type | `user-invocable` | `disable-model-invocation` | `effort` |
-|------|------------------|----------------------------|----------|
-| Slash workflow | `true` | `true` | `high` |
-| Auto-trigger | `true` | `false` | `medium` |
-| Internal companion | `false` | `true` | `low` |
-| Forked subagent | `true` | `true` | `medium` + `context: fork` + `agent` |
-
-`user-invocable: false` **must** pair with `disable-model-invocation: true`.
-
-## Validate after every SKILL.md change
+Frontmatter is validated against the portable schema by `scripts/validate-skill-frontmatter.py`; platform-specific fields are extensions of that schema, validated when present rather than required everywhere. Do not copy a field list into this file — it drifts. Read the schema.
 
 ```bash
 python3 scripts/validate-skill-frontmatter.py path/to/SKILL.md
 make validate
 ```
 
-Use the bundled `skill-creator` skill — never hand-write a SKILL.md without the template.
+Use the bundled `skill-creator` skill — never hand-write a SKILL.md.

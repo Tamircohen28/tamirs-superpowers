@@ -1,0 +1,301 @@
+{
+  "schema_version": 1,
+  "last_reviewed": "2026-08-19",
+  "capability_definitions": {
+    "skills": {
+      "summary": "Discovers and loads SKILL.md files shipped by this repo.",
+      "degradation": "None possible — a target without skills is not a supported target."
+    },
+    "skill_auto_invocation": {
+      "summary": "Selects a skill from its description without the user naming it.",
+      "degradation": "Document the explicit invocation form (slash command or 'use the X skill') in the install guide."
+    },
+    "subagents": {
+      "summary": "Delegates a bounded task to a separate agent with its own context.",
+      "degradation": "Run the role inline in the main session, sequentially, with a narrowed scope."
+    },
+    "parallel_subagents": {
+      "summary": "Runs two or more subagents concurrently.",
+      "degradation": "Fan out sequentially; the task graph still holds, only wall-clock time changes."
+    },
+    "agent_teams": {
+      "summary": "Long-lived named agents that message each other during a session.",
+      "degradation": "Use one-shot subagents plus files under session-files/ as the message bus."
+    },
+    "hooks": {
+      "summary": "Runs repo-declared scripts on lifecycle events (session start, pre-tool-use).",
+      "degradation": "Move the guard into the skill body as an explicit step, and into CI as a check."
+    },
+    "mcp": {
+      "summary": "Connects Model Context Protocol servers declared by the repo.",
+      "degradation": "Use the equivalent CLI (gh, curl) through the shell capability."
+    },
+    "statusline": {
+      "summary": "Renders a repo-provided status line in the session chrome.",
+      "degradation": "Purely cosmetic — omit it. Never make a skill depend on it."
+    },
+    "shell": {
+      "summary": "Executes arbitrary shell commands in the workspace.",
+      "degradation": "Emit the commands for the user to run and wait for pasted output."
+    },
+    "git": {
+      "summary": "Git is on PATH and the workspace is a repository.",
+      "degradation": "Skip branch/commit/worktree workflows; skills that need them declare git as required."
+    },
+    "github_cli": {
+      "summary": "The gh CLI is installed and authenticated.",
+      "degradation": "Optional feature dependency. Fall back to printing the PR/issue body for the user to file manually."
+    },
+    "background_tasks": {
+      "summary": "Runs a long command detached and reports its exit later.",
+      "degradation": "Run in the foreground with a bounded timeout."
+    },
+    "worktree_isolation": {
+      "summary": "Each task gets its own git worktree so concurrent agents do not collide.",
+      "degradation": "Single checkout, one task at a time; the orchestrator serializes writes."
+    },
+    "plugin_marketplace": {
+      "summary": "Installs and updates this plugin from a hosted marketplace listing.",
+      "degradation": "Document a direct install path (git clone plus a local plugin/extension link)."
+    },
+    "extension_install": {
+      "summary": "Installs the repo directly as an extension from a git URL.",
+      "degradation": "Use the platform's own install path; this is not a universal mechanism."
+    },
+    "slash_commands": {
+      "summary": "Exposes repo-provided commands as /name.",
+      "degradation": "Users invoke the skill by describing it in prose."
+    },
+    "ask_user_question": {
+      "summary": "Presents a structured multiple-choice question mid-run.",
+      "degradation": "Ask in prose and stop for a free-text reply."
+    },
+    "artifacts": {
+      "summary": "Publishes a rendered HTML/Markdown page as a shareable artifact.",
+      "degradation": "Write the same content to a file in the repo and tell the user the path."
+    },
+    "session_transcripts": {
+      "summary": "Session history is readable on disk in a documented format.",
+      "degradation": "Usage analytics (session-report) are unavailable; say so rather than reporting zeros."
+    }
+  },
+  "platforms": {
+    "claude_code": {
+      "display_name": "Claude Code",
+      "aliases": ["claude-code", "claude"],
+      "doc_urls": [
+        "https://code.claude.com/docs/en/plugins-reference",
+        "https://code.claude.com/docs/en/plugin-marketplaces",
+        "https://code.claude.com/docs/en/skills"
+      ],
+      "install": {
+        "type": "marketplace",
+        "command": "/plugin marketplace add Tamircohen28/scaffold-plugin-gold && /plugin install scaffold-plugin-gold@scaffold-plugin-gold",
+        "doc": "docs/user/install/claude-code.md"
+      },
+      "validation": { "command": "claude plugin validate ." },
+      "capabilities": {
+        "skills": { "status": "native", "since": "2.0.0", "validation": "claude plugin validate .", "notes": "Canonical skills/ tree is consumed directly; no adapter." },
+        "skill_auto_invocation": { "status": "native", "since": "2.0.0", "validation": "claude plugin validate .", "notes": "Description-driven; suppressed per skill with disable-model-invocation." },
+        "subagents": { "status": "native", "since": "2.0.0", "validation": "test -d agents && claude plugin validate ." },
+        "parallel_subagents": { "status": "native", "since": "2.0.0", "validation": "claude plugin validate .", "notes": "Multiple Agent calls in one message run concurrently." },
+        "agent_teams": { "status": "native-experimental", "validation": "claude plugin validate .", "notes": "Teammate messaging is available but documented as evolving; skills must not require it." },
+        "hooks": { "status": "native", "since": "2.0.0", "validation": "jq empty hooks/hooks.json && make test-hooks", "notes": "hooks/hooks.json with CLAUDE_PLUGIN_ROOT. This is the only target where the Claude-shaped hook bundle runs as shipped." },
+        "mcp": { "status": "native", "since": "2.0.0", "validation": "jq empty .mcp.json" },
+        "statusline": { "status": "native", "since": "2.0.0", "validation": "echo '{}' | bash scripts/statusline.sh" },
+        "shell": { "status": "native", "validation": "command -v bash" },
+        "git": { "status": "native", "validation": "git rev-parse --is-inside-work-tree" },
+        "github_cli": { "status": "native", "validation": "gh auth status", "notes": "Platform imposes no limit, but gh is an optional host dependency — presence is environment-dependent, so skills treat it as optional." },
+        "background_tasks": { "status": "native", "validation": "command -v bash", "notes": "Bash tool supports detached execution with completion callback." },
+        "worktree_isolation": { "status": "native", "since": "2.0.0", "validation": "bash hooks/worktree-create.sh --help", "notes": "Automated by the repo's worktree hooks; on other targets the same thing is emulated by hand." },
+        "plugin_marketplace": { "status": "native", "since": "2.0.0", "validation": "bash scripts/check-marketplace-schema.sh ." },
+        "extension_install": { "status": "unsupported", "notes": "Claude installs plugins, not git-URL extensions.", "fallback": "Use plugin_marketplace, or --plugin-dir for local development." },
+        "slash_commands": { "status": "native", "since": "2.0.0", "validation": "claude plugin validate ." },
+        "ask_user_question": { "status": "native", "validation": "claude plugin validate .", "notes": "Structured choice prompts are available in interactive sessions only; headless runs must not block on one." },
+        "artifacts": { "status": "partial", "notes": "Artifact publishing is present on some Claude Code surfaces and account configurations, not guaranteed by the CLI itself. No shipped skill requires it.", "fallback": "Write the page to a file in the repo and report the path." },
+        "session_transcripts": { "status": "native", "validation": "test -d \"$HOME/.claude/projects\"", "notes": "JSONL transcripts under ~/.claude/projects; the session-report skill parses this format and no other." }
+      }
+    },
+    "claude_desktop": {
+      "display_name": "Claude Desktop",
+      "aliases": ["claude-desktop", "desktop"],
+      "doc_urls": [
+        "https://code.claude.com/docs/en/plugins-reference",
+        "https://code.claude.com/docs/en/skills"
+      ],
+      "runtime_surface_of": "claude_code",
+      "install": {
+        "type": "marketplace",
+        "command": "Install the plugin from the same marketplace listing as Claude Code.",
+        "doc": "docs/user/install/claude-desktop.md"
+      },
+      "validation": { "command": "claude plugin validate .", "requires_cli": true },
+      "capabilities": {
+        "skills": { "status": "native", "validation": "claude plugin validate .", "notes": "Desktop consumes the Claude Code plugin format; installed plugins and their skills are visible there. No separate manifest exists or should be created." },
+        "skill_auto_invocation": { "status": "native", "validation": "claude plugin validate .", "notes": "Same plugin runtime as Claude Code." },
+        "subagents": { "status": "unknown", "notes": "Not exercised on Desktop by this repo. Treat as unavailable until a Desktop run is recorded." },
+        "parallel_subagents": { "status": "unknown", "notes": "Depends on subagents, which is itself unverified here." },
+        "agent_teams": { "status": "unknown", "notes": "No Desktop evidence." },
+        "hooks": { "status": "unknown", "notes": "Whether the plugin hook bundle fires in Desktop coding sessions has not been verified.", "fallback": "Assume no hooks; rely on in-skill guards and CI." },
+        "mcp": { "status": "native", "validation": "jq empty .mcp.json", "notes": "Desktop is a long-standing MCP host; server config lives in the Desktop app rather than the repo." },
+        "statusline": { "status": "unsupported", "notes": "No terminal chrome to render into.", "fallback": "Cosmetic only; nothing depends on it." },
+        "shell": { "status": "partial", "notes": "Desktop coding sessions can run commands; other Desktop surfaces (plain chat) cannot.", "fallback": "Print commands for the user to run." },
+        "git": { "status": "partial", "notes": "Follows shell — available only in the coding-session surface.", "fallback": "Skip git workflows." },
+        "github_cli": { "status": "unknown", "notes": "Depends on the Desktop session's shell environment; not measured.", "fallback": "Print the PR/issue body for manual filing." },
+        "background_tasks": { "status": "unknown", "notes": "No Desktop evidence.", "fallback": "Run in the foreground." },
+        "worktree_isolation": { "status": "unknown", "notes": "Requires shell plus git, both only partially confirmed here.", "fallback": "Single checkout, serialized tasks." },
+        "plugin_marketplace": { "status": "native", "validation": "bash scripts/check-marketplace-schema.sh .", "notes": "Same marketplace listing as Claude Code." },
+        "extension_install": { "status": "unsupported", "notes": "Not a Claude mechanism.", "fallback": "Use the marketplace listing." },
+        "slash_commands": { "status": "native", "validation": "claude plugin validate .", "notes": "Plugin commands surface in Desktop alongside skills." },
+        "ask_user_question": { "status": "unknown", "notes": "Not verified on Desktop.", "fallback": "Ask in prose." },
+        "artifacts": { "status": "partial", "notes": "Artifacts are a first-class Desktop feature, but nothing in this repo can validate or drive one, and no shipped skill depends on it.", "fallback": "Write the page to a file in the repo and report the path." },
+        "session_transcripts": { "status": "unknown", "notes": "No documented on-disk transcript format for Desktop; session-report should refuse rather than guess.", "fallback": "Report that usage analytics are unavailable on this surface." }
+      }
+    },
+    "codex": {
+      "display_name": "Codex CLI",
+      "aliases": ["codex-cli", "openai-codex"],
+      "doc_urls": [
+        "https://developers.openai.com/codex/guides/agents-md",
+        "https://developers.openai.com/codex/config-basic"
+      ],
+      "install": {
+        "type": "marketplace",
+        "command": "codex plugin install scaffold-plugin-gold",
+        "doc": "docs/user/install/codex.md"
+      },
+      "validation": { "command": "jq empty .codex-plugin/plugin.json" },
+      "capabilities": {
+        "skills": { "status": "native", "since": "0.40.0", "validation": "jq empty .codex-plugin/plugin.json", "notes": "Declared in platform-targets.json; validated against 0.146.0." },
+        "skill_auto_invocation": { "status": "unknown", "notes": "Codex skill selection behaviour has not been measured by this repo.", "fallback": "Document explicit invocation in docs/user/install/codex.md." },
+        "subagents": { "status": "native", "since": "0.40.0", "validation": "jq empty .codex-plugin/plugin.json", "notes": "'agents' is a declared capability in platform-targets.json." },
+        "parallel_subagents": { "status": "unknown", "notes": "Concurrency behaviour unverified.", "fallback": "Fan out sequentially." },
+        "agent_teams": { "status": "unknown", "notes": "No evidence of inter-agent messaging.", "fallback": "Use session-files/ as the message bus." },
+        "hooks": { "status": "native", "since": "0.147.0", "validation": "jq -e '.hooks' .codex-plugin/plugin.json", "notes": "Manifest hooks field; features_adopted records hooks-field and portable-agent-plugins-0.147.0. Not the same shape as Claude hooks/hooks.json." },
+        "mcp": { "status": "native", "validation": "test -f .codex/config.toml", "notes": "Configured through .codex/config.toml rather than .mcp.json." },
+        "statusline": { "status": "unsupported", "notes": "Not a declared Codex capability.", "fallback": "Cosmetic only; omit." },
+        "shell": { "status": "native", "validation": "command -v bash" },
+        "git": { "status": "native", "validation": "git rev-parse --is-inside-work-tree" },
+        "github_cli": { "status": "native", "validation": "gh auth status", "notes": "Optional host dependency, as everywhere." },
+        "background_tasks": { "status": "unknown", "notes": "Not measured.", "fallback": "Foreground with a bounded timeout." },
+        "worktree_isolation": { "status": "emulated", "notes": "No hook automation; the skill creates and removes worktrees itself via shell and git.", "fallback": "Explicit git worktree add/remove steps inside the skill." },
+        "plugin_marketplace": { "status": "native", "validation": "bash scripts/check-marketplace-schema.sh .", "notes": "'marketplace' is a declared capability in platform-targets.json." },
+        "extension_install": { "status": "unsupported", "notes": "Codex installs plugins, not git-URL extensions.", "fallback": "Use the plugin manifest install path." },
+        "slash_commands": { "status": "unknown", "notes": "Codex custom-command support has not been verified against the shipped skills.", "fallback": "Invoke skills in prose." },
+        "ask_user_question": { "status": "unknown", "notes": "No structured-question primitive verified.", "fallback": "Ask in prose." },
+        "artifacts": { "status": "unsupported", "notes": "No artifact publishing surface.", "fallback": "Write to a file in the repo." },
+        "session_transcripts": { "status": "unknown", "notes": "Transcript format not documented for this repo's tooling; session-report targets the Claude JSONL format only.", "fallback": "Report analytics as unavailable." }
+      }
+    },
+    "cursor": {
+      "display_name": "Cursor",
+      "aliases": ["cursor-cli"],
+      "doc_urls": [
+        "https://cursor.com/docs/plugins",
+        "https://cursor.com/docs/context/rules",
+        "https://cursor.com/docs/hooks",
+        "https://cursor.com/docs/reference/third-party-hooks"
+      ],
+      "install": {
+        "type": "marketplace",
+        "command": "Add the repo as a plugin source in Cursor, then install scaffold-plugin-gold.",
+        "doc": "docs/user/install/cursor.md"
+      },
+      "validation": { "command": "jq empty .cursor-plugin/plugin.json" },
+      "capabilities": {
+        "skills": { "status": "native", "since": "3.16.17", "validation": "jq empty .cursor-plugin/plugin.json", "notes": "Validated against 3.16.17; the floor is the version actually tested, not a guess." },
+        "skill_auto_invocation": { "status": "partial", "notes": "Cursor documents sticky skills in the CLI (2026-08-11 docs), but automatic description-based selection across all surfaces has not been verified here.", "fallback": "Name the skill explicitly, or rely on the .cursor/rules/*.mdc entrypoint." },
+        "subagents": { "status": "native", "since": "3.16.17", "validation": "jq empty .cursor-plugin/plugin.json", "notes": "'agents' is a declared capability in platform-targets.json." },
+        "parallel_subagents": { "status": "unknown", "notes": "Not measured.", "fallback": "Fan out sequentially." },
+        "agent_teams": { "status": "unknown", "notes": "No evidence of inter-agent messaging.", "fallback": "Use session-files/ as the message bus." },
+        "hooks": { "status": "partial", "notes": "Claude-shaped plugin hooks (hooks/hooks.json, CLAUDE_PLUGIN_ROOT) do NOT run under a Cursor plugin install. Project-level .cursor/hooks.json ships soft contributor guards, and third-party Claude hooks via .claude/settings.json are opt-in in Cursor Settings.", "fallback": "Treat guards as advisory; enforce the same rules in CI." },
+        "mcp": { "status": "native", "validation": "jq empty .mcp.json" },
+        "statusline": { "status": "unsupported", "notes": "No plugin-declared statusline.", "fallback": "Cosmetic only; omit." },
+        "shell": { "status": "native", "validation": "command -v bash" },
+        "git": { "status": "native", "validation": "git rev-parse --is-inside-work-tree" },
+        "github_cli": { "status": "native", "validation": "gh auth status", "notes": "Optional host dependency." },
+        "background_tasks": { "status": "unknown", "notes": "Cloud Agent Builds run work remotely, which is not the same primitive; not measured.", "fallback": "Foreground with a bounded timeout." },
+        "worktree_isolation": { "status": "emulated", "notes": "Done by the skill through shell and git; no hook automation.", "fallback": "Explicit git worktree add/remove steps." },
+        "plugin_marketplace": { "status": "native", "validation": "bash scripts/check-marketplace-schema.sh .", "notes": "Team marketplace import from repo." },
+        "extension_install": { "status": "unsupported", "notes": "Cursor installs plugins, not git-URL extensions.", "fallback": "Use the plugin manifest install path." },
+        "slash_commands": { "status": "native", "since": "3.16.17", "validation": "jq empty .cursor-plugin/plugin.json", "notes": "'commands' is a declared capability in platform-targets.json." },
+        "ask_user_question": { "status": "unknown", "notes": "No structured-question primitive verified.", "fallback": "Ask in prose." },
+        "artifacts": { "status": "unsupported", "notes": "No artifact publishing surface.", "fallback": "Write to a file in the repo." },
+        "session_transcripts": { "status": "unknown", "notes": "Transcript format not documented for this repo's tooling.", "fallback": "Report analytics as unavailable." }
+      }
+    },
+    "gemini_cli": {
+      "display_name": "Gemini CLI",
+      "aliases": ["gemini-cli", "gemini"],
+      "doc_urls": [
+        "https://github.com/google-gemini/gemini-cli/blob/main/docs/extensions/reference.md",
+        "https://github.com/google-gemini/gemini-cli/blob/main/docs/cli/skills.md",
+        "https://github.com/google-gemini/gemini-cli/blob/main/docs/core/subagents.md"
+      ],
+      "install": {
+        "type": "extension",
+        "command": "gemini extensions install https://github.com/Tamircohen28/scaffold-plugin-gold && gemini skills install https://github.com/Tamircohen28/scaffold-plugin-gold --path .gemini/skills --consent",
+        "doc": "docs/user/install/gemini.md"
+      },
+      "validation": { "command": "bash scripts/check-gemini-adapter.sh" },
+      "capabilities": {
+        "skills": { "status": "adapter", "since": "0.55.1", "validation": "make gemini-extension-check", "notes": "Measured on 0.55.1: Gemini discovers skills exactly one level below a skills root, so the canonical two-level skills/<domain>/<name>/ tree resolves to ZERO skills. scripts/build-gemini-extension.sh generates a flat symlink mirror at .gemini/skills/ (one symlink per skill, so still exactly one copy in the repo), which Gemini then reads natively — in-workspace with no install at all, or via a single gemini skills install --path .gemini/skills. This row is about the generated mirror, not the canonical tree. NOTE: Gemini follows symlinks for skill discovery; OpenCode does not, at any level. Do not port one platform's mirror strategy to the other.", "fallback": "None needed — the mirror is committed, and scripts/check-gemini-adapter.sh fails rather than shipping an adapter that finds nothing. Regenerate with make gemini-extension; never hand-edit .gemini/skills/. One live failure mode: an untrusted workspace folder silently skips the mirror, and the only clue is Gemini logging 'Skipping project agents due to untrusted folder'." },
+        "skill_auto_invocation": { "status": "unknown", "notes": "Gemini follows the Agent Skills model, but its selection behaviour has not been measured.", "fallback": "Document explicit invocation in docs/user/install/gemini.md." },
+        "subagents": { "status": "adapter", "since": "0.55.1", "validation": "make gemini-extension-check", "notes": "The CANONICAL form does not load: agents/*.md are read from the extension root and rejected with 'tools.0: Invalid tool name', because Gemini wants tools as an array of its own tool names while this repo's agents declare Claude's (Read, Grep, Glob, Bash) as a string. A GENERATED form does: scripts/build-gemini-extension.sh emits .gemini/agents/*.md with tools as a YAML array of real Gemini names (read_file, search_file_content, glob, run_shell_command), verified against the loader rather than guessed, and omits model: entirely — a Claude alias like 'sonnet' passes validation and then fails at invocation. Verified on 0.55.1: all agents load with no errors.", "fallback": "Regenerate with make gemini-extension; never hand-edit .gemini/agents/. Installing the extension still emits a harmless load error for the canonical agents/ at the extension root — noisy, not fatal, and unfixable from this side (no subdirectory flag, no manifest field relocates it)." },
+        "parallel_subagents": { "status": "unknown", "notes": "Concurrency behaviour undocumented here.", "fallback": "Fan out sequentially." },
+        "agent_teams": { "status": "unknown", "notes": "No evidence.", "fallback": "Use session-files/ as the message bus." },
+        "hooks": { "status": "unknown", "notes": "Measured on 0.55.1 only as far as: Gemini accepts the outer {\"hooks\": {...}} shape of the Claude Code schema without complaint, but has its own event vocabulary. Whether Claude event names ever fire was NOT verified, so no claim is made in either direction. Not 'unsupported' — that would assert a measured failure that was never measured.", "fallback": "Guards become explicit in-skill steps plus CI checks. gemini hooks migrate --from-claude can translate them into personal settings." },
+        "mcp": { "status": "native", "since": "0.55.1", "validation": "bash scripts/check-gemini-adapter.sh", "notes": "Measured on 0.55.1. The github server reads gh auth token at startup, so gh auth login is a prerequisite for its first call." },
+        "statusline": { "status": "unsupported", "notes": "Measured on 0.55.1: no extension-declared statusline.", "fallback": "Cosmetic only; omit." },
+        "shell": { "status": "native", "validation": "command -v bash" },
+        "git": { "status": "native", "validation": "git rev-parse --is-inside-work-tree" },
+        "github_cli": { "status": "native", "validation": "gh auth status", "notes": "Optional host dependency. Also required before the bundled github MCP server's first call." },
+        "background_tasks": { "status": "unknown", "notes": "Not measured.", "fallback": "Foreground with a bounded timeout." },
+        "worktree_isolation": { "status": "emulated", "notes": "Shell plus git, driven by the skill.", "fallback": "Explicit git worktree add/remove steps." },
+        "plugin_marketplace": { "status": "unsupported", "notes": "Gemini installs extensions from a git URL; there is no marketplace listing to publish to.", "fallback": "Use extension_install." },
+        "extension_install": { "status": "native", "since": "0.55.1", "validation": "bash scripts/check-gemini-adapter.sh", "notes": "Primary install path, measured on 0.55.1: gemini extensions install <git-url>, or gemini extensions link . for local development. Note that gemini extensions validate only parses the manifest — it reports success on an extension whose context file does not exist — so it is not sufficient evidence for any row here." },
+        "slash_commands": { "status": "unknown", "notes": "Gemini reads commands/*.toml at the extension root, but this repo ships no commands/ directory on any target, so the path was never probed.", "fallback": "Users invoke skills by describing them in prose." },
+        "ask_user_question": { "status": "unknown", "notes": "No structured-question primitive documented.", "fallback": "Ask in prose." },
+        "artifacts": { "status": "unsupported", "notes": "No artifact publishing surface.", "fallback": "Write to a file in the repo." },
+        "session_transcripts": { "status": "unknown", "notes": "Transcript format not documented for this repo's tooling.", "fallback": "Report analytics as unavailable." }
+      }
+    },
+    "opencode": {
+      "display_name": "OpenCode",
+      "aliases": ["open-code"],
+      "doc_urls": [
+        "https://opencode.ai/docs/skills/",
+        "https://opencode.ai/docs/agents/",
+        "https://opencode.ai/docs/plugins/",
+        "https://opencode.ai/config.json"
+      ],
+      "install": {
+        "type": "path",
+        "command": "Point opencode.json skills.paths at absolute paths in this checkout. Symlinks are not followed for skill discovery at any level (verified 1.18.11), so a symlinked install silently discovers nothing.",
+        "doc": "docs/user/install/opencode.md"
+      },
+      "validation": { "command": "opencode debug skill" },
+      "capabilities": {
+        "skills": { "status": "native", "since": "1.16.2", "validation": "opencode debug skill", "notes": "Recursive (domain-nested) discovery verified from 1.16.2; validated against 1.18.11. OpenCode recognises a smaller frontmatter set and ignores unknown fields. Symlinks are NOT followed for skill discovery at any level (verified 1.18.11) — the skills dir, a domain dir, and an individual skill dir all yield zero. Install with absolute skills.paths, never a symlink." },
+        "skill_auto_invocation": { "status": "unknown", "notes": "Discovery is verified; automatic selection is not.", "fallback": "Name the skill explicitly." },
+        "subagents": { "status": "adapter", "notes": "Canonical agents/ are translated into .opencode/agent/ by scripts/build-opencode-agents.sh because the frontmatter genuinely differs; drift is enforced by make opencode-agents-check.", "fallback": "Regenerate the adapter rather than hand-editing .opencode/agent/." },
+        "parallel_subagents": { "status": "unknown", "notes": "Not measured.", "fallback": "Fan out sequentially." },
+        "agent_teams": { "status": "unknown", "notes": "No evidence of inter-agent messaging.", "fallback": "Use session-files/ as the message bus." },
+        "hooks": { "status": "unsupported", "notes": "OpenCode has no hooks.json; its only lifecycle mechanism is the JS/TS plugin API, and this repo ships no plugin module by design (it would add a Node runtime dependency for no other gain). As installed, the hooks/ guards do not run at all — 'adapter' would imply a generated artifact exists, as it does for subagents, and none does.", "fallback": "Guards become explicit in-skill steps plus CI checks." },
+        "mcp": { "status": "native", "validation": "jq -e '.mcp // {}' opencode.json", "notes": "Configured in opencode.json." },
+        "statusline": { "status": "unsupported", "notes": "No plugin-declared statusline.", "fallback": "Cosmetic only; omit." },
+        "shell": { "status": "native", "validation": "command -v bash" },
+        "git": { "status": "native", "validation": "git rev-parse --is-inside-work-tree" },
+        "github_cli": { "status": "native", "validation": "gh auth status", "notes": "Optional host dependency." },
+        "background_tasks": { "status": "unknown", "notes": "Not measured.", "fallback": "Foreground with a bounded timeout." },
+        "worktree_isolation": { "status": "emulated", "notes": "Shell plus git, driven by the skill.", "fallback": "Explicit git worktree add/remove steps." },
+        "plugin_marketplace": { "status": "unsupported", "notes": "No plugin marketplace — install is by absolute skills.paths. Not by symlink: OpenCode does not follow them for skill discovery (see the skills row).", "fallback": "Document the absolute skills.paths install in docs/user/install/opencode.md." },
+        "extension_install": { "status": "unsupported", "notes": "No git-URL extension install.", "fallback": "Use the path install." },
+        "slash_commands": { "status": "unknown", "notes": "Command surface not verified against the shipped skills.", "fallback": "Invoke skills in prose." },
+        "ask_user_question": { "status": "unknown", "notes": "No structured-question primitive verified.", "fallback": "Ask in prose." },
+        "artifacts": { "status": "unsupported", "notes": "No artifact publishing surface.", "fallback": "Write to a file in the repo." },
+        "session_transcripts": { "status": "unknown", "notes": "Transcript format not documented for this repo's tooling.", "fallback": "Report analytics as unavailable." }
+      }
+    }
+  }
+}

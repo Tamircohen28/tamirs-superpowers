@@ -1,6 +1,6 @@
 ---
 name: skill-creator
-description: 'Use when creating or improving a Claude Code skill (SKILL.md), fixing a skill that isn''t triggering, optimizing its description, or running skill evals/benchmarks. Triggers: ''make this a skill'', ''turn this into a skill'', ''write a SKILL.md'', ''my skill isn''t triggering'', ''skill keeps missing'', ''add evals to my skill'', ''benchmark my skill'', ''improve this skill'', ''create a new skill for X''.'
+description: 'Use when creating or improving an Agent Skill (SKILL.md) for Claude Code, Cursor, Codex, Gemini CLI or OpenCode, fixing a skill that isn''t triggering, optimizing its description, or running skill evals/benchmarks. Writes portable skills first, then validates platform extensions. Triggers: ''make this a skill'', ''turn this into a skill'', ''write a SKILL.md'', ''my skill isn''t triggering'', ''skill keeps missing'', ''add evals to my skill'', ''benchmark my skill'', ''improve this skill'', ''create a new skill for X''.'
 when_to_use: 'User wants to create a new SKILL.md from scratch, improve or rewrite an existing skill, fix a skill that under- or over-triggers, add test cases or evals, run a skill benchmark, or optimize the description for triggering accuracy. Key phrases: ''make this a skill'', ''skill isn''t triggering'', ''write a skill'', ''add evals'', ''benchmark this skill'', ''improve the description''.'
 argument-hint: '[skill name or path to SKILL.md]'
 arguments: []
@@ -25,20 +25,47 @@ hooks: {}
 paths: []
 shell: bash
 metadata:
+  tamirs:
+    visibility: public
+    category: toolkit
+    role: implementer
+    validation-tier: 1
+    updated-date: '2026-08-19'
+    capabilities:
+      required:
+        - skills
+        - shell
+      optional:
+        - subagents
+        - parallel_subagents
+        - background_tasks
+    tags:
+      - skill
+      - authoring
+      - evals
+      - triggering
+      - portable
+      - schema
   capability: toolkit
-  tags:
-  - skill
-  - authoring
-  - evals
-  - triggering
-  updated-date: '2026-06-16'
+  updated-date: '2026-08-19'
 ---
 
 # Skill Creator
 
 ## Why this skill exists
 
-Claude Code skills are the primary mechanism for capturing and reusing complex workflows. A poorly written skill either never triggers (bad description), or triggers but produces inconsistent results (bad body). Most naive attempts at skill creation produce thin SKILL.md files with vague descriptions and no test coverage — they feel done but fail in practice. This skill provides the full create → test → evaluate → improve loop to get skills to production quality.
+Agent Skills are the primary mechanism for capturing and reusing complex workflows, and they
+are consumed by more than one harness: Claude Code and Claude Desktop, Cursor, Codex CLI,
+Gemini CLI and OpenCode all read `SKILL.md`. A poorly written skill either never triggers
+(bad description), or triggers but produces inconsistent results (bad body). Most naive
+attempts produce thin SKILL.md files with vague descriptions and no test coverage — they feel
+done but fail in practice. This skill provides the full create → test → evaluate → improve
+loop to get skills to production quality.
+
+**Portable first.** Write the Agent Skills core that every harness reads, then add platform
+extensions where they genuinely help. The reverse order — start from Claude's full field set
+and hope it degrades — produces skills that carry a vendor's shape everywhere and still fail
+on the platforms that ignore it.
 
 ## Assess where the user is
 
@@ -73,32 +100,92 @@ Clarify edge cases, input/output formats, example files, success criteria, and e
 
 Use available MCP tools or subagents to research similar skills or relevant docs in parallel if helpful.
 
-### 3. Write the SKILL.md
+### 3. Write the SKILL.md — portable core first
 
-Fill in **all 16 official frontmatter fields** plus `metadata.updated-date`. Copy the skeleton from `references/frontmatter-template.md` and pick the skill-type preset (user slash, auto-trigger, internal companion, or forked subagent).
+The canonical contract is **`core/schemas/skill-frontmatter.json`**, and the executable form
+is `scripts/validate-skill-frontmatter.py`. Read `references/frontmatter-template.md` for the
+full field-by-field guide and skeletons. **Never invent a competing schema** — if something
+seems missing, the schema is the place to change it.
 
-Required fields: `name`, `description`, `when_to_use`, `argument-hint`, `arguments`, `disable-model-invocation`, `user-invocable`, `allowed-tools`, `disallowed-tools`, `model`, `effort`, `context`, `agent`, `hooks`, `paths`, `shell`, `metadata`.
+Three tiers, written in this order:
+
+**Tier 1 — portable core (required on every skill, every platform).**
+
+```yaml
+name: my-skill        # kebab-case, equals the directory name
+description: >-       # what it does AND when to use it, ≤1536 chars
+  Use when … Triggers: 'phrase one', 'phrase two'.
+```
+
+Optionally `license`, and `compatibility` when the skill is genuinely not universal.
+
+**The trigger phrases must live in `description`.** On any platform without `when_to_use`,
+`description` is the *only* trigger signal. A skill whose triggers exist only in the Claude
+field is invisible to auto-invocation everywhere else — the single most common portability
+bug in a skill.
+
+**Tier 2 — `metadata.tamirs` (this framework's semantics).**
+
+```yaml
+metadata:
+  tamirs:
+    visibility: public | internal
+    category: <domain dir under skills/>
+    role: <role from core/roles/, or none>
+    validation-tier: 0 | 1 | 2 | 3
+    updated-date: 'YYYY-MM-DD'
+    capabilities:
+      required: [...]     # ids from core/capabilities/schema.json ONLY
+      optional: [...]
+```
+
+Declare capabilities **honestly**: `required` means the skill cannot do its job without it
+and must stop on a platform that lacks it; `optional` means there is a real fallback written
+in the body. Padding `required` makes a working skill falsely unavailable; under-declaring
+makes it fail silently. Every id must exist in the registry — invented ids fail validation
+by design.
+
+**Tier 3 — platform extensions (optional, never universally required).**
+
+Claude Code fields (`when_to_use`, `argument-hint`, `arguments`, `user-invocable`,
+`disable-model-invocation`, `allowed-tools`, `disallowed-tools`, `model`, `effort`,
+`context`, `agent`, `hooks`, `paths`, `shell`) are permitted because every other harness
+ignores unknown keys. Add the ones the skill actually uses. **Do not fill in all sixteen to
+satisfy a validator** — that requirement no longer exists, and padding them communicates
+nothing.
 
 Key authoring notes:
 
-- **name**: kebab-case, matches directory name
-- **description**: Start with "Use when..." — triggering conditions only. Include synonyms, error message fragments, command names. Skills undertrigger by default — lean slightly pushy. Under 500 chars.
-- **when_to_use**: 3-5 concrete trigger phrases a user would type
-- **argument-hint**: autocomplete hint; use `[none]` when the skill takes no args
-- **arguments**: `[]` unless using `$name` positional substitution
-- **allowed-tools**: exhaustive list of every tool the skill body actually uses
-- **disallowed-tools**: `[]` unless blocking specific tools while active
-- **model**: `claude-sonnet-4-6` unless there is a specific reason for another
-- **effort**: `low` / `medium` / `high` / `xhigh` / `max` per skill type preset
-- **context** / **agent**: `''` unless `context: fork` (then set `agent`, e.g. `Explore`)
-- **hooks** / **paths**: `{}` and `[]` when unused; **shell**: `bash`
-- **metadata.updated-date**: today's date (`YYYY-MM-DD`)
+- **name**: kebab-case, matches the directory name
+- **description**: start with "Use when…" — triggering conditions only, never workflow
+  description. Include synonyms, error-message fragments, command names. Skills undertrigger
+  by default, so lean slightly pushy.
+- **when_to_use** (Claude): 3–5 concrete phrases a user would type. An *addition* to
+  `description`, never a replacement for its triggers.
+- **allowed-tools**: exhaustive list of every tool the body actually uses
+- **model**: omit unless there is a specific reason — a pinned model id ages
+- **context / agent**: `''` unless `context: fork`, which requires a non-empty `agent`
+- **user-invocable: false** requires `disable-model-invocation: true`
 
-After writing, run:
+#### Validate across the tiers
 
 ```bash
+# portable core enforced; metadata.tamirs validated when present
 python3 scripts/validate-skill-frontmatter.py path/to/SKILL.md
+
+# make the tamirs block mandatory (what CI runs for this repo's own skills)
+python3 scripts/validate-skill-frontmatter.py --require-tamirs path/to/SKILL.md
+
+# legacy gate: every official Claude field required, exactly as before the portable split
+python3 scripts/validate-skill-frontmatter.py --profile claude-strict path/to/SKILL.md
 ```
+
+`--profile claude-strict` exists so nothing that passed before the split regresses. It is not
+the default, and it is not a reason to pad a new skill.
+
+#### Per-platform extension validation
+
+Portable validity is necessary, not sufficient. Before claiming a target in `compatibility`, check the skill's extensions against it — see **`references/platform-extensions.md`** for the per-target checklist and the rule that decides when a Claude-only field may stay in the canonical file.
 
 #### Skill directory anatomy
 
@@ -166,11 +253,36 @@ See `references/schemas.md` for the full schema including the `assertions` field
 
 This is one continuous sequence — do not stop partway.
 
+### Capability check — do this before Step 1
+
+The eval harness is the most capability-hungry part of this skill. Resolve each capability
+against `core/capabilities/platforms.json` for the current platform, and pick the mode below.
+Do **not** discover a missing capability halfway through a benchmark run.
+
+| Capability | Have it | Missing — fallback |
+|---|---|---|
+| `parallel_subagents` | Spawn with-skill and baseline in the same turn (Step 1) | Run them sequentially, and **report the timing comparison as unreliable** — sequential runs share no scheduling conditions. Correctness comparison is still valid; timing is not |
+| `subagents` | Isolated runs, clean per-run token accounting | Run inline in the current session. Token and duration figures are then session totals, not per-run — say so, and do not populate `timing.json` with numbers you cannot attribute |
+| `background_tasks` | Launch the eval viewer as a server | Use `--static <path>` to write a standalone HTML file |
+| `shell` | Everything below | Without shell there is no eval harness at all — author and validate the skill, and say plainly that evals could not be run |
+
+**Never fabricate a benchmark.** If the platform cannot produce a number, the number is
+absent, not estimated. A benchmark table with invented timings is worse than no table: it
+looks like evidence.
+
+Record the mode in `benchmark.json` under `run_mode` (`parallel-subagents`,
+`sequential-subagents`, or `inline`) so a later reader knows what the numbers mean.
+
 Workspace layout: `<skill-name>-workspace/` as a sibling to the skill directory, organized as `iteration-1/`, `iteration-2/`, etc. Within each iteration: `eval-<name>/with_skill/outputs/` and `eval-<name>/without_skill/outputs/` (or `old_skill/outputs/` when improving an existing skill).
 
 ### Step 1 — Spawn all runs in the same turn
 
-For each test case, spawn two subagents simultaneously (with-skill AND baseline). Do not do with-skill first and baseline later.
+For each test case, spawn two subagents simultaneously (with-skill AND baseline). Do not do
+with-skill first and baseline later.
+
+*Requires `parallel_subagents`.* Without it, follow the fallback from the capability check
+above and mark the timing comparison unreliable — do not silently produce a timing table
+from sequential runs.
 
 **With-skill subagent prompt:**
 ```
@@ -203,7 +315,13 @@ Update `eval_metadata.json` and `evals/evals.json` with drafted assertions.
 
 ### Step 3 — Capture timing data on completion
 
-When each subagent completes, a notification includes `total_tokens` and `duration_ms`. Save immediately to `timing.json` in the run directory — this data is not persisted elsewhere:
+*Requires `subagents`.* On Claude Code, a subagent completion notification carries
+`total_tokens` and `duration_ms`. Save it immediately to `timing.json` in the run directory —
+this data is not persisted anywhere else.
+
+Where no such notification exists, **omit `timing.json` rather than filling it in**. A
+missing file is a legible "not measured here"; a fabricated one silently corrupts every
+comparison built on top of it. Note the omission in `benchmark.json` → `run_mode`.
 
 ```json
 {
@@ -215,14 +333,20 @@ When each subagent completes, a notification includes `total_tokens` and `durati
 
 ### Step 4 — Grade, aggregate, launch viewer
 
-**Grade**: Spawn a grader subagent per `agents/grader.md`. Save results to `grading.json`. Required fields: `text`, `passed`, `evidence` (not `name`/`met`/`details`). For assertions checkable programmatically, write and run a script.
+**Grade**: Spawn a grader subagent per `agents/grader.md` — or, without `subagents`, run
+`agents/grader.md` inline as instructions in the current session. The grading contract is
+identical; only the isolation differs, and grading does not depend on isolation the way
+timing does. Save results to `grading.json`. Required fields: `text`, `passed`, `evidence` (not `name`/`met`/`details`). For assertions checkable programmatically, write and run a script.
 
 **Aggregate**:
 ```bash
 python -m scripts.aggregate_benchmark <workspace>/iteration-N --skill-name <name>
 ```
 
-**Analyst pass**: Read `agents/analyzer.md` → look for non-discriminating assertions (always pass), high-variance evals (flaky), time/token tradeoffs.
+**Analyst pass**: Read `agents/analyzer.md` → look for non-discriminating assertions (always
+pass), high-variance evals (flaky), time/token tradeoffs. Skip the time/token half of that
+analysis when `run_mode` is not `parallel-subagents` — those numbers are not comparable, and
+analysing them anyway manufactures conclusions from noise.
 
 **Launch viewer**:
 ```bash
@@ -295,59 +419,25 @@ Stop when:
 
 ## Description Optimization
 
-After the skill body is finalized, optimize the description for triggering accuracy.
+After the skill body is finalized, optimize the `description` for triggering accuracy — this
+is the field every platform reads, so it is where triggering is won or lost.
 
-### Step 1 — Generate trigger eval queries
-
-Create 20 queries: 8-10 should-trigger, 8-10 should-not-trigger. Save as JSON:
-
-```json
-[
-  {"query": "the user prompt", "should_trigger": true},
-  {"query": "adjacent task that seems related but isn't", "should_trigger": false}
-]
-```
-
-Queries must be realistic and specific — include file paths, column names, company context, casual phrasing, typos. The negative cases should be genuine near-misses (adjacent domain, ambiguous phrasing), not obviously unrelated requests.
-
-### Step 2 — Review with user
-
-```bash
-# Read template, inject data, open for user review
-# Replace __EVAL_DATA_PLACEHOLDER__ with the JSON array (no quotes — it's a JS var)
-# Replace __SKILL_NAME_PLACEHOLDER__ and __SKILL_DESCRIPTION_PLACEHOLDER__
-open /tmp/eval_review_<skill-name>.html
-```
-
-The user edits queries, toggles should-trigger, then clicks "Export Eval Set". Check `~/Downloads/eval_set.json` (or `eval_set (1).json` if multiple).
-
-### Step 3 — Run the optimization loop
-
-```bash
-python -m scripts.run_loop \
-  --eval-set <path-to-trigger-eval.json> \
-  --skill-path <path-to-skill> \
-  --model <model-id-from-system-prompt> \
-  --max-iterations 5 \
-  --verbose
-```
-
-Use the model ID from your system prompt — triggering tests must match the model the user actually runs. The loop: 60/40 train/test split → evaluate current description (3 runs per query) → propose improvements → re-evaluate → repeat up to 5 times. Returns `best_description` selected by test score.
-
-Tail output periodically to give the user iteration progress updates.
-
-### Step 4 — Apply the result
-
-Update `description` in SKILL.md frontmatter with `best_description`. Show the user a before/after diff and report the accuracy scores.
-
----
+Full procedure (trigger eval set, review UI, the `run_loop.py` optimisation loop, and the
+capability limits — it needs the `claude` CLI and is unavailable elsewhere) is in
+**`references/description-optimization.md`**. Read it when you reach this phase.
 
 ## Hard Rules
 
-- **Never add `user-invocable: false` or `disable-model-invocation: true` unless the skill is genuinely internal** — these block user invocation permanently.
+- **Portable core first.** `name` + `description` are the contract every platform reads; the trigger phrases belong in `description`, not only in the Claude `when_to_use`.
+- **Never require all 16 Claude fields.** They are optional extensions. Add the ones the skill uses; padding the rest communicates nothing and is no longer validated.
+- **Never invent a schema.** `core/schemas/skill-frontmatter.json` is canonical. Extend it there, never around it.
+- **Declare capabilities honestly.** `required` = the skill stops without it; `optional` = there is a real fallback in the body. Every id must exist in the registry.
+- **Never claim `compatibility: supported` without evidence.** Use `partial`, or omit the row and say it is unverified.
+- **Never fabricate a benchmark number.** Absent is a legitimate value; invented is not. Record `run_mode` so numbers are read correctly.
+- **Never add `user-invocable: false` or `disable-model-invocation: true` unless the skill is genuinely internal** — these block user invocation permanently, and also block sub-agent and orchestration invocation.
 - **Never hardcode absolute paths** (`/Users/<name>/`) in SKILL.md; use `$CLAUDE_SKILL_DIR`, `$CLAUDE_PLUGIN_ROOT`, or relative paths.
 - **Always run the eval viewer before evaluating outputs yourself** — human review must happen before model revision.
-- **Always spawn with-skill and baseline subagents in the same turn** — sequential spawning gives misleading timing comparisons.
+- **Always spawn with-skill and baseline subagents in the same turn** where `parallel_subagents` exists — sequential spawning gives misleading timing comparisons. Where it does not exist, run sequentially and mark the timing comparison unreliable rather than presenting it as sound.
 - **Capture `timing.json` from the task notification immediately** — it is not persisted anywhere else.
 - **`grading.json` must use fields `text`, `passed`, `evidence`** — the viewer depends on exact field names; `name`/`met`/`details` will break the display.
 - **Do not use `/skill-test` or any other testing skill** — this skill manages its own test execution.
@@ -362,18 +452,28 @@ Update `description` in SKILL.md frontmatter with `best_description`. Show the u
 
 ---
 
-## Environment-Specific Notes
+## Capability awareness — what runs where
 
-| Feature | Claude Code | Claude.ai | Cowork/headless |
-|---|---|---|---|
-| Subagents | Yes | No — run inline, one at a time | Yes |
-| Baseline runs | Yes | Skip | Yes |
-| Browser viewer | Yes | No display — show inline | Use `--static <path>` |
-| Quantitative benchmarks | Yes | Skip | Yes |
-| Description optimization (`run_loop.py`) | Yes | Skip — needs `claude -p` CLI | Yes |
-| Packaging (`package_skill.py`) | Yes | Yes | Yes |
+Resolve these from `core/capabilities/platforms.json` for the platform in hand rather than
+from the table below; the table is orientation, the registry is the answer.
 
-**Updating an existing skill on Claude.ai:** The installed skill path may be read-only. Copy to `/tmp/skill-name/`, edit there, package from the copy, and direct the user to the resulting `.skill` file.
+| Feature | Capability it needs | Without it |
+|---|---|---|
+| Authoring + portable validation | `skills` | — this is the floor; it works everywhere |
+| Parallel with-skill/baseline runs | `parallel_subagents` | Sequential; timing comparison unreliable, correctness still valid |
+| Isolated runs, per-run token accounting | `subagents` | Inline; omit `timing.json` rather than inventing it |
+| Browser eval viewer | `background_tasks` | `--static <path>` standalone HTML |
+| Description optimisation (`run_loop.py`) | `shell` + the `claude` CLI | Not available — review the description by hand against the trigger eval set; do not simulate scores |
+| Packaging (`package_skill.py`) | `shell` | Not available |
+
+Two rules hold in every mode:
+
+1. **Never claim a capability the platform does not have.** State the mode, state what it
+   costs, proceed with the fallback.
+2. **Never fabricate a measurement.** Absent is a legitimate value; invented is not.
+
+**Read-only install paths.** Some surfaces install skills read-only. Copy to a writable
+directory, edit and package from the copy, and hand the user the resulting artifact.
 
 ---
 
@@ -381,8 +481,10 @@ Update `description` in SKILL.md frontmatter with `best_description`. Show the u
 
 | File | Purpose |
 |---|---|
-| `agents/grader.md` | Instructions for grader subagent |
+| `references/frontmatter-template.md` | The three-tier frontmatter contract, field by field, with skeletons |
+| `references/platform-extensions.md` | Per-target extension validation checklist |
+| `references/schemas.md` | JSON schemas for evals.json, grading.json, benchmark.json |
+| `agents/grader.md` | Grading instructions — run as a subagent, or inline where subagents are unavailable |
 | `agents/comparator.md` | Blind A/B comparison between two outputs |
 | `agents/analyzer.md` | Benchmark result analysis patterns |
-| `references/schemas.md` | JSON schemas for evals.json, grading.json, benchmark.json |
 | `assets/eval_review.html` | Template for trigger eval review UI |

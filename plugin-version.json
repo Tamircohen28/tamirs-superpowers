@@ -1,0 +1,62 @@
+{
+  "schema_version": 1,
+  "version": "2.0.1",
+  "canonical_source": true,
+  "description": "Single source of truth for the plugin version. Every consumer below must agree. Validated by scripts/check-version-truth.sh; repaired by `scripts/check-version-truth.sh --sync`. Never edit a consumer by hand — edit this file, then sync.",
+  "consumers": [
+    {
+      "path": ".claude-plugin/plugin.json",
+      "kind": "json_field",
+      "field": ".version",
+      "template": "{version}",
+      "required": true,
+      "note": "Claude Code / Claude Desktop plugin manifest. Claude treats this value as the marketplace update cache key."
+    },
+    {
+      "path": ".cursor-plugin/plugin.json",
+      "kind": "json_field",
+      "field": ".version",
+      "template": "{version}",
+      "required": true,
+      "note": "Cursor plugin manifest."
+    },
+    {
+      "path": ".codex-plugin/plugin.json",
+      "kind": "json_field",
+      "field": ".version",
+      "template": "{version}",
+      "required": true,
+      "note": "Codex CLI plugin manifest."
+    },
+    {
+      "path": "gemini-extension.json",
+      "kind": "json_field",
+      "field": ".version",
+      "template": "{version}",
+      "required": true,
+      "note": "Gemini CLI extension manifest. Created by the Gemini adapter work; absent trees skip this consumer rather than failing."
+    },
+    {
+      "path": "README.md",
+      "kind": "text_pattern",
+      "template": "img.shields.io/badge/version-{version}-blue",
+      "required": true,
+      "note": "README version badge — the first version a visitor sees."
+    },
+    {
+      "path": "docs/engineering/build-and-release/platform-targets.json",
+      "kind": "json_field",
+      "field": ".reviewed_by_skill",
+      "template": "tamirs-superpowers@{version}",
+      "required": true,
+      "note": "Records which plugin version last reviewed the platform targets."
+    },
+    {
+      "path": "CHANGELOG.md",
+      "kind": "changelog_heading",
+      "template": "## [{version}]",
+      "required": false,
+      "note": "Latest released heading below [Unreleased]. Advisory only: a manifest bump legitimately lands before its release section is written, so a mismatch warns instead of failing, and --sync never rewrites changelog history."
+    }
+  ]
+}

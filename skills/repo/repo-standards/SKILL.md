@@ -37,6 +37,16 @@ metadata:
   - ip-scan
   - multi-agent
   updated-date: '2026-08-03'
+  tamirs:
+    visibility: public
+    category: repo
+    capabilities:
+      required: [shell, git]
+      optional: [github_cli]
+    role: reviewer
+    updated-date: "2026-08-19"
+    validation-tier: 2
+
 ---
 
 ## Live context
@@ -209,14 +219,17 @@ For **every** key in `platform-targets.json` → `supported_targets`, confirm al
 | V-02 | `docs/user/install/<target>.md`, linked from the install README | Users have no documented path in |
 | V-03 | `targets.<key>` entry with `validated_against`, `verified_on`, `verification_method`, `install_doc` | Version support is a guess; nothing can assert staleness |
 | V-04 | A per-target sub-skill under the platform-sync umbrella | `/platform-sync` skips the target **silently** and reports success — reads as "no improvements found" |
-| V-05 | The target named in README.md and AGENTS.md | Invisible to users and to other agents |
+| V-05 | The target named in README.md, AGENTS.md and CLAUDE.md | Invisible to users and to other agents |
+| V-06 | A `core/capabilities/platforms.json` entry with an explicit status for every capability key | Skills assume capabilities the target lacks instead of degrading; gaps are re-litigated every audit |
+
+A target whose `validated_against` is `"unknown"` is **declared but not yet validated**. V-02, V-04 and V-05 degrade to warnings for it, and it carries no README badge — that is the honest state, not a defect. It becomes a hard failure the moment a real version is recorded, so a declared target cannot sit unvalidated behind a green build once someone claims to have run it.
 
 Two failure modes to check for specifically, because both fail quietly:
 
 - **Marketplace declaration shape.** Claude Code's `extraKnownMarketplaces` is a **record keyed by marketplace name**, never an array. An array is dropped with no error and no warning, and a valid global `~/.claude/settings.json` can mask the broken project-level file for months. Nested form is `source: {source, repo}` (GitHub) or `source: {source, url}` (git); there is no `sourceUrl` field. Verify with `claude doctor`. Since Claude Code 2.1.232, `additionalMarketplaces` is accepted as a friendlier alias (and `allowedMarketplaces` for `strictKnownMarketplaces`) — same record shape, same silent-drop trap for arrays; keep `extraKnownMarketplaces` in files that must load on older versions.
-- **Capability assumptions across targets.** Do not recommend a fix that assumes a capability the target lacks — OpenCode has no plugin manifest, no marketplace, no `hooks.json`, and no plugin-declared statusline. Record each such gap in `capability_gaps` so later passes do not re-propose it.
+- **Capability assumptions across targets.** Do not recommend a fix that assumes a capability the target lacks. Look the answer up in `core/capabilities/platforms.json` — the capability registry is the only source for this, and it records a status for all 19 capability keys on every target. Read the status out of the registry at audit time — do not carry one in your head or quote one from this file. Statuses move as targets are re-measured: OpenCode's `hooks` and Gemini's `skills` and `subagents` have each changed value during a single release cycle, and any prose that had pinned them was wrong within the day. Record a newly discovered gap **in the registry**, then run `bash scripts/check-platform-targets.sh . --sync-capabilities` to refresh the derived `capabilities`/`capability_gaps` mirror in `platform-targets.json`. Never hand-edit that mirror and never restate a status in prose: `make check-feature-equivalence` fails the build when two views of the platform set disagree.
 
-`make check-doc-claims` enforces V-02, V-03, and V-05; `make check-platform-targets` enforces V-04; `make check-marketplace-schema` enforces the record shape. All three run inside `make validate`.
+`make check-doc-claims` enforces V-02, V-03, and V-05 — and computes the skill count and the supported-target count from the filesystem, so a stale "27 skills" or "four supported targets" in any Markdown or manifest fails CI rather than aging quietly. `make check-platform-targets` enforces V-04 and the derived capability mirror; `make check-feature-equivalence` enforces V-06 and registry agreement; `make check-marketplace-schema` enforces the record shape. All run inside `make validate`. Use `bash scripts/check-doc-claims.sh --expected` to print the numbers the docs must state.
 
 ## Agent execution rule
 

@@ -19,6 +19,16 @@ paths: []
 shell: bash
 metadata:
   updated-date: '2026-06-23'
+  tamirs:
+    visibility: internal
+    category: local
+    capabilities:
+      required: [shell, skills]
+      optional: [git, github_cli]
+    role: test-engineer
+    updated-date: "2026-08-19"
+    validation-tier: 2
+
 ---
 
 # run-tamirs-superpowers
@@ -44,10 +54,11 @@ bash .claude/skills/run-tamirs-superpowers/smoke.sh
 
 | Check | What it does |
 |---|---|
-| 1. `make validate` | shellcheck all hooks, validate all JSON, validate full SKILL.md frontmatter (16 official fields) |
+| 1. `make validate` | shellcheck every tracked `.sh` at any depth, validate all JSON, validate SKILL.md frontmatter (portable core + `metadata.tamirs` + Claude extensions) |
 | 2. `scripts/statusline.sh` | runs the live statusline and checks it produces output |
 | 3. `plugin.json` | all required fields present, `.statusLine` is an object not a string |
-| 4. SKILL.md quality | `python3 scripts/validate-skill-frontmatter.py` — all 16 official fields + metadata.updated-date |
+| 4. SKILL.md quality | `python3 scripts/validate-skill-frontmatter.py` — tiered: portable core fails the build, `metadata.tamirs` warns while absent, Claude fields validated when present |
+| 4b. Legacy Claude gate | `python3 scripts/validate-skill-frontmatter.py --profile claude-strict` — the pre-refactor all-official-fields contract, kept so nothing that passed before regresses |
 | 5. Hook wiring | every `.sh` in `hooks/` is referenced in `hooks.json` |
 | 6. No `/Users/` paths | skills must use `$CLAUDE_SKILL_DIR` or relative paths, not hardcoded absolutes |
 | 7. No Wix/internal refs | employer-specific patterns must be absent from skill files |

@@ -1,6 +1,6 @@
 {
   "skill_name": "skill-creator",
-  "description": "Trigger-accuracy evals — verify skill-creator fires on the right prompts and stays silent on adjacent ones.",
+  "description": "Trigger-accuracy evals \u2014 verify skill-creator fires on the right prompts and stays silent on adjacent ones.",
   "evals": [
     {
       "id": 1,
@@ -20,7 +20,7 @@
       "id": 2,
       "name": "fix-undertriggering-description",
       "prompt": "My babysit-pr skill never triggers even when I say 'watch my PR'. The description says 'Use when monitoring a pull request' but it keeps missing. How do I fix it?",
-      "expected_output": "skill-creator triggers into Description Optimization mode — proposes trigger eval queries, offers to run the run_loop.py optimization script, and shows a before/after diff of the improved description.",
+      "expected_output": "skill-creator triggers into Description Optimization mode \u2014 proposes trigger eval queries, offers to run the run_loop.py optimization script, and shows a before/after diff of the improved description.",
       "should_trigger": true,
       "expectations": [
         "skill-creator triggers (not a generic Claude Code troubleshooting response)",
@@ -34,13 +34,49 @@
       "id": 3,
       "name": "no-trigger-on-general-bash-question",
       "prompt": "How do I write a bash script that monitors a directory for new files and sends a Slack notification when one appears?",
-      "expected_output": "skill-creator does NOT trigger. The assistant answers with a direct bash/inotify solution — no skill authoring framing.",
+      "expected_output": "skill-creator does NOT trigger. The assistant answers with a direct bash/inotify solution \u2014 no skill authoring framing.",
       "should_trigger": false,
       "expectations": [
-        "skill-creator is NOT invoked — this is a coding question, not a skill authoring request",
+        "skill-creator is NOT invoked \u2014 this is a coding question, not a skill authoring request",
         "The assistant provides a bash/inotifywait or fswatch solution directly",
         "The assistant does not ask about SKILL.md, frontmatter, or trigger conditions"
       ],
+      "files": []
+    },
+    {
+      "id": 4,
+      "prompt": "Create a skill that formats git commit messages. It should work on Claude Code and OpenCode.",
+      "expected_output": "Should write the portable core first \u2014 name plus a description that CARRIES the trigger phrases, since OpenCode has no when_to_use and description is its only trigger signal. Should add metadata.tamirs with honest capabilities, and only the Claude extension fields the skill actually uses. Must NOT fill in all 16 Claude fields to satisfy a validator; that requirement no longer exists. Must validate with scripts/validate-skill-frontmatter.py, not an invented schema.",
+      "files": []
+    },
+    {
+      "id": 5,
+      "prompt": "My new skill has all its trigger phrases in when_to_use and a one-line description saying what it does.",
+      "expected_output": "Should identify this as the most common portability bug: on any platform without when_to_use, description is the only trigger signal, so the skill is invisible to auto-invocation everywhere except Claude Code. The fix is to move the triggers into description; when_to_use stays as an addition, never a replacement.",
+      "files": []
+    },
+    {
+      "id": 6,
+      "prompt": "Add capabilities to my skill's metadata. It uses subagents when available but falls back to running inline.",
+      "expected_output": "Should place `subagents` under `optional`, not `required`, because a real fallback exists in the body \u2014 listing it required would make a working skill falsely unavailable on platforms without subagents. Every id used must exist in core/capabilities/schema.json's capabilityKey enum; invented ids fail validation by design.",
+      "files": []
+    },
+    {
+      "id": 7,
+      "prompt": "Benchmark my skill \u2014 I'm on a platform with no subagent support.",
+      "expected_output": "Should run the capability check BEFORE step 1, choose the inline mode, record run_mode: inline in benchmark.json, and omit timing.json rather than filling it with session totals it cannot attribute per run. Should state that the correctness comparison is still valid but the timing comparison is not. Fabricating a benchmark table is the failure mode.",
+      "files": []
+    },
+    {
+      "id": 8,
+      "prompt": "Mark my skill as compatibility: {gemini: supported}. I haven't tested it there.",
+      "expected_output": "Should decline: `supported` is an evidence claim, not an intention. Should offer `partial` with a note, or leaving the row out and stating the target is unverified. An unverified `supported` is exactly what the contract exists to prevent.",
+      "files": []
+    },
+    {
+      "id": 9,
+      "prompt": "Run the description optimization loop for my skill. I'm on Cursor.",
+      "expected_output": "Should report that run_loop.py shells out to the `claude` CLI and is therefore Claude Code only, then stop that step \u2014 while noting the skill body and portable frontmatter remain fully authorable and validatable, and the description can be reviewed by hand against the trigger eval set. Must not simulate accuracy scores.",
       "files": []
     }
   ]

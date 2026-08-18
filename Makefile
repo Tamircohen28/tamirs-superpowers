@@ -3,7 +3,9 @@
 	check-feature-equivalence check-platform-targets platform-targets-sync \
 	platform-targets-assert platform-targets-cochange agent\:check agent-polish-gate \
 	assert-contract repo-standards-gate opencode-agents opencode-agents-check \
-	check-marketplace-schema check-doc-claims test-hooks
+	check-marketplace-schema check-doc-claims test-hooks doctor check-version-truth \
+	check-capability-registry validate-roles check-gemini-adapter gemini-extension \
+	gemini-extension-check bootstrap-dev
 
 SKILLS_DIR := skills
 HOOKS_DIR  := hooks
@@ -31,6 +33,13 @@ help:
 	@echo "  check-manifest-versions — plugin manifests agree with each other"
 	@echo "  check-marketplace-schema — extraKnownMarketplaces is a record, not an array"
 	@echo "  check-doc-claims        — skill counts and target coverage match reality"
+	@echo "  doctor                  — environment/install health report"
+	@echo "  check-version-truth     — every manifest/doc agrees with plugin-version.json"
+	@echo "  check-capability-registry — core/capabilities/ registry is valid"
+	@echo "  validate-roles          — canonical roles, agents, workflow schemas"
+	@echo "  check-gemini-adapter    — Gemini CLI extension adapter"
+	@echo "  gemini-extension        — regenerate the Gemini extension mirror"
+	@echo "  bootstrap-dev           — contributor toolchain setup"
 	@echo "  test                    — alias for validate"
 
 install:
@@ -48,12 +57,14 @@ test-hooks:
 	  echo "==> $$f"; bash "$$f" || exit 1; \
 	done
 
-validate: lint test-hooks test-repo-contract check-manifest-versions check-platform-equivalence check-marketplace-schema check-doc-claims
+validate: lint test-hooks test-repo-contract check-manifest-versions check-platform-equivalence \
+	check-marketplace-schema check-doc-claims check-version-truth check-capability-registry \
+	validate-roles check-gemini-adapter
 	@echo "--- Validating JSON files ---"
 	@find . -name '*.json' -not -path '*/.git/*' | while read f; do \
 	  jq empty "$$f" 2>&1 && echo "  OK  $$f" || { echo "  FAIL $$f"; exit 1; }; \
 	done
-	@echo "--- Validating SKILL.md frontmatter (all official Claude Code fields) ---"
+	@echo "--- Validating SKILL.md frontmatter (portable + tamirs + claude tiers) ---"
 	@python3 -c "import yaml" 2>/dev/null || python3 -m pip install -q -r scripts/requirements-validate.txt
 	@python3 scripts/validate-skill-frontmatter.py
 	@echo "--- Checking for orphan hook scripts (not referenced in hooks.json) ---"
@@ -82,6 +93,31 @@ check-marketplace-schema:
 check-doc-claims:
 	@bash scripts/check-doc-claims.sh .
 
+doctor:
+	@bash scripts/doctor.sh .
+
+check-version-truth:
+	@echo "--- Version truth (plugin-version.json) ---"
+	@bash scripts/check-version-truth.sh .
+
+check-capability-registry:
+	@echo "--- Capability registry ---"
+	@bash scripts/check-capability-registry.sh .
+
+validate-roles:
+	@echo "--- Canonical roles / agents / workflow schemas ---"
+	@bash scripts/validate-roles.sh .
+
+check-gemini-adapter:
+	@echo "--- Gemini CLI adapter ---"
+	@bash scripts/check-gemini-adapter.sh .
+
+gemini-extension:
+	@bash scripts/build-gemini-extension.sh .
+
+gemini-extension-check:
+	@bash scripts/build-gemini-extension.sh . --check
+
 platform-targets-sync:
 	@bash scripts/check-platform-targets.sh . --sync
 
@@ -109,16 +145,20 @@ repo-standards-gate: agent-polish-gate assert-contract
 
 check-platform-equivalence: check-feature-equivalence check-platform-targets
 
+# Lint EVERY tracked shell script, at any depth. The previous recipe used
+# `find ... -maxdepth 1` over three directories, which silently excluded all 47
+# skills/<domain>/<skill>/scripts/*.sh, every fixture script, .cursor/hooks/, and
+# hooks/lib/ — including worktree-common.sh, which CLAUDE.md requires be
+# shellchecked. See docs/engineering/refactor/file-inventory.md section 2.1.
 lint:
-	@echo "--- shellcheck ---"
+	@echo "--- shellcheck (all tracked *.sh, any depth) ---"
 	@if command -v shellcheck >/dev/null 2>&1; then \
-	  find scripts $(CONTRACT_DIR)/scripts -maxdepth 1 -name '*.sh' 2>/dev/null | \
-	    while read -r f; do shellcheck -S warning --exclude SC2034 "$$f" || exit 1; done; \
-	  if [ -d "$(HOOKS_DIR)" ]; then \
-	    find $(HOOKS_DIR) -maxdepth 1 -name '*.sh' 2>/dev/null | \
-	      while read -r f; do shellcheck -S warning --exclude SC2034 "$$f" || exit 1; done; \
-	  fi; \
-	  echo "  shellcheck passed"; \
+	  n=0; \
+	  for f in $$(git ls-files --cached --others --exclude-standard '*.sh' 2>/dev/null || find . -name '*.sh' -not -path './.git/*'); do \
+	    shellcheck -S warning --exclude SC2034 "$$f" || exit 1; \
+	    n=$$((n+1)); \
+	  done; \
+	  echo "  shellcheck passed ($$n files)"; \
 	else \
 	  echo "  shellcheck not installed — skipping (brew install shellcheck)"; \
 	fi

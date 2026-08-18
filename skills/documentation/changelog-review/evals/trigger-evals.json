@@ -1,0 +1,26 @@
+[
+  {
+    "query": "audit this plugin project for Claude Code misuse",
+    "should_trigger": true
+  },
+  {
+    "query": "what changed between Claude Code v2.1.200 and v2.1.233",
+    "should_trigger": true
+  },
+  {
+    "query": "review my hooks.json and SKILL.md files against the official docs",
+    "should_trigger": true
+  },
+  {
+    "query": "is this Claude Code plugin.json config correct",
+    "should_trigger": true
+  },
+  {
+    "query": "repo-standards polish phase 6 \u2014 Claude Code pattern audit on this repo",
+    "should_trigger": true
+  },
+  {
+    "query": "check version truth across the manifests for this plugin",
+    "should_trigger": true
+  }
+]

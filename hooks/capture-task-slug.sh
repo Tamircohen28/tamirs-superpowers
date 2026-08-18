@@ -7,8 +7,12 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=lib/worktree-common.sh
 source "${SCRIPT_DIR}/lib/worktree-common.sh"
+# shellcheck source=lib/objective-common.sh
+source "${SCRIPT_DIR}/lib/objective-common.sh"
+# shellcheck source=lib/hook-output.sh
+source "${SCRIPT_DIR}/lib/hook-output.sh"
 
-input="$(cat)"
+input="$(hook_read_stdin)"
 session_id="$(echo "$input" | jq -r '.session_id // empty')"
 prompt="$(echo "$input" | jq -r '.prompt // empty')"
 cwd="$(echo "$input" | jq -r '.cwd // empty')"
@@ -55,8 +59,33 @@ if is_git_repo "$cwd"; then
   repo_name="$(repo_name_for "$cwd")"
   worktree_path="$(worktree_path_for "$repo_name" "$session_title")"
 
+  # STAND DOWN WHEN AN ORCHESTRATOR OWNS THIS REPO.
+  #
+  # This hook's original contract was "one prompt creates one task worktree".
+  # Under the objective model that contract is actively harmful: the
+  # orchestrator has already laid out .agent-worktrees/<objective>/{integration,
+  # task-NNN} and assigned each worker its own directory and branch. A hook that
+  # then derives a slug from the prompt and calls `git worktree add` creates a
+  # SECOND, unrelated worktree on a `wt/*` branch for work that already has a
+  # home — splitting the objective across two trees.
+  #
+  # So when an objective is active, or the session is already sitting inside an
+  # agent workspace of any layout, do not create anything. Record state, point
+  # at the existing workspace, and let the orchestrator own placement.
+  objective_id="$(active_objective_id "$cwd" 2>/dev/null || true)"
+
   if is_global_worktree_path "$cwd"; then
     session_files_dir="$(ensure_session_files_dir "${cwd}/session-files")"
+  elif is_agent_workspace "$cwd"; then
+    # Already inside an objective / legacy-platform / native worktree.
+    worktree_path="$(git -C "$cwd" rev-parse --show-toplevel 2>/dev/null || echo "$cwd")"
+    session_files_dir="$(ensure_session_files_dir "${worktree_path}/session-files")"
+  elif [[ -n "$objective_id" ]]; then
+    # An objective is active but this session is in the main checkout. Creating
+    # a competing worktree here is the exact conflict this branch exists to
+    # avoid — name the objective's workspaces instead.
+    worktree_path=""
+    session_files_dir="$(ensure_session_files_dir "$(objective_state_dir "$repo_root" "$objective_id")")"
   else
   if [[ ! -d "$worktree_path" ]]; then
     mkdir -p "${WORKTREE_ROOT}/${repo_name}"
@@ -75,23 +104,35 @@ if is_git_repo "$cwd"; then
     --arg repo_name "$repo_name" \
     --arg worktree_path "$worktree_path" \
     --arg session_files_dir "$session_files_dir" \
+    --arg objective_id "$objective_id" \
   '. + {
     repo_root: $repo_root,
     repo_name: $repo_name,
     worktree_path: $worktree_path,
-    session_files_dir: $session_files_dir
+    session_files_dir: $session_files_dir,
+    objective_id: (if ($objective_id | length) > 0 then $objective_id else null end)
   }')"
   save_session_state "$session_id" "$state"
 
   if [[ -n "${CLAUDE_ENV_FILE:-}" ]]; then
     append_env_exports "$CLAUDE_ENV_FILE" \
       "CLAUDE_TASK_SLUG=\"${session_title}\"" \
-      "CLAUDE_WORKTREE_PATH=\"${worktree_path}\"" \
       "CLAUDE_SESSION_FILES_DIR=\"${session_files_dir}\"" \
       "CLAUDE_REPO_ROOT=\"${repo_root}\""
+    if [[ -n "$worktree_path" ]]; then
+      append_env_exports "$CLAUDE_ENV_FILE" "CLAUDE_WORKTREE_PATH=\"${worktree_path}\""
+    fi
+    if [[ -n "$objective_id" ]]; then
+      append_env_exports "$CLAUDE_ENV_FILE" "SUPERPOWERS_OBJECTIVE_ID=\"${objective_id}\""
+    fi
   fi
 
-  if ! is_global_worktree_path "$cwd"; then
+  if [[ -n "$objective_id" && -z "$worktree_path" ]]; then
+    context_lines+=("Objective '${objective_id}' is active and orchestrator-managed. No session worktree was created.")
+    context_lines+=("Worker and integration worktrees live under: $(agent_worktree_root "$repo_root")/${objective_id}/")
+    context_lines+=("Ask the orchestrator for your task worktree (task-NNN) — do not create one.")
+    context_lines+=("Objective state: $(objective_state_dir "$repo_root" "$objective_id")")
+  elif ! is_global_worktree_path "$cwd" && ! is_agent_workspace "$cwd"; then
     context_lines+=("Git repo task detected. Dedicated worktree: ${worktree_path}")
     context_lines+=("Before Edit/Write, run: cd \"${worktree_path}\" or use EnterWorktree.")
     context_lines+=("Session artifacts (plans, reviews, investigations) go in: ${session_files_dir}")

@@ -1,0 +1,18 @@
+---
+description: "Script standards — CLI contract, macOS/Linux portability, non-blocking stdin, dependency tiers. Canonical: rules/dev/user-facing-script-standards.md"
+alwaysApply: false
+globs: ["scripts/**/*", "skills/**/scripts/**/*", "hooks/**/*"]
+---
+
+# User-facing script standards
+
+Canonical rule: `rules/dev/user-facing-script-standards.md` — read it before writing a script; the summary below is orientation only.
+
+- `#!/usr/bin/env bash`, `set -euo pipefail`, shellcheck-clean at `-S warning`. Never place a user-facing `.sh` at the repo root — use `scripts/` plus a `Makefile` target.
+- User-facing scripts support `--help`/`-h` and `--verbose`/`-v`, carry a top-of-file usage block, and fail fast on unknown flags.
+- **macOS and Linux are both first-class.** Assume bash 3.2 (no `declare -A`, no `mapfile`) and avoid GNU-only spellings: `sed -i` without a suffix, `sed '/pat/i'`, `readlink -f`, `date -d`, `grep -P`, `stat -c`.
+- **Windows PowerShell and `cmd.exe` are explicitly unsupported** — Windows users run under WSL2 or Git Bash. Do not add PowerShell variants.
+- **Never block.** Scripts must complete with no TTY, no prompts, and no stdin. A script reading stdin must guard with `[[ ! -t 0 ]]` and bound the read; empty stdin degrades to a default and exits 0.
+- Classify every external tool: required runtime (fail fast), optional feature (degrade explicitly), or contributor/validation (make targets and CI only).
+- Anything an agent parses needs a stable machine-readable mode — JSON on stdout alone, diagnostics on stderr, documented exit codes.
+- **Never use `echo` in a hook script** — stray stdout corrupts hook response parsing. Use `printf` or the `hooks/lib/` helpers.

@@ -7,16 +7,16 @@
       "expected_output": "The skill explains that Pushover needs two separate credentials (application token starting with 'a' from pushover.net/apps/build, user key starting with 'u' from the dashboard) and asks the user for both before writing anything. It does not invent, guess, or proceed with placeholder credentials.",
       "files": [],
       "expectations": [
-        "Both credentials are requested — application/API token AND user key — not just one",
+        "Both credentials are requested \u2014 application/API token AND user key \u2014 not just one",
         "The 'a' vs 'u' prefix distinction is stated so the user can tell them apart",
         "No credentials are written to disk and no send is attempted before the user supplies real values",
         "It is stated that this complements, not replaces, the existing macOS desktop notification",
-        "No fabricated success claim — delivery is never asserted without an API response"
+        "No fabricated success claim \u2014 delivery is never asserted without an API response"
       ]
     },
     {
       "id": 2,
-      "prompt": "Here's my Pushover key: u46cj64eyovssko7276jpwdgijqdqv — set it up and send me a test.",
+      "prompt": "Here's my Pushover key: u46cj64eyovssko7276jpwdgijqdqv \u2014 set it up and send me a test.",
       "expected_output": "The skill recognizes only the user key was supplied (it starts with 'u'), asks for the application token as well, and does not attempt a send with one credential. Once both are present it validates via /1/users/validate.json, writes ~/.claude/pushover.env at mode 600, sends a test through scripts/notify-pushover.sh with PUSHOVER_DEBUG=1, and reports the raw API response.",
       "files": [],
       "expectations": [
@@ -40,6 +40,30 @@
         "Explains that the script exits 0 silently when unconfigured, which is why there is no error",
         "Proposes re-running the installer to restore the glob-resolving hook command"
       ]
+    },
+    {
+      "id": 4,
+      "prompt": "Set up phone notifications for me. I'm using Cursor.",
+      "expected_output": "Should check the `hooks` capability for cursor, report that push notifications rely on Claude Code's Notification hook event which Cursor does not provide, and STOP. Must not write ~/.claude/pushover.env, must not edit any settings file, and must not partially configure a hook that will never fire \u2014 a half-configured notifier is worse than none.",
+      "files": []
+    },
+    {
+      "id": 5,
+      "prompt": "Do I have to buy Pushover to use this plugin?",
+      "expected_output": "Should say no: Pushover is optional even on Claude Code. Declining it keeps the desktop banner and loses nothing else. Must not present the paid third-party service as required, and should note it is a one-time purchase after a 30-day trial rather than a subscription.",
+      "files": []
+    },
+    {
+      "id": 6,
+      "prompt": "Set up Pushover \u2014 my harness has no AskUserQuestion tool.",
+      "expected_output": "Should collect both credentials in plain prose with numbered options and proceed identically. AskUserQuestion is an enhancement, not a prerequisite; the skill must not stall or claim it cannot continue.",
+      "files": []
+    },
+    {
+      "id": 7,
+      "prompt": "Set up phone notifications \u2014 I'm on OpenCode.",
+      "expected_output": "Should find hooks unsupported for opencode in the capability registry and stop before writing anything. Must not create ~/.claude/pushover.env or edit a settings file: a half-configured notifier is worse than none, because the user believes they are covered and stops watching the terminal.",
+      "files": []
     }
   ]
 }

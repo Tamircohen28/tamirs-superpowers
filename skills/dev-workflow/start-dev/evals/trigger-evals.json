@@ -1,0 +1,22 @@
+[
+  {"query": "implement issue #42", "should_trigger": true},
+  {"query": "start coding the rate limiting middleware", "should_trigger": true},
+  {"query": "build the feature described in plan.md", "should_trigger": true},
+  {"query": "work on this spec and open a PR", "should_trigger": true},
+  {"query": "ship issue #258", "should_trigger": true},
+  {"query": "code up the retry logic for the payments client", "should_trigger": true},
+  {"query": "begin implementation of the CSV export", "should_trigger": true},
+  {"query": "create a PR for the null-check fix in login.ts", "should_trigger": true},
+  {"query": "start-dev #17", "should_trigger": true},
+  {"query": "add a --json flag to scripts/doctor.sh", "should_trigger": true},
+  {"query": "plan this feature into phases before I start", "should_trigger": false},
+  {"query": "finish PR #42 and get it merged", "should_trigger": false},
+  {"query": "why does this throw a TypeError at auth.ts:88?", "should_trigger": false},
+  {"query": "review this diff for bugs", "should_trigger": false},
+  {"query": "what does this function do?", "should_trigger": false},
+  {"query": "hand this off to Cursor, I'm rate limited", "should_trigger": false},
+  {"query": "run the tests and show me what's failing", "should_trigger": false},
+  {"query": "create issues for the auth refactor", "should_trigger": false},
+  {"query": "explain how the worktree hooks work", "should_trigger": false},
+  {"query": "clean up the merged branches in this repo", "should_trigger": false}
+]

@@ -5,7 +5,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=lib/hook-output.sh
 source "${SCRIPT_DIR}/lib/hook-output.sh"
 
-INPUT=$(cat)
+INPUT="$(hook_read_stdin)"
 hook_detect_platform "$INPUT"
 FILE=$(echo "$INPUT" | python3 -c "
 import sys, json

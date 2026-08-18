@@ -1,0 +1,22 @@
+[
+  {"query": "implement everything in docs/spec/billing.md — service, API, UI and tests", "should_trigger": true},
+  {"query": "build the notifications feature end to end", "should_trigger": true},
+  {"query": "I have a review doc with 12 findings, implement all of them", "should_trigger": true},
+  {"query": "orchestrate this work across a few agents", "should_trigger": true},
+  {"query": "do these four things: add the migration, the endpoint, the client, and the docs", "should_trigger": true},
+  {"query": "split this refactor into parallel tasks and run them", "should_trigger": true},
+  {"query": "work through plan.md and get it all done in one PR", "should_trigger": true},
+  {"query": "coordinate workers on the auth objective and integrate the result", "should_trigger": true},
+  {"query": "resume objective payment-retries", "should_trigger": true},
+  {"query": "fix the typo in the README install section", "should_trigger": false},
+  {"query": "plan this feature and create GitHub issues for it", "should_trigger": false},
+  {"query": "run task-002 of objective auth-system", "should_trigger": false},
+  {"query": "open the PR for the integrated objective", "should_trigger": false},
+  {"query": "drive PR #88 to merge and fix the failing CI", "should_trigger": false},
+  {"query": "why is this test flaky? here's the stack trace", "should_trigger": false},
+  {"query": "explain how the task scheduler in this repo works", "should_trigger": false},
+  {"query": "what order should I tackle these features in?", "should_trigger": false},
+  {"query": "review my current diff for bugs", "should_trigger": false},
+  {"query": "clean up merged branches and stale worktrees", "should_trigger": false},
+  {"query": "add a single unit test for the parseDate helper", "should_trigger": false}
+]

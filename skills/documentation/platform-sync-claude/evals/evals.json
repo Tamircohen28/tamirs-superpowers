@@ -3,14 +3,14 @@
   "evals": [
     {
       "id": 1,
-      "prompt": "Analyze this Claude Code plugin. The hooks/hooks.json only uses PreToolUse, PostToolUse, SessionStart, SessionEnd, and UserPromptSubmit events. Check the latest Claude Code docs to see if there are newer hook events not yet configured.",
-      "expected_output": "Should fetch hooks docs from code.claude.com/docs/en/hooks, identify hook events not configured (e.g., PostCompact, Notification, Stop, WorktreeCreate, WorktreeRemove, channels-related events), explain why each would be valuable for a plugin repo, and provide concrete hooks.json snippets. Every finding must cite the hooks documentation URL.",
+      "prompt": "Analyze this repo's Claude Code configuration against the latest Claude Code docs.",
+      "expected_output": "Should NOT perform any analysis or fetching itself. Should state that platform-sync-claude is a deprecated compatibility shim, invoke tamirs-superpowers:platform-sync scoped to the claude-code target, and return that engine's Claude Code section unchanged. Must not cite Claude Code features from training knowledge.",
       "files": []
     },
     {
       "id": 2,
-      "prompt": "Review this Claude Code plugin. It has skills/ and hooks/ but no .claude/agents/ directory and no custom subagents defined anywhere in the plugin config.",
-      "expected_output": "Should fetch sub-agents docs from code.claude.com/docs/en/sub-agents, identify that custom subagents could be added to the plugin, explain the benefit (specialist roles, isolation, parallelism), and provide an example agent frontmatter skeleton showing the required fields. Must cite the sub-agents documentation URL.",
+      "prompt": "Use platform-sync-claude but the platform-sync skill is not available.",
+      "expected_output": "Should report plainly that the platform-sync engine is unavailable and stop. Must not fall back to training knowledge, must not re-implement the analysis loop, and must not fetch code.claude.com docs, .claude-plugin/, CLAUDE.md, .claude/rules/, .claude/skills/, skills/ + hooks/, .mcp.json, commands/ directly.",
       "files": []
     }
   ]

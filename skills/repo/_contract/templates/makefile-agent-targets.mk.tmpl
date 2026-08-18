@@ -2,7 +2,8 @@
 # Agents run these targets — users should not run bash scripts directly.
 
 .PHONY: check-agent-drift check-feature-equivalence check-platform-targets \
-	platform-targets-sync platform-targets-assert platform-targets-cochange \
+	check-capability-registry platform-targets-sync platform-targets-sync-capabilities \
+	platform-targets-assert platform-targets-cochange \
 	agent\:check agent-polish-gate assert-contract repo-standards-gate
 
 check-agent-drift:
@@ -14,8 +15,22 @@ check-feature-equivalence:
 check-platform-targets:
 	bash scripts/check-platform-targets.sh .
 
+# Optional: present once the repo ships a capability registry checker. Degrades rather
+# than failing so a repo can adopt core/capabilities/platforms.json before the checker.
+check-capability-registry:
+	@if [ -f scripts/check-capability-registry.sh ]; then \
+	  bash scripts/check-capability-registry.sh .; \
+	else \
+	  echo "  scripts/check-capability-registry.sh absent — registry agreement still enforced by check-feature-equivalence"; \
+	fi
+
 platform-targets-sync:
 	bash scripts/check-platform-targets.sh . --sync
+
+# Regenerate the derived capability mirror in platform-targets.json from
+# core/capabilities/platforms.json. Never hand-edit those two fields.
+platform-targets-sync-capabilities:
+	bash scripts/check-platform-targets.sh . --sync-capabilities
 
 platform-targets-assert:
 	bash scripts/check-platform-targets.sh . --assert-current

@@ -1,104 +1,119 @@
-# tamirs-superpowers
+# tamirs-superpowers — agent entrypoint
 
-A multi-platform agent plugin for the four supported targets — Claude Code, Cursor, Codex, and OpenCode — that bundles 27 skills, 6 specialist agents, smart worktree hooks, and MCP server stubs. It is **not** a Node/Python/Go app — there is no build step, no `package.json`, no compiled output. All content is Markdown, JSON, and Bash.
+A multi-platform agent plugin: bundled skills, specialist agents, worktree hooks, and MCP server stubs, shipped to **Claude Code**, **Cursor**, **Codex**, **OpenCode**, and **Gemini CLI** (`gemini-extension.json`). It is **not** a Node/Python/Go app — no build step, no `package.json`, no compiled output. All content is Markdown, JSON, and Bash.
 
-Worktree hooks and the statusline do not port to OpenCode; see [`docs/user/install/opencode.md`](docs/user/install/opencode.md#what-does-not-port). The machine-readable target list is [`platform-targets.json`](docs/engineering/build-and-release/platform-targets.json).
+**This file is a thin entrypoint, not the policy.** Canonical policy lives in [`core/`](core/) and [`rules/`](rules/README.md); this page tells you which of those to read and gives you the commands. When this file and a canonical rule disagree, the canonical rule wins — say so rather than following the stale copy.
 
-**Install (all platforms)** — from a clone:
+---
+
+## Read this first
+
+| You are about to… | Read |
+|-------------------|------|
+| Do anything at all | [`core/policies/safety.md`](core/policies/safety.md) — the hard invariants |
+| Branch, commit, or push | [`core/policies/git.md`](core/policies/git.md) + [`rules/dev/git-worktree-agent-workflow.md`](rules/dev/git-worktree-agent-workflow.md) |
+| Run tests or checks | [`core/policies/validation.md`](core/policies/validation.md) — which tier applies where |
+| Open a PR / ship | [`core/policies/delivery.md`](core/policies/delivery.md) — one objective, one PR |
+| Take on a role (implementer, reviewer, …) | [`core/roles/README.md`](core/roles/README.md) — role is not provider |
+| Pick which provider runs a task | [`core/providers/selection.md`](core/providers/selection.md) |
+| Hand work to another provider | [`rules/dev/cross-platform-handoff.md`](rules/dev/cross-platform-handoff.md) |
+| Write a plan, review, or scratch file | [`rules/dev/dev-files-workspace.md`](rules/dev/dev-files-workspace.md) — it goes in `.dev-files/` |
+| Author or edit a `SKILL.md` | [`rules/dev/skill-quality-standards.md`](rules/dev/skill-quality-standards.md) + [`core/schemas/skill-frontmatter.json`](core/schemas/skill-frontmatter.json) |
+| Write a script or a hook | [`rules/dev/user-facing-script-standards.md`](rules/dev/user-facing-script-standards.md) |
+| Touch GitHub | [`rules/dev/gh-cli-preference.md`](rules/dev/gh-cli-preference.md) — `gh` is optional; degrade explicitly |
+| Change shipped content | [`rules/dev/plugin-version-bump.md`](rules/dev/plugin-version-bump.md) — bump `plugin-version.json`, then `--sync` |
+
+The full index, including the hard-invariant vs configurable-policy split and the adapter map, is [`rules/README.md`](rules/README.md).
+
+---
+
+## Work model in one paragraph
+
+A user **objective** decomposes into worker **tasks** (a DAG). Each task runs in its own worktree on `worker/<slug>/NNN`, ends at **commit + handoff**, and never opens a PR. Workers compose into one **integration** worktree on `objective/<slug>`, which is where cross-worker review and full validation happen, and where the single PR is opened. Which provider ran a task is metadata recorded in `.dev-files/objectives/<id>/`, never encoded in a path or a branch name. Worker validation is targeted (Tier 1); full validation runs once at integration (Tier 2); CI is the final authority (Tier 3).
+
+---
+
+## Commands
 
 ```bash
-make install   # bootstrap Claude settings + agents
-make update    # refresh plugin + agents
-make uninstall # remove agents + uninstall plugin when possible
+make validate           # shellcheck + JSON + skill frontmatter + repo contract + doc claims
+make lint               # shellcheck only
+make test               # same as validate
+make test-repo-contract # scaffold-gold (app-gold) + scaffold-plugin-gold (plugin-gold)
+bash scripts/doctor.sh  # detected platform, version, dependencies, available capabilities
+make install            # bootstrap Claude machine settings + agents (from a clone)
+make update
+make uninstall
 ```
 
-**Claude Code (marketplace)** — `tamirs-marketplace` catalog:
+Claude Code marketplace install:
 
-```
+```text
 /plugin marketplace add Tamircohen28/tamirs-marketplace
 /plugin install tamirs-superpowers@tamirs-marketplace
 ```
 
-**Cursor / Codex** — enable via `.cursor-plugin/plugin.json` or `.codex-plugin/plugin.json` (same `skills/` tree).
+Per-target install guides: [`docs/user/install/`](docs/user/install/). The machine-readable target list is [`platform-targets.json`](docs/engineering/build-and-release/platform-targets.json); the machine-readable capability list is [`core/capabilities/platforms.json`](core/capabilities/platforms.json).
 
-## Working agreements
+---
 
-- Validate after every change: `make validate` (shellcheck + JSON lint + frontmatter + `make test-repo-contract`)
-- **Version bump after shipped changes:** Claude Code uses `plugin.json` `version` as the update cache key — commits without a bump do not reach installed users (`/plugin update` reports "already at latest"). After changing `skills/`, `hooks/`, `agents/`, manifests, or `scripts/`, bump the three versioned plugin manifests together (`opencode.json` has no version field), update `CHANGELOG.md` + `README.md` badges, refresh anything the change falsified — documented skill counts, `platform-targets.json`, `docs/user/install/<target>.md` — open a PR, then run the Release workflow to tag `vX.Y.Z` and verify the tag contains the change. See [`rules/dev/plugin-version-bump.md`](rules/dev/plugin-version-bump.md) and [versioning.md](docs/engineering/build-and-release/versioning.md).
-- Commit format: `<type>(<scope>): <description>` — types: `feat`, `fix`, `chore`, `docs`, `refactor` — scopes: `skills`, `hooks`, `marketplace`, `ci`, `docs`
-- Never add `runs-on: [self-hosted]` to any CI workflow — use `ubuntu-latest`
-- Never commit secrets or tokens — `.mcp.json` uses `${ENV_VAR}` placeholders only
-- Never add Wix-internal references (internal domains, private GitHub orgs, internal tooling names)
+## Repo-specific expectations
 
-## Repository expectations
+These are true of *this* repository and are not in `core/`:
 
-- All JSON files must be valid — checked by `make validate`
-- All `.sh` files must pass `shellcheck` — checked by `make lint`
-- Every `SKILL.md` must include all 16 official Claude Code frontmatter fields plus `metadata.updated-date` — validated by `scripts/validate-skill-frontmatter.py`
-- No install step for plugin **content** — use `make install` to bootstrap Claude machine settings and agents
+- All JSON must parse (`jq empty`) — checked by `make validate`.
+- All `.sh` must pass `shellcheck` at `-S warning` — `make lint`.
+- Every `SKILL.md` must validate against the **portable** schema, [`core/schemas/skill-frontmatter.json`](core/schemas/skill-frontmatter.json), enforced by `scripts/validate-skill-frontmatter.py`. Claude-specific fields are a documented *extension* of that schema, not a universal requirement — see [`rules/dev/skill-quality-standards.md`](rules/dev/skill-quality-standards.md).
+- The version lives in **one** file, `plugin-version.json`. Never hand-edit a manifest, badge, or `platform-targets.json` version — run `bash scripts/check-version-truth.sh --sync`.
+- Commit format `<type>(<scope>): <description>` — types `feat`, `fix`, `chore`, `docs`, `refactor`; scopes `skills`, `hooks`, `core`, `rules`, `marketplace`, `ci`, `docs`.
+- Never add `runs-on: [self-hosted]` to a workflow — use `ubuntu-latest`.
+- Never commit secrets — `.mcp.json` uses `${ENV_VAR}` placeholders only.
+- Never add employer-internal references (internal domains, private orgs, internal tooling names).
+- Never add a `marketplace.json` here — publication goes through the separate `Tamircohen28/tamirs-marketplace` catalog.
+- Never modify `hooks/lib/worktree-common.sh` without running shellcheck and testing both `capture-task-slug.sh` and `worktree-create.sh`.
+- Never hand-write a `SKILL.md` — use the `skill-creator` skill.
+- No install step for plugin **content**; `make install` only bootstraps machine settings and agents.
 
-## Key files
+## Key paths
 
 | Path | Purpose |
 |------|---------|
-| `.claude-plugin/plugin.json` | Claude Code plugin manifest |
-| `.cursor-plugin/plugin.json` | Cursor plugin manifest (skills + MCP; no hooks) |
-| `.codex-plugin/plugin.json` | Codex plugin manifest (skills + hooks + MCP) |
-| `rules/dev/*.md` | Canonical contributor rules (all agents) |
+| `core/` | Portable framework — policies, roles, workflow schemas, capabilities |
+| `platforms/<id>/adapter.yaml` | Per-target adapter metadata; authoritative capabilities stay in `core/capabilities/platforms.json` |
+| `rules/` | Canonical contributor rules (all providers) — see `rules/README.md` |
+| `plugin-version.json` | Single source of truth for the version; every consumer listed inside |
+| `.claude-plugin/plugin.json` | Claude Code / Claude Desktop manifest |
+| `.cursor-plugin/plugin.json` | Cursor manifest (skills + MCP; no hooks) |
+| `.codex-plugin/plugin.json` | Codex manifest (skills + hooks + MCP) |
+| `gemini-extension.json` | Gemini CLI extension manifest (`platform-targets.json` key: `gemini_cli`) |
+| `opencode.json` | OpenCode config (no version field — installs by path) |
 | `hooks/hooks.json` | Hook event wiring (Claude Code + Codex) |
-| `hooks/lib/worktree-common.sh` | Shared bash helpers for all worktree hooks — do not modify without shellchecking |
-| `skills/<domain>/<name>/SKILL.md` | Bundled skill definitions — grouped by domain |
-| `skills/repo/_contract/` | Shared repo scaffold/standards contract (not a skill) |
-| `Makefile` | `install`, `update`, `uninstall`, `validate`, `lint`, `test`, `test-repo-contract` |
-| `scripts/install.sh` | Bootstrap `~/.claude/settings.json` + agents (`make install`) |
-| `scripts/update.sh` | Refresh plugin + agents (`make update`) |
-| `scripts/uninstall.sh` | Remove installed artifacts (`make uninstall`) |
-| `scripts/statusline.sh` | Claude Code footer statusline (wired via `plugin.json`) |
+| `skills/<domain>/<name>/SKILL.md` | Bundled skills, grouped by domain |
+| `agents/*.md` | Specialist agent definitions; each declares a `role:` from `core/roles/` |
+| `skills/repo/_contract/` | Shared repo scaffold/standards contract — templates, scoring, gold fixtures (not a skill) |
+| `scripts/` | User-facing scripts + validators |
 
-## Contributor rules (`rules/dev/`)
+---
 
-| Rule | Applies when |
-|------|----------------|
-| `dev-files-workspace.md` | Session plans/reviews — use `.dev-files/` only |
-| `git-worktree-agent-workflow.md` | Branch work — one task per worktree under `.<agent>/.worktrees/` |
-| `skill-quality-standards.md` | Authoring or editing `skills/**/SKILL.md` |
-| `gh-cli-preference.md` | CI scripts, hooks, dev-workflow skill scripts |
-| `user-facing-script-standards.md` | User-facing or skill helper scripts |
-| `plugin-version-bump.md` | After shipped plugin changes — bump manifests, changelog, per-target install docs, release tag |
+## Cloud and headless runbook
 
-Cursor loads thin adapters from `.cursor/rules/*.mdc` pointing at these files. Claude Code loads `rules/dev/` directly. Codex reads `AGENTS.md` plus `rules/dev/` when contributing.
+Applies to Cursor Cloud, Codex sandboxes, Claude Code remote sessions, Gemini CLI, and CI — any non-interactive shell.
 
-## Off-limits
-
-- Never modify `hooks/lib/worktree-common.sh` without running shellcheck and testing both `capture-task-slug.sh` and `worktree-create.sh`
-- Never commit to `main` directly — always use a feature branch and PR
-- Never add a `marketplace.json` to this repo — it is published through the separate `Tamircohen28/tamirs-marketplace` catalog
-- Never hand-write a `SKILL.md` from scratch — use the `skill-creator` skill to ensure evals, references, and quality standards are met
-
-## Cloud and headless agent runbook
-
-Applies to **Cursor Cloud**, **Codex sandboxes**, **Claude Code remote sessions**, and CI — any non-interactive shell working on this repo.
-
-This repo is Markdown/JSON/Bash — there is **no app server, dev server, or build output**. "Running" it means exercising the validation harness and runtime scripts:
+There is no app server or build output. "Running" this repo means exercising the validation harness:
 
 | Check | Command |
 |-------|---------|
-| Full validation | `make validate` (shellcheck + JSON + SKILL.md frontmatter + repo-contract + manifest/tag alignment) |
-| Repo-standards gate | `make repo-standards-gate` (multi-platform repos — runs before push/PR via `start-dev` / `pr-dev`) |
-| Plugin health (7 categories) | `bash .claude/skills/run-tamirs-superpowers/smoke.sh </dev/null` |
-| Statusline render (Claude Code) | `echo '<session-json>' | bash scripts/statusline.sh` |
+| Full validation | `make validate` |
+| Repo-standards gate | `make repo-standards-gate` |
+| Plugin health | `bash .claude/skills/run-tamirs-superpowers/smoke.sh </dev/null` |
+| Statusline render (Claude Code) | `echo '<session-json>' \| bash scripts/statusline.sh` |
+| Environment / dependencies | `bash scripts/doctor.sh` |
 
-**Gotchas (all platforms):**
+**Gotchas:**
 
-- `scripts/statusline.sh` reads JSON from **stdin** (`input=$(cat)`). With no piped input it blocks forever in non-interactive shells. Always pipe JSON in or redirect stdin. Because `smoke.sh` invokes the statusline with inherited stdin, run the smoke test as `smoke.sh </dev/null`.
-- `shellcheck` is required for `make lint`/`make validate` shell coverage; if absent, those targets **silently skip** shellcheck instead of failing. Install via system package manager (`apt`, `brew`, etc.) — not bundled in the repo.
-- The smoke test reports one expected `WARN` (hardcoded `/Users/` path in `skills/toolkit/skill-creator/SKILL.md`) — known, documented; health is OK when `FAIL: 0`.
-- `make check-manifest-versions` fetches git tags; works offline against the current checkout but needs network to compare against the latest release tag.
+- `scripts/statusline.sh` reads JSON from **stdin**. With no piped input it blocks in non-interactive shells — always pipe or redirect (`</dev/null`). `smoke.sh` inherits stdin, so run it as `smoke.sh </dev/null`. The non-blocking requirement for new scripts is in [`user-facing-script-standards.md`](rules/dev/user-facing-script-standards.md) §4.
+- `shellcheck` is required for shell coverage in `make lint`/`make validate`; if absent those targets **skip** shellcheck rather than failing. Install it via your system package manager.
+- `make check-manifest-versions` needs network to compare against the latest release tag; it works offline against the current checkout.
+- Cursor Cloud agents boot a fresh Linux VM — install `shellcheck` and `pip install -r scripts/requirements-validate.txt` first.
 
-**Platform-specific addenda:**
-
-| Platform | Where to read more |
-|----------|-------------------|
-| Claude Code | [`CLAUDE.md`](CLAUDE.md) — marketplace cache, statusline wiring, project memory, remote sessions |
-| Cursor | `.cursor-plugin/plugin.json` + `.cursor/rules/*.mdc`; Cloud agents boot in a fresh Linux VM — ensure `shellcheck` and PyYAML (`pip install -r scripts/requirements-validate.txt`) are present |
-| Codex | `.codex-plugin/plugin.json` + optional `.codex/config.toml`; this file (`AGENTS.md`) and `rules/dev/` are the canonical policy sources |
+Platform-specific addenda: [`CLAUDE.md`](CLAUDE.md) (Claude Code / Desktop), `.cursor/rules/*.mdc` (Cursor), `.codex/config.toml` (Codex), `docs/user/install/gemini.md` (Gemini CLI), `docs/user/install/opencode.md` (OpenCode — note what does not port).

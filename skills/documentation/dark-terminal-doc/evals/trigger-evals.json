@@ -1,0 +1,66 @@
+[
+  {
+    "query": "make a comparison table: Postgres vs MySQL for our use case",
+    "should_trigger": true
+  },
+  {
+    "query": "write a reference doc for our git workflow as styled HTML",
+    "should_trigger": true
+  },
+  {
+    "query": "create a git cheatsheet I can open offline",
+    "should_trigger": true
+  },
+  {
+    "query": "produce release notes for v2.0 as a single-file HTML page",
+    "should_trigger": true
+  },
+  {
+    "query": "dark terminal doc for our API endpoints",
+    "should_trigger": true
+  },
+  {
+    "query": "feature breakdown of the two auth options, developer-facing",
+    "should_trigger": true
+  },
+  {
+    "query": "build an API cheatsheet page I can share with the team",
+    "should_trigger": true
+  },
+  {
+    "query": "technical reference page comparing our three deploy targets",
+    "should_trigger": true
+  },
+  {
+    "query": "write our CHANGELOG.md entry for this release",
+    "should_trigger": false
+  },
+  {
+    "query": "build an interactive dashboard with live data",
+    "should_trigger": false
+  },
+  {
+    "query": "make a UI in the field-notebook style",
+    "should_trigger": false
+  },
+  {
+    "query": "compare Postgres and MySQL and just tell me which to use",
+    "should_trigger": false
+  },
+  {
+    "query": "convert this markdown doc to PDF",
+    "should_trigger": false
+  },
+  {
+    "query": "set up a docs site with Docusaurus",
+    "should_trigger": false
+  },
+  {
+    "query": "review our README for accuracy",
+    "should_trigger": false
+  },
+  {
+    "query": "generate a slide deck about our architecture",
+    "should_trigger": false
+  }
+]

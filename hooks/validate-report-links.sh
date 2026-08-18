@@ -2,7 +2,11 @@
 # PostToolUse hook: validates URLs in report.md files after Write operations.
 # Returns feedback to Claude if broken link patterns are detected.
 
-INPUT=$(cat)
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=lib/hook-output.sh
+source "${SCRIPT_DIR}/lib/hook-output.sh"
+INPUT="$(hook_read_stdin)"
 FILE_PATH=$(echo "$INPUT" | jq -r '.tool_input.file_path // empty')
 
 # Only check report.md files

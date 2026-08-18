@@ -1,0 +1,73 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/TamirCohen28/tamirs-superpowers/core/workflow/task-schema.json",
+  "title": "Task",
+  "description": "One unit of work inside an objective. A work unit is not a delivery unit: a task ends at commit + handoff, never at a PR.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["id", "role", "depends_on", "scope", "validation_tier", "status"],
+  "properties": {
+    "schema_version": { "type": "integer", "const": 1 },
+    "id": {
+      "type": "string",
+      "pattern": "^task-[0-9]{3}$"
+    },
+    "objective_id": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9-]*$"
+    },
+    "title": { "type": "string" },
+    "role": {
+      "type": "string",
+      "description": "Canonical role name. Must have a core/roles/<role>.md.",
+      "enum": [
+        "planner",
+        "orchestrator",
+        "implementer",
+        "test-engineer",
+        "reviewer",
+        "security-reviewer",
+        "performance-reviewer",
+        "debugger",
+        "integrator",
+        "research-agent"
+      ]
+    },
+    "depends_on": {
+      "type": "array",
+      "items": { "type": "string", "pattern": "^task-[0-9]{3}$" },
+      "uniqueItems": true,
+      "description": "Tasks that must reach status completed first. Empty array means ready to start."
+    },
+    "scope": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 },
+      "minItems": 1,
+      "description": "Glob paths this task may write. Everything else is read-only. Concurrent tasks must not share write scope."
+    },
+    "validation_tier": {
+      "type": "string",
+      "enum": ["edit", "worker", "integration", "delivery"],
+      "description": "Tier from core/policies/validation.md (0-3 respectively)."
+    },
+    "status": {
+      "type": "string",
+      "enum": ["pending", "ready", "running", "blocked", "completed", "failed", "cancelled"]
+    },
+    "provider": {
+      "type": "string",
+      "enum": ["current", "claude", "codex", "cursor", "gemini", "opencode"],
+      "description": "Metadata only. Never encoded into the branch name or worktree path."
+    },
+    "worktree": {
+      "type": "string",
+      "description": "Path to the task worktree, e.g. .agent-worktrees/<objective>/task-001, or a user-level equivalent."
+    },
+    "branch": {
+      "type": "string",
+      "description": "Task branch, conventionally worker/<objective>/NNN."
+    },
+    "attempts": { "type": "integer", "minimum": 0 },
+    "notes": { "type": "string" }
+  }
+}

@@ -1,135 +1,78 @@
 ---
 name: platform-sync-codex
 description: >-
-  Internal companion to platform-sync. Fetches live OpenAI Codex CLI docs
-  (github.com/openai/codex), reads the local .codex-plugin/plugin.json, identifies features
-  not yet leveraged, and returns structured improvement steps. Not user-invocable — called
-  by the platform-sync umbrella skill.
+  DEPRECATED compatibility shim. OpenAI Codex CLI analysis now runs inside the single
+  `platform-sync` engine; this skill only delegates to it and adds no behaviour of its own.
+  Kept so anything invoking it by name keeps working for one release. Not user-invocable.
+  New callers should invoke `tamirs-superpowers:platform-sync` directly.
 when_to_use: |
-  Invoked by platform-sync when any Codex usage is detected (.codex-plugin/, AGENTS.md,
-  .codex/ config).
-  Also callable by other skills needing live Codex CLI improvement suggestions:
-  - "audit my codex plugin"
-  - "what Codex CLI features am I missing"
-  - "review .codex-plugin against latest Codex docs"
+  Do not reach for this skill in new work — invoke `tamirs-superpowers:platform-sync`.
+  It exists only so an existing caller that names `platform-sync-codex` still resolves.
+  Scheduled for removal one release after the platform-sync restructure.
 argument-hint: "[none]"
 arguments: []
 disable-model-invocation: true
 user-invocable: false
 allowed-tools:
   - Read
-  - WebFetch
+  - Skill
 disallowed-tools: []
 model: claude-sonnet-4-6
-effort: medium
+effort: low
 context: ''
 agent: ''
 hooks: {}
 paths: []
 shell: bash
 metadata:
+  tamirs:
+    visibility: internal
+    category: documentation
+    role: research-agent
+    validation-tier: 0
+    updated-date: '2026-08-19'
+    capabilities:
+      required:
+        - skills
+      optional: []
+    tags:
+      - documentation
+      - platform
+      - deprecated
+      - compatibility-shim
+      - codex
   capability: documentation
   provider: developer-workflow
-  platforms:
-    - codex
-  tags:
-    - documentation
-    - codex
-    - openai
-    - audit
-    - planning
-  updated-date: '2026-06-30'
+  updated-date: '2026-08-19'
 ---
 
-# platform-sync-codex
+# platform-sync-codex (deprecated shim)
 
-You are an OpenAI Codex CLI plugin improvement analyst. Fetch live Codex CLI docs from GitHub,
-compare against the local `.codex-plugin/plugin.json`, and return structured improvement steps.
+This skill no longer contains any OpenAI Codex CLI analysis logic.
 
-**Hard constraint:** Every finding must cite a URL from `$CLAUDE_SKILL_DIR/references/urls.md`.
-If any P0 fetch fails, stop and return the error. Do not guess from training knowledge —
-the Codex CLI evolves rapidly and your training data may be stale.
+The four per-platform sync skills were near-identical orchestration loops that differed
+only in their source URLs, local config paths, and feature-scan areas. Those differences
+are now **data**, in
+`skills/documentation/platform-sync/references/platforms/codex.md`, and the single loop
+that consumes them is
+`skills/documentation/platform-sync/references/analysis-protocol.md`. Adding a target no
+longer adds a skill — that is how Gemini CLI was added without a fifth sub-skill.
 
----
+## What to do when invoked
 
-## Step 1 — Fetch live docs
+1. Invoke `tamirs-superpowers:platform-sync` via the Skill tool, scoped to `codex`.
+2. Return its `OpenAI Codex CLI` section unchanged.
 
-Read `$CLAUDE_SKILL_DIR/references/urls.md` for the full permitted URL list.
+Do not re-implement the analysis here, and do not fetch anything yourself. If
+`platform-sync` is unavailable, say so and stop — do not fall back to training knowledge
+about OpenAI Codex CLI.
 
-Always fetch (P0 — required):
-1. `https://github.com/openai/codex/releases` — identify the latest version tag
-2. `https://raw.githubusercontent.com/openai/codex/main/README.md` — canonical feature list
+## Migration
 
-If any P0 fetch fails, stop and output:
-```
-⛔ FETCH ERROR
-URL: <url>
-Error: <error message>
-Cannot proceed — required Codex CLI source could not be fetched.
-```
+| Was | Now |
+|---|---|
+| `platform-sync-codex` SKILL.md | `platform-sync/references/platforms/codex.md` (data) |
+| its `references/urls.md` | the "Sources — P0/P1/P2" tables in that file |
+| its Step 1–4 body | `platform-sync/references/analysis-protocol.md` (shared) |
 
-Also fetch (P1) based on local config:
-- If AGENTS.md is referenced or could apply: `https://github.com/openai/codex/blob/main/AGENTS.md`
-
----
-
-## Step 2 — Read local config
-
-Read from repo root — all paths that triggered detection:
-
-| Path | What to note |
-|------|----------------|
-| `.codex-plugin/plugin.json` | `version`, `skills`, `hooks`, `mcpServers` |
-| `AGENTS.md` | Size (≤32 KiB), commands, working agreements |
-| `.codex/` or `codex.config.*` | CLI config overrides |
-| `Makefile` | Install/update commands Codex agents should use |
-
-For **app repos** with only `AGENTS.md`, compare against latest Codex CLI docs for
-AGENTS.md best practices, config, and features not yet documented for agents.
-
----
-
-## Step 3 — Identify unused features
-
-Compare local config against fetched docs:
-
-**AGENTS.md:** Does the repo have an `AGENTS.md` at the root? Codex CLI reads this for
-agent-level instructions. If missing, this is a high-priority addition — it unlocks
-repo-specific agent behavior.
-
-**Plugin schema:** Examine the fetched README for any plugin.json fields not present
-in the local config. Flag new fields with their purpose and a concrete snippet.
-
-**Skills:** Does the `.codex-plugin/plugin.json` declare the same skill paths as the
-Claude plugin? Any Codex-specific skill configuration options?
-
-**MCP servers:** Does the README document MCP support? If yes and the local config
-doesn't wire any MCP servers, flag it as an improvement opportunity.
-
-**Hooks:** Does Codex CLI support hook events? Check the README for any lifecycle
-hook support and compare against what's configured.
-
----
-
-## Step 4 — Output
-
-```
-## Codex CLI — v{version from .codex-plugin/plugin.json or "project-only"} detected → v{latest tag from releases} latest
-**Signals:** [paths that triggered detection]
-
-### Improvement Steps
-1. [Feature name] — [one sentence why it applies to this repo]
-   Config:
-   ```json
-   [concrete copy-pasteable snippet]
-   ```
-   Effort: low / medium / high
-   Source: [URL]
-
-2. ...
-
-### Already Well-Used
-- [feature]: [brief note] ✓
-```
-
-Return this section only — the platform-sync umbrella merges it with other platforms.
+Callers should move to `tamirs-superpowers:platform-sync` before this shim is removed.

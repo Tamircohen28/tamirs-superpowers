@@ -1,0 +1,66 @@
+[
+  {
+    "query": "find a skill for code review in Python",
+    "should_trigger": true
+  },
+  {
+    "query": "is there a plugin that generates release notes from git commits",
+    "should_trigger": true
+  },
+  {
+    "query": "recommend an agent for GitHub automation",
+    "should_trigger": true
+  },
+  {
+    "query": "search for a skill that compares PDFs",
+    "should_trigger": true
+  },
+  {
+    "query": "/find-skill 5 PR review automation",
+    "should_trigger": true
+  },
+  {
+    "query": "what skill should I use for database migrations",
+    "should_trigger": true
+  },
+  {
+    "query": "find an mcp server for Slack",
+    "should_trigger": true
+  },
+  {
+    "query": "compare the available skills for test generation",
+    "should_trigger": true
+  },
+  {
+    "query": "create a skill for code review",
+    "should_trigger": false
+  },
+  {
+    "query": "how do I install the tamirs-superpowers plugin",
+    "should_trigger": false
+  },
+  {
+    "query": "my skill isn't triggering, fix the description",
+    "should_trigger": false
+  },
+  {
+    "query": "find the function that handles auth in this repo",
+    "should_trigger": false
+  },
+  {
+    "query": "what npm package should I use for date parsing",
+    "should_trigger": false
+  },
+  {
+    "query": "list the skills installed in this project",
+    "should_trigger": false
+  },
+  {
+    "query": "which VS Code extension does Python linting",
+    "should_trigger": false
+  },
+  {
+    "query": "review this code for security issues",
+    "should_trigger": false
+  }
+]

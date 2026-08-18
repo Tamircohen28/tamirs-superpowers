@@ -5,7 +5,9 @@
       "id": 1,
       "prompt": "Run a multi-agent-repo review on the eval fixture at skills/repo/multi-agent-repo/evals/fixtures/minimal-node (README + package.json only — no AGENTS.md, CLAUDE.md, or .cursor/rules/). List P1 gaps and write the report under docs/agent-guidelines/ in that fixture — do not edit any other files.",
       "expected_output": "Review mode runs parse-mode-args, inventory-agent-setup.sh, score-inventory-gaps.sh, manual rubric pass, produces docs/agent-guidelines/multi-agent-review-<date>.md with P1 gaps L1-01, L2-01, L6-03 at minimum. No implementation changes outside report path.",
-      "files": ["evals/fixtures/minimal-node"],
+      "files": [
+        "evals/fixtures/minimal-node"
+      ],
       "assertions": [
         {
           "name": "runs_inventory_script",
@@ -67,6 +69,30 @@
           "name": "pr_opened_not_merged",
           "description": "gh pr create URL returned; merge not performed"
         }
+      ]
+    },
+    {
+      "id": 4,
+      "prompt": "/multi-agent-repo review on a machine where the gh CLI is not installed",
+      "expected_output": "Fallback path. github_cli is declared OPTIONAL, so the audit still runs: repo type detection, AGENTS.md/CLAUDE.md/.cursor rules inventory, skill discovery, capability-registry and platform-targets checks all complete from the local checkout. Only the phases that need the API — branch protection state, open PR checks, issue creation in plan mode — are skipped, each named with 'gh is not available' as the reason.",
+      "files": [],
+      "expectations": [
+        "The review completes and produces a gap report rather than aborting",
+        "Every skipped check is listed by name with the missing capability as the stated reason",
+        "No branch-protection or PR state is guessed at or inferred from local refs",
+        "The report names the exact command to re-run once gh is authenticated"
+      ]
+    },
+    {
+      "id": 5,
+      "prompt": "/multi-agent-repo review on a repo that targets Gemini CLI and OpenCode as well as Claude",
+      "expected_output": "The audit reads core/capabilities/platforms.json for what each target can do and never restates a status itself. It does not propose a fix that assumes an unsupported capability — no hooks.json for OpenCode (unsupported), no marketplace listing for Gemini CLI (unsupported), no plugin-declared statusline for either.",
+      "files": [],
+      "expectations": [
+        "Capability claims are sourced from the registry, not from the skill's own prose",
+        "No recommendation depends on a capability the registry marks unsupported or unknown",
+        "A target present in the registry but missing from platform-targets.json supported_targets is reported as a gap (E6-02), not silently reconciled",
+        "Claude Desktop is treated as a runtime surface of claude_code, not given its own adapter"
       ]
     }
   ]

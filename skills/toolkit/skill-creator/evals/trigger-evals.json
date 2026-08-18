@@ -1,0 +1,66 @@
+[
+  {
+    "query": "turn this conversation into a skill",
+    "should_trigger": true
+  },
+  {
+    "query": "write a SKILL.md for our deploy checklist",
+    "should_trigger": true
+  },
+  {
+    "query": "my skill isn't triggering, fix it",
+    "should_trigger": true
+  },
+  {
+    "query": "add evals to my skill",
+    "should_trigger": true
+  },
+  {
+    "query": "benchmark this skill against a baseline",
+    "should_trigger": true
+  },
+  {
+    "query": "improve the description so it stops over-triggering",
+    "should_trigger": true
+  },
+  {
+    "query": "create a new skill for changelog generation that works on Cursor too",
+    "should_trigger": true
+  },
+  {
+    "query": "make this workflow a reusable skill",
+    "should_trigger": true
+  },
+  {
+    "query": "find a skill that does PDF comparison",
+    "should_trigger": false
+  },
+  {
+    "query": "what skills are installed right now",
+    "should_trigger": false
+  },
+  {
+    "query": "install the tamirs-superpowers plugin",
+    "should_trigger": false
+  },
+  {
+    "query": "explain how Agent Skills work",
+    "should_trigger": false
+  },
+  {
+    "query": "write a subagent definition for code review",
+    "should_trigger": false
+  },
+  {
+    "query": "run the existing skill on this file",
+    "should_trigger": false
+  },
+  {
+    "query": "audit our plugin against the latest Claude Code docs",
+    "should_trigger": false
+  },
+  {
+    "query": "scaffold a new plugin repo",
+    "should_trigger": false
+  }
+]

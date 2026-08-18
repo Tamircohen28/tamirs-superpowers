@@ -1,73 +1,133 @@
 ---
 alwaysApply: false
-globs: [".claude/.worktrees/**/*", ".cursor/.worktrees/**/*", ".codex/.worktrees/**/*"]
+globs: [".dev-files/objectives/**/*", ".agent-worktrees/**/*", ".claude/.worktrees/**/*", ".cursor/.worktrees/**/*", ".codex/.worktrees/**/*"]
 ---
 
-# Cross-Platform Agent Handoff
+# Cross-Provider Handoff
 
-Hand off long-running work between **Claude Code**, **Cursor**, and **Codex** without losing task context. GitHub Issues hold structured **Resume** blocks; git branches and platform worktrees hold code state.
+Hand long-running work between providers — **Claude Code**, **Cursor**, **Codex**, **Gemini CLI**, **OpenCode** — without losing task context.
+
+The unit that survives a handoff is the **task**, not the session and not the platform. A task carries a role, a scope, a validation tier, and a handoff record. Which provider executed it is metadata.
+
+Canonical state lives in the repo working tree:
+
+```text
+.dev-files/objectives/<objective-id>/
+├── objective.json     ← core/workflow/objective-schema.json
+├── plan.md
+├── tasks/task-NNN.json    ← core/workflow/task-schema.json
+├── handoffs/task-NNN.json ← core/workflow/handoff-schema.json
+└── integration.json
+```
+
+Git holds the code state (see [`git-worktree-agent-workflow.md`](git-worktree-agent-workflow.md)); `.dev-files/objectives/` holds the workflow state (see [`dev-files-workspace.md`](dev-files-workspace.md)). Together they are sufficient. **No external service, database, or orchestrator is required for a handoff.**
+
+---
 
 ## When to hand off
 
-- Rate limit on current platform
+- Rate limit or quota exhaustion on the current provider
 - Ending a session mid-task
-- Intentional platform switch (e.g. UI work on Cursor)
+- A deliberate provider switch — a capability the current provider lacks, or one it does better
+- A role change (implementer → reviewer) that a different provider is better suited to
 
-Before switching: push commits, then run `/switch-dev handoff #N`.
+---
 
-## Resume block (required on agent tasks)
+## The handoff contract
 
-Every issue created by `plan-dev` or the `agent_task` template includes:
+**Outgoing agent — before stopping:**
+
+1. Commit. Uncommitted work does not survive a handoff, and no one else may discard it.
+2. Write `handoffs/task-NNN.json` per [`core/workflow/handoff-schema.json`](../../core/workflow/handoff-schema.json):
+
+   ```json
+   {
+     "task_id": "task-001",
+     "status": "completed",
+     "commits": ["abc1234"],
+     "files_changed": ["src/auth/session.ts"],
+     "validation": [
+       { "tier": 1, "command": "make lint", "result": "pass" }
+     ],
+     "decisions": ["session cookie is httpOnly; rejected localStorage"],
+     "risks": ["refresh-token rotation untested"],
+     "followups": ["add rotation test in task-004"],
+     "provider": "claude_code"
+   }
+   ```
+
+   `provider` uses the snake_case registry id from [`core/capabilities/platforms.json`](../../core/capabilities/platforms.json) — `claude_code`, `claude_desktop`, `codex`, `cursor`, `gemini_cli`, `opencode`. `status` is `completed`, `blocked`, or `partial`. A `blocked` or `partial` handoff must say what is left in `followups` — an empty followups list on a partial handoff is a broken handoff.
+3. Update `tasks/task-NNN.json` `status`, and `objective.json` if the objective's shape changed.
+4. Optionally push the worker branch — required only if the next agent is on a different machine.
+
+**Incoming agent — before touching code:**
+
+1. Read `objective.json`, then the task and its `depends_on` chain.
+2. Read every existing handoff for the objective. Decisions recorded there are binding; do not silently re-decide them.
+3. Resolve the worktree for the task (`resolve-worktree.sh`) rather than creating a new one — an existing worktree with the branch already checked out is the state you are resuming.
+4. Verify the recorded commits are present (`git log`) before trusting the handoff.
+
+Never fabricate a `validation` entry you did not run. Recording a check you skipped is faking validation — a hard invariant ([`core/policies/safety.md`](../../core/policies/safety.md)).
+
+---
+
+## Optional remote persistence (GitHub)
+
+Local files are primary. GitHub is an **optional mirror**, useful when:
+
+- the handoff crosses machines or people;
+- the work should be visible to humans who are not in a session;
+- an issue already exists and the team tracks work there.
+
+When mirroring, `plan-dev` and the `agent_task` issue template render a **Resume** block from the same state:
 
 ```markdown
 ## Resume
+- **Objective:** auth-system
+- **Task:** task-001 (role: implementer)
 - **Done:** ...
 - **Next:** ...
 - **Decisions:** ...
 - **Blocked:** none
-- **Branch:** feat/...
-- **Worktree:** .<platform>/.worktrees/...
-- **Last agent:** cursor @ 2026-06-30T12:00:00Z
-
-## Agent routing
-- **Owner:** agent:any
-- **Suggested platform:** any
+- **Branch:** worker/auth-system/001
+- **Last provider:** cursor @ 2026-08-19T12:00:00Z
 ```
 
-Agents must update **Done**, **Next**, and **Last agent** before handoff.
+Rules for the mirror:
 
-## Labels
+- It is **generated from** `.dev-files/objectives/`, never the other way round. On disagreement, local files win.
+- Every skill that mirrors must work with `gh` absent — skip the mirror, say so plainly, continue. See [`gh-cli-preference.md`](gh-cli-preference.md).
+- Do not require a GitHub issue to exist before a task can start. An objective that never touches GitHub is a normal objective.
 
-| Label | Meaning |
-|-------|---------|
-| `agent:claude` | Claude Code owns the issue |
-| `agent:cursor` | Cursor owns the issue |
-| `agent:codex` | Codex owns the issue |
-| `agent:any` | Unassigned |
+Routing labels (`agent:any`, and provider labels where a repo uses them) are a convenience for humans scanning the issue list. They do not control execution; provider selection is a separate resolution step described in [`core/providers/selection.md`](../../core/providers/selection.md).
 
-## Worktree paths
+---
 
-Per [`git-worktree-agent-workflow.md`](git-worktree-agent-workflow.md):
+## Provider capability differences
 
-```
-.<platform>/.worktrees/<slug>
-```
+Never assume the next provider has subagents, hooks, background tasks, a statusline, or the same MCP behavior. Before relying on one, check [`core/capabilities/platforms.json`](../../core/capabilities/platforms.json) and degrade explicitly: use a stated fallback, or say the feature is unsupported here. Never silently pretend it worked.
 
-Use `skills/dev-workflow/_shared/scripts/resolve-worktree.sh` — never hardcode `.claude/worktrees/` only.
+| Provider | Handoff note |
+|----------|--------------|
+| Claude Code | Subagents available; `EnterWorktree` may have placed the worktree in a legacy path |
+| Cursor | Manual worktrees; `.mdc` rules load the canonical rules by reference |
+| Codex | Manual worktrees; reads `AGENTS.md` as its entrypoint into canonical rules |
+| Gemini CLI | Installed as an extension; manual worktrees |
+| OpenCode | Native skills; agent definitions generated from canonical `agents/`; no hooks or statusline |
 
-## Skills
+`platforms.json` is the authority for every one of these claims — the table is orientation, not evidence.
 
-| Skill | Role |
-|-------|------|
-| `plan-dev` | Creates issues with Resume scaffold + `agent:any` |
-| `start-dev` | Implements; loads Resume; platform worktree |
-| `switch-dev` | `handoff`, `resume`, `status` modes |
-| `pr-dev` | Suggests handoff when blocked on human input |
+---
 
-## Stay on one platform longer
+## Skills involved
 
-See `skills/dev-workflow/switch-dev/references/platform-capabilities.md` for Codex `/goal`, Cursor `/multitask`, Claude subagents.
+| Skill | Role in handoff |
+|-------|-----------------|
+| `plan-dev` | Produces `objective.json` + tasks; optionally mirrors to issues |
+| `start-dev` | Executes one task; loads prior handoffs; writes its own |
+| `switch-dev` | `handoff`, `resume`, `status` modes over the local objective state |
+| `pr-dev` | Delivery lifecycle for the objective, from the integration worktree |
 
 ## Out of scope
 
-No third-party handoff MCP servers or external orchestrators. Git + GitHub Issues only.
+No third-party handoff MCP servers, no external orchestrators, no persistent task service. Git plus local files, with GitHub as an optional mirror.

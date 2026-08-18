@@ -1,0 +1,81 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/TamirCohen28/tamirs-superpowers/core/workflow/objective-schema.json",
+  "title": "Objective",
+  "description": "One user objective. The default delivery unit: one objective = one PR unless an exception in core/policies/delivery.md applies.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["id", "title", "base_branch", "integration_branch", "status", "tasks"],
+  "properties": {
+    "schema_version": {
+      "type": "integer",
+      "const": 1,
+      "description": "Version of this schema the file was written against."
+    },
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9-]*$",
+      "description": "Objective slug. Also the directory name under .dev-files/objectives/."
+    },
+    "title": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Human-readable statement of the objective."
+    },
+    "base_branch": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Branch the objective is cut from and delivered back into."
+    },
+    "integration_branch": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Branch worker branches merge into. Conventionally objective/<id>."
+    },
+    "status": {
+      "type": "string",
+      "enum": ["draft", "active", "integrating", "reviewing", "delivering", "completed", "blocked", "abandoned"]
+    },
+    "tasks": {
+      "type": "array",
+      "description": "Task ids belonging to this objective, in planned order.",
+      "items": { "type": "string", "pattern": "^task-[0-9]{3}$" },
+      "uniqueItems": true
+    },
+    "delivery": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "strategy": {
+          "type": "string",
+          "enum": ["single-pr", "multi-pr", "direct-commit", "none"],
+          "default": "single-pr"
+        },
+        "exception_reason": {
+          "type": "string",
+          "description": "Required when strategy is not single-pr. Must name one of the enumerated exceptions in core/policies/delivery.md."
+        },
+        "auto_merge": {
+          "type": "boolean",
+          "description": "Policy, not invariant. Absent means: follow repository/user configuration."
+        },
+        "pr_url": { "type": "string" }
+      }
+    },
+    "created": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO 8601 creation timestamp."
+    },
+    "updated": { "type": "string", "format": "date-time" },
+    "provider_hints": {
+      "type": "object",
+      "description": "Optional, advisory. Preferred providers per role; provider is metadata and never part of branch or path identity.",
+      "additionalProperties": {
+        "type": "array",
+        "items": { "type": "string", "enum": ["current", "claude", "codex", "cursor", "gemini", "opencode"] }
+      }
+    },
+    "notes": { "type": "string" }
+  }
+}

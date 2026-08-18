@@ -20,27 +20,46 @@ hooks: {}
 paths: []
 shell: bash
 metadata:
+  tamirs:
+    visibility: public
+    category: toolkit
+    role: research-agent
+    validation-tier: 0
+    updated-date: '2026-08-19'
+    capabilities:
+      required:
+        - skills
+      optional:
+        - shell
+    tags:
+      - toolkit
+      - marketplace
+      - discovery
+      - search
+      - skills
+      - plugins
+      - agents
+      - configurable-sources
   capability: skill-discovery
   provider: developer-workflow
   agents: []
-  platforms:
-  - claude
-  tags:
-  - toolkit
-  - marketplace
-  - discovery
-  - search
-  - skills
-  - plugins
-  - agents
-  updated-date: '2026-06-13'
+  updated-date: '2026-08-19'
 ---
 
 # find-skill — real-time search across skill and plugin marketplaces
 
 ## Why this skill exists
 
-The AI skill ecosystem is fragmented: Anthropic has an official marketplace, Smithery is the largest open registry, mcp.directory indexes MCP servers, and community catalogs (wshobson/agents, obra/superpowers, mattpocock/skills) each cover different niches. Searching them manually wastes 20–30 minutes per query and misses sources you don't think to check. This skill fans out searches in parallel, normalises the results, and ranks them by both relevance to the query and absolute quality.
+The AI skill ecosystem is fragmented: several registries index MCP servers, and community
+catalogs each cover different niches. Searching them manually wastes 20–30 minutes per query
+and misses sources you don't think to check. This skill fans out searches in parallel,
+normalises the results, and ranks them by both relevance to the query and absolute quality.
+
+**The source list is configuration, not part of this skill.** Registries appear, get
+acquired, and go dark; teams have private catalogues; some users do not want a given source
+queried at all. So find-skill reads its sources from a JSON file it resolves at run time
+(`references/sources.md` for the resolution order, `references/sources.json` for the bundled
+default) and adding or removing a source never means editing these instructions.
 
 ## Invocation
 
@@ -71,21 +90,34 @@ Extract:
 Echo a one-line plan before searching:
 > Searching 6+ marketplaces for "Python code review skills" — returning top 5 ranked by match + quality.
 
-### Step 2 — Fan out searches in parallel
+### Step 2 — Load the source list, then fan out in parallel
 
-Issue **all** tool calls in a single message. Cover at minimum:
+**2a. Resolve sources.** Load the first file that exists and parses, per
+`references/sources.md`:
 
-| # | Source | How to query |
-|---|--------|-------------|
-| 1 | Smithery (largest open registry) | `WebFetch` `https://smithery.ai/search?q=<query>` |
-| 2 | mcp.directory | `WebFetch` `https://mcp.directory/search?q=<query>` |
-| 3 | wshobson/agents | `WebFetch` `https://raw.githubusercontent.com/wshobson/agents/main/README.md` |
-| 4 | obra/superpowers (this repo) | `WebFetch` `https://raw.githubusercontent.com/obra/superpowers/main/README.md` |
-| 5 | mattpocock/skills | `WebFetch` `https://raw.githubusercontent.com/mattpocock/skills/main/README.md` |
-| 6 | Web fallback | `WebSearch` `"claude code skill" "<primary intent>"` |
-| 7 | Anthropic marketplace JSON | `WebSearch` `site:github.com claude-code marketplace.json "<primary intent>"` |
+1. `$FIND_SKILL_SOURCES` (env var pointing at a JSON file)
+2. `.find-skill/sources.json` (this repo)
+3. `~/.config/find-skill/sources.json` (this user)
+4. `<skill-dir>/references/sources.json` (bundled default)
 
-If a source returns 429/5xx or blocked, log it as a footnote — never silently drop. If `WebFetch` returns a client-rendered shell with no useful content, retry that source with `WebSearch` targeting the same domain.
+State which file answered in the opening plan line, so a user with an override can see it
+took effect.
+
+**2b. Select.** Query every entry with `"enabled": true`. Prioritise entries whose `covers`
+array matches the query's constraints (an MCP query leads with `covers: ["mcp"]` sources),
+but do not *exclude* the others — a wrongly-narrowed fan-out is the failure mode this skill
+exists to avoid.
+
+**2c. Fan out.** Issue **all** tool calls in a single message. Substitute the parsed intent
+for `{query}`, URL-encoded for `WebFetch`.
+
+If a source returns 429/5xx or is blocked, log it as a footnote — never silently drop. If a
+`WebFetch` returns a client-rendered shell with no useful content, retry via that entry's
+`fallback` when it has one.
+
+If fewer than `defaults.min_sources` sources are enabled or reachable, still return results
+but label them **degraded** and say which sources were missing. Never quietly return a
+single-source answer as if it were a survey.
 
 ### Step 3 — Normalise candidates
 
@@ -150,7 +182,11 @@ After the table, list:
 
 ## Hard rules
 
-1. **Query at least 5 sources.** Single-source results are never reliable.
+1. **Query every enabled source, and meet `defaults.min_sources`.** Below that floor the
+   result is labelled degraded. Single-source results are never reliable and must never be
+   presented as a survey.
+1a. **Never hardcode a source in these instructions.** Sources live in the resolved JSON
+   file. A registry added here instead of there is invisible to anyone with an override.
 2. **Never invent a URL.** If you cannot find a direct link, drop the candidate.
 3. **Never fabricate star or install counts.** If a count is not observable, set that quality component to its baseline (0.5).
 4. **Never rank a paywalled marketplace first** when free/open-source alternatives exist at comparable quality. Note the paywall explicitly if included.
@@ -166,7 +202,9 @@ After the table, list:
 | Empty query after parsing N | Ask one clarifying question, then proceed |
 | All sources blocked | Return `WebSearch` results + a "degraded" banner |
 | Zero candidates score ≥30 | Return empty results, list sources searched, suggest broader terms |
-| User wants a private/internal skill | Note this searches public marketplaces; suggest checking internal repos separately |
+| User wants a private/internal skill | Note that the resolved source list is what was searched; point them at `references/sources.md` to add their internal registry rather than suggesting they search by hand |
+| Resolved sources file is missing or unparseable | Fall through to the next file in the resolution order; if all fail, use the bundled default and say so |
+| Fewer than `min_sources` sources reachable | Return results with a degraded banner naming the missing sources |
 
 ## What NOT to do
 
@@ -180,8 +218,8 @@ After the table, list:
 
 | Signal in the query | Action |
 |--------------------|--------|
-| Specific marketplace named (e.g. "on Smithery") | Start with that source, fan out to others |
-| MCP server mentioned | Prioritise mcp.directory and Smithery |
-| Claude Code / claude-code mentioned | Prioritise obra/superpowers, wshobson, mattpocock |
-| No harness mentioned | Search all sources equally |
+| Specific marketplace named | Start with that source if it is in the resolved list; if it is not, say so and offer to add it via `references/sources.md` |
+| MCP server mentioned | Prioritise sources whose `covers` includes `mcp` |
+| A specific harness mentioned (Claude Code, Cursor, Codex, Gemini, OpenCode) | Prioritise sources whose `covers` includes `skills`/`plugins`, and record the harness in each candidate's `harness` field |
+| No harness mentioned | Search all enabled sources equally |
 | Query returns no results | Broaden: drop constraints one at a time, retry |

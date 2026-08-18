@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "id": "auth-system",
+  "title": "Implement authentication system",
+  "base_branch": "main",
+  "integration_branch": "objective/auth-system",
+  "status": "delivering",
+  "tasks": ["task-001", "task-002", "task-003", "task-004", "task-005"],
+  "delivery": {
+    "strategy": "single-pr",
+    "auto_merge": false
+  }
+}

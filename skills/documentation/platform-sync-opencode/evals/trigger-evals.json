@@ -1,0 +1,22 @@
+[
+  {
+    "query": "analyze this repo's OpenCode configuration against the latest OpenCode docs",
+    "should_trigger": true
+  },
+  {
+    "query": "platform-sync-opencode",
+    "should_trigger": true
+  },
+  {
+    "query": "what OpenCode features is this repo missing",
+    "should_trigger": true
+  },
+  {
+    "query": "return the OpenCode improvement section for the unified plan",
+    "should_trigger": true
+  },
+  {
+    "query": "audit our OpenCode config \u2014 legacy caller invoking this skill by name",
+    "should_trigger": true
+  }
+]

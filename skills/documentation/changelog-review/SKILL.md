@@ -1,6 +1,6 @@
 ---
 name: changelog-review
-description: Internal skill invoked by repo-standards polish phase 6 to audit Claude Code plugin projects. Fetches live docs and runs scripts/validate-plugin-json.sh + scripts/validate-skill-frontmatter.py (via scripts/check-skill-frontmatter.sh) to detect misuse, broken hook paths, stale patterns, and missed capabilities. Returns structured P1 findings before PR. Never invoke directly — use repo-standards. Also callable by other skills needing live-doc-grounded answers about Claude Code hooks, skills, plugin.json, or MCP config.
+description: Internal skill invoked by repo-standards polish phase 6 to audit Claude Code plugin projects. Fetches live docs and runs scripts/validate-plugin-json.sh + scripts/validate-skill-frontmatter.py (via scripts/check-skill-frontmatter.sh) to detect misuse, broken hook paths, stale patterns, and missed capabilities. Version agreement across manifests, badges and target files is delegated entirely to plugin-version.json + scripts/check-version-truth.sh — this skill never enumerates the places a version lives. Returns structured P1 findings before PR. Never invoke directly — use repo-standards. Also callable by other skills needing live-doc-grounded answers about Claude Code hooks, skills, plugin.json, or MCP config.
 when_to_use: 'Invoked by repo-standards polish phase 6 on Claude Code plugin projects.
 
   Also callable by other skills when they need a live-doc-grounded answer
@@ -35,18 +35,35 @@ agent: ''
 hooks: {}
 paths: []
 shell: bash
+compatibility:
+  claude-code: supported
+  claude-desktop: supported
+  codex: partial
+  cursor: partial
+  gemini: partial
+  opencode: partial
 metadata:
+  tamirs:
+    visibility: internal
+    category: documentation
+    role: reviewer
+    validation-tier: 2
+    updated-date: '2026-08-19'
+    capabilities:
+      required:
+        - skills
+      optional:
+        - shell
+    tags:
+      - documentation
+      - claude-code
+      - reference
+      - audit
+      - changelog
+      - version-truth
   capability: documentation
   provider: developer-workflow
-  platforms:
-  - claude
-  tags:
-  - documentation
-  - claude-code
-  - reference
-  - audit
-  - changelog
-  updated-date: '2026-06-16'
+  updated-date: '2026-08-19'
   scripts:
   - scripts/validate-plugin-json.sh
   - scripts/check-skill-frontmatter.sh
@@ -74,14 +91,19 @@ does semantic review — run them first in Mode 3 (see below).
 
 Review input from repo-standards: `.claude/`, `plugin.json` / `.claude-plugin/plugin.json`, all `SKILL.md` files, `hooks/hooks.json`, `.mcp.json`.
 
-Before running Mode 3 analysis, run the bundled scripts for fast deterministic checks:
+Before running Mode 3 analysis, run the bundled scripts for fast deterministic checks.
+`$CLAUDE_SKILL_DIR` is set by Claude Code; on a harness that does not set it, substitute this
+skill's directory.
 
 ```bash
-# Validate plugin.json structure (statusLine type, name, version, skills array)
-bash $CLAUDE_SKILL_DIR/scripts/validate-plugin-json.sh /path/to/plugin.json
+# Version truth across every consumer — one command, no per-file checklist (see Step 0)
+bash "$TARGET_ROOT/scripts/check-version-truth.sh"
 
-# Validate each SKILL.md frontmatter (required fields, internal-only consistency)
-bash $CLAUDE_SKILL_DIR/scripts/check-skill-frontmatter.sh /path/to/skills/domain/name/SKILL.md
+# Validate plugin.json structure (statusLine type, name, skills array)
+bash "$CLAUDE_SKILL_DIR/scripts/validate-plugin-json.sh" /path/to/plugin.json
+
+# Validate each SKILL.md frontmatter (portable core, tamirs metadata, Claude extensions)
+bash "$CLAUDE_SKILL_DIR/scripts/check-skill-frontmatter.sh" /path/to/skills/domain/name/SKILL.md
 ```
 
 Include script findings in your Mode 3 report. Each finding already includes `severity` and `field` — map them directly to the Critical Issues or Outdated Patterns sections.
@@ -244,7 +266,41 @@ Versions found near that range: [list]
 
 ---
 
+
 ## MODE 3 — Review (Audit Claude Code Feature Usage)
+
+### Step 0: Version truth — delegate, never enumerate
+
+**This skill does not know how many places a version lives, and must never learn.** That
+list belongs to exactly one file. Enumerating it here creates the second source of truth
+this step exists to eliminate.
+
+```bash
+bash "$TARGET_ROOT/scripts/check-version-truth.sh"
+```
+
+`plugin-version.json` is the canonical version and carries its own `consumers` array —
+every manifest, badge, and target file that must agree, each with the pattern that proves
+agreement. `scripts/check-version-truth.sh` reads that array and validates all of them;
+`--sync` repairs the drift.
+
+| Result | What to report |
+|---|---|
+| Exit 0 | "Version truth: consistent across N consumers (`plugin-version.json` v`X.Y.Z`)." Nothing further. |
+| Non-zero | Report the script's own findings verbatim, and recommend `scripts/check-version-truth.sh --sync`. Do not restate them as a manual checklist. |
+| Script absent | "Version truth not verified — `scripts/check-version-truth.sh` is not present in this repo." Then **stop checking versions**. Do not fall back to comparing manifests by hand. |
+| `plugin-version.json` absent | Recommend adopting it as the canonical source, and report that version agreement was not verified. |
+
+**Never** tell a human to "also bump `.cursor-plugin/plugin.json` and `.codex-plugin/plugin.json`
+and the README badge". That instruction is the defect (spec §27 defect 1 and 3): every place
+it names is a place that will be forgotten. Point at `plugin-version.json` and the script.
+
+**Never** add a new version consumer by editing this skill. Add it to `plugin-version.json`'s
+`consumers` array, where the script will pick it up and every caller benefits.
+
+The one version claim this skill still makes on its own is the **Claude Code** version it
+reviewed against — that is fetched from the releases feed, not read from the repo, so it is
+not part of version truth.
 
 ### Step 1: Establish baseline (always fetch these first)
 
@@ -365,3 +421,11 @@ Look for:
 5. **No hallucination.** If it's not in the fetched pages, say so.
 6. **Scope discipline.** Only fetch URLs from `references/urls.md`.
 7. **Conflict resolution.** When docs contradict, cite both; topic-specific beats general.
+8. **Version truth is delegated.** `plugin-version.json` plus `scripts/check-version-truth.sh`
+   are the only authority on repo version agreement. Never enumerate version consumers in a
+   finding, never hand a human a multi-file bump checklist, and never verify versions by
+   hand-comparing manifests when the script is unavailable — report it as unverified instead.
+9. **Platform scope.** This skill audits **Claude Code** usage specifically; that is its
+   subject, and it is declared honestly in `compatibility`. It is not a portable
+   multi-platform auditor — `platform-sync` is. Never present a Claude Code finding as
+   applying to another target, and never audit another target from this skill.

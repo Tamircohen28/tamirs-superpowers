@@ -1,0 +1,66 @@
+[
+  {
+    "query": "build an MCP server for the Stripe API",
+    "should_trigger": true
+  },
+  {
+    "query": "wrap our internal Postgres DB in MCP tools",
+    "should_trigger": true
+  },
+  {
+    "query": "scaffold a TypeScript MCP server for GitHub",
+    "should_trigger": true
+  },
+  {
+    "query": "expose our REST API via MCP",
+    "should_trigger": true
+  },
+  {
+    "query": "write a FastMCP server for OpenWeatherMap",
+    "should_trigger": true
+  },
+  {
+    "query": "make Claude able to call our billing service",
+    "should_trigger": true
+  },
+  {
+    "query": "add MCP support for our search backend, and wire it into Cursor too",
+    "should_trigger": true
+  },
+  {
+    "query": "create MCP tools for our ticketing system",
+    "should_trigger": true
+  },
+  {
+    "query": "what MCP servers do I have configured",
+    "should_trigger": false
+  },
+  {
+    "query": "my .mcp.json isn't loading, fix the config",
+    "should_trigger": false
+  },
+  {
+    "query": "read this existing MCP server and explain what it does",
+    "should_trigger": false
+  },
+  {
+    "query": "explain what the Model Context Protocol is",
+    "should_trigger": false
+  },
+  {
+    "query": "build a REST API for our billing service",
+    "should_trigger": false
+  },
+  {
+    "query": "add a webhook integration with Stripe",
+    "should_trigger": false
+  },
+  {
+    "query": "why is my MCP server timing out in Claude Desktop",
+    "should_trigger": false
+  },
+  {
+    "query": "write a CLI tool that queries our Postgres DB",
+    "should_trigger": false
+  }
+]

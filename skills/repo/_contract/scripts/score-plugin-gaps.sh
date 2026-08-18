@@ -39,6 +39,10 @@ dist_codex=$(echo "$INV" | jq -r '.dist.codex_agents_md')
 dist_cursor=$(echo "$INV" | jq -r '.dist.cursor_core_mdc')
 codex_gen=$(echo "$INV" | jq -r '.dist.codex_generated')
 cursor_gen=$(echo "$INV" | jq -r '.dist.cursor_generated')
+dist_gemini=$(echo "$INV" | jq -r '.dist.gemini_extension_json')
+dist_gemini_ctx=$(echo "$INV" | jq -r '.dist.gemini_context_md')
+gemini_gen=$(echo "$INV" | jq -r '.dist.gemini_generated')
+dist_opencode=$(echo "$INV" | jq -r '.dist.opencode_config_json')
 co_canonical=$(echo "$INV" | jq -r '.codeowners.canonical')
 co_plugins=$(echo "$INV" | jq -r '.codeowners.plugins')
 co_scripts=$(echo "$INV" | jq -r '.codeowners.scripts')
@@ -60,9 +64,15 @@ npm_validate=$(echo "$INV" | jq -r '.npm.validate_script')
 [[ "$plugin_skills" != true ]] && { add_gap "PK1-11" "P1" "plugins/<name>/skills/ missing" 3; inc P1; }
 [[ "$dist_codex" != true ]] && { add_gap "PK1-12" "P1" "dist/codex/AGENTS.md missing (run npm run build)" 3; inc P1; }
 [[ "$dist_cursor" != true ]] && { add_gap "PK1-13" "P1" "dist/cursor/.cursor/rules/000-core.mdc missing (run npm run build)" 3; inc P1; }
+# Gemini and OpenCode are first-class adapter outputs: an agent-kit repo that builds
+# only Codex and Cursor ships two targets that were never generated from canonical/.
+[[ "$dist_gemini" != true ]] && { add_gap "PK1-15" "P1" "dist/gemini/gemini-extension.json missing (run npm run build)" 3; inc P1; }
+[[ "$dist_gemini_ctx" != true ]] && { add_gap "PK1-16" "P1" "dist/gemini/GEMINI.md missing (run npm run build)" 3; inc P1; }
+[[ "$dist_opencode" != true ]] && { add_gap "PK1-17" "P1" "dist/opencode/opencode.json missing (run npm run build)" 3; inc P1; }
 
 [[ "$codex_gen" != true && "$dist_codex" == true ]] && { add_gap "PK2-01" "P2" "dist/codex/AGENTS.md missing GENERATED FILE marker" 3; inc P2; }
 [[ "$cursor_gen" != true && "$dist_cursor" == true ]] && { add_gap "PK2-02" "P2" "dist/cursor/.cursor/rules/000-core.mdc missing GENERATED FILE marker" 3; inc P2; }
+[[ "$gemini_gen" != true && "$dist_gemini_ctx" == true ]] && { add_gap "PK2-09" "P2" "dist/gemini/GEMINI.md missing GENERATED FILE marker" 3; inc P2; }
 [[ "$validate_job" != true ]] && { add_gap "PK2-03" "P2" "CI missing validate job" 3; inc P2; }
 [[ "$npm_validate" != true ]] && { add_gap "PK2-04" "P2" "package.json missing validate script" 3; inc P2; }
 

@@ -1,0 +1,180 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/Tamircohen28/tamirs-superpowers/core/capabilities/schema.json",
+  "title": "Platform capability registry",
+  "description": "Machine-readable statement of what each supported harness can actually do. Skills declare the capabilities they require and the ones they merely prefer; this registry is the only place that answers whether a given target provides them. Every platform must carry an explicit entry for every capability key — an omitted key is a schema error, not an implied 'no', so a gap can never be hidden by silence.",
+  "type": "object",
+  "required": ["schema_version", "capability_definitions", "platforms"],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": { "type": "integer", "const": 1 },
+    "last_reviewed": {
+      "type": "string",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$",
+      "description": "Date this registry was last checked against the platforms it describes."
+    },
+    "capability_definitions": {
+      "type": "object",
+      "description": "One entry per capability key, defining what the capability means. The key set here is the contract; platform entries must cover exactly it.",
+      "propertyNames": { "$ref": "#/$defs/capabilityKey" },
+      "minProperties": 19,
+      "additionalProperties": {
+        "type": "object",
+        "required": ["summary"],
+        "additionalProperties": false,
+        "properties": {
+          "summary": { "type": "string", "minLength": 1 },
+          "degradation": {
+            "type": "string",
+            "description": "What a skill should do when this capability is absent."
+          }
+        }
+      }
+    },
+    "platforms": {
+      "type": "object",
+      "description": "One entry per supported target, keyed by the same snake_case id used in docs/engineering/build-and-release/platform-targets.json.",
+      "minProperties": 1,
+      "propertyNames": { "type": "string", "pattern": "^[a-z][a-z0-9_]*$" },
+      "additionalProperties": { "$ref": "#/$defs/platform" }
+    }
+  },
+  "$defs": {
+    "capabilityKey": {
+      "type": "string",
+      "enum": [
+        "skills",
+        "skill_auto_invocation",
+        "subagents",
+        "parallel_subagents",
+        "agent_teams",
+        "hooks",
+        "mcp",
+        "statusline",
+        "shell",
+        "git",
+        "github_cli",
+        "background_tasks",
+        "worktree_isolation",
+        "plugin_marketplace",
+        "extension_install",
+        "slash_commands",
+        "ask_user_question",
+        "artifacts",
+        "session_transcripts"
+      ]
+    },
+    "status": {
+      "type": "string",
+      "description": "native = first-class platform feature. native-experimental = shipped but behind a flag or documented as unstable. partial = present with material limits, spelled out in notes. emulated = the framework builds it from lower-level primitives (usually shell + git). adapter = provided through a platform-specific translation layer rather than the canonical artifact. unsupported = verified absent; skills must degrade. unknown = not verified — treat as unsupported at runtime and never advertise it.",
+      "enum": [
+        "native",
+        "native-experimental",
+        "partial",
+        "emulated",
+        "adapter",
+        "unsupported",
+        "unknown"
+      ]
+    },
+    "capabilityEntry": {
+      "type": "object",
+      "required": ["status"],
+      "additionalProperties": false,
+      "properties": {
+        "status": { "$ref": "#/$defs/status" },
+        "since": {
+          "type": "string",
+          "description": "Version floor at which the capability became available on this platform.",
+          "pattern": "^[0-9]+\\.[0-9]+(\\.[0-9]+)?([-+][0-9A-Za-z.-]+)?$"
+        },
+        "validation": {
+          "type": "string",
+          "description": "Command that proves the status claim. Required for anything claimed as native or native-experimental — evidence over declarations.",
+          "minLength": 1
+        },
+        "fallback": {
+          "type": "string",
+          "description": "What the framework does instead when this capability is not available here."
+        },
+        "notes": { "type": "string" }
+      },
+      "allOf": [
+        {
+          "$comment": "A native claim without a validation command is a declaration, not evidence.",
+          "if": {
+            "properties": { "status": { "enum": ["native", "native-experimental"] } },
+            "required": ["status"]
+          },
+          "then": { "required": ["validation"] }
+        },
+        {
+          "$comment": "Anything short of native must say what happens instead.",
+          "if": {
+            "properties": {
+              "status": { "enum": ["partial", "emulated", "adapter", "unsupported", "unknown"] }
+            },
+            "required": ["status"]
+          },
+          "then": {
+            "anyOf": [{ "required": ["fallback"] }, { "required": ["notes"] }]
+          }
+        }
+      ]
+    },
+    "platform": {
+      "type": "object",
+      "required": ["display_name", "install", "validation", "capabilities"],
+      "additionalProperties": false,
+      "properties": {
+        "display_name": { "type": "string", "minLength": 1 },
+        "aliases": {
+          "type": "array",
+          "description": "Other spellings of this platform id that consumers may encounter (kebab-case, marketing names). Present so every consumer normalizes the same way instead of inventing its own mapping.",
+          "items": { "type": "string", "minLength": 1 },
+          "uniqueItems": true
+        },
+        "doc_urls": {
+          "type": "array",
+          "description": "Authoritative upstream documentation for this platform. Kept in sync with the doc_urls array in docs/engineering/build-and-release/platform-targets.json; consumers such as platform-sync should prefer this over their own bundled URL lists.",
+          "items": { "type": "string", "format": "uri" },
+          "uniqueItems": true
+        },
+        "runtime_surface_of": {
+          "type": "string",
+          "description": "Set when this target is a runtime surface of another adapter rather than a distinct distribution format (Claude Desktop consumes the Claude Code plugin)."
+        },
+        "install": {
+          "type": "object",
+          "required": ["type"],
+          "additionalProperties": false,
+          "properties": {
+            "type": {
+              "type": "string",
+              "enum": ["marketplace", "extension", "plugin-dir", "path", "symlink", "manual"]
+            },
+            "command": { "type": "string" },
+            "doc": { "type": "string", "description": "Repo-relative install guide." }
+          }
+        },
+        "validation": {
+          "type": "object",
+          "required": ["command"],
+          "additionalProperties": false,
+          "properties": {
+            "command": { "type": "string", "minLength": 1 },
+            "requires_cli": { "type": "boolean", "default": true }
+          }
+        },
+        "capabilities": {
+          "type": "object",
+          "description": "Every capability key must be present. Use status 'unknown' for anything unverified rather than omitting it.",
+          "minProperties": 19,
+          "maxProperties": 19,
+          "propertyNames": { "$ref": "#/$defs/capabilityKey" },
+          "additionalProperties": { "$ref": "#/$defs/capabilityEntry" }
+        }
+      }
+    }
+  }
+}

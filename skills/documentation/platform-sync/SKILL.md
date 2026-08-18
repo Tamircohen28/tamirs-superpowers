@@ -1,22 +1,21 @@
 ---
 name: platform-sync
 description: >-
-  Use when auditing any repo that uses Claude Code, OpenAI Codex CLI, Cursor, or OpenCode —
-  plugin repos, app repos, or hybrids. Detects target usage via manifests, CLAUDE.md,
-  AGENTS.md, .cursor/rules/, opencode.json, skills/, hooks/, and related signals; fetches
-  live docs per target;
-  identifies unused new features; synthesizes a numbered improvement plan. Synonyms: "sync my
-  plugin", "check against latest docs", "what features am I missing", "audit all platforms",
-  "/platform-sync".
+  Use when auditing any repo that uses Claude Code, OpenAI Codex CLI, Cursor, Gemini CLI, or
+  OpenCode — plugin repos, app repos, or hybrids. Detects target usage via manifests,
+  CLAUDE.md, AGENTS.md, GEMINI.md, .cursor/rules/, .gemini/, opencode.json, skills/, hooks/,
+  and related signals; fetches live docs per target; identifies unused new features;
+  synthesizes a numbered improvement plan. Synonyms: "sync my plugin", "check against latest
+  docs", "what features am I missing", "audit all platforms", "/platform-sync".
 when_to_use: |
   - User runs "/platform-sync"
-  - "check my repo against latest Claude Code / Codex / Cursor / OpenCode docs"
+  - "check my repo against latest Claude Code / Codex / Cursor / Gemini / OpenCode docs"
   - "what new features am I missing"
   - "sync my plugin with latest platform features"
-  - "audit all four platforms"
+  - "audit every platform this repo targets"
   - "platform-sync"
-  - App repo with CLAUDE.md, AGENTS.md, .cursor/rules/, or opencode.json — not only
-    plugin manifests
+  - App repo with CLAUDE.md, AGENTS.md, GEMINI.md, .cursor/rules/, .gemini/, or
+    opencode.json — not only plugin manifests
   - Triggered via systemMessage from plugin-version-watch Stop hook after 24h without a check
 argument-hint: "[repo path or omit for cwd]"
 arguments: []
@@ -25,6 +24,7 @@ user-invocable: true
 allowed-tools:
   - Read
   - Glob
+  - Grep
   - Skill
   - WebFetch
 disallowed-tools: []
@@ -36,129 +36,148 @@ hooks: {}
 paths: []
 shell: bash
 metadata:
+  tamirs:
+    visibility: public
+    category: documentation
+    role: research-agent
+    validation-tier: 0
+    updated-date: '2026-08-19'
+    capabilities:
+      required:
+        - skills
+      optional:
+        - parallel_subagents
+        - subagents
+        - slash_commands
+    tags:
+      - documentation
+      - platform
+      - audit
+      - planning
+      - claude-code
+      - codex
+      - cursor
+      - gemini
+      - opencode
   capability: documentation
   provider: developer-workflow
-  platforms:
-    - claude
-    - codex
-    - cursor
-    - opencode
-  tags:
-    - documentation
-    - claude-code
-    - codex
-    - cursor
-    - opencode
-    - platform
-    - audit
-    - planning
-  updated-date: '2026-08-03'
+  updated-date: '2026-08-19'
 ---
 
 # platform-sync
 
-You are a multi-platform improvement planner. Detect which AI coding assistant targets a repo
-**actually uses** (not only plugin manifests), fetch live docs for each via internal
-sub-skills, and synthesize a concrete numbered improvement plan.
+You are a multi-platform improvement planner, and you are the **only** orchestration engine
+in this family. Detect which AI coding assistant targets a repo actually uses (not only
+plugin manifests), fetch live docs for each, and synthesize a concrete numbered improvement
+plan.
 
-**Hard constraint:** Never guess what's new — every improvement step must cite a URL from the
-fetched documentation. If a sub-skill returns a fetch error, report it and skip that platform
-rather than guessing.
+**The platform list is data, never a list in these instructions.** It is resolved from the
+capability registry at run time. Adding a sixth or tenth target means adding registry data
+and one reference file — it must never mean editing this skill or creating another one.
 
-**Detection reference:** Read `$CLAUDE_SKILL_DIR/references/detection.md` before Step 1.
+**Hard constraint:** never guess what's new. Every improvement step cites a URL that was
+actually fetched. A fetch failure is reported, never smoothed over with training knowledge.
 
----
-
-## Step 1 — Detect targets
-
-Glob and read the repo root (or path passed as argument). For each platform, check **all**
-signals in `references/detection.md` — invoke a sub-skill when **any** signal matches.
-
-| Platform | Sub-skill when detected |
-|---|---|
-| Claude Code | `tamirs-superpowers:platform-sync-claude` |
-| Cursor | `tamirs-superpowers:platform-sync-cursor` |
-| Codex CLI | `tamirs-superpowers:platform-sync-codex` |
-| OpenCode | `tamirs-superpowers:platform-sync-opencode` |
-
-Record which signals triggered each platform (e.g. `CLAUDE.md + skills/`).
-
-**If no platform signals match:** output exactly:
-```
-No AI coding assistant usage detected in this repo.
-platform-sync looks for Claude Code (CLAUDE.md, .claude-plugin/, skills/, hooks/),
-Cursor (.cursor/rules/, .cursor-plugin/), Codex (AGENTS.md, .codex-plugin/), or
-OpenCode (opencode.json, .opencode/).
-Add agent config for at least one platform, then re-run /platform-sync.
-```
-Then stop.
+**Read before Step 1:**
+- `references/registry.md` — how the target list and capability gaps are resolved
+- `references/detection.md` — cross-target detection rules
+- `references/analysis-protocol.md` — the per-target analysis loop
 
 ---
 
-## Step 2 — Invoke per-platform analysis
+## Step 1 — Resolve the target list
 
-For each detected platform, invoke the corresponding internal skill via the Skill tool.
+Follow `references/registry.md`. Result: a set of target ids, each with a
+`references/platforms/<id>.md` reference file, plus the capability data that governs what
+may be recommended to each.
 
-Collect all outputs before synthesizing. Each sub-skill returns a structured section:
-```
-## [Platform] — vX.Y detected → vA.B latest
-**Signals:** [list paths that triggered detection]
-### Improvement Steps
-1. ...
-### Already Well-Used
-- ...
-```
+Report which registry source answered. If it was the fallback list, say so.
 
----
+## Step 2 — Detect which targets this repo uses
 
-## Step 3 — Synthesize Unified Improvement Plan
+Glob and read the repo root (or the path passed as an argument). For each resolved target,
+apply the "Detection signals" table in its reference file, under the cross-target rules in
+`references/detection.md`. Record the signals that triggered each target and their strength.
 
-Merge all platform outputs into a single prioritized plan. Sort by:
-1. **Critical** — breaking changes, deprecated patterns (must fix before next release)
-2. **Quick wins** — high-impact features requiring minimal config changes
-3. **Medium** — meaningful improvements with moderate effort
-4. **Low** — optional enhancements
+If nothing matches, emit the "No AI coding assistant usage detected" block from
+`references/detection.md` and stop.
+
+## Step 3 — Analyse each detected target
+
+Run `references/analysis-protocol.md` once per detected target, using that target's
+reference file as its data.
+
+**Parallelism is capability-gated.** Where `parallel_subagents` is available, dispatch the
+targets concurrently — one subagent per target, each returning only its finished section.
+Where it is not, run them sequentially in the same session. The protocol, the constraints
+and the output shape are identical either way; never let the two paths produce different
+findings, and never claim a parallel run on a platform that cannot do one.
+
+Collect every section before synthesizing.
+
+### Deprecated compatibility shims
+
+`platform-sync-claude`, `platform-sync-codex`, `platform-sync-cursor` and
+`platform-sync-opencode` still exist as thin shims so anything that invokes them by name
+keeps working. **This skill does not call them** — it runs the protocol directly. Do not
+invoke them; they only delegate back here.
+
+## Step 4 — Synthesize the unified improvement plan
+
+Merge every target's section into one prioritized plan, sorted by:
+
+1. **Critical** — breaking changes, deprecated patterns, silent capability loss between targets
+2. **Quick wins** — high impact, minimal config change
+3. **Medium** — meaningful, moderate effort
+4. **Low** — optional
+
+Merge duplicates: one step that applies to three targets is one step tagged with all three,
+never three steps.
 
 ### Output format
 
 ```
 # Platform Sync — Improvement Plan
-**Repo:** [path]
-**Platforms analyzed:** [Claude Code | Codex | Cursor | OpenCode] (only those detected)
-**Detection signals:** [per-platform path list]
-**Date:** [today's date]
+**Repo:** <path>
+**Registry source:** <core/capabilities/platforms.json | platform-targets.json | fallback>
+**Targets resolved:** <all ids>  **Detected:** <ids with signals>
+**Date:** <today>
 
 ---
 
-## Improvement Steps
+## Improvement steps
 
-### 1. [Step title] [Claude Code]
-**Why:** one sentence on the benefit or risk
-**Effort:** low / medium / high
+### 1. <Step title> [<Platform>]
+**Why:** one sentence — the benefit or the risk
+**Effort:** low | medium | high
 **Change:**
-```lang
-[concrete config or code snippet]
+```<lang>
+<concrete config or code snippet>
 ```
-**Source:** [URL]
-
-### 2. ...
+**Source:** <fetched URL>
 
 ---
 
-## Already Well-Used
-- [feature]: correctly implemented ✓  ([Platform])
+## Already well-used
+- <feature>: correctly implemented ✓ (<Platform>)
 
----
+## Documented gaps (not improvements)
+- <capability> on <Platform>: unsupported | unverified — <registry fallback>
 
-## Summary Table
+## Fetch errors
+- <Platform>: <url> — <error>   (omit the section when there were none)
+
+## Summary table
 | # | Platform | Feature | Effort |
 |---|---|---|---|
-| 1 | Claude Code | [feature name] | low |
 ```
 
 ### Rules
-- Every step must include a concrete snippet — no vague "consider using X"
-- Platform tags in step headers: [Claude Code], [Codex], [Cursor], [OpenCode]
-- If a platform has no improvements: include a line "No improvements found for [Platform] — config is current."
-- If a sub-skill fails with a fetch error: report it under a "## Fetch Errors" section at the end
-- Do not duplicate steps that apply to multiple platforms — merge and tag both
+
+- Every step includes a concrete snippet. "Consider using X" is not a step.
+- Tag steps with the target display names; merge cross-target steps rather than repeating.
+- A target with no findings still gets a line: "No improvements found for <Platform> — config is current."
+- Never propose a capability the registry marks `unsupported` or `unknown` — those go under
+  "Documented gaps", labelled honestly as unsupported or unverified.
+- Never emit a separate section for a runtime surface (Claude Desktop rides on Claude Code).
+- Report every fetch error. A partial audit stated plainly beats a complete-looking guess.
