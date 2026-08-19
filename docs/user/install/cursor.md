@@ -50,6 +50,37 @@ your repo — delete them separately if you added them by hand.
 
 ---
 
+## Machine-level setup
+
+The plugin install covers this repo. Global rules in `~/.cursor` are a separate, optional
+step:
+
+```bash
+bash scripts/setup.sh plan  --targets cursor    # writes nothing
+bash scripts/setup.sh apply --targets cursor
+bash scripts/setup.sh remove --targets cursor
+```
+
+| Module | Writes | What it does |
+|---|---|---|
+| `rules` | `~/.cursor/rules/tamirs-superpowers.mdc` | Renders `core/global-rules.md` as a global Cursor rule |
+| `cli-config` | `~/.cursor/cli-config.json` | Merges one conservative `permissions.allow` fragment |
+
+The allow fragment is read-only shell inspection (`ls`, `git status`, `git log`, `git diff`)
+plus the three GitHub domains the shipped skills fetch. It is deliberately **not** a
+mechanical translation of the Claude allow-list: Cursor's `Shell()`/`Read()`/`Write()`/
+`WebFetch()`/`Mcp()` syntax does not map one-to-one onto Claude's `Bash()` patterns, and a
+guessed translation would be a security claim this repo cannot back.
+
+Not touched, on purpose: **`permissions.deny`** — in Cursor deny beats allow, so an
+installer able to widen it could lock you out of your own tool — and `~/.cursor/hooks.json`,
+which no module reads or writes, so hook wiring written by other tools survives.
+
+`plan` writes nothing and is the default when there is no terminal, so a hook or CI run can
+never adopt anything silently. `apply` shows a diff and asks per change, defaulting to
+**No**. Re-running is a no-op — idempotence is a content comparison. Full reference:
+[setup](../setup.md) · [platform setup](../platform-setup.md).
+
 ## Capabilities and limitations
 
 | Capability | Status | Notes |

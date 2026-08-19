@@ -1,19 +1,18 @@
 ---
 name: field-notebook-ui
 description: >
-  Use when the user asks to build a UI, interactive explainer, dashboard, visualizer,
-  diagram, reference tool, or any artifact that needs a consistent visual design system
-  in the "engineer's field-notebook" aesthetic. Trigger on: "build a UI for", "create an
-  interactive", "make a visualizer", "generate an artifact", "design a component",
-  "create a dashboard", "make an explainer", or any request to produce a React/HTML
-  artifact with content to display. Also trigger when the user says "make it look like
-  the field-notebook style" or references the warm stone-paper aesthetic.
+  Use when a UI, explainer, dashboard, or diagram should carry this repo's engineer's
+  field-notebook look — warm stone-paper background, hand-annotated margins, monospace
+  labels, graph-paper grid. Trigger on: "field-notebook style", "warm stone-paper
+  aesthetic", "the usual notebook look", "make it look like the field notebook", or when
+  the user is building a second artifact that must visually match one already produced in
+  this style. For a generic UI or artifact with no stated aesthetic, use the harness
+  design skills instead.
 when_to_use: >
-  User says: "build a UI for X", "create an interactive explainer", "make a visualizer",
-  "generate a React artifact", "design a dashboard", "create a reference tool",
-  "make it look like the field-notebook style", "use the warm stone-paper aesthetic",
-  or asks for any interactive component that should share a coherent design language
-  without re-specifying the token system each time.
+  User names the aesthetic — "make it look like the field-notebook style", "use the warm
+  stone-paper aesthetic", "the usual notebook look" — or asks for an artifact that must
+  share a design language with one already built in this style, without re-specifying the
+  token system each time. Not for a generic "build me a UI" with no stated look.
 argument-hint: '[what to build — e.g. "k8s glossary", "helm explainer", "auth flow diagram"]'
 arguments: []
 disable-model-invocation: false

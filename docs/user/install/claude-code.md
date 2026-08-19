@@ -90,6 +90,45 @@ yours to remove separately.
 
 ---
 
+## Machine-level setup
+
+Installing the plugin does not write any config. Rendering this repo's canonical
+configuration into `~/.claude` is a separate, optional step:
+
+```bash
+git clone https://github.com/Tamircohen28/tamirs-superpowers.git
+cd tamirs-superpowers
+bash scripts/setup.sh plan  --targets claude    # writes nothing
+bash scripts/setup.sh apply --targets claude    # diff → confirm → write
+bash scripts/setup.sh remove --targets claude   # undo, from a fixed-name backup
+```
+
+Eight modules, each skippable and each shown as a diff first:
+
+| Module | Writes | What it does |
+|---|---|---|
+| `settings` | `~/.claude/settings.json` | Deep-merges every fragment in `platforms/claude/settings.d/` — permissions `allow`/`ask`/`defaultMode`, model, effort level, theme, auto-mode policy, marketplaces, env |
+| `plugins` | `~/.claude/settings.json` | `enabledPlugins`, per key, `false` included |
+| `statusline` | `~/.claude/settings.json` | Wires `statusLine` to a version-agnostic command that survives updates |
+| `agents` | `~/.claude/agents/` | Copies the specialist subagent definitions |
+| `claude-md` | `~/.claude/CLAUDE.md` | Renders `core/global-rules.md`. Not mergeable, so it asks overwrite / backup-and-write / skip |
+| `notifications-creds` | `~/.claude/pushover.env` | Mode 600; needs `PUSHOVER_TOKEN` and `PUSHOVER_USER` in the environment |
+| `notifications-hook` | `~/.claude/settings.json` | One `Notification` hook; other Notification hooks are left alone |
+| `exit-guard` | `~/.claude/ensure-exit.sh` | Proxy exit-node guard; needs `CLAUDE_EXIT_PROXY` and `CLAUDE_EXIT_PUBLIC_IP` |
+
+> **`apply` will disable plugins the canonical set records as off** — 15 of the 23 it
+> tracks. That is intended, and the plan prints the exact count before writing. Read
+> [setup](../setup.md#applying-will-switch-some-plugins-off) first.
+
+`make install` is now a thin shim over `setup.sh apply --yes --targets claude`. Third-party
+keys survive: objects merge key by key, and `~/.claude/settings.local.json` is never read or
+written.
+
+`plan` writes nothing and is the default when there is no terminal, so a hook or CI run can
+never adopt anything silently. `apply` shows a diff and asks per change, defaulting to
+**No**. Re-running is a no-op — idempotence is a content comparison. Full reference:
+[setup](../setup.md) · [platform setup](../platform-setup.md).
+
 ## Capabilities and limitations
 
 | Capability | Status | Notes |

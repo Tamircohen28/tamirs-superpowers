@@ -1,4 +1,4 @@
-.PHONY: help install update uninstall validate lint test plugin-validate test-repo-contract \
+.PHONY: help setup setup-plan capture install update uninstall validate lint test plugin-validate test-repo-contract \
 	check-manifest-versions check-platform-equivalence check-agent-drift \
 	check-feature-equivalence check-platform-targets platform-targets-sync \
 	platform-targets-assert platform-targets-cochange agent\:check agent-polish-gate \
@@ -13,6 +13,9 @@ CONTRACT_DIR := skills/repo/_contract
 
 help:
 	@echo "Available targets:"
+	@echo "  setup                   — render repo config onto this machine (detect, diff, confirm)"
+	@echo "  setup-plan              — show what setup would change; writes nothing"
+	@echo "  capture                 — the inverse: review this machine's hand-edits back into the repo"
 	@echo "  install                 — bootstrap ~/.claude/settings.json and specialist agents"
 	@echo "  update                  — refresh plugin + agents"
 	@echo "  uninstall               — remove installed agents and uninstall plugin when possible"
@@ -41,6 +44,17 @@ help:
 	@echo "  gemini-extension        — regenerate the Gemini extension mirror"
 	@echo "  bootstrap-dev           — contributor toolchain setup"
 	@echo "  test                    — alias for validate"
+
+setup:
+	@bash scripts/setup.sh apply
+
+setup-plan:
+	@bash scripts/setup.sh plan
+
+# The inverse direction. `review` shows the classified change set, then asks
+# about each offerable hunk; with no terminal it prints and adopts nothing.
+capture:
+	@bash scripts/capture-config.sh review
 
 install:
 	@bash scripts/install.sh

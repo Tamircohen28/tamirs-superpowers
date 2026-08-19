@@ -1,0 +1,16 @@
+{
+  "_comment": "Fragment deep-merged into ~/.cursor/cli-config.json by scripts/lib/setup-cursor.sh. Keys beginning with _ are stripped before the merge. permissions.allow merges as a UNION, so entries Cursor or the user added stay; deny is never written, because deny takes precedence over allow in Cursor and an installer that can widen a deny list can lock a user out of their own tool.",
+  "_why_this_list": "Deliberately conservative: read-only shell inspection plus the GitHub domains the shipped skills fetch. Nothing here can write, delete, push, or authenticate. The Claude allow-list in platforms/claude/settings.d/permissions-allow.json is NOT translated across — Cursor's token syntax is Shell()/Read()/Write()/WebFetch()/Mcp() and a mechanical rewrite of Bash() patterns would grant more than it looks like it grants.",
+  "_not_asserted": "version, model, sandbox, approvalMode, editor and every auth/cache key are the user's own or Cursor's own. This installer states an opinion about permissions and nothing else.",
+  "permissions": {
+    "allow": [
+      "Shell(ls)",
+      "Shell(git status)",
+      "Shell(git log)",
+      "Shell(git diff)",
+      "WebFetch(github.com)",
+      "WebFetch(raw.githubusercontent.com)",
+      "WebFetch(api.github.com)"
+    ]
+  }
+}

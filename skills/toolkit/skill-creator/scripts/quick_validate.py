@@ -7,7 +7,7 @@ core/schemas/skill-frontmatter.json. This file deliberately contains NO field li
 own: a second copy of the contract is a second source of truth, and the two would drift.
 
 Usage:
-  python3 quick_validate.py <skill_directory> [--require-tamirs] [--profile PROFILE]
+  python3 quick_validate.py <skill_directory> [--require-tamirs]
 """
 
 from __future__ import annotations
@@ -63,22 +63,14 @@ def validate_skill(skill_path: str, extra_args: list[str] | None = None) -> tupl
 if __name__ == "__main__":
     args = sys.argv[1:]
     if not args:
-        print("Usage: python3 quick_validate.py <skill_directory> [--require-tamirs] [--profile PROFILE]")
+        print("Usage: python3 quick_validate.py <skill_directory> [--require-tamirs]")
         sys.exit(1)
 
     positional = [a for a in args if not a.startswith("-")]
     passthrough = [a for a in args if a.startswith("-")]
-    # --profile takes a value; keep it adjacent to its flag.
-    if "--profile" in args:
-        i = args.index("--profile")
-        if i + 1 < len(args) and args[i + 1] in ("portable", "claude-strict"):
-            value = args[i + 1]
-            if value in positional:
-                positional.remove(value)
-            passthrough.append(value)
 
     if len(positional) != 1:
-        print("Usage: python3 quick_validate.py <skill_directory> [--require-tamirs] [--profile PROFILE]")
+        print("Usage: python3 quick_validate.py <skill_directory> [--require-tamirs]")
         sys.exit(1)
 
     valid, message = validate_skill(positional[0], passthrough)

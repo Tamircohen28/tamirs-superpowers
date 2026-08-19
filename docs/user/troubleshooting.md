@@ -50,6 +50,98 @@ jq -r .version plugin-version.json
 Every hook and check script parses JSON with `jq`. Install it — `brew install jq` — and
 restart the session.
 
+## Setup and machine config
+
+### `setup` printed a plan and exited without asking me anything
+
+There was no terminal to prompt on. `setup.sh` reads prompts from `/dev/tty` and **never
+from stdin** — stdin belongs to the caller, and a hook pipes JSON on it — so when it cannot
+open a terminal it prints the plan, says so, and exits **0**:
+
+```console
+note: no TTY — cannot prompt. Showing the plan instead; re-run with --yes to apply.
+```
+
+That is success, not failure. It never adopts silently. To write without a terminal — a
+dotfiles bootstrap, a CI job — pass `--yes` explicitly:
+
+```bash
+bash scripts/setup.sh apply --yes --targets claude
+SETUP_DESTRUCTIVE=skip bash scripts/setup.sh apply --yes   # never touch a customised file
+```
+
+`--yes` takes the *default* action for every change, and for a file that cannot be merged
+the default is backup-and-write, the choice that cannot lose data.
+
+### `apply` turned off plugins I was using
+
+Intended, and announced before it happened. The canonical set records 15 plugins as
+deliberately disabled; on a machine where they were on, `apply` turns them off. The previous
+canonical set was all-on and would have re-enabled plugins you had switched off on purpose,
+which is the failure this fixes.
+
+To see the list before agreeing, `make setup-plan` and read the `enabledPlugins` diff. To
+keep one on afterwards, re-enable it in Claude Code — but note the next `apply` will assert
+the recorded value again. The durable fix is to change `platforms/claude/settings.d/plugins.json`
+in the repo (`scripts/capture-config.sh` proposes exactly that from your machine's state).
+Plugins the repo says nothing about are never touched.
+
+### A platform I have was detected but skipped
+
+Read the reason in the plan line; `setup` reports why rather than failing silently. The
+usual ones:
+
+- **`no PUSHOVER_TOKEN/PUSHOVER_USER in env`** — an optional module whose prerequisites are
+  absent. Run `/notify-setup`, or ignore it.
+- **`--only` or `--targets` filtered it out.** `--targets` is a *filter over detection*, not
+  a menu — but naming a target explicitly also plans it even if the platform is not
+  installed yet, which is how a fresh machine gets bootstrapped.
+- **A module has nothing to do.** `already up to date` means the content comparison found
+  the file identical; nothing is written and nothing is wrong.
+
+Run with `--verbose` for the full decision trace, or `--json` for the plan as data.
+
+### I want my old config back
+
+Every file `setup` modifies is copied first to a **fixed name** that is never overwritten:
+
+```bash
+ls ~/.claude/settings.json.pre-tamirs-superpowers
+```
+
+`bash scripts/setup.sh remove` restores from that copy — and rotates a dated copy of the
+current file first, so undoing is itself undoable. Later runs that need another copy rotate
+to `<file>.pre-tamirs-superpowers-<UTC>`. `remove` strips only the marker blocks and the
+values that are still what setup wrote; anything you have since changed is yours and stays.
+`~/.claude/pushover.env` is deliberately never deleted — delete it by hand to purge.
+
+One honest limitation on the other four platforms: an array entry that was in **both** your
+config and our fragment is removed on `remove`, because the merge leaves no record of who
+put it there first. The `.pre-tamirs-superpowers` backup is the recovery path.
+
+### My Codex hooks are not managed by setup
+
+Correct, and deliberate. `~/.codex/config.toml` stores a per-hook `trusted_hash` under
+`[hooks.state."..."]`, and Codex invalidates that trust whenever the hook's content or path
+changes — re-trusting is a user action. Rewriting, reordering, or even reindenting that
+table would silently break wiring this installer does not own, so **the Codex renderer never
+reads or writes hook entries**. Its block sits at the end of the file and contains comments
+only. Codex loads `~/.codex/AGENTS.md` on its own, so no config key is needed to enable the
+rules. Manage Codex hooks with whatever wrote them.
+
+### A hand edit I made to `~/.claude/settings.json` disappeared
+
+That file is rendered from `platforms/claude/settings.d/`, so a hand edit to a key the repo
+owns is overwritten on the next `apply`. Two correct homes for an edit:
+
+- **`~/.claude/settings.local.json`** for something true only on this machine. Setup never
+  reads or writes it and Claude Code merges it on top.
+- **The fragment in the repo** for something you want on every machine and platform.
+  [capture](capture.md) diffs your machine against what the repo would render and classifies
+  each difference; `review` stages the ones you adopt into the canonical source; `deliver`
+  opens a PR. It never commits silently, refuses token-shaped values outright, and
+  reclassifies absolute home paths (`/Users/you/...`) as machine-local.
+
 ## Workflow
 
 ### A worker did not open a PR
@@ -137,6 +229,7 @@ rather than an error, so the breakage is silent.
 ## Still stuck
 
 - [Configuration](configuration.md) — what each feature needs to be turned on
+- [Setup](setup.md) · [Platform setup](platform-setup.md) · [Capture](capture.md) — the machine-config engine, both directions
 - [Platform differences](platform-differences.md) — what your platform can actually do
 - [Engineering docs](../engineering/README.md) — how the pieces fit together
 - [Open an issue](https://github.com/Tamircohen28/tamirs-superpowers/issues)

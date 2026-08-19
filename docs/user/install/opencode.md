@@ -226,6 +226,32 @@ rm -rf ~/src/tamirs-superpowers
 
 Then restart OpenCode and confirm with `opencode debug skill`.
 
+## Machine-level setup
+
+`skills.paths` makes the skills discoverable. Global rules in `~/.config/opencode` are a
+separate, optional step:
+
+```bash
+bash scripts/setup.sh plan  --targets opencode  # writes nothing
+bash scripts/setup.sh apply --targets opencode
+bash scripts/setup.sh remove --targets opencode
+```
+
+| Module | Writes | What it does |
+|---|---|---|
+| `agents-md` | `~/.config/opencode/AGENTS.md` | Renders `core/global-rules.md` inside `>>> tamirs-superpowers >>>` markers |
+| `config` | `~/.config/opencode/opencode.json` | Asserts `$schema` and nothing else |
+
+OpenCode loads `~/.config/opencode/AGENTS.md` with no config key, so `$schema` — which only
+makes your editor validate the file — is all the fragment needs to assert. `plugin`, `mcp`
+and `permission` are untouched. Config is read once at startup, so restart OpenCode after
+an `apply`.
+
+`plan` writes nothing and is the default when there is no terminal, so a hook or CI run can
+never adopt anything silently. `apply` shows a diff and asks per change, defaulting to
+**No**. Re-running is a no-op — idempotence is a content comparison. Full reference:
+[setup](../setup.md) · [platform setup](../platform-setup.md).
+
 ## Capability support
 
 Status vocabulary matches [`core/capabilities/platforms.json`](../../../core/capabilities/platforms.json),

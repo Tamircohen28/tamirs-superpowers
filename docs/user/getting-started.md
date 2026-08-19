@@ -18,7 +18,7 @@ Install, verify, and run your first objective. Budget five minutes.
 There is no build step, no `package.json`, and no runtime to install. The toolkit is
 Markdown, JSON, and bash.
 
-## 2. Install
+## 2. Install the plugin
 
 Follow the guide for your platform — each one covers install, verify, update, and uninstall:
 
@@ -29,12 +29,62 @@ Follow the guide for your platform — each one covers install, verify, update, 
 - [Gemini CLI](install/gemini.md) — two commands: the extension, then the skills mirror
 - [OpenCode](install/opencode.md)
 
-> **Not the same thing as contributing.** `make install` bootstraps a Claude *machine*
-> profile for this repo's maintainer workflow. It is not how you install the plugin, and you
-> should not run it to become a user. Contributor setup lives in
-> [docs/CONTRIBUTING.md](../CONTRIBUTING.md).
+That makes the skills available *inside* that platform. It does not touch your machine's
+global config — that is the next step, and it is separate on purpose.
 
-## 3. Verify
+## 3. Set up your machine (optional)
+
+Installing the plugin does not write any config. `setup` is what renders this repo's
+canonical configuration — global rules, the Claude permissions policy, agent definitions,
+the statusline — into the config directory each agent CLI actually reads: `~/.claude`,
+`~/.codex`, `~/.cursor`, `~/.gemini`, `~/.config/opencode`.
+
+The first-run path is four steps, and the first two write nothing:
+
+```bash
+git clone https://github.com/Tamircohen28/tamirs-superpowers.git
+cd tamirs-superpowers
+
+make setup-plan          # 1. detect targets, print every change. Writes nothing, ever.
+make setup               # 2. + 3. diff each change, ask, then write the ones you accept
+bash scripts/doctor.sh . # 4. confirm the result
+```
+
+**1 — plan.** Detection replaces selection: you are never asked which platforms you have.
+A target counts as present if its binary is on `PATH` or its config directory exists. The
+plan names every file it would touch and why, and exits 0.
+
+**2 — review.** `apply` shows a unified diff of each change *before* asking
+`Proceed? [y/N/a/q]`, and the default is **No**. `a` accepts everything remaining, `q`
+stops. Read the diff for `enabledPlugins` in particular — see the warning below.
+
+**3 — apply.** Only what you accepted is written. The original of every file touched is
+copied to `<file>.pre-tamirs-superpowers` first, and `bash scripts/setup.sh remove` restores
+from exactly that copy. Running `apply` a second time reports `already up to date` and
+writes nothing: idempotence is a content comparison, not a state file.
+
+**4 — verify.** `bash scripts/doctor.sh .`, then open a session on any platform and check
+that the global rules are in effect.
+
+> **The one surprise worth knowing before step 3.** The canonical set records 15 plugins as
+> deliberately **disabled**. On a machine where those are currently on, `apply` turns them
+> off — intended, because the previous canonical set was all-on and would have re-enabled
+> plugins that were switched off on purpose. The plan says so with the exact count before
+> anything is written. Details: [setup](setup.md#applying-will-switch-some-plugins-off).
+
+Useful variants:
+
+```bash
+bash scripts/setup.sh apply --targets claude   # one platform
+bash scripts/setup.sh plan --json              # machine-readable plan
+bash scripts/setup.sh remove                   # undo, scoped to what setup wrote
+```
+
+Full reference: [setup](setup.md) for the engine and the Claude modules,
+[platform setup](platform-setup.md) for what each of the other four gets and what is
+deliberately left alone.
+
+## 4. Verify
 
 From a clone (or the installed plugin directory):
 
@@ -57,7 +107,7 @@ If your platform does not expose slash commands (see
 [platform differences](platform-differences.md)), ask for the skill by name instead:
 *"use the orchestrate-dev skill"*.
 
-## 4. Your first objective
+## 5. Your first objective
 
 Start small — one coherent change:
 
@@ -82,7 +132,7 @@ You should see, before any code is written:
 Then workers run, each ending at commit + handoff; the branches merge onto
 `objective/<slug>`; the combined diff is reviewed; and **one** PR opens.
 
-## 5. What to read next
+## 6. What to read next
 
 | If you want to | Read |
 |---|---|
@@ -91,6 +141,7 @@ Then workers run, each ending at commit + handoff; the branches merge onto
 | Know what each skill does | [Skills](skills.md) |
 | Know what your platform actually supports | [Platform differences](platform-differences.md) |
 | Turn features on or off | [Configuration](configuration.md) |
+| Manage machine-level config across all five CLIs | [Setup](setup.md) · [Platform setup](platform-setup.md) |
 | Fix something | [Troubleshooting](troubleshooting.md) |
 
 ## Common first-run surprises

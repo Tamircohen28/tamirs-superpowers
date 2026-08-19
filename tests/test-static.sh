@@ -68,7 +68,11 @@ scan_i() { portable_xargs0 "${2:-$FILES0}" grep -nIiE "$1" 2>/dev/null || true; 
 # different pattern proves nothing.
 SECRET_RE='(ghp_|github_pat_|gho_|ghs_)[A-Za-z0-9_]{16,}|sk-[A-Za-z0-9]{32,}|AKIA[0-9A-Z]{16}|-----BEGIN [A-Z ]*PRIVATE KEY-----'
 HOMEPATH_RE='/(Users|home)/[A-Za-z0-9._-]+'
-EMPLOYER_RE='\b(wix\.com|wixpress|\.wixprod|gas[ -]?town|gas[ -]?city|cmux)\b'
+EMPLOYER_RE='\b(wix\.com|wixpress|\.wixprod)\b'
+# Foreign orchestrators: REFACTOR-SPEC 2.1 forbids requiring them, not naming
+# them. Prose in docs/ may name one to explain that its wiring is preserved;
+# an executable, manifest or skill naming one is a dependency and is refused.
+ORCHESTRATOR_RE='\b(gas[ -]?town|gas[ -]?city|warp[/ ]?oz|cmux)\b'
 PLACEHOLDERS='/Users/(you|username|your-name|<you>|\$USER|\$\{USER\})'
 
 judge "the shipped file set is non-empty" yes \
@@ -84,19 +88,21 @@ section "harness self-test (a scanner that cannot fail proves nothing)"
 CTRL="$(harness_tmpdir)"
 printf 'token = ghp_%s\n' "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAA" > "$CTRL/secret.txt"
 printf 'path = /Users/somerealname/src/thing\n'             > "$CTRL/homepath.txt"
-printf 'see the gas town runbook\n'                         > "$CTRL/employer.txt"
+printf 'see the wixpress runbook\n'                         > "$CTRL/employer.txt"
+printf 'requires the gas town formula\n'                    > "$CTRL/orchestrator.txt"
 CTRL0="$CTRL/list.z"
-printf '%s\0%s\0%s\0' "$CTRL/secret.txt" "$CTRL/homepath.txt" "$CTRL/employer.txt" > "$CTRL0"
+printf '%s\0%s\0%s\0%s\0' "$CTRL/secret.txt" "$CTRL/homepath.txt" "$CTRL/employer.txt" "$CTRL/orchestrator.txt" > "$CTRL0"
 
 judge "the secret scanner fires on a planted token"       1 "$(scan   "$SECRET_RE"   "$CTRL0" | grep -c .)"
 judge "the home-path scanner fires on a planted path"     1 "$(scan   "$HOMEPATH_RE" "$CTRL0" | grep -c .)"
 judge "the employer scanner fires on a planted reference" 1 "$(scan_i "$EMPLOYER_RE" "$CTRL0" | grep -c .)"
+judge "the orchestrator scanner fires on a planted dependency" 1 "$(scan_i "$ORCHESTRATOR_RE" "$CTRL0" | grep -c .)"
 judge "a real home directory survives the placeholder filter" yes \
   "$(if scan "$HOMEPATH_RE" "$CTRL0" | grep -qvE "$PLACEHOLDERS"; then echo yes; else echo no; fi)"
 
 # portable_xargs0 is the shim all three depend on. The bug it replaced was a total
 # no-op, so assert it reads the list at all.
-judge "portable_xargs0 reads a NUL-separated list" 3 \
+judge "portable_xargs0 reads a NUL-separated list" 4 \
   "$(portable_xargs0 "$CTRL0" printf '%s\n' | grep -c .)"
 
 # The watchdog is hand-rolled on this machine — neither timeout nor gtimeout is
@@ -253,7 +259,24 @@ while IFS= read -r hit; do
   emp="$emp
     $hit"
 done < <(scan_i "$EMPLOYER_RE" | strip_noise | grep -vE '^(tests/|session-files/)' || true)
-judge "no employer-internal or foreign-orchestrator reference is shipped" "" "$emp"
+judge "no employer-internal reference is shipped" "" "$emp"
+
+# A foreign orchestrator named in an executable, a manifest or a skill is a
+# dependency. Named in docs/ prose it is documentation — and refusing that would
+# force the docs to hide which third-party wiring this repo preserves.
+orch=""
+while IFS= read -r hit; do
+  [ -n "$hit" ] || continue
+  orch="$orch
+    $hit"
+# `_`-prefixed keys are the repo-side documentation convention: they are stripped
+# at the render boundary and never reach a user's config file, so naming a tool
+# there is documentation, exactly like docs/ prose. Dropping the exemption would
+# force the data to hide which third-party wiring it preserves.
+done < <(scan_i "$ORCHESTRATOR_RE" | strip_noise \
+          | grep -vE '^(tests/|session-files/|docs/|CHANGELOG\.md)' \
+          | grep -vE ':[0-9]+:[[:space:]]*"_[A-Za-z0-9_]*"[[:space:]]*:' || true)
+judge "no foreign-orchestrator dependency is shipped" "" "$orch"
 
 # ---------------------------------------------------------------------------
 section "broken internal links"

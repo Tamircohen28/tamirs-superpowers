@@ -74,6 +74,29 @@ These are true of *this* repository and are not in `core/`:
 - Never hand-write a `SKILL.md` — use the `skill-creator` skill.
 - No install step for plugin **content**; `make install` only bootstraps machine settings and agents.
 
+## Surface skills at the moment they apply
+
+When a situation arises that a bundled skill covers, **either invoke the skill or tell the
+user in one line that it exists** — do not silently hand-roll the work. One suggestion per
+situation per session; never repeat a declined suggestion.
+
+| Situation | Skill |
+|---|---|
+| The user asks what something cost, how many tokens it used, or why a session got expensive | `session-report` |
+| A stack trace, traceback, panic or crash log is pasted, or a `file:line` is named | `targeted-debug` |
+| "am I up to date", "what new features am I missing", "latest docs" — or a `*-plugin/plugin.json` or `CHANGELOG.md` is being bumped | `platform-sync` |
+| A rate limit is hit, or an objective is still open and the session is ending | `switch-dev` |
+| You are about to hand-write a capability a public skill or plugin plausibly already provides | `find-skill` |
+| The session had repeated failures on the same thing, or the user corrected you several times | `retro` |
+
+**Why the rule and not just good trigger descriptions:** `skill_auto_invocation` in
+[`core/capabilities/platforms.json`](core/capabilities/platforms.json) is `partial` on Cursor
+and `unknown` on Codex, Gemini CLI and OpenCode. Description-based auto-triggering only fires
+reliably on Claude Code and Claude Desktop, and the `UserPromptSubmit` hook that reinforces it
+(`hooks/skill-suggest.sh`) is unsupported on OpenCode. This rule is the only surfacing
+mechanism that works on all five targets, which is why it is written down rather than left to
+the matcher.
+
 ## Key paths
 
 | Path | Purpose |

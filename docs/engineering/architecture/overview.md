@@ -27,12 +27,12 @@ tamirs-superpowers/
 │   ├── providers/               ← provider selection
 │   ├── schemas/                 ← skill frontmatter schema
 │   └── workflow/                ← objective / task / handoff JSON schemas
-├── skills/<domain>/<name>/SKILL.md   ← 30 skills, consumed directly by every platform
+├── skills/<domain>/<name>/SKILL.md   ← the canonical skills, read directly by every platform
 ├── agents/                      ← ten agent definitions, each declaring a role:
 ├── rules/                       ← canonical project rules
-├── platforms/                   ← per-platform adapter.yaml descriptors
+├── platforms/                   ← adapter.yaml + setup.conf + config fragments per platform
 ├── hooks/                       ← Claude-shaped lifecycle hooks (+ shared bash lib)
-├── scripts/                     ← doctor, drift checks, generators, statusline
+├── scripts/                     ← setup, capture, doctor, drift checks, generators, statusline
 ├── tests/                       ← behavior tests for hooks and adapters
 └── per-platform manifests       ← .claude-plugin/, .cursor-plugin/, .codex-plugin/,
                                     .agents/plugins/, gemini-extension.json, opencode.json
@@ -41,7 +41,7 @@ tamirs-superpowers/
 The direction of dependency only ever points inward: adapters read `core/`, never the
 reverse.
 
-## The five subsystems
+## The six subsystems
 
 ### 1. Capability registry
 
@@ -64,8 +64,7 @@ branch name or path.
 
 Portable three-tier frontmatter: a required portable core (`name`, `description`), the
 `metadata.tamirs` framework block, and optional Claude-specific extensions validated only
-when present. The old "all 16 Claude fields, always" requirement is retired; nothing
-regresses, because `--profile claude-strict` still enforces it for skills that carry them.
+when present. The old "all 16 Claude fields, always" requirement is retired.
 Details: [skill-schema.md](skill-schema.md).
 
 ### 4. Orchestration
@@ -84,6 +83,48 @@ platform actually resolves. Generated artifacts (`.opencode/agent/`, `.cursor/ru
 have a generator and a drift check; hand-editing them is a bug.
 Details: [adapter-contract.md](adapter-contract.md),
 [adding-a-platform.md](adding-a-platform.md).
+
+### 6. Machine configuration — render out, capture back
+
+The first five subsystems describe what ships. This one describes how a **machine** gets
+configured from it, and it runs in both directions:
+
+```text
+canonical source                renderer                          machine
+────────────────                ────────                          ───────
+core/global-rules.md      ┐            scripts/lib/setup-claude.sh    ~/.claude/
+platforms/claude/settings.d/ ├─ scripts/setup.sh ─ setup-codex.sh     ~/.codex/
+platforms/<t>/templates/  ┘   plan │ apply │ remove   setup-cursor.sh   ~/.cursor/
+agents/                                              setup-gemini.sh   ~/.gemini/
+                                                     setup-opencode.sh ~/.config/opencode/
+
+                          ◄── scripts/capture-config.sh ──
+                              detect │ review │ deliver  (classified, IP-scanned, PR)
+```
+
+**Render (`scripts/setup.sh`).** One engine, a registry of one `platforms/<t>/setup.conf`
+per target, and a set of renderers in `scripts/lib/`. A module is a **pure renderer**: given
+the file as it exists, it prints the file as it should exist. The engine owns everything
+else — detection, content comparison, diffing, prompting, backing up, writing, and `remove`
+symmetry — which is why idempotence is a property of the engine rather than a promise each
+module has to keep. Prompts are read from `/dev/tty`; stdin is never read, so the script is
+safe inside a hook. Objects deep-merge so third-party wiring survives; arrays and scalars
+are asserted so the repo can retract a value it once shipped. Adding a platform is adding a
+`setup.conf` record plus a writer.
+
+**Capture (`scripts/capture-config.sh`).** The inverse, and deliberately not a flag on
+`setup`. Render only ever writes files this repo authored; capture reads files a *person*
+edited, so every value crossing the boundary is classified (`portable`, `machine-local`,
+`secret`, `third-party`, `unknown`), IP-scanned, and shown before it can land — and it lands
+as a reviewed PR, never a silent commit. Adopted hunks are staged into the **canonical
+source**, not into a platform file, so one adoption renders to all five targets; capture
+then shows that downstream diff too. Both directions share one differ, so they cannot
+disagree about what "different" means.
+
+Details: [claude-machine-config.md](claude-machine-config.md) for the Claude fragments,
+[../../user/setup.md](../../user/setup.md) for the verbs and flags,
+[../../user/platform-setup.md](../../user/platform-setup.md) for the per-platform renderers,
+[../../user/capture.md](../../user/capture.md) for the capture direction.
 
 ---
 
@@ -133,6 +174,7 @@ user invokes /orchestrate-dev
 | What each platform supports and why | [capability-model.md](capability-model.md) |
 | What an adapter must provide | [adapter-contract.md](adapter-contract.md) |
 | Adding a sixth… seventh platform | [adding-a-platform.md](adding-a-platform.md) |
+| Rendering config onto a machine, and capturing it back | [../../user/setup.md](../../user/setup.md) · [claude-machine-config.md](claude-machine-config.md) |
 | Skill frontmatter contract | [skill-schema.md](skill-schema.md) |
 | Objective/task/handoff states | [orchestration-state-machine.md](orchestration-state-machine.md) |
 | Branch and worktree layout | [branch-worktree-model.md](branch-worktree-model.md) |

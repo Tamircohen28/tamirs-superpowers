@@ -58,7 +58,6 @@ bash .claude/skills/run-tamirs-superpowers/smoke.sh
 | 2. `scripts/statusline.sh` | runs the live statusline and checks it produces output |
 | 3. `plugin.json` | all required fields present, `.statusLine` is an object not a string |
 | 4. SKILL.md quality | `python3 scripts/validate-skill-frontmatter.py` — tiered: portable core fails the build, `metadata.tamirs` warns while absent, Claude fields validated when present |
-| 4b. Legacy Claude gate | `python3 scripts/validate-skill-frontmatter.py --profile claude-strict` — the pre-refactor all-official-fields contract, kept so nothing that passed before regresses |
 | 5. Hook wiring | every `.sh` in `hooks/` is referenced in `hooks.json` |
 | 6. No `/Users/` paths | skills must use `$CLAUDE_SKILL_DIR` or relative paths, not hardcoded absolutes |
 | 7. No Wix/internal refs | employer-specific patterns must be absent from skill files |

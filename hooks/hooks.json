@@ -38,6 +38,17 @@
             "timeout": 5
           }
         ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/docker-guard.py\"",
+            "timeout": 5,
+            "statusMessage": "Checking for durable Docker state..."
+          }
+        ]
       }
     ],
     "PostToolUse": [
@@ -125,6 +136,11 @@
             "type": "command",
             "command": "bash ${CLAUDE_PLUGIN_ROOT}/hooks/ensure-exit.sh",
             "timeout": 10
+          },
+          {
+            "type": "command",
+            "command": "bash ${CLAUDE_PLUGIN_ROOT}/hooks/skill-suggest.sh",
+            "timeout": 5
           }
         ]
       }
@@ -182,11 +198,6 @@
             "type": "command",
             "command": "bash ${CLAUDE_PLUGIN_ROOT}/hooks/check-done.sh",
             "timeout": 10
-          },
-          {
-            "type": "command",
-            "command": "bash ${CLAUDE_PLUGIN_ROOT}/hooks/plugin-version-watch.sh",
-            "timeout": 5
           }
         ]
       }

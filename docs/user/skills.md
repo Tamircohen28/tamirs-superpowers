@@ -1,6 +1,6 @@
 # Skills
 
-The toolkit ships **30 skills** in 6 domains — 24 you can invoke directly, 6 internal
+The toolkit ships **26 skills** in 7 domains — 23 you can invoke directly, 3 internal
 companions invoked only by other skills. Counted from `skills/**/SKILL.md` on 2026-08-19 and
 enforced by `scripts/check-doc-claims.sh`, which fails the build when this number and the
 tree disagree.
@@ -67,7 +67,6 @@ to zero skills, silently — and instead reads a generated flat symlink mirror a
 |---|---|
 | `/platform-sync` | Audit any repo against the latest platform docs and synthesize a numbered improvement plan. |
 | `/dark-terminal-doc` | Produce a polished single-file HTML technical document. |
-| `platform-sync-claude` · `platform-sync-codex` · `platform-sync-cursor` · `platform-sync-opencode` | **internal** — per-platform analysis engines for `/platform-sync`. |
 | `docs-review` | **internal** — documentation quality sweep, used by `/repo-standards`. |
 | `changelog-review` | **internal** — changelog/pattern audit, used by `/repo-standards`. |
 
@@ -80,6 +79,7 @@ to zero skills, silently — and instead reads a generated flat symlink mirror a
 | `/retro` | Session postmortem — find friction and propose rule/hook/memory/skill improvements. Proposes; never writes without approval. |
 | `/session-report` | Token and cache usage analytics. Requires readable session transcripts — Claude Code only today. |
 | `/notify-setup` | Wire opt-in phone notifications via Pushover. |
+| `/capture-config` | Detect settings you changed by hand on this machine, review each one, and land the ones worth keeping in the repo — rendered to every platform, as a PR. |
 
 ## mcp
 
@@ -98,7 +98,6 @@ to zero skills, silently — and instead reads a generated flat symlink mirror a
 
 | Skill | What it does |
 |---|---|
-| `/algorithmic-art` | Generative and algorithmic art with p5.js. |
 | `/field-notebook-ui` | Interactive UI artifacts in the engineer's field-notebook visual style. |
 
 ---

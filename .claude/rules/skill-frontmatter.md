@@ -25,8 +25,6 @@ the canonical rule for the full three-tier definition and for the
    Add one because the skill uses it, not to satisfy a validator.
 3. **`metadata.tamirs` carries the framework semantics** (visibility, category,
    capabilities, role, updated-date). Add it to every skill you touch.
-4. `--profile claude-strict` still enforces the legacy full-field gate, so
-   existing skills must not lose fields they already have.
 
 ## Claude-specific pairings the validator enforces
 
@@ -45,7 +43,6 @@ orchestration. See the canonical rule before gating a skill.
 
 ```bash
 python3 scripts/validate-skill-frontmatter.py path/to/SKILL.md
-python3 scripts/validate-skill-frontmatter.py --profile claude-strict
 make validate
 ```
 

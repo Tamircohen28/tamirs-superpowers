@@ -30,9 +30,6 @@ six-target project, and it forced meaningless values (`hooks: {}`, `paths: []`,
 | **tamirs** | `metadata.tamirs` — this framework's semantics | Validated when present. Absent = warning during migration; `--require-tamirs` promotes it to a failure. |
 | **claude** | Claude Code / Claude Desktop extension fields | Validated **only when present**. Never required by the portable tier. |
 
-Nothing that passed before regresses: `--profile claude-strict` still enforces
-the old full-field gate, and every existing skill keeps the fields it has.
-
 ## Tier 1 — portable core (required)
 
 ```yaml
@@ -220,14 +217,12 @@ repo-generating skills legitimately name paths in the repo they scaffold.
 - [ ] Platform fields present only where the skill uses them
 - [ ] SKILL.md under 500 lines (`wc -l`)
 - [ ] `python3 scripts/validate-skill-frontmatter.py <path>` passes
-- [ ] `python3 scripts/validate-skill-frontmatter.py --profile claude-strict` passes
 
 ## Validation
 
 ```bash
 python3 scripts/validate-skill-frontmatter.py path/to/SKILL.md
 python3 scripts/validate-skill-frontmatter.py                       # whole tree
-python3 scripts/validate-skill-frontmatter.py --profile claude-strict
 python3 scripts/validate-skill-frontmatter.py --json                # machine-readable
 python3 scripts/normalize-skill-frontmatter.py --dry-run path/to/SKILL.md
 make validate

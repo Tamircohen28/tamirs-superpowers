@@ -13,7 +13,7 @@
     <img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="MIT License" />
   </a>
   <a href="plugin-version.json">
-    <img src="https://img.shields.io/badge/version-3.0.0-blue" alt="Version" />
+    <img src="https://img.shields.io/badge/version-3.1.0-blue" alt="Version" />
   </a>
 </p>
 
@@ -27,28 +27,25 @@
 
 # tamirs-superpowers
 
-A portable agent toolkit: **30 skills**, 10 role-based agents, worktree hooks, and MCP
+A portable agent toolkit: **26 skills**, 10 role-based agents, worktree hooks, and MCP
 stubs, shipped from one canonical source to six agent platforms.
 
 ## What problem it solves
 
 Agent harnesses disagree about everything — skill frontmatter, subagents, hooks, install
-mechanics — so multi-platform setups either duplicate content per platform until it drifts,
-or quietly claim features a platform does not have. And a single feature request typically
-lands as five disconnected pull requests, one per task, with no place the combined diff is
-ever reviewed.
-
-This repo takes the other path:
+mechanics, where global config lives — so multi-platform setups duplicate content until it
+drifts, or claim features a platform does not have. And one feature request typically lands
+as five disconnected pull requests with no place the combined diff is ever reviewed.
 
 - **One canonical source, thin adapters.** Skills, roles, rules, and policies live once
-  under `skills/`, `core/`, and `rules/`. Per-platform files are generated or referenced,
-  and drift is a CI failure.
+  under `skills/`, `core/`, and `rules/`; per-platform files are generated, and drift fails CI.
 - **Honest capability degradation.** [`core/capabilities/platforms.json`](core/capabilities/platforms.json)
-  records what each platform actually supports — including `unknown` and `unsupported` —
-  and every skill states its fallback instead of pretending.
+  records what each platform actually supports — `unknown` and `unsupported` included — and
+  every skill states its fallback instead of pretending.
 - **One objective = one pull request.** Work is decomposed into tasks that end at
-  *commit + handoff*, merged onto a single integration branch, reviewed as one diff, and
-  delivered once.
+  *commit + handoff*, merged onto one integration branch, reviewed as one diff, delivered once.
+- **Your machine is rendered from the repo.** `make setup` writes the same global rules into
+  all five CLIs' own config formats; nothing is hand-copied per platform.
 
 ## Supported platforms
 
@@ -66,33 +63,35 @@ comparison is [docs/user/platform-differences.md](docs/user/platform-differences
 
 ## Install in 5 minutes
 
-Pick your platform. Each guide covers install, **verify**, update, and uninstall.
+**1. Install the plugin.** Pick your platform from the table above — each guide covers
+install, **verify**, update, and uninstall. Gemini alone takes two commands: the extension
+carries context and MCP, while skills come from a generated flat mirror at `.gemini/skills/`
+that must be installed with `--path`. [Why](docs/user/install/gemini.md).
 
-```text
-Claude Code      /plugin marketplace add Tamircohen28/tamirs-superpowers
-                 /plugin install tamirs-superpowers@tamirs-superpowers
-Claude Desktop   same marketplace listing as Claude Code
-Cursor           Plugins → Team Marketplaces → Import from Repo → Tamircohen28/tamirs-superpowers
-Codex CLI        codex plugin marketplace add Tamircohen28/tamirs-superpowers
-                 codex plugin add tamirs-superpowers@tamirs-superpowers
-Gemini CLI       gemini extensions install https://github.com/Tamircohen28/tamirs-superpowers --consent
-                 gemini skills install   https://github.com/Tamircohen28/tamirs-superpowers --path .gemini/skills --consent
-OpenCode         point opencode.json skills.paths at a clone
+**2. Configure your machine** — optional, and now the part that changed. `make setup`
+renders this repo's canonical config into the config directory of **every** agent CLI it
+detects: `~/.claude`, `~/.codex`, `~/.cursor`, `~/.gemini`, `~/.config/opencode`. One set of
+global rules, one permissions policy, in each platform's own format.
+
+```bash
+git clone https://github.com/Tamircohen28/tamirs-superpowers.git
+cd tamirs-superpowers
+make setup-plan     # detect targets, print every change, write nothing
+make setup          # diff → confirm → write, one change at a time
 ```
 
-Gemini takes two commands on purpose: the extension carries context and MCP, while skills
-come from a generated flat mirror at `.gemini/skills/` — `--path` is not optional there.
-[Why](docs/user/install/gemini.md).
+It merges into what is already there, shows a diff before each write, defaults to No, and
+`bash scripts/setup.sh remove` undoes it. This supersedes `make install`, which configured
+only Claude Code, only partially, and rewrote `~/.claude/settings.json` wholesale — the old
+path is now a thin shim over the same engine. **Read [setup](docs/user/setup.md) before the
+first `apply`:** it will switch off plugins the canonical set records as deliberately
+disabled. The other four platforms: [platform setup](docs/user/platform-setup.md).
 
-Requires `git` 2.30+ and `jq`. `gh` is an optional feature dependency (PR and issue
-workflows). Nothing here needs Node, Python, or a build step.
-
-Then check the install: `bash scripts/doctor.sh .`
+Requires `git` 2.30+ and `jq`; `gh` is optional (PR and issue workflows). Nothing here needs
+Node, Python, or a build step. Check the result with `bash scripts/doctor.sh .`.
 
 > Contributing to this repo is a **different** setup — `git clone`, then `make validate`.
 > See [contributor bootstrap](docs/engineering/build-and-release/development-workflow.md).
-> Do not run `make install` to use the plugin; it bootstraps a Claude machine profile, not
-> an install.
 
 ## Core workflow
 
@@ -110,13 +109,13 @@ Then check the install: `bash scripts/doctor.sh .`
 | [`/pr-dev`](skills/dev-workflow/pr-dev/SKILL.md) | Drive that PR to merge |
 | [`/start-dev`](skills/dev-workflow/start-dev/SKILL.md) | Compatibility front door — routes to the above |
 
-Orchestration works with **no subagents at all**: the same task graph runs sequentially,
-same handoffs, same one PR. See [docs/user/orchestration.md](docs/user/orchestration.md).
+Orchestration works with **no subagents at all**: same task graph, same handoffs, same one
+PR, run sequentially. See [docs/user/orchestration.md](docs/user/orchestration.md).
 
 ## Links
 
-- [Getting started](docs/user/getting-started.md) · [Concepts](docs/user/concepts.md) · [Configuration](docs/user/configuration.md) · [Troubleshooting](docs/user/troubleshooting.md)
-- [Skills](docs/user/skills.md) · [Agents](docs/user/agents.md) · [Orchestration](docs/user/orchestration.md) · [Platform differences](docs/user/platform-differences.md)
+- [Getting started](docs/user/getting-started.md) · [Setup](docs/user/setup.md) · [Platform setup](docs/user/platform-setup.md) · [Capture](docs/user/capture.md) · [Configuration](docs/user/configuration.md) · [Troubleshooting](docs/user/troubleshooting.md)
+- [Concepts](docs/user/concepts.md) · [Skills](docs/user/skills.md) · [Agents](docs/user/agents.md) · [Orchestration](docs/user/orchestration.md) · [Platform differences](docs/user/platform-differences.md)
 - [Engineering docs](docs/engineering/README.md) — architecture, capability model, adapter contract, skill schema, release process
 - [Changelog](CHANGELOG.md) · [Contributing](docs/CONTRIBUTING.md) · [Contributor bootstrap](docs/engineering/build-and-release/development-workflow.md) · [License](LICENSE)
 

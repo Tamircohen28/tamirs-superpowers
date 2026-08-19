@@ -12,7 +12,7 @@
     {
       "name": "tamirs-superpowers",
       "source": "./",
-      "description": "30 bundled skills, 10 specialist agents, smart worktree hooks, statusline, and MCP server stubs — plan, implement, review, debug, multi-agent setup, and audit code from one plugin."
+      "description": "26 bundled skills, 10 specialist agents, smart worktree hooks, statusline, and MCP server stubs — plan, implement, review, debug, multi-agent setup, and audit code from one plugin."
     }
   ]
 }

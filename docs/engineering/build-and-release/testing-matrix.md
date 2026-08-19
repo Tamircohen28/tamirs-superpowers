@@ -41,6 +41,12 @@ static form when it is absent.
 | `test-orchestration.sh` | the orchestration state machine transitions correctly |
 | `test-opencode-adapter.sh` | `.opencode/agent/` matches `agents/`; adapter and registry agree |
 | `test-gemini-adapter.sh` | the Gemini extension manifest is well-formed and consistent |
+| `test-setup.sh` | `scripts/setup.sh`: `plan` never writes, `apply` is idempotent by content comparison, the plugin-disable warning counts correctly, prompts never read stdin, `remove` is symmetric. Every case runs against a `mktemp -d` fake `HOME` and asserts the real `~/.claude` was untouched |
+| `test-renderers.sh` | the four machine-level renderers (codex, cursor, gemini, opencode) — marker blocks, merge-not-clobber, and a hermetic apply → re-apply → remove round trip |
+| `test-capture.sh` | `scripts/capture-config.sh`: classification, secret refusal, and that nothing is adopted without an explicit decision |
+| `test-skill-suggest.sh` | the suggestion hook uses `additionalContext`, keys its cache per repo, and suggests once per skill per session — the three defects that made its predecessor inert |
+| `test-hook-stdin.sh` | a suite-wide sweep: **every** hook returns promptly whatever stdin does |
+| `test-docs.sh` · `test-static.sh` | documentation and static repository tests — see §1 and below |
 
 ## 3. Orchestration simulations
 

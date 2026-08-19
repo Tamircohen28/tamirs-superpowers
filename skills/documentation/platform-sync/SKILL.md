@@ -1,22 +1,26 @@
 ---
 name: platform-sync
 description: >-
-  Use when auditing any repo that uses Claude Code, OpenAI Codex CLI, Cursor, Gemini CLI, or
-  OpenCode — plugin repos, app repos, or hybrids. Detects target usage via manifests,
-  CLAUDE.md, AGENTS.md, GEMINI.md, .cursor/rules/, .gemini/, opencode.json, skills/, hooks/,
-  and related signals; fetches live docs per target; identifies unused new features;
-  synthesizes a numbered improvement plan. Synonyms: "sync my plugin", "check against latest
-  docs", "what features am I missing", "audit all platforms", "/platform-sync".
+  Use when this repo may have fallen behind the AI coding platforms it targets — Claude
+  Code, Codex CLI, Cursor, Gemini CLI, OpenCode. Triggers: 'what new features am I
+  missing', 'am I up to date with the latest Claude Code docs', 'check my repo against the
+  latest docs', 'is my plugin using current best practices', 'sync my plugin', 'audit every
+  platform', 'did they ship anything new I should adopt', '/platform-sync'. Also use
+  proactively when a platform manifest or CHANGELOG is being bumped, when a release is
+  being cut, or when it has been more than a day since the last check. Fetches live docs
+  per detected target and returns a numbered improvement plan; it never edits the repo
+  itself.
 when_to_use: |
   - User runs "/platform-sync"
+  - "what new features am I missing" / "am I up to date with the latest docs"
   - "check my repo against latest Claude Code / Codex / Cursor / Gemini / OpenCode docs"
-  - "what new features am I missing"
   - "sync my plugin with latest platform features"
   - "audit every platform this repo targets"
-  - "platform-sync"
-  - App repo with CLAUDE.md, AGENTS.md, GEMINI.md, .cursor/rules/, .gemini/, or
+  - A platform manifest (*-plugin/plugin.json) or CHANGELOG.md is being bumped, or a
+    release is being cut
+  - Any repo carrying CLAUDE.md, AGENTS.md, GEMINI.md, .cursor/rules/, .gemini/, or
     opencode.json — not only plugin manifests
-  - Triggered via systemMessage from plugin-version-watch Stop hook after 24h without a check
+  - Surfaced via additionalContext from the skill-suggest UserPromptSubmit hook
 argument-hint: "[repo path or omit for cwd]"
 arguments: []
 disable-model-invocation: false
@@ -114,13 +118,6 @@ and the output shape are identical either way; never let the two paths produce d
 findings, and never claim a parallel run on a platform that cannot do one.
 
 Collect every section before synthesizing.
-
-### Deprecated compatibility shims
-
-`platform-sync-claude`, `platform-sync-codex`, `platform-sync-cursor` and
-`platform-sync-opencode` still exist as thin shims so anything that invokes them by name
-keeps working. **This skill does not call them** — it runs the protocol directly. Do not
-invoke them; they only delegate back here.
 
 ## Step 4 — Synthesize the unified improvement plan
 

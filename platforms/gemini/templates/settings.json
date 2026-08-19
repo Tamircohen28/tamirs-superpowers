@@ -1,0 +1,10 @@
+{
+  "_comment": "Fragment deep-merged into ~/.gemini/settings.json by scripts/lib/setup-gemini.sh. Keys beginning with _ are documentation for the next reader and are stripped before the merge — they never reach the user's file. Arrays merge as a union and scalars are asserted, so cmux/gortex hook wiring under .hooks and any mcp entry survive untouched: we assert nothing under those keys.",
+  "_why_context_fileName": "Gemini loads ~/.gemini/GEMINI.md as global context with no setting at all. Naming AGENTS.md alongside it is the one assertion worth making: it is the filename every other target in this repo renders to, so a rule written once is picked up whichever CLI the user reaches for. Documented at geminicli.com/docs/reference/configuration as context.fileName (string or array).",
+  "context": {
+    "fileName": [
+      "GEMINI.md",
+      "AGENTS.md"
+    ]
+  }
+}

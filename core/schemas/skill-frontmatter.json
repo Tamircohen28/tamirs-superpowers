@@ -34,8 +34,7 @@
   "additionalProperties": true,
 
   "allOf": [
-    { "$ref": "#/$defs/claude/$defs/forkPairing" },
-    { "$ref": "#/$defs/claude/$defs/invocationPairing" }
+    { "$ref": "#/$defs/claude/$defs/forkPairing" }
   ],
 
   "$defs": {
@@ -168,7 +167,7 @@
 
     "claude": {
       "title": "Tier 3: Claude Code / Claude Desktop extension set",
-      "description": "Fields Claude Code understands and every other supported harness ignores. Permitted at top level (the standard says unknown keys are ignored), but NEVER required by the portable tier. Validated only when present, except under --profile claude-strict which requires the full official set.",
+      "description": "Fields Claude Code understands and every other supported harness ignores. Permitted at top level (the standard says unknown keys are ignored), but NEVER required by the portable tier. Validated only when present.",
       "$comment": "This subschema is a named container of field definitions; it is referenced field-by-field from the top-level `properties` block.",
       "$defs": {
         "whenToUse": {
@@ -219,44 +218,8 @@
           "else": {
             "properties": { "agent": { "const": "" } }
           }
-        },
-
-        "invocationPairing": {
-          "$comment": "A skill users cannot invoke must also be blocked from model invocation.",
-          "if": {
-            "type": "object",
-            "properties": { "user-invocable": { "const": false } },
-            "required": ["user-invocable"]
-          },
-          "then": {
-            "properties": { "disable-model-invocation": { "const": true } },
-            "required": ["disable-model-invocation"]
-          }
         }
       }
-    },
-
-    "claudeStrictRequired": {
-      "$comment": "Referenced by --profile claude-strict only: the full official Claude Code field set that every SKILL.md carried before the portable split.",
-      "required": [
-        "name",
-        "description",
-        "when_to_use",
-        "argument-hint",
-        "arguments",
-        "disable-model-invocation",
-        "user-invocable",
-        "allowed-tools",
-        "disallowed-tools",
-        "model",
-        "effort",
-        "context",
-        "agent",
-        "hooks",
-        "paths",
-        "shell",
-        "metadata"
-      ]
     }
   }
 }

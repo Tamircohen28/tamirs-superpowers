@@ -20,7 +20,7 @@ when_to_use: 'Invoked by repo-standards polish phase 6 on Claude Code plugin pro
   '
 argument-hint: '[plugin project path or omit for current repo]'
 arguments: []
-disable-model-invocation: true
+disable-model-invocation: false
 user-invocable: false
 allowed-tools:
 - WebFetch

@@ -1,0 +1,29 @@
+{
+  "_comment": "enabledPlugins with the real polarity: false entries are INTENTIONAL. The user disabled these deliberately; a canonical all-true set would silently re-enable 15 plugins on the next install. The merge engine must write this map as given, and must not treat a missing-locally key as permission to flip a false to true.",
+  "_tally": "8 enabled / 15 deliberately disabled",
+  "enabledPlugins": {
+    "aws-startup-advisor@claude-plugins-official": false,
+    "chrome-devtools-mcp@claude-plugins-official": true,
+    "claude-md-management@claude-plugins-official": false,
+    "code-review@claude-plugins-official": false,
+    "code-simplifier@claude-plugins-official": false,
+    "commit-commands@claude-plugins-official": false,
+    "context7@claude-plugins-official": true,
+    "frontend-design@claude-plugins-official": false,
+    "gitkraken-hooks@gitkraken": false,
+    "hookify@claude-plugins-official": false,
+    "jose-claudinho@tamirs-marketplace": false,
+    "learning-output-style@claude-plugins-official": true,
+    "playground@claude-plugins-official": false,
+    "playwright@claude-plugins-official": true,
+    "plugin-dev@claude-plugins-official": false,
+    "pr-review-toolkit@claude-plugins-official": false,
+    "project-artifact@claude-plugins-official": false,
+    "rust-analyzer-lsp@claude-plugins-official": false,
+    "skill-creator@claude-plugins-official": false,
+    "supabase@claude-plugins-official": true,
+    "tamirs-superpowers@tamirs-marketplace": true,
+    "vercel@claude-plugins-official": true,
+    "warp@claude-code-warp": true
+  }
+}
