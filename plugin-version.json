@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "version": "3.1.0",
+  "version": "3.2.0",
   "canonical_source": true,
   "description": "Single source of truth for the plugin version. Every consumer below must agree. Validated by scripts/check-version-truth.sh; repaired by `scripts/check-version-truth.sh --sync`. Never edit a consumer by hand — edit this file, then sync.",
   "consumers": [
