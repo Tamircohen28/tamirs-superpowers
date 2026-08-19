@@ -149,6 +149,11 @@ judge "remove deletes the CLAUDE.md it created" no "$(exists "$h/.claude/CLAUDE.
 judge "remove deletes the agents it installed" 0 \
   "$(find "$h/.claude/agents" -name '*.md' 2>/dev/null | wc -l | tr -d ' ')"
 
+# Undoing must itself be undoable: the file being restored over may hold edits
+# made after the install, so remove rotates a dated copy before it writes.
+judge "remove rotated a dated backup of the file it replaced" yes \
+  "$(if [ "$(find "$h/.claude" -name 'settings.json.pre-tamirs-superpowers-*' | wc -l | tr -d ' ')" -ge 1 ]; then echo yes; else echo no; fi)"
+
 out="$(run_setup "$h" remove --yes --targets claude)"
 judge "a second remove is a no-op" yes "$(has "$out" 'Everything is already up to date')"
 
@@ -167,14 +172,18 @@ judge "no-TTY apply writes nothing" "$before" "$(sum "$S")"
 judge "no-TTY apply says why and how to proceed" yes "$(has "$out" 'no TTY')"
 judge "no-TTY apply names --yes as the way out" yes "$(has "$out" 're-run with --yes')"
 
-# The same run with stdin held open on a pipe that never delivers: if anything
-# read stdin instead of /dev/tty, this would hang and the timeout would fire.
-if harness_have portable_timeout || command -v perl >/dev/null 2>&1; then
-  start="$(date +%s)"
-  ( sleep 30 | HOME="$h" bash "$SETUP" apply --targets claude >/dev/null 2>&1 ) &
+# The same run with stdin held OPEN and silent — the shape of an inherited
+# descriptor. A `sleep N | setup.sh` pipeline would not test this: the shell
+# waits on both halves, so the sleep, not setup.sh, would be what took the time.
+# A FIFO with a live writer isolates setup.sh's own behaviour.
+pipedir="$(harness_tmpdir)"
+if mkfifo "$pipedir/stdin" 2>/dev/null; then
+  sleep 25 > "$pipedir/stdin" &          # holds the write end open, sends nothing
+  writer=$!
+  HOME="$h" bash "$SETUP" apply --targets claude < "$pipedir/stdin" >/dev/null 2>&1 &
   pid=$!
   waited=0
-  while kill -0 "$pid" 2>/dev/null && [ "$waited" -lt 20 ]; do
+  while kill -0 "$pid" 2>/dev/null && [ "$waited" -lt 15 ]; do
     sleep 1; waited=$((waited + 1))
   done
   if kill -0 "$pid" 2>/dev/null; then
@@ -184,9 +193,11 @@ if harness_have portable_timeout || command -v perl >/dev/null 2>&1; then
     ok "apply with an open, silent stdin does not block (${waited}s)"
   fi
   wait "$pid" 2>/dev/null
-  : "$start"
+  kill "$writer" 2>/dev/null
+  wait "$writer" 2>/dev/null
+  judge "the blocked-stdin run still wrote nothing" "$before" "$(sum "$S")"
 else
-  skip "stdin-block check" "no timeout mechanism available"
+  skip "stdin-block check" "mkfifo unavailable"
 fi
 
 # ---------------------------------------------------------------------------

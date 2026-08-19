@@ -156,10 +156,16 @@ target_requested() {
   case " $REQUESTED " in *" $1 "*) return 0 ;; *) return 1 ;; esac
 }
 
+# --only accepts one module or a comma list, and a bare family name selects the
+# whole family (`--only notifications` picks up notifications-creds and
+# notifications-hook) so the user does not have to know how a module is split up.
 module_selected() {
+  local want
   [ -n "$OPT_ONLY" ] || return 0
-  [ "$1" = "$OPT_ONLY" ] && return 0
-  case "$1" in "${OPT_ONLY}-"*) return 0 ;; esac
+  for want in $(printf '%s' "$OPT_ONLY" | tr ',' ' '); do
+    [ "$1" = "$want" ] && return 0
+    case "$1" in "${want}-"*) return 0 ;; esac
+  done
   return 1
 }
 
@@ -576,7 +582,11 @@ apply_file_item() {
          N_SKIPPED_BY_USER=$((N_SKIPPED_BY_USER + 1)); return 0 ;;
       2) QUIT=1; return 0 ;;
     esac
-    backup="$(backup_once "$path")"
+    # On `remove` the file on disk may hold months of hand edits made AFTER the
+    # install, and restoring the pristine backup would discard them. Rotate a
+    # dated copy first so the undo is itself undoable.
+    if [ "$VERB" = remove ]; then backup="$(setup_backup "$path")"
+    else backup="$(backup_once "$path")"; fi
   fi
 
   setup_write "$path" < "$new"

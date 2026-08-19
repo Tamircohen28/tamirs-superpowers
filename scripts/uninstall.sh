@@ -1,43 +1,40 @@
 #!/usr/bin/env bash
-# uninstall.sh — remove plugin-installed artifacts from ~/.claude (does not remove marketplace entry).
+# uninstall.sh — remove what install.sh wrote into ~/.claude.
 #
-# Usage: make uninstall  |  bash scripts/uninstall.sh
+# THIS IS A SHIM over `scripts/setup.sh remove`, which is symmetric with apply by
+# construction: both go through the same render/compare/confirm/write path.
+#
+# Usage:
+#   make uninstall
+#   bash scripts/uninstall.sh [--dry-run] [--verbose] [--help]
+#
+# What it removes:
+#   - ~/.claude/settings.json  restored from ~/.claude/settings.json.pre-tamirs-superpowers,
+#     the copy taken before this repo ever wrote to it. A dated backup of the
+#     current file is rotated first, so this undo is itself undoable.
+#   - the agents this repo installed into ~/.claude/agents/
+#   - ~/.claude/CLAUDE.md, only when it is byte-identical to the template we wrote
+#   - the Pushover Notification hook, leaving any other Notification hooks alone
+#
+# What it deliberately KEEPS:
+#   - ~/.claude/pushover.env — those are your credentials, and a reinstall should
+#     not need them re-entered. Delete it by hand to purge.
+#   - the marketplace entry, and every plugin other than this one.
+#
+# Preview first:
+#   bash scripts/uninstall.sh --dry-run
+#
+# Exit codes: 0 success, 1 failure.
+
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PLUGIN_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
-AGENTS_SRC="${PLUGIN_DIR}/agents"
-AGENTS_DEST="${HOME}/.claude/agents"
 
-if [[ -d "$AGENTS_SRC" ]]; then
-  for agent in "${AGENTS_SRC}"/*.md; do
-    [[ -f "$agent" ]] || continue
-    dest="${AGENTS_DEST}/$(basename "$agent")"
-    if [[ -f "$dest" ]]; then
-      rm -f "$dest"
-      printf 'Removed %s\n' "$dest"
-    fi
-  done
-fi
+case "${1:-}" in
+  -h|--help) sed -n '2,/^set -euo/p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//; $d'; exit 0 ;;
+esac
 
-# Unwire the Pushover Notification hook, leaving any other Notification hooks
-# in place. Credentials are NOT deleted — they are user secrets, and a reinstall
-# should not need them re-entered. Remove ~/.claude/pushover.env by hand to purge.
-SETTINGS_FILE="${HOME}/.claude/settings.json"
-if [[ -f "$SETTINGS_FILE" ]] && command -v jq > /dev/null 2>&1; then
-  if jq -e '[(.hooks.Notification // [])[].hooks[]?.command // "" | select(test("notify-pushover"))] | length > 0' \
-    "$SETTINGS_FILE" > /dev/null 2>&1; then
-    jq '
-      .hooks.Notification = ((.hooks.Notification // [])
-        | map(select([(.hooks // [])[] | .command // "" | test("notify-pushover")] | any | not)))
-      | if (.hooks.Notification | length) == 0 then del(.hooks.Notification) else . end
-    ' "$SETTINGS_FILE" > "${SETTINGS_FILE}.tmp" && mv "${SETTINGS_FILE}.tmp" "$SETTINGS_FILE"
-    printf 'Unwired Pushover Notification hook from %s\n' "$SETTINGS_FILE"
-    if [[ -f "${HOME}/.claude/pushover.env" ]]; then
-      printf 'Kept credentials at %s — delete manually to purge.\n' "${HOME}/.claude/pushover.env"
-    fi
-  fi
-fi
+bash "${SCRIPT_DIR}/setup.sh" remove --yes --targets claude "$@"
 
 if command -v claude >/dev/null 2>&1; then
   claude plugin uninstall tamirs-superpowers@tamirs-marketplace 2>/dev/null \
