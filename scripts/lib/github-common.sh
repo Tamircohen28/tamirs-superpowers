@@ -79,8 +79,49 @@ github_state_dir() {
   printf '%s' "$GITHUB_STATE_DIR"
 }
 
-# github_state_cleanup — entrypoints should trap this on EXIT.
+# github_state_cleanup — remove the state dir. Safe to call more than once.
 github_state_cleanup() { [ -n "$GITHUB_STATE_DIR" ] && rm -rf "$GITHUB_STATE_DIR"; return 0; }
+
+# github_state_trap — install the cleanup on EXIT *without clobbering* a trap
+# that is already there.
+#
+# A bare `trap 'github_state_cleanup' EXIT` REPLACES any existing EXIT trap
+# rather than chaining onto it. That matters because the test harness installs
+# its own EXIT trap for temp dirs (tests/lib/harness.sh:86), so a suite that
+# sources this library into the harness shell and then traps would silently
+# disable the harness's own cleanup — the library would tidy up after itself by
+# leaking everyone else's temp trees. Chain instead, and be idempotent so
+# sourcing twice does not double-register.
+github_state_trap() {
+  local existing
+  existing="$(trap -p EXIT 2>/dev/null)"
+
+  # No existing handler: install ours plainly.
+  if [ -z "$existing" ]; then
+    trap 'github_state_cleanup' EXIT
+    return 0
+  fi
+
+  # Already chained.
+  case "$existing" in *github_state_cleanup*) return 0 ;; esac
+
+  # `trap -p` renders as: trap -- 'BODY' EXIT. Anything else (a multi-line body,
+  # an unfamiliar rendering) is not worth parsing blind — leave the existing trap
+  # alone and say so, because destroying someone else's cleanup to install ours
+  # is strictly worse than not installing ours.
+  local body
+  body="${existing#trap -- \'}"
+  body="${body%\' EXIT}"
+  if [ "$body" = "$existing" ] || [ "${body#*$'\n'}" != "$body" ]; then
+    github_warn "an EXIT trap is already installed and could not be chained; call github_state_cleanup yourself"
+    return 1
+  fi
+  # SC2064: expanding $body NOW is the intent — we are re-installing the literal
+  # body of the trap that is already registered, not deferring its evaluation.
+  # shellcheck disable=SC2064
+  trap "$body; github_state_cleanup" EXIT
+  return 0
+}
 
 # github_set_state <class> <http> <error> <retry_after> — the single writer.
 github_set_state() {
@@ -150,7 +191,13 @@ github_explain() {
     invalid_request)   printf 'GitHub rejected the payload (HTTP 422) — %s. This is a bug in the rendered ruleset, not in your permissions.\n' "$GITHUB_LAST_ERROR" ;;
     unsupported)       printf 'unsupported on this repository or plan (HTTP %s) — %s\n' "${GITHUB_LAST_HTTP:-422}" "$GITHUB_LAST_ERROR" ;;
     bad_response)      printf 'unexpected API response shape — %s\n' "$GITHUB_LAST_ERROR" ;;
-    network)           printf 'could not reach GitHub — %s\n' "$GITHUB_LAST_ERROR" ;;
+    network)
+      if [ -n "$GITHUB_LAST_HTTP" ]; then
+        printf 'GitHub is failing on its side (HTTP %s) — %s. Transient: retry with backoff.\n' "$GITHUB_LAST_HTTP" "$GITHUB_LAST_ERROR"
+      else
+        printf 'could not reach GitHub — %s\n' "$GITHUB_LAST_ERROR"
+      fi
+      ;;
     *)                 printf 'unexpected failure (HTTP %s) — %s\n' "${GITHUB_LAST_HTTP:-?}" "$GITHUB_LAST_ERROR" ;;
   esac
 }
@@ -307,6 +354,16 @@ github_api() {
         [ -n "$GITHUB_LAST_RETRY_AFTER" ] || GITHUB_LAST_RETRY_AFTER=60
         github_fail rate_limited "$msg"; return 1
       fi
+      # PRECEDENCE: org policy is tested BEFORE scope, and the order is
+      # load-bearing rather than arbitrary. GitHub's real org-restriction 403s
+      # mention OAuth in their text:
+      #   "... the `X` organization has enabled OAuth App access restrictions ..."
+      #   "Resource protected by organization SAML enforcement. You must grant
+      #    your OAuth token access to this organization."
+      # Both would match the scope branch on "oauth" and be reported as "your
+      # token is missing a scope" — sending the user to `gh auth refresh`, which
+      # cannot fix an org restriction. Testing the org wording first routes them
+      # to the org admin instead. Do not reorder these two cases.
       case "$low" in
         *"saml"*|*"sso"*|*"organization has enabled"*|*"enterprise"*|*"ip allow"*|*"policy"*)
           github_fail org_policy "$msg"; return 1 ;;
@@ -343,7 +400,11 @@ github_api() {
     451)
       rm -rf "$work"; github_fail org_policy "$msg"; return 1 ;;
     5*)
-      rm -rf "$work"; github_fail network "GitHub returned $GITHUB_LAST_HTTP — $msg"; return 1 ;;
+      # A 5xx shares the `network` class with a request that never arrived: both
+      # are transient, neither indicates anything wrong with our payload, and a
+      # caller retries both the same way. github_explain distinguishes them in
+      # words using GITHUB_LAST_HTTP.
+      rm -rf "$work"; github_fail network "${msg:-GitHub server error}"; return 1 ;;
     *)
       rm -rf "$work"; github_fail unknown "$msg"; return 1 ;;
   esac

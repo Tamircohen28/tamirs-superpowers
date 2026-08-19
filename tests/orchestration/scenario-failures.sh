@@ -65,3 +65,40 @@ judge "the blocked handoff overwrote the completed one with status blocked" \
 judge "it carries a blocking followup for the orchestrator" \
   "true" "$(sim_handoff show resilience task-003 | jq -r '.followups[0].blocking')"
 judge "it claims no commits" 0 "$(sim_handoff show resilience task-003 | jq '.commits | length')"
+
+section "scope-glob boundary semantics (bash * matches /)"
+
+# WHY THIS IS HERE
+#   The scope check in handoff.sh is the boundary that stops a worker writing
+#   outside its declared area — the safety property scenario-failures.sh exercises
+#   with an obvious escape. It is implemented with bash pattern matching, where
+#   `*` matches `/` as well. That is easy to get wrong in the AUTHORING of a
+#   scope, not just in the matcher, so the semantics are pinned here rather than
+#   left to whoever next reads the glob and assumes shell-globbing rules.
+#
+#   Prompted by gh-test-harness hitting the same class in a `case` pattern, where
+#   `repos/*/*` also matched `repos/{o}/{r}/collaborators`.
+
+scope_matches() {  # scope_matches <glob> <path> -> yes|no
+  local glob="$1" path="$2"
+  # shellcheck disable=SC2053
+  if [[ "$path" == $glob ]]; then echo yes; else echo no; fi
+}
+
+# The boundary that must hold: a trailing-slash prefix does not leak sideways.
+judge "src/auth/** admits its own subtree" yes "$(scope_matches 'src/auth/**' 'src/auth/token.txt')"
+judge "src/auth/** does NOT reach a sibling with a shared prefix" no \
+  "$(scope_matches 'src/auth/**' 'src/authorization/secret.txt')"
+judge "src/auth/** does NOT reach a hyphenated sibling" no \
+  "$(scope_matches 'src/auth/**' 'src/auth-backup/x.txt')"
+judge "src/api/** does NOT reach src/apikeys" no \
+  "$(scope_matches 'src/api/**' 'src/apikeys/leak.txt')"
+
+# The sharp edge, pinned deliberately as CURRENT behaviour rather than as desired
+# behaviour: a single `*` segment does not mean "one level". Every shipped example
+# uses `**`, so nothing in-repo is exposed today — but `src/*` is a natural way to
+# write "files directly under src", and it silently grants the whole subtree.
+# Reported to the handoff.sh owner; if that is tightened, this assertion is the
+# one that will fail and should be updated to `no`.
+judge "KNOWN SHARP EDGE: a single-* scope grants the whole subtree" yes \
+  "$(scope_matches 'src/*' 'src/deep/nested/secret.txt')"

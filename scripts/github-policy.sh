@@ -27,6 +27,12 @@
 #   --exclude <ERE>  drop repos whose owner/name matches. Repeatable, wins over
 #                    --include.
 #   --yes, -y        do not prompt; apply every non-blocked change. Explicit only.
+#   --allow-weakening
+#                    permit a change that makes a repository LESS protected than
+#                    it is today. Off by default and never implied by --yes: the
+#                    tool's whole reason for existing is that it does not quietly
+#                    reduce a control someone deliberately turned on. Each such
+#                    change is still shown, marked, and confirmed individually.
 #   --json           machine-readable report on stdout, humans on stderr.
 #   --verbose, -v    detailed logging to stderr.
 #   --help, -h       this text.
@@ -78,6 +84,7 @@ OPT_ORG=""
 OPT_INCLUDE=""
 OPT_EXCLUDE=""
 OPT_JSON=""
+OPT_ALLOW_WEAKEN=""
 SETUP_YES="${GITHUB_POLICY_YES:-}"
 SETUP_VERBOSE="${SETUP_VERBOSE:-}"
 
@@ -105,6 +112,7 @@ $1" ;;
     --exclude=*) OPT_EXCLUDE="$OPT_EXCLUDE
 ${1#*=}" ;;
     --yes|-y)    SETUP_YES=1 ;;
+    --allow-weakening) OPT_ALLOW_WEAKEN=1 ;;
     --dry-run)   VERB="plan" ;;
     --json)      OPT_JSON=1 ;;
     --verbose|-v) SETUP_VERBOSE=1 ;;
@@ -139,6 +147,11 @@ case "$VERB" in
 esac
 
 BULK=""
+# Set when `apply` degrades to `plan` for want of a terminal. That run is a
+# SUCCESS — it did exactly what the stdin contract promises — so it must not
+# also report drift as a failing exit status, or every non-interactive caller
+# learns to ignore this script's exit code.
+DEGRADED=""
 [ -n "$OPT_ALL" ] || [ -n "$OPT_ORG" ] && BULK=1
 
 WORK="$(mktemp -d)"
@@ -146,10 +159,15 @@ trap 'rm -rf "$WORK"' EXIT
 mkdir -p "$WORK/changes" "$WORK/repos"
 CHANGE_N=0
 REPO_N=0
+RIDX=0
 
 # In --json mode stdout belongs to the JSON document alone (setup.sh:111).
 out() { if [ -z "$OPT_JSON" ]; then printf '%s\n' "$*"; else printf '%s\n' "$*" >&2; fi; }
 field() { cat "$1/$2" 2>/dev/null || printf ''; }
+# aout — the Actions block writes to stdout unconditionally so the caller can
+# capture it once and replay it into either renderer. Emitting it only on the
+# human path is how `--json` would come to under-report a real finding.
+aout() { printf '%s\n' "$*"; }
 vlog() { [ -n "${SETUP_VERBOSE:-}" ] && printf '  %s%s%s\n' "$SETUP_C_DIM" "$*" "$SETUP_C_OFF" >&2; return 0; }
 
 MARK_OK="${SETUP_C_GREEN}✓${SETUP_C_OFF}"
@@ -203,6 +221,34 @@ count_change_status() {
 }
 
 # ---------------------------------------------------------------------------
+# Class-preserving requests
+# ---------------------------------------------------------------------------
+# github_api records WHY a call failed in shell variables, and a variable set
+# inside `$( )` dies with the subshell — the exact hazard github-common.sh
+# documents for github_scopes. So `x="$(github_api ...)"` always leaves
+# GITHUB_LAST_CLASS holding whatever the PREVIOUS call left there, and a 403 on
+# repo B gets reported with repo A's reason. Every read and write below is
+# therefore issued through the lib's one request primitive with stdout REDIRECTED
+# TO A FILE, in this shell, so the classification survives to be printed.
+# (Requested of the lib owner in session-files/requests/gh-policy-cli.md.)
+
+# api_call <METHOD> <out-file> <path> [gh args...]
+api_call() {
+  local method="$1" f="$2" path="$3"
+  shift 3
+  github_api "$method" "$path" "$@" >"$f"
+}
+
+# api_json <out-file> <path> [gh args...] — as api_call GET, plus the guard that
+# a 2xx whose body is not JSON is `bad_response`, never silently "empty".
+api_json() {
+  local f="$1" path="$2"
+  shift 2
+  api_call GET "$f" "$path" "$@" || return 1
+  jq empty "$f" >/dev/null 2>&1 || { github_fail bad_response "GET $path did not return JSON"; return 1; }
+}
+
+# ---------------------------------------------------------------------------
 # Preconditions
 # ---------------------------------------------------------------------------
 [ -f "$POLICY" ] || setup_die "policy file not found: $POLICY"
@@ -242,16 +288,16 @@ list_repos_paged() {
   local base="$1" page=1 body n sep
   while :; do
     case "$base" in *\?*) sep='&' ;; *) sep='?' ;; esac
-    body="$(github_api GET "${base}${sep}per_page=100&page=${page}")" || return 1
-    n="$(printf '%s' "$body" | jq 'length' 2>/dev/null)" || n=0
+    api_json "$WORK/page.json" "${base}${sep}per_page=100&page=${page}" || return 1
+    n="$(jq 'length' "$WORK/page.json" 2>/dev/null)" || n=0
     [ "${n:-0}" -gt 0 ] || break
-    printf '%s' "$body" | jq -r '.[] | [
+    jq -r '.[] | [
         .full_name,
         (.fork // false | tostring),
         (.archived // false | tostring),
         (.default_branch // ""),
         (.owner.type // "User")
-      ] | @tsv'
+      ] | @tsv' "$WORK/page.json"
     [ "$n" -lt 100 ] && break
     page=$((page + 1))
     [ "$page" -gt 50 ] && { github_warn "stopping repository listing at 5000 repositories"; break; }
@@ -303,15 +349,16 @@ build_repo_list() {
       */*) : ;;
       *) github_fail bad_response "--repo must be owner/name, got '$target'"; return 1 ;;
     esac
-    local view
-    view="$(github_repo_view "$target")" || return 1
-    printf '%s' "$view" | jq -r '[
+    api_json "$WORK/view.json" "repos/$target" || return 1
+    jq -e 'has("default_branch")' "$WORK/view.json" >/dev/null 2>&1 || {
+      github_fail bad_response "repos/$target returned a body with no default_branch"; return 1; }
+    jq -r '[
         .full_name,
         (.fork // false | tostring),
         (.archived // false | tostring),
         (.default_branch // ""),
         (.owner.type // "User")
-      ] | @tsv' >"$WORK/raw"
+      ] | @tsv' "$WORK/view.json" >"$WORK/raw"
   fi
 
   local name fork arch branch otype
@@ -390,19 +437,19 @@ policy_weakens() {
 # thing this tool may edit, weaken, or route around; the only correct behaviour
 # is to say so and leave the repository alone.
 org_conflicts() {
-  local repo="$1" parents ids id detail
-  parents="$(github_api GET "repos/${repo}/rulesets?includes_parents=true")" || return 1
-  ids="$(printf '%s' "$parents" | jq -r '
+  local repo="$1" ids id
+  api_json "$WORK/parents.json" "repos/${repo}/rulesets?includes_parents=true" || return 1
+  ids="$(jq -r '
     .[] | select(.target == "branch")
         | select((.source_type // "Repository") != "Repository")
         | select((.enforcement // "active") == "active")
-        | .id')"
+        | .id' "$WORK/parents.json")"
   for id in $ids; do
-    detail="$(github_get_ruleset "$repo" "$id" 2>/dev/null)" || {
+    if ! api_json "$WORK/parent.$id.json" "repos/${repo}/rulesets/${id}"; then
       printf 'organization ruleset %s is active on this repository and could not be read\n' "$id"
       continue
-    }
-    printf '%s' "$detail" | jq -r '
+    fi
+    jq -r '
       def rule($t): ((.rules // []) | map(select(.type == $t)) | first);
       . as $o |
       [
@@ -419,7 +466,7 @@ org_conflicts() {
          then "requires successful deployments" else empty end)
       ]
       | if length == 0 then empty
-        else "organization ruleset \"" + ($o.name // "?") + "\" " + join("; ") end'
+        else "organization ruleset \"" + ($o.name // "?") + "\" " + join("; ") end' "$WORK/parent.$id.json"
   done
 }
 
@@ -433,36 +480,40 @@ org_conflicts() {
 # `never_cancel` wins a tie, per the policy's stated precedence: a test job
 # wrongly serialized costs minutes, a deploy wrongly cancelled costs a
 # half-written external state.
+#
+# Matching runs inside jq, on both the name and the file body, because the policy
+# states its patterns are "compatible with jq test()". Handing them to `grep -E`
+# instead would silently mean something else: BSD grep has no `\s`, so
+# `^\s*pull_request:` would become "an optional literal s", and a whole class of
+# workflows would be misclassified on macOS and correctly classified on Linux.
+# One engine, the one the data was written for.
 workflow_class() {
-  local subject content="$2" hit
-  subject="$(github_lower "$1")"
+  local subject="$1" content="$2" hit
+  hit="$(jq -r -n --arg s "$(github_lower "$subject")" --rawfile c "$content" --slurpfile p "$POLICY" '
+    ($p[0].actions.workflow_classification.classes) as $classes |
+    def matches($cls):
+      (($classes[$cls].name_patterns    // []) | any(. as $pat | $s | test($pat)))
+      or
+      (($classes[$cls].content_signals  // []) | any(.pattern as $pat | $c | test($pat; "i")));
+    if matches("never_cancel") then "never_cancel"
+    elif matches("cancellable") then "cancellable"
+    else "unclassified" end
+  ' 2>/dev/null)"
+  [ -n "$hit" ] || hit="unclassified"
+  printf '%s\n' "$hit"
+}
 
-  hit="$(jq -r --arg s "$subject" '
-    .actions.workflow_classification.classes.never_cancel.name_patterns[]
-    | select($s | test(.)) ' "$POLICY" 2>/dev/null | head -1)"
-  [ -n "$hit" ] && { printf 'never_cancel\n'; return 0; }
-
-  local pat
-  for pat in $(jq -r '.actions.workflow_classification.classes.never_cancel.content_signals[].pattern
-                      | @base64' "$POLICY" 2>/dev/null); do
-    pat="$(printf '%s' "$pat" | base64 --decode 2>/dev/null)"
-    [ -n "$pat" ] || continue
-    grep -Eq -- "$pat" "$content" 2>/dev/null && { printf 'never_cancel\n'; return 0; }
-  done
-
-  hit="$(jq -r --arg s "$subject" '
-    .actions.workflow_classification.classes.cancellable.name_patterns[]
-    | select($s | test(.)) ' "$POLICY" 2>/dev/null | head -1)"
-  [ -n "$hit" ] && { printf 'cancellable\n'; return 0; }
-
-  for pat in $(jq -r '.actions.workflow_classification.classes.cancellable.content_signals[].pattern
-                      | @base64' "$POLICY" 2>/dev/null); do
-    pat="$(printf '%s' "$pat" | base64 --decode 2>/dev/null)"
-    [ -n "$pat" ] || continue
-    grep -Eq -- "$pat" "$content" 2>/dev/null && { printf 'cancellable\n'; return 0; }
-  done
-
-  printf 'unclassified\n'
+# workflow_cancels <file> -> always | on_pr | no
+# `cancel-in-progress: true` is the canonical form. An expression form —
+# `${{ github.event_name == 'pull_request' }}` — is not a missing block, it is a
+# sharper version of the same rule: cancel superseded PR runs, never cancel a
+# push. Reporting that as a gap would push the user to REPLACE a better
+# configuration with the policy's simpler one.
+workflow_cancels() {
+  grep -Eq '^concurrency:' "$1" || { printf 'no\n'; return 0; }
+  grep -Eq 'cancel-in-progress:[[:space:]]*true[[:space:]]*$' "$1" && { printf 'always\n'; return 0; }
+  grep -Eq 'cancel-in-progress:[[:space:]]*\$\{\{' "$1" && { printf 'on_pr\n'; return 0; }
+  printf 'no\n'
 }
 
 # fetch_workflows <owner/repo> <dest-dir> — populate dest-dir with one file per
@@ -470,7 +521,7 @@ workflow_class() {
 # a workflow you have edited but not pushed is still audited; falls back to the
 # contents API for every other repository. Read-only either way.
 fetch_workflows() {
-  local repo="$1" dest="$2" here listing path name raw
+  local repo="$1" dest="$2" here path name
   mkdir -p "$dest"
   here="$(local_repo 2>/dev/null || true)"
   if [ "$here" = "$repo" ] && [ -d "$POLICY_REPO_ROOT/.github/workflows" ]; then
@@ -482,15 +533,16 @@ fetch_workflows() {
     return 0
   fi
 
-  listing="$(github_api GET "repos/${repo}/contents/.github/workflows")" || {
+  # A repository with no workflows directory is a 404 and is a normal, healthy
+  # answer — not a failure to report.
+  if ! api_json "$WORK/wflist.json" "repos/${repo}/contents/.github/workflows"; then
     [ "$GITHUB_LAST_CLASS" = "not_found" ] && { GITHUB_LAST_CLASS=ok; printf 'none\n'; return 0; }
     return 1
-  }
-  for name in $(printf '%s' "$listing" | jq -r '.[] | select(.type == "file")
-                | select(.name | test("\\.ya?ml$")) | .name'); do
-    raw="$(github_api GET "repos/${repo}/contents/.github/workflows/${name}" \
-             -H "Accept: application/vnd.github.raw")" || return 1
-    printf '%s\n' "$raw" >"$dest/$name"
+  fi
+  for name in $(jq -r '.[] | select(.type == "file")
+                | select(.name | test("\\.ya?ml$")) | .name' "$WORK/wflist.json"); do
+    api_call GET "$dest/$name" "repos/${repo}/contents/.github/workflows/${name}" \
+      -H "Accept: application/vnd.github.raw" || return 1
   done
   printf 'api\n'
 }
@@ -501,12 +553,15 @@ fetch_workflows() {
 # It NEVER proposes adding concurrency to a never_cancel workflow, and a
 # never_cancel workflow without cancellation is an informational line, not a
 # failure — that is the correct configuration, not a missing one.
+# It writes its block to STDOUT, unconditionally, so the caller can capture it
+# once and replay it into either renderer. Running it only on the human path is
+# how `--json` would come to under-report a real finding.
 report_actions() {
-  local repo="$1" dir="$WORK/wf/$REPO_N" src f base wname subject class has_conc cancels bad=0
+  local repo="$1" dir="$WORK/wf/$RIDX" src f base wname subject class cancels bad=0 rc
   rc=0
   src="$(fetch_workflows "$repo" "$dir")" || rc=$?
   if [ "$rc" != "0" ]; then
-    out "  $MARK_WARN workflows could not be read — $(github_explain)"
+    aout "  $MARK_WARN workflows could not be read — $(github_explain)"
     return 0
   fi
   vlog "workflow source: $src"
@@ -519,32 +574,33 @@ report_actions() {
     wname="$(sed -n 's/^name:[[:space:]]*//p' "$f" | head -1 | tr -d '"'"'")"
     subject="${base} ${wname}"
     class="$(workflow_class "$subject" "$f")"
-    has_conc=no; grep -Eq '^concurrency:' "$f" && has_conc=yes
-    cancels=no;  grep -Eq 'cancel-in-progress:[[:space:]]*true' "$f" && cancels=yes
+    cancels="$(workflow_cancels "$f")"
 
     case "$class" in
       cancellable)
-        if [ "$has_conc" = yes ] && [ "$cancels" = yes ]; then
-          out "  $MARK_OK $base — superseded PR runs cancelled"
+        if [ "$cancels" = always ]; then
+          aout "  $MARK_OK $base — superseded PR runs cancelled"
+        elif [ "$cancels" = on_pr ]; then
+          aout "  $MARK_OK $base — superseded PR runs cancelled (pull_request only)"
         else
-          out "  $MARK_BAD $base — superseded PR runs are NOT cancelled; add the canonical concurrency block"
+          aout "  $MARK_BAD $base — superseded PR runs are NOT cancelled; add the canonical concurrency block"
           add_change "$repo" "actions:$base" modify "missing concurrency block" no \
             "manual" "workflow files are edited by hand, never by this script"
           bad=1
         fi
         ;;
       never_cancel)
-        if [ "$cancels" = yes ]; then
-          out "  $MARK_BAD $base — cancel-in-progress is TRUE on a stateful workflow; remove it"
+        if [ "$cancels" = always ]; then
+          aout "  $MARK_BAD $base — cancel-in-progress is TRUE on a stateful workflow; remove it"
           add_change "$repo" "actions:$base" modify "cancellation enabled on a stateful workflow" no \
             "manual" "workflow files are edited by hand, never by this script"
           bad=1
         else
-          out "  $MARK_WARN $base — cancellation intentionally not enabled"
+          aout "  $MARK_WARN $base — cancellation intentionally not enabled"
         fi
         ;;
       *)
-        out "  $MARK_WARN $base — unclassified; left untouched for a human decision"
+        aout "  $MARK_WARN $base — unclassified; left untouched for a human decision"
         ;;
     esac
   done
@@ -560,7 +616,8 @@ report_actions() {
 resolve_branch() {
   local repo="$1" given="$2"
   if [ -n "$given" ]; then printf '%s' "$given"; return 0; fi
-  github_default_branch "$repo"
+  api_json "$WORK/branch.json" "repos/$repo" || return 1
+  jq -r '.default_branch // empty' "$WORK/branch.json"
 }
 
 # process_repo <repo> <fork> <archived> <default-branch> <owner-type>
@@ -570,7 +627,7 @@ resolve_branch() {
 # repository's result, not the end of the sweep.
 process_repo() {
   local repo="$1" fork="$2" arch="$3" branch="$4" otype="$5"
-  local rc key name live desired diff conflicts weaken id status note
+  local rc key name desired diff conflicts weaken id status note line
   R_BUCKET=""; R_NOTE=""; R_BRANCH=""
 
   if [ "$arch" = "true" ]; then R_BUCKET=skipped; R_NOTE="archived"; return 0; fi
@@ -591,25 +648,50 @@ process_repo() {
     if [ "$rc" != "0" ]; then
       R_BUCKET=failed; R_NOTE="$(github_explain)"; return 0
     fi
+    # An inherited ruleset stricter than the policy is reported WHETHER OR NOT
+    # this repository's own rulesets drift. A repo that is compliant underneath a
+    # stricter org rule is still governed by something this tool does not own,
+    # and silently reporting it as plain ALREADY COMPLIANT would hide that.
+    while IFS= read -r line; do
+      [ -n "$line" ] || continue
+      add_change "$repo" "organization ruleset" conflict "$line" no "org_policy" "$line"
+    done <<EOF
+$conflicts
+EOF
   fi
 
   local n_absent=0 n_drift=0 n_ok=0 n_block=0 n_written=0
-  : >"$WORK/rulesets.$REPO_N"
+  : >"$WORK/rulesets.$RIDX"
+  : >"$WORK/plan.$RIDX"
 
   for key in $(jq -r '.rulesets[].key' "$POLICY"); do
     name="$(jq -r --arg k "$key" '.rulesets[] | select(.key == $k) | .name' "$POLICY")"
 
     desired="$WORK/desired.$key"
     if ! github_render_payload_file "$POLICY" "$key" "$repo" "$desired"; then
-      printf '%s\terror\t%s\n' "$name" "$(github_explain)" >>"$WORK/rulesets.$REPO_N"
+      printf '%s\terror\t%s\n' "$name" "$(github_explain)" >>"$WORK/rulesets.$RIDX"
       add_change "$repo" "$name" error "$(github_explain)" no "render" "$GITHUB_LAST_CLASS"
       R_BUCKET=failed; R_NOTE="$(github_explain)"; return 0
     fi
 
+    if ! api_json "$WORK/rslist.json" "repos/$repo/rulesets?includes_parents=false"; then
+      printf '%s\terror\t%s\n' "$name" "$(github_explain)" >>"$WORK/rulesets.$RIDX"
+      add_change "$repo" "$name" error "$(github_explain)" no "api" "$GITHUB_LAST_CLASS"
+      R_BUCKET=failed; R_NOTE="$(github_explain)"; return 0
+    fi
+    # Match by NAME. The id is read from the same listing rather than fetched
+    # again later, so the ruleset that gets written is provably the one that was
+    # diffed — an id re-resolved after the confirmation could name a ruleset that
+    # changed underneath us.
+    id="$(jq -r --arg n "$name" '[.[] | select(.name == $n) | .id] | first // empty' "$WORK/rslist.json")"
     rc=0
-    live="$(github_get_ruleset_by_name "$repo" "$name")" || rc=$?
+    if [ -n "$id" ]; then
+      api_json "$WORK/live.raw.$key" "repos/$repo/rulesets/$id" || rc=1
+    else
+      rc=2
+    fi
     if [ "$rc" = "1" ]; then
-      printf '%s\terror\t%s\n' "$name" "$(github_explain)" >>"$WORK/rulesets.$REPO_N"
+      printf '%s\terror\t%s\n' "$name" "$(github_explain)" >>"$WORK/rulesets.$RIDX"
       add_change "$repo" "$name" error "$(github_explain)" no "api" "$GITHUB_LAST_CLASS"
       R_BUCKET=failed; R_NOTE="$(github_explain)"; return 0
     fi
@@ -617,17 +699,13 @@ process_repo() {
     if [ "$rc" = "2" ]; then
       # Absent. Creating it can weaken nothing, but an org conflict still stops us.
       n_absent=$((n_absent + 1))
-      printf '%s\tabsent\t\n' "$name" >>"$WORK/rulesets.$REPO_N"
-      if [ -n "$conflicts" ]; then
-        add_change "$repo" "$name" conflict "absent, but an organization ruleset is stricter" no \
-          "org_policy" "$(printf '%s' "$conflicts" | head -1)"
-        n_block=$((n_block + 1))
-        continue
-      fi
+      printf '%s\tabsent\t\n' "$name" >>"$WORK/rulesets.$RIDX"
+      if [ -n "$conflicts" ]; then n_block=$((n_block + 1)); continue; fi
       add_change "$repo" "$name" create "ruleset does not exist yet" no "" ""
+      { printf '%s — create\n' "$name"; sed 's/^/  + /' "$desired"; } >>"$WORK/plan.$RIDX"
       if [ "$VERB" = apply ]; then
         if confirm_change "$repo" "$name" "create" "$desired" ""; then
-          if github_create_ruleset "$repo" "$desired" >/dev/null; then
+          if api_call POST "$WORK/created.json" "repos/$repo/rulesets" --input "$desired" >/dev/null; then
             n_written=$((n_written + 1))
             out "    $MARK_OK created"
           else
@@ -640,45 +718,50 @@ process_repo() {
     fi
 
     # Present. Normalize both sides and compare — the idempotence primitive.
-    printf '%s' "$live" | github_ruleset_normalize >"$WORK/live.$key"
+    github_ruleset_normalize <"$WORK/live.raw.$key" >"$WORK/live.$key"
     if cmp -s "$desired" "$WORK/live.$key"; then
       n_ok=$((n_ok + 1))
-      printf '%s\tup_to_date\t\n' "$name" >>"$WORK/rulesets.$REPO_N"
+      printf '%s\tup_to_date\t\n' "$name" >>"$WORK/rulesets.$RIDX"
       add_change "$repo" "$name" ok "already up to date" no "" ""
       continue
     fi
 
     n_drift=$((n_drift + 1))
-    printf '%s\tdrifted\t\n' "$name" >>"$WORK/rulesets.$REPO_N"
+    printf '%s\tdrifted\t\n' "$name" >>"$WORK/rulesets.$RIDX"
     diff="$WORK/diff.$key"
     diff -u "$WORK/live.$key" "$desired" 2>/dev/null | sed '1,2d' >"$diff" || true
 
     # The two blocking guards, in order: never weaken, never bypass an org.
     weaken="$(policy_weakens "$WORK/live.$key" "$desired")"
+    note=""
     if [ -n "$weaken" ]; then
       note="$(printf '%s' "$weaken" | tr '\n' ';' | sed 's/;$//')"
-      add_change "$repo" "$name" conflict "$note" yes "weakens_existing_control" "$note"
-      n_block=$((n_block + 1))
-      continue
+      if [ -z "$OPT_ALLOW_WEAKEN" ]; then
+        add_change "$repo" "$name" conflict "$note" yes "weakens_existing_control" "$note"
+        n_block=$((n_block + 1))
+        continue
+      fi
+      # Opted in explicitly. It is still shown, still marked destructive, and
+      # still confirmed one repository at a time — the flag buys permission to
+      # ask, not permission to skip asking.
+      { printf 'WEAKENING (allowed by --allow-weakening): %s\n' "$note"; } >>"$WORK/plan.$RIDX"
     fi
-    if [ -n "$conflicts" ]; then
-      add_change "$repo" "$name" conflict "$(printf '%s' "$conflicts" | head -1)" no \
-        "org_policy" "$(printf '%s' "$conflicts" | tr '\n' ';' | sed 's/;$//')"
-      n_block=$((n_block + 1))
-      continue
-    fi
+    if [ -n "$conflicts" ]; then n_block=$((n_block + 1)); continue; fi
 
-    add_change "$repo" "$name" modify "drifts from policy" no "" ""
+    if [ -n "$note" ]; then
+      add_change "$repo" "$name" modify "weakens an existing control: $note" yes "" ""
+    else
+      add_change "$repo" "$name" modify "drifts from policy" no "" ""
+    fi
+    { printf '%s — update (live -> desired)\n' "$name"; sed 's/^/  /' "$diff"; } >>"$WORK/plan.$RIDX"
     if [ "$VERB" = apply ]; then
+      WEAKEN_NOTE="$note"
       if confirm_change "$repo" "$name" "update" "$desired" "$diff"; then
-        id="$(github_ruleset_id "$repo" "$name")" || id=""
-        if [ -z "$id" ]; then
-          out "    $MARK_BAD could not resolve the ruleset id"
-          R_BUCKET=failed; R_NOTE="could not resolve the ruleset id"; return 0
-        fi
         # PUT the same bytes that were rendered, diffed and shown. Nothing is
-        # re-rendered between the confirmation and the write.
-        if github_update_ruleset "$repo" "$id" "$desired" >/dev/null; then
+        # re-rendered and no id is re-resolved between the confirmation and the
+        # write.
+        WEAKEN_NOTE=""
+        if api_call PUT "$WORK/updated.json" "repos/$repo/rulesets/$id" --input "$desired" >/dev/null; then
           n_written=$((n_written + 1))
           out "    $MARK_OK updated"
         else
@@ -690,18 +773,17 @@ process_repo() {
   done
 
   # Classic branch protection is legacy, reported, never the source of truth.
-  rc=0
-  github_classic_protection "$repo" "$branch" >/dev/null || rc=$?
   R_CLASSIC=absent
-  if [ "$rc" = "0" ]; then
+  if api_json "$WORK/classic.json" "repos/$repo/branches/$branch/protection"; then
     R_CLASSIC=present
     add_change "$repo" "classic protection" ok "legacy classic branch protection is present — migrate to rulesets" no \
       "migration" "classic protection is read but never written by this tool"
-  elif [ "$rc" != "2" ]; then
+  elif [ "$GITHUB_LAST_CLASS" != "not_found" ]; then
     R_CLASSIC=unknown
   fi
 
-  if   [ "$n_block" -gt 0 ];   then R_BUCKET=conflict;          R_NOTE="$n_block ruleset(s) blocked"
+  if   [ -n "$conflicts" ];    then R_BUCKET=conflict;          R_NOTE="$(printf '%s' "$conflicts" | head -1)"
+  elif [ "$n_block" -gt 0 ];   then R_BUCKET=conflict;          R_NOTE="$n_block ruleset(s) blocked"
   elif [ "$n_written" -gt 0 ]; then R_BUCKET=updated;           R_NOTE="$n_written ruleset(s) written"
   elif [ $((n_absent + n_drift)) -gt 0 ]; then
     if [ "$VERB" = apply ]; then R_BUCKET=skipped;              R_NOTE="declined at the prompt"
@@ -720,12 +802,18 @@ process_repo() {
 # to proceed, 1 to skip. `--yes` proceeds without asking; no terminal never
 # proceeds — the caller has already guaranteed that case cannot reach here.
 CONFIRM_ALL=""
+WEAKEN_NOTE=""
 confirm_change() {
   local repo="$1" label="$2" action="$3" desired="$4" diff="$5" ans
   out ""
   out "──────────────────────────────────────────────────────────────"
   out "$repo · $label · $action"
   out "──────────────────────────────────────────────────────────────"
+  if [ -n "${WEAKEN_NOTE:-}" ]; then
+    out "${SETUP_C_YELLOW}This makes the repository LESS protected than it is today:${SETUP_C_OFF}"
+    out "  $WEAKEN_NOTE"
+    out ""
+  fi
   if [ -n "$diff" ] && [ -s "$diff" ]; then
     out "$(cat "$diff")"
   else
@@ -747,7 +835,7 @@ QUIT=""
 # Reporting
 # ---------------------------------------------------------------------------
 print_single_report() {
-  local repo="$1" branch="$2" line name st extra actions_bad=0
+  local repo="$1" branch="$2" line name st extra
   out ""
   out "${SETUP_C_BOLD}GitHub Repository Standards${SETUP_C_OFF} — $repo"
   out ""
@@ -762,7 +850,7 @@ print_single_report() {
       drifted)    out "  $MARK_BAD $name — drifts from policy" ;;
       error)      out "  $MARK_BAD $name — $extra" ;;
     esac
-  done <"$WORK/rulesets.$REPO_N" 2>/dev/null || true
+  done <"$WORK/rulesets.$RIDX" 2>/dev/null || true
 
   # Anything blocked is louder than the line above, because a blocked change is
   # a decision the user has to make, not a task the tool will get to later.
@@ -774,6 +862,14 @@ print_single_report() {
     out "  $MARK_WARN $(field "$d" label) — CONFLICT: $(field "$d" reason)"
   done
 
+  # `audit` answers "is this repository compliant"; the remediation diff belongs
+  # to the verbs whose job is the change.
+  if { [ "$VERB" = plan ] || [ "$VERB" = verify ]; } && [ -s "$WORK/plan.$RIDX" ]; then
+    out ""
+    out "Planned change:"
+    while IFS= read -r line; do out "  $line"; done <"$WORK/plan.$RIDX"
+  fi
+
   out ""
   out "Legacy:"
   case "${R_CLASSIC:-absent}" in
@@ -784,10 +880,10 @@ print_single_report() {
 
   out ""
   out "Actions:"
-  report_actions "$repo" || actions_bad=1
+  while IFS= read -r line; do out "$line"; done <"$WORK/actions.out"
 
   out ""
-  if [ "$R_BUCKET" = already_compliant ] && [ "$actions_bad" = "0" ]; then
+  if [ "$R_BUCKET" = already_compliant ] && [ "$ACTIONS_BAD" = "0" ]; then
     out "Result: ${SETUP_C_GREEN}COMPLIANT${SETUP_C_OFF}"
     return 0
   fi
@@ -876,7 +972,7 @@ main() {
   if [ "$VERB" = apply ] && [ -n "$BULK" ]; then
     if [ -z "${SETUP_YES:-}" ] && ! setup_can_prompt; then
       setup_note "no TTY — cannot confirm a bulk apply. Showing the plan instead; re-run with --yes to apply."
-      VERB="plan"
+      VERB="plan"; DEGRADED=1
     else
       out ""
       out "${SETUP_C_YELLOW}About to change live branch governance on up to $n_targets repositories.${SETUP_C_OFF}"
@@ -892,7 +988,7 @@ main() {
   # Single-repo apply obeys the same rule: no terminal and no --yes means plan.
   if [ "$VERB" = apply ] && [ -z "$BULK" ] && [ -z "${SETUP_YES:-}" ] && ! setup_can_prompt; then
     setup_note "no TTY — cannot confirm. Showing the plan instead; re-run with --yes to apply."
-    VERB="plan"
+    VERB="plan"; DEGRADED=1
   fi
 
   local name fork arch branch otype
@@ -900,12 +996,25 @@ main() {
     [ -n "$name" ] || continue
     [ -n "$QUIT" ] && break
     vlog "processing $name"
+    RIDX=$((RIDX + 1))
     R_BUCKET=""; R_NOTE=""; R_BRANCH=""; R_CLASSIC=absent
     process_repo "$name" "$fork" "$arch" "$branch" "$otype" || true
     add_repo "$name" "${R_BRANCH:-$branch}" "$R_BUCKET" "$R_NOTE"
-    [ -n "$BULK" ] && [ -z "$OPT_JSON" ] && \
-      out "$(printf '  %-46s %-18s %s' "$name" "$R_BUCKET" "${SETUP_C_DIM}$R_NOTE${SETUP_C_OFF}")"
+    # Live progress goes to stderr, never stdout: a 19-repository sweep takes
+    # half a minute and silence reads as a hang, but the report on stdout must
+    # not carry the same rows twice when it is piped into a file.
+    [ -n "$BULK" ] && printf '  %-46s %-18s %s%s%s\n' \
+      "$name" "$R_BUCKET" "$SETUP_C_DIM" "$R_NOTE" "$SETUP_C_OFF" >&2
   done <"$WORK/repolist"
+
+  # Single-repository scope always analyses Actions concurrency, in every output
+  # mode, before either renderer runs. Bulk scope does not: it would be one
+  # contents-API call per workflow per repository, and the bulk report is about
+  # branch governance. `audit`/`verify` on one repo is where that answer belongs.
+  ACTIONS_BAD=0
+  if [ -z "$BULK" ] && [ "$REPO_N" -gt 0 ]; then
+    report_actions "$(field "$WORK/repos/0001" repo)" >"$WORK/actions.out" || ACTIONS_BAD=1
+  fi
 
   if [ -n "$OPT_JSON" ]; then
     print_json
@@ -927,8 +1036,10 @@ main() {
       audit)  out "  Remediate:  bash scripts/github-policy.sh plan --repo $(field "$WORK/repos/0001" repo)" ;;
       plan)   out "  Nothing has been written. Re-run with 'apply' to make these changes." ;;
       apply)  out "  Verify:     bash scripts/github-policy.sh verify --repo $(field "$WORK/repos/0001" repo)" ;;
+      verify) out "  Remediate:  bash scripts/github-policy.sh apply --repo $(field "$WORK/repos/0001" repo)" ;;
     esac
   fi
+  [ -n "$DEGRADED" ] && rc=0
   out ""
   exit "$rc"
 }

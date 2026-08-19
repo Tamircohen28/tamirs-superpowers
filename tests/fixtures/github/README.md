@@ -28,7 +28,11 @@ fake_gh_use_fixtures "$REPO_ROOT/tests/fixtures/github/compliant"
 | [`default-main`](default-main/README.md) | `default_branch: main` (15/19) | `~DEFAULT_BRANCH`, not a literal |
 | [`default-master`](default-master/README.md) | `default_branch: master` (4/19) | the same, from the other side |
 | [`default-trunk`](default-trunk/README.md) | `default_branch: trunk` | catches `main`-or-`master` special-casing |
-| [`no-permission`](no-permission/README.md) | 403 on rulesets | named degradation, run continues |
+| [`no-permission`](no-permission/README.md) | 403, "not accessible by" | named degradation, run continues |
+| [`insufficient-scope`](insufficient-scope/README.md) | 403, token lacks `administration` | re-authorize, not "get admin" |
+| [`org-policy`](org-policy/README.md) | 403, org restriction | the 403 the operator cannot fix alone |
+| [`forbidden`](forbidden/README.md) | 403, none of the above | the residual class |
+| [`server-error`](server-error/README.md) | 502 | transient; retry, do not report as a finding |
 | [`rate-limited`](rate-limited/README.md) | 403 + `Retry-After` | throttle ≠ permission failure |
 | [`auth-failed`](auth-failed/README.md) | 401 everywhere | hard stop before any repo is touched |
 | [`conflict`](conflict/README.md) | 409 on `PUT` | write-side failure, isolate and continue |
@@ -65,10 +69,56 @@ last — that is how "apply, then read back and see the new state" is expressed.
 ## Error injection
 
 A scenario's `errors.txt` holds `<METHOD|ANY> <path-glob> <status>` lines;
-`fake_gh_error` appends the same at runtime and is consulted first. Statuses:
-`401`, `403`, `403-rate-limit`, `404`, `409`, `422`. Bodies use GitHub's real
-envelope (`message` / `documentation_url` / `status`, plus `errors` for 422) and
-can be overridden per scenario with `errors/<status>.json`.
+`fake_gh_error` appends the same at runtime and is consulted first. Bodies use
+GitHub's real envelope (`message` / `documentation_url` / `status`, plus `errors`
+for 422) and can be overridden per scenario with `errors/<status>.json`.
+
+| Token | HTTP | Classifies as | Distinguished by |
+|-------|------|---------------|------------------|
+| `401` | 401 | `unauthenticated` | status |
+| `403` | 403 | `insufficient_scope` | body: "not accessible by" |
+| `403-scope` | 403 | `insufficient_scope` | body: "scope" |
+| `403-org-policy` | 403 | `org_policy` | body: "organization has enabled" |
+| `403-saml` | 403 | `org_policy` | body: "SAML enforcement" |
+| `403-rate-limit` | 403 | `rate_limited` | body: "rate limit" + `x-ratelimit-remaining: 0` |
+| `404` | 404 | `not_found` | status |
+| `404-unsupported` | 404 | `unsupported` | body: "upgrade" |
+| `409` | 409 | `conflict` | status |
+| `422` | 422 | `invalid_request` | status, plus `.errors[]` detail |
+| `429` | 429 | `rate_limited` | status + `retry-after` |
+| `451` | 451 | `org_policy` | status |
+| `500` `502` `503` | 5xx | `network` | status |
+| `no-response` | *none* | `network` | no status line at all |
+
+**Five of these are HTTP 403 and differ only in `.message`.** That is how GitHub
+actually reports them, and the class decides what the operator does next:
+re-authorize a token, ask an org admin, wait out a throttle, or get admin on the
+repo. A fixture whose body matched an earlier branch would pass for the wrong
+reason, which is why `forbidden` needs its own body override.
+
+**Order matters within 403.** Both of GitHub's real org-restriction messages
+mention OAuth, so `github_api` tests org-policy wording *before* scope wording;
+reversed, both would report as a missing scope and send the operator to
+`gh auth refresh`, which cannot fix an org restriction. `403-org-policy` and
+`403-saml` are the regression guard for that ordering, and the suite also asserts
+that those bodies genuinely contain "OAuth" — otherwise the guard would pass
+while testing nothing.
+
+## The `--include` header contract
+
+`scripts/lib/github-common.sh` runs every call as
+`gh api --include --method <M> <path>` and classifies from the status line **plus
+the `retry-after`, `x-oauth-scopes` and `x-ratelimit-remaining` headers**. The
+shim therefore emits a complete header block, a blank line, then the body —
+never a bare body. A plain 403 deliberately carries a *healthy*
+`x-ratelimit-remaining`, so that "403 with remaining: 0 is a throttle" is a
+discrimination the tests exercise rather than one that falls out of an absent
+header.
+
+`scopes.txt` in a scenario sets `x-oauth-scopes` (default: the measured token
+from `ground-truth-rulesets.md`). `tests/test-fake-gh.sh` verifies all of this by
+driving the real `github-common.sh` classifier — asserting the shim's header
+format against the shim's own expectations would prove only self-consistency.
 
 ## Fidelity
 

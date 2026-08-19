@@ -16,6 +16,8 @@ Two input shapes, auto-detected:
        - tasks the plan calls parallel really are independent (no shared
          write scope, no dependency path between them);
        - every task declares role, scope, validation_tier;
+       - no scope uses a single-* segment, which would silently grant the
+         whole subtree because the enforcing matcher lets `*` match `/`;
        - objective.tasks matches the task files on disk.
 
   2. A markdown phase plan (the pre-DAG format, still accepted so an older
@@ -55,6 +57,31 @@ OBJECTIVE_ID = re.compile(r"^[a-z0-9][a-z0-9-]*$")
 # ---------------------------------------------------------------------------
 # Objective + task DAG
 # ---------------------------------------------------------------------------
+
+
+def _scope_form_errors(task_id: str, scope: list[str]) -> list[str]:
+    """Reject any `*` that is not a `**` segment.
+
+    The scope check that keeps a worker inside its area is bash pattern
+    matching, where `*` also matches `/`. So `src/*` — the natural way to write
+    "files directly under src" — silently authorises `src/deep/nested/secret.txt`
+    too, and `src/*.ts` authorises `src/a/b.ts`. There is no single-level
+    matcher available, so the only honest forms are an explicit `**` subtree or
+    a literal path. Catching it here puts the error where the graph is authored
+    rather than nowhere.
+    """
+    errors: list[str] = []
+    for pattern in scope:
+        for seg in pattern.split("/"):
+            if "*" in seg and seg != "**":
+                errors.append(
+                    f"{task_id}: scope '{pattern}' uses a single-* segment ('{seg}'). "
+                    "Under the matcher that enforces scope, `*` also matches `/`, so this "
+                    "silently grants the whole subtree. Write '<dir>/**' when you mean "
+                    "the subtree, or name the file literally when you mean one file."
+                )
+                break
+    return errors
 
 
 def _scopes_overlap(a: list[str], b: list[str]) -> bool:
@@ -152,6 +179,8 @@ def validate_objective(obj_dir: Path) -> list[str]:
         scope = task.get("scope")
         if not isinstance(scope, list) or not scope:
             errors.append(f"{tid}: scope must be a non-empty list of glob paths")
+        else:
+            errors.extend(_scope_form_errors(tid, scope))
 
     declared = objective.get("tasks") or []
     if isinstance(declared, list):

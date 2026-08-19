@@ -96,6 +96,14 @@ sim_handoff() { OBJECTIVES_ROOT="$SIM_STATE" bash "$REPO_ROOT/skills/dev-workflo
 # Records every argv to the log and succeeds. It never talks to GitHub. `pr create`
 # prints a plausible URL so a caller that parses stdout still works, which is what
 # makes "exactly one PR" an assertion about behaviour rather than about a crash.
+# Mirror of the guard in tests/lib/fake-gh.sh — see the rationale there. These
+# two libs must never share a shell.
+if [ -n "${FAKE_GH_LIB_LOADED:-}" ]; then
+  printf 'fake-agent.sh: cannot load — tests/lib/fake-gh.sh is already sourced in this shell.\n' >&2
+  return 1 2>/dev/null || exit 1
+fi
+FAKE_AGENT_LIB_LOADED=1
+
 fake_gh_install() {
   local bindir="$1" log="$2"
   : > "$log"

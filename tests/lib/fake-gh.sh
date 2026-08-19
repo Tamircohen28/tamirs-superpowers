@@ -47,6 +47,22 @@
 _FGH_SELF="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/$(basename "${BASH_SOURCE[0]}")"
 
 # ---------------------------------------------------------------------------
+# Collision guard
+# ---------------------------------------------------------------------------
+# A guard, not just a comment. Both libs define `fake_gh_install` and `gh_calls`
+# with DIFFERENT signatures (2 args there vs 3 here) over different logs, so
+# sourcing both silently redefines them — last one wins, the caller's fixture dir
+# is dropped, and the suite serves nothing while still reporting pass.
+# Documentation alone would not have caught that; this does. tests/lib/fake-agent.sh
+# carries the mirror-image guard, so either source order is caught.
+if [ -n "${FAKE_AGENT_LIB_LOADED:-}" ]; then
+  printf 'fake-gh.sh: cannot load — tests/lib/fake-agent.sh is already sourced in this shell.\n' >&2
+  printf '  They define the same helpers over different logs. Source exactly one.\n' >&2
+  return 1 2>/dev/null || exit 1
+fi
+FAKE_GH_LIB_LOADED=1
+
+# ---------------------------------------------------------------------------
 # Install / configure  (sourced side)
 # ---------------------------------------------------------------------------
 
@@ -275,30 +291,126 @@ J
 {"message":"Validation Failed","errors":[{"resource":"Ruleset","code":"invalid","field":"rules"}],"documentation_url":"https://docs.github.com/rest/repos/rules#create-a-repository-ruleset","status":"422"}
 J
       ;;
-    *) _fgh_die "unknown error status token '$tok' (use 401|403|403-rate-limit|404|409|422)" ;;
+    429) cat <<'J'
+{"message":"You have exceeded a secondary rate limit. Please wait a few minutes before you try again.","documentation_url":"https://docs.github.com/rest/overview/resources-in-the-rest-api#secondary-rate-limits","status":"429"}
+J
+      ;;
+    403-scope) cat <<'J'
+{"message":"Token does not have the required scope: administration. The fine-grained personal access token used is missing `administration: write`.","documentation_url":"https://docs.github.com/rest/repos/rules#create-a-repository-ruleset","status":"403"}
+J
+      ;;
+    403-org-policy) cat <<'J'
+{"message":"Although you appear to have the correct authorization credentials, the `ProductionMasterAI` organization has enabled OAuth App access restrictions, meaning that data access to third-parties is limited.","documentation_url":"https://docs.github.com/articles/restricting-access-to-your-organization-s-data/","status":"403"}
+J
+      ;;
+    403-saml) cat <<'J'
+{"message":"Resource protected by organization SAML enforcement. You must grant your OAuth token access to this organization.","documentation_url":"https://docs.github.com/rest/repos/rules#get-all-repository-rulesets","status":"403"}
+J
+      ;;
+    404-unsupported) cat <<'J'
+{"message":"Upgrade to GitHub Pro or make this repository public to enable this feature. Repository rulesets are not available on this plan.","documentation_url":"https://docs.github.com/rest/repos/rules#get-all-repository-rulesets","status":"404"}
+J
+      ;;
+    451) cat <<'J'
+{"message":"Repository access blocked by organization IP allow list policy.","documentation_url":"https://docs.github.com/rest/repos/repos#get-a-repository","status":"451"}
+J
+      ;;
+    500|502|503) cat <<'J'
+{"message":"Server Error","documentation_url":"https://docs.github.com/rest","status":"500"}
+J
+      ;;
+    no-response) printf '' ;;
+    *) _fgh_die "unknown error status token '$tok' (use 401|403|403-scope|403-org-policy|403-saml|403-rate-limit|404|404-unsupported|409|422|429|451|500|502|503|no-response)" ;;
   esac
 }
 
-_fgh_error_code() { case "$1" in 403-rate-limit) printf '403' ;; *) printf '%s' "$1" ;; esac; }
+# _fgh_error_code <token> — the HTTP status a token renders as. Several tokens
+# share a code and differ only in body wording, because that is exactly how
+# GitHub distinguishes a throttle from a scope failure from an org policy — all
+# three are 403, and only `.message` tells them apart.
+_fgh_error_code() {
+  case "$1" in
+    403-rate-limit|403-scope|403-org-policy|403-saml) printf '403' ;;
+    404-unsupported)                         printf '404' ;;
+    no-response)                             printf '' ;;
+    *)                                       printf '%s' "$1" ;;
+  esac
+}
+
+# _fgh_scopes — the token's scopes, as `x-oauth-scopes` renders them (comma-space
+# separated, unquoted — not the quoted form `gh auth status` prints). A scenario
+# overrides with scopes.txt; the default is the measured token from
+# session-files/ground-truth-rulesets.md.
+_fgh_scopes() {
+  if [ -f "$FAKE_GH_FIXTURES/scopes.txt" ]; then
+    tr -d '\n' < "$FAKE_GH_FIXTURES/scopes.txt"
+  else
+    printf '%s' "${FAKE_GH_SCOPES:-admin:org, admin:public_key, delete_repo, gist, repo, workflow}"
+  fi
+}
+
+# _fgh_header_block <code> [extra-header-line...] — the header block `gh api
+# --include` prints, then the blank line that separates it from the body.
+#
+# This is a contract, not decoration. scripts/lib/github-common.sh runs every
+# call as `gh api --include --method <M> <path>` and classifies from the status
+# line PLUS retry-after, x-oauth-scopes and x-ratelimit-remaining. A shim that
+# emitted a bare body would satisfy a naive fixture assertion while every real
+# classification path went untested — the vacuous pass this suite exists to
+# prevent. So the block is always complete: a plain 403 carries a healthy
+# x-ratelimit-remaining precisely so that "403 with remaining: 0 is a throttle"
+# is a discrimination the tests actually exercise rather than one that happens to
+# fall out of a missing header.
+_fgh_header_block() {
+  local code="$1"
+  shift
+  printf 'HTTP/2.0 %s\n' "$code"
+  printf 'date: Wed, 19 Aug 2026 15:43:16 GMT\n'
+  printf 'content-type: application/json; charset=utf-8\n'
+  printf 'x-github-media-type: github.v3; format=json\n'
+  printf 'x-oauth-scopes: %s\n' "$(_fgh_scopes)"
+  printf 'x-accepted-oauth-scopes: %s\n' "${FAKE_GH_ACCEPTED_SCOPES:-repo}"
+  printf 'x-ratelimit-limit: 5000\n'
+  printf 'x-ratelimit-remaining: %s\n' "${_FGH_REMAINING:-4999}"
+  printf 'x-ratelimit-reset: 1755620000\n'
+  while [ "$#" -gt 0 ]; do printf '%s\n' "$1"; shift; done
+  printf '\n'
+}
 
 # _fgh_fail <status-token> — emit like `gh api` does on a non-2xx: body on
-# stdout, a one-line summary on stderr, exit 1. Rate limiting additionally
-# surfaces Retry-After, which is the only thing a backoff path can key on.
+# stdout (behind the header block when --include), a one-line summary on stderr,
+# exit 1. Rate limiting additionally surfaces Retry-After and zeroes the
+# remaining quota, which is what a backoff path keys on.
 _fgh_fail() {
   local tok="$1" body code msg
   body="$(_fgh_error_body "$tok")"
   code="$(_fgh_error_code "$tok")"
-  msg="$(printf '%s' "$body" | jq -r '.message')"
+  msg="$(printf '%s' "$body" | jq -r '.message // empty')"
+
+  # `network` in the caller's taxonomy means "no HTTP response at all", so this
+  # one must print nothing on stdout — a status line of any kind would classify
+  # as something else.
+  if [ "$tok" = "no-response" ]; then
+    printf 'error connecting to api.github.com\n' >&2
+    exit 1
+  fi
+
+  case "$tok" in
+    403-rate-limit|429) _FGH_REMAINING=0 ;;
+  esac
+
   if [ "$_FGH_INCLUDE" = "yes" ]; then
-    printf 'HTTP/2.0 %s\n' "$code"
-    [ "$tok" = "403-rate-limit" ] && printf 'retry-after: 60\nx-ratelimit-remaining: 0\nx-ratelimit-reset: 1755620000\n'
-    printf '\n'
+    case "$tok" in
+      403-rate-limit|429) _fgh_header_block "$code" 'retry-after: 60' ;;
+      *)                  _fgh_header_block "$code" ;;
+    esac
   fi
   printf '%s\n' "$body"
-  if [ "$tok" = "403-rate-limit" ]; then
-    printf 'retry-after: 60\n' >&2
-    printf 'x-ratelimit-remaining: 0\n' >&2
-  fi
+  case "$tok" in
+    403-rate-limit|429)
+      printf 'retry-after: 60\n' >&2
+      printf 'x-ratelimit-remaining: 0\n' >&2 ;;
+  esac
   printf 'gh: %s (HTTP %s)\n' "$msg" "$code" >&2
   exit 1
 }
@@ -307,9 +419,7 @@ _fgh_fail() {
 _fgh_emit() {
   local f="$1"
   [ "$_FGH_SILENT" = "yes" ] && return 0
-  if [ "$_FGH_INCLUDE" = "yes" ]; then
-    printf 'HTTP/2.0 200\ncontent-type: application/json\nx-ratelimit-remaining: 4999\n\n'
-  fi
+  [ "$_FGH_INCLUDE" = "yes" ] && _fgh_header_block 200
   if [ -n "$_FGH_JQ" ]; then
     jq -r "$_FGH_JQ" < "$f"
   else

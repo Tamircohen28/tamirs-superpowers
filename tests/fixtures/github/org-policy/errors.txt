@@ -1,0 +1,3 @@
+# OAuth App access restrictions at the org level.
+ANY repos/*/*/rulesets 403-org-policy
+ANY repos/*/*/rulesets/* 403-org-policy

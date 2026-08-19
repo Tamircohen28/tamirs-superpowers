@@ -1,0 +1,3 @@
+# A token that authenticates fine but lacks administration rights.
+ANY repos/*/*/rulesets 403-scope
+ANY repos/*/*/rulesets/* 403-scope

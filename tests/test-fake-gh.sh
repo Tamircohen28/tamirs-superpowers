@@ -421,4 +421,145 @@ judge "every recorded call is accounted for in the log" yes \
 judge "the shim library makes no network calls" "" \
   "$(grep -nE '(^|[^_a-zA-Z])(curl|wget|nc|ssh)[[:space:]]' "$REPO_ROOT/tests/lib/fake-gh.sh" || true)"
 
+# ---------------------------------------------------------------------------
+section "the --include header contract"
+# ---------------------------------------------------------------------------
+# scripts/lib/github-common.sh runs every call as
+#   gh api --include --method <M> <path>
+# and classifies from the status line PLUS retry-after, x-oauth-scopes and
+# x-ratelimit-remaining. A shim emitting a bare JSON body would satisfy the
+# fixture assertions above while every classification path went untested.
+
+fake_gh_use_fixtures "$FIX/compliant"
+fake_gh_reset
+run api --include --method GET repos/Tamircohen28/tamirs-superpowers/rulesets
+judge "--include --method is the real call shape" 0 "$RRC"
+judge "  status line first" yes "$(has "$ROUT" 'HTTP/2.0 200')"
+judge "  x-oauth-scopes present" yes "$(has "$ROUT" 'x-oauth-scopes: admin:org')"
+judge "  x-ratelimit-remaining present" yes "$(has "$ROUT" 'x-ratelimit-remaining: 4999')"
+judge "  a blank line separates headers from body" yes "$(has "$ROUT" '
+[')"
+judge "  the body still parses once the headers are stripped" 2 \
+  "$(printf '%s' "$ROUT" | awk 'f{print} /^$/{f=1}' | jq 'length')"
+
+# The error path is the one that was emitting a bare status line.
+fake_gh_reset
+fake_gh_error ANY 'repos/*/*/rulesets' 403
+run api --include --method GET repos/Tamircohen28/example-repo/rulesets
+judge "a plain 403 carries a full header block" yes "$(has "$ROUT" 'x-oauth-scopes:')"
+judge "  and a HEALTHY remaining quota, so 'remaining: 0' stays meaningful" yes \
+  "$(has "$ROUT" 'x-ratelimit-remaining: 4999')"
+judge "  and no retry-after, which is a throttle-only header" no "$(has "$ROUT" 'retry-after:')"
+
+fake_gh_reset
+fake_gh_error ANY 'repos/*/*/rulesets' 403-rate-limit
+run api --include --method GET repos/Tamircohen28/example-repo/rulesets
+judge "a rate-limit 403 zeroes the remaining quota" yes "$(has "$ROUT" 'x-ratelimit-remaining: 0')"
+judge "  and carries retry-after" yes "$(has "$ROUT" 'retry-after: 60')"
+
+fake_gh_use_fixtures "$FIX/insufficient-scope"
+fake_gh_reset
+run api --include --method GET repos/Tamircohen28/example-repo/rulesets
+judge "scopes.txt drives x-oauth-scopes" yes "$(has "$ROUT" 'x-oauth-scopes: gist, read:user')"
+judge "  the scope-failure body names the missing scope" yes "$(has "$ROUT" 'administration')"
+
+fake_gh_use_fixtures "$FIX/server-error"
+fake_gh_reset
+run api --include --method GET repos/Tamircohen28/example-repo/rulesets
+judge "a 502 renders as a 5xx status line" yes "$(has "$ROUT" 'HTTP/2.0 502')"
+
+fake_gh_reset
+fake_gh_error ANY 'repos/*/*/rulesets' no-response
+run api --include --method GET repos/Tamircohen28/example-repo/rulesets
+judge "no-response emits NO status line — the only way to reach 'network'" "" "$ROUT"
+judge "  and still fails" 1 "$RRC"
+
+# ---------------------------------------------------------------------------
+section "classification through the real library"
+# ---------------------------------------------------------------------------
+# Asserting my own header format against my own expectations proves only that I
+# am self-consistent. This drives scripts/lib/github-common.sh — the actual
+# consumer — so the header block is verified by the code that reads it.
+
+GHLIB="$REPO_ROOT/scripts/lib/github-common.sh"
+if [ ! -f "$GHLIB" ]; then
+  skip "classification through github-common.sh" "scripts/lib/github-common.sh not present"
+else
+  # classify <fixture> <token|-> <expected-class>
+  classify() {
+    local fixture="$1" tok="$2" want="$3" got
+    got="$(
+      set -uo pipefail
+      export FAKE_GH_LOG="$LOG" FAKE_GH_STATE FAKE_GH_ERRORS
+      # shellcheck source=scripts/lib/github-common.sh
+      source "$GHLIB" >/dev/null 2>&1
+      fake_gh_use_fixtures "$FIX/$fixture" >/dev/null 2>&1
+      : > "$FAKE_GH_ERRORS"
+      [ "$tok" = "-" ] || printf 'ANY repos/*/*/rulesets %s\n' "$tok" >> "$FAKE_GH_ERRORS"
+      github_api GET "repos/Tamircohen28/example-repo/rulesets" >/dev/null 2>&1
+      github_last_class
+    )"
+    judge "$fixture${tok:+/$tok} classifies as $want" "$want" "$got"
+  }
+
+  classify compliant          -               ok
+  classify no-permission      -               insufficient_scope
+  classify insufficient-scope -               insufficient_scope
+  classify org-policy         -               org_policy
+  classify rate-limited       -               rate_limited
+  classify compliant          401             unauthenticated
+  classify compliant          429             rate_limited
+  classify compliant          404             not_found
+  classify compliant          404-unsupported unsupported
+  classify compliant          409             conflict
+  classify compliant          422             invalid_request
+  classify compliant          451             org_policy
+  classify compliant          502             network
+  classify compliant          no-response     network
+  # All three of these are HTTP 403 and differ only in `.message`. That is not a
+  # quirk of the mock — it is how GitHub actually reports them, and getting the
+  # class wrong sends the operator to the wrong fix: re-authorize a token, ask an
+  # org admin, or wait out a throttle.
+  #
+  # The default 403 body says "Resource not accessible by personal access
+  # token", which matches the scope branch. `forbidden` is the residual class,
+  # reached only when rate-limit, quota, org-policy AND scope wording have all
+  # failed to match, so it needs a body no other fixture produces —
+  # forbidden/errors/403.json. Asserting it against the default body would pass
+  # for the wrong reason.
+  classify compliant          403             insufficient_scope
+  classify forbidden          -               forbidden
+
+  # PRECEDENCE REGRESSION GUARD. Both of GitHub's real org-restriction 403s
+  # mention OAuth:
+  #   "...the `X` organization has enabled OAuth App access restrictions..."
+  #   "Resource protected by organization SAML enforcement. You must grant your
+  #    OAuth token access to this organization."
+  # github_api therefore tests org-policy wording BEFORE scope wording. Reversed,
+  # both land on insufficient_scope and the operator is sent to `gh auth refresh`
+  # — a command that cannot fix an org restriction. The ordering is load-bearing
+  # and now carries a "do not reorder" comment in the library; these two cases
+  # are what would fail if someone did it anyway.
+  classify org-policy         -               org_policy
+  classify compliant          403-saml        org_policy
+
+  # ...and the guard is only meaningful if those bodies really would match the
+  # scope branch. Assert the collision exists rather than trusting the comment:
+  # if a future edit sanitised "OAuth" out of these messages, the two cases above
+  # would still pass while testing nothing.
+  fake_gh_reset
+  fake_gh_error ANY 'repos/*/*/rulesets' 403-saml
+  run api repos/Tamircohen28/example-repo/rulesets
+  judge "the SAML body really does contain OAuth (else the guard is vacuous)" yes \
+    "$(has "$(printf '%s' "$ROUT" | jq -r '.message' | tr 'A-Z' 'a-z')" 'oauth')"
+  fake_gh_use_fixtures "$FIX/org-policy"
+  fake_gh_reset
+  run api repos/Tamircohen28/example-repo/rulesets
+  judge "the OAuth-App-restrictions body does too" yes \
+    "$(has "$(printf '%s' "$ROUT" | jq -r '.message' | tr 'A-Z' 'a-z')" 'oauth')"
+fi
+
+fake_gh_use_fixtures "$FIX/compliant"
+fake_gh_reset
+
 harness_summary
