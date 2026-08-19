@@ -600,6 +600,10 @@ github_ruleset_normalize() {
 #   * `_comment` and `key` are stripped — they are ours, not GitHub's.
 #   * rules listed in the repository's `rules.disable` are removed.
 #   * `rules.enforcement` overrides the ruleset's enforcement.
+#   * `rules.parameters.<ruleType>` merges over that rule's parameters. Only the
+#     names the policy declares in `overridable_parameters` can appear there —
+#     the schema enforces the closed set — so this merge cannot restate a rule
+#     wholesale. The override's own bookkeeping keys are dropped, not sent.
 #   * required_status_checks contexts come from the repository override paired
 #     with the account-wide integration_id, never from the canonical file.
 #   * when a repository resolves to ZERO contexts the required_status_checks
@@ -617,6 +621,7 @@ github_policy_render_ruleset() {
     | ($p.required_checks.integration_id) as $iid
     | ($ov.required_checks.contexts // $p.required_checks.default_contexts) as $ctx
     | ($ov.rules.disable // []) as $disable
+    | ($ov.rules.parameters // {}) as $povr
     | {
         name:          $rs.name,
         target:        $rs.target,
@@ -627,6 +632,13 @@ github_policy_render_ruleset() {
           $rs.rules
           | map(select(.type as $t | $disable | index($t) | not))
           | map(del(._comment))
+          | map(
+              ($povr[.type] // {}) as $o
+              | if ($o | keys | length) > 0
+                then .parameters = ((.parameters // {})
+                                    + ($o | del(._comment, .acknowledged_weakening)))
+                else . end
+            )
           | map(
               if .type == "required_status_checks"
               then .parameters.required_status_checks =
@@ -684,6 +696,17 @@ github_ruleset_matches() {
 }
 
 # github_verify_policy <policy-file> <owner/repo>
+#
+# NOTE — this is a STRICT comparison against canonical, and it can legitimately
+# disagree with `github-policy.sh audit`. This function compares bypass_actors,
+# because canonical declares `[]` and an actor added on github.com is exactly the
+# drift worth seeing. The entrypoint instead preserves whatever bypass actors are
+# live before diffing, and reports them separately, on the documented grounds
+# that a bypass actor is repository-specific state a policy tool should not strip.
+# So a repository carrying an admin bypass reads `drifted` here and COMPLIANT
+# there, and both answers are correct for the question being asked. If you want
+# the entrypoint's answer, use the entrypoint; do not "fix" either one to match.
+#
 # Read-only verification of the whole policy against one repository. Prints one
 # tab-separated record per ruleset:  <key><TAB>up_to_date|absent|drifted|error
 # Returns 0 when every ruleset is up to date, 3 when any drifts or is absent,

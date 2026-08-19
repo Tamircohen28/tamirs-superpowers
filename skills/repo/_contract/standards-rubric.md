@@ -49,14 +49,42 @@ Manual: issue templates, release workflow, no self-hosted runners.
 
 ## S4 Branch governance
 
+The GitHub-API axis. Everything except S4-01 needs a network read, so all of it is skipped
+when `CONTRACT_OFFLINE=1` **and** when the API could not be read at all — an unread control
+is unknown, not broken, and scoring it is what made this family fire against a compliant repo.
+
+**Rulesets are authoritative.** Classic `branches/*/protection` returns 404 on a
+rulesets-governed repository; its absence is never a gap. It is carried in the inventory as
+`legacy_classic_protection` and reported as a migration item.
+
+Rule values, ruleset names and required status-check contexts are **not** listed here — they
+live in [`config/github/repository-policy.json`](../../../config/github/repository-policy.json)
+and are read from it at scoring time. Required contexts are per-repository and must never be
+globalised.
+
 | ID | Check | Severity |
 |----|-------|----------|
 | S4-01 | CODEOWNERS | P2 |
-| S4-02 | Branch protection enabled | P2 |
-| S4-03 | ≥1 required approving review | P2 |
+| S4-02 | Default branch governed by an active ruleset or classic protection | P2 |
+| S4-03 | *retired* — required ≥1 approving review, which contradicts the canonical solo-contributor policy. Superseded by S4-10. | — |
 | S4-04 | `allow_auto_merge` enabled | P2 |
 | S4-05 | `delete_branch_on_merge` enabled | P3 |
-| S4-06 | Required `CI` status check on default branch | P2 |
+| S4-06 | At least one required status check gates a merge to the default branch | P2 |
+| S4-07 | Canonical `safety` ruleset present and active | P2 |
+| S4-08 | Canonical `pr_ci` ruleset present and active | P2 |
+| S4-09 | `strict_required_status_checks_policy` is **false** | P1 |
+| S4-10 | Review-thread resolution required before merge | P2 |
+| S4-11 | Linear history required | P2 |
+| S4-12 | Force pushes to the default branch blocked | P1 |
+| S4-13 | Deletion of the default branch blocked | P1 |
+| S4-14 | Actions concurrency correct — present on cancellable PR validation, absent on stateful workflows | P2 |
+
+S4-09 is P1 on its own: `strict_required_status_checks_policy` is the "branch must be up to
+date before merging" toggle, and with it on every merge invalidates every other open branch,
+serializing the objective → DAG → workers → one-PR flow behind a rebase queue. It must never
+silently flip.
+
+Apply and verify with `scripts/github-policy.sh` (`audit` / `plan` / `apply` / `verify`).
 
 ## S5 Root legal/ops
 

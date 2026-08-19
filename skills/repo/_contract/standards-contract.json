@@ -1,5 +1,5 @@
 {
-  "version": "1.4.0",
+  "version": "1.5.0",
   "profiles": {
     "app-gold": {
       "repo_type": "app",
@@ -84,12 +84,24 @@
         "p3": 0
       },
       "offline_scoring": {
+        "_comment": "Every S4 id below needs the GitHub API. score-standards-gaps.sh already refuses to emit them when CONTRACT_OFFLINE=1 or when branch_governance.readable is false; this list is the second gate, applied by score-contract-gaps.sh, so a vendored or older scorer still stays quiet offline. S4-03 is retired — it required at least one approving review, which contradicts the canonical policy and the live repository (0 required approvals with review-thread resolution ON, the solo-contributor posture). Its id is kept here so any un-updated copy of the scorer remains silent rather than failing an offline gate.",
+        "retired_check_ids": {
+          "S4-03": "Retired 2026-08-19. Required >= 1 approving review; the approving-review count is policy content owned by config/github/repository-policy.json, and the canonical value is 0 with required_review_thread_resolution true. Superseded by S4-10."
+        },
         "skip_check_ids": [
           "S4-02",
           "S4-03",
           "S4-04",
           "S4-05",
-          "S4-06"
+          "S4-06",
+          "S4-07",
+          "S4-08",
+          "S4-09",
+          "S4-10",
+          "S4-11",
+          "S4-12",
+          "S4-13",
+          "S4-14"
         ]
       }
     },
@@ -194,12 +206,24 @@
         "p3": 0
       },
       "offline_scoring": {
+        "_comment": "Every S4 id below needs the GitHub API. score-standards-gaps.sh already refuses to emit them when CONTRACT_OFFLINE=1 or when branch_governance.readable is false; this list is the second gate, applied by score-contract-gaps.sh, so a vendored or older scorer still stays quiet offline. S4-03 is retired — it required at least one approving review, which contradicts the canonical policy and the live repository (0 required approvals with review-thread resolution ON, the solo-contributor posture). Its id is kept here so any un-updated copy of the scorer remains silent rather than failing an offline gate.",
+        "retired_check_ids": {
+          "S4-03": "Retired 2026-08-19. Required >= 1 approving review; the approving-review count is policy content owned by config/github/repository-policy.json, and the canonical value is 0 with required_review_thread_resolution true. Superseded by S4-10."
+        },
         "skip_check_ids": [
           "S4-02",
           "S4-03",
           "S4-04",
           "S4-05",
-          "S4-06"
+          "S4-06",
+          "S4-07",
+          "S4-08",
+          "S4-09",
+          "S4-10",
+          "S4-11",
+          "S4-12",
+          "S4-13",
+          "S4-14"
         ]
       },
       "feature_equivalence": {

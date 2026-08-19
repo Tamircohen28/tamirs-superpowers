@@ -3,6 +3,11 @@
 **Represents:** the single most important non-compliance to detect. Everything
 else in both rulesets matches `compliant` byte for byte; one boolean is flipped.
 
+**Kept in lockstep with `compliant`.** This fixture is defined as `compliant`
+plus one flipped boolean, and `tests/test-fake-gh.sh` asserts exactly that. Any
+edit to `compliant/ruleset-21049069.json` — the bypass actor and
+`required_approving_review_count: 1` arrived that way — must be mirrored here.
+
 **Covers:** the architectural constraint. `strict_required_status_checks_policy`
 is GitHub's "require branches to be up to date before merging" toggle. With it
 on, every merge invalidates every other open PR's checks — which is exactly what

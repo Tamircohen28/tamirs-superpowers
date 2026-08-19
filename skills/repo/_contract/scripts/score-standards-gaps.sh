@@ -49,10 +49,19 @@ lic=$(echo "$INV" | jq -r '.root_files.license')
 co=$(echo "$INV" | jq -r '.root_files.codeowners')
 gi=$(echo "$INV" | jq -r '.root_files.gitignore')
 bp=$(echo "$INV" | jq -r '.branch_governance.protection_enabled')
-rv=$(echo "$INV" | jq -r '.branch_governance.required_approving_reviews')
 ci_check=$(echo "$INV" | jq -r '.branch_governance.requires_ci_check')
 auto_merge=$(echo "$INV" | jq -r '.branch_governance.allow_auto_merge')
 delete_branch=$(echo "$INV" | jq -r '.branch_governance.delete_branch_on_merge')
+gh_readable=$(echo "$INV" | jq -r '.branch_governance.readable // false')
+rs_safety=$(echo "$INV" | jq -r '.branch_governance.rulesets.safety_active // false')
+rs_pr_ci=$(echo "$INV" | jq -r '.branch_governance.rulesets.pr_ci_active // false')
+rs_strict=$(echo "$INV" | jq -r '.branch_governance.rulesets.strict_required_status_checks // false')
+rs_threads=$(echo "$INV" | jq -r '.branch_governance.rulesets.requires_conversation_resolution // false')
+rs_linear=$(echo "$INV" | jq -r '.branch_governance.rulesets.requires_linear_history // false')
+rs_force=$(echo "$INV" | jq -r '.branch_governance.rulesets.blocks_force_push // false')
+rs_delete=$(echo "$INV" | jq -r '.branch_governance.rulesets.blocks_deletion // false')
+act_checked=$(echo "$INV" | jq -r '.branch_governance.actions.checked // false')
+act_bad=$(echo "$INV" | jq -r '.branch_governance.actions.violations // 0')
 h_mis=$(echo "$INV" | jq -r '.hygiene.misplaced_top_level_docs')
 h_ticket=$(echo "$INV" | jq -r '.hygiene.ticket_named_outside_engineering')
 h_empty=$(echo "$INV" | jq -r '.hygiene.empty_dirs')
@@ -91,12 +100,43 @@ if [[ "${CONTRACT_MANIFESTS_ONLY:-}" != "1" ]]; then
   (( manifest_count >= 1 )) && [[ "$release_tags_exist" == true && "$manifest_tag_match" != true ]] && { add_gap "S10-05" "P1" "plugin.json version has no matching release tag (manifest ahead of/behind last release)" 1; inc P1; }
 fi
 [[ "$co" != true ]] && { add_gap "S4-01" "P2" "CODEOWNERS missing" 4; inc P2; }
-if [[ "${CONTRACT_OFFLINE:-}" != "1" ]]; then
-  [[ "$bp" != true ]] && { add_gap "S4-02" "P2" "Branch protection not configured" 4; inc P2; }
-  [[ "$bp" == true && "$rv" -lt 1 ]] && { add_gap "S4-03" "P2" "Branch protection requires at least 1 approving review" 4; inc P2; }
-  [[ "$bp" == true && "$ci_check" != true ]] && { add_gap "S4-06" "P2" "Branch protection missing required CI status check" 4; inc P2; }
+# --- S4: branch governance -------------------------------------------------
+# Every check below needs the GitHub API, so all of them sit behind
+# CONTRACT_OFFLINE and behind `readable` — a repo whose governance could not be
+# read scores no gap at all. Silence about an unread control is honest; a gap
+# invented from a failed read is the defect this family used to have.
+#
+# Rulesets are authoritative. The absence of classic `branches/*/protection` is
+# NOT a gap — it is the normal, healthy state of a rulesets-governed repo, and
+# scoring it was why S4-02/03/06 fired against this very repository. Classic
+# protection is carried in the inventory as `legacy_classic_protection` and
+# reported as a migration item, never as a failure.
+#
+# S4-03 (">= 1 approving review") is RETIRED, not moved. It contradicted the
+# canonical policy and the live repository, which deliberately run 0 required
+# approvals with thread resolution ON — the solo-contributor posture. The
+# approving-review count is policy content owned by
+# config/github/repository-policy.json; github-policy.sh reports drift in it.
+# Nothing here re-decides it.
+if [[ "${CONTRACT_OFFLINE:-}" != "1" && "$gh_readable" == true ]]; then
+  [[ "$bp" != true ]] && { add_gap "S4-02" "P2" "Default branch has no governance — no active branch ruleset and no classic protection" 4; inc P2; }
+  [[ "$bp" == true && "$ci_check" != true ]] && { add_gap "S4-06" "P2" "No required status check gates a merge to the default branch" 4; inc P2; }
   [[ "$auto_merge" != true ]] && { add_gap "S4-04" "P2" "PR auto-merge not enabled (allow_auto_merge)" 4; inc P2; }
   [[ "$delete_branch" != true ]] && { add_gap "S4-05" "P3" "delete_branch_on_merge not enabled" 4; inc P3; }
+  [[ "$rs_safety" != true ]] && { add_gap "S4-07" "P2" "Canonical safety ruleset (repository-policy.json key 'safety') is absent or not active on the default branch" 4; inc P2; }
+  [[ "$rs_pr_ci" != true ]] && { add_gap "S4-08" "P2" "Canonical PR/CI ruleset (repository-policy.json key 'pr_ci') is absent or not active on the default branch" 4; inc P2; }
+  # The one that must never silently flip: with strict on, every merge marks
+  # every other open branch out of date, and the objective -> DAG -> workers ->
+  # ONE PR flow stalls behind a serial rebase queue.
+  [[ "$rs_strict" == true ]] && { add_gap "S4-09" "P1" "strict_required_status_checks_policy is TRUE on the default branch — it must be false" 4; inc P1; }
+  [[ "$rs_threads" != true ]] && { add_gap "S4-10" "P2" "Review-thread resolution is not required before merge" 4; inc P2; }
+  [[ "$rs_linear" != true ]] && { add_gap "S4-11" "P2" "Linear history is not required on the default branch" 4; inc P2; }
+  [[ "$rs_force" != true ]] && { add_gap "S4-12" "P1" "Force pushes to the default branch are not blocked" 4; inc P1; }
+  [[ "$rs_delete" != true ]] && { add_gap "S4-13" "P1" "Deletion of the default branch is not blocked" 4; inc P1; }
+  # Concurrency is classified by github-policy.sh from the workflow-classification
+  # table in the canonical policy: cancellable PR validation must carry the block,
+  # a stateful workflow must NOT have cancellation on. Both directions are counted.
+  [[ "$act_checked" == true && "$act_bad" -gt 0 ]] && { add_gap "S4-14" "P2" "Actions concurrency misconfigured on $act_bad workflow(s) — run: bash scripts/github-policy.sh audit" 4; inc P2; }
 fi
 (( h_mis > 0 )) && { add_gap "S6-01" "P1" "docs/*.md files outside docs/README.md at docs root" 0; inc P1; }
 (( h_ticket > 0 )) && { add_gap "S6-02" "P2" "Ticket-named markdown outside docs/engineering/" 0; inc P2; }

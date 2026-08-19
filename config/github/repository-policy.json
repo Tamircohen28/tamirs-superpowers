@@ -1,7 +1,7 @@
 {
   "$schema": "../../core/schemas/repository-policy.json",
   "schema_version": 1,
-  "version": "1.0.0",
+  "version": "1.1.0",
   "last_reviewed": "2026-08-19",
   "_comment": "Canonical GitHub repository policy for the repos this account governs. Derived from the two rulesets live on Tamircohen28/tamirs-superpowers (captured 2026-08-19), not from prose — see session-files/ground-truth-rulesets.md. This file is the single source of truth: no SKILL.md, script, or doc may restate a rule, a context list, or a concurrency group found here. Change workflow: edit -> bump `version` -> `bash scripts/check-github-policy.sh` (offline) -> `scripts/github-policy.sh plan` to see live drift.",
 
@@ -28,6 +28,15 @@
     "strict_is_intentional": true,
     "do_not_enforce_on_create": true,
     "source_note": "Required contexts are per-repository and are NEVER global. A context is a CI job name; job names differ per repo, and a name that does not exist in a repo's workflows blocks every PR in that repo forever. The global default is the empty list; each repo opts its own contexts in under `repositories.<owner/repo>.required_checks.contexts`."
+  },
+
+  "overridable_parameters": {
+    "_comment": "The closed set of rule parameters a repository may override, and which direction is stricter for each. Keep this NARROW. Opening the whole `parameters` object would make the canonical rulesets a suggestion — any repository could restate any rule and nothing would notice. Add an entry only when a real case appears, and always with its `stricter` direction, because that is what lets a raise be applied cleanly while a lowering has to be acknowledged and is reported on every run.",
+    "required_approving_review_count": {
+      "rule": "pull_request",
+      "summary": "How many approving reviews a pull request needs before it can merge. The account default is 0 (see the pull_request rule); a repository with outside collaborators may raise it.",
+      "stricter": "higher"
+    }
   },
 
   "rulesets": [
@@ -118,7 +127,13 @@
       },
       "rules": {
         "disable": [],
-        "enforcement": "active"
+        "enforcement": "active",
+        "parameters": {
+          "pull_request": {
+            "_comment": "1, not the account default of 0, and this is deliberate — do NOT 'fix' it back to match the default. This ruleset carries a repository-admin bypass actor, so the requirement binds COLLABORATORS while the owner still merges through the bypass. Read together, the two say: anyone else's change needs a review; the owner keeps an escape hatch on their own repository. Setting it to 0 here would not simplify anything, it would remove the only review requirement that applies to anyone but the owner. This is a raise above canonical, so it applies cleanly and needs no weakening acknowledgement.",
+            "required_approving_review_count": 1
+          }
+        }
       },
       "actions": {
         "cancel_superseded_pr_runs": true

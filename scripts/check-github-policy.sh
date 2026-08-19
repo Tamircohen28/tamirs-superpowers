@@ -197,6 +197,97 @@ while IFS= read -r repo; do
 done < <(jq -r '.repositories | keys[] | select(. != "_comment")' "$POLICY")
 (( FAILED == before )) && echo "ok:    every per-repository override names contexts and rules that can actually take effect"
 
+# --- 3f2. Parameter overrides: closed set, and a raise is not a weakening ---
+# Two separate jobs here.
+#
+# First, the set of overridable parameters is declared in TWO places — the
+# `overridable_parameters` registry (which carries the strictness direction) and
+# the schema's parameterOverride properties (which enforce the type). Two
+# spellings of one set is a standing drift risk, so they are asserted mutually
+# derivable, exactly as the capability registry does for its two vocabularies.
+#
+# Second, and the reason the registry carries `stricter` at all: an override that
+# RAISES a control above canonical is a repository choosing to be stricter, and
+# applies cleanly. An override that LOWERS one is a weakening — still allowed,
+# because repositories genuinely differ, but never silently. It must carry
+# acknowledged_weakening plus a reason, and it is printed on every single run.
+before=$FAILED
+reg_names="$(jq -r '.overridable_parameters | keys[] | select(. != "_comment")' "$POLICY")"
+schema_names="$(jq -r '.["$defs"].parameterOverride.properties | keys[]
+                       | select(. != "_comment" and . != "acknowledged_weakening")' "$SCHEMA")"
+while IFS= read -r n; do
+  [[ -n "$n" ]] || continue
+  grep -qxF "$n" <<<"$schema_names" \
+    || err "overridable_parameters declares '$n', which the schema's parameterOverride does not accept — the override could never validate"
+done <<<"$reg_names"
+while IFS= read -r n; do
+  [[ -n "$n" ]] || continue
+  grep -qxF "$n" <<<"$reg_names" \
+    || err "the schema accepts an override for '$n', which overridable_parameters does not declare — its strictness direction is unknown, so a weakening could not be detected"
+done <<<"$schema_names"
+
+# Every registry entry must name a rule the canonical rulesets actually declare,
+# or an override against it would validate and then be silently ignored.
+while IFS=$'\t' read -r name rule; do
+  [[ -n "$name" ]] || continue
+  jq -e --arg t "$rule" '[.rulesets[].rules[].type] | index($t) != null' "$POLICY" >/dev/null \
+    || err "overridable parameter '$name' is declared on rule '$rule', which no canonical ruleset carries"
+done < <(jq -r '.overridable_parameters | to_entries[] | select(.key != "_comment")
+                | [.key, .value.rule] | @tsv' "$POLICY")
+
+# Compare each override against canonical, in the direction the registry declares.
+# Booleans are folded to 0/1 so this generalizes when a boolean dial is added.
+while IFS=$'\t' read -r repo rule name canon over stricter ack has_comment; do
+  [[ -n "$repo" ]] || continue
+  if [[ -z "$stricter" || "$stricter" == "null" ]]; then
+    err "repository '$repo' overrides '$name', which is not declared in overridable_parameters"
+    continue
+  fi
+  declared_rule="$(jq -r --arg n "$name" '.overridable_parameters[$n].rule' "$POLICY")"
+  if [[ "$declared_rule" != "$rule" ]]; then
+    err "repository '$repo' attaches '$name' to rule '$rule', but it belongs to '$declared_rule' — the override would be silently ignored"
+    continue
+  fi
+  if [[ "$canon" == "null" ]]; then
+    err "repository '$repo' overrides '$name' on rule '$rule', which declares no such parameter canonically"
+    continue
+  fi
+  weakens=no
+  case "$stricter" in
+    higher) (( over <  canon )) && weakens=yes ;;
+    lower)  (( over >  canon )) && weakens=yes ;;
+  esac
+  if [[ "$weakens" == "no" ]]; then
+    if (( over == canon )); then
+      echo "note:  $repo overrides $name to $over, which equals canonical — the override is a no-op and could be deleted"
+    else
+      echo "ok:    $repo raises $name to $over (canonical $canon) — stricter than policy, applies cleanly"
+    fi
+  else
+    # Visible on every run, acknowledged or not. That is the whole contract.
+    echo "WEAKENS: $repo lowers $name to $over, below canonical $canon"
+    [[ "$ack" == "true" ]] \
+      || err "repository '$repo' lowers '$name' below canonical without acknowledged_weakening: true — a repository may be weaker than the standard, but never silently"
+    [[ "$has_comment" == "yes" ]] \
+      || err "repository '$repo' lowers '$name' below canonical with no _comment saying why"
+  fi
+done < <(jq -r '
+  . as $p
+  | $p.repositories | to_entries[] | select(.key != "_comment")
+  | .key as $repo | .value.rules.parameters // {} | to_entries[] | select(.key != "_comment")
+  | .key as $rule | .value | to_entries[]
+  | select(.key != "_comment" and .key != "acknowledged_weakening")
+  | .key as $name | .value as $over
+  | ($p.rulesets[].rules[] | select(.type == $rule) | .parameters[$name]) as $canon
+  | ($p.overridable_parameters[$name].stricter // "") as $stricter
+  | ($p.repositories[$repo].rules.parameters[$rule].acknowledged_weakening // false) as $ack
+  | (if ($p.repositories[$repo].rules.parameters[$rule]._comment // "") == "" then "no" else "yes" end) as $hc
+  | [$repo, $rule, $name,
+     (if $canon == null then "null" else ($canon | if type=="boolean" then (if . then 1 else 0 end) else . end | tostring) end),
+     ($over | if type=="boolean" then (if . then 1 else 0 end) else . end | tostring),
+     $stricter, ($ack | tostring), $hc] | @tsv' "$POLICY")
+(( FAILED == before )) && echo "ok:    parameter overrides are a closed set, and every one is a raise or an acknowledged weakening"
+
 # --- 3g. Actions concurrency classification is actionable ---
 # The classification exists so a script can decide where a cancelling
 # concurrency block belongs. A regex that does not compile, or a pattern

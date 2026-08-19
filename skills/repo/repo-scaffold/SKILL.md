@@ -120,7 +120,7 @@ Co-Authored-By: Claude <noreply@anthropic.com>
 
 **CI:** `ci.yml` with jobs named exactly `CI` and `secret-scan`; plus `claude.yml`, `release.yml`, `dependabot.yml`. All use `ubuntu-latest` except Swift (`macos-latest`).
 
-**Branch protection on `master`:** require 1 PR review, require `CI` status check, no direct pushes.
+**Default-branch governance:** applied from `config/github/repository-policy.json` by `scripts/github-policy.sh`, as **branch rulesets** — not classic branch protection, which 404s on a rulesets-governed repo. The policy targets the default branch through GitHub's `~DEFAULT_BRANCH` magic ref, so no branch name is ever hardcoded. Read the rules, the required status-check contexts, the enforcement values and the approving-review count out of that file — never restate or hardcode any of them here. Two things are worth knowing before you read it, because both are counter-intuitive and both are deliberate: the approving-review requirement is set for a **solo contributor** and is paired with review-thread resolution rather than an approval count (an approval requirement deadlocks a one-person repo), and `strict_required_status_checks_policy` is **false** and must stay false — it is not a tunable. With it on, every merge marks every other open branch out of date and the one-objective/one-PR flow stalls behind a serial rebase queue.
 
 **Contract:** `CONTRACT_ROOT="$(cd "$CLAUDE_SKILL_DIR/../_contract" && pwd)"`. Read `$CONTRACT_ROOT/templates/INDEX.md` and stack bodies in `legacy-scaffold-templates.md` — do not invent formats. Exit gate: `app-gold` for `--type app`, `plugin-gold` for `--type plugin`.
 
@@ -415,11 +415,26 @@ Enable PR auto-merge (required for `start-dev` / `pr-dev`):
 bash "$CONTRACT_ROOT/scripts/enable-repo-merge-settings.sh" "TamirCohen28/$REPO_NAME"
 ```
 
-Apply branch protection on `master` (create if missing, verify 1 review + `CI` check):
+Apply the canonical repository policy (branch rulesets on the default branch):
 
 ```bash
-bash "$CONTRACT_ROOT/scripts/ensure-branch-protection.sh" "TamirCohen28/$REPO_NAME" master
+PLUGIN_ROOT="$(cd "$CONTRACT_ROOT/../../.." && pwd)"
+bash "$PLUGIN_ROOT/scripts/github-policy.sh" apply --repo "TamirCohen28/$REPO_NAME"
 ```
+
+This replaced `ensure-branch-protection.sh`, which wrote classic `branches/*/protection` with one literal `CI` context and a hardcoded `master`. The old script remains only as a deprecating shim onto this command.
+
+**If it cannot run, the scaffold still succeeded.** Repository creation must never fail because branch governance could not be applied — the local tree, the docs, the CI and the contract gate are all real work that is already done and pushed. `github-policy.sh apply` exits non-zero when `gh` is missing, unauthenticated, or lacks repository-administration permission, and when there is no TTY to confirm at it prints the plan and writes nothing. Treat every one of those as a **degraded success**: continue to Stage 5, and report verbatim in the Stage 6 summary —
+
+> Local repository configured. GitHub repository policy was not applied because GitHub administration access is unavailable.
+
+— followed by the exact command the user can run themselves once access exists:
+
+```bash
+bash scripts/github-policy.sh apply --repo TamirCohen28/$REPO_NAME
+```
+
+Do not retry, do not fall back to classic branch protection, and do not silently mark the repo as protected.
 
 ### Stage 5: Run skill-creator
 
@@ -447,7 +462,7 @@ Print:
 ✓ Repo created:       https://github.com/TamirCohen28/REPO_NAME
 ✓ Contract:          CONTRACT_PROFILE passed (assert-contract.sh)
 ✓ Scaffold type:     SCAFFOLD_TYPE
-✓ Branch protection:  master — 1 required review + CI check
+✓ Repository policy:  applied from config/github/repository-policy.json (or: NOT APPLIED — see above)
 ✓ skill-creator:      ran
 
 Next steps (app):

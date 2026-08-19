@@ -27,7 +27,10 @@ being boring:
 - bulk scope needs the `apply` verb **and** a confirmation;
 - with no terminal to confirm on, it prints the plan and exits 0 — it never
   adopts silently and never blocks;
-- it refuses to make any repository *less* protected than it already is.
+- it refuses to make any repository *less* protected than it already is;
+- it never removes a required CI check silently;
+- it never removes a **bypass actor** — see
+  [Bypass actors are preserved, not asserted](#bypass-actors-are-preserved-not-asserted).
 
 ---
 
@@ -253,6 +256,42 @@ With no terminal and no `--yes`, a bulk apply prints the plan and exits 0.
 
 ---
 
+## Bypass actors are preserved, not asserted
+
+A ruleset's `bypass_actors` list — who may merge around the rules — is
+**repository-specific state that this tool carries through unchanged**. It is
+treated exactly like required status-check contexts: read from the live ruleset,
+written back as-is, and **never counted as drift**.
+
+- an existing bypass actor is never removed;
+- a bypass actor is never added — a ruleset being created gets none;
+- a difference in `bypass_actors` never makes a repository non-compliant.
+
+The reason is that removing one *looks* like a strengthening and behaves like a
+lockout. On a solo-contributor account the repository-admin bypass **is** the
+merge path — `--admin` is how changes land. Asserting the canonical empty list
+would revoke the author's ability to merge into their own default branch, and
+the diff would read as tightening a control while actually removing the
+operator's only key. That is the "a policy tool can lock the author out" risk
+arriving from the one direction nobody watches.
+
+Existing bypass actors are reported so they stay visible:
+
+```
+Bypass actors (preserved, not asserted by policy):
+⚠ Default Branch - PR & CI — 1 preserved: RepositoryRole 5 (always)
+```
+
+**The accepted trade-off, stated plainly:** a repository carrying an
+*over-broad* bypass — say one granted to Everyone — will never be corrected by
+this tool. That is a deliberate choice: the risk of silently locking the author
+out of their own repositories was judged worse than the risk of leaving a
+too-generous exemption in place. The line above is how you find one; removing it
+is a decision you make in the GitHub UI, not something this tool will do for
+you.
+
+---
+
 ## When the policy is *weaker* than a repository
 
 The canonical policy is a **floor, never a ceiling**. Before every write, the
@@ -274,9 +313,8 @@ This is the guard that makes `apply --all --yes` safe to type. It is also the
 guard most likely to stop you: a repository whose rulesets were set up by hand,
 or by an earlier version of this policy, will differ in exactly these ways.
 
-Removing a bypass actor is a *strengthening*, not a weakening, so it is never
-blocked — an admin bypass added on github.com quietly makes every rule below it
-advisory, and reverting that is the point.
+`bypass_actors` is not on this list, because it is never changed at all — see
+[above](#bypass-actors-are-preserved-not-asserted).
 
 When you have looked at a conflict and decided the policy is right:
 

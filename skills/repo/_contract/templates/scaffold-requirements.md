@@ -81,7 +81,7 @@ See scaffold-templates section 5c below for full YAML shapes.
 
 ## Repository merge settings (polish phase 4)
 
-Before branch protection, enable PR auto-merge and delete head branch on merge. Required for `start-dev` / `pr-dev` (`gh pr merge --auto --delete-branch`).
+Before applying branch governance, enable PR auto-merge and delete head branch on merge. These are repository settings, not ruleset rules, so `github-policy.sh` does not own them. Required for `start-dev` / `pr-dev` (`gh pr merge --auto --delete-branch`).
 
 ```bash
 REPO=$(gh repo view --json nameWithOwner -q .nameWithOwner)
@@ -106,41 +106,39 @@ gh api "repos/$(gh repo view --json nameWithOwner -q .nameWithOwner)" \
 
 ---
 
-## Branch protection (polish phase 4)
+## Branch governance (polish phase 4)
 
-After CI workflow exists with a job named `CI` and merge settings are enabled:
+After the CI workflow is on the default branch and merge settings are enabled, apply the
+canonical policy. Governance is expressed as **branch rulesets**, never as classic
+`branches/*/protection` — the classic endpoint returns 404 on a rulesets-governed repository,
+so tooling that reads it reports a protected repo as unprotected.
 
 ```bash
+PLUGIN_ROOT="$(cd "$CONTRACT_ROOT/../../.." && pwd)"
 REPO=$(gh repo view --json nameWithOwner -q .nameWithOwner)
-DEFAULT_BRANCH=$(git symbolic-ref refs/remotes/origin/HEAD 2>/dev/null | sed 's@^refs/remotes/origin/@@' || echo master)
 
-# Apply if missing, then verify (1 review + CI check)
-bash "$CONTRACT_ROOT/scripts/ensure-branch-protection.sh" "$REPO" "$DEFAULT_BRANCH"
+bash "$PLUGIN_ROOT/scripts/github-policy.sh" plan  --repo "$REPO"   # diff, writes nothing
+bash "$PLUGIN_ROOT/scripts/github-policy.sh" apply --repo "$REPO"   # confirms each change
 ```
 
-Or inline (when `CONTRACT_ROOT` is unavailable):
+Audit only (read-only; this is what `ensure-branch-protection.sh --verify-only` used to mean):
 
 ```bash
-REPO=$(gh repo view --json nameWithOwner -q .nameWithOwner)
-DEFAULT_BRANCH=$(git symbolic-ref refs/remotes/origin/HEAD 2>/dev/null | sed 's@^refs/remotes/origin/@@' || echo master)
-
-gh api "repos/$REPO/branches/$DEFAULT_BRANCH/protection" \
-  --method PUT \
-  --silent \
-  -F 'required_status_checks[strict]=true' \
-  -F 'required_status_checks[contexts][]=CI' \
-  -F 'required_pull_request_reviews[required_approving_review_count]=1' \
-  -F 'enforce_admins=false' \
-  -F 'restrictions=null'
-
-gh api "repos/$REPO/branches/$DEFAULT_BRANCH/protection" \
-  --jq '{reviews: .required_pull_request_reviews.required_approving_review_count, checks: .required_status_checks.contexts}'
+bash "$PLUGIN_ROOT/scripts/github-policy.sh" audit --repo "$REPO"
 ```
 
-Verify only (audit / after manual edits):
+**There is no inline fallback, on purpose.** The previous version of this section carried a
+hand-rolled `gh api ... PUT .../protection` with `strict=true`, one literal `CI` context and
+`required_approving_review_count=1`. All three contradict the canonical policy, and a copy of
+policy values in a template is exactly the drift the single policy document exists to remove.
+Required contexts are per-repository — nine on `tamirs-superpowers`, out of fifteen CI jobs —
+and must never be globalised. Everything that governs a branch lives in
+[`config/github/repository-policy.json`](../../../../config/github/repository-policy.json);
+read it, do not restate it.
 
-```bash
-bash "$CONTRACT_ROOT/scripts/ensure-branch-protection.sh" --verify-only
-```
+`ensure-branch-protection.sh` still exists as a deprecating shim onto these verbs so older
+callers keep working. Do not write new calls to it.
 
-Adjust `REQUIRED_CHECK` if your CI job is not named `CI` (must match `ci.yml`).
+**When GitHub administration access is unavailable**, this step is skipped, not failed. The
+scaffolded repository is complete and pushed; report that the policy was not applied, give the
+`apply` command above, and move on.

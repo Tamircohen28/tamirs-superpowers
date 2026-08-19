@@ -151,33 +151,200 @@ gitignore=$(exists "$ROOT/.gitignore")
 claude_md=$(exists "$ROOT/CLAUDE.md")
 agents_md=$(exists "$ROOT/AGENTS.md")
 
+# ---------------------------------------------------------------------------
+# Branch governance (S4) — rulesets are authoritative, classic protection is legacy
+# ---------------------------------------------------------------------------
+# Rewritten 2026-08-19. The previous read probed ONLY classic
+# `repos/{o}/{r}/branches/{b}/protection`, which returns 404 on a repository that
+# is correctly governed by branch rulesets. That made this inventory report the
+# plugin's own repo — protected by two active rulesets — as unprotected, and
+# score-standards-gaps.sh emitted S4-02/03/06 as gaps against a compliant repo.
+#
+# Every GitHub read now goes through scripts/lib/github-common.sh, the single gh
+# abstraction. Rulesets are the source of truth; classic protection is reported
+# separately as a legacy migration item and its ABSENCE IS NEVER A GAP.
+#
+# Nothing here restates policy content. Ruleset names, the required contexts and
+# the rule set itself live in config/github/repository-policy.json and are read
+# from it at runtime (_contract/README.md: "If a path or check is not in
+# standards-contract.json, it does not belong in either skill's prose" — the same
+# rule applies to the policy document).
+gh_readable=false
+gov_source=unknown
 branch_protection=false
 required_reviews=0
 requires_ci_check=false
 allow_auto_merge=false
 delete_branch_on_merge=false
-if command -v gh &>/dev/null && git -C "$ROOT" rev-parse --is-inside-work-tree &>/dev/null; then
+classic_protection=unknown
+ruleset_safety=false
+ruleset_pr_ci=false
+strict_status_checks=false
+requires_conversation_resolution=false
+requires_linear_history=false
+blocks_force_push=false
+blocks_deletion=false
+actions_checked=false
+actions_violations=0
+
+# Where the plugin's own tree sits relative to this script. A consumer repo that
+# vendored only _contract/scripts has no lib and no policy: that is a degraded
+# read, reported as such, never an error and never a gap.
+CONTRACT_SRC_ROOT="$(cd "$(dirname "$0")/../../../.." 2>/dev/null && pwd || true)"
+GH_LIB="${GITHUB_COMMON_LIB:-${CONTRACT_SRC_ROOT}/scripts/lib/github-common.sh}"
+GH_POLICY="${GITHUB_POLICY_FILE:-${CONTRACT_SRC_ROOT}/config/github/repository-policy.json}"
+GH_CLI_SCRIPT="${CONTRACT_SRC_ROOT}/scripts/github-policy.sh"
+
+# CONTRACT_OFFLINE=1 means "make no network call at all". The gold fixtures run
+# under it, so the probe is skipped outright rather than attempted and filtered
+# after the fact — a skipped check must not cost a round trip it will discard.
+if [[ "${CONTRACT_OFFLINE:-}" != "1" ]] \
+  && [[ -f "$GH_LIB" ]] && [[ -f "$GH_POLICY" ]] \
+  && command -v jq &>/dev/null \
+  && git -C "$ROOT" rev-parse --is-inside-work-tree &>/dev/null; then
+
+  # shellcheck source=../../../../scripts/lib/github-common.sh
+  . "$GH_LIB"
+  github_state_trap || true
+
   remote_url=$(git -C "$ROOT" remote get-url origin 2>/dev/null || true)
   if [[ "$remote_url" =~ github.com[:/]([^/]+)/([^/.]+) ]]; then
-    owner="${BASH_REMATCH[1]}"
-    repo="${BASH_REMATCH[2]%.git}"
-    default_branch=$(git -C "$ROOT" symbolic-ref refs/remotes/origin/HEAD 2>/dev/null | sed 's@^refs/remotes/origin/@@' || echo master)
-    repo_meta=$(gh api "repos/$owner/$repo" 2>/dev/null || true)
-    if [[ -n "$repo_meta" ]]; then
-      allow_auto_merge=$(echo "$repo_meta" | jq -r '.allow_auto_merge // false')
-      delete_branch_on_merge=$(echo "$repo_meta" | jq -r '.delete_branch_on_merge // false')
-    fi
-    prot=$(gh api "repos/$owner/$repo/branches/$default_branch/protection" 2>/dev/null || true)
-    if [[ -n "$prot" ]]; then
-      branch_protection=true
-      required_reviews=$(echo "$prot" | jq -r '.required_pull_request_reviews.required_approving_review_count // 0')
-      if echo "$prot" | jq -e '(.required_status_checks.contexts // []) | index("CI") != null' >/dev/null; then
-        requires_ci_check=true
+    gh_owner="${BASH_REMATCH[1]}"
+    gh_name="${BASH_REMATCH[2]%.git}"
+    gh_slug="$gh_owner/$gh_name"
+
+    if github_have && [[ "$(github_probe)" == ready ]]; then
+      gh_work="$(mktemp -d)"
+      trap 'rm -rf "$gh_work"' EXIT
+
+      # --- repository object: merge settings + the real default branch --------
+      # Never guessed from a literal: the governed fleet mixes both spellings.
+      if repo_meta="$(github_repo_view "$gh_slug" 2>/dev/null)"; then
+        gh_readable=true
+        allow_auto_merge=$(echo "$repo_meta" | jq -r '.allow_auto_merge // false')
+        delete_branch_on_merge=$(echo "$repo_meta" | jq -r '.delete_branch_on_merge // false')
+        default_branch=$(echo "$repo_meta" | jq -r '.default_branch // empty')
+      fi
+
+      if [[ "$gh_readable" == true ]]; then
+        # --- rulesets that actually govern the default branch ----------------
+        echo '[]' >"$gh_work/applicable.json"
+        if rs_list="$(github_list_rulesets "$gh_slug" 2>/dev/null)"; then
+          : >"$gh_work/details.ndjson"
+          for rs_id in $(echo "$rs_list" | jq -r '.[] | select(.target == "branch") | .id'); do
+            github_get_ruleset "$gh_slug" "$rs_id" 2>/dev/null \
+              | jq -c '.' >>"$gh_work/details.ndjson" || true
+          done
+          jq -s --arg b "$default_branch" '
+            map(select(
+              (.enforcement == "active")
+              and ((.conditions.ref_name.include // [])
+                   | any(. == "~ALL" or . == "~DEFAULT_BRANCH" or . == ("refs/heads/" + $b)))
+            ))
+          ' "$gh_work/details.ndjson" >"$gh_work/applicable.json"
+        fi
+
+        rules_of() { jq -r --arg t "$1" 'map((.rules // [])[] | select(.type == $t)) | length' "$gh_work/applicable.json"; }
+        (( $(rules_of deletion) > 0 )) && blocks_deletion=true
+        (( $(rules_of non_fast_forward) > 0 )) && blocks_force_push=true
+        (( $(rules_of required_linear_history) > 0 )) && requires_linear_history=true
+
+        # strict_required_status_checks_policy MUST stay false. It is the "branch
+        # must be up to date before merging" toggle, and the objective -> DAG ->
+        # workers -> ONE PR architecture depends on it being off: with it on,
+        # every merge invalidates every other open branch. Any active ruleset
+        # demanding it makes the whole merge gate strict, so ANY wins here.
+        if jq -e '
+          map((.rules // [])[]
+              | select(.type == "required_status_checks")
+              | .parameters.strict_required_status_checks_policy // false)
+          | any(. == true)
+        ' "$gh_work/applicable.json" >/dev/null 2>&1; then
+          strict_status_checks=true
+        fi
+
+        # Any required status-check context at all. NOT a literal "CI": contexts
+        # are per-repo (9 here, out of 15 CI jobs) and must never be globalised.
+        if jq -e '
+          map((.rules // [])[]
+              | select(.type == "required_status_checks")
+              | (.parameters.required_status_checks // []) | length)
+          | any(. > 0)
+        ' "$gh_work/applicable.json" >/dev/null 2>&1; then
+          requires_ci_check=true
+        fi
+
+        if jq -e '
+          map((.rules // [])[]
+              | select(.type == "pull_request")
+              | .parameters.required_review_thread_resolution // false)
+          | any(. == true)
+        ' "$gh_work/applicable.json" >/dev/null 2>&1; then
+          requires_conversation_resolution=true
+        fi
+
+        required_reviews=$(jq -r '
+          [ .[] | (.rules // [])[]
+                 | select(.type == "pull_request")
+                 | .parameters.required_approving_review_count // 0 ] | max // 0
+        ' "$gh_work/applicable.json")
+
+        (( $(jq 'length' "$gh_work/applicable.json") > 0 )) && { branch_protection=true; gov_source=rulesets; }
+
+        # --- the two canonical rulesets, by name, read from the policy --------
+        while IFS="$(printf '\t')" read -r rs_key rs_name; do
+          [[ -n "$rs_key" ]] || continue
+          rs_active=false
+          if jq -e --arg n "$rs_name" 'any(.name == $n)' "$gh_work/applicable.json" >/dev/null 2>&1; then
+            rs_active=true
+          fi
+          case "$rs_key" in
+            safety) ruleset_safety="$rs_active" ;;
+            pr_ci)  ruleset_pr_ci="$rs_active" ;;
+          esac
+        done < <(jq -r '.rulesets[] | .key + "\t" + .name' "$GH_POLICY")
+
+        # --- classic protection: legacy, reported, never the source of truth --
+        classic_rc=0
+        github_classic_protection "$gh_slug" "$default_branch" >/dev/null 2>&1 || classic_rc=$?
+        case "$classic_rc" in
+          0) classic_protection=present
+             # A repo with no rulesets but with classic protection is protected.
+             if [[ "$gov_source" == unknown ]]; then
+               gov_source=classic; branch_protection=true
+               prot="$(github_classic_protection "$gh_slug" "$default_branch" 2>/dev/null || true)"
+               required_reviews=$(echo "$prot" | jq -r '.required_pull_request_reviews.required_approving_review_count // 0')
+               [[ "$(echo "$prot" | jq -r '(.required_status_checks.contexts // []) | length')" -gt 0 ]] && requires_ci_check=true
+               [[ "$(echo "$prot" | jq -r '.required_conversation_resolution.enabled // false')" == true ]] && requires_conversation_resolution=true
+               [[ "$(echo "$prot" | jq -r '.required_linear_history.enabled // false')" == true ]] && requires_linear_history=true
+               [[ "$(echo "$prot" | jq -r '.allow_force_pushes.enabled // true')" == false ]] && blocks_force_push=true
+               [[ "$(echo "$prot" | jq -r '.allow_deletions.enabled // true')" == false ]] && blocks_deletion=true
+             fi
+             ;;
+          2) classic_protection=absent ;;
+          *) classic_protection=unknown ;;
+        esac
+        [[ "$gov_source" == unknown ]] && gov_source=none
+
+        # --- Actions concurrency ---------------------------------------------
+        # Delegated to scripts/github-policy.sh, which owns the workflow
+        # classification table in config/github/repository-policy.json. Nothing
+        # about cancellable-vs-stateful is re-decided here: a second copy of that
+        # judgement is exactly the duplicated-rules problem this work removes.
+        if [[ -f "$GH_CLI_SCRIPT" ]]; then
+          if audit_json="$(bash "$GH_CLI_SCRIPT" audit --repo "$gh_slug" --json 2>/dev/null)"; then
+            if echo "$audit_json" | jq -e 'type == "object" and has("changes")' >/dev/null 2>&1; then
+              actions_checked=true
+              actions_violations=$(echo "$audit_json" | jq '
+                [ .changes[] | select(.label | startswith("actions:"))
+                             | select(.status == "modify" or .status == "create") ] | length')
+            fi
+          fi
+        fi
       fi
     fi
   fi
 fi
-
 hygiene=$(bash "$(dirname "$0")/check-repo-hygiene.sh" "$ROOT")
 
 jq -nc \
@@ -223,6 +390,18 @@ jq -nc \
   --argjson requires_ci_check "$requires_ci_check" \
   --argjson allow_auto_merge "$allow_auto_merge" \
   --argjson delete_branch_on_merge "$delete_branch_on_merge" \
+  --argjson gh_readable "$gh_readable" \
+  --arg gov_source "$gov_source" \
+  --arg classic_protection "$classic_protection" \
+  --argjson ruleset_safety "$ruleset_safety" \
+  --argjson ruleset_pr_ci "$ruleset_pr_ci" \
+  --argjson strict_status_checks "$strict_status_checks" \
+  --argjson requires_conversation_resolution "$requires_conversation_resolution" \
+  --argjson requires_linear_history "$requires_linear_history" \
+  --argjson blocks_force_push "$blocks_force_push" \
+  --argjson blocks_deletion "$blocks_deletion" \
+  --argjson actions_checked "$actions_checked" \
+  --argjson actions_violations "$actions_violations" \
   --argjson hygiene "$hygiene" \
   '{
     root: $root,
@@ -275,11 +454,27 @@ jq -nc \
       agents_md: $agents_md
     },
     branch_governance: {
+      readable: $gh_readable,
+      source: $gov_source,
       protection_enabled: $branch_protection,
       required_approving_reviews: $required_reviews,
       requires_ci_check: $requires_ci_check,
       allow_auto_merge: $allow_auto_merge,
-      delete_branch_on_merge: $delete_branch_on_merge
+      delete_branch_on_merge: $delete_branch_on_merge,
+      rulesets: {
+        safety_active: $ruleset_safety,
+        pr_ci_active: $ruleset_pr_ci,
+        strict_required_status_checks: $strict_status_checks,
+        requires_conversation_resolution: $requires_conversation_resolution,
+        requires_linear_history: $requires_linear_history,
+        blocks_force_push: $blocks_force_push,
+        blocks_deletion: $blocks_deletion
+      },
+      legacy_classic_protection: $classic_protection,
+      actions: {
+        checked: $actions_checked,
+        violations: $actions_violations
+      }
     },
     hygiene: $hygiene.hygiene
   }'

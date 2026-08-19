@@ -40,6 +40,8 @@
 # ENV TWINS
 #   GITHUB_POLICY_FILE=<path>   use a different canonical policy document
 #   GITHUB_POLICY_YES=1         same as --yes
+#   GITHUB_POLICY_ALLOW_LIVE=1  authorise unattended writes (no TTY). Required in
+#                               addition to --yes; see the LIVE-TARGET GATE below.
 #
 # EXAMPLES
 #   bash scripts/github-policy.sh audit
@@ -663,6 +665,7 @@ EOF
   local n_absent=0 n_drift=0 n_ok=0 n_block=0 n_written=0
   : >"$WORK/rulesets.$RIDX"
   : >"$WORK/plan.$RIDX"
+  : >"$WORK/bypass.$RIDX"
 
   for key in $(jq -r '.rulesets[].key' "$POLICY"); do
     name="$(jq -r --arg k "$key" '.rulesets[] | select(.key == $k) | .name' "$POLICY")"
@@ -719,6 +722,40 @@ EOF
 
     # Present. Normalize both sides and compare — the idempotence primitive.
     github_ruleset_normalize <"$WORK/live.raw.$key" >"$WORK/live.$key"
+
+    # BYPASS ACTORS ARE PRESERVED, NEVER ASSERTED — carry the live value into the
+    # desired payload before anything compares or writes.
+    #
+    # A bypass actor is repository-specific state, exactly like required status
+    # check contexts: who is allowed to merge around the rules is a fact about a
+    # repository's people, not a rule the policy can know. Asserting `[]` would
+    # strip it, and on a solo-contributor account the admin bypass is the merge
+    # path — `--admin` is the documented and habitual way changes land here. So
+    # asserting the canonical empty list would revoke the author's ability to
+    # merge into their own default branch. That is "a policy tool can lock the
+    # author out" arriving from the one direction nobody watches, because it wears
+    # the costume of a STRENGTHENING: the diff looks like tightening a control
+    # while it actually removes the operator's only key.
+    #
+    # ACCEPTED TRADE-OFF, stated rather than hidden: a repository carrying an
+    # over-broad bypass — say Everyone — will never be corrected by this tool. The
+    # user chose that deliberately over the risk of lockout. It is surfaced as an
+    # informational line so it is at least visible, and it never fails compliance.
+    #
+    # A ruleset being CREATED gets no bypass actors at all (the policy's `[]`
+    # stands): there is no live value to preserve, and inventing one would be
+    # granting an exemption nobody asked for.
+    jq --slurpfile live "$WORK/live.raw.$key" \
+       '.bypass_actors = (($live[0].bypass_actors) // [])' "$desired" \
+      | github_ruleset_normalize >"$WORK/desired.patched.$key"
+    mv "$WORK/desired.patched.$key" "$desired"
+
+    jq -r --arg n "$name" '
+      (.bypass_actors // [])
+      | if length == 0 then empty
+        else "\($n)\t\(length)\t" + ([.[] | "\(.actor_type // "?") \(.actor_id // "?") (\(.bypass_mode // "?"))"] | join(", "))
+        end' "$WORK/live.raw.$key" >>"$WORK/bypass.$RIDX"
+
     if cmp -s "$desired" "$WORK/live.$key"; then
       n_ok=$((n_ok + 1))
       printf '%s\tup_to_date\t\n' "$name" >>"$WORK/rulesets.$RIDX"
@@ -835,7 +872,7 @@ QUIT=""
 # Reporting
 # ---------------------------------------------------------------------------
 print_single_report() {
-  local repo="$1" branch="$2" line name st extra
+  local repo="$1" branch="$2" line name st extra bname bn bwho
   out ""
   out "${SETUP_C_BOLD}GitHub Repository Standards${SETUP_C_OFF} — $repo"
   out ""
@@ -868,6 +905,15 @@ print_single_report() {
     out ""
     out "Planned change:"
     while IFS= read -r line; do out "  $line"; done <"$WORK/plan.$RIDX"
+  fi
+
+  if [ -s "$WORK/bypass.$RIDX" ]; then
+    out ""
+    out "Bypass actors (preserved, not asserted by policy):"
+    while IFS="$(printf '\t')" read -r bname bn bwho; do
+      [ -n "$bname" ] || continue
+      out "  $MARK_WARN $bname — $bn preserved: $bwho"
+    done <"$WORK/bypass.$RIDX"
   fi
 
   out ""
@@ -988,6 +1034,24 @@ main() {
   # Single-repo apply obeys the same rule: no terminal and no --yes means plan.
   if [ "$VERB" = apply ] && [ -z "$BULK" ] && [ -z "${SETUP_YES:-}" ] && ! setup_can_prompt; then
     setup_note "no TTY — cannot confirm. Showing the plan instead; re-run with --yes to apply."
+    VERB="plan"; DEGRADED=1
+  fi
+
+  # LIVE-TARGET GATE.
+  #
+  # --yes exists so a human can skip per-change prompts. It was never meant to be
+  # the whole authorisation for writing to somebody's real repositories, and on
+  # 2026-08-19 that gap was exercised for real: a non-interactive run with --yes
+  # reverted a deliberate setting on the author's own repo, silently, because
+  # nothing distinguished "confirmed by a person" from "no person present".
+  #
+  # So: without a terminal, --yes alone is not enough. A genuinely unattended
+  # caller (CI, a scripted sweep) must ALSO set GITHUB_POLICY_ALLOW_LIVE=1, which
+  # is impossible to supply by accident and trivial to grep for in a review.
+  # A TTY session is unaffected — a human at a prompt has already authorised it.
+  if [ "$VERB" = apply ] && ! setup_can_prompt && [ -z "${GITHUB_POLICY_ALLOW_LIVE:-}" ]; then
+    setup_note "refusing to write without a terminal: --yes confirms individual changes, it does not authorise unattended mutation of live repositories."
+    setup_note "set GITHUB_POLICY_ALLOW_LIVE=1 to allow this deliberately. Showing the plan instead."
     VERB="plan"; DEGRADED=1
   fi
 

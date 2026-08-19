@@ -371,7 +371,11 @@ judge "compliant and drifted differ only in that boolean" "" \
 judge "compliant: 9 required contexts, per ground truth" 9 \
   "$(jq '[.rules[] | select(.type=="required_status_checks") | .parameters.required_status_checks[]] | length' \
       "$FIX/compliant/ruleset-21049069.json")"
-judge "compliant: 0 approving reviews (the solo-contributor flow)" 0 \
+# 1, not 0. The owner's posture is that an approval binds COLLABORATORS while the
+# admin bypass actor on this ruleset exempts the owner — so the requirement is real
+# for everyone else and never blocks the solo flow. Canonical still defaults to 0;
+# this repo carries a per-repository override. Do not "restore" this to 0.
+judge "compliant: 1 approving review (binds collaborators; owner has the bypass)" 1 \
   "$(jq -r '.rules[] | select(.type=="pull_request") | .parameters.required_approving_review_count' \
       "$FIX/compliant/ruleset-21049069.json")"
 judge "compliant: thread resolution required" true \

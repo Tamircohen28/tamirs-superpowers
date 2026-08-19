@@ -4,7 +4,7 @@
   "title": "GitHub repository policy",
   "description": "Machine-readable statement of the branch governance and Actions concurrency policy applied to the GitHub repositories this account owns. It is the only place that answers what a governed repository's default branch is protected by; scripts render GitHub ruleset payloads from it and diff them against the live API. Silence is not an answer here: every object closes with additionalProperties:false and every decision that could be read either way — strict status checks, per-repository context resolution, whether a workflow may be cancelled — is stated explicitly, so an omitted key is a schema error rather than an implied 'no'.",
   "type": "object",
-  "required": ["schema_version", "version", "defaults", "required_checks", "rulesets", "repositories", "actions"],
+  "required": ["schema_version", "version", "defaults", "required_checks", "overridable_parameters", "rulesets", "repositories", "actions"],
   "additionalProperties": false,
   "properties": {
     "$schema": { "type": "string" },
@@ -76,6 +76,17 @@
         },
         "source_note": { "type": "string", "minLength": 1 }
       }
+    },
+
+    "overridable_parameters": {
+      "type": "object",
+      "description": "The closed, named set of rule parameters a repository may override, and for each one the direction that counts as stricter. This registry exists so that per-repository overrides stay reviewable: opening the whole `parameters` object would turn the canonical policy into a suggestion, since any repository could quietly restate any rule. Add an entry only when a real case appears, and only with its strengthening direction stated — that direction is what lets a tool tell a safe raise from a weakening.",
+      "minProperties": 1,
+      "propertyNames": {
+        "anyOf": [{ "$ref": "#/$defs/overridableParameterName" }, { "const": "_comment" }]
+      },
+      "properties": { "_comment": { "$ref": "#/$defs/comment" } },
+      "additionalProperties": { "$ref": "#/$defs/overridableParameter" }
     },
 
     "rulesets": {
@@ -295,6 +306,46 @@
       ]
     },
 
+    "overridableParameterName": {
+      "type": "string",
+      "description": "Closed enum. Widening it is a deliberate policy change that must be reviewed, not a config edit — which is the whole point of naming the set instead of allowing any parameter.",
+      "enum": ["required_approving_review_count"]
+    },
+
+    "overridableParameter": {
+      "type": "object",
+      "required": ["rule", "summary", "stricter"],
+      "additionalProperties": false,
+      "properties": {
+        "_comment": { "$ref": "#/$defs/comment" },
+        "rule": {
+          "$ref": "#/$defs/ruleType",
+          "description": "The rule whose parameters this belongs to. Stated so an override cannot be attached to the wrong rule and silently ignored."
+        },
+        "summary": { "type": "string", "minLength": 1 },
+        "stricter": {
+          "type": "string",
+          "enum": ["higher", "lower"],
+          "description": "Which direction strengthens the control. `higher` means a larger value is stricter (more required approvals); `lower` means a smaller one is. Without this a tool cannot tell a repository raising a bar from one quietly lowering it, and both would read as 'differs from canonical'."
+        }
+      }
+    },
+
+    "parameterOverride": {
+      "type": "object",
+      "description": "Per-rule parameter overrides for one repository. Only the names in overridableParameterName may appear; everything else in the canonical rule is not negotiable at the repository level.",
+      "minProperties": 1,
+      "additionalProperties": false,
+      "properties": {
+        "_comment": { "$ref": "#/$defs/comment" },
+        "acknowledged_weakening": {
+          "type": "boolean",
+          "description": "Required to be true when an override sets a control BELOW canonical. A repository may be weaker than the standard — repositories genuinely differ — but never silently: check-github-policy.sh refuses an unacknowledged weakening and reports every acknowledged one on each run, in the same spirit as strict_is_intentional."
+        },
+        "required_approving_review_count": { "type": "integer", "minimum": 0, "maximum": 6 }
+      }
+    },
+
     "contextNames": {
       "type": "array",
       "uniqueItems": true,
@@ -330,7 +381,17 @@
               "items": { "$ref": "#/$defs/ruleType" },
               "description": "Canonical rules this repository opts out of. Opting out is visible and reviewable here; it is not something a script may infer."
             },
-            "enforcement": { "$ref": "#/$defs/enforcement" }
+            "enforcement": { "$ref": "#/$defs/enforcement" },
+            "parameters": {
+              "type": "object",
+              "description": "Parameter-level overrides, keyed by rule type. Deliberately narrow: only names declared in overridable_parameters are accepted, so the canonical rule stays the rule and a repository can adjust exactly the dials the policy has agreed may be adjusted.",
+              "minProperties": 1,
+              "propertyNames": {
+                "anyOf": [{ "$ref": "#/$defs/ruleType" }, { "const": "_comment" }]
+              },
+              "properties": { "_comment": { "$ref": "#/$defs/comment" } },
+              "additionalProperties": { "$ref": "#/$defs/parameterOverride" }
+            }
           }
         },
         "actions": {

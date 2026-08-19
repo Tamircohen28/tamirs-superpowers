@@ -44,7 +44,7 @@ docs/engineering/repo-standards-plan-<YYYY-MM-DD>.md
 | 1 | README + LICENSE + root files |
 | 2 | docs/ tree |
 | 3 | .github/ CI + templates |
-| 4 | Branch protection + merge settings + CODEOWNERS (`enable-repo-merge-settings.sh`, `ensure-branch-protection.sh`) |
+| 4 | Branch governance + merge settings + CODEOWNERS (`enable-repo-merge-settings.sh`, `scripts/github-policy.sh apply`) |
 | 5 | Multi-agent (`Skill("multi-agent-repo")`) |
 | 6 | `docs-review` + `changelog-review` (plugin) |
 | 7 | Re-run review; P1 = 0 |
