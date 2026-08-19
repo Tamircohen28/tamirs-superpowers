@@ -1,20 +1,21 @@
 {
   "schema_version": 2,
-  "last_reviewed": "2026-08-18",
-  "reviewed_by_skill": "tamirs-superpowers@2.0.0",
+  "last_reviewed": "2026-08-19",
+  "reviewed_by_skill": "tamirs-superpowers@3.2.0",
   "supported_targets": [
     "claude_code",
-    "cursor",
     "codex",
+    "cursor",
+    "gemini_cli",
     "opencode"
   ],
   "targets": {
     "claude_code": {
       "supported_min": "2.0.0",
       "supported_min_source": "manifest format (.claude-plugin/plugin.json) stable since 2.0.0",
-      "validated_against": "2.1.234",
-      "latest_known": "2.1.234",
-      "verified_on": "2026-08-18",
+      "validated_against": "2.1.235",
+      "latest_known": "2.1.235",
+      "verified_on": "2026-08-19",
       "verification_method": "latest from registry.npmjs.org/@anthropic-ai/claude-code cross-checked against code.claude.com/docs/en/changelog (automated nightly review); previously claude --version on the maintainer machine",
       "install_doc": "docs/user/install/claude-code.md",
       "doc_urls": [
@@ -39,13 +40,28 @@
         "project-dir-name-pin-2.1.234"
       ],
       "capabilities": [
-        "skills",
-        "agents",
+        "agent_teams",
+        "artifacts",
+        "ask_user_question",
+        "background_tasks",
+        "git",
+        "github_cli",
         "hooks",
         "mcp",
+        "parallel_subagents",
+        "plugin_marketplace",
+        "session_transcripts",
+        "shell",
+        "skill_auto_invocation",
+        "skills",
+        "slash_commands",
         "statusline",
-        "marketplace"
-      ]
+        "subagents",
+        "worktree_isolation"
+      ],
+      "capability_gaps": {
+        "extension_install": "Claude installs plugins, not git-URL extensions."
+      }
     },
     "cursor": {
       "supported_min": "3.16.17",
@@ -100,16 +116,22 @@
         "builds-now-default-2026-08-17"
       ],
       "capabilities": [
-        "skills",
-        "rules",
-        "agents",
-        "commands",
+        "git",
+        "github_cli",
         "hooks",
         "mcp",
-        "marketplace"
+        "plugin_marketplace",
+        "shell",
+        "skill_auto_invocation",
+        "skills",
+        "slash_commands",
+        "subagents",
+        "worktree_isolation"
       ],
       "capability_gaps": {
-        "hooks": "Claude-shaped plugin hooks/hooks.json (PreToolUse/SessionStart, CLAUDE_PLUGIN_ROOT) does not run under Cursor plugin installs. Project .cursor/hooks.json ships soft contributor guards for this repo as a workspace/Cloud Agent. Optional third-party Claude hooks via .claude/settings.json when enabled in Cursor Settings. Full Cursor-native plugin hooks bundle (manifest hooks field) not shipped yet."
+        "artifacts": "No artifact publishing surface.",
+        "extension_install": "Cursor installs plugins, not git-URL extensions.",
+        "statusline": "No plugin-declared statusline."
       }
     },
     "codex": {
@@ -131,20 +153,29 @@
         "portable-agent-plugins-0.147.0"
       ],
       "capabilities": [
-        "skills",
-        "agents",
+        "git",
+        "github_cli",
         "hooks",
         "mcp",
-        "marketplace"
-      ]
+        "plugin_marketplace",
+        "shell",
+        "skills",
+        "subagents",
+        "worktree_isolation"
+      ],
+      "capability_gaps": {
+        "artifacts": "No artifact publishing surface.",
+        "extension_install": "Codex installs plugins, not git-URL extensions.",
+        "statusline": "Not a declared Codex capability."
+      }
     },
     "opencode": {
       "supported_min": "1.16.2",
-      "supported_min_source": "oldest version on which recursive (domain-nested) SKILL.md discovery was verified with `opencode debug skill`",
+      "supported_min_source": "oldest version on which recursive (domain-nested) SKILL.md discovery was verified with `opencode debug skill`; not re-tested in this pass, so the floor is left where the evidence put it",
       "validated_against": "1.18.11",
-      "latest_known": "1.18.11",
-      "verified_on": "2026-08-03",
-      "verification_method": "opencode --version on the maintainer machine; latest from registry.npmjs.org/opencode-ai; skill discovery verified with `opencode debug skill`",
+      "latest_known": "1.18.18",
+      "verified_on": "2026-08-19",
+      "verification_method": "opencode --version on the maintainer machine (1.18.11), exercised live: opencode debug skill / debug agent / debug config against this repo and against throwaway sandboxes; agent + config field shapes cross-checked against the published JSON Schema at https://opencode.ai/config.json. latest_known from registry.npmjs.org/opencode-ai dist-tags.latest (1.18.18, published 2026-08-13). validated_against is deliberately not latest_known: 1.18.11 is the build actually run, and asserting 1.18.18 would be invention.",
       "install_doc": "docs/user/install/opencode.md",
       "doc_urls": [
         "https://opencode.ai/docs/skills/",
@@ -153,21 +184,66 @@
         "https://opencode.ai/config.json"
       ],
       "features_adopted": [
-        "native-skill-discovery",
-        "recursive-skill-scan",
-        "opencode-agent-adapters",
-        "skills-paths-config"
+        "skills-paths-config",
+        "recursive-skill-discovery-1.16.2",
+        "zero-level-skill-paths",
+        "generated-agent-adapters",
+        "agent-permission-field",
+        "no-plugin-runtime-dependency"
       ],
       "capabilities": [
+        "git",
+        "github_cli",
+        "mcp",
+        "shell",
         "skills",
-        "agents",
-        "mcp"
+        "subagents",
+        "worktree_isolation"
       ],
       "capability_gaps": {
-        "hooks": "OpenCode has no hooks.json — lifecycle automation is JS/TS plugin modules only, so the worktree hooks in hooks/ do not port.",
-        "statusline": "No plugin-declared statusline.",
-        "marketplace": "No plugin marketplace — install is by path (symlink or skills.paths)."
+        "artifacts": "No artifact publishing surface.",
+        "extension_install": "No git-URL extension install.",
+        "hooks": "OpenCode has no hooks.json; its only lifecycle mechanism is the JS/TS plugin API, and this repo ships no plugin module by design (it would add a Node runtime dependency for no other gain). As installed, the hooks/ guards do not run at all — 'adapter' would imply a generated artifact exists, as it does for subagents, and none does.",
+        "plugin_marketplace": "No plugin marketplace — install is by absolute skills.paths. Not by symlink: OpenCode does not follow them for skill discovery (see the skills row).",
+        "statusline": "No plugin-declared statusline."
+      }
+    },
+    "gemini_cli": {
+      "supported_min": "0.55.1",
+      "supported_min_source": "Gemini CLI documents no minimum for extensions; the floor is the version the adapter was actually exercised on rather than guessed",
+      "validated_against": "0.55.1",
+      "latest_known": "0.55.1",
+      "verified_on": "2026-08-19",
+      "verification_method": "gemini --version on the maintainer machine (0.55.1); extension format, skill discovery depth, agent validation, and hook config shape measured directly with a probe extension linked into an isolated HOME. Gemini reads skills exactly one level below a skills root, so the canonical two-level skills/<domain>/<name>/ tree resolved to zero; scripts/build-gemini-extension.sh generates a flat symlink mirror at .gemini/skills/ plus translated sub-agents at .gemini/agents/, both committed and drift-checked. Verified live: 30 of 30 skills discovered, all 10 agents load with zero errors. Registry key is gemini_cli (not gemini) so this file, core/capabilities/platforms.json and platforms/gemini/adapter.yaml all name the same platform id.",
+      "install_doc": "docs/user/install/gemini.md",
+      "doc_urls": [
+        "https://github.com/google-gemini/gemini-cli/blob/main/docs/extensions/reference.md",
+        "https://github.com/google-gemini/gemini-cli/blob/main/docs/cli/skills.md",
+        "https://github.com/google-gemini/gemini-cli/blob/main/docs/core/subagents.md"
+      ],
+      "features_adopted": [
+        "gemini-extension-manifest",
+        "context-file-subpath",
+        "mcp-extension-path-interpolation",
+        "generated-flat-skill-mirror"
+      ],
+      "capabilities": [
+        "extension_install",
+        "git",
+        "github_cli",
+        "mcp",
+        "shell",
+        "skills",
+        "subagents",
+        "worktree_isolation"
+      ],
+      "capability_gaps": {
+        "artifacts": "No artifact publishing surface.",
+        "plugin_marketplace": "Gemini installs extensions from a git URL; there is no marketplace listing to publish to.",
+        "statusline": "Measured on 0.55.1: no extension-declared statusline."
       }
     }
-  }
+  },
+  "capability_source": "core/capabilities/platforms.json",
+  "capability_source_note": "targets.<key>.capabilities and capability_gaps are DERIVED from the capability registry and must not be hand-edited. Regenerate with `bash scripts/check-platform-targets.sh . --sync-capabilities`; `scripts/check-feature-equivalence.sh` fails when they drift."
 }

@@ -1,152 +1,109 @@
 # CLAUDE.md — tamirs-superpowers
 
-Claude Code guidance for contributors working on this plugin.
+Claude Code and Claude Desktop specifics for contributors. **Everything that is not Claude-specific lives elsewhere — start with [`AGENTS.md`](AGENTS.md)**, which is the shared entrypoint into [`core/`](core/) and [`rules/`](rules/README.md). This file adds only what is true of the Claude surface.
+
+When this file and a canonical rule disagree, the canonical rule wins.
 
 ## What this repo is
 
-A Claude Code plugin (marketplace + bundled skills + hooks). It is **not** a Node/Python/Go app — there is no build step, no package.json, no compiled output. All content is Markdown, JSON, and Bash.
+A multi-platform agent plugin (skills, agents, hooks, MCP stubs) shipped to Claude Code, Claude Desktop, Cursor, Codex, Gemini CLI, and OpenCode. No build step, no `package.json`, no compiled output — Markdown, JSON, and Bash.
 
-## Agent contributors
-
-See [`AGENTS.md`](AGENTS.md) for working agreements, allowed commands, and contributor policies applicable to all agents (Claude Code, Cursor, Codex).
-
-## Key file locations
-
-| Path | Purpose |
-|------|---------|
-| `.claude-plugin/plugin.json` | Plugin manifest — name, version, dependencies, statusLine |
-| `.mcp.json` | MCP server stubs — fill env vars to activate |
-| `scripts/` | User-facing scripts (`install.sh`, `update.sh`, `uninstall.sh`, `statusline.sh`) |
-| `hooks/hooks.json` | Hook event wiring (PreToolUse, SessionStart, etc.) |
-| `hooks/*.sh` | Hook scripts |
-| `hooks/lib/worktree-common.sh` | Shared bash helpers for all worktree hooks |
-| `skills/<domain>/<name>/SKILL.md` | Bundled skill definitions — grouped by domain |
-| `.claude/memory/` | Project memory (lessons, feedback, project facts) — see below |
+Claude Code and Claude Desktop are **one distribution**, not two formats: the same `.claude-plugin/plugin.json`, the same `skills/`, the same `agents/`. Desktop differences are surface-level (installation path, no CLI flags) and documented in [`docs/user/install/claude-code.md`](docs/user/install/claude-code.md).
 
 ## Commands
 
-```bash
-make validate           # shellcheck + JSON + frontmatter + contract test
-make test-repo-contract # assert scaffold-gold (app-gold) + scaffold-plugin-gold (plugin-gold)
-make lint               # shellcheck only
-make test               # same as validate
+See [`AGENTS.md`](AGENTS.md#commands) for the full list. `make validate` before every push.
+
+## Claude-only capabilities
+
+Do not assume these exist on other providers — check [`core/capabilities/platforms.json`](core/capabilities/platforms.json) before relying on any of them, and degrade explicitly per [`core/policies/safety.md`](core/policies/safety.md).
+
+- **Subagents** (`Agent` tool) — parallel worker execution. Other providers run tasks sequentially or through their own mechanism.
+- **Hooks** — `hooks/hooks.json` is loaded by Claude Code and Codex only. Cursor does not wire it; Gemini CLI and OpenCode have their own or none.
+- **Statusline** — wired via `.claude-plugin/plugin.json` `settings.statusLine` → `scripts/statusline.sh`. Claude-only. Test with piped JSON: `echo '<session-json>' | bash scripts/statusline.sh` — it blocks forever on unpiped stdin.
+- **`EnterWorktree`** — automates worktree creation under `.claude/.worktrees/<name>`. That is the *legacy* layout; it stays supported and is never orphaned, but new objectives use `.agent-worktrees/<objective>/` per [`rules/dev/git-worktree-agent-workflow.md`](rules/dev/git-worktree-agent-workflow.md). `resolve-worktree.sh` understands both.
+- **Project memory** — `.claude/memory/` (versioned backup, reviewable in PRs) mirrored into a per-project transcript directory (auto-loaded each session). Keep them in sync; commit new memory files to `.claude/memory/`. The transcript directory name is normally *derived* from the clone's absolute path (`-Users-<you>-Projects-tamirs-superpowers`), which shifts per machine/username and breaks if the clone moves. Since **Claude Code 2.1.234**, `CLAUDE_CODE_PROJECT_DIR_NAME` overrides that derivation — pin it (e.g. in `~/.zshrc`/`~/.bashrc`, or per-session) for a stable, machine-independent name:
+
+  ```bash
+  export CLAUDE_CODE_PROJECT_DIR_NAME=tamirs-superpowers
+  ```
+
+  Restoring memory on a new machine prefers the pin when set, falling back to the derived path otherwise:
+
+  ```bash
+  MEMORY_DIR=~/.claude/projects/${CLAUDE_CODE_PROJECT_DIR_NAME:--Users-$(whoami)-Projects-tamirs-superpowers}/memory
+  mkdir -p "$MEMORY_DIR" && cp .claude/memory/* "$MEMORY_DIR/"
+  ```
+
+## Marketplace cache
+
+The installed copy lives under `~/.claude/plugins/cache/tamirs-marketplace/tamirs-superpowers/<version>/`. Claude uses the manifest `version` as the update cache key — pushing commits without a bump does not reach installed users. After a release:
+
+```text
+/plugin marketplace update tamirs-marketplace
+/plugin update tamirs-superpowers@tamirs-marketplace
 ```
 
-There is no install step — this is a plugin, not a standalone tool.
+`/reload-plugins` reloads the **local cache** only; it never fetches from GitHub. For local development, symlink the cache directory at your clone or run with `--plugin-dir` — never hand-edit files under the cache. Full mechanics, including the version-glob failure mode: [`rules/dev/plugin-version-bump.md`](rules/dev/plugin-version-bump.md).
 
-## Cloud and remote sessions
+The version itself is edited in **one** place, `plugin-version.json`, then propagated with `bash scripts/check-version-truth.sh --sync`. Never hand-edit `.claude-plugin/plugin.json`'s version.
 
-Shared runbook (validate, smoke test, stdin gotchas): see **Cloud and headless agent runbook** in [`AGENTS.md`](AGENTS.md).
+## Skill frontmatter on Claude
 
-Claude Code–specific notes:
+Every `SKILL.md` validates against the **portable** schema, [`core/schemas/skill-frontmatter.json`](core/schemas/skill-frontmatter.json). Claude Code's own frontmatter fields are a documented **extension** of that schema — they add Claude behavior (invocation gating, tool allowlists, model hints) and are validated when present. They are not a universal requirement, and a skill is not invalid for omitting a field no other provider understands. Authoring rules: [`rules/dev/skill-quality-standards.md`](rules/dev/skill-quality-standards.md). Never hand-write a `SKILL.md` — use `skill-creator`.
 
-- **Marketplace cache:** installed copy lives under `~/.claude/plugins/cache/tamirs-marketplace/tamirs-superpowers/<version>/`. Pushing commits without a manifest bump does not update installed users — run `/plugin marketplace update tamirs-marketplace` then `/plugin update tamirs-superpowers@tamirs-marketplace` after releases.
-- **Statusline:** wired via `.claude-plugin/plugin.json` `settings.statusLine` → `scripts/statusline.sh`. Test with piped JSON: `echo '<session-json>' | bash scripts/statusline.sh`.
-- **Project memory:** versioned backup in `.claude/memory/`; session copy under `~/.claude/projects/-Users-<you>-Projects-tamirs-superpowers/memory/` (see Project memory below).
-- **Remote / headless:** same validation commands as AGENTS.md; hooks in `hooks/hooks.json` apply in Claude Code sessions only.
+### Invocation tiers (Claude-specific)
 
-## Commit convention
+The two flags are **independent** — not a package deal:
 
-```
-<type>(<scope>): <description>
-
-Co-Authored-By: Claude <noreply@anthropic.com>
-```
-
-Types: `feat`, `fix`, `chore`, `docs`, `refactor`
-Scopes: `skills`, `hooks`, `marketplace`, `ci`, `docs`
-
-## Hard constraints
-
-- **Never add `runs-on: [self-hosted]`** to any CI workflow — use `ubuntu-latest`
-- **Never commit secrets or tokens** — `.mcp.json` uses `${ENV_VAR}` placeholders only
-- **Never add Wix-internal references** (internal domains, private GitHub orgs, internal tooling names)
-- **Never modify `hooks/lib/worktree-common.sh`** without running shellcheck and testing both `capture-task-slug.sh` and `worktree-create.sh`
-- **SKILL.md files must have valid YAML frontmatter** with all 16 official Claude Code fields plus `metadata.updated-date` — see `skills/toolkit/skill-creator/references/frontmatter-template.md`; CI runs `scripts/validate-skill-frontmatter.py`
-- **Version sync:** whenever `.claude-plugin/plugin.json` version is bumped, `.codex-plugin/plugin.json` and `.cursor-plugin/plugin.json` must be bumped to the same version in the same commit. Check all three before opening a release PR.
-- **Version bump required for marketplace delivery:** Claude Code treats `plugin.json` `version` as the update cache key. New skills, hooks, or other shipped changes **must** include a semver bump (PATCH/MINOR/MAJOR per [versioning.md](docs/engineering/build-and-release/versioning.md)) or installed users stay on the cached copy. `/reload-plugins` does not fetch from GitHub. See [`rules/dev/plugin-version-bump.md`](rules/dev/plugin-version-bump.md).
-- **Cut the release after merging a manifest bump:** after a manifest-bumping PR merges, run `gh workflow run release.yml -f version=<new-version>` to create the matching `v<version>` tag + GitHub Release. The push-to-master CI job **Manifest/tag version alignment** reports this as a `::warning::` ("Release pending") rather than failing — the tag provably cannot exist at merge time, so failing there was a race, not a signal. Master stays green; the warning is your reminder. Leaving it unreleased still strands installed users on the cached copy, so cut it. Edit a manifest version with a targeted string replace, never a `json.dump`/`jq` full rewrite (it escapes unicode and reformats).
-- **Never move a manifest version backwards** past a cut release — that is real drift and fails CI on every event, `--allow-pending-release` included.
-
-## Skill domains (27 skills total)
-
-| Domain | Skills |
-|--------|--------|
-| `creative` | algorithmic-art, field-notebook-ui |
-| `debugging` | targeted-debug |
-| `dev-workflow` | decision, plan-dev, pr-dev, start-dev, switch-dev |
-| `documentation` | changelog-review, dark-terminal-doc, docs-review, platform-sync, platform-sync-claude, platform-sync-codex, platform-sync-cursor |
-| `mcp` | mcp-builder, mcp-pagination |
-| `toolkit` | find-skill, notify-setup, retro, session-report, skill-creator |
-| `repo` | cleanup, multi-agent-repo, repo-scaffold, repo-standards |
-
-**Shared contract:** `skills/repo/_contract/` — canonical templates, scoring scripts, and gold fixtures (`scaffold-gold`, `scaffold-plugin-gold`). Profiles: `app-gold` (apps), `plugin-gold` (agent-kit repos with `canonical/`). `repo-scaffold --type plugin` and `repo-standards` both consume it; `make test-repo-contract` enforces alignment. **User guide:** [docs/user/agent-kit.md](docs/user/agent-kit.md).
-
-## User-invocable vs internal skills
-
-Skills can be restricted to internal use (invoked by other skills only, never by the user typing `/skill-name`):
-
-- `user-invocable: false` — blocks user `/skill-name` invocation; the skill can still be called by another skill via the `Skill` tool
-- `disable-model-invocation: true` — prevents the model from auto-triggering the skill based on context
-
-**Invocation tiers** — pick the pair deliberately:
+- `user-invocable: false` — blocks the user typing `/skill-name`. Other skills, sub-agents and workflows can still call it via the `Skill` tool. This alone is what an internal companion wants.
+- `disable-model-invocation: true` — blocks context-based auto-triggering **and sub-agent invocation**. It is a much heavier flag than it looks.
 
 | Tier | `user-invocable` | `disable-model-invocation` | Examples |
 |------|:---:|:---:|----------|
-| User + auto-trigger (default) | `true` | `false` | plan-dev, start-dev, pr-dev, repo-standards, cleanup, retro |
-| Explicit-only (slash, no auto) | `true` | `true` | switch-dev |
-| Internal companion | `false` | `true` | docs-review, mcp-pagination, platform-sync-* |
+| User + auto-trigger (default) | `true` | `false` | plan-dev, start-dev, pr-dev, switch-dev, repo-standards, cleanup, retro |
+| Explicit-only (slash, no auto) | `true` | `true` | *(none — see below)* |
+| Internal companion | `false` | `false` | docs-review, mcp-pagination, changelog-review |
 
-**Gating warning:** `disable-model-invocation: true` also blocks **sub-agent and Workflow orchestration** — a sub-agent invoking a skill *is* model invocation, so a gated skill cannot be fanned out across sub-agents. Only gate a skill when it must *never* be invoked autonomously (internal companions, or a skill whose autonomous run would take an unwanted irreversible action with no confirmation). Prefer putting safety **inside** the skill over gating it: `cleanup` stays model-invocable with confirmation gates + dry-run + a script that only touches provably-safe targets; `retro` stays model-invocable because it only *proposes* changes and never writes without approval, so a mistimed auto-trigger costs nothing.
+No skill is Explicit-only today. `switch-dev` was, and the gate cost the repo the skill's whole point: it is what an agent should reach for when a session hits a rate limit mid-objective, which is precisely when the user is not in a position to type `/switch-dev`, and the gate also made it unreachable from `orchestrate-dev`/`worker-dev` — so an orchestrated run that hit a limit could not hand off and simply died. Zero invocations across 953 sessions was the measured result.
 
-**Currently internal-only skills** (not user-invocable):
-- `changelog-review` — used by `repo-standards` for Claude Code pattern audits
-- `docs-review` — used by `repo-standards` for documentation quality sweeps
-- `mcp-pagination` — used by `mcp-builder` for pagination guardrails
-- `platform-sync-claude` — used by `platform-sync` for Claude Code improvement analysis
-- `platform-sync-codex` — used by `platform-sync` for Codex CLI improvement analysis
-- `platform-sync-cursor` — used by `platform-sync` for Cursor improvement analysis
+**Gating warning:** `disable-model-invocation: true` also blocks **subagent and workflow orchestration** — a subagent invoking a skill *is* model invocation, so a gated skill cannot be fanned out across subagents. Gate only a skill that must *never* run autonomously. Prefer putting safety **inside** the skill: `cleanup` stays model-invocable with confirmation gates, a dry-run, and a script that only touches provably-safe targets; `retro` stays model-invocable because it only *proposes* changes and never writes without approval.
 
-**repo-standards is the primary user-invocable skill in the `repo` domain for existing repos** (alongside `multi-agent-repo`, `repo-scaffold`).
+Internal-only skills today: `changelog-review`, `docs-review`, `mcp-pagination`. All three carry `user-invocable: false` and `disable-model-invocation: false` — hidden from the slash surface, still reachable from `repo-standards` and `mcp-builder` when those run under orchestration. `docs-review` mutates files, so it confirms before its first write when no parent skill invoked it; that confirmation is the safety, not a gate.
 
-## Adding a skill
+## Surface skills at the moment they apply
 
-1. Create `skills/<domain>/<skill-name>/SKILL.md`
-2. Add frontmatter per `skills/toolkit/skill-creator/references/frontmatter-template.md` (all 16 official fields + metadata)
-3. If the skill is internal-only: add `user-invocable: false` and `disable-model-invocation: true`
-4. Update `README.md` skill count and table
-5. Run `make validate`
+When a situation arises that a bundled skill covers, **either invoke the skill or tell the
+user in one line that it exists** — do not silently hand-roll the work. One suggestion per
+situation per session; never repeat a declined suggestion.
 
-## Project memory
+| Situation | Skill |
+|---|---|
+| The user asks what something cost, how many tokens it used, or why a session got expensive | `session-report` |
+| A stack trace, traceback, panic or crash log is pasted, or a `file:line` is named | `targeted-debug` |
+| "am I up to date", "what new features am I missing", "latest docs" — or a `*-plugin/plugin.json` or `CHANGELOG.md` is being bumped | `platform-sync` |
+| A rate limit is hit, or an objective is still open and the session is ending | `switch-dev` |
+| You are about to hand-write a capability a public skill or plugin plausibly already provides | `find-skill` |
+| The session had repeated failures on the same thing, or the user corrected you several times | `retro` |
 
-Session lessons are stored in **two places** — keep them in sync:
+**Why the rule and not just good trigger descriptions:** `skill_auto_invocation` in
+[`core/capabilities/platforms.json`](core/capabilities/platforms.json) is `partial` on Cursor
+and `unknown` on Codex, Gemini CLI and OpenCode. Description-based auto-triggering only fires
+reliably on Claude Code and Claude Desktop, and the `UserPromptSubmit` hook that reinforces it
+(`hooks/skill-suggest.sh`) is unsupported on OpenCode. This rule is the only surfacing
+mechanism that works on all five targets, which is why it is written down rather than left to
+the matcher.
 
-| Location | Purpose |
-|----------|---------|
-| `.claude/memory/` (this repo) | Versioned backup — survives machine changes, reviewable in PRs |
-| `~/.claude/projects/-Users-<you>-Projects-tamirs-superpowers/memory/` | Auto-loaded by Claude Code each session |
+## Commit trailer
 
-The transcript directory name is derived from the clone's absolute path, so it differs per
-machine/username and shifts if the clone moves. Since **Claude Code 2.1.234**,
-`CLAUDE_CODE_PROJECT_DIR_NAME` overrides that derivation — set it (e.g. in `~/.zshrc` /
-`~/.bashrc`, or per-session) to pin a fixed transcript directory name regardless of clone
-location:
+Claude sessions append:
 
-```bash
-export CLAUDE_CODE_PROJECT_DIR_NAME=tamirs-superpowers
+```text
+Co-Authored-By: Claude <noreply@anthropic.com>
 ```
 
-With the pin set, the path below is stable across machines; without it, substitute your
-derived `-Users-<you>-...` directory name.
+Format and scopes are in [`AGENTS.md`](AGENTS.md#repo-specific-expectations).
 
-**Restoring memory on a new machine:**
-```bash
-# If CLAUDE_CODE_PROJECT_DIR_NAME is pinned, it names the transcript dir directly;
-# otherwise Claude Code derives it from the clone's absolute path (shown here for
-# the default clone location).
-MEMORY_DIR=~/.claude/projects/${CLAUDE_CODE_PROJECT_DIR_NAME:--Users-$(whoami)-Projects-tamirs-superpowers}/memory
-mkdir -p "$MEMORY_DIR"
-cp .claude/memory/* "$MEMORY_DIR/"
-```
+## Remote and headless Claude sessions
 
-**After adding a new memory file:** commit it to `.claude/memory/` in this repo so it isn't lost.
+Same validation commands as the [cloud runbook in `AGENTS.md`](AGENTS.md#cloud-and-headless-runbook). Hooks in `hooks/hooks.json` apply in Claude Code sessions only; a remote session without hook support must not assume worktree hooks ran.
