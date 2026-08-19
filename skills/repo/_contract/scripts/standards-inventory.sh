@@ -347,6 +347,13 @@ if [[ "${CONTRACT_OFFLINE:-}" != "1" ]] \
 fi
 hygiene=$(bash "$(dirname "$0")/check-repo-hygiene.sh" "$ROOT")
 
+# README branding facts (anchor form, header emoji, badge-version truth, banner
+# quality). Delegated for the same reason hygiene is: the analysis needs python3
+# and an SVG/raster reader, and none of that belongs inline in a jq assembler.
+# The script always exits 0 and always emits an object; when a fact could not be
+# determined it says `"checked": false` and the scorer emits no gap for it.
+branding=$(bash "$(dirname "$0")/check-readme-branding.sh" "$ROOT" --json)
+
 jq -nc \
   --arg root "$ROOT" \
   --argjson readme_exists "$readme_exists" \
@@ -403,6 +410,7 @@ jq -nc \
   --argjson actions_checked "$actions_checked" \
   --argjson actions_violations "$actions_violations" \
   --argjson hygiene "$hygiene" \
+  --argjson branding "$branding" \
   '{
     root: $root,
     readme: {
@@ -415,7 +423,8 @@ jq -nc \
       has_author_badge: $readme_has_author_badge,
       has_version_badge: $readme_has_version_badge,
       has_ai_targets: $readme_has_ai_targets,
-      has_multi_install: $readme_has_multi_install
+      has_multi_install: $readme_has_multi_install,
+      branding: $branding.branding
     },
     makefile: {
       install: $makefile_install,

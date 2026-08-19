@@ -3,18 +3,10 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/Tamircohen28">
-    <img src="https://img.shields.io/badge/author-Tamir%20Cohen-181717?logo=github" alt="Author" />
-  </a>
-  <a href="https://github.com/TamirCohen28/scaffold-gold/actions/workflows/ci.yml">
-    <img src="https://github.com/TamirCohen28/scaffold-gold/actions/workflows/ci.yml/badge.svg" alt="CI" />
-  </a>
-  <a href="LICENSE">
-    <img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="MIT License" />
-  </a>
-  <a href="package.json">
-    <img src="https://img.shields.io/badge/version-0.1.0-blue" alt="Version" />
-  </a>
+  <a href="https://github.com/Tamircohen28"><img src="https://img.shields.io/badge/author-Tamir%20Cohen-181717?logo=github" alt="Author" /></a>
+  <a href="https://github.com/TamirCohen28/scaffold-gold/actions/workflows/ci.yml"><img src="https://github.com/TamirCohen28/scaffold-gold/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="MIT License" /></a>
+  <a href="package.json"><img src="https://img.shields.io/badge/version-0.1.0-blue" alt="Version" /></a>
 </p>
 
 <p align="center">
@@ -22,21 +14,11 @@
 </p>
 
 <p align="center">
-  <a href="docs/engineering/build-and-release/platform-targets.json">
-    <img src="https://img.shields.io/badge/Claude%20Code-2.0.0-blueviolet" alt="Claude Code" />
-  </a>
-  <a href="docs/engineering/build-and-release/platform-targets.json">
-    <img src="https://img.shields.io/badge/Cursor-0.45.0-000000" alt="Cursor" />
-  </a>
-  <a href="docs/engineering/build-and-release/platform-targets.json">
-    <img src="https://img.shields.io/badge/Codex-0.40.0-412991" alt="Codex" />
-  </a>
-  <a href="docs/engineering/build-and-release/platform-targets.json">
-    <img src="https://img.shields.io/badge/Gemini%20CLI-0.30.0-4285F4" alt="Gemini CLI" />
-  </a>
-  <a href="docs/engineering/build-and-release/platform-targets.json">
-    <img src="https://img.shields.io/badge/OpenCode-1.18.11-fab283" alt="OpenCode" />
-  </a>
+  <a href="docs/engineering/build-and-release/platform-targets.json"><img src="https://img.shields.io/badge/Claude%20Code-2.0.0-blueviolet" alt="Claude Code" /></a>
+  <a href="docs/engineering/build-and-release/platform-targets.json"><img src="https://img.shields.io/badge/Cursor-0.45.0-000000" alt="Cursor" /></a>
+  <a href="docs/engineering/build-and-release/platform-targets.json"><img src="https://img.shields.io/badge/Codex-0.40.0-412991" alt="Codex" /></a>
+  <a href="docs/engineering/build-and-release/platform-targets.json"><img src="https://img.shields.io/badge/Gemini%20CLI-0.30.0-4285F4" alt="Gemini CLI" /></a>
+  <a href="docs/engineering/build-and-release/platform-targets.json"><img src="https://img.shields.io/badge/OpenCode-1.18.11-fab283" alt="OpenCode" /></a>
 </p>
 
 # scaffold-gold
@@ -77,4 +59,4 @@ See [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md).
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+MIT © [Tamir Cohen](https://github.com/Tamircohen28) — see [LICENSE](LICENSE).

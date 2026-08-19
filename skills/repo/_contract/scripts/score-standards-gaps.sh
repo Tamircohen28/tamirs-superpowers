@@ -60,6 +60,21 @@ r_author=$(echo "$INV" | jq -r '.readme.has_author_badge')
 r_version_badge=$(echo "$INV" | jq -r '.readme.has_version_badge')
 r_ai_targets=$(echo "$INV" | jq -r '.readme.has_ai_targets')
 r_multi_install=$(echo "$INV" | jq -r '.readme.has_multi_install')
+# README branding facts (S1-11..S1-14). Every one of these defaults to a value
+# that scores NO gap when the fact is absent from the inventory: an older
+# inventory, a vendored copy, or a machine without python3 must stay silent
+# rather than invent a defect it never measured.
+r_anchor_bad=$(echo "$INV" | jq -r '.readme.branding.anchor_form.multiline_img_anchors // 0')
+r_header_emoji=$(echo "$INV" | jq -r '.readme.branding.header_emoji.count // 0')
+# NOTE ON `//`: jq's alternative operator treats `false` as empty, so
+# `.pass // true` turns a real `false` into `true` and silently disables the
+# check. Every boolean below is read with an explicit `== true` test instead.
+r_badge_ver_checked=$(echo "$INV" | jq -r '(.readme.branding.badge_versions.checked == true)')
+r_badge_ver_bad=$(echo "$INV" | jq -r '(.readme.branding.badge_versions.mismatches // []) | length')
+r_badge_ver_detail=$(echo "$INV" | jq -r '[(.readme.branding.badge_versions.mismatches // [])[] | "\(.target) badge says \(.readme), platform-targets.json says \(.platform_targets)"] | join("; ")')
+r_banner_checked=$(echo "$INV" | jq -r '(.readme.branding.banner.checked == true)')
+r_banner_pass=$(echo "$INV" | jq -r 'if (.readme.branding.banner.pass == false) then false else true end')
+r_banner_why=$(echo "$INV" | jq -r '(.readme.branding.banner.reasons // []) | join("; ")')
 mf_install=$(echo "$INV" | jq -r '.makefile.install')
 mf_update=$(echo "$INV" | jq -r '.makefile.update')
 mf_uninstall=$(echo "$INV" | jq -r '.makefile.uninstall')
@@ -134,7 +149,7 @@ badgeable=false
 if [[ "$r_exists" == true && "$r_badges" != true ]] && applies "readme.require_ci_badge_when_ci" "$badgeable"; then
   add_gap "S1-02" "P2" "README missing CI/license badges" 1; inc P2
 fi
-[[ "$r_exists" == true && "$r_banner" != true ]] && { add_gap "S1-05" "P2" "README missing hero banner (add assets/banner.svg and reference it)" 1; inc P2; }
+[[ "$r_exists" == true && "$r_banner" != true ]] && { add_gap "S1-05" "P2" "README missing hero banner (add assets/banner.png|jpg|webp|svg and reference it — see skills/repo/_contract/references/readme-banner.md)" 1; inc P2; }
 [[ "$r_exists" == true && "$r_author" != true ]] && { add_gap "S1-06" "P2" "README missing author badge (link to GitHub profile)" 1; inc P2; }
 if [[ "$r_exists" == true && "$r_version_badge" != true ]] && applies "readme.require_version_badge_when_release_model" "$release_model"; then
   add_gap "S1-07" "P2" "README missing version badge" 1; inc P2
@@ -146,6 +161,23 @@ fi
 if (( ai_count >= 2 )); then
   [[ "$r_ai_targets" != true ]] && { add_gap "S1-09" "P2" "Multi-platform repo: README missing AI-target badges row" 1; inc P2; }
   [[ "$r_multi_install" != true ]] && { add_gap "S1-10" "P2" "Multi-platform repo: README missing per-target Quick Start subsections" 1; inc P2; }
+fi
+# --- S1-11..S1-14: README branding ------------------------------------------
+# All four are defects the badge/banner rubric asked for and nothing measured.
+# See skills/repo/_contract/scripts/check-readme-branding.sh for why each one is
+# a rendering/truth fact rather than a style preference.
+if [[ "$r_exists" == true ]] && (( r_anchor_bad > 0 )); then
+  add_gap "S1-11" "P2" "README wraps a badge <img> in a multi-line <a> ($r_anchor_bad occurrence(s)) — the newline inside the anchor renders as an underlined gap between badges; use <a href=\"...\"><img ... /></a> on one line" 1; inc P2
+fi
+if [[ "$r_exists" == true ]] && (( r_header_emoji > 0 )); then
+  add_gap "S1-12" "P2" "README header contains $r_header_emoji emoji character(s) above the first '## ' heading — the title area and badge rows carry no emoji" 1; inc P2
+fi
+if [[ "$r_badge_ver_checked" == true ]] && (( r_badge_ver_bad > 0 )) \
+   && applies "readme.require_badge_versions_match_platform_targets_when_multi" "$multi_target"; then
+  add_gap "S1-13" "P2" "AI-target badge version(s) disagree with platform-targets.json validated_against: $r_badge_ver_detail" 1; inc P2
+fi
+if [[ "$r_banner_checked" == true && "$r_banner_pass" != true ]]; then
+  add_gap "S1-14" "P2" "README banner is not a designed graphic: $r_banner_why (see skills/repo/_contract/references/readme-banner.md)" 1; inc P2
 fi
 [[ "$r_prereq" != true ]] && { add_gap "S1-03" "P2" "README missing Prerequisites section" 1; inc P2; }
 [[ "$r_qs" != true ]] && { add_gap "S1-04" "P2" "README missing Quick Start section" 1; inc P2; }

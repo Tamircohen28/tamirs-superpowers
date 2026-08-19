@@ -1,5 +1,5 @@
 {
-  "version": "1.6.0",
+  "version": "1.7.0",
   "profiles": {
     "app-gold": {
       "repo_type": "app",
@@ -27,6 +27,26 @@
         "require_root_changelog_when_release_model": true,
         "require_version_badge_when_release_model": true,
         "require_ci_badge_when_ci": true,
+        "badge_anchor_form": "single-line",
+        "badge_anchor_form_note": "Every <a> that wraps a badge <img> must open, contain the img, and close on ONE line. A newline plus indent inside the anchor is link TEXT, and GitHub renders it as an underlined gap between badges. Readability is not a reason to reformat it back.",
+        "forbid_header_emoji": true,
+        "header_emoji_note": "No emoji above the first '## ' heading — that region is the banner, badge rows, H1 and tagline. Body prose below the first '##' is unrestricted.",
+        "require_badge_versions_match_platform_targets_when_multi": true,
+        "banner": {
+          "accepted_paths": [
+            "assets/banner.png",
+            "assets/banner.jpg",
+            "assets/banner.webp",
+            "assets/banner.svg"
+          ],
+          "preferred_form": "raster",
+          "art_direction": "skills/repo/_contract/references/readme-banner.md",
+          "min_svg_shapes": 16,
+          "max_svg_text_elements": 3,
+          "raster_min_bytes": 20000,
+          "raster_min_width": 800,
+          "note": "A hero banner is a designed graphic with a motif drawn from the project's domain, not a wordmark on a rectangle. The numbers are the observable floor enforced by scripts/check-readme-branding.sh; the art direction is the reference above."
+        },
         "versioning_doc": "docs/engineering/build-and-release/versioning.md",
         "require_versioning_doc_when_release_model": true
       },
@@ -139,6 +159,26 @@
         "require_root_changelog_when_release_model": true,
         "require_version_badge_when_release_model": true,
         "require_ci_badge_when_ci": true,
+        "badge_anchor_form": "single-line",
+        "badge_anchor_form_note": "Every <a> that wraps a badge <img> must open, contain the img, and close on ONE line. A newline plus indent inside the anchor is link TEXT, and GitHub renders it as an underlined gap between badges. Readability is not a reason to reformat it back.",
+        "forbid_header_emoji": true,
+        "header_emoji_note": "No emoji above the first '## ' heading — that region is the banner, badge rows, H1 and tagline. Body prose below the first '##' is unrestricted.",
+        "require_badge_versions_match_platform_targets_when_multi": true,
+        "banner": {
+          "accepted_paths": [
+            "assets/banner.png",
+            "assets/banner.jpg",
+            "assets/banner.webp",
+            "assets/banner.svg"
+          ],
+          "preferred_form": "raster",
+          "art_direction": "skills/repo/_contract/references/readme-banner.md",
+          "min_svg_shapes": 16,
+          "max_svg_text_elements": 3,
+          "raster_min_bytes": 20000,
+          "raster_min_width": 800,
+          "note": "A hero banner is a designed graphic with a motif drawn from the project's domain, not a wordmark on a rectangle. The numbers are the observable floor enforced by scripts/check-readme-branding.sh; the art direction is the reference above."
+        },
         "versioning_doc": "docs/engineering/build-and-release/versioning.md",
         "require_versioning_doc_when_release_model": true
       },

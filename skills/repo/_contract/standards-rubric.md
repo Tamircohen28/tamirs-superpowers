@@ -3,7 +3,8 @@
 Auto-scored IDs map to `score-standards-gaps.sh`. Manual follow-up required for content quality.
 
 Canonical references:
-- Badge layout: [`references/readme-badges.md`](references/readme-badges.md)
+- Badge layout and markup rules: [`references/readme-badges.md`](references/readme-badges.md)
+- Banner art direction and quality bar: [`references/readme-banner.md`](references/readme-banner.md)
 - Versioning policy: [`references/versioning-policy.md`](references/versioning-policy.md)
 
 ## S1 README
@@ -14,14 +15,24 @@ Canonical references:
 | S1-02 | CI + license badges (row 1) | P2 |
 | S1-03 | Prerequisites section | P2 |
 | S1-04 | Quick Start section | P2 |
-| S1-05 | Hero banner (`assets/banner.*` referenced in README) | P2 |
+| S1-05 | Hero banner present (`assets/banner.{png,jpg,webp,svg}` referenced in README) | P2 |
 | S1-06 | Author badge linking to GitHub profile | P2 |
 | S1-07 | Version badge (package.json or plugin manifest version) | P2 |
 | S1-08 | `Makefile` exposes `install`, `update`, `uninstall` targets | P2 |
 | S1-09 | AI-target badges row when repo supports ≥2 platforms | P2 |
 | S1-10 | Per-target Quick Start subsections when multi-platform | P2 |
+| S1-11 | No multi-line `<a>` wrapping a badge `<img>` (whitespace inside the anchor renders as an underlined gap) | P2 |
+| S1-12 | No emoji above the first `## ` heading (banner, badge rows, H1, tagline) | P2 |
+| S1-13 | AI-target badge versions match `platform-targets.json` `validated_against` | P2 |
+| S1-14 | Banner meets the designed-graphic quality bar, not a wordmark on a rectangle | P2 |
 
-Manual: features bullets, docs link, Quick Start uses `make install` as primary path.
+S1-11..S1-14 are scored from `scripts/check-readme-branding.sh`. Each needs python3; without
+it every one of them reports `checked: false` and scores nothing — an unread control is
+unknown, never a pass and never a gap.
+
+Manual: features bullets, docs link, Quick Start uses `make install` as primary path, and
+whether the banner's motif actually relates to what the project does (the checker proves the
+file is a graphic, not that the graphic is right).
 
 ## S2 docs/
 

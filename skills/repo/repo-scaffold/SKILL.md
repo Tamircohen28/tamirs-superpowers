@@ -36,7 +36,7 @@ metadata:
   - ci-cd
   - claude-code
   - bootstrap
-  updated-date: '2026-06-23'
+  updated-date: '2026-08-19'
   tamirs:
     visibility: public
     category: repo
@@ -92,7 +92,13 @@ When `--src` is a GitHub URL, fetch the root file listing to check for `package.
 
 These patterns are distilled from TamirCohen28's repos. Apply them to every generated repo.
 
-**README structure:** centered hero banner (`<p align="center"><img src="assets/banner.svg" alt="REPO_NAME" width="600" /></p>`), badges (CI, MIT, Claude Code `D97757`), elevator pitch, features, **Prerequisites**, Quick Start, architecture, docs links.
+**README structure:** centered hero banner (`<p align="center"><img src="assets/banner.png" alt="REPO_NAME" width="600" /></p>` — `.png`, `.jpg`, `.webp` or `.svg`), badge rows, elevator pitch, features, **Prerequisites**, Quick Start, architecture, docs links, one-line text footer.
+
+**Three README rules that are checked, not suggested** (`_contract/scripts/check-readme-branding.sh`, gaps S1-11..S1-14 — full statement in `_contract/references/readme-badges.md` and `readme-banner.md`):
+
+1. **Every badge anchor on ONE line:** `<a href="..."><img ... /></a>`. Breaking the anchor across lines puts whitespace *inside* it, which GitHub renders as underlined link text between badges. Never reformat a badge row "for readability".
+2. **No emoji above the first `## ` heading** — not in the H1, the tagline, the badges, or the banner. Body prose below it is free.
+3. **AI-target badge versions are derived, never typed:** read `targets.<key>.validated_against` from `docs/engineering/build-and-release/platform-targets.json`. Copying a version out of a doc or another repo is the defect this check exists for.
 
 **Docs tree** (canonical — see `skills/repo/_contract/standards-contract.json`):
 ```
@@ -105,7 +111,7 @@ docs/
   agent-guidelines/
 ```
 
-**Root file checklist:** `AGENTS.md`, `CLAUDE.md` (line 1: `@AGENTS.md`), `LICENSE`, `Makefile` (with `agent:check`), `.gitignore`, `CODEOWNERS`, `CODE_OF_CONDUCT.md`, `SECURITY.md`, `scripts/check-agent-drift.sh`, `.cursor/rules/000-project.mdc`, `core/capabilities/{schema,platforms}.json`, `.nvmrc` (node/nextjs only), `assets/banner.svg`.
+**Root file checklist:** `AGENTS.md`, `CLAUDE.md` (line 1: `@AGENTS.md`), `LICENSE`, `Makefile` (with `agent:check`), `.gitignore`, `CODEOWNERS`, `CODE_OF_CONDUCT.md`, `SECURITY.md`, `scripts/check-agent-drift.sh`, `.cursor/rules/000-project.mdc`, `core/capabilities/{schema,platforms}.json`, `.nvmrc` (node/nextjs only), `assets/banner.{png|jpg|webp|svg}`.
 
 **Branch strategy:** whatever `gh repo create` made the default (do not assume — resolve it once with `DEFAULT_BRANCH="$(bash "$CONTRACT_ROOT/../../dev-workflow/_shared/scripts/default-branch.sh")"` after the first fetch, and use `$DEFAULT_BRANCH` everywhere below), plus `stable` (releases). Feature: `feat/`, fixes: `fix/`. Generated workflows carry **no** `on.*.branches` filter, so they cannot be desynced from the name.
 
@@ -196,11 +202,30 @@ Write these files (fully populated — no template placeholders left unfilled):
 
 1. REPO_ROOT/README.md — hero README with Prerequisites + Quick Start (CI badge, MIT badge, Claude Code badge D97757).
    Open with: <p align="center"><img src="assets/banner.svg" alt="REPO_NAME" width="600" /></p>
+   Put every badge anchor on ONE line — <a href="..."><img ... /></a>. A newline inside the anchor is link
+   text and GitHub underlines it between the badges. No emoji anywhere above the first "## " heading.
+   Close with a one-line text footer after a --- rule: MIT © [Tamir Cohen](https://github.com/Tamircohen28)
    If plugin: add Install as Claude Code plugin, Build adapters (npm run build), Security model sections
-1a. REPO_ROOT/assets/banner.svg — SVG hero banner (600×200). Center the repo name in Space Grotesk bold on a
-    dark background (#0F1117), subtitle line in gray (#8B949E), subtle accent stripe in the project's primary
-    color. Keep it minimal — name + one-line description, no clip-art. The SVG must be self-contained (no
-    external font references — embed a web-safe fallback stack).
+1a. REPO_ROOT/assets/banner.svg — hero banner. READ CONTRACT_ROOT/references/readme-banner.md FIRST and
+    follow it; it is the art direction and the pass/fail bar, and this line is only the summary.
+
+    Design a GRAPHIC, not a wordmark. Pick one visual motif that says what the project does (a pipeline,
+    a hub fanning out to targets, layered gates, an instrument) and build the picture around it:
+    wordmark left, motif right; three depth planes (ground, motif, accent) using overlap, slight
+    rotation, opacity falloff and one soft radial glow; a gradient on the hero object; a faint grid or
+    circuit substrate at ~6% contrast; near-black ground (#0B0E14–#111726), near-white type, two brand
+    hues. 1200x400 viewBox. Self-contained — no external font or image reference.
+
+    It must PASS, and check-readme-branding.sh decides: >= 16 non-text shapes, <= 3 <text> elements,
+    >= 5 shapes per text element, at least one gradient/filter/mask/opacity, a <title> and a <desc>
+    whose sentence names the motif and its relation to the project, and ZERO emoji codepoints (emoji
+    clip-art renders as tofu). Worked examples to copy the structure of:
+    CONTRACT_ROOT/fixtures/scaffold-gold/assets/banner.svg and .../scaffold-plugin-gold/assets/banner.svg.
+
+    A raster is equally acceptable and often better: 1280x640 png/jpg at assets/banner.png, >= 20 KB,
+    >= 800px wide. Use one when you can actually render an image; otherwise author the SVG.
+
+    Verify before finishing: bash CONTRACT_ROOT/scripts/check-readme-branding.sh REPO_ROOT
 2. REPO_ROOT/docs/README.md — canonical docs index
 3. REPO_ROOT/docs/CHANGELOG.md — Unreleased + 0.1.0 stub
 4. REPO_ROOT/docs/CONTRIBUTING.md — fork, branch naming, commit convention, PR process

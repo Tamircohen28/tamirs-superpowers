@@ -36,7 +36,7 @@ metadata:
   - ci-cd
   - ip-scan
   - multi-agent
-  updated-date: '2026-08-03'
+  updated-date: '2026-08-19'
   tamirs:
     visibility: public
     category: repo
@@ -75,7 +75,8 @@ Publishing or maintaining a repo without a unified checklist leaks employer IP, 
 | `references/polish-phases.md` | Polish implementation order |
 | `references/delegation.md` | Skill() prompts for child skills |
 | `references/plugin-review.md` | Agent-kit / plugin-gold manual review axes |
-| `../_contract/references/readme-badges.md` | Badge rows, Makefile lifecycle, multi-target README |
+| `../_contract/references/readme-badges.md` | Badge rows and markup rules, Makefile lifecycle, multi-target README |
+| `../_contract/references/readme-banner.md` | Hero banner art direction, quality bar, footer |
 | `../_contract/references/versioning-policy.md` | Semver, tagging, changelog enforcement |
 | `../../../config/github/repository-policy.json` | Canonical GitHub repository policy — rulesets, required contexts, Actions concurrency. **Never restate its content**; read it. |
 | `../../../scripts/github-policy.sh` | `audit` / `plan` / `apply` / `verify` for branch governance (S4-02…S4-14) |
@@ -217,7 +218,12 @@ git checkout -b feat/repo-standards-setup 2>/dev/null || git checkout -b "feat/r
    - `plan` when the user asked to audit only, or asked to skip applying rules (this is what `--verify-only` used to mean). `audit` for the read-only compliance answer with no remediation diff.
    - `apply` never writes without a confirmation, refuses any change that would make the repo **less** protected than it is today, and prints the plan instead of writing when there is no TTY.
    - **`strict_required_status_checks_policy` must stay `false`** (S4-09, P1). With it on, every merge marks every other open branch out of date and the one-objective/one-PR flow stalls behind a serial rebase queue.
-   **Banner (phase 1):** If S1-05 is a gap, generate `assets/banner.svg` — a 600×200 SVG with the repo name centered in bold on a dark background (#0F1117), subtitle in gray (#8B949E), and a subtle accent stripe. Use web-safe font stack (no external references). Add `<p align="center"><img src="assets/banner.svg" alt="REPO_NAME" width="600" /></p>` as the first line of README.md.
+   **README branding (phase 1):** S1-05 and S1-11..S1-14 are all fixed here, and all five are verified by `bash "$CONTRACT_ROOT/scripts/check-readme-branding.sh" "$TARGET_ROOT"` before the phase closes.
+
+   - **S1-11 anchor form** — collapse every `<a>` that wraps a badge `<img>` onto one line: `<a href="..."><img ... /></a>`. The newline and indent in the broken form are link *text*; GitHub renders them as the underlined gap between badges. Do not reformat them back.
+   - **S1-12 header emoji** — remove every emoji above the first `## ` heading (banner, badge rows, H1, tagline). Body prose is untouched.
+   - **S1-13 badge versions** — re-derive each AI-target badge from `docs/engineering/build-and-release/platform-targets.json` `targets.<key>.validated_against`. Never carry a version over from another repo or from the reference doc's example.
+   - **S1-05 / S1-14 banner** — if absent or if it fails the quality bar, produce a real one per [`../_contract/references/readme-banner.md`](../_contract/references/readme-banner.md): a motif drawn from what the project does, three depth planes, a gradient, a faint substrate, wordmark left. `assets/banner.png|jpg|webp|svg` all count; a raster is preferred when you can render one. The bar is mechanical — ≥16 non-text shapes, ≤3 `<text>`, ≥5 shapes per text element, at least one gradient/filter/mask/opacity, a `<title>`+`<desc>` naming the motif, zero emoji codepoints. A dark rectangle with the repo name centred in it is the failure this check exists for. Reference it as the first line of README.md inside `<p align="center">`, and close the README with the one-line text footer `MIT © [Tamir Cohen](https://github.com/Tamircohen28)`.
 6. **Phase 5:** `Skill("multi-agent-repo")` per `references/delegation.md` on the same branch (include feature equivalence + platform targets).
 7. **Phase 6:** `Skill("docs-review")`; if plugin or agent-kit repo, `Skill("changelog-review")`. Fix all P1 findings.
 8. **Phase 6b (agents only):** When multi-platform, run `make platform-targets-sync`, update `platform-targets.json` + README Row 3 + `platform-targets.md`, then `make platform-targets-assert`. Close every V-01…V-05 gap from the review in this phase — a declared target with a missing artifact must either be completed or dropped from `supported_targets`, never left half-supported.
