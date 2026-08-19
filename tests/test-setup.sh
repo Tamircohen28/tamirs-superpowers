@@ -223,14 +223,44 @@ out="$(run_setup "$h" plan --targets claude --only notifications)"
 judge "--only notifications matches both notifications-* modules" 2 \
   "$(printf '%s\n' "$out" | grep -c 'pushover')"
 
+# A typo must not look like a clean run that did nothing.
+out="$(run_setup "$h" plan --targets claude --only nosuchmodule)"; rc=$?
+judge "--only with an unknown module exits 1" 1 "$rc"
+judge "--only with an unknown module says so" yes "$(has "$out" "matched no module")"
+judge "--only with an unknown module lists the real ones" yes "$(has "$out" 'statusline')"
+
 # ---------------------------------------------------------------------------
 section "targets not yet implemented are reported, not hidden"
 
-h="$(fake_home)"
-mkdir -p "$h/.cursor"
-out="$(run_setup "$h" plan --targets cursor)"
-judge "cursor is planned" yes "$(has "$out" 'Cursor')"
-judge "cursor says it has no modules yet" yes "$(has "$out" 'no modules implemented yet')"
+# A target with no writers yet must SAY so. The failure this guards against is
+# the quiet one: an empty target section that a reader mistakes for "all good".
+# Which targets are unimplemented changes as the phases land, so this asks the
+# registry rather than pinning a name.
+pending=""
+for conf in "$REPO_ROOT"/platforms/*/setup.conf; do
+  [ -f "$conf" ] || continue
+  grep -q '^SETUP_STATUS="not-yet-implemented"' "$conf" || continue
+  pending="$(basename "$(dirname "$conf")")"
+  break
+done
+if [ -n "$pending" ]; then
+  h="$(fake_home)"
+  out="$(run_setup "$h" plan --targets "$pending")"
+  judge "an unimplemented target ($pending) is still listed" yes "$(has "$out" "$pending")"
+  judge "an unimplemented target says it has no modules yet" yes "$(has "$out" 'no modules implemented yet')"
+else
+  skip "unimplemented-target reporting" "every target in platforms/ now declares modules"
+fi
+
+# Whatever the registry declares, every target must at least plan without error.
+for conf in "$REPO_ROOT"/platforms/*/setup.conf; do
+  [ -f "$conf" ] || continue
+  t="$(basename "$(dirname "$conf")")"
+  h="$(fake_home)"
+  out="$(run_setup "$h" plan --targets "$t")"; rc=$?
+  judge "plan --targets $t exits 0" 0 "$rc"
+  judge "plan --targets $t writes nothing outside the plan" no "$(exists "$h/.claude/CLAUDE.md")"
+done
 
 # ---------------------------------------------------------------------------
 section "--json is parseable and describes the same plan"

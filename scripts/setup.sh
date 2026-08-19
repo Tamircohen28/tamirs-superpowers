@@ -175,6 +175,11 @@ module_selected() {
 DETECT_LINES="$WORK/detect"
 : > "$DETECT_LINES"
 
+# Every module name offered by the targets in scope, so a typo'd --only can be
+# told apart from a genuinely empty plan. Silent success on a typo is the worst
+# outcome here: the user believes a module ran.
+SEEN_MODULES=""
+
 detect_target() {
   local bin=""
   DETECTED=no; DETECT_WHY="not installed"
@@ -351,6 +356,7 @@ build_plan() {
     fi
     call "$(printf '%s_target_init' "$(printf '%s' "$t" | tr '-' '_')")"
     for mod in $SETUP_MODULES; do
+      SEEN_MODULES="$SEEN_MODULES $mod"
       module_selected "$mod" || continue
       kind="$(call "$(fn "$t" "$mod" kind)")"
       case "$kind" in
@@ -554,7 +560,7 @@ apply_file_item() {
   show_diff "$d" "$new"
 
   if [ "$(cat "$new")" = "$SETUP_DELETE_SENTINEL" ]; then
-    confirm_normal; rc=$?
+    rc=0; confirm_normal || rc=$?
     case $rc in
       1) out "  ${SETUP_C_DIM}--${SETUP_C_OFF}  $(field "$d" display)  $(field "$d" label)  skipped"
          N_SKIPPED_BY_USER=$((N_SKIPPED_BY_USER + 1)); return 0 ;;
@@ -567,7 +573,7 @@ apply_file_item() {
 
   backup=""
   if [ "$(field "$d" destructive)" = yes ]; then
-    confirm_destructive "$d"; rc=$?
+    rc=0; confirm_destructive "$d" || rc=$?
     case $rc in
       1) out "  ${SETUP_C_DIM}--${SETUP_C_OFF}  $(field "$d" display)  $(field "$d" label)  skipped"
          N_SKIPPED_BY_USER=$((N_SKIPPED_BY_USER + 1)); return 0 ;;
@@ -576,7 +582,7 @@ apply_file_item() {
       0) : ;;
     esac
   else
-    confirm_normal; rc=$?
+    rc=0; confirm_normal || rc=$?
     case $rc in
       1) out "  ${SETUP_C_DIM}--${SETUP_C_OFF}  $(field "$d" display)  $(field "$d" label)  skipped"
          N_SKIPPED_BY_USER=$((N_SKIPPED_BY_USER + 1)); return 0 ;;
@@ -592,7 +598,7 @@ apply_file_item() {
   setup_write "$path" < "$new"
   call "$(fn "$tgt" "$mod" postwrite)" "$path"
   if [ -n "$backup" ]; then
-    out "  ${SETUP_C_GREEN}ok${SETUP_C_OFF}  $(field "$d" display)  $(field "$d" label)  written (backup: $backup)"
+    out "  ${SETUP_C_GREEN}ok${SETUP_C_OFF}  $(field "$d" display)  $(field "$d" label)  written (backup: $(setup_tilde "$backup"))"
   else
     out "  ${SETUP_C_GREEN}ok${SETUP_C_OFF}  $(field "$d" display)  $(field "$d" label)  written"
   fi
@@ -601,7 +607,7 @@ apply_file_item() {
 
 apply_dir_item() {
   local d="$1" rc src dest n=0
-  confirm_normal; rc=$?
+  rc=0; confirm_normal || rc=$?
   case $rc in
     1) out "  ${SETUP_C_DIM}--${SETUP_C_OFF}  $(field "$d" display)  $(field "$d" label)  skipped"
        N_SKIPPED_BY_USER=$((N_SKIPPED_BY_USER + 1)); return 0 ;;
@@ -644,6 +650,13 @@ apply_plan() {
 # ---------------------------------------------------------------------------
 main() {
   build_plan
+
+  if [ -n "$OPT_ONLY" ] && [ "$ITEM_N" -eq 0 ] && [ -n "$SEEN_MODULES" ]; then
+    setup_err "--only '$OPT_ONLY' matched no module"
+    printf 'available for the selected target(s):%s\n' \
+      "$(printf '%s' "$SEEN_MODULES" | tr ' ' '\n' | sort -u | tr '\n' ' ' | sed 's/^ */ /')" >&2
+    exit 1
+  fi
 
   if [ -n "$OPT_JSON" ]; then
     print_detection; print_plan; print_json; exit 0

@@ -1,0 +1,5 @@
+{
+  "_comment": "Fragment deep-merged into ~/.config/opencode/opencode.json by scripts/lib/setup-opencode.sh. Keys beginning with _ are stripped before the merge. NOTE: ~/.opencode/ is the OpenCode binary, not config — nothing is ever written there.",
+  "_why_so_little": "OpenCode loads ~/.config/opencode/AGENTS.md as global instructions with no config key, so the rules need no wiring. Of the documented top-level keys, provider/permission/agent/default_agent change auth routing or security posture and are the user's alone; mcp and plugin belong to whatever installed them (cmux writes ./plugins/cmux-session.js here). $schema is the one key an installer can assert without taking anything over: it makes the user's editor validate the file.",
+  "$schema": "https://opencode.ai/config.json"
+}

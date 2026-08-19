@@ -130,7 +130,7 @@ setup_diff() {
 
 # --- JSON -------------------------------------------------------------------
 # Deep merge with array UNION. This is the "merge, never clobber" rule expressed
-# as one jq function: third-party wiring (cmux, gortex) living in an object we
+# as one jq function: third-party wiring written by other tools into an object we
 # also write survives, and a user's extra permission entries are additive rather
 # than replaced. Scalars are the one place the repo wins outright — that is what
 # "the repo is the source of truth" means for a setting like `model`.
