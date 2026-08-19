@@ -182,7 +182,7 @@ offerable() {
 # scanner's output, so the scan runs strictly after the refusal.
 scan_and_record() {
   local tgt="$1" disp="$2" mod="$3" file="$4" line="$5"
-  local kind key pathjson mval rval cls reason sink blocked plain
+  local kind key pathjson mval rval cls reason sink blocked plain mtype rtype
 
   kind="$(printf '%s' "$line" | cut -f1)"
   key="$(printf '%s' "$line" | cut -f2)"
@@ -204,6 +204,19 @@ scan_and_record() {
   blocked=""
   if [ "$cls" != secret ] && [ "$cls" != third-party ]; then
     blocked="$(capture_ip_scan "$key" "$plain")" || true
+  fi
+
+  # TYPE CONFLICT. The repo asserting an array where the machine holds a scalar
+  # (Gemini's `context.fileName` is exactly this) is not a value to adopt: the
+  # staging step sets the path, so taking the machine's string would REPLACE the
+  # repo's list and quietly narrow it. Blocked, with the shapes named, so the
+  # user edits the canonical file deliberately instead.
+  if [ "$rval" != absent ] && [ -z "$blocked" ]; then
+    mtype="$(printf '%s' "$mval" | jq -r 'type' 2>/dev/null || printf '?')"
+    rtype="$(printf '%s' "$rval" | jq -r 'type' 2>/dev/null || printf '?')"
+    if [ "$mtype" != "$rtype" ]; then
+      blocked="the repo asserts $rtype here and the machine holds $mtype — adopting would narrow it; edit the canonical file by hand"
+    fi
   fi
 
   sink=""

@@ -327,6 +327,23 @@ judge "codex_agents_md_render emits the captured rule" yes \
   "$(has "$CODEX_RENDER" 'Always run the linter before opening a PR.')"
 
 # ---------------------------------------------------------------------------
+section "a type conflict is blocked, not narrowed"
+
+# The concrete case: the repo asserts `context.fileName` as a LIST and a machine
+# holds it as a string. Staging sets the path, so adopting the string would
+# replace the list — a silent narrowing that neither the diff nor the PR body
+# would call out. It must be blocked with both shapes named.
+HOME_T="$(harness_tmpdir)"; mkdir -p "$HOME_T/.gemini"
+printf '{"context":{"fileName":"GEMINI.md"},"ui":{"hideBanner":true}}' > "$HOME_T/.gemini/settings.json"
+TJSON="$(HOME="$HOME_T" bash "$MIRROR/scripts/capture-config.sh" detect --targets gemini --json 2>/dev/null)"
+judge "a scalar-over-array hunk is blocked" yes \
+  "$(printf '%s' "$TJSON" | jq -r '[.hunks[] | select(.key=="context.fileName") | select(.blocked != null)] | if length > 0 then "yes" else "no" end')"
+judge "the block names both shapes" yes \
+  "$(has "$(printf '%s' "$TJSON" | jq -r '.hunks[] | select(.key=="context.fileName") | .blocked')" 'asserts array here and the machine holds string')"
+judge "a same-shaped sibling is still offered" yes \
+  "$(printf '%s' "$TJSON" | jq -r '[.hunks[] | select(.key=="ui.hideBanner") | select(.blocked==null)] | if length > 0 then "yes" else "no" end')"
+
+# ---------------------------------------------------------------------------
 section "delivery — gated, one commit per platform, and it never merges"
 
 # A whole git repo, because every property here is a git property. The stub

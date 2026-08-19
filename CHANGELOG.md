@@ -5,6 +5,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [3.1.0] — 2026-08-19
+
 ### Two behaviour changes to read before upgrading
 
 - **`apply` will switch off plugins that are currently enabled.** `platforms/claude/settings.d/plugins.json` records 23 plugins, **8 true / 15 false**, and the `false` entries are a deliberate record of plugins that were turned off — not missing data. On a machine where those 15 are on, the first `setup apply` turns them off. That is the intent: the previous canonical set was 21 all-true and would have silently re-enabled plugins the user had switched off on purpose. The installer says so itself before writing, with the exact count — `enabledPlugins  modify  WILL DISABLE 15 currently-enabled plugin(s)` — in `plan`, in `--dry-run`, and above the confirmation prompt. Plugins the repo says nothing about are left exactly as they are.
