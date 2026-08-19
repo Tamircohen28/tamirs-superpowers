@@ -115,13 +115,6 @@ findings, and never claim a parallel run on a platform that cannot do one.
 
 Collect every section before synthesizing.
 
-### Deprecated compatibility shims
-
-`platform-sync-claude`, `platform-sync-codex`, `platform-sync-cursor` and
-`platform-sync-opencode` still exist as thin shims so anything that invokes them by name
-keeps working. **This skill does not call them** — it runs the protocol directly. Do not
-invoke them; they only delegate back here.
-
 ## Step 4 — Synthesize the unified improvement plan
 
 Merge every target's section into one prioritized plan, sorted by:

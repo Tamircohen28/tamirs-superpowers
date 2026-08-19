@@ -64,8 +64,7 @@ branch name or path.
 
 Portable three-tier frontmatter: a required portable core (`name`, `description`), the
 `metadata.tamirs` framework block, and optional Claude-specific extensions validated only
-when present. The old "all 16 Claude fields, always" requirement is retired; nothing
-regresses, because `--profile claude-strict` still enforces it for skills that carry them.
+when present. The old "all 16 Claude fields, always" requirement is retired.
 Details: [skill-schema.md](skill-schema.md).
 
 ### 4. Orchestration

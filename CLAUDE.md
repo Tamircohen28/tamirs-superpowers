@@ -55,11 +55,11 @@ Every `SKILL.md` validates against the **portable** schema, [`core/schemas/skill
 |------|:---:|:---:|----------|
 | User + auto-trigger (default) | `true` | `false` | plan-dev, start-dev, pr-dev, repo-standards, cleanup, retro |
 | Explicit-only (slash, no auto) | `true` | `true` | switch-dev |
-| Internal companion | `false` | `true` | docs-review, mcp-pagination, platform-sync-* |
+| Internal companion | `false` | `true` | docs-review, mcp-pagination, changelog-review |
 
 **Gating warning:** `disable-model-invocation: true` also blocks **subagent and workflow orchestration** — a subagent invoking a skill *is* model invocation, so a gated skill cannot be fanned out across subagents. Gate only a skill that must *never* run autonomously. Prefer putting safety **inside** the skill: `cleanup` stays model-invocable with confirmation gates, a dry-run, and a script that only touches provably-safe targets; `retro` stays model-invocable because it only *proposes* changes and never writes without approval.
 
-Internal-only skills today: `changelog-review`, `docs-review`, `mcp-pagination`, `platform-sync-claude`, `platform-sync-codex`, `platform-sync-cursor`.
+Internal-only skills today: `changelog-review`, `docs-review`, `mcp-pagination`.
 
 ## Commit trailer
 

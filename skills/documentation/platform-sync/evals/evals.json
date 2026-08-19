@@ -4,7 +4,7 @@
     {
       "id": 1,
       "prompt": "Run /platform-sync \u2014 this repo has .claude-plugin/plugin.json, .codex-plugin/plugin.json, .cursor-plugin/plugin.json, opencode.json and a .gemini/ directory.",
-      "expected_output": "Should resolve the target list from core/capabilities/platforms.json (naming the registry source in the header), detect all five targets with their signals, run the shared analysis protocol once per target using references/platforms/<id>.md as data, and synthesize one Unified Improvement Plan tagged [Claude Code], [Codex CLI], [Cursor], [Gemini CLI], [OpenCode]. Must NOT invoke the deprecated platform-sync-* shims. Every step needs a concrete snippet and a fetched source URL.",
+      "expected_output": "Should resolve the target list from core/capabilities/platforms.json (naming the registry source in the header), detect all five targets with their signals, run the shared analysis protocol once per target using references/platforms/<id>.md as data, and synthesize one Unified Improvement Plan tagged [Claude Code], [Codex CLI], [Cursor], [Gemini CLI], [OpenCode]. There are no per-platform sub-skills to invoke. Every step needs a concrete snippet and a fetched source URL.",
       "files": []
     },
     {

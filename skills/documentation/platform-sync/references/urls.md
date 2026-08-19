@@ -12,9 +12,7 @@ file:
 | Gemini CLI | `references/platforms/gemini-cli.md` |
 | OpenCode | `references/platforms/opencode.md` |
 
-The engine fetches these itself; there are no per-platform sub-skills doing it any more.
-The deprecated `platform-sync-claude`, `platform-sync-codex`, `platform-sync-cursor` and
-`platform-sync-opencode` shims delegate here and are scheduled for removal.
+The engine fetches these itself; there are no per-platform sub-skills any more.
 
 ## Priority legend
 

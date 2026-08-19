@@ -20,17 +20,10 @@ Three tiers are validated and reported independently:
             present, plus name<->directory match, listing-length cap, and
             existence of referenced references//scripts/ paths.
 
-Profiles:
-  --profile portable      (default) tiers above, tamirs absence = warning
-  --profile claude-strict legacy behaviour: every official Claude field is
-                          mandatory on every skill, exactly as before the
-                          portable split. Nothing that passes today regresses.
-
 Usage:
   python3 scripts/validate-skill-frontmatter.py                 # skills/ + .claude/skills/
   python3 scripts/validate-skill-frontmatter.py path/to/SKILL.md
   python3 scripts/validate-skill-frontmatter.py --json
-  python3 scripts/validate-skill-frontmatter.py --profile claude-strict
   python3 scripts/validate-skill-frontmatter.py --require-tamirs
 """
 
@@ -102,49 +95,7 @@ FALLBACK_VOCAB: dict[str, Any] = {
         "opencode",
     ],
     "support_levels": ["supported", "partial", "emulated", "unsupported"],
-    "claude_strict_required": [
-        "name",
-        "description",
-        "when_to_use",
-        "argument-hint",
-        "arguments",
-        "disable-model-invocation",
-        "user-invocable",
-        "allowed-tools",
-        "disallowed-tools",
-        "model",
-        "effort",
-        "context",
-        "agent",
-        "hooks",
-        "paths",
-        "shell",
-        "metadata",
-    ],
 }
-
-# Claude extension fields recognised at top level. Other harnesses ignore them.
-CLAUDE_EXTENSION_FIELDS = frozenset(
-    {
-        "when_to_use",
-        "argument-hint",
-        "arguments",
-        "disable-model-invocation",
-        "user-invocable",
-        "allowed-tools",
-        "disallowed-tools",
-        "model",
-        "effort",
-        "context",
-        "background",
-        "agent",
-        "hooks",
-        "paths",
-        "shell",
-    }
-)
-
-PORTABLE_FIELDS = frozenset({"name", "description", "license", "compatibility", "metadata"})
 
 _SIBLING_SKILL_DIRS: list[Path] | None = None
 
@@ -209,10 +160,6 @@ def load_vocab() -> dict[str, Any]:
     levels = enum_of(compat.get("additionalProperties"))
     if levels is not None:
         vocab["support_levels"] = levels
-
-    strict = defs.get("claudeStrictRequired", {}).get("required")
-    if isinstance(strict, list):
-        vocab["claude_strict_required"] = [str(v) for v in strict]
 
     # core/roles/ is canonical for the role list (see core/roles/README.md).
     # Deriving it means adding an eleventh role is a new .md file and nothing
@@ -546,21 +493,8 @@ def check_tamirs(
 # ---------------------------------------------------------------------------
 
 
-def check_claude(path: Path, fm: dict[str, Any], body: str, strict: bool) -> list[str]:
+def check_claude(path: Path, fm: dict[str, Any], body: str) -> list[str]:
     errors: list[str] = []
-
-    if strict:
-        missing = sorted(set(VOCAB["claude_strict_required"]) - set(fm))
-        if missing:
-            errors.append(f"[claude-strict] missing official field(s): {', '.join(missing)}")
-        allowed = (
-            set(VOCAB["claude_strict_required"])
-            | CLAUDE_EXTENSION_FIELDS
-            | PORTABLE_FIELDS
-        )
-        unexpected = sorted(set(fm) - allowed)
-        if unexpected:
-            errors.append(f"[claude-strict] unexpected field(s): {', '.join(unexpected)}")
 
     # name <-> directory
     name = fm.get("name")
@@ -630,22 +564,6 @@ def check_claude(path: Path, fm: dict[str, Any], body: str, strict: bool) -> lis
     if fm.get("user-invocable") is False and fm.get("disable-model-invocation") is not True:
         errors.append("user-invocable: false requires disable-model-invocation: true")
 
-    # Legacy metadata.updated-date is still required under claude-strict.
-    if strict:
-        metadata = fm.get("metadata")
-        if not isinstance(metadata, dict):
-            errors.append("[claude-strict] metadata must be a mapping with updated-date")
-        else:
-            legacy = metadata.get("updated-date")
-            tamirs = metadata.get("tamirs")
-            nested = tamirs.get("updated-date") if isinstance(tamirs, dict) else None
-            candidate = legacy if legacy is not None else nested
-            if not is_iso_date(candidate):
-                errors.append(
-                    "[claude-strict] metadata.updated-date (or metadata.tamirs.updated-date) "
-                    "must be YYYY-MM-DD"
-                )
-
     errors.extend(check_asset_references(path, body))
     return errors
 
@@ -691,7 +609,6 @@ def check_asset_references(path: Path, body: str) -> list[str]:
 def validate_file(
     path: Path,
     *,
-    strict: bool,
     require_tamirs: bool,
     capability_ids: set[str] | None,
 ) -> dict[str, Any]:
@@ -719,7 +636,7 @@ def validate_file(
     result["tiers"]["tamirs"]["errors"] = tamirs_errors
     result["tiers"]["tamirs"]["warnings"] = tamirs_warnings
 
-    result["tiers"]["claude"]["errors"] = check_claude(path, fm, body, strict)
+    result["tiers"]["claude"]["errors"] = check_claude(path, fm, body)
 
     result["errors"] = [
         f"[{tier}] {msg}" for tier in TIERS for msg in result["tiers"][tier]["errors"]
@@ -758,19 +675,12 @@ def main() -> int:
     )
     parser.add_argument("--json", action="store_true", help="Emit machine-readable JSON")
     parser.add_argument(
-        "--profile",
-        choices=("portable", "claude-strict"),
-        default="portable",
-        help="portable (default) or claude-strict (legacy all-official-fields gate)",
-    )
-    parser.add_argument(
         "--require-tamirs",
         action="store_true",
         help="Promote a missing metadata.tamirs block from warning to failure",
     )
     args = parser.parse_args()
 
-    strict = args.profile == "claude-strict"
     capability_ids = load_capability_ids()
     targets = resolve_targets(args.paths)
 
@@ -786,7 +696,6 @@ def main() -> int:
     for path in targets:
         result = validate_file(
             path,
-            strict=strict,
             require_tamirs=args.require_tamirs,
             capability_ids=capability_ids,
         )
@@ -805,7 +714,6 @@ def main() -> int:
         print(
             json.dumps(
                 {
-                    "profile": args.profile,
                     "require_tamirs": args.require_tamirs,
                     "capability_registry": (
                         sorted(
@@ -842,10 +750,7 @@ def main() -> int:
         for warn in result["warnings"]:
             print(f"       ~ {warn}")
 
-    print(
-        f"\nprofile={args.profile}  files={len(results)}  "
-        f"failed={failed}  with-warnings={warned}"
-    )
+    print(f"\nfiles={len(results)}  failed={failed}  with-warnings={warned}")
     print(
         "tier failures: "
         + "  ".join(f"{tier}={tier_failures[tier]}" for tier in TIERS)

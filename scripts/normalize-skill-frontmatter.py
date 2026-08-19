@@ -145,7 +145,7 @@ def build_tamirs(path: Path, fm: dict[str, Any]) -> dict[str, Any]:
 def build_metadata(path: Path, fm: dict[str, Any]) -> dict[str, Any]:
     source = fm.get("metadata") if isinstance(fm.get("metadata"), dict) else {}
     metadata: dict[str, Any] = {}
-    # Legacy metadata.updated-date is kept so --profile claude-strict stays green.
+    # Legacy metadata.updated-date is mirrored for readers that still look there.
     legacy = as_iso(source.get("updated-date"))
     if legacy:
         metadata["updated-date"] = legacy

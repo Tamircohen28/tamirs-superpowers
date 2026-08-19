@@ -73,7 +73,7 @@ shell: bash
 
 # ---- Tier 2: framework metadata ------------------------------------------
 metadata:
-  updated-date: "2026-08-19"        # legacy location; kept for claude-strict
+  updated-date: "2026-08-19"        # legacy mirror of metadata.tamirs.updated-date
   tamirs:
     visibility: public              # public | internal
     category: dev-workflow          # MUST equal the domain dir under skills/
@@ -239,9 +239,6 @@ python3 scripts/validate-skill-frontmatter.py
 # One file / one directory
 python3 scripts/validate-skill-frontmatter.py skills/dev-workflow/plan-dev/SKILL.md
 
-# Legacy gate — every official Claude field mandatory (nothing regresses)
-python3 scripts/validate-skill-frontmatter.py --profile claude-strict
-
 # Migration enforcement — missing metadata.tamirs becomes a failure
 python3 scripts/validate-skill-frontmatter.py --require-tamirs
 
@@ -309,7 +306,7 @@ owner, and the validator reads it from that owner at runtime:
 | Capability ids | `core/capabilities/` | `$defs.capabilityKey.enum`, else `capability_definitions` keys |
 | `compatibility` platforms | this schema (curated) | `$defs.compatibility.propertyNames.enum` |
 | `compatibility` levels | this schema | `$defs.compatibility.additionalProperties.enum` |
-| visibility, effort, shell, context, claude-strict field list | this schema | read from the matching `$defs` |
+| visibility, effort, shell, context | this schema | read from the matching `$defs` |
 
 Hardcoded fallbacks exist only so the script still runs against a partial
 checkout. Dependency profile is python3 + PyYAML
@@ -362,7 +359,6 @@ fails loudly rather than drifting.
 
    ```bash
    python3 scripts/validate-skill-frontmatter.py skills/<domain>/<skill>/SKILL.md
-   python3 scripts/validate-skill-frontmatter.py --profile claude-strict
    ```
 
 5. **Once the whole tree carries `metadata.tamirs`,** flip CI to

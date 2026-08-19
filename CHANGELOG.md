@@ -5,6 +5,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Removed
+- **The `--profile claude-strict` validation profile.** 3.0.0 retired the "all 16 official Claude fields on every skill" contract but kept a flag that re-enforced it. Nothing invoked it outside its own documentation, and a mode that reinstates the contract the refactor removed is not a safety net — it is a second, contradictory source of truth. `scripts/validate-skill-frontmatter.py` now has no `--profile` flag; the `claudeStrictRequired` `$defs` block is gone from `core/schemas/skill-frontmatter.json`; and `quick_validate.py` no longer forwards a profile. The three tiers (portable / tamirs / claude) are unchanged — Claude extension fields are still validated whenever a skill carries them.
+- **`skills/creative/algorithmic-art/`.** Dropped from the shipped set.
+- **`skills/documentation/platform-sync-{claude,codex,cursor,opencode}/`.** They were pure deprecation shims that delegated back to `/platform-sync`, which already carries all five platforms' source data under `references/platforms/`. Nothing in the tree invoked them.
+
+### Changed
+- Skill count is now **25** across 7 domains — 22 user-invocable, 3 internal companions (`changelog-review`, `docs-review`, `mcp-pagination`). Counts in the README, user docs, and all four manifest descriptions were updated; `scripts/check-doc-claims.sh` derives the number from the tree and fails on drift.
+
 ## [3.0.0] — 2026-08-19
 
 ### Added

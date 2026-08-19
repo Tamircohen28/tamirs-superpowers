@@ -175,13 +175,10 @@ python3 scripts/validate-skill-frontmatter.py path/to/SKILL.md
 
 # make the tamirs block mandatory (what CI runs for this repo's own skills)
 python3 scripts/validate-skill-frontmatter.py --require-tamirs path/to/SKILL.md
-
-# legacy gate: every official Claude field required, exactly as before the portable split
-python3 scripts/validate-skill-frontmatter.py --profile claude-strict path/to/SKILL.md
 ```
 
-`--profile claude-strict` exists so nothing that passed before the split regresses. It is not
-the default, and it is not a reason to pad a new skill.
+Claude extension fields are validated only when present — add one because the skill uses it,
+never to satisfy the validator.
 
 #### Per-platform extension validation
 
