@@ -284,7 +284,11 @@ consumer tells "no capability problems" apart from "capabilities unverified".
 - `name` must equal the containing directory name (plugin-root
   `.claude/skills/` is exempt).
 - `description` alone <=1536 chars; `description` + `when_to_use` <=1536 chars.
-- `user-invocable: false` requires `disable-model-invocation: true`.
+- `user-invocable` and `disable-model-invocation` are **independent**. `user-invocable: false` alone stops `/slash` invocation, which is all an internal
+  companion needs. Adding `disable-model-invocation: true` on top additionally blocks
+  **sub-agent and orchestration** invocation — a sub-agent calling a skill *is* model
+  invocation — so gating a companion that a parent skill calls breaks it under
+  `orchestrate-dev`. Gate only a skill that must never run autonomously.
 - `context: fork` requires a non-empty `agent`; otherwise `agent` must be `''`.
 - Every `references/…` and `evals/…` path named in the body, and every
   `$CLAUDE_SKILL_DIR/…` path, must resolve. Bare `scripts/`, `assets/` and

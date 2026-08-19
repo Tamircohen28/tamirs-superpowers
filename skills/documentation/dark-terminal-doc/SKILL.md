@@ -1,21 +1,19 @@
 ---
 name: dark-terminal-doc
 description: >
-  Use when the user wants a polished, shareable single-file HTML technical
-  document with a dark developer / terminal aesthetic — including comparison
-  tables (A vs B), reference sheets, cheatsheets, changelogs, release notes,
-  feature breakdowns, and API docs. Trigger phrases: "make a comparison table",
-  "write a reference doc", "create a feature breakdown", "styled HTML doc",
-  "dark terminal doc", "developer-facing HTML", "comparison cheatsheet",
-  "technical reference page", "release notes HTML", "offline HTML doc",
-  "single-file HTML page", "API cheatsheet", "git cheatsheet", "vs comparison".
+  Use when a single-file HTML technical document should carry a dark developer / terminal
+  aesthetic — monospace type, terminal-green accents, near-black background. Trigger on:
+  "dark terminal doc", "terminal-style HTML", "developer-terminal aesthetic", "make it
+  look like a terminal", "dark developer-facing HTML page", or when the user wants a
+  reference sheet, comparison table, changelog or API cheatsheet rendered in that
+  specific look, or one matching a document already produced in this style. For a document
+  with no stated aesthetic, use the harness design skills instead.
 when_to_use: >
-  User asks for a polished, shareable HTML technical document — comparison table,
-  reference sheet, changelog, release notes, feature breakdown, API cheatsheet.
-  Trigger phrases: "make a comparison table", "write a reference doc", "create a
-  feature breakdown", "styled HTML doc", "dark terminal doc", "produce a technical
-  document", "offline HTML doc", "single-file HTML page", "release notes HTML",
-  "API reference page", "git cheatsheet", "vs comparison doc".
+  User names the look — "dark terminal doc", "terminal-style HTML", "developer-terminal
+  aesthetic", "make it look like a terminal" — or wants a comparison table, reference
+  sheet, changelog, release notes or API cheatsheet as a self-contained offline HTML page
+  in that specific dark-terminal style, or one that matches a document already produced in
+  it. Not for a generic doc request with no stated aesthetic.
 argument-hint: "[document type and topic — e.g. 'comparison table: Claude vs GPT-4', 'reference sheet: git commands', 'release notes: v2.0']"
 arguments: []
 disable-model-invocation: false

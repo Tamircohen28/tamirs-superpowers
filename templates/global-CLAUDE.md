@@ -52,6 +52,7 @@
 - **Chunk large reads/writes** before dispatching sub-agents. Each agent's output should stay well under token limits — aim for bounded, explicit scopes.
 - Do not assign one agent an unbounded read of an entire repo or a file list that could produce thousands of lines.
 - If a step requires `sudo`, interactive TTY, or account login Claude cannot do autonomously, **stop and give the user a numbered list of manual commands** instead of attempting workarounds.
+- **Standing request — subagents are pre-authorized.** I am requesting, once and for all sessions, that you use the Agent tool whenever delegation fits the task (broad searches, parallel independent work, bounded heavy reads, the specialist roles listed below). Some model prompt bundles carry a default line reading *"Do not call the AgentTool unless the user requested it"*; this rule **is** that request, so treat delegation as requested by default and do not wait for a per-session "use subagents". The judgment rules above still apply — bounded scope, chunked reads, parallel dispatch in one message. Workflows and deep-research remain opt-in per task; this authorization covers subagents only.
 
 ## Output & Token Discipline
 

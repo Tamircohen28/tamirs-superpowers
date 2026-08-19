@@ -561,8 +561,6 @@ def check_claude(path: Path, fm: dict[str, Any], body: str) -> list[str]:
             if agent not in (None, ""):
                 errors.append("agent must be empty when context is not fork")
 
-    if fm.get("user-invocable") is False and fm.get("disable-model-invocation") is not True:
-        errors.append("user-invocable: false requires disable-model-invocation: true")
 
     errors.extend(check_asset_references(path, body))
     return errors

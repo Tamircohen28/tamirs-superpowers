@@ -34,8 +34,7 @@
   "additionalProperties": true,
 
   "allOf": [
-    { "$ref": "#/$defs/claude/$defs/forkPairing" },
-    { "$ref": "#/$defs/claude/$defs/invocationPairing" }
+    { "$ref": "#/$defs/claude/$defs/forkPairing" }
   ],
 
   "$defs": {
@@ -218,19 +217,6 @@
           },
           "else": {
             "properties": { "agent": { "const": "" } }
-          }
-        },
-
-        "invocationPairing": {
-          "$comment": "A skill users cannot invoke must also be blocked from model invocation.",
-          "if": {
-            "type": "object",
-            "properties": { "user-invocable": { "const": false } },
-            "required": ["user-invocable"]
-          },
-          "then": {
-            "properties": { "disable-model-invocation": { "const": true } },
-            "required": ["disable-model-invocation"]
           }
         }
       }

@@ -4,7 +4,7 @@ description: Internal guardrail invoked by mcp-builder only. Audits MCP tool def
 when_to_use: Invoked automatically by mcp-builder when generating or reviewing MCP server designs that include list/search operations. Not called directly by users.
 argument-hint: '[path to MCP tool schema or server source file]'
 arguments: []
-disable-model-invocation: true
+disable-model-invocation: false
 user-invocable: false
 allowed-tools:
 - Read

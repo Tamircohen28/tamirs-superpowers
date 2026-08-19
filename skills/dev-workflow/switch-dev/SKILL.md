@@ -6,7 +6,7 @@ argument-hint: '[handoff|resume|status] [#issue | objective=<id> | task-NNN] [ta
 arguments:
 - mode
 - issue
-disable-model-invocation: true
+disable-model-invocation: false
 user-invocable: true
 allowed-tools:
 - Bash

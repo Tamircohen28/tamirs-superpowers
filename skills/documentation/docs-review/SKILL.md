@@ -4,7 +4,7 @@ description: 'Internal docs-quality sweep invoked by repo-standards polish phase
 when_to_use: Called by repo-standards polish phase 6. Also valid when another skill explicitly needs a full documentation audit — e.g. 'run docs-review on $PROJECT_DIR'. Not for direct user invocation.
 argument-hint: '[optional: subset glob like ''docs/user/**'' or single file path]'
 arguments: []
-disable-model-invocation: true
+disable-model-invocation: false
 user-invocable: false
 allowed-tools:
 - Bash
@@ -56,6 +56,25 @@ A documentation-quality sweep: every Markdown file under `README.md` (root) and
 finish a sweep with a clean working tree, zero broken links, no stray plan
 files in git, and every doc reflecting the current state of the codebase —
 including accurate counts of agents, skills, and commands.
+
+## Confirm before the first write when there is no parent skill
+
+This skill **fixes files in place**. That is correct when `repo-standards` (or
+another skill) invoked it as part of a sweep the user already agreed to. It is
+not correct when the model reached for it on its own.
+
+Before the first mutating edit, decide which case this is: was this skill
+invoked by a parent skill, or autonomously from a user prompt? If there is no
+invoking parent skill, **state what you are about to change and get the user's
+go-ahead before the first write.** Read-only auditing needs no confirmation —
+run the full audit, report the findings, then ask. One confirmation covers the
+rest of the sweep; do not ask per file.
+
+This is the safety that replaces this skill's old `disable-model-invocation`
+gate. The gate was removed because it also blocked sub-agent invocation, which
+broke `repo-standards` phase 6 under orchestration — a sub-agent calling a skill
+is model invocation. Keeping the confirmation here, inside the skill, is the
+repo's standing preference over gating (see CLAUDE.md, "Gating warning").
 
 ## When repo-standards invokes this skill
 

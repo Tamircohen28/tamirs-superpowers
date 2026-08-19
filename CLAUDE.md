@@ -48,18 +48,45 @@ Every `SKILL.md` validates against the **portable** schema, [`core/schemas/skill
 
 ### Invocation tiers (Claude-specific)
 
-- `user-invocable: false` — blocks the user typing `/skill-name`; other skills can still call it via the `Skill` tool.
-- `disable-model-invocation: true` — prevents context-based auto-triggering.
+The two flags are **independent** — not a package deal:
+
+- `user-invocable: false` — blocks the user typing `/skill-name`. Other skills, sub-agents and workflows can still call it via the `Skill` tool. This alone is what an internal companion wants.
+- `disable-model-invocation: true` — blocks context-based auto-triggering **and sub-agent invocation**. It is a much heavier flag than it looks.
 
 | Tier | `user-invocable` | `disable-model-invocation` | Examples |
 |------|:---:|:---:|----------|
-| User + auto-trigger (default) | `true` | `false` | plan-dev, start-dev, pr-dev, repo-standards, cleanup, retro |
-| Explicit-only (slash, no auto) | `true` | `true` | switch-dev |
-| Internal companion | `false` | `true` | docs-review, mcp-pagination, changelog-review |
+| User + auto-trigger (default) | `true` | `false` | plan-dev, start-dev, pr-dev, switch-dev, repo-standards, cleanup, retro |
+| Explicit-only (slash, no auto) | `true` | `true` | *(none — see below)* |
+| Internal companion | `false` | `false` | docs-review, mcp-pagination, changelog-review |
+
+No skill is Explicit-only today. `switch-dev` was, and the gate cost the repo the skill's whole point: it is what an agent should reach for when a session hits a rate limit mid-objective, which is precisely when the user is not in a position to type `/switch-dev`, and the gate also made it unreachable from `orchestrate-dev`/`worker-dev` — so an orchestrated run that hit a limit could not hand off and simply died. Zero invocations across 953 sessions was the measured result.
 
 **Gating warning:** `disable-model-invocation: true` also blocks **subagent and workflow orchestration** — a subagent invoking a skill *is* model invocation, so a gated skill cannot be fanned out across subagents. Gate only a skill that must *never* run autonomously. Prefer putting safety **inside** the skill: `cleanup` stays model-invocable with confirmation gates, a dry-run, and a script that only touches provably-safe targets; `retro` stays model-invocable because it only *proposes* changes and never writes without approval.
 
-Internal-only skills today: `changelog-review`, `docs-review`, `mcp-pagination`.
+Internal-only skills today: `changelog-review`, `docs-review`, `mcp-pagination`. All three carry `user-invocable: false` and `disable-model-invocation: false` — hidden from the slash surface, still reachable from `repo-standards` and `mcp-builder` when those run under orchestration. `docs-review` mutates files, so it confirms before its first write when no parent skill invoked it; that confirmation is the safety, not a gate.
+
+## Surface skills at the moment they apply
+
+When a situation arises that a bundled skill covers, **either invoke the skill or tell the
+user in one line that it exists** — do not silently hand-roll the work. One suggestion per
+situation per session; never repeat a declined suggestion.
+
+| Situation | Skill |
+|---|---|
+| The user asks what something cost, how many tokens it used, or why a session got expensive | `session-report` |
+| A stack trace, traceback, panic or crash log is pasted, or a `file:line` is named | `targeted-debug` |
+| "am I up to date", "what new features am I missing", "latest docs" — or a `*-plugin/plugin.json` or `CHANGELOG.md` is being bumped | `platform-sync` |
+| A rate limit is hit, or an objective is still open and the session is ending | `switch-dev` |
+| You are about to hand-write a capability a public skill or plugin plausibly already provides | `find-skill` |
+| The session had repeated failures on the same thing, or the user corrected you several times | `retro` |
+
+**Why the rule and not just good trigger descriptions:** `skill_auto_invocation` in
+[`core/capabilities/platforms.json`](core/capabilities/platforms.json) is `partial` on Cursor
+and `unknown` on Codex, Gemini CLI and OpenCode. Description-based auto-triggering only fires
+reliably on Claude Code and Claude Desktop, and the `UserPromptSubmit` hook that reinforces it
+(`hooks/skill-suggest.sh`) is unsupported on OpenCode. This rule is the only surfacing
+mechanism that works on all five targets, which is why it is written down rather than left to
+the matcher.
 
 ## Commit trailer
 

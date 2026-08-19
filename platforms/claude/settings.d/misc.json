@@ -1,0 +1,13 @@
+{
+  "_comment": "Assorted policy: disabled skills, connector policy, MCP servers declared in project .mcp.json files that should stay off, and environment variables. No secrets — Pushover credentials come from PUSHOVER_TOKEN/PUSHOVER_USER at install time and are written to ~/.claude/pushover.env (mode 600), never here.",
+  "skillOverrides": {
+    "find-skills": "off"
+  },
+  "disableClaudeAiConnectors": true,
+  "disabledMcpjsonServers": [
+    "vercel"
+  ],
+  "env": {
+    "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1"
+  }
+}
