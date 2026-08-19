@@ -124,6 +124,12 @@
           },
           {
             "type": "command",
+            "command": "bash ${CLAUDE_PLUGIN_ROOT}/hooks/goal-condition-guard.sh",
+            "timeout": 10,
+            "statusMessage": "Screening the /goal condition..."
+          },
+          {
+            "type": "command",
             "command": "bash ${CLAUDE_PLUGIN_ROOT}/hooks/goal-compact-reminder.sh",
             "timeout": 5
           },

@@ -5,6 +5,29 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Added
+- **`hooks/goal-condition-guard.sh`** on `UserPromptSubmit` — rejects a `/goal`
+  whose stop-condition cannot be satisfied by construction, before the harness
+  accepts it. Two clause families are screened: **stopping-forbidden** ("do not
+  yield", "never stop") makes ending the turn the violation, and **unbounded**
+  ("all the remaining work", "everything remaining") is self-replenishing
+  because doing the work produces artifacts the next evaluation reads as new
+  incomplete items. In the recorded incident (dev#637, 2026-08-17) a condition
+  with both families blocked the turn 21 consecutive times and was stopped only
+  by Claude Code's own block cap. The refusal names the offending clause and
+  gives checkable-predicate replacements (`until issue #N is closed`, `until CI
+  is green on main`).
+
+  `do not stop **until** <predicate>` is explicitly exempt — that is the
+  recommended phrasing, and blocking it would punish correct usage.
+
+  **It is a heuristic over phrasing and cannot judge satisfiability in general;
+  a pass is not evidence that a goal is sound.** When it cannot parse its input
+  — malformed JSON, or a payload carrying neither `.prompt` nor `.user_input` —
+  it says so loudly on stderr and lets the prompt through, rather than
+  returning a quiet success that would be indistinguishable from "condition
+  looks fine".
+
 ## [3.1.0] — 2026-08-19
 
 ### Two behaviour changes to read before upgrading

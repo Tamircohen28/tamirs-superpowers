@@ -40,6 +40,7 @@ the one that answers "what breaks if this is gone".
 | `worktree-remove.sh` | WorktreeRemove | **worktree-lifecycle** | Claude Code only | Worktrees are removed by hand with `git worktree remove` | **Yes** |
 | `check-done.sh` | Stop | **claude-convenience** | Claude Code only | No definition-of-done reminder; the rule lives in `AGENTS.md` | **Yes** |
 | `directory-added.sh` | DirectoryAdded | **claude-convenience** | Claude Code 2.1.219+ | The same warning arrives later, at the first denied edit | **Yes** |
+| `goal-condition-guard.sh` | UserPromptSubmit | **core-safety-invariant** | Claude Code only (`/goal`) | **Unscreened.** An unsatisfiable `/goal` condition is accepted and blocks the turn until the harness block cap fires (dev#637: 21 consecutive blocks) | **Yes** |
 | `goal-compact-reminder.sh` | UserPromptSubmit | **claude-convenience** | Claude Code only (`/compact`, `/goal`, `/login`) | Nothing; a cache-warmth tip is lost | Optional |
 | `scope-decompose-reminder.sh` | UserPromptSubmit | **claude-convenience** | Any (text heuristic) | Nothing; a decomposition nudge is lost | Optional |
 | `skill-creator-guard.sh` | PreToolUse `Edit\|Write\|…` | **claude-convenience** | Claude Code, Cursor | Hand-written `SKILL.md` files are not intercepted | Optional |
