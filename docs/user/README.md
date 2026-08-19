@@ -19,7 +19,7 @@ Start here: **[Getting started](getting-started.md)** → **[Concepts](concepts.
 
 | Page | What it covers |
 |---|---|
-| [Skills](skills.md) | All 26 skills, by domain, with roles and tiers |
+| [Skills](skills.md) | All 27 skills, by domain, with roles and tiers |
 | [Agents](agents.md) | The ten canonical roles and the agents that play them |
 | [Platform differences](platform-differences.md) | Registry-generated capability matrix, honest about gaps |
 | [Installation](install/README.md) | Per-platform install · verify · update · uninstall |
@@ -29,6 +29,7 @@ Start here: **[Getting started](getting-started.md)** → **[Concepts](concepts.
 | Page | What it covers |
 |---|---|
 | [Agent-kit repos](agent-kit.md) | Scaffolding and maintaining multi-platform rule/skill distribution repos |
+| [GitHub repository policy](github-policy.md) | Auditing and enforcing branch rulesets and Actions concurrency across your repos |
 | [Cross-platform workflow](cross-platform-workflow.md) | Handing work between platforms |
 | [Phone notifications](phone-notifications.md) | Opt-in Pushover setup |
 

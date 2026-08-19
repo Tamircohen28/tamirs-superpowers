@@ -1,0 +1,2 @@
+GET orgs/*/rulesets 403-scope
+GET repos/*/*/branches/*/protection 404

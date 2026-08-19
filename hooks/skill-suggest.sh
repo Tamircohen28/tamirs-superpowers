@@ -104,10 +104,26 @@ if matches_cs 'Traceback|^[[:space:]]*at [^[:space:]]+\(.*:[0-9]+|panic:|File "[
 fi
 
 # --- platform-sync: docs currency, or a manifest/CHANGELOG bump -------------
+# platform-sync audits a repo against the live docs of the AI harnesses it
+# TARGETS. A CHANGELOG.md edit is not evidence of that — every repo has one —
+# so the file-change branch is gated on the repo actually targeting a harness.
+# The prompt-wording branch stays ungated: an explicit "what am I missing"
+# question is the user asking, not the hook guessing.
+targets_ai_platform() {
+  [ -f "${repo_root}/CLAUDE.md" ] && return 0
+  [ -f "${repo_root}/AGENTS.md" ] && return 0
+  [ -f "${repo_root}/GEMINI.md" ] && return 0
+  [ -d "${repo_root}/.cursor/rules" ] && return 0
+  [ -f "${repo_root}/opencode.json" ] && return 0
+  [ -f "${repo_root}/.claude-plugin/plugin.json" ] && return 0
+  [ -d "${repo_root}/.claude/skills" ] && return 0
+  return 1
+}
+
 platform_signal=0
 if matches 'up[- ]to[- ]date|new features|latest docs|what am I missing|out of date|current best practice|newest (version|release)'; then
   platform_signal=1
-elif git -C "$repo_root" diff --name-only HEAD 2>/dev/null \
+elif targets_ai_platform && git -C "$repo_root" diff --name-only HEAD 2>/dev/null \
      | grep -qE '(^|/)[a-z-]*-?plugin/plugin\.json$|(^|/)CHANGELOG\.md$'; then
   platform_signal=1
 fi

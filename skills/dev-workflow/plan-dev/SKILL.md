@@ -131,10 +131,19 @@ Every task declares:
 | `title` | Imperative, one line | |
 | `role` | Which role does it | One of `core/roles/*.md`: planner, orchestrator, implementer, test-engineer, reviewer, security-reviewer, performance-reviewer, debugger, integrator, research-agent |
 | `depends_on` | Task ids that must complete first | Empty array = ready now |
-| `scope` | Glob paths this task may **write** | Everything else is read-only for it |
+| `scope` | Glob paths this task may **write** | Everything else is read-only for it. **Always `<dir>/**`, never a lone `*`** — see below |
 | `validation_tier` | `edit` \| `worker` \| `integration` \| `delivery` | Implementation tasks are `worker`; the integration task is `integration` |
 | `status` | `ready` when `depends_on` is empty, else `pending` | |
 | `provider` | Optional, advisory | Metadata only — never encoded in a branch or path |
+
+**Writing a scope: use `**`, never a lone `*`.** The check that keeps a worker inside its area is bash pattern matching, where `*` also matches `/`. So `src/*` — the obvious way to write "files directly under src" — actually authorises `src/deep/nested/secret.txt` as well, and `src/*.ts` authorises `src/a/b.ts`. There is no single-level matcher available, so a lone `*` never means what it looks like it means:
+
+| Write | Not |
+|---|---|
+| `src/auth/**` — the auth subtree | `src/auth/*` (reads as one level, grants the subtree) |
+| `docs/reference.md` — one literal file | `docs/*.md` (grants everything under `docs/`) |
+
+The `**` form is sound in the other direction: `src/auth/**` does **not** match `src/authorization/` or `src/auth-backup/`, because the literal `/` after `auth` stops it. `scripts/validate_plan.py` rejects any single-`*` segment, so an accidental one fails at plan time rather than silently widening a worker's write boundary at run time.
 
 **Parallelizable** is derived, not declared: a task is parallelizable when it has no dependency path to another ready task **and** its `scope` does not overlap that task's. Two concurrent tasks sharing write scope is a merge conflict waiting to happen — either narrow the scopes or add a dependency. `scripts/validate_plan.py` enforces exactly this.
 
@@ -283,6 +292,7 @@ Next: /orchestrate-dev auth-system     — run the graph, integrate, one PR
 - **Never assume a task becomes a PR.** One objective = one PR unless a named exception in `core/policies/delivery.md` applies.
 - **Never emit a task without `depends_on`, `scope`, `validation_tier`, and `role`.** A task missing any of them cannot be scheduled or isolated.
 - **Never mark tasks parallel when their scopes overlap.** Add a dependency or narrow the globs.
+- **Never write a scope with a lone `*`.** It grants the whole subtree under the enforcing matcher; use `<dir>/**` or a literal path.
 - **Never put unrelated work in one task.** Single coherent theme each.
 - **Never write code, commit, or push.** This skill plans only.
 - **Always run `validate_plan.py` on the written objective** before reporting success.
@@ -303,6 +313,12 @@ Three CI runs, three reviews, and nobody ever reviews the combined change. Right
 task-001: implement the entire authentication system (15 subtasks)
 ```
 Split into 3–5 tasks with real dependencies.
+
+**Wrong — a scope that grants more than it appears to:**
+```
+task-001  scope: src/*
+```
+Reads as "files directly under src"; actually authorises every file under `src/`, at any depth. Write `src/**` if that is what you mean, or name the files.
 
 **Wrong — parallel tasks over the same files:**
 ```

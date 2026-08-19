@@ -228,7 +228,7 @@ Tier definitions live in `core/policies/validation.md`.
 
 - **Never route back to `orchestrate-dev` when it routed here.** The hand-off is one-directional by design; a mutual bounce would loop forever and is invisible until it happens in real use.
 - **Never open a PR on route A.** An active objective means delivery is somebody else's job; a PR per task is the exact defect this split exists to remove.
-- **Never push directly to the default branch** (`main`, `master`, `develop`). Always a feature branch.
+- **Never push directly to the default branch.** Resolve it — `bash skills/dev-workflow/_shared/scripts/default-branch.sh` — rather than comparing against a list of conventional names; a repo whose default is `trunk` or `dev` goes unguarded by any such list. Always a feature branch.
 - **Never skip validation**, even if the user says "just push it". Tier 1 always; Tier 2 before any push on route C.
 - **Never commit with `git add .`** blindly — stage selectively so secrets and build artifacts stay out.
 - **Never make architectural decisions silently** — a choice that changes the public API, schema, or module structure gets surfaced (use `/decision`) before coding.

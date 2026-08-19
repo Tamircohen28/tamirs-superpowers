@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # cleanup-after-merge.sh — sync default branch, remove worktree, prune refs.
 # Worktree-aware: safe to run from inside a linked pr-dev worktree (never fails
-# hard on `git checkout master` when master is checked out in the main worktree,
-# and never tries to remove or delete the worktree/branch it is standing in).
+# hard on checking out the default branch when the main worktree already holds
+# it, and never tries to remove or delete the worktree/branch it stands in).
 #
 # Usage:
 #   cleanup-after-merge.sh <PR_NUMBER>
@@ -42,19 +42,26 @@ if [[ -z "$PR" ]]; then
   usage 1
 fi
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT=$(git rev-parse --show-toplevel)
 cd "$REPO_ROOT"
 
 BRANCH=$(gh pr view "$PR" --json headRefName --jq .headRefName)
 
-# Resolve the repo's default branch dynamically — supports both `master` and `main`.
-# Prefer the PR's base ref (most accurate); fall back to gh repo view; final fall back
-# to `master` for offline / unauthenticated environments.
+# Resolve the repo's default branch dynamically — never a literal. Prefer the
+# PR's own base ref (most accurate: it is the branch this PR actually merged
+# into); otherwise the shared resolver, which reads origin/HEAD then gh and
+# fails rather than guessing. A guessed name would make step 2 check out a
+# branch that does not exist.
+# shellcheck source=../../_shared/scripts/default-branch.sh
+. "$SCRIPT_DIR/../../_shared/scripts/default-branch.sh"
 DEFAULT_BRANCH=$(gh pr view "$PR" --json baseRefName --jq .baseRefName 2>/dev/null || true)
 if [[ -z "$DEFAULT_BRANCH" ]]; then
-  DEFAULT_BRANCH=$(gh repo view --json defaultBranchRef --jq .defaultBranchRef.name 2>/dev/null || true)
+  DEFAULT_BRANCH="$(resolve_default_branch "$REPO_ROOT")" || {
+    echo "ERROR: cannot determine the default branch to sync — see the cause above." >&2
+    exit 1
+  }
 fi
-DEFAULT_BRANCH="${DEFAULT_BRANCH:-master}"
 
 CUR_BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "")
 
@@ -69,8 +76,8 @@ WORKTREE_PATH=$(worktree_of "$BRANCH")
 [[ "$VERBOSE" == 1 ]] && echo "BRANCH=$BRANCH DEFAULT_BRANCH=$DEFAULT_BRANCH CUR_BRANCH=$CUR_BRANCH REPO_ROOT=$REPO_ROOT DEFAULT_WT=$DEFAULT_WT WORKTREE_PATH=$WORKTREE_PATH" >&2
 
 # --- Update the default branch without disrupting other worktrees --------------
-# A linked worktree cannot `git checkout master` when master is checked out in the
-# main worktree — git errors "already used by worktree". Only switch when it is safe.
+# A linked worktree cannot check out the default branch while the main worktree
+# holds it — git errors "already used by worktree". Only switch when it is safe.
 git fetch --prune origin >/dev/null 2>&1 || true
 if [[ "$CUR_BRANCH" == "$DEFAULT_BRANCH" ]]; then
   git pull --ff-only || true

@@ -137,7 +137,11 @@ fi
 
 # The converse, pinned so the guard is not mistaken for one that denies
 # everything: a file matching no pattern is still allowed.
-payload="$(jq -n '{tool_name:"Edit", tool_input:{file_path:"/tmp/x/package-lock.json"}, cwd:"/tmp"}')"
+#
+# The example used to be package-lock.json, which the old fixed glob happened
+# not to match. It is a lockfile, so it is now denied on purpose; an ordinary
+# source file is the honest "unmatched" case.
+payload="$(jq -n '{tool_name:"Edit", tool_input:{file_path:"/tmp/x/src/util.ts"}, cwd:"/tmp"}')"
 out="$(printf '%s' "$payload" | bash "$ROOT/hooks/guard-sensitive-files.sh" 2>/dev/null)"
 if printf '%s' "$out" | jq -e '(.hookSpecificOutput.permissionDecision // "allow") == "allow"' >/dev/null 2>&1; then
   ok "an unmatched path is still allowed (the guard did not become deny-all)"
@@ -147,7 +151,12 @@ fi
 
 # Multi-line (pretty-printed) JSON must survive: `cat` preserves newlines, and
 # a reader that joined lines could merge tokens or corrupt embedded strings.
-pretty="$(jq -n '{tool_name:"Edit", tool_input:{file_path:"/tmp/x/dist/bundle.js"}, cwd:"/tmp"}')"
+#
+# The path must be one the guard denies UNCONDITIONALLY, or this test would be
+# measuring the guard's detection instead of its stdin read. dist/bundle.js is
+# no longer such a path — it is denied only when git ignores it (see
+# tests/test-shape.sh) — so a lockfile carries the payload here.
+pretty="$(jq -n '{tool_name:"Edit", tool_input:{file_path:"/tmp/x/deps.lock"}, cwd:"/tmp"}')"
 out="$(printf '%s\n' "$pretty" | bash "$ROOT/hooks/guard-sensitive-files.sh" 2>/dev/null)"
 if printf '%s' "$out" | jq -e '.hookSpecificOutput.permissionDecision == "deny"' >/dev/null 2>&1; then
   ok "multi-line pretty-printed JSON payload survives the bounded read"

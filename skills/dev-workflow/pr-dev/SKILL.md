@@ -303,7 +303,20 @@ PR #N is green and has no unresolved threads, but merge policy here is "ask firs
 
 **`--admin`** — `gh pr merge "$PR" "--$MERGE_METHOD" --delete-branch --admin` — is for two cases and no others:
 - required checks cannot pass for reasons outside the code (e.g. Actions billing), or
-- the repository is a solo-maintainer repo with branch protection whose required review can never be satisfied. **This repository (`tamirs-superpowers`) is exactly that case: `--admin` is its normal merge path.**
+- the repository is a solo-maintainer repo with branch protection whose required review can never be
+  satisfied — the maintainer authors every PR, so there is nobody who *can* approve.
+
+**Resolve that second case; never assume it.** It holds only where the repository is solo **and** the
+caller holds a ruleset bypass actor — the same derivation `scripts/github-policy.sh` uses. Naming a
+specific repository here would make every repository that installs this plugin inherit the
+instruction and bypass its own branch protection:
+
+```bash
+# solo?  and does the caller actually hold a bypass?
+collaborators=$(gh api "repos/$REPO/collaborators" --jq 'length' 2>/dev/null || echo 1)
+bypass=$(gh api "repos/$REPO/rulesets" --jq '[.[].bypass_actors // []] | flatten | length' 2>/dev/null || echo 0)
+# --admin is the normal path only when collaborators == 1 AND bypass > 0
+```
 
 `--admin` still requires the user's merge intent. It bypasses protection; it does not bypass policy.
 

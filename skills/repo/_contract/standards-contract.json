@@ -1,5 +1,5 @@
 {
-  "version": "1.4.0",
+  "version": "1.7.0",
   "profiles": {
     "app-gold": {
       "repo_type": "app",
@@ -7,6 +7,7 @@
         "contributing": "docs/CONTRIBUTING.md",
         "changelog": "docs/CHANGELOG.md",
         "license": "LICENSE",
+        "require_license_when_published": true,
         "agents_md": "AGENTS.md",
         "codeowners": "CODEOWNERS",
         "docs_readme": "docs/README.md"
@@ -22,11 +23,35 @@
           "author",
           "version"
         ],
-        "require_makefile_lifecycle": true,
-        "require_root_changelog": true,
-        "versioning_doc": "docs/engineering/build-and-release/versioning.md"
+        "require_makefile_lifecycle_when_published": true,
+        "require_root_changelog_when_release_model": true,
+        "require_version_badge_when_release_model": true,
+        "require_ci_badge_when_ci": true,
+        "badge_anchor_form": "single-line",
+        "badge_anchor_form_note": "Every <a> that wraps a badge <img> must open, contain the img, and close on ONE line. A newline plus indent inside the anchor is link TEXT, and GitHub renders it as an underlined gap between badges. Readability is not a reason to reformat it back.",
+        "forbid_header_emoji": true,
+        "header_emoji_note": "No emoji above the first '## ' heading — that region is the banner, badge rows, H1 and tagline. Body prose below the first '##' is unrestricted.",
+        "require_badge_versions_match_platform_targets_when_multi": true,
+        "banner": {
+          "accepted_paths": [
+            "assets/banner.png",
+            "assets/banner.jpg",
+            "assets/banner.webp",
+            "assets/banner.svg"
+          ],
+          "preferred_form": "raster",
+          "art_direction": "skills/repo/_contract/references/readme-banner.md",
+          "min_svg_shapes": 16,
+          "max_svg_text_elements": 3,
+          "raster_min_bytes": 20000,
+          "raster_min_width": 800,
+          "note": "A hero banner is a designed graphic with a motif drawn from the project's domain, not a wordmark on a rectangle. The numbers are the observable floor enforced by scripts/check-readme-branding.sh; the art direction is the reference above."
+        },
+        "versioning_doc": "docs/engineering/build-and-release/versioning.md",
+        "require_versioning_doc_when_release_model": true
       },
       "docs": {
+        "require_docs_tree_when_published": true,
         "required_dirs": [
           "docs/user",
           "docs/engineering"
@@ -38,6 +63,7 @@
         ]
       },
       "ci": {
+        "require_ci_jobs_when_ci": true,
         "required_jobs": [
           "secret-scan"
         ],
@@ -48,10 +74,10 @@
       "multi_agent": {
         "require_agents_md": true,
         "require_claude_imports_agents": true,
-        "require_cursor_mdc": true,
-        "require_agent_guidelines_dir": true,
-        "require_drift_script": true,
-        "require_agent_check_target": true,
+        "require_cursor_mdc_when_multi": true,
+        "require_agent_guidelines_dir_when_multi": true,
+        "require_drift_script_when_multi": true,
+        "require_agent_check_target_when_published": true,
         "portable_skills_dirs": [
           ".agents/skills",
           "skills",
@@ -84,12 +110,25 @@
         "p3": 0
       },
       "offline_scoring": {
+        "_comment": "Every S4 id below needs the GitHub API. score-standards-gaps.sh already refuses to emit them when CONTRACT_OFFLINE=1 or when branch_governance.readable is false; this list is the second gate, applied by score-contract-gaps.sh, so a vendored or older scorer still stays quiet offline. S4-03 is retired — it required at least one approving review, which contradicts the canonical policy and the live repository (0 required approvals with review-thread resolution ON, the solo-contributor posture). Its id is kept here so any un-updated copy of the scorer remains silent rather than failing an offline gate.",
+        "retired_check_ids": {
+          "S4-03": "Retired 2026-08-19. Required >= 1 approving review; the approving-review count is policy content owned by config/github/repository-policy.json, and the canonical value is 0 with required_review_thread_resolution true. Superseded by S4-10.",
+          "S4-04": "Retired 2026-08-19. Required allow_auto_merge on every repository. Auto-merge is a team-norm PREFERENCE, not a defect when absent \u2014 the same class of error as S4-03: a posture asserted as a universal good. Nothing observable distinguishes a repo that has deliberately left auto-merge off from one that forgot, so no gap can be scored honestly. pr-dev already resolves auto-merge per repository at delivery time (resolve-merge-policy.sh, precedence: TAMIRS_AUTO_MERGE > objective.json > .dev-files/policy.json > repository capability), which is where the preference belongs. S4-05 (delete_branch_on_merge) is retained: it is hygiene with no counter-argument."
+        },
         "skip_check_ids": [
           "S4-02",
           "S4-03",
           "S4-04",
           "S4-05",
-          "S4-06"
+          "S4-06",
+          "S4-07",
+          "S4-08",
+          "S4-09",
+          "S4-10",
+          "S4-11",
+          "S4-12",
+          "S4-13",
+          "S4-14"
         ]
       }
     },
@@ -100,6 +139,7 @@
         "contributing": "docs/CONTRIBUTING.md",
         "changelog": "docs/CHANGELOG.md",
         "license": "LICENSE",
+        "require_license_when_published": true,
         "agents_md": "AGENTS.md",
         "codeowners": "CODEOWNERS",
         "docs_readme": "docs/README.md"
@@ -115,11 +155,35 @@
           "author",
           "version"
         ],
-        "require_makefile_lifecycle": true,
-        "require_root_changelog": true,
-        "versioning_doc": "docs/engineering/build-and-release/versioning.md"
+        "require_makefile_lifecycle_when_published": true,
+        "require_root_changelog_when_release_model": true,
+        "require_version_badge_when_release_model": true,
+        "require_ci_badge_when_ci": true,
+        "badge_anchor_form": "single-line",
+        "badge_anchor_form_note": "Every <a> that wraps a badge <img> must open, contain the img, and close on ONE line. A newline plus indent inside the anchor is link TEXT, and GitHub renders it as an underlined gap between badges. Readability is not a reason to reformat it back.",
+        "forbid_header_emoji": true,
+        "header_emoji_note": "No emoji above the first '## ' heading — that region is the banner, badge rows, H1 and tagline. Body prose below the first '##' is unrestricted.",
+        "require_badge_versions_match_platform_targets_when_multi": true,
+        "banner": {
+          "accepted_paths": [
+            "assets/banner.png",
+            "assets/banner.jpg",
+            "assets/banner.webp",
+            "assets/banner.svg"
+          ],
+          "preferred_form": "raster",
+          "art_direction": "skills/repo/_contract/references/readme-banner.md",
+          "min_svg_shapes": 16,
+          "max_svg_text_elements": 3,
+          "raster_min_bytes": 20000,
+          "raster_min_width": 800,
+          "note": "A hero banner is a designed graphic with a motif drawn from the project's domain, not a wordmark on a rectangle. The numbers are the observable floor enforced by scripts/check-readme-branding.sh; the art direction is the reference above."
+        },
+        "versioning_doc": "docs/engineering/build-and-release/versioning.md",
+        "require_versioning_doc_when_release_model": true
       },
       "docs": {
+        "require_docs_tree_when_published": true,
         "required_dirs": [
           "docs/user",
           "docs/engineering"
@@ -131,6 +195,7 @@
         ]
       },
       "ci": {
+        "require_ci_jobs_when_ci": true,
         "required_jobs": [
           "secret-scan",
           "validate"
@@ -142,10 +207,10 @@
       "multi_agent": {
         "require_agents_md": true,
         "require_claude_imports_agents": true,
-        "require_cursor_mdc": true,
-        "require_agent_guidelines_dir": true,
-        "require_drift_script": true,
-        "require_agent_check_target": true,
+        "require_cursor_mdc_when_multi": true,
+        "require_agent_guidelines_dir_when_multi": true,
+        "require_drift_script_when_multi": true,
+        "require_agent_check_target_when_published": true,
         "portable_skills_dirs": [
           ".agents/skills",
           "skills",
@@ -194,12 +259,25 @@
         "p3": 0
       },
       "offline_scoring": {
+        "_comment": "Every S4 id below needs the GitHub API. score-standards-gaps.sh already refuses to emit them when CONTRACT_OFFLINE=1 or when branch_governance.readable is false; this list is the second gate, applied by score-contract-gaps.sh, so a vendored or older scorer still stays quiet offline. S4-03 is retired — it required at least one approving review, which contradicts the canonical policy and the live repository (0 required approvals with review-thread resolution ON, the solo-contributor posture). Its id is kept here so any un-updated copy of the scorer remains silent rather than failing an offline gate.",
+        "retired_check_ids": {
+          "S4-03": "Retired 2026-08-19. Required >= 1 approving review; the approving-review count is policy content owned by config/github/repository-policy.json, and the canonical value is 0 with required_review_thread_resolution true. Superseded by S4-10.",
+          "S4-04": "Retired 2026-08-19. Required allow_auto_merge on every repository. Auto-merge is a team-norm PREFERENCE, not a defect when absent \u2014 the same class of error as S4-03: a posture asserted as a universal good. Nothing observable distinguishes a repo that has deliberately left auto-merge off from one that forgot, so no gap can be scored honestly. pr-dev already resolves auto-merge per repository at delivery time (resolve-merge-policy.sh, precedence: TAMIRS_AUTO_MERGE > objective.json > .dev-files/policy.json > repository capability), which is where the preference belongs. S4-05 (delete_branch_on_merge) is retained: it is hygiene with no counter-argument."
+        },
         "skip_check_ids": [
           "S4-02",
           "S4-03",
           "S4-04",
           "S4-05",
-          "S4-06"
+          "S4-06",
+          "S4-07",
+          "S4-08",
+          "S4-09",
+          "S4-10",
+          "S4-11",
+          "S4-12",
+          "S4-13",
+          "S4-14"
         ]
       },
       "feature_equivalence": {

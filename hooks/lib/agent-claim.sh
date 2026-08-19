@@ -237,8 +237,8 @@ claim_write() {
 #   raw text.
 #
 #   Stripping quoted regions before matching would be only half a fix: it
-#   correctly drops `git commit -m "git push origin main"`, but it must not lose
-#   the real push in `git commit -m "wip" && git push origin main`. Segmenting
+#   correctly drops `git commit -m "git push origin dev"`, but it must not lose
+#   the real push in `git commit -m "wip" && git push origin dev`. Segmenting
 #   on separators that are themselves outside quotes is what keeps both true.
 
 # Unit separator: cannot occur in a shell word we care about, so it is a safe

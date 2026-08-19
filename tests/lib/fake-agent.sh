@@ -22,6 +22,26 @@
 # shellcheck shell=bash
 
 # ---------------------------------------------------------------------------
+# Collision guard — tests/lib/fake-gh.sh is the other `gh` double in this repo,
+# and the two do NOT compose: both define `gh_calls` and `fake_gh_install`, over
+# different state. Whichever is sourced second silently wins.
+#
+# Why this is a guard and not a comment: `gh_calls` bound to the wrong (or an
+# empty) log returns 0, at which point every "no worker created a PR" assertion
+# in the orchestration suite passes without measuring anything. The single most
+# important assertion in this refactor would become a tautology, and it would
+# look exactly like a clean run. Fail loudly instead.
+#
+# This catches fake-gh-first. test-orchestration.sh catches the other order by
+# asserting, after sourcing, that both names still resolve to this file.
+if declare -f fake_gh_use_fixtures >/dev/null 2>&1; then
+  printf 'FATAL: tests/lib/fake-gh.sh is already loaded in this shell.\n' >&2
+  printf '       It and fake-agent.sh both define gh_calls and fake_gh_install.\n' >&2
+  printf '       Source exactly one per suite (see tests/README.md).\n' >&2
+  exit 1
+fi
+
+# ---------------------------------------------------------------------------
 # The simulated world
 # ---------------------------------------------------------------------------
 
@@ -76,6 +96,14 @@ sim_handoff() { OBJECTIVES_ROOT="$SIM_STATE" bash "$REPO_ROOT/skills/dev-workflo
 # Records every argv to the log and succeeds. It never talks to GitHub. `pr create`
 # prints a plausible URL so a caller that parses stdout still works, which is what
 # makes "exactly one PR" an assertion about behaviour rather than about a crash.
+# Mirror of the guard in tests/lib/fake-gh.sh — see the rationale there. These
+# two libs must never share a shell.
+if [ -n "${FAKE_GH_LIB_LOADED:-}" ]; then
+  printf 'fake-agent.sh: cannot load — tests/lib/fake-gh.sh is already sourced in this shell.\n' >&2
+  return 1 2>/dev/null || exit 1
+fi
+FAKE_AGENT_LIB_LOADED=1
+
 fake_gh_install() {
   local bindir="$1" log="$2"
   : > "$log"

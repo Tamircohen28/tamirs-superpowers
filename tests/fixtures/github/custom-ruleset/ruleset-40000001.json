@@ -1,0 +1,22 @@
+{
+  "id": 40000001,
+  "name": "Protect release tags",
+  "target": "tag",
+  "source_type": "Repository",
+  "source": "Tamircohen28/example-repo",
+  "enforcement": "active",
+  "node_id": "RRS_lACqUmVwb3NpdG9yec440000001",
+  "created_at": "2026-03-02T09:12:00.000Z",
+  "updated_at": "2026-03-02T09:12:00.000Z",
+  "current_user_can_bypass": "always",
+  "bypass_actors": [],
+  "conditions": { "ref_name": { "exclude": [], "include": ["refs/tags/v*"] } },
+  "rules": [
+    { "type": "deletion" },
+    { "type": "update" }
+  ],
+  "_links": {
+    "self": { "href": "https://api.github.com/repos/Tamircohen28/example-repo/rulesets/40000001" },
+    "html": { "href": "https://github.com/Tamircohen28/example-repo/rules/40000001" }
+  }
+}

@@ -1,6 +1,77 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="600" height="200" viewBox="0 0 600 200">
-  <rect width="600" height="200" fill="#0F1117"/>
-  <rect width="600" height="3" y="197" fill="#0F6E56"/>
-  <text x="300" y="105" font-family="'Segoe UI', Helvetica, Arial, sans-serif" font-size="32" font-weight="700" fill="#E6EDF3" text-anchor="middle">scaffold-plugin-gold</text>
-  <text x="300" y="135" font-family="'Segoe UI', Helvetica, Arial, sans-serif" font-size="14" fill="#8B949E" text-anchor="middle">Contract gold fixture — plugin-gold profile</text>
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="400" viewBox="0 0 1200 400" role="img" aria-labelledby="t d">
+  <title id="t">scaffold-plugin-gold</title>
+  <desc id="d">Motif: one canonical source node fanning out along lit conduits to five generated adapter tiles — the agent-kit model this fixture pins, where canonical/ is authored once and every platform target is built from it.</desc>
+
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0B0E14"/>
+      <stop offset="0.5" stop-color="#141026"/>
+      <stop offset="1" stop-color="#0B0E14"/>
+    </linearGradient>
+    <linearGradient id="core" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#A78BFA"/>
+      <stop offset="1" stop-color="#6D28D9"/>
+    </linearGradient>
+    <linearGradient id="tile" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#EDE9FE"/>
+      <stop offset="1" stop-color="#C4B5FD"/>
+    </linearGradient>
+    <linearGradient id="wire" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#7C3AED" stop-opacity="0.9"/>
+      <stop offset="1" stop-color="#7C3AED" stop-opacity="0.15"/>
+    </linearGradient>
+    <radialGradient id="halo" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#8B5CF6" stop-opacity="0.5"/>
+      <stop offset="1" stop-color="#8B5CF6" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="soft" x="-40%" y="-40%" width="180%" height="180%">
+      <feGaussianBlur stdDeviation="12"/>
+    </filter>
+  </defs>
+
+  <rect width="1200" height="400" fill="url(#sky)"/>
+
+  <g stroke="#1C1B2E" stroke-width="1" fill="none" opacity="0.8">
+    <path d="M0 70 H1200 M0 200 H1200 M0 330 H1200"/>
+    <path d="M160 0 V400 M1040 0 V400"/>
+  </g>
+
+  <g transform="translate(70,0)">
+  <ellipse cx="800" cy="200" rx="270" ry="180" fill="url(#halo)" filter="url(#soft)"/>
+
+  <!-- conduits from the canonical core to each adapter tile -->
+  <g fill="none" stroke="url(#wire)" stroke-width="3" stroke-linecap="round">
+    <path d="M742 200 C812 200 828 92 906 92"/>
+    <path d="M742 200 C812 200 828 146 906 146"/>
+    <path d="M742 200 H906"/>
+    <path d="M742 200 C812 200 828 254 906 254"/>
+    <path d="M742 200 C812 200 828 308 906 308"/>
+  </g>
+
+  <!-- canonical source: one authored core -->
+  <g>
+    <circle cx="690" cy="200" r="74" fill="#1A1430" opacity="0.9"/>
+    <circle cx="690" cy="200" r="58" fill="url(#core)"/>
+    <circle cx="690" cy="200" r="58" fill="none" stroke="#DDD6FE" stroke-width="2" opacity="0.55"/>
+    <rect x="662" y="176" width="56" height="8" rx="4" fill="#F5F3FF" opacity="0.9"/>
+    <rect x="662" y="194" width="40" height="8" rx="4" fill="#F5F3FF" opacity="0.7"/>
+    <rect x="662" y="212" width="48" height="8" rx="4" fill="#F5F3FF" opacity="0.5"/>
+  </g>
+
+  <!-- five generated adapter tiles -->
+  <g>
+    <rect x="906" y="66" width="52" height="52" rx="14" fill="url(#tile)"/>
+    <rect x="906" y="120" width="52" height="52" rx="14" fill="url(#tile)" opacity="0.9"/>
+    <rect x="906" y="174" width="52" height="52" rx="14" fill="url(#tile)" opacity="0.8"/>
+    <rect x="906" y="228" width="52" height="52" rx="14" fill="url(#tile)" opacity="0.7"/>
+    <rect x="906" y="282" width="52" height="52" rx="14" fill="url(#tile)" opacity="0.6"/>
+    <path d="M920 92 h24 M920 146 h24 M920 200 h24 M920 254 h24 M920 308 h24" stroke="#6D28D9" stroke-width="4" stroke-linecap="round"/>
+  </g>
+
+  </g>
+
+  <rect x="96" y="232" width="112" height="5" rx="2.5" fill="url(#core)"/>
+
+  <text x="96" y="190" font-family="'Segoe UI', Helvetica, Arial, sans-serif" font-size="46" font-weight="700" fill="#E6EDF3">scaffold-plugin-gold</text>
+  <text x="96" y="278" font-family="'Segoe UI', Helvetica, Arial, sans-serif" font-size="21" fill="#8B949E">Contract gold fixture — plugin-gold profile</text>
 </svg>

@@ -76,12 +76,12 @@
     {
       "id": 5,
       "prompt": "/repo-standards review on a machine where the gh CLI is not installed",
-      "expected_output": "Fallback path. github_cli is OPTIONAL, so the offline standards sweep completes: README badges, docs tree, Makefile lifecycle, changelog and versioning policy, IP scan, hygiene, and the E/V/C platform layers. The online checks (S4-02..S4-06 branch protection and merge settings) are skipped by name, exactly as CONTRACT_OFFLINE=1 does for the gold fixtures.",
+      "expected_output": "Fallback path. github_cli is OPTIONAL, so the offline standards sweep completes: README badges, docs tree, Makefile lifecycle, changelog and versioning policy, IP scan, hygiene, and the E/V/C platform layers. The online checks (S4-02 and S4-04..S4-14 — branch rulesets, merge settings and Actions concurrency) are skipped by name, exactly as CONTRACT_OFFLINE=1 does for the gold fixtures.",
       "files": [],
       "expectations": [
         "A gap report is produced rather than the run aborting",
         "Skipped online checks are listed by their check ids with 'gh is not available' as the reason",
-        "Branch protection state is never assumed to be correct because it could not be read",
+        "Branch governance state is never assumed to be correct, or incorrect, because it could not be read — branch_governance.readable is false and no S4 gap is scored",
         "The exit gate is reported as provisional, not as a pass"
       ]
     },

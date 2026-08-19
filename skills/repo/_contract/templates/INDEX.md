@@ -9,9 +9,9 @@ Canonical templates for `repo-scaffold` and `repo-standards` polish. Contract ve
 | [`github/ci.yml.tmpl`](github/ci.yml.tmpl) | `CI` + `secret-scan` jobs, `ubuntu-latest` |
 | [`github/dependabot.yml.tmpl`](github/dependabot.yml.tmpl) | Weekly GitHub Actions updates |
 | [`github/agent_task.yml.tmpl`](github/agent_task.yml.tmpl) | Agent-task issue template with Resume block for switch-dev |
-| [`scaffold-requirements.md`](scaffold-requirements.md) | README sections, docs tree, merge settings, branch protection |
+| [`scaffold-requirements.md`](scaffold-requirements.md) | README sections, docs tree, merge settings, branch governance |
 | [`../scripts/enable-repo-merge-settings.sh`](../scripts/enable-repo-merge-settings.sh) | `allow_auto_merge` + `delete_branch_on_merge` |
-| [`../scripts/ensure-branch-protection.sh`](../scripts/ensure-branch-protection.sh) | Apply/verify default-branch protection (1 review + CI) |
+| [`../scripts/ensure-branch-protection.sh`](../scripts/ensure-branch-protection.sh) | **Deprecated shim** → `scripts/github-policy.sh`. Branch governance is rulesets, applied from `config/github/repository-policy.json` |
 | [`legacy-scaffold-templates.md`](legacy-scaffold-templates.md) | Full stack-specific bodies (Node, Python, Swift, CLAUDE.md, workflows) |
 | [`check-agent-drift.sh.tmpl`](check-agent-drift.sh.tmpl) | Drift script copied to target `scripts/` |
 | [`check-feature-equivalence.sh.tmpl`](check-feature-equivalence.sh.tmpl) | E-layer parity + capability-registry agreement, copied to target `scripts/` |

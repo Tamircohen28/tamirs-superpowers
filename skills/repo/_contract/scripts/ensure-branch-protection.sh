@@ -1,113 +1,76 @@
 #!/usr/bin/env bash
-# ensure-branch-protection.sh — apply and verify branch protection on the default branch.
+# ensure-branch-protection.sh — DEPRECATED SHIM. Delegates to scripts/github-policy.sh.
 #
-# Tamir Cohen standard: 1 required PR review + required CI status check on master (or default branch).
-# Required by repo-scaffold and repo-standards polish phase 4.
+# WHAT THIS USED TO DO, AND WHY IT WAS WRONG
+#   It read and wrote CLASSIC branch protection at
+#   `repos/{o}/{r}/branches/{b}/protection`. On a repository correctly governed by
+#   branch RULESETS that endpoint returns 404, so the old --verify-only path
+#   reported this very repository — protected by two active rulesets — as
+#   unprotected, and the apply path would have written a second, weaker, legacy
+#   mechanism alongside the real one.
 #
-# Usage:
-#   ensure-branch-protection.sh [owner/repo] [branch]
-#   ensure-branch-protection.sh --verify-only [owner/repo] [branch]
-#   REQUIRED_CHECK=CI MIN_REVIEWS=1 ensure-branch-protection.sh
+#   It also defaulted to MIN_REVIEWS=1 and a single literal status check named
+#   "CI". Both are wrong here: the canonical policy runs 0 required approving
+#   reviews with review-thread resolution ON (the solo-contributor posture), and
+#   required contexts are per-repository — 9 on this repo out of 15 CI jobs —
+#   never one globalised name. REQUIRED_CHECK and MIN_REVIEWS are therefore
+#   IGNORED by this shim rather than honoured; honouring them would reintroduce
+#   the drift.
+#
+# WHAT TO CALL INSTEAD
+#   bash scripts/github-policy.sh audit  --repo <owner/name>   # read-only
+#   bash scripts/github-policy.sh plan   --repo <owner/name>   # diff, no writes
+#   bash scripts/github-policy.sh apply  --repo <owner/name>   # confirmed writes
+#
+#   Policy content — ruleset names, rules, required contexts, enforcement — lives
+#   in config/github/repository-policy.json. Nothing is restated here.
+#
+# WHY A SHIM AND NOT A DELETION
+#   `_contract/templates/`, both repo skills, and consumer repos scaffolded from
+#   earlier versions call this path by name. The shim keeps those callers working
+#   while routing every read and write through the one abstraction. Delete it once
+#   no caller names it.
+#
+# Usage (unchanged surface):
+#   ensure-branch-protection.sh [--verify-only] [owner/repo] [branch]
 set -euo pipefail
 
-usage() {
-  cat <<'EOF'
-Usage: ensure-branch-protection.sh [--verify-only] [owner/repo] [branch]
-
-Apply (if missing) and verify branch protection:
-  - required_pull_request_reviews >= MIN_REVIEWS (default 1)
-  - required_status_checks includes REQUIRED_CHECK (default CI)
-
-Environment:
-  REQUIRED_CHECK   Status check context name (default: CI)
-  MIN_REVIEWS      Minimum approving reviews (default: 1)
-EOF
-}
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SRC_ROOT="$(cd "$SCRIPT_DIR/../../../.." 2>/dev/null && pwd || true)"
+POLICY_CLI="${GITHUB_POLICY_CLI:-$SRC_ROOT/scripts/github-policy.sh}"
 
 VERIFY_ONLY=false
 REPO=""
-BRANCH=""
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --verify-only) VERIFY_ONLY=true; shift ;;
-    -h|--help) usage; exit 0 ;;
+    -h|--help)
+      sed -n '2,/^set -euo/p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//; $d'
+      exit 0 ;;
     *)
-      if [[ -z "$REPO" ]]; then
-        REPO="$1"
-      elif [[ -z "$BRANCH" ]]; then
-        BRANCH="$1"
-      else
-        echo "ensure-branch-protection: unexpected argument: $1" >&2
-        usage >&2
-        exit 1
-      fi
-      shift
-      ;;
+      # The second positional was a branch name. It is dropped on purpose: the
+      # policy targets the default branch through GitHub's ~DEFAULT_BRANCH magic
+      # ref, and this fleet is main x15 / master x4 — a literal is wrong on one
+      # of those sets and stops matching the day a default branch is renamed.
+      [[ -z "$REPO" ]] && REPO="$1"
+      shift ;;
   esac
 done
 
-command -v gh &>/dev/null || { echo "ensure-branch-protection: gh required" >&2; exit 1; }
-command -v jq &>/dev/null || { echo "ensure-branch-protection: jq required" >&2; exit 1; }
+echo "ensure-branch-protection.sh is deprecated — delegating to github-policy.sh." >&2
+echo "  Call 'bash scripts/github-policy.sh ${VERIFY_ONLY:+audit}' directly; see the header." >&2
 
-if [[ -z "$REPO" ]]; then
-  REPO=$(gh repo view --json nameWithOwner -q .nameWithOwner)
-fi
-if [[ -z "$BRANCH" ]]; then
-  BRANCH=$(gh repo view "$REPO" --json defaultBranchRef -q .defaultBranchRef.name 2>/dev/null || echo master)
-fi
-
-REQUIRED_CHECK="${REQUIRED_CHECK:-CI}"
-MIN_REVIEWS="${MIN_REVIEWS:-1}"
-
-fetch_protection() {
-  gh api "repos/$REPO/branches/$BRANCH/protection" 2>/dev/null || true
-}
-
-apply_protection() {
-  gh api "repos/$REPO/branches/$BRANCH/protection" \
-    --method PUT \
-    --silent \
-    -F 'required_status_checks[strict]=true' \
-    -F "required_status_checks[contexts][]=$REQUIRED_CHECK" \
-    -F "required_pull_request_reviews[required_approving_review_count]=$MIN_REVIEWS" \
-    -F 'enforce_admins=false' \
-    -F 'restrictions=null'
-}
-
-verify_protection() {
-  local prot reviews has_check
-  prot="$(fetch_protection)"
-  if [[ -z "$prot" ]]; then
-    echo "ensure-branch-protection: no protection on $REPO@$BRANCH" >&2
-    return 1
-  fi
-
-  reviews=$(echo "$prot" | jq -r '.required_pull_request_reviews.required_approving_review_count // 0')
-  has_check=$(echo "$prot" | jq -r --arg c "$REQUIRED_CHECK" \
-    '(.required_status_checks.contexts // []) | index($c) != null')
-
-  if (( reviews < MIN_REVIEWS )); then
-    echo "ensure-branch-protection: need >= $MIN_REVIEWS review(s), got $reviews on $REPO@$BRANCH" >&2
-    return 1
-  fi
-  if [[ "$has_check" != true ]]; then
-    echo "ensure-branch-protection: missing required status check '$REQUIRED_CHECK' on $REPO@$BRANCH" >&2
-    return 1
-  fi
-
-  echo "Branch protection OK: $REPO@$BRANCH ($MIN_REVIEWS review(s), check $REQUIRED_CHECK)"
-}
-
-if [[ "$VERIFY_ONLY" == true ]]; then
-  verify_protection
-  exit $?
+if [[ ! -f "$POLICY_CLI" ]]; then
+  echo "ensure-branch-protection: github-policy.sh not found at $POLICY_CLI" >&2
+  echo "  This checkout does not carry the policy tooling; branch governance cannot be applied here." >&2
+  exit 1
 fi
 
-if verify_protection 2>/dev/null; then
-  exit 0
-fi
+VERB=apply
+[[ "$VERIFY_ONLY" == true ]] && VERB=audit
 
-echo "Applying branch protection to $REPO@$BRANCH..." >&2
-apply_protection
-verify_protection
+set -- "$VERB"
+[[ -n "$REPO" ]] && set -- "$@" --repo "$REPO"
+
+exec bash "$POLICY_CLI" "$@"

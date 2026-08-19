@@ -190,6 +190,12 @@ while IFS= read -r f; do
   [ -f "$f" ] || continue
   [ -x "$f" ] || nonexec="$nonexec $f"
 done < <(files_matching '^tests/test-[^/]*\.sh$')
+# Name the remedy in the failure. This has now been hit three times in one
+# session by newly-added suites, and each time the fix was a one-line chmod that
+# the reader had to work out from "expected '', got ' tests/foo.sh'".
+if [ -n "$nonexec" ]; then
+  printf 'hint: chmod +x%s\n' "$nonexec" >&2
+fi
 judge "every tests/test-*.sh entrypoint is executable" "" "$nonexec"
 
 sourced_x=""

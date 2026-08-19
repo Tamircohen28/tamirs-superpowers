@@ -10,7 +10,9 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="${1:-.}"
 PROFILE="${2:-app-gold}"
 
-STD_JSON="$(bash "$SCRIPT_DIR/standards-inventory.sh" "$ROOT" | bash "$SCRIPT_DIR/score-standards-gaps.sh")"
+# The profile is passed through: score-standards-gaps.sh reads the `_when_*`
+# conditionality keys out of that profile in standards-contract.json.
+STD_JSON="$(bash "$SCRIPT_DIR/standards-inventory.sh" "$ROOT" | bash "$SCRIPT_DIR/score-standards-gaps.sh" "$PROFILE")"
 INV_JSON="$(bash "$SCRIPT_DIR/inventory-agent-setup.sh" "$ROOT")"
 MA_JSON="$(echo "$INV_JSON" | bash "$SCRIPT_DIR/score-inventory-gaps.sh")"
 EQ_JSON="$(echo "$INV_JSON" | bash "$SCRIPT_DIR/score-equivalence-gaps.sh")"

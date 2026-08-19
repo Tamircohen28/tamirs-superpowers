@@ -1,0 +1,6 @@
+{
+  "resources": {
+    "core": { "limit": 5000, "used": 1, "remaining": 4999, "reset": 1755620000 }
+  },
+  "rate": { "limit": 5000, "used": 1, "remaining": 4999, "reset": 1755620000 }
+}

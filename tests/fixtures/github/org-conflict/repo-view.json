@@ -1,0 +1,9 @@
+{
+  "nameWithOwner": "ProductionMasterAI/example-service",
+  "name": "example-service",
+  "owner": { "login": "ProductionMasterAI" },
+  "isPrivate": true,
+  "isFork": false,
+  "isArchived": false,
+  "defaultBranchRef": { "name": "main" }
+}

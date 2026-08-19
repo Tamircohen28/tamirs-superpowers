@@ -3,18 +3,10 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/Tamircohen28">
-    <img src="https://img.shields.io/badge/author-Tamir%20Cohen-181717?logo=github" alt="Author" />
-  </a>
-  <a href="https://github.com/Tamircohen28/tamirs-superpowers/actions/workflows/ci.yml">
-    <img src="https://github.com/Tamircohen28/tamirs-superpowers/actions/workflows/ci.yml/badge.svg" alt="CI" />
-  </a>
-  <a href="LICENSE">
-    <img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="MIT License" />
-  </a>
-  <a href="plugin-version.json">
-    <img src="https://img.shields.io/badge/version-3.1.0-blue" alt="Version" />
-  </a>
+  <a href="https://github.com/Tamircohen28"><img src="https://img.shields.io/badge/author-Tamir%20Cohen-181717?logo=github" alt="Author" /></a>
+  <a href="https://github.com/Tamircohen28/tamirs-superpowers/actions/workflows/ci.yml"><img src="https://github.com/Tamircohen28/tamirs-superpowers/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="MIT License" /></a>
+  <a href="plugin-version.json"><img src="https://img.shields.io/badge/version-3.2.0-blue" alt="Version" /></a>
 </p>
 
 <p align="center">
@@ -27,7 +19,7 @@
 
 # tamirs-superpowers
 
-A portable agent toolkit: **26 skills**, 10 role-based agents, worktree hooks, and MCP
+A portable agent toolkit: **27 skills**, 10 role-based agents, worktree hooks, and MCP
 stubs, shipped from one canonical source to six agent platforms.
 
 ## What problem it solves
@@ -121,4 +113,4 @@ PR, run sequentially. See [docs/user/orchestration.md](docs/user/orchestration.m
 
 ---
 
-Tamir Cohen · https://github.com/Tamircohen28
+MIT © [Tamir Cohen](https://github.com/Tamircohen28)

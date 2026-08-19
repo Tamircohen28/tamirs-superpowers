@@ -28,7 +28,29 @@ MISSING=()
 hdr()  { printf '\n== %s ==\n' "$1"; }
 ok()   { printf '  ok      %s\n' "$*"; }
 warnl(){ printf '  missing %s\n' "$*"; }
+skipl(){ printf '  n/a     %s\n' "$*"; }
 bad()  { printf '  BROKEN  %s\n' "$*"; BROKEN=$(( BROKEN + 1 )); }
+
+# --- repo shape --------------------------------------------------------------
+# doctor used to assert that every repo it ran in was a plugin repo: a missing
+# plugin-version.json produced a hard `BROKEN  no canonical version`, so running
+# doctor in any ordinary app repo reported an UNHEALTHY install and exited 1.
+# Whether this repo ships a plugin is an observable fact, not an assumption —
+# detect-contract-profile.sh already answers it, so ask it once here and make
+# every plugin-only check conditional on the answer.
+IS_PLUGIN_REPO=false
+SHAPE_DETECTOR="$ROOT/skills/repo/_contract/scripts/detect-contract-profile.sh"
+if [[ -f "$SHAPE_DETECTOR" ]]; then
+  while IFS='=' read -r k v; do
+    case "$k" in IS_PLUGIN_REPO) IS_PLUGIN_REPO="$v" ;; esac
+  done < <(bash "$SHAPE_DETECTOR" "$ROOT" --shape </dev/null 2>/dev/null || true)
+else
+  # The detector itself ships with the plugin; without it, fall back to the same
+  # signals it reads rather than to "assume plugin".
+  for m in plugin-version.json .claude-plugin/plugin.json .claude-plugin/marketplace.json agent-kit.config.json; do
+    [[ -e "$ROOT/$m" ]] && { IS_PLUGIN_REPO=true; break; }
+  done
+fi
 
 # Print "name version" for a tool, or empty if absent. Never reads stdin.
 tool_version() {
@@ -68,8 +90,14 @@ CANON=""
 if [[ -f "$ROOT/plugin-version.json" ]] && command -v jq >/dev/null 2>&1; then
   CANON="$(jq -r '.version // empty' "$ROOT/plugin-version.json" 2>/dev/null || true)"
 fi
-if [[ -z "$CANON" ]]; then
-  bad "no canonical version — plugin-version.json missing, unreadable, or jq unavailable"
+if [[ -z "$CANON" && "$IS_PLUGIN_REPO" != true ]]; then
+  skipl "not a plugin repo (no plugin manifest, marketplace, or agent-kit config) — version truth does not apply"
+elif [[ -z "$CANON" ]]; then
+  if [[ ! -f "$ROOT/plugin-version.json" ]]; then
+    bad "plugin repo without plugin-version.json — the manifests have no canonical version to agree with"
+  else
+    bad "plugin-version.json is present but unreadable (invalid JSON, no .version, or jq unavailable)"
+  fi
 else
   ok "canonical version $CANON (plugin-version.json)"
   if [[ -x "$ROOT/scripts/check-version-truth.sh" || -f "$ROOT/scripts/check-version-truth.sh" ]]; then
@@ -86,9 +114,13 @@ fi
 
 # --- Core files ---
 hdr "Install integrity"
-for f in .claude-plugin/plugin.json skills core/capabilities/platforms.json; do
-  if [[ -e "$ROOT/$f" ]]; then ok "$f present"; else bad "$f missing"; fi
-done
+if [[ "$IS_PLUGIN_REPO" != true ]]; then
+  skipl "plugin install integrity — this repo does not ship a plugin; nothing to check"
+else
+  for f in .claude-plugin/plugin.json skills core/capabilities/platforms.json; do
+    if [[ -e "$ROOT/$f" ]]; then ok "$f present"; else bad "$f missing"; fi
+  done
+fi
 if command -v jq >/dev/null 2>&1; then
   while IFS= read -r m; do
     if jq empty "$m" 2>/dev/null; then ok "${m#"$ROOT"/} parses"; else bad "${m#"$ROOT"/} is invalid JSON"; fi

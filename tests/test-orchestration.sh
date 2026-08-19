@@ -29,6 +29,19 @@ source "$REPO_ROOT/tests/lib/fake-agent.sh"
 
 harness_require jq git
 
+# The other `gh` double (tests/lib/fake-gh.sh) defines the same two names over
+# different state. fake-agent.sh aborts if fake-gh loaded first; this catches the
+# reverse order, where fake-gh would have quietly replaced these bindings. An
+# unmeasured "no PR was created" is worse than a failing one.
+if ! declare -f gh_calls 2>/dev/null | grep -q 'SIM_GHLOG'; then
+  echo "FATAL: gh_calls is not the fake-agent binding — another gh double is loaded" >&2
+  exit 1
+fi
+if ! declare -f fake_gh_install 2>/dev/null | grep -q 'GHSHIM\|bindir'; then
+  echo "FATAL: fake_gh_install is not the fake-agent binding — another gh double is loaded" >&2
+  exit 1
+fi
+
 SCENARIOS=(
   parallel-workers
   dependencies

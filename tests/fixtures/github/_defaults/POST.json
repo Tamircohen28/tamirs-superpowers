@@ -1,0 +1,9 @@
+{
+  "id": 99000001,
+  "name": "created-by-fake-gh",
+  "target": "branch",
+  "source_type": "Repository",
+  "enforcement": "active",
+  "created_at": "2026-08-19T16:00:00.000Z",
+  "updated_at": "2026-08-19T16:00:00.000Z"
+}

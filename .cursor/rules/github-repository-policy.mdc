@@ -1,0 +1,23 @@
+---
+description: "GitHub repository policy — rulesets on ~DEFAULT_BRANCH, strict status checks deliberately off, per-repo required contexts, Actions concurrency classification. Canonical: rules/dev/github-repository-policy.md"
+alwaysApply: false
+globs: ["config/github/**/*", "core/schemas/repository-policy.json", "scripts/github-policy.sh", "scripts/lib/github-common.sh", "scripts/check-github-policy.sh", ".github/workflows/**/*", "skills/repo/**/*"]
+---
+
+# GitHub repository policy
+
+Canonical rule: `rules/dev/github-repository-policy.md`. The policy itself is data in `config/github/repository-policy.json`, constrained by `core/schemas/repository-policy.json` — never restate a rule, a status-check context, or a concurrency group anywhere else.
+
+Governance is expressed as **repository rulesets**, not classic branch protection. Classic `branches/*/protection` 404s on a correctly governed repo, so reading it reports a protected repository as unprotected.
+
+Target the default branch with GitHub's **`~DEFAULT_BRANCH`** magic ref. Never write a literal branch name: the governed repos mix both spellings, and a literal stops matching the day a branch is renamed.
+
+**`strict_required_status_checks_policy` is `false` deliberately — do not "fix" it.** With it on, every merge un-greens every other open PR under the parallel-worker / one-PR architecture, turning N merges into O(N²) CI runs. Linear history plus a full CI run on the integration branch protects correctness instead.
+
+Required status-check **contexts are per repository, never global** — a context is a CI job name, and a name that no workflow produces blocks every PR forever. Adding a CI job does not make it blocking.
+
+Reviews: **0 required approvals with mandatory review-thread resolution**. On a single-author account an approval requirement is only satisfiable by `--admin`, and a routinely bypassed rule is worse than none. `bypass_actors` stays empty.
+
+Actions concurrency: cancel superseded runs on **tests, lint, typecheck, build, validation, and read-only scans**. **Never** cancel deployments, releases, publishing, migrations, or provisioning — a cancelled run leaves external state half-written. On a tie, never-cancel wins; unclassified workflows are reported, not guessed at.
+
+All GitHub access goes through `gh` (never MCP) via `scripts/lib/github-common.sh`. Here `gh` is not optional: repository policy *is* a GitHub action, so a missing or unauthenticated `gh` is a hard, reportable failure.

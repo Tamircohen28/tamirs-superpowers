@@ -3,7 +3,8 @@
 Auto-scored IDs map to `score-standards-gaps.sh`. Manual follow-up required for content quality.
 
 Canonical references:
-- Badge layout: [`references/readme-badges.md`](references/readme-badges.md)
+- Badge layout and markup rules: [`references/readme-badges.md`](references/readme-badges.md)
+- Banner art direction and quality bar: [`references/readme-banner.md`](references/readme-banner.md)
 - Versioning policy: [`references/versioning-policy.md`](references/versioning-policy.md)
 
 ## S1 README
@@ -14,14 +15,24 @@ Canonical references:
 | S1-02 | CI + license badges (row 1) | P2 |
 | S1-03 | Prerequisites section | P2 |
 | S1-04 | Quick Start section | P2 |
-| S1-05 | Hero banner (`assets/banner.*` referenced in README) | P2 |
+| S1-05 | Hero banner present (`assets/banner.{png,jpg,webp,svg}` referenced in README) | P2 |
 | S1-06 | Author badge linking to GitHub profile | P2 |
 | S1-07 | Version badge (package.json or plugin manifest version) | P2 |
 | S1-08 | `Makefile` exposes `install`, `update`, `uninstall` targets | P2 |
 | S1-09 | AI-target badges row when repo supports ≥2 platforms | P2 |
 | S1-10 | Per-target Quick Start subsections when multi-platform | P2 |
+| S1-11 | No multi-line `<a>` wrapping a badge `<img>` (whitespace inside the anchor renders as an underlined gap) | P2 |
+| S1-12 | No emoji above the first `## ` heading (banner, badge rows, H1, tagline) | P2 |
+| S1-13 | AI-target badge versions match `platform-targets.json` `validated_against` | P2 |
+| S1-14 | Banner meets the designed-graphic quality bar, not a wordmark on a rectangle | P2 |
 
-Manual: features bullets, docs link, Quick Start uses `make install` as primary path.
+S1-11..S1-14 are scored from `scripts/check-readme-branding.sh`. Each needs python3; without
+it every one of them reports `checked: false` and scores nothing — an unread control is
+unknown, never a pass and never a gap.
+
+Manual: features bullets, docs link, Quick Start uses `make install` as primary path, and
+whether the banner's motif actually relates to what the project does (the checker proves the
+file is a graphic, not that the graphic is right).
 
 ## S2 docs/
 
@@ -49,14 +60,42 @@ Manual: issue templates, release workflow, no self-hosted runners.
 
 ## S4 Branch governance
 
+The GitHub-API axis. Everything except S4-01 needs a network read, so all of it is skipped
+when `CONTRACT_OFFLINE=1` **and** when the API could not be read at all — an unread control
+is unknown, not broken, and scoring it is what made this family fire against a compliant repo.
+
+**Rulesets are authoritative.** Classic `branches/*/protection` returns 404 on a
+rulesets-governed repository; its absence is never a gap. It is carried in the inventory as
+`legacy_classic_protection` and reported as a migration item.
+
+Rule values, ruleset names and required status-check contexts are **not** listed here — they
+live in [`config/github/repository-policy.json`](../../../config/github/repository-policy.json)
+and are read from it at scoring time. Required contexts are per-repository and must never be
+globalised.
+
 | ID | Check | Severity |
 |----|-------|----------|
 | S4-01 | CODEOWNERS | P2 |
-| S4-02 | Branch protection enabled | P2 |
-| S4-03 | ≥1 required approving review | P2 |
+| S4-02 | Default branch governed by an active ruleset or classic protection | P2 |
+| S4-03 | *retired* — required ≥1 approving review, which contradicts the canonical solo-contributor policy. Superseded by S4-10. | — |
 | S4-04 | `allow_auto_merge` enabled | P2 |
 | S4-05 | `delete_branch_on_merge` enabled | P3 |
-| S4-06 | Required `CI` status check on default branch | P2 |
+| S4-06 | At least one required status check gates a merge to the default branch | P2 |
+| S4-07 | Canonical `safety` ruleset present and active | P2 |
+| S4-08 | Canonical `pr_ci` ruleset present and active | P2 |
+| S4-09 | `strict_required_status_checks_policy` is **false** | P1 |
+| S4-10 | Review-thread resolution required before merge | P2 |
+| S4-11 | Linear history required | P2 |
+| S4-12 | Force pushes to the default branch blocked | P1 |
+| S4-13 | Deletion of the default branch blocked | P1 |
+| S4-14 | Actions concurrency correct — present on cancellable PR validation, absent on stateful workflows | P2 |
+
+S4-09 is P1 on its own: `strict_required_status_checks_policy` is the "branch must be up to
+date before merging" toggle, and with it on every merge invalidates every other open branch,
+serializing the objective → DAG → workers → one-PR flow behind a rebase queue. It must never
+silently flip.
+
+Apply and verify with `scripts/github-policy.sh` (`audit` / `plan` / `apply` / `verify`).
 
 ## S5 Root legal/ops
 

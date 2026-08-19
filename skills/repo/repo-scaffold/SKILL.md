@@ -36,7 +36,7 @@ metadata:
   - ci-cd
   - claude-code
   - bootstrap
-  updated-date: '2026-06-23'
+  updated-date: '2026-08-19'
   tamirs:
     visibility: public
     category: repo
@@ -92,7 +92,13 @@ When `--src` is a GitHub URL, fetch the root file listing to check for `package.
 
 These patterns are distilled from TamirCohen28's repos. Apply them to every generated repo.
 
-**README structure:** centered hero banner (`<p align="center"><img src="assets/banner.svg" alt="REPO_NAME" width="600" /></p>`), badges (CI, MIT, Claude Code `D97757`), elevator pitch, features, **Prerequisites**, Quick Start, architecture, docs links.
+**README structure:** centered hero banner (`<p align="center"><img src="assets/banner.png" alt="REPO_NAME" width="600" /></p>` — `.png`, `.jpg`, `.webp` or `.svg`), badge rows, elevator pitch, features, **Prerequisites**, Quick Start, architecture, docs links, one-line text footer.
+
+**Three README rules that are checked, not suggested** (`_contract/scripts/check-readme-branding.sh`, gaps S1-11..S1-14 — full statement in `_contract/references/readme-badges.md` and `readme-banner.md`):
+
+1. **Every badge anchor on ONE line:** `<a href="..."><img ... /></a>`. Breaking the anchor across lines puts whitespace *inside* it, which GitHub renders as underlined link text between badges. Never reformat a badge row "for readability".
+2. **No emoji above the first `## ` heading** — not in the H1, the tagline, the badges, or the banner. Body prose below it is free.
+3. **AI-target badge versions are derived, never typed:** read `targets.<key>.validated_against` from `docs/engineering/build-and-release/platform-targets.json`. Copying a version out of a doc or another repo is the defect this check exists for.
 
 **Docs tree** (canonical — see `skills/repo/_contract/standards-contract.json`):
 ```
@@ -105,9 +111,9 @@ docs/
   agent-guidelines/
 ```
 
-**Root file checklist:** `AGENTS.md`, `CLAUDE.md` (line 1: `@AGENTS.md`), `LICENSE`, `Makefile` (with `agent:check`), `.gitignore`, `CODEOWNERS`, `CODE_OF_CONDUCT.md`, `SECURITY.md`, `scripts/check-agent-drift.sh`, `.cursor/rules/000-project.mdc`, `core/capabilities/{schema,platforms}.json`, `.nvmrc` (node/nextjs only), `assets/banner.svg`.
+**Root file checklist:** `AGENTS.md`, `CLAUDE.md` (line 1: `@AGENTS.md`), `LICENSE`, `Makefile` (with `agent:check`), `.gitignore`, `CODEOWNERS`, `CODE_OF_CONDUCT.md`, `SECURITY.md`, `scripts/check-agent-drift.sh`, `.cursor/rules/000-project.mdc`, `core/capabilities/{schema,platforms}.json`, `.nvmrc` (node/nextjs only), `assets/banner.{png|jpg|webp|svg}`.
 
-**Branch strategy:** `master` (default), `stable` (releases). Feature: `feat/`, fixes: `fix/`.
+**Branch strategy:** whatever `gh repo create` made the default (do not assume — resolve it once with `DEFAULT_BRANCH="$(bash "$CONTRACT_ROOT/../../dev-workflow/_shared/scripts/default-branch.sh")"` after the first fetch, and use `$DEFAULT_BRANCH` everywhere below), plus `stable` (releases). Feature: `feat/`, fixes: `fix/`. Generated workflows carry **no** `on.*.branches` filter, so they cannot be desynced from the name.
 
 **Commit convention:**
 ```
@@ -120,7 +126,7 @@ Co-Authored-By: Claude <noreply@anthropic.com>
 
 **CI:** `ci.yml` with jobs named exactly `CI` and `secret-scan`; plus `claude.yml`, `release.yml`, `dependabot.yml`. All use `ubuntu-latest` except Swift (`macos-latest`).
 
-**Branch protection on `master`:** require 1 PR review, require `CI` status check, no direct pushes.
+**Default-branch governance:** applied from `config/github/repository-policy.json` by `scripts/github-policy.sh`, as **branch rulesets** — not classic branch protection, which 404s on a rulesets-governed repo. The policy targets the default branch through GitHub's `~DEFAULT_BRANCH` magic ref, so no branch name is ever hardcoded. Read the rules, the required status-check contexts, the enforcement values and the approving-review count out of that file — never restate or hardcode any of them here. Two things are worth knowing before you read it, because both are counter-intuitive and both are deliberate: the approving-review requirement is set for a **solo contributor** and is paired with review-thread resolution rather than an approval count (an approval requirement deadlocks a one-person repo), and `strict_required_status_checks_policy` is **false** and must stay false — it is not a tunable. With it on, every merge marks every other open branch out of date and the one-objective/one-PR flow stalls behind a serial rebase queue.
 
 **Contract:** `CONTRACT_ROOT="$(cd "$CLAUDE_SKILL_DIR/../_contract" && pwd)"`. Read `$CONTRACT_ROOT/templates/INDEX.md` and stack bodies in `legacy-scaffold-templates.md` — do not invent formats. Exit gate: `app-gold` for `--type app`, `plugin-gold` for `--type plugin`.
 
@@ -196,11 +202,30 @@ Write these files (fully populated — no template placeholders left unfilled):
 
 1. REPO_ROOT/README.md — hero README with Prerequisites + Quick Start (CI badge, MIT badge, Claude Code badge D97757).
    Open with: <p align="center"><img src="assets/banner.svg" alt="REPO_NAME" width="600" /></p>
+   Put every badge anchor on ONE line — <a href="..."><img ... /></a>. A newline inside the anchor is link
+   text and GitHub underlines it between the badges. No emoji anywhere above the first "## " heading.
+   Close with a one-line text footer after a --- rule: MIT © [Tamir Cohen](https://github.com/Tamircohen28)
    If plugin: add Install as Claude Code plugin, Build adapters (npm run build), Security model sections
-1a. REPO_ROOT/assets/banner.svg — SVG hero banner (600×200). Center the repo name in Space Grotesk bold on a
-    dark background (#0F1117), subtitle line in gray (#8B949E), subtle accent stripe in the project's primary
-    color. Keep it minimal — name + one-line description, no clip-art. The SVG must be self-contained (no
-    external font references — embed a web-safe fallback stack).
+1a. REPO_ROOT/assets/banner.svg — hero banner. READ CONTRACT_ROOT/references/readme-banner.md FIRST and
+    follow it; it is the art direction and the pass/fail bar, and this line is only the summary.
+
+    Design a GRAPHIC, not a wordmark. Pick one visual motif that says what the project does (a pipeline,
+    a hub fanning out to targets, layered gates, an instrument) and build the picture around it:
+    wordmark left, motif right; three depth planes (ground, motif, accent) using overlap, slight
+    rotation, opacity falloff and one soft radial glow; a gradient on the hero object; a faint grid or
+    circuit substrate at ~6% contrast; near-black ground (#0B0E14–#111726), near-white type, two brand
+    hues. 1200x400 viewBox. Self-contained — no external font or image reference.
+
+    It must PASS, and check-readme-branding.sh decides: >= 16 non-text shapes, <= 3 <text> elements,
+    >= 5 shapes per text element, at least one gradient/filter/mask/opacity, a <title> and a <desc>
+    whose sentence names the motif and its relation to the project, and ZERO emoji codepoints (emoji
+    clip-art renders as tofu). Worked examples to copy the structure of:
+    CONTRACT_ROOT/fixtures/scaffold-gold/assets/banner.svg and .../scaffold-plugin-gold/assets/banner.svg.
+
+    A raster is equally acceptable and often better: 1280x640 png/jpg at assets/banner.png, >= 20 KB,
+    >= 800px wide. Use one when you can actually render an image; otherwise author the SVG.
+
+    Verify before finishing: bash CONTRACT_ROOT/scripts/check-readme-branding.sh REPO_ROOT
 2. REPO_ROOT/docs/README.md — canonical docs index
 3. REPO_ROOT/docs/CHANGELOG.md — Unreleased + 0.1.0 stub
 4. REPO_ROOT/docs/CONTRIBUTING.md — fork, branch naming, commit convention, PR process
@@ -235,7 +260,7 @@ Write these files:
 
 1. REPO_ROOT/.claude/settings.json — per template, with TECH-appropriate permissions added to the allow list
 
-2. REPO_ROOT/.claude/rules/constraints.md — project hard constraints (no secrets, no force-push to master, no .github/workflows/ edits without review, plus 3-5 TECH-appropriate constraints)
+2. REPO_ROOT/.claude/rules/constraints.md — project hard constraints (no secrets, no force-push to the default branch, no .github/workflows/ edits without review, plus 3-5 TECH-appropriate constraints)
 
 3. If SCAFFOLD_TYPE=app: REPO_ROOT/.claude/skills/run-REPO_NAME/SKILL.md — utility skill (30-50 lines)
 
@@ -406,7 +431,9 @@ Includes: README, docs, AGENTS.md, CLAUDE.md, .claude/, CI/CD, multi-agent adapt
 Co-Authored-By: Claude <noreply@anthropic.com>
 EOF
 )"
-git push origin master
+# Push the branch the local repo is actually on. Hardcoding a name here pushed
+# to a branch `gh repo create` never made, leaving CI that never fired.
+git push -u origin HEAD
 ```
 
 Enable PR auto-merge (required for `start-dev` / `pr-dev`):
@@ -415,11 +442,26 @@ Enable PR auto-merge (required for `start-dev` / `pr-dev`):
 bash "$CONTRACT_ROOT/scripts/enable-repo-merge-settings.sh" "TamirCohen28/$REPO_NAME"
 ```
 
-Apply branch protection on `master` (create if missing, verify 1 review + `CI` check):
+Apply the canonical repository policy (branch rulesets on the default branch):
 
 ```bash
-bash "$CONTRACT_ROOT/scripts/ensure-branch-protection.sh" "TamirCohen28/$REPO_NAME" master
+PLUGIN_ROOT="$(cd "$CONTRACT_ROOT/../../.." && pwd)"
+bash "$PLUGIN_ROOT/scripts/github-policy.sh" apply --repo "TamirCohen28/$REPO_NAME"
 ```
+
+This replaced `ensure-branch-protection.sh`, which wrote classic `branches/*/protection` with one literal `CI` context and a hardcoded default-branch name. The old script remains only as a deprecating shim onto this command.
+
+**If it cannot run, the scaffold still succeeded.** Repository creation must never fail because branch governance could not be applied — the local tree, the docs, the CI and the contract gate are all real work that is already done and pushed. `github-policy.sh apply` exits non-zero when `gh` is missing, unauthenticated, or lacks repository-administration permission, and when there is no TTY to confirm at it prints the plan and writes nothing. Treat every one of those as a **degraded success**: continue to Stage 5, and report verbatim in the Stage 6 summary —
+
+> Local repository configured. GitHub repository policy was not applied because GitHub administration access is unavailable.
+
+— followed by the exact command the user can run themselves once access exists:
+
+```bash
+bash scripts/github-policy.sh apply --repo TamirCohen28/$REPO_NAME
+```
+
+Do not retry, do not fall back to classic branch protection, and do not silently mark the repo as protected.
 
 ### Stage 5: Run skill-creator
 
@@ -429,7 +471,7 @@ Invoke `tamirs-superpowers:skill-creator`:
 
 ```
 Generate 2 project-specific skills for the repo at REPO_ROOT.
-Save them to REPO_ROOT/.claude/skills/ and push to origin master.
+Save them to REPO_ROOT/.claude/skills/ and push the current branch (`git push -u origin HEAD`).
 ```
 
 **If `--type plugin`** — generate 1 skill into canonical source:
@@ -437,7 +479,7 @@ Save them to REPO_ROOT/.claude/skills/ and push to origin master.
 ```
 Generate 1 project-specific skill for the agent-kit at REPO_ROOT.
 Save to REPO_ROOT/canonical/skills/<skill-name>/SKILL.md (portable format).
-Run npm run build to sync into plugins/REPO_NAME/skills/. Push to origin master.
+Run npm run build to sync into plugins/REPO_NAME/skills/. Push the current branch (`git push -u origin HEAD`).
 ```
 
 ### Stage 6: Final Summary
@@ -447,7 +489,7 @@ Print:
 ✓ Repo created:       https://github.com/TamirCohen28/REPO_NAME
 ✓ Contract:          CONTRACT_PROFILE passed (assert-contract.sh)
 ✓ Scaffold type:     SCAFFOLD_TYPE
-✓ Branch protection:  master — 1 required review + CI check
+✓ Repository policy:  applied from config/github/repository-policy.json (or: NOT APPLIED — see above)
 ✓ skill-creator:      ran
 
 Next steps (app):

@@ -5,7 +5,8 @@
 	assert-contract repo-standards-gate opencode-agents opencode-agents-check \
 	check-marketplace-schema check-doc-claims test-hooks doctor check-version-truth \
 	check-capability-registry validate-roles check-gemini-adapter gemini-extension \
-	gemini-extension-check bootstrap-dev
+	gemini-extension-check bootstrap-dev github-policy github-policy-plan \
+	check-github-policy
 
 SKILLS_DIR := skills
 HOOKS_DIR  := hooks
@@ -16,6 +17,9 @@ help:
 	@echo "  setup                   — render repo config onto this machine (detect, diff, confirm)"
 	@echo "  setup-plan              — show what setup would change; writes nothing"
 	@echo "  capture                 — the inverse: review this machine's hand-edits back into the repo"
+	@echo "  github-policy-plan      — show what the GitHub repository policy would change; writes nothing"
+	@echo "  github-policy           — apply the GitHub repository policy (diff + confirm per repository)"
+	@echo "  check-github-policy     — validate the canonical policy document (offline)"
 	@echo "  install                 — bootstrap ~/.claude/settings.json and specialist agents"
 	@echo "  update                  — refresh plugin + agents"
 	@echo "  uninstall               — remove installed agents and uninstall plugin when possible"
@@ -56,6 +60,23 @@ setup-plan:
 capture:
 	@bash scripts/capture-config.sh review
 
+# `plan` never writes. `apply` shows the current-vs-desired ruleset diff and
+# confirms per repository; with no terminal it degrades to a plan and writes
+# nothing. Bulk scope (--all / --org) is deliberately NOT reachable from make.
+# Exit 3 means "drift found", which is a report, not a broken build — only a
+# real failure (exit 1) fails the target.
+github-policy-plan:
+	@bash scripts/github-policy.sh plan || [ $$? -eq 3 ]
+
+github-policy:
+	@bash scripts/github-policy.sh apply || [ $$? -eq 3 ]
+
+# Offline: the policy document's own invariants. Runs with no network, no gh and
+# no credential, which is why it is safe inside `make validate`.
+check-github-policy:
+	@echo "--- GitHub repository policy (offline) ---"
+	@bash scripts/check-github-policy.sh .
+
 install:
 	@bash scripts/install.sh
 
@@ -73,7 +94,7 @@ test-hooks:
 
 validate: lint test-hooks test-repo-contract check-manifest-versions check-platform-equivalence \
 	check-marketplace-schema check-doc-claims check-version-truth check-capability-registry \
-	validate-roles check-gemini-adapter
+	validate-roles check-gemini-adapter check-github-policy
 	@echo "--- Validating JSON files ---"
 	@find . -name '*.json' -not -path '*/.git/*' | while read f; do \
 	  jq empty "$$f" 2>&1 && echo "  OK  $$f" || { echo "  FAIL $$f"; exit 1; }; \

@@ -99,12 +99,13 @@ Marketplace declarations are per-target and not interchangeable. Claude Code's `
    gh workflow run release.yml -f version=X.Y.Z
    ```
 
-   The push-to-master job **Manifest/tag version alignment** emits a `::warning::` ("Release pending") rather than failing — the tag provably cannot exist at merge time, so failing there was a race, not a signal. The warning is the reminder; leaving it unreleased strands installed users on the cached copy.
+   The push-to-default-branch job **Manifest/tag version alignment** emits a `::warning::` ("Release pending") rather than failing — the tag provably cannot exist at merge time, so failing there was a race, not a signal. The warning is the reminder; leaving it unreleased strands installed users on the cached copy.
 6. **Verify the tag contains the change** before announcing it:
 
    ```bash
    git fetch --tags
-   git diff "vX.Y.Z" origin/master -- skills/ hooks/ scripts/ agents/ core/   # expect empty
+   git diff "vX.Y.Z" "origin/$(bash skills/dev-workflow/_shared/scripts/default-branch.sh)" \
+     -- skills/ hooks/ scripts/ agents/ core/                                  # expect empty
    git show "vX.Y.Z:plugin-version.json" | jq -r .version                     # expect X.Y.Z
    ```
 
@@ -145,4 +146,4 @@ Then `/reload-plugins`. Claude Code also supports `--plugin-dir` for running str
 - `extraKnownMarketplaces` appears as an array anywhere (`check-marketplace-schema`);
 - a version moves **backwards** relative to the latest `vX.Y.Z` tag.
 
-Pull requests run `--manifests-only` (tag comparison skipped); pushes to master run `--allow-pending-release`. Neither fails a legitimate bump PR — if alignment fails, the cause is real drift, not the pending release.
+Pull requests run `--manifests-only` (tag comparison skipped); pushes to the default branch run `--allow-pending-release`. Neither fails a legitimate bump PR — if alignment fails, the cause is real drift, not the pending release.

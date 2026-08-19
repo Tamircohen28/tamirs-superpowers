@@ -739,7 +739,10 @@ deliver() {
   git log --oneline -5 | sed 's/^/    /' | while IFS= read -r l; do out "$l"; done
   out "PR body written to $body"
   out ""
-  out "  Open it:  gh pr create --base master --head $branch --title 'feat(capture): adopt hand-edited config' --body-file $body"
+  # --base is omitted deliberately: gh defaults to the repo's own default branch.
+  # Printing a literal here produced a copy-pasteable command that fails on every
+  # repo whose default is named something else.
+  out "  Open it:  gh pr create --head $branch --title 'feat(capture): adopt hand-edited config' --body-file $body"
   out "  Drive it: /pr-dev"
   out ""
   out "  This command does not push, does not open the PR, and never merges."

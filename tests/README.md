@@ -9,9 +9,10 @@ read from stdin. A suite you can only run on a maintainer's laptop is not a test
 | Path | What it is |
 |------|------------|
 | `test-*.sh` | Entrypoints. `make test-hooks` runs every one of them (`find tests -maxdepth 1`). |
-| `lib/` | Sourced helpers — assertions, temp fixtures, portability shims, the fake-agent harness. Never executed directly. |
+| `lib/` | Sourced helpers — assertions, temp fixtures, portability shims, and two `gh` doubles: `fake-agent.sh`'s recording stub (orchestration sims — records argv, returns nothing) and `fake-gh.sh` (API-shaped tests — serves fixtures, records bodies, injects HTTP errors). Never executed directly. **Do not source both into one shell** — see below. |
 | `orchestration/` | Scenario fragments sourced by `test-orchestration.sh`. |
 | `contract/` | Per-platform contract suites, run by `contract/run.sh`. |
+| `fixtures/github/` | Canned GitHub API responses served by `lib/fake-gh.sh`. One directory per scenario, each with a `README.md` naming what it represents. |
 
 ## Entrypoints
 
@@ -21,6 +22,7 @@ bash tests/test-skill-contract.sh         # per-skill contract + eval-coverage r
 bash tests/test-static.sh                 # static repository invariants
 bash tests/test-docs.sh                   # docs tell the truth about the repo
 bash tests/contract/run.sh [platform...]  # platform contract suites
+bash tests/test-fake-gh.sh                # the fake-gh mock tests itself
 
 # hook behaviour (pre-existing suites)
 bash tests/test-check-done-tiers.sh
@@ -74,6 +76,26 @@ Scenarios:
 | `delivery` | exactly one PR; a second delivery unit needs a stated exception |
 | `sequential-equivalence` | the no-subagent path reaches the same final state as the parallel path |
 | `no-worker-pr` | the shipped `SKILL.md` files require what the simulation proves |
+
+### The two `gh` doubles do not compose
+
+`lib/fake-agent.sh` and `lib/fake-gh.sh` both define `gh_calls` **and**
+`fake_gh_install`, over different state. Sourcing both into one shell leaves
+whichever loaded second in place, silently.
+
+That is not a tidiness problem. `gh_calls` reading the wrong (or an empty) log
+makes `gh_calls 'pr create'` return `0`, and **every "no worker created a PR"
+assertion in the orchestration suite then passes without measuring anything** —
+the single most important assertion in the refactor, reduced to a tautology.
+
+So it is enforced, not just documented, in both source orders:
+
+- `fake-agent.sh` aborts at source time if `fake-gh.sh` is already loaded.
+- `test-orchestration.sh` asserts after sourcing that `gh_calls` and
+  `fake_gh_install` still resolve to the fake-agent implementations.
+
+Pick one double per suite. Orchestration sims want `fake-agent.sh`; anything
+asserting on GitHub API shapes wants `fake-gh.sh`.
 
 ## Portability
 

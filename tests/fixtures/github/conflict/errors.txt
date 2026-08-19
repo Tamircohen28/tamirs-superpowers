@@ -1,0 +1,1 @@
+PUT repos/*/*/rulesets/* 409

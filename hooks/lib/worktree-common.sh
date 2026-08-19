@@ -272,10 +272,27 @@ worktree_deps_enabled() {
 
 # A single digest over every lockfile present. Any dependency change moves it;
 # nothing else does, so an unchanged digest is a safe skip.
+# Digest of every lockfile present, or EMPTY when the worktree has none.
+#
+# Emptiness matters: run_worktree_post_setup skips the install when the digest
+# matches the stamp, and hashing an empty stream yields a CONSTANT digest. So a
+# repo with no lockfile at all used to produce the same non-empty hash forever
+# — the first create stamped it and every later create "matched" and skipped,
+# whether or not anything had been installed. No lockfile means no basis for
+# claiming the deps are unchanged, and that must read as "unknown", not "same".
 worktree_lockfile_hash() {
-  local worktree_path="$1" f
+  local worktree_path="$1" f found=0
+  local files=(
+    package-lock.json yarn.lock pnpm-lock.yaml bun.lockb bun.lock deno.lock
+    poetry.lock uv.lock Pipfile.lock requirements.txt
+    Cargo.lock go.sum Gemfile.lock composer.lock mix.lock
+  )
+  for f in "${files[@]}"; do
+    [[ -f "${worktree_path}/${f}" ]] && found=1
+  done
+  (( found )) || return 0
   {
-    for f in package-lock.json yarn.lock pnpm-lock.yaml poetry.lock requirements.txt Cargo.lock go.sum; do
+    for f in "${files[@]}"; do
       [[ -f "${worktree_path}/${f}" ]] && printf '%s ' "$f" && cat "${worktree_path}/${f}"
     done
   } 2>/dev/null | { shasum -a 256 2>/dev/null || sha256sum 2>/dev/null || cksum; } | awk '{print $1}'
@@ -331,9 +348,27 @@ _export_shared_pkg_cache() {
 # package manager. Skips when node_modules is already present (e.g. symlinked),
 # when deps are disabled, or when the lockfile digest matches the last
 # successful install. Logs to session-files/worktree-setup.log; never fatal.
+# The setup log is OUR artifact, not the user's work. Left visible to git it
+# shows up in `git status --porcelain`, and worktree-remove.sh reads a non-empty
+# porcelain as "uncommitted changes — not removed" — so a worktree would refuse
+# to be cleaned up because of a file this function wrote. A per-worktree
+# .git/info/exclude entry hides it without touching the repo's tracked
+# .gitignore. (Latent before this change; unmissable now that the log always
+# records an outcome, including "nothing to install".)
+_exclude_session_files() {
+  local worktree_path="$1" exclude
+  exclude="$(git -C "$worktree_path" rev-parse --git-path info/exclude 2>/dev/null || true)"
+  [[ -n "$exclude" ]] || return 0
+  case "$exclude" in /*) : ;; *) exclude="${worktree_path}/${exclude}" ;; esac
+  mkdir -p "$(dirname "$exclude")" 2>/dev/null || return 0
+  grep -qxF 'session-files/' "$exclude" 2>/dev/null && return 0
+  printf 'session-files/\n' >> "$exclude" 2>/dev/null || true
+}
+
 run_worktree_post_setup() {
   local worktree_path="$1"
   local logfile="${worktree_path}/session-files/worktree-setup.log"
+  _exclude_session_files "$worktree_path"
   mkdir -p "$(dirname "$logfile")"
   local stamp errors=()
   stamp="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
@@ -364,22 +399,72 @@ run_worktree_post_setup() {
   fi
   _export_shared_pkg_cache
 
+  # Dependency install, per ecosystem. This used to cover JS (three lockfiles)
+  # and poetry only: a Go, Rust, uv, bun or Deno worktree came up with no deps
+  # and the log said nothing at all about why. Every branch below logs what it
+  # ran, and the tail of the function logs when nothing matched — a worktree
+  # without deps must be a stated outcome, not a silent one.
+  local installed=0
+  run_install() { # run_install <label> <cmd...>
+    local label="$1"; shift
+    echo "${stamp} ${label}" >> "$logfile"
+    installed=1
+    (cd "$worktree_path" && "$@" >> "$logfile" 2>&1) || errors+=("$label")
+  }
+  have() { command -v "$1" >/dev/null 2>&1; }
+
   if [[ -f "${worktree_path}/package.json" ]]; then
-    if [[ -f "${worktree_path}/yarn.lock" ]]; then
-      echo "${stamp} yarn install" >> "$logfile"
-      (cd "$worktree_path" && yarn install --immutable >> "$logfile" 2>&1) || errors+=("yarn install")
-    elif [[ -f "${worktree_path}/package-lock.json" ]]; then
-      echo "${stamp} npm ci" >> "$logfile"
-      (cd "$worktree_path" && npm ci >> "$logfile" 2>&1) || errors+=("npm ci")
-    elif [[ -f "${worktree_path}/pnpm-lock.yaml" ]]; then
-      echo "${stamp} pnpm install" >> "$logfile"
-      (cd "$worktree_path" && pnpm install --frozen-lockfile >> "$logfile" 2>&1) || errors+=("pnpm install")
+    if   [[ -f "${worktree_path}/yarn.lock" ]] && have yarn; then
+      run_install "yarn install" yarn install --immutable
+    elif [[ -f "${worktree_path}/package-lock.json" ]] && have npm; then
+      run_install "npm ci" npm ci
+    elif [[ -f "${worktree_path}/pnpm-lock.yaml" ]] && have pnpm; then
+      run_install "pnpm install" pnpm install --frozen-lockfile
+    elif [[ -f "${worktree_path}/bun.lockb" || -f "${worktree_path}/bun.lock" ]] && have bun; then
+      run_install "bun install" bun install --frozen-lockfile
+    elif have npm; then
+      # package.json with no lockfile: `npm ci` would fail, `npm install` is the
+      # honest equivalent. Previously this case installed nothing, silently.
+      run_install "npm install (no lockfile present)" npm install
+    else
+      echo "${stamp} package.json present but no usable package manager on PATH — deps NOT installed" >> "$logfile"
     fi
   fi
 
-  if [[ -f "${worktree_path}/pyproject.toml" && ! -d "${worktree_path}/.venv" ]] && command -v poetry >/dev/null 2>&1; then
-    echo "${stamp} poetry install" >> "$logfile"
-    (cd "$worktree_path" && poetry install >> "$logfile" 2>&1) || errors+=("poetry install")
+  if [[ -f "${worktree_path}/deno.json" || -f "${worktree_path}/deno.jsonc" ]] && have deno; then
+    run_install "deno install" deno install
+  fi
+
+  if [[ ! -d "${worktree_path}/.venv" ]]; then
+    if   [[ -f "${worktree_path}/uv.lock" ]] && have uv; then
+      run_install "uv sync" uv sync
+    elif [[ -f "${worktree_path}/poetry.lock" || -f "${worktree_path}/pyproject.toml" ]] && have poetry; then
+      run_install "poetry install" poetry install
+    elif [[ -f "${worktree_path}/Pipfile.lock" ]] && have pipenv; then
+      run_install "pipenv sync" pipenv sync
+    elif [[ -f "${worktree_path}/pyproject.toml" || -f "${worktree_path}/requirements.txt" ]]; then
+      echo "${stamp} Python project detected but no uv/poetry/pipenv on PATH — deps NOT installed (create a venv and install manually)" >> "$logfile"
+    fi
+  fi
+
+  if [[ -f "${worktree_path}/go.mod" ]] && have go; then
+    run_install "go mod download" go mod download
+  fi
+
+  if [[ -f "${worktree_path}/Cargo.toml" ]] && have cargo; then
+    run_install "cargo fetch" cargo fetch
+  fi
+
+  if [[ -f "${worktree_path}/Gemfile" ]] && have bundle; then
+    run_install "bundle install" bundle install
+  fi
+
+  if [[ -f "${worktree_path}/composer.json" ]] && have composer; then
+    run_install "composer install" composer install
+  fi
+
+  if (( ! installed )); then
+    echo "${stamp} no recognised dependency manifest (package.json, pyproject.toml, go.mod, Cargo.toml, Gemfile, composer.json, deno.json) — nothing installed" >> "$logfile"
   fi
 
   _release_install_slot "$slot"

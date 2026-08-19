@@ -1,0 +1,2 @@
+ANY repos/*/*/rulesets 403
+ANY repos/*/*/rulesets/* 403

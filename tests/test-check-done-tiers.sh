@@ -42,6 +42,11 @@ git -C "$REPO" config user.name t
 git -C "$REPO" commit -q --allow-empty -m init
 # An uncommitted code change is the precondition for the hook saying anything.
 printf 'echo hi\n' > "$REPO/script.sh"
+# The tier-3 / no-tier reminders name CI evidence only when this repo HAS CI —
+# that clause is derived, not assumed (see hooks/check-done.sh). This fixture is
+# a CI-having repo; tests/test-shape.sh covers the CI-less counterpart.
+mkdir -p "$REPO/.github/workflows"
+printf 'name: CI\non: [push]\n' > "$REPO/.github/workflows/ci.yml"
 
 # run_check [env assignments...] — the hook's stderr (its only output channel).
 run_check() {

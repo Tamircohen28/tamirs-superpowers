@@ -1,0 +1,1 @@
+GET repos/*/*/branches/*/protection 404

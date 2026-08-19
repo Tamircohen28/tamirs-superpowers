@@ -72,6 +72,32 @@ fi
 
 repo="$(basename "$root")"
 
+# --- does this repo have CI at all? ----------------------------------------
+# Tier 3 used to demand "CI is green (gh run list / gh pr checks)" from every
+# repo. A repo with no CI configuration can never satisfy that, so the agent
+# either blocks on a gate that will never turn green or invents a result. CI
+# presence is an observable fact — read it, and say which evidence is actually
+# available here.
+ci_system=""
+if [ -d "$root/.github/workflows" ] \
+   && find "$root/.github/workflows" \( -name '*.yml' -o -name '*.yaml' \) 2>/dev/null | grep -q .; then
+  ci_system="GitHub Actions"
+elif [ -f "$root/.gitlab-ci.yml" ];        then ci_system="GitLab CI"
+elif [ -d "$root/.circleci" ];             then ci_system="CircleCI"
+elif [ -d "$root/.buildkite" ];            then ci_system="Buildkite"
+elif [ -f "$root/azure-pipelines.yml" ];   then ci_system="Azure Pipelines"
+elif [ -f "$root/Jenkinsfile" ];           then ci_system="Jenkins"
+fi
+
+# The CI clause of the tier-3 / default reminder, phrased from what was found.
+if [ -z "$ci_system" ]; then
+  ci_clause="This repo has NO CI configuration (no .github/workflows, .gitlab-ci.yml, .circleci/, .buildkite/, azure-pipelines.yml or Jenkinsfile) — local lint/typecheck/tests are the whole gate. Do not wait for, cite, or invent a CI result here."
+elif [ "$ci_system" = "GitHub Actions" ]; then
+  ci_clause="Also confirm CI is green — this repo uses GitHub Actions, so cite 'gh run list' / 'gh pr checks'."
+else
+  ci_clause="Also confirm CI is green — this repo uses ${ci_system}; cite its result from that system (gh commands do not apply)."
+fi
+
 case "$tier" in
   0)
     printf '⚠ DoD reminder (tier 0, edit-time): %s changed code file(s) in '"'"'%s'"'"'. Confirm the touched files parse and are formatted. Do not run the full suite here.\n' \
@@ -86,13 +112,13 @@ case "$tier" in
       "$changed" "$repo" >&2
     ;;
   3)
-    printf '⚠ DoD reminder (tier 3, delivery): %s changed code file(s) in '"'"'%s'"'"'. Before claiming done, confirm lint/typecheck/tests pass AND that CI is green ('"'"'gh run list'"'"' / '"'"'gh pr checks'"'"') — cite the result. Do not assert success without evidence.\n' \
-      "$changed" "$repo" >&2
+    printf '⚠ DoD reminder (tier 3, delivery): %s changed code file(s) in '"'"'%s'"'"'. Before claiming done, confirm lint/typecheck/tests pass. %s Do not assert success without evidence.\n' \
+      "$changed" "$repo" "$ci_clause" >&2
     ;;
   *)
     # No tier context — the pre-objective default, byte-for-byte in intent.
-    printf '⚠ DoD reminder: %s changed code file(s) in '"'"'%s'"'"'. Before claiming done, confirm lint/typecheck/tests pass AND that CI is green (e.g. '"'"'gh run list'"'"' / '"'"'gh pr checks'"'"') if the change is pushed — cite the result. Do not assert success without evidence.\n' \
-      "$changed" "$repo" >&2
+    printf '⚠ DoD reminder: %s changed code file(s) in '"'"'%s'"'"'. Before claiming done, confirm lint/typecheck/tests pass. %s Do not assert success without evidence.\n' \
+      "$changed" "$repo" "$ci_clause" >&2
     ;;
 esac
 

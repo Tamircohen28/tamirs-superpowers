@@ -1,0 +1,6 @@
+{
+  "total_count": 1,
+  "workflows": [
+    { "id": 201, "node_id": "W_kwDO9", "name": "CI", "path": ".github/workflows/ci.yml", "state": "active" }
+  ]
+}

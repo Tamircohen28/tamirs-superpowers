@@ -1,0 +1,231 @@
+{
+  "$schema": "../../core/schemas/repository-policy.json",
+  "schema_version": 1,
+  "version": "1.1.0",
+  "last_reviewed": "2026-08-19",
+  "_comment": "Canonical GitHub repository policy for the repos this account governs. Derived from the two rulesets live on Tamircohen28/tamirs-superpowers (captured 2026-08-19), not from prose — see session-files/ground-truth-rulesets.md. This file is the single source of truth: no SKILL.md, script, or doc may restate a rule, a context list, or a concurrency group found here. Change workflow: edit -> bump `version` -> `bash scripts/check-github-policy.sh` (offline) -> `scripts/github-policy.sh plan` to see live drift.",
+
+  "defaults": {
+    "_comment": "Every ruleset targets the default branch through GitHub's ~DEFAULT_BRANCH magic ref. NO LITERAL BRANCH NAME MAY APPEAR ANYWHERE IN THIS FILE. 15 of the 19 governed repos default to one spelling and 4 to the other, so any literal would be wrong on one of those sets, and it would silently stop matching the day a default branch is renamed. scripts/check-github-policy.sh enforces this by scanning every string value in this document.",
+    "target": "branch",
+    "enforcement": "active",
+    "conditions": {
+      "ref_name": {
+        "include": ["~DEFAULT_BRANCH"],
+        "exclude": []
+      }
+    },
+    "bypass_actors": []
+  },
+
+  "required_checks": {
+    "_comment": "STRICT / 'require branches to be up to date before merging' IS DELIBERATELY OFF. DO NOT TURN IT ON. This is a decision, not an oversight. The development architecture here is objective -> DAG -> parallel workers -> integration -> ONE pull request. With strict_required_status_checks_policy=true, every merge to the default branch invalidates every other open PR's green status and forces a rebuild of all of them: N merges cost O(N^2) CI runs, workers block on each other, and the integration PR can never stay green long enough to land. Correctness is protected instead by required_linear_history (no merge commits sneaking untested combinations in) plus a full CI run on the integration branch before it merges. If you believe this needs to change, change the architecture first.",
+    "source": "per_repository",
+    "default_contexts": [],
+    "integration_id": 15368,
+    "integration_name": "GitHub Actions",
+    "strict_required_status_checks_policy": false,
+    "strict_is_intentional": true,
+    "do_not_enforce_on_create": true,
+    "source_note": "Required contexts are per-repository and are NEVER global. A context is a CI job name; job names differ per repo, and a name that does not exist in a repo's workflows blocks every PR in that repo forever. The global default is the empty list; each repo opts its own contexts in under `repositories.<owner/repo>.required_checks.contexts`."
+  },
+
+  "overridable_parameters": {
+    "_comment": "The closed set of rule parameters a repository may override, and which direction is stricter for each. Keep this NARROW. Opening the whole `parameters` object would make the canonical rulesets a suggestion — any repository could restate any rule and nothing would notice. Add an entry only when a real case appears, and always with its `stricter` direction, because that is what lets a raise be applied cleanly while a lowering has to be acknowledged and is reported on every run.",
+    "required_approving_review_count": {
+      "rule": "pull_request",
+      "summary": "How many approving reviews a pull request needs before it can merge. The account default is 0 (see the pull_request rule); a repository with outside collaborators may raise it.",
+      "stricter": "higher"
+    }
+  },
+
+  "rulesets": [
+    {
+      "key": "safety",
+      "name": "Default Branch - Safety",
+      "_comment": "The floor. Nothing here depends on CI existing, so it is safe to apply to a repo on its first day.",
+      "target": "branch",
+      "enforcement": "active",
+      "conditions": {
+        "ref_name": {
+          "include": ["~DEFAULT_BRANCH"],
+          "exclude": []
+        }
+      },
+      "bypass_actors": [],
+      "rules": [
+        {
+          "type": "deletion",
+          "_comment": "The default branch cannot be deleted."
+        },
+        {
+          "type": "non_fast_forward",
+          "_comment": "No force pushes. Rewriting published history on the default branch is the one unrecoverable mistake in this workflow."
+        }
+      ]
+    },
+    {
+      "key": "pr_ci",
+      "name": "Default Branch - PR & CI",
+      "_comment": "How change reaches the default branch: through a pull request, with CI green, on a linear history. Apply this only after a CI workflow exists on the default branch — required contexts that no workflow produces would block every PR. KNOWN LIVE DRIFT (2026-08-19): the copy of this ruleset on Tamircohen28/tamirs-superpowers carries a bypass actor — RepositoryRole 5 (repository admin), bypass_mode `always` — which the ground-truth capture did not record. Canonical says `bypass_actors: []`, deliberately: on a single-admin account an always-bypass for admins means every rule below is advisory, and the drift is exactly the kind that a ruleset screenshot hides. The first `github-policy.sh plan` will show removing it; that removal is the user's call to make, not a script's.",
+      "target": "branch",
+      "enforcement": "active",
+      "conditions": {
+        "ref_name": {
+          "include": ["~DEFAULT_BRANCH"],
+          "exclude": []
+        }
+      },
+      "bypass_actors": [],
+      "rules": [
+        {
+          "type": "required_linear_history",
+          "_comment": "Squash or rebase only in effect: the default branch stays a straight line, so `git log` is a readable list of objectives and a revert is a single commit."
+        },
+        {
+          "type": "required_status_checks",
+          "_comment": "`required_status_checks` is EMPTY here on purpose — contexts are resolved per repository from `required_checks` and `repositories.<owner/repo>.required_checks.contexts`, never from this array. check-github-policy.sh fails if this array is ever non-empty.",
+          "parameters": {
+            "do_not_enforce_on_create": true,
+            "strict_required_status_checks_policy": false,
+            "required_status_checks": []
+          }
+        },
+        {
+          "type": "pull_request",
+          "_comment": "Zero required approvals, because this is a solo-authored account and a self-approval requirement would only be satisfied by --admin bypasses, which would defeat the whole ruleset. The real gate is required_review_thread_resolution: an unresolved review thread — human or bot — blocks the merge. That keeps review meaningful without inventing a second reviewer who does not exist.",
+          "parameters": {
+            "allowed_merge_methods": ["merge", "squash", "rebase"],
+            "dismiss_stale_reviews_on_push": false,
+            "require_code_owner_review": false,
+            "require_last_push_approval": false,
+            "required_approving_review_count": 0,
+            "required_review_thread_resolution": true,
+            "required_reviewers": []
+          }
+        }
+      ]
+    }
+  ],
+
+  "repositories": {
+    "_comment": "Per-repository overrides, keyed by owner/repo. An absent repo inherits the defaults above with an empty required-context list — protected, but not gated on checks it does not have.",
+    "Tamircohen28/tamirs-superpowers": {
+      "_comment": "9 of this repo's CI jobs are required. Adding a CI job does NOT make it blocking; its `name:` must be added to this list and applied.",
+      "required_checks": {
+        "contexts": [
+          "shellcheck",
+          "Validate JSON",
+          "Validate SKILL.md frontmatter",
+          "Secret scan",
+          "claude plugin validate",
+          "Repo contract (scaffold-gold)",
+          "Manifest/tag version alignment",
+          "Platform targets co-change",
+          "HOL Plugin Scanner"
+        ]
+      },
+      "rules": {
+        "disable": [],
+        "enforcement": "active",
+        "parameters": {
+          "pull_request": {
+            "_comment": "1, not the account default of 0, and this is deliberate — do NOT 'fix' it back to match the default. This ruleset carries a repository-admin bypass actor, so the requirement binds COLLABORATORS while the owner still merges through the bypass. Read together, the two say: anyone else's change needs a review; the owner keeps an escape hatch on their own repository. Setting it to 0 here would not simplify anything, it would remove the only review requirement that applies to anyone but the owner. This is a raise above canonical, so it applies cleanly and needs no weakening acknowledgement.",
+            "required_approving_review_count": 1
+          }
+        }
+      },
+      "actions": {
+        "cancel_superseded_pr_runs": true
+      }
+    }
+  },
+
+  "actions": {
+    "_comment": "GitHub Actions concurrency standard. Cancelling a superseded run is free money on a test workflow and data loss on a deployment, so the classification below is data a script can act on, not advice.",
+    "cancel_superseded_pr_runs": true,
+    "concurrency": {
+      "_comment": "The canonical block for a cancellable workflow. Keyed on the PR number when the event is a pull_request, and on the ref otherwise, so pushes to the default branch serialize per-ref instead of colliding with PR runs.",
+      "group": "${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}",
+      "cancel-in-progress": true
+    },
+    "serialize_concurrency": {
+      "_comment": "For a never-cancel workflow that still must not run twice at once (a deploy, a release). Same group, cancellation OFF: the second run queues behind the first instead of killing it.",
+      "group": "${{ github.workflow }}",
+      "cancel-in-progress": false
+    },
+    "workflow_classification": {
+      "_comment": "Classify a workflow by matching its name/filename against `name_patterns` and its file content against `content_signals`. Matching is case-insensitive: lowercase the subject before testing, patterns are stored lowercase. Patterns are POSIX/oniguruma regexes compatible with jq `test()`.",
+      "precedence": "never_cancel_wins",
+      "precedence_note": "If a workflow matches signals in both classes, it is never_cancel. A test job wrongly serialized costs minutes; a deploy wrongly cancelled costs a half-written external state.",
+      "unclassified_action": "report",
+      "unclassified_note": "A workflow matching neither class is reported for a human decision and left untouched. Guessing on an unknown workflow is exactly how a migration gets cancelled mid-run.",
+      "classes": {
+        "cancellable": {
+          "summary": "Pure, repeatable verification. Killing a run mid-flight leaves nothing behind but a cancelled check, and the newer commit's run supersedes it anyway.",
+          "apply_concurrency": true,
+          "concurrency_ref": "concurrency",
+          "name_patterns": [
+            "^ci$",
+            "test",
+            "lint",
+            "typecheck",
+            "type-check",
+            "build",
+            "validate",
+            "check",
+            "plugin.?validate",
+            "codeql",
+            "security.?scan",
+            "static.?analysis",
+            "pre-?commit"
+          ],
+          "content_signals": [
+            { "pattern": "^\\s*pull_request:", "description": "runs on pull_request — the event whose runs are superseded by a newer push" },
+            { "pattern": "make (validate|lint|test)", "description": "repo validation entrypoint" },
+            { "pattern": "(npm|yarn|pnpm) (run )?test", "description": "JS test runner" },
+            { "pattern": "(pytest|go test|cargo test|rspec)", "description": "language test runner" },
+            { "pattern": "(shellcheck|eslint|ruff|flake8|golangci-lint|clippy)", "description": "linter" },
+            { "pattern": "(tsc |mypy|pyright)", "description": "type checker" },
+            { "pattern": "claude plugin validate", "description": "plugin validation" },
+            { "pattern": "(codeql|semgrep|trivy|gitleaks|trufflehog)", "description": "read-only security or secret scan" }
+          ]
+        },
+        "never_cancel": {
+          "summary": "Anything that mutates state outside the repo. A cancelled run leaves that external state half-written — a half-published package version, a tag with no release, a migration applied to some tables, an environment pointing at an artifact that was never uploaded. There is no 'just re-run it' for these.",
+          "apply_concurrency": false,
+          "concurrency_ref": "serialize_concurrency",
+          "concurrency_note": "Never set cancel-in-progress: true on these. If two runs must not overlap, use `serialize_concurrency` so the second queues.",
+          "name_patterns": [
+            "deploy",
+            "release",
+            "publish",
+            "migrat",
+            "provision",
+            "terraform",
+            "infra",
+            "rollout",
+            "promote",
+            "backup",
+            "seed",
+            "tag",
+            "changeset"
+          ],
+          "content_signals": [
+            { "pattern": "^\\s*release:", "description": "triggered by a GitHub release event" },
+            { "pattern": "^\\s*tags:", "description": "triggered by tag pushes — a release path" },
+            { "pattern": "^\\s*environment:", "description": "declares a deployment environment, so a run has an external target" },
+            { "pattern": "id-token:\\s*write", "description": "requests an OIDC token — it is about to authenticate to a cloud provider" },
+            { "pattern": "gh release create", "description": "creates a GitHub release" },
+            { "pattern": "(softprops/action-gh-release|actions/deploy-pages|actions/upload-pages-artifact)", "description": "release or Pages deployment action" },
+            { "pattern": "(npm publish|yarn publish|pnpm publish|cargo publish|twine upload|gem push)", "description": "publishes a package to a registry" },
+            { "pattern": "docker (push|buildx .*--push)", "description": "pushes a container image" },
+            { "pattern": "terraform apply", "description": "mutates infrastructure" },
+            { "pattern": "(aws (s3 sync|cloudformation deploy|ecs update-service)|gcloud (run deploy|app deploy)|az webapp)", "description": "cloud deployment command" },
+            { "pattern": "(alembic upgrade|prisma migrate deploy|flyway migrate|rails db:migrate|supabase db push)", "description": "database migration" }
+          ]
+        }
+      }
+    }
+  }
+}

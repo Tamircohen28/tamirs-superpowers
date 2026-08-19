@@ -28,8 +28,9 @@
 #   { objective, task, layout, platform, worktree_path, branch, base,
 #     created, resumed }
 #
-# Requires git. Does NOT require gh or jq — the default branch comes from
-# git symbolic-ref, falling back to main (rules/dev/gh-cli-preference.md).
+# Requires git. Does NOT require jq. gh is optional — the default branch comes
+# from git symbolic-ref, and gh is only consulted when origin/HEAD is unset
+# (rules/dev/gh-cli-preference.md). No branch name is ever assumed.
 #
 # Exit codes: 0 ok · 1 usage/argument error · 2 not found · 4 refused (dirty tree)
 set -euo pipefail
@@ -99,18 +100,16 @@ resolve_repo_root() {
   [[ -n "$REPO_ROOT" ]] || REPO_ROOT="$(git -C "$here" rev-parse --show-toplevel)"
 }
 
-# Default branch without gh: origin/HEAD, then a local main/master, then HEAD.
+# Default branch: the shared resolver (origin/HEAD, then gh). It refuses to
+# guess a literal, and so does this — a base branch invented here becomes the
+# start point of every worker branch on the objective.
+# shellcheck source=./default-branch.sh
+. "$SCRIPT_DIR/default-branch.sh"
 default_branch() {
   local d
-  d="$(git -C "$REPO_ROOT" symbolic-ref --quiet --short refs/remotes/origin/HEAD 2>/dev/null || true)"
-  d="${d#origin/}"
-  if [[ -z "$d" ]]; then
-    for d in main master; do
-      if git -C "$REPO_ROOT" show-ref --verify --quiet "refs/heads/$d"; then break; fi
-      d=""
-    done
-  fi
-  printf '%s\n' "${d:-main}"
+  d="$(resolve_default_branch "$REPO_ROOT")" \
+    || die "cannot resolve the default branch to base this worktree on — pass --base <branch>" 1
+  printf '%s\n' "$d"
 }
 
 # The commit-ish a new branch starts from, preferring the remote copy.

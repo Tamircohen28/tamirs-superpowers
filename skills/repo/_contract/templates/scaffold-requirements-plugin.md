@@ -68,9 +68,9 @@ Must include paths: `canonical/`, `plugins/`, `scripts/`, `hooks/`
 
 ## Contract profile
 
-Exit gate: `assert-contract.sh <root> plugin-gold` (P1=P2=P3=0 offline except branch protection and merge settings).
+Exit gate: `assert-contract.sh <root> plugin-gold` (P1=P2=P3=0 offline; every GitHub-API check — S4-02, S4-04…S4-14 — is skipped by id).
 
-Apply `enable-repo-merge-settings.sh` and `ensure-branch-protection.sh` in polish phase 4 (same as app-gold).
+Apply `enable-repo-merge-settings.sh`, then `scripts/github-policy.sh apply --repo <owner/name>`, in polish phase 4 (same as app-gold).
 
 ## Templates
 
