@@ -2,8 +2,8 @@
   "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "tamirs-superpowers",
   "displayName": "Tamir's Superpowers",
-  "version": "2.0.1",
-  "description": "27 bundled skills, 6 specialist agents, smart worktree hooks, statusline, and MCP server stubs — plan, implement, review, debug, multi-agent setup, and audit code from one plugin.",
+  "version": "3.0.0",
+  "description": "30 bundled skills, 10 specialist agents, smart worktree hooks, statusline, and MCP server stubs — plan, implement, review, debug, multi-agent setup, and audit code from one plugin.",
   "homepage": "https://github.com/Tamircohen28/tamirs-superpowers",
   "repository": "https://github.com/Tamircohen28/tamirs-superpowers",
   "author": {
@@ -34,7 +34,7 @@
   "settings": {
     "statusLine": {
       "type": "command",
-      "command": "f=$(ls $HOME/.claude/plugins/cache/tamirs-marketplace/tamirs-superpowers/*/scripts/statusline.sh 2>/dev/null | sort -rV | head -1) && [ -n \"$f\" ] && bash \"$f\""
+      "command": "s=\"${CLAUDE_PLUGIN_ROOT:-}/scripts/statusline.sh\"; [ -f \"$s\" ] || s=$(ls $HOME/.claude/plugins/cache/tamirs-marketplace/tamirs-superpowers/*/scripts/statusline.sh 2>/dev/null | sort -rV | head -1); [ -n \"$s\" ] && [ -f \"$s\" ] && bash \"$s\" </dev/null"
     }
   }
 }

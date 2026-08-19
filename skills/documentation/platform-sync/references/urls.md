@@ -1,21 +1,34 @@
-# Platform Sync — URL References
+# Source URLs — `platform-sync`
 
-This umbrella skill delegates all URL fetching to its four internal sub-skills.
-Each sub-skill has its own `references/urls.md` for permitted source URLs.
+**Source URLs are per-target data, not engine configuration.** Each target's permitted
+sources — P0, P1 and P2, with their fetch conditions — live in that target's reference
+file:
 
-| Sub-skill | Platform | URL reference file |
-|---|---|---|
-| platform-sync-claude | Claude Code | `skills/documentation/platform-sync-claude/references/urls.md` |
-| platform-sync-codex | OpenAI Codex CLI | `skills/documentation/platform-sync-codex/references/urls.md` |
-| platform-sync-cursor | Cursor | `skills/documentation/platform-sync-cursor/references/urls.md` |
-| platform-sync-opencode | OpenCode | `skills/documentation/platform-sync-opencode/references/urls.md` |
+| Target | Reference file |
+|---|---|
+| Claude Code (and Claude Desktop as a runtime surface) | `references/platforms/claude-code.md` |
+| OpenAI Codex CLI | `references/platforms/codex.md` |
+| Cursor | `references/platforms/cursor.md` |
+| Gemini CLI | `references/platforms/gemini-cli.md` |
+| OpenCode | `references/platforms/opencode.md` |
 
-The umbrella skill itself does not fetch URLs directly — it reads local config
-(`.claude-plugin/`, `.codex-plugin/`, `.cursor-plugin/`, `opencode.json`) and invokes
-sub-skills via the Skill tool, which handle all fetching internally.
+The engine fetches these itself; there are no per-platform sub-skills doing it any more.
+The deprecated `platform-sync-claude`, `platform-sync-codex`, `platform-sync-cursor` and
+`platform-sync-opencode` shims delegate here and are scheduled for removal.
 
-**Adding a fifth target?** A new target needs all four of: a `platform-sync-<target>`
-sub-skill with its own `urls.md`, a detection section in `references/detection.md`, a row
-in this table, and an entry under `supported_targets` in `platform-targets.json`. The
-`--require-co-change` mode of `scripts/check-platform-targets.sh` enforces the last one;
-the rest are caught by review.
+## Priority legend
+
+- **P0** — always fetched. A P0 failure aborts that target only, never the run.
+- **P1** — fetched when the reference file's "fetch when" condition matches local config.
+- **P2** — fetched only on explicit request, or when P1 sources proved insufficient.
+
+## Adding a target
+
+1. Add the platform to `core/capabilities/platforms.json` with a complete capability block.
+2. Add `references/platforms/<id>.md` following the shape of the existing files.
+3. Add the target to `docs/engineering/build-and-release/platform-targets.json`
+   (`scripts/check-platform-targets.sh --require-co-change` enforces this).
+
+**No change to `SKILL.md` is required, and no new skill is created.** That is the point of
+the restructure: target count and skill count are now independent. Gemini CLI was added
+this way — reference data and a registry entry, no fifth sub-skill.

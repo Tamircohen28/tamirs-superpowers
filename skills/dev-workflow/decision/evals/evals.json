@@ -19,6 +19,32 @@
       "prompt": "walk me through the open decisions",
       "expected_output": "Scans the whole conversation for every unresolved decision/action item, first lists them in one short line each, then presents each one via its own separate AskUserQuestion call in the order raised — never batches multiple decisions into one call — and ends with a short recap of all choices made.",
       "files": []
+    },
+    {
+      "id": 4,
+      "prompt": "summarize issue #57 and give me options",
+      "expected_output": "Capability fallback case. Run on a platform where ask_user_question is unsupported and gh is not available: the skill must degrade to the portable numbered-options block and ask the user to paste the issue text, rather than silently skipping the decision or pretending the picker exists.",
+      "files": [],
+      "expectations": [
+        "ask_user_question is looked up in core/capabilities/platforms.json before any menu is rendered",
+        "When the status is unsupported or unknown, the numbered-options fallback is used and AskUserQuestion is never called",
+        "The fallback still leads with the 1-3 sentence plain-language summary",
+        "The fallback offers 2-4 grounded options plus an explicit 'Something else' escape hatch",
+        "When gh is not available the failure is stated plainly and the user is asked to paste the issue, not guessed at",
+        "The skill does not announce a missing feature or apologise for the degraded mechanism"
+      ],
+      "assertions": [
+        {
+          "text": "AskUserQuestion is not called when the registry reports it unsupported",
+          "passed": null,
+          "evidence": ""
+        },
+        {
+          "text": "A numbered option list with an escape hatch is rendered instead",
+          "passed": null,
+          "evidence": ""
+        }
+      ]
     }
   ]
 }

@@ -62,7 +62,11 @@ if [[ "$HAS_NAME" != "true" ]]; then
   PASSED=false
 fi
 
-# version present and semver-shaped
+# version present and semver-shaped.
+# SHAPE ONLY. Whether this version AGREES with the other manifests, the README badge and
+# the platform-target files is not this script's business — plugin-version.json owns the
+# consumer list and scripts/check-version-truth.sh validates it. Do not add cross-file
+# version comparison here; that would create a second source of truth.
 VERSION=$(jq -r '.version // ""' "$FILE")
 if [[ -z "$VERSION" ]]; then
   FINDINGS+=('{"severity":"warning","field":"version","message":"Missing version field; use semver (e.g. 1.0.0)"}')

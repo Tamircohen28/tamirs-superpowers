@@ -2,18 +2,19 @@
 
 Machine-readable source: [`platform-targets.json`](platform-targets.json).
 
-## The four supported targets
+## The five supported targets
 
-`tamirs-superpowers` ships as a **multi-platform plugin**. These four agent CLIs are the officially supported targets — every skill, doc, and release is validated against all four:
+`tamirs-superpowers` ships as a **multi-platform plugin**. These five agent CLIs are the officially supported targets — every skill, doc, and release is validated against all five:
 
-1. **Claude Code**
+1. **Claude Code** (and **Claude Desktop**, a runtime surface of the same adapter — not a separate target)
 2. **Cursor**
 3. **Codex**
-4. **OpenCode**
+4. **Gemini CLI**
+5. **OpenCode**
 
-Anything else is unsupported. Adding a fifth target means adding it to `supported_targets` in `platform-targets.json`, to the table below, to `scripts/check-platform-targets.sh`, and shipping a `docs/user/install/<target>.md` guide.
+Anything else is unsupported. Adding a target means adding it to `supported_targets` in `platform-targets.json`, to the table below, to `scripts/check-platform-targets.sh`, and shipping a `docs/user/install/<target>.md` guide — full procedure: [adding a platform](../architecture/adding-a-platform.md).
 
-Row 3 README badges show **platform tool versions** directly validated in this release — not the plugin semver (Row 1).
+The README's platform badge row shows **platform tool versions** directly validated in this release — not the plugin semver, which comes from [`plugin-version.json`](../../../plugin-version.json).
 
 ## Versions
 
@@ -24,6 +25,7 @@ Verified **2026-08-17** — Cursor against **3.16.17** on 2026-08-17 (the most r
 | Claude Code | 2.0.0 | 2.1.233 | 2.1.233 | [claude-code.md](../../user/install/claude-code.md) |
 | Cursor | 3.16.17 | 3.16.17 | 3.16.17 | [cursor.md](../../user/install/cursor.md) |
 | Codex | 0.40.0 | 0.146.0 | 0.147.0 | [codex.md](../../user/install/codex.md) |
+| Gemini CLI | 0.55.1 | 0.55.1 | 0.55.1 | [gemini.md](../../user/install/gemini.md) |
 | OpenCode | 1.16.2 | 1.18.11 | 1.18.11 | [opencode.md](../../user/install/opencode.md) |
 
 ### How each floor was set
@@ -35,21 +37,31 @@ Verified **2026-08-17** — Cursor against **3.16.17** on 2026-08-17 (the most r
 | Claude Code | `.claude-plugin/plugin.json` manifest format has been stable since 2.0.0 |
 | Cursor | Cursor's plugin docs state **no** minimum version. Rather than invent one, the floor equals the validated version. Older Cursor releases may work; they are simply untested. |
 | Codex | Earliest release this repo has claimed `AGENTS.md` + `.codex-plugin` support for |
+| Gemini CLI | Gemini CLI documents no minimum for extensions; the floor is the version the adapter was actually exercised on (0.55.1) rather than guessed |
 | OpenCode | Oldest version on which recursive (domain-nested) `SKILL.md` discovery was verified with `opencode debug skill` |
 
 ## Capability coverage
 
-| Capability | Claude Code | Cursor | Codex | OpenCode |
-|------------|:---:|:---:|:---:|:---:|
-| Skills | ✅ | ✅ | ✅ | ✅ |
-| Agents | ✅ | ✅ | ✅ | ✅ (adapters) |
-| MCP servers | ✅ | ✅ | ✅ | ✅ |
-| Rules | via `CLAUDE.md` | ✅ `.mdc` | via `AGENTS.md` | via `AGENTS.md` |
-| Hooks | ✅ | ✅ | ✅ | ❌ JS plugins only |
-| Statusline | ✅ | ❌ | ❌ | ❌ |
-| Marketplace install | ✅ | ✅ | ✅ | ❌ path install |
+Coarse summary only — the authoritative, per-capability picture is
+[`core/capabilities/platforms.json`](../../../core/capabilities/platforms.json), rendered for
+users at [platform differences](../../user/platform-differences.md).
 
-OpenCode's gaps are recorded as `capability_gaps` in `platform-targets.json`. The two that matter:
+| Capability | Claude Code | Cursor | Codex | Gemini CLI | OpenCode |
+|------------|:---:|:---:|:---:|:---:|:---:|
+| Skills | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Agents | ✅ | ✅ | ✅ | ❌ frontmatter rejected | ✅ (adapters) |
+| MCP servers | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Rules | via `CLAUDE.md` | ✅ `.mdc` | via `AGENTS.md` | via `.gemini/GEMINI.md` | via `AGENTS.md` |
+| Hooks | ✅ | ⚠️ project-level only | ✅ manifest field | see install guide | ❌ JS plugins only |
+| Statusline | ✅ | ❌ | ❌ | ❌ | ❌ |
+| Marketplace install | ✅ | ✅ | ✅ | ❌ git-URL extension | ❌ path install |
+
+Gemini's gaps are recorded as `capability_gaps` in `platform-targets.json`, measured on
+0.55.1: no extension-declared statusline, no marketplace, and `agents/*.md` rejected because
+Gemini expects its own tool names rather than Claude's. Nothing is shipped that would error
+on every command.
+
+OpenCode's gaps are recorded the same way. The two that matter:
 
 - **No `hooks.json`.** OpenCode's lifecycle automation is JS/TS plugin modules, so the worktree hooks under `hooks/` do not port. Their intent is carried by `AGENTS.md` contributor rules instead.
 - **Agent files need adapters.** A Claude Code agent (`tools: Read, Grep, Glob, Bash`, `model: sonnet`) fails OpenCode's config validation — it wants `tools` as an object and a provider-prefixed model. `.opencode/agent/*.md` holds the converted files; regenerate with `make opencode-agents`.

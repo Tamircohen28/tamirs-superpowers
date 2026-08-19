@@ -198,7 +198,15 @@ Output from the executor agent. Located at `<run-dir>/outputs/metrics.json`.
 
 Wall clock timing for a run. Located at `<run-dir>/timing.json`.
 
-**How to capture:** When a subagent task completes, the task notification includes `total_tokens` and `duration_ms`. Save these immediately — they are not persisted anywhere else and cannot be recovered after the fact.
+**How to capture:** On a harness that reports subagent completion (Claude Code does), the
+completion notification carries `total_tokens` and `duration_ms`. Save them immediately —
+they are not persisted anywhere else and cannot be recovered after the fact.
+
+**Where no such notification exists, omit this file entirely.** Do not write it with
+estimated or session-total values: a missing `timing.json` reads as "not measured here",
+which is true and legible, while a fabricated one is indistinguishable from a real
+measurement and corrupts every comparison downstream. Record the run mode in
+`benchmark.json` → `metadata.run_mode` so a later reader knows why it is absent.
 
 ```json
 {
@@ -225,8 +233,9 @@ Output from Benchmark mode. Located at `benchmarks/<timestamp>/benchmark.json`.
   "metadata": {
     "skill_name": "pdf",
     "skill_path": "/path/to/pdf",
-    "executor_model": "claude-sonnet-4-20250514",
-    "analyzer_model": "most-capable-model",
+    "executor_model": "<the model actually used — never hardcode an id>",
+    "analyzer_model": "<the model actually used>",
+    "run_mode": "parallel-subagents | sequential-subagents | inline",
     "timestamp": "2026-01-15T10:30:00Z",
     "evals_run": [1, 2, 3],
     "runs_per_configuration": 3

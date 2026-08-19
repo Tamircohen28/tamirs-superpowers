@@ -1,28 +1,162 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "last_reviewed": "2026-07-09",
   "reviewed_by_skill": "tamirs-superpowers@1.6.0",
+  "capability_source": "core/capabilities/platforms.json",
+  "capability_source_note": "targets.<key>.capabilities and capability_gaps are DERIVED from the capability registry. Regenerate with `bash scripts/check-platform-targets.sh . --sync-capabilities`.",
+  "supported_targets": [
+    "claude_code",
+    "codex",
+    "cursor",
+    "gemini_cli",
+    "opencode"
+  ],
   "targets": {
     "claude_code": {
       "supported_min": "2.0.0",
       "validated_against": "2.0.0",
       "latest_known": "2.0.0",
-      "doc_urls": ["https://code.claude.com/docs/en/plugins-reference"],
-      "features_adopted": ["agent-kit-build", "marketplace"]
-    },
-    "cursor": {
-      "supported_min": "0.45.0",
-      "validated_against": "0.45.0",
-      "latest_known": "0.45.0",
-      "doc_urls": ["https://cursor.com/docs"],
-      "features_adopted": ["dist-cursor-rules"]
+      "doc_urls": [
+        "https://code.claude.com/docs/en/plugins-reference"
+      ],
+      "features_adopted": [
+        "agent-kit-build",
+        "marketplace"
+      ],
+      "capabilities": [
+        "agent_teams",
+        "artifacts",
+        "ask_user_question",
+        "background_tasks",
+        "git",
+        "github_cli",
+        "hooks",
+        "mcp",
+        "parallel_subagents",
+        "plugin_marketplace",
+        "session_transcripts",
+        "shell",
+        "skill_auto_invocation",
+        "skills",
+        "slash_commands",
+        "statusline",
+        "subagents",
+        "worktree_isolation"
+      ],
+      "capability_gaps": {
+        "extension_install": "Claude installs plugins, not git-URL extensions."
+      }
     },
     "codex": {
       "supported_min": "0.40.0",
       "validated_against": "0.40.0",
       "latest_known": "0.40.0",
-      "doc_urls": ["https://developers.openai.com/codex/guides/agents-md"],
-      "features_adopted": ["dist-codex-agents-md"]
+      "doc_urls": [
+        "https://developers.openai.com/codex/guides/agents-md"
+      ],
+      "features_adopted": [
+        "dist-codex-agents-md"
+      ],
+      "capabilities": [
+        "git",
+        "github_cli",
+        "hooks",
+        "mcp",
+        "plugin_marketplace",
+        "shell",
+        "skills",
+        "subagents",
+        "worktree_isolation"
+      ],
+      "capability_gaps": {
+        "artifacts": "No artifact publishing surface.",
+        "extension_install": "Codex installs plugins, not git-URL extensions.",
+        "statusline": "Not a declared Codex capability."
+      }
+    },
+    "cursor": {
+      "supported_min": "0.45.0",
+      "validated_against": "0.45.0",
+      "latest_known": "0.45.0",
+      "doc_urls": [
+        "https://cursor.com/docs"
+      ],
+      "features_adopted": [
+        "dist-cursor-rules"
+      ],
+      "capabilities": [
+        "git",
+        "github_cli",
+        "hooks",
+        "mcp",
+        "plugin_marketplace",
+        "shell",
+        "skill_auto_invocation",
+        "skills",
+        "slash_commands",
+        "subagents",
+        "worktree_isolation"
+      ],
+      "capability_gaps": {
+        "artifacts": "No artifact publishing surface.",
+        "extension_install": "Cursor installs plugins, not git-URL extensions.",
+        "statusline": "No plugin-declared statusline."
+      }
+    },
+    "gemini_cli": {
+      "supported_min": "0.30.0",
+      "validated_against": "0.30.0",
+      "latest_known": "0.30.0",
+      "doc_urls": [
+        "https://google-gemini.github.io/gemini-cli/docs/extensions/"
+      ],
+      "features_adopted": [
+        "gemini-extension-manifest",
+        "dist-gemini-extension"
+      ],
+      "capabilities": [
+        "extension_install",
+        "git",
+        "github_cli",
+        "mcp",
+        "shell",
+        "skills",
+        "subagents",
+        "worktree_isolation"
+      ],
+      "capability_gaps": {
+        "artifacts": "No artifact publishing surface.",
+        "plugin_marketplace": "Gemini installs extensions from a git URL; there is no marketplace listing to publish to.",
+        "statusline": "Measured on 0.55.1: no extension-declared statusline."
+      }
+    },
+    "opencode": {
+      "supported_min": "1.16.2",
+      "validated_against": "1.18.11",
+      "latest_known": "1.18.11",
+      "doc_urls": [
+        "https://opencode.ai/docs/skills/"
+      ],
+      "features_adopted": [
+        "native-skill-discovery",
+        "dist-opencode-config"
+      ],
+      "capabilities": [
+        "git",
+        "github_cli",
+        "mcp",
+        "shell",
+        "skills",
+        "subagents",
+        "worktree_isolation"
+      ],
+      "capability_gaps": {
+        "artifacts": "No artifact publishing surface.",
+        "extension_install": "No git-URL extension install.",
+        "hooks": "OpenCode has no hooks.json; its only lifecycle mechanism is the JS/TS plugin API, and this repo ships no plugin module by design (it would add a Node runtime dependency for no other gain). As installed, the hooks/ guards do not run at all — 'adapter' would imply a generated artifact exists, as it does for subagents, and none does.",
+        "plugin_marketplace": "No plugin marketplace — install is by absolute skills.paths. Not by symlink: OpenCode does not follow them for skill discovery (see the skills row).",
+        "statusline": "No plugin-declared statusline."
+      }
     }
   }
 }

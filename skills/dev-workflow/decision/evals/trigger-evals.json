@@ -1,0 +1,22 @@
+[
+  {"query": "display that decision to me simply and let me choose", "should_trigger": true},
+  {"query": "what are my open decisions right now?", "should_trigger": true},
+  {"query": "walk me through the action items one by one", "should_trigger": true},
+  {"query": "summarize issue #57 and give me options", "should_trigger": true},
+  {"query": "let me choose between Redis and Postgres for sessions", "should_trigger": true},
+  {"query": "show me my options for the secrets backend", "should_trigger": true},
+  {"query": "we never landed on the auth approach — what's the decision on that?", "should_trigger": true},
+  {"query": "give me a menu of choices for how to handle the migration", "should_trigger": true},
+  {"query": "I'm waiting for your decision about the rate limiter, present it to me", "should_trigger": true},
+  {"query": "what are my action items from this session?", "should_trigger": true},
+  {"query": "decide for me which database to use and just do it", "should_trigger": false},
+  {"query": "explain the tradeoffs between Redis and Postgres for session storage", "should_trigger": false},
+  {"query": "close issue #57", "should_trigger": false},
+  {"query": "what did we decide last week about the API versioning?", "should_trigger": false},
+  {"query": "review my architecture and tell me what's wrong with it", "should_trigger": false},
+  {"query": "plan this feature into phases", "should_trigger": false},
+  {"query": "summarize what you just did", "should_trigger": false},
+  {"query": "implement the option we picked", "should_trigger": false},
+  {"query": "list the open issues in this repo", "should_trigger": false},
+  {"query": "which of these two functions is faster?", "should_trigger": false}
+]

@@ -3,26 +3,44 @@
   "evals": [
     {
       "id": 1,
-      "prompt": "Run /platform-sync — this repo has all three manifests: .claude-plugin/plugin.json, .codex-plugin/plugin.json, and .cursor-plugin/plugin.json",
-      "expected_output": "Should detect all three platform targets, invoke platform-sync-claude, platform-sync-codex, and platform-sync-cursor, then synthesize a Unified Improvement Plan with sections tagged [Claude Code], [Codex], and [Cursor]. Plan must list detection signals per platform and include concrete snippets and source URLs for each step.",
+      "prompt": "Run /platform-sync \u2014 this repo has .claude-plugin/plugin.json, .codex-plugin/plugin.json, .cursor-plugin/plugin.json, opencode.json and a .gemini/ directory.",
+      "expected_output": "Should resolve the target list from core/capabilities/platforms.json (naming the registry source in the header), detect all five targets with their signals, run the shared analysis protocol once per target using references/platforms/<id>.md as data, and synthesize one Unified Improvement Plan tagged [Claude Code], [Codex CLI], [Cursor], [Gemini CLI], [OpenCode]. Must NOT invoke the deprecated platform-sync-* shims. Every step needs a concrete snippet and a fetched source URL.",
       "files": []
     },
     {
       "id": 2,
-      "prompt": "/platform-sync — this repo only has a .claude-plugin/ directory with a plugin.json. There is no .codex-plugin/ or .cursor-plugin/.",
-      "expected_output": "Should detect Claude Code via .claude-plugin/plugin.json, invoke only platform-sync-claude, and output an improvement plan tagged [Claude Code] only. Must not attempt to invoke platform-sync-codex or platform-sync-cursor.",
+      "prompt": "/platform-sync \u2014 this repo only has a .claude-plugin/ directory with a plugin.json. No other target config exists.",
+      "expected_output": "Should detect Claude Code only, analyse only that target, and produce a plan with a single [Claude Code] section. Claude Desktop must NOT get its own section \u2014 it is a runtime surface of claude-code and is covered by a Surfaces note. Other targets are simply absent from the plan, not reported as failures.",
       "files": []
     },
     {
       "id": 3,
-      "prompt": "/platform-sync — I'm running this in a regular Next.js app repo. There is no plugin manifest, but the repo has CLAUDE.md, AGENTS.md, and .cursor/rules/000-project.mdc.",
-      "expected_output": "Should detect Claude Code (CLAUDE.md), Codex (AGENTS.md), and Cursor (.cursor/rules/) without plugin manifests. Invoke platform-sync-claude, platform-sync-codex, and platform-sync-cursor. Must NOT output the 'no usage detected' stop message.",
+      "prompt": "/platform-sync on a repo with no CLAUDE.md, no AGENTS.md, no manifests, no .cursor/, no .gemini/, no opencode.json.",
+      "expected_output": "Should output the exact 'No AI coding assistant usage detected in this repo.' block from references/detection.md, listing the targets that were actually looked for, and stop. No fetching, no speculation, no improvement plan.",
       "files": []
     },
     {
       "id": 4,
-      "prompt": "/platform-sync — plain library repo with no CLAUDE.md, AGENTS.md, .cursor/rules/, or any plugin manifest.",
-      "expected_output": "Should detect no AI coding assistant usage and output the exact 'No AI coding assistant usage detected' message from detection.md, then stop with no sub-skill invocations.",
+      "prompt": "/platform-sync on a repo that supports OpenCode. Suggest how it could use hooks and a statusline like the Claude plugin does.",
+      "expected_output": "Must NOT emit hooks or statusline improvement steps for OpenCode. The capability check in step C should classify both as unsupported per the registry, so they belong under 'Documented gaps (not improvements)' with the registry's documented fallback. Recommending a capability the registry marks unsupported is the failure mode this eval guards.",
+      "files": []
+    },
+    {
+      "id": 5,
+      "prompt": "/platform-sync \u2014 this repo has only an AGENTS.md at the root and nothing else.",
+      "expected_output": "AGENTS.md is a shared signal: should detect Codex (strong), plus Gemini CLI and OpenCode (medium), and analyse all three rather than arbitrating between them. Each section names AGENTS.md as its triggering signal with its strength. Should not claim Claude Code or Cursor usage.",
+      "files": []
+    },
+    {
+      "id": 6,
+      "prompt": "/platform-sync but code.claude.com is unreachable and returns a network error.",
+      "expected_output": "The Claude Code P0 fetch failure must abort the Claude Code target ONLY, recorded under a 'Fetch errors' section. Every other detected target must still be analysed and reported. Must not substitute training knowledge for the failed fetch, and must not abort the whole run.",
+      "files": []
+    },
+    {
+      "id": 7,
+      "prompt": "/platform-sync in an environment with no subagent support.",
+      "expected_output": "Should run the per-target analysis sequentially in-session and produce the identical plan shape. Must not claim a parallel run, and must not degrade the findings or the output format because parallel_subagents was unavailable.",
       "files": []
     }
   ]

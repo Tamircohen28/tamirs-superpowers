@@ -11,6 +11,42 @@
 #   hook_deny "reason"
 #   hook_additional_context "message"
 
+# hook_read_stdin — the whole payload, or "" if none arrives in time.
+#
+# A FAITHFUL DROP-IN FOR $(cat), MINUS THE HANG.
+#   `input=$(cat)` waits for EOF. A hook is normally handed JSON and a closed
+#   descriptor, so it returns instantly — but when it does not (a harness that
+#   forgets to close stdin, an inherited terminal, a hand-run invocation while
+#   debugging), the hook blocks until the harness kills it.
+#
+#   For a PreToolUse guard that is not merely slow, it is WRONG: a killed hook
+#   writes nothing to stdout, and per this file's own contract Cursor
+#   fail-closes on empty stdout. So a guard whose answer would have been ALLOW
+#   instead DENIES the user's tool call, for a reason that has nothing to do
+#   with what was being guarded. Bounding the read converts that into the
+#   correct answer for an empty payload.
+#
+#   Newlines are preserved, so a pretty-printed multi-line JSON payload
+#   survives exactly as `cat` would have delivered it. Bash's `read -t` is used
+#   rather than `timeout(1)`, which is GNU coreutils and absent on macOS.
+#
+#   HOOK_STDIN_TIMEOUT overrides the per-line bound (seconds, default 2).
+hook_read_stdin() {
+  local timeout="${HOOK_STDIN_TIMEOUT:-2}" line buf=""
+
+  # An interactive terminal on stdin means nobody is piping a payload; reading
+  # would block on the user's keyboard.
+  [[ -t 0 ]] && return 0
+
+  while IFS= read -r -t "$timeout" line; do
+    buf="${buf}${line}"$'\n'
+  done
+  # A final line with no trailing newline lands in $line, not in the loop.
+  buf="${buf}${line}"
+
+  printf '%s' "$buf"
+}
+
 hook_detect_platform() {
   local input="${1:-}"
   HOOK_PLATFORM=claude

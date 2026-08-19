@@ -64,7 +64,7 @@ async def my_tool(item_id: str, include_deleted: bool = False) -> dict: ...
 ## Return shape (TypeScript)
 
 ```typescript
-// Text output (Claude reads this)
+// Text output (the calling model reads this)
 return {
   content: [{ type: "text", text: JSON.stringify(data, null, 2) }],
 };
@@ -118,7 +118,12 @@ if not token:
 
 ---
 
-## MCP Claude config entry (stdio)
+## Client config entry (stdio)
+
+The server is host-neutral; only the **registration** differs per client. The `mcpServers`
+object below is the shape used by Claude Code (`.mcp.json`), Claude Desktop, Cursor
+(`.cursor/mcp.json`) and Gemini CLI (`.gemini/settings.json`). OpenCode uses an `mcp` object
+in `opencode.json`, and Codex CLI uses a TOML `[mcp_servers.<name>]` table.
 
 ```json
 {
@@ -127,12 +132,16 @@ if not token:
       "command": "node",
       "args": ["dist/index.js"],
       "env": {
-        "MY_SERVICE_TOKEN": "your-token-here"
+        "MY_SERVICE_TOKEN": "${MY_SERVICE_TOKEN}"
       }
     }
   }
 }
 ```
+
+Use `${ENV_VAR}` placeholders — never a literal token, in any client's format. Verify the
+current shape per target against its live docs before writing, and validate the result
+(SKILL.md Phase 6): these shapes drift between releases.
 
 ---
 
@@ -142,10 +151,10 @@ Bootstrap a project skeleton in one command:
 
 ```bash
 # TypeScript
-bash $CLAUDE_SKILL_DIR/scripts/scaffold.sh my-mcp-server ts myservice
+bash <skill-dir>/scripts/scaffold.sh my-mcp-server ts myservice
 
 # Python (FastMCP)
-bash $CLAUDE_SKILL_DIR/scripts/scaffold.sh my-mcp-server py myservice
+bash <skill-dir>/scripts/scaffold.sh my-mcp-server py myservice   # $CLAUDE_SKILL_DIR on Claude Code
 ```
 
 This creates: `package.json` / `requirements.txt`, entry file with two example tools, `README.md` with env var table, and `tsconfig.json` (TS only).

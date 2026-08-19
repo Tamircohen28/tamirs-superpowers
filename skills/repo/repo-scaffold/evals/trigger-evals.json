@@ -1,0 +1,18 @@
+[
+  { "query": "/repo-scaffold", "should_trigger": true },
+  { "query": "scaffold a new repo for a CLI that tracks job applications", "should_trigger": true },
+  { "query": "create a new github repo for this idea", "should_trigger": true },
+  { "query": "bootstrap a project with CI and docs already set up", "should_trigger": true },
+  { "query": "set up a new project from scratch", "should_trigger": true },
+  { "query": "make me a repo for an agent-kit plugin", "should_trigger": true },
+  { "query": "start a new repo with branch protection and a docs tree", "should_trigger": true },
+  { "query": "initialize a plugin marketplace repo", "should_trigger": true },
+
+  { "query": "polish this existing repo to standards", "should_trigger": false },
+  { "query": "git init", "should_trigger": false },
+  { "query": "add a CI workflow to this repo", "should_trigger": false },
+  { "query": "create a new branch for the auth work", "should_trigger": false },
+  { "query": "what should I name this project", "should_trigger": false },
+  { "query": "audit this repo for multi-agent support", "should_trigger": false },
+  { "query": "clone the upstream repo locally", "should_trigger": false }
+]

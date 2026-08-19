@@ -1,0 +1,35 @@
+{
+  "skill_name": "orchestrate-dev",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "Here's the spec in docs/spec/notifications.md — implement all of it: the delivery service, the REST endpoints, the React settings panel, and integration tests.",
+      "expected_output": "Decides orchestration IS warranted and says why. Creates an objective via objective-state.sh init, adds tasks with disjoint write scopes (service, api, ui, tests), makes the tests task depend_on the three implementation tasks, runs `objective-state.sh validate` and gets valid:true. Checks core/capabilities/platforms.json before promising parallelism. Dispatches workers under worker-dev with scope + prohibitions stated verbatim. Collects handoffs, merges worker branches into objective/<id>, reviews the COMBINED diff, runs Tier 2, then invokes deliver-dev for ONE PR. No worker opens a PR.",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "Rename the getUserById helper in src/db/users.ts to fetchUserById and update the four call sites.",
+      "expected_output": "NEGATIVE-BEHAVIOR: recognises this is a single coherent change with one write scope and no ordering constraints. Says in one sentence that orchestration is not warranted, falls through to start-dev, and creates NO objective, NO task graph, NO worktrees.",
+      "files": []
+    },
+    {
+      "id": 3,
+      "prompt": "Implement these three independent modules from the plan. Note: this harness has no subagent support.",
+      "expected_output": "FALLBACK/DEGRADATION: reads the capability registry, finds subagents unsupported (or registry absent), states plainly that it is running in sequential mode and why. Still creates the objective and the full task graph, then loops next -> worker-dev -> handoff.sh emit -> task-set completed for each task, integrates onto one objective branch, runs Tier 2, delivers ONE PR. Does not claim parallel execution. Does not skip handoffs just because one session ran every task.",
+      "files": []
+    },
+    {
+      "id": 4,
+      "prompt": "Resume objective payment-retries — my session crashed halfway through.",
+      "expected_output": "RESUMABILITY: reads .dev-files/objectives/payment-retries/ via objective-state.sh show/tasks/integrate-ready and handoff.sh list rather than re-planning. Identifies which tasks already have handoffs and does NOT re-run them; resumes from the first task returned by `next`. Reports the recovered state before doing any work.",
+      "files": []
+    },
+    {
+      "id": 5,
+      "prompt": "Two of the workers both edited src/config.ts and the merge conflicts. Sort it out.",
+      "expected_output": "CONFLICT AT INTEGRATION: resolves on the integration branch as the integrator, using both handoffs to understand each side. Does not ask a worker to resolve it and does not merge main into a worker branch. Notes that the shared write scope means the task graph was wrong and says how it should have been partitioned (shared file owned by one task, or sequenced).",
+      "files": []
+    }
+  ]
+}

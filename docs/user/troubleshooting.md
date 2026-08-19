@@ -1,151 +1,142 @@
 # Troubleshooting
 
-## Plugin fails to install — "dependency unresolved"
-
-**Symptom:** `/plugin install tamirs-superpowers` fails with a message about an unresolved dependency.
-
-**Cause:** One of the three third-party marketplaces hasn't been registered yet.
-
-**Fix:** Register all three marketplaces, then retry:
-```
-/plugin marketplace add warpdotdev/claude-code-warp
-/plugin marketplace add anthropics/knowledge-work-plugins
-/plugin marketplace add obra/superpowers
-/plugin install tamirs-superpowers
-```
-
----
-
-## Hook errors at session start — "jq: command not found"
-
-**Symptom:** On session start, you see a hook error mentioning `jq`.
-
-**Fix:** Install jq: `brew install jq`
-
-The worktree hooks use `jq` to parse session state JSON.
-
----
-
-## Edits are being blocked — "Repo edits must happen in a dedicated worktree"
-
-**Symptom:** Every time you try to edit a file, Claude gets a hook denial.
-
-**Cause:** The `enforce-worktree-edits.sh` hook is working as intended — it blocks edits to the main checkout and requires them to happen inside the session's worktree.
-
-**Fix (option A):** Let Claude use the worktree. After your first prompt, a worktree is created at `~/.claude/worktrees/<repo>/<slug>/`. Use `EnterWorktree` to switch into it before editing.
-
-**Fix (option B):** If you deliberately want to edit the main checkout (e.g. you're working on this plugin itself), temporarily disable the `enforce-worktree-edits` hook in `/plugin settings` or run from a directory that isn't a git repo.
-
----
-
-## Skill not found — "/plan-dev: unknown command"
-
-**Symptom:** A skill slash command returns "unknown command".
-
-**Fix:**
-1. Check the plugin is enabled: `/plugin list`
-2. Confirm your installed version matches the release you expect: `/plugin list` (compare to [README](https://github.com/Tamircohen28/tamirs-superpowers))
-3. Refresh from marketplace (version bump required for new skills to appear):
-
-   ```text
-   /plugin marketplace update tamirs-marketplace
-   /plugin update tamirs-superpowers@tamirs-marketplace
-   /reload-plugins
-   ```
-
-4. Confirm the SKILL.md file exists under `skills/` in the install directory (`~/.claude/plugins/cache/tamirs-marketplace/tamirs-superpowers/<version>/`)
-
----
-
-## Plugin update says "already at the latest version" but skills are missing
-
-**Symptom:** `/plugin update` reports the current version (e.g. `1.5.1`) is already installed; new skills or hooks from a recent release are not visible.
-
-**Cause:** Claude Code caches plugins by the `version` field in `plugin.json`. If the publisher shipped changes without bumping `version`, or your marketplace clone is stale, `/plugin update` skips the download. `/reload-plugins` only reloads the existing cache. (Since 2.1.221, `/plugin install` refreshes a stale marketplace catalog and retries on its own, and since 2.1.232 `/plugin install <name>@<marketplace>` refreshes the marketplace **first** — the manual `marketplace update` below matters mainly for `/plugin update` flows and older versions.)
-
-**Fix:**
-1. Ensure the publisher released a new semver (check [releases](https://github.com/Tamircohen28/tamirs-superpowers/releases))
-2. Refresh marketplace + plugin:
-
-   ```text
-   /plugin marketplace update tamirs-marketplace
-   /plugin update tamirs-superpowers@tamirs-marketplace
-   /reload-plugins
-   ```
-
-3. If still stale, clear cache and reinstall:
-
-   ```bash
-   rm -rf ~/.claude/plugins/cache/tamirs-marketplace/tamirs-superpowers/
-   ```
-
-   Then in Claude Code: `/plugin install tamirs-superpowers@tamirs-marketplace` and `/reload-plugins`
-
----
-
-## Statusline shows nothing
-
-**Symptom:** The statusline area in Claude Code is blank.
-
-**Cause:** `scripts/statusline.sh` requires `git` to be on the PATH in the shell Claude Code launches.
-
-**Fix:** Ensure `git` is on your PATH. Test with: `which git` in your terminal.
-
----
-
-## Cross-marketplace dependency fails after fresh machine setup
-
-**Symptom:** After installing on a new machine, a plugin like `warp` or `superpowers` fails to resolve.
-
-**Cause:** Claude Code only installs cross-marketplace dependencies if the target marketplace is already registered AND allowlisted in `marketplace.json`. If you skipped Step 1 of the Quick Start, the marketplaces aren't registered.
-
-**Fix:** Re-run the three `/plugin marketplace add` commands from [Quick Start](quick-start.md), then `/plugin install tamirs-superpowers` again.
-
----
-
-## Agent-kit: `npm run validate` fails after scaffold
-
-**Symptom:** `validate.mjs` reports missing paths or `NO GENERATED MARKER`.
-
-**Cause:** `dist/` was not built, or someone edited generated files by hand.
-
-**Fix:**
+Start with the health report — it answers most of what follows:
 
 ```bash
-npm run build
-npm run validate
+bash scripts/doctor.sh .
 ```
 
-Only edit files under `canonical/`. See [Agent-kit repos](agent-kit.md).
+It names the detected platform, any version drift, missing required and optional tools, and
+a one-line remedy per gap. It exits non-zero only when the install is genuinely broken.
+
+Before treating something as a bug, check [platform differences](platform-differences.md).
+A lot of "it does not work" is documented, honest degradation: hooks do not run under a
+Cursor plugin install, parallel subagents exist only on Claude Code, session transcripts are
+readable only on Claude Code.
 
 ---
 
-## Agent-kit: `repo-standards polish` uses wrong contract profile
+## Install and updates
 
-**Symptom:** Polish gate expects `app-gold` checks but you have an agent-kit repo (or vice versa).
+### Skills do not appear after installing
 
-**Cause:** Profile is auto-detected from `canonical/rules/` — if that directory is missing or misnamed, detection falls back to `app-gold`.
+**Cause:** the plugin installed but the session has not picked it up, or the marketplace
+suffix was wrong.
 
-**Fix:** Ensure `canonical/rules/core.md` exists. Re-run review:
+**Fix:** the `@` suffix names the *marketplace*, and it differs between the two sources —
+`tamirs-superpowers@tamirs-superpowers` from this repo, `tamirs-superpowers@tamirs-marketplace`
+from the catalog. Reinstall with the right one, then `/reload-plugins` on Claude Code older
+than 2.1.221. Per-platform steps: [install guides](install/README.md).
 
-```text
-/tamirs-superpowers:repo-standards review
+### An update reports success but nothing changed
+
+**Cause:** Claude Code and Codex cache by the manifest `version` field. A push without a
+version bump does not reach installed users, and `/reload-plugins` does not fetch from
+GitHub.
+
+**Fix:** check the canonical version, then update the marketplace before updating the plugin:
+
+```bash
+jq -r .version plugin-version.json
 ```
 
-Confirm the report lists `plugin-gold` as the contract profile.
-
----
-
-## Agent-kit: marketplace install fails with relative path error
-
-**Symptom:** `/plugin marketplace add` works but plugin entry with `source: "./plugins/..."` fails when marketplace was added via URL instead of git path.
-
-**Cause:** Claude Code resolves relative `source` paths only when the marketplace is added from a git repo checkout.
-
-**Fix:** Add marketplace via GitHub repo path:
-
 ```text
-/plugin marketplace add TamirCohen28/my-agent-kit
+/plugin marketplace update tamirs-superpowers
+/plugin update tamirs-superpowers@tamirs-superpowers
 ```
 
-See [Agent-kit repos — Install as a Claude Code plugin](agent-kit.md#install-as-a-claude-code-plugin).
+### `jq: command not found` at session start
+
+Every hook and check script parses JSON with `jq`. Install it — `brew install jq` — and
+restart the session.
+
+## Workflow
+
+### A worker did not open a PR
+
+Working as designed. A task ends at **commit + handoff**; the objective opens exactly one PR
+at the end, from `/deliver-dev`. See
+[work unit ≠ delivery unit](concepts.md#2-work-unit--delivery-unit).
+
+### Everything ran sequentially
+
+The capability registry records `parallel_subagents` as `native` only on Claude Code.
+Everywhere else it is `unknown`, so the orchestrator degrades honestly instead of pretending
+to fan out. Same task graph, same handoffs, same single PR — only wall-clock time differs.
+[Details](orchestration.md#execution-modes).
+
+### An objective was interrupted and I do not know where it stands
+
+State is files on disk, so nothing is lost:
+
+```bash
+S=skills/dev-workflow/_shared/scripts/objective-state.sh
+bash $S list
+bash $S tasks <objective-id>
+bash skills/dev-workflow/_shared/scripts/handoff.sh list <objective-id>
+```
+
+Re-invoke `/orchestrate-dev <objective-id>` to resume. **Do not re-run a task whose handoff
+already exists** — that duplicates commits and invalidates the integration plan.
+[Details](orchestration.md#resuming-an-interrupted-objective).
+
+### A worker refuses to edit a file
+
+The file is outside the task's `scope[]`. That is the mechanism that keeps concurrent
+workers from colliding. The work becomes a `followup` in the handoff, or the orchestrator
+adds a task. `handoff.sh emit` rejects out-of-scope writes deliberately.
+
+### "Repo edits must happen in a dedicated worktree"
+
+The `enforce-worktree-edits` hook (Claude Code only). Either move into the task worktree —
+one is created under `~/.claude/worktrees/<repo>/<slug>/` after your first prompt — or, if
+you deliberately mean to edit the main checkout, disable that hook entry in your install.
+
+### Delivery stopped at a pushed branch
+
+`gh` is missing or unauthenticated. It is an *optional* feature dependency, so the workflow
+reports exactly what it did rather than claiming a PR exists. Run `gh auth login` and
+re-invoke `/deliver-dev`.
+
+## Platform-specific
+
+### Hook guards are not firing in Cursor
+
+Expected. Claude-shaped plugin hooks (`hooks/hooks.json`, `CLAUDE_PLUGIN_ROOT`) do not run
+under a Cursor plugin install. Project-level `.cursor/hooks.json` provides soft guards, and
+Claude hooks via `.claude/settings.json` are an opt-in Cursor setting. The same rules are
+enforced in CI, which is where they bind. [Install guide](install/cursor.md).
+
+### No hooks at all in OpenCode
+
+OpenCode has no `hooks.json`; its only lifecycle mechanism is a JS/TS plugin API, and this
+repo ships no plugin module by design. Guards become explicit in-skill steps plus CI checks.
+[Install guide](install/opencode.md).
+
+### `/session-report` returns nothing
+
+It parses Claude Code's JSONL transcripts under `~/.claude/projects` and no other format.
+Everywhere else `session_transcripts` is `unknown` and the skill refuses rather than
+reporting zeros.
+
+### The statusline does not appear
+
+Claude Code only, and cosmetic — nothing depends on it. It is wired automatically through
+the plugin manifest's `settings.statusLine`. If the footer is empty:
+
+```bash
+echo '{}' | bash scripts/statusline.sh    # must print something and must not block
+which git                                  # branch rendering needs git on PATH
+```
+
+A `statusLine` entry in your `~/.claude/settings.json` **shadows** the manifest's. If you
+added one by hand, either remove it or keep it version-agnostic — a pinned version directory
+stops matching after an update, and the command guard then renders an empty statusline
+rather than an error, so the breakage is silent.
+
+## Still stuck
+
+- [Configuration](configuration.md) — what each feature needs to be turned on
+- [Platform differences](platform-differences.md) — what your platform can actually do
+- [Engineering docs](../engineering/README.md) — how the pieces fit together
+- [Open an issue](https://github.com/Tamircohen28/tamirs-superpowers/issues)

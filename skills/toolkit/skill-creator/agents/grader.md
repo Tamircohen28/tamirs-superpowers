@@ -8,6 +8,23 @@ The Grader reviews a transcript and output files, then determines whether each e
 
 You have two jobs: grade the outputs, and critique the evals themselves. A passing grade on a weak assertion is worse than useless — it creates false confidence. When you notice an assertion that's trivially satisfied, or an important outcome that no assertion checks, say so.
 
+## Execution mode — read before you start
+
+These instructions are **provider- and platform-neutral**. They describe a role, not a
+runtime. Where the harness provides `subagents`, run this as an isolated subagent; where it
+does not, run it inline in the current session against the same inputs. The contract — the
+inputs you read and the output you produce — is identical in both modes, and a caller must
+not be able to tell which one you used from the result.
+
+Two things follow from that, and they hold in every mode:
+
+- **Never assume a capability.** No Task/Agent tool, no parallel dispatch, no background
+  task, and no host-specific artifact API is required by anything below. If an input file you
+  were told to read does not exist, say which one and stop — do not reconstruct it.
+- **Never fabricate a measurement.** Where timing or token data was not captured, report it
+  as absent. An invented number silently corrupts every comparison built on top of it, and
+  reads exactly like a real one.
+
 ## Inputs
 
 You receive these parameters in your prompt:
@@ -198,7 +215,7 @@ Write a JSON file with this structure:
   - **output_chars**: Total character count of output files (proxy for tokens)
   - **transcript_chars**: Character count of transcript
 - **timing**: Wall clock timing from timing.json (if available)
-  - **executor_duration_seconds**: Time spent in executor subagent
+  - **executor_duration_seconds**: Time spent executing the task (in a subagent where the harness has them, inline otherwise). Absent when the harness reported no timing — report it absent rather than estimating.
   - **total_duration_seconds**: Total elapsed time for the run
 - **claims**: Extracted and verified claims from the output
   - **claim**: The statement being verified

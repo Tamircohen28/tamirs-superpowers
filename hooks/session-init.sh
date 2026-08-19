@@ -6,8 +6,10 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=lib/worktree-common.sh
 source "${SCRIPT_DIR}/lib/worktree-common.sh"
+# shellcheck source=lib/hook-output.sh
+source "${SCRIPT_DIR}/lib/hook-output.sh"
 
-input="$(cat)"
+input="$(hook_read_stdin)"
 session_id="$(echo "$input" | jq -r '.session_id // empty')"
 cwd="$(echo "$input" | jq -r '.cwd // empty')"
 source_kind="$(echo "$input" | jq -r '.source // "startup"')"
@@ -34,8 +36,21 @@ if [[ -n "$task_slug" && "$task_slug" != "null" ]]; then
 elif [[ -n "$session_slug" && "$session_slug" != "null" ]]; then
   slug="${session_slug}"
 else
+  # Compose from the parts that actually carry information, rather than
+  # interpolating every slot unconditionally. `basename ""` is empty and
+  # `${session_id:0:8}` is empty without a session, so the unconditional form
+  # yielded names like "2026-08-19__" — a directory, and a repointed `_latest`
+  # symlink, standing for nothing. Same shape as the `wt/session-` leak: a
+  # placeholder assembled around missing values. Degrading to just the date is
+  # coarse but honest; it never invents an identity that was not supplied.
   cwd_slug="$(basename "$cwd" | tr -c 'A-Za-z0-9' '-' | sed 's/-\+/-/g; s/^-//; s/-$//')"
-  slug="${date_stamp}_${cwd_slug}_${short_id}"
+  slug="${date_stamp}"
+  if [[ -n "$cwd_slug" ]]; then
+    slug="${slug}_${cwd_slug}"
+  fi
+  if [[ -n "$short_id" ]]; then
+    slug="${slug}_${short_id}"
+  fi
 fi
 
 output_dir="${HOME}/.claude/outputs/${slug}"

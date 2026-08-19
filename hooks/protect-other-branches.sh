@@ -27,8 +27,10 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${SCRIPT_DIR}/lib/hook-output.sh"
 # shellcheck source=lib/agent-claim.sh
 source "${SCRIPT_DIR}/lib/agent-claim.sh"
+# shellcheck source=lib/objective-common.sh
+source "${SCRIPT_DIR}/lib/objective-common.sh"
 
-INPUT=$(cat)
+INPUT="$(hook_read_stdin)"
 hook_detect_platform "$INPUT"
 
 # jq is required by hook-output.sh itself, but check explicitly so the failure
@@ -72,6 +74,11 @@ effective_cwd() {
       done
     fi
     [ -n "$dir" ] || continue
+    # The tilde patterns below are LITERAL text in the command string being
+    # inspected, not a path this script expands — matching the two characters
+    # and then substituting $HOME is exactly the intent, so SC2088 is silenced
+    # for the statement (the directive is not valid on a single branch).
+    # shellcheck disable=SC2088
     case "$dir" in
       -|--) continue ;;
       "~") dir="$HOME" ;;
@@ -118,6 +125,23 @@ repo_slug() {
   url=$(git -C "$dir" remote get-url origin 2>/dev/null) || return 1
   [ -n "$url" ] || return 1
   printf '%s' "$url" | sed -E 's#^git@[^:]+:##; s#^https?://[^/]+/##; s#\.git$##'
+}
+
+# integrator_may_take <resource> — true when this agent is the integrator for an
+# active objective and the resource is a WORKER branch of that same objective.
+integrator_may_take() {
+  local resource="$1" objective_id branch_part
+  [ "${SUPERPOWERS_ROLE:-}" = "integrator" ] || return 1
+  objective_id="$(active_objective_id "$CWD" 2>/dev/null)" || return 1
+  [ -n "$objective_id" ] || return 1
+
+  # resource is "git:<owner>/<repo>@<branch>"; anything else (a gh PR/issue) is
+  # not a branch and gets no carve-out.
+  case "$resource" in git:*@*) branch_part="${resource#*@}" ;; *) return 1 ;; esac
+
+  is_worker_branch "$branch_part" || return 1
+  [ "$(objective_id_from_branch "$branch_part")" = "$objective_id" ] || return 1
+  return 0
 }
 
 current_branch() {
@@ -309,6 +333,25 @@ for line in $TARGETS; do
   if [ "$RC" -ne 0 ] || [ "$STATUS" = "ERROR" ]; then
     IFS="$OLD_IFS"
     deny_cannot_run "${DETAIL:-claim state for $RESOURCE could not be evaluated}"
+  fi
+
+  # THE INTEGRATOR CARVE-OUT.
+  #
+  # Integration is defined as reading and combining other agents' commits, so a
+  # guard that treats "another agent holds this branch" as a universal veto
+  # makes the integrator's job impossible by construction: every worker branch
+  # it must merge is, by design, held by the worker that produced it.
+  #
+  # Reading is already unguarded (only `git push` and mutating `gh` commands are
+  # detected at all, so fetch/log/show/cherry-pick/merge/rebase never reach this
+  # loop). What this carve-out adds is the one push the integrator legitimately
+  # makes against someone else's branch namespace: pushing WORKER branches of
+  # its own objective, e.g. when re-publishing a rebased worker branch. It is
+  # deliberately narrow — it applies only to worker/<this objective>/NNN, never
+  # to the integration branch itself, never to main, and never across
+  # objectives, so two integrators on one objective still block each other.
+  if [ "$STATUS" = "LIVE" ] && integrator_may_take "$RESOURCE"; then
+    STATUS="INTEGRATOR"
   fi
 
   if [ "$STATUS" = "LIVE" ]; then

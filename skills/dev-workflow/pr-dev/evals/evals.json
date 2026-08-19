@@ -1,23 +1,157 @@
 {
   "skill_name": "pr-dev",
+  "notes": "pr-dev is the final delivery lifecycle driver: once per objective, not once per worker. Eval 4 is the regression for spec defect 13 — auto-merge must never be forced against repository or user policy. Eval 5 covers loose-vs-strict branch updates and CI supersession. Evals 1-3 preserve the original drive-loop behaviour.",
   "evals": [
     {
       "id": 1,
       "prompt": "Finish PR #42. Address any review comments and get it merged.",
-      "expected_output": "Skill runs a persistent loop: enables auto-merge at startup, fetches PR state, addresses threads, fixes CI, re-enables auto-merge after pushes, polls until merged. Does NOT call gh pr merge without --auto.",
-      "files": []
+      "expected_output": "Resolves objective context and merge policy at startup, reports both in one or two lines, enables auto-merge because the repository allows it, then runs the persistent loop: fetch state, address threads, fix CI, re-apply policy after each push, poll until merged, run cleanup.",
+      "files": [],
+      "expectations": [
+        "resolve-merge-policy.sh is run before the first loop pass",
+        "The resolved policy and its source are stated to the user",
+        "Auto-merge is enabled because the resolved policy says enable — not because it is hardcoded",
+        "Review threads are stated in conversation before replies are posted",
+        "The loop restarts immediately after any push rather than stopping",
+        "State is re-fetched before every merge-readiness decision",
+        "cleanup-after-merge.sh runs after the merge"
+      ]
     },
     {
       "id": 2,
       "prompt": "Drive PR #17 to merge. CI is currently failing.",
-      "expected_output": "Skill classifies CI failure, patches if branch-related, pushes, re-enables auto-merge, restarts loop. When green with 0 threads, enables auto-merge and waits for GitHub to merge.",
-      "files": []
+      "expected_output": "Classifies each non-green check against the current head commit, patches branch-related failures, pushes, re-applies merge policy, and restarts. Flaky infra reruns are capped at 3 for the PR. Superseded/cancelled runs from older commits are ignored, not retried.",
+      "files": [],
+      "expectations": [
+        "Only checks on the current headRefOid are graded",
+        "A cancelled run on a superseded commit is not treated as a failure and does not consume the flake budget",
+        "Branch-related failures are patched and pushed rather than retried",
+        "Infra flakes are rerun at most 3 times, then escalated",
+        "Failures in non-required checks are reported but do not block merge",
+        "CI config and tests are not edited to silence a failure"
+      ],
+      "assertions": [
+        {
+          "text": "No more than 3 gh run rerun invocations occur",
+          "passed": null,
+          "evidence": ""
+        },
+        {
+          "text": "Superseded cancelled runs are explicitly excluded from the failure set",
+          "passed": null,
+          "evidence": ""
+        }
+      ]
     },
     {
       "id": 3,
       "prompt": "Address the review on my PR and merge it when done.",
-      "expected_output": "Skill resolves threads, monitors CI, enables gh pr merge --auto --squash --delete-branch, polls until MERGED, runs cleanup-after-merge.sh. Does not require user to type approved when auto-merge handles merge.",
-      "files": []
+      "expected_output": "Resolves the PR from the current branch, works through every unresolved thread (assess, state the reply, post, fix, resolve), reaches the readiness gate, and merges under the resolved policy. Does not require the user to type 'approved' when policy is auto-merge.",
+      "files": [],
+      "expectations": [
+        "The PR number is inferred from the current branch",
+        "Each thread gets an explicit agree / partially agree / disagree assessment",
+        "resolve-thread.sh is used to resolve threads after replying",
+        "REVIEW_REQUIRED alone is not treated as blocked when auto-merge is enabled",
+        "The final report names the merge SHA, checks, fixes and branch deletion"
+      ]
+    },
+    {
+      "id": 4,
+      "prompt": "Drive PR #88 to merge. Note: this repo's objective sets delivery.auto_merge=false — I want to press the button myself.",
+      "expected_output": "Merge policy resolves to skip, sourced from the objective's delivery.auto_merge=false. The skill drives the PR to green and to zero unresolved threads, prints the readiness summary, and ASKS before merging. It never calls gh pr merge --auto.",
+      "files": [
+        "evals/files/objectives/auth-system/objective.json"
+      ],
+      "expectations": [
+        "resolve-merge-policy.sh reports auto_merge=skip with the objective as the source",
+        "No `gh pr merge --auto` call is made at any point",
+        "The skill still drives CI and threads to done",
+        "At the readiness gate the user is asked before any merge happens",
+        "The reason auto-merge was skipped is stated, not silently applied"
+      ],
+      "assertions": [
+        {
+          "text": "The string `--auto` never appears in an executed gh pr merge command",
+          "passed": null,
+          "evidence": ""
+        },
+        {
+          "text": "The user is asked for merge confirmation at the readiness gate",
+          "passed": null,
+          "evidence": ""
+        },
+        {
+          "text": "The policy source (objective delivery.auto_merge=false) is reported",
+          "passed": null,
+          "evidence": ""
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "prompt": "PR #12 says it's 3 commits behind main and one check shows as cancelled. Get it merged.",
+      "expected_output": "Checks strict_branch_update from branch protection. On a loose base, the behind state is left alone rather than churned with base merges; on a strict base the branch is updated exactly once. The cancelled check is identified as a superseded run on an older commit and ignored.",
+      "files": [],
+      "expectations": [
+        "strict_branch_update is read from the resolved policy rather than assumed",
+        "On a loose base, no base-merge or update-branch is performed",
+        "On a strict base, gh pr update-branch is run once, not in a loop",
+        "The cancelled check is diagnosed as supersession and not rerun",
+        "If a merge queue exists, the PR is enqueued and the branch is not further updated"
+      ],
+      "assertions": [
+        {
+          "text": "gh pr update-branch is invoked at most once",
+          "passed": null,
+          "evidence": ""
+        },
+        {
+          "text": "No base branch merge is performed when strict_branch_update is false or null",
+          "passed": null,
+          "evidence": ""
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "prompt": "The objective auth-system has 5 finished tasks on worker branches. Ship it.",
+      "expected_output": "Recognises that delivery is one PR for the objective: it drives the single PR opened from the integration branch objective/auth-system. It does not open or drive a PR per worker branch, and it pushes fixes only to the integration branch.",
+      "files": [
+        "evals/files/objectives/auth-system/objective.json"
+      ],
+      "expectations": [
+        "The integration branch is identified from objective.json",
+        "Exactly one PR is driven",
+        "No PR is opened for any worker/* branch",
+        "Fixes are pushed to the integration branch, never to an already-merged worker branch",
+        "On merge, the objective status is set to completed and delivery.pr_url is recorded"
+      ],
+      "assertions": [
+        {
+          "text": "No gh pr create call targets a worker/* branch",
+          "passed": null,
+          "evidence": ""
+        },
+        {
+          "text": "Exactly one PR number is driven throughout the run",
+          "passed": null,
+          "evidence": ""
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "prompt": "Drive PR #55 to merge on a platform with no background tasks.",
+      "expected_output": "Capability fallback case. The Monitor until-loop is unavailable, so the skill falls back to the documented foreground polling cadence. Everything else — thread handling, CI classification, policy-resolved merge — is unchanged, and the skill does not claim to be watching in the background.",
+      "files": [],
+      "expectations": [
+        "background_tasks is treated as optional; its absence degrades to the polling cadence table",
+        "references/ci-monitor-loop.md is not required for the run to complete",
+        "The skill does not claim work is proceeding in the background when it is not",
+        "Polling still never stops on a single idle poll",
+        "Merge policy resolution and the review-thread loop are unaffected by the degradation"
+      ]
     }
   ]
 }

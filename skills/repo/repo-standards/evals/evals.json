@@ -5,11 +5,22 @@
       "id": 1,
       "prompt": "Run repo-standards review on skills/repo/repo-standards/evals/fixtures/bare-repo. Write report to docs/engineering/ in that fixture only. Do not edit other files.",
       "expected_output": "Unified repo-standards-review report with S1/S5 P1 gaps, IP scan section, multi-agent appendix note. No implementation.",
-      "files": ["evals/fixtures/bare-repo"],
+      "files": [
+        "evals/fixtures/bare-repo"
+      ],
       "assertions": [
-        { "name": "report_path", "description": "Report under docs/engineering/repo-standards-review-*.md" },
-        { "name": "s1_01", "description": "Flags missing README standards or S1 gaps" },
-        { "name": "no_license_created", "description": "LICENSE not created in review mode" }
+        {
+          "name": "report_path",
+          "description": "Report under docs/engineering/repo-standards-review-*.md"
+        },
+        {
+          "name": "s1_01",
+          "description": "Flags missing README standards or S1 gaps"
+        },
+        {
+          "name": "no_license_created",
+          "description": "LICENSE not created in review mode"
+        }
       ]
     },
     {
@@ -18,8 +29,14 @@
       "expected_output": "Plan doc with phases 0-7, multi-agent-repo and docs-review delegation in phases 5-6. No file implementation.",
       "files": [],
       "assertions": [
-        { "name": "phases_0_7", "description": "Plan lists phases 0 through 7" },
-        { "name": "delegation_noted", "description": "Phases 5-6 mention child skills" }
+        {
+          "name": "phases_0_7",
+          "description": "Plan lists phases 0 through 7"
+        },
+        {
+          "name": "delegation_noted",
+          "description": "Phases 5-6 mention child skills"
+        }
       ]
     },
     {
@@ -28,18 +45,56 @@
       "expected_output": "Branch feat/repo-standards-setup, standards + multi-agent changes, gh pr create URL, no merge.",
       "files": [],
       "assertions": [
-        { "name": "feature_branch", "description": "Work on feat/repo-standards-setup" },
-        { "name": "pr_not_merged", "description": "PR opened, not merged" },
-        { "name": "no_gh_repo_create", "description": "gh repo create not run" }
+        {
+          "name": "feature_branch",
+          "description": "Work on feat/repo-standards-setup"
+        },
+        {
+          "name": "pr_not_merged",
+          "description": "PR opened, not merged"
+        },
+        {
+          "name": "no_gh_repo_create",
+          "description": "gh repo create not run"
+        }
       ]
     },
     {
       "id": 4,
       "prompt": "Run score-contract-gaps on skills/repo/_contract/fixtures/scaffold-gold with CONTRACT_OFFLINE=1. Expect P1=P2=P3=0.",
       "expected_output": "Merged gap report with zero deterministic gaps for app-gold profile.",
-      "files": ["../../_contract/fixtures/scaffold-gold"],
+      "files": [
+        "../../_contract/fixtures/scaffold-gold"
+      ],
       "assertions": [
-        { "name": "zero_gaps", "description": "counts.p1, p2, p3 all zero" }
+        {
+          "name": "zero_gaps",
+          "description": "counts.p1, p2, p3 all zero"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "prompt": "/repo-standards review on a machine where the gh CLI is not installed",
+      "expected_output": "Fallback path. github_cli is OPTIONAL, so the offline standards sweep completes: README badges, docs tree, Makefile lifecycle, changelog and versioning policy, IP scan, hygiene, and the E/V/C platform layers. The online checks (S4-02..S4-06 branch protection and merge settings) are skipped by name, exactly as CONTRACT_OFFLINE=1 does for the gold fixtures.",
+      "files": [],
+      "expectations": [
+        "A gap report is produced rather than the run aborting",
+        "Skipped online checks are listed by their check ids with 'gh is not available' as the reason",
+        "Branch protection state is never assumed to be correct because it could not be read",
+        "The exit gate is reported as provisional, not as a pass"
+      ]
+    },
+    {
+      "id": 6,
+      "prompt": "/repo-standards review on a multi-platform repo",
+      "expected_output": "The V-layer per-target parity sweep runs against every key in platform-targets.json supported_targets, and capability questions are answered from core/capabilities/platforms.json rather than from prose. A target whose validated_against is \"unknown\" is reported as declared-but-unvalidated, not as a defect.",
+      "files": [],
+      "expectations": [
+        "V-01..V-06 are checked for every supported target",
+        "A declared-but-unvalidated target degrades to a warning rather than a P1",
+        "capabilities/capability_gaps in platform-targets.json are treated as derived — a mismatch is reported as drift to re-sync, never hand-edited",
+        "No fix is proposed that assumes a capability the registry marks unsupported"
       ]
     }
   ]

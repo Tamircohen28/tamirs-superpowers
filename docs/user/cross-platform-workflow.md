@@ -35,17 +35,25 @@ See [platform capabilities](../../skills/dev-workflow/switch-dev/references/plat
 ## Pipeline
 
 ```
-plan-dev  →  start-dev  →  pr-dev
-     ↓           ↓
+plan-dev  →  orchestrate-dev  →  worker-dev ×N  →  deliver-dev  →  pr-dev
+     ↓              ↓                  ↓
 switch-dev handoff / resume (any time)
 ```
 
 | Skill | Role |
 |-------|------|
 | `/tamirs-superpowers:plan-dev` | Phased GitHub issues with **Resume** + `agent:any` label |
-| `/tamirs-superpowers:start-dev` | Platform worktree, implement, open PR |
+| `/tamirs-superpowers:orchestrate-dev` | Own the objective: task graph, dispatch, integrate, one PR |
+| `/tamirs-superpowers:worker-dev` | One task; ends at commit + handoff, never a PR |
+| `/tamirs-superpowers:deliver-dev` | Integrated objective → the single PR |
+| `/tamirs-superpowers:start-dev` | Compatibility front door; routes to the three above |
 | `/tamirs-superpowers:switch-dev` | `handoff`, `resume`, `status` across platforms |
-| `/tamirs-superpowers:pr-dev` | Drive PR to merge |
+| `/tamirs-superpowers:pr-dev` | Drive that PR to merge |
+
+> **Two handoff mechanisms, deliberately.** Objective state under `.dev-files/objectives/`
+> is the in-repo, cross-session record ([orchestration](orchestration.md#resuming-an-interrupted-objective));
+> the GitHub-issue Resume blocks below carry work across *platforms and machines*, where a
+> local `.dev-files/` directory cannot follow. Neither requires the other.
 
 ## Resume block
 

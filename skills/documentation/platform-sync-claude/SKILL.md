@@ -1,162 +1,78 @@
 ---
 name: platform-sync-claude
 description: >-
-  Internal companion to platform-sync. Fetches live Claude Code docs, reads the local
-  .claude-plugin config (plugin.json, skills/, hooks/hooks.json), identifies features in
-  the latest docs NOT yet used, and returns structured improvement steps. Not
-  user-invocable — called by the platform-sync umbrella skill.
+  DEPRECATED compatibility shim. Claude Code analysis now runs inside the single
+  `platform-sync` engine; this skill only delegates to it and adds no behaviour of its own.
+  Kept so anything invoking it by name keeps working for one release. Not user-invocable.
+  New callers should invoke `tamirs-superpowers:platform-sync` directly.
 when_to_use: |
-  Invoked by platform-sync when any Claude Code usage is detected (.claude-plugin/,
-  CLAUDE.md, .claude/rules/, .claude/skills/, skills/ + hooks/, .mcp.json, commands/).
-  Also callable by other skills needing live-doc-grounded Claude Code improvement suggestions:
-  - "audit this Claude Code plugin config"
-  - "what Claude Code features am I missing"
-  - "review my .claude-plugin against latest docs"
+  Do not reach for this skill in new work — invoke `tamirs-superpowers:platform-sync`.
+  It exists only so an existing caller that names `platform-sync-claude` still resolves.
+  Scheduled for removal one release after the platform-sync restructure.
 argument-hint: "[none]"
 arguments: []
 disable-model-invocation: true
 user-invocable: false
 allowed-tools:
   - Read
-  - Glob
-  - WebFetch
+  - Skill
 disallowed-tools: []
 model: claude-sonnet-4-6
-effort: medium
+effort: low
 context: ''
 agent: ''
 hooks: {}
 paths: []
 shell: bash
 metadata:
+  tamirs:
+    visibility: internal
+    category: documentation
+    role: research-agent
+    validation-tier: 0
+    updated-date: '2026-08-19'
+    capabilities:
+      required:
+        - skills
+      optional: []
+    tags:
+      - documentation
+      - platform
+      - deprecated
+      - compatibility-shim
+      - claude-code
   capability: documentation
   provider: developer-workflow
-  platforms:
-    - claude
-  tags:
-    - documentation
-    - claude-code
-    - audit
-    - planning
-  updated-date: '2026-06-30'
+  updated-date: '2026-08-19'
 ---
 
-# platform-sync-claude
+# platform-sync-claude (deprecated shim)
 
-You are a Claude Code plugin improvement analyst. Fetch live Claude Code docs, compare against
-the local plugin config, and return a structured list of unused features with concrete
-implementation steps.
+This skill no longer contains any Claude Code analysis logic.
 
-**Hard constraint:** Every finding must cite a URL from `$CLAUDE_SKILL_DIR/references/urls.md`.
-If any P0 fetch fails, stop and return the error. Do not answer from training knowledge —
-only fetched content counts.
+The four per-platform sync skills were near-identical orchestration loops that differed
+only in their source URLs, local config paths, and feature-scan areas. Those differences
+are now **data**, in
+`skills/documentation/platform-sync/references/platforms/claude-code.md`, and the single loop
+that consumes them is
+`skills/documentation/platform-sync/references/analysis-protocol.md`. Adding a target no
+longer adds a skill — that is how Gemini CLI was added without a fifth sub-skill.
 
----
+## What to do when invoked
 
-## Step 1 — Fetch live docs
+1. Invoke `tamirs-superpowers:platform-sync` via the Skill tool, scoped to `claude-code`.
+2. Return its `Claude Code` section unchanged.
 
-Read `$CLAUDE_SKILL_DIR/references/urls.md` for the full permitted URL list.
+Do not re-implement the analysis here, and do not fetch anything yourself. If
+`platform-sync` is unavailable, say so and stop — do not fall back to training knowledge
+about Claude Code.
 
-Always fetch (P0 — required):
-1. `https://github.com/anthropics/claude-code/releases`
-2. `https://code.claude.com/docs/en/changelog`
-3. `https://code.claude.com/docs/en/whats-new`
+## Migration
 
-If any P0 fetch fails, stop and output:
-```
-⛔ FETCH ERROR
-URL: <url>
-Error: <error message>
-Cannot proceed — required Claude Code source could not be fetched.
-```
-
-Then fetch P1 docs based on what the local config contains:
-
-| Local config contains | Fetch URL |
+| Was | Now |
 |---|---|
-| hooks / hooks.json | `/hooks` and `/hooks-guide` |
-| skills/ directory | `/skills` |
-| plugin.json | `/plugins` and `/plugins-reference` |
-| agents/ or subagent refs | `/sub-agents` |
-| agent teams / SendMessage | `/agent-teams` |
-| .mcp.json / MCP servers | `/mcp` |
-| settings.json | `/settings` and `/permission-modes` |
-| CLAUDE.md or .claude/rules/ | `/memory` |
+| `platform-sync-claude` SKILL.md | `platform-sync/references/platforms/claude-code.md` (data) |
+| its `references/urls.md` | the "Sources — P0/P1/P2" tables in that file |
+| its Step 1–4 body | `platform-sync/references/analysis-protocol.md` (shared) |
 
-Use base URL `https://code.claude.com/docs/en/<topic>` for all P1 docs.
-
----
-
-## Step 2 — Read local config
-
-Read from the **repo root** (app, plugin, or hybrid). Scan every path that triggered
-platform-sync detection, plus:
-
-| Path | What to note |
-|------|----------------|
-| `.claude-plugin/plugin.json` | `version`, `skills`, `hooks`, `settings`, `commands` |
-| `skills/**/SKILL.md` | Skill names, frontmatter fields, tool usage |
-| `.claude/skills/**/SKILL.md` | Project-scoped skills |
-| `hooks/hooks.json` | Hook events, matchers, scripts |
-| `.mcp.json` | MCP servers declared |
-| `CLAUDE.md` | Memory imports, commands, constraints |
-| `.claude/rules/*.md` | Path-scoped rule patterns |
-| `commands/` | Slash command definitions |
-| `agents/*.md` | Specialist subagents (if present) |
-
-For **app repos** without a plugin manifest, focus on `CLAUDE.md`, `.claude/rules/`,
-`.claude/skills/`, and any `hooks/hooks.json` — compare against latest docs for project
-memory, rules, skills, and hooks the app could adopt.
-
----
-
-## Step 3 — Identify unused features
-
-Scan each area against the fetched docs:
-
-**Hook events:** Which hook events exist in the docs but are absent from hooks.json?
-Flag any that would be valuable for a plugin repo (e.g., PostCompact, channels,
-new event names added in recent releases).
-
-**Skill frontmatter fields:** Any new fields added to SKILL.md spec since the plugin's
-declared version? Check for `context: fork`, `paths:` scoping, `disable-model-invocation`
-patterns, or new `effort` tiers.
-
-**Plugin.json fields:** New fields in the plugin manifest spec? New `settings` options
-(channels, statusLine improvements, new hook types)?
-
-**Subagents:** Does the repo have `.claude/agents/` or reference custom subagents?
-If not, and the skill catalog covers multiple domains, recommend adding specialist subagents.
-
-**Agent teams:** If multi-agent work is done via Bash calls to `claude`, recommend the
-agent-teams approach instead.
-
-**MCP:** MCP servers relevant to this plugin type that aren't declared in `.mcp.json`?
-
-**Memory / CLAUDE.md:** New CLAUDE.md sections (auto memory, `#` scoped rules) or
-`.claude/rules/` path-scoped overrides not yet used?
-
----
-
-## Step 4 — Output
-
-```
-## Claude Code — v{version from .claude-plugin/plugin.json or "project-only"} detected → v{latest from releases} latest
-**Signals:** [paths that triggered detection]
-
-### Improvement Steps
-1. [Feature name] — [one sentence why it applies to this repo]
-   Config:
-   ```lang
-   [concrete snippet — copy-pasteable]
-   ```
-   Effort: low / medium / high
-   Source: [URL]
-
-2. ...
-
-### Already Well-Used
-- [feature]: [brief note] ✓
-```
-
-Return this section only — the platform-sync umbrella merges it with other platforms.
+Callers should move to `tamirs-superpowers:platform-sync` before this shim is removed.

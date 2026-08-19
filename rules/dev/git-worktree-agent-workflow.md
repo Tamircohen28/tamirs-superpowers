@@ -1,137 +1,176 @@
 ---
 alwaysApply: false
-globs: [".claude/.worktrees/**/*", ".cursor/.worktrees/**/*", ".codex/.worktrees/**/*"]
+globs: [".agent-worktrees/**/*", ".claude/.worktrees/**/*", ".cursor/.worktrees/**/*", ".codex/.worktrees/**/*"]
 ---
 
 # Git Worktree Agent Workflow
 
-Claude Code, Cursor, Codex, and background subagents may work on this repo simultaneously. Use git worktrees to guarantee isolation — each agent gets its own working directory and branch without affecting others.
+Multiple agents — Claude Code, Cursor, Codex, Gemini CLI, OpenCode, background subagents — may work on this repo simultaneously. Git worktrees give each unit of work its own working directory and branch without agents trampling each other.
 
-## Platform roots
+**The identity of a worktree is the objective and the task, not the harness that happens to run it.** Provider is metadata. It never belongs in the path or the branch name except as a debugging aid.
 
-| Platform | Agent root | Worktree path |
-|----------|------------|---------------|
-| Claude Code | `.claude/` | `.claude/.worktrees/<worktree-name>` |
-| Cursor | `.cursor/` | `.cursor/.worktrees/<worktree-name>` |
-| Codex | `.codex/` | `.codex/.worktrees/<worktree-name>` |
-| Other agent `<name>` | `.<name>/` | `.<name>/.worktrees/<worktree-name>` |
+Related canonical policy: [`core/policies/git.md`](../../core/policies/git.md) (branch/commit/push invariants), [`core/policies/delivery.md`](../../core/policies/delivery.md) (when work becomes a PR), [`core/policies/validation.md`](../../core/policies/validation.md) (which tier runs where).
 
-General pattern:
+---
 
+## The model
+
+One **objective** = one user-facing goal = (by default) one PR.
+An objective decomposes into zero or more **worker tasks**, plus exactly one **integration** working tree where the workers' commits are composed and reviewed together.
+
+```text
+main
+└── objective/<slug>              ← integration branch
+    ├── worker/<slug>/001
+    ├── worker/<slug>/002
+    └── worker/<slug>/003
 ```
-.<agent_name>/.worktrees/<worktree-name>
+
+```text
+.agent-worktrees/
+└── <objective-slug>/
+    ├── integration/              ← objective/<slug>
+    ├── task-001/                 ← worker/<slug>/001
+    ├── task-002/
+    └── task-003/
 ```
+
+`.agent-worktrees/` may also live outside the repository (a user-level path such as `~/.agent-worktrees/<repo>/<objective>/…`). Both layouts are supported; the repo-local one must stay git-ignored.
+
+An objective with a single trivial task does not need worker worktrees at all — one integration worktree is a complete, valid setup. Do not manufacture parallelism that the objective does not have.
+
+### What each worktree is for
+
+| Worktree | Branch | Ends at | Validation tier |
+|----------|--------|---------|-----------------|
+| `task-NNN` | `worker/<slug>/NNN` | implementation → targeted validation → **commit + handoff** | Tier 1 |
+| `integration` | `objective/<slug>` | workers composed → cross-worker review → full validation → **PR** | Tier 2 |
+
+A worker task **must not** open a PR, merge, or push to the default branch. Work unit is not delivery unit. Delivery happens once, from the integration worktree, under [`core/policies/delivery.md`](../../core/policies/delivery.md).
 
 ---
 
 ## Why worktrees
 
 A git worktree is a separate checked-out directory linked to the same `.git` store. Agents in different worktrees:
-- Never conflict on branch checkout (each worktree has its own `HEAD`)
-- Never produce index lock errors (`index.lock` is per-worktree)
-- Never trample uncommitted changes in the main working tree
-- Can run and commit in parallel without coordination
+
+- never conflict on branch checkout (each worktree has its own `HEAD`);
+- never produce index lock errors (`index.lock` is per-worktree);
+- never trample uncommitted changes in the main working tree;
+- can run and commit in parallel without coordination.
+
+A branch can be checked out in only **one** worktree at a time. If another agent holds it, branch from the same base instead of waiting.
 
 ---
 
-## Rule: one task = one worktree
+## Rule: never commit from the user's main checkout
 
-Every agent that creates a branch and makes commits **must** do so inside a dedicated worktree, not the main checkout.
-Every dedicated worktree **must** be created under that agent's root (see table above).
-
-Exception: the repo's main checkout (wherever the user cloned the repo) is reserved for the human user and for read-only operations (browsing, reviewing, driving `/pr-dev` from the default branch).
+Every agent that creates a branch and makes commits **must** do so inside a dedicated worktree. The repo's main checkout (wherever the user cloned it) is reserved for the human and for read-only operations — browsing, reviewing, driving delivery from the default branch.
 
 ---
 
-## Creating a worktree
+## Creating worktrees
+
+Prefer the shared resolver over hand-rolled paths:
 
 ```bash
-# From the repo root (main working tree)
+skills/dev-workflow/_shared/scripts/resolve-worktree.sh --objective <slug> --task 001
+skills/dev-workflow/_shared/scripts/resolve-worktree.sh --objective <slug> --integration
+```
+
+It resolves the correct path, understands legacy layouts (below), and prints a machine-readable result for orchestration. Manual equivalent:
+
+```bash
 git fetch origin
-DEFAULT_BRANCH=$(gh repo view --json defaultBranchRef --jq .defaultBranchRef.name 2>/dev/null || echo main)
-git worktree add .<agent_name>/.worktrees/<worktree-name> -b <branch-name> "origin/${DEFAULT_BRANCH}"
+DEFAULT_BRANCH=$(git symbolic-ref --quiet --short refs/remotes/origin/HEAD 2>/dev/null | sed 's#^origin/##')
+DEFAULT_BRANCH="${DEFAULT_BRANCH:-main}"
+
+# Integration worktree — created once per objective, first.
+git worktree add ".agent-worktrees/<slug>/integration" -b "objective/<slug>" "origin/${DEFAULT_BRANCH}"
+
+# Worker worktrees — branched from the integration branch, not from origin.
+git worktree add ".agent-worktrees/<slug>/task-001" -b "worker/<slug>/001" "objective/<slug>"
 ```
 
-Convention for the worktree path:
+Deriving the default branch via `git` keeps this working without `gh`; see [`gh-cli-preference.md`](gh-cli-preference.md). If `gh` is available, `gh repo view --json defaultBranchRef --jq .defaultBranchRef.name` is equivalent.
 
-```
-.<agent_name>/.worktrees/<area>-<issue-number>-<short-description>
-# e.g. .cursor/.worktrees/cursor-54-symlink-rules
-# e.g. .codex/.worktrees/codex-12-pr-dev-cleanup
-```
+### Naming
 
-All `.<agent_name>/.worktrees/` roots must be git-ignored — worktrees must never appear as untracked files in the main working tree.
+| Thing | Form | Example |
+|-------|------|---------|
+| Objective slug | kebab-case, no provider, no platform | `auth-system` |
+| Integration branch | `objective/<slug>` | `objective/auth-system` |
+| Worker branch | `worker/<slug>/NNN` | `worker/auth-system/002` |
+| Worktree dir | `.agent-worktrees/<slug>/{integration,task-NNN}` | `.agent-worktrees/auth-system/task-002` |
+
+Never encode `claude`, `cursor`, `codex`, `gemini`, or `opencode` into a slug, branch, or directory. Which provider ran a task is recorded in the task/handoff state under `.dev-files/objectives/<id>/` — see [`dev-files-workspace.md`](dev-files-workspace.md) and [`cross-platform-handoff.md`](cross-platform-handoff.md). That is what lets a task start on one provider and finish on another without renaming anything.
 
 ---
 
 ## Working inside a worktree
 
-All git operations (commit, push, status, log) run normally inside the worktree directory. The worktree has its own index and working files but shares objects and refs with the main repo.
+All git operations run normally inside the worktree directory — it has its own index and working files, sharing objects and refs with the main repo.
 
 ```bash
-cd .<agent_name>/.worktrees/<worktree-name>
-# implement, stage, commit, push as normal
+cd .agent-worktrees/<slug>/task-001
+# implement, stage, commit
 git add skills/dev-workflow/pr-dev/SKILL.md
-git commit -m "feat: ..."
-git push -u origin <branch-name>
+git commit -m "feat(skills): ..."
 ```
+
+A worker ends by writing its handoff (see [`cross-platform-handoff.md`](cross-platform-handoff.md)). Pushing a worker branch is optional — useful for durability or for a remote reviewer, unnecessary for a local-only objective. Do not require a remote where none is needed.
+
+### Composing workers into the integration worktree
+
+```bash
+cd .agent-worktrees/<slug>/integration
+git merge --no-ff worker/<slug>/001 worker/<slug>/002
+# Tier 2: full lint/typecheck, full suite, cross-worker review of the combined diff
+make validate
+```
+
+Conflicts between workers are an integration-worktree problem, resolved there — never by rewriting another worker's branch.
 
 ---
 
-## Checking out an existing branch
+## Legacy platform worktrees — understood, never orphaned
 
-If the branch already exists on the remote:
+Earlier versions of this repo used platform-shaped paths:
 
-```bash
-git worktree add .<agent_name>/.worktrees/<worktree-name> <branch-name>
+```text
+.claude/.worktrees/<name>
+.cursor/.worktrees/<name>
+.codex/.worktrees/<name>
 ```
 
-If not yet local:
+Those remain **valid and supported**. Nothing migrates them destructively, and no tool may delete or move one on its own initiative.
 
-```bash
-git worktree add .<agent_name>/.worktrees/<worktree-name> --track -b <branch-name> origin/<branch-name>
-```
+- `resolve-worktree.sh` recognizes both layouts. Given an existing legacy worktree for a slug, it resolves to that worktree rather than creating a parallel new-layout one.
+- `resolve-worktree.sh --list` enumerates every agent worktree it can see — new-layout and legacy — with its branch, objective (where known), and last commit date.
+- `resolve-worktree.sh --migrate <path>` moves one legacy worktree into the new layout, in place, preserving uncommitted work. It is opt-in, one worktree at a time, and refuses to run on a dirty tree without an explicit confirmation flag.
+- Claude Code's `EnterWorktree` tool and the `~/.claude/worktrees/<repo>/<slug>/` paths created by Claude Code hooks are a separate, external mechanism. They keep working; treat them as legacy-equivalent.
 
-A branch can only be checked out in **one** worktree at a time. If another agent has it, create a new branch from the same base instead.
+All of `.agent-worktrees/`, `.claude/.worktrees/`, `.cursor/.worktrees/`, and `.codex/.worktrees/` stay in `.gitignore`. Worktree directories are never committed.
 
 ---
 
 ## Cleaning up
 
-After the PR is merged, delete the **remote** branch, then remove the worktree and local branch:
+Remove a worktree only when its work is committed and composed, or when the user says the work is abandoned. **Never** `--force` away a worktree with uncommitted changes to tidy up; rescuing uncommitted work is a hard invariant ([`core/policies/safety.md`](../../core/policies/safety.md)).
 
 ```bash
-# From the repo root — prefer letting gh delete the branch at merge time:
-gh pr merge <PR_NUMBER> --squash --delete-branch
+# Worker worktrees — after the integration branch contains their commits
+git worktree remove .agent-worktrees/<slug>/task-001
+git branch -d worker/<slug>/001
 
-# If the PR was already merged without --delete-branch, delete the remote explicitly:
-git push origin --delete <branch-name>
-
-# Remove the agent worktree (use the correct <agent_name> for your platform)
-git worktree remove .<agent_name>/.worktrees/<worktree-name>
-# If the worktree has no uncommitted changes it is deleted immediately.
-# Use --force only if you are certain the work is no longer needed.
-
-# Delete the local branch and prune stale refs
-git branch -D <branch-name>
+# Integration worktree — after the objective's PR merges
+git worktree remove .agent-worktrees/<slug>/integration
+git branch -D objective/<slug>
 git remote prune origin
-```
-
-When driving a PR with `pr-dev` (Claude Code `/tamirs-superpowers:pr-dev`, Cursor/Codex plugin skill of the same name), run `cleanup-after-merge.sh` after merge — it performs remote deletion, worktree removal, and local branch cleanup in one step.
-
-For cross-platform handoff between sessions, see [`cross-platform-handoff.md`](cross-platform-handoff.md). `start-dev` uses `skills/dev-workflow/_shared/scripts/resolve-worktree.sh` for platform-scoped worktrees.
-
-Prune stale worktree metadata:
-
-```bash
 git worktree prune
 ```
 
----
-
-## .gitignore entry
-
-All `.<agent_name>/.worktrees/` roots must remain in `.gitignore`. Do not commit worktree directories.
+When delivery ran through `pr-dev`, `cleanup-after-merge.sh` performs remote branch deletion, worktree removal, and local branch cleanup in one step. It requires `gh` for the remote half and degrades to local-only cleanup without it.
 
 ---
 
@@ -139,35 +178,24 @@ All `.<agent_name>/.worktrees/` roots must remain in `.gitignore`. Do not commit
 
 | Situation | Action |
 |-----------|--------|
-| Two agents need different features | Each creates its own branch + worktree under its platform root |
-| Two agents need the same branch | Only one agent works on it; the other waits or takes a new branch |
-| Agent crashes mid-task | Human runs `git worktree remove --force .<agent_name>/.worktrees/<name>` to clean up |
-| Unsure if a worktree is in use | `git worktree list` from the repo root |
+| Two agents work on the same objective | Each takes its own `task-NNN` worktree + `worker/<slug>/NNN` branch |
+| Two agents need the same file scope | Sequence them with `depends_on` in the task state; do not co-edit one worktree |
+| Two agents need the same branch | Only one holds it; the other branches from the same base |
+| Agent crashes mid-task | Its worktree and commits survive. Read its handoff (or its last commit) and resume in place — do not delete it |
+| Unsure what exists | `resolve-worktree.sh --list`, or `git worktree list` from the repo root |
 
 ---
 
-## Platform shortcuts
+## Platform notes
 
-### Claude Code
+Provider-specific ergonomics only — the model above is identical everywhere.
 
-Claude Code's `EnterWorktree` tool automates worktree creation and cleanup. Prefer it over manual `git worktree add` when running inside Claude Code:
+| Provider | Note |
+|----------|------|
+| Claude Code | `EnterWorktree` automates creation/cleanup and places worktrees under `.claude/.worktrees/<name>` (legacy layout, supported). Use it when it saves work; use `resolve-worktree.sh` when you need the objective layout |
+| Cursor | No built-in worktree tool — create manually or via `resolve-worktree.sh` |
+| Codex | No built-in worktree tool — same as Cursor |
+| Gemini CLI | No built-in worktree tool — same as Cursor |
+| OpenCode | No built-in worktree tool — same as Cursor |
 
-```
-EnterWorktree(name: "54-symlink-rules")
-```
-
-`EnterWorktree` places its worktree under `.claude/.worktrees/<name>`. The path must stay git-ignored. The tool switches the session's working directory automatically and cleans up on session exit if no changes were made.
-
-Claude Code hooks may also create global worktrees under `~/.claude/worktrees/<repo>/<slug>/` — that path is separate from repo-local `.<agent>/.worktrees/` above.
-
-### Cursor
-
-Cursor has no built-in worktree tool. Always create worktrees manually under `.cursor/.worktrees/` before editing tracked files from an agent session.
-
-### Codex
-
-Codex has no built-in worktree tool. Always create worktrees manually under `.codex/.worktrees/` before editing tracked files from an agent session.
-
-### Shell and other agents
-
-Use `.<agent_name>/.worktrees/` for any agent without a platform shortcut (manual `git worktree add`).
+Capability facts live in [`core/capabilities/platforms.json`](../../core/capabilities/platforms.json), not in this table; the table is a convenience. When they disagree, the JSON wins.

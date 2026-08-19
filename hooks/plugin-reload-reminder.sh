@@ -6,7 +6,11 @@
 # (plugin.json, hooks.json, marketplace.json) still need a reload.
 set -euo pipefail
 
-input="$(cat)"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=lib/hook-output.sh
+source "${SCRIPT_DIR}/lib/hook-output.sh"
+
+input="$(hook_read_stdin)"
 file="$(echo "$input" | python3 -c "
 import sys, json
 try:

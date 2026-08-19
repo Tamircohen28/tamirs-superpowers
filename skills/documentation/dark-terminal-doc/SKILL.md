@@ -33,17 +33,28 @@ hooks: {}
 paths: []
 shell: bash
 metadata:
+  tamirs:
+    visibility: public
+    category: documentation
+    role: implementer
+    validation-tier: 1
+    updated-date: '2026-08-19'
+    capabilities:
+      required:
+        - skills
+      optional: []
+    tags:
+      - html
+      - documentation
+      - design
+      - content
+      - dark-terminal
+      - comparison-table
+      - reference-sheet
+      - single-file
+      - portable
   capability: document-generation
-  tags:
-  - html
-  - documentation
-  - design
-  - content
-  - dark-terminal
-  - comparison-table
-  - reference-sheet
-  - single-file
-  updated-date: '2026-06-16'
+  updated-date: '2026-08-19'
 ---
 
 # Dark Terminal Document Design System
@@ -83,6 +94,8 @@ Naive approaches fail because: ad-hoc inline styles drift from the design system
 3. **Brand accent colors (`--brand-a`, `--brand-b`) must be pastelized for body text** in data cells. Using the full-saturation color directly on body text causes glare and contrast issues.
 4. **Winner badges belong in the notes column, after the explanatory text** — badge is a visual summary, not a lead-in.
 5. **Never use light backgrounds, Inter/Roboto fonts, purple gradients, glassmorphism, or rounded hero cards.** This is a terminal aesthetic, not a marketing page.
+6. **Never drop the generic font fallback.** `'Syne', sans-serif` and `'IBM Plex Mono', monospace` keep the page readable when the Google Fonts import is blocked — offline, behind a proxy, or under a strict Content-Security-Policy. The import is the one permitted external call precisely because it degrades; a bare `font-family: 'Syne'` does not.
+7. **No harness features.** The output is a `.html` file opened from `file://`. It requires no agent runtime, no skills, no subagents, no build step — and must keep requiring none.
 6. **Summary cards are mandatory for comparison docs** — three boxes: brand-a wins / brand-b wins / tie. Single-subject docs (cheatsheets, changelogs) may omit them.
 7. **Max-width is 1200px throughout,** not 960px — comparison tables need horizontal breathing room.
 8. **Section headers must use `text-transform: uppercase`, `letter-spacing: 2px`, and an emoji prefix** to create visual rhythm and scanability in long tables.

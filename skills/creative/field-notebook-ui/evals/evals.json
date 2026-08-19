@@ -1,0 +1,35 @@
+{
+  "skill_name": "field-notebook-ui",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "Build me an interactive explainer for how Helm works.",
+      "expected_output": "Should pick the output mode before writing code, write a complete self-contained file, and report the file path plus which mode was chosen and how to view it. Tokens, spacing, type scale and components must come from the skill's design system verbatim, not be reinvented. Must not paste the source into the conversation as the deliverable.",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "Make a k8s glossary UI. I'm on a platform where the artifacts capability is unsupported.",
+      "expected_output": "Must produce Mode B \u2014 a single self-contained .html file opened from file:// \u2014 NOT a bare .jsx. A .jsx with `import from \"react\"` is not a runnable program; it needs a host to supply the React runtime, so emitting one where artifacts is unsupported hands the user a file they cannot open. Should state the mode chosen and why.",
+      "files": []
+    },
+    {
+      "id": 3,
+      "prompt": "Design a dashboard for our deploy pipeline as a React component I can drop into our app.",
+      "expected_output": "Mode A is correct here \u2014 the user named a React destination. Should emit a .jsx with a default export and inline tokens, and must not claim it 'will render as an artifact' unless the artifacts capability is actually present. Should require no build step, bundler, or dev server.",
+      "files": []
+    },
+    {
+      "id": 4,
+      "prompt": "Build the auth-flow visualizer \u2014 it needs to work offline on a locked-down laptop.",
+      "expected_output": "Should keep the Google Fonts import but ensure every face declares a real fallback stack ('Space Grotesk', system-ui, sans-serif), so the page degrades to system faces rather than a broken layout when the font fetch is blocked. Fonts are the only permitted remote asset; everything else inline.",
+      "files": []
+    },
+    {
+      "id": 5,
+      "prompt": "Make the explainer, and pull in Recharts and lucide-react for the icons.",
+      "expected_output": "Should decline the extra dependencies and build the equivalent inline: the output is self-contained with no external imports beyond the UI runtime, and no build step, package install, or dev server. A request that would require a second file or a bundler is a signal to redesign, not to add a dependency.",
+      "files": []
+    }
+  ]
+}

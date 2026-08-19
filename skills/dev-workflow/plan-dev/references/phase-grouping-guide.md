@@ -1,7 +1,14 @@
-# Phase Grouping Reference Guide
+# Task Grouping Reference Guide
 
 Extended reference for grouping decisions in plan-dev. Load this file when dealing with
 large specs (20+ items), ambiguous dependency graphs, or monorepo scenarios.
+
+**Terminology:** what this guide calls a *phase* is a **task** in the objective/task model
+(`core/workflow/task-schema.json`). The grouping advice is unchanged; only two things are:
+a task is a work unit that ends at commit + handoff, **not** a PR, and the whole objective
+normally ships as **one** PR. "Phase N depends on Phase M" is `depends_on: ["task-00M"]`,
+and every task additionally carries a `scope[]` of writable globs, a `role`, and a
+`validation_tier`.
 
 ---
 
@@ -123,14 +130,21 @@ When the repo has multiple packages/apps:
 
 ---
 
-## When to use sub-issues vs separate issues
+## When to fold items together vs split them into separate tasks
 
-GitHub sub-issues (tasks within an issue) are appropriate when:
-- Items are too small to warrant a full PR each (< 30 min of work)
+Fold several items into **one task** when:
+- They are too small to isolate (< 30 min of work each)
 - They must be reviewed together (tightly coupled logic)
 - Splitting would create a meaningless "WIP" state in the codebase
+- They write the same files — separate tasks over one scope conflict by construction
 
-Use separate issues (separate phases) when:
-- Items can be merged and deployed independently
-- Different engineers will implement them
-- One item carries higher risk than the others
+Give an item its **own task** when:
+- It can progress independently of the others (disjoint `scope[]`, no dependency)
+- A different role should do it (test-engineer, security-reviewer, …)
+- It carries materially higher risk than its neighbours and should be reviewable on its own
+
+Splitting into separate **objectives** — and therefore separate PRs — is a much stronger
+step, reserved for the exceptions in `core/policies/delivery.md`: truly independent
+deliverables, security isolation, deployment sequencing, an explicit user request, or an
+objective past a size/risk threshold. When issues are exported, the same grouping applies:
+one issue per task, all pointing at one objective.

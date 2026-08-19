@@ -33,6 +33,16 @@ metadata:
   - pr-dev
   - github
   updated-date: "2026-07-21"
+  tamirs:
+    visibility: public
+    category: repo
+    capabilities:
+      required: [shell, git]
+      optional: [github_cli, worktree_isolation]
+    role: integrator
+    updated-date: "2026-08-19"
+    validation-tier: 3
+
 ---
 
 ## Live context

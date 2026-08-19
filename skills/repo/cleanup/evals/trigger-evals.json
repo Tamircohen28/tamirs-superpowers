@@ -1,0 +1,21 @@
+[
+  { "query": "/cleanup", "should_trigger": true },
+  { "query": "clean up this repo", "should_trigger": true },
+  { "query": "prune the merged branches", "should_trigger": true },
+  { "query": "delete stale remote branches", "should_trigger": true },
+  { "query": "my worktrees are a mess, tidy them up", "should_trigger": true },
+  { "query": "reset my local checkout to match remote", "should_trigger": true },
+  { "query": "repo housekeeping — branches, worktrees, build files, the lot", "should_trigger": true },
+  { "query": "wipe the build and cache artifacts", "should_trigger": true },
+  { "query": "get me back to a fresh clean environment on this repo", "should_trigger": true },
+  { "query": "drive all the open PRs to merge-ready", "should_trigger": true },
+
+  { "query": "delete the auth-refactor branch", "should_trigger": false },
+  { "query": "why is this worktree in a detached HEAD state", "should_trigger": false },
+  { "query": "clean up this function, it has too many nested ifs", "should_trigger": false },
+  { "query": "remove the unused imports in src/api.ts", "should_trigger": false },
+  { "query": "run npm ci to reinstall dependencies", "should_trigger": false },
+  { "query": "what does git gc actually do", "should_trigger": false },
+  { "query": "finish PR #212 and merge it", "should_trigger": false },
+  { "query": "add node_modules to .gitignore", "should_trigger": false }
+]

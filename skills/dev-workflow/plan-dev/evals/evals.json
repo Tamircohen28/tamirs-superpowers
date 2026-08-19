@@ -1,45 +1,104 @@
 {
   "skill_name": "plan-dev",
+  "notes": "Primary output is now an objective + task DAG under .dev-files/objectives/<id>/, validated by scripts/validate_plan.py. GitHub issue creation is an optional export. Eval 4 is the backward-compatibility regression: an explicit 'create issues for' request must still produce GitHub issues.",
   "evals": [
     {
       "id": 1,
-      "prompt": "I need to add OAuth2 login with GitHub to my existing Next.js app. The app already has a local username/password auth system using sessions. Plan this out for me — break it into phases I can implement one PR at a time.",
-      "expected_output": "A multi-phase plan (at minimum Phase 1: backend OAuth callback + session integration, Phase 2: frontend UI changes) with concrete task descriptions naming specific files, dependency ordering, and a mandatory approval gate before any gh issue create commands run. Should NOT create issues immediately.",
+      "prompt": "Plan this: add user authentication to our Express API — JWT middleware, a users table migration, login and registration endpoints, and tests.",
+      "expected_output": "An objective (id slug, base branch, integration branch objective/<id>, delivery.strategy single-pr) plus 4-6 tasks each declaring role, depends_on, scope globs, validation_tier and status. Waves are shown. The plan is presented and the skill STOPS for approval before writing anything. After approval, files are written under .dev-files/objectives/<id>/ and validate_plan.py is run and passes.",
       "files": [],
       "expectations": [
-        "The plan is presented BEFORE any GitHub issues are created — there is a visible approval gate",
-        "At least 2 distinct phases are identified (e.g. backend OAuth handler vs frontend UI)",
-        "Each phase task names specific files or directories (not just 'add OAuth logic')",
-        "Phases include a Depends on field showing dependency ordering",
-        "The response ends with a request for user approval before creating issues",
-        "No gh issue create commands are executed during the planning response"
+        "An objective id, title, base_branch and integration_branch are named",
+        "delivery.strategy is single-pr and no exception_reason is invented",
+        "Every task declares role, depends_on, scope, validation_tier and status",
+        "Roles come from the canonical list (implementer, test-engineer, integrator, ...)",
+        "Parallel waves are shown and no two parallel tasks share write scope",
+        "The skill stops and waits for explicit approval before writing any file",
+        "After approval, .dev-files/objectives/<id>/objective.json and tasks/task-NNN.json are written",
+        "scripts/validate_plan.py is run against the written objective directory and passes",
+        "The plan does not state or imply one PR per task"
+      ],
+      "assertions": [
+        {
+          "text": "No task is described as producing its own pull request",
+          "passed": null,
+          "evidence": ""
+        },
+        {
+          "text": "validate_plan.py is executed on the objective directory",
+          "passed": null,
+          "evidence": ""
+        },
+        {
+          "text": "Every emitted task JSON contains depends_on, scope, validation_tier and role",
+          "passed": null,
+          "evidence": ""
+        }
       ]
     },
     {
       "id": 2,
-      "prompt": "Here's a code review doc I got from my tech lead: The payments module needs (1) extract PaymentProcessor into its own file, (2) add retry logic for failed Stripe calls, (3) write unit tests for the retry logic, (4) update the API docs to reflect the new retry behavior. Turn this into GitHub issues.",
-      "expected_output": "A phased plan that groups the 4 items sensibly (e.g. Phase 1: refactor/extract, Phase 2: retry logic, Phase 3: tests, Phase 4: docs — or merged appropriately), presents the plan for approval, then on approval creates the issues via gh issue create with proper labels.",
-      "files": [],
+      "prompt": "I have a review doc with 12 findings — organize it into work I can actually execute.",
+      "expected_output": "Findings are grouped by area and risk into 4-6 tasks rather than 12. Independent low-risk fixes share a wave with disjoint scopes; the risky refactor gets its own task with dependents. Presented for approval first; written as one objective.",
+      "files": [
+        "evals/files/review-doc.md"
+      ],
       "expectations": [
-        "The 4 review items are each captured in the plan (none dropped)",
-        "The refactor (extract PaymentProcessor) is placed in an earlier phase than the retry logic that depends on it",
-        "Tests are linked to the retry logic phase or placed after it — not before",
-        "Plan is shown for approval before gh issue create runs",
-        "Created issue bodies include Resume and Agent routing sections with agent:any label",
-        "Each task names the specific area: 'src/payments/', 'PaymentProcessor', 'Stripe', etc.",
-        "The skill suggests /start-dev or /switch-dev resume as next step after issues are created"
+        "12 findings are grouped, not turned into 12 tasks",
+        "Risky/restructuring findings are isolated into their own task",
+        "Independent tasks are marked parallel and have non-overlapping scope globs",
+        "One objective is produced, not twelve",
+        "Approval is requested before writing"
       ]
     },
     {
       "id": 3,
-      "prompt": "plan-dev https://github.com/myorg/myapp/issues/47",
-      "expected_output": "The skill fetches the issue content via gh issue view, reads it, decomposes it into sub-tasks grouped as phases, shows a plan, waits for approval, then creates child/linked issues. Handles the case where the issue may not exist gracefully.",
+      "prompt": "turn this GitHub issue into sub-tasks: #47",
+      "expected_output": "gh issue view is used to read #47 (or the user is asked to paste it when gh is unavailable), the issue becomes one objective, and its content is decomposed into a task DAG. The originating issue number is recorded in the objective notes.",
       "files": [],
       "expectations": [
-        "Skill runs gh issue view to fetch the issue content before planning (or handles gracefully if repo not found)",
-        "Output shows a phased breakdown derived from the issue content (or explains what it would do with a real issue)",
-        "Approval gate is present before any new issues are created",
-        "If the issue cannot be fetched, the skill asks the user to paste the content rather than failing silently"
+        "gh issue view 47 is attempted before planning",
+        "Absence of gh leads to asking the user, not to guessing the content",
+        "The issue becomes a single objective with multiple tasks",
+        "The originating issue is recorded in the written state"
+      ]
+    },
+    {
+      "id": 4,
+      "prompt": "create issues for the auth refactor I described",
+      "expected_output": "Backward compatibility: because the user explicitly asked for issues, the export step runs without a further prompt. The objective and tasks are still written locally first; then one GitHub issue per task is created with the task's scope, dependencies, verification tier and a Resume block, and the issue URLs are reported.",
+      "files": [],
+      "expectations": [
+        "Local objective state is written first",
+        "GitHub issues are created without asking the user again whether they want them",
+        "Each issue body includes the objective id, the task scope, dependencies and a Resume block",
+        "Issue bodies do not promise one PR per issue",
+        "The issue URLs are reported back and recorded in the task/objective notes"
+      ],
+      "assertions": [
+        {
+          "text": "gh issue create is called once per task",
+          "passed": null,
+          "evidence": ""
+        },
+        {
+          "text": "The skill does not re-ask whether to export after an explicit 'create issues' request",
+          "passed": null,
+          "evidence": ""
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "prompt": "Plan the search-indexing work. Note this machine has no gh installed and no subagents available.",
+      "expected_output": "Capability fallback case. The objective and task DAG are produced and written locally exactly as normal; the GitHub export degrades to unsupported and is reported in one line rather than failing the run; parallelizable tasks are still marked but the wave plan is described as sequential execution where subagents are not available.",
+      "files": [],
+      "expectations": [
+        "The objective and tasks are written to .dev-files/objectives/<id>/ with no gh calls",
+        "The absence of gh is stated in one line and the issue export is skipped, not retried",
+        "validate_plan.py still runs and passes",
+        "Parallelizable tasks are still identified, with a note that they will run sequentially where subagents are unsupported",
+        "The plan is not silently downgraded to fewer tasks because orchestration is degraded"
       ]
     }
   ]

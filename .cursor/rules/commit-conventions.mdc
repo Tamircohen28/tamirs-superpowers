@@ -5,30 +5,33 @@ alwaysApply: false
 
 # Commit conventions
 
+Canonical git policy: `core/policies/git.md`. Branch and worktree model: `rules/dev/git-worktree-agent-workflow.md`.
+
 ## Format
 
 ```
 <type>(<scope>): <description>
-
-Co-Authored-By: Claude <noreply@anthropic.com>
 ```
 
 **Types:** `feat`, `fix`, `chore`, `docs`, `refactor`
-
-**Scopes:** `skills`, `hooks`, `marketplace`, `ci`, `docs`
-
-## Examples
+**Scopes:** `skills`, `hooks`, `core`, `rules`, `marketplace`, `ci`, `docs`
 
 ```
 feat(skills): add pr-dev skill for persistent PR drive loop
 fix(hooks): handle missing session state in capture-task-slug
-docs(skills): update reference.md with multi-agent-repo and repo-scaffold
 chore(ci): switch ubuntu runner to ubuntu-latest
+```
+
+## Branches
+
+```
+objective/<slug>        integration branch — where the PR comes from
+worker/<slug>/NNN       one worker task
 ```
 
 ## Rules
 
 - One commit per logical change — never batch unrelated fixes
-- Never commit with `git add .` — stage specific files to avoid secrets or build artifacts
-- Never push directly to `main` — always use a feature branch and open a PR
-- `make validate` must pass before committing (JSON + shellcheck + SKILL.md frontmatter)
+- Never `git add .` — stage specific files, so secrets and build artifacts cannot ride along
+- Never push directly to the default branch — branch, then PR
+- `make validate` must pass before the objective's PR opens

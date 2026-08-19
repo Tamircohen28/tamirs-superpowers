@@ -1,7 +1,10 @@
 # Sweep Checklist (fast pass)
 
-Use this when running `review-docs` against a single file or small set. The
+Use this when running `docs-review` against a single file or small set. The
 SKILL.md body has the full prose; this file is the per-file checklist.
+
+Paths below use `<skill-dir>` for this skill's install directory — `$CLAUDE_SKILL_DIR` on
+Claude Code, the directory this file was loaded from elsewhere.
 
 ## Inventory
 
@@ -13,16 +16,29 @@ SKILL.md body has the full prose; this file is the per-file checklist.
 
 ```bash
 F="$1"
-bash .claude/skills/review-docs/scripts/file-freshness.sh "$F" | jq .
-bash .claude/skills/review-docs/scripts/check-template.sh   "$F" | jq .
-bash .claude/skills/review-docs/scripts/validate-links.sh   "$F" | jq .
+bash <skill-dir>/scripts/file-freshness.sh "$F" | jq .
+bash <skill-dir>/scripts/check-template.sh   "$F" | jq .
+bash <skill-dir>/scripts/validate-links.sh   "$F" | jq .
 ```
 
 Plan-file detection runs once for the whole repo, not per file:
 
 ```bash
-bash .claude/skills/review-docs/scripts/detect-plan-files.sh
+bash <skill-dir>/scripts/detect-plan-files.sh
 ```
+
+## Repo-wide axes (run once, not per file)
+
+Axes 8–10 are repo-wide and are **not** part of the per-file loop. Run them once per sweep:
+
+| Axis | Check | Pass condition |
+|---|---|---|
+| 8 — cross-platform docs | Platform-facing files agree with the capability registry; no duplicated canonical policy | 0 inconsistencies |
+| 9 — install commands | `make -n <target>` / `bash -n <script>` / manifest name match, for every documented install command | 0 failures |
+| 10 — generated tables | Skill counts, domain tables, per-skill rows and platform tables match the filesystem and the registry | 0 drifted |
+
+Never execute an install command to verify it, and never hardcode a platform list — resolve
+it from `core/capabilities/platforms.json`.
 
 ## Decision matrix
 
@@ -38,6 +54,11 @@ bash .claude/skills/review-docs/scripts/detect-plan-files.sh
 | `link_text_uses_path_count > 0` | Replace path-as-link-text with human-readable labels |
 | `broken_links` non-empty | Fix the path or remove the link; never invent a target |
 | `broken_anchors` non-empty | Fix anchor or rename target heading |
+| doc claims a capability the registry marks `unsupported` / `unknown` | Remove the claim; never soften it to "may support" |
+| documented platform set ≠ registry platform set | Update the doc; report the diff both ways |
+| `make -n <target>` fails for a documented command | Fix the doc or the Makefile — do not leave a command that cannot run |
+| skill count in a doc ≠ `find skills -name SKILL.md` count | Update every occurrence, not the first one found |
+| a generated table was hand-edited | Fix the generator and regenerate; revert the hand edit |
 | `mermaid_parse_errors` non-empty | Add the diagram-type keyword (e.g. `flowchart TD`) |
 
 ## Plan-file confirmation

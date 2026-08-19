@@ -1,6 +1,68 @@
 #!/usr/bin/env bash
+# Claude Code statusLine renderer.
+#
+# NEVER BLOCKS ON STDIN.
+#   `input=$(cat)` reads until EOF. When the caller forgets `</dev/null`, or the
+#   script is run by hand, or a harness starts it with an inherited terminal or
+#   an open pipe nobody writes to, that `cat` waits forever — and a statusline
+#   that never returns is a session that never paints. Correctness here cannot
+#   depend on every caller remembering a redirect, so the read is bounded and
+#   the empty case is a first-class input: with no payload every field is
+#   already handled as "unknown" ("--"), so the script renders a degraded line
+#   and exits instead of hanging.
+#
+#   The bound is bash's OWN `read -t`, a shell built-in. It is deliberately not
+#   `timeout(1)`: that is GNU coreutils, absent from a stock macOS — which is
+#   this repo's primary development platform — so a guarantee resting on it
+#   would simply not hold on the maintainer's machine, and would fail in the
+#   worst way: silently, as a hang. `read -t` is always there.
+#
+#   Note also that `set -e` is deliberately NOT enabled: `read -t` returns
+#   non-zero when it times out, which is the SUCCESS path here, and `-e` would
+#   abort the script on the exact case this code exists to survive.
+#
+#   STATUSLINE_STDIN_TIMEOUT overrides the per-read timeout (seconds).
+#
+# PLUGIN ROOT.
+#   PLUGIN_ROOT is resolved from this script's own location, so nothing here
+#   depends on the marketplace cache path. The `~/.claude/plugins/cache/
+#   tamirs-marketplace/tamirs-superpowers/<version>/` glob remains only in the
+#   INVOCATION recorded in settings (see .claude-plugin/plugin.json and
+#   docs/engineering/statusline.md) — it is the documented fallback for an
+#   installed copy, not an assumption made by this file.
+set -uo pipefail
 
-input=$(cat)
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PLUGIN_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+export PLUGIN_ROOT
+
+# read_input — the whole payload, or "" if none arrives in time.
+read_input() {
+  local timeout="${STATUSLINE_STDIN_TIMEOUT:-2}" line buf=""
+
+  # An interactive terminal on stdin means nobody is piping a payload; reading
+  # would steal the user's keystrokes and block until they hit enter.
+  if [ -t 0 ]; then
+    return 0
+  fi
+
+  while IFS= read -r -t "$timeout" line; do
+    buf="${buf}${line}"
+  done
+  # A final line without a trailing newline lands in $line, not in the loop.
+  buf="${buf}${line}"
+
+  printf '%s' "$buf"
+}
+
+input="$(read_input)"
+
+# A non-JSON or empty payload is not an error — every field below already
+# degrades to "--". Normalizing to {} keeps jq from writing parse errors into
+# the status line itself.
+if [ -z "$input" ] || ! printf '%s' "$input" | jq -e . >/dev/null 2>&1; then
+  input='{}'
+fi
 
 model=$(echo "$input" | jq -r '.model.display_name // empty')
 current_dir=$(echo "$input" | jq -r '.workspace.current_dir // .cwd // empty')

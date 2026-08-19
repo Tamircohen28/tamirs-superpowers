@@ -4,7 +4,11 @@
 # failures (output-token max, "prompt too long"). Advisory only — never blocks.
 set -euo pipefail
 
-input="$(cat)"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=lib/hook-output.sh
+source "${SCRIPT_DIR}/lib/hook-output.sh"
+
+input="$(hook_read_stdin)"
 prompt="$(echo "$input" | jq -r '.prompt // empty')"
 
 if echo "$prompt" | grep -qiE 'complete everything|transform .* (into|to)|all open .*(pr|pull request)|portfolio-grade|merge all|do everything|entire (repo|codebase|roadmap)'; then

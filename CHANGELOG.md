@@ -5,6 +5,45 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [3.0.0] — 2026-08-19
+
+### Added
+- **Portable orchestration framework — objective → one PR.** A user objective is now decomposed into tasks with disjoint write scopes, each ending at **commit + handoff** rather than at a pull request, merged onto a single `objective/<slug>` integration branch, reviewed as one combined diff, and delivered as **one** PR. State lives in plain files under `.dev-files/objectives/<id>/` (schemas in `core/workflow/`), so an objective resumes after a crash, a `/clear`, a new session — or under a different platform, because nothing in the state names a provider. Policy: `core/policies/delivery.md`.
+- **`orchestrate-dev`, `worker-dev`, `deliver-dev`.** `orchestrate-dev` owns the objective (task graph, capability-gated dispatch, integration, combined-diff review, delivery); `worker-dev` executes exactly one task and is explicitly forbidden from opening a PR, enabling auto-merge, merging the base branch, or running the full repo suite; `deliver-dev` is the only place an objective's PR is created. **The sequential, no-subagent path is a first-class mode**, not a fallback footnote: same task graph, same handoffs, same integration, same single PR, only the concurrency is gone.
+- **Capability registry.** `core/capabilities/platforms.json` records, per platform per capability, a status (`native` / `adapter` / `emulated` / `partial` / `unknown` / `unsupported`), a validation command where one exists, and a stated fallback everywhere else. Skills read it before promising concurrency; docs render from it; `scripts/check-capability-registry.sh` validates it. `unknown` means *this repo has not measured it* and is treated as unavailable — no capability is claimed without evidence.
+- **Gemini CLI as a first-class target.** `gemini-extension.json`, a registry entry, `platform-targets.json` coverage, `tests/test-gemini-adapter.sh`, and an install guide. Installed as a git-URL extension (`gemini extensions install …`); `gemini extensions link .` for local development. Skills and agents reach Gemini through a **generated adapter**, not the canonical files: Gemini discovers skills exactly one level below a skills root (so the two-level canonical tree resolves to zero), and rejects Claude-shaped `agents/*.md` with `tools.0: Invalid tool name`. `scripts/build-gemini-extension.sh` emits a flat symlink mirror at `.gemini/skills/` and `.gemini/agents/*.md` using Gemini's own tool vocabulary, verified against the loader; `make gemini-extension-check` and `make check-gemini-adapter` fail on drift. `hooks` is recorded `unknown` — the outer schema shape is accepted but nobody verified whether Claude event names fire, and this adapter ships no hooks by design. No Node dependency was introduced.
+- **Canonical roles and role-aware agents.** Ten roles in `core/roles/` (planner, orchestrator, implementer, test-engineer, reviewer, security-reviewer, performance-reviewer, debugger, integrator, research-agent); every `agents/*.md` declares a `role:`, and `scripts/validate-roles.sh` fails on drift. Four new agents: `orchestrator`, `implementer`, `integrator`, `spec-reviewer`.
+- **Validation tiers 0–3.** Tier 0 edit-time, Tier 1 worker (targeted only), Tier 2 integration, Tier 3 delivery/CI. Every skill and script must declare the tier it invokes; a step with an unstated tier is a bug. Only commands that actually ran may be reported, and a skipped tier is reported as skipped with a reason.
+- **Canonical version source.** `plugin-version.json` is now the single source of truth; the four manifests, the README badge, and `platform-targets.json` are declared *consumers*, verified by `scripts/check-version-truth.sh` and repaired by `--sync`. Hand-editing a consumer is no longer the workflow.
+- **`scripts/doctor.sh`.** One command reporting the detected platform, version drift, present and missing tools, which optional features are consequently usable, and a remedy per gap. Non-interactive by design — every probe reads from `/dev/null`, so it can never block on stdin.
+- **Documentation rebuild.** A short README; `docs/user/{getting-started,concepts,configuration,orchestration,skills,agents,platform-differences,troubleshooting}.md`; install guides for all six targets, each with install · verify · update · uninstall and an honest capability table; and engineering docs for the capability model, adapter contract, skill schema, orchestration state machine, branch/worktree model, validation tiers, adding a platform, and the testing matrix.
+- **Orchestration simulations and platform contract tests.** `tests/orchestration/scenario-*.sh` exercise dependencies, conflicts, failures, resume, review retries, delivery, sequential-vs-parallel equivalence, and the invariant that **no worker opens a PR** — without invoking a model.
+
+### Changed
+- **Portable skill schema replaces the 16-field Claude requirement.** SKILL.md frontmatter is now three tiers: a required portable core (`name`, `description`), the `metadata.tamirs` framework block, and Claude-specific extensions validated **only when present**. Nothing regresses — skills keep every Claude field they already carry, and `--profile claude-strict` still enforces the old gate — but a new skill no longer has to declare fields it does not use to satisfy a non-Claude platform.
+- **OpenCode modernized.** Native skill discovery via `opencode.json` `skills.paths` reading the canonical tree in place, with `.opencode/agent/` generated from `agents/` and drift enforced by `make opencode-agents-check`. Documented honestly: OpenCode has no `hooks.json`, its only lifecycle mechanism is the JS/TS plugin API, and this repo ships no plugin module by design.
+- **Claude Desktop is documented as a runtime surface of the Claude adapter**, not a separate plugin format. No Desktop manifest exists or should be created; capabilities this repo has not exercised there are recorded as `unknown` rather than assumed.
+- **Branch and worktree identity follows the objective, not the harness.** `objective/<slug>` + `worker/<slug>/NNN`, with worktrees under `.agent-worktrees/<objective>/<task-id>/`. Provider is `task.provider` metadata and never appears in a branch name, worktree path, or state directory. Legacy platform-shaped worktrees (`.claude/.worktrees/…` and friends) are still recognized, never orphaned, and migrated only opt-in, one at a time.
+- **Auto-merge is a configurable preference, not an invariant**, and branch-update-before-merge is loose by default. Neither is ever forced against branch protection or a stated preference.
+
+### Deprecated
+- **`/start-dev` as an implementation→PR pipeline.** It remains a fully supported front door and behaves as before for a simple standalone task, but it is now a routing facade over `worker-dev` and `deliver-dev`. Reach for `/orchestrate-dev` for multi-part work.
+- **Hand-editing manifest versions.** Use `plugin-version.json` plus `scripts/check-version-truth.sh --sync`.
+- **Hand-editing generated adapters** (`.opencode/agent/`). Regenerate instead; drift fails CI.
+
+### Migration — what existing users need to know
+
+**Still works, unchanged:** every skill you invoke today, including `/start-dev`, `/plan-dev`, `/pr-dev`, `/switch-dev`, `/repo-standards`, and the rest. Existing worktrees in the old platform-shaped layout keep working and are never deleted or bulk-migrated. Existing SKILL.md files keep validating.
+
+**What changed in behavior:**
+- A worker no longer opens a pull request. If you dispatch tasks, expect **one** PR at the end of the objective rather than one per task.
+- Multi-part requests route to `/orchestrate-dev`. It says so in one line and you can decline.
+- Full validation no longer runs inside every task — Tier 1 in workers, Tier 2 once at integration, Tier 3 in CI.
+- On platforms where parallel subagents are unverified (everything except Claude Code today), orchestration runs serialized or sequential and **says which mode and why**, instead of silently pretending to fan out.
+- Skills report capability gaps out loud. Where you previously got a silent no-op — hooks under Cursor, session analytics off Claude Code — you now get an explicit "unsupported here, this is the fallback".
+
+**What to do:** nothing is required. Run `bash scripts/doctor.sh .` once to see what your platform supports, and read [docs/user/orchestration.md](docs/user/orchestration.md) before your first multi-part objective.
+
 ### Changed
 - **Cursor Origin + Builds default (2026-08-17).** Documented [Origin](https://cursor.com/docs/origin) (early-beta Cursor git forge; GitHub remains canonical for marketplace installs) and flipped Cloud Agent Builds language to **now default**. Cursor-only pin bump: `changelog_date` **2026-08-13 → 2026-08-17**; desktop **3.16.17** / feature **3.11** unchanged.
 - **Cursor Grok 4.6 + Builds T-1 readiness (2026-08-16).** Install guide documents Grok 4.6 for long-running / visual sessions and a T-1 Builds checklist before the **2026-08-17** default. Cursor-only `features_adopted` tags added; pins stay **3.16.17** / feature **3.11** / **2026-08-13**.
@@ -14,9 +53,6 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - **Cursor changelog through 2026-08-13 (Cloud Agent Builds).** `.cursor-version` / cursor-only `platform-targets.json` fields keep desktop **3.16.17** + feature **3.11** and advance `changelog_date` to **2026-08-13**. Install guide documents Cloud Agent Builds (warm snapshots; install vs start).
 - **Cursor desktop pin → 3.16.17.** `.cursor-version`, `platform-targets.json` (cursor target only), README badge, and install docs now track desktop **3.16.17** (2026-08-11 download line). Changelog feature coverage remains **3.11**; newest date-only entry remains **2026-08-03** (no newer feature write-up on cursor.com/changelog).
 - **Cursor docs: `workspaceOpen` + Agent Plugins standard.** Install guide notes the app-lifecycle `workspaceOpen` hook (`pluginPaths` for workspace-specific plugins; desktop/CLI only) and that Cursor loads [Agent Plugins](https://agent-plugins.org) alongside `.cursor-plugin` Cursor Plugins.
-
-### Added
-- **Cursor project hooks (3.11 cloud/conversation hooks).** `.cursor/hooks.json` + `.cursor/hooks/warn-contributor-policy.sh` soft-ask on force-push to `master`/`main` and on `self-hosted` runner edits when this repo is the workspace / Cloud Agent target. Not a full Claude→Cursor plugin hooks port.
 
 ### Fixed
 - **Concurrency guard: a mention of a command is no longer treated as an invocation of it.** Target detection matched the **raw command string**, so `git push` / `gh issue comment` text sitting inside a quoted argument, a `-m` message or a heredoc body was parsed as a command being run: `git commit -m "fixed: git push -q origin feature-x resolved to main"` produced *four* phantom push destinations — one of them `main` — and was denied against a live claim. The same unanchored scan had no notion of where a command begins, so a real invocation hidden after a quoted argument or a `;` could equally be missed or mis-attributed. Detection is now **structure-aware**: `claim_shell_segments` / `claim_effective_segments` (`hooks/lib/agent-claim.sh`) tokenize the string the way a shell reads it — splitting only on separators outside quotes, dropping heredoc bodies, stripping leading `FOO=bar` assignments and wrappers (`sudo`, `env`, `timeout`, …) and descending into `sh -c '<string>'` — and only a segment whose **first word** is `git` (subcommand `push`) or `gh` is guarded at all. Quoted text is an argument and can never be a command. The loud-refusal posture is unchanged: an unresolvable *real* destination still yields `CONCURRENCY GUARD CANNOT RUN`. `tests/test-concurrency-guard.sh` grew 13 assertions covering both directions (a mention allowed with zero destinations; a real push after a quoted argument, after `;`, and inside `sh -c` still blocked; `gh` targets asserted against a planted claim so "not a command" and "a command on a free artifact" are distinguishable) — 22 → 35.
@@ -51,10 +87,6 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   reviewers carry no `Task`-family tool anyway, and the 34 `SKILL.md` files
   pin an explicit `model:` (e.g. `claude-sonnet-4-6`) rather than the
   floating `sonnet`/`opus` alias the deprecation targets.
-- **Cursor hooks docs corrected for third-party compatibility.** Install guide + `platform-equivalence.md` document Cursor's opt-in Claude settings hooks ([Third-party hooks](https://cursor.com/docs/reference/third-party-hooks.md)), distinguish project `.cursor/hooks.json` from plugin `hooks/hooks.json`, and note Inbox **multi-PR sessions** (2026-07-29).
-- **Cursor docs: Claude hooks ≠ Cursor hooks.** `docs/user/install/cursor.md` and `platform-equivalence.md` now state that `hooks/hooks.json` is Claude-shaped and does not fire Cursor plugin/cloud hook events; worktree guards on Cursor stay rule/AGENTS-based until a Cursor-native hooks bundle lands.
-- **Cursor coverage pin.** Root `.cursor-version` records CLI **3.14.7** plus changelog feature **3.11** / date **2026-08-03**. Cursor `features_adopted` notes Customize (3.9), Team MCP + org-group marketplace access (3.10), side chats, and optional Google Workspace plugins (2026-08-03).
-- **Cursor Automations (3.8) working tip.** Install guide documents `/automate` GitHub triggers (Workflow run completed, PR review comment) and computer-use demos for plugin CI / review triage.
 - **Platform target: Claude Code 2.1.232** (from 2.1.231). Docs-only bump — no shipped
   plugin content changed, so no version bump. The 2.1.232 delta reviewed against the
   plugin surface: manifests, skills frontmatter, hooks, MCP stubs, statusline, and
@@ -116,6 +148,13 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   a file they haven't read this session, matching Edit's rules), cross-session
   messaging fixes (first-session inbox, inline sender/body display), and the 2.1.227
   slash-command menu polish this plugin's commands inherit.
+
+## [2.0.1] — 2026-08-12
+
+### Added
+- **Cursor project hooks (3.11 cloud/conversation hooks).** `.cursor/hooks.json` + `.cursor/hooks/warn-contributor-policy.sh` soft-ask on force-push to `master`/`main` and on `self-hosted` runner edits when this repo is the workspace / Cloud Agent target. Not a full Claude→Cursor plugin hooks port.
+
+### Changed
 - **Platform target: Claude Code 2.1.226** (from 2.1.224). Docs-only bump — no shipped
   plugin content changed, so no version bump. The 2.1.225 + 2.1.226 delta reviewed
   against the plugin surface: 2.1.226 is fix-only ("bug fixes and reliability
@@ -129,13 +168,19 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   2.1.225 fixes a transient 401 that could replace a long-lived
   `CLAUDE_CODE_OAUTH_TOKEN` with a short-lived stored-login token, breaking headless
   sessions until restart.
+- **Cursor coverage pin.** Root `.cursor-version` records CLI **3.14.7** plus changelog feature **3.11** / date **2026-08-03**. Cursor `features_adopted` notes Customize (3.9), Team MCP + org-group marketplace access (3.10), side chats, and optional Google Workspace plugins (2026-08-03).
+- **Platform target: Codex 0.147.0** (from 0.146.0). `.codex-version` recorded, `platform-targets.json` and its mirror table re-validated, and `docs/user/install/codex.md` updated. Direct CLI validation remained at 0.146.0; 0.147.0 was reviewed against the official release delta. (No changelog entry was written at the time — reconstructed from commit 76654a1, PR #82.)
+
+### Fixed
+- **Worktree guard judged the session `cwd` instead of the file being edited.** `hooks/enforce-worktree-edits.sh` armed itself from wherever the session happened to be: an incidental `cd` into any git repo — reading a config file, inspecting a checkout — then blocked every subsequent edit, including edits to files outside that repo entirely, while editing a main checkout from an unrelated `cwd` slipped through unguarded. The repo is now derived from the edited file's own directory (walking up to the nearest existing ancestor, so a new file in a new subdirectory still resolves), falling back to `cwd` only when no file path is present. The Claude config dir (`$CLAUDE_CONFIG_DIR` or `~/.claude`) is exempt — it is version-controlled for backup, not a project checkout. Verified against an 8-case matrix. (No changelog entry was written at the time — reconstructed from commit 01c4308, PR #84, which is also the commit that bumped the manifests to 2.0.1.)
+- **Cursor hooks docs corrected for third-party compatibility.** Install guide + `platform-equivalence.md` document Cursor's opt-in Claude settings hooks ([Third-party hooks](https://cursor.com/docs/reference/third-party-hooks.md)), distinguish project `.cursor/hooks.json` from plugin `hooks/hooks.json`, and note Inbox **multi-PR sessions** (2026-07-29).
+- **Cursor docs: Claude hooks ≠ Cursor hooks.** `docs/user/install/cursor.md` and `platform-equivalence.md` now state that `hooks/hooks.json` is Claude-shaped and does not fire Cursor plugin/cloud hook events; worktree guards on Cursor stay rule/AGENTS-based until a Cursor-native hooks bundle lands.
+- **Cursor Automations (3.8) working tip.** Install guide documents `/automate` GitHub triggers (Workflow run completed, PR review comment) and computer-use demos for plugin CI / review triage.
 - **Install-flow text aligned with 2.1.221 immediate plugin activation.** The README
   install block and `scripts/install.sh` still told every user to run
   `/reload-plugins` after `/plugin install`; both now match the install guide and
   quick-start — reload is only needed on Claude Code older than 2.1.221, where
   plugins don't yet activate immediately when safe.
-
-### Fixed
 - **Removed a Cursor adoption commit that landed on the Claude Code nightly branch.**
   The rolling `claude-code-update` branch briefly carried the "Cursor 3.11
   (+2026-08-03)" doc adoption, duplicating the separate `cursor-update` nightly PR

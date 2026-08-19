@@ -65,6 +65,48 @@ fs.writeFileSync(
   `${marker}---\ndescription: Repository rules for all AI coding work.\nglobs:\nalwaysApply: true\n---\n\n${allRules}\n`
 );
 
+// dist/gemini/ — Gemini CLI extension adapter.
+// Gemini installs an extension straight from a git URL and consumes the canonical
+// skills/ tree, so the adapter is a declarative manifest plus the rendered context
+// file. No Node dependency is introduced: this is JSON and Markdown only.
+const geminiDir = path.join(root, config.dist.gemini ?? 'dist/gemini');
+fs.mkdirSync(geminiDir, { recursive: true });
+fs.writeFileSync(
+  path.join(geminiDir, 'gemini-extension.json'),
+  `${JSON.stringify(
+    {
+      name: config.name,
+      version: config.version,
+      description: config.description,
+      contextFileName: 'GEMINI.md',
+      skills: ['./skills'],
+    },
+    null,
+    2
+  )}\n`
+);
+fs.writeFileSync(
+  path.join(geminiDir, 'GEMINI.md'),
+  `${marker}# ${config.displayName}\n\nThis file is generated from \`canonical/rules/*\`.\n\n${allRules}\n`
+);
+
+// dist/opencode/opencode.json — OpenCode reads the canonical skills tree natively;
+// the adapter only points its scanner at it. Agent definitions whose frontmatter
+// genuinely differs are generated separately, never hand-copied.
+const opencodeDir = path.join(root, config.dist.opencode ?? 'dist/opencode');
+fs.mkdirSync(opencodeDir, { recursive: true });
+fs.writeFileSync(
+  path.join(opencodeDir, 'opencode.json'),
+  `${JSON.stringify(
+    {
+      $schema: 'https://opencode.ai/config.json',
+      skills: { paths: ['./skills'] },
+    },
+    null,
+    2
+  )}\n`
+);
+
 // Copy canonical skills into plugin wrapper
 const pluginSkills = path.join(root, config.dist.claudePlugin, 'skills');
 fs.mkdirSync(pluginSkills, { recursive: true });
@@ -76,4 +118,4 @@ for (const entry of fs.readdirSync(canonicalSkills, { withFileTypes: true })) {
   fs.cpSync(src, dest, { recursive: true, force: true });
 }
 
-console.log('build.mjs stub complete — dist/ and plugin skills updated');
+console.log('build.mjs stub complete — dist/ (codex, cursor, gemini, opencode) and plugin skills updated');

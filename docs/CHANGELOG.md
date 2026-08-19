@@ -6,6 +6,14 @@ All notable changes are recorded here and in [`../CHANGELOG.md`](../CHANGELOG.md
 
 See root [CHANGELOG.md](../CHANGELOG.md#unreleased) for in-progress entries.
 
+## [2.0.1] — 2026-08-12
+
+Worktree guard anchored to the file being edited rather than the session `cwd` (an incidental `cd` no longer arms it for every later edit, and the Claude config dir is exempt). Platform targets advanced to Claude Code 2.1.226 and Codex 0.147.0; Cursor coverage pinned with project hooks and corrected hooks documentation. See root [CHANGELOG.md](../CHANGELOG.md#201--2026-08-12).
+
+## [2.0.0] — 2026-08-07
+
+BREAKING — the marketplace was renamed `tamirs-plugins` → `tamirs-marketplace`, and `install.sh` became a full mirror install. See root [CHANGELOG.md](../CHANGELOG.md#200--2026-08-07).
+
 ## [1.12.0] - 2026-08-03
 
 OpenCode joins Claude Code, Cursor, and Codex as a supported target — four in total — and the plugin now installs standalone from this repo on every one of them. Adds per-target install guides under [`user/install/`](user/install/README.md), generated OpenCode agent adapters, and a committed `.agents/plugins/marketplace.json` (the manifest Codex actually resolves) that unbroke standalone Codex install. Also refreshes badly stale Cursor and Codex version floors and removes long-standing false claims about auto-installed plugin dependencies. See root [CHANGELOG.md](../CHANGELOG.md#1120---2026-08-03).
@@ -40,7 +48,7 @@ New `decision` skill (`dev-workflow`). See root [CHANGELOG.md](../CHANGELOG.md#1
 
 ## [1.5.2] - 2026-07-07
 
-Contributor version-bump rule, troubleshooting for stale plugin cache, and manifest/tag alignment CI. See root [CHANGELOG.md](../CHANGELOG.md#152---2026-07-07).
+Contributor version-bump rule, troubleshooting for stale plugin cache, and manifest/tag alignment CI. The root [CHANGELOG.md](../CHANGELOG.md) no longer carries a section this far back — its history starts at 1.6.1.
 
 ## [1.5.1] - 2026-06-28
 

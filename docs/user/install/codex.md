@@ -1,126 +1,82 @@
-# Install on Codex
+# Install — Codex CLI
 
-| | |
-|---|---|
-| **Validated against** | Codex CLI **0.146.0** |
-| **Latest supported** | **0.147.0** |
-| **Minimum supported** | **0.40.0** |
-| **Plugin manifest** | `.codex-plugin/plugin.json` |
-| **Marketplace manifest** | `.agents/plugins/marketplace.json` |
-| **Official docs** | [AGENTS.md guide](https://developers.openai.com/codex/guides/agents-md) · [Config basics](https://developers.openai.com/codex/config-basic) |
+Registry id: `codex`. Skills require Codex **0.40+**; the manifest `hooks` field requires
+**0.147.0+**. Validated against **0.146.0**.
 
-Check your version:
+---
 
-```bash
-codex --version
-```
-
-Codex 0.147.0 expands portable Agent Plugin/catalog discovery. This repo already ships the native Codex plugin manifest, marketplace manifest, hooks, skills, MCP stubs, and `AGENTS.md`, so no manifest migration is required. Support for 0.147.0 was reviewed against the official release delta; the last direct maintainer-machine CLI validation remains 0.146.0.
-
-> **Where the marketplace manifest lives.** Codex resolves marketplaces from `.agents/plugins/marketplace.json` at the repo root — *not* from `.codex-plugin/marketplace.json`. Point `codex plugin marketplace add` at a root without that file and it fails with `marketplace root does not contain a supported manifest`. This repo ships one, which is what makes standalone install work.
-
-## Method A — standalone, straight from this repo
+## Install
 
 ```bash
 codex plugin marketplace add Tamircohen28/tamirs-superpowers
 codex plugin add tamirs-superpowers@tamirs-superpowers
 ```
 
-Confirm:
+Codex resolves [`.agents/plugins/marketplace.json`](../../../.agents/plugins/marketplace.json)
+and [`.codex-plugin/plugin.json`](../../../.codex-plugin/plugin.json), and loads the
+canonical `skills/` tree. MCP servers are configured through
+[`.codex/config.toml`](../../../.codex/config.toml), not `.mcp.json`.
 
-```bash
-codex plugin list --marketplace tamirs-superpowers
-```
-
-```
-Marketplace `tamirs-superpowers`
-
-PLUGIN                                 STATUS              VERSION  PATH
-tamirs-superpowers@tamirs-superpowers  installed, enabled  1.12.0   ...
-```
-
-Refresh after a new release:
-
-```bash
-codex plugin marketplace upgrade
-```
-
-## Method B — via the tamirs-marketplace catalog
-
-```bash
-codex plugin marketplace add Tamircohen28/tamirs-marketplace
-codex plugin add tamirs-superpowers@tamirs-marketplace
-```
-
-## Method C — local clone
-
-Useful when you want to edit skills and see the change immediately — a local marketplace reads straight from the working tree.
-
-```bash
-git clone https://github.com/Tamircohen28/tamirs-superpowers.git ~/src/tamirs-superpowers
-codex plugin marketplace add ~/src/tamirs-superpowers
-codex plugin add tamirs-superpowers@tamirs-superpowers
-```
-
-Update with `git pull` — no re-add needed.
-
-> A marketplace **name** may only be registered once. If you already added this repo from a different path, remove it first: `codex plugin marketplace remove tamirs-superpowers`.
-
-## What Codex picks up
-
-`.codex-plugin/plugin.json` declares:
-
-| Field | Contents |
-|-------|----------|
-| `skills` | The 7 skill domain directories — 27 skills |
-| `hooks` | `./hooks/hooks.json` |
-| `mcpServers` | `./.mcp.json` |
-
-Plus, by convention at the repo root:
-
-| Path | Purpose |
-|------|---------|
-| `AGENTS.md` | Contributor policy — Codex's primary instruction file |
-| `.codex/config.toml` | Project-level Codex overrides |
-| `agents/` | 6 specialist agents |
-
-## MCP servers (optional)
-
-Two routes:
-
-```bash
-codex mcp list          # what Codex currently has
-```
-
-The plugin's stubs come from `.mcp.json` via the `mcpServers` field. Fill the `${ENV_VAR}` placeholders in your shell environment — never commit tokens — then restart Codex.
+Codex also reads the repo's root [`AGENTS.md`](../../../AGENTS.md) as project instructions.
+That file is a **thin entrypoint** into the canonical rules under
+[`rules/`](../../../rules/README.md) — it is deliberately not the whole policy source.
 
 ## Verify
 
 ```bash
-codex plugin list --marketplace tamirs-superpowers    # STATUS should read "installed, enabled"
-codex doctor                                          # config, auth, and runtime health
+jq empty .codex-plugin/plugin.json
+jq -e '.hooks' .codex-plugin/plugin.json     # manifest hooks field present
+jq empty .agents/plugins/marketplace.json
+test -f .codex/config.toml && echo "MCP config present"
+bash scripts/doctor.sh .
 ```
 
-Then in a session:
+In a Codex session, invoke a skill by name — *"use the repo-standards skill"* — and confirm
+it loads. Codex's slash-command surface has not been verified against these skills, so
+naming is the reliable form.
 
+## Update
+
+```bash
+codex plugin marketplace update tamirs-superpowers
+codex plugin add tamirs-superpowers@tamirs-superpowers
 ```
-/tamirs-superpowers:find-skill
+
+Check what you have:
+
+```bash
+jq -r .version .codex-plugin/plugin.json
 ```
 
-## What does not port
+## Uninstall
 
-| Feature | Status on Codex |
-|---------|-----------------|
-| Statusline | ❌ Claude Code only |
-| `.cursor/rules/*.mdc` | ❌ Cursor only — the same guidance lives in `AGENTS.md` |
+```bash
+codex plugin remove tamirs-superpowers
+codex plugin marketplace remove tamirs-superpowers
+```
 
-Skills, hooks, agents, and MCP all work.
+`.codex/config.toml` is a file in your repo — remove the MCP entries by hand if you no
+longer want them.
 
-## Troubleshooting
+---
 
-| Symptom | Fix |
-|---------|-----|
-| `marketplace root does not contain a supported manifest` | The source has no `.agents/plugins/marketplace.json`. Check you're on a branch that includes it. |
-| `already added from a different source` | `codex plugin marketplace remove tamirs-superpowers`, then re-add. |
-| Plugin listed but `not installed` | Run `codex plugin add tamirs-superpowers@tamirs-superpowers`. |
-| Stale version after a release | `codex plugin marketplace upgrade` refreshes the Git snapshot. |
+## Capabilities and limitations
+
+| Capability | Status | Notes |
+|---|---|---|
+| skills | native | since 0.40.0 |
+| subagents | native | declared capability |
+| hooks | native | since 0.147.0, via the **manifest `hooks` field** — a different shape from Claude's `hooks/hooks.json`, which does not port |
+| MCP | native | `.codex/config.toml` |
+| plugin marketplace | native | |
+| shell · git · GitHub CLI | native | |
+| worktree isolation | emulated | The skill runs `git worktree` itself |
+| auto-invocation · slash commands | unknown | Not measured — **name the skill explicitly** |
+| parallel subagents · agent teams · background tasks · structured questions · session transcripts | unknown | Treated as unavailable; stated fallbacks apply |
+| statusline · artifacts · extension install | unsupported | |
+
+With `parallel_subagents` unmeasured, orchestration here runs **serialized or sequential** —
+same task graph, same single PR.
+
+Source of truth: [`core/capabilities/platforms.json`](../../../core/capabilities/platforms.json).
+Comparison: [platform differences](../platform-differences.md).

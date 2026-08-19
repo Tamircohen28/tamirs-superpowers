@@ -1,6 +1,8 @@
 # PR Body Templates
 
-Reference for `start-dev` Step 5. Choose the template that matches the task type.
+Reference for `start-dev` route C (and `deliver-dev`) when opening the PR. Choose the template that matches the task type.
+
+One objective normally ships as one PR, so on an objective-driven PR describe the whole objective in the Summary and list the tasks under Changes — not one bullet per commit.
 Substitute `[…]` placeholders — never leave them literally in the PR body.
 
 ---

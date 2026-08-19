@@ -5,37 +5,38 @@ alwaysApply: true
 
 # tamirs-superpowers — plugin structure
 
-This repo is a **multi-platform agent plugin** (Markdown + JSON + Bash only) for Claude Code, Cursor, and Codex. There is no build step, no `package.json`, no compiled output.
+A **multi-platform agent plugin** (Markdown + JSON + Bash only) for Claude Code, Cursor, Codex, Gemini CLI, and OpenCode. No build step, no `package.json`, no compiled output.
+
+Policy is canonical and lives once: `AGENTS.md` is the shared entrypoint, `core/` holds the portable framework (policies, roles, workflow schemas, capabilities), `rules/` holds contributor rules. These `.mdc` files are thin Cursor adapters — when one disagrees with a canonical rule, the canonical rule wins.
 
 ## What lives where
 
 | Path | Purpose |
 |------|---------|
-| `.claude-plugin/plugin.json` | Claude Code manifest |
-| `.cursor-plugin/plugin.json` | Cursor manifest |
-| `.codex-plugin/plugin.json` | Codex manifest |
-| `rules/dev/*.md` | Canonical contributor rules (all platforms) |
+| `AGENTS.md` | Shared entrypoint — read first |
+| `core/` | Portable policies, roles, workflow schemas, capability facts |
+| `rules/` | Canonical contributor rules (index: `rules/README.md`) |
+| `plugin-version.json` | Single source of truth for the version |
+| `.cursor-plugin/plugin.json` | Cursor manifest (skills + MCP; no hooks) |
 | `skills/<domain>/<name>/SKILL.md` | One skill per folder; directory name = slash command |
-| `hooks/hooks.json` | Hook event wiring |
-| `hooks/*.sh` | Hook scripts (all must pass shellcheck) |
-| `hooks/lib/worktree-common.sh` | Shared bash library — do not modify without testing |
-| `scripts/` | User-facing scripts (`install.sh`, `update.sh`, `uninstall.sh`, `statusline.sh`) — **no** `.sh` at repo root |
+| `hooks/` | Hook wiring + scripts (Claude Code and Codex load these; Cursor does not) |
+| `scripts/` | User-facing scripts and validators — **no** `.sh` at repo root |
 | `.mcp.json` | MCP server stubs (env var placeholders only — no real tokens) |
 
 ## Hard constraints
 
 - No `runs-on: [self-hosted]` in any CI workflow — use `ubuntu-latest`
 - No secrets or tokens committed — `.mcp.json` uses `${ENV_VAR}` syntax only
-- No Wix-internal references anywhere
-- No `marketplace.json` in this repo — it is published through `Tamircohen28/tamirs-marketplace`
-- Every `SKILL.md` needs valid YAML frontmatter with **all 16 official Claude Code fields** plus `metadata.updated-date` (see `skills/toolkit/skill-creator/references/frontmatter-template.md`)
+- No employer-internal references anywhere
+- No `marketplace.json` in this repo — published through `Tamircohen28/tamirs-marketplace`
+- `SKILL.md` frontmatter validates against `core/schemas/skill-frontmatter.json`
 
 ## Validate after every change
 
 ```bash
-make validate   # JSON lint + shellcheck + full SKILL.md frontmatter
+make validate
 ```
 
 ## Version bump after shipped changes
 
-Claude Code uses `plugin.json` `version` as the update cache key. Bump all three manifests together after changing `skills/`, `hooks/`, `agents/`, or `scripts/`. Canonical rule: `rules/dev/plugin-version-bump.md`.
+Edit `plugin-version.json`, then `bash scripts/check-version-truth.sh --sync`. Canonical rule: `rules/dev/plugin-version-bump.md`.

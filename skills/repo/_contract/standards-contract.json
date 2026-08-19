@@ -1,5 +1,5 @@
 {
-  "version": "1.3.0",
+  "version": "1.4.0",
   "profiles": {
     "app-gold": {
       "repo_type": "app",
@@ -70,8 +70,13 @@
           "agent_polish_gate": "make agent-polish-gate",
           "platform_targets_sync": "make platform-targets-sync",
           "platform_targets_assert": "make platform-targets-assert",
-          "platform_targets_cochange": "make platform-targets-cochange"
-        }
+          "platform_targets_cochange": "make platform-targets-cochange",
+          "platform_targets_sync_capabilities": "make platform-targets-sync-capabilities"
+        },
+        "capability_registry": "core/capabilities/platforms.json",
+        "capability_registry_schema": "core/capabilities/schema.json",
+        "capability_registry_note": "The registry is the single source of truth for the platform set and every capability status. feature-equivalence.json carries only the artifact delta; platform-targets.json carries only versions plus a derived capability mirror. check-feature-equivalence.sh fails when any of the three disagree.",
+        "require_capability_registry_when_multi": true
       },
       "exit_gate": {
         "p1": 0,
@@ -158,7 +163,10 @@
           "agent-kit.config.json",
           "package-lock.json",
           "dist/codex/AGENTS.md",
-          "dist/cursor/.cursor/rules/000-core.mdc"
+          "dist/cursor/.cursor/rules/000-core.mdc",
+          "dist/gemini/gemini-extension.json",
+          "dist/gemini/GEMINI.md",
+          "dist/opencode/opencode.json"
         ],
         "require_canonical_skill": true,
         "require_plugin_wrapper": true,
@@ -170,7 +178,15 @@
           "hooks/"
         ],
         "require_package_json": true,
-        "require_package_lock": true
+        "require_package_lock": true,
+        "adapter_targets": [
+          "claude_code",
+          "codex",
+          "cursor",
+          "gemini_cli",
+          "opencode"
+        ],
+        "adapter_note": "One adapter per target, all generated from canonical/ by scripts/build.mjs. Hand-editing an adapter is drift; scripts/validate.mjs proves the tree matches what build would produce."
       },
       "exit_gate": {
         "p1": 0,
@@ -185,6 +201,20 @@
           "S4-05",
           "S4-06"
         ]
+      },
+      "feature_equivalence": {
+        "spec": "skills/repo/_contract/feature-equivalence.json",
+        "capability_registry": "core/capabilities/platforms.json",
+        "capability_registry_schema": "core/capabilities/schema.json",
+        "capability_registry_note": "The registry is the single source of truth for the platform set and every capability status. feature-equivalence.json carries only the artifact delta; platform-targets.json carries only versions plus a derived capability mirror. check-feature-equivalence.sh fails when any of the three disagree.",
+        "require_capability_registry_when_multi": true,
+        "validation_scripts": [
+          "scripts/check-feature-equivalence.sh",
+          "scripts/check-platform-targets.sh"
+        ],
+        "make_targets": {
+          "platform_targets_sync_capabilities": "make platform-targets-sync-capabilities"
+        }
       }
     }
   }

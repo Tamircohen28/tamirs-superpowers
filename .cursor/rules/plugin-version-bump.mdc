@@ -1,18 +1,17 @@
 ---
-description: "Bump plugin.json version after shipped changes — Claude Code uses version as cache key; /plugin update skips when unchanged"
+description: "Bump the version in plugin-version.json then run check-version-truth.sh --sync — never hand-edit a manifest. Canonical: rules/dev/plugin-version-bump.md"
 alwaysApply: false
 ---
 
 # Plugin version bump
 
-Canonical rule: `rules/dev/plugin-version-bump.md` (shared by all four targets — Claude Code, Cursor, Codex, OpenCode).
+Canonical rule: `rules/dev/plugin-version-bump.md`.
 
-**After changing shipped plugin content** (`skills/`, `hooks/`, `agents/`, manifests, `scripts/`, `opencode.json`):
+After changing shipped content (`skills/`, `hooks/`, `agents/`, `core/`, manifests, `scripts/`):
 
-1. Bump `version` in the three versioned manifests (`.claude-plugin/`, `.cursor-plugin/`, `.codex-plugin/`) + `README.md` badges — same semver in one commit. `opencode.json` has no version field; do not add one.
-2. Update `CHANGELOG.md` under the new `[X.Y.Z]` section, and mirror in `docs/CHANGELOG.md`.
-3. Update whatever the change falsified: documented skill counts, `platform-targets.json`, and `docs/user/install/<target>.md`. `make validate` fails on stale counts and missing per-target install docs.
-4. Open a PR; after merge run the Release workflow to create `vX.Y.Z`, then verify the tag actually contains the change (`git diff vX.Y.Z origin/master -- skills/`).
-5. Users need `/plugin marketplace update tamirs-marketplace` then `/plugin update tamirs-superpowers@tamirs-marketplace` — `/reload-plugins` alone only reloads cache.
+1. Edit the version in **`plugin-version.json` only** — a targeted string replace on the version line, never a `jq`/`json.dump` rewrite.
+2. `bash scripts/check-version-truth.sh --sync` propagates it to every consumer (all platform manifests, README badge, `platform-targets.json`).
+3. Promote the `CHANGELOG.md` entry and update anything else the change falsified (skill counts, install docs).
+4. `make validate`, open a PR, and after merge run the Release workflow to cut `vX.Y.Z` — then verify the tag contains the change.
 
-Pushing commits without a version bump does **not** update installed Claude Code plugins. Never hand-edit `~/.claude/plugins/cache/` to test — `autoUpdate` and version-glob resolution both discard the patch silently; symlink your clone instead.
+Never hand-edit `.cursor-plugin/plugin.json`'s version. Never move a version backwards past a cut release.

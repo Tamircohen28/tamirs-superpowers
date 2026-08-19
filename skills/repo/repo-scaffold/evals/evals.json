@@ -65,6 +65,31 @@
         "CI workflow includes validate job",
         "dist/codex/AGENTS.md contains GENERATED FILE marker"
       ]
+    },
+    {
+      "id": 5,
+      "prompt": "/repo-scaffold my-tool -- A small CLI, on a machine where gh is not authenticated",
+      "expected_output": "Fallback path. github_cli is OPTIONAL for the generation half and required only for the publish half. The full tree is scaffolded locally and the contract gate is run against it; repo creation, push, and branch protection are skipped with 'gh is not authenticated' stated explicitly, and the user is given the exact commands to finish.",
+      "files": [],
+      "expectations": [
+        "The local tree is generated completely and passes assert-contract.sh app-gold offline",
+        "No GitHub repo is created and nothing is pushed",
+        "The skipped publish steps are named with the missing capability as the reason",
+        "A numbered list of manual commands is printed so the user can finish the publish themselves"
+      ]
+    },
+    {
+      "id": 6,
+      "prompt": "/repo-scaffold demo-kit -- An agent-kit plugin --type plugin",
+      "expected_output": "A plugin-gold tree with one canonical source and one generated adapter per target: plugins/<name>/skills for Claude Code and Desktop, dist/codex/, dist/cursor/, dist/gemini/, dist/opencode/, plus core/capabilities/{schema,platforms}.json as the capability registry.",
+      "files": [],
+      "expectations": [
+        "npm run build regenerates every adapter and npm run validate passes",
+        "core/capabilities/platforms.json exists and its non-surface platforms equal platform-targets.json supported_targets",
+        "dist/gemini/gemini-extension.json and dist/opencode/opencode.json are generated, not hand-written",
+        "No rule body is duplicated per platform — every adapter derives from canonical/",
+        "assert-contract.sh plugin-gold passes with P1=P2=P3=0"
+      ]
     }
   ]
 }

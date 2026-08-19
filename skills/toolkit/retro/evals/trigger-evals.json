@@ -1,0 +1,66 @@
+[
+  {
+    "query": "/retro",
+    "should_trigger": true
+  },
+  {
+    "query": "run a retrospective on this session",
+    "should_trigger": true
+  },
+  {
+    "query": "what went wrong this session",
+    "should_trigger": true
+  },
+  {
+    "query": "find the friction in how we just worked",
+    "should_trigger": true
+  },
+  {
+    "query": "capture the lessons from this session into memory",
+    "should_trigger": true
+  },
+  {
+    "query": "postmortem this \u2014 we spent way too long on it",
+    "should_trigger": true
+  },
+  {
+    "query": "that was bumpy, let's improve the workflow so it doesn't repeat",
+    "should_trigger": true
+  },
+  {
+    "query": "six agents each opened their own PR \u2014 was that right?",
+    "should_trigger": true
+  },
+  {
+    "query": "why did that command fail",
+    "should_trigger": false
+  },
+  {
+    "query": "write a postmortem for yesterday's production incident",
+    "should_trigger": false
+  },
+  {
+    "query": "summarize what we did this session",
+    "should_trigger": false
+  },
+  {
+    "query": "add a rule to CLAUDE.md about commit messages",
+    "should_trigger": false
+  },
+  {
+    "query": "review this PR and tell me what's wrong with it",
+    "should_trigger": false
+  },
+  {
+    "query": "show me my token usage for the week",
+    "should_trigger": false
+  },
+  {
+    "query": "debug this failing test",
+    "should_trigger": false
+  },
+  {
+    "query": "what are our team's engineering retro best practices",
+    "should_trigger": false
+  }
+]

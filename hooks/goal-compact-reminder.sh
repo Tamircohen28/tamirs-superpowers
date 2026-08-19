@@ -3,7 +3,11 @@
 # These commands reset context and destroy cache warmth; compacting first is cheaper.
 set -euo pipefail
 
-input="$(cat)"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=lib/hook-output.sh
+source "${SCRIPT_DIR}/lib/hook-output.sh"
+
+input="$(hook_read_stdin)"
 prompt="$(echo "$input" | jq -r '.prompt // empty')"
 
 if echo "$prompt" | grep -qE '^\s*/(goal|login)\b'; then

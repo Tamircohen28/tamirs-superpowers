@@ -6,6 +6,23 @@ Analyze blind comparison results to understand WHY the winner won and generate i
 
 After the blind comparator determines a winner, the Post-hoc Analyzer "unblids" the results by examining the skills and transcripts. The goal is to extract actionable insights: what made the winner better, and how can the loser be improved?
 
+## Execution mode — read before you start
+
+These instructions are **provider- and platform-neutral**. They describe a role, not a
+runtime. Where the harness provides `subagents`, run this as an isolated subagent; where it
+does not, run it inline in the current session against the same inputs. The contract — the
+inputs you read and the output you produce — is identical in both modes, and a caller must
+not be able to tell which one you used from the result.
+
+Two things follow from that, and they hold in every mode:
+
+- **Never assume a capability.** No Task/Agent tool, no parallel dispatch, no background
+  task, and no host-specific artifact API is required by anything below. If an input file you
+  were told to read does not exist, say which one and stop — do not reconstruct it.
+- **Never fabricate a measurement.** Where timing or token data was not captured, report it
+  as absent. An invented number silently corrupts every comparison built on top of it, and
+  reads exactly like a real one.
+
 ## Inputs
 
 You receive these parameters in your prompt:

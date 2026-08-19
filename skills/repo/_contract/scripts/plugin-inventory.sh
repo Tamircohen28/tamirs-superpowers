@@ -45,6 +45,9 @@ fi
 
 dist_codex_agents=$(exists "$ROOT/dist/codex/AGENTS.md")
 dist_cursor_core=$(exists "$ROOT/dist/cursor/.cursor/rules/000-core.mdc")
+dist_gemini_manifest=$(exists "$ROOT/dist/gemini/gemini-extension.json")
+dist_gemini_context=$(exists "$ROOT/dist/gemini/GEMINI.md")
+dist_opencode_config=$(exists "$ROOT/dist/opencode/opencode.json")
 
 dist_codex_generated=false
 dist_cursor_generated=false
@@ -53,6 +56,10 @@ if [[ -f "$ROOT/dist/codex/AGENTS.md" ]]; then
 fi
 if [[ -f "$ROOT/dist/cursor/.cursor/rules/000-core.mdc" ]]; then
   grep -q 'GENERATED FILE' "$ROOT/dist/cursor/.cursor/rules/000-core.mdc" 2>/dev/null && dist_cursor_generated=true
+fi
+dist_gemini_generated=false
+if [[ -f "$ROOT/dist/gemini/GEMINI.md" ]]; then
+  grep -q 'GENERATED FILE' "$ROOT/dist/gemini/GEMINI.md" 2>/dev/null && dist_gemini_generated=true
 fi
 
 codeowners_canonical=false
@@ -101,6 +108,10 @@ jq -nc \
   --argjson dist_cursor_core "$dist_cursor_core" \
   --argjson dist_codex_generated "$dist_codex_generated" \
   --argjson dist_cursor_generated "$dist_cursor_generated" \
+  --argjson dist_gemini_manifest "$dist_gemini_manifest" \
+  --argjson dist_gemini_context "$dist_gemini_context" \
+  --argjson dist_gemini_generated "$dist_gemini_generated" \
+  --argjson dist_opencode_config "$dist_opencode_config" \
   --argjson codeowners_canonical "$codeowners_canonical" \
   --argjson codeowners_plugins "$codeowners_plugins" \
   --argjson codeowners_scripts "$codeowners_scripts" \
@@ -129,7 +140,11 @@ jq -nc \
       codex_agents_md: $dist_codex_agents,
       cursor_core_mdc: $dist_cursor_core,
       codex_generated: $dist_codex_generated,
-      cursor_generated: $dist_cursor_generated
+      cursor_generated: $dist_cursor_generated,
+      gemini_extension_json: $dist_gemini_manifest,
+      gemini_context_md: $dist_gemini_context,
+      gemini_generated: $dist_gemini_generated,
+      opencode_config_json: $dist_opencode_config
     },
     codeowners: {
       canonical: $codeowners_canonical,

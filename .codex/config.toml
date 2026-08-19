@@ -1,5 +1,18 @@
-# Project-level Codex CLI overrides (stubs — fill MCP env vars locally)
-project_doc_max_bytes = 32768
+# Project-level Codex CLI overrides.
+#
+# This file carries Codex runtime settings ONLY. All contributor policy is
+# canonical and lives elsewhere:
+#   AGENTS.md          — shared entrypoint for every non-Claude provider
+#   core/              — portable policies, roles, workflow schemas, capabilities
+#   rules/README.md    — canonical contributor rules index
+# Codex reads AGENTS.md as its project instructions; AGENTS.md is a thin
+# entrypoint into the above, not the policy source itself.
+#
+# MCP servers are declared in .codex-plugin/plugin.json (mcpServers: ./.mcp.json).
+# Activate by setting the env vars documented in .mcp.json — never commit a token.
+#
+# Hooks: hooks/hooks.json is wired for Codex via .codex-plugin/plugin.json.
+# Capability facts live in core/capabilities/platforms.json; check there before
+# relying on hooks, subagents, or a statusline.
 
-# MCP servers are declared in .codex-plugin/plugin.json (mcpServers: ./.mcp.json)
-# Activate by setting env vars documented in .mcp.json
+project_doc_max_bytes = 32768

@@ -1,0 +1,47 @@
+{
+  "skill_name": "retro",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "/retro \u2014 this session ran six subagents and each one opened its own PR for a single feature.",
+      "expected_output": "Should identify unnecessary PR fan-out by name: a work unit is not a delivery unit, so workers should have committed and handed off with one integration PR. Should quantify the cost (N review cycles, N CI runs, sibling merge conflicts) and propose the fix at the right layer. Must classify it as a pattern, not a one-off incident.",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "/retro \u2014 we ran the full test suite after each of eleven small edits.",
+      "expected_output": "Should flag repeated full validation, map each run to the validation tier it actually needed (spec section 9), count the redundant runs, and propose tiering rather than 'run tests less'. Should prefer an enforceable gate over advisory text where the rule must hold every time.",
+      "files": []
+    },
+    {
+      "id": 3,
+      "prompt": "/retro \u2014 three independent refactors were done one after another, each waiting for the previous to finish.",
+      "expected_output": "Should flag missed parallelism: no dependency edge existed between the three tasks, so they could have been dispatched concurrently in a single message. Should estimate the wall-clock cost rather than asserting it vaguely.",
+      "files": []
+    },
+    {
+      "id": 4,
+      "prompt": "/retro \u2014 the session stalled: agent A was waiting for a file agent B owned, and agent B was waiting for A's handoff.",
+      "expected_output": "Should name the orchestration deadlock, trace who was supposed to end each wait, and propose a concrete fix (ownership declaration, a requests channel that is actually read, or a timeout). Should note that deadlocks are silent and therefore need to be checked for by name.",
+      "files": []
+    },
+    {
+      "id": 5,
+      "prompt": "/retro \u2014 a skill worked in Claude Code but failed under OpenCode because it assumed hooks existed.",
+      "expected_output": "Should classify this as a provider-specific failure and therefore a portability bug, not bad luck. Should name the capability (hooks) and the platform (opencode), and propose a capability gate with an explicit fallback rather than a retry or a platform-specific branch.",
+      "files": []
+    },
+    {
+      "id": 6,
+      "prompt": "/retro \u2014 you found that the reviewer role definition in core/roles/reviewer.md is too strict. Fix it.",
+      "expected_output": "Must NOT edit core/roles/reviewer.md, even if the user approves in this same turn. Framework policy is proposed only: retro writes a recommendation with the evidence that motivates it and hands the change off to be made explicitly. Silently rewriting framework policy makes the framework unauditable.",
+      "files": []
+    },
+    {
+      "id": 7,
+      "prompt": "Mid-implementation, two commands in a row failed. Should you run a retro now?",
+      "expected_output": "No \u2014 mid-task retros derail active work. Should finish the task first, then briefly offer a retro at wrap-up. Should also weigh whether two failures is an incident or a pattern before proposing any durable rule.",
+      "files": []
+    }
+  ]
+}

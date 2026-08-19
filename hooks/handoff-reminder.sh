@@ -2,7 +2,11 @@
 # handoff-reminder.sh — SessionEnd reminder to run switch-dev handoff from active worktrees.
 set -euo pipefail
 
-input="$(cat)"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=lib/hook-output.sh
+source "${SCRIPT_DIR}/lib/hook-output.sh"
+
+input="$(hook_read_stdin)"
 cwd="$(echo "$input" | jq -r '.cwd // empty')"
 
 in_worktree=false

@@ -36,7 +36,7 @@ Merge auto + manual gaps into the review report. Deduplicate by rubric ID.
 
 ## Auto-scored E-layer (feature equivalence)
 
-See `score-equivalence-gaps.sh` — E1-01 through E5-01.
+See `score-equivalence-gaps.sh` — E1-01 through E6-02. E6 covers the capability registry: E6-01 when `core/capabilities/platforms.json` is missing in a multi-platform repo, E6-02 when it and `platform-targets.json` name different platform sets.
 
 ## Auto-scored V-layer (platform targets)
 

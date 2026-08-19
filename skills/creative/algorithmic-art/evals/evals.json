@@ -46,7 +46,7 @@
     },
     {
       "id": 2,
-      "prompt": "Make me an interactive algorithmic art piece based on a Lissajous figure system — overlapping parametric curves that evolve over time, with controls for frequency ratios and phase shift. Keep it minimalist: black background, white/silver lines.",
+      "prompt": "Make me an interactive algorithmic art piece based on a Lissajous figure system \u2014 overlapping parametric curves that evolve over time, with controls for frequency ratios and phase shift. Keep it minimalist: black background, white/silver lines.",
       "expected_output": "A self-contained HTML file with: (1) algorithmic philosophy output first, (2) p5.js implementation of Lissajous-based curves with a, b, delta params exposed as sliders, (3) time-evolving phase, (4) seeded randomness (even if the core math is deterministic, seed controls must exist), (5) sidebar controls, (6) seed navigation, (7) 1200x1200 canvas. The philosophy should articulate the resonance/harmony theme mathematically.",
       "files": [],
       "assertions": [
@@ -124,6 +124,24 @@
           "type": "qualitative"
         }
       ]
+    },
+    {
+      "id": 4,
+      "prompt": "Make me a flow-field piece I can publish as a Claude Artifact.",
+      "expected_output": "Should recognise that a published artifact runs under a strict CSP that blocks external hosts, and therefore vendor p5.js inline instead of using the cdnjs <script src>. Should state the delivery mode chosen and why, and validate with `bash scripts/validate_artifact.sh --vendored`. Handing over a CDN-linked page for a CSP-restricted destination is the failure.",
+      "files": []
+    },
+    {
+      "id": 5,
+      "prompt": "Generate a particle-system piece \u2014 I'll be viewing it on a laptop with no internet.",
+      "expected_output": "Should vendor p5.js inline for offline viewing, say so explicitly, and never describe a CDN-linked page as offline-capable or self-contained. Should also note that the Download PNG button works in a normal browser but may be inert in a sandboxed viewer, rather than promising it works everywhere.",
+      "files": []
+    },
+    {
+      "id": 6,
+      "prompt": "Generate a flow-field piece, then validate it \u2014 but there's no shell available in this environment.",
+      "expected_output": "Should still author the page in full, and state plainly that scripts/validate_artifact.sh could not be run because shell is not available, listing the checks that therefore went unverified. Must not claim the artifact was validated. Degrading to 'authored but unvalidated' is correct; silently skipping the validation step is not.",
+      "files": []
     }
   ]
 }

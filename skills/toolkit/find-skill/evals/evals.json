@@ -9,9 +9,9 @@
       "expectations": [
         "Output contains a markdown table with columns # | Match | Name | Description | Quality | URL",
         "At least 3 distinct source URLs are cited (e.g. github.com, smithery.ai, mcp.directory)",
-        "Every result row includes a URL — no results without a link",
+        "Every result row includes a URL \u2014 no results without a link",
         "The response includes a one-line explanation after the table about why the top result ranked first",
-        "Output does not return npm packages, VS Code extensions, or general software — only skills/MCP/plugins"
+        "Output does not return npm packages, VS Code extensions, or general software \u2014 only skills/MCP/plugins"
       ]
     },
     {
@@ -22,7 +22,7 @@
       "expectations": [
         "Output searches at least mcp.directory or Smithery (both are primary MCP registries)",
         "Output contains a ranked table with Match and Quality score columns",
-        "Output does not fabricate URLs — every link must resolve to a real-looking domain",
+        "Output does not fabricate URLs \u2014 every link must resolve to a real-looking domain",
         "If a source returns an error or no results, the skill mentions it as a footnote rather than silently dropping it",
         "Results are scoped to MCP servers or Claude Code skills, not generic Jira integrations or REST clients"
       ]
@@ -35,10 +35,34 @@
       "expectations": [
         "Response returns exactly 5 rows in the results table (N=5 parsed from invocation prefix)",
         "All results are relevant to release notes, changelog generation, or git commit summarization",
-        "A one-line plan is echoed before searching (e.g. 'Searching 6+ marketplaces for release notes skills — returning top 5')",
+        "A one-line plan is echoed before searching (e.g. 'Searching 6+ marketplaces for release notes skills \u2014 returning top 5')",
         "The table includes both Match (0-100) and Quality (0-10) score columns",
         "At least one source from Smithery, wshobson/agents, or mattpocock/skills was attempted"
       ]
+    },
+    {
+      "id": 4,
+      "prompt": "find-skill for MCP servers \u2014 I have ~/.config/find-skill/sources.json with only two sources enabled.",
+      "expected_output": "Should load the user's sources.json (not the bundled default), name that file in the opening plan line, query only the enabled entries, and \u2014 being below defaults.min_sources \u2014 return results with an explicit degraded label naming the missing coverage. Must not silently fall back to the bundled source list, and must not present a two-source answer as a survey.",
+      "files": []
+    },
+    {
+      "id": 5,
+      "prompt": "Add our internal registry at https://registry.internal.example to find-skill.",
+      "expected_output": "Should direct the change to a project or user-scoped sources.json per references/sources.md, NOT to SKILL.md or to the bundled references/sources.json. Should also warn against putting any credential in the file, since source lists get checked into repos.",
+      "files": []
+    },
+    {
+      "id": 6,
+      "prompt": "find a skill for release notes \u2014 smithery.ai returns a 429 and mcp.directory times out.",
+      "expected_output": "Should log both as failed sources by id in the footnotes, continue with the remaining enabled sources, use each failed entry's declared fallback where one exists, and never treat a 4xx/5xx as evidence the skill does not exist. If the reachable count drops below min_sources, the answer is labelled degraded.",
+      "files": []
+    },
+    {
+      "id": 7,
+      "prompt": "Find a skill for release notes \u2014 no shell is available to read a local sources file.",
+      "expected_output": "Should fall through the resolution order to the bundled references/sources.json, say which source list answered, and proceed. If fewer than defaults.min_sources sources end up reachable, the result must carry an explicit degraded label naming what was missing rather than being presented as a survey.",
+      "files": []
     }
   ]
 }

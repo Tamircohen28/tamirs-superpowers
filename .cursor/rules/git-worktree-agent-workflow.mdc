@@ -1,25 +1,28 @@
 ---
-description: "One task = one git worktree under .cursor/.worktrees/ (or .claude/.worktrees/, .codex/.worktrees/) — canonical rules/dev/git-worktree-agent-workflow.md"
-globs: ".claude/.worktrees/**/*,.cursor/.worktrees/**/*,.codex/.worktrees/**/*"
+description: "Objective/worker/integration worktrees — provider is metadata, not path identity. Canonical: rules/dev/git-worktree-agent-workflow.md"
+globs: ".agent-worktrees/**/*,.claude/.worktrees/**/*,.cursor/.worktrees/**/*,.codex/.worktrees/**/*"
 alwaysApply: false
 ---
 
 # Git Worktree Agent Workflow
 
-Canonical rule: `rules/dev/git-worktree-agent-workflow.md`.
+Canonical rule: `rules/dev/git-worktree-agent-workflow.md`. Read it before creating any worktree — the summary below is orientation only.
 
-| Platform | Worktree root |
-|----------|---------------|
-| Claude Code | `.claude/.worktrees/<name>` |
-| Cursor | `.cursor/.worktrees/<name>` |
-| Codex | `.codex/.worktrees/<name>` |
+One objective → zero or more worker worktrees → one integration worktree. The path and branch encode the **objective and task**, never the provider.
 
-Every agent that creates a branch and commits **must** work inside a dedicated worktree under its platform root — not the main checkout.
-
-```bash
-git fetch origin
-DEFAULT_BRANCH=$(gh repo view --json defaultBranchRef --jq .defaultBranchRef.name 2>/dev/null || echo main)
-git worktree add .cursor/.worktrees/<worktree-name> -b <branch> "origin/${DEFAULT_BRANCH}"
+```text
+.agent-worktrees/<objective>/{integration,task-001,task-002}
+main → objective/<slug> → worker/<slug>/NNN
 ```
 
-After merge: delete remote branch, `git worktree remove .cursor/.worktrees/<name>`, `git branch -D <branch>`. Use `pr-dev` / `cleanup-after-merge.sh` when driving the PR.
+A worker ends at **commit + handoff**, never at a PR. Delivery happens once, from the integration worktree.
+
+## Cursor-specific
+
+Cursor has no built-in worktree tool and no `EnterWorktree` equivalent — create worktrees explicitly before editing tracked files from an agent session:
+
+```bash
+skills/dev-workflow/_shared/scripts/resolve-worktree.sh --objective <slug> --task 001
+```
+
+Legacy `.cursor/.worktrees/<name>` worktrees remain valid and are never orphaned; `resolve-worktree.sh --list` shows them and `--migrate` moves one opt-in.

@@ -6,65 +6,19 @@ globs: "skills/**/*"
 
 # Skills guide
 
-Skills are plain Markdown files (`SKILL.md`) with YAML frontmatter. Claude Code loads them as slash commands. The **directory name** under `skills/<domain>/` is the slash-command name.
+Skills are `SKILL.md` files with YAML frontmatter, loaded as slash commands. The **directory name** under `skills/<domain>/` is the command name.
 
-## Frontmatter — all fields required
-
-Every skill must declare **all 16 official Claude Code fields** plus `metadata.updated-date`.
-See `skills/toolkit/skill-creator/references/frontmatter-template.md` for presets and skeleton.
-
-```yaml
----
-name: skill-name
-description: "Use when …"
-when_to_use: "User says …"
-argument-hint: "[args]"
-arguments: []
-disable-model-invocation: false
-user-invocable: true
-allowed-tools:
-  - Bash
-  - Read
-disallowed-tools: []
-model: claude-sonnet-4-6
-effort: medium
-context: ''
-agent: ''
-hooks: {}
-paths: []
-shell: bash
-metadata:
-  updated-date: "YYYY-MM-DD"
----
-```
-
-## Internal-only skills
-
-```yaml
-disable-model-invocation: true
-user-invocable: false
-effort: low
-```
+Canonical authoring rules: `rules/dev/skill-quality-standards.md`. Canonical frontmatter schema: `core/schemas/skill-frontmatter.json`. Do not restate the field list here — read the schema; a copied list drifts.
 
 ## Adding a skill
 
-1. Create `skills/<domain>/<skill-name>/SKILL.md` using `skill-creator` + template
-2. Run `python3 scripts/validate-skill-frontmatter.py skills/<domain>/<skill-name>/SKILL.md`
-3. Update `README.md` skill count and table
-4. Run `make validate`
+1. Create `skills/<domain>/<skill-name>/SKILL.md` with `skill-creator` — never hand-write one
+2. `python3 scripts/validate-skill-frontmatter.py skills/<domain>/<skill-name>/SKILL.md`
+3. Update the skill table and any documented count in `README.md`
+4. `make validate` (`check-doc-claims` fails on a stale count)
 
-**Never hand-write a SKILL.md from scratch** — use the bundled `skill-creator` skill.
+## Portability
 
-## Skill domains (23 skills total)
-
-| Domain | Skills |
-|--------|--------|
-| `creative` | algorithmic-art, field-notebook-ui |
-| `debugging` | targeted-debug |
-| `dev-workflow` | plan-dev, pr-dev, start-dev, switch-dev |
-| `documentation` | changelog-review, dark-terminal-doc, docs-review, platform-sync, platform-sync-claude, platform-sync-codex, platform-sync-cursor |
-| `mcp` | mcp-builder, mcp-pagination |
-| `toolkit` | find-skill, session-report, skill-creator |
-| `repo` | cleanup, multi-agent-repo, repo-scaffold, repo-standards |
+One `skills/` tree ships to every target. Keep skill bodies provider-neutral: check `core/capabilities/platforms.json` before relying on subagents, hooks, a statusline, or background tasks, and degrade explicitly when a capability is absent — a stated fallback, or a plain "unsupported here". Never silently pretend it worked.
 
 **User guide:** [docs/user/agent-kit.md](../../docs/user/agent-kit.md) — agent-kit distribution repos (`repo-scaffold --type plugin`).

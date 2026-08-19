@@ -1,90 +1,117 @@
-# Development Workflow
+# Contributor bootstrap and development workflow
 
-## Setup
+**This is contributor setup, not user install.** If you only want to *use* the toolkit, stop
+here and follow the [install guide for your platform](../../user/install/README.md).
+`make install` bootstraps a Claude machine profile for maintainers — it is not how the
+plugin is installed, and ordinary users should never run it.
+
+---
+
+## Bootstrap
 
 ```bash
 git clone https://github.com/Tamircohen28/tamirs-superpowers.git
 cd tamirs-superpowers
-brew install shellcheck jq gh   # if not already installed
-make validate                   # confirm all checks pass
+brew install shellcheck jq gh          # macOS; apt equivalents elsewhere
+python3 -m pip install -r scripts/requirements-validate.txt   # pyyaml, for frontmatter checks
+make validate                          # must pass with zero errors
 ```
+
+There is no build step, no `package.json`, and no compiled output. Everything is Markdown,
+JSON, and bash.
+
+Confirm the environment before you debug anything else:
+
+```bash
+make doctor          # or: bash scripts/doctor.sh .
+```
+
+> `make bootstrap-dev` is declared in the Makefile's help and `.PHONY` list but has **no
+> recipe** — `make -n bootstrap-dev` prints "Nothing to be done". Use the clone + `brew
+> install` + `make validate` sequence above until it is implemented.
 
 ## Running checks
 
+| Command | What it covers | Tier |
+|---|---|:--:|
+| `make validate` | the full local gate — CI parity for everything not needing a platform CLI | 2 |
+| `make lint` | shellcheck only (`-S warning`) | 0 |
+| `make test-hooks` | behavior tests in `tests/test-*.sh` | 1 |
+| `make test-repo-contract` | scaffold contract fixtures | 1 |
+| `bash scripts/check-version-truth.sh .` | version consumers agree with `plugin-version.json` | 0 |
+| `bash scripts/check-doc-claims.sh .` | skill counts and target coverage match the tree | 0 |
+| `bash scripts/check-capability-registry.sh .` | the capability registry satisfies its schema | 0 |
+| `make check-gemini-adapter` · `make gemini-extension-check` | the generated `.gemini/` mirror is present and current | 0 |
+| `make opencode-agents-check` | the generated `.opencode/agent/` mirror is current | 0 |
+| `bash scripts/validate-roles.sh` | roles, agents, and workflow schemas agree | 0 |
+
+Full picture: [testing matrix](testing-matrix.md).
+
+## Working on the toolkit itself
+
+Load your working copy directly instead of the installed plugin:
+
 ```bash
-make validate   # shellcheck + JSON validation + SKILL.md frontmatter check
-make lint       # shellcheck only
+claude --plugin-dir "$PWD"            # Claude Code
+gemini extensions link .              # Gemini CLI
 ```
 
-There is no build step — all content is Markdown, JSON, and Bash.
+For Cursor, import the repo as a team marketplace with Auto Refresh. For OpenCode, point
+`opencode.json` `skills.paths` at your checkout.
 
 ## Branching
 
-- `main` is the default and stable branch
-- Feature branches: `feat/<description>`
-- Fix branches: `fix/<description>`
-- All changes go through a PR
+- `master` is the default and stable branch.
+- Feature branches: `feat/<description>`; fixes: `fix/<description>`.
+- Objective work follows the [branch model](../architecture/branch-worktree-model.md):
+  `objective/<slug>` with `worker/<slug>/NNN` merging into it. Worker branches never merge
+  into `master` directly.
+- Everything goes through a PR.
 
 ## Making a change
 
-1. Create a branch: `git checkout -b feat/my-change`
-2. Make changes
-3. Run `make validate`
-4. Update `CHANGELOG.md` under `[Unreleased]`
-5. If you added/removed a skill, update `README.md`
-6. If you changed **shipped plugin content** (`skills/`, `hooks/`, `agents/`, manifests, `scripts/`), bump all three `plugin.json` manifests and `README.md` badges in the release PR — see [`rules/dev/plugin-version-bump.md`](../../../rules/dev/plugin-version-bump.md)
-7. Push and open a PR
+1. Branch.
+2. Make the change. Match the surrounding code's idiom; do not restate a canonical contract
+   in a second place — reference it.
+3. New shell scripts: `set -euo pipefail`, shellcheck-clean at `-S warning`, never block on
+   stdin, and a **validation tier stated in the header comment**.
+4. New JSON must parse with `jq empty`. New `SKILL.md` must pass
+   `python3 scripts/validate-skill-frontmatter.py` — use `/skill-creator` rather than
+   hand-writing frontmatter.
+5. Run `make validate`.
+6. Update `CHANGELOG.md` under `[Unreleased]`.
+7. If you added or removed a skill, the count in the docs must move with it —
+   `scripts/check-doc-claims.sh` will tell you exactly where.
+8. If you changed shipped plugin content (`skills/`, `hooks/`, `agents/`, `scripts/`,
+   manifests), bump the version **in `plugin-version.json`** and sync the consumers:
+
+   ```bash
+   bash scripts/check-version-truth.sh . --sync
+   ```
+
+   Never hand-edit a manifest version. See [versioning](versioning.md).
+9. If you touched `agents/*.md` or `skills/**`, regenerate the platform mirrors —
+   `make gemini-extension` and `make opencode-agents` — and never hand-edit `.gemini/` or
+   `.opencode/agent/` directly. Their `*-check` counterparts fail CI on drift.
+10. Open a PR.
+
+## Commit convention
+
+```text
+<type>(<scope>): <description>
+```
+
+Types: `feat`, `fix`, `chore`, `docs`, `refactor`.
+Scopes: `skills`, `hooks`, `marketplace`, `ci`, `docs`, `core`, `platforms`.
+
+## Hard constraints
+
+- Never `runs-on: [self-hosted]` in a workflow — always `ubuntu-latest`.
+- Never commit a secret. Credentials are `${ENV_VAR}` placeholders only.
+- Never add employer-internal references (domains, private orgs, internal tooling names).
+- Never duplicate canonical content per platform. Generate it, with a drift check.
+- Never move a manifest version backwards past a cut release.
 
 ## Releasing
 
-Releases are created via the [Release workflow](.github/workflows/release.yml) — trigger it manually from the Actions tab with a semver version string. The workflow:
-
-1. Bumps the version in every present `plugin.json` manifest (skip if the release PR already bumped them)
-2. Commits the bump when needed
-3. Creates a `v<version>` git tag (required — CI fails if manifest version has no matching tag)
-4. Creates a GitHub Release
-
-**Claude Code users** must refresh after a release:
-
-```text
-/plugin marketplace update tamirs-marketplace
-/plugin update tamirs-superpowers@tamirs-marketplace
-/reload-plugins
-```
-
-Without a version bump, `/plugin update` reports "already at the latest version" even when new commits exist on GitHub.
-
-## Testing a skill locally
-
-Claude Code loads plugins from your configured install paths. To test a change:
-
-**Claude Code 2.1.229+ — command-source link install (recommended).** Marketplaces
-now support `command` sources: a local command prints the plugin directory, the
-result is re-resolved at each session start, and `mode: "link"` uses the printed
-directory in place. Point a local marketplace entry at your dev clone:
-
-```jsonc
-// in a local marketplace.json registered with /plugin marketplace add <path>
-{
-  "name": "tamirs-superpowers",
-  "source": {
-    "source": "command",
-    "command": ["echo", "/absolute/path/to/your/tamirs-superpowers"],
-    "mode": "link"
-  }
-}
-```
-
-With `mode: "link"` your working tree IS the installed plugin — no cache copy, no
-symlink into the cache dir, no `/plugin update` loop. Edits to skills and commands
-apply per the usual hot-reload rules; the source re-resolves each session without
-a restart.
-
-**Any version — edit the install dir directly:**
-
-1. Find your plugin install dir: `/plugin list` in Claude Code
-2. Edit the skill file directly (or symlink your dev clone to the install path — safe on Claude Code 2.1.228+; earlier versions' background plugin-cache cleanup could delete a cache entry whose only version was a symlinked dev checkout)
-3. Run `/reload-plugins` in Claude Code
-4. Test the skill
-
-For hook changes, restart Claude Code entirely to pick up the new hook scripts.
+See [versioning and release](versioning.md).

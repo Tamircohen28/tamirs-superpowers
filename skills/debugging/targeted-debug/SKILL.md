@@ -21,29 +21,44 @@ hooks: {}
 paths: []
 shell: bash
 metadata:
+  tamirs:
+    visibility: public
+    category: debugging
+    role: debugger
+    validation-tier: 1
+    updated-date: '2026-08-19'
+    capabilities:
+      required:
+        - skills
+        - shell
+      optional:
+        - subagents
+        - git
+    tags:
+      - debugging
+      - focused
+      - targeted
+      - stack-trace
+      - error
+      - crash
+      - traceback
+      - panic
   capability: focused-debugging
   provider: developer-workflow
   agents:
   - targeted-debug
-  platforms:
-  - claude
-  tags:
-  - debugging
-  - focused
-  - targeted
-  - stack-trace
-  - error
-  - crash
-  - traceback
-  - panic
-  - rust
-  - go
-  updated-date: '2026-06-16'
+  updated-date: '2026-08-19'
 ---
 
 ## Live context
 !`git rev-parse --show-toplevel 2>/dev/null && echo "repo: $(basename $(git rev-parse --show-toplevel))" || echo "not a git repo"`
 !`git branch --show-current 2>/dev/null | sed 's/^/branch: /' || true`
+
+> The `!`-prefixed lines above are Claude Code dynamic frontmatter. Harnesses that do not
+> expand them render them as literal text and lose nothing else — every step below either
+> re-derives the repo root with `git rev-parse --show-toplevel` or works from paths as
+> given. If `git` is unavailable, treat every path as relative to the working directory and
+> say so in the report rather than guessing a root.
 
 # Targeted Debug
 
@@ -127,36 +142,104 @@ Combine trace evidence with code evidence. Three outcomes:
 | **Refined** | Trace was misleading; real cause is upstream | Report new hypothesis, name ONE additional file (ask user before reading) |
 | **Insufficient** | In-scope files don't reveal a single root cause | Say so explicitly — name what additional evidence is needed |
 
-### 5. Produce the debug report
+### 5. Produce the structured diagnosis
+
+The diagnosis is a **structured finding**, in the same shape every reviewer role in this
+framework emits (`core/roles/reviewer.md`). That is deliberate: an orchestrator merging a
+debugger's output with a reviewer's, a security reviewer's and a test engineer's must not
+need a special case for this skill.
 
 ```
-## Hypothesis (from stack trace)
+## Hypothesis (from stack trace, before reading code)
 <one paragraph from step 2>
 
-## Evidence (from in-scope files)
-<specific lines / function signatures that confirm or refute>
+## Finding
+| Field | Value |
+|-------|-------|
+| severity | critical \| high \| medium \| low |
+| confidence | high \| medium \| low |
+| files | <path:line>, <path:line> — in-scope files only |
+| evidence | <the specific lines / signatures that confirm or refute the hypothesis> |
+| recommended_fix | <the smallest concrete change, with file:line> |
+| blocking | true \| false |
 
-## Root cause (best estimate)
-<the proximate cause — one sentence>
-
-## Suggested fix
-<concrete change with file:line reference>
+## Root cause
+<the proximate cause — one sentence. If undetermined, write "undetermined" and set
+confidence to low. Never invent one to fill the field.>
 
 ## Out-of-scope follow-ups
 - <file NOT read but potentially relevant> — <one-line justification>
-- Whether a broader /investigate session is now warranted
+- Whether a broader investigation session is now warranted
 ```
 
-The "Out-of-scope follow-ups" section is the escape hatch — list what you would read next if the user wants to go deeper. Do not silently cross the boundary.
+Field discipline:
+
+- **severity** describes the defect's impact on the system, not how hard it was to find.
+- **confidence** is about this diagnosis being correct. An "Insufficient" outcome in step 4
+  means `confidence: low` and `root cause: undetermined` — it does not mean guessing
+  harder. Low confidence stated plainly is a useful result; a confident wrong answer is not.
+- **blocking** is `true` when the diagnosis names a defect that must be fixed before
+  delivery, `false` when it is a follow-up. A `confidence: low` finding is never `blocking`.
+- **files** may only contain in-scope paths. Anything else goes under out-of-scope follow-ups.
+
+The "Out-of-scope follow-ups" section is the escape hatch — list what you would read next if
+the user wants to go deeper. Do not silently cross the boundary.
+
+### Emitting machine-readable findings
+
+When an orchestrator asks for machine-readable output, emit the same fields as JSON and
+nothing else:
+
+```json
+{
+  "role": "debugger",
+  "severity": "high",
+  "confidence": "medium",
+  "files": ["src/handlers/payment.rs:91"],
+  "evidence": "unwrap() on a None returned by lookup_account() at line 88",
+  "recommended_fix": "replace unwrap() with a match that propagates the missing-account error",
+  "blocking": true,
+  "root_cause": "lookup_account returns None for closed accounts; the caller assumes Some",
+  "out_of_scope": ["src/db/accounts.rs — owns the None case, not read"]
+}
+```
+
+The scope rules apply unchanged in this mode.
+
+## Running under an orchestrator
+
+This skill is a **worker**, and it composes with orchestration without loosening a single
+scope rule.
+
+**Competing diagnoses are supported and encouraged.** An orchestrator may dispatch several
+independent instances of this skill against the same trace — different in-scope seeds,
+different hypotheses — and compare the structured findings. Each instance must:
+
+- reason only from its own assigned scope, and never read another instance's output;
+- report its own `confidence` honestly, including when it reaches `undetermined`;
+- never widen scope to "win" against a competing diagnosis.
+
+Convergent independent findings are the signal an orchestrator is buying. Findings
+contaminated by cross-reading are worth nothing, so the isolation is the whole point.
+
+**Where subagents are unavailable** (`subagents` capability absent), run sequentially in the
+same session: complete and record one diagnosis, then start the next from the original trace
+without reference to the first. State in the report that the diagnoses were sequential, so
+the orchestrator knows they are less independent than parallel ones — do not present them as
+if they had been isolated.
+
+**Never** does this skill open a PR, commit, or apply a fix. It ends at a structured
+finding and hands off; delivery belongs to the integrator (spec §2.4).
 
 ## Hard rules
 
 1. **Read only what's named.** In-scope = files the user named + files in the stack trace. Nothing else without asking.
 2. **No `Glob` for unrelated paths.** `Glob` is allowed only to resolve the exact paths from rule 1 (e.g., when the path is partial or relative).
 3. **No `Grep` outside in-scope files.** Do not grep the whole repo for the exception class or method name.
-4. **No external tool calls.** No Grafana, Slack, Jira, or GitHub MCP queries. This skill is offline. If the user wants those, they should ask explicitly.
-5. **No pipeline launch.** This skill does NOT invoke any broader investigation orchestrator. It stops at the evidence boundary and surfaces what it found.
-6. **Stop and ask if scope must expand.** If analysis genuinely cannot proceed without reading a new file, ask — don't quietly read 10 more files.
+4. **No external tool calls.** No observability, chat, issue-tracker, or GitHub MCP queries. This skill is offline. If the user wants those, they should ask explicitly.
+5. **No pipeline launch.** This skill does NOT invoke any broader investigation orchestrator. It stops at the evidence boundary and surfaces what it found. Being *dispatched by* an orchestrator is fine; dispatching one is not.
+6. **Stop and ask if scope must expand.** If analysis genuinely cannot proceed without reading a new file, ask — don't quietly read 10 more files. Under an orchestrator with no interactive user, do not expand: report `confidence: low` with the file you would have needed listed under out-of-scope follow-ups.
+7. **No delivery.** Never commit, push, or open a PR. The output is a finding.
 
 ## What NOT to do
 

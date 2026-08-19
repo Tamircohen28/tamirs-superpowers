@@ -31,7 +31,7 @@ INCLUDE_UNTRACKED=0
 [[ "${1:-}" == "--all" ]] && INCLUDE_UNTRACKED=1
 
 REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || echo ".")
-cd "$REPO_ROOT"
+cd "$REPO_ROOT" || { echo "cannot cd to repo root: $REPO_ROOT" >&2; exit 1; }
 
 # 1. Inventory: tracked .md under docs/ + optionally untracked.
 # Bash 3.2 portable — write to a temp file rather than mapfile.
@@ -45,8 +45,7 @@ if [[ "$INCLUDE_UNTRACKED" == 1 ]]; then
 fi
 
 # 2. Files that ARE linked from any README in docs/.
-find docs -name 'README.md' -type f 2>/dev/null \
-  | xargs grep -hoE '\]\([^)]+\.md[^)]*\)' 2>/dev/null \
+find docs -name 'README.md' -type f -exec grep -hoE '\]\([^)]+\.md[^)]*\)' {} + 2>/dev/null \
   | sed 's/^](//;s/)$//' \
   | sed 's/#.*//' > "$LINKED_FILE" || true
 

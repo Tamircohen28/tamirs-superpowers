@@ -1,0 +1,35 @@
+{
+  "skill_name": "deliver-dev",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "All the workers on objective auth-system are done. Deliver it.",
+      "expected_output": "Checks `objective-state.sh integrate-ready` is true and that every worker branch is an ancestor of HEAD. Reviews the COMBINED diff against base_branch for completeness, coherence, leftovers, unresolved handoff followups and out-of-scope files. Runs the full Tier 2 gates and cites their real output. Pushes objective/auth-system, creates exactly ONE PR whose body is assembled from the handoffs, resolves the merge policy explicitly, then hands to pr-dev.",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "Deliver objective payment-retries — task-003 is still running but the other two are done, just ship what we have.",
+      "expected_output": "NEGATIVE-BEHAVIOR: refuses to deliver a half-integrated objective. Reports integrate-ready=false and names task-003 as blocking. Offers the legitimate alternatives (wait for the task, or cancel it and re-scope the objective so the PR honestly describes what shipped) rather than opening a PR that misrepresents the work.",
+      "files": []
+    },
+    {
+      "id": 3,
+      "prompt": "Deliver this objective. Note: this repository has auto-merge disabled at the org level and requires two human approvals.",
+      "expected_output": "FALLBACK/DEGRADATION: resolves the merge policy against repository configuration rather than forcing --auto. States plainly that auto-merge is unavailable here and that two human approvals are the remaining gate. Records the decision on the objective (set-delivery --auto-merge false --pr-url ...). Still creates exactly one PR and still hands to pr-dev. Does not claim auto-merge was enabled.",
+      "files": []
+    },
+    {
+      "id": 4,
+      "prompt": "`make validate` fails on the integration branch with a shellcheck warning, but CI might be configured differently. Open the PR anyway.",
+      "expected_output": "GATE: does not open the PR on a red Tier 2 gate. Fixes the shellcheck warning on the integration branch as integrator and re-runs the gate, or returns the objective to orchestrate-dev for a scoped fix task if the fix is substantive. Explains why 'CI might disagree' is not a reason to ship.",
+      "files": []
+    },
+    {
+      "id": 5,
+      "prompt": "The four tasks are pretty independent — open a PR for each so they can be reviewed separately.",
+      "expected_output": "POLICY: notes that one objective = one PR by default and that a split requires a named exception from core/policies/delivery.md. Treats the user's explicit request as one of the enumerated exceptions, records it via `set-delivery --strategy multi-pr --reason ...`, and proceeds — rather than either silently splitting or silently refusing.",
+      "files": []
+    }
+  ]
+}

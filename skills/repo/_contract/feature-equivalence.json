@@ -1,57 +1,103 @@
 {
-  "version": "1.0.0",
+  "version": "2.0.0",
   "model": "capability_parity",
+  "capability_source": {
+    "registry": "core/capabilities/platforms.json",
+    "schema": "core/capabilities/schema.json",
+    "role": "base",
+    "note": "The registry is the single source of truth for WHICH platforms exist and WHAT each one can do. This file carries only the repo-contract delta on top of it: which concrete artifact a repo must ship so a platform can actually consume a capability the registry says it has. It never restates a status. scripts/check-feature-equivalence.sh derives the platform id set from the registry and fails loudly if the two disagree in either direction — a platform named here but absent from the registry, or a registry platform that provides a capability this contract demands no artifact for.",
+    "runtime_surfaces_excluded": true,
+    "runtime_surfaces_note": "A registry platform carrying runtime_surface_of consumes another platform's artifacts (Claude Desktop consumes the Claude Code plugin). It is deliberately absent from every platform map below and from platform-targets.json supported_targets; inventing a separate artifact set for it would be the exact duplication this file exists to prevent.",
+    "fallback": "docs/engineering/build-and-release/platform-targets.json supported_targets, when the registry is absent (scaffolded repos that have not adopted it yet). Absence is a P2 warning, never a silent pass."
+  },
   "repo_types": {
     "app": {
       "capabilities": {
         "instructions": {
           "severity": "P1",
-          "claude": [
-            "CLAUDE.md with @AGENTS.md"
-          ],
-          "cursor": [
-            ".cursor/rules/000-project.mdc \u2192 AGENTS.md"
-          ],
-          "codex": [
-            "AGENTS.md"
-          ]
+          "canonical": "AGENTS.md",
+          "platforms": {
+            "claude_code": [
+              "CLAUDE.md with @AGENTS.md"
+            ],
+            "cursor": [
+              ".cursor/rules/000-project.mdc → AGENTS.md"
+            ],
+            "codex": [
+              "AGENTS.md"
+            ],
+            "gemini_cli": [
+              "GEMINI.md (or AGENTS.md) named by gemini-extension.json contextFileName"
+            ],
+            "opencode": [
+              "AGENTS.md"
+            ]
+          }
         },
         "skills": {
           "severity": "P1",
+          "registry_capability": "skills",
           "canonical": ".agents/skills/",
-          "claude": [
-            ".agents/skills/ or synced .claude/skills/"
-          ],
-          "cursor": [
-            ".agents/skills/"
-          ],
-          "codex": [
-            ".agents/skills/"
-          ],
+          "platforms": {
+            "claude_code": [
+              ".agents/skills/ or synced .claude/skills/"
+            ],
+            "cursor": [
+              ".agents/skills/"
+            ],
+            "codex": [
+              ".agents/skills/"
+            ],
+            "gemini_cli": [
+              "generated flat skill mirror at .gemini/skills/ (built from the canonical tree, one symlink per skill)"
+            ],
+            "opencode": [
+              ".agents/skills/ via opencode.json skills.paths"
+            ]
+          },
           "bridge_required_when": [
             ".claude/skills without .agents/skills"
-          ]
+          ],
+          "notes": "Gemini discovers skills exactly one level below a skills root, so a canonical domain-nested skills/<domain>/<name>/ tree resolves to zero. The artifact that closes the gap is a GENERATED flat mirror at .gemini/skills/ — one symlink per skill, so the repo still holds exactly one copy — which Gemini reads natively, in-workspace with no install or through a single `gemini skills install --path .gemini/skills`. Build it, never hand-maintain it. Gemini follows symlinks for skill discovery and OpenCode does not, at any level, so this mirror strategy must not be ported to OpenCode. Live status for both is in the capability registry; this entry names the artifact, not the status."
         },
         "mcp": {
           "severity": "P2",
+          "registry_capability": "mcp",
           "when": "README or AGENTS.md documents MCP",
-          "claude": [
-            ".mcp.json"
-          ],
-          "cursor": [
-            ".mcp.json referenced in docs"
-          ],
-          "codex": [
-            ".codex/config.toml stub"
-          ]
+          "canonical": ".mcp.json",
+          "platforms": {
+            "claude_code": [
+              ".mcp.json"
+            ],
+            "cursor": [
+              ".mcp.json referenced in docs"
+            ],
+            "codex": [
+              ".codex/config.toml stub"
+            ],
+            "gemini_cli": [
+              "gemini-extension.json mcpServers"
+            ],
+            "opencode": [
+              "opencode.json mcp"
+            ]
+          }
         },
         "hooks": {
-          "severity": "n/a"
+          "severity": "n/a",
+          "registry_capability": "hooks",
+          "note": "App repos ship no plugin hook bundle; lifecycle automation is CI. Nothing to check."
         },
         "platform_targets": {
           "severity": "P1",
           "when": "ai_platforms.count >= 2",
           "artifact": "docs/engineering/build-and-release/platform-targets.json"
+        },
+        "capability_registry": {
+          "severity": "P2",
+          "when": "ai_platforms.count >= 2",
+          "artifact": "core/capabilities/platforms.json",
+          "note": "Multi-platform repos declare what each target can do once, in a registry, rather than restating it per document."
         }
       }
     },
@@ -59,66 +105,153 @@
       "capabilities": {
         "instructions": {
           "severity": "P1",
-          "claude": [
-            "CLAUDE.md with @AGENTS.md"
-          ],
-          "cursor": [
-            ".cursor/rules/*.mdc"
-          ],
-          "codex": [
-            "AGENTS.md"
-          ]
+          "canonical": "AGENTS.md",
+          "platforms": {
+            "claude_code": [
+              "CLAUDE.md with @AGENTS.md"
+            ],
+            "cursor": [
+              ".cursor/rules/*.mdc"
+            ],
+            "codex": [
+              "AGENTS.md"
+            ],
+            "gemini_cli": [
+              "GEMINI.md (or AGENTS.md) named by gemini-extension.json contextFileName"
+            ],
+            "opencode": [
+              "AGENTS.md"
+            ]
+          }
         },
         "skills": {
           "severity": "P1",
+          "registry_capability": "skills",
           "canonical": "skills/",
-          "manifests": [
+          "manifests": {
+            "claude_code": ".claude-plugin/plugin.json",
+            "cursor": ".cursor-plugin/plugin.json",
+            "codex": ".codex-plugin/plugin.json",
+            "gemini_cli": "gemini-extension.json",
+            "opencode": "opencode.json"
+          },
+          "skills_path_manifests": [
             ".claude-plugin/plugin.json",
             ".cursor-plugin/plugin.json",
             ".codex-plugin/plugin.json"
           ],
-          "paths_must_match": true
+          "paths_must_match": true,
+          "note": "Only the three plugin.json manifests carry a skills path array that can disagree. Gemini installs the canonical skills/ tree through its extension manifest and OpenCode through opencode.json skills.paths, so neither can drift from a list it does not keep.",
+          "platforms": {
+            "gemini_cli": [
+              "generated flat skill mirror at .gemini/skills/ (built from the canonical tree, one symlink per skill)"
+            ]
+          },
+          "notes": "Gemini discovers skills exactly one level below a skills root, so a canonical domain-nested skills/<domain>/<name>/ tree resolves to zero. The artifact that closes the gap is a GENERATED flat mirror at .gemini/skills/ — one symlink per skill, so the repo still holds exactly one copy — which Gemini reads natively, in-workspace with no install or through a single `gemini skills install --path .gemini/skills`. Build it, never hand-maintain it. Gemini follows symlinks for skill discovery and OpenCode does not, at any level, so this mirror strategy must not be ported to OpenCode. Live status for both is in the capability registry; this entry names the artifact, not the status."
         },
         "mcp": {
           "severity": "P1",
+          "registry_capability": "mcp",
           "when": ".mcp.json exists",
+          "canonical": ".mcp.json",
+          "platforms": {
+            "claude_code": [
+              ".claude-plugin/plugin.json mcpServers"
+            ],
+            "cursor": [
+              ".cursor-plugin/plugin.json mcpServers"
+            ],
+            "codex": [
+              ".codex-plugin/plugin.json mcpServers"
+            ],
+            "gemini_cli": [
+              "gemini-extension.json mcpServers"
+            ],
+            "opencode": [
+              "opencode.json mcp"
+            ]
+          },
           "all_manifests": "mcpServers field must reference .mcp.json"
         },
         "hooks": {
           "severity": "P1",
+          "registry_capability": "hooks",
           "when": "hooks/hooks.json exists",
-          "claude": [
-            "hooks/hooks.json"
-          ],
-          "codex": [
-            ".codex-plugin/plugin.json hooks field"
-          ],
-          "cursor_substitute": "docs/agent-guidelines/platform-equivalence.md"
+          "canonical": "hooks/hooks.json",
+          "platforms": {
+            "claude_code": [
+              "hooks/hooks.json"
+            ],
+            "codex": [
+              ".codex-plugin/plugin.json hooks field"
+            ],
+            "cursor": [
+              "docs/agent-guidelines/platform-equivalence.md (documented substitute)"
+            ],
+            "opencode": [
+              "docs/agent-guidelines/platform-equivalence.md (documented substitute)"
+            ]
+          },
+          "cursor_substitute": "docs/agent-guidelines/platform-equivalence.md",
+          "note": "Cursor consumes hooks only partially and OpenCode not at all — OpenCode has no hooks.json and this repo ships no JS/TS plugin module by design, so its guards move into the skills and CI. The repo contract only demands the substitute be written down so the gap is not re-discovered every audit.",
+          "gemini_note": "No entry for gemini_cli, and deliberately so. Gemini reads hooks/hooks.json from the extension root and accepts the outer {\"hooks\": {...}} shape — and it accepts an entirely invented event name just as silently, so loading proves nothing about firing. The vocabularies overlap partially rather than differ wholesale: measured against this repo's ten declared events on 0.55.1, three (SessionStart, SessionEnd, Notification) are real Gemini events but were never tested; four (PreToolUse, PostToolUse, UserPromptSubmit, Stop) exist only in the `gemini hooks migrate --from-claude` mapping table; three (DirectoryAdded, WorktreeCreate, WorktreeRemove) have no counterpart at all. So the worktree guards would need real translation nobody has done. The registry is the live source for the status — do not restate it here, and do not read this omission as a measured failure. The checker treats 'not provided' (unsupported or unknown) identically, so this entry stays correct whichever way the registry lands."
         },
         "platform_targets": {
           "severity": "P1",
           "artifact": "docs/engineering/build-and-release/platform-targets.json"
+        },
+        "capability_registry": {
+          "severity": "P1",
+          "artifact": "core/capabilities/platforms.json",
+          "note": "Plugin repos ship to several harnesses at once; the registry is what lets a skill degrade instead of assuming."
         }
       }
     },
     "agent-kit": {
       "extends": "claude-plugin",
+      "architecture": "canonical-plus-adapters",
       "capabilities": {
         "skills": {
           "severity": "P1",
+          "registry_capability": "skills",
           "canonical": "canonical/skills/",
           "generated": [
             "plugins/*/skills/",
             "dist/codex/AGENTS.md",
-            "dist/cursor/.cursor/rules/"
+            "dist/cursor/.cursor/rules/",
+            "dist/gemini/gemini-extension.json",
+            ".gemini/skills/ (flat mirror)",
+            ".gemini/agents/ (translated roles)",
+            "dist/opencode/opencode.json",
+            ".opencode/agent/ (translated roles)"
           ]
+        },
+        "rules": {
+          "severity": "P1",
+          "canonical": "canonical/rules/",
+          "generated": [
+            "dist/codex/AGENTS.md",
+            "dist/cursor/.cursor/rules/",
+            "dist/gemini/GEMINI.md"
+          ],
+          "note": "One canonical rule body per topic, rendered per platform. A rule duplicated by hand into a platform directory is drift, not support."
+        },
+        "roles": {
+          "severity": "P2",
+          "canonical": "canonical/roles/",
+          "note": "Role definitions are provider-neutral. Provider-specific agent files are generated only where the frontmatter genuinely differs — and it does for two targets: OpenCode needs tools as an object and a provider-prefixed model, Gemini needs tools as an array of its own tool names (read_file, search_file_content, glob, run_shell_command) and no model field at all. Both are generated and drift-checked; neither is hand-copied."
         },
         "build": {
           "severity": "P1",
           "scripts": [
             "scripts/build.mjs",
             "scripts/validate.mjs"
-          ]
+          ],
+          "note": "build regenerates every adapter from canonical/; validate proves the working tree matches what build would produce."
+        },
+        "capability_registry": {
+          "severity": "P1",
+          "artifact": "core/capabilities/platforms.json"
         }
       }
     },
@@ -133,11 +266,13 @@
   },
   "rubric_layers": {
     "E": "feature_equivalence",
-    "V": "platform_target_versions"
+    "V": "platform_target_versions",
+    "C": "capability_registry_agreement"
   },
   "validation_scripts": [
     "scripts/check-feature-equivalence.sh",
-    "scripts/check-platform-targets.sh"
+    "scripts/check-platform-targets.sh",
+    "scripts/check-capability-registry.sh"
   ],
   "make_targets": {
     "agent_check": "make agent:check",

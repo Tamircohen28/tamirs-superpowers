@@ -20,14 +20,27 @@ paths: []
 shell: bash
 license: Apache-2.0
 metadata:
+  tamirs:
+    visibility: public
+    category: creative
+    role: implementer
+    validation-tier: 1
+    updated-date: '2026-08-19'
+    capabilities:
+      required:
+        - skills
+      optional:
+        - shell
+        - artifacts
+    tags:
+      - art
+      - p5js
+      - generative
+      - creative
+      - content
+      - portable
   capability: creative-coding
-  tags:
-  - art
-  - p5js
-  - generative
-  - creative
-  - content
-  updated-date: '2026-06-16'
+  updated-date: '2026-08-19'
 ---
 
 # Algorithmic Art — Generative Art with p5.js
@@ -191,10 +204,58 @@ The artifact is self-contained (p5.js from CDN, no external files). Structure:
 
 ---
 
+## Dependencies and delivery assumptions — read before Step 4
+
+The output is a single `.html` file. That file is **portable** — any browser opens it, on any
+platform, with no agent harness involved. But it carries two assumptions that are false in
+some delivery contexts, and they must be checked, not assumed.
+
+### Assumption 1 — the CDN is reachable when the page is *viewed*
+
+The default template loads p5.js from `cdnjs.cloudflare.com`. That means the page needs
+network access **at view time**, not at generation time. It breaks in three real situations:
+
+| Context | What happens | What to do |
+|---|---|---|
+| Offline / air-gapped viewing | Blank canvas, no error the user understands | Vendor p5.js inline (below) |
+| A sandboxed viewer with a strict Content-Security-Policy — including published Claude Artifacts, which block all external hosts | The `<script src>` is blocked; nothing renders | Vendor p5.js inline (below) |
+| Corporate proxy blocking cdnjs | Same as offline | Vendor p5.js inline, or use the org's mirror |
+
+**Vendored fallback.** Fetch `p5.min.js` once and paste its contents into an inline
+`<script>` tag in place of the `src=` link. The file is roughly 1 MB, so the page grows
+accordingly; that is the price of a page that renders anywhere. Everything else in the
+template is unchanged, and `scripts/validate_artifact.sh --vendored` accepts this shape.
+
+**Choose deliberately and say which you chose.** If the user is going to publish the page
+into a CSP-restricted viewer, vendor it. If they are opening a local file with network
+available, the CDN link keeps the file small. Never hand over a CDN-linked page while
+describing it as self-contained or offline-capable — it is neither.
+
+### Assumption 2 — the browser will let the page save a file
+
+The Download PNG button uses a canvas-to-blob download. Sandboxed viewers commonly block
+page-initiated downloads, so the button can be inert through no fault of the code. Keep the
+button — it works in a normal browser, which is the primary target — and tell the user
+plainly that in a restricted viewer they should right-click the canvas and save the image
+instead. Do not claim the download works in a context where you have not seen it work.
+
+### What the page does *not* assume
+
+- No agent-harness feature: no skills, subagents, hooks, MCP, or host-specific artifact API.
+- No build step, bundler, package manager, or server. `file://` is enough.
+- No fonts or images beyond what the browser already has; the template's font stack
+  degrades to a system sans-serif.
+
+Keep it that way. If a request would require a second file, a build step, or a host-specific
+feature, that is a signal to redesign, not to add a dependency.
+
+---
+
 ## Hard Rules
 
 - **Always seed randomness** — `randomSeed(params.seed)` and `noiseSeed(params.seed)` in `setup()`. Same seed MUST produce identical output every time.
-- **Never create separate .js files** — the artifact is one self-contained HTML file. All code inline. p5.js from CDN only.
+- **Never create separate .js files** — the page is one self-contained HTML file. All code inline. p5.js comes from the CDN link or is vendored inline; nothing else is ever fetched at runtime.
+- **Never call a CDN-linked page offline-capable or self-contained.** State which of the two delivery modes you produced, and why. If the destination has a strict CSP (published Claude Artifacts do), vendor p5.js.
 - **Never copy another artist's specific algorithm** — create original generative systems. Drawing inspiration from aesthetic traditions is fine; copying a named artist's exact implementation is not.
 - **Philosophy before code** — write the algorithmic philosophy first, output it as a `.md` artifact, then implement. Never skip this step.
 - **Parameters must be meaningful** — every slider must correspond to a real, perceptible change in the artwork. No dead sliders.
@@ -231,7 +292,9 @@ The artifact is self-contained (p5.js from CDN, no external files). Structure:
 - [ ] Every parameter has a UI slider/input
 - [ ] Prev/Next/Random/Jump seed controls present and functional
 - [ ] Regenerate, Reset, Download PNG buttons present and functional
-- [ ] No external files — everything inline, p5.js from CDN
+- [ ] No external files — everything inline; p5.js either CDN-linked or vendored
+- [ ] Delivery mode chosen deliberately (CDN vs vendored) and stated to the user
+- [ ] No runtime fetches beyond p5.js; no build step; opens from `file://`
 - [ ] Canvas renders immediately with no user setup
 
 ---
@@ -250,4 +313,15 @@ After generating the HTML artifact, run this script to verify all required struc
 bash scripts/validate_artifact.sh <path-to-artifact.html>
 ```
 
-Checks: `randomSeed`/`noiseSeed` calls, 1200×1200 canvas, p5.js CDN link, seed navigation UI, Regenerate/Reset/Download buttons, no local `.js` file references. Exit 0 = all pass.
+Checks: `randomSeed`/`noiseSeed` calls, 1200×1200 canvas, p5.js availability, seed navigation UI, Regenerate/Reset/Download buttons, no local `.js` file references. Exit 0 = all pass.
+
+Pass `--vendored` when p5.js is inlined rather than CDN-linked:
+
+```bash
+bash scripts/validate_artifact.sh --vendored <path-to-page.html>
+```
+
+In that mode it requires an inline p5.js payload instead of a CDN link, and fails the page
+if a CDN `<script src>` is still present — a page that is half-vendored fetches at view time
+and is not offline-capable. The script is POSIX-ish bash with no dependencies beyond `grep`,
+so it runs anywhere the rest of this skill does.

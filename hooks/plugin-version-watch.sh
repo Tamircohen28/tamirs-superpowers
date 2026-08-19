@@ -2,10 +2,14 @@
 # plugin-version-watch.sh — Stop hook: 24h nudge to run /platform-sync when repo uses any AI target.
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=lib/hook-output.sh
+source "${SCRIPT_DIR}/lib/hook-output.sh"
+
 CACHE_FILE="${HOME}/.claude/cache/platform-sync-last-check.json"
 
 # Read cwd from hook input (Stop hook provides JSON on stdin)
-input="$(cat)"
+input="$(hook_read_stdin)"
 CWD="$(echo "$input" | jq -r '.cwd // empty' 2>/dev/null || true)"
 if [ -z "$CWD" ]; then
   CWD="$(pwd)"

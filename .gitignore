@@ -23,15 +23,25 @@ dist/
 build/
 *.log
 
-# Agent worktrees (repo-local) and session state
+# Agent worktrees (repo-local) and session state.
+# .agent-worktrees/ is the current objective/task layout; the platform-shaped
+# paths below are the legacy layout and stay ignored so existing worktrees are
+# never orphaned. See rules/dev/git-worktree-agent-workflow.md.
+.agent-worktrees/
 .claude/.worktrees/
 .claude/worktrees/
 .claude/outputs/
 .claude/sessions/
 .cursor/.worktrees/
 .codex/.worktrees/
+.gemini/.worktrees/
+.opencode/.worktrees/
 
-# Session-local dev artifacts (only .dev-files/README.md is tracked)
+# Session-local dev artifacts and objective/task/handoff workflow state.
+# Gitignored by default; only .dev-files/README.md is tracked. A consuming repo
+# may opt in to durable checked-in workflow state by un-ignoring
+# .dev-files/objectives/ in its own .gitignore — see
+# rules/dev/dev-files-workspace.md. This repo does not opt in.
 .dev-files/*
 !.dev-files/README.md
 

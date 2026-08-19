@@ -124,6 +124,45 @@ Severity guide:
 
 ---
 
+## Layer 8b — Gemini CLI-specific
+
+| ID | Check | P |
+|----|-------|---|
+| L8b-01 | `gemini-extension.json` present when the repo declares `gemini_cli` support | P1 |
+| L8b-02 | Manifest reuses the canonical `skills/` tree rather than a copied one | P1 |
+| L8b-03 | `contextFileName` points at a file that exists (`GEMINI.md` or `AGENTS.md`) | P2 |
+| L8b-04 | `gemini extensions validate .` runs clean, or is recorded as unrun with a reason | P2 |
+| L8b-05 | No Node dependency added purely for the extension | P3 |
+
+## Layer 8c — OpenCode-specific
+
+| ID | Check | P |
+|----|-------|---|
+| L8c-01 | `opencode.json` points `skills.paths` at the canonical tree | P1 |
+| L8c-02 | `.opencode/agent/` is generated and drift-checked, never hand-copied | P1 |
+| L8c-03 | Guards are carried by in-skill steps + CI, not by a ported `hooks.json` (OpenCode has no hook config file) | P1 |
+| L8c-04 | No capability is assumed for OpenCode without reading its registry row first | P1 |
+
+**Do not pin a status in this rubric.** Every row above asks whether the repo *consulted*
+the registry, never what the registry says. Statuses are re-measured and move; a rubric that
+quotes one becomes wrong silently, which is the failure mode Layer 8d exists to prevent.
+
+## Layer 8d — Capability registry
+
+| ID | Check | P |
+|----|-------|---|
+| L8d-01 | `core/capabilities/platforms.json` exists when the repo targets ≥2 harnesses | P1 (plugin) / P2 (app) |
+| L8d-02 | Validates against `core/capabilities/schema.json`; every target covers every capability key | P1 |
+| L8d-03 | Registry platform set equals `platform-targets.json` `supported_targets` minus runtime surfaces | P1 |
+| L8d-04 | Every `native` claim carries a validation command; every non-native status carries a fallback or note | P1 |
+| L8d-05 | No document restates a capability status the registry already owns | P2 |
+
+Claude Desktop is a **runtime surface** of `claude_code`, not a separate distribution
+format. It gets a registry entry with `runtime_surface_of: claude_code` and is
+deliberately absent from `supported_targets`. Do not create a Desktop manifest.
+
+---
+
 ## Layer 9 — Agent-kit distribution
 
 Use when `repo_type` is `agent-kit` or contract profile is `plugin-gold`.

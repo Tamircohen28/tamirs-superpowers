@@ -17,6 +17,9 @@ PROJECT="${1:-my-mcp-server}"
 LANG="${2:-ts}"
 PREFIX="${3:-${PROJECT//-/_}}"
 PREFIX="${PREFIX//-/_}"  # replace any remaining dashes
+# Uppercase via tr, not ${PREFIX^^}: parameter-case expansion is bash 4+ and
+# macOS ships bash 3.2, where it is a syntax error.
+PREFIX_UC="$(printf '%s' "$PREFIX" | tr '[:lower:]' '[:upper:]')"
 
 echo "Scaffolding MCP server: $PROJECT (lang=$LANG, prefix=$PREFIX)"
 
@@ -63,7 +66,7 @@ PKGJSON
 }
 TSCJSON
 
-  TOKEN_VAR="${PREFIX^^}_TOKEN"
+  TOKEN_VAR="${PREFIX_UC}_TOKEN"
 
   cat > "$PROJECT/README.md" <<README
 # $PROJECT MCP Server
@@ -203,16 +206,16 @@ await server.connect(transport);
 TSEOF
 
   # Replace placeholders
-  TOKEN_VAR="${PREFIX^^}_TOKEN"
+  TOKEN_VAR="${PREFIX_UC}_TOKEN"
   sed -i '' \
     -e "s/PROJECT_NAME/$PROJECT/g" \
     -e "s/PREFIX_TOKEN/$TOKEN_VAR/g" \
-    -e "s/PREFIX_/$PREFIX_/g" \
+    -e "s/PREFIX_/${PREFIX}_/g" \
     "$PROJECT/src/index.ts" 2>/dev/null || \
   sed -i \
     -e "s/PROJECT_NAME/$PROJECT/g" \
     -e "s/PREFIX_TOKEN/$TOKEN_VAR/g" \
-    -e "s/PREFIX_/$PREFIX_/g" \
+    -e "s/PREFIX_/${PREFIX}_/g" \
     "$PROJECT/src/index.ts"
 
   echo "TypeScript skeleton created in ./$PROJECT/"
@@ -223,7 +226,7 @@ TSEOF
 
 elif [[ "$LANG" == "py" ]]; then
   # --- Python skeleton ---
-  TOKEN_VAR="${PREFIX^^}_TOKEN"
+  TOKEN_VAR="${PREFIX_UC}_TOKEN"
 
   cat > "$PROJECT/server.py" <<PYEOF
 """$PROJECT MCP server (FastMCP)"""

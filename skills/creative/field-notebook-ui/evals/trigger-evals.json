@@ -1,0 +1,66 @@
+[
+  {
+    "query": "build a UI for browsing our k8s glossary",
+    "should_trigger": true
+  },
+  {
+    "query": "create an interactive explainer for how Helm works",
+    "should_trigger": true
+  },
+  {
+    "query": "make a visualizer for this auth flow",
+    "should_trigger": true
+  },
+  {
+    "query": "design a dashboard for the deploy pipeline",
+    "should_trigger": true
+  },
+  {
+    "query": "make it look like the field-notebook style",
+    "should_trigger": true
+  },
+  {
+    "query": "use the warm stone-paper aesthetic for this reference tool",
+    "should_trigger": true
+  },
+  {
+    "query": "generate a React artifact with tabs for these three topics",
+    "should_trigger": true
+  },
+  {
+    "query": "build me a reference tool for our error codes",
+    "should_trigger": true
+  },
+  {
+    "query": "fix the CSS on our existing marketing site",
+    "should_trigger": false
+  },
+  {
+    "query": "make a dark terminal style comparison table",
+    "should_trigger": false
+  },
+  {
+    "query": "write the copy for our landing page",
+    "should_trigger": false
+  },
+  {
+    "query": "set up Tailwind in this Next.js project",
+    "should_trigger": false
+  },
+  {
+    "query": "generate flow-field generative art",
+    "should_trigger": false
+  },
+  {
+    "query": "review this React component for performance",
+    "should_trigger": false
+  },
+  {
+    "query": "what's the best charting library for React",
+    "should_trigger": false
+  },
+  {
+    "query": "convert this Figma file to code",
+    "should_trigger": false
+  }
+]

@@ -1,0 +1,61 @@
+# Adapter metadata — Gemini CLI (REFACTOR-SPEC §21).
+# Thin pointer file. Authoritative capabilities: core/capabilities/platforms.json.
+id: gemini
+display_name: Gemini CLI
+registry_key: gemini_cli
+
+# Coarse summary only. `agents` is the registry's `subagents` key.
+capabilities:
+  skills: adapter
+  agents: adapter
+  hooks: unknown
+  mcp: native
+
+manifest: gemini-extension.json
+
+install:
+  type: extension
+  doc: docs/user/install/gemini.md
+
+validation:
+  command: bash scripts/check-gemini-adapter.sh
+
+notes: >-
+  Every value here was measured against Gemini CLI 0.55.1 with a probe extension,
+  not read from documentation — the published docs over-claim. skills is `adapter`:
+  Gemini discovers skills exactly one level below a skills root, so the canonical
+  two-level skills/<domain>/<name>/ tree resolves to ZERO skills anywhere Gemini
+  looks. scripts/build-gemini-extension.sh generates a flat symlink mirror at
+  .gemini/skills/, read natively at the workspace tier and installable in one
+  command with `gemini skills install <url> --path .gemini/skills`; drift is
+  enforced by `make gemini-extension-check`. agents is `adapter` for the same reason
+  OpenCode's is: Gemini requires `tools` as an array of Gemini tool names and
+  rejects the canonical Claude comma-string with `tools.0: Invalid tool name`, so
+  .gemini/agents/ is generated too, with `model:` omitted because a Claude alias
+  passes validation and then fails at invocation. hooks is `unknown`, not `unsupported`, and the
+  distinction is deliberate: what was measured is that Gemini silently accepts BOTH
+  a Claude-shaped hooks/hooks.json AND a completely invented event name, which
+  proves acceptance is not evidence — it does NOT establish that a correctly-shaped
+  Gemini hook fails to fire. Firing was never tested. Separately and definitely:
+  THIS ADAPTER SHIPS NO HOOKS, by design.
+  Gemini's runtime events, read from the shipped 0.55.1 bundle rather than the
+  docs: BeforeTool, AfterTool, BeforeAgent, AfterAgent, BeforeModel, AfterModel,
+  BeforeToolSelection, SessionStart, SessionEnd, Notification, PreCompress. The
+  vocabularies are NOT disjoint — SessionStart, SessionEnd and Notification are
+  shared with Claude — but PreToolUse, PostToolUse, UserPromptSubmit and Stop are
+  Claude-only, and DirectoryAdded/WorktreeCreate/WorktreeRemove have no Gemini
+  counterpart at all. Those names survive in the bundle only as keys of
+  EVENT_MAPPING, the `gemini hooks migrate --from-claude` translation table
+  (PreToolUse->BeforeTool, PostToolUse->AfterTool, UserPromptSubmit->BeforeAgent,
+  Stop->AfterAgent), i.e. migration inputs, not runtime events. That table is also
+  the reason translated hooks are tractable future work rather than an open
+  question, and it sizes the job: of the ten events this repo declares, 3 already
+  work by name (SessionStart, SessionEnd, Notification), 4 translate mechanically
+  through the table (PreToolUse, PostToolUse, UserPromptSubmit, Stop), and only 3
+  would need designing (DirectoryAdded, WorktreeCreate, WorktreeRemove). The
+  mapping is published in the shipped code, so seven tenths of it is transcription.
+  Known limitation, not fixable from here: an extension installed from a bare git
+  URL roots at the repo root, so Gemini reads the canonical Claude-shaped agents/
+  and logs one `Invalid tool name` error per file on every invocation. There is no
+  subdirectory flag for `gemini extensions install` and no manifest field to
+  relocate it.

@@ -3,7 +3,11 @@
 # Wix IP (internal registries, APIs, credentials) must not appear in personal projects.
 set -uo pipefail
 
-input="$(cat)"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=lib/hook-output.sh
+source "${SCRIPT_DIR}/lib/hook-output.sh"
+
+input="$(hook_read_stdin)"
 file="$(echo "$input" | python3 -c "
 import sys, json
 try:

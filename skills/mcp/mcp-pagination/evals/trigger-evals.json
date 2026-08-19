@@ -1,0 +1,26 @@
+[
+  {
+    "query": "mcp-builder Phase 1.3 \u2014 apply pagination guardrails to these collection endpoints",
+    "should_trigger": true
+  },
+  {
+    "query": "audit these list_* and search_* tool definitions for missing limit parameters",
+    "should_trigger": true
+  },
+  {
+    "query": "check this SQL-executing MCP tool for unbounded results",
+    "should_trigger": true
+  },
+  {
+    "query": "run the pagination quick-reference checklist against the implemented tools",
+    "should_trigger": true
+  },
+  {
+    "query": "set the cursor conventions and limit defaults before I write these tool schemas",
+    "should_trigger": true
+  },
+  {
+    "query": "confirm these evals use caller-driven pagination, not server-side full scans",
+    "should_trigger": true
+  }
+]

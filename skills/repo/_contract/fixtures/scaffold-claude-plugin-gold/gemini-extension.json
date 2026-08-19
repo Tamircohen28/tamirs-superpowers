@@ -1,0 +1,9 @@
+{
+  "name": "scaffold-claude-plugin-gold",
+  "version": "0.1.0",
+  "description": "Contract gold fixture for flat claude-plugin profile",
+  "contextFileName": "AGENTS.md",
+  "skills": ["./skills/demo"],
+  "mcpServers": "./.mcp.json",
+  "hooks": "./hooks/hooks.json"
+}

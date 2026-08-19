@@ -15,7 +15,7 @@
         "Figures in anomaly divs are expressed as percentages of total (e.g. '41.2%') not raw token counts",
         "Writes at least 1 optimization callout naming a specific project or skill from the JSON",
         "Reports the saved file path to the user",
-        "Does not hallucinate numbers — all figures reference actual JSON field values"
+        "Does not hallucinate numbers \u2014 all figures reference actual JSON field values"
       ]
     },
     {
@@ -28,12 +28,12 @@
         "If overall.api_calls is 0 or the JSON has no data, asks the user to widen the window rather than silently writing a blank report",
         "If data exists, produces the same dated HTML output file in the current directory",
         "The output filename uses the pattern session-report-YYYYMMDD-HHMM.html",
-        "Does not hardcode an absolute user path — uses $SKILL_DIR or resolved path from plugin root"
+        "Does not hardcode an absolute user path \u2014 uses $SKILL_DIR or resolved path from plugin root"
       ]
     },
     {
       "id": 3,
-      "prompt": "What's consuming most of my Claude tokens? Give me a full breakdown — by project, by skill, and show me the most expensive individual prompts. All time.",
+      "prompt": "What's consuming most of my Claude tokens? Give me a full breakdown \u2014 by project, by skill, and show me the most expensive individual prompts. All time.",
       "expected_output": "The skill recognizes 'all time' as no --since flag, runs analyze-sessions.mjs --json (without --since), reads the full by_project, by_skill, and top_prompts sections of the JSON. The anomaly block identifies the top project by token share (with % of total), the top skill by invocation count or token cost, and at least one top-prompt finding citing the specific prompt text snippet and its % of total. Optimizations reference specific data rows.",
       "files": [],
       "expectations": [
@@ -46,6 +46,24 @@
         "Output file is saved to current working directory with correct date-stamped filename",
         "The skill does not invent any project name, skill name, or token count not present in the JSON"
       ]
+    },
+    {
+      "id": 4,
+      "prompt": "Show me my token usage for the last 7 days. I'm running under OpenCode.",
+      "expected_output": "Step 0a should find no ~/.claude/projects directory and STOP with the incompatibility message: session-report parses Claude Code's own JSONL transcript format and has no adapter for OpenCode. Must NOT say 'no usage found' \u2014 an empty report and an incompatible platform look identical to the user and mean completely different things. Must not produce a report from nothing.",
+      "files": []
+    },
+    {
+      "id": 5,
+      "prompt": "Can you add support for reading Cursor's session logs into session-report?",
+      "expected_output": "Should explain that an adapter requires reading Cursor's real transcript output and verifying the token accounting against it \u2014 a parser written without that evidence would be a guess presented as support. Should point at the real extension point (`--dir <transcripts-dir>` plus a parser, a fixture, and a test) and state that the compatibility row stays `unsupported` until the evidence exists.",
+      "files": []
+    },
+    {
+      "id": 6,
+      "prompt": "session-report \u2014 ~/.claude/projects exists but contains no .jsonl files.",
+      "expected_output": "Should report that this is normal on a fresh install and that there are no transcripts to analyse, distinguishing it clearly from the incompatible-platform case. Should not attempt the analysis or emit an empty HTML report.",
+      "files": []
     }
   ]
 }

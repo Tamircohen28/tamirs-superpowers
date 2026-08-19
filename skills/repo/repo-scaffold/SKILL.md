@@ -37,6 +37,16 @@ metadata:
   - claude-code
   - bootstrap
   updated-date: '2026-06-23'
+  tamirs:
+    visibility: public
+    category: repo
+    capabilities:
+      required: [shell, git]
+      optional: [github_cli]
+    role: implementer
+    updated-date: "2026-08-19"
+    validation-tier: 3
+
 ---
 
 # repo-scaffold
@@ -95,7 +105,7 @@ docs/
   agent-guidelines/
 ```
 
-**Root file checklist:** `AGENTS.md`, `CLAUDE.md` (line 1: `@AGENTS.md`), `LICENSE`, `Makefile` (with `agent:check`), `.gitignore`, `CODEOWNERS`, `CODE_OF_CONDUCT.md`, `SECURITY.md`, `scripts/check-agent-drift.sh`, `.cursor/rules/000-project.mdc`, `.nvmrc` (node/nextjs only), `assets/banner.svg`.
+**Root file checklist:** `AGENTS.md`, `CLAUDE.md` (line 1: `@AGENTS.md`), `LICENSE`, `Makefile` (with `agent:check`), `.gitignore`, `CODEOWNERS`, `CODE_OF_CONDUCT.md`, `SECURITY.md`, `scripts/check-agent-drift.sh`, `.cursor/rules/000-project.mdc`, `core/capabilities/{schema,platforms}.json`, `.nvmrc` (node/nextjs only), `assets/banner.svg`.
 
 **Branch strategy:** `master` (default), `stable` (releases). Feature: `feat/`, fixes: `fix/`.
 
@@ -328,6 +338,13 @@ Follow multi-agent-repo references/platform-setup.md (phases 0–1):
 2. REPO_ROOT/CLAUDE.md — line 1: @AGENTS.md; Claude-only addenda only
 3. REPO_ROOT/.cursor/rules/000-project.mdc — alwaysApply: true, points to AGENTS.md
 4. REPO_ROOT/docs/agent-guidelines/README.md — stub index linking to AGENTS.md
+5. REPO_ROOT/core/capabilities/schema.json and REPO_ROOT/core/capabilities/platforms.json —
+   from CONTRACT_ROOT/templates/core/capabilities/*.tmpl, substituting GITHUB_OWNER and
+   REPO_NAME. This is the capability registry: the ONE place the repo states which
+   harnesses it targets and what each can do. Do not restate a platform's support in
+   AGENTS.md, README, or a second JSON file — everything else derives from this file.
+   Targets: claude_code, claude_desktop (runtime surface of claude_code — no separate
+   manifest), codex, cursor, gemini_cli, opencode.
 ```
 
 ---
@@ -353,7 +370,15 @@ Write these files (substitute REPO_NAME, DESCRIPTION, today's date):
 Then run:
   cd REPO_ROOT && npm run build
 
-This generates dist/codex/AGENTS.md, dist/cursor/.cursor/rules/000-core.mdc, and plugins/REPO_NAME/skills/
+This generates one thin adapter per target, all from canonical/:
+  - plugins/REPO_NAME/skills/               → Claude Code + Claude Desktop
+  - dist/codex/AGENTS.md, dist/codex/.codex/config.toml → Codex CLI
+  - dist/cursor/.cursor/rules/000-core.mdc  → Cursor
+  - dist/gemini/gemini-extension.json, dist/gemini/GEMINI.md → Gemini CLI
+  - dist/opencode/opencode.json             → OpenCode
+
+Never hand-edit an adapter and never duplicate a rule per platform. npm run validate
+proves the tree matches what build would produce.
 ```
 
 ---

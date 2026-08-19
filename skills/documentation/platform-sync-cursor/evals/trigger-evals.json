@@ -1,0 +1,22 @@
+[
+  {
+    "query": "analyze this repo's Cursor configuration against the latest Cursor docs",
+    "should_trigger": true
+  },
+  {
+    "query": "platform-sync-cursor",
+    "should_trigger": true
+  },
+  {
+    "query": "what Cursor features is this repo missing",
+    "should_trigger": true
+  },
+  {
+    "query": "return the Cursor improvement section for the unified plan",
+    "should_trigger": true
+  },
+  {
+    "query": "audit our Cursor config \u2014 legacy caller invoking this skill by name",
+    "should_trigger": true
+  }
+]

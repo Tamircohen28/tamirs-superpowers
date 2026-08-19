@@ -1,0 +1,26 @@
+[
+  {
+    "query": "run docs-review on $TARGET_ROOT \u2014 repo-standards polish phase 6",
+    "should_trigger": true
+  },
+  {
+    "query": "full documentation audit of README.md and docs/**",
+    "should_trigger": true
+  },
+  {
+    "query": "sweep the docs for broken links and stale counts",
+    "should_trigger": true
+  },
+  {
+    "query": "verify our install commands and generated skill tables are accurate",
+    "should_trigger": true
+  },
+  {
+    "query": "check that our platform-facing docs agree with the capability registry",
+    "should_trigger": true
+  },
+  {
+    "query": "re-run the doc audit after I fixed the P1 items",
+    "should_trigger": true
+  }
+]

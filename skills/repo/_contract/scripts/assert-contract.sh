@@ -25,6 +25,18 @@ if [[ "$MANIFESTS_ONLY" == true ]]; then
   export CONTRACT_MANIFESTS_ONLY=1
 fi
 
+# The contract cannot be asserted with a forked copy of itself. Several checkers ship in
+# three places (plugin scripts/, scaffold template, gold fixtures); if a copy has drifted,
+# the fixture is no longer exercising the logic the live script runs and a green gate means
+# nothing. Runs only when this contract sits inside its own source repo — a consumer repo
+# asserting its own compliance has no canonical sources to compare against.
+if [[ -f "$SCRIPT_DIR/sync-contract-scripts.sh" && -f "$SCRIPT_DIR/../script-sync.json" ]]; then
+  CONTRACT_SRC_ROOT="$(cd "$SCRIPT_DIR/../../../.." && pwd)"
+  if [[ -f "$CONTRACT_SRC_ROOT/scripts/check-feature-equivalence.sh" ]]; then
+    bash "$SCRIPT_DIR/sync-contract-scripts.sh" "$CONTRACT_SRC_ROOT" --check
+  fi
+fi
+
 RESULT="$(bash "$SCRIPT_DIR/score-contract-gaps.sh" "$ROOT" "$PROFILE")"
 P1="$(echo "$RESULT" | jq -r '.counts.p1')"
 P2="$(echo "$RESULT" | jq -r '.counts.p2')"

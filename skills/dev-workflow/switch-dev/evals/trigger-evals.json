@@ -1,0 +1,22 @@
+[
+  {"query": "/switch-dev handoff #42 cursor", "should_trigger": true},
+  {"query": "/switch-dev resume #42", "should_trigger": true},
+  {"query": "/switch-dev status", "should_trigger": true},
+  {"query": "I'm rate limited — hand this off so I can continue on Codex", "should_trigger": true},
+  {"query": "continue this work on Gemini CLI", "should_trigger": true},
+  {"query": "pick up where I left off on issue #42", "should_trigger": true},
+  {"query": "cross-platform handoff for the auth task", "should_trigger": true},
+  {"query": "update the resume block before I switch tools", "should_trigger": true},
+  {"query": "/switch-dev handoff objective=auth-system task-002 opencode", "should_trigger": true},
+  {"query": "show me which issues each agent owns", "should_trigger": true},
+  {"query": "switch to the feat/auth branch", "should_trigger": false},
+  {"query": "switch this function to use async/await", "should_trigger": false},
+  {"query": "resume the failed deployment", "should_trigger": false},
+  {"query": "implement issue #42", "should_trigger": false},
+  {"query": "what's the status of CI on my PR?", "should_trigger": false},
+  {"query": "install the plugin in Cursor", "should_trigger": false},
+  {"query": "compare Claude Code and Codex features", "should_trigger": false},
+  {"query": "merge this PR", "should_trigger": false},
+  {"query": "close issue #42 as won't fix", "should_trigger": false},
+  {"query": "git stash my changes", "should_trigger": false}
+]

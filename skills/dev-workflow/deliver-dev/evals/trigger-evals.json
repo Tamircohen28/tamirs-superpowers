@@ -1,0 +1,18 @@
+[
+  {"query": "deliver objective auth-system", "should_trigger": true},
+  {"query": "all the workers are done — create the PR", "should_trigger": true},
+  {"query": "turn objective/payment-retries into a pull request", "should_trigger": true},
+  {"query": "run the pre-PR gates and ship this objective", "should_trigger": true},
+  {"query": "the integration branch is ready, open the PR", "should_trigger": true},
+  {"query": "ship it", "should_trigger": true},
+  {"query": "review the combined diff and get this delivered", "should_trigger": true},
+  {"query": "drive PR #42 to merge and fix the failing CI", "should_trigger": false},
+  {"query": "address the review comments on my open PR", "should_trigger": false},
+  {"query": "run task-002 of objective auth-system", "should_trigger": false},
+  {"query": "implement the whole billing spec", "should_trigger": false},
+  {"query": "merge these two worker branches for me", "should_trigger": false},
+  {"query": "plan this work into phases", "should_trigger": false},
+  {"query": "why did CI fail on my branch?", "should_trigger": false},
+  {"query": "delete the merged branches and clean up worktrees", "should_trigger": false},
+  {"query": "what's in the objective state file?", "should_trigger": false}
+]

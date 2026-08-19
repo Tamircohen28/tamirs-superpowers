@@ -1,0 +1,61 @@
+{
+  "skill_name": "cleanup",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "/cleanup --dry-run",
+      "expected_output": "A plan-only report: which remote branches are merged and would be deleted, which local worktrees are idle, which build/cache paths would be removed, and which open PRs would be driven. No branch, worktree, or file is actually deleted and no PR is touched.",
+      "files": [],
+      "expectations": [
+        "Nothing is deleted — the working tree, worktree list, and remote branch list are identical before and after",
+        "Every candidate is listed with the reason it qualified (merged / idle / ignored artifact)",
+        "The report states explicitly that this was a dry run and names the command to run for real"
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "/cleanup --local-only",
+      "expected_output": "Idle local worktrees are removed and build/cache artifacts deleted. Remote branches are untouched and no PR is driven, because --local-only scopes the sweep to the local checkout.",
+      "files": [],
+      "expectations": [
+        "No remote branch is deleted and no PR is modified",
+        "A worktree containing uncommitted work is NOT removed — the work is rescued or the worktree is skipped with a reason",
+        "The summary distinguishes what was removed from what was deliberately skipped"
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "clean up the repo",
+      "expected_output": "The full sweep runs, but every destructive phase is confirmed with the user first. Merged remote branches, idle worktrees, and build artifacts are removed; open PRs are driven toward merge-ready.",
+      "files": [],
+      "expectations": [
+        "The user is asked to confirm before the first destructive action, not after",
+        "An unmerged branch is never deleted without an explicit instruction naming it",
+        "The final report lists each phase with counts and anything skipped"
+      ]
+    },
+    {
+      "id": 4,
+      "prompt": "/cleanup in a checkout where the gh CLI is not installed",
+      "expected_output": "Fallback path. cleanup declares github_cli as an OPTIONAL capability, so the local half of the sweep (worktrees, build artifacts, local branches, reset-to-remote) still runs. The PR-driving and remote-branch phases are skipped with an explicit 'gh not available' message — never silently, and never by guessing at PR state from local refs.",
+      "files": [],
+      "expectations": [
+        "The skill degrades rather than aborting: local cleanup completes",
+        "The skipped phases are named, with 'gh is not available' given as the reason",
+        "No attempt is made to infer merged-ness of remote PRs without gh",
+        "The report tells the user exactly what to re-run once gh is authenticated"
+      ]
+    },
+    {
+      "id": 5,
+      "prompt": "/cleanup on a repo whose worktrees contain uncommitted changes",
+      "expected_output": "Degraded, safety-first behavior. Uncommitted work is rescued (stashed or reported with its path) before any worktree is removed; a worktree whose work cannot be rescued is left in place and reported.",
+      "files": [],
+      "expectations": [
+        "No uncommitted change is destroyed",
+        "Each rescued or skipped worktree is named in the report with its dirty paths",
+        "The skill does not prompt-loop: it makes one decision per worktree and states it"
+      ]
+    }
+  ]
+}

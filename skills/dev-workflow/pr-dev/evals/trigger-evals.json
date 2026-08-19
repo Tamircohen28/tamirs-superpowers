@@ -1,0 +1,22 @@
+[
+  {"query": "finish this PR and get it merged", "should_trigger": true},
+  {"query": "address the review comments on #42", "should_trigger": true},
+  {"query": "drive PR #17 to merge", "should_trigger": true},
+  {"query": "fix CI and merge it", "should_trigger": true},
+  {"query": "land the PR", "should_trigger": true},
+  {"query": "ship https://github.com/owner/repo/pull/88", "should_trigger": true},
+  {"query": "clean up this PR and squash-merge it", "should_trigger": true},
+  {"query": "handle the review feedback on my open PR", "should_trigger": true},
+  {"query": "the checks are red on my PR — get it green and merged", "should_trigger": true},
+  {"query": "pr-dev 42", "should_trigger": true},
+  {"query": "open a PR for these changes", "should_trigger": false},
+  {"query": "review this PR and leave comments", "should_trigger": false},
+  {"query": "implement issue #42", "should_trigger": false},
+  {"query": "why is this CI workflow using self-hosted runners?", "should_trigger": false},
+  {"query": "list my open pull requests", "should_trigger": false},
+  {"query": "write a PR description for this branch", "should_trigger": false},
+  {"query": "what changed in this diff?", "should_trigger": false},
+  {"query": "set up branch protection on main", "should_trigger": false},
+  {"query": "revert the last commit", "should_trigger": false},
+  {"query": "plan the next phase of this work", "should_trigger": false}
+]

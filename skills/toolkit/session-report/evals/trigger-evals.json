@@ -1,0 +1,66 @@
+[
+  {
+    "query": "show my Claude usage for the last 7 days",
+    "should_trigger": true
+  },
+  {
+    "query": "session report",
+    "should_trigger": true
+  },
+  {
+    "query": "what's my cache hit rate",
+    "should_trigger": true
+  },
+  {
+    "query": "which project is consuming the most tokens",
+    "should_trigger": true
+  },
+  {
+    "query": "what am I spending on Claude this month",
+    "should_trigger": true
+  },
+  {
+    "query": "token breakdown by subagent type",
+    "should_trigger": true
+  },
+  {
+    "query": "find my most expensive prompts since Monday",
+    "should_trigger": true
+  },
+  {
+    "query": "claude analytics for the last 24h",
+    "should_trigger": true
+  },
+  {
+    "query": "how much does Claude Code cost per seat",
+    "should_trigger": false
+  },
+  {
+    "query": "reduce the token usage of this skill",
+    "should_trigger": false
+  },
+  {
+    "query": "what's our AWS bill this month",
+    "should_trigger": false
+  },
+  {
+    "query": "how many tokens is this prompt",
+    "should_trigger": false
+  },
+  {
+    "query": "explain how prompt caching works",
+    "should_trigger": false
+  },
+  {
+    "query": "run a retro on this session",
+    "should_trigger": false
+  },
+  {
+    "query": "show me the git log for this week",
+    "should_trigger": false
+  },
+  {
+    "query": "profile this function's memory usage",
+    "should_trigger": false
+  }
+]

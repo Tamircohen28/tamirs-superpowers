@@ -1,0 +1,66 @@
+[
+  {
+    "query": "notify me on my phone when Claude needs input",
+    "should_trigger": true
+  },
+  {
+    "query": "set up Pushover",
+    "should_trigger": true
+  },
+  {
+    "query": "I keep missing when Claude finishes, send push notifications",
+    "should_trigger": true
+  },
+  {
+    "query": "my phone notifications stopped working",
+    "should_trigger": true
+  },
+  {
+    "query": "make the notifications less noisy",
+    "should_trigger": true
+  },
+  {
+    "query": "change the notification priority for permission prompts",
+    "should_trigger": true
+  },
+  {
+    "query": "turn off phone notifications",
+    "should_trigger": true
+  },
+  {
+    "query": "phone alerts for Claude when a long task ends",
+    "should_trigger": true
+  },
+  {
+    "query": "send a Slack message when CI fails",
+    "should_trigger": false
+  },
+  {
+    "query": "add a Notification hook that logs to a file",
+    "should_trigger": false
+  },
+  {
+    "query": "why isn't my PreToolUse hook firing",
+    "should_trigger": false
+  },
+  {
+    "query": "set up email alerts for our production error rate",
+    "should_trigger": false
+  },
+  {
+    "query": "what hook events does Claude Code support",
+    "should_trigger": false
+  },
+  {
+    "query": "make the terminal bell ring when the build finishes",
+    "should_trigger": false
+  },
+  {
+    "query": "configure PagerDuty for our on-call rotation",
+    "should_trigger": false
+  },
+  {
+    "query": "my macOS desktop banner isn't showing",
+    "should_trigger": false
+  }
+]

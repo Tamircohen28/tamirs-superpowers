@@ -47,8 +47,8 @@
       "expected_output": "The skill identifies list_issues and list_projects as requiring Relay-style cursor pagination. get_issue (single item) and update_issue (mutation) are exempt. For list_issues and list_projects it recommends exposing 'first' (default 20, max 50) and 'after' (cursor string) parameters, returning 'pageInfo.endCursor' and 'pageInfo.hasNextPage' to the caller. It warns against auto-following cursors.",
       "files": [],
       "expectations": [
-        "get_issue is NOT flagged — single-item fetch is exempt",
-        "update_issue is NOT flagged — mutation, not a list operation",
+        "get_issue is NOT flagged \u2014 single-item fetch is exempt",
+        "update_issue is NOT flagged \u2014 mutation, not a list operation",
         "list_issues and list_projects are both flagged as needing pagination",
         "The recommended GraphQL parameter is 'first' (not 'limit') with default <= 50",
         "The 'after' cursor parameter is mentioned for continuation",
@@ -59,7 +59,7 @@
     {
       "id": 5,
       "prompt": "I have an MCP tool called get_recent_activity that fetches the last N activity events for a user. The name starts with 'get_' not 'list_', so I assumed it doesn't need pagination. Is that correct?",
-      "expected_output": "The skill explains that tool name prefix alone does not determine whether pagination is needed — what matters is whether the return type is an array. get_recent_activity returns an array of events, so it DOES need a limit parameter even though it starts with get_. The skill recommends adding a 'limit' parameter (default 20) and optionally a 'since' date filter. It clarifies the rule: any tool that returns a top-level array needs a limiting strategy regardless of name prefix.",
+      "expected_output": "The skill explains that tool name prefix alone does not determine whether pagination is needed \u2014 what matters is whether the return type is an array. get_recent_activity returns an array of events, so it DOES need a limit parameter even though it starts with get_. The skill recommends adding a 'limit' parameter (default 20) and optionally a 'since' date filter. It clarifies the rule: any tool that returns a top-level array needs a limiting strategy regardless of name prefix.",
       "files": [],
       "expectations": [
         "The skill does NOT exempt get_recent_activity just because of the 'get_' prefix",
@@ -71,16 +71,22 @@
     },
     {
       "id": 6,
-      "prompt": "I'm building an MCP tool that wraps an OpenAI streaming endpoint — it streams chat completion tokens back to the caller. Does this need pagination guardrails? Also I have a list_fine_tunes tool that returns all fine-tuning jobs. Evaluate both.",
-      "expected_output": "The skill correctly distinguishes: (1) the streaming completion tool does NOT need pagination — it is a generative/streaming operation, not a collection-listing operation. (2) list_fine_tunes DOES need a limit — it returns a collection of job objects. Safe default: limit=20. The skill does not misapply the guardrail to the streaming tool.",
+      "prompt": "I'm building an MCP tool that wraps an OpenAI streaming endpoint \u2014 it streams chat completion tokens back to the caller. Does this need pagination guardrails? Also I have a list_fine_tunes tool that returns all fine-tuning jobs. Evaluate both.",
+      "expected_output": "The skill correctly distinguishes: (1) the streaming completion tool does NOT need pagination \u2014 it is a generative/streaming operation, not a collection-listing operation. (2) list_fine_tunes DOES need a limit \u2014 it returns a collection of job objects. Safe default: limit=20. The skill does not misapply the guardrail to the streaming tool.",
       "files": [],
       "expectations": [
         "The streaming completion tool is correctly exempted from pagination guardrails",
         "The reason for exemption is stated: streaming is generative, not a collection listing",
         "list_fine_tunes is flagged as needing a limit parameter",
         "A safe default for list_fine_tunes is provided (<= 50)",
-        "The skill does not conflate 'streaming' with 'pagination' — these are orthogonal concerns"
+        "The skill does not conflate 'streaming' with 'pagination' \u2014 these are orthogonal concerns"
       ]
+    },
+    {
+      "id": 7,
+      "prompt": "Audit these list tools for pagination \u2014 the check-pagination.sh script can't run here, no shell.",
+      "expected_output": "The deterministic script is not available here, so the skill must degrade explicitly: read the tool definitions directly and apply the same guardrails by inspection, stating that check-pagination.sh did not run and the audit is therefore manual. The fallback path must reach the same verdict on limit/cursor/SQL-LIMIT coverage. Must not report the checklist as passing when it was never executed.",
+      "files": []
     }
   ]
 }

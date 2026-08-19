@@ -14,6 +14,77 @@ This file is loaded when the skill needs schema details. Always fetch fresh docs
 | Codex — AGENTS.md | https://developers.openai.com/codex/guides/agents-md |
 | Codex — config basics | https://developers.openai.com/codex/config-basic |
 | Codex — advanced config | https://developers.openai.com/codex/config-advanced |
+| Gemini CLI — extensions | https://google-gemini.github.io/gemini-cli/docs/extensions/ |
+| OpenCode — skills | https://opencode.ai/docs/skills/ |
+| OpenCode — agents | https://opencode.ai/docs/agents/ |
+| OpenCode — config schema | https://opencode.ai/config.json |
+
+## Targets and where support is stated
+
+Six targets, one source of truth. `core/capabilities/platforms.json` — validated against
+`core/capabilities/schema.json` — records an explicit status for all 19 capability keys on
+every target. Read it before recommending anything; never restate a status in prose.
+
+| Registry id | Display | Distribution artifact |
+|---|---|---|
+| `claude_code` | Claude Code | `.claude-plugin/plugin.json` + marketplace |
+| `claude_desktop` | Claude Desktop | **runtime surface of `claude_code`** — consumes the same plugin. Do not create a Desktop manifest. |
+| `codex` | Codex CLI | `.codex-plugin/plugin.json` + `AGENTS.md` |
+| `cursor` | Cursor | `.cursor-plugin/plugin.json` + `.cursor/rules/*.mdc` |
+| `gemini_cli` | Gemini CLI | `gemini-extension.json`, installed from a git URL |
+| `opencode` | OpenCode | `opencode.json` (`skills.paths`) + generated `.opencode/agent/` |
+
+Statuses are `native`, `native-experimental`, `partial`, `emulated`, `adapter`,
+`unsupported`, `unknown`. Anything short of `native` must carry a `fallback` or a note;
+`unknown` means unverified and must be treated as unavailable at runtime, never advertised.
+
+---
+
+## Gemini CLI Extension Layout
+
+Gemini installs an extension straight from a git repository. An extension can package
+Agent Skills, MCP servers, hooks, sub-agents, custom commands, and context — so the
+canonical `skills/` tree is reused directly rather than translated.
+
+```
+<repo-root>/
+  gemini-extension.json    # manifest: name, version, contextFileName, skills, mcpServers, hooks
+  GEMINI.md                # context file named by contextFileName
+  skills/
+    <skill-name>/SKILL.md  # canonical tree, reused as-is
+```
+
+```jsonc
+{
+  "name": "<extension-name>",
+  "version": "0.1.0",
+  "description": "…",
+  "contextFileName": "GEMINI.md",
+  "skills": ["./skills"],
+  "mcpServers": "./.mcp.json",
+  "hooks": "./hooks/hooks.json"
+}
+```
+
+Install: `gemini extensions install <repo-url>`. Local development: `gemini extensions link .`.
+Validate: `gemini extensions validate .`. Keep it dependency-free — declarative extension
+content needs no Node toolchain, so do not add one just because a template offers it.
+
+## OpenCode Layout
+
+OpenCode discovers Agent Skills natively (recursively, including domain-nested
+directories) and reads a smaller frontmatter set, ignoring unknown fields. It has no
+plugin manifest, no marketplace, and no `hooks.json` — lifecycle automation is a JS/TS
+plugin module only.
+
+```
+<repo-root>/
+  opencode.json            # { "skills": { "paths": ["./skills"] }, "mcp": { … } }
+  .opencode/agent/*.md     # GENERATED from canonical agents/ — frontmatter genuinely differs
+```
+
+Install is by path (`skills.paths` or a symlink), never by marketplace. Agent adapters are
+generated and drift-checked; never hand-copy an agent definition into `.opencode/agent/`.
 
 ---
 

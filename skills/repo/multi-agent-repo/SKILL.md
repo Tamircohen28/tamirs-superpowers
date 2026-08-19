@@ -1,7 +1,7 @@
 ---
 name: multi-agent-repo
-description: 'Use when auditing or setting up a repository for multi-agent development across Claude Code, Cursor, and Codex — or making a repo compatible with those assistants. Triggers: multi-agent repo, audit agent setup, AGENTS.md gaps, make compatible with Claude and Cursor, add Codex support, add cursor rules, generate AGENTS.md, agent drift, canonical AGENTS.md, multi-agent-repo review/plan/dev, multi-platform AI support.'
-when_to_use: 'User wants to review, plan, or implement multi-agent repo infrastructure — audit gaps for Claude Code + Cursor + Codex, produce a remediation plan, generate platform config files, or implement AGENTS.md + thin adapters + drift checks on a PR branch. Phrases: audit this repo for multi-agent, make this compatible with Claude and Cursor, set up AGENTS.md canonical layout, fix agent drift, multi-agent plan, multi-agent dev.'
+description: 'Use when auditing or setting up a repository for multi-agent development across Claude Code, Claude Desktop, Cursor, Codex, Gemini CLI, and OpenCode — or making a repo compatible with those assistants. Triggers: multi-agent repo, audit agent setup, AGENTS.md gaps, make compatible with Claude and Cursor, add Codex support, add Gemini CLI support, add OpenCode support, add cursor rules, generate AGENTS.md, capability registry, agent drift, canonical AGENTS.md, multi-agent-repo review/plan/dev, multi-platform AI support.'
+when_to_use: 'User wants to review, plan, or implement multi-agent repo infrastructure — audit gaps for Claude Code + Cursor + Codex + Gemini CLI + OpenCode, produce a remediation plan, generate platform config files and a capability registry, or implement AGENTS.md + thin adapters + drift checks on a PR branch. Phrases: audit this repo for multi-agent, make this compatible with Claude and Cursor, set up AGENTS.md canonical layout, fix agent drift, multi-agent plan, multi-agent dev.'
 argument-hint: '[review|plan|dev] [repo path, review/plan doc path, or free-text constraints — default: review + cwd]'
 arguments:
 - mode
@@ -33,10 +33,22 @@ metadata:
   - cursor
   - codex
   - claude-code
+  - gemini-cli
+  - opencode
   - audit
   - compatibility
   - plugin
   updated-date: '2026-07-09'
+  tamirs:
+    visibility: public
+    category: repo
+    capabilities:
+      required: [shell, git]
+      optional: [github_cli]
+    role: reviewer
+    updated-date: "2026-08-19"
+    validation-tier: 2
+
 ---
 
 ## Live context
@@ -49,7 +61,7 @@ Audit, plan, and implement canonical multi-agent repository setup: **one `AGENTS
 
 ## Why this skill exists
 
-Teams running Claude Code, Cursor, and Codex in parallel often maintain three diverging instruction files. Policies drift, context bloats past Codex's 32 KiB limit, and agents ignore duplicated rules. This skill runs **review → plan → dev** so you know what's missing, what order to fix it, and can land the full setup via PR. For quick file generation without a prior audit, use **dev** mode directly.
+Teams running Claude Code, Claude Desktop, Cursor, Codex, Gemini CLI, and OpenCode in parallel often maintain a diverging instruction file per tool. Policies drift, context bloats past Codex's 32 KiB limit, and agents ignore duplicated rules. Worse, "which target supports hooks?" gets answered differently in three documents. The fix is structural: one canonical body per rule, a thin generated adapter per target, and **one** capability registry — `core/capabilities/platforms.json` — that every other file derives from. `make check-feature-equivalence` fails the build when two views of the platform set disagree. This skill runs **review → plan → dev** so you know what's missing, what order to fix it, and can land the full setup via PR. For quick file generation without a prior audit, use **dev** mode directly.
 
 ## Supporting files
 

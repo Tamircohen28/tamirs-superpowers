@@ -271,7 +271,7 @@ Treat agent-kit repos as **supply chain**, not harmless markdown:
 
 | Doc | Content |
 |-----|---------|
-| [Skill Reference — Repo](reference.md#repo) | Slash-command examples |
-| [Concepts — Contract profiles](concepts.md#repo-contract-profiles-repo-scaffold--repo-standards) | app-gold vs plugin-gold |
+| [Skills — repo domain](skills.md#repo) | What each repo skill does |
+| [Contract package](../../skills/repo/_contract/README.md) | `app-gold` vs `plugin-gold`: templates, scoring scripts, gold fixtures |
 | [Engineering architecture](../engineering/architecture/overview.md) | Contract package in this plugin |
 | Contract templates | `skills/repo/_contract/templates/plugin/` |
