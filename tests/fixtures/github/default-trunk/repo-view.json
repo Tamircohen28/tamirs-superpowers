@@ -1,0 +1,9 @@
+{
+  "nameWithOwner": "Tamircohen28/example-repo",
+  "name": "example-repo",
+  "owner": { "login": "Tamircohen28" },
+  "isPrivate": true,
+  "isFork": false,
+  "isArchived": false,
+  "defaultBranchRef": { "name": "trunk" }
+}

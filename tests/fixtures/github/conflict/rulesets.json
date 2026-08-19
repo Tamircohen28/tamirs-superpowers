@@ -1,0 +1,33 @@
+[
+  {
+    "id": 21049068,
+    "name": "Default Branch - Safety",
+    "target": "branch",
+    "source_type": "Repository",
+    "source": "Tamircohen28/example-repo",
+    "enforcement": "active",
+    "node_id": "RRS_lACqUmVwb3NpdG9yec421049068",
+    "created_at": "2026-08-19T15:40:02.000Z",
+    "updated_at": "2026-08-19T15:40:02.000Z",
+    "_links": {
+      "self": { "href": "https://api.github.com/repos/Tamircohen28/example-repo/rulesets/21049068" },
+      "html": { "href": "https://github.com/Tamircohen28/example-repo/rules/21049068" }
+    }
+  }
+,
+  {
+    "id": 21049069,
+    "name": "Default Branch - PR \u0026 CI",
+    "target": "branch",
+    "source_type": "Repository",
+    "source": "Tamircohen28/example-repo",
+    "enforcement": "active",
+    "node_id": "RRS_lACqUmVwb3NpdG9yec421049069",
+    "created_at": "2026-08-19T15:40:02.000Z",
+    "updated_at": "2026-08-19T15:41:11.000Z",
+    "_links": {
+      "self": { "href": "https://api.github.com/repos/Tamircohen28/example-repo/rulesets/21049069" },
+      "html": { "href": "https://github.com/Tamircohen28/example-repo/rules/21049069" }
+    }
+  }
+]

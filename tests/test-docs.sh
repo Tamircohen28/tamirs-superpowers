@@ -106,8 +106,16 @@ while IFS= read -r pair; do
   case "$ref" in *'...'*|*'<'*) continue ;; esac   # documented placeholders
   [ -e "$ref" ] || ghost="$ghost
     $f -> $ref"
+# docs/engineering/refactor/ is a FROZEN Phase 0 inventory, taken at a named
+# baseline commit and deliberately not maintained as the refactor moves files.
+# Link-checking a historical snapshot against the current tree asserts that the
+# past should match the present, which is backwards — the snapshot is only
+# useful because it does not move. test-static.sh already excludes it from its
+# link check; this check was inconsistent with it and flagged a file the refactor
+# had legitimately deleted.
 done < <(grep -rohE '`(docs|skills|core|scripts|hooks|agents|platforms|rules|templates)/[A-Za-z0-9._/-]+`' \
            docs README.md CLAUDE.md AGENTS.md 2>/dev/null \
+           --exclude-dir=refactor \
          | tr -d '`' | sort -u | sed 's#^#docs:#')
 if [ -z "$ghost" ]; then
   ok "every repo path named in backticks exists"

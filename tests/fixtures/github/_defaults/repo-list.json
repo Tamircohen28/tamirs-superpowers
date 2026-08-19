@@ -1,0 +1,21 @@
+[
+  { "nameWithOwner": "Tamircohen28/Aurora-DJ", "name": "Aurora-DJ", "isPrivate": true, "isFork": false, "isArchived": false, "defaultBranchRef": { "name": "main" }, "description": "" },
+  { "nameWithOwner": "Tamircohen28/DJ", "name": "DJ", "isPrivate": true, "isFork": false, "isArchived": false, "defaultBranchRef": { "name": "main" }, "description": "" },
+  { "nameWithOwner": "Tamircohen28/MHFC", "name": "MHFC", "isPrivate": true, "isFork": false, "isArchived": false, "defaultBranchRef": { "name": "main" }, "description": "" },
+  { "nameWithOwner": "Tamircohen28/baswana-sen-spanner-experiments", "name": "baswana-sen-spanner-experiments", "isPrivate": true, "isFork": false, "isArchived": false, "defaultBranchRef": { "name": "main" }, "description": "" },
+  { "nameWithOwner": "Tamircohen28/headhunter", "name": "headhunter", "isPrivate": true, "isFork": false, "isArchived": false, "defaultBranchRef": { "name": "main" }, "description": "" },
+  { "nameWithOwner": "Tamircohen28/job-tracker-web", "name": "job-tracker-web", "isPrivate": true, "isFork": false, "isArchived": false, "defaultBranchRef": { "name": "main" }, "description": "" },
+  { "nameWithOwner": "Tamircohen28/jose-claudinho", "name": "jose-claudinho", "isPrivate": true, "isFork": false, "isArchived": false, "defaultBranchRef": { "name": "main" }, "description": "" },
+  { "nameWithOwner": "Tamircohen28/mac-server-setup", "name": "mac-server-setup", "isPrivate": true, "isFork": false, "isArchived": false, "defaultBranchRef": { "name": "main" }, "description": "" },
+  { "nameWithOwner": "Tamircohen28/offline-dev-kit", "name": "offline-dev-kit", "isPrivate": true, "isFork": false, "isArchived": false, "defaultBranchRef": { "name": "main" }, "description": "" },
+  { "nameWithOwner": "Tamircohen28/repo-bug-learner", "name": "repo-bug-learner", "isPrivate": true, "isFork": false, "isArchived": false, "defaultBranchRef": { "name": "main" }, "description": "" },
+  { "nameWithOwner": "Tamircohen28/st-claude", "name": "st-claude", "isPrivate": true, "isFork": false, "isArchived": false, "defaultBranchRef": { "name": "main" }, "description": "" },
+  { "nameWithOwner": "Tamircohen28/tamirs-marketplace", "name": "tamirs-marketplace", "isPrivate": true, "isFork": false, "isArchived": false, "defaultBranchRef": { "name": "main" }, "description": "" },
+  { "nameWithOwner": "Tamircohen28/travel-ios", "name": "travel-ios", "isPrivate": true, "isFork": false, "isArchived": false, "defaultBranchRef": { "name": "main" }, "description": "" },
+  { "nameWithOwner": "Tamircohen28/whoRuz", "name": "whoRuz", "isPrivate": true, "isFork": false, "isArchived": false, "defaultBranchRef": { "name": "main" }, "description": "" },
+  { "nameWithOwner": "Tamircohen28/world-cup-party", "name": "world-cup-party", "isPrivate": true, "isFork": false, "isArchived": false, "defaultBranchRef": { "name": "main" }, "description": "" },
+  { "nameWithOwner": "Tamircohen28/ios26-carplay-lyrics", "name": "ios26-carplay-lyrics", "isPrivate": true, "isFork": false, "isArchived": false, "defaultBranchRef": { "name": "master" }, "description": "" },
+  { "nameWithOwner": "Tamircohen28/lee-matan-wedding", "name": "lee-matan-wedding", "isPrivate": true, "isFork": false, "isArchived": false, "defaultBranchRef": { "name": "master" }, "description": "" },
+  { "nameWithOwner": "Tamircohen28/production-master", "name": "production-master", "isPrivate": true, "isFork": false, "isArchived": false, "defaultBranchRef": { "name": "master" }, "description": "" },
+  { "nameWithOwner": "Tamircohen28/tamirs-superpowers", "name": "tamirs-superpowers", "isPrivate": true, "isFork": false, "isArchived": false, "defaultBranchRef": { "name": "master" }, "description": "" }
+]

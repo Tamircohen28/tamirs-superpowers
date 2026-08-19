@@ -1,0 +1,6 @@
+github.com
+  ✓ Logged in to github.com account Tamircohen28 (keyring)
+  - Active account: true
+  - Git operations protocol: https
+  - Token: gho_************************************
+  - Token scopes: 'admin:org', 'admin:public_key', 'delete_repo', 'gist', 'repo', 'workflow'

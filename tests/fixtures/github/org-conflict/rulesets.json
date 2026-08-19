@@ -1,0 +1,49 @@
+[
+  {
+    "id": 21049068,
+    "name": "Default Branch - Safety",
+    "target": "branch",
+    "source_type": "Repository",
+    "source": "ProductionMasterAI/example-service",
+    "enforcement": "active",
+    "node_id": "RRS_lACqUmVwb3NpdG9yec421049068",
+    "created_at": "2026-08-19T15:40:02.000Z",
+    "updated_at": "2026-08-19T15:40:02.000Z",
+    "_links": {
+      "self": { "href": "https://api.github.com/repos/ProductionMasterAI/example-service/rulesets/21049068" },
+      "html": { "href": "https://github.com/ProductionMasterAI/example-service/rules/21049068" }
+    }
+  }
+,
+  {
+    "id": 21049069,
+    "name": "Default Branch - PR \u0026 CI",
+    "target": "branch",
+    "source_type": "Repository",
+    "source": "ProductionMasterAI/example-service",
+    "enforcement": "active",
+    "node_id": "RRS_lACqUmVwb3NpdG9yec421049069",
+    "created_at": "2026-08-19T15:40:02.000Z",
+    "updated_at": "2026-08-19T15:41:11.000Z",
+    "_links": {
+      "self": { "href": "https://api.github.com/repos/ProductionMasterAI/example-service/rulesets/21049069" },
+      "html": { "href": "https://github.com/ProductionMasterAI/example-service/rules/21049069" }
+    }
+  }
+,
+  {
+    "id": 30000001,
+    "name": "Org baseline - reviews",
+    "target": "branch",
+    "source_type": "Organization",
+    "source": "ProductionMasterAI",
+    "enforcement": "active",
+    "node_id": "RRS_lACsT3JnYW5pemF0aW9uzgHi",
+    "created_at": "2026-01-05T08:00:00.000Z",
+    "updated_at": "2026-01-05T08:00:00.000Z",
+    "_links": {
+      "self": { "href": "https://api.github.com/orgs/ProductionMasterAI/rulesets/30000001" },
+      "html": { "href": "https://github.com/organizations/ProductionMasterAI/settings/rules/30000001" }
+    }
+  }
+]

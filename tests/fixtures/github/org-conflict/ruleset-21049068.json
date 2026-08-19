@@ -1,0 +1,22 @@
+{
+  "id": 21049068,
+  "name": "Default Branch - Safety",
+  "target": "branch",
+  "source_type": "Repository",
+  "source": "ProductionMasterAI/example-service",
+  "enforcement": "active",
+  "node_id": "RRS_lACqUmVwb3NpdG9yec421049068",
+  "created_at": "2026-08-19T15:40:02.000Z",
+  "updated_at": "2026-08-19T15:40:02.000Z",
+  "current_user_can_bypass": "always",
+  "bypass_actors": [],
+  "conditions": { "ref_name": { "exclude": [], "include": ["~DEFAULT_BRANCH"] } },
+  "rules": [
+    { "type": "deletion" },
+    { "type": "non_fast_forward" }
+  ],
+  "_links": {
+    "self": { "href": "https://api.github.com/repos/ProductionMasterAI/example-service/rulesets/21049068" },
+    "html": { "href": "https://github.com/ProductionMasterAI/example-service/rules/21049068" }
+  }
+}

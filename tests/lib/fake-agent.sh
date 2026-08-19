@@ -22,6 +22,26 @@
 # shellcheck shell=bash
 
 # ---------------------------------------------------------------------------
+# Collision guard — tests/lib/fake-gh.sh is the other `gh` double in this repo,
+# and the two do NOT compose: both define `gh_calls` and `fake_gh_install`, over
+# different state. Whichever is sourced second silently wins.
+#
+# Why this is a guard and not a comment: `gh_calls` bound to the wrong (or an
+# empty) log returns 0, at which point every "no worker created a PR" assertion
+# in the orchestration suite passes without measuring anything. The single most
+# important assertion in this refactor would become a tautology, and it would
+# look exactly like a clean run. Fail loudly instead.
+#
+# This catches fake-gh-first. test-orchestration.sh catches the other order by
+# asserting, after sourcing, that both names still resolve to this file.
+if declare -f fake_gh_use_fixtures >/dev/null 2>&1; then
+  printf 'FATAL: tests/lib/fake-gh.sh is already loaded in this shell.\n' >&2
+  printf '       It and fake-agent.sh both define gh_calls and fake_gh_install.\n' >&2
+  printf '       Source exactly one per suite (see tests/README.md).\n' >&2
+  exit 1
+fi
+
+# ---------------------------------------------------------------------------
 # The simulated world
 # ---------------------------------------------------------------------------
 

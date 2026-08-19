@@ -1,0 +1,434 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/Tamircohen28/tamirs-superpowers/core/schemas/repository-policy.json",
+  "title": "GitHub repository policy",
+  "description": "Machine-readable statement of the branch governance and Actions concurrency policy applied to the GitHub repositories this account owns. It is the only place that answers what a governed repository's default branch is protected by; scripts render GitHub ruleset payloads from it and diff them against the live API. Silence is not an answer here: every object closes with additionalProperties:false and every decision that could be read either way — strict status checks, per-repository context resolution, whether a workflow may be cancelled — is stated explicitly, so an omitted key is a schema error rather than an implied 'no'.",
+  "type": "object",
+  "required": ["schema_version", "version", "defaults", "required_checks", "rulesets", "repositories", "actions"],
+  "additionalProperties": false,
+  "properties": {
+    "$schema": { "type": "string" },
+    "_comment": { "$ref": "#/$defs/comment" },
+    "schema_version": { "type": "integer", "const": 1 },
+    "version": {
+      "$ref": "#/$defs/semver",
+      "description": "Content version of this policy. Bumped on every change, per the _contract canonical-config pattern, so a consumer can tell whether the policy it applied is the policy that is written down."
+    },
+    "last_reviewed": { "$ref": "#/$defs/date" },
+
+    "defaults": {
+      "type": "object",
+      "description": "Values every ruleset inherits unless it restates them. Present so the ~DEFAULT_BRANCH targeting decision is written once.",
+      "required": ["target", "enforcement", "conditions", "bypass_actors"],
+      "additionalProperties": false,
+      "properties": {
+        "_comment": { "$ref": "#/$defs/comment" },
+        "target": { "$ref": "#/$defs/target" },
+        "enforcement": { "$ref": "#/$defs/enforcement" },
+        "conditions": { "$ref": "#/$defs/conditions" },
+        "bypass_actors": { "$ref": "#/$defs/bypassActors" }
+      }
+    },
+
+    "required_checks": {
+      "type": "object",
+      "description": "How required status-check contexts are resolved, and the strictness decision. Contexts themselves live per repository — a context name is a CI job name, and a job name that does not exist in a repo blocks every pull request in it forever.",
+      "required": [
+        "source",
+        "default_contexts",
+        "integration_id",
+        "strict_required_status_checks_policy",
+        "strict_is_intentional",
+        "do_not_enforce_on_create"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "_comment": { "$ref": "#/$defs/comment" },
+        "source": {
+          "type": "string",
+          "enum": ["per_repository"],
+          "description": "Only one resolution strategy is permitted. A global context list is a footgun, not a convenience, so the schema refuses to express one."
+        },
+        "default_contexts": {
+          "$ref": "#/$defs/contextNames",
+          "description": "Contexts applied to a repository with no override. Must be empty: a repository nobody has vetted gets protection, not a gate on checks it may not produce.",
+          "maxItems": 0
+        },
+        "integration_id": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "GitHub App id that produces the checks (15368 = GitHub Actions). A context without it matches any producer, which lets an unrelated app satisfy a required check."
+        },
+        "integration_name": { "type": "string", "minLength": 1 },
+        "strict_required_status_checks_policy": {
+          "type": "boolean",
+          "const": false,
+          "description": "'Require branches to be up to date before merging'. Pinned false by the schema, not merely defaulted, because turning it on makes N merges cost O(N^2) CI runs under the parallel-worker/one-PR architecture. Flipping it requires editing this schema, which is the point."
+        },
+        "strict_is_intentional": {
+          "type": "boolean",
+          "const": true,
+          "description": "A required acknowledgement that the false above is a decision. Its only purpose is to make a well-meaning 'fix' impossible to land silently."
+        },
+        "do_not_enforce_on_create": {
+          "type": "boolean",
+          "description": "Whether the check requirement is waived on branch creation. True lets a repository be seeded before CI exists."
+        },
+        "source_note": { "type": "string", "minLength": 1 }
+      }
+    },
+
+    "rulesets": {
+      "type": "array",
+      "description": "The ruleset set, in apply order. Safety first: it depends on nothing and is applicable to a repository on its first day, while the PR/CI ruleset presumes a workflow exists.",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/ruleset" }
+    },
+
+    "repositories": {
+      "type": "object",
+      "description": "Per-repository overrides keyed by owner/repo. Absence is meaningful and safe: the repository inherits the rulesets with an empty context list.",
+      "propertyNames": {
+        "anyOf": [
+          { "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*/[A-Za-z0-9][A-Za-z0-9._-]*$" },
+          { "const": "_comment" }
+        ]
+      },
+      "properties": { "_comment": { "$ref": "#/$defs/comment" } },
+      "additionalProperties": { "$ref": "#/$defs/repositoryOverride" }
+    },
+
+    "actions": {
+      "type": "object",
+      "description": "The GitHub Actions concurrency standard and the workflow classification a script uses to decide where it may be applied.",
+      "required": ["cancel_superseded_pr_runs", "concurrency", "serialize_concurrency", "workflow_classification"],
+      "additionalProperties": false,
+      "properties": {
+        "_comment": { "$ref": "#/$defs/comment" },
+        "cancel_superseded_pr_runs": {
+          "type": "boolean",
+          "description": "Account-wide default for whether cancellable workflows get the cancelling concurrency block. Overridable per repository."
+        },
+        "concurrency": { "$ref": "#/$defs/concurrencyBlock" },
+        "serialize_concurrency": { "$ref": "#/$defs/concurrencyBlock" },
+        "workflow_classification": { "$ref": "#/$defs/workflowClassification" }
+      }
+    }
+  },
+
+  "$defs": {
+    "comment": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Provenance or rationale carried in-band, following the settings.d fragment convention. Never consumed as data."
+    },
+    "semver": { "type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$" },
+    "date": { "type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$" },
+    "target": { "type": "string", "enum": ["branch", "tag", "push"] },
+    "enforcement": { "type": "string", "enum": ["active", "evaluate", "disabled"] },
+
+    "refName": {
+      "type": "string",
+      "description": "A ref pattern. Only GitHub's magic refs are allowed — a literal branch name would be wrong on the repositories that spell their default branch the other way, and would stop matching the day one is renamed.",
+      "enum": ["~DEFAULT_BRANCH", "~ALL"]
+    },
+    "conditions": {
+      "type": "object",
+      "required": ["ref_name"],
+      "additionalProperties": false,
+      "properties": {
+        "ref_name": {
+          "type": "object",
+          "required": ["include", "exclude"],
+          "additionalProperties": false,
+          "properties": {
+            "include": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/refName" } },
+            "exclude": { "type": "array", "items": { "$ref": "#/$defs/refName" } }
+          }
+        }
+      }
+    },
+    "bypassActors": {
+      "type": "array",
+      "description": "Actors permitted to bypass the ruleset. Empty is the policy; it is written out rather than omitted so that an actor added on github.com shows up as drift instead of as an unmodelled field.",
+      "items": {
+        "type": "object",
+        "required": ["actor_id", "actor_type", "bypass_mode"],
+        "additionalProperties": false,
+        "properties": {
+          "actor_id": { "type": ["integer", "null"] },
+          "actor_type": {
+            "type": "string",
+            "enum": ["Integration", "OrganizationAdmin", "RepositoryRole", "Team", "DeployKey"]
+          },
+          "bypass_mode": { "type": "string", "enum": ["always", "pull_request"] }
+        }
+      }
+    },
+
+    "ruleType": {
+      "type": "string",
+      "enum": [
+        "creation",
+        "update",
+        "deletion",
+        "required_linear_history",
+        "required_signatures",
+        "required_status_checks",
+        "pull_request",
+        "non_fast_forward",
+        "required_deployments"
+      ]
+    },
+
+    "ruleset": {
+      "type": "object",
+      "required": ["key", "name", "target", "enforcement", "conditions", "bypass_actors", "rules"],
+      "additionalProperties": false,
+      "properties": {
+        "_comment": { "$ref": "#/$defs/comment" },
+        "key": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]*$",
+          "description": "Stable local identifier. Scripts address rulesets by key; `name` is the human label that appears on github.com and may be re-worded."
+        },
+        "name": { "type": "string", "minLength": 1 },
+        "target": { "$ref": "#/$defs/target" },
+        "enforcement": { "$ref": "#/$defs/enforcement" },
+        "conditions": { "$ref": "#/$defs/conditions" },
+        "bypass_actors": { "$ref": "#/$defs/bypassActors" },
+        "rules": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/rule" } }
+      }
+    },
+
+    "rule": {
+      "type": "object",
+      "required": ["type"],
+      "additionalProperties": false,
+      "properties": {
+        "_comment": { "$ref": "#/$defs/comment" },
+        "type": { "$ref": "#/$defs/ruleType" },
+        "parameters": { "type": "object" }
+      },
+      "allOf": [
+        {
+          "$comment": "required_status_checks must state both toggles and must carry an empty context array — contexts are per repository, never global.",
+          "if": {
+            "properties": { "type": { "const": "required_status_checks" } },
+            "required": ["type"]
+          },
+          "then": {
+            "required": ["parameters"],
+            "properties": {
+              "parameters": {
+                "type": "object",
+                "required": [
+                  "do_not_enforce_on_create",
+                  "strict_required_status_checks_policy",
+                  "required_status_checks"
+                ],
+                "additionalProperties": false,
+                "properties": {
+                  "do_not_enforce_on_create": { "type": "boolean" },
+                  "strict_required_status_checks_policy": { "type": "boolean", "const": false },
+                  "required_status_checks": { "type": "array", "maxItems": 0 }
+                }
+              }
+            }
+          }
+        },
+        {
+          "$comment": "pull_request must answer every review question. An omitted review toggle reads as 'no' on the API but as 'undecided' to a reader, and those are different things.",
+          "if": {
+            "properties": { "type": { "const": "pull_request" } },
+            "required": ["type"]
+          },
+          "then": {
+            "required": ["parameters"],
+            "properties": {
+              "parameters": {
+                "type": "object",
+                "required": [
+                  "allowed_merge_methods",
+                  "dismiss_stale_reviews_on_push",
+                  "require_code_owner_review",
+                  "require_last_push_approval",
+                  "required_approving_review_count",
+                  "required_review_thread_resolution",
+                  "required_reviewers"
+                ],
+                "additionalProperties": false,
+                "properties": {
+                  "allowed_merge_methods": {
+                    "type": "array",
+                    "minItems": 1,
+                    "uniqueItems": true,
+                    "items": { "type": "string", "enum": ["merge", "squash", "rebase"] }
+                  },
+                  "dismiss_stale_reviews_on_push": { "type": "boolean" },
+                  "require_code_owner_review": { "type": "boolean" },
+                  "require_last_push_approval": { "type": "boolean" },
+                  "required_approving_review_count": { "type": "integer", "minimum": 0, "maximum": 6 },
+                  "required_review_thread_resolution": {
+                    "type": "boolean",
+                    "const": true,
+                    "description": "The load-bearing review gate on a solo account: with zero required approvals, an unresolved thread is the only thing that can block a merge."
+                  },
+                  "required_reviewers": { "type": "array" }
+                }
+              }
+            }
+          }
+        },
+        {
+          "$comment": "Rules with no parameters must not invent any.",
+          "if": {
+            "properties": {
+              "type": {
+                "enum": ["deletion", "non_fast_forward", "required_linear_history", "required_signatures", "creation"]
+              }
+            },
+            "required": ["type"]
+          },
+          "then": { "not": { "required": ["parameters"] } }
+        }
+      ]
+    },
+
+    "contextNames": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": { "type": "string", "minLength": 1 }
+    },
+
+    "repositoryOverride": {
+      "type": "object",
+      "description": "What differs for one repository. Every field is optional because the absence of an override is itself a well-defined state — inherit — unlike the absence of a policy decision.",
+      "additionalProperties": false,
+      "properties": {
+        "_comment": { "$ref": "#/$defs/comment" },
+        "required_checks": {
+          "type": "object",
+          "required": ["contexts"],
+          "additionalProperties": false,
+          "properties": {
+            "_comment": { "$ref": "#/$defs/comment" },
+            "contexts": {
+              "$ref": "#/$defs/contextNames",
+              "description": "CI job names that must pass. Each is paired with the account-wide integration_id when the ruleset payload is rendered."
+            }
+          }
+        },
+        "rules": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "_comment": { "$ref": "#/$defs/comment" },
+            "disable": {
+              "type": "array",
+              "uniqueItems": true,
+              "items": { "$ref": "#/$defs/ruleType" },
+              "description": "Canonical rules this repository opts out of. Opting out is visible and reviewable here; it is not something a script may infer."
+            },
+            "enforcement": { "$ref": "#/$defs/enforcement" }
+          }
+        },
+        "actions": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "_comment": { "$ref": "#/$defs/comment" },
+            "cancel_superseded_pr_runs": { "type": "boolean" }
+          }
+        }
+      }
+    },
+
+    "concurrencyBlock": {
+      "type": "object",
+      "required": ["group", "cancel-in-progress"],
+      "additionalProperties": false,
+      "properties": {
+        "_comment": { "$ref": "#/$defs/comment" },
+        "group": { "type": "string", "minLength": 1 },
+        "cancel-in-progress": { "type": "boolean" }
+      }
+    },
+
+    "signal": {
+      "type": "object",
+      "required": ["pattern", "description"],
+      "additionalProperties": false,
+      "properties": {
+        "pattern": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Case-insensitive regex tested against the lowercased workflow file content. Stored lowercase; no inline flags, so jq, grep -E and python re all agree on it."
+        },
+        "description": { "type": "string", "minLength": 1 }
+      }
+    },
+
+    "workflowClass": {
+      "type": "object",
+      "required": ["summary", "apply_concurrency", "concurrency_ref", "name_patterns", "content_signals"],
+      "additionalProperties": false,
+      "properties": {
+        "_comment": { "$ref": "#/$defs/comment" },
+        "summary": { "type": "string", "minLength": 1 },
+        "apply_concurrency": {
+          "type": "boolean",
+          "description": "Whether a cancelling concurrency block belongs on workflows in this class."
+        },
+        "concurrency_ref": {
+          "type": "string",
+          "enum": ["concurrency", "serialize_concurrency"],
+          "description": "Which block under `actions` this class uses. A reference, so the group expression is written once."
+        },
+        "concurrency_note": { "type": "string", "minLength": 1 },
+        "name_patterns": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "type": "string", "minLength": 1 },
+          "description": "Case-insensitive regexes tested against the lowercased workflow name and filename."
+        },
+        "content_signals": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/signal" }
+        }
+      }
+    },
+
+    "workflowClassification": {
+      "type": "object",
+      "required": ["precedence", "unclassified_action", "classes"],
+      "additionalProperties": false,
+      "properties": {
+        "_comment": { "$ref": "#/$defs/comment" },
+        "precedence": {
+          "type": "string",
+          "const": "never_cancel_wins",
+          "description": "Pinned. A workflow matching both classes is never_cancel: a serialized test run costs minutes, a cancelled deployment costs a half-written external state."
+        },
+        "precedence_note": { "type": "string", "minLength": 1 },
+        "unclassified_action": {
+          "type": "string",
+          "enum": ["report"],
+          "description": "What to do with a workflow matching neither class. Only 'report' is expressible — guessing on an unknown workflow is how a migration gets cancelled mid-run."
+        },
+        "unclassified_note": { "type": "string", "minLength": 1 },
+        "classes": {
+          "type": "object",
+          "required": ["cancellable", "never_cancel"],
+          "additionalProperties": false,
+          "properties": {
+            "cancellable": { "$ref": "#/$defs/workflowClass" },
+            "never_cancel": { "$ref": "#/$defs/workflowClass" }
+          }
+        }
+      }
+    }
+  }
+}
