@@ -26,8 +26,11 @@
 #     "auto_merge_supported": true | false | null,
 #     "merge_queue": true | false | null,
 #     "merge_method": "squash" | "merge" | "rebase",
+#     "merge_method_source": "<which rule decided>",
 #     "delete_branch": true | false,
-#     "base_branch": "main" | null,
+#     "delete_branch_source": "<which rule decided>",
+#     "warnings": [ "..." ],
+#     "base_branch": "<the PR's base branch>" | null,
 #     "requires_review": true | false | null,
 #     "required_checks": [ "..." ] | null,
 #     "strict_branch_update": true | false | null,
@@ -58,13 +61,49 @@ fi
 
 REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
 
-json_get() { # json_get <file> <jq-filter>
-  # NOTE: deliberately not using jq's `//` — it treats `false` as absent, which
-  # is exactly the value a "do not auto-merge" policy needs to express.
-  [[ -f "$1" ]] || return 1
-  command -v jq >/dev/null 2>&1 || return 1
-  local v
-  v="$(jq -r "$2" "$1" 2>/dev/null || true)"
+WARNINGS=()
+warn() { WARNINGS+=("$1"); }
+
+# A JSON reader is a hard prerequisite for honouring any policy file. Without
+# one, the defaults below are still emitted — but the caller is told that the
+# policy files were never opened, instead of being handed a default dressed up
+# as a decision. (json_get itself runs inside a command substitution, so it
+# cannot record this: the check belongs here, once.)
+if ! command -v jq >/dev/null 2>&1 && ! command -v python3 >/dev/null 2>&1; then
+  warn "neither jq nor python3 is on PATH — .dev-files/policy.json and objective.json were NOT read; every field below is a default, not a resolved policy"
+fi
+
+# json_get <file> <dotted.path>
+#
+# NOTE: deliberately not using jq's `//` — it treats `false` as absent, which is
+# exactly the value a "do not auto-merge" policy needs to express.
+#
+# Without jq this used to return 1, which is indistinguishable from "the key is
+# absent" — so on a machine with no jq the policy file was silently discarded
+# and the built-in default won while the caller was told the file had been
+# honoured. It now falls back to python3, and if neither exists it says so in
+# `warnings` rather than pretending the file was read.
+json_get() {
+  local file="$1" path="$2" v=""
+  [[ -f "$file" ]] || return 1
+  if command -v jq >/dev/null 2>&1; then
+    v="$(jq -r ".$path" "$file" 2>/dev/null || true)"
+  elif command -v python3 >/dev/null 2>&1; then
+    v="$(JSON_PATH="$path" python3 -c '
+import json, os, sys
+try:
+    d = json.load(open(sys.argv[1]))
+except Exception:
+    sys.exit(0)
+for k in os.environ["JSON_PATH"].split("."):
+    if not isinstance(d, dict) or k not in d:
+        sys.exit(0)
+    d = d[k]
+print("null" if d is None else ("true" if d is True else ("false" if d is False else d)))
+' "$file" 2>/dev/null || true)"
+  else
+    return 1
+  fi
   [[ -n "$v" && "$v" != "null" ]] || return 1
   printf '%s' "$v"
 }
@@ -78,9 +117,9 @@ REQUIRED_CHECKS=null
 STRICT=null
 ADMIN=null
 MERGE_METHOD=squash
-# pr-dev always passes --delete-branch itself; the repo setting only decides
-# whether GitHub would have done it anyway.
+MERGE_METHOD_SOURCE="default: squash (repository merge methods not readable)"
 DELETE_BRANCH=true
+DELETE_BRANCH_SOURCE="default: delete the head branch after merge (head-branch protection not readable)"
 
 if command -v gh >/dev/null 2>&1; then
   # allow_auto_merge is REST-only — `gh repo view --json` has no such field.
@@ -91,7 +130,28 @@ if command -v gh >/dev/null 2>&1; then
       true) AUTO_MERGE_SUPPORTED=true ;;
       false) AUTO_MERGE_SUPPORTED=false ;;
     esac
-    [[ "$(jq -r '.squashMergeAllowed // "true"' <<<"$REPO_JSON")" == "false" ]] && MERGE_METHOD=merge
+    # Merge method: the first method the repository actually ALLOWS. All three
+    # flags were already fetched two lines above and only squashMergeAllowed was
+    # consulted — so a repo that permits merge and rebase but not squash landed
+    # on `merge` by luck, and a rebase-only repo was handed a method it forbids.
+    # `// "unknown"` cannot be used here: jq's alternative operator treats
+    # `false` as absent, and `false` is precisely the value that matters — the
+    # same trap json_get above documents. Test for the key instead.
+    flag_of() { jq -r --arg k "$1" 'if has($k) and .[$k] != null then .[$k] else "unknown" end' <<<"$REPO_JSON"; }
+    SQ="$(flag_of squashMergeAllowed)"
+    MC="$(flag_of mergeCommitAllowed)"
+    RB="$(flag_of rebaseMergeAllowed)"
+    if [[ "$SQ" == true ]]; then
+      MERGE_METHOD=squash;  MERGE_METHOD_SOURCE="repository allows squash"
+    elif [[ "$MC" == true ]]; then
+      MERGE_METHOD=merge;   MERGE_METHOD_SOURCE="repository forbids squash; allows merge commits"
+    elif [[ "$RB" == true ]]; then
+      MERGE_METHOD=rebase;  MERGE_METHOD_SOURCE="repository forbids squash and merge commits; allows rebase"
+    elif [[ "$SQ" == false && "$MC" == false && "$RB" == false ]]; then
+      MERGE_METHOD_SOURCE="repository reports NO merge method allowed — squash retained as a placeholder; GitHub will refuse the merge"
+      warn "repository allows none of squash/merge/rebase — the merge cannot succeed until one is enabled"
+    fi
+
     case "$(jq -r '.viewerPermission // ""' <<<"$REPO_JSON")" in
       ADMIN|MAINTAIN) ADMIN=true ;;
       "") ADMIN=null ;;
@@ -119,6 +179,21 @@ if command -v gh >/dev/null 2>&1; then
         [[ -n "$CHECKS" ]] && REQUIRED_CHECKS="$CHECKS"
       fi
     fi
+    # Delete-branch: NOT unconditionally true. "Always delete the remote branch"
+    # is right for a throwaway feature branch and wrong for a governed head (a
+    # release branch, a shared integration branch) — and deleting one is not
+    # recoverable from the PR. Protection on the head branch is the fact to read.
+    HEAD_REF="$(gh pr view "$PR" --json headRefName --jq .headRefName 2>/dev/null || true)"
+    if [[ -n "$HEAD_REF" && -n "$OWNER_REPO" ]]; then
+      if gh api "repos/$OWNER_REPO/branches/$HEAD_REF/protection" >/dev/null 2>&1; then
+        DELETE_BRANCH=false
+        DELETE_BRANCH_SOURCE="head branch $HEAD_REF is protected — not deleting it"
+      else
+        DELETE_BRANCH=true
+        DELETE_BRANCH_SOURCE="head branch $HEAD_REF is unprotected — safe to delete after merge"
+      fi
+    fi
+
     # Merge queue presence: reported on the PR when the base has one configured.
     MQ="$(gh api graphql -f query="query{repository(owner:\"${OWNER_REPO%%/*}\",name:\"${OWNER_REPO##*/}\"){mergeQueue(branch:\"$BASE\"){id}}}" 2>/dev/null || true)"
     if [[ -n "$MQ" ]] && command -v jq >/dev/null 2>&1; then
@@ -141,7 +216,7 @@ if [[ "$AUTO_MERGE_SUPPORTED" == "false" ]]; then
 fi
 
 POLICY_FILE="$REPO_ROOT/.dev-files/policy.json"
-if v="$(json_get "$POLICY_FILE" '.delivery.auto_merge')"; then
+if v="$(json_get "$POLICY_FILE" 'delivery.auto_merge')"; then
   case "$v" in
     true) AUTO_MERGE=enable; SOURCE=".dev-files/policy.json delivery.auto_merge=true" ;;
     false) AUTO_MERGE=skip; SOURCE=".dev-files/policy.json delivery.auto_merge=false" ;;
@@ -150,7 +225,7 @@ fi
 
 if [[ -n "$OBJECTIVE_ID" ]]; then
   OBJ_FILE="$REPO_ROOT/.dev-files/objectives/$OBJECTIVE_ID/objective.json"
-  if v="$(json_get "$OBJ_FILE" '.delivery.auto_merge')"; then
+  if v="$(json_get "$OBJ_FILE" 'delivery.auto_merge')"; then
     case "$v" in
       true) AUTO_MERGE=enable; SOURCE="objective $OBJECTIVE_ID delivery.auto_merge=true" ;;
       false) AUTO_MERGE=skip; SOURCE="objective $OBJECTIVE_ID delivery.auto_merge=false" ;;
@@ -173,6 +248,16 @@ fi
 OBJ_JSON=null
 [[ -n "$OBJECTIVE_ID" ]] && OBJ_JSON="\"$OBJECTIVE_ID\""
 
+WARNINGS_JSON="[]"
+if ((${#WARNINGS[@]})); then
+  WARNINGS_JSON="["
+  for i in "${!WARNINGS[@]}"; do
+    [[ $i -gt 0 ]] && WARNINGS_JSON+=","
+    WARNINGS_JSON+="\"${WARNINGS[$i]//\"/\\\"}\""
+  done
+  WARNINGS_JSON+="]"
+fi
+
 cat <<EOF
 {
   "pr": $PR,
@@ -182,7 +267,10 @@ cat <<EOF
   "auto_merge_supported": $AUTO_MERGE_SUPPORTED,
   "merge_queue": $MERGE_QUEUE,
   "merge_method": "$MERGE_METHOD",
+  "merge_method_source": "$MERGE_METHOD_SOURCE",
   "delete_branch": $DELETE_BRANCH,
+  "delete_branch_source": "$DELETE_BRANCH_SOURCE",
+  "warnings": $WARNINGS_JSON,
   "base_branch": $BASE_BRANCH,
   "requires_review": $REQUIRES_REVIEW,
   "required_checks": ${REQUIRED_CHECKS:-null},

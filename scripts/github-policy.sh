@@ -26,6 +26,13 @@
 #   --include <ERE>  keep only repos whose owner/name matches. Repeatable (OR).
 #   --exclude <ERE>  drop repos whose owner/name matches. Repeatable, wins over
 #                    --include.
+#   --org-level      with `apply --org`, write ONE organization ruleset that
+#                    targets every repository, instead of copying the same
+#                    ruleset onto each repository in turn. Read verbs (audit,
+#                    plan) report the organization plan either way; this flag
+#                    only authorises the write, because an organization ruleset
+#                    also governs repositories that do not exist yet and that
+#                    blast radius must be typed, not inferred.
 #   --yes, -y        do not prompt; apply every non-blocked change. Explicit only.
 #   --allow-weakening
 #                    permit a change that makes a repository LESS protected than
@@ -76,6 +83,8 @@ POLICY_REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 . "${SCRIPT_DIR}/lib/setup-common.sh"
 # shellcheck source=scripts/lib/github-common.sh
 . "${SCRIPT_DIR}/lib/github-common.sh"
+# shellcheck source=scripts/lib/github-org.sh
+. "${SCRIPT_DIR}/lib/github-org.sh"
 
 POLICY="${GITHUB_POLICY_FILE:-${POLICY_REPO_ROOT}/config/github/repository-policy.json}"
 
@@ -87,6 +96,7 @@ OPT_INCLUDE=""
 OPT_EXCLUDE=""
 OPT_JSON=""
 OPT_ALLOW_WEAKEN=""
+OPT_ORG_LEVEL=""
 SETUP_YES="${GITHUB_POLICY_YES:-}"
 SETUP_VERBOSE="${SETUP_VERBOSE:-}"
 
@@ -115,6 +125,7 @@ $1" ;;
 ${1#*=}" ;;
     --yes|-y)    SETUP_YES=1 ;;
     --allow-weakening) OPT_ALLOW_WEAKEN=1 ;;
+    --org-level) OPT_ORG_LEVEL=1 ;;
     --dry-run)   VERB="plan" ;;
     --json)      OPT_JSON=1 ;;
     --verbose|-v) SETUP_VERBOSE=1 ;;
@@ -140,6 +151,8 @@ SCOPE_N=0
 [ -n "$OPT_ALL" ]  && SCOPE_N=$((SCOPE_N + 1))
 [ -n "$OPT_ORG" ]  && SCOPE_N=$((SCOPE_N + 1))
 [ "$SCOPE_N" -le 1 ] || setup_die "give exactly one of --repo / --all / --org"
+
+[ -z "$OPT_ORG_LEVEL" ] || [ -n "$OPT_ORG" ] || setup_die "--org-level applies to --org <name>"
 
 case "$VERB" in
   audit|verify)
@@ -473,6 +486,199 @@ org_conflicts() {
 }
 
 # ---------------------------------------------------------------------------
+# Organization-LEVEL rulesets — one definition instead of N copies
+# ---------------------------------------------------------------------------
+# org_conflicts above answers "what is imposed on this repository from above".
+# This answers the different, larger question: should the policy live up there
+# in the first place?
+#
+# On an organization it usually should. `orgs/{org}/rulesets` carries
+# `conditions.repository_name` targeting, so ONE ruleset governs every
+# repository in the org — including every repository created after it. The
+# alternative, copying the same ruleset onto each repository in turn, produces
+# N copies that drift the moment anybody edits one, and leaves tomorrow's
+# repository ungoverned until somebody remembers to run a sweep.
+#
+# So `--org` always REPORTS the organization-level plan, on every verb. Writing
+# it needs `--org-level` on top of `apply`, and that is not ceremony: an
+# organization ruleset governs repositories that do not exist yet, which is a
+# strictly larger blast radius than the sweep the user asked for. Widening it
+# silently would be the same class of mistake as applying a policy without
+# showing the diff.
+#
+# org_preflight <org> <repo-count> — prints its own block; never aborts the run.
+org_preflight() {
+  local org="$1" n="$2" rc=0 filters=no line key name id desired live diff weaken note
+  local mode="" reason="" conflicted=""
+
+  : >"$WORK/org-plan"
+  out ""
+  out "${SETUP_C_BOLD}Organization-level rulesets${SETUP_C_OFF} — $org"
+
+  rc=0
+  github_org_probe "$org" >"$WORK/org-rulesets.json" || rc=$?
+  github_org_sync
+
+  if [ "$rc" = "1" ]; then
+    out "  $MARK_BAD $(github_org_reason)"
+    add_change "$org" "organization rulesets" error "$(github_org_reason)" no "api" "$(github_org_class)"
+    return 0
+  fi
+  if [ "$rc" = "2" ]; then
+    # NOT a failure. The organization simply cannot carry rulesets for this
+    # token, and the per-repository sweep below is the correct answer, stated.
+    out "  $MARK_WARN $(github_org_reason)"
+    out "  ${SETUP_C_DIM}Falling back to per-repository policy across $n repositories.${SETUP_C_OFF}"
+    add_change "$org" "organization rulesets" skip "$(github_org_reason)" no \
+      "org_unavailable" "$(github_org_class)"
+    return 0
+  fi
+
+  out "  $MARK_OK organization rulesets are readable — $(jq 'length' "$WORK/org-rulesets.json") live"
+
+  # An org ruleset already stricter than canonical is reported and left alone.
+  # There is no flag that overrides this, at org level least of all: one such
+  # ruleset governs every repository in the organization at once.
+  rc=0
+  github_org_conflicts "$org" >"$WORK/org-conflicts" || rc=$?
+  if [ "$rc" = "0" ] && [ -s "$WORK/org-conflicts" ]; then
+    conflicted=1
+    while IFS= read -r line; do
+      [ -n "$line" ] || continue
+      out "  $MARK_WARN CONFLICT: $line"
+      add_change "$org" "organization ruleset" conflict "$line" no "org_policy" "$line"
+    done <"$WORK/org-conflicts"
+  fi
+
+  [ -n "$(printf '%s%s' "$OPT_INCLUDE" "$OPT_EXCLUDE" | tr -d '[:space:]')" ] && filters=yes
+  github_org_targeting "$org" "$n" "$filters" >"$WORK/org-targeting"
+  mode="$(awk -F'\t' '$1=="mode"{print $2}' "$WORK/org-targeting")"
+  reason="$(awk -F'\t' '$1=="reason"{$1=""; sub(/^\t/,""); print}' "$WORK/org-targeting")"
+
+  out ""
+  if [ "$mode" = "org" ]; then
+    out "  Targeting: ${SETUP_C_GREEN}organization-level is available and preferred${SETUP_C_OFF}"
+  else
+    out "  Targeting: ${SETUP_C_YELLOW}per-repository${SETUP_C_OFF}"
+  fi
+  out "  $reason"
+
+  # The one thing that does NOT survive the trip up to org level, stated where
+  # a reader will see it rather than left for them to discover from a diff.
+  out ""
+  out "  ${SETUP_C_DIM}Required status-check contexts stay per-repository: a context is a CI job${SETUP_C_OFF}"
+  out "  ${SETUP_C_DIM}name, names differ per repository, and a name no workflow produces blocks${SETUP_C_OFF}"
+  out "  ${SETUP_C_DIM}every pull request in that repository forever. The organization ruleset${SETUP_C_OFF}"
+  out "  ${SETUP_C_DIM}carries everything else; the per-repository sweep still supplies contexts.${SETUP_C_OFF}"
+
+  [ "$mode" = "org" ] || return 0
+
+  for key in $(jq -r '.rulesets[].key' "$POLICY"); do
+    name="$(jq -r --arg k "$key" '.rulesets[] | select(.key == $k) | .name' "$POLICY")"
+    desired="$WORK/org-desired.$key"
+    if ! github_org_render_payload_file "$POLICY" "$key" "$org" "$desired"; then
+      out "  $MARK_BAD $name — $(github_explain)"
+      add_change "$org" "$name (organization)" error "$(github_explain)" no "render" "$GITHUB_LAST_CLASS"
+      continue
+    fi
+
+    id="$(jq -r --arg n "$name" '[.[] | select(.name == $n) | .id] | first // empty' "$WORK/org-rulesets.json")"
+
+    if [ -z "$id" ]; then
+      out "  $MARK_BAD $name — not present at organization level"
+      if [ -n "$conflicted" ]; then
+        add_change "$org" "$name (organization)" conflict \
+          "an existing organization ruleset is stricter than canonical" no "org_policy" \
+          "an existing organization ruleset is stricter than canonical"
+        continue
+      fi
+      add_change "$org" "$name (organization)" create "organization ruleset does not exist yet" no "" ""
+      { printf '%s (organization) — create\n' "$name"; sed 's/^/  + /' "$desired"; } >>"$WORK/org-plan"
+      if [ "$VERB" = apply ] && [ -n "$OPT_ORG_LEVEL" ]; then
+        if confirm_change "$org" "$name (organization)" "create" "$desired" ""; then
+          if api_call POST "$WORK/org-created.json" "orgs/$org/rulesets" --input "$desired" >/dev/null; then
+            out "    $MARK_OK created at organization level"
+          else
+            out "    $MARK_BAD $(github_explain)"
+          fi
+        fi
+      fi
+      continue
+    fi
+
+    live="$WORK/org-live.$key"
+    if ! api_json "$WORK/org-live.raw.$key" "orgs/$org/rulesets/$id"; then
+      out "  $MARK_BAD $name — $(github_explain)"
+      add_change "$org" "$name (organization)" error "$(github_explain)" no "api" "$GITHUB_LAST_CLASS"
+      continue
+    fi
+    github_ruleset_normalize <"$WORK/org-live.raw.$key" >"$live"
+
+    # Bypass actors are preserved here for the same reason they are preserved at
+    # repository level: who may merge around the rules is a fact about people,
+    # not a rule canonical can know, and asserting [] would revoke somebody's
+    # only key while the diff looked like a tightening.
+    jq --slurpfile l "$WORK/org-live.raw.$key" '.bypass_actors = (($l[0].bypass_actors) // [])' \
+      "$desired" | github_ruleset_normalize >"$desired.patched"
+    mv "$desired.patched" "$desired"
+
+    if cmp -s "$desired" "$live"; then
+      out "  $MARK_OK $name — organization ruleset is up to date"
+      add_change "$org" "$name (organization)" ok "already up to date" no "" ""
+      continue
+    fi
+
+    diff="$WORK/org-diff.$key"
+    diff -u "$live" "$desired" 2>/dev/null | sed '1,2d' >"$diff" || true
+    weaken="$(github_org_weakens "$live" "$desired")"
+    if [ -n "$weaken" ] && [ -z "$OPT_ALLOW_WEAKEN" ]; then
+      note="$(printf '%s' "$weaken" | tr '\n' ';' | sed 's/;$//')"
+      out "  $MARK_WARN $name — CONFLICT: $note"
+      add_change "$org" "$name (organization)" conflict "$note" yes "weakens_existing_control" "$note"
+      continue
+    fi
+    if [ -n "$conflicted" ]; then
+      out "  $MARK_WARN $name — blocked by a stricter organization ruleset"
+      add_change "$org" "$name (organization)" conflict "a stricter organization ruleset is in force" no \
+        "org_policy" "a stricter organization ruleset is in force"
+      continue
+    fi
+
+    out "  $MARK_BAD $name — organization ruleset drifts from policy"
+    add_change "$org" "$name (organization)" modify "drifts from policy" "$( [ -n "$weaken" ] && echo yes || echo no )" "" ""
+    { printf '%s (organization) — update (live -> desired)\n' "$name"; sed 's/^/  /' "$diff"; } >>"$WORK/org-plan"
+    if [ "$VERB" = apply ] && [ -n "$OPT_ORG_LEVEL" ]; then
+      WEAKEN_NOTE="$(printf '%s' "$weaken" | tr '\n' ';' | sed 's/;$//')"
+      if confirm_change "$org" "$name (organization)" "update" "$desired" "$diff"; then
+        WEAKEN_NOTE=""
+        if api_call PUT "$WORK/org-updated.json" "orgs/$org/rulesets/$id" --input "$desired" >/dev/null; then
+          out "    $MARK_OK updated at organization level"
+        else
+          out "    $MARK_BAD $(github_explain)"
+        fi
+      fi
+      WEAKEN_NOTE=""
+    fi
+  done
+
+  if [ -s "$WORK/org-plan" ]; then
+    out ""
+    if [ "$VERB" = apply ] && [ -z "$OPT_ORG_LEVEL" ]; then
+      out "  ${SETUP_C_YELLOW}Change the policy ONCE here instead of visiting $n repositories:${SETUP_C_OFF}"
+      out "    bash scripts/github-policy.sh apply --org $org --org-level"
+      out "  ${SETUP_C_DIM}Without --org-level this run copies the policy onto each repository instead.${SETUP_C_OFF}"
+    elif [ "$VERB" != apply ]; then
+      out "  Organization-level plan (nothing written):"
+      while IFS= read -r line; do out "    $line"; done <"$WORK/org-plan"
+      out ""
+      out "  Apply it once, for all $n repositories:"
+      out "    bash scripts/github-policy.sh apply --org $org --org-level"
+    fi
+  fi
+  return 0
+}
+
+# ---------------------------------------------------------------------------
 # GitHub Actions concurrency
 # ---------------------------------------------------------------------------
 # Classification is DATA, read from the policy document. Nothing about which
@@ -630,6 +836,7 @@ resolve_branch() {
 process_repo() {
   local repo="$1" fork="$2" arch="$3" branch="$4" otype="$5"
   local rc key name desired diff conflicts weaken id status note line
+  local ckind cseverity cline n_classic_critical=0
   R_BUCKET=""; R_NOTE=""; R_BRANCH=""
 
   if [ "$arch" = "true" ]; then R_BUCKET=skipped; R_NOTE="archived"; return 0; fi
@@ -809,14 +1016,28 @@ EOF
     fi
   done
 
-  # Classic branch protection is legacy, reported, never the source of truth.
+  # Classic branch protection is legacy, reported, never the source of truth —
+  # and never reported as a bare present/absent either. Classic protection and
+  # rulesets APPLY AT THE SAME TIME and GitHub takes the stricter of the two, so
+  # "the rulesets are compliant" is not the same statement as "these are the
+  # rules that gate a merge". github_classic_aggregate is what closes that gap.
+  : >"$WORK/classic.$RIDX"
   R_CLASSIC=absent
-  if api_json "$WORK/classic.json" "repos/$repo/branches/$branch/protection"; then
-    R_CLASSIC=present
-    add_change "$repo" "classic protection" ok "legacy classic branch protection is present — migrate to rulesets" no \
+  R_CLASSIC_CRITICAL=0
+  github_classic_aggregate "$repo" "$branch" >"$WORK/classic.$RIDX" 2>/dev/null || true
+  R_CLASSIC="$(awk -F'\t' '$1=="classic"{print $2}' "$WORK/classic.$RIDX")"
+  [ -n "$R_CLASSIC" ] || R_CLASSIC=absent
+  n_classic_critical="$(awk -F'\t' '$1=="finding" && $2=="critical"' "$WORK/classic.$RIDX" | wc -l | tr -d ' ')"
+  R_CLASSIC_CRITICAL="$n_classic_critical"
+  if [ "$R_CLASSIC" != "absent" ]; then
+    # ONE change record, not one per finding. The findings are a description of
+    # a single fact — this branch is also governed by classic protection — and
+    # splitting them would make a repository with more legacy settings look like
+    # it had more pending work, when the pending work is the same migration.
+    cline="$(awk -F'\t' '$1=="finding"{ $1=""; $2=""; sub(/^\t\t/,""); print }' "$WORK/classic.$RIDX" \
+             | tr '\n' ' ' | sed 's/  */ /g; s/ $//')"
+    add_change "$repo" "classic protection" ok "$cline" no \
       "migration" "classic protection is read but never written by this tool"
-  elif [ "$GITHUB_LAST_CLASS" != "not_found" ]; then
-    R_CLASSIC=unknown
   fi
 
   if   [ -n "$conflicts" ];    then R_BUCKET=conflict;          R_NOTE="$(printf '%s' "$conflicts" | head -1)"
@@ -923,12 +1144,39 @@ print_single_report() {
     unknown) out "  $MARK_WARN classic branch protection could not be read" ;;
     *)       out "  $MARK_OK no classic branch protection (rulesets are authoritative)" ;;
   esac
+  # The findings, loudest first. A `critical` line is the one that changes what
+  # a reader should do today: a classic rule still forcing "branch must be up to
+  # date" defeats strict_required_status_checks_policy: false without appearing
+  # anywhere in the ruleset the operator is reading.
+  local csev cmsg ckey
+  while IFS="$(printf '\t')" read -r ckey csev cmsg; do
+    [ "$ckey" = "finding" ] || continue
+    case "$csev" in
+      critical) out "  ${SETUP_C_RED}!!${SETUP_C_OFF} $cmsg" ;;
+      *)        out "  $MARK_WARN $cmsg" ;;
+    esac
+  done <"$WORK/classic.$RIDX" 2>/dev/null || true
+  if [ "${R_CLASSIC:-absent}" = "present" ]; then
+    out ""
+    while IFS= read -r line; do out "  $line"; done <<CLASSICPLAN
+$(github_classic_migration_plan "$repo" "$branch")
+CLASSICPLAN
+  fi
 
   out ""
   out "Actions:"
   while IFS= read -r line; do out "$line"; done <"$WORK/actions.out"
 
   out ""
+  # A repository whose rulesets are perfect but whose default branch is ALSO
+  # governed by a classic rule forcing "branch must be up to date" is not
+  # compliant, however green the rulesets read. GitHub aggregates the two and
+  # takes the stricter, so that classic rule is the effective policy — reporting
+  # COMPLIANT here would be reporting the document instead of the behaviour.
+  if [ "${R_CLASSIC_CRITICAL:-0}" != "0" ]; then
+    out "Result: ${SETUP_C_RED}NON-COMPLIANT${SETUP_C_OFF} — legacy classic branch protection overrides the ruleset policy on $branch"
+    return 3
+  fi
   if [ "$R_BUCKET" = already_compliant ] && [ "$ACTIONS_BAD" = "0" ]; then
     out "Result: ${SETUP_C_GREEN}COMPLIANT${SETUP_C_OFF}"
     return 0
@@ -1055,13 +1303,21 @@ main() {
     VERB="plan"; DEGRADED=1
   fi
 
+  # The organization question is asked BEFORE the per-repository sweep, because
+  # its answer is what makes the sweep the right or the wrong shape. Every gate
+  # above has already run, so a VERB of `apply` reaching here is one a person
+  # authorised — org_preflight inherits that authorisation and adds nothing.
+  if [ -n "$OPT_ORG" ]; then
+    org_preflight "$OPT_ORG" "$n_targets"
+  fi
+
   local name fork arch branch otype
   while IFS="$(printf '\t')" read -r name fork arch branch otype; do
     [ -n "$name" ] || continue
     [ -n "$QUIT" ] && break
     vlog "processing $name"
     RIDX=$((RIDX + 1))
-    R_BUCKET=""; R_NOTE=""; R_BRANCH=""; R_CLASSIC=absent
+    R_BUCKET=""; R_NOTE=""; R_BRANCH=""; R_CLASSIC=absent; R_CLASSIC_CRITICAL=0
     process_repo "$name" "$fork" "$arch" "$branch" "$otype" || true
     add_repo "$name" "${R_BRANCH:-$branch}" "$R_BUCKET" "$R_NOTE"
     # Live progress goes to stderr, never stdout: a 19-repository sweep takes

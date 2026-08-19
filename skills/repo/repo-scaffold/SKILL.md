@@ -107,7 +107,7 @@ docs/
 
 **Root file checklist:** `AGENTS.md`, `CLAUDE.md` (line 1: `@AGENTS.md`), `LICENSE`, `Makefile` (with `agent:check`), `.gitignore`, `CODEOWNERS`, `CODE_OF_CONDUCT.md`, `SECURITY.md`, `scripts/check-agent-drift.sh`, `.cursor/rules/000-project.mdc`, `core/capabilities/{schema,platforms}.json`, `.nvmrc` (node/nextjs only), `assets/banner.svg`.
 
-**Branch strategy:** `master` (default), `stable` (releases). Feature: `feat/`, fixes: `fix/`.
+**Branch strategy:** whatever `gh repo create` made the default (do not assume — resolve it once with `DEFAULT_BRANCH="$(bash "$CONTRACT_ROOT/../../dev-workflow/_shared/scripts/default-branch.sh")"` after the first fetch, and use `$DEFAULT_BRANCH` everywhere below), plus `stable` (releases). Feature: `feat/`, fixes: `fix/`. Generated workflows carry **no** `on.*.branches` filter, so they cannot be desynced from the name.
 
 **Commit convention:**
 ```
@@ -235,7 +235,7 @@ Write these files:
 
 1. REPO_ROOT/.claude/settings.json — per template, with TECH-appropriate permissions added to the allow list
 
-2. REPO_ROOT/.claude/rules/constraints.md — project hard constraints (no secrets, no force-push to master, no .github/workflows/ edits without review, plus 3-5 TECH-appropriate constraints)
+2. REPO_ROOT/.claude/rules/constraints.md — project hard constraints (no secrets, no force-push to the default branch, no .github/workflows/ edits without review, plus 3-5 TECH-appropriate constraints)
 
 3. If SCAFFOLD_TYPE=app: REPO_ROOT/.claude/skills/run-REPO_NAME/SKILL.md — utility skill (30-50 lines)
 
@@ -406,7 +406,9 @@ Includes: README, docs, AGENTS.md, CLAUDE.md, .claude/, CI/CD, multi-agent adapt
 Co-Authored-By: Claude <noreply@anthropic.com>
 EOF
 )"
-git push origin master
+# Push the branch the local repo is actually on. Hardcoding a name here pushed
+# to a branch `gh repo create` never made, leaving CI that never fired.
+git push -u origin HEAD
 ```
 
 Enable PR auto-merge (required for `start-dev` / `pr-dev`):
@@ -422,7 +424,7 @@ PLUGIN_ROOT="$(cd "$CONTRACT_ROOT/../../.." && pwd)"
 bash "$PLUGIN_ROOT/scripts/github-policy.sh" apply --repo "TamirCohen28/$REPO_NAME"
 ```
 
-This replaced `ensure-branch-protection.sh`, which wrote classic `branches/*/protection` with one literal `CI` context and a hardcoded `master`. The old script remains only as a deprecating shim onto this command.
+This replaced `ensure-branch-protection.sh`, which wrote classic `branches/*/protection` with one literal `CI` context and a hardcoded default-branch name. The old script remains only as a deprecating shim onto this command.
 
 **If it cannot run, the scaffold still succeeded.** Repository creation must never fail because branch governance could not be applied — the local tree, the docs, the CI and the contract gate are all real work that is already done and pushed. `github-policy.sh apply` exits non-zero when `gh` is missing, unauthenticated, or lacks repository-administration permission, and when there is no TTY to confirm at it prints the plan and writes nothing. Treat every one of those as a **degraded success**: continue to Stage 5, and report verbatim in the Stage 6 summary —
 
@@ -444,7 +446,7 @@ Invoke `tamirs-superpowers:skill-creator`:
 
 ```
 Generate 2 project-specific skills for the repo at REPO_ROOT.
-Save them to REPO_ROOT/.claude/skills/ and push to origin master.
+Save them to REPO_ROOT/.claude/skills/ and push the current branch (`git push -u origin HEAD`).
 ```
 
 **If `--type plugin`** — generate 1 skill into canonical source:
@@ -452,7 +454,7 @@ Save them to REPO_ROOT/.claude/skills/ and push to origin master.
 ```
 Generate 1 project-specific skill for the agent-kit at REPO_ROOT.
 Save to REPO_ROOT/canonical/skills/<skill-name>/SKILL.md (portable format).
-Run npm run build to sync into plugins/REPO_NAME/skills/. Push to origin master.
+Run npm run build to sync into plugins/REPO_NAME/skills/. Push the current branch (`git push -u origin HEAD`).
 ```
 
 ### Stage 6: Final Summary

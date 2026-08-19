@@ -6,7 +6,7 @@ the work is not part of that identity.
 ## Branch model
 
 ```text
-main                          # or whatever the objective's base_branch is
+<default-branch>              # the objective's base_branch — resolved, never assumed
 └── objective/<slug>          # integration branch — one per objective
     ├── worker/<slug>/001     # one per task, numbered to match task-001
     ├── worker/<slug>/002

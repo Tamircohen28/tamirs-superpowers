@@ -1,5 +1,5 @@
 {
-  "version": "1.5.0",
+  "version": "1.6.0",
   "profiles": {
     "app-gold": {
       "repo_type": "app",
@@ -7,6 +7,7 @@
         "contributing": "docs/CONTRIBUTING.md",
         "changelog": "docs/CHANGELOG.md",
         "license": "LICENSE",
+        "require_license_when_published": true,
         "agents_md": "AGENTS.md",
         "codeowners": "CODEOWNERS",
         "docs_readme": "docs/README.md"
@@ -22,11 +23,15 @@
           "author",
           "version"
         ],
-        "require_makefile_lifecycle": true,
-        "require_root_changelog": true,
-        "versioning_doc": "docs/engineering/build-and-release/versioning.md"
+        "require_makefile_lifecycle_when_published": true,
+        "require_root_changelog_when_release_model": true,
+        "require_version_badge_when_release_model": true,
+        "require_ci_badge_when_ci": true,
+        "versioning_doc": "docs/engineering/build-and-release/versioning.md",
+        "require_versioning_doc_when_release_model": true
       },
       "docs": {
+        "require_docs_tree_when_published": true,
         "required_dirs": [
           "docs/user",
           "docs/engineering"
@@ -38,6 +43,7 @@
         ]
       },
       "ci": {
+        "require_ci_jobs_when_ci": true,
         "required_jobs": [
           "secret-scan"
         ],
@@ -48,10 +54,10 @@
       "multi_agent": {
         "require_agents_md": true,
         "require_claude_imports_agents": true,
-        "require_cursor_mdc": true,
-        "require_agent_guidelines_dir": true,
-        "require_drift_script": true,
-        "require_agent_check_target": true,
+        "require_cursor_mdc_when_multi": true,
+        "require_agent_guidelines_dir_when_multi": true,
+        "require_drift_script_when_multi": true,
+        "require_agent_check_target_when_published": true,
         "portable_skills_dirs": [
           ".agents/skills",
           "skills",
@@ -86,7 +92,8 @@
       "offline_scoring": {
         "_comment": "Every S4 id below needs the GitHub API. score-standards-gaps.sh already refuses to emit them when CONTRACT_OFFLINE=1 or when branch_governance.readable is false; this list is the second gate, applied by score-contract-gaps.sh, so a vendored or older scorer still stays quiet offline. S4-03 is retired — it required at least one approving review, which contradicts the canonical policy and the live repository (0 required approvals with review-thread resolution ON, the solo-contributor posture). Its id is kept here so any un-updated copy of the scorer remains silent rather than failing an offline gate.",
         "retired_check_ids": {
-          "S4-03": "Retired 2026-08-19. Required >= 1 approving review; the approving-review count is policy content owned by config/github/repository-policy.json, and the canonical value is 0 with required_review_thread_resolution true. Superseded by S4-10."
+          "S4-03": "Retired 2026-08-19. Required >= 1 approving review; the approving-review count is policy content owned by config/github/repository-policy.json, and the canonical value is 0 with required_review_thread_resolution true. Superseded by S4-10.",
+          "S4-04": "Retired 2026-08-19. Required allow_auto_merge on every repository. Auto-merge is a team-norm PREFERENCE, not a defect when absent \u2014 the same class of error as S4-03: a posture asserted as a universal good. Nothing observable distinguishes a repo that has deliberately left auto-merge off from one that forgot, so no gap can be scored honestly. pr-dev already resolves auto-merge per repository at delivery time (resolve-merge-policy.sh, precedence: TAMIRS_AUTO_MERGE > objective.json > .dev-files/policy.json > repository capability), which is where the preference belongs. S4-05 (delete_branch_on_merge) is retained: it is hygiene with no counter-argument."
         },
         "skip_check_ids": [
           "S4-02",
@@ -112,6 +119,7 @@
         "contributing": "docs/CONTRIBUTING.md",
         "changelog": "docs/CHANGELOG.md",
         "license": "LICENSE",
+        "require_license_when_published": true,
         "agents_md": "AGENTS.md",
         "codeowners": "CODEOWNERS",
         "docs_readme": "docs/README.md"
@@ -127,11 +135,15 @@
           "author",
           "version"
         ],
-        "require_makefile_lifecycle": true,
-        "require_root_changelog": true,
-        "versioning_doc": "docs/engineering/build-and-release/versioning.md"
+        "require_makefile_lifecycle_when_published": true,
+        "require_root_changelog_when_release_model": true,
+        "require_version_badge_when_release_model": true,
+        "require_ci_badge_when_ci": true,
+        "versioning_doc": "docs/engineering/build-and-release/versioning.md",
+        "require_versioning_doc_when_release_model": true
       },
       "docs": {
+        "require_docs_tree_when_published": true,
         "required_dirs": [
           "docs/user",
           "docs/engineering"
@@ -143,6 +155,7 @@
         ]
       },
       "ci": {
+        "require_ci_jobs_when_ci": true,
         "required_jobs": [
           "secret-scan",
           "validate"
@@ -154,10 +167,10 @@
       "multi_agent": {
         "require_agents_md": true,
         "require_claude_imports_agents": true,
-        "require_cursor_mdc": true,
-        "require_agent_guidelines_dir": true,
-        "require_drift_script": true,
-        "require_agent_check_target": true,
+        "require_cursor_mdc_when_multi": true,
+        "require_agent_guidelines_dir_when_multi": true,
+        "require_drift_script_when_multi": true,
+        "require_agent_check_target_when_published": true,
         "portable_skills_dirs": [
           ".agents/skills",
           "skills",
@@ -208,7 +221,8 @@
       "offline_scoring": {
         "_comment": "Every S4 id below needs the GitHub API. score-standards-gaps.sh already refuses to emit them when CONTRACT_OFFLINE=1 or when branch_governance.readable is false; this list is the second gate, applied by score-contract-gaps.sh, so a vendored or older scorer still stays quiet offline. S4-03 is retired — it required at least one approving review, which contradicts the canonical policy and the live repository (0 required approvals with review-thread resolution ON, the solo-contributor posture). Its id is kept here so any un-updated copy of the scorer remains silent rather than failing an offline gate.",
         "retired_check_ids": {
-          "S4-03": "Retired 2026-08-19. Required >= 1 approving review; the approving-review count is policy content owned by config/github/repository-policy.json, and the canonical value is 0 with required_review_thread_resolution true. Superseded by S4-10."
+          "S4-03": "Retired 2026-08-19. Required >= 1 approving review; the approving-review count is policy content owned by config/github/repository-policy.json, and the canonical value is 0 with required_review_thread_resolution true. Superseded by S4-10.",
+          "S4-04": "Retired 2026-08-19. Required allow_auto_merge on every repository. Auto-merge is a team-norm PREFERENCE, not a defect when absent \u2014 the same class of error as S4-03: a posture asserted as a universal good. Nothing observable distinguishes a repo that has deliberately left auto-merge off from one that forgot, so no gap can be scored honestly. pr-dev already resolves auto-merge per repository at delivery time (resolve-merge-policy.sh, precedence: TAMIRS_AUTO_MERGE > objective.json > .dev-files/policy.json > repository capability), which is where the preference belongs. S4-05 (delete_branch_on_merge) is retained: it is hygiene with no counter-argument."
         },
         "skip_check_ids": [
           "S4-02",

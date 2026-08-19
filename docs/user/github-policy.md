@@ -148,6 +148,7 @@ missing `gh` is a hard failure rather than a skipped step — the GitHub action
 | `audit`, `plan`, `verify` | `repo` — read access to the repository's administration |
 | `apply` | admin on the repository. Without it, GitHub returns 403 and the repository lands in `FAILED` with "insufficient Administration permission" |
 | `--org` | `admin:org` in addition, to read organization-level rulesets |
+| `--org-level` | organization **owner**, plus a plan that supports organization rulesets (Team or Enterprise) |
 
 ```bash
 gh auth status                                       # what you have now
@@ -338,14 +339,99 @@ repository at a time.
 ## Organizations
 
 ```bash
-bash scripts/github-policy.sh plan --org ProductionMasterAI
+bash scripts/github-policy.sh plan  --org ProductionMasterAI
+bash scripts/github-policy.sh apply --org ProductionMasterAI --org-level
 ```
 
-Organizations differ in one way that matters: rulesets can be defined **above**
-the repository, and a repository inherits them. Those are not yours to edit from
-here.
+An organization is not a personal account with more repositories in it. It is
+the one place where the policy can stop being copied.
 
-When an inherited ruleset imposes something stricter than the policy — more
+`orgs/{org}/rulesets` carries `conditions.repository_name` targeting, so **one**
+ruleset governs every repository in the organization — including every
+repository created after it. Copying the same ruleset onto each repository in
+turn is not a smaller version of that: it produces N copies that drift the
+moment anybody edits one, and it leaves tomorrow's repository ungoverned until
+somebody remembers to run a sweep. Change the policy once at the organization
+level, rather than visiting thirty repositories.
+
+So `--org` **always reports the organization-level answer first**, on every
+verb. The report opens with a block like this:
+
+```
+Organization-level rulesets — ProductionMasterAI
+  ✓ organization rulesets are readable — 0 live
+
+  Targeting: organization-level is available and preferred
+  one organization ruleset targeting repository_name ~ALL governs all 8
+  repositories, and every repository created after it — change the policy once
+  here instead of visiting 8 repositories.
+```
+
+### Writing it needs `--org-level`
+
+`apply --org X` on its own does what it has always done: the per-repository
+sweep. Adding `--org-level` writes the organization ruleset instead.
+
+That extra word is not ceremony. An organization ruleset governs repositories
+that **do not exist yet**, which is a strictly larger blast radius than the
+sweep you asked for — and silently widening the blast radius of a command is the
+same class of mistake as applying a policy without showing the diff. Without the
+flag the run prints the recommendation and takes the narrow path:
+
+```
+Change the policy ONCE here instead of visiting 8 repositories:
+  bash scripts/github-policy.sh apply --org ProductionMasterAI --org-level
+```
+
+The [LIVE-TARGET GATE](#exit-codes) applies to organization writes exactly as it
+does to repository writes: without a terminal, `--yes` alone is not enough.
+
+### The one thing that stays per-repository
+
+**Required status-check contexts.** A context is a CI job *name*, names differ
+per repository, and a name no workflow produces blocks every pull request in
+that repository forever. There is no honest organization-wide context list, so
+the org copy of `Default Branch - PR & CI` carries the pull-request rule and
+linear history but **no check gate** — the rule is dropped rather than sent
+gating on nothing. The per-repository sweep is still what supplies contexts.
+
+The report says so every time; it is not something to discover from a diff.
+
+### When organization-level is not available
+
+Organization rulesets depend on the organization's **plan**, on your token's
+scopes, and on the organization's own access policies. When any of those says
+no, the tool reports the reason and falls back to per-repository policy. It is a
+**fallback, not a failure** — the run continues and the exit code is unchanged.
+
+| What the report says | What it means | What fixes it |
+|---|---|---|
+| *unavailable on this organization's plan* | organization rulesets need GitHub Team or Enterprise | nothing in the CLI — this is billing |
+| *needs the `admin:org` scope* | your token cannot read them | `gh auth refresh -h github.com -s admin:org` |
+| *not an organization owner* | your account cannot read them | somebody with owner access |
+| *blocked by an organization or enterprise policy* | OAuth-app restrictions, SAML, or an IP allow list | an organization admin |
+| *organization does not exist or this token cannot see it* | wrong name, or no visibility | check the name |
+| *a repository filter is in effect* | see below | drop `--include`/`--exclude` |
+
+Measured on this account, 2026-08-19: `ProductionMasterAI` (plan `team`) answers
+`200 []` — available, with no organization rulesets yet. `SentinelAIOrg` (plan
+`free`) answers `403 "Upgrade to GitHub Team to enable this feature."` — the
+plan wall, reported as such and not as a permissions problem.
+
+### Why a repository filter forces per-repository
+
+`--include` and `--exclude` are POSIX EREs matched against `owner/name`.
+GitHub's `repository_name` targeting takes fnmatch-style globs with their own
+`~ALL` magic. `sandbox$` is a valid ERE *and* a valid literal glob that matches
+nothing — so translating one into the other does not fail, it silently changes
+which repositories are governed, in the direction of governing more of them than
+you asked for. There is no safe automatic translation, so a filter means
+per-repository and the reason is printed rather than the behaviour being quietly
+different.
+
+### Inherited rules are never edited from below
+
+When an organization ruleset imposes something stricter than the policy — more
 required approvals, signed commits, strict status checks, a CODEOWNERS review —
 the repository is reported as `CONFLICT`, named, and **left alone**. There is no
 flag that overrides this, and the tool will not route around an organization
@@ -353,7 +439,102 @@ rule. It is reported whether or not the repository's own rulesets drift, so a
 repository that is compliant underneath a stricter org rule still tells you the
 org rule is there.
 
-`--org` needs `admin:org` to read those parent rulesets.
+The same guard applies in the other direction at organization level: an existing
+organization ruleset that is stricter than canonical is reported as `CONFLICT`
+and never overwritten — most of all up here, where one ruleset governs every
+repository in the organization at once.
+
+---
+
+## Classic branch protection under a ruleset
+
+Classic branch protection and rulesets are **not alternatives**. GitHub
+evaluates every rule targeting the branch and **the stricter requirement wins**.
+A repository can therefore pass a ruleset audit perfectly while a classic rule
+nobody has opened in a year is what actually gates merges.
+
+GitHub's **"Convert to ruleset"** button is how repositories end up in that
+state: it copies classic protection into a new ruleset and **leaves the classic
+protection enabled**. The two then apply simultaneously.
+
+The `Legacy` block reports the overlap, and one line outranks everything else in
+the report:
+
+```
+Legacy:
+  ⚠ classic branch protection is present on main — migrate it to rulesets
+  ⚠ classic branch protection AND 2 ruleset(s) both target main. GitHub applies
+    both and the stricter requirement wins, so the rulesets above are not the
+    whole story.
+  !! a classic rule still forces "branch must be up to date"
+     (required_status_checks.strict = true) on main. The canonical policy turns
+     this OFF deliberately, and because GitHub aggregates classic protection
+     with rulesets, this classic rule silently defeats
+     strict_required_status_checks_policy: false — every merge invalidates every
+     other open PR.
+```
+
+That `!!` line is the whole reason this check exists. The policy turns strict
+off [for a stated architectural reason](#why-branch-must-be-up-to-date-is-off);
+a leftover classic rule reinstates it **invisibly**, because the ruleset
+everybody reads still says `false`. If you have ever wondered why every pull
+request wants you to update the branch, this is the answer.
+
+A repository in this state is reported **NON-COMPLIANT** even when its rulesets
+are perfect. Reporting `COMPLIANT` there would be reporting the document instead
+of the behaviour.
+
+### The migration, and why the last step is yours
+
+```
+  1. Read both.
+  2. Bring the ruleset up to canonical FIRST, while classic protection is still
+     in force — the branch is over-protected for the duration, never under.
+  3. Verify the ruleset alone carries everything you still want.
+  4. Only then remove the classic protection, by hand.
+```
+
+**This tool will never do step 4**, at any verbosity and with any flag. Classic
+protection is read here and never written. Deleting branch protection because a
+ruleset *appears* to have taken over is un-protecting a branch on a belief, and
+the confirmation belongs to a person looking at both.
+
+---
+
+## How many approving reviews a repository should require
+
+Not a preference, and not a number to copy from another repository. It is
+derived from two facts the API already knows:
+
+```
+count = 1 if (bypass_actor_present AND collaborators > 1) else 0
+```
+
+On a solo repository the owner authors every pull request, so a review
+requirement is not strict — it is **unsatisfiable**. GitHub will not let you
+approve your own PR, so the only way anything lands is `--admin`, and `--admin`
+does not skip only the review rule: it bypasses **required status checks, linear
+history and thread resolution at the same time**. Requiring one approval on a
+solo repository therefore converts a green-CI gate into a bypass habit. That is
+a net *loss* of safety wearing the costume of an increase.
+
+The count is only meaningful **because** a bypass actor exists. With a bypass
+actor and more than one collaborator, the two settings read together as: anyone
+else's change needs a review, and the owner keeps an escape hatch on their own
+repository. Without the bypass actor, raising the count to 1 is not stricter —
+it is a lock on a door with no key.
+
+The real gate on a solo repository is `required_review_thread_resolution`. A bot
+review — Copilot, CodeQL, a Claude reviewer — opens threads, and the merge
+blocks until they are resolved. That is a review requirement a single human can
+genuinely satisfy without a bypass.
+
+**Reading the collaborator count costs one extra API call per repository**, so
+it is issued lazily: only when a bypass actor is present, because without one
+the derived answer is `0` for any collaborator count. If the count cannot be
+read, the derivation resolves to `0` — the safe direction, since an
+unsatisfiable requirement conjured from a failed API call would push every merge
+onto `--admin`.
 
 ---
 

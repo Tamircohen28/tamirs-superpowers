@@ -46,7 +46,7 @@ Never silently pretend a GitHub step succeeded. Never fail an entire objective b
 
 ### Things that must never require `gh`
 
-- Resolving the default branch (`git symbolic-ref refs/remotes/origin/HEAD`, falling back to `main`)
+- Resolving the default branch — `skills/dev-workflow/_shared/scripts/default-branch.sh`, which reads `git symbolic-ref refs/remotes/origin/HEAD` and needs no `gh`. It falls back to `gh` only when `origin/HEAD` is unset, and then **fails with a named cause**. There is no literal fallback: on a fresh clone with `origin/HEAD` unset, a guessed `main` makes every downstream compare wrong and silent.
 - Creating, listing, or migrating worktrees
 - Reading or writing objective/task/handoff state
 - Tier 0, Tier 1, and Tier 2 validation

@@ -36,6 +36,10 @@
 #             4 validation failed
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=./default-branch.sh
+. "$SCRIPT_DIR/default-branch.sh"
+
 usage() {
   sed -n '2,40p' "$0" | sed 's/^# \?//'
   exit "${1:-0}"
@@ -114,8 +118,11 @@ cmd_init() {
   done
   [[ -n "$title" ]] || die "init requires --title"
   if [[ -z "$base" ]]; then
-    base="$(git symbolic-ref --quiet --short refs/remotes/origin/HEAD 2>/dev/null | sed 's#^origin/##')"
-    [[ -n "$base" ]] || base="main"
+    # Never default to a literal: base_branch is recorded in objective.json and
+    # every worker branch is cut from it, so a wrong name is wrong for the whole
+    # objective. Fail and let the caller pass --base-branch instead.
+    base="$(resolve_default_branch ".")" \
+      || die "cannot resolve the default branch — pass --base-branch <branch>" 1
   fi
   [[ -n "$integ" ]] || integ="objective/$id"
 

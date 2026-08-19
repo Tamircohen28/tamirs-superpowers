@@ -82,14 +82,20 @@ fi
 if [[ -z "$DEFAULT" ]]; then
   DEFAULT=$(git symbolic-ref --quiet --short refs/remotes/origin/HEAD 2>/dev/null | sed 's|^origin/||')
 fi
-[[ -z "$DEFAULT" ]] && DEFAULT="main"
+if [[ -z "$DEFAULT" ]]; then
+  die "cannot resolve the default branch (gh unavailable and origin/HEAD unset). Run 'git remote set-head origin --auto'. Refusing to guess a name — every deletion below is measured against 'origin/<default>', and a wrong name makes 'git branch --merged' return nothing or, worse, the wrong set."
+fi
 
 MODE_LABEL=$([[ $DRY_RUN -eq 1 ]] && echo "DRY-RUN (no changes)" || echo "EXECUTE")
 say "repo-cleanup (safe subset) — $ROOT"
 say "default branch: $DEFAULT | scope: $SCOPE | mode: $MODE_LABEL"
 say ""
 
-PROTECTED_RE='^(main|master|develop|HEAD)$|^(release|hotfix)/'
+# Never-delete list. The resolved default branch is protected by name (it may be
+# 'trunk' or anything else); the literals are an additional conventional
+# superset — over-protecting a branch is safe, under-protecting one is not. This
+# is a deny-list, not a default-branch guess.
+PROTECTED_RE="^(${DEFAULT}|main|master|develop|HEAD)\$|^(release|hotfix)/"
 
 # ---------------------------------------------------------------------------
 # Phase 1 — remote branches fully merged into the default branch

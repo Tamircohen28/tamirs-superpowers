@@ -1,0 +1,24 @@
+[
+  {
+    "id": 40000001,
+    "name": "Default Branch - Safety",
+    "target": "branch",
+    "source_type": "Organization",
+    "source": "ProductionMasterAI",
+    "enforcement": "active",
+    "node_id": "RRS_org40000001",
+    "created_at": "2026-08-01T09:00:00.000Z",
+    "updated_at": "2026-08-01T09:00:00.000Z"
+  },
+  {
+    "id": 40000002,
+    "name": "Default Branch - PR & CI",
+    "target": "branch",
+    "source_type": "Organization",
+    "source": "ProductionMasterAI",
+    "enforcement": "evaluate",
+    "node_id": "RRS_org40000002",
+    "created_at": "2026-08-01T09:00:00.000Z",
+    "updated_at": "2026-08-01T09:00:00.000Z"
+  }
+]

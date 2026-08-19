@@ -19,7 +19,7 @@ One **objective** = one user-facing goal = (by default) one PR.
 An objective decomposes into zero or more **worker tasks**, plus exactly one **integration** working tree where the workers' commits are composed and reviewed together.
 
 ```text
-main
+<default-branch>                  ← resolved, never assumed to be main or master
 └── objective/<slug>              ← integration branch
     ├── worker/<slug>/001
     ├── worker/<slug>/002
@@ -82,8 +82,10 @@ It resolves the correct path, understands legacy layouts (below), and prints a m
 
 ```bash
 git fetch origin
-DEFAULT_BRANCH=$(git symbolic-ref --quiet --short refs/remotes/origin/HEAD 2>/dev/null | sed 's#^origin/##')
-DEFAULT_BRANCH="${DEFAULT_BRANCH:-main}"
+# Resolve, never guess. This snippet is copied often; a `:-main` fallback here
+# seeds a literal into every repo that copies it, and a wrong branch name fails
+# silently (the worktree is cut from a ref that does not exist).
+DEFAULT_BRANCH=$(bash skills/dev-workflow/_shared/scripts/default-branch.sh) || exit 1
 
 # Integration worktree — created once per objective, first.
 git worktree add ".agent-worktrees/<slug>/integration" -b "objective/<slug>" "origin/${DEFAULT_BRANCH}"
@@ -92,7 +94,7 @@ git worktree add ".agent-worktrees/<slug>/integration" -b "objective/<slug>" "or
 git worktree add ".agent-worktrees/<slug>/task-001" -b "worker/<slug>/001" "objective/<slug>"
 ```
 
-Deriving the default branch via `git` keeps this working without `gh`; see [`gh-cli-preference.md`](gh-cli-preference.md). If `gh` is available, `gh repo view --json defaultBranchRef --jq .defaultBranchRef.name` is equivalent.
+`default-branch.sh` reads `origin/HEAD` first, so this keeps working without `gh`; see [`gh-cli-preference.md`](gh-cli-preference.md). It consults `gh` only when `origin/HEAD` is unset, and **fails with a named cause** rather than falling back to a literal.
 
 ### Naming
 

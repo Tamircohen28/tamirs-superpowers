@@ -1,8 +1,44 @@
 #!/usr/bin/env bash
 # score-standards-gaps.sh — P1/P2/P3 gaps from standards-inventory JSON.
 #
-# Usage: standards-inventory.sh <root> | score-standards-gaps.sh
+# Usage: standards-inventory.sh <root> | score-standards-gaps.sh [profile]
+#
+# WHY SOME CHECKS ARE CONDITIONAL
+#   Most of this file asserted the same things against every repository: 13
+#   mandatory docs files, README badges for a CI/LICENSE/release model that may
+#   not exist, a root CHANGELOG and a versioning doc for a repo that never
+#   tags, a Makefile install/update/uninstall lifecycle for a repo nobody
+#   installs. On a one-file CLI or an internal experiment those are not defects,
+#   they are rot waiting to happen, and a scorer that reports them trains people
+#   to ignore it.
+#
+#   standards-contract.json already had exactly one key that got this right:
+#   `require_capability_registry_when_multi`. The `_when_<fact>` suffix is the
+#   pattern — the check applies only when an OBSERVABLE fact about the repo says
+#   it should. This file now reads those keys from the contract and derives the
+#   facts from the inventory it was handed. The facts:
+#
+#     has_ci          .github/ CI workflow present
+#     release_model   a semver tag exists, or a plugin manifest declares a version
+#     published       release_model, or `make install` exists, or a
+#                     non-private package.json — i.e. somebody other than the
+#                     author is meant to get this
+#     multi_target    the repo targets >= 2 AI harnesses
+#
+#   A check whose `_when_*` key is absent from the contract stays unconditional,
+#   so a vendored or older contract keeps today's behaviour.
 set -euo pipefail
+
+PROFILE="${1:-app-gold}"
+CONTRACT_FILE="${CONTRACT_FILE:-$(cd "$(dirname "$0")/.." 2>/dev/null && pwd)/standards-contract.json}"
+
+# contract_flag <dotted.path> — the contract's boolean, or "" when the key is
+# absent. Absent means "not tiered", which means the check stays unconditional.
+contract_flag() {
+  [[ -f "$CONTRACT_FILE" ]] || return 0
+  jq -r --arg p "$PROFILE" --arg k "$1" \
+    '(.profiles[$p] | getpath($k | split("."))) // empty' "$CONTRACT_FILE" 2>/dev/null || true
+}
 
 INV="$(cat)"
 add_gap() {
@@ -68,32 +104,75 @@ h_empty=$(echo "$INV" | jq -r '.hygiene.empty_dirs')
 h_self=$(echo "$INV" | jq -r '.hygiene.self_hosted_ci')
 h_root_sh=$(echo "$INV" | jq -r '.hygiene.root_shell_scripts')
 
+# --- derived repo-shape facts ----------------------------------------------
+has_ci="$g_ci"
+
+release_model=false
+if [[ "$release_tags_exist" == true ]] || (( manifest_count >= 1 )); then
+  release_model=true
+fi
+
+published=false
+if [[ "$release_model" == true || "$mf_install" == true ]]; then
+  published=true
+fi
+
+multi_target=false
+(( ai_count >= 2 )) && multi_target=true
+
+# applies <contract-key> <fact> — true when the check should be scored.
+# An absent contract key leaves the check unconditional.
+applies() {
+  local flag; flag="$(contract_flag "$1")"
+  [[ "$flag" == "true" ]] || return 0     # not tiered -> always applies
+  [[ "$2" == true ]]
+}
+
 [[ "$r_exists" != true ]] && { add_gap "S1-01" "P1" "README.md missing" 1; inc P1; }
-[[ "$r_exists" == true && "$r_badges" != true ]] && { add_gap "S1-02" "P2" "README missing CI/license badges" 1; inc P2; }
+badgeable=false
+[[ "$has_ci" == true || "$lic" == true ]] && badgeable=true
+if [[ "$r_exists" == true && "$r_badges" != true ]] && applies "readme.require_ci_badge_when_ci" "$badgeable"; then
+  add_gap "S1-02" "P2" "README missing CI/license badges" 1; inc P2
+fi
 [[ "$r_exists" == true && "$r_banner" != true ]] && { add_gap "S1-05" "P2" "README missing hero banner (add assets/banner.svg and reference it)" 1; inc P2; }
 [[ "$r_exists" == true && "$r_author" != true ]] && { add_gap "S1-06" "P2" "README missing author badge (link to GitHub profile)" 1; inc P2; }
-[[ "$r_exists" == true && "$r_version_badge" != true ]] && { add_gap "S1-07" "P2" "README missing version badge" 1; inc P2; }
-[[ "$mf_install" != true || "$mf_update" != true || "$mf_uninstall" != true ]] && { add_gap "S1-08" "P2" "Makefile must define install, update, and uninstall targets" 1; inc P2; }
+if [[ "$r_exists" == true && "$r_version_badge" != true ]] && applies "readme.require_version_badge_when_release_model" "$release_model"; then
+  add_gap "S1-07" "P2" "README missing version badge" 1; inc P2
+fi
+if [[ "$mf_install" != true || "$mf_update" != true || "$mf_uninstall" != true ]] \
+   && applies "readme.require_makefile_lifecycle_when_published" "$published"; then
+  add_gap "S1-08" "P2" "Makefile must define install, update, and uninstall targets" 1; inc P2
+fi
 if (( ai_count >= 2 )); then
   [[ "$r_ai_targets" != true ]] && { add_gap "S1-09" "P2" "Multi-platform repo: README missing AI-target badges row" 1; inc P2; }
   [[ "$r_multi_install" != true ]] && { add_gap "S1-10" "P2" "Multi-platform repo: README missing per-target Quick Start subsections" 1; inc P2; }
 fi
 [[ "$r_prereq" != true ]] && { add_gap "S1-03" "P2" "README missing Prerequisites section" 1; inc P2; }
 [[ "$r_qs" != true ]] && { add_gap "S1-04" "P2" "README missing Quick Start section" 1; inc P2; }
-[[ "$d_user" != true ]] && { add_gap "S2-01" "P2" "docs/user/ missing" 2; inc P2; }
-[[ "$d_eng" != true ]] && { add_gap "S2-02" "P2" "docs/engineering/ missing" 2; inc P2; }
-[[ "$d_cl" != true ]] && { add_gap "S2-03" "P2" "docs/CHANGELOG.md missing" 2; inc P2; }
-[[ "$d_contrib" != true ]] && { add_gap "S2-04" "P2" "docs/CONTRIBUTING.md missing" 2; inc P2; }
+if applies "docs.require_docs_tree_when_published" "$published"; then
+  [[ "$d_user" != true ]] && { add_gap "S2-01" "P2" "docs/user/ missing" 2; inc P2; }
+  [[ "$d_eng" != true ]] && { add_gap "S2-02" "P2" "docs/engineering/ missing" 2; inc P2; }
+  [[ "$d_cl" != true ]] && { add_gap "S2-03" "P2" "docs/CHANGELOG.md missing" 2; inc P2; }
+  [[ "$d_contrib" != true ]] && { add_gap "S2-04" "P2" "docs/CONTRIBUTING.md missing" 2; inc P2; }
+fi
 [[ "$g_ci" != true ]] && { add_gap "S3-01" "P1" "No .github/workflows CI" 3; inc P1; }
-[[ "$g_secret" != true ]] && { add_gap "S3-02" "P2" "CI missing secret-scan job" 3; inc P2; }
+if [[ "$g_secret" != true ]] && applies "ci.require_ci_jobs_when_ci" "$has_ci"; then
+  add_gap "S3-02" "P2" "CI missing secret-scan job" 3; inc P2
+fi
 [[ "$g_pr" != true ]] && { add_gap "S3-03" "P2" "Missing .github/pull_request_template.md" 3; inc P2; }
 [[ "$g_dep" != true ]] && { add_gap "S3-04" "P3" "Missing dependabot.yml" 3; inc P3; }
-[[ "$lic" != true ]] && { add_gap "S5-01" "P1" "LICENSE missing" 1; inc P1; }
+if [[ "$lic" != true ]] && applies "paths.require_license_when_published" "$published"; then
+  add_gap "S5-01" "P1" "LICENSE missing" 1; inc P1
+fi
 [[ "$gi" != true ]] && { add_gap "S5-02" "P2" ".gitignore missing" 1; inc P2; }
-[[ "$root_cl" != true ]] && { add_gap "S5-03" "P2" "Root CHANGELOG.md missing" 1; inc P2; }
+if [[ "$root_cl" != true ]] && applies "readme.require_root_changelog_when_release_model" "$release_model"; then
+  add_gap "S5-03" "P2" "Root CHANGELOG.md missing" 1; inc P2
+fi
 [[ "$agents_root" != true ]] && { add_gap "S5-04" "P1" "AGENTS.md missing at repo root" 1; inc P1; }
 [[ "$d_cl" == true && "$cl_unrel" != true ]] && { add_gap "S10-01" "P2" "docs/CHANGELOG.md missing [Unreleased] section" 2; inc P2; }
-[[ "$ver_doc" != true ]] && { add_gap "S10-02" "P2" "docs/engineering/build-and-release/versioning.md missing" 2; inc P2; }
+if [[ "$ver_doc" != true ]] && applies "readme.require_versioning_doc_when_release_model" "$release_model"; then
+  add_gap "S10-02" "P2" "docs/engineering/build-and-release/versioning.md missing" 2; inc P2
+fi
 [[ "$agents_root" == true && "$agents_ver" != true ]] && { add_gap "S10-03" "P3" "AGENTS.md should reference versioning/changelog policy" 1; inc P3; }
 (( manifest_count >= 2 )) && [[ "$manifest_match" != true ]] && { add_gap "S10-04" "P1" "Plugin manifest versions drift (.claude/.cursor/.codex plugin.json)" 1; inc P1; }
 if [[ "${CONTRACT_MANIFESTS_ONLY:-}" != "1" ]]; then
@@ -121,7 +200,12 @@ fi
 if [[ "${CONTRACT_OFFLINE:-}" != "1" && "$gh_readable" == true ]]; then
   [[ "$bp" != true ]] && { add_gap "S4-02" "P2" "Default branch has no governance — no active branch ruleset and no classic protection" 4; inc P2; }
   [[ "$bp" == true && "$ci_check" != true ]] && { add_gap "S4-06" "P2" "No required status check gates a merge to the default branch" 4; inc P2; }
-  [[ "$auto_merge" != true ]] && { add_gap "S4-04" "P2" "PR auto-merge not enabled (allow_auto_merge)" 4; inc P2; }
+  # S4-04 (allow_auto_merge) is RETIRED, for the same reason S4-03 was: it
+  # scored a TEAM-NORM PREFERENCE as a defect. Nothing observable separates a
+  # repo that deliberately keeps auto-merge off from one that forgot to turn it
+  # on, so no honest gap can be emitted. The preference is resolved per repo at
+  # delivery time by pr-dev (resolve-merge-policy.sh), where it belongs.
+  # `allow_auto_merge` is still carried in the inventory for reporting.
   [[ "$delete_branch" != true ]] && { add_gap "S4-05" "P3" "delete_branch_on_merge not enabled" 4; inc P3; }
   [[ "$rs_safety" != true ]] && { add_gap "S4-07" "P2" "Canonical safety ruleset (repository-policy.json key 'safety') is absent or not active on the default branch" 4; inc P2; }
   [[ "$rs_pr_ci" != true ]] && { add_gap "S4-08" "P2" "Canonical PR/CI ruleset (repository-policy.json key 'pr_ci') is absent or not active on the default branch" 4; inc P2; }

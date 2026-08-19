@@ -27,7 +27,7 @@
 
 # tamirs-superpowers
 
-A portable agent toolkit: **26 skills**, 10 role-based agents, worktree hooks, and MCP
+A portable agent toolkit: **27 skills**, 10 role-based agents, worktree hooks, and MCP
 stubs, shipped from one canonical source to six agent platforms.
 
 ## What problem it solves

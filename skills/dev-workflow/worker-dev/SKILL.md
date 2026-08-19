@@ -172,7 +172,7 @@ Report to whoever dispatched you: task id, status, commits, what you validated, 
 | Don't | Do |
 |---|---|
 | `gh pr create` at the end | Emit the handoff; `deliver-dev` opens the one PR |
-| `git merge main` because the branch is behind | Leave it; the integrator handles divergence |
+| merging the default branch in because the branch is behind | Leave it; the integrator handles divergence |
 | `make test` / full suite "to be safe" | Targeted Tier 1 only |
 | Fix a bug you noticed in another module | Record it as a followup |
 | Report success in prose only | The handoff file is the deliverable |

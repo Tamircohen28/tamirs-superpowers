@@ -105,7 +105,7 @@ git fetch --prune origin
 
 # Branches fully merged into the default branch
 git branch -r --merged "origin/$DEFAULT" \
-  | grep -v "HEAD\|origin/$DEFAULT\|origin/main\|origin/master\|origin/develop\|origin/release" \
+  | grep -vE "HEAD|^ *origin/($DEFAULT|develop)$|^ *origin/(release|hotfix)/" \
   | sed 's|  origin/||' | sort > /tmp/rc_merged.txt
 
 # Branches with no open PR and last commit older than 30 days
@@ -309,7 +309,7 @@ Brief, state-change-only updates — not one line per command:
 
 [Phase 3/3] Local reset
   Build artifacts: .next/, dist/ → user confirmed → deleted
-  Synced to origin/main (rebased 3 new commits)
+  Synced to origin/<default-branch> (rebased 3 new commits)
 
 PR agents completed:
   PR #41: ready — all checks green, 0 threads

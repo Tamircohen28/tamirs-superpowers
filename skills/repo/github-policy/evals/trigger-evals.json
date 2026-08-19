@@ -1,0 +1,25 @@
+[
+  { "query": "/github-policy", "should_trigger": true },
+  { "query": "is this repo actually protected?", "should_trigger": true },
+  { "query": "set up branch protection on Tamircohen28/job-tracker-web", "should_trigger": true },
+  { "query": "audit my rulesets", "should_trigger": true },
+  { "query": "check all my repos and tell me which ones have no branch rules", "should_trigger": true },
+  { "query": "i want the same branch rules across every repo in my org", "should_trigger": true },
+  { "query": "why did that PR merge without CI passing", "should_trigger": true },
+  { "query": "every PR keeps saying the branch is out of date, i thought i turned that off", "should_trigger": true },
+  { "query": "should I require an approving review on this repo? it's just me", "should_trigger": true },
+  { "query": "convert my classic branch protection to a ruleset", "should_trigger": true },
+  { "query": "bring these repositories into compliance with our policy", "should_trigger": true },
+  { "query": "make CI cancel the old run when I push again to a PR", "should_trigger": true },
+
+  { "query": "why is my CI failing on the lint step", "should_trigger": false },
+  { "query": "review this pull request for bugs", "should_trigger": false },
+  { "query": "polish this repo — README badges, docs tree, changelog", "should_trigger": false },
+  { "query": "scaffold a brand new private repo for this idea", "should_trigger": false },
+  { "query": "clean up the merged branches and stale worktrees", "should_trigger": false },
+  { "query": "write a GitHub Actions workflow that runs pytest", "should_trigger": false },
+  { "query": "add a CODEOWNERS file", "should_trigger": false },
+  { "query": "what's the difference between squash and rebase merging", "should_trigger": false },
+  { "query": "drive PR #88 to merge", "should_trigger": false },
+  { "query": "give my teammate write access to this repo", "should_trigger": false }
+]

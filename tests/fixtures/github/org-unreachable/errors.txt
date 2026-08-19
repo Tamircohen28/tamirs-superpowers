@@ -1,0 +1,2 @@
+GET orgs/*/rulesets 500
+GET repos/*/*/branches/*/protection 404

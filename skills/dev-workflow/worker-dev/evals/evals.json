@@ -4,7 +4,7 @@
     {
       "id": 1,
       "prompt": "Run task-002 of objective auth-system. Your scope is src/api/**, branch worker/auth-system/002.",
-      "expected_output": "Reads task-002.json and the handoffs of its dependencies, marks the task running, implements only inside src/api/**, runs a TARGETED Tier 1 command (e.g. `npm test -- src/api`) and not the full suite, commits on the task branch, then emits a handoff with real commits, files_changed, and only the validation commands that actually ran. Stops there: no gh pr create, no auto-merge, no git merge main, no push unless told to.",
+      "expected_output": "Reads task-002.json and the handoffs of its dependencies, marks the task running, implements only inside src/api/**, runs a TARGETED Tier 1 command (e.g. `npm test -- src/api`) and not the full suite, commits on the task branch, then emits a handoff with real commits, files_changed, and only the validation commands that actually ran. Stops there: no gh pr create, no auto-merge, no merging the default branch into the task branch, no push unless told to.",
       "files": []
     },
     {

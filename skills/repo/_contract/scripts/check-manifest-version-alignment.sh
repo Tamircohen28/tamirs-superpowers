@@ -15,7 +15,7 @@
 # --allow-pending-release downgrades "manifest ahead of latest tag" from an
 # error to a warning. Merging a version-bumping PR pushes a manifest whose tag
 # cannot exist yet — the release workflow only runs afterwards — so on
-# push-to-master that state is expected, not drift. Manifest *behind* the
+# push-to-default-branch that state is expected, not drift. Manifest *behind* the
 # latest tag is still a hard error under this flag: nothing legitimate moves a
 # manifest backwards past a cut release.
 #

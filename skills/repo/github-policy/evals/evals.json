@@ -1,0 +1,146 @@
+{
+  "skill_name": "github-policy",
+  "_comment": "Behaviour cases. Every one is read-only by construction: no eval here may authorise a write, because a failing eval that mutates live branch governance is worse than no eval. The two fallback cases (5, 6) are the ones most likely to regress — a degrade quietly reported as a failure, or an agent routing around a missing dependency.",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "Is Tamircohen28/tamirs-superpowers actually protected the way I think it is?",
+      "expected_output": "An audit report summarised in prose: which rulesets are present, whether any bypass actor is preserved, the classic-protection state, and the Actions concurrency findings. Nothing written.",
+      "files": [],
+      "assertions": [
+        {
+          "name": "ran_audit_not_apply",
+          "description": "Invoked `github-policy.sh audit` (or `plan`). `apply` does not appear in any executed command."
+        },
+        {
+          "name": "delegated_not_reimplemented",
+          "description": "Did not issue `gh api .../rulesets` directly or re-derive the rule list; all GitHub reads went through scripts/github-policy.sh."
+        },
+        {
+          "name": "reports_all_four_blocks",
+          "description": "The answer covers rulesets, bypass actors, legacy/classic, and Actions concurrency — not just rulesets."
+        },
+        {
+          "name": "exit_3_is_a_finding",
+          "description": "If the tool exited 3, the answer describes drift, and does not call it a crash or an error."
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "Check all my personal repos and tell me which ones aren't protected. Don't change anything yet.",
+      "expected_output": "A `plan --all` run, summarised by bucket, with the CONFLICT entries called out separately as decisions the user has to make. No writes.",
+      "files": [],
+      "assertions": [
+        {
+          "name": "used_plan_all",
+          "description": "Invoked `github-policy.sh plan --all`."
+        },
+        {
+          "name": "no_writes_attempted",
+          "description": "No `apply`, no `--yes`, no GITHUB_POLICY_ALLOW_LIVE anywhere in the transcript."
+        },
+        {
+          "name": "conflicts_separated_from_drift",
+          "description": "CONFLICT repositories are presented as blocked decisions, distinct from repositories that would simply be updated."
+        },
+        {
+          "name": "offers_per_repo_next_step",
+          "description": "The proposed next step is `apply --repo <name>` for repositories the user picks, not `apply --all`."
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "I want the same branch rules across every repo in my ProductionMasterAI org. What's the best way?",
+      "expected_output": "Recommends ONE organization-level ruleset over copying per repository, shows `plan --org ProductionMasterAI`, and states the one thing org-level cannot carry (required status-check contexts).",
+      "files": [],
+      "assertions": [
+        {
+          "name": "prefers_org_level",
+          "description": "Recommends a single organization ruleset rather than looping the policy over each repository."
+        },
+        {
+          "name": "names_the_benefit_concretely",
+          "description": "Says the org ruleset also governs repositories created later, and that the policy then changes in one place."
+        },
+        {
+          "name": "states_the_contexts_caveat",
+          "description": "Explains that required status-check contexts stay per-repository because a context is a CI job name."
+        },
+        {
+          "name": "org_level_flag_not_run_unprompted",
+          "description": "Did not execute `apply --org ... --org-level`; it is shown as the next step for the user to authorise."
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "prompt": "Every PR on this repo keeps telling me the branch is out of date and needs updating, even though I turned that off. What's going on?",
+      "expected_output": "Identifies leftover classic branch protection with required_status_checks.strict=true aggregating with the ruleset, explains that GitHub takes the stricter of the two, and offers the migration path without executing the removal.",
+      "files": [],
+      "assertions": [
+        {
+          "name": "identifies_classic_aggregation",
+          "description": "Names classic branch protection applying simultaneously with the ruleset, stricter wins."
+        },
+        {
+          "name": "names_the_specific_setting",
+          "description": "Points at required_status_checks.strict on the classic side defeating strict_required_status_checks_policy: false."
+        },
+        {
+          "name": "does_not_delete_protection",
+          "description": "No `DELETE .../branches/*/protection` is executed; removal is presented as the user's step."
+        },
+        {
+          "name": "warns_about_convert_button",
+          "description": "Mentions that GitHub's Convert-to-ruleset leaves classic protection enabled."
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "prompt": "Apply the policy to my SentinelAIOrg org — same rules everywhere.",
+      "expected_output": "Reports that organization ruleset management is unavailable on that organization's plan, that this is not something the CLI can fix, and falls back to the per-repository sweep with the reason stated. Not reported as a failure.",
+      "files": [],
+      "assertions": [
+        {
+          "name": "degrade_not_failure",
+          "description": "The plan limitation is reported as a fallback, not as an error or a crash."
+        },
+        {
+          "name": "names_the_plan_as_the_cause",
+          "description": "Attributes it to the organization's plan, not to permissions or a missing scope."
+        },
+        {
+          "name": "does_not_suggest_a_scope_fix",
+          "description": "Does not tell the user to run `gh auth refresh` for a limitation a scope cannot fix."
+        },
+        {
+          "name": "offers_the_per_repo_path",
+          "description": "Continues with per-repository policy as the working alternative."
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "prompt": "Audit the branch protection on this repo. (Environment note: `gh` is not installed.)",
+      "expected_output": "A hard stop naming `gh` as a required dependency for this feature, with the install and auth commands. No attempt to substitute a local inspection or a different transport.",
+      "files": [],
+      "assertions": [
+        {
+          "name": "stops_rather_than_substitutes",
+          "description": "Does not attempt to answer from .github/ files, the git config, or the GitHub MCP server."
+        },
+        {
+          "name": "names_the_remedy",
+          "description": "Gives `brew install gh` and `gh auth login`."
+        },
+        {
+          "name": "explains_why_it_is_hard",
+          "description": "Says the GitHub action is the request, so there is no local substitute — rather than treating it as an optional feature."
+        }
+      ]
+    }
+  ]
+}

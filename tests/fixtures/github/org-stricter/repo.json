@@ -1,0 +1,21 @@
+{
+  "id": 902345671,
+  "node_id": "R_kgDONzQxYw",
+  "name": "example-service",
+  "full_name": "ProductionMasterAI/example-service",
+  "private": true,
+  "owner": { "login": "ProductionMasterAI", "id": 61120534, "type": "Organization", "site_admin": false },
+  "html_url": "https://github.com/ProductionMasterAI/example-service",
+  "description": "Fixture repository",
+  "fork": false,
+  "archived": false,
+  "disabled": false,
+  "default_branch": "main",
+  "visibility": "private",
+  "allow_auto_merge": true,
+  "delete_branch_on_merge": true,
+  "allow_merge_commit": true,
+  "allow_squash_merge": true,
+  "allow_rebase_merge": true,
+  "permissions": { "admin": true, "maintain": true, "push": true, "triage": true, "pull": true }
+}

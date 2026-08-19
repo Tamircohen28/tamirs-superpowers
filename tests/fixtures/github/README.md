@@ -37,6 +37,14 @@ fake_gh_use_fixtures "$REPO_ROOT/tests/fixtures/github/compliant"
 | [`auth-failed`](auth-failed/README.md) | 401 everywhere | hard stop before any repo is touched |
 | [`conflict`](conflict/README.md) | 409 on `PUT` | write-side failure, isolate and continue |
 | [`unprocessable`](unprocessable/README.md) | 422 on `POST` | structured `.errors`, not just `.message` |
+| [`classic-overlap`](classic-overlap/README.md) | rulesets AND classic protection on one branch | GitHub aggregates both; the stricter wins, so compliant rulesets are not the whole story |
+| [`org-available`](org-available/README.md) | `orgs/{org}/rulesets` → `200 []` (measured: plan `team`) | org-level targeting is available and preferred |
+| [`org-plan-free`](org-plan-free/README.md) | `403` "Upgrade to GitHub Team" (measured: plan `free`) | a plan wall is a degrade with an honest reason, never a permissions error |
+| [`org-scope`](org-scope/README.md) | `403`, token lacks `admin:org` | same status code as the plan wall, different remedy |
+| [`org-notfound`](org-notfound/README.md) | `404` on the org | invisible org degrades, does not fail |
+| [`org-unreachable`](org-unreachable/README.md) | `500` on the org | the one org-probe outcome that IS a failure |
+| [`org-stricter`](org-stricter/README.md) | an org ruleset stricter than canonical | CONFLICT and leave alone — no flag overrides it |
+| [`org-drift`](org-drift/README.md) | canonical rulesets live at org level, one drifted | org-level idempotence, plus coverage narrowing |
 | [`fleet`](fleet/README.md) | three repos, three states | bulk iteration, per-repo isolation |
 | [`_defaults`](_defaults/README.md) | shared fallbacks | write responses, auth, repo list |
 

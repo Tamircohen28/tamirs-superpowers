@@ -146,8 +146,9 @@ Types: `feat`, `fix`, `chore`, `docs`, `refactor`, `test`
 ## Constraints
 
 - Never commit secrets, tokens, or `.env` files
-- No direct pushes to `master` — always open a PR
-- No `git push --force` to `master`
+- No direct pushes to the default branch — always open a PR
+- No `git push --force` to the default branch
+  (resolve it, never assume: `git symbolic-ref --short refs/remotes/origin/HEAD`)
 - Do not modify `.github/workflows/` without review
 - {{PROJECT_SPECIFIC_CONSTRAINT}}
 
@@ -245,10 +246,23 @@ Generic:
 name: CI
 
 on:
+  # NO branch-name filter, deliberately. `on.push.branches` cannot take a
+  # dynamic default-branch token — triggers are parsed before any context
+  # exists, so `github.event.repository.default_branch` is unavailable here.
+  # Enumerating names (`[main]`, `[master]`, or both) is how a workflow
+  # silently never runs on a repo whose default is spelled differently — and
+  # `gh repo create` does not make them all the same. Gate on the default
+  # branch at JOB level, where the context does exist:
+  #   if: github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
   push:
-    branches: [master]
   pull_request:
-    branches: [master]
+
+# Supersede obsolete runs of THIS workflow only. `github.workflow` in the key is
+# load-bearing — without it every workflow for a PR shares one group and a newly
+# started workflow cancels an unrelated one that was already running.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 jobs:
   CI:
@@ -277,10 +291,23 @@ jobs:
 name: CI
 
 on:
+  # NO branch-name filter, deliberately. `on.push.branches` cannot take a
+  # dynamic default-branch token — triggers are parsed before any context
+  # exists, so `github.event.repository.default_branch` is unavailable here.
+  # Enumerating names (`[main]`, `[master]`, or both) is how a workflow
+  # silently never runs on a repo whose default is spelled differently — and
+  # `gh repo create` does not make them all the same. Gate on the default
+  # branch at JOB level, where the context does exist:
+  #   if: github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
   push:
-    branches: [master]
   pull_request:
-    branches: [master]
+
+# Supersede obsolete runs of THIS workflow only. `github.workflow` in the key is
+# load-bearing — without it every workflow for a PR shares one group and a newly
+# started workflow cancels an unrelated one that was already running.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 jobs:
   CI:
@@ -308,10 +335,23 @@ jobs:
 name: CI
 
 on:
+  # NO branch-name filter, deliberately. `on.push.branches` cannot take a
+  # dynamic default-branch token — triggers are parsed before any context
+  # exists, so `github.event.repository.default_branch` is unavailable here.
+  # Enumerating names (`[main]`, `[master]`, or both) is how a workflow
+  # silently never runs on a repo whose default is spelled differently — and
+  # `gh repo create` does not make them all the same. Gate on the default
+  # branch at JOB level, where the context does exist:
+  #   if: github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
   push:
-    branches: [master]
   pull_request:
-    branches: [master]
+
+# Supersede obsolete runs of THIS workflow only. `github.workflow` in the key is
+# load-bearing — without it every workflow for a PR shares one group and a newly
+# started workflow cancels an unrelated one that was already running.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 jobs:
   CI:
@@ -332,10 +372,23 @@ jobs:
 name: CI
 
 on:
+  # NO branch-name filter, deliberately. `on.push.branches` cannot take a
+  # dynamic default-branch token — triggers are parsed before any context
+  # exists, so `github.event.repository.default_branch` is unavailable here.
+  # Enumerating names (`[main]`, `[master]`, or both) is how a workflow
+  # silently never runs on a repo whose default is spelled differently — and
+  # `gh repo create` does not make them all the same. Gate on the default
+  # branch at JOB level, where the context does exist:
+  #   if: github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
   push:
-    branches: [master]
   pull_request:
-    branches: [master]
+
+# Supersede obsolete runs of THIS workflow only. `github.workflow` in the key is
+# load-bearing — without it every workflow for a PR shares one group and a newly
+# started workflow cancels an unrelated one that was already running.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 jobs:
   CI:
