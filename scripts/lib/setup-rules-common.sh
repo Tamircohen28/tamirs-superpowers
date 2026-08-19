@@ -239,12 +239,38 @@ rules_json_fragment() {
   fi
 }
 
-# rules_json_render <existing-file> <fragment-file> — deep merge with array union
-# (setup_json_merge). Third-party wiring in the same file survives untouched.
+# Array UNION merge — deliberately NOT setup_json_merge.
+#
+# The engine's shared deepmerge replaces arrays wholesale, which is the right
+# policy for ~/.claude/settings.json: platforms/claude/settings.d/permissions-allow.json
+# is declared to BE the whole intended allow policy. It is the wrong policy here.
+# The files these renderers touch are shared with tools this installer does not
+# own — a wholesale array replace on ~/.cursor/cli-config.json deletes cmux's
+# `Mcp(cmux:*)` permission, and on a Gemini hooks array it would delete the user's
+# hook wiring. Merge-never-clobber is a hard requirement for these four targets,
+# so they carry their own semantics rather than depending on an engine policy that
+# is free to change for reasons that have nothing to do with them.
+RULES_JQ_MERGE_UNION='
+def mergeunion($b):
+  . as $a
+  | reduce ($b | keys_unsorted[]) as $k ($a;
+      if ($a[$k] | type) == "object" and ($b[$k] | type) == "object" then
+        .[$k] = ($a[$k] | mergeunion($b[$k]))
+      elif ($a[$k] | type) == "array" and ($b[$k] | type) == "array" then
+        .[$k] = ($a[$k] + ($b[$k] - $a[$k]))
+      else
+        .[$k] = $b[$k]
+      end);
+'
+
+# rules_json_render <existing-file> <fragment-file> — deep merge, arrays unioned.
+# Third-party wiring in the same file survives untouched.
 rules_json_render() {
   local existing="$1" frag
   frag="$(rules_json_fragment "$2")"
-  setup_json_merge "$(setup_json_read "$existing")" "$frag" | setup_json_normalize
+  setup_json_read "$existing" \
+    | jq --argjson b "$frag" "${RULES_JQ_MERGE_UNION} mergeunion(\$b)" \
+    | setup_json_normalize
 }
 
 # The precise inverse: remove only the array entries and scalar values that are

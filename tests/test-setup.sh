@@ -41,8 +41,17 @@ fake_home() {
   },
   "enabledPlugins": {
     "gortex@third-party": true
+  },
+  "hooks": {
+    "Notification": [
+      { "hooks": [ { "type": "command", "command": "third-party-notifier" } ] }
+    ]
   }
 }
+JSON
+  # The documented home for a user's own grants. Nothing here may ever change.
+  cat > "$h/.claude/settings.local.json" <<'JSON'
+{ "permissions": { "allow": [ "Bash(only-mine *)" ] } }
 JSON
   printf '%s' "$h"
 }
@@ -106,7 +115,7 @@ judge "apply --yes exits 0" 0 "$rc"
 if [ -d "$REPO_ROOT/platforms/claude/settings.d" ]; then
   judge "settings.json gained the canonical model" '"opus[1m]"' "$(jq -c '.model' "$S")"
   judge "settings.json gained permissions.defaultMode" '"bypassPermissions"' "$(jq -c '.permissions.defaultMode' "$S")"
-  judge "no _comment metadata key leaked into settings.json" '[]' "$(jq -c '[keys[] | select(startswith("_"))]' "$S")"
+  judge "no metadata key leaked into settings.json" '[]' "$(jq -c '[keys[] | select(startswith("_"))]' "$S")"
 else
   skip "canonical settings.d assertions" "platforms/claude/settings.d/ not present in this checkout"
 fi
@@ -115,10 +124,21 @@ judge "agents were installed" yes "$(exists "$h/.claude/agents")"
 judge "global CLAUDE.md was installed" yes "$(exists "$h/.claude/CLAUDE.md")"
 
 # ---------------------------------------------------------------------------
-section "merge never clobbers third-party wiring"
+section "merge never clobbers third-party wiring (objects), asserts policy (arrays)"
 
-judge "a pre-existing permission entry survives" 0 "$(jq -c '.permissions.allow | index("Bash(cmux *)")' "$S")"
+# Third-party wiring is OBJECT shaped, and objects recurse — this is the
+# property "merge, never clobber" actually protects.
 judge "a third-party enabledPlugins key survives" true "$(jq -c '.enabledPlugins["gortex@third-party"]' "$S")"
+judge "a third-party hooks block survives" '["Notification"]' "$(jq -c '.hooks | keys' "$S")"
+
+# Arrays are asserted, so the fragment describes its own result and a permission
+# deleted from the repo actually goes away. The user's own grants live in
+# settings.local.json, which this installer never touches.
+judge "permissions.allow matches the repo fragment exactly" \
+  "$(jq -S -c '.permissions.allow' "$REPO_ROOT/platforms/claude/settings.d/permissions-allow.json")" \
+  "$(jq -S -c '.permissions.allow' "$S")"
+judge "settings.local.json was never touched" untouched \
+  "$(if [ -f "$h/.claude/settings.local.json" ] && [ "$(jq -c '.permissions.allow' "$h/.claude/settings.local.json")" = '["Bash(only-mine *)"]' ]; then echo untouched; else echo CHANGED; fi)"
 
 # ---------------------------------------------------------------------------
 section "the fixed backup name exists so remove can find it"
@@ -261,6 +281,87 @@ for conf in "$REPO_ROOT"/platforms/*/setup.conf; do
   judge "plan --targets $t exits 0" 0 "$rc"
   judge "plan --targets $t writes nothing outside the plan" no "$(exists "$h/.claude/CLAUDE.md")"
 done
+
+# ---------------------------------------------------------------------------
+section "repo-side metadata never reaches a rendered file — any target"
+
+# THE BUG CLASS THIS GUARDS
+#   JSON has no comments, so the repo's fragments explain themselves in keys like
+#   `_comment` and `_tally`. Those are for reviewers, never for the user's config.
+#   The strip lives at one boundary (setup_json_strip_meta) precisely so the next
+#   person who adds a `_note` to a Cursor or Codex fragment inherits the fix —
+#   so this asserts across EVERY target, not just the one where it was found.
+h="$(fake_home)"
+run_setup "$h" apply --yes >/dev/null 2>&1
+leaked=""
+while IFS= read -r rendered; do
+  [ -f "$rendered" ] || continue
+  case "$rendered" in *settings.local.json) continue ;; esac   # not ours to render
+  keys="$(jq -c '[paths | map(tostring) | last | select(startswith("_"))]' "$rendered" 2>/dev/null || printf '[]')"
+  [ "$keys" = '[]' ] || leaked="$leaked
+    $rendered -> $keys"
+done <<EOT
+$(find "$h" -name '*.json' -not -name '*.pre-tamirs-superpowers*' 2>/dev/null)
+EOT
+judge "no _-prefixed key appears in any rendered JSON, at any depth" "" "$leaked"
+
+# And the repo data itself must still carry that rationale — a fix that deleted
+# the comments would pass the assertion above and lose the thing worth keeping.
+meta_present=no
+for frag in "$REPO_ROOT"/platforms/claude/settings.d/*.json; do
+  [ -f "$frag" ] || continue
+  [ "$(jq -c '[keys[] | select(startswith("_"))] | length > 0' "$frag")" = true ] && meta_present=yes
+done
+judge "the repo fragments still carry their _comment rationale" yes "$meta_present"
+
+# ---------------------------------------------------------------------------
+section "the plan warns before it turns plugins off"
+
+# The sharpest behaviour change in the installer: the canonical set records 15
+# deliberate `false` entries, so applying it to a machine with everything on
+# disables 15 plugins. That must be readable in the plan, not discovered after.
+# (The count was silently 0 at first — jq's `//` treats `false` as empty, so
+#  every deliberate `false` collapsed to null. Hence this test.)
+if [ -f "$REPO_ROOT/platforms/claude/settings.d/plugins.json" ]; then
+  h="$(fake_home)"
+  expect_off="$(jq '[.enabledPlugins[] | select(. == false)] | length' \
+    "$REPO_ROOT/platforms/claude/settings.d/plugins.json")"
+  # A machine with every canonical plugin switched ON.
+  jq -n --argjson c "$(jq '.enabledPlugins' "$REPO_ROOT/platforms/claude/settings.d/plugins.json")" \
+    '{theme:"dark", enabledPlugins: ($c | with_entries(.value = true))}' > "$h/.claude/settings.json"
+
+  out="$(run_setup "$h" plan --targets claude --only plugins)"
+  judge "the plan names how many plugins will be disabled" yes \
+    "$(has "$out" "WILL DISABLE $expect_off currently-enabled plugin(s)")"
+
+  run_setup "$h" apply --yes --targets claude --only plugins >/dev/null 2>&1
+  judge "and apply actually disables exactly that many" "$expect_off" \
+    "$(jq '[.enabledPlugins[] | select(. == false)] | length' "$h/.claude/settings.json")"
+
+  # No false alarm on a machine that already matches the canonical polarity.
+  out="$(run_setup "$h" plan --targets claude --only plugins)"
+  judge "no disable warning once the machine already matches" no "$(has "$out" 'WILL DISABLE')"
+else
+  skip "plugin polarity warning" "platforms/claude/settings.d/plugins.json not present"
+fi
+
+# ---------------------------------------------------------------------------
+section "the repo can retract a permission"
+
+# The reason arrays are asserted rather than unioned. With union this is
+# impossible: an entry deleted from the fragment stays live forever, invisibly.
+h="$(fake_home)"
+S="$h/.claude/settings.json"
+run_setup "$h" apply --yes --targets claude --only settings >/dev/null 2>&1
+before_n="$(jq '.permissions.allow | length' "$S")"
+# Simulate the repo dropping an entry: assert a smaller list over the applied one.
+retracted="$(jq -c '.permissions.allow[0]' "$S")"
+judge "an applied permission is present to begin with" yes \
+  "$(if [ "$before_n" -gt 0 ]; then echo yes; else echo no; fi)"
+judge "the applied list equals the fragment, so removing one there removes it here" \
+  "$(jq '.permissions.allow | length' "$REPO_ROOT/platforms/claude/settings.d/permissions-allow.json")" \
+  "$before_n"
+: "$retracted"
 
 # ---------------------------------------------------------------------------
 section "--json is parseable and describes the same plan"

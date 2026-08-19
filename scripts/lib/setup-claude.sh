@@ -55,37 +55,24 @@ claude_settings_available() {
   printf 'yes'
 }
 
-# TOP-LEVEL KEYS BEGINNING WITH `_` ARE METADATA, NOT SETTINGS. The fragments
-# carry `_comment` (and `_tally` in plugins.json) to explain themselves to the
-# next reader; those must never reach the user's settings.json, so they are
-# stripped here rather than at authoring time — the fragments stay self-documenting.
+# Every fragment in settings.d is a full settings.json-shaped OBJECT — the shape
+# is fixed by platforms/claude/settings.d/README.md and verified by the data
+# owner. There is deliberately no fallback that guesses at a bare array or a
+# bare payload: a guess in a merge function is a trap for whoever edits it next,
+# and a fragment that is not an object is a data bug we want to hear about
+# loudly rather than silently reinterpret.
 #
-# A settings.d file may be written either as a full settings.json fragment
-# (`{"permissions":{"allow":[...]}}`) or as just its payload (a bare array, or
-# `{"allow":[...]}`). Both are accepted: the filename says where the payload
-# belongs, so guessing wrong is not possible, and the data phase and the engine
-# phase were built in parallel by different hands.
+# `_`-prefixed keys are repo-side metadata and are stripped at this boundary —
+# see setup_json_strip_meta in scripts/lib/setup-common.sh.
 claude_settings_fragment() {
-  local f="$1" base t
-  base="$(basename "$f")"
+  local f="$1" t
   t="$(jq -r 'type' "$f" 2>/dev/null || printf 'null')"
-  {
-    case "$base" in
-      permissions-allow.json)
-        if [ "$t" = array ]; then jq '{permissions: {allow: .}}' "$f"
-        elif jq -e 'has("permissions")' "$f" >/dev/null 2>&1; then cat "$f"
-        else jq '{permissions: .}' "$f"; fi ;;
-      permissions-ask.json)
-        if [ "$t" = array ]; then jq '{permissions: {ask: .}}' "$f"
-        elif jq -e 'has("permissions")' "$f" >/dev/null 2>&1; then cat "$f"
-        else jq '{permissions: .}' "$f"; fi ;;
-      marketplaces.json)
-        if jq -e 'has("extraKnownMarketplaces")' "$f" >/dev/null 2>&1; then cat "$f"
-        else jq '{extraKnownMarketplaces: .}' "$f"; fi ;;
-      *)
-        if [ "$t" = object ]; then cat "$f"; else printf '{}\n'; fi ;;
-    esac
-  } | jq 'with_entries(select(.key | startswith("_") | not))'
+  if [ "$t" != object ]; then
+    setup_warn "$(basename "$f") is a JSON $t, expected an object — skipping it"
+    printf '{}\n'
+    return 0
+  fi
+  setup_json_strip_meta < "$f"
 }
 
 claude_settings_render() {
@@ -137,10 +124,12 @@ claude_plugins_available() {
   else printf 'no:platforms/claude/settings.d/plugins.json not found'; fi
 }
 
+# Strip metadata BEFORE reaching for .enabledPlugins, not after. Reading the key
+# happens to exclude `_tally` today, which is precisely why this was fragile: the
+# guarantee has to come from the boundary, not from a lucky key name.
 claude_plugins_canonical() {
   local f="${CLAUDE_SETTINGS_D}/plugins.json"
-  if jq -e 'has("enabledPlugins")' "$f" >/dev/null 2>&1; then jq '.enabledPlugins' "$f"
-  else jq '.' "$f"; fi
+  setup_json_strip_meta < "$f" | jq 'if has("enabledPlugins") then .enabledPlugins else . end'
 }
 
 # `+` and not deepmerge: the canonical value must WIN per key, including when it
@@ -175,14 +164,35 @@ claude_plugins_unrender() {
 
 claude_plugins_destructive() { printf 'no'; }
 
+# THE LOUD PART: how many plugins this apply will TURN OFF.
+#
+# The canonical set records 15 deliberate `false` entries, so applying it to a
+# machine whose plugins are all on will disable 15 of them. That is the intended
+# fix — the old canonical set was 21 all-true and would have re-enabled plugins
+# the user had switched off on purpose — but it is the sharpest behaviour change
+# in the whole installer, and a user should read it in the plan rather than
+# discover it afterwards. A release note only reaches people who read release
+# notes; the plan table reaches everyone.
 claude_plugins_summary() {
-  local existing="$1" new="$2" canon n_canon n_keep
+  local existing="$1" canon n_canon n_on n_keep n_disable
   canon="$(claude_plugins_canonical)"
   n_canon="$(printf '%s' "$canon" | jq 'length')"
+  n_on="$(printf '%s' "$canon" | jq '[.[] | select(.)] | length')"
   n_keep="$(setup_json_read "$existing" | jq --argjson c "$canon" \
     '(.enabledPlugins // {}) | with_entries(. as $e | select($c | has($e.key) | not)) | length')"
-  printf '%s canonical (%s enabled), %s local preserved' \
-    "$n_canon" "$(printf '%s' "$canon" | jq '[.[] | select(.)] | length')" "$n_keep"
+  # NOT `($c[.key] // null) == false` — jq's `//` treats `false` itself as empty,
+  # so every deliberate `false` collapses to null and the count is always 0.
+  # Index by a bound variable and compare directly.
+  n_disable="$(setup_json_read "$existing" | jq --argjson c "$canon" \
+    '[(.enabledPlugins // {}) | to_entries[] | . as $e
+       | select($e.value == true)
+       | select(($c | has($e.key)) and ($c[$e.key] == false))] | length')"
+  if [ "${n_disable:-0}" -gt 0 ]; then
+    printf 'WILL DISABLE %s currently-enabled plugin(s); %s canonical (%s on), %s local preserved' \
+      "$n_disable" "$n_canon" "$n_on" "$n_keep"
+  else
+    printf '%s canonical (%s on), %s local preserved' "$n_canon" "$n_on" "$n_keep"
+  fi
 }
 
 # ---------------------------------------------------------------------------

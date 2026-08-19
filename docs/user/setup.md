@@ -67,12 +67,28 @@ change, then `Proceed? [y/N/a/q]` — **default No**. `a` accepts everything
 remaining, `q` stops. The diff shown is computed live against the file as it
 stands at that moment, so approving it can never write something you did not see.
 
-**4. Merging, not clobbering.** Objects merge key by key, arrays take the union,
-and only scalars are overwritten by the repo's value. Third-party wiring in a
-file this repo also writes — a `cmux` permission entry, a `gortex` plugin key —
-survives. This is a change from the pre-Phase-2 `install.sh`, which rewrote
+**4. Objects merge; arrays and scalars are asserted.** Objects recurse key by
+key, so third-party wiring in a file this repo also writes survives — `hooks`,
+`enabledPlugins`, `extraKnownMarketplaces`, `mcpServers` are all object-shaped and
+all preserved. This is a change from the pre-Phase-2 `install.sh`, which rewrote
 `~/.claude/settings.json` wholesale on every run and destroyed every key it did
 not know about.
+
+Arrays are **replaced**, not unioned — deliberately. Union would mean the repo
+could never *retract* anything: delete an over-broad entry from
+`permissions.allow` in the repo and, under union, it would stay live forever on
+every machine that had ever applied it, invisibly. Asserting the array keeps each
+fragment an honest description of its own result, which is the property that makes
+`platforms/claude/settings.d/` reviewable.
+
+Your own additions are safe because they have a home upstream of this installer:
+**`~/.claude/settings.local.json`**, which `setup` never reads or writes and which
+Claude Code merges on top of `settings.json`. An incremental "always allow" grant
+lands there already.
+
+**Repo-side metadata never reaches your files.** JSON has no comments, so the
+fragments explain themselves in top-level keys beginning with `_` (`_comment`,
+`_tally`). Those are stripped at the merge boundary and never written.
 
 **5. Overwriting a file you customised is a separate question.** A module that
 cannot merge — `~/.claude/CLAUDE.md` is markdown, not JSON — shows you what is at
@@ -146,7 +162,7 @@ registry and report themselves honestly:
 | Module | Target file | What it does |
 |--------|-------------|--------------|
 | `settings` | `~/.claude/settings.json` | Merges every fragment in `platforms/claude/settings.d/` — permissions, model, theme, auto-mode policy, marketplaces, env |
-| `plugins` | `~/.claude/settings.json` | `enabledPlugins`. The repo's value wins per key, **including `false`** — a plugin recorded as disabled is disabled. Keys only your machine has are preserved |
+| `plugins` | `~/.claude/settings.json` | `enabledPlugins`. The repo's value wins per key, **including `false`** — a plugin recorded as disabled is disabled. Keys only your machine has are preserved. See the warning below |
 | `statusline` | `~/.claude/settings.json` | Wires `statusLine` to a command that resolves the newest installed plugin version at runtime, so it survives updates |
 | `agents` | `~/.claude/agents/` | Copies the specialist subagent definitions |
 | `claude-md` | `~/.claude/CLAUDE.md` | Installs the global rules template. Destructive — see rule 5 |
@@ -159,6 +175,22 @@ Modules whose prerequisites are absent report why rather than failing:
 ```
     pushover.env   skip   ~/.claude/pushover.env   no PUSHOVER_TOKEN/PUSHOVER_USER in env — run /notify-setup
 ```
+
+### Applying will switch some plugins off
+
+The canonical set records 15 plugins as deliberately **disabled**. On a machine
+where those are currently on, `apply` turns them off — that is the intended
+behaviour, not a bug: the previous canonical set was all-on and would have
+re-enabled plugins you had switched off on purpose.
+
+The plan says so before anything is written, with the exact count:
+
+```
+enabledPlugins  modify  ~/.claude/settings.json   WILL DISABLE 15 currently-enabled plugin(s); 23 canonical (8 on), 0 local preserved
+```
+
+Run `make setup-plan` (or `--dry-run`) first to see the full list in the diff.
+Plugins the repo says nothing about are left exactly as you have them.
 
 ---
 

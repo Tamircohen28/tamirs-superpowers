@@ -129,23 +129,52 @@ setup_diff() {
 }
 
 # --- JSON -------------------------------------------------------------------
-# Deep merge with array UNION. This is the "merge, never clobber" rule expressed
-# as one jq function: third-party wiring written by other tools into an object we
-# also write survives, and a user's extra permission entries are additive rather
-# than replaced. Scalars are the one place the repo wins outright — that is what
-# "the repo is the source of truth" means for a setting like `model`.
+# Deep merge. Objects recurse; everything else — scalars AND arrays — is
+# asserted from the repo.
+#
+# WHY ARRAYS ARE ASSERTED, NOT UNIONED
+#   Union looks safer and is not. If `permissions.allow` unions, the repo can
+#   never RETRACT a permission: delete an entry judged too broad from the
+#   fragment and it stays live forever on every machine that ever applied it,
+#   invisibly. It also stops the fragment describing its own result, which is the
+#   property that made settings.d reviewable in the first place.
+#
+#   The "merge, never clobber" rule is still honoured exactly where clobbering
+#   would destroy someone else's work, because third-party wiring is OBJECT
+#   shaped, not array shaped: hooks, enabledPlugins, extraKnownMarketplaces and
+#   mcpServers all recurse and survive. Verified on this machine — the keys other
+#   tools had written into ~/.claude/settings.json were `hooks` and
+#   `enabledPlugins`; nothing external writes into a permissions array.
+#
+#   A user's own additions have a documented home upstream of us:
+#   ~/.claude/settings.local.json, which this installer never touches and which
+#   Claude Code already merges on top. That is where an incremental "always
+#   allow" grant lands.
 SETUP_JQ_DEEPMERGE='
 def deepmerge($b):
   . as $a
   | reduce ($b | keys_unsorted[]) as $k ($a;
       if ($a[$k] | type) == "object" and ($b[$k] | type) == "object" then
         .[$k] = ($a[$k] | deepmerge($b[$k]))
-      elif ($a[$k] | type) == "array" and ($b[$k] | type) == "array" then
-        .[$k] = ($a[$k] + ($b[$k] - $a[$k]))
       else
         .[$k] = $b[$k]
       end);
 '
+
+# setup_json_strip_meta — JSON on stdin, same JSON minus top-level keys that
+# begin with `_`, on stdout.
+#
+# THE CONVENTION, ONCE, FOR EVERY TARGET
+#   JSON has no comments, so repo-side fragments carry their rationale in keys
+#   like `_comment` and `_tally` — "these 15 false entries are deliberate" is
+#   exactly the kind of thing a reviewer needs and a user's settings file must
+#   never contain. An underscore prefix means REPO-SIDE METADATA, NEVER RENDERED.
+#   Every renderer must pipe each fragment through this before merging, so the
+#   next person who adds a `_note` to a Cursor or Codex fragment inherits the
+#   guarantee instead of rediscovering the bug.
+setup_json_strip_meta() {
+  jq 'with_entries(select(.key | startswith("_") | not))'
+}
 
 # setup_json_read <file> — the file as JSON, or `{}` when absent/unparseable.
 setup_json_read() {
