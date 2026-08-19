@@ -126,6 +126,30 @@ gemini extensions uninstall tamirs-superpowers
 gemini skills uninstall <name>          # one per skill; there is no bulk removal
 ```
 
+## Machine-level setup
+
+The extension and skills mirror cover this repo. Global rules in `~/.gemini` are a separate,
+optional step:
+
+```bash
+bash scripts/setup.sh plan  --targets gemini    # writes nothing
+bash scripts/setup.sh apply --targets gemini
+bash scripts/setup.sh remove --targets gemini
+```
+
+| Module | Writes | What it does |
+|---|---|---|
+| `gemini-md` | `~/.gemini/GEMINI.md` | Renders `core/global-rules.md` inside `>>> tamirs-superpowers >>>` markers |
+| `settings` | `~/.gemini/settings.json` | Asserts `context.fileName` = `["GEMINI.md", "AGENTS.md"]` and nothing else |
+
+That one key is why a rule written once is picked up whichever CLI you reach for. `hooks` and
+MCP entries in `settings.json` are untouched, so wiring another tool wrote survives.
+
+`plan` writes nothing and is the default when there is no terminal, so a hook or CI run can
+never adopt anything silently. `apply` shows a diff and asks per change, defaulting to
+**No**. Re-running is a no-op — idempotence is a content comparison. Full reference:
+[setup](../setup.md) · [platform setup](../platform-setup.md).
+
 ## What does not port
 
 Everything in this table was measured against 0.55.1, not inferred. `unsupported` means it was tried and it failed.

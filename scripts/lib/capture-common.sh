@@ -168,7 +168,10 @@ capture_third_party_reason() {
   # (c) structural: a marketplace or tool token in the value that is not ours.
   case "$key" in
     enabledPlugins*|*hooks*|*command*|*plugin*|extraKnownMarketplaces*|*mcp*|*Servers*)
-      if owner="$(capture_owner_of "$val")"; then
+      # Key AND value: `enabledPlugins."x@some-marketplace"` carries its owner in
+      # the key and a bare `true` as the value. Reading only the value would call
+      # another marketplace's plugin portable.
+      if owner="$(capture_owner_of "${key} ${val}")"; then
         printf '%s' "$owner" | grep -qE "$CAPTURE_OURS" && return 1
         printf 'owned by %s, not by this repo' "$owner"
         return 0
@@ -184,14 +187,26 @@ capture_third_party_reason() {
 CAPTURE_HOMEPATH='(^|[^A-Za-z0-9._-])/(Users|home)/[A-Za-z0-9._-]+'
 CAPTURE_PATH_PLACEHOLDER='/(Users|home)/(you|username|your-name|<[A-Za-z_]+>|\$USER|\$\{USER\})'
 
-# capture_machine_local_reason <keypath> <value>
-capture_machine_local_reason() {
-  local key="$1" val="$2"
+# capture_abs_path_reason <keypath> <value> — split out from the key-path list
+# below because it is tested EARLIER than third-party ownership. A value holding
+# this machine's home directory is machine-local whoever wrote it; deciding
+# ownership first would have labelled `~/.claude/plugins/marketplaces/x` as
+# third-party wiring and buried the fact that it is a path that exists nowhere
+# else. Absolute paths are the exact route by which a foreign reference would
+# otherwise reach the repo, so this gate goes first among the non-secret ones.
+capture_abs_path_reason() {
+  local val="$2"
   if printf '%s' "$val" | grep -qE "$CAPTURE_HOMEPATH" \
      && ! printf '%s' "$val" | grep -qE "$CAPTURE_PATH_PLACEHOLDER"; then
     printf 'holds an absolute home path — parameterise it or keep it local'
     return 0
   fi
+  return 1
+}
+
+# capture_machine_local_reason <keypath> <value>
+capture_machine_local_reason() {
+  local key="$1"
   if capture_match_any "$key" "$CAPTURE_MACHINE_LOCAL"; then
     printf 'key path is machine state, not policy'
     return 0
@@ -200,18 +215,31 @@ capture_machine_local_reason() {
 }
 
 # ---------------------------------------------------------------------------
-# capture_classify <platform> <keypath> <value>  ->  "<class>\t<reason>"
+# capture_classify <platform> <keypath> <value> [kind]  ->  "<class>\t<reason>"
+#
+# `kind` is the hunk shape: `scalar`, `array-item` or `line`. A `line` is a
+# markdown rule captured from a rules file, and it is portable by construction —
+# core/global-rules.md exists precisely so that one prose rule is true on every
+# platform, and there is no key path to look up in a portable list. It still
+# passes through every gate above it: a rule naming a credential, a home
+# directory or an internal host is refused exactly as a JSON value would be.
 # ---------------------------------------------------------------------------
 capture_classify() {
-  local plat="$1" key="$2" val="$3" why
+  local plat="$1" key="$2" val="$3" kind="${4:-scalar}" why
   if why="$(capture_secret_reason "$key" "$val")"; then
     printf 'secret\t%s' "$why"; return 0
+  fi
+  if why="$(capture_abs_path_reason "$key" "$val")"; then
+    printf 'machine-local\t%s' "$why"; return 0
   fi
   if why="$(capture_third_party_reason "$plat" "$key" "$val")"; then
     printf 'third-party\t%s' "$why"; return 0
   fi
   if why="$(capture_machine_local_reason "$key" "$val")"; then
     printf 'machine-local\t%s' "$why"; return 0
+  fi
+  if [ "$kind" = line ]; then
+    printf 'portable\ta rules line — canonical prose, true on every platform'; return 0
   fi
   if capture_match_any "$key" "$CAPTURE_PORTABLE"; then
     printf 'portable\tdeclared portable for %s' "$plat"; return 0
@@ -235,9 +263,16 @@ capture_classify() {
 #   * $CAPTURE_SCAN_PATTERNS_FILE (default ~/.config/tamirs-superpowers/scan-patterns.txt)
 #   * $TAMIRS_EMPLOYER_PATTERN, one extended regex, for a one-off run
 # plus the generic internal-hostname shapes below, which need no private name.
-CAPTURE_INTERNAL_SHAPES='\b[A-Za-z0-9][A-Za-z0-9-]*\.(corp|internal|intra|intranet|lan|local|prod|staging)\b
+#
+# The single-label forms `.local`, `.lan`, `.prod` and `.staging` are NOT here.
+# They were, and they fired on `extraKnownMarketplaces.local-thing.source` — a
+# dotted KEY PATH, not a hostname. A scanner that cries wolf on ordinary key
+# names is a scanner people learn to answer `y` through, which is the failure
+# mode this gate exists to prevent. Every shape below needs a hostname context:
+# an internal-only suffix, or a URL, or a known internal-registry product name.
+CAPTURE_INTERNAL_SHAPES='\b[A-Za-z0-9][A-Za-z0-9-]*\.(corp|internal|intranet)\b
 \b[A-Za-z0-9][A-Za-z0-9-]*\.(corp|internal|intra)\.[A-Za-z]{2,}\b
-https?://[A-Za-z0-9.-]*\.(corp|internal|intra|intranet)[:/]
+https?://[A-Za-z0-9.-]*\.(corp|internal|intra|intranet|lan)[:/]
 \b(artifactory|nexus|jfrog)\.[A-Za-z0-9.-]+\b'
 
 capture_ip_scanner() { printf '%s/skills/repo/_contract/scripts/ip-scan.sh' "$SETUP_REPO_ROOT"; }
@@ -556,5 +591,25 @@ capture_normalize_machine() {
   case "$path" in
     *.json) setup_json_read "$path" | setup_json_normalize ;;
     *) cat "$path" ;;
+  esac
+}
+
+# ---------------------------------------------------------------------------
+# The review decision, as a pure function
+# ---------------------------------------------------------------------------
+# The [y/N/a/q/s] answer is interpreted HERE and not inside the prompt loop, so
+# "skip is the default" is a property that can be tested without a terminal.
+# It is the single most important default in this script — it is what stands
+# between a distracted return key and a committed machine path — and a default
+# that can only be verified by hand is a default nobody verifies.
+#
+# capture_decide <answer> -> adopt | adopt-all | skip | quit | show
+capture_decide() {
+  case "$(setup_lower "${1:-}")" in
+    y|ye|yes)      printf 'adopt' ;;
+    a|al|all)      printf 'adopt-all' ;;
+    q|qu|qui|quit) printf 'quit' ;;
+    s|sh|show)     printf 'show' ;;
+    *)             printf 'skip' ;;   # empty input included, by design
   esac
 }

@@ -1,0 +1,20 @@
+[
+  { "query": "I hand-edited ~/.claude/settings.json, make that permanent", "should_trigger": true },
+  { "query": "capture my machine config back into the repo", "should_trigger": true },
+  { "query": "I added a rule to my global CLAUDE.md, put it on all my platforms", "should_trigger": true },
+  { "query": "my repo and my machine have drifted and the machine is the right one", "should_trigger": true },
+  { "query": "don't lose this permission I just added, save it to the repo", "should_trigger": true },
+  { "query": "I keep having to re-add this setting on every new laptop", "should_trigger": true },
+  { "query": "sync my ~/.codex/AGENTS.md changes back into the canonical rules", "should_trigger": true },
+  { "query": "take what I changed by hand and open a PR for it", "should_trigger": true },
+  { "query": "set up my machine from the repo", "should_trigger": false },
+  { "query": "run make setup and apply the config to this laptop", "should_trigger": false },
+  { "query": "add a permission to this project's .claude/settings.json", "should_trigger": false },
+  { "query": "why is my statusline not showing up", "should_trigger": false },
+  { "query": "commit my working tree and open a PR", "should_trigger": false },
+  { "query": "scan this repo for employer IP before I publish it", "should_trigger": false },
+  { "query": "write a new skill for reviewing changelogs", "should_trigger": false },
+  { "query": "what does defaultMode bypassPermissions do", "should_trigger": false },
+  { "query": "back up my dotfiles to iCloud", "should_trigger": false },
+  { "query": "diff my two machines' claude settings", "should_trigger": false }
+]

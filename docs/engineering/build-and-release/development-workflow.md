@@ -2,8 +2,10 @@
 
 **This is contributor setup, not user install.** If you only want to *use* the toolkit, stop
 here and follow the [install guide for your platform](../../user/install/README.md).
-`make install` bootstraps a Claude machine profile for maintainers — it is not how the
-plugin is installed, and ordinary users should never run it.
+`make install` does not install the plugin — it is now a thin shim over
+`scripts/setup.sh apply --yes --targets claude`, which renders this repo's canonical config
+onto *your machine*. Users who want that run [`make setup`](../../user/setup.md) knowingly;
+it is never a step in getting the plugin.
 
 ---
 

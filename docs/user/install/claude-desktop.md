@@ -58,6 +58,27 @@ because there is only one install.
 
 ---
 
+## Machine-level setup
+
+`scripts/setup.sh` has five targets — `claude`, `cursor`, `codex`, `gemini`, `opencode` —
+and **Claude Desktop is not one of them.** The `claude` target writes the CLI's config
+directory, `~/.claude`, which is where its `settings.json`, `CLAUDE.md`, and `agents/` live:
+
+```bash
+bash scripts/setup.sh plan --targets claude     # writes nothing
+```
+
+Whether Desktop reads any of that is not something this repo has measured, so it is not
+claimed here — the same rule the capability table below follows. What is certain is that the
+plugin install covers Desktop, because it is the same plugin and the same manifest. If you
+also use Claude Code on this machine, run the `claude` target for it and read
+[setup](../setup.md) first.
+
+`plan` writes nothing and is the default when there is no terminal, so a hook or CI run can
+never adopt anything silently. `apply` shows a diff and asks per change, defaulting to
+**No**. Re-running is a no-op — idempotence is a content comparison. Full reference:
+[setup](../setup.md) · [platform setup](../platform-setup.md).
+
 ## Capabilities and limitations
 
 Desktop is the surface with the most honest gaps in the registry. Several capabilities are

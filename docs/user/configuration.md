@@ -3,6 +3,16 @@
 Everything here is optional. The toolkit works with no configuration at all — the settings
 below turn on features that need credentials, or adapt behavior to your project.
 
+There are two layers, and confusing them is the usual source of surprise:
+
+| Layer | Lives in | Written by |
+|---|---|---|
+| **Project config** — MCP stubs, hooks, skill discovery, worktree behavior | this repo / your repo | you, in the files below |
+| **Machine config** — global rules, permissions policy, agents, statusline | `~/.claude`, `~/.codex`, `~/.cursor`, `~/.gemini`, `~/.config/opencode` | `scripts/setup.sh`, rendered from canonical repo data |
+
+This page covers the first layer, then explains how the second one is generated. Operating
+instructions for the second: [setup](setup.md) and [platform setup](platform-setup.md).
+
 ---
 
 ## MCP servers
@@ -90,6 +100,78 @@ or from `~/.claude/pushover.env`. The hook is inert until configured. Details:
 Claude Code only, and cosmetic — nothing depends on it. It is wired automatically through
 the plugin manifest's `settings.statusLine`. If it does not appear, see
 [troubleshooting](troubleshooting.md#the-statusline-does-not-appear).
+
+## Machine config: how `platforms/claude/settings.d/` works
+
+`~/.claude/settings.json` is **rendered**, not hand-maintained. Its source is seven JSON
+fragments in [`platforms/claude/settings.d/`](../../platforms/claude/settings.d/), each a
+partial `settings.json` object holding only the keys it owns:
+
+| Fragment | Owns |
+|---|---|
+| `defaults.json` | `$schema`, `model`, `effortLevel`, `theme`, `tui`, `permissions.defaultMode`, the UX booleans |
+| `permissions-allow.json` | the whole `permissions.allow` policy |
+| `permissions-ask.json` | the whole `permissions.ask` policy |
+| `auto-mode.json` | `autoMode.soft_deny` |
+| `misc.json` | `skillOverrides`, `disableClaudeAiConnectors`, `disabledMcpjsonServers`, `env` |
+| `plugins.json` | `enabledPlugins` — recorded per key, `false` included |
+| `marketplaces.json` | `extraKnownMarketplaces` |
+
+The engine strips `_`-prefixed keys, deep-merges the fragments in filename order into one
+object, then deep-merges that over your existing `~/.claude/settings.json`. Splitting
+`permissions` across three files only works because the merge is deep; a shallow merge would
+drop two of the three.
+
+**Change the fragment, not the machine file.** Hand-editing `~/.claude/settings.json` is not
+the workflow — the next `apply` merges the fragments over it, and your edit is either
+overwritten or silently diverges. If you have already hand-edited something and want to keep
+it, [capture](capture.md) is the reviewed path back into the repo.
+
+### `_`-prefixed keys are documentation, and stop at the boundary
+
+JSON has no comments, so each fragment explains itself in top-level keys beginning with `_`
+— `_comment` for the rationale, `_tally` for counts that would otherwise have to be trusted.
+They exist so the next person to read the fragment knows *why* an entry is there.
+
+Every `_`-prefixed key is **stripped at the merge boundary**. Nothing beginning with `_`
+ever reaches your `~/.claude/settings.json`, any other platform's config file, or a captured
+hunk on the way back into the repo. That is what makes it safe for a fragment to explain
+itself at length, and to name the third-party tool whose wiring a fragment deliberately
+leaves alone, without that prose becoming part of your configuration.
+
+The same convention applies to the per-platform fragments in `platforms/<target>/templates/`.
+
+### Objects merge; arrays and scalars are asserted
+
+Two different rules, and the difference is deliberate:
+
+- **Objects recurse, key by key.** This is what keeps configuration you did not write alive.
+  `hooks`, `enabledPlugins`, `extraKnownMarketplaces` and `mcpServers` are all object-shaped,
+  so entries another tool wrote survive an `apply` untouched. (Before this, `install.sh`
+  rewrote `~/.claude/settings.json` wholesale and destroyed every key it did not know about.)
+- **Arrays are replaced wholesale, never appended to.** `permissions.allow` in the fragment
+  is the *whole* intended allow policy, not an addition to whatever is on disk.
+
+Union is the tempting choice for arrays and it is the wrong one, for a reason worth stating
+plainly: **union would make a permission impossible to retract.** Delete an entry judged too
+broad from `permissions.allow` in the repo, and under union it would remain live forever, on
+every machine that had ever applied it, invisible to everyone. Asserting also keeps each
+fragment an honest description of its own result — read the file and you know what the
+merged output contains — which is the property that makes the directory reviewable at all.
+
+Your own incremental additions are not at risk, because they have a home upstream of this
+installer: **`~/.claude/settings.local.json`**, which setup never reads or writes and which
+Claude Code merges on top of `settings.json`. An interactive "always allow" grant lands
+there already.
+
+### The other four platforms
+
+Same engine, different formats: one canonical [`core/global-rules.md`](../../core/global-rules.md)
+rendered into `~/.codex/AGENTS.md`, `~/.gemini/GEMINI.md`, `~/.cursor/rules/tamirs-superpowers.mdc`
+and `~/.config/opencode/AGENTS.md`, each inside `>>> tamirs-superpowers >>>` markers so
+everything outside them stays yours, plus a small asserted fragment in each platform's config
+file. What each one writes — and what it deliberately does not, Codex hook entries and
+`permissions.deny` above all — is in [platform setup](platform-setup.md).
 
 ## Checking your configuration
 

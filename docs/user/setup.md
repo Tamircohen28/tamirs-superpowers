@@ -149,13 +149,17 @@ a CI job.
 
 ## What it writes today
 
-Only the `claude` target has implemented modules. The rest are declared in the
-registry and report themselves honestly:
+All five targets have implemented modules. A target that is not installed on
+this machine is detected and skipped, rather than failing:
 
 ```
-  Cursor
-    -   skip   ~/.cursor   no modules implemented yet (Phase 3)
+  ok  Claude Code    ~/.local/bin/claude
+  --  Codex CLI      not installed
 ```
+
+A target whose registry entry declares no modules yet would report
+`no modules implemented yet` — that path still exists for a platform added in
+future, but no shipped target uses it today.
 
 ### Claude Code modules
 

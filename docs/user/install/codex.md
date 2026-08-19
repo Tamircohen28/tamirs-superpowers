@@ -60,6 +60,36 @@ longer want them.
 
 ---
 
+## Machine-level setup
+
+Installing the plugin makes *this repository* usable from Codex. Carrying your global rules
+into `~/.codex` is a separate, optional step:
+
+```bash
+bash scripts/setup.sh plan  --targets codex     # writes nothing
+bash scripts/setup.sh apply --targets codex
+bash scripts/setup.sh remove --targets codex
+```
+
+| Module | Writes | What it does |
+|---|---|---|
+| `agents-md` | `~/.codex/AGENTS.md` | Renders `core/global-rules.md` inside `>>> tamirs-superpowers >>>` markers; everything outside them is yours |
+| `config` | `~/.codex/config.toml` | Appends a **comments-only** marker block |
+
+Codex loads `~/.codex/AGENTS.md` on its own, so no config key is needed to enable the rules.
+Two reasons the block is comments only: under TOML v1.0.0 a bare `key = value` appended at
+the end of a file binds to the last `[table]` header rather than the document root, and —
+the important one — **the Codex renderer never reads or writes hook entries.**
+`config.toml` stores a per-hook `trusted_hash` under `[hooks.state."..."]` that Codex
+invalidates whenever a hook's content or path changes; rewriting, reordering, or even
+reindenting that table would silently break wiring this installer does not own. Your model,
+approval policy, and sandbox settings stay yours.
+
+`plan` writes nothing and is the default when there is no terminal, so a hook or CI run can
+never adopt anything silently. `apply` shows a diff and asks per change, defaulting to
+**No**. Re-running is a no-op — idempotence is a content comparison. Full reference:
+[setup](../setup.md) · [platform setup](../platform-setup.md).
+
 ## Capabilities and limitations
 
 | Capability | Status | Notes |

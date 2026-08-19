@@ -194,7 +194,7 @@ scan_and_record() {
   # JSON form is what gets staged. Decoding once here keeps the two in step.
   plain="$(printf '%s' "$mval" | jq -r 'if type=="string" then . else tojson end' 2>/dev/null || printf '%s' "$mval")"
 
-  cls="$(capture_classify "$tgt" "$key" "$plain")"
+  cls="$(capture_classify "$tgt" "$key" "$plain" "$kind")"
   reason="$(printf '%s' "$cls" | cut -f2)"
   cls="$(printf '%s' "$cls" | cut -f1)"
 
@@ -241,12 +241,10 @@ scan_module() {
   machine="${CAPTURE_WORK}/machine.$$"
   repo="${CAPTURE_WORK}/repo.$$"
   capture_normalize_machine "$path" | capture_meta_filter "$path" > "$machine"
-  "$render" "$nofile" > "$repo" 2>/dev/null || : > "$repo"
-  if [ "$(cat "$repo")" = "$SETUP_DELETE_SENTINEL" ]; then : > "$repo"; fi
+  repo_assertion "$tgt" "$path" > "$repo"
 
   case "$path" in
     *.json)
-      [ -s "$repo" ] || printf '{}\n' > "$repo"
       while IFS= read -r line; do
         [ -n "$line" ] || continue
         scan_and_record "$tgt" "$disp" "$mod" "$path" "$line"
@@ -266,6 +264,43 @@ CAPTURE_MD_EOF
   rm -f "$machine" "$repo"
 }
 
+# repo_assertion <target> <path> — what the repo asserts for one file, ALONE.
+#
+# Every module that writes this path is rendered, in setup.conf order, each on
+# top of the last, starting from a file that is not there. That accumulation is
+# the same one setup.sh performs against its shadow copy, and it is load-bearing
+# in this direction too: four Claude modules write ~/.claude/settings.json, so
+# rendering only the first would leave `statusLine` and `enabledPlugins` out of
+# the repo's assertion — and capture would then offer back to the repo the very
+# values setup.sh had just written to the machine.
+repo_assertion() {
+  local tgt="$1" path="$2" m mpath render acc next
+  acc="${CAPTURE_WORK}/assert.$$"
+  : > "$acc"
+  rm -f "${acc}.seed"
+  next="${CAPTURE_WORK}/assert-next.$$"
+  for m in $SETUP_MODULES; do
+    [ "$(capture_call "$(capture_fn "$tgt" "$m" kind)")" = file ] || continue
+    mpath="$(capture_call "$(capture_fn "$tgt" "$m" path)")"
+    [ "$mpath" = "$path" ] || continue
+    case "$(capture_call "$(capture_fn "$tgt" "$m" available)")" in no:*|no) continue ;; esac
+    render="$(capture_fn "$tgt" "$m" render)"
+    capture_callable "$render" || continue
+    if [ -s "$acc" ]; then
+      "$render" "$acc" > "$next" 2>/dev/null || cp "$acc" "$next"
+    else
+      "$render" "${CAPTURE_WORK}/absent-by-design" > "$next" 2>/dev/null || : > "$next"
+    fi
+    [ "$(cat "$next")" = "$SETUP_DELETE_SENTINEL" ] && : > "$next"
+    mv "$next" "$acc"
+  done
+  case "$path" in
+    *.json) [ -s "$acc" ] || printf '{}\n' > "$acc" ;;
+  esac
+  cat "$acc"
+  rm -f "$acc" "$next"
+}
+
 # capture_meta_filter <path> — drop `_`-prefixed keys from the machine side
 # before anything else looks at it. This repo's fragments carry `_comment` and
 # `_tally` for the next reader; setup.sh strips them on the way OUT, and this is
@@ -279,11 +314,16 @@ capture_meta_filter() {
 }
 
 build_change_set() {
-  local t mod
+  local t mod path seen
   for t in $CAPTURE_ALL_TARGETS; do
     if [ -n "$REQUESTED" ] && ! target_requested "$t"; then continue; fi
     capture_load_target "$t" || continue
     capture_setup_load "$t" || continue
+    # ONE SCAN PER FILE, not per module. Four Claude modules manage the single
+    # ~/.claude/settings.json; scanning once per module reported every hand-edit
+    # four times over. Which module read the file does not change what is in it,
+    # and the sink is decided by key path (see platforms/claude/capture.conf).
+    seen=""
     for mod in $CAPTURE_MODULES; do
       module_selected "$mod" || continue
       case " $SETUP_MODULES " in
@@ -291,6 +331,9 @@ build_change_set() {
         *) setup_warn "$t/capture.conf names module '$mod', which setup.conf does not — skipping"; continue ;;
       esac
       [ "$(capture_call "$(capture_fn "$t" "$mod" kind)")" = file ] || continue
+      path="$(capture_call "$(capture_fn "$t" "$mod" path)")"
+      case " $seen " in *" $path "*) continue ;; esac
+      seen="$seen $path"
       scan_module "$CAPTURE_NAME" "$CAPTURE_DISPLAY" "$mod"
     done
   done
@@ -455,13 +498,13 @@ ask_hunk() {
   adopt_requested "$(field "$d" id)" && return 0
   [ -n "$OPT_ADOPT" ] && return 1
   while :; do
-    ans="$(setup_lower "$(setup_ask 'Adopt into the repo? [y/N/a/q/s] ' n)")"
-    case "$ans" in
-      y|yes) return 0 ;;
-      a|all) ADOPT_ALL=1; return 0 ;;
-      q|quit) return 2 ;;
-      s|show) show_context "$d" ;;
-      *) return 1 ;;
+    ans="$(setup_ask 'Adopt into the repo? [y/N/a/q/s] ' n)"
+    case "$(capture_decide "$ans")" in
+      adopt)     return 0 ;;
+      adopt-all) ADOPT_ALL=1; return 0 ;;
+      quit)      return 2 ;;
+      show)      show_context "$d" ;;   # re-asks: seeing more is not a decision
+      *)         return 1 ;;
     esac
   done
 }
@@ -541,52 +584,94 @@ capture_slug() {
   printf '%s' "${s:-config}" | cut -c1-40
 }
 
-# pr_body <file> — written from the change set, not from a template. It names
-# what was captured, the machine file it came from, where it now renders, and
-# what was skipped AND WHY. The "why" is the half that makes the PR reviewable:
-# a reviewer has to be able to see that the machine paths and the credential
-# were refused on purpose rather than missed.
+# THE ADOPTION STATE FILE — why `deliver` is not just a second `detect`
+#   `review` and `deliver` are separate processes, and by the time `deliver`
+#   runs, the machine differences it would re-detect are gone: the adopted ones
+#   are in the repo now, so a fresh scan reports them as "already asserted" and
+#   the PR body comes out empty, with every adopted hunk listed under "not
+#   captured". So `review` records what it decided. It writes into `.git/`,
+#   which is never committed and is scoped to this checkout.
+capture_state_file() { printf '%s/.git/capture-state.json' "$SETUP_REPO_ROOT"; }
+
+write_state() {
+  local d id f
+  f="$(capture_state_file)"
+  [ -d "${SETUP_REPO_ROOT}/.git" ] || return 0
+  {
+    printf '{"generated":"%s","adopted":[' "$(setup_utc)"
+    first=1
+    for d in "$CAPTURE_WORK"/hunks/*; do
+      [ -d "$d" ] || continue
+      id="$(field "$d" id)"
+      case " $ADOPTED_IDS " in *" $id "*) : ;; *) continue ;; esac
+      [ "$first" -eq 1 ] || printf ','
+      first=0
+      jq -nc --arg id "$id" --arg k "$(field "$d" keypath)" --arg f "$(field "$d" file)" \
+             --arg disp "$(field "$d" display)" --arg p "$(field "$d" target)" \
+             --arg c "$(field "$d" class)" --arg s "$(field "$d" sink)" \
+        '{id:$id,key:$k,file:$f,display:$disp,platform:$p,classification:$c,sink:$s}' | tr -d '\n'
+    done
+    printf '],"skipped":['
+    first=1
+    for d in "$CAPTURE_WORK"/hunks/*; do
+      [ -d "$d" ] || continue
+      id="$(field "$d" id)"
+      case " $ADOPTED_IDS " in *" $id "*) continue ;; esac
+      [ "$first" -eq 1 ] || printf ','
+      first=0
+      # The value is NOT recorded for a secret. A state file on disk that holds
+      # the credential would undo the refusal it is recording.
+      jq -nc --arg k "$(field "$d" keypath)" --arg c "$(field "$d" class)" \
+             --arg r "$(field "$d" reason)" --arg b "$(field "$d" blocked)" \
+        '{key:$k,classification:$c,reason:$r,blocked:(if $b=="" then null else $b end)}' | tr -d '\n'
+    done
+    printf '],"sinks":['
+    first=1
+    for s in $TOUCHED_SINKS; do
+      [ "$first" -eq 1 ] || printf ','
+      first=0
+      printf '"%s"' "$s"
+    done
+    printf ']}\n'
+  } > "$f"
+}
+
+# pr_body <file> — written from the adoption state, not from a template. It
+# names what was captured, the machine file it came from, where it now renders,
+# and what was skipped AND WHY. The "why" is the half that makes the PR
+# reviewable: a reviewer has to be able to see that the machine paths and the
+# credential were refused on purpose rather than missed.
 pr_body() {
-  local outf="$1" d id
+  local outf="$1" st
+  st="$(capture_state_file)"
   {
     printf '## Captured from a machine\n\n'
     printf 'Generated by `scripts/capture-config.sh review`. Nothing here was adopted\n'
     printf 'without an explicit answer at the prompt.\n\n'
     printf '| key | from | classification | lands in |\n|---|---|---|---|\n'
-    for d in "$CAPTURE_WORK"/hunks/*; do
-      [ -d "$d" ] || continue
-      id="$(field "$d" id)"
-      case " $ADOPTED_IDS " in *" $id "*) : ;; *) continue ;; esac
-      printf '| `%s` | %s (%s) | %s | `%s` |\n' \
-        "$(field "$d" keypath)" "$(setup_tilde "$(field "$d" file)")" \
-        "$(field "$d" display)" "$(field "$d" class)" "$(field "$d" sink)"
-    done
+    jq -r '.adopted[] | "| `\(.key)` | \(.file) (\(.display)) | \(.classification) | `\(.sink)` |"' "$st" \
+      | sed "s|${HOME}|~|g"
     printf '\n### Renders to\n\n'
     printf 'Adopted values were written to the canonical source only. `scripts/setup.sh apply`\n'
     printf 'renders them onto every detected platform from there:\n\n'
-    for d in $TOUCHED_SINKS; do
+    jq -r '.sinks[]' "$st" | while IFS= read -r d; do
       case "$d" in
         core/global-rules.md)
-          printf -- '- `core/global-rules.md` -> Claude Code `CLAUDE.md`, Codex `AGENTS.md`, Gemini `GEMINI.md`, Cursor `.mdc`, OpenCode `AGENTS.md`\n' ;;
+          printf -- '- `core/global-rules.md` -> Codex `AGENTS.md`, Gemini `GEMINI.md`, Cursor `.mdc`, OpenCode `AGENTS.md`\n' ;;
         platforms/claude/*)
           printf -- '- `%s` -> Claude Code `settings.json`. No other platform expresses per-tool permission policy; `core/capabilities/platforms.json` records no mechanism for it.\n' "$d" ;;
         *) printf -- '- `%s` -> the platform it names\n' "$d" ;;
       esac
     done
     printf '\n### Deliberately not captured\n\n'
-    for d in "$CAPTURE_WORK"/hunks/*; do
-      [ -d "$d" ] || continue
-      id="$(field "$d" id)"
-      case " $ADOPTED_IDS " in *" $id "*) continue ;; esac
-      if [ "$(field "$d" class)" = secret ]; then
-        printf -- '- `%s` — **refused**: %s. The value is not in this PR and was never printed.\n' \
-          "$(field "$d" keypath)" "$(field "$d" reason)"
-      elif [ -n "$(field "$d" blocked)" ]; then
-        printf -- '- `%s` — blocked: %s\n' "$(field "$d" keypath)" "$(field "$d" blocked)"
+    jq -r '.skipped[] |
+      if .classification == "secret" then
+        "- `\(.key)` — **refused**: \(.reason). The value is not in this PR and was never printed."
+      elif .blocked != null then
+        "- `\(.key)` — blocked: \(.blocked)"
       else
-        printf -- '- `%s` — %s: %s\n' "$(field "$d" keypath)" "$(field "$d" class)" "$(field "$d" reason)"
-      fi
-    done
+        "- `\(.key)` — \(.classification): \(.reason)"
+      end' "$st"
     printf '\n---\nOpened by `capture-config`. Drive it with `/pr-dev`. It does not merge itself.\n'
   } > "$outf"
 }
@@ -598,6 +683,11 @@ deliver() {
   if [ -z "$changed" ]; then
     out "Nothing staged to deliver. Run 'review' and adopt at least one hunk first."
     return 0
+  fi
+  if [ ! -f "$(capture_state_file)" ]; then
+    setup_err "no adoption record at $(setup_tilde "$(capture_state_file)")."
+    printf 'Run `bash scripts/capture-config.sh review` first — the PR body is written\nfrom what that run decided, not from a re-scan.\n' >&2
+    return 1
   fi
 
   # BLOCKING GATE. A capture PR that does not validate is worse than no PR: it
@@ -620,8 +710,11 @@ deliver() {
   # a capture PR is actually reviewed on.
   for dir in $(printf '%s\n' "$changed" | sed -n 's|^\(platforms/[^/]*\)/.*|\1|p; s|^\(core\)/.*|\1|p' | sort -u); do
     platform="$(basename "$dir")"
-    [ "$platform" = core ] && platform="canonical rules"
-    msg="feat(capture): adopt hand-edited ${platform} config"
+    if [ "$platform" = core ]; then
+      msg="feat(capture): adopt hand-edited rules into the canonical source"
+    else
+      msg="feat(capture): adopt hand-edited ${platform} config"
+    fi
     git add -- "$dir"
     git -c commit.gpgsign=false commit -q -m "$msg" || true
   done
@@ -687,6 +780,7 @@ main() {
     exit 0
   fi
 
+  write_state
   report_propagation
 
   out ""
