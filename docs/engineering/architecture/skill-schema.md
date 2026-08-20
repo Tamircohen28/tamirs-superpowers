@@ -105,7 +105,7 @@ capability-based degradation checkable rather than aspirational.
 The runtime meaning is precise (see
 [`capability-model.md` → How a skill declares capabilities](capability-model.md#how-a-skill-declares-capabilities)):
 
-- **`required`** — on a platform where the capability is `unsupported` **or
+- **`required`** — on a surface where the capability is `unsupported` **or
   `unknown`**, the skill declares itself unavailable by name. Unknown is treated
   as absent: an unverified capability is not a capability.
 - **`optional`** — the skill must have a working path when it is absent. If it
@@ -123,8 +123,8 @@ The capability registry uses a seven-value status vocabulary
 `unsupported`, `unknown`). A skill's `compatibility:` block uses five. That is
 deliberate, not drift — the two describe **different kinds of claim**:
 
-- A registry status is a **mechanism** claim about a platform: *how* it provides
-  a capability. Whether OpenCode's subagents are native or a generated adapter
+- A registry status is a **mechanism** claim about a surface — the CLI, desktop
+  app or IDE extension a user installs into: *how* it provides a capability. Whether OpenCode's subagents are native or a generated adapter
   is a real and useful distinction **for the registry**.
 - `compatibility:` is a **works / doesn't work** claim about a **skill**. A skill
   author neither knows nor should assert the mechanism — from the skill's point
@@ -144,15 +144,21 @@ directions, so neither enum can grow a value with no counterpart.
 
 **`unknown` is the one value that means the same thing at both levels**, because
 it is epistemic rather than mechanistic: nobody has measured it. It resolves to
-*unavailable* at runtime, exactly as in the registry — an unverified platform is
-not a supported platform.
+*unavailable* at runtime, exactly as in the registry — an unverified capability
+is not an available capability.
+
+Do not confuse that with a surface whose `support` is `"unverified"`. An
+`unknown` capability row is a gap inside a measured surface; an unverified
+*surface* was never measured at all and carries no rows to derive from, so no
+skill has a compatibility answer there. See
+[capability-model.md](capability-model.md#support-and-why-an-unverified-surface-is-empty).
 
 > **Canonical definitions live in
 > [`capability-model.md`](capability-model.md).** That document owns the seven
 > [registry statuses](capability-model.md#status-values), the
 > [`required` / `optional` contract](capability-model.md#how-a-skill-declares-capabilities),
 > and the [derivation](capability-model.md#derivation) of a skill's compatibility
-> from its `capabilities.required` against a platform's capability rows. This
+> from its `capabilities.required` against a surface's capability rows. This
 > page deliberately **links rather than restates** them: a mirrored table is a
 > second source of truth, and the one thing guaranteed about two copies of a
 > table is that they diverge.
@@ -166,8 +172,9 @@ not a supported platform.
 
 The five values are not only hand-written. A skill that declares
 `metadata.tamirs.capabilities.required` has already said enough to *compute* its
-compatibility per platform: take each required capability, look up its status in
-the platform's registry row, and reduce to the worst outcome.
+compatibility per platform: resolve the platform to a surface (a platform-level
+answer means its `primary_surface`), take each required capability, look up its
+status on that surface, and reduce to the worst outcome.
 
 The table and the worst-wins precedence that resolves ties are maintained in
 [`capability-model.md` → "Derivation"](capability-model.md#derivation) — that
@@ -197,17 +204,23 @@ cannot back.
 | Where | Casing | Example |
 |-------|--------|---------|
 | Capability ids (`metadata.tamirs.capabilities`) | snake_case | `github_cli`, `worktree_isolation` |
-| Platform keys inside the capability registry | snake_case | `claude_code`, `gemini_cli` |
+| Platform keys inside the capability registry | snake_case | `claude`, `gemini` |
+| Surface keys inside the capability registry | snake_case | `claude_code`, `gemini_cli` |
 | Platform keys in a skill's `compatibility:` block | kebab-case | `claude-code`, `gemini` |
 
 The `compatibility` keys are frontmatter, and follow frontmatter convention; the
-registry keys match `docs/engineering/build-and-release/platform-targets.json`.
+registry's **surface** keys match
+`docs/engineering/build-and-release/platform-targets.json`, which is keyed by
+surface id.
 The validator enforces each set in its own place, so a kebab-case id in
 `capabilities` fails with "unknown capability id".
 
-## Per-platform field support
+## Per-surface field support
 
-| Field | Claude Code | Claude Desktop | Codex | Cursor | Gemini CLI | OpenCode |
+One column per supported surface — which field a harness reads is a property of
+the harness you installed into, not of the vendor.
+
+| Field | Claude Code | Claude Desktop | Codex CLI | Cursor IDE | Gemini CLI | OpenCode CLI |
 |-------|:---:|:---:|:---:|:---:|:---:|:---:|
 | `name` | read | read | read | read | read | read |
 | `description` | read | read | read | read | read | read |
@@ -331,14 +344,16 @@ A role in the enum with no `core/roles/` file is rejected and reported the other
 way. Drift is visible, never silent, and never blocks the role owner's work.
 
 **Platforms are curated on purpose.** The `compatibility` platform list is not
-derived from the capability registry's platform ids or their aliases. The
-registry is snake_case (`claude_code`, `gemini_cli`) and the kebab mapping is
-not a pure transform — `gemini_cli` maps to `gemini`, not `gemini-cli` — so it
-cannot be computed. Deriving from the alias sets would accept several spellings
-for one platform and let two skills spell the same target differently, which is
-worse than a six-entry curated list. `scripts/check-capability-registry.sh`
-asserts that every value here resolves to a registry entry, so a divergence
-fails loudly rather than drifting.
+derived from the capability registry's ids or their aliases, and the reshape
+into platforms-with-surfaces did not make it derivable. The list mixes the two
+levels: `claude-code` and `claude-desktop` are surfaces, while `gemini` is the
+*platform* whose supported surface is `gemini_cli`. No transform produces that
+from either level alone, and deriving from the alias sets would accept several
+spellings for one target and let two skills spell the same thing differently,
+which is worse than a six-entry curated list.
+`scripts/check-capability-registry.sh` asserts that every value here resolves
+through the shared id-and-alias namespace — which spans platform ids, surface
+ids and the aliases of both — so a divergence fails loudly rather than drifting.
 
 ## Migrating an existing skill
 

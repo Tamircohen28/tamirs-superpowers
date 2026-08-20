@@ -51,6 +51,49 @@ TARGETS_MD="$ROOT/docs/engineering/build-and-release/platform-targets.md"
 REGISTRY="$ROOT/core/capabilities/platforms.json"
 README="$ROOT/README.md"
 
+# --- registry shape -----------------------------------------------------------------
+# core/capabilities/platforms.json is rooted at the PLATFORM (Claude, Codex, Cursor,
+# Gemini, OpenCode) and lists that platform's runtime SURFACES underneath: the terminal
+# client, the desktop app, the editor extension. Every check below asks a per-surface
+# question — "can the thing I am installed into do X?" — and every validation command
+# runs against a surface, never against a vendor. So flatten to one entry per SUPPORTED
+# surface, keyed by surface id, which is the shape the rest of this script expects and
+# the shape docs/engineering/build-and-release/platform-targets.json is keyed by.
+#
+# Unverified surfaces are dropped here on purpose: they carry no capabilities block at
+# all, because nobody measured them. Keeping them would force every reader to invent a
+# meaning for a missing block, and the obvious invention — absent means no — is exactly
+# the silent gap the registry exists to prevent. Docs list them; checkers do not.
+#
+# schema_version 1 registries are flat already, and a scaffolded repo may still be on
+# one, so the flatten is conditional rather than assumed.
+registry_flatten() {
+  jq '{
+    schema_version: .schema_version,
+    last_reviewed: .last_reviewed,
+    capability_definitions: .capability_definitions,
+    platforms: (
+      .platforms | to_entries
+      | map(
+          .key as $pid | .value as $p
+          | ($p.surfaces // {}) | to_entries
+          | map(select(.value.support == "supported"))
+          | map({ key: .key,
+                  value: (.value + { platform: $pid,
+                                     platform_display_name: $p.display_name }) })
+        )
+      | flatten | from_entries
+    )
+  }' "$1" >"$2"
+}
+
+if [[ -f "$REGISTRY" ]] && jq -e '(.schema_version // 1) >= 2' "$REGISTRY" >/dev/null 2>&1; then
+  REGISTRY_FLAT="$(mktemp)"
+  trap 'rm -f "$REGISTRY_FLAT"' EXIT
+  registry_flatten "$REGISTRY" "$REGISTRY_FLAT"
+  REGISTRY="$REGISTRY_FLAT"
+fi
+
 err() { echo "ERROR: $*" >&2; FAILED=$(( FAILED + 1 )); }
 warn() { echo "WARN: $*" >&2; }
 
@@ -324,6 +367,29 @@ for key in $TARGET_KEYS; do
     fi
   fi
 done
+
+# Each target here is one SURFACE of a platform. `platform` names which one, so this file
+# can be read without the registry open beside it — and because a name that is merely
+# implied by an id is a name that drifts. The registry owns the answer; this asserts the
+# copy still matches it. Only checked when the registry is platform-rooted (schema 2+),
+# so a repo still on a flat schema_version 1 registry passes unchanged.
+if [[ -f "$REGISTRY" ]] && jq -e 'any(.platforms[]; has("platform"))' "$REGISTRY" >/dev/null 2>&1; then
+  before_owner=$FAILED
+  # shellcheck disable=SC2086
+  for key in $TARGET_KEYS; do
+    want=$(jq -r --arg k "$key" '.platforms[$k].platform // empty' "$REGISTRY")
+    have=$(jq -r --arg k "$key" '.targets[$k].platform // empty' "$TARGETS_JSON")
+    [[ -n "$want" ]] || continue
+    if [[ -z "$have" ]]; then
+      err "targets.$key declares no 'platform' — the registry says this surface belongs to '$want'"
+    elif [[ "$have" != "$want" ]]; then
+      err "targets.$key.platform is '$have' but the registry files that surface under '$want'"
+    fi
+  done
+  if (( FAILED == before_owner )); then
+    echo "  every target names the platform the registry files it under"
+  fi
+fi
 
 last_reviewed=$(jq -r '.last_reviewed // empty' "$TARGETS_JSON")
 [[ -n "$last_reviewed" ]] || err "platform-targets.json missing last_reviewed"

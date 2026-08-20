@@ -13,12 +13,34 @@ claim work that never happened.
 ## Reading the registry
 
 Definitions live in [`core/capabilities/schema.json`](../../../../core/capabilities/schema.json);
-per-platform status lives in `core/capabilities/platforms.json`.
+status lives in `core/capabilities/platforms.json`.
+
+The registry is rooted at the **platform** — `claude`, `codex`, `cursor`, `gemini`,
+`opencode` — with that platform's runtime **surfaces** underneath, keyed by surface id.
+Capabilities hang off a surface, never off the platform, because that is the granularity
+you actually run in: Claude Code and Claude Desktop are one platform and two harnesses.
+
+The six **supported** surface ids are `claude_code`, `claude_desktop`, `codex`, `cursor`,
+`gemini_cli`, `opencode`.
 
 ```bash
-PLATFORM=claude_code   # the harness you are actually running in
-jq -r --arg p "$PLATFORM" '.platforms[$p].capabilities
-     | to_entries[] | "\(.key): \(.value.status)"' core/capabilities/platforms.json
+SURFACE=claude_code   # the harness you are actually running in
+jq -r --arg p "$SURFACE" '(first(.platforms[]?.surfaces[$p]? | select(. != null)) // .platforms[$p]?)
+     | .capabilities | to_entries[] | "\(.key): \(.value.status)"' core/capabilities/platforms.json
+```
+
+The `// .platforms[$p]?` tail is not decoration: it keeps the lookup working against an
+older, flat schema\_version 1 registry in a repo that has not been reshaped yet.
+
+Do not re-derive that walk in a script. `scripts/lib/registry.sh` flattens the whole
+registry to one entry per **supported** surface, keyed by surface id, and every checker in
+this repo reads that view:
+
+```bash
+. scripts/lib/registry.sh
+FLAT="$(registry_flat_tmp core/capabilities/platforms.json)"   # caller deletes it
+jq -r --arg p "$SURFACE" '.platforms[$p].capabilities
+     | to_entries[] | "\(.key): \(.value.status)"' "$FLAT"
 ```
 
 Status values and what they mean for you:
@@ -33,9 +55,16 @@ Status values and what they mean for you:
 | `unsupported` | Use the fallback, or say the feature is unavailable |
 | `unknown` | Treat as `unsupported` until someone verifies it |
 
-If `platforms.json` is missing, unparseable, or has no entry for your platform,
+If `platforms.json` is missing, unparseable, or has no entry for your surface,
 assume the conservative path for every capability and say the registry was
 unavailable.
+
+**Unverified surfaces carry no capabilities block at all.** A surface marked
+`support: "unverified"` — `codex_ide`, `cursor_cli`, `gemini_code_assist`,
+`opencode_desktop` — was never measured, so the registry states nothing about it in
+either direction and `registry_flat` omits it. If you are somehow running there, take the
+conservative path for every capability and say the surface is unverified. Never read the
+missing block as "unsupported", and never present an unverified surface as a target.
 
 ## Capabilities this workflow actually depends on
 

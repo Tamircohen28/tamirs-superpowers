@@ -4,10 +4,24 @@ Data consumed by the `platform-sync` engine (`references/analysis-protocol.md`).
 This file contains **no orchestration logic** — only the facts the engine needs.
 
 - **Display name:** Claude Code
-- **Registry id:** `claude_code` in `core/capabilities/platforms.json`; `claude-code` in `platform-targets.json` and in a skill's `compatibility` block
-- **Runtime surfaces:** `claude_desktop` (registry id; `claude-desktop` in frontmatter) consumes the same plugin artifact. Analyse once,
-  and note in the output that findings apply to both surfaces. Do **not** emit a second
-  Claude Desktop section.
+- **Platform:** `claude` (display name "Claude") in `core/capabilities/platforms.json`. The
+  registry is rooted at the platform; surfaces live under `.platforms.claude.surfaces`.
+- **Registry id (surface):** `claude_code`, under `.platforms.claude.surfaces.claude_code`;
+  `claude-code` in `platform-targets.json` and in a skill's `compatibility` block
+- **Sibling surface:** `claude_desktop` — display name "Claude Desktop", **supported**, with
+  its own measured capability rows. It carries `runtime_surface_of: claude_code` and consumes
+  the same plugin artifact, so analyse the artifact once and note in the output that findings
+  apply to both surfaces. Do **not** emit a second Claude Desktop section.
+
+Claude is the one platform in the registry with no unverified surface — both of its
+surfaces are supported.
+
+Look either surface up with:
+
+```bash
+jq --arg p claude_code '(first(.platforms[]?.surfaces[$p]? | select(. != null)) // .platforms[$p]?)' \
+   core/capabilities/platforms.json
+```
 
 ## Detection signals
 

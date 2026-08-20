@@ -2,7 +2,11 @@
 
 Claude Code is the reference target. Everything in the toolkit runs here as shipped.
 
-Registry id: `claude_code`. Same plugin is used by [Claude Desktop](claude-desktop.md).
+**Platform:** Claude. **Surface:** Claude Code, the CLI — registry id `claude_code`.
+Claude's other supported surface is [Claude Desktop](claude-desktop.md) (desktop app), which
+installs the same plugin from the same marketplace listing and has its own guide. What is
+measured below was measured on the CLI; see
+[platform differences](../platform-differences.md) for how the two surfaces compare.
 
 ---
 

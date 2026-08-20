@@ -1,5 +1,12 @@
 # Install on Gemini CLI
 
+**Platform:** Gemini. **Surface:** Gemini CLI — registry id `gemini_cli`. This guide covers
+the CLI and nothing else. Gemini's other surface, **Gemini Code Assist**, is **unverified**:
+it is a different host that does not install CLI extensions, so the generated `.gemini/`
+mirror described below has no established install path there and has never been exercised on
+it. It has no install guide and no capability claims in either direction — see
+[platform differences](../platform-differences.md#unverified-surfaces).
+
 | | |
 |---|---|
 | **Validated against** | Gemini CLI **0.55.1** |

@@ -2,8 +2,17 @@
 
 Data consumed by the `platform-sync` engine (`references/analysis-protocol.md`).
 
-- **Display name:** OpenCode
-- **Registry id:** `opencode` (same in the registry, in `platform-targets.json`, and in a skill's `compatibility` block)
+- **Display name:** OpenCode CLI
+- **Platform:** `opencode` (display name "OpenCode") in `core/capabilities/platforms.json`.
+  The registry is rooted at the platform; surfaces live under `.platforms.opencode.surfaces`.
+- **Registry id (surface):** `opencode`, under `.platforms.opencode.surfaces.opencode` — the
+  same string in `platform-targets.json` and in a skill's `compatibility` block. The platform
+  and its CLI surface happen to share the id; the capabilities are on the surface.
+- **Sibling surface:** `opencode_desktop` ("OpenCode desktop app") is **unverified** —
+  whether the desktop client reads the same `opencode.json` `skills.paths` this repo installs
+  into has not been checked, so the `skills` row under `opencode` is not carried over to it.
+  It carries no capabilities block and is **not a target**: never audit it, and never claim
+  it does or does not work.
 
 ## Detection signals
 
@@ -81,6 +90,13 @@ Latest: `version` from the npm `latest` endpoint.
 OpenCode has **no** plugin marketplace, **no** `hooks.json`, and **no** plugin-declared
 statusline. Never emit an improvement step that assumes one. These are documented capability
 gaps, not drift — report them under "Documented gaps", never under "Improvement steps".
-The authoritative list is the capability registry (`core/capabilities/platforms.json`),
+The authoritative list is the capability registry (`core/capabilities/platforms.json`), read
+at the surface:
+
+```bash
+jq -r --arg p opencode '(first(.platforms[]?.surfaces[$p]? | select(. != null)) // .platforms[$p]?)
+     | .capabilities | to_entries[] | select(.value.status == "unsupported") | .key' core/capabilities/platforms.json
+```
+
 falling back to `capability_gaps` under `targets.opencode` in
 `docs/engineering/build-and-release/platform-targets.json`.

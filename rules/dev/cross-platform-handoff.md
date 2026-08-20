@@ -5,7 +5,7 @@ globs: [".dev-files/objectives/**/*", ".agent-worktrees/**/*", ".claude/.worktre
 
 # Cross-Provider Handoff
 
-Hand long-running work between providers — **Claude Code**, **Cursor**, **Codex**, **Gemini CLI**, **OpenCode** — without losing task context.
+Hand long-running work between the surfaces this repo supports — **Claude Code**, **Claude Desktop**, **Codex CLI**, **Cursor IDE**, **Gemini CLI**, **OpenCode CLI** — without losing task context. Six supported surfaces across five platforms (Claude, Codex, Cursor, Gemini, OpenCode); the surface, not the vendor, is what a handoff names.
 
 The unit that survives a handoff is the **task**, not the session and not the platform. A task carries a role, a scope, a validation tier, and a handoff record. Which provider executed it is metadata.
 
@@ -56,7 +56,7 @@ Git holds the code state (see [`git-worktree-agent-workflow.md`](git-worktree-ag
    }
    ```
 
-   `provider` uses the snake_case registry id from [`core/capabilities/platforms.json`](../../core/capabilities/platforms.json) — `claude_code`, `claude_desktop`, `codex`, `cursor`, `gemini_cli`, `opencode`. `status` is `completed`, `blocked`, or `partial`. A `blocked` or `partial` handoff must say what is left in `followups` — an empty followups list on a partial handoff is a broken handoff.
+   `provider` uses the snake_case **surface** id from [`core/capabilities/platforms.json`](../../core/capabilities/platforms.json) — `claude_code`, `claude_desktop`, `codex`, `cursor`, `gemini_cli`, `opencode`. Those ids live under `.platforms.<platform>.surfaces`, not at the registry root: the registry is rooted at the platform and lists its surfaces underneath. `status` is `completed`, `blocked`, or `partial`. A `blocked` or `partial` handoff must say what is left in `followups` — an empty followups list on a partial handoff is a broken handoff.
 3. Update `tasks/task-NNN.json` `status`, and `objective.json` if the objective's shape changed.
 4. Optionally push the worker branch — required only if the next agent is on a different machine.
 
@@ -105,17 +105,29 @@ Routing labels (`agent:any`, and provider labels where a repo uses them) are a c
 
 ## Provider capability differences
 
-Never assume the next provider has subagents, hooks, background tasks, a statusline, or the same MCP behavior. Before relying on one, check [`core/capabilities/platforms.json`](../../core/capabilities/platforms.json) and degrade explicitly: use a stated fallback, or say the feature is unsupported here. Never silently pretend it worked.
+Never assume the next surface has subagents, hooks, background tasks, a statusline, or the same MCP behavior. Before relying on one, check [`core/capabilities/platforms.json`](../../core/capabilities/platforms.json) and degrade explicitly: use a stated fallback, or say the feature is unsupported here. Never silently pretend it worked.
 
-| Provider | Handoff note |
+Capabilities hang off a surface, so look the surface id up under its platform:
+
+```bash
+jq -r --arg p claude_code '(first(.platforms[]?.surfaces[$p]? | select(. != null)) // .platforms[$p]?)
+     | .capabilities | to_entries[] | "\(.key): \(.value.status)"' core/capabilities/platforms.json
+```
+
+[`scripts/lib/registry.sh`](../../scripts/lib/registry.sh) performs that walk once and returns a flat, one-entry-per-supported-surface view. Read it rather than re-deriving the path.
+
+| Surface | Handoff note |
 |----------|--------------|
 | Claude Code | Subagents available; `EnterWorktree` may have placed the worktree in a legacy path |
-| Cursor | Manual worktrees; `.mdc` rules load the canonical rules by reference |
-| Codex | Manual worktrees; reads `AGENTS.md` as its entrypoint into canonical rules |
+| Claude Desktop | Same plugin artifact as Claude Code; no terminal, so shell-driven steps do not carry over |
+| Codex CLI | Manual worktrees; reads `AGENTS.md` as its entrypoint into canonical rules |
+| Cursor IDE | Manual worktrees; `.mdc` rules load the canonical rules by reference |
 | Gemini CLI | Installed as an extension; manual worktrees |
-| OpenCode | Native skills; agent definitions generated from canonical `agents/`; no hooks or statusline |
+| OpenCode CLI | Native skills; agent definitions generated from canonical `agents/`; no hooks or statusline |
 
 `platforms.json` is the authority for every one of these claims — the table is orientation, not evidence.
+
+The registry also lists four **unverified** surfaces — `codex_ide`, `cursor_cli`, `gemini_code_assist`, `opencode_desktop`. They carry no capabilities block at all, because nobody measured them; the registry claims nothing about them in either direction. **Never hand a task off to an unverified surface**, and never record one in a handoff's `provider` field.
 
 ---
 

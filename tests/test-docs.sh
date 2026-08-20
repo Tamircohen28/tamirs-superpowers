@@ -29,6 +29,15 @@ STRICT=false
 [ "${1:-}" = "--strict" ] && STRICT=true
 
 REG="core/capabilities/platforms.json"
+
+# Docs are written per SURFACE — "Claude Code" and "Claude Desktop" are different install
+# guides — so flatten before asking which names must appear. Unverified surfaces are
+# checked separately below: they are omitted from the flat view on purpose.
+# shellcheck source=scripts/lib/registry.sh
+. "$REPO_ROOT/scripts/lib/registry.sh"
+REG_CANONICAL="$REG"
+REG="$(registry_flat_tmp "$REG")"
+trap 'rm -f "$REG"' EXIT
 TARGETS="docs/engineering/build-and-release/platform-targets.json"
 
 # ---------------------------------------------------------------------------

@@ -108,6 +108,13 @@ judge "every referenced .sh is executable" "" "$nonexec"
 section "declared capabilities exist in the registry"
 
 REG="$REPO_ROOT/core/capabilities/platforms.json"
+
+# Capability rows hang off SURFACES (claude_code, cursor, ...), one level below the
+# platform they belong to. Skills are compatible with a surface, not with a vendor.
+# shellcheck source=scripts/lib/registry.sh
+. "$REPO_ROOT/scripts/lib/registry.sh"
+REG="$(registry_flat_tmp "$REG")"
+trap 'rm -f "$REG"' EXIT
 judge "the capability registry is present and parses" 0 "$(jq empty "$REG" >/dev/null 2>&1; echo $?)"
 
 known="$(jq -r '.capability_definitions | keys[]' "$REG" | sort -u)"

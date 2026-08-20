@@ -5,6 +5,59 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [3.3.0] — 2026-08-20
+
+### Changed
+
+- **The capability registry is now rooted at the platform, with runtime surfaces beneath
+  it.** `core/capabilities/platforms.json` held six flat entries — `claude_code`,
+  `claude_desktop`, `codex`, `cursor`, `gemini_cli`, `opencode` — and that shape asserted
+  something it could not back: that Claude has two runtime surfaces worth distinguishing
+  and that Codex, Cursor and OpenCode have one each. All three ship a second surface
+  (Codex an IDE extension, Cursor a CLI, OpenCode a desktop client). The single row for
+  each was really its **CLI's** row, and nothing on the page said so. The registry now
+  keys on the platform (`claude`, `codex`, `cursor`, `gemini`, `opencode`), each carrying
+  a `surfaces` map: five platforms, ten surfaces, six of them supported. Every measured
+  capability block moved under the surface it was measured on, byte for byte — no status,
+  note, fallback or validation command changed value.
+- **Nothing gained or lost support.** The six supported surfaces are the same six targets
+  as before, with the same install guides, version pins and commands. `platform-targets.json`
+  is still keyed by surface id and its `supported_targets` list is unchanged.
+- **Consumers read a flattened per-surface view.** Validation runs against a surface, never
+  against a vendor, so `scripts/lib/registry.sh` flattens the registry back to
+  one-entry-per-surface and the checkers read that. The two contract scripts that ship into
+  scaffolded repos vendor the same filter inline, since those repos have no `scripts/lib/`.
+  Both forms still read a `schema_version: 1` registry unchanged, so a scaffolded repo that
+  has not been reshaped keeps passing.
+
+### Added
+
+- **`support: "unverified"` — a surface named, with nothing claimed about it.** The four
+  newly-named surfaces (Codex IDE extension, Cursor CLI, Gemini Code Assist, OpenCode
+  desktop app) carry an `unverified_reason` and **no capabilities block at all**, and the
+  schema now rejects one that carries capabilities or an install. Nineteen `unknown` rows
+  would read as nineteen statements someone checked and came up empty; no block says the
+  only true thing — nobody measured it. They are listed so "does this work in the Cursor
+  CLI?" gets an honest *not measured* rather than silence, and they are never targets: no
+  install guide, no badge, no capability row, never counted in "N supported targets".
+- **`platform` on each entry in `platform-targets.json`**, naming the platform the registry
+  files that surface under, asserted against the registry by `check-platform-targets.sh` so
+  the copy cannot drift.
+- **New registry invariants** in `check-capability-registry.sh`: every surface declares a
+  support level, unverified surfaces carry a reason and claim nothing, every platform's
+  `primary_surface` exists and is one this repo validates, and ids and aliases stay
+  collision-free across **both** levels. That last one immediately caught the alias
+  `cursor-cli` still resolving to the *IDE* surface — a CLI question answered with IDE
+  measurements.
+
+### Documentation
+
+- README, `AGENTS.md`, `CLAUDE.md` and `docs/user/install/README.md` present platforms
+  first and surfaces underneath, each surface with its own kind, support status and install
+  path. `docs/user/platform-differences.md` keys its capability matrix to the six supported
+  surfaces only and lists the four unverified ones in a section that claims nothing in
+  either direction. `capability-model.md` and `adding-a-platform.md` document the two-level
+  shape and distinguish adding a platform from adding a surface to an existing one.
 ## [3.2.0] — 2026-08-19
 
 ## [3.1.0] — 2026-08-19

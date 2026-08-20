@@ -263,7 +263,18 @@ if [[ "$pt_file" == true && -f "$ROOT/README.md" ]] && command -v jq >/dev/null 
     if [[ -n "$v" && -n "$l" && "$v" != "$l" ]]; then pt_stale=true; fi
   done
   if [[ "$cap_registry" == true ]]; then
-    reg_ids=$(jq -r '.platforms | to_entries[] | select(.value.runtime_surface_of == null) | .key' \
+    # platform-targets.json supported_targets is keyed by SURFACE (claude_code, cursor,
+    # ...), which the registry nests one level below its platform. Compare like with like:
+    # unwrap the surfaces, drop the ones nobody has verified (they are not shipped targets),
+    # and keep excluding runtime surfaces of another adapter. `{"": .value}` is the
+    # schema_version 1 shape, where the platform entry *was* the surface.
+    reg_ids=$(jq -r '
+      [ .platforms | to_entries[]
+        | .key as $p
+        | (.value.surfaces // {"": .value}) | to_entries[]
+        | select((.value.support // "supported") == "supported")
+        | select(.value.runtime_surface_of == null)
+        | (if .key == "" then $p else .key end) ] | .[]' \
       "$ROOT/core/capabilities/platforms.json" 2>/dev/null | sort | tr '\n' ' ')
     tgt_ids=$(jq -r '(.supported_targets // []) | .[]' "$PT_JSON" 2>/dev/null | sort | tr '\n' ' ')
     [[ "$reg_ids" == "$tgt_ids" ]] || cap_registry_agrees=false

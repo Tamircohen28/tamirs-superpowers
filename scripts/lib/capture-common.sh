@@ -504,8 +504,10 @@ capture_render_snapshot() {
 # platform has no way to express what was captured. Silence is not an option —
 # a setting that cannot cross to a platform must be SAID, not dropped.
 capture_propagation_report() {
-  local before="$1" after="$2" t mod f changed d cap reg
+  local before="$1" after="$2" t mod f changed d cap reg surf
   reg="${SETUP_REPO_ROOT}/core/capabilities/platforms.json"
+  # Surface-id lookup under the platform-rooted registry; see scripts/lib/registry.sh.
+  surf='(first(.platforms[]?.surfaces[$p]? | select(. != null)) // .platforms[$p]?)'
   for t in $CAPTURE_ALL_TARGETS; do
     capture_load_target "$t" >/dev/null 2>&1 || continue
     changed=no
@@ -524,7 +526,7 @@ capture_propagation_report() {
       if [ -n "$cap" ] && [ -f "$reg" ]; then
         printf '\n  %s — no rendered change. Registry: %s = %s\n' "$CAPTURE_DISPLAY" "$cap" \
           "$(jq -r --arg p "$CAPTURE_REGISTRY_KEY" --arg c "$cap" \
-               '.platforms[$p].capabilities[$c].status // "unknown"' "$reg" 2>/dev/null)"
+               "$surf.capabilities[\$c].status // \"unknown\"" "$reg" 2>/dev/null)"
       else
         printf '\n  %s — no rendered change: this platform has no equivalent for what was captured.\n' \
           "$CAPTURE_DISPLAY"

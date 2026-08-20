@@ -271,7 +271,11 @@ if [ -f "$REG" ]; then
   out=$(python3 - "$ROOT" "$REG" <<'PY'
 import sys, os, glob, yaml, json
 root, reg_path = sys.argv[1], sys.argv[2]
-reg = json.load(open(reg_path))["platforms"]
+raw = json.load(open(reg_path))["platforms"]
+# The registry is rooted at the platform and lists its runtime surfaces underneath;
+# adapter.yaml registry_key names a SURFACE, so read the flat per-surface view.
+reg = {sid: surf for p in raw.values() for sid, surf in (p.get("surfaces") or {"": p}).items()
+       if surf.get("support", "supported") == "supported"}
 alias = {"agents": "subagents"}
 problems = []
 for y in sorted(glob.glob(os.path.join(root, "platforms", "*", "adapter.yaml"))):

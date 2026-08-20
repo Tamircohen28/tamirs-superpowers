@@ -11,9 +11,13 @@
 #      python3 + jsonschema are installed. When they are not, the run degrades to a
 #      jq-based structural check and says so — a missing contributor dependency must
 #      never be reported as a registry failure.
-#   3. Structural invariants jq can prove without the schema library: every platform
-#      covers every declared capability key, every status is in the enum, native claims
-#      carry a validation command, and non-native statuses carry a fallback or a note.
+#   3. Structural invariants jq can prove without the schema library: every SUPPORTED
+#      surface covers every declared capability key, every status is in the enum, native
+#      claims carry a validation command, and non-native statuses carry a fallback or a
+#      note. These run against the flattened one-entry-per-surface view, because that is
+#      the granularity the claims are made at — a vendor does not have capabilities, its
+#      surfaces do. Unverified surfaces are checked separately: they must state why, and
+#      must claim nothing.
 #   4. Every target in docs/engineering/build-and-release/platform-targets.json
 #      supported_targets has a registry entry. A platform that ships without a
 #      capability row is a platform whose gaps are invisible.
@@ -40,9 +44,20 @@ for f in "$SCHEMA" "$REGISTRY"; do
 done
 echo "ok:    both registry files parse as JSON"
 
+# The registry is rooted at the platform (Claude, Codex, ...) with its runtime surfaces
+# underneath. Schema validation below runs against that canonical file; the structural
+# checks run per surface, so keep both addressable rather than reshaping in place.
+# shellcheck source=scripts/lib/registry.sh
+. "$ROOT/scripts/lib/registry.sh"
+REGISTRY_CANONICAL="$REGISTRY"
+if jq -e '(.schema_version // 1) >= 2' "$REGISTRY_CANONICAL" >/dev/null 2>&1; then
+  REGISTRY="$(registry_flat_tmp "$REGISTRY_CANONICAL")"
+  trap 'rm -f "$REGISTRY"' EXIT
+fi
+
 # --- 2. Schema validation (optional dependency) ---
 if command -v python3 >/dev/null 2>&1 && python3 -c 'import jsonschema' 2>/dev/null; then
-  if python3 - "$SCHEMA" "$REGISTRY" <<'PY'
+  if python3 - "$SCHEMA" "$REGISTRY_CANONICAL" <<'PY'
 import json, sys
 import jsonschema
 
@@ -108,11 +123,26 @@ fi
 # --- 3b. Alias namespace is unambiguous ---
 # Consumers normalize an incoming id by matching it against ids and aliases. If two
 # platforms claimed the same alias, that normalization would be non-deterministic.
-dupes="$(jq -r '.platforms | to_entries | map([.key] + (.value.aliases // [])) | flatten | .[]' "$REGISTRY" \
+# Platform ids, surface ids, and every alias of either share ONE namespace: a consumer
+# handed "cursor" or "claude" must land somewhere deterministic, and a surface id that
+# collided with a platform id would make that lookup order-dependent.
+# One exception, and only one: a platform may share its id with its OWN primary surface.
+# "cursor" as a platform and "cursor" as the surface a user installs into are the same
+# answer to the same question, and forcing them apart would rename the surface ids that
+# platform-targets.json, every skill's compatibility block, and the adapter directories
+# are keyed by — churn that buys nothing. Any other repeat is genuinely ambiguous.
+dupes="$(jq -r '.platforms | to_entries
+                | map(.key as $pid | .value.primary_surface as $primary
+                      | [ if ((.value.surfaces // {}) | has($pid)) and $pid == $primary
+                          then empty else $pid end ]
+                        + (.value.aliases // [])
+                        + ((.value.surfaces // {}) | to_entries
+                           | map([.key] + (.value.aliases // [])) | flatten))
+                | flatten | .[]' "$REGISTRY_CANONICAL" \
          | sort | uniq -d)"
 if [[ -n "$dupes" ]]; then
   while IFS= read -r d; do
-    err "id/alias '$d' is claimed by more than one platform — normalization would be ambiguous"
+    err "id/alias '$d' is claimed more than once across platforms and surfaces — normalization would be ambiguous"
   done <<<"$dupes"
 else
   echo "ok:    platform ids and aliases are collision-free"
@@ -126,7 +156,11 @@ fi
 FM_SCHEMA="$ROOT/core/schemas/skill-frontmatter.json"
 if [[ -f "$FM_SCHEMA" ]] && jq -e '.["$defs"].compatibility.propertyNames.enum' "$FM_SCHEMA" >/dev/null 2>&1; then
   before_fm=$FAILED
-  resolvable="$(jq -r '.platforms | to_entries | map([.key] + (.value.aliases // [])) | flatten | .[]' "$REGISTRY")"
+  resolvable="$(jq -r '.platforms | to_entries
+                       | map([.key] + (.value.aliases // [])
+                             + ((.value.surfaces // {}) | to_entries
+                                | map([.key] + (.value.aliases // [])) | flatten))
+                       | flatten | .[]' "$REGISTRY_CANONICAL")"
   while IFS= read -r fid; do
     grep -qxF "$fid" <<<"$resolvable" \
       || err "skill frontmatter allows platform id '$fid', which matches no registry id or alias"
@@ -231,10 +265,59 @@ fi
 while IFS= read -r script; do
   [[ -n "$script" ]] || continue
   [[ -f "$ROOT/$script" ]] || err "registry names '$script', which does not exist in this tree"
-done < <(grep -oE '(scripts|hooks|tests)/[A-Za-z0-9._/-]+\.sh' "$REGISTRY" | sort -u)
+done < <(grep -oE '(scripts|hooks|tests)/[A-Za-z0-9._/-]+\.sh' "$REGISTRY_CANONICAL" | sort -u)
 
 if (( FAILED == before_cmds )); then
   echo "ok:    every make target and script path the registry names exists"
+fi
+
+# --- 3f. Platform/surface invariants ---
+# The flat view above drops unverified surfaces by design, so nothing else in this script
+# ever looks at one. That is precisely why they need their own pass: an unverified surface
+# is a claim about what was NOT measured, and an unpoliced one drifts into either a silent
+# supported target or a fabricated capability block.
+before_surfaces=$FAILED
+surface_count=0
+while IFS=$'\t' read -r pid sid support; do
+  [[ -n "$sid" ]] || continue
+  surface_count=$(( surface_count + 1 ))
+  case "$support" in
+    supported)
+      [[ "$(jq -r --arg p "$pid" --arg s "$sid" '.platforms[$p].surfaces[$s].capabilities // empty | length' "$REGISTRY_CANONICAL")" != "" ]] \
+        || err "surface '$pid.$sid' is supported but declares no capabilities block"
+      ;;
+    unverified)
+      [[ "$(jq -r --arg p "$pid" --arg s "$sid" '.platforms[$p].surfaces[$s].unverified_reason // empty' "$REGISTRY_CANONICAL")" != "" ]] \
+        || err "surface '$pid.$sid' is unverified with no unverified_reason — say what was not measured, and why the sibling surface's results were not carried over"
+      [[ "$(jq -r --arg p "$pid" --arg s "$sid" '.platforms[$p].surfaces[$s].capabilities // empty' "$REGISTRY_CANONICAL")" == "" ]] \
+        || err "surface '$pid.$sid' is unverified but ships a capabilities block — those rows would be evidence nobody gathered"
+      ;;
+    *)
+      err "surface '$pid.$sid' has support '$support', which is not 'supported' or 'unverified'"
+      ;;
+  esac
+done < <(jq -r '.platforms | to_entries[] | .key as $p
+                | (.value.surfaces // {}) | to_entries[]
+                | "\($p)\t\(.key)\t\(.value.support // "")"' "$REGISTRY_CANONICAL")
+
+# A platform whose reference surface is missing or unverified has no install this repo
+# can point a user at, while still reading as a supported platform everywhere else.
+while IFS=$'\t' read -r pid primary; do
+  [[ -n "$pid" ]] || continue
+  if [[ -z "$primary" ]]; then
+    err "platform '$pid' declares no primary_surface"
+    continue
+  fi
+  st="$(jq -r --arg p "$pid" --arg s "$primary" '.platforms[$p].surfaces[$s].support // "absent"' "$REGISTRY_CANONICAL")"
+  case "$st" in
+    supported) ;;
+    absent)  err "platform '$pid' names primary_surface '$primary', which is not one of its surfaces" ;;
+    *)       err "platform '$pid' names primary_surface '$primary', which is '$st' — a platform's reference surface must be one this repo actually validates" ;;
+  esac
+done < <(jq -r '.platforms | to_entries[] | "\(.key)\t\(.value.primary_surface // "")"' "$REGISTRY_CANONICAL")
+
+if (( FAILED == before_surfaces )); then
+  echo "ok:    $(jq -r '.platforms | length' "$REGISTRY_CANONICAL") platforms, $surface_count surfaces, every support level explicit"
 fi
 
 # --- 4. Every shipped target has a registry entry ---

@@ -4,7 +4,7 @@ This file is loaded when the skill needs schema details. Always fetch fresh docs
 
 ## Doc URLs (fetch these fresh each run)
 
-| Platform | URL |
+| Platform / surface | URL |
 |---|---|
 | Claude Code — plugins overview | https://code.claude.com/docs/en/plugins |
 | Claude Code — plugins reference | https://code.claude.com/docs/en/plugins-reference |
@@ -21,22 +21,57 @@ This file is loaded when the skill needs schema details. Always fetch fresh docs
 
 ## Targets and where support is stated
 
-Six targets, one source of truth. `core/capabilities/platforms.json` — validated against
-`core/capabilities/schema.json` — records an explicit status for all 19 capability keys on
-every target. Read it before recommending anything; never restate a status in prose.
+One source of truth: `core/capabilities/platforms.json`, validated against
+`core/capabilities/schema.json`. Read it before recommending anything; never restate a
+status in prose.
 
-| Registry id | Display | Distribution artifact |
-|---|---|---|
-| `claude_code` | Claude Code | `.claude-plugin/plugin.json` + marketplace |
-| `claude_desktop` | Claude Desktop | **runtime surface of `claude_code`** — consumes the same plugin. Do not create a Desktop manifest. |
-| `codex` | Codex CLI | `.codex-plugin/plugin.json` + `AGENTS.md` |
-| `cursor` | Cursor | `.cursor-plugin/plugin.json` + `.cursor/rules/*.mdc` |
-| `gemini_cli` | Gemini CLI | `gemini-extension.json`, installed from a git URL |
-| `opencode` | OpenCode | `opencode.json` (`skills.paths`) + generated `.opencode/agent/` |
+The registry is rooted at the **platform** — five of them — with that platform's runtime
+**surfaces** underneath, keyed by surface id. A target is a **surface**: capability rows,
+`install`, and `validation` all hang off the surface, because "can this run a subagent?" is
+a question about the harness you are in, not about the vendor. Six surfaces are supported,
+and each carries an explicit status for all 19 capability keys.
+
+### Supported surfaces (6, across 5 platforms)
+
+| Platform | Surface id | Display | Kind | Distribution artifact |
+|---|---|---|---|---|
+| `claude` | `claude_code` | Claude Code | CLI | `.claude-plugin/plugin.json` + marketplace |
+| `claude` | `claude_desktop` | Claude Desktop | desktop | `runtime_surface_of: claude_code` — consumes the same plugin. Do not create a Desktop manifest. |
+| `codex` | `codex` | Codex CLI | CLI | `.codex-plugin/plugin.json` + `AGENTS.md` |
+| `cursor` | `cursor` | Cursor IDE | IDE | `.cursor-plugin/plugin.json` + `.cursor/rules/*.mdc` |
+| `gemini` | `gemini_cli` | Gemini CLI | CLI | `gemini-extension.json`, installed from a git URL |
+| `opencode` | `opencode` | OpenCode CLI | CLI | `opencode.json` (`skills.paths`) + generated `.opencode/agent/` |
+
+### Unverified surfaces (4) — listed, never targeted
+
+| Platform | Surface id | Display | Kind |
+|---|---|---|---|
+| `codex` | `codex_ide` | Codex IDE extension | IDE |
+| `cursor` | `cursor_cli` | Cursor CLI | CLI |
+| `gemini` | `gemini_code_assist` | Gemini Code Assist | IDE |
+| `opencode` | `opencode_desktop` | OpenCode desktop app | desktop |
+
+These carry an `unverified_reason` and **no** `capabilities` block. Nobody measured them, so
+the registry claims nothing in either direction. They exist so "does this work in the Cursor
+CLI?" gets an honest "not measured" instead of silence. They get no install guide, no badge,
+no artifact of their own, and they are never counted among supported targets.
+
+### Reading it
+
+```bash
+jq -r --arg p cursor '(first(.platforms[]?.surfaces[$p]? | select(. != null)) // .platforms[$p]?)
+     | .capabilities | to_entries[] | "\(.key): \(.value.status)"' core/capabilities/platforms.json
+```
+
+The `// .platforms[$p]?` tail keeps the lookup working against an older flat
+`schema_version` 1 registry. `scripts/lib/registry.sh` performs this walk once and returns a
+flat, one-entry-per-supported-surface view keyed by surface id — read that rather than
+re-deriving the path in every script.
 
 Statuses are `native`, `native-experimental`, `partial`, `emulated`, `adapter`,
 `unsupported`, `unknown`. Anything short of `native` must carry a `fallback` or a note;
-`unknown` means unverified and must be treated as unavailable at runtime, never advertised.
+`unknown` means *measured and inconclusive* — treat it as unavailable at runtime and never
+advertise it. That is not the same as an unverified surface, which was never measured at all.
 
 ---
 
@@ -70,9 +105,9 @@ Install: `gemini extensions install <repo-url>`. Local development: `gemini exte
 Validate: `gemini extensions validate .`. Keep it dependency-free — declarative extension
 content needs no Node toolchain, so do not add one just because a template offers it.
 
-## OpenCode Layout
+## OpenCode CLI Layout
 
-OpenCode discovers Agent Skills natively (recursively, including domain-nested
+The OpenCode CLI discovers Agent Skills natively (recursively, including domain-nested
 directories) and reads a smaller frontmatter set, ignoring unknown fields. It has no
 plugin manifest, no marketplace, and no `hooks.json` — lifecycle automation is a JS/TS
 plugin module only.

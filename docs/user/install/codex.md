@@ -1,7 +1,13 @@
 # Install — Codex CLI
 
-Registry id: `codex`. Skills require Codex **0.40+**; the manifest `hooks` field requires
-**0.147.0+**. Validated against **0.146.0**.
+**Platform:** Codex. **Surface:** Codex CLI — registry id `codex`. Everything on this page,
+install commands and capability table alike, was measured on the CLI. Codex's other surface,
+the **Codex IDE extension**, is **unverified**: this repo has never installed the plugin or
+invoked a skill there, so it has no install guide and no capability claims in either
+direction. See [platform differences](../platform-differences.md#unverified-surfaces).
+
+Skills require Codex **0.40+**; the manifest `hooks` field requires **0.147.0+**. Validated
+against **0.146.0**.
 
 ---
 

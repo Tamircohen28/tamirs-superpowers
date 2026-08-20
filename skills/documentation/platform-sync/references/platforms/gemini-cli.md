@@ -3,9 +3,16 @@
 Data consumed by the `platform-sync` engine (`references/analysis-protocol.md`).
 
 - **Display name:** Gemini CLI
-- **Registry id:** `gemini_cli` in `core/capabilities/platforms.json`; `gemini` in a skill's
-  `compatibility` block (the frontmatter schema uses the shorter key). Filenames here follow
-  the registry id with underscores rendered as hyphens: `gemini-cli.md`.
+- **Platform:** `gemini` (display name "Gemini") in `core/capabilities/platforms.json`. The
+  registry is rooted at the platform; surfaces live under `.platforms.gemini.surfaces`.
+- **Registry id (surface):** `gemini_cli`, under `.platforms.gemini.surfaces.gemini_cli`;
+  `gemini` in a skill's `compatibility` block (the frontmatter schema uses the shorter key).
+  Filenames here follow the surface id with underscores rendered as hyphens: `gemini-cli.md`.
+- **Sibling surface:** `gemini_code_assist` ("Gemini Code Assist") is **unverified** — a
+  different host that does not install CLI extensions, so this repo's `.gemini/` mirror has
+  no established install path there and has never been exercised on it. It carries no
+  capabilities block. It is **not a target**: never audit it, never emit an improvement step
+  for it, and never claim it does or does not work.
 - **Status:** first-class target as of this refactor. Everything below is analysed the
   same way as every other target; nothing here is speculative-by-design. Where the
   capability registry marks a Gemini capability `unknown`, the engine must report it as
@@ -88,6 +95,15 @@ Latest: newest tag on the releases feed.
 ## Capability boundaries
 
 Gemini CLI has no Claude-style `hooks.json`, no plugin-declared statusline, and no Claude
-plugin marketplace. Consult the capability registry entry for `gemini_cli` before porting any
-feature from another target, and honour `unknown` as unknown — report it as unverified
-rather than recommending or ruling out the feature.
+plugin marketplace. Consult the capability registry entry for the `gemini_cli` **surface**
+before porting any feature from another target:
+
+```bash
+jq -r --arg p gemini_cli '(first(.platforms[]?.surfaces[$p]? | select(. != null)) // .platforms[$p]?)
+     | .capabilities | to_entries[] | "\(.key): \(.value.status)"' core/capabilities/platforms.json
+```
+
+Honour `unknown` as unknown — report it as unverified rather than recommending or ruling out
+the feature. That is a *measured* row that came back inconclusive, and it is a different
+thing from the `gemini_code_assist` surface, which has no rows at all because it was never
+measured.
