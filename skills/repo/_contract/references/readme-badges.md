@@ -56,19 +56,23 @@ glyph inside a banner or badge. Checked → gap **S1-12**.
 
 Omit the entire row if none apply.
 
-## Row 3 — AI targets (when repo supports ≥1 platform)
+## Row 3 — AI targets (when repo supports ≥1 surface)
 
 Show each supported target and its **platform tool version** from `docs/engineering/build-and-release/platform-targets.json` (`validated_against`):
 
-One badge per key in `supported_targets`, in that order. Badge label and colour per target:
+One badge per key in `supported_targets`, in that order. Those keys are **surface ids** from
+the capability registry (`core/capabilities/platforms.json`), which is rooted at the platform
+and lists its surfaces underneath. Badge label and colour per surface — the label is the
+short brand string `scripts/check-platform-targets.sh` greps for (`badge_prefix()`), which is
+deliberately shorter than the registry `display_name` in some rows:
 
-| Target key | Badge label | Colour |
-|---|---|---|
-| `claude_code` | `Claude%20Code` | `blueviolet` |
-| `cursor` | `Cursor` | `000000` |
-| `codex` | `Codex` | `412991` |
-| `gemini_cli` | `Gemini%20CLI` | `4285F4` |
-| `opencode` | `OpenCode` | `fab283` |
+| Surface key | Registry display name | Badge label | Colour |
+|---|---|---|---|
+| `claude_code` | Claude Code | `Claude%20Code` | `blueviolet` |
+| `cursor` | Cursor IDE | `Cursor` | `000000` |
+| `codex` | Codex CLI | `Codex` | `412991` |
+| `gemini_cli` | Gemini CLI | `Gemini%20CLI` | `4285F4` |
+| `opencode` | OpenCode CLI | `OpenCode` | `fab283` |
 
 **Every version below is a placeholder.** Read the value from
 `docs/engineering/build-and-release/platform-targets.json` → `targets.<key>.validated_against`
@@ -100,8 +104,15 @@ it (`make check-platform-targets`); `check-readme-branding.sh` compares the same
 any repo, ships as gap **S1-13**, and skips cleanly when the repo has no
 `platform-targets.json`.
 
-`claude_desktop` gets **no badge**: it is a runtime surface of `claude_code`, consumes the
-same plugin, and is absent from `supported_targets` by design.
+`claude_desktop` gets **no badge**: it is a supported surface, but it carries
+`runtime_surface_of: claude_code`, consumes the same plugin, and is absent from
+`supported_targets` by design. Its version is the Claude Code badge's version.
+
+**Unverified surfaces get no badge either — and for a different reason.** `codex_ide`,
+`cursor_cli`, `gemini_code_assist` and `opencode_desktop` were never measured: the registry
+gives them an `unverified_reason` and no `capabilities` block, and they are absent from
+`supported_targets`. A badge is a support claim, so they get none — but do not read that
+absence as "unsupported" anywhere else in the README either.
 
 A target still carrying `"validated_against": "unknown"` is declared but not yet validated
 — give it no badge rather than a fabricated version. `scripts/check-platform-targets.sh`
@@ -116,8 +127,9 @@ When repo skills adopt new platform APIs, bump `platform-targets.json`, this row
 When a repo supports **more than one** AI target:
 
 - README **Quick Start** must have a subsection per target in `supported_targets`
-  (Claude Code, Cursor, Codex CLI, Gemini CLI, OpenCode). Claude Desktop is covered by the
-  Claude Code subsection — it installs the same plugin.
+  (Claude Code, Cursor IDE, Codex CLI, Gemini CLI, OpenCode CLI). Claude Desktop is covered
+  by the Claude Code subsection — it installs the same plugin. Unverified surfaces get no
+  subsection and no install guide.
 - Prefer **one-liner `make` commands** (`make install`, `make update`, `make uninstall`).
 - Bash blocks are allowed as *alternatives* only — label them "Alternative (manual)".
 - User docs (`docs/user/quick-start.md`) mirror the same per-target structure.

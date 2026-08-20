@@ -13,6 +13,7 @@
   ],
   "targets": {
     "claude_code": {
+      "platform": "claude",
       "supported_min": "2.0.0",
       "validated_against": "2.0.0",
       "latest_known": "2.0.0",
@@ -48,6 +49,7 @@
       }
     },
     "codex": {
+      "platform": "codex",
       "supported_min": "0.40.0",
       "validated_against": "0.40.0",
       "latest_known": "0.40.0",
@@ -75,6 +77,7 @@
       }
     },
     "cursor": {
+      "platform": "cursor",
       "supported_min": "0.45.0",
       "validated_against": "0.45.0",
       "latest_known": "0.45.0",
@@ -104,6 +107,7 @@
       }
     },
     "gemini_cli": {
+      "platform": "gemini",
       "supported_min": "0.30.0",
       "validated_against": "0.30.0",
       "latest_known": "0.30.0",
@@ -131,6 +135,7 @@
       }
     },
     "opencode": {
+      "platform": "opencode",
       "supported_min": "1.16.2",
       "validated_against": "1.18.11",
       "latest_known": "1.18.11",

@@ -1,11 +1,18 @@
 # Capability model
 
-This framework runs on six harnesses that do not agree on what an agent can do. Claude
-Code has hooks; OpenCode has a JS plugin API instead. Cursor has skills but will not run
-a Claude-shaped hook bundle. Gemini installs as a git-URL extension; nobody else does.
+This framework installs into **five platforms** — Claude, Codex, Cursor, Gemini and
+OpenCode — which do not agree on what an agent can do. Claude Code has hooks; OpenCode
+has a JS plugin API instead. Cursor has skills but will not run a Claude-shaped hook
+bundle. Gemini installs as a git-URL extension; nobody else does.
 
-The capability model is how a skill finds that out **before** it depends on something,
-instead of failing halfway through in front of a user.
+Nor does a platform agree with itself. Claude ships a terminal client and a desktop app;
+Cursor ships an IDE and a CLI. Those are separate installs with separate capabilities, so
+the registry names each one: a **surface**. Six surfaces are supported — Claude Code,
+Claude Desktop, Codex CLI, Cursor IDE, Gemini CLI and OpenCode CLI — and four more are
+listed as unverified, claiming nothing.
+
+The capability model is how a skill finds all that out **before** it depends on
+something, instead of failing halfway through in front of a user.
 
 ---
 
@@ -13,20 +20,130 @@ instead of failing halfway through in front of a user.
 
 | File | Role |
 |---|---|
-| [`core/capabilities/schema.json`](../../../core/capabilities/schema.json) | JSON Schema (draft 2020-12) defining the shape and the legal status values. |
-| [`core/capabilities/platforms.json`](../../../core/capabilities/platforms.json) | The registry itself: one entry per platform, one row per capability. |
+| [`core/capabilities/schema.json`](../../../core/capabilities/schema.json) | JSON Schema (draft 2020-12) defining the two-level shape — platforms, and the surfaces underneath them — and the legal status values. |
+| [`core/capabilities/platforms.json`](../../../core/capabilities/platforms.json) | The registry itself: one entry per platform, one entry per surface it ships, and — for each supported surface — one row per capability. |
 
 Validated by `scripts/check-capability-registry.sh`, which also asserts that every target
-shipped in `docs/engineering/build-and-release/platform-targets.json` has a registry
-entry. A platform that ships without a capability row is a platform whose gaps are
-invisible, so that check is a hard failure.
+shipped in `docs/engineering/build-and-release/platform-targets.json` — a file keyed by
+**surface** id — has a matching surface in the registry. A surface that ships without
+capability rows is a surface whose gaps are invisible, so that check is a hard failure.
 
-## Platform ids
+## Platforms and surfaces
 
-Registry ids are **snake_case**, identical to the keys in
+The registry is rooted at the **platform** — the thing a user names when they say what
+they use — and each platform carries a `surfaces` map of the runtime surfaces it ships:
+
+| Platform | Surfaces |
+|---|---|
+| `claude` — Claude | `claude_code` (cli, supported) · `claude_desktop` (desktop, supported) |
+| `codex` — Codex | `codex` (cli, supported) · `codex_ide` (ide, unverified) |
+| `cursor` — Cursor | `cursor` (ide, supported) · `cursor_cli` (cli, unverified) |
+| `gemini` — Gemini | `gemini_cli` (cli, supported) · `gemini_code_assist` (ide, unverified) |
+| `opencode` — OpenCode | `opencode` (cli, supported) · `opencode_desktop` (desktop, unverified) |
+
+Five platforms, ten surfaces, **six of them supported**. A surface's `kind` says what it
+is — `cli`, `desktop`, `ide`, `web`, `cloud`.
+
+### Why the split exists
+
+Because capabilities and install paths are properties of a surface, not of a vendor. The
+Claude Code CLI runs this repo's hook bundle; whether Claude Desktop does has never been
+verified, and its row says so in as many words. Everything measured under `cursor` was
+measured through an **IDE plugin install** — no Cursor CLI run has ever been recorded
+here. The rows under `codex` are the Codex CLI's rows. A single entry per vendor can
+state only one of those, and what it stated in practice was the CLI's answer, with
+nothing on the page saying so.
+
+The old flat shape made the problem visible in exactly one place and hid it everywhere
+else: Claude got two entries, because its two surfaces were too obviously different to
+merge, while Codex, Cursor and OpenCode got one each — as if they had only one surface.
+They do not.
+
+### `support`, and why an unverified surface is empty
+
+Every surface carries a `support` value, and the enum has two members on purpose:
+
+| `support` | Meaning | Carries |
+|---|---|---|
+| `supported` | This repo installs here, validates here, and has measured what it can do. | `install`, `validation`, and all 19 capability rows. |
+| `unverified` | A real surface of the platform that this repo has **never exercised**. | `unverified_reason`, plus the identifying fields (`display_name`, `kind`, `aliases`, `doc_urls`). No `install`, no `validation`, no `capabilities`. |
+
+The schema enforces both halves. A `supported` surface missing `install`, `validation` or
+`capabilities` fails; an `unverified` surface that carries `capabilities` or `install`
+fails too.
+
+That second prohibition is the load-bearing one. **An unverified surface carries no
+capabilities block at all — not a block of nineteen `unknown` rows.** Those two look
+alike and are not. Nineteen `unknown` rows is nineteen statements, each implying someone
+considered that capability on that surface and came up empty; a reader skims the block
+and concludes the surface does nothing. No block at all says the only true thing —
+*nobody measured this*. Silence about an unmeasured surface is honest; a page of invented
+rows is not.
+
+`unknown` is still the right value **inside** a supported surface, where the surrounding
+block establishes that the surface was measured and this one row was not. The distinction
+is between a gap in a measurement and the absence of a measurement.
+
+What an unverified surface does owe the reader is its `unverified_reason`: what is known,
+what was never measured, and why the sibling surface's results were not carried over.
+`cursor_cli` shares `.cursor-plugin/plugin.json` with the IDE and Cursor documents CLI
+sticky skills — and it still claims nothing, because carrying the IDE's measurements
+across would be an assumption wearing evidence's clothes.
+
+These surfaces are listed so a user asking *"does this work in the Cursor CLI?"* gets an
+honest **not measured** instead of silence. They are never targets: no install guide, no
+badge, no row in a capability matrix that implies measurement, and never counted in
+"N supported targets" prose. And "not measured" is a claim in neither direction — never
+write that a skill, hook or MCP server works there, and never write that it does not.
+
+### `primary_surface`
+
+Each platform names one `primary_surface` — the surface this repo treats as that
+platform's reference install: `claude_code`, `codex`, `cursor`, `gemini_cli`, `opencode`.
+It must be a key of that platform's own `surfaces`, and it must be a supported one. It is
+the answer to "the user said *Cursor* — which surface did they mean?" for anything that
+has to resolve a platform-level name to something concrete.
+
+### The flattened view consumers read
+
+Almost every consumer asks a per-**surface** question — *can the thing I am installed
+into run a subagent?* — and every `validation` command runs against a surface, never
+against a vendor. So consumers do not walk two levels. They read the flat,
+one-entry-per-surface view built by
+[`scripts/lib/registry.sh`](../../../scripts/lib/registry.sh):
+
+```bash
+source scripts/lib/registry.sh
+flat="$(registry_flat_tmp core/capabilities/platforms.json)"   # caller owns cleanup
+```
+
+Each entry keeps every field its surface declared and gains two: `platform`, the platform
+id it belongs to, and `platform_display_name`. The keys are surface ids — exactly the
+shape `platform-targets.json` is keyed by, and exactly the shape consumers already
+expected, so the reshape cost them no logic.
+
+One number to keep straight: six surfaces are supported, but
+`platform-targets.json` lists **five** supported *targets*. `claude_desktop` carries
+`runtime_surface_of: "claude_code"` — it installs the Claude Code plugin from the Claude
+Code listing and ships nothing of its own — so it is a fully supported surface and not a
+separate distribution target. See
+[platform-targets.md](../build-and-release/platform-targets.md#five-targets-six-supported-surfaces).
+
+**Unverified surfaces are omitted from the flat view, deliberately.** They carry no
+capabilities block, so including them would force every consumer to invent a reading for
+a missing one — and the obvious invention, *absent means no*, is precisely the claim the
+registry refuses to make. Consumers that want to *list* unverified surfaces (docs,
+install guides, a "does it work on X?" answer) read `platforms.json` directly.
+
+## Ids and namespaces
+
+Platform ids, surface ids and capability ids are all **snake_case**. Surface ids are the
+ones that matter to most consumers, because they are the keys in
 `docs/engineering/build-and-release/platform-targets.json`: `claude_code`,
-`claude_desktop`, `codex`, `cursor`, `gemini_cli`, `opencode`. Capability keys are
-snake_case too.
+`claude_desktop`, `codex`, `cursor`, `gemini_cli`, `opencode`. Platform ids are `claude`,
+`codex`, `cursor`, `gemini`, `opencode` — three of which are spelled the same as their
+primary surface, which is deliberate and safe because both levels share one namespace
+(below).
 
 **There is a second namespace, and mixing them up is the foreseeable authoring mistake.**
 A skill's frontmatter `compatibility:` block uses **kebab-case** — `claude-code`,
@@ -35,20 +152,25 @@ follows frontmatter convention. Note `gemini`, not `gemini-cli`.
 
 | Where | Convention | Example |
 |---|---|---|
-| Registry `platforms` keys, `platform-targets.json` | snake_case | `gemini_cli` |
+| Registry `platforms` keys | snake_case | `gemini` |
+| Registry `surfaces` keys, `platform-targets.json` | snake_case | `gemini_cli` |
 | Skill frontmatter `compatibility:` | kebab-case | `gemini` |
 | Capability ids (everywhere) | snake_case | `github_cli` |
 
 Each is enforced in its own place, so a mix-up fails loudly rather than silently. To
-bridge them, every platform carries an `aliases` array (`claude_code` also answers to
-`claude-code` and `claude`; `gemini_cli` answers to `gemini`). Normalize by matching an
-incoming id against ids and aliases together. `check-capability-registry.sh` proves two
-things about that table: it is collision-free, and **every id the frontmatter schema
-allows resolves through it** — so the two namespaces cannot drift apart unnoticed.
+bridge them, platforms and surfaces both carry an `aliases` array, and **ids and aliases
+from both levels live in one flat namespace**: `claude_code` also answers to
+`claude-code`, the platform `claude` answers to `anthropic`, and the frontmatter id
+`gemini` resolves to the *platform* `gemini` while `gemini_cli` is one of its surfaces.
+Normalize an incoming id by matching it against every id and alias at both levels.
+`check-capability-registry.sh` proves two things about that table: it is collision-free
+across platforms and surfaces together, and **every id the frontmatter schema allows
+resolves through it** — so the two namespaces cannot drift apart unnoticed.
 
-Each platform also carries `doc_urls`, the authoritative upstream documentation, kept in
-sync with the `doc_urls` array in `platform-targets.json`. Tools that fetch platform docs
-should prefer this over their own bundled URL lists.
+`doc_urls` appears at both levels: on a platform, the authoritative upstream docs across
+all its surfaces; on a surface, the ones specific to that surface, kept in sync with the
+`doc_urls` array in `platform-targets.json`. Tools that fetch platform docs should prefer
+these over their own bundled URL lists.
 
 ## Capability keys
 
@@ -68,10 +190,12 @@ two platform entries.
 
 ## What a row is about
 
-**A capability row describes THIS REPO'S ARTIFACTS ON THAT PLATFORM — not the platform's
-abstract feature set.** The question a row answers is *"if I install this plugin on
-Gemini, do my hooks run?"*, never *"is Gemini a hooks-capable product?"* The second is a
-vendor question, and this registry is not a vendor comparison.
+**A capability row describes THIS REPO'S ARTIFACTS ON THAT SURFACE — not the platform's
+abstract feature set.** The question a row answers is *"if I install this plugin into the
+Gemini CLI, do my hooks run?"*, never *"is Gemini a hooks-capable product?"* The second is
+a vendor question, and this registry is not a vendor comparison. It is also why rows hang
+off surfaces rather than platforms: an artifact is installed into a surface, so only a
+surface can answer.
 
 This is not a new rule; it is what every existing row already means. `cursor.hooks` is
 `partial` because *our* bundle does not fully run there, not because Cursor lacks hooks.
@@ -80,7 +204,7 @@ lacks a plugin API — it has one. Read the other way, both rows are simply wron
 definition that falsifies most of the existing data is the wrong definition.
 
 The practical consequence, row by row: **when a row says `unsupported`, it means our
-artifact does not work there.** A reader who wants to know what the vendor's product can
+artifact does not work on that surface.** A reader who wants to know what the vendor's product can
 do has to go and measure it themselves — this registry will not tell them, and was never
 trying to.
 
@@ -136,9 +260,13 @@ Two invariants the schema enforces, both about honesty:
 2. **Every other status requires a `fallback` or `notes`.** A gap must say what happens
    instead, so the degradation path is written down before it is needed.
 
-A third invariant is enforced by `minProperties`/`maxProperties`: **every platform must
-carry a row for every capability key.** Omission is a schema error. You cannot hide a
-gap by staying silent about it — you have to write `unknown` and say why.
+A third invariant is enforced by `minProperties`/`maxProperties`: **every supported
+surface must carry a row for every capability key.** Omission is a schema error. You
+cannot hide a gap by staying silent about it — you have to write `unknown` and say why.
+
+An unverified surface is not an exception to that rule but the same rule applied one
+level up: it carries no capabilities block at all, because it has no measurements to
+report. See [`support`, and why an unverified surface is empty](#support-and-why-an-unverified-surface-is-empty).
 
 ---
 
@@ -165,8 +293,10 @@ runtime in both vocabularies.
 ### Derivation
 
 A skill's compatibility with a platform is **derived** from the registry, not asserted by
-hand. Take the skill's `capabilities.required` list, read each one's status for that
-platform, and reduce:
+hand. Resolve the platform to a surface first — `compatibility:` is written per platform,
+and the rows live on surfaces, so a platform-level answer means its `primary_surface`.
+Then take the skill's `capabilities.required` list, read each one's status on that
+surface, and reduce:
 
 | Registry status of a required capability | Contributes |
 |---|---|
@@ -236,9 +366,9 @@ check.
 
 ## How degradation works
 
-Degradation is written per capability, not per platform. That is what keeps the adapter
-count from exploding: adding a seventh platform adds one registry entry, not a new
-branch in every skill.
+Degradation is written per capability, not per surface. That is what keeps the adapter
+count from exploding: a sixth platform — or a third surface on an existing one — adds one
+registry entry, not a new branch in every skill.
 
 The order of preference:
 
@@ -261,15 +391,18 @@ have opened one, and it does not fail the whole task.
 `pr-dev` declares `required: [skills, shell, git]` and `optional: [github_cli, subagents,
 background_tasks]`.
 
-| Platform | Result |
+| Surface | Result |
 |---|---|
 | Claude Code | Everything native. Full run: subagents fix review threads in parallel, `gh` merges. |
 | OpenCode | `subagents` is `adapter` (generated `.opencode/agent/`), `github_cli` depends on the host. Runs, sequentially, with `gh` if present. |
-| Any platform, `gh` absent | Runs through the diff and review work, then prints the PR body and the exact `gh pr create` command for the user. Reports the degradation. |
+| Any surface, `gh` absent | Runs through the diff and review work, then prints the PR body and the exact `gh pr create` command for the user. Reports the degradation. |
 
 ## Where capabilities are consumed
 
-- **`scripts/doctor.sh`** — reports the capabilities of the detected platform, plus the
+- **`scripts/lib/registry.sh`** — flattens the registry to one entry per supported
+  surface. Every other consumer below goes through it rather than walking the two levels
+  itself.
+- **`scripts/doctor.sh`** — reports the capabilities of the detected surface, plus the
   fallback line for anything not native. This is the user-facing view of the registry.
 - **Provider selection** — [`core/providers/selection.md`](../../../core/providers/selection.md)
   filters candidate providers by the role's required capabilities before anything else.
@@ -287,6 +420,11 @@ Change a row when, and only when, you have evidence:
 4. Bump `last_reviewed`.
 5. Run `bash scripts/check-capability-registry.sh`.
 
+Promoting a surface from `unverified` to `supported` is a bigger change than editing a
+row, because it means writing nineteen of them from scratch plus an install path — that
+procedure is [adding a platform](adding-a-platform.md#adding-a-surface-to-an-existing-platform).
+Until it is done, the surface keeps its `unverified_reason` and claims nothing.
+
 Moving a row from `unknown` to `native` without running its validation command is the
 one change this model exists to prevent. When in doubt, leave it `unknown` — an
 understated registry costs a little capability; an overstated one costs user trust.
@@ -297,13 +435,17 @@ understated registry costs a little capability; an overstated one costs user tru
 this registry whenever the two conflict.** That precedence is a project rule, not a
 courtesy: it is what corrected `gemini_cli` from nine `native` rows to five.
 
-| Platform | Provenance |
+| Surface | Provenance |
 |---|---|
 | `gemini_cli` | **Measured.** Gemini CLI 0.55.1 against a probe extension, 2026-08-19. Error text recorded in `docs/user/install/gemini.md`. |
 | `opencode` | **Measured.** OpenCode 1.18.11 on the maintainer machine, including the `hooks` and symlink-discovery findings. |
 | `claude_code` | Mostly verified through this repo's own validators, which run against it on every change. |
 | `codex`, `cursor` | Declaration-backed: derived from `platform-targets.json`, which records its own `verification_method` per target. |
-| `claude_desktop` | Largely unverified — nine `unknown` rows, and honestly so. |
+| `claude_desktop` | Largely unmeasured — nine `unknown` rows, and honestly so. Supported all the same: it installs from the Claude Code listing and the rows that are known are known. |
+
+The four `unverified` surfaces — `codex_ide`, `cursor_cli`, `gemini_code_assist`,
+`opencode_desktop` — have no provenance because they have no rows. Their
+`unverified_reason` is the whole of what is known about them.
 
 The Gemini entry is the cautionary case worth remembering. It was originally written from
 REFACTOR-SPEC §13.4, which enumerates what Gemini extensions *can* package, and six

@@ -11,6 +11,7 @@
   ],
   "targets": {
     "claude_code": {
+      "platform": "claude",
       "supported_min": "2.0.0",
       "supported_min_source": "manifest format (.claude-plugin/plugin.json) stable since 2.0.0",
       "validated_against": "2.1.233",
@@ -63,6 +64,7 @@
       }
     },
     "cursor": {
+      "platform": "cursor",
       "supported_min": "3.16.17",
       "supported_min_source": "Cursor documents no minimum version for plugins; the floor is set to the version actually validated rather than guessed",
       "validated_against": "3.16.17",
@@ -134,6 +136,7 @@
       }
     },
     "codex": {
+      "platform": "codex",
       "supported_min": "0.40.0",
       "supported_min_source": "earliest release this repo has claimed AGENTS.md + .codex-plugin manifest support for",
       "validated_against": "0.146.0",
@@ -169,6 +172,7 @@
       }
     },
     "opencode": {
+      "platform": "opencode",
       "supported_min": "1.16.2",
       "supported_min_source": "oldest version on which recursive (domain-nested) SKILL.md discovery was verified with `opencode debug skill`; not re-tested in this pass, so the floor is left where the evidence put it",
       "validated_against": "1.18.11",
@@ -208,6 +212,7 @@
       }
     },
     "gemini_cli": {
+      "platform": "gemini",
       "supported_min": "0.55.1",
       "supported_min_source": "Gemini CLI documents no minimum for extensions; the floor is the version the adapter was actually exercised on rather than guessed",
       "validated_against": "0.55.1",

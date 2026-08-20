@@ -1,7 +1,13 @@
-# Install — Cursor
+# Install — Cursor IDE
 
-Registry id: `cursor`. Validated against Cursor **3.16.17**; that floor is the version this
-repo actually tested, not a guess.
+**Platform:** Cursor. **Surface:** Cursor IDE — registry id `cursor`. Everything on this
+page was measured through an IDE plugin install. Cursor's other surface, the **Cursor CLI**,
+is **unverified**: it shares `.cursor-plugin/plugin.json` with the IDE, but no CLI run has
+been recorded here, so it has no install guide and the measurements below are not carried
+over to it. See [platform differences](../platform-differences.md#unverified-surfaces).
+
+Validated against Cursor **3.16.17**; that floor is the version this repo actually tested,
+not a guess.
 
 ---
 

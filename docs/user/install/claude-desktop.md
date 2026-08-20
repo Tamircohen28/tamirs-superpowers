@@ -7,7 +7,10 @@ same [`.claude-plugin/plugin.json`](../../../.claude-plugin/plugin.json) from th
 marketplace listing as [Claude Code](claude-code.md). If you have already installed the
 plugin for Claude Code, there is nothing else to install — the skills are there.
 
-Registry id: `claude_desktop`, declared with `runtime_surface_of: claude_code`.
+**Platform:** Claude. **Surface:** Claude Desktop, the desktop app — registry id
+`claude_desktop`, declared with `runtime_surface_of: claude_code`. Claude's other supported
+surface is [Claude Code](claude-code.md), the CLI, which has its own guide; the capability
+table below is Desktop's own, and it differs from the CLI's in several rows.
 
 ---
 

@@ -368,6 +368,29 @@ for key in $TARGET_KEYS; do
   fi
 done
 
+# Each target here is one SURFACE of a platform. `platform` names which one, so this file
+# can be read without the registry open beside it — and because a name that is merely
+# implied by an id is a name that drifts. The registry owns the answer; this asserts the
+# copy still matches it. Only checked when the registry is platform-rooted (schema 2+),
+# so a repo still on a flat schema_version 1 registry passes unchanged.
+if [[ -f "$REGISTRY" ]] && jq -e 'any(.platforms[]; has("platform"))' "$REGISTRY" >/dev/null 2>&1; then
+  before_owner=$FAILED
+  # shellcheck disable=SC2086
+  for key in $TARGET_KEYS; do
+    want=$(jq -r --arg k "$key" '.platforms[$k].platform // empty' "$REGISTRY")
+    have=$(jq -r --arg k "$key" '.targets[$k].platform // empty' "$TARGETS_JSON")
+    [[ -n "$want" ]] || continue
+    if [[ -z "$have" ]]; then
+      err "targets.$key declares no 'platform' — the registry says this surface belongs to '$want'"
+    elif [[ "$have" != "$want" ]]; then
+      err "targets.$key.platform is '$have' but the registry files that surface under '$want'"
+    fi
+  done
+  if (( FAILED == before_owner )); then
+    echo "  every target names the platform the registry files it under"
+  fi
+fi
+
 last_reviewed=$(jq -r '.last_reviewed // empty' "$TARGETS_JSON")
 [[ -n "$last_reviewed" ]] || err "platform-targets.json missing last_reviewed"
 

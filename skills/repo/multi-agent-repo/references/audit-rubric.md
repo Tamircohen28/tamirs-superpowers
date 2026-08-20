@@ -141,7 +141,7 @@ Severity guide:
 | L8c-01 | `opencode.json` points `skills.paths` at the canonical tree | P1 |
 | L8c-02 | `.opencode/agent/` is generated and drift-checked, never hand-copied | P1 |
 | L8c-03 | Guards are carried by in-skill steps + CI, not by a ported `hooks.json` (OpenCode has no hook config file) | P1 |
-| L8c-04 | No capability is assumed for OpenCode without reading its registry row first | P1 |
+| L8c-04 | No capability is assumed for the OpenCode CLI surface without reading its registry row first | P1 |
 
 **Do not pin a status in this rubric.** Every row above asks whether the repo *consulted*
 the registry, never what the registry says. Statuses are re-measured and move; a rubric that
@@ -152,14 +152,36 @@ quotes one becomes wrong silently, which is the failure mode Layer 8d exists to 
 | ID | Check | P |
 |----|-------|---|
 | L8d-01 | `core/capabilities/platforms.json` exists when the repo targets ≥2 harnesses | P1 (plugin) / P2 (app) |
-| L8d-02 | Validates against `core/capabilities/schema.json`; every target covers every capability key | P1 |
-| L8d-03 | Registry platform set equals `platform-targets.json` `supported_targets` minus runtime surfaces | P1 |
+| L8d-02 | Validates against `core/capabilities/schema.json`; every **supported surface** covers every capability key | P1 |
+| L8d-03 | Registry's supported-surface set equals `platform-targets.json` `supported_targets` plus surfaces carrying `runtime_surface_of` | P1 |
 | L8d-04 | Every `native` claim carries a validation command; every non-native status carries a fallback or note | P1 |
 | L8d-05 | No document restates a capability status the registry already owns | P2 |
+| L8d-06 | Every `unverified` surface carries an `unverified_reason` and **no** `capabilities` block | P1 |
+| L8d-07 | No document presents an `unverified` surface as a supported target, or counts it in a "N supported targets" claim | P1 |
 
-Claude Desktop is a **runtime surface** of `claude_code`, not a separate distribution
-format. It gets a registry entry with `runtime_surface_of: claude_code` and is
-deliberately absent from `supported_targets`. Do not create a Desktop manifest.
+The registry is rooted at the **platform** — one entry per vendor — with that platform's
+runtime **surfaces** underneath, keyed by surface id. Capabilities hang off a surface, not
+off a platform: the question a consumer asks is "can the harness I am running in do this?",
+and Claude Code and Claude Desktop are one platform and two harnesses. Check a surface with:
+
+```bash
+jq --arg p claude_desktop '(first(.platforms[]?.surfaces[$p]? | select(. != null)) // .platforms[$p]?)' \
+   core/capabilities/platforms.json
+```
+
+The `//` tail keeps the lookup working against an older flat `schema_version` 1 registry.
+`scripts/lib/registry.sh` does this walk once and returns a flat, one-entry-per-supported-
+surface view; scoring scripts read that rather than re-deriving the path.
+
+Claude Desktop is a **supported surface** with its own measured capability rows, but it is
+not a separate distribution format: it carries `runtime_surface_of: claude_code`, consumes
+the Claude Code plugin, and is deliberately absent from `supported_targets`. Do not create
+a Desktop manifest.
+
+A surface whose `support` is `"unverified"` was never measured. It carries no capabilities
+block, and the registry claims nothing about it in either direction — not that a feature
+works there, and not that it fails. It gets no install guide, no badge, and no row in a
+matrix that implies measurement.
 
 ---
 

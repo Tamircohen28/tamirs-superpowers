@@ -1,6 +1,6 @@
 # tamirs-superpowers — agent entrypoint
 
-A multi-platform agent plugin: bundled skills, specialist agents, worktree hooks, and MCP server stubs, shipped to **Claude Code**, **Cursor**, **Codex**, **OpenCode**, and **Gemini CLI** (`gemini-extension.json`). It is **not** a Node/Python/Go app — no build step, no `package.json`, no compiled output. All content is Markdown, JSON, and Bash.
+A multi-platform agent plugin: bundled skills, specialist agents, worktree hooks, and MCP server stubs, shipped to five platforms and, underneath them, six supported runtime **surfaces**: **Claude** (**Claude Code**, **Claude Desktop**), **Codex** (**Codex CLI**), **Cursor** (**Cursor IDE**), **Gemini** (**Gemini CLI**, `gemini-extension.json`), and **OpenCode** (**OpenCode CLI**). The four non-Claude platforms each have a further surface — the Codex IDE extension, the Cursor CLI, Gemini Code Assist, the OpenCode desktop app — that has never been measured here; claim nothing about them in either direction. It is **not** a Node/Python/Go app — no build step, no `package.json`, no compiled output. All content is Markdown, JSON, and Bash.
 
 **This file is a thin entrypoint, not the policy.** Canonical policy lives in [`core/`](core/) and [`rules/`](rules/README.md); this page tells you which of those to read and gives you the commands. When this file and a canonical rule disagree, the canonical rule wins — say so rather than following the stale copy.
 
@@ -53,7 +53,7 @@ Claude Code marketplace install:
 /plugin install tamirs-superpowers@tamirs-marketplace
 ```
 
-Per-target install guides: [`docs/user/install/`](docs/user/install/). The machine-readable target list is [`platform-targets.json`](docs/engineering/build-and-release/platform-targets.json); the machine-readable capability list is [`core/capabilities/platforms.json`](core/capabilities/platforms.json).
+Per-surface install guides: [`docs/user/install/`](docs/user/install/) — one per supported surface, none for an unverified one. The machine-readable target list is [`platform-targets.json`](docs/engineering/build-and-release/platform-targets.json); the machine-readable capability list is [`core/capabilities/platforms.json`](core/capabilities/platforms.json).
 
 ---
 
@@ -94,8 +94,8 @@ situation per session; never repeat a declined suggestion.
 and `unknown` on Codex, Gemini CLI and OpenCode. Description-based auto-triggering only fires
 reliably on Claude Code and Claude Desktop, and the `UserPromptSubmit` hook that reinforces it
 (`hooks/skill-suggest.sh`) is unsupported on OpenCode. This rule is the only surfacing
-mechanism that works on all five targets, which is why it is written down rather than left to
-the matcher.
+mechanism that works on every supported surface, which is why it is written down rather than
+left to the matcher.
 
 ## Key paths
 
@@ -106,7 +106,7 @@ the matcher.
 | `rules/` | Canonical contributor rules (all providers) — see `rules/README.md` |
 | `plugin-version.json` | Single source of truth for the version; every consumer listed inside |
 | `.claude-plugin/plugin.json` | Claude Code / Claude Desktop manifest |
-| `.cursor-plugin/plugin.json` | Cursor manifest (skills + MCP; no hooks) |
+| `.cursor-plugin/plugin.json` | Cursor manifest — shared by the Cursor IDE and the Cursor CLI (skills + MCP; no hooks) |
 | `.codex-plugin/plugin.json` | Codex manifest (skills + hooks + MCP) |
 | `gemini-extension.json` | Gemini CLI extension manifest (`platform-targets.json` key: `gemini_cli`) |
 | `opencode.json` | OpenCode config (no version field — installs by path) |
@@ -139,4 +139,4 @@ There is no app server or build output. "Running" this repo means exercising the
 - `make check-manifest-versions` needs network to compare against the latest release tag; it works offline against the current checkout.
 - Cursor Cloud agents boot a fresh Linux VM — install `shellcheck` and `pip install -r scripts/requirements-validate.txt` first.
 
-Platform-specific addenda: [`CLAUDE.md`](CLAUDE.md) (Claude Code / Desktop), `.cursor/rules/*.mdc` (Cursor), `.codex/config.toml` (Codex), `docs/user/install/gemini.md` (Gemini CLI), `docs/user/install/opencode.md` (OpenCode — note what does not port).
+Platform-specific addenda: [`CLAUDE.md`](CLAUDE.md) (Claude Code / Desktop), `.cursor/rules/*.mdc` (Cursor IDE), `.codex/config.toml` (Codex), `docs/user/install/gemini.md` (Gemini CLI), `docs/user/install/opencode.md` (OpenCode — note what does not port).

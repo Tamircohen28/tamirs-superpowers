@@ -1,4 +1,11 @@
-# Install on OpenCode
+# Install on OpenCode CLI
+
+**Platform:** OpenCode. **Surface:** OpenCode CLI, the terminal client — registry id
+`opencode`. Every measurement below was taken there. OpenCode also ships a desktop client;
+that surface, the **OpenCode desktop app**, is **unverified** — whether it reads the same
+`opencode.json` `skills.paths` this guide configures has not been checked, so it has no
+install guide and the skills row below is not carried over to it. See
+[platform differences](../platform-differences.md#unverified-surfaces).
 
 | | |
 |---|---|
