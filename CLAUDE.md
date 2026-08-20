@@ -1,14 +1,14 @@
 # CLAUDE.md — tamirs-superpowers
 
-Claude Code and Claude Desktop specifics for contributors. **Everything that is not Claude-specific lives elsewhere — start with [`AGENTS.md`](AGENTS.md)**, which is the shared entrypoint into [`core/`](core/) and [`rules/`](rules/README.md). This file adds only what is true of the Claude surface.
+Claude Code and Claude Desktop specifics for contributors. **Everything that is not Claude-specific lives elsewhere — start with [`AGENTS.md`](AGENTS.md)**, which is the shared entrypoint into [`core/`](core/) and [`rules/`](rules/README.md). This file adds only what is true of the Claude platform's two surfaces.
 
 When this file and a canonical rule disagree, the canonical rule wins.
 
 ## What this repo is
 
-A multi-platform agent plugin (skills, agents, hooks, MCP stubs) shipped to Claude Code, Claude Desktop, Cursor, Codex, Gemini CLI, and OpenCode. No build step, no `package.json`, no compiled output — Markdown, JSON, and Bash.
+A multi-platform agent plugin (skills, agents, hooks, MCP stubs) shipped to six supported surfaces across five platforms: Claude (Claude Code, Claude Desktop), Codex (Codex CLI), Cursor (Cursor IDE), Gemini (Gemini CLI), and OpenCode (OpenCode CLI). No build step, no `package.json`, no compiled output — Markdown, JSON, and Bash.
 
-Claude Code and Claude Desktop are **one distribution**, not two formats: the same `.claude-plugin/plugin.json`, the same `skills/`, the same `agents/`. Desktop differences are surface-level (installation path, no CLI flags) and documented in [`docs/user/install/claude-code.md`](docs/user/install/claude-code.md).
+Claude Code and Claude Desktop are **one distribution**, not two formats: the same `.claude-plugin/plugin.json`, the same `skills/`, the same `agents/`. They are two **surfaces** of one platform: what differs is the runtime (installation path, no CLI flags, and the capability rows Desktop has never had measured), documented in [`docs/user/install/claude-desktop.md`](docs/user/install/claude-desktop.md).
 
 ## Commands
 
@@ -18,9 +18,9 @@ See [`AGENTS.md`](AGENTS.md#commands) for the full list. `make validate` before 
 
 Do not assume these exist on other providers — check [`core/capabilities/platforms.json`](core/capabilities/platforms.json) before relying on any of them, and degrade explicitly per [`core/policies/safety.md`](core/policies/safety.md).
 
-- **Subagents** (`Agent` tool) — parallel worker execution. Other providers run tasks sequentially or through their own mechanism.
-- **Hooks** — `hooks/hooks.json` is loaded by Claude Code and Codex only. Cursor does not wire it; Gemini CLI and OpenCode have their own or none.
-- **Statusline** — wired via `.claude-plugin/plugin.json` `settings.statusLine` → `scripts/statusline.sh`. Claude-only. Test with piped JSON: `echo '<session-json>' | bash scripts/statusline.sh` — it blocks forever on unpiped stdin.
+- **Subagents** (`Agent` tool) — parallel worker execution, measured on Claude Code; not exercised on Desktop. Other providers run tasks sequentially or through their own mechanism.
+- **Hooks** — `hooks/hooks.json` is loaded by Claude Code and the Codex CLI only — the Cursor IDE plugin does not wire it; Gemini CLI and OpenCode CLI have their own or none.
+- **Statusline** — wired via `.claude-plugin/plugin.json` `settings.statusLine` → `scripts/statusline.sh`. Claude Code only — Desktop has no terminal chrome to render into. Test with piped JSON: `echo '<session-json>' | bash scripts/statusline.sh` — it blocks forever on unpiped stdin.
 - **`EnterWorktree`** — automates worktree creation under `.claude/.worktrees/<name>`. That is the *legacy* layout; it stays supported and is never orphaned, but new objectives use `.agent-worktrees/<objective>/` per [`rules/dev/git-worktree-agent-workflow.md`](rules/dev/git-worktree-agent-workflow.md). `resolve-worktree.sh` understands both.
 - **Project memory** — `.claude/memory/` (versioned backup, reviewable in PRs) mirrored into a per-project transcript directory (auto-loaded each session). Keep them in sync; commit new memory files to `.claude/memory/`. The transcript directory name is normally *derived* from the clone's absolute path (`-Users-<you>-Projects-tamirs-superpowers`), which shifts per machine/username and breaks if the clone moves. Since **Claude Code 2.1.234**, `CLAUDE_CODE_PROJECT_DIR_NAME` overrides that derivation — pin it (e.g. in `~/.zshrc`/`~/.bashrc`, or per-session) for a stable, machine-independent name:
 
@@ -91,8 +91,8 @@ situation per session; never repeat a declined suggestion.
 and `unknown` on Codex, Gemini CLI and OpenCode. Description-based auto-triggering only fires
 reliably on Claude Code and Claude Desktop, and the `UserPromptSubmit` hook that reinforces it
 (`hooks/skill-suggest.sh`) is unsupported on OpenCode. This rule is the only surfacing
-mechanism that works on all five targets, which is why it is written down rather than left to
-the matcher.
+mechanism that works on every supported surface, which is why it is written down rather than
+left to the matcher.
 
 ## Commit trailer
 
