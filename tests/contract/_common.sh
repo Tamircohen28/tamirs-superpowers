@@ -22,6 +22,13 @@ fi
 
 REG="$REPO_ROOT/core/capabilities/platforms.json"
 
+# The registry is rooted at the platform and lists its runtime surfaces underneath;
+# the checks here are per-surface, so read the flattened one-entry-per-surface view.
+# shellcheck source=scripts/lib/registry.sh
+. "$REPO_ROOT/scripts/lib/registry.sh"
+REG="$(registry_flat_tmp "$REG")"
+trap 'rm -f "$REG"' EXIT
+
 # reg <platform-key> <jq-filter>
 reg() { jq -r "$2" <<<"$(jq -c --arg k "$1" '.platforms[$k]' "$REG")"; }
 

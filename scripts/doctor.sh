@@ -194,7 +194,8 @@ else
   if [[ -z "$primary" ]]; then
     echo "  no harness detected from the environment — showing the registry summary for every platform"
     jq -r '
-      .platforms | to_entries[]
+      [ .platforms[] | .display_name as $pn | (.surfaces // {} | to_entries[])
+        | select(.value.support != "unverified") ] | .[]
       | .key as $p | .value.display_name as $n
       | (.value.capabilities | to_entries)
       | [ (map(select(.value.status | test("^native"))) | length),
@@ -206,7 +207,7 @@ else
   else
     echo "  platform: $primary"
     jq -r --arg p "$primary" '
-      .platforms[$p].capabilities | to_entries[]
+      (first(.platforms[]?.surfaces[$p]? | select(. != null)) // .platforms[$p]?).capabilities | to_entries[]
       | "  \(.value.status | (. + "                    ")[0:21])\(.key)"
         + (if .value.fallback then "\n      fallback: \(.value.fallback)" else "" end)
     ' "$REGISTRY" | sed 's/^/  /'

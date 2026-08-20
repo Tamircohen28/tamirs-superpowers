@@ -51,6 +51,49 @@ TARGETS_MD="$ROOT/docs/engineering/build-and-release/platform-targets.md"
 REGISTRY="$ROOT/core/capabilities/platforms.json"
 README="$ROOT/README.md"
 
+# --- registry shape -----------------------------------------------------------------
+# core/capabilities/platforms.json is rooted at the PLATFORM (Claude, Codex, Cursor,
+# Gemini, OpenCode) and lists that platform's runtime SURFACES underneath: the terminal
+# client, the desktop app, the editor extension. Every check below asks a per-surface
+# question — "can the thing I am installed into do X?" — and every validation command
+# runs against a surface, never against a vendor. So flatten to one entry per SUPPORTED
+# surface, keyed by surface id, which is the shape the rest of this script expects and
+# the shape docs/engineering/build-and-release/platform-targets.json is keyed by.
+#
+# Unverified surfaces are dropped here on purpose: they carry no capabilities block at
+# all, because nobody measured them. Keeping them would force every reader to invent a
+# meaning for a missing block, and the obvious invention — absent means no — is exactly
+# the silent gap the registry exists to prevent. Docs list them; checkers do not.
+#
+# schema_version 1 registries are flat already, and a scaffolded repo may still be on
+# one, so the flatten is conditional rather than assumed.
+registry_flatten() {
+  jq '{
+    schema_version: .schema_version,
+    last_reviewed: .last_reviewed,
+    capability_definitions: .capability_definitions,
+    platforms: (
+      .platforms | to_entries
+      | map(
+          .key as $pid | .value as $p
+          | ($p.surfaces // {}) | to_entries
+          | map(select(.value.support == "supported"))
+          | map({ key: .key,
+                  value: (.value + { platform: $pid,
+                                     platform_display_name: $p.display_name }) })
+        )
+      | flatten | from_entries
+    )
+  }' "$1" >"$2"
+}
+
+if [[ -f "$REGISTRY" ]] && jq -e '(.schema_version // 1) >= 2' "$REGISTRY" >/dev/null 2>&1; then
+  REGISTRY_FLAT="$(mktemp)"
+  trap 'rm -f "$REGISTRY_FLAT"' EXIT
+  registry_flatten "$REGISTRY" "$REGISTRY_FLAT"
+  REGISTRY="$REGISTRY_FLAT"
+fi
+
 err() { echo "ERROR: $*" >&2; FAILED=$(( FAILED + 1 )); }
 warn() { echo "WARN: $*" >&2; }
 

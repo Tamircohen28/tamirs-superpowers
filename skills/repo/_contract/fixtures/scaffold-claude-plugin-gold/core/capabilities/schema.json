@@ -2,12 +2,19 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/Tamircohen28/scaffold-claude-plugin-gold/core/capabilities/schema.json",
   "title": "Platform capability registry",
-  "description": "Machine-readable statement of what each supported harness can actually do. Skills declare the capabilities they require and the ones they merely prefer; this registry is the only place that answers whether a given target provides them. Every platform must carry an explicit entry for every capability key — an omitted key is a schema error, not an implied 'no', so a gap can never be hidden by silence.",
+  "description": "Machine-readable statement of what each supported harness can actually do. The root entry is the PLATFORM (Claude, Codex, Cursor, Gemini, OpenCode); each platform carries one entry per runtime SURFACE it ships (CLI, desktop app, IDE extension), because install path and capabilities differ per surface and a single row per vendor cannot state both. Skills declare the capabilities they require and the ones they merely prefer; this registry is the only place that answers whether a given surface provides them. Every supported surface must carry an explicit entry for every capability key — an omitted key is a schema error, not an implied 'no', so a gap can never be hidden by silence. A surface nobody has measured is marked support 'unverified' and carries NO capabilities block at all: silence about an unmeasured surface is honest, invented 'unknown' rows are not.",
   "type": "object",
-  "required": ["schema_version", "capability_definitions", "platforms"],
+  "required": [
+    "schema_version",
+    "capability_definitions",
+    "platforms"
+  ],
   "additionalProperties": false,
   "properties": {
-    "schema_version": { "type": "integer", "const": 1 },
+    "schema_version": {
+      "type": "integer",
+      "const": 2
+    },
     "last_reviewed": {
       "type": "string",
       "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$",
@@ -16,14 +23,21 @@
     "capability_definitions": {
       "type": "object",
       "description": "One entry per capability key, defining what the capability means. The key set here is the contract; platform entries must cover exactly it.",
-      "propertyNames": { "$ref": "#/$defs/capabilityKey" },
+      "propertyNames": {
+        "$ref": "#/$defs/capabilityKey"
+      },
       "minProperties": 19,
       "additionalProperties": {
         "type": "object",
-        "required": ["summary"],
+        "required": [
+          "summary"
+        ],
         "additionalProperties": false,
         "properties": {
-          "summary": { "type": "string", "minLength": 1 },
+          "summary": {
+            "type": "string",
+            "minLength": 1
+          },
           "degradation": {
             "type": "string",
             "description": "What a skill should do when this capability is absent."
@@ -33,10 +47,15 @@
     },
     "platforms": {
       "type": "object",
-      "description": "One entry per supported target, keyed by the same snake_case id used in docs/engineering/build-and-release/platform-targets.json.",
+      "description": "One entry per platform vendor, keyed snake_case. Surfaces live underneath; docs/engineering/build-and-release/platform-targets.json is keyed by SURFACE id, not by these.",
       "minProperties": 1,
-      "propertyNames": { "type": "string", "pattern": "^[a-z][a-z0-9_]*$" },
-      "additionalProperties": { "$ref": "#/$defs/platform" }
+      "propertyNames": {
+        "type": "string",
+        "pattern": "^[a-z][a-z0-9_]*$"
+      },
+      "additionalProperties": {
+        "$ref": "#/$defs/platform"
+      }
     }
   },
   "$defs": {
@@ -79,10 +98,14 @@
     },
     "capabilityEntry": {
       "type": "object",
-      "required": ["status"],
+      "required": [
+        "status"
+      ],
       "additionalProperties": false,
       "properties": {
-        "status": { "$ref": "#/$defs/status" },
+        "status": {
+          "$ref": "#/$defs/status"
+        },
         "since": {
           "type": "string",
           "description": "Version floor at which the capability became available on this platform.",
@@ -97,47 +120,120 @@
           "type": "string",
           "description": "What the framework does instead when this capability is not available here."
         },
-        "notes": { "type": "string" }
+        "notes": {
+          "type": "string"
+        }
       },
       "allOf": [
         {
           "$comment": "A native claim without a validation command is a declaration, not evidence.",
           "if": {
-            "properties": { "status": { "enum": ["native", "native-experimental"] } },
-            "required": ["status"]
+            "properties": {
+              "status": {
+                "enum": [
+                  "native",
+                  "native-experimental"
+                ]
+              }
+            },
+            "required": [
+              "status"
+            ]
           },
-          "then": { "required": ["validation"] }
+          "then": {
+            "required": [
+              "validation"
+            ]
+          }
         },
         {
           "$comment": "Anything short of native must say what happens instead.",
           "if": {
             "properties": {
-              "status": { "enum": ["partial", "emulated", "adapter", "unsupported", "unknown"] }
+              "status": {
+                "enum": [
+                  "partial",
+                  "emulated",
+                  "adapter",
+                  "unsupported",
+                  "unknown"
+                ]
+              }
             },
-            "required": ["status"]
+            "required": [
+              "status"
+            ]
           },
           "then": {
-            "anyOf": [{ "required": ["fallback"] }, { "required": ["notes"] }]
+            "anyOf": [
+              {
+                "required": [
+                  "fallback"
+                ]
+              },
+              {
+                "required": [
+                  "notes"
+                ]
+              }
+            ]
           }
         }
       ]
     },
-    "platform": {
+    "surface": {
       "type": "object",
-      "required": ["display_name", "install", "validation", "capabilities"],
+      "required": [
+        "display_name",
+        "kind",
+        "support"
+      ],
       "additionalProperties": false,
       "properties": {
-        "display_name": { "type": "string", "minLength": 1 },
+        "display_name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "kind": {
+          "type": "string",
+          "description": "What kind of surface this is. Distinguishes the terminal client from the desktop app and the editor extension, which are the same product but not the same install or the same capability set.",
+          "enum": [
+            "cli",
+            "desktop",
+            "ide",
+            "web",
+            "cloud"
+          ]
+        },
+        "support": {
+          "type": "string",
+          "description": "supported = this repo installs and validates here, and the capabilities block is measured. unverified = a real surface of the platform that this repo has never exercised; it carries no capability claims at all and no consumer may treat it as a target.",
+          "enum": [
+            "supported",
+            "unverified"
+          ]
+        },
+        "unverified_reason": {
+          "type": "string",
+          "description": "Required when support is 'unverified': what is known, what was never measured, and why the sibling surface's results were not carried over.",
+          "minLength": 1
+        },
         "aliases": {
           "type": "array",
           "description": "Other spellings of this platform id that consumers may encounter (kebab-case, marketing names). Present so every consumer normalizes the same way instead of inventing its own mapping.",
-          "items": { "type": "string", "minLength": 1 },
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
           "uniqueItems": true
         },
         "doc_urls": {
           "type": "array",
           "description": "Authoritative upstream documentation for this platform. Kept in sync with the doc_urls array in docs/engineering/build-and-release/platform-targets.json; consumers such as platform-sync should prefer this over their own bundled URL lists.",
-          "items": { "type": "string", "format": "uri" },
+          "items": {
+            "type": "string",
+            "format": "uri"
+          },
           "uniqueItems": true
         },
         "runtime_surface_of": {
@@ -146,24 +242,46 @@
         },
         "install": {
           "type": "object",
-          "required": ["type"],
+          "required": [
+            "type"
+          ],
           "additionalProperties": false,
           "properties": {
             "type": {
               "type": "string",
-              "enum": ["marketplace", "extension", "plugin-dir", "path", "symlink", "manual"]
+              "enum": [
+                "marketplace",
+                "extension",
+                "plugin-dir",
+                "path",
+                "symlink",
+                "manual"
+              ]
             },
-            "command": { "type": "string" },
-            "doc": { "type": "string", "description": "Repo-relative install guide." }
+            "command": {
+              "type": "string"
+            },
+            "doc": {
+              "type": "string",
+              "description": "Repo-relative install guide."
+            }
           }
         },
         "validation": {
           "type": "object",
-          "required": ["command"],
+          "required": [
+            "command"
+          ],
           "additionalProperties": false,
           "properties": {
-            "command": { "type": "string", "minLength": 1 },
-            "requires_cli": { "type": "boolean", "default": true }
+            "command": {
+              "type": "string",
+              "minLength": 1
+            },
+            "requires_cli": {
+              "type": "boolean",
+              "default": true
+            }
           }
         },
         "capabilities": {
@@ -171,8 +289,124 @@
           "description": "Every capability key must be present. Use status 'unknown' for anything unverified rather than omitting it.",
           "minProperties": 19,
           "maxProperties": 19,
-          "propertyNames": { "$ref": "#/$defs/capabilityKey" },
-          "additionalProperties": { "$ref": "#/$defs/capabilityEntry" }
+          "propertyNames": {
+            "$ref": "#/$defs/capabilityKey"
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/capabilityEntry"
+          }
+        }
+      },
+      "description": "One runtime surface of a platform — the thing a user actually installs into.",
+      "allOf": [
+        {
+          "$comment": "A surface this repo claims to support must say how it installs, how that is proven, and what it can do.",
+          "if": {
+            "properties": {
+              "support": {
+                "const": "supported"
+              }
+            },
+            "required": [
+              "support"
+            ]
+          },
+          "then": {
+            "required": [
+              "install",
+              "validation",
+              "capabilities"
+            ]
+          }
+        },
+        {
+          "$comment": "An unverified surface states why, and claims nothing. Capability rows here would be fabricated evidence.",
+          "if": {
+            "properties": {
+              "support": {
+                "const": "unverified"
+              }
+            },
+            "required": [
+              "support"
+            ]
+          },
+          "then": {
+            "required": [
+              "unverified_reason"
+            ],
+            "not": {
+              "anyOf": [
+                {
+                  "required": [
+                    "capabilities"
+                  ]
+                },
+                {
+                  "required": [
+                    "install"
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "platform": {
+      "type": "object",
+      "description": "A platform vendor and the surfaces it ships.",
+      "required": [
+        "display_name",
+        "primary_surface",
+        "surfaces"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "display_name": {
+          "type": "string",
+          "minLength": 1,
+          "description": "The platform as a user names it — 'Claude', not 'Claude Code'. Surface-level display_name carries the specific one."
+        },
+        "vendor": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Organisation shipping the platform."
+        },
+        "aliases": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "uniqueItems": true,
+          "description": "Other spellings of the PLATFORM id. Surface ids carry their own."
+        },
+        "doc_urls": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "format": "uri"
+          },
+          "uniqueItems": true,
+          "description": "Authoritative upstream docs across the platform's surfaces."
+        },
+        "primary_surface": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]*$",
+          "description": "The surface this repo treats as the platform's reference install. Must be a key of surfaces, and must be a supported one."
+        },
+        "surfaces": {
+          "type": "object",
+          "description": "One entry per runtime surface. A platform with exactly one known surface still uses this map — the shape does not change when a second surface appears.",
+          "minProperties": 1,
+          "propertyNames": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_]*$"
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/surface"
+          }
         }
       }
     }

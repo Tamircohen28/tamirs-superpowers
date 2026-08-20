@@ -59,6 +59,13 @@ FAILED=0
 TARGETS_JSON="$ROOT/docs/engineering/build-and-release/platform-targets.json"
 REGISTRY="$ROOT/core/capabilities/platforms.json"
 
+# The registry is rooted at the platform and lists its runtime surfaces underneath;
+# the checks here are per-surface, so read the flattened one-entry-per-surface view.
+# shellcheck source=scripts/lib/registry.sh
+. "$ROOT/scripts/lib/registry.sh"
+REGISTRY="$(registry_flat_tmp "$REGISTRY")"
+trap 'rm -f "$REGISTRY"' EXIT
+
 err() { echo "ERROR: $*" >&2; FAILED=$(( FAILED + 1 )); }
 warn() { echo "WARN: $*" >&2; }
 

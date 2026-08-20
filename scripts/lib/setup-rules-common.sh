@@ -64,10 +64,14 @@ rules_body() {
 # here with its recorded fallback, so nothing is silently dropped on the way from
 # the canonical source to a platform that cannot express it.
 rules_platform_notes() {
-  local key="$1" display="$2" reg cap st fb any=no
+  local key="$1" display="$2" reg cap st fb surf any=no
   reg="${SETUP_REPO_ROOT}/core/capabilities/platforms.json"
   [ -f "$reg" ] || return 0
-  jq -e --arg p "$key" '.platforms[$p]' "$reg" >/dev/null 2>&1 || return 0
+  # Registry lookups are by SURFACE id (claude_code, cursor, ...), which now lives one
+  # level down under its platform. This prefix resolves a surface id under either shape,
+  # so a schema_version 1 registry in an older checkout still reads. Model: scripts/lib/registry.sh.
+  surf='(first(.platforms[]?.surfaces[$p]? | select(. != null)) // .platforms[$p]?)'
+  jq -e --arg p "$key" "$surf" "$reg" >/dev/null 2>&1 || return 0
 
   printf '\n## Platform notes — %s\n\n' "$display"
   printf 'Generated from `core/capabilities/platforms.json`. The rules above assume\n'
@@ -75,10 +79,10 @@ rules_platform_notes() {
   printf 'instead, so nothing above is silently unenforceable here.\n\n'
 
   for cap in $RULES_NOTE_CAPS; do
-    st="$(jq -r --arg p "$key" --arg c "$cap" '.platforms[$p].capabilities[$c].status // empty' "$reg" 2>/dev/null)"
+    st="$(jq -r --arg p "$key" --arg c "$cap" "$surf.capabilities[\$c].status // empty" "$reg" 2>/dev/null)"
     [ -n "$st" ] || continue
     case "$st" in native) continue ;; esac
-    fb="$(jq -r --arg p "$key" --arg c "$cap" '.platforms[$p].capabilities[$c].fallback // ""' "$reg" 2>/dev/null \
+    fb="$(jq -r --arg p "$key" --arg c "$cap" "$surf.capabilities[\$c].fallback // \"\"" "$reg" 2>/dev/null \
           | tr '\n' ' ' | sed "s|${HOME}|~|g" | cut -c1-200 | sed 's/[[:space:]]*$//')"
     any=yes
     if [ -n "$fb" ]; then
