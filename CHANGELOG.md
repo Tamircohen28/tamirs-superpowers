@@ -6,12 +6,12 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ## [Unreleased]
 
 ### Changed
-- **Platform target: Claude Code 2.1.235** (from 2.1.233). Docs-only bump — no shipped
-  plugin content changed, so no version bump. The 2.1.234–2.1.235 delta reviewed
-  against the plugin surface: manifests, skills frontmatter, hooks, MCP stubs,
-  statusline, and marketplace flow all remain valid; `claude plugin validate .`
-  and the full `run-tamirs-superpowers` smoke test both re-run clean on a local
-  Claude Code **2.1.235** install. One capability is adopted into the docs:
+- **Platform target: Claude Code 2.1.238** (from 2.1.233). Docs-only bump — no shipped
+  plugin content changed, so no version bump. The 2.1.234–2.1.238 delta reviewed against
+  the plugin surface as it exists in this branch's tree (manifests, skills frontmatter,
+  hooks, `.mcp.json`, statusline, marketplace flow): `claude plugin validate .` and the
+  full `run-tamirs-superpowers` smoke test both re-run clean on a local Claude Code
+  **2.1.238** install. One capability is adopted into the docs:
   **`CLAUDE_CODE_PROJECT_DIR_NAME`** (2.1.234) — the "Project memory" section of
   `CLAUDE.md` documented restoring `.claude/memory/` into the auto-loaded transcript
   directory via a path *derived* from the clone's absolute location
@@ -31,7 +31,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   agent-team teammates use the leader's model (none of the six `agents/*.md`
   reviewers or any skill here documents a per-teammate model setting),
   background-task notifications now arriving as system-reminders, and the Windows
-  NT-namespace path-read hardening (host-security fix, no plugin surface). And
+  NT-namespace path-read hardening (host-security fix, no plugin surface). Also
   reviewed, no plugin change needed (2.1.235): the Agent tool's clearer error when
   `subagent_type` is omitted and no general-purpose agent is available (this repo
   ships no orchestration code that invokes the `Agent` tool programmatically — its
@@ -39,6 +39,25 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   omitted-type call sites), spellcheck/vim-mode/dialog/markdown-rendering UI polish, the
   `/ultrareview`/`/autofix-pr` background memory improvement, and the `SendMessage`
   oversized-message-upfront-refusal (no skill here sends messages near the size cap).
+  Tonight's 2.1.236–2.1.238 delta, reviewed with no plugin change needed on this
+  branch: the opt-in cross-session `SendMessage` `notify_when_idle` (2.1.236) — no
+  skill or hook here does cross-session polling or manual idle-detection for it to
+  replace; `ANTHROPIC_DEFAULT_MODEL` (2.1.236); the built-in **"Concise" output
+  style** (2.1.237) and its prompt-caching fix for custom-base-URL sessions; macOS
+  sandbox wildcard-read-deny precedence (2.1.236); the new `keybindingFlavor`
+  setting and the `headersHelper` trust-dialog + credential-scoping rules for
+  project `.mcp.json` (2.1.238 — this repo's `.mcp.json` declares only a plain
+  `stdio` server with no `headersHelper`, so it is unaffected); the bug fix for
+  custom/project/plugin output styles drifting back to default voice mid-session
+  (2.1.238); the MCP elicitation >4096-char-URL fix and stdio-server
+  `initialize`-ordering fix; improved zsh-conditional Bash permission checking;
+  `claude mcp list`/`get` showing disabled servers without a health check; and
+  `self-hosted-runner` `--defer-shutdown-max-min`/proxy-authorization flags (no
+  self-hosted-runner usage here). `ANTHROPIC_DEFAULT_MODEL` and `keybindingFlavor`
+  have no home to wire into on this branch yet — the `platforms/claude/settings.d/`
+  + `capture.conf` machine-config-as-repo-data mechanism that would carry them
+  (see the `[3.1.0]` entry below) lives on `master` but has not reached this
+  branch's tree; flagged in Future opportunities.
 
 ## [3.2.0] — 2026-08-19
 
@@ -289,7 +308,7 @@ Nothing changes until you run it: installing or updating the plugin does not wri
 
 ### Fixed
 - **The scaffold template emitted an invalid marketplace declaration.** `legacy-scaffold-templates.md` wrote `extraKnownMarketplaces` as an array, so every repo scaffolded from it got a settings file Claude Code silently ignored. Now emits the record form, with the silent-drop behaviour and the `claude doctor` verification documented inline.
-- **All four manifest descriptions advertised "26 bundled skills"** against an actual 27 — the same drift 1.12.0 fixed at 25→26. Now enforced by `check-doc-claims` rather than by remembering.
+- **All four manifest descriptions advertised "26 bundled skills"** against an actual 27. Now enforced by `check-doc-claims` rather than by remembering.
 - **`check-platform-targets.sh` accepted a supported target with no sub-skill.** It validated `validated_against` and README badges but never checked that `/platform-sync` could actually audit the target. Now fails on a missing `skills/documentation/platform-sync-<target>/`, and on an unrecognised target key rather than skipping it silently.
 - **`docs/engineering/architecture/overview.md` claimed "16 skills in 7 domains"** while the tree shipped 27, with a stale per-domain listing to match.
 
