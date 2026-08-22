@@ -5,6 +5,19 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Changed
+- **`templates/global-CLAUDE.md` now pre-authorizes commits and pull requests.**
+  The template gated *merging* behind an explicit instruction but said nothing
+  about committing or opening a PR — so Claude Code's own default, *"Commit or
+  push only when the user asks"*, went unanswered and an agent finishing a piece
+  of freeform work stopped at an uncommitted worktree. It never surfaced inside
+  `start-dev` / `worker-dev` / `deliver-dev`, because those skills commit and
+  open PRs as part of their own instructions. The new bullet answers the default
+  the same way the subagent authorization already answers
+  *"Do not call the AgentTool unless the user requested it"*, and states the
+  preconditions (branch in a worktree, repo gate green, PR body carrying the
+  evidence). Merging stays gated, `pr-dev` exception intact.
+
 ## [3.3.0] — 2026-08-20
 
 ### Changed
