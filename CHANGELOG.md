@@ -6,7 +6,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ## [Unreleased]
 
 ### Changed
-- **Platform target: Claude Code 2.1.238** (from 2.1.233). Docs-only bump — no shipped
+- **Platform target: Claude Code 2.1.241** (from 2.1.233). Docs-only bump — no shipped
   plugin content changed, so no version bump. The 2.1.234–2.1.238 delta reviewed against
   the plugin surface as it exists in this branch's tree (manifests, skills frontmatter,
   hooks, `.mcp.json`, statusline, marketplace flow): `claude plugin validate .` and the
@@ -57,7 +57,21 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   have no home to wire into on this branch yet — the `platforms/claude/settings.d/`
   + `capture.conf` machine-config-as-repo-data mechanism that would carry them
   (see the `[3.1.0]` entry below) lives on `master` but has not reached this
-  branch's tree; flagged in Future opportunities.
+  branch's tree; flagged in Future opportunities. Tonight's 2.1.239–2.1.241
+  delta, reviewed with no plugin change needed on this branch: `/claude-api
+  upgrade` and the claude-api skill's updated Python 1.x reference (2.1.239 —
+  this repo bundles no `claude-api` skill); cloud sessions showing plugins
+  synced from claude.ai as `name@synced` (2.1.239 — account/session UI, no
+  manifest surface this repo controls); Windows cross-session messaging
+  becoming available (2.1.239 — host platform support, no plugin surface); and
+  the optional **`spellcheck`** setting (2.1.235, reviewed together with this
+  batch). 2.1.240 and 2.1.241 each shipped as bug fixes and reliability
+  improvements only, per the official changelog, with nothing to adopt or
+  review. `ANTHROPIC_DEFAULT_MODEL`, `keybindingFlavor`, and now `spellcheck`
+  still have no home on this branch for the same reason as last cycle — the
+  `platforms/claude/settings.d/` + `capture.conf` mechanism they'd wire into
+  as portable policy exists on `master` but has not reached this branch's
+  tree; unchanged from last cycle, still flagged in Future opportunities below.
 
 ## [3.2.0] — 2026-08-19
 
