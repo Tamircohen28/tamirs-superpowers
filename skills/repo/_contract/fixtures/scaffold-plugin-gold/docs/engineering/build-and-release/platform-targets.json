@@ -92,6 +92,7 @@
         "github_cli",
         "hooks",
         "mcp",
+        "parallel_subagents",
         "plugin_marketplace",
         "shell",
         "skill_auto_invocation",

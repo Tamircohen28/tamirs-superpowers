@@ -1,6 +1,6 @@
 {
   "schema_version": 2,
-  "last_reviewed": "2026-08-19",
+  "last_reviewed": "2026-08-23",
   "reviewed_by_skill": "tamirs-superpowers@3.3.0",
   "supported_targets": [
     "claude_code",
@@ -65,14 +65,14 @@
     },
     "cursor": {
       "platform": "cursor",
-      "supported_min": "3.16.17",
+      "supported_min": "3.16.29",
       "supported_min_source": "Cursor documents no minimum version for plugins; the floor is set to the version actually validated rather than guessed",
-      "validated_against": "3.16.17",
-      "latest_known": "3.16.17",
+      "validated_against": "3.16.29",
+      "latest_known": "3.16.29",
       "changelog_feature": "3.11",
-      "changelog_date": "2026-08-17",
-      "verified_on": "2026-08-17",
-      "verification_method": "latest desktop build from official Cursor download links (3.16.17, 2026-08-14 stable) cross-checked against cursor.com/changelog (feature 3.11; date-only entries through 2026-08-17 Origin); Cursor CLI changelog Aug 11 2026 documented; Builds now default (2026-08-17); Origin early-beta docs 2026-08-17",
+      "changelog_date": "2026-08-19",
+      "verified_on": "2026-08-19",
+      "verification_method": "latest desktop build from official Cursor download links (3.16.29, 2026-08-18 stable) cross-checked against cursor.com/changelog (feature 3.11; date-only entries through 2026-08-19 cloud-agent subscriptions / custom modes / isolated subagent VMs /goal / steering); Cursor CLI changelog Aug 11 2026 documented; Builds now default (2026-08-17); Origin early-beta docs + Origin CLI/integrations (2026-08-17/18)",
       "install_doc": "docs/user/install/cursor.md",
       "doc_urls": [
         "https://cursor.com/docs/plugins",
@@ -83,7 +83,8 @@
         "https://agent-plugins.org",
         "https://cursor.com/blog/builds",
         "https://cursor.com/docs/origin",
-        "https://cursor.com/codebase"
+        "https://cursor.com/codebase",
+        "https://cursor.com/changelog"
       ],
       "features_adopted": [
         "cursor-plugin-manifest",
@@ -101,7 +102,6 @@
         "multi-pr-sessions-docs-2026-07-29",
         "workspace-open-hook-docs",
         "agent-plugins-standard-docs",
-        "desktop-cli-pin-3.16.17",
         "automations-memory-delete-docs",
         "cloud-agent-builds-docs-2026-08-13",
         "cli-plugin-hooks-docs-2026-08-11",
@@ -114,13 +114,22 @@
         "grok-4.6-docs-2026-08-14",
         "builds-t1-default-readiness-2026-08-16",
         "origin-git-forge-docs-2026-08-17",
-        "builds-now-default-2026-08-17"
+        "builds-now-default-2026-08-17",
+        "desktop-cli-pin-3.16.29",
+        "origin-cli-and-integrations-docs-2026-08-18",
+        "cloud-agent-subscriptions-2026-08-19",
+        "custom-modes-from-skills-2026-08-19",
+        "subagents-isolated-vms-2026-08-19",
+        "agent-window-goal-2026-08-19",
+        "non-interruptive-steering-2026-08-19",
+        "native-create-goal-tools-docs-2026-08-19"
       ],
       "capabilities": [
         "git",
         "github_cli",
         "hooks",
         "mcp",
+        "parallel_subagents",
         "plugin_marketplace",
         "shell",
         "skill_auto_invocation",

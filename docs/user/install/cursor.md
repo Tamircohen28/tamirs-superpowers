@@ -1,13 +1,8 @@
-# Install — Cursor IDE
+# Install — Cursor
 
-**Platform:** Cursor. **Surface:** Cursor IDE — registry id `cursor`. Everything on this
-page was measured through an IDE plugin install. Cursor's other surface, the **Cursor CLI**,
-is **unverified**: it shares `.cursor-plugin/plugin.json` with the IDE, but no CLI run has
-been recorded here, so it has no install guide and the measurements below are not carried
-over to it. See [platform differences](../platform-differences.md#unverified-surfaces).
-
-Validated against Cursor **3.16.17**; that floor is the version this repo actually tested,
-not a guess.
+Registry id: `cursor`. Validated against Cursor desktop **3.16.29** (feature changelog
+**3.11**, covered through date-only **2026-08-19**); that floor is the version this repo
+actually tested, not a guess.
 
 ---
 
@@ -91,16 +86,25 @@ never adopt anything silently. `apply` shows a diff and asks per change, default
 
 | Capability | Status | Notes |
 |---|---|---|
-| skills | native | since 3.16.17 |
-| subagents | native | declared capability |
+| skills | native | since desktop 3.16.29 pin; pin as **Custom Mode** (2026-08-19) via ⌥⏎ / Alt+Enter from `/` |
+| subagents | native | declared capability; cloud subagents can use **isolated VMs** (2026-08-19) |
 | slash commands | native | |
 | MCP | native | `.mcp.json` |
 | git · shell · GitHub CLI | native | `gh` is an optional host dependency everywhere |
-| auto-invocation | partial | Sticky skills are documented for the Cursor CLI; description-based selection across all surfaces is unverified here — **name the skill** |
+| auto-invocation | partial | CLI sticky skills + Custom Modes; description-based selection across all surfaces is unverified — **name the skill** or pin a mode |
 | hooks | partial | **Claude-shaped plugin hooks (`hooks/hooks.json`, `CLAUDE_PLUGIN_ROOT`) do not run under a Cursor plugin install.** Project-level `.cursor/hooks.json` ships soft contributor guards; third-party Claude hooks via `.claude/settings.json` are opt-in in Cursor Settings |
 | worktree isolation | emulated | The skill runs `git worktree` itself; no hook automation |
-| parallel subagents · background tasks · structured questions · session transcripts | unknown | Not measured — treated as unavailable, with stated fallbacks |
+| parallel subagents | partial | Cloud swarm on isolated VMs (2026-08-19); local concurrency unmeasured |
+| background tasks · structured questions · session transcripts | unknown | Not measured — treated as unavailable, with stated fallbacks |
 | statusline · artifacts · extension install | unsupported | Cosmetic, absent, and not a Cursor mechanism, respectively |
+
+### Working tips (3.11 → 2026-08-19; desktop CLI 3.16.29)
+
+- **Custom Modes (2026-08-19)** — from `/`, pick a skill and press ⌥⏎ (Mac) or Alt+Enter (Windows) → **Use as Mode**. The skill stays pinned for the chat. Prefer this for `repo-standards`, `targeted-debug`, `platform-sync`, or any long playbook instead of re-invoking each turn.
+- **`/goal` + steering (2026-08-19)** — give a long-lived objective with `/goal` (pair with a Custom Mode). Follow-ups now wait for the next tool call instead of cutting mid-action; type a follow-up and Send, or press ⏎ twice. Cloud Agents also expose native **CreateGoal** / **UpdateGoal** tools for the same long-lived objective pattern. CLI Aug 11 steer/`/goal` notes still apply for `agent` runs.
+- **Subscriptions (Cloud Agents, 2026-08-19)** — agents can wake on PR events, Slack threads, or schedules; agents auto-subscribe to PRs they create and drive CI/review comments. Useful for unattended plugin validation Automations.
+- **Subagents on their own machines (2026-08-19)** — cloud subagents get isolated project copies. Prefer for collision-free `make validate` / swarm checks.
+- **Origin (2026-08-17)** / **Builds (default 2026-08-17)** — GitHub remains canonical for marketplace installs and CI; Origin is optional mirror. Confirm Cloud environments have a recent successful Build.
 
 **The one to internalize:** hook guards are advisory in Cursor. The same rules are enforced
 in CI, which is where they actually bind.
