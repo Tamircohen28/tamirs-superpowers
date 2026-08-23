@@ -28,13 +28,13 @@ The README's platform badge row shows **platform tool versions** directly valida
 
 ## Versions
 
-Verified **2026-08-17** — Cursor against **3.16.17** on 2026-08-17 (the most recent verification of any target, and therefore the `last_reviewed` date); Claude Code from the official changelog (automated nightly review, through **2.1.233**) on 2026-08-15; the remaining CLIs by running each on the maintainer machine (2026-08-03). Codex **0.147.0** was reviewed on **2026-08-09** against the official release delta and is the version this repo now supports/tracks; direct CLI validation remains at 0.146.0 until the next maintainer-machine run.
+Reviewed **2026-08-23**. Cursor remains directly validated against **3.16.17**; Claude Code is tracked through **2.1.233**; Gemini CLI remains directly validated at **0.55.1** and OpenCode at **1.18.11**. Codex releases are reviewed through **0.149.0** (released 2026-08-20), while direct CLI validation remains at **0.146.0** until the next maintainer-machine run. The 0.148–0.149 delta does not require a plugin-manifest migration: async/MCP hook additions remain a future host-specific hook opportunity, while `codex agents`, `codex queue`, TUI cwd commands, and the expanded `codex doctor` are native host controls documented in the Codex install guide.
 
 | Surface | Min supported | Validated against | Latest known | Install guide |
 |----------|---------------|-------------------|--------------|---------------|
 | Claude Code | 2.0.0 | 2.1.233 | 2.1.233 | [claude-code.md](../../user/install/claude-code.md) |
 | Cursor | 3.16.17 | 3.16.17 | 3.16.17 | [cursor.md](../../user/install/cursor.md) |
-| Codex | 0.40.0 | 0.146.0 | 0.147.0 | [codex.md](../../user/install/codex.md) |
+| Codex | 0.40.0 | 0.146.0 | 0.149.0 | [codex.md](../../user/install/codex.md) |
 | Gemini CLI | 0.55.1 | 0.55.1 | 0.55.1 | [gemini.md](../../user/install/gemini.md) |
 | OpenCode | 1.16.2 | 1.18.11 | 1.18.11 | [opencode.md](../../user/install/opencode.md) |
 
