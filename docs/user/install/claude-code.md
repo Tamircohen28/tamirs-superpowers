@@ -1,163 +1,166 @@
-# Install on Claude Code
+# Install — Claude Code
 
-| | |
-|---|---|
-| **Validated against** | Claude Code **2.1.233** |
-| **Minimum supported** | **2.0.0** |
-| **Plugin manifest** | `.claude-plugin/plugin.json` |
-| **Marketplace manifest** | `.claude-plugin/marketplace.json` |
-| **Official docs** | [Plugins reference](https://code.claude.com/docs/en/plugins-reference) · [Marketplaces](https://code.claude.com/docs/en/plugin-marketplaces) · [Skills](https://code.claude.com/docs/en/skills) |
+Claude Code is the reference target. Everything in the toolkit runs here as shipped.
 
-Check your version:
+**Platform:** Claude. **Surface:** Claude Code, the CLI — registry id `claude_code`.
+Claude's other supported surface is [Claude Desktop](claude-desktop.md) (desktop app), which
+installs the same plugin from the same marketplace listing and has its own guide. What is
+measured below was measured on the CLI; see
+[platform differences](../platform-differences.md) for how the two surfaces compare.
 
-```bash
-claude --version
+---
+
+## Install
+
+Two sources, same plugin. Pick one.
+
+**From this repo (standalone):**
+
+```text
+/plugin marketplace add Tamircohen28/tamirs-superpowers
+/plugin install tamirs-superpowers@tamirs-superpowers
 ```
 
-## Prerequisites
+**From the catalog:**
 
-- Claude Code 2.0.0 or newer (2.1.233 is what this release was validated on)
-- `jq` — `brew install jq`
-- `git` 2.30+
-
-## Method A — via the tamirs-marketplace catalog (recommended)
-
-The catalog keeps the plugin updated and is where the rest of the plugin family lives.
-
-```
+```text
 /plugin marketplace add Tamircohen28/tamirs-marketplace
 /plugin install tamirs-superpowers@tamirs-marketplace
 ```
 
-Since Claude Code 2.1.221, `/plugin install` activates the plugin immediately
-when safe — no `/reload-plugins` step. It also refreshes a stale marketplace
-catalog and retries before reporting a plugin not found, so a fresh
-`marketplace add` → `install` sequence no longer races the catalog cache.
-Since 2.1.232, `/plugin install tamirs-superpowers@tamirs-marketplace` goes one
-better and refreshes the marketplace **first**, so a release published minutes
-ago installs without any manual `marketplace update`.
-On older versions, finish with `/reload-plugins`.
+The `@` suffix names the *marketplace*, so it differs between the two — using the wrong one
+is the most common install error.
 
-To pick up a new release later:
+Since Claude Code 2.1.221 an installed plugin activates immediately when it is safe to do
+so. On older versions, finish with `/reload-plugins`.
 
-```
-/plugin marketplace update tamirs-marketplace
-/plugin update tamirs-superpowers@tamirs-marketplace
-```
-
-> Claude Code caches installed plugins by the `version` field in `plugin.json`. If a release did not bump the version, `/plugin update` is a no-op.
-
-## Method B — standalone, straight from this repo
-
-No catalog needed. The repo carries its own `.claude-plugin/marketplace.json` alongside the plugin manifest, so Claude Code can install it directly:
-
-```
-/plugin marketplace add Tamircohen28/tamirs-superpowers
-/plugin install tamirs-superpowers
-```
-
-(As above — on Claude Code older than 2.1.221, finish with `/reload-plugins`.)
-
-## Method C — clone into the local skills directory
-
-For offline machines or when you want to edit skills in place:
+**Local development install** (working on the toolkit itself, not using it):
 
 ```bash
-git clone https://github.com/Tamircohen28/tamirs-superpowers.git \
-  ~/.claude/skills/tamirs-superpowers
+claude --plugin-dir /path/to/tamirs-superpowers
 ```
-
-Claude Code auto-loads anything under `~/.claude/skills/`. Reload with `/reload-plugins`.
-
-Trade-off: no automatic updates — `git pull` to refresh.
-
-## Method D — command-source link install (2.1.229+, best for editing in place)
-
-Since Claude Code 2.1.229, a marketplace entry can use a **`command` source**: a
-local command prints the plugin directory, the result is re-resolved at each
-session start (no restart needed), and `mode: "link"` uses the directory in
-place. Register a local marketplace whose entry points at your clone:
-
-```jsonc
-{
-  "name": "tamirs-superpowers",
-  "source": {
-    "source": "command",
-    "command": ["echo", "/absolute/path/to/tamirs-superpowers"],
-    "mode": "link"
-  }
-}
-```
-
-Unlike Method C, the clone is used *as* the installed plugin — skills, hooks,
-agents, and manifests all load from your working tree, and there is no cache
-copy to fall out of date. This is the recommended path if you edit the plugin;
-see [development-workflow.md](../../engineering/build-and-release/development-workflow.md)
-for the full dev loop.
-
-> **No-git machines:** Claude Code 2.1.224 added an `archive` plugin source —
-> plugins can be installed from a zip archive over HTTPS, without git or npm,
-> with optional SHA-256 pinning. This repo does not publish release zip
-> artifacts yet, so Methods A–D above remain the supported paths here; if you
-> mirror the repo internally, an archive source is now a viable no-git channel.
-
-## Optional companion marketplaces
-
-This plugin declares **no** dependencies, so nothing auto-installs with it. A few bundled skills reference plugins from other catalogs; register those once per machine if you want them:
-
-```
-/plugin marketplace add warpdotdev/claude-code-warp
-/plugin marketplace add anthropics/knowledge-work-plugins
-/plugin marketplace add obra/superpowers
-```
-
-## Optional — bootstrap settings, agents, and notifications
-
-`scripts/install.sh` writes a clean `~/.claude/settings.json`, wires the statusline, and copies the 6 specialist agents into `~/.claude/agents/`:
-
-```bash
-make install
-```
-
-With phone notifications (opt-in — both variables required):
-
-```bash
-PUSHOVER_TOKEN=... PUSHOVER_USER=... bash scripts/install.sh
-```
-
-Credentials are written to `~/.claude/pushover.env` at mode `600`, outside the version-pathed plugin cache so updates don't delete them. Or run `/tamirs-superpowers:notify-setup` and let the skill walk you through it.
-
-## MCP servers (optional)
-
-The plugin ships stubs for GitHub, Slack, Context7, and Desktop Commander in `.mcp.json`, all using `${ENV_VAR}` placeholders — never committed tokens.
-
-1. `/plugin list` → note the `tamirs-superpowers` install path
-2. Open `.mcp.json` there
-3. Set the required env vars (e.g. `GITHUB_PERSONAL_ACCESS_TOKEN`)
-4. Restart Claude Code
 
 ## Verify
 
+```bash
+bash scripts/doctor.sh .
+claude plugin validate .
 ```
-/tamirs-superpowers:find-skill
+
+`doctor` reports the detected platform, version drift, and which optional features are
+usable. `claude plugin validate` checks the manifest, skills, agents, and hook wiring.
+
+In the session:
+
+```text
+/orchestrate-dev
 ```
 
-Should list all 27 skills. Also check the statusline appears at the bottom of the terminal — that confirms `settings.statusLine` resolved.
+The slash menu should list the toolkit's skills, and the statusline should show your branch
+and worktree state in the footer.
 
-## What Claude Code gets that others don't
+Individual surfaces:
 
-- **Statusline** — declared in `settings.statusLine`, Claude Code only
-- **Full hook suite** — `hooks/hooks.json` worktree guards, session init, notifications
-- **Marketplace dependency resolution** — available on Claude Code, though this plugin declares no dependencies
+```bash
+jq empty hooks/hooks.json          # hooks parse
+jq empty .mcp.json                 # MCP stubs parse
+echo '{}' | bash scripts/statusline.sh   # statusline renders and never blocks on stdin
+```
+
+## Update
+
+```text
+/plugin marketplace update tamirs-superpowers
+/plugin update tamirs-superpowers@tamirs-superpowers
+```
+
+Claude Code caches by the manifest `version` field, so a push without a version bump does
+**not** reach installed users. If an update appears to do nothing, check the version:
+
+```bash
+jq -r .version plugin-version.json
+```
+
+Since **2.1.239**, a copy of this plugin synced into a cloud session from claude.ai shows up
+as `tamirs-superpowers@synced` — a distinct install alongside a marketplace install like the
+one above — and never overrides it. Since **2.1.243**, `/mcp` and `/plugins` also show a
+`managed` marker next to a connector whose auth is centrally controlled by an organization;
+that marker is about auth management, not install source, and a plain
+`/plugin marketplace add Tamircohen28/tamirs-superpowers` install never acquires it on that
+basis alone.
+
+## Uninstall
+
+```text
+/plugin uninstall tamirs-superpowers@tamirs-superpowers
+/plugin marketplace remove tamirs-superpowers
+```
+
+Then restart the session. Anything you configured outside the plugin —
+`~/.claude/pushover.env`, a manual `statusLine` entry in `~/.claude/settings.json` — is
+yours to remove separately.
+
+---
+
+## Machine-level setup
+
+Installing the plugin does not write any config. Rendering this repo's canonical
+configuration into `~/.claude` is a separate, optional step:
+
+```bash
+git clone https://github.com/Tamircohen28/tamirs-superpowers.git
+cd tamirs-superpowers
+bash scripts/setup.sh plan  --targets claude    # writes nothing
+bash scripts/setup.sh apply --targets claude    # diff → confirm → write
+bash scripts/setup.sh remove --targets claude   # undo, from a fixed-name backup
+```
+
+Eight modules, each skippable and each shown as a diff first:
+
+| Module | Writes | What it does |
+|---|---|---|
+| `settings` | `~/.claude/settings.json` | Deep-merges every fragment in `platforms/claude/settings.d/` — permissions `allow`/`ask`/`defaultMode`, model, effort level, theme, auto-mode policy, marketplaces, env |
+| `plugins` | `~/.claude/settings.json` | `enabledPlugins`, per key, `false` included |
+| `statusline` | `~/.claude/settings.json` | Wires `statusLine` to a version-agnostic command that survives updates |
+| `agents` | `~/.claude/agents/` | Copies the specialist subagent definitions |
+| `claude-md` | `~/.claude/CLAUDE.md` | Renders `core/global-rules.md`. Not mergeable, so it asks overwrite / backup-and-write / skip |
+| `notifications-creds` | `~/.claude/pushover.env` | Mode 600; needs `PUSHOVER_TOKEN` and `PUSHOVER_USER` in the environment |
+| `notifications-hook` | `~/.claude/settings.json` | One `Notification` hook; other Notification hooks are left alone |
+| `exit-guard` | `~/.claude/ensure-exit.sh` | Proxy exit-node guard; needs `CLAUDE_EXIT_PROXY` and `CLAUDE_EXIT_PUBLIC_IP` |
+
+> **`apply` will disable plugins the canonical set records as off** — 15 of the 23 it
+> tracks. That is intended, and the plan prints the exact count before writing. Read
+> [setup](../setup.md#applying-will-switch-some-plugins-off) first.
+
+`make install` is now a thin shim over `setup.sh apply --yes --targets claude`. Third-party
+keys survive: objects merge key by key, and `~/.claude/settings.local.json` is never read or
+written.
+
+`plan` writes nothing and is the default when there is no terminal, so a hook or CI run can
+never adopt anything silently. `apply` shows a diff and asks per change, defaulting to
+**No**. Re-running is a no-op — idempotence is a content comparison. Full reference:
+[setup](../setup.md) · [platform setup](../platform-setup.md).
+
+## Capabilities and limitations
+
+| Capability | Status | Notes |
+|---|---|---|
+| skills · auto-invocation | native | Description-driven; suppressed per skill with `disable-model-invocation` |
+| subagents · parallel subagents | native | **The only target where orchestration runs concurrently** |
+| agent teams | native (experimental) | Documented as evolving — no skill requires it |
+| hooks | native | The only target where `hooks/hooks.json` runs as shipped |
+| MCP · slash commands · statusline | native | |
+| worktree isolation | native | Automated by the repo's worktree hooks |
+| plugin marketplace | native | Install and update path |
+| structured questions | native | Interactive sessions only; headless runs must not block on one |
+| session transcripts | native | JSONL under `~/.claude/projects` — `/session-report` parses this format and no other |
+| artifacts | partial | Present on some surfaces and account configurations; no shipped skill requires it |
+| extension install | unsupported | Claude installs plugins, not git-URL extensions — use the marketplace or `--plugin-dir` |
+
+Source of truth: [`core/capabilities/platforms.json`](../../../core/capabilities/platforms.json).
+Cross-platform comparison: [platform differences](../platform-differences.md).
 
 ## Troubleshooting
 
-| Symptom | Fix |
-|---------|-----|
-| `/plugin update` does nothing | The release didn't bump `plugin.json` `version`. Check the [releases page](https://github.com/Tamircohen28/tamirs-superpowers/releases). |
-| `Marketplace file not found` | You're on a revision older than 1.12.0, before `.claude-plugin/marketplace.json` was added. Use the catalog (Method A) or update the clone. |
-| Skills don't appear after install | On 2.1.221+ installs activate immediately when safe — if skills still don't appear, run `/reload-plugins`, then restart Claude Code. `/reload-plugins` does **not** re-fetch from GitHub — it only reloads what's cached. |
-| Statusline blank | Confirm `~/.claude/settings.json` has `statusLine` as an **object** (`{"type":"command","command":"..."}`), not a string. |
-| Hooks not firing | Check the plugin is enabled: `/plugin list`. |
-
-More: [troubleshooting.md](../troubleshooting.md).
+Statusline missing, hooks not firing, skills not appearing after an update — see
+[troubleshooting](../troubleshooting.md).

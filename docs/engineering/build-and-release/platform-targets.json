@@ -1,7 +1,7 @@
 {
   "schema_version": 2,
-  "last_reviewed": "2026-08-23",
-  "reviewed_by_skill": "tamirs-superpowers@3.2.0",
+  "last_reviewed": "2026-08-25",
+  "reviewed_by_skill": "tamirs-superpowers@3.3.0",
   "supported_targets": [
     "claude_code",
     "codex",
@@ -11,12 +11,13 @@
   ],
   "targets": {
     "claude_code": {
+      "platform": "claude",
       "supported_min": "2.0.0",
       "supported_min_source": "manifest format (.claude-plugin/plugin.json) stable since 2.0.0",
-      "validated_against": "2.1.241",
-      "latest_known": "2.1.241",
-      "verified_on": "2026-08-23",
-      "verification_method": "latest from registry.npmjs.org/@anthropic-ai/claude-code cross-checked against code.claude.com/docs/en/changelog through 2.1.241 (automated nightly review); previously claude --version on the maintainer machine",
+      "validated_against": "2.1.245",
+      "latest_known": "2.1.245",
+      "verified_on": "2026-08-25",
+      "verification_method": "latest from registry.npmjs.org/@anthropic-ai/claude-code (2.1.246, one patch ahead with no changelog entry yet) cross-checked against code.claude.com/docs/en/changelog, whose newest documented entry is 2.1.245 (automated nightly review); previously claude --version on the maintainer machine",
       "install_doc": "docs/user/install/claude-code.md",
       "doc_urls": [
         "https://code.claude.com/docs/en/plugins-reference",
@@ -37,7 +38,10 @@
         "marketplace-refresh-first-install-2.1.232",
         "marketplace-settings-aliases-docs-2.1.232",
         "cross-session-messaging-refinements-2.1.232",
-        "project-dir-name-pin-2.1.234"
+        "project-dir-name-pin-2.1.234",
+        "subagent-model-effort-in-tasks-docs-2.1.243",
+        "synced-plugin-non-override-docs-2.1.239",
+        "managed-connector-marker-docs-2.1.243"
       ],
       "capabilities": [
         "agent_teams",
@@ -64,6 +68,7 @@
       }
     },
     "cursor": {
+      "platform": "cursor",
       "supported_min": "3.16.17",
       "supported_min_source": "Cursor documents no minimum version for plugins; the floor is set to the version actually validated rather than guessed",
       "validated_against": "3.16.17",
@@ -135,6 +140,7 @@
       }
     },
     "codex": {
+      "platform": "codex",
       "supported_min": "0.40.0",
       "supported_min_source": "earliest release this repo has claimed AGENTS.md + .codex-plugin manifest support for",
       "validated_against": "0.146.0",
@@ -170,6 +176,7 @@
       }
     },
     "opencode": {
+      "platform": "opencode",
       "supported_min": "1.16.2",
       "supported_min_source": "oldest version on which recursive (domain-nested) SKILL.md discovery was verified with `opencode debug skill`; not re-tested in this pass, so the floor is left where the evidence put it",
       "validated_against": "1.18.11",
@@ -209,6 +216,7 @@
       }
     },
     "gemini_cli": {
+      "platform": "gemini",
       "supported_min": "0.55.1",
       "supported_min_source": "Gemini CLI documents no minimum for extensions; the floor is the version the adapter was actually exercised on rather than guessed",
       "validated_against": "0.55.1",
