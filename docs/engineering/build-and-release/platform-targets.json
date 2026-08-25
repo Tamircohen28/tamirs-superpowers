@@ -1,6 +1,6 @@
 {
   "schema_version": 2,
-  "last_reviewed": "2026-08-19",
+  "last_reviewed": "2026-08-25",
   "reviewed_by_skill": "tamirs-superpowers@3.3.0",
   "supported_targets": [
     "claude_code",
@@ -14,10 +14,10 @@
       "platform": "claude",
       "supported_min": "2.0.0",
       "supported_min_source": "manifest format (.claude-plugin/plugin.json) stable since 2.0.0",
-      "validated_against": "2.1.233",
-      "latest_known": "2.1.233",
-      "verified_on": "2026-08-15",
-      "verification_method": "latest from registry.npmjs.org/@anthropic-ai/claude-code cross-checked against code.claude.com/docs/en/changelog (automated nightly review); previously claude --version on the maintainer machine",
+      "validated_against": "2.1.245",
+      "latest_known": "2.1.245",
+      "verified_on": "2026-08-25",
+      "verification_method": "latest from registry.npmjs.org/@anthropic-ai/claude-code (2.1.246, one patch ahead with no changelog entry yet) cross-checked against code.claude.com/docs/en/changelog, whose newest documented entry is 2.1.245 (automated nightly review); previously claude --version on the maintainer machine",
       "install_doc": "docs/user/install/claude-code.md",
       "doc_urls": [
         "https://code.claude.com/docs/en/plugins-reference",
@@ -37,7 +37,11 @@
         "command-source-dev-install-2.1.229",
         "marketplace-refresh-first-install-2.1.232",
         "marketplace-settings-aliases-docs-2.1.232",
-        "cross-session-messaging-refinements-2.1.232"
+        "cross-session-messaging-refinements-2.1.232",
+        "project-dir-name-pin-2.1.234",
+        "subagent-model-effort-in-tasks-docs-2.1.243",
+        "synced-plugin-non-override-docs-2.1.239",
+        "managed-connector-marker-docs-2.1.243"
       ],
       "capabilities": [
         "agent_teams",

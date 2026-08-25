@@ -18,14 +18,20 @@ See [`AGENTS.md`](AGENTS.md#commands) for the full list. `make validate` before 
 
 Do not assume these exist on other providers — check [`core/capabilities/platforms.json`](core/capabilities/platforms.json) before relying on any of them, and degrade explicitly per [`core/policies/safety.md`](core/policies/safety.md).
 
-- **Subagents** (`Agent` tool) — parallel worker execution, measured on Claude Code; not exercised on Desktop. Other providers run tasks sequentially or through their own mechanism.
+- **Subagents** (`Agent` tool) — parallel worker execution, measured on Claude Code; not exercised on Desktop. Other providers run tasks sequentially or through their own mechanism. Since **Claude Code 2.1.243**, `/tasks` and the agent detail dialogs also show which model and effort level each subagent ran on — useful for spot-checking `orchestrate-dev`/`worker-dev` fan-outs without instrumenting anything here. The same release fixed background subagents not waking when their last background Bash task finished; if a fanned-out worker previously seemed to hang after its shell command completed, that was a host bug, not this repo's orchestration.
 - **Hooks** — `hooks/hooks.json` is loaded by Claude Code and the Codex CLI only — the Cursor IDE plugin does not wire it; Gemini CLI and OpenCode CLI have their own or none.
 - **Statusline** — wired via `.claude-plugin/plugin.json` `settings.statusLine` → `scripts/statusline.sh`. Claude Code only — Desktop has no terminal chrome to render into. Test with piped JSON: `echo '<session-json>' | bash scripts/statusline.sh` — it blocks forever on unpiped stdin.
 - **`EnterWorktree`** — automates worktree creation under `.claude/.worktrees/<name>`. That is the *legacy* layout; it stays supported and is never orphaned, but new objectives use `.agent-worktrees/<objective>/` per [`rules/dev/git-worktree-agent-workflow.md`](rules/dev/git-worktree-agent-workflow.md). `resolve-worktree.sh` understands both.
-- **Project memory** — `.claude/memory/` (versioned backup, reviewable in PRs) mirrored into `~/.claude/projects/-Users-<you>-Projects-tamirs-superpowers/memory/` (auto-loaded each session). Keep them in sync; commit new memory files to `.claude/memory/`.
+- **Project memory** — `.claude/memory/` (versioned backup, reviewable in PRs) mirrored into a per-project transcript directory (auto-loaded each session). Keep them in sync; commit new memory files to `.claude/memory/`. The transcript directory name is normally *derived* from the clone's absolute path (`-Users-<you>-Projects-tamirs-superpowers`), which shifts per machine/username and breaks if the clone moves. Since **Claude Code 2.1.234**, `CLAUDE_CODE_PROJECT_DIR_NAME` overrides that derivation — pin it (e.g. in `~/.zshrc`/`~/.bashrc`, or per-session) for a stable, machine-independent name:
 
   ```bash
-  MEMORY_DIR=~/.claude/projects/-Users-$(whoami)-Projects-tamirs-superpowers/memory
+  export CLAUDE_CODE_PROJECT_DIR_NAME=tamirs-superpowers
+  ```
+
+  Restoring memory on a new machine prefers the pin when set, falling back to the derived path otherwise:
+
+  ```bash
+  MEMORY_DIR=~/.claude/projects/${CLAUDE_CODE_PROJECT_DIR_NAME:--Users-$(whoami)-Projects-tamirs-superpowers}/memory
   mkdir -p "$MEMORY_DIR" && cp .claude/memory/* "$MEMORY_DIR/"
   ```
 

@@ -81,6 +81,14 @@ Claude Code caches by the manifest `version` field, so a push without a version 
 jq -r .version plugin-version.json
 ```
 
+Since **2.1.239**, a copy of this plugin synced into a cloud session from claude.ai shows up
+as `tamirs-superpowers@synced` — a distinct install alongside a marketplace install like the
+one above — and never overrides it. Since **2.1.243**, `/mcp` and `/plugins` also show a
+`managed` marker next to a connector whose auth is centrally controlled by an organization;
+that marker is about auth management, not install source, and a plain
+`/plugin marketplace add Tamircohen28/tamirs-superpowers` install never acquires it on that
+basis alone.
+
 ## Uninstall
 
 ```text
