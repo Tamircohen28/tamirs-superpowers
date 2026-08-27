@@ -6,12 +6,12 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ## [Unreleased]
 
 ### Changed
-- **Platform target: Claude Code 2.1.246** (from 2.1.233). Docs-only bump — no shipped
+- **Platform target: Claude Code 2.1.247** (from 2.1.233). Docs-only bump — no shipped
   plugin content changed. This is the first review of the Claude Code delta against the
   repo's current tree (post `[3.0.0]`–`[3.3.0]`, i.e. `core/`, `rules/`, the six-surface
   registry, and `platforms/claude/settings.d/` all exist now, none of which existed when
   the previous nightly review last ran against this branch). Reviewed 2.1.234 through
-  2.1.246:
+  2.1.247:
   - **2.1.234 — `CLAUDE_CODE_PROJECT_DIR_NAME`.** `CLAUDE.md`'s Project memory section
     now documents pinning the auto-loaded transcript directory name instead of relying on
     the path *derived* from the clone's absolute location, which shifts per
@@ -110,13 +110,59 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
     auto-continue on a cut-off response and `/code-review`'s Bedrock/Vertex/Foundry
     self-start (host/session behavior); and `/goal`'s three-check-ins-per-goal cap
     (informational — no hook here polls or counts `/goal` check-ins).
-  - `validated_against` advances to 2.1.246 by the same changelog + npm-registry method
-    already used for this target (`verification_method` in `platform-targets.json`), not
-    a live CLI run: no `claude` binary was available in this automation's environment, so
-    `claude plugin validate .` and the `run-tamirs-superpowers` smoke test were **not**
-    re-run this cycle, unlike some earlier reviews that did have a local install. Flagged
-    so a future run with a live CLI treats that as a real end-to-end check, not a
-    formality.
+  - **2.1.247 — four items adopted, several reviewed and not applicable.** Adopted: a
+    subagent whose first model call 404s now falls back through the session's own
+    fallback model chain with a detailed error instead of dying outright — the same
+    reliability class as the two 2.1.243/2.1.246 subagent fixes above, noted next to them
+    in `CLAUDE.md`'s Subagents bullet; the fixes for hook/background-task error output
+    overflowing the conversation with a "Prompt is too long" error and for unbounded
+    memory growth on repeated output-file write failures, noted in `CLAUDE.md`'s Hooks
+    bullet given this plugin wires 25 hook scripts across nine lifecycle events (no hook
+    here needed a change — none write to an unbounded log file — but the fix directly
+    covers this repo's hook surface); the Bash sandbox fix for a dotfile-managed symlink
+    being deleted when repointed outside the writable area, documented in
+    `rules/dev/plugin-version-bump.md` next to the exact symlink workflow it protects
+    (`ln -s /path/to/your/clone ~/.claude/plugins/cache/.../X.Y.Z`); and the default
+    collapse of inbound cross-session peer messages to a one-line preview (Ctrl+O
+    expands), documented in `docs/user/cross-platform-workflow.md`'s existing
+    version-tagged `SendMessage`/`ListAgents` callout. Also genuinely relevant and
+    reviewed with no change needed: the Bash-permission-prompt tip pointing at auto mode
+    (this repo already configures `autoMode.soft_deny`); the fix for shell commands in
+    background sessions logging internal errors or misleading exit codes (this repo's
+    `worktree-create.sh` and `capture-task-slug.sh` both install dependencies in the
+    background); and Bedrock/Vertex/Foundry sessions now being told explicitly when an
+    MCP server fails to connect (this repo's one MCP server, `.mcp.json`'s `github`
+    entry, is a plain `stdio` process that can fail to launch). Reviewed and not
+    applicable: `SendFeedback` and `feedbackDrafts` (host feedback-reporting feature, no
+    plugin surface); the enhanced `spinnerTipsOverride` (`{id, text, cooldownSessions,
+    priority}`, `tipsFile`, `label`) and `/claude-api cost-optimize` plus the `/claude-api`
+    skill's Admin API coverage (this repo ships no custom tip config and no `claude-api`
+    skill, same as every earlier cycle); the arrow-key/Enter input-sequence, non-Latin
+    keyboard Ctrl-shortcut, and split mouse-report-text-insertion fixes, `/terminal-setup`
+    overwriting Zed's `keymap.json` (no Zed integration here), `/rename`'s silent-confirm
+    bug, `/compact`/"Summarize from here" system-prompt fix, the background-session
+    "opening…" hang, `/install-github-app` SSH messaging, the version-less
+    marketplace-cache-directory fix (`plugin-version.json` is this plugin's canonical,
+    always-present version source — it is never installed version-less), Remote Control
+    working-tree-diff reporting, self-hosted-runner status timing, first-run managed-
+    gateway connectivity, cloud-session permission-mode display and container-restart
+    silence, the plugin-marketplace control/invisible-character hardening (this repo's
+    `marketplace.json` and `plugin.json` carry no such characters), the Sonnet 5
+    auto-compact window widening to the full 1M context, terminal-hyperlink plain-text
+    rendering, the prompt-footer PR-badge refresh-skip, and the three sign-in/analytics
+    changes (managed-gateway analytics default, `surface=claude_code` identification,
+    org sign-in exiting early on unreadable managed settings) — all host UI, terminal, or
+    account/session infrastructure with no plugin-side surface.
+  - `validated_against` advances to 2.1.247 by the same changelog + npm-registry method
+    already used for this target (`verification_method` in `platform-targets.json`) —
+    and, for the first time since the `[3.0.0]`–`[3.3.0]` refactor, this cycle's
+    automation environment had a live `claude` CLI at exactly 2.1.247, so
+    `claude plugin validate .` and `make agent:check` were run for real and both passed.
+    (`.claude/skills/run-tamirs-superpowers/smoke.sh` and the aggregate `make test-hooks`
+    loop did not complete in this environment — timing out well past their normal
+    runtime — while every individual `tests/test-*.sh` file run directly passed; noted
+    for Tamir as environment-specific test-runner flakiness to look at, not a plugin
+    regression.)
 
 - **`templates/global-CLAUDE.md` now pre-authorizes commits and pull requests.**
   The template gated *merging* behind an explicit instruction but said nothing
