@@ -1,6 +1,6 @@
 {
   "schema_version": 2,
-  "last_reviewed": "2026-08-26",
+  "last_reviewed": "2026-08-27",
   "reviewed_by_skill": "tamirs-superpowers@3.3.0",
   "supported_targets": [
     "claude_code",
@@ -14,10 +14,10 @@
       "platform": "claude",
       "supported_min": "2.0.0",
       "supported_min_source": "manifest format (.claude-plugin/plugin.json) stable since 2.0.0",
-      "validated_against": "2.1.246",
-      "latest_known": "2.1.246",
-      "verified_on": "2026-08-26",
-      "verification_method": "latest from registry.npmjs.org/@anthropic-ai/claude-code cross-checked against code.claude.com/docs/en/changelog, both now current through 2.1.246 (automated nightly review); previously claude --version on the maintainer machine",
+      "validated_against": "2.1.247",
+      "latest_known": "2.1.247",
+      "verified_on": "2026-08-27",
+      "verification_method": "changelog + npm-registry method as before, both now current through 2.1.247 (automated nightly review); this cycle also had a live `claude` CLI at exactly 2.1.247 in the automation environment, so `claude plugin validate .` and `make agent:check` were run for real (both passed) rather than relying on the changelog/registry method alone — the first nightly review able to do so since the [3.0.0]-[3.3.0] refactor",
       "install_doc": "docs/user/install/claude-code.md",
       "doc_urls": [
         "https://code.claude.com/docs/en/plugins-reference",
@@ -43,7 +43,11 @@
         "synced-plugin-non-override-docs-2.1.239",
         "managed-connector-marker-docs-2.1.243",
         "subagent-maxturns-partial-output-docs-2.1.246",
-        "reload-plugins-nested-skills-fix-docs-2.1.246"
+        "reload-plugins-nested-skills-fix-docs-2.1.246",
+        "subagent-model-404-fallback-docs-2.1.247",
+        "hook-background-output-reliability-docs-2.1.247",
+        "dotfile-symlink-sandbox-fix-docs-2.1.247",
+        "cross-session-message-collapse-docs-2.1.247"
       ],
       "capabilities": [
         "agent_teams",

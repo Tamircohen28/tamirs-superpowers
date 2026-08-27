@@ -28,11 +28,11 @@ The README's platform badge row shows **platform tool versions** directly valida
 
 ## Versions
 
-Verified **2026-08-26** — Claude Code from the official changelog (automated nightly review, through **2.1.246**) on 2026-08-26, now the most recent verification of any target and therefore the `last_reviewed` date; Cursor against **3.16.17** on 2026-08-17; the remaining CLIs by running each on the maintainer machine (2026-08-03). Codex **0.147.0** was reviewed on **2026-08-09** against the official release delta and is the version this repo now supports/tracks; direct CLI validation remains at 0.146.0 until the next maintainer-machine run.
+Verified **2026-08-27** — Claude Code from the official changelog, cross-checked against a live `claude` CLI at exactly **2.1.247** in the automation environment this cycle (`claude plugin validate .` and `make agent:check` both run for real and passed, the first nightly review able to do so since the [3.0.0]-[3.3.0] refactor), now the most recent verification of any target and therefore the `last_reviewed` date; Cursor against **3.16.17** on 2026-08-17; the remaining CLIs by running each on the maintainer machine (2026-08-03). Codex **0.147.0** was reviewed on **2026-08-09** against the official release delta and is the version this repo now supports/tracks; direct CLI validation remains at 0.146.0 until the next maintainer-machine run.
 
 | Surface | Min supported | Validated against | Latest known | Install guide |
 |----------|---------------|-------------------|--------------|---------------|
-| Claude Code | 2.0.0 | 2.1.246 | 2.1.246 | [claude-code.md](../../user/install/claude-code.md) |
+| Claude Code | 2.0.0 | 2.1.247 | 2.1.247 | [claude-code.md](../../user/install/claude-code.md) |
 | Cursor | 3.16.17 | 3.16.17 | 3.16.17 | [cursor.md](../../user/install/cursor.md) |
 | Codex | 0.40.0 | 0.146.0 | 0.147.0 | [codex.md](../../user/install/codex.md) |
 | Gemini CLI | 0.55.1 | 0.55.1 | 0.55.1 | [gemini.md](../../user/install/gemini.md) |

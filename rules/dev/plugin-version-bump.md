@@ -136,6 +136,8 @@ Then `/reload-plugins`. Claude Code also supports `--plugin-dir` for running str
 > - **Version-glob resolution.** Several consumers resolve their own path with `ls .../tamirs-superpowers/*/... | sort -rV | head -1` — *newest version wins*. When an auto-update installs `1.10.0` beside your patched `1.9.0`, the glob moves to the unpatched copy and the change appears "not to have worked". The symptom looks like a bug in the feature; the cause is resolution order.
 >
 > A symlink survives both. Prune stale cache versions after confirming an update installed.
+>
+> **Claude Code before 2.1.247** had a third hazard for this exact symlink: the Bash tool's sandbox could delete a dotfile-managed symlink under `~/.claude/` (this cache symlink is precisely that shape) if a later command repointed it — e.g. re-running the `ln -s` above to point at a different clone — to a target outside the sandbox's writable area. Fixed in 2.1.247; on older versions, repointing this symlink from inside a Claude Code session was itself the risk, not just the two mechanisms above.
 
 ## CI enforcement
 
