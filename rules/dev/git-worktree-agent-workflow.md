@@ -201,3 +201,5 @@ Provider-specific ergonomics only — the model above is identical everywhere.
 | OpenCode | No built-in worktree tool — same as Cursor |
 
 Capability facts live in [`core/capabilities/platforms.json`](../../core/capabilities/platforms.json), not in this table; the table is a convenience. When they disagree, the JSON wins.
+
+Since **Claude Code 2.1.251**, a background session (and its subagents) can edit files inside a git worktree it created itself with `git worktree add` — previously this could fail outright. This affects any backgrounded `orchestrate-dev`/`worker-dev` run that creates its own `task-NNN`/`integration` worktree rather than working in one the user already checked out; no workflow change is needed here, but a worker that used to appear stuck editing its own freshly created worktree on older Claude Code builds was hitting this host bug, not a bug in this repo's resolver.
