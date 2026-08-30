@@ -164,6 +164,56 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
     for Tamir as environment-specific test-runner flakiness to look at, not a plugin
     regression.)
 
+- **Platform target: Claude Code 2.1.251** (from 2.1.247, extending the review above).
+  Docs-only bump — no shipped plugin content changed beyond documentation. Reviewed
+  2.1.248 through 2.1.251:
+  - **2.1.248 / 2.1.250 — nothing adopted.** `--restricted`, `experimental.cacheTtl`
+    agent-frontmatter field (no agent here needs a cache TTL narrower than the session
+    default), self-hosted-runner client labeling, managed-settings load diagnostics,
+    `/web-setup`'s `workflow`-scope warning, cross-session messaging on Bedrock/Vertex/
+    Foundry, and the Workflow tool's smaller prompt footprint are all host/session
+    behavior or org billing features with no plugin-side surface; 2.1.250 was bug fixes
+    and reliability improvements only, per the official changelog.
+  - **2.1.249 — no published entry** (version skipped in the official changelog).
+  - **2.1.251 — two items adopted, one genuinely relevant with no change needed.**
+    Adopted: `CLAUDE_CODE_SUBAGENT_MODEL` now sets only the *default* subagent model
+    instead of overriding every spawn — an agent definition's own `model:` field (every
+    `agents/*.md` here pins one explicitly) and a per-spawn model now take precedence,
+    documented in `CLAUDE.md`'s Subagents bullet next to the other subagent-reliability
+    fixes; and the fix for background sessions/subagents being unable to edit files
+    inside a git worktree they created themselves with `git worktree add`, documented in
+    `rules/dev/git-worktree-agent-workflow.md` next to `EnterWorktree` and the
+    objective/worker worktree model this repo's whole orchestration relies on. Also
+    genuinely relevant, no change needed: the new `PreModelSwitch`/`PostModelSwitch` hook
+    events and `SessionStart` resume hooks now receiving session staleness and re-cache
+    cost are new host lifecycle surfaces this plugin's 25 hooks don't currently use —
+    noted for Tamir's judgment rather than wired speculatively (see Future opportunities
+    in PR #101 for the reasoning this pass follows). Reviewed and not applicable: the
+    plugin-marketplace command path-traversal rejection (`plugin.json` declares no
+    `commands` field, only `skills` paths, none pointing outside the plugin root); the
+    Workflow-tool `scriptPath` permission-check-ordering fix (this plugin declares no
+    Workflow-tool script); the Read/Write/Edit and Grep/Glob symlink-swap fixes (this
+    repo's worktree/sensitive-file isolation is enforced by hooks —
+    `enforce-worktree-edits.sh`, `guard-sensitive-files.sh` — not by `Read(...)` deny
+    rules in settings); the project-level `.claude/settings.json` `env` restriction (this
+    repo ships no project-level `.claude/settings.json`; `platforms/claude/settings.d/`
+    renders the user-level `~/.claude/settings.json` instead, and its one `env` key,
+    `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS`, isn't one of the restricted vars); the default
+    commit-trailer change for non-Claude models (`templates/global-CLAUDE.md` states no
+    hardcoded trailer text); and the remaining items (spend-limit UI, `/cost` prompt-cache
+    line, `claude --help` subcommands, Remote Control streaming, `/effort` per-model
+    memory, analytics/sign-in changes, and the large host-reliability fix list) — all host
+    UI, terminal, CLI, or account/session infrastructure with no plugin-side surface.
+  - `validated_against` advances to 2.1.251 by the changelog + npm-registry method; no
+    live `claude` CLI was available in this cycle's automation environment, so
+    `claude plugin validate .` / `make agent:check` were not re-run for real this cycle —
+    `platform-targets.json`'s `verification_method` notes that the 2.1.247 cycle's
+    live-CLI pass remains the most recent direct validation. `make validate`'s aggregate
+    loop again did not complete inside this environment's time budget; the targeted
+    checks relevant to this docs-only change (`jq` JSON validation on
+    `platform-targets.json`, `check-platform-targets.sh`, `check-doc-claims.sh`,
+    `check-version-truth.sh`) were run directly and passed.
+
 - **`templates/global-CLAUDE.md` now pre-authorizes commits and pull requests.**
   The template gated *merging* behind an explicit instruction but said nothing
   about committing or opening a PR — so Claude Code's own default, *"Commit or
