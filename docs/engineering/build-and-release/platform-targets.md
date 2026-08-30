@@ -28,12 +28,12 @@ The README's platform badge row shows **platform tool versions** directly valida
 
 ## Versions
 
-Verified **2026-08-19** — Cursor against **3.16.29** on 2026-08-19 (the most recent verification of any target, and therefore the `last_reviewed` date); Claude Code from the official changelog (automated nightly review, through **2.1.233**) on 2026-08-15; the remaining CLIs by running each on the maintainer machine (2026-08-03). Codex **0.147.0** was reviewed on **2026-08-09** against the official release delta and is the version this repo now supports/tracks; direct CLI validation remains at 0.146.0 until the next maintainer-machine run.
+Verified **2026-08-30** — Cursor against **3.18.9** on 2026-08-30 (the most recent verification of any target, and therefore the `last_reviewed` date); Claude Code from the official changelog (automated nightly review, through **2.1.233**) on 2026-08-15; the remaining CLIs by running each on the maintainer machine (2026-08-03). Codex **0.147.0** was reviewed on **2026-08-09** against the official release delta and is the version this repo now supports/tracks; direct CLI validation remains at 0.146.0 until the next maintainer-machine run.
 
 | Surface | Min supported | Validated against | Latest known | Install guide |
 |----------|---------------|-------------------|--------------|---------------|
 | Claude Code | 2.0.0 | 2.1.233 | 2.1.233 | [claude-code.md](../../user/install/claude-code.md) |
-| Cursor | 3.16.29 | 3.16.29 | 3.16.29 | [cursor.md](../../user/install/cursor.md) |
+| Cursor | 3.18.9 | 3.18.9 | 3.18.9 | [cursor.md](../../user/install/cursor.md) |
 | Codex | 0.40.0 | 0.146.0 | 0.147.0 | [codex.md](../../user/install/codex.md) |
 | Gemini CLI | 0.55.1 | 0.55.1 | 0.55.1 | [gemini.md](../../user/install/gemini.md) |
 | OpenCode | 1.16.2 | 1.18.11 | 1.18.11 | [opencode.md](../../user/install/opencode.md) |

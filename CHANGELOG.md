@@ -6,6 +6,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ## [Unreleased]
 
 ### Changed
+- **Cursor 3.11 (+2026-08-27):** advance desktop/`validated_against` **3.16.29 → 3.18.9** and `changelog_date` **2026-08-19 → 2026-08-27**. Document Cloud Agent **Start from scratch** (no SCM), Origin **Create repo**, **browser port-forward preview**, and optional **Vercel publish**. Cursor-only.
 - **Cursor 3.11 (+2026-08-19) / desktop 3.16.29:** re-pin desktop/`validated_against` **3.16.17 → 3.16.29** and advance `changelog_date` **2026-08-17 → 2026-08-19**. Adopt cloud-agent **Subscriptions** (PR/Slack/schedule wake-ups; auto-subscribe to PRs agents open), **Custom Modes** (pin any skill via ⌥⏎ / Alt+Enter from `/`), **subagents on isolated VMs**, Agent Window **`/goal`** (and native CreateGoal/UpdateGoal tools), and **non-interruptive steering** (follow-ups wait for the next tool call). Document Origin CLI/integrations from the prior rolling window. Cursor-only pins and install guide; other platform nightlies untouched.
 - **`templates/global-CLAUDE.md` now pre-authorizes commits and pull requests.**
   The template gated *merging* behind an explicit instruction but said nothing

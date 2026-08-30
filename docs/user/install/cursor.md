@@ -1,7 +1,7 @@
 # Install — Cursor
 
-Registry id: `cursor`. Validated against Cursor desktop **3.16.29** (feature changelog
-**3.11**, covered through date-only **2026-08-19**); that floor is the version this repo
+Registry id: `cursor`. Validated against Cursor desktop **3.18.9** (feature changelog
+**3.11**, covered through date-only **2026-08-27**); that floor is the version this repo
 actually tested, not a guess.
 
 ---
@@ -86,7 +86,7 @@ never adopt anything silently. `apply` shows a diff and asks per change, default
 
 | Capability | Status | Notes |
 |---|---|---|
-| skills | native | since desktop 3.16.29 pin; pin as **Custom Mode** (2026-08-19) via ⌥⏎ / Alt+Enter from `/` |
+| skills | native | since desktop 3.18.9 pin; pin as **Custom Mode** (2026-08-19) via ⌥⏎ / Alt+Enter from `/` |
 | subagents | native | declared capability; cloud subagents can use **isolated VMs** (2026-08-19) |
 | slash commands | native | |
 | MCP | native | `.mcp.json` |
@@ -98,7 +98,8 @@ never adopt anything silently. `apply` shows a diff and asks per change, default
 | background tasks · structured questions · session transcripts | unknown | Not measured — treated as unavailable, with stated fallbacks |
 | statusline · artifacts · extension install | unsupported | Cosmetic, absent, and not a Cursor mechanism, respectively |
 
-### Working tips (3.11 → 2026-08-19; desktop CLI 3.16.29)
+### Working tips (3.11 → 2026-08-27; desktop CLI 3.18.9)
+- **Start from scratch / no SCM (2026-08-27)** — Cloud Agents can begin without a connected GitHub repo: pick **Start from scratch**, prompt immediately, then **Create repo** to save into Origin (private/internal). Use **browser port-forward preview** (design mode) while the agent runs; optional **Vercel publish** for a live URL. GitHub remains canonical for marketplace installs and CI.
 
 - **Custom Modes (2026-08-19)** — from `/`, pick a skill and press ⌥⏎ (Mac) or Alt+Enter (Windows) → **Use as Mode**. The skill stays pinned for the chat. Prefer this for `repo-standards`, `targeted-debug`, `platform-sync`, or any long playbook instead of re-invoking each turn.
 - **`/goal` + steering (2026-08-19)** — give a long-lived objective with `/goal` (pair with a Custom Mode). Follow-ups now wait for the next tool call instead of cutting mid-action; type a follow-up and Send, or press ⏎ twice. Cloud Agents also expose native **CreateGoal** / **UpdateGoal** tools for the same long-lived objective pattern. CLI Aug 11 steer/`/goal` notes still apply for `agent` runs.
