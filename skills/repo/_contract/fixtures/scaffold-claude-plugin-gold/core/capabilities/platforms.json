@@ -1,6 +1,6 @@
 {
   "schema_version": 2,
-  "last_reviewed": "2026-08-27",
+  "last_reviewed": "2026-08-19",
   "capability_definitions": {
     "skills": {
       "summary": "Discovers and loads SKILL.md files shipped by this repo.",
@@ -253,9 +253,9 @@
           },
           "validation": { "command": "jq empty .cursor-plugin/plugin.json" },
           "capabilities": {
-            "skills": { "status": "native", "since": "3.18.9", "validation": "jq empty .cursor-plugin/plugin.json", "notes": "Validated against 3.18.9; the floor is the version actually tested, not a guess." },
+            "skills": { "status": "native", "since": "3.16.29", "validation": "jq empty .cursor-plugin/plugin.json", "notes": "Validated against 3.16.29; the floor is the version actually tested, not a guess." },
             "skill_auto_invocation": { "status": "partial", "notes": "CLI sticky skills (2026-08-11) plus Agent Window Custom Modes (2026-08-19: Option+Enter from / pins a skill as an always-on mode). Automatic description-based selection across all surfaces is still unverified.", "fallback": "Name the skill explicitly, pin it as a Custom Mode, or rely on the .cursor/rules/*.mdc entrypoint." },
-            "subagents": { "status": "native", "since": "3.18.9", "validation": "jq empty .cursor-plugin/plugin.json", "notes": "'agents' is a declared capability in platform-targets.json. Cloud subagents can run on their own VMs (2026-08-19)." },
+            "subagents": { "status": "native", "since": "3.16.29", "validation": "jq empty .cursor-plugin/plugin.json", "notes": "'agents' is a declared capability in platform-targets.json. Cloud subagents can run on their own VMs (2026-08-19)." },
             "parallel_subagents": { "status": "partial", "notes": "Cloud Agents can swarm subagents each on an isolated VM (2026-08-19). Local parallel fan-out concurrency is still unmeasured here.", "fallback": "Prefer cloud-isolated subagents for collision-free swarms; otherwise fan out sequentially locally." },
             "agent_teams": { "status": "unknown", "notes": "No evidence of inter-agent messaging.", "fallback": "Use session-files/ as the message bus." },
             "hooks": { "status": "partial", "notes": "Claude-shaped plugin hooks (hooks/hooks.json, CLAUDE_PLUGIN_ROOT) do NOT run under a Cursor plugin install. Project-level .cursor/hooks.json ships soft contributor guards, and third-party Claude hooks via .claude/settings.json are opt-in in Cursor Settings.", "fallback": "Treat guards as advisory; enforce the same rules in CI." },
@@ -268,7 +268,7 @@
             "worktree_isolation": { "status": "emulated", "notes": "Done by the skill through shell and git; no hook automation.", "fallback": "Explicit git worktree add/remove steps." },
             "plugin_marketplace": { "status": "native", "validation": "bash scripts/check-marketplace-schema.sh .", "notes": "Team marketplace import from repo." },
             "extension_install": { "status": "unsupported", "notes": "Cursor installs plugins, not git-URL extensions.", "fallback": "Use the plugin manifest install path." },
-            "slash_commands": { "status": "native", "since": "3.18.9", "validation": "jq empty .cursor-plugin/plugin.json", "notes": "'commands' is a declared capability in platform-targets.json." },
+            "slash_commands": { "status": "native", "since": "3.16.29", "validation": "jq empty .cursor-plugin/plugin.json", "notes": "'commands' is a declared capability in platform-targets.json." },
             "ask_user_question": { "status": "unknown", "notes": "No structured-question primitive verified.", "fallback": "Ask in prose." },
             "artifacts": { "status": "unsupported", "notes": "No artifact publishing surface.", "fallback": "Write to a file in the repo." },
             "session_transcripts": { "status": "unknown", "notes": "Transcript format not documented for this repo's tooling.", "fallback": "Report analytics as unavailable." }

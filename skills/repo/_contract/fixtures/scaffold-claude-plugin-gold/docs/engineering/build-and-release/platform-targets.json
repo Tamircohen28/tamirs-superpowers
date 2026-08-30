@@ -70,8 +70,8 @@
     "cursor": {
       "platform": "cursor",
       "supported_min": "0.45.0",
-      "validated_against": "3.18.9",
-      "latest_known": "3.18.9",
+      "validated_against": "0.45.0",
+      "latest_known": "0.45.0",
       "doc_urls": [],
       "features_adopted": [],
       "capabilities": [
@@ -144,8 +144,8 @@
       "capability_gaps": {
         "artifacts": "No artifact publishing surface.",
         "extension_install": "No git-URL extension install.",
-        "hooks": "OpenCode has no hooks.json; its only lifecycle mechanism is the JS/TS plugin API, and this repo ships no plugin module by design (it would add a Node runtime dependency for no other gain). As installed, the hooks/ guards do not run at all \u2014 'adapter' would imply a generated artifact exists, as it does for subagents, and none does.",
-        "plugin_marketplace": "No plugin marketplace \u2014 install is by absolute skills.paths. Not by symlink: OpenCode does not follow them for skill discovery (see the skills row).",
+        "hooks": "OpenCode has no hooks.json; its only lifecycle mechanism is the JS/TS plugin API, and this repo ships no plugin module by design (it would add a Node runtime dependency for no other gain). As installed, the hooks/ guards do not run at all — 'adapter' would imply a generated artifact exists, as it does for subagents, and none does.",
+        "plugin_marketplace": "No plugin marketplace — install is by absolute skills.paths. Not by symlink: OpenCode does not follow them for skill discovery (see the skills row).",
         "statusline": "No plugin-declared statusline."
       }
     }
