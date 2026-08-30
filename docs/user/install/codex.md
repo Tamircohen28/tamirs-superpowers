@@ -8,7 +8,7 @@ direction. See [platform differences](../platform-differences.md#unverified-surf
 
 Skills require Codex **0.40+**; the manifest `hooks` field requires **0.147.0+**. Direct CLI
 validation remains **0.146.0**; the official release delta has been reviewed through
-**0.149.1**, which is the version tracked by `.codex-version`.
+**0.151.0**, which is the version tracked by `.codex-version`.
 
 ---
 
@@ -28,7 +28,7 @@ Codex also reads the repo's root [`AGENTS.md`](../../../AGENTS.md) as project in
 That file is a **thin entrypoint** into the canonical rules under
 [`rules/`](../../../rules/README.md) — it is deliberately not the whole policy source.
 
-### Codex 0.148–0.149.1 notes
+### Codex 0.148–0.151 notes
 
 Codex 0.148 added asynchronous command hooks and MCP-tool hook actions. This repo does not
 copy those fields into the shared cross-target hook bundle: doing so without a host-specific
@@ -46,8 +46,22 @@ capabilities; no plugin-manifest migration is required.
 Codex 0.149.1 adds `codex exec --thread-source <SOURCE>` so automation callers can classify
 new and forked threads, plus no-follow filesystem/sandbox correctness fixes. This toolkit
 does not wrap `codex exec`, so it does not invent a source label on behalf of callers; use
-the native flag in Codex-specific automation when provenance is useful. The filesystem fixes
-are host-side and require no plugin changes.
+the native flag in Codex-specific automation when provenance is useful.
+
+Codex 0.150 adds native `@` task references, better task naming/copy ergonomics, and an
+`Interrupt` hook that can invoke a command or MCP handler when a top-level turn is
+interrupted. The `Interrupt` hook is valuable, but it should land only in a Codex-specific
+hook declaration so it cannot change Claude/Cursor lifecycle behavior. Codex 0.150 also
+hardens untrusted-project instructions, permissions, remote MCP startup/auth, credential
+redaction, and sandbox behavior; those fixes are host-side.
+
+Codex 0.151 adds a configurable grace period for optional MCP tool discovery and lets
+extensions inspect or replace MCP tool results before those results reach the model. It also
+improves per-repository plugin catalog configuration and reports invalid project marketplaces
+without hiding valid plugins. Use the new MCP-result interception only if a future
+Codex-specific extension actually needs result transformation; do not add a wrapper merely
+to consume the capability. Likewise, tune optional-MCP discovery grace only from measured
+startup behavior.
 
 ## Verify
 
