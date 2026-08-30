@@ -28,13 +28,13 @@ The README's platform badge row shows **platform tool versions** directly valida
 
 ## Versions
 
-Reviewed **2026-08-26**. Cursor remains directly validated against **3.16.17**; Claude Code is tracked through **2.1.233**; Gemini CLI remains directly validated at **0.55.1** and OpenCode at **1.18.11**. Codex releases are reviewed through **0.149.1** (released 2026-08-24), while direct CLI validation remains at **0.146.0** until the next maintainer-machine run. The 0.148–0.149 delta does not require a plugin-manifest migration: async/MCP hook additions remain a future host-specific hook opportunity, while `codex agents`, `codex queue`, TUI cwd commands, and the expanded `codex doctor` are native host controls documented in the Codex install guide. The 0.149.1 patch adds `codex exec --thread-source <SOURCE>` plus no-follow filesystem/sandbox correctness fixes; this toolkit does not wrap `codex exec`, so the new flag is not wired into shared cross-platform behavior.
+Reviewed **2026-08-30**. Cursor remains directly validated against **3.16.17**; Claude Code is tracked through **2.1.233**; Gemini CLI remains directly validated at **0.55.1** and OpenCode at **1.18.11**. Codex releases are reviewed through **0.151.0** (released 2026-08-29), while direct CLI validation remains at **0.146.0** until the next maintainer-machine run. The 0.150–0.151 delta does not require a plugin-manifest migration: native task references and `Interrupt` hooks are host-specific opportunities, while optional-MCP discovery grace, MCP-result interception, and per-repository plugin catalog configuration are native Codex capabilities. The shared cross-target hook bundle remains unchanged so Codex-only lifecycle semantics cannot alter Claude/Cursor behavior.
 
 | Surface | Min supported | Validated against | Latest known | Install guide |
 |----------|---------------|-------------------|--------------|---------------|
 | Claude Code | 2.0.0 | 2.1.233 | 2.1.233 | [claude-code.md](../../user/install/claude-code.md) |
 | Cursor | 3.16.17 | 3.16.17 | 3.16.17 | [cursor.md](../../user/install/cursor.md) |
-| Codex | 0.40.0 | 0.146.0 | 0.149.1 | [codex.md](../../user/install/codex.md) |
+| Codex | 0.40.0 | 0.146.0 | 0.151.0 | [codex.md](../../user/install/codex.md) |
 | Gemini CLI | 0.55.1 | 0.55.1 | 0.55.1 | [gemini.md](../../user/install/gemini.md) |
 | OpenCode | 1.16.2 | 1.18.11 | 1.18.11 | [opencode.md](../../user/install/opencode.md) |
 
