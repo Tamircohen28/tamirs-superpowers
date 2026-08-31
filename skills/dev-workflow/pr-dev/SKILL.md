@@ -137,6 +137,7 @@ AUTO_MERGE="$(jq -r .auto_merge <<<"$POLICY")"            # enable | skip
 MERGE_METHOD="$(jq -r .merge_method <<<"$POLICY")"        # squash | merge | rebase
 MERGE_QUEUE="$(jq -r .merge_queue <<<"$POLICY")"          # true | false | null
 STRICT="$(jq -r .strict_branch_update <<<"$POLICY")"      # true | false | null
+PROT_SRC="$(jq -r .protection_source <<<"$POLICY")"       # classic | rulesets | classic+rulesets | none
 ```
 
 Precedence, highest first (documented in the script's header):
@@ -270,6 +271,19 @@ gh run view "$RUN_ID" --repo "$REPO" --log-failed
 | `true` (strict) | A `BEHIND` PR cannot merge. Update it **once**: `gh pr update-branch "$PR"` (or `--rebase` where the repo prefers a linear history), then let CI re-run. |
 | `false` (loose) | A behind-but-mergeable PR merges fine. **Do not** merge the base in — every needless update restarts CI and cancels in-flight runs for nothing. |
 | `null` (unknown) | Treat as loose. Only update when GitHub actually reports the merge as blocked by staleness. |
+
+**Protection lives in two independent systems.** GitHub has classic branch protection
+(`/branches/{b}/protection`) *and* rulesets (effective result:
+`/rules/branches/{b}`). A repository may use either, both, or neither, and they do not
+shadow each other — the effective protection is the **union**. `resolve-merge-policy.sh`
+reads both and reports which answered in `protection_source`.
+
+This matters because the classic endpoint returns **404 "Branch not protected"** on a
+ruleset-governed branch. Reading only it reports `required_checks: []` and
+`requires_review: false` for a branch that in fact requires nine checks and a pull
+request — and the readiness gate then has nothing to wait for. If you ever see
+`protection_source: "none"` on a repository you believe is governed, that is the finding,
+not a green light.
 
 Never update the branch in a loop. If a single update does not clear `BEHIND`, something else is wrong — diagnose instead of repeating.
 
