@@ -177,6 +177,80 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   0-approval case, the destructive head-branch case, and the fail-closed
   behaviour when the rules endpoint errors.
 
+### Added
+- **Statusline: a `spend` line when a Claude apps gateway reports a spend
+  limit.** Claude Code 2.1.251 added `rate_limits.spend_limit`
+  (`used_percentage`, `resets_at`) to the statusline payload — present only
+  behind a gateway that has a spend limit configured and whose `resets_at`
+  has not passed. `scripts/statusline.sh` renders it as a fourth line using
+  the exact same only-when-present pattern already used for the 7-day line,
+  so nobody outside that configuration sees any change. Documented in
+  [statusline](docs/engineering/statusline.md). Covered by two new cases in
+  `tests/test-statusline.sh`: the line renders when the field is present,
+  and it is absent (not merely empty) when it is not.
+- **`session-init.sh`: a one-line heads-up when a resumed session's prompt
+  cache has likely expired.** Claude Code 2.1.251 added
+  `prompt_cache_likely_expired`, `context_tokens`, and
+  `estimated_cache_write_usd` to `SessionStart` payloads for `resume`/`fork`.
+  The hook now adds a note to `additionalContext` when the cache is likely
+  cold, naming the token count and estimated re-cache cost when the host
+  supplies them, so the first request's higher cost and latency is
+  explained up front instead of showing up afterward as an unexplained
+  spike. New `tests/test-session-init-staleness.sh` (6 cases): fires on a
+  stale resume including both detail fields, stays silent on a warm resume,
+  and stays silent on plain startup where none of these fields exist.
+
+### Changed
+- **Platform target: Claude Code 2.1.252** (from 2.1.251), plus the two
+  adoptions above. The 2.1.252 delta is "bug fixes and reliability
+  improvements" per the official changelog (a Bash task-output-swap failure
+  on some Macs, `always allow` not saving in a project with no
+  `.claude/settings.local.json` yet, Remote Control stalls hosted by Claude
+  Desktop/VS Code, oversized background-task failure notifications) — all
+  host-side, nothing with a plugin-side surface.
+
+  Re-reviewing 2.1.251 turned up two items the last cycle had bucketed into
+  its generic "no plugin-side surface" list without naming: the
+  `rate_limits.spend_limit` statusline field and the `SessionStart` resume
+  staleness / estimated re-cache cost fields, both adopted above. A third —
+  the plugin-marketplace-refresh race that could start a background session
+  with zero plugin skills — has no plugin-side fix available (it is a host
+  bug, fixed host-side in 2.1.251), but is genuinely relevant given how much
+  of this repo's own orchestration leans on background sessions and
+  worktree isolation; documented in
+  [troubleshooting](docs/user/troubleshooting.md#skills-do-not-appear-after-installing)
+  next to the existing 2.1.246 `0 skills` entry, since both present the same
+  symptom ("no skills") for a different underlying reason. Re-reviewed and
+  still not adopted: `PreModelSwitch`/`PostModelSwitch` hook events (2.1.251)
+  — nothing in this repo's orchestration currently needs to gate or observe
+  a model switch, so wiring one would be dead surface; noted in
+  [CLAUDE.md](CLAUDE.md) for Tamir's judgment rather than wired speculatively.
+  `experimental.cacheTtl` agent frontmatter (2.1.248) was re-checked against
+  all ten `agents/*.md` — still nothing here needs a cache TTL narrower than
+  the session default, same conclusion as the 2.1.250 cycle.
+
+  `validated_against` advances to 2.1.252. This cycle's automation
+  environment had a live `claude` CLI (2.1.252) — the first live-CLI cycle
+  since 2.1.247 — so `claude plugin validate .` and `bash scripts/doctor.sh .`
+  were run for real (both passed) instead of relying on the changelog +
+  npm-registry method alone; `platform-targets.json`'s `verification_method`
+  records this. `scripts/check-platform-targets.sh`,
+  `check-feature-equivalence.sh`, `check-doc-claims.sh`,
+  `check-version-truth.sh`, `check-capability-registry.sh`,
+  `check-marketplace-schema.sh`, and `check-github-policy.sh` were run
+  directly and passed; every `tests/test-*.sh` file, including the two new
+  ones above, passed when run directly — except `tests/test-statusline.sh`,
+  which is racy in this environment independent of this change (confirmed
+  against the unmodified pre-existing file too): its `run_with_timeout`
+  helper backgrounds a watcher `( ... )` subshell that inherits the file's
+  own `trap ... EXIT`, and that inherited trap can fire when the watcher
+  exits or is signaled, deleting the suite's shared tmpdir mid-run. Every
+  assertion in that file, including the two new spend-limit cases, passes
+  when checked directly against `scripts/statusline.sh` without the racy
+  wrapper. Noted for Tamir as pre-existing test-harness flakiness to fix
+  separately — not a plugin regression, and not touched here to keep this
+  cycle's changes traceable to the Claude Code delta it reviews.
+
 ## [3.4.0] — 2026-08-31
 
 ### Added

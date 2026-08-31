@@ -19,6 +19,7 @@ Claude Code invokes the script and passes a JSON blob on stdin containing sessio
 [Sonnet 4.6 (1M) ● High] 📁 my-repo ⎇ feat/add-auth ctx:12% v2.1.220
 5h: ████████░░ 78% | resets in 1h 23m | 4m12s | $0.43
 7d: ███░░░░░░░ 31% | resets in 3d 4h
+spend: █████░░░░░ 55% | resets in 12h 0m
 ```
 
 **Line 1:** Model name (color-coded by tier), effort level, repo name, git branch (hyperlinked to GitHub), context window usage, Claude Code version (dim). The version is omitted entirely when Claude Code does not supply it.
@@ -26,6 +27,8 @@ Claude Code invokes the script and passes a JSON blob on stdin containing sessio
 **Line 2:** 5-hour rate limit bar, percentage, reset time, session duration, session cost.
 
 **Line 3:** 7-day rate limit bar (only shown when data is available).
+
+**Line 4:** spend limit bar (only shown when `rate_limits.spend_limit` is present — since Claude Code **2.1.251**, sent only behind a Claude apps gateway that reports a spend limit whose reset time has not passed; everyone else never sees this line).
 
 ## Input schema
 
@@ -42,6 +45,8 @@ Claude Code passes a JSON object on stdin with these fields (all optional — th
 | `rate_limits.five_hour.resets_at` | number | Unix epoch when the limit resets |
 | `rate_limits.seven_day.used_percentage` | number | 0–100 |
 | `rate_limits.seven_day.resets_at` | number | Unix epoch |
+| `rate_limits.spend_limit.used_percentage` | number | 0–100. Since 2.1.251; present only behind a Claude apps gateway with a spend limit configured |
+| `rate_limits.spend_limit.resets_at` | number | Unix epoch. Since 2.1.251 |
 | `cost.total_duration_ms` | number | Session wall-clock time in ms |
 | `cost.total_cost_usd` | number | Cumulative session cost in USD |
 | `version` | string | Claude Code version, e.g. `"2.1.220"` |
