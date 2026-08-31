@@ -131,7 +131,7 @@ No objective is a perfectly normal case (a one-off PR). Continue without one.
 ### 2. Merge policy
 
 ```bash
-POLICY="$(bash "$SKILL_DIR/scripts/resolve-merge-policy.sh" "$PR" "${OBJECTIVE_ID:-}")"
+POLICY="$(bash "$SKILL_DIR/scripts/resolve-merge-policy.sh" ${REPO:+--repo "$REPO"} "$PR" "${OBJECTIVE_ID:-}")"
 echo "$POLICY" | jq .
 AUTO_MERGE="$(jq -r .auto_merge <<<"$POLICY")"            # enable | skip
 MERGE_METHOD="$(jq -r .merge_method <<<"$POLICY")"        # squash | merge | rebase
@@ -207,8 +207,16 @@ loop:
 ## Fetch fresh state
 
 ```bash
-bash "$SKILL_DIR/scripts/fetch-pr-state.sh" "$PR"
+bash "$SKILL_DIR/scripts/fetch-pr-state.sh" ${REPO:+--repo "$REPO"} "$PR"
 ```
+
+**Pass `--repo <owner>/<name>` whenever the working directory is not the PR's
+repository.** Every script here resolves the repo from the cwd by default, so
+the same PR number in a sibling checkout is a real, plausible-looking,
+*completely unrelated* pull request — a wrong **answer**, not an error, which is
+why it goes unnoticed. All four scripts accept `--repo` (and `--repo=<slug>`);
+it pins `GH_REPO` for every `gh` call they make. This matters most for an agent
+whose shell resets to a different directory between commands.
 
 Quick snapshot inside the loop:
 
@@ -232,7 +240,7 @@ Unchanged, and still the highest-value part of the loop:
 5. **Fix code** if you agreed or partially agreed.
 6. **Resolve**:
    ```bash
-   bash "$SKILL_DIR/scripts/resolve-thread.sh" "$THREAD_ID"
+   bash "$SKILL_DIR/scripts/resolve-thread.sh" ${REPO:+--repo "$REPO"} "$THREAD_ID"
    ```
 7. Commit, push, restart the loop.
 
@@ -392,7 +400,7 @@ Long cycles (5+ min) or when other work can proceed: the Monitor `until`-loop �
 ## After merge
 
 ```bash
-bash "$SKILL_DIR/scripts/cleanup-after-merge.sh" "$PR"
+bash "$SKILL_DIR/scripts/cleanup-after-merge.sh" ${REPO:+--repo "$REPO"} "$PR"
 ```
 
 Then:
@@ -421,6 +429,7 @@ Never silently stop, guess, or take a destructive action without confirmation. W
 ## Hard rules
 
 - **Re-fetch before every decision** — cached state causes wrong merge-readiness calls after fast CI flips.
+- **Pass `--repo` when the cwd is not the PR's repository.** Repo resolution is cwd-based by default, so a wrong directory yields a plausible answer about a different repository rather than an error.
 - **Grade only the current head commit.** Superseded runs are history.
 - **Never stop on one idle poll** — CI is often queued seconds after a push.
 - **Never push to any branch other than the PR head.**

@@ -459,13 +459,17 @@ case "$*" in
     printf '{"squashMergeAllowed":%s,"mergeCommitAllowed":%s,"rebaseMergeAllowed":%s,"deleteBranchOnMerge":true,"viewerPermission":"ADMIN"}\n' \
       "${GH_SQUASH:-true}" "${GH_MERGE:-true}" "${GH_REBASE:-true}" ;;
   "api repos/{owner}/{repo}")            printf '{"allow_auto_merge":true}\n' ;;
-  *"--json nameWithOwner"*)              printf 'acme/widget\n' ;;
+  *"--json nameWithOwner"*)              printf '%s\n' "${GH_REPO:-acme/widget}" ;;
   *"--json baseRefName"*)                printf 'main\n' ;;
   *"--json headRefName"*)                printf 'release/1.x\n' ;;
   *"branches/release/1.x/protection"*)   [ "${GH_HEAD_PROTECTED:-false}" = true ] && { printf '{"required_status_checks":{"strict":false,"contexts":[]}}\n'; exit 0; }; exit 1 ;;
   *protection*)                          [ -n "${GH_BASE_CLASSIC:-}" ] && { printf '%s\n' "$GH_BASE_CLASSIC"; exit 0; }; exit 1 ;;
   # Rulesets: the effective-rules endpoint. Default [] = "answered, no rules",
   # which is what a purely classic (or unprotected) repository returns.
+  *"repos/demo/pinned/rules/branches/main"*)
+    # Only reachable when --repo actually pinned GH_REPO: the path is built from
+    # OWNER_REPO. A distinctive context makes the assertion non-vacuous.
+    printf '[{"type":"required_status_checks","parameters":{"required_status_checks":[{"context":"pinned-ok"}]}}]\n'; exit 0 ;;
   *"rules/branches/release/1.x"*)        [ "${GH_RULES_ERROR:-false}" = true ] && exit 1; printf '%s\n' "${GH_HEAD_RULES:-[]}" ; exit 0 ;;
   *"rules/branches/"*)                   [ "${GH_RULES_ERROR:-false}" = true ] && exit 1; printf '%s\n' "${GH_BASE_RULES:-[]}" ; exit 0 ;;
   *graphql*)                             printf '{"data":{"repository":{"mergeQueue":null}}}\n' ;;
@@ -540,6 +544,35 @@ judge "unreadable head protection -> keeps the branch (fails closed)" false \
   "$(mp GH_RULES_ERROR=true | jq -r .delete_branch)"
 judge "  ... and says the read failed rather than implying it is protected" yes \
   "$(has "$(mp GH_RULES_ERROR=true | jq -r .delete_branch_source)" "could not be read")"
+
+# --- --repo: the target must be statable, not inferred from the cwd ---------
+# Every gh call resolves the repository from the CURRENT DIRECTORY, so the same
+# PR number in a sibling checkout is a real, plausible-looking, unrelated PR.
+# That is a wrong ANSWER, not an error, which is why it went unnoticed.
+mp_repo() { ( cd "$TMP" && env PATH="$GHBIN:$PATH" bash "$MERGEPOL" --repo demo/pinned 42 2>/dev/null ) ; }
+
+# NON-VACUOUS BY CONSTRUCTION: the fake gh serves "pinned-ok" only from the path
+# repos/demo/pinned/..., which is built from the resolved OWNER_REPO. If --repo
+# stopped exporting GH_REPO, the cwd fallback (acme/widget) would be used and
+# this context could not appear. An assertion that merely echoed the flag back
+# would pass with the feature deleted.
+judge "--repo reaches the API path, not just the shell" yes \
+  "$(has "$(mp_repo | jq -r '.required_checks | join(",")')" "pinned-ok")"
+
+judge "  ... and without --repo that context is NOT reachable (control)" no \
+  "$(has "$(mp | jq -r '.required_checks | tostring')" "pinned-ok")"
+
+judge "--repo=<slug> form is accepted" 42 \
+  "$( ( cd "$TMP" && env PATH="$GHBIN:$PATH" bash "$MERGEPOL" --repo=demo/pinned 42 2>/dev/null ) | jq -r .pr )"
+
+judge "a slug with no slash is rejected, not silently ignored" 2 \
+  "$( ( cd "$TMP" && env PATH="$GHBIN:$PATH" bash "$MERGEPOL" --repo notaslug 42 >/dev/null 2>&1 ); printf '%s' "$?")"
+
+judge "  ... and the PR number is still parsed after the flag" 42 \
+  "$( ( cd "$TMP" && env PATH="$GHBIN:$PATH" bash "$MERGEPOL" --repo demo/pinned 42 2>/dev/null ) | jq -r .pr )"
+
+judge "no --repo still works (cwd inference preserved)" 42 \
+  "$(mp | jq -r .pr)"
 
 # The policy file must be honoured through the python3 fallback, not discarded.
 mkdir -p "$TMP/.dev-files"
