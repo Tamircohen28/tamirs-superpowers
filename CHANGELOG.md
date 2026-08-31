@@ -5,6 +5,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [3.4.0] — 2026-08-31
+
 ### Added
 - **`goal-condition-lint.sh` — refuse to arm a `/goal` condition that cannot
   terminate.** Claude Code's built-in `/goal` evaluator re-judges its condition

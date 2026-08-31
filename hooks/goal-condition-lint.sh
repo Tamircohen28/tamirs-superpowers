@@ -91,7 +91,13 @@ lower="$(printf '%s' "$condition" | tr '[:upper:]' '[:lower:]')"
 
 # --- Pattern 1: stopping is itself the violation -----------------------------
 NEVER_STOP=''
-if printf '%s' "$lower" | grep -qE "do( not|n'?t) (yield|stop|halt|pause|ask)|never (yield|stop|halt)|without (stopping|yielding|pausing)|keep going until (everything|all|it'?s all)"; then
+# NOTE: "do not ask" is deliberately NOT here. Question-avoidance is a
+# different thing from refusing to stop: `/goal deploy after CI is green; do
+# not ask me unless credentials are missing` terminates the moment CI is green.
+# An earlier revision matched `ask` and would have erased that prompt — a
+# legitimate workflow lost to a pattern that has nothing to do with the
+# invariant this matcher enforces (Codex review, PR #102).
+if printf '%s' "$lower" | grep -qE "do( not|n'?t) (yield|stop|halt|pause)|never (yield|stop|halt)|without (stopping|yielding|pausing)|keep going until (everything|all|it'?s all)"; then
   NEVER_STOP=1
 fi
 

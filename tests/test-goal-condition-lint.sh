@@ -93,6 +93,14 @@ expect_pass "issue closed" \
 expect_pass "CI green" \
   "/goal until CI is green on main"
 
+# Question-avoidance is not a refusal to stop. An earlier revision matched
+# `do not ask` and erased this exact prompt (Codex review, PR #102) — it
+# terminates the moment CI is green.
+expect_pass "do not ask me (question avoidance, not never-stop)" \
+  "/goal deploy after CI is green; do not ask me unless credentials are missing"
+expect_pass "don't ask, just do it" \
+  "/goal until CI is green on main, don't ask for confirmation"
+
 echo "--- passes: unbounded scope WITH a carve-out terminates ---"
 
 expect_pass "excluding blocked" \
