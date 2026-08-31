@@ -5,6 +5,48 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Fixed
+- **`resolve-merge-policy.sh` read only classic branch protection, so every
+  ruleset-governed repository looked unprotected.** GitHub has two independent
+  protection systems and they do not shadow each other: classic branch
+  protection, and rulesets (whose effective result for one branch is
+  `/repos/{o}/{r}/rules/branches/{b}`). The resolver queried only the classic
+  endpoint, which answers **404 "Branch not protected"** on a ruleset-governed
+  branch — so it reported `required_checks: []`, `requires_review: false`,
+  `strict_branch_update: null` for a branch that actually required nine status
+  checks and a pull request. `pr-dev`'s readiness gate then had no required
+  checks to wait for, and the loose/strict branch-freshness rule took the loose
+  path without ever reading the setting. Observed on this repository, whose
+  `master` has been ruleset-governed since 3.2.0 landed the org rulesets.
+  Both sources are now read and unioned, and the new `protection_source` field
+  (`classic` | `rulesets` | `classic+rulesets` | `none`) records which actually
+  answered, so a wrong reading is visible instead of inferred.
+
+- **The head-branch read had the same bug with a destructive consequence.** A
+  ruleset-protected head answered 404 and was classified "unprotected — safe to
+  delete after merge", so `pr-dev` would delete a governed branch. Deleting is
+  not recoverable from the PR, so this now fails closed: an unreadable rules
+  response keeps the branch and says the read failed, rather than implying the
+  branch is unprotected.
+
+- **`jq`'s alternative operator treats `false` as empty, so an explicit
+  `strict: false` was reported as `null`.** `.required_status_checks.strict //
+  "null"` yields `"null"` when strict is genuinely `false`, meaning every
+  classic-protected repository with strict OFF reported "unknown" and reached
+  the loose path by accident rather than by reading the setting — the right
+  answer for the wrong reason, and the *wrong* answer had the default been
+  strict. Replaced with an explicit three-way test.
+
+- **A `pull_request` rule requiring 0 approvals is no longer reported as
+  `requires_review: true`.** It requires a pull request, not a review; treating
+  the block's presence as an approval requirement makes `pr-dev` wait for an
+  approval nothing will ever demand.
+
+  Covered by 11 new cases in `tests/test-shape.sh` (125 total), including the
+  classic/ruleset union, the source labelling, both `strict` paths, the
+  0-approval case, the destructive head-branch case, and the fail-closed
+  behaviour when the rules endpoint errors.
+
 ## [3.4.0] — 2026-08-31
 
 ### Added

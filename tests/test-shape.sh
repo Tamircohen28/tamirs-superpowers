@@ -462,8 +462,12 @@ case "$*" in
   *"--json nameWithOwner"*)              printf 'acme/widget\n' ;;
   *"--json baseRefName"*)                printf 'main\n' ;;
   *"--json headRefName"*)                printf 'release/1.x\n' ;;
-  *"branches/release/1.x/protection"*)   [ "${GH_HEAD_PROTECTED:-false}" = true ] && { printf '{}\n'; exit 0; }; exit 1 ;;
-  *protection*)                          exit 1 ;;
+  *"branches/release/1.x/protection"*)   [ "${GH_HEAD_PROTECTED:-false}" = true ] && { printf '{"required_status_checks":{"strict":false,"contexts":[]}}\n'; exit 0; }; exit 1 ;;
+  *protection*)                          [ -n "${GH_BASE_CLASSIC:-}" ] && { printf '%s\n' "$GH_BASE_CLASSIC"; exit 0; }; exit 1 ;;
+  # Rulesets: the effective-rules endpoint. Default [] = "answered, no rules",
+  # which is what a purely classic (or unprotected) repository returns.
+  *"rules/branches/release/1.x"*)        [ "${GH_RULES_ERROR:-false}" = true ] && exit 1; printf '%s\n' "${GH_HEAD_RULES:-[]}" ; exit 0 ;;
+  *"rules/branches/"*)                   [ "${GH_RULES_ERROR:-false}" = true ] && exit 1; printf '%s\n' "${GH_BASE_RULES:-[]}" ; exit 0 ;;
   *graphql*)                             printf '{"data":{"repository":{"mergeQueue":null}}}\n' ;;
   *) exit 1 ;;
 esac
@@ -491,6 +495,51 @@ judge "protected head branch -> delete_branch false (was: always true)" false \
   "$(mp GH_HEAD_PROTECTED=true | jq -r .delete_branch)"
 judge "  ... and says which branch and why" yes \
   "$(has "$(mp GH_HEAD_PROTECTED=true | jq -r .delete_branch_source)" "release/1.x is protected")"
+
+# --- rulesets: protection can live in a second, independent system ----------
+# The classic endpoint 404s on a ruleset-governed branch, and reading only it
+# reported "no protection" for a branch requiring nine checks and a PR.
+RS='[{"type":"required_status_checks","parameters":{"strict_required_status_checks_policy":false,"required_status_checks":[{"context":"shellcheck"},{"context":"Secret scan"}]}},{"type":"pull_request","parameters":{"required_approving_review_count":0}}]'
+
+judge "ruleset-only base: required checks are found (was: [])" 2 \
+  "$(mp GH_BASE_RULES="$RS" | jq -r '.required_checks | length')"
+judge "  ... and the source names rulesets, not classic" rulesets \
+  "$(mp GH_BASE_RULES="$RS" | jq -r .protection_source)"
+judge "  ... strict comes from the ruleset policy" false \
+  "$(mp GH_BASE_RULES="$RS" | jq -r .strict_branch_update)"
+judge "  ... a pull_request rule with 0 approvals is NOT requires_review" false \
+  "$(mp GH_BASE_RULES="$RS" | jq -r .requires_review)"
+
+RS_APPROVE='[{"type":"pull_request","parameters":{"required_approving_review_count":1}}]'
+judge "ruleset requiring 1 approval -> requires_review true" true \
+  "$(mp GH_BASE_RULES="$RS_APPROVE" | jq -r .requires_review)"
+
+RS_STRICT='[{"type":"required_status_checks","parameters":{"strict_required_status_checks_policy":true,"required_status_checks":[{"context":"ci"}]}}]'
+judge "ruleset strict policy -> strict_branch_update true" true \
+  "$(mp GH_BASE_RULES="$RS_STRICT" | jq -r .strict_branch_update)"
+
+# Classic and rulesets are a UNION, not alternatives.
+CLASSIC='{"required_status_checks":{"strict":false,"contexts":["legacy-ci"]}}'
+judge "classic + rulesets: contexts are unioned" 3 \
+  "$(mp GH_BASE_CLASSIC="$CLASSIC" GH_BASE_RULES="$RS" | jq -r '.required_checks | length')"
+judge "  ... and the source names both" classic+rulesets \
+  "$(mp GH_BASE_CLASSIC="$CLASSIC" GH_BASE_RULES="$RS" | jq -r .protection_source)"
+judge "classic-only repo is not mislabelled as using rulesets" classic \
+  "$(mp GH_BASE_CLASSIC="$CLASSIC" | jq -r .protection_source)"
+
+# jq's `//` treats FALSE as empty, so `.strict // "null"` turned an explicit
+# strict=false into null and pr-dev took the loose path by accident.
+judge "classic strict=false is reported false, not null" false \
+  "$(mp GH_BASE_CLASSIC="$CLASSIC" | jq -r .strict_branch_update)"
+
+# delete_branch is destructive and unrecoverable from the PR, so an unreadable
+# head must keep the branch rather than guess.
+judge "ruleset-protected head -> delete_branch false (was: true)" false \
+  "$(mp GH_HEAD_RULES='[{"type":"deletion"}]' | jq -r .delete_branch)"
+judge "unreadable head protection -> keeps the branch (fails closed)" false \
+  "$(mp GH_RULES_ERROR=true | jq -r .delete_branch)"
+judge "  ... and says the read failed rather than implying it is protected" yes \
+  "$(has "$(mp GH_RULES_ERROR=true | jq -r .delete_branch_source)" "could not be read")"
 
 # The policy file must be honoured through the python3 fallback, not discarded.
 mkdir -p "$TMP/.dev-files"
