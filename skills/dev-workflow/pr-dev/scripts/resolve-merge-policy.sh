@@ -79,7 +79,30 @@ if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
   usage 0
 fi
 
-PR="${1:-}"
+# --repo <owner/name> pins the repository. Every `gh` call below otherwise
+# resolves it from the CURRENT DIRECTORY, which is invisible and silently wrong
+# when the cwd is not the repo you mean: the same PR number in a sibling
+# checkout is a real, plausible-looking, completely unrelated pull request.
+# `gh` honours GH_REPO for resolution, so exporting it once pins every call --
+# including `gh api repos/{owner}/{repo}`.
+PR=""
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --repo)
+      case "${2:-}" in
+        */*) export GH_REPO="$2" ;;
+        *) printf 'error: --repo expects <owner>/<name>, got %s\n' "${2:-}" >&2; exit 2 ;;
+      esac
+      shift 2 ;;
+    --repo=*)
+      case "${1#--repo=}" in
+        */*) export GH_REPO="${1#--repo=}" ;;
+        *) printf 'error: --repo expects <owner>/<name>, got %s\n' "${1#--repo=}" >&2; exit 2 ;;
+      esac
+      shift ;;
+    *) [[ -z "$PR" ]] && PR="$1"; shift ;;
+  esac
+done
 OBJECTIVE_ID="${2:-}"
 if [[ -z "$PR" ]]; then
   echo "ERROR: missing <PR_NUMBER>" >&2
@@ -190,7 +213,8 @@ if command -v gh >/dev/null 2>&1; then
   BASE="$(gh pr view "$PR" --json baseRefName --jq .baseRefName 2>/dev/null || true)"
   if [[ -n "$BASE" ]]; then
     BASE_BRANCH="\"$BASE\""
-    OWNER_REPO="$(gh repo view --json nameWithOwner --jq .nameWithOwner 2>/dev/null || true)"
+    # An explicit --repo wins; `gh repo view` is the cwd-inferred fallback.
+    OWNER_REPO="${GH_REPO:-$(gh repo view --json nameWithOwner --jq .nameWithOwner 2>/dev/null || true)}"
     if [[ -n "$OWNER_REPO" ]] && command -v jq >/dev/null 2>&1; then
       # --- classic branch protection -------------------------------------
       # `gh api` prints the error BODY to stdout on a 404 and still exits

@@ -6,6 +6,25 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ## [Unreleased]
 
 ### Fixed
+- **`pr-dev`'s scripts resolved the repository from the current directory, so a
+  wrong cwd produced a plausible answer about a different repository instead of
+  an error.** All four (`fetch-pr-state.sh`, `resolve-merge-policy.sh`,
+  `resolve-thread.sh`, `cleanup-after-merge.sh`) now accept
+  `--repo <owner>/<name>` (and `--repo=<slug>`), which pins `GH_REPO` for every
+  `gh` call they make — including `gh api repos/{owner}/{repo}`.
+
+  This is a wrong *answer*, not a failure, which is why it goes unnoticed: the
+  same PR number exists in a sibling checkout and comes back looking entirely
+  legitimate. It happened three times while developing the ruleset fix above,
+  once returning a PR that had been merged in July — which reads as "already
+  merged, nothing to do". An agent whose shell resets to a different directory
+  between commands hits this constantly.
+
+  A slug without a `/` is rejected with exit 2 rather than silently ignored, and
+  omitting the flag keeps the existing cwd inference, so nothing changes for
+  callers already running from the right directory.
+
+### Fixed
 - **`goal-condition-lint.sh` could be silently disarmed, and mishandled
   `/GOAL`.** Three defects, two of them the same fail-open shape the hook was
   written to prevent — found by salvaging the `goal-condition-guard` prototype
