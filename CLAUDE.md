@@ -1,6 +1,6 @@
 # CLAUDE.md — tamirs-superpowers
 
-Claude Code and Claude Desktop specifics for contributors. **Everything that is not Claude-specific lives elsewhere — start with [`AGENTS.md`](AGENTS.md)**, which is the shared entrypoint into [`core/`](core/) and [`rules/README.md`](rules/README.md). This file adds only what is true of the Claude platform's two surfaces.
+Claude Code and Claude Desktop specifics for contributors. **Everything that is not Claude-specific lives elsewhere — start with [`AGENTS.md`](AGENTS.md)**, which is the shared entrypoint into [`core/`](core/) and [`rules/`](rules/README.md). This file adds only what is true of the Claude platform's two surfaces.
 
 When this file and a canonical rule disagree, the canonical rule wins.
 
