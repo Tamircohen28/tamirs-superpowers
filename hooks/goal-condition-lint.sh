@@ -133,8 +133,22 @@ reason="$(jq -rn \
   --arg b "$fix_b" \
   '"⛔ /goal not armed — this condition cannot terminate.\n\nYou asked for:\n  \($cond)\n\nProblem: \($why)\nA goal like this blocks every turn-end until the harness cap trips or you run /goal clear. It has happened twice: 2026-08-17 (21 blocks) and 2026-08-31 (~15).\n\nPick one — paste a line:\n\n  1) /goal \($a)\n     (recommended — same intent, but a real blocker ENDS it instead of extending it)\n\n  2) /goal \($b)\n     (a predicate a command can answer yes/no)\n\n  3) /goal force: \($cond)\n     (keep it exactly as written — arms verbatim, no further checks)\n\n  4) /goal <your own wording>\n\nIf the condition armed anyway (the harness may run a slash command before this\nhook blocks), run /goal clear first — then paste your choice.\n\nRule of thumb: a goal terminates when a command can answer it yes/no, and when \"blocked on someone else\" counts as done rather than outstanding."')"
 
-# Claude Code: block the prompt; the reason is shown to the user.
-# `decision: block` is the documented UserPromptSubmit form; the exit-2 path is
-# not used because it routes to stderr and loses the formatting.
-jq -n --arg reason "$reason" '{decision:"block", reason:$reason}'
-exit 0
+# BLOCK VIA stderr + EXIT 2 -- deliberately, not via a JSON decision field.
+#
+# The docs' "Exit code 2 behavior per event" table states verbatim:
+#   | `UserPromptSubmit` | Yes | Blocks prompt processing and erases the prompt |
+# and the documented shape for it is `echo "..." >&2; exit 2`.
+#
+# A JSON form was written first and then withdrawn: the docs page carries a
+# decision-control JSON example for PreToolUse
+# (`permissionDecision`/`permissionDecisionReason`, which is also what
+# lib/hook-output.sh emits) but NO such example for UserPromptSubmit. Two
+# different readings of the same page produced two different field spellings
+# for this event -- `decision`/`reason` and `permissionDecision`/
+# `permissionDecisionReason` -- and neither could be quoted from the page. A
+# hook whose whole job is to block must not depend on a field name nobody can
+# cite: an unrecognised key fails OPEN, silently, and the guard is inert exactly
+# when it matters. stderr + exit 2 is the one path with a verbatim quote behind
+# it, and it needs no schema at all.
+printf '%s\n' "$reason" >&2
+exit 2

@@ -37,6 +37,17 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   `UserPromptSubmit` prompt is *erased* and Claude never runs — so there is no
   turn in which to render one, and `additionalContext` cannot accompany a block.
 
+  **It blocks via stderr + `exit 2`, not a JSON decision field.** A JSON form
+  was written first and withdrawn. The docs carry a decision-control JSON
+  example for `PreToolUse` (`permissionDecision` / `permissionDecisionReason`,
+  which is also what `lib/hook-output.sh` emits) but none for
+  `UserPromptSubmit`, and two readings of the same page produced two different
+  field spellings for this event, neither quotable. A hook whose entire job is
+  to block must not depend on a field name nobody can cite — an unrecognised key
+  fails **open**, silently, exactly when the guard matters. The exit-2 row is
+  quoted verbatim in the docs ("Blocks prompt processing and erases the
+  prompt") and needs no schema at all.
+
   Covered by `tests/test-goal-condition-lint.sh` (32 cases). The pass cases
   deliberately outnumber the block cases: a false positive here costs the user a
   workflow they cannot run at all, so near-miss phrasings, both real incident

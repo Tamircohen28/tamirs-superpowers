@@ -26,29 +26,46 @@ FAILED_NAMES=()
 ok()  { PASS=$((PASS + 1)); printf '  ok   %s\n' "$1"; }
 bad() { FAIL=$((FAIL + 1)); FAILED_NAMES+=("$1"); printf '  FAIL %s — %s\n' "$1" "$2"; }
 
-# run <prompt> -> stdout of the hook
+# The hook blocks via stderr + exit 2 (the one path the docs quote verbatim for
+# UserPromptSubmit), so the assertions are on EXIT CODE and STDERR, not on a
+# JSON decision field. RUN_ERR carries stderr for the payload assertions below.
+RUN_ERR=""
+
+# run <prompt> -> sets RUN_ERR to stderr, returns the hook's exit code.
 run() {
-  printf '{"prompt":%s}' "$(jq -Rn --arg p "$1" '$p')" | bash "$HOOK" 2>/dev/null
+  local errfile; errfile="$(mktemp)"
+  printf '{"prompt":%s}' "$(jq -Rn --arg p "$1" '$p')" | bash "$HOOK" >/dev/null 2>"$errfile"
+  local rc=$?
+  RUN_ERR="$(cat "$errfile")"
+  rm -f "$errfile"
+  return $rc
 }
 
-# A passing hook writes NOTHING at all. `jq` on empty stdin also writes nothing
-# and exits 0, so `jq -r '.decision // "none"'` yields "" rather than the
-# intended default — the empty case has to be handled before jq sees it.
+# decision <prompt> -> "block" | "none" | "malformed"
+#
+# A blocking hook must BOTH exit 2 AND say why: an exit 2 with no stderr erases
+# the user's prompt and tells them nothing, which is worse than not blocking.
 decision() {
-  local out="$1"
-  [ -z "${out//[[:space:]]/}" ] && { printf 'none'; return; }
-  printf '%s' "$out" | jq -r '.decision // "none"' 2>/dev/null || printf 'malformed'
+  run "$1"
+  local rc=$?
+  if [ "$rc" -eq 2 ]; then
+    [ -n "${RUN_ERR//[[:space:]]/}" ] && printf 'block' || printf 'malformed'
+  elif [ "$rc" -eq 0 ]; then
+    printf 'none'
+  else
+    printf 'malformed'
+  fi
 }
 
 expect_block() {
-  local name="$1" prompt="$2" out d
-  out="$(run "$prompt")"; d="$(decision "$out")"
+  local name="$1" prompt="$2" d
+  d="$(decision "$prompt")"
   if [ "$d" = "block" ]; then ok "$name"; else bad "$name" "expected block, got '$d'"; fi
 }
 
 expect_pass() {
-  local name="$1" prompt="$2" out d
-  out="$(run "$prompt")"; d="$(decision "$out")"
+  local name="$1" prompt="$2" d
+  d="$(decision "$prompt")"
   if [ "$d" = "none" ]; then ok "$name"; else bad "$name" "expected pass, got '$d'"; fi
 }
 
@@ -104,8 +121,8 @@ expect_pass "force prefix" \
 
 echo "--- the block payload is usable ---"
 
-out="$(run "/goal complete all remainig work, merge what is green tested and validated.")"
-reason="$(printf '%s' "$out" | jq -r '.reason // ""')"
+run "/goal complete all remainig work, merge what is green tested and validated." || true
+reason="$RUN_ERR"
 
 case "$reason" in
   *"1) /goal "*) ok "menu offers rewrite 1" ;;
@@ -132,7 +149,7 @@ if [ -z "$rewrite" ]; then
   bad "recommended rewrite is extractable" "could not parse option 1 out of the menu"
 else
   ok "recommended rewrite is extractable"
-  d="$(decision "$(run "$rewrite")")"
+  d="$(decision "$rewrite")"
   if [ "$d" = "none" ]; then
     ok "recommended rewrite passes the hook"
   else
@@ -146,25 +163,29 @@ if [ -z "$forced" ]; then
   bad "force escape is extractable" "could not parse option 3 out of the menu"
 else
   ok "force escape is extractable"
-  d="$(decision "$(run "$forced")")"
+  d="$(decision "$forced")"
   if [ "$d" = "none" ]; then ok "force escape passes the hook"; else bad "force escape passes the hook" "got '$d'"; fi
 fi
 
-echo "--- hostile input does not break the JSON ---"
+echo "--- hostile input does not mangle the message ---"
 
-# A condition carrying quotes, backticks and a newline must still produce valid
-# JSON. Assembling the reason with string interpolation rather than jq --arg is
-# the obvious way to write this hook and would fail exactly here.
+# A condition carrying quotes, backticks or a backslash must come back intact.
+# The reason string is assembled with `jq --arg`; doing it with plain shell
+# interpolation is the obvious way to write this hook and would corrupt or
+# truncate the message exactly here — leaving the user a blocked prompt and a
+# mangled explanation.
 for hostile in \
   '/goal complete all remaining work "with quotes" and `backticks`' \
   '/goal complete all remaining work \ with a backslash' \
   "/goal complete all remaining work with 'single quotes'"
 do
-  out="$(run "$hostile")"
-  if printf '%s' "$out" | jq -e . >/dev/null 2>&1; then
-    ok "valid JSON for hostile input: ${hostile:0:42}..."
+  run "$hostile" || true
+  # The condition must be echoed back intact and the menu must still be there —
+  # shell-quoting damage would show up as a truncated or mangled message.
+  if [ -n "$RUN_ERR" ] && printf '%s' "$RUN_ERR" | grep -q '3) /goal force: '; then
+    ok "intact menu for hostile input: ${hostile:0:42}..."
   else
-    bad "valid JSON for hostile input: ${hostile:0:42}..." "output was not parseable JSON"
+    bad "intact menu for hostile input: ${hostile:0:42}..." "menu missing or mangled"
   fi
 done
 
