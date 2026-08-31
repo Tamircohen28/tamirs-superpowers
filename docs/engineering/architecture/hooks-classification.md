@@ -32,7 +32,7 @@ the one that answers "what breaks if this is gone".
 | `protect-other-branches.sh` | PreToolUse `Bash\|Shell` | **core-safety-invariant** | Claude Code, Cursor | **Unprotected.** Concurrent agents overwrite each other's branches and PRs. | **Yes** |
 | `release-agent-claims.sh` | SessionEnd | **core-safety-invariant** | Claude Code, Cursor | Claims expire on their own staleness window instead of immediately | **Yes** |
 | `enforce-worktree-edits.sh` | PreToolUse `Edit\|Write\|…` | **core-safety-invariant** | Claude Code, Cursor | Main-checkout edits become an advisory rule in `AGENTS.md` | **Yes** |
-| `guard-sensitive-files.sh` | PreToolUse `Edit\|Write\|…` | **core-safety-invariant** | Claude Code, Cursor | Lockfiles, build output and workflows are hand-editable | **Yes** |
+| `guard-sensitive-files.sh` | PreToolUse `Edit\|Write\|…` **and `Bash`** | **core-safety-invariant** | Claude Code, Cursor | Lockfiles, build output and workflows are hand-editable | **Yes** |
 | `goal-condition-lint.sh` | UserPromptSubmit | **core-safety-invariant** | Claude Code only (`/goal`) | **Unprotected.** A `/goal` condition that cannot terminate blocks every turn-end until the harness cap trips — 21 blocks on 2026-08-17, ~15 on 2026-08-31. | **Yes** |
 | `capture-task-slug.sh` | UserPromptSubmit | **worktree-lifecycle** | Claude Code only | No automatic workspace; skills must create one explicitly | **Yes**, opt-out |
 | `session-init.sh` | SessionStart | **worktree-lifecycle** | Claude Code only | No session dir, no session-files reload, no stale-worktree pruning | **Yes**, opt-out |

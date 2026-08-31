@@ -6,6 +6,46 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ## [Unreleased]
 
 ### Fixed
+- **The protected-file guard was blind to `Bash`: it matched editing TOOLS, not
+  file PATHS.** `guard-sensitive-files.sh` was wired only to
+  `Edit|Write|MultiEdit|NotebookEdit|StrReplace` and read a `file_path` out of
+  the payload, so every path it protected — lockfiles, `.github/workflows/`,
+  `.yarn/releases/`, generated shadcn UI, gitignored build output — stayed
+  writable through `cat > f <<EOF`, `sed -i`, `tee`, `cp` or a shell redirect.
+  No prompt, no override, no log entry.
+
+  The guard's subject is an agent, and agents have Bash, so the bypass was
+  available to precisely the actor the control exists to constrain — by
+  default, with no intent to circumvent. An agent that simply preferred Bash
+  for edits never saw the guard and never learned the file was protected, while
+  the agents that used `Edit` and stopped were the only ones it cost anything.
+
+  The hook now runs on `Bash` as well, and decides on the write TARGET. A new
+  `hooks/lib/write-targets.py` parses the command and reports only operands in
+  a writing position: redirections, `tee`, `sed -i`/`perl -i`/`awk -i inplace`,
+  `cp`/`mv`/`install`/`rsync`/`ln`, `touch`/`truncate`, `dd of=`, `curl -o`,
+  `wget -O`, `rm`. It also follows a literal `cd` so relative targets resolve
+  against the right repo.
+
+  It deliberately does **not** grep the command for protected paths — that is
+  the defect `docker-guard.py` already has on record, where a read-only `grep`
+  and a `git commit -m` were blocked for containing a matching literal. Because
+  a path is only a target when it sits in a target position, a path named in a
+  `grep` pattern, a commit message, a `sed` script or a heredoc body is not a
+  finding. `tests/test-write-target-guard.sh` (38 assertions) holds both halves.
+
+  **What it still cannot decide, it says.** Inline interpreter code
+  (`python3 -c`, `eval`, code piped into a shell), runtime-built targets
+  (`> "$OUT"`, `xargs`, `find -exec`, globs) and paths inside a patch produce a
+  non-blocking advisory naming what went unchecked, rather than an allow that
+  reads as "nothing protected was touched". Ordinary programs that merely
+  *could* write (`make`, `npm install`, a checked-in script) are not reported —
+  at that breadth the warning fires on everything and means nothing. Closing
+  those needs a git/CI check on the modified path, which observes the outcome
+  instead of the mechanism; this hook is the fast-feedback half, not the
+  binding one.
+
+### Fixed
 - **`pr-dev`'s scripts resolved the repository from the current directory, so a
   wrong cwd produced a plausible answer about a different repository instead of
   an error.** All four (`fetch-pr-state.sh`, `resolve-merge-policy.sh`,
