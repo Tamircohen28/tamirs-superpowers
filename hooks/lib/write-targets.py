@@ -250,6 +250,179 @@ def strip_heredocs(command):
 # Prefixes that wrap another command without changing what it writes.
 WRAPPERS = ("sudo", "env", "command", "time", "nohup", "nice", "stdbuf", "exec", "builtin")
 
+# A wrapper's OWN options, so they are consumed rather than mistaken for the
+# command it wraps. Stripping only the wrapper's name leaves its first option
+# sitting in argv0's place — `env -i tee yarn.lock` becomes `-i`, which matches
+# no write primitive, so a real write is reported as no write at all.
+#
+# Options deliberately ABSENT are absent on purpose; an unlisted option is
+# UNSURE, and for these three that is the only honest answer:
+#   sudo -R/--chroot, sudo -D/--chdir, env -C/--chdir  move the frame every
+#     relative target is resolved against, so consuming them as ordinary values
+#     would resolve the target against the wrong directory and report a
+#     confident wrong answer.
+#   env -S/--split-string  hides a whole command line inside one argument, so
+#     the wrapped command is not a token this parser ever sees.
+#   sudo -e/--edit  (sudoedit) writes its operands itself; there is no wrapped
+#     command to find.
+WRAPPER_OPTS = {
+    "sudo": {
+        "value": ("-u", "--user", "-g", "--group", "-p", "--prompt",
+                  "-C", "--close-from", "-h", "--host", "-r", "--role",
+                  "-t", "--type", "-U", "--other-user"),
+        "flag": ("-A", "--askpass", "-b", "--background", "-E", "--preserve-env",
+                 "-H", "--set-home", "-i", "--login", "-K", "--remove-timestamp",
+                 "-k", "--reset-timestamp", "-l", "--list", "-n", "--non-interactive",
+                 "-P", "--preserve-groups", "-S", "--stdin", "-s", "--shell",
+                 "-v", "--validate", "-N", "--no-update", "-B", "--bell"),
+    },
+    "env": {
+        "value": ("-u", "--unset"),
+        "flag": ("-i", "--ignore-environment", "-0", "--null", "-v", "--debug",
+                 "--block-signal", "--default-signal", "--ignore-signal",
+                 "--list-signal-handling"),
+    },
+    "nice": {"value": ("-n", "--adjustment"), "flag": ()},
+    "stdbuf": {"value": ("-i", "--input", "-o", "--output", "-e", "--error"), "flag": ()},
+    "nohup": {"value": (), "flag": ()},
+    "command": {"value": (), "flag": ("-p", "-v", "-V")},
+    "exec": {"value": ("-a",), "flag": ("-c", "-l")},
+    "builtin": {"value": (), "flag": ()},
+    "time": {"value": ("-f", "--format", "-o", "--output"),
+             "flag": ("-p", "--portability", "-v", "--verbose", "-a", "--append")},
+}
+
+# Per-command options, so a value-taking option's VALUE is never counted as an
+# operand. Getting this wrong is not cosmetic: in `install -m 0644 src yarn.lock`
+# the mode `0644` reads as a second SOURCE, which makes the last operand look
+# like a DIRECTORY — so the guard reports writes to `yarn.lock/0644` and
+# `yarn.lock/src` and never reports the write to `yarn.lock` itself.
+#
+#   value     — takes the following word (or an attached `=`/short value)
+#   flag      — takes nothing (a bare long form of an optional-argument option
+#               belongs here: GNU only accepts its value via `=`)
+#   attached  — an optional value glued to the option, never a separate word
+#               (`sed -i`, `sed -i.bak`, `perl -0777`)
+COMMAND_OPTS = {
+    "cp": {
+        "value": ("-t", "--target-directory", "-S", "--suffix"),
+        "flag": ("-a", "-b", "-d", "-f", "-i", "-l", "-n", "-P", "-p", "-R", "-r",
+                 "-s", "-T", "-u", "-v", "-x", "-H", "-L", "-Z",
+                 "--archive", "--attributes-only", "--backup", "--copy-contents",
+                 "--debug", "--dereference", "--force", "--interactive",
+                 "--keep-directory-symlink", "--link", "--no-clobber",
+                 "--no-dereference", "--no-preserve", "--no-target-directory",
+                 "--one-file-system", "--parents", "--preserve", "--recursive",
+                 "--reflink", "--remove-destination", "--sparse",
+                 "--strip-trailing-slashes", "--symbolic-link", "--update",
+                 "--verbose", "--context"),
+    },
+    "mv": {
+        "value": ("-t", "--target-directory", "-S", "--suffix"),
+        "flag": ("-b", "-f", "-i", "-n", "-u", "-v", "-T", "-Z",
+                 "--backup", "--context", "--debug", "--exchange", "--force",
+                 "--interactive", "--no-clobber", "--no-copy",
+                 "--no-target-directory", "--strip-trailing-slashes", "--update",
+                 "--verbose"),
+    },
+    "install": {
+        "value": ("-m", "--mode", "-o", "--owner", "-g", "--group",
+                  "-t", "--target-directory", "-S", "--suffix", "--strip-program"),
+        "flag": ("-b", "-c", "-C", "-d", "-D", "-p", "-s", "-T", "-v", "-Z",
+                 "--backup", "--compare", "--context", "--debug", "--directory",
+                 "--no-target-directory", "--preserve-context",
+                 "--preserve-timestamps", "--strip", "--verbose"),
+    },
+    "ln": {
+        "value": ("-t", "--target-directory", "-S", "--suffix"),
+        "flag": ("-b", "-d", "-f", "-F", "-i", "-L", "-n", "-P", "-r", "-s", "-T", "-v",
+                 "--backup", "--debug", "--directory", "--force", "--interactive",
+                 "--logical", "--no-dereference", "--no-target-directory",
+                 "--physical", "--relative", "--symbolic", "--verbose"),
+    },
+    "rsync": {
+        "value": ("-e", "--rsh", "-f", "--filter", "--exclude", "--include",
+                  "--exclude-from", "--include-from", "--files-from", "--chmod",
+                  "--chown", "--usermap", "--groupmap", "--log-file",
+                  "--log-file-format", "--out-format", "--compare-dest",
+                  "--copy-dest", "--link-dest", "--partial-dir", "-T", "--temp-dir",
+                  "--backup-dir", "--suffix", "--max-size", "--min-size",
+                  "--bwlimit", "--timeout", "--contimeout", "--port", "--sockopts",
+                  "--password-file", "--address", "-B", "--block-size",
+                  "--modify-window", "--checksum-seed", "--protocol", "--iconv",
+                  "--skip-compress", "--compress-level", "--rsync-path",
+                  "-M", "--remote-option", "--copy-as", "--info", "--debug",
+                  "--outbuf", "--write-batch", "--read-batch", "--only-write-batch"),
+        "flag": ("-a", "-b", "-c", "-C", "-d", "-D", "-E", "-g", "-h", "-H", "-i",
+                 "-I", "-k", "-K", "-l", "-L", "-m", "-n", "-o", "-O", "-p", "-P",
+                 "-q", "-r", "-R", "-S", "-t", "-u", "-U", "-v", "-W", "-x", "-X",
+                 "-y", "-z", "-A", "-J", "-N", "-G", "-s", "-F",
+                 "--archive", "--append", "--append-verify", "--backup",
+                 "--checksum", "--compress", "--copy-links", "--copy-unsafe-links",
+                 "--cvs-exclude", "--delete", "--delete-after", "--delete-before",
+                 "--delete-delay", "--delete-during", "--delete-excluded",
+                 "--delete-missing-args", "--devices", "--dirs", "--dry-run",
+                 "--existing", "--fuzzy", "--group", "--hard-links",
+                 "--human-readable", "--ignore-errors", "--ignore-existing",
+                 "--ignore-times", "--inplace", "--itemize-changes",
+                 "--keep-dirlinks", "--links", "--list-only", "--mkpath",
+                 "--no-implied-dirs", "--no-perms", "--no-whole-file", "--numeric-ids",
+                 "--omit-dir-times", "--omit-link-times", "--one-file-system",
+                 "--open-noatime", "--owner", "--partial", "--perms", "--preallocate",
+                 "--progress", "--prune-empty-dirs", "--quiet", "--recursive",
+                 "--relative", "--remove-source-files", "--safe-links", "--sparse",
+                 "--specials", "--stats", "--super", "--times", "--update",
+                 "--verbose", "--whole-file", "--xattrs"),
+    },
+    "tee": {"value": (), "flag": ("-a", "-i", "-p", "--append", "--debug",
+                                  "--ignore-interrupts", "--output-error")},
+    "rm": {"value": (), "flag": ("-f", "-i", "-I", "-r", "-R", "-d", "-v",
+                                 "--debug", "--dir", "--force", "--interactive",
+                                 "--no-preserve-root", "--one-file-system",
+                                 "--preserve-root", "--recursive", "--verbose")},
+    "shred": {"value": ("-n", "--iterations", "-s", "--size", "--random-source"),
+              "flag": ("-f", "-u", "-v", "-x", "-z", "--exact", "--force",
+                       "--remove", "--verbose", "--zero")},
+    "touch": {"value": ("-d", "--date", "-r", "--reference", "-t"),
+              "flag": ("-a", "-c", "-f", "-h", "-m", "--no-create",
+                       "--no-dereference", "--time")},
+    "truncate": {"value": ("-s", "--size", "-r", "--reference"),
+                 "flag": ("-c", "-o", "--io-blocks", "--no-create")},
+    "sponge": {"value": (), "flag": ("-a",)},
+    "sed": {
+        "value": ("-e", "--expression", "-f", "--file", "-l", "--line-length"),
+        "flag": ("-n", "-r", "-E", "-s", "-u", "-z", "--debug", "--follow-symlinks",
+                 "--null-data", "--posix", "--quiet", "--regexp-extended",
+                 "--sandbox", "--separate", "--silent", "--unbuffered"),
+        "attached": ("-i",),
+    },
+    "awk": {
+        "value": ("-v", "--assign", "-f", "--file", "-F", "--field-separator",
+                  "-i", "--include", "-l", "--load", "-e", "--source", "-E",
+                  "--exec", "-D", "--debug", "-o", "--pretty-print", "-p",
+                  "--profile"),
+        "flag": ("-c", "-g", "-h", "-M", "-n", "-N", "-P", "-r", "-s", "-S", "-t",
+                 "-V", "--characters-as-bytes", "--copyright", "--gen-pot",
+                 "--help", "--lint", "--no-optimize", "--non-decimal-data",
+                 "--posix", "--re-interval", "--sandbox", "--traditional",
+                 "--use-lc-numeric", "--version"),
+    },
+    "perl": {
+        "value": ("-e", "-E", "-I", "-m", "-M"),
+        "flag": ("-a", "-c", "-n", "-p", "-s", "-S", "-T", "-u", "-U", "-v", "-V",
+                 "-w", "-W", "-X", "-h"),
+        "attached": ("-i", "-l", "-0", "-F", "-x", "-d", "-D", "-C"),
+    },
+}
+COMMAND_OPTS["gsed"] = COMMAND_OPTS["sed"]
+COMMAND_OPTS["gawk"] = COMMAND_OPTS["awk"]
+
+# Commands whose operand LAYOUT decides the answer — the last operand is the
+# destination, so an option this parser cannot size makes every operand after it
+# a guess. These say UNSURE rather than guessing. For every other command an
+# unknown option only risks an extra target, never a missed one.
+STRICT_LAYOUT = ("cp", "mv", "install", "rsync", "ln")
+
 # Arbitrary-code evaluators. Handed inline code (or a heredoc) their write
 # targets live in a language this parser does not read.
 EVALUATORS = (
@@ -272,18 +445,80 @@ def _is_flag(word):
     return word.startswith("-") and word != "-"
 
 
-def _operands(words):
-    """Non-flag arguments, stopping at `--`."""
+def _consume_option(word, spec):
+    """How many further WORDS this option eats: 0, 1, or None for "unknown".
+
+    None is not a synonym for zero. An option whose size we cannot determine
+    shifts every operand after it, so the caller decides whether that is
+    survivable (an extra target) or fatal (the destination moves), rather than
+    this function quietly assuming the harmless case.
+    """
+    value = spec.get("value", ())
+    flag = spec.get("flag", ())
+    attached = spec.get("attached", ())
+
+    if word.startswith("--"):
+        name = word.split("=", 1)[0]
+        if "=" in word:
+            # An optional-argument long option only ever takes it as `=VALUE`.
+            return 0 if name in value or name in flag else None
+        if name in value:
+            return 1
+        if name in flag:
+            return 0
+        return None
+
+    # A short cluster: `-av`, `-m0644`, `-t dir`, `-i.bak`.
+    body = word[1:]
+    for pos, ch in enumerate(body):
+        short = "-" + ch
+        if short in attached:
+            return 0        # the rest of the word is its value, if it has one
+        if short in value:
+            # `-m0644` carries its value; a trailing `-m` takes the next word.
+            return 0 if pos + 1 < len(body) else 1
+        if short in flag:
+            continue
+        return None
+    return 0
+
+
+def _split_operands(words, cmd=None):
+    """(operands, unresolvable_reason) — non-flag arguments, stopping at `--`.
+
+    With no entry in COMMAND_OPTS this is the old behaviour: drop anything that
+    looks like a flag, keep everything else. With an entry, a value-taking
+    option's value is dropped too — it is not an operand, and counting it as one
+    is what let `install -m 0644 src yarn.lock` write the lockfile unchecked.
+    """
+    spec = COMMAND_OPTS.get(cmd) if cmd else None
     out = []
+    i = 0
     seen_ddash = False
-    for w in words:
-        if not seen_ddash and w.value == "--":
+    while i < len(words):
+        w = words[i]
+        if seen_ddash or not _is_flag(w.value):
+            out.append(w)
+            i += 1
+            continue
+        if w.value == "--":
             seen_ddash = True
+            i += 1
             continue
-        if not seen_ddash and _is_flag(w.value):
-            continue
-        out.append(w)
-    return out
+        eats = _consume_option(w.value, spec) if spec else 0
+        if eats is None:
+            if cmd in STRICT_LAYOUT:
+                return [], ("`%s` is passed the option `%s`, which this parse cannot "
+                            "size; the operands after it may not be the ones naming "
+                            "the destination" % (cmd, w.value))
+            eats = 0
+        i += 1 + eats
+    return out, None
+
+
+def _operands(words, cmd=None):
+    """Non-flag arguments, stopping at `--`."""
+    return _split_operands(words, cmd)[0]
 
 
 def _has_inplace(words):
@@ -313,9 +548,9 @@ def _flag_value(words, names):
     return None
 
 
-def _script_then_files(words, script_flags):
+def _script_then_files(words, script_flags, cmd=None):
     """sed/awk grammar: the first operand is the program unless -e/-f gave it."""
-    ops = _operands(words)
+    ops = _operands(words, cmd)
     gave_script = any(
         w.value in script_flags or any(w.value.startswith(f + "=") for f in script_flags)
         for w in words
@@ -323,20 +558,26 @@ def _script_then_files(words, script_flags):
     return ops if gave_script else ops[1:]
 
 
-def _destinations(words):
-    """cp/mv/install/rsync/ln: the last operand, expanded over sources if a dir."""
+def _destinations(words, cmd=None):
+    """(targets, unsure) — the last operand, expanded over sources if a dir.
+
+    cp/mv/install/rsync/ln. The destination is decided by POSITION, so this is
+    the family where an operand list off by one hides the real write.
+    """
     explicit_dir = _flag_value(words, ("-t", "--target-directory"))
-    ops = _operands(words)
+    ops, unsure = _split_operands(words, cmd)
+    if unsure:
+        return [], unsure
     if explicit_dir is not None:
         return [Tok("word", os.path.join(explicit_dir.value, os.path.basename(s.value)),
-                    explicit_dir.expands or s.expands) for s in ops]
+                    explicit_dir.expands or s.expands) for s in ops], None
     if len(ops) < 2:
-        return []
+        return [], None
     dest, sources = ops[-1], ops[:-1]
     if len(sources) > 1 or dest.value.endswith("/") or os.path.isdir(dest.value):
         return [Tok("word", os.path.join(dest.value, os.path.basename(s.value)),
-                    dest.expands or s.expands) for s in sources]
-    return [dest]
+                    dest.expands or s.expands) for s in sources], None
+    return [dest], None
 
 
 def segment_targets(argv0, words, fed_code):
@@ -361,31 +602,26 @@ def segment_targets(argv0, words, fed_code):
         return [], "TARGET", "applies a patch; the written paths are named inside the patch, not on the command line"
 
     if base in ("rm", "unlink", "shred"):
-        return _operands(words), "DELETE", None
+        return _operands(words, base), "DELETE", None
     if base == "tee":
-        return _operands(words), "TARGET", None
+        return _operands(words, base), "TARGET", None
     if base in ("sed", "gsed"):
-        return (_script_then_files(words, ("-e", "--expression", "-f", "--file"))
+        return (_script_then_files(words, ("-e", "--expression", "-f", "--file"), base)
                 if _has_inplace(words) else []), "TARGET", None
     if base == "perl" and _has_inplace(words):
-        # `perl -i -pe 'CODE' file` — the code is an operand whenever a short
-        # cluster ends in `e`; without that rule the program becomes a "target".
-        ops = _operands(words)
-        code_is_operand = any(
-            w.value.startswith("-") and not w.value.startswith("--") and w.value.endswith("e")
-            for w in words
-        )
-        return (ops[1:] if code_is_operand else ops), "TARGET", None
+        # `-e`/`-E` take the program as their value (including inside a cluster,
+        # `-pe 'CODE'`), so the operands left are the files it rewrites.
+        return _operands(words, base), "TARGET", None
     if base in ("awk", "gawk"):
         if not (_has_inplace(words) and any(w.value == "inplace" for w in words)):
             return [], "TARGET", None
-        # gawk spells it `-i inplace`; drop that operand before the program.
-        rest = [w for w in words if w.value != "inplace"]
-        return _script_then_files(rest, ("-f", "--file")), "TARGET", None
+        # gawk spells it `-i inplace`, consumed as that option's value.
+        return _script_then_files(words, ("-f", "--file", "-e", "--source"), base), "TARGET", None
     if base in ("cp", "mv", "install", "rsync", "ln"):
-        return _destinations(words), "TARGET", None
+        dests, unsure = _destinations(words, base)
+        return dests, "TARGET", unsure
     if base in ("touch", "truncate", "sponge"):
-        return _operands(words), "TARGET", None
+        return _operands(words, base), "TARGET", None
     if base == "dd":
         of = next((w for w in words if w.value.startswith("of=")), None)
         return ([Tok("word", of.value[3:], of.expands)] if of else []), "TARGET", None
@@ -397,6 +633,41 @@ def segment_targets(argv0, words, fed_code):
         out = _flag_value(words, ("-O", "--output-document"))
         return ([out] if out is not None else []), "TARGET", None
     return [], "TARGET", None
+
+
+def _strip_wrapper_options(words, wrapper):
+    """(remaining words, unsure) — drop a wrapper's OWN options.
+
+    Stripping only the wrapper's name leaves its first option in argv0's place:
+    `env -i tee yarn.lock` becomes `-i`, `nice -n 10 tee yarn.lock` becomes
+    `-n`, `sudo -u root tee yarn.lock` becomes `-u`. None of those is a write
+    primitive, so each returns no targets — the silent-allow this guard exists
+    to remove, reached without any attempt to evade it.
+    """
+    spec = WRAPPER_OPTS.get(wrapper, {})
+    i = 0
+    while i < len(words):
+        v = words[i].value
+        if v == "--":
+            i += 1
+            break
+        # `env -` and `env FOO=bar` / `sudo FOO=bar` still precede the command.
+        if wrapper == "env" and v == "-":
+            i += 1
+            continue
+        if wrapper in ("env", "sudo") and not v.startswith("-") \
+                and "=" in v and not v.startswith("="):
+            i += 1
+            continue
+        if not _is_flag(v):
+            break
+        eats = _consume_option(v, spec)
+        if eats is None:
+            return words, ("is run under `%s %s`, an option this parse does not know, "
+                           "so the command it actually runs cannot be identified"
+                           % (wrapper, v))
+        i += 1 + eats
+    return words[i:], None
 
 
 def redirect_targets(toks):
@@ -422,91 +693,119 @@ def analyze_command(command, cwd):
 
     records = []
     segment = []
-    segments = []       # (tokens, preceded_by_pipe)
+    segments = []       # (tokens, preceded_by_pipe, terminator)
     piped = False
     for tok in toks:
         if tok.kind == "op" and tok.value in SEGMENT_SEPARATORS:
-            segments.append((segment, piped))
+            segments.append((segment, piped, tok.value))
             segment = []
             piped = tok.value == "|"
         else:
             segment.append(tok)
-    segments.append((segment, piped))
+    segments.append((segment, piped, ""))
 
-    for seg, piped_in in segments:
-        if not seg:
-            continue
-        fragment = " ".join(t.value for t in seg if t.kind == "word")[:160]
+    # `( … )` runs in a subshell, so a `cd` inside it dies at the `)`. Tracked
+    # with a stack because one global cwd that is never restored resolves
+    # `(cd /tmp); echo x > src/components/ui/button.tsx` against /tmp — a
+    # protected path reported as an unprotected one while Bash writes the
+    # protected one. An unbalanced `)` leaves cwd unknown rather than wrong.
+    cwd_stack = []
 
-        # An interpreter is handed a PROGRAM, not just data, by any of these.
-        fed_code = piped_in or any(
-            t.kind == "op" and t.value in ("<<", "<<-", "<") for t in seg)
-        targets = list(redirect_targets(seg))
-
-        # Words only, minus redirect operands and the fd numbers glued to them.
-        words = []
-        skip_next = False
-        for idx, tok in enumerate(seg):
-            if skip_next:
-                skip_next = False
-                continue
-            if tok.kind == "op":
-                if tok.value in REDIRECT_OPS or tok.value in ("<", "<<", "<<-"):
-                    skip_next = True
-                    if words and words[-1].value.isdigit():
-                        words.pop()
-                continue
-            words.append(tok)
-
-        # Leading `VAR=value` assignments and transparent wrappers.
-        while words:
-            head = words[0].value
-            if "=" in head and not head.startswith("=") and head.split("=", 1)[0].replace("_", "a").isalnum():
-                words.pop(0)
-                continue
-            if os.path.basename(head) in WRAPPERS:
-                words.pop(0)
-                continue
-            break
-        if not words:
-            continue
-
-        argv0, rest = words[0].value, words[1:]
-
-        # `cd` moves the frame every later relative path is resolved against.
-        if argv0 == "cd":
-            ops = _operands(rest)
-            if not ops:
-                cwd = os.path.expanduser("~")
-            elif ops[0].expands:
-                cwd = None
-            else:
-                cwd = os.path.normpath(os.path.join(cwd, os.path.expanduser(ops[0].value))) \
-                    if cwd else None
-            continue
-
-        cmd_targets, kind, unsure = segment_targets(argv0, rest, fed_code)
-        if unsure:
-            records.append(("UNSURE", unsure, fragment))
-        # A redirection always creates content; only the command's own operands
-        # can be a deletion.
-        targets = [(t, "TARGET") for t in targets] + [(t, kind) for t in cmd_targets]
-
-        for t, t_kind in targets:
-            if t.expands or "$" in t.value or "`" in t.value:
-                records.append(("UNSURE", "writes to a target built by shell expansion (%s)" % t.value, fragment))
-                continue
-            path = os.path.expanduser(t.value)
-            if not os.path.isabs(path):
-                if cwd is None:
-                    records.append(("UNSURE", "writes to a relative path after a `cd` this parse could not follow (%s)" % t.value, fragment))
-                    continue
-                path = os.path.join(cwd, path)
-            path = os.path.normpath(path)
-            records.append((t_kind, path, fragment))
-            if not t.quoted and any(c in t.value for c in "*?["):
-                records.append(("UNSURE", "writes to a glob that may cover paths beyond the one checked (%s)" % t.value, fragment))
+    for seg, piped_in, terminator in segments:
+        if seg:
+            cwd = _segment_records(seg, piped_in, terminator, cwd, records)
+        # The group boundary is the terminator of the segment just processed.
+        if terminator == "(":
+            cwd_stack.append(cwd)
+        elif terminator == ")":
+            cwd = cwd_stack.pop() if cwd_stack else None
     return records
+
+
+def _segment_records(seg, piped_in, terminator, cwd, records):
+    """Append this segment's records; return the cwd the NEXT segment sees."""
+    fragment = " ".join(t.value for t in seg if t.kind == "word")[:160]
+
+    # An interpreter is handed a PROGRAM, not just data, by any of these.
+    fed_code = piped_in or any(
+        t.kind == "op" and t.value in ("<<", "<<-", "<") for t in seg)
+    targets = list(redirect_targets(seg))
+
+    # Words only, minus redirect operands and the fd numbers glued to them.
+    words = []
+    skip_next = False
+    for idx, tok in enumerate(seg):
+        if skip_next:
+            skip_next = False
+            continue
+        if tok.kind == "op":
+            if tok.value in REDIRECT_OPS or tok.value in ("<", "<<", "<<-"):
+                skip_next = True
+                if words and words[-1].value.isdigit():
+                    words.pop()
+            continue
+        words.append(tok)
+
+    # Leading `VAR=value` assignments and transparent wrappers — including each
+    # wrapper's OWN options, or the first of them lands in argv0's place.
+    while words:
+        head = words[0].value
+        if "=" in head and not head.startswith("=") and head.split("=", 1)[0].replace("_", "a").isalnum():
+            words.pop(0)
+            continue
+        name = os.path.basename(head)
+        if name in WRAPPERS:
+            words.pop(0)
+            words, wrapper_unsure = _strip_wrapper_options(words, name)
+            if wrapper_unsure:
+                records.append(("UNSURE", wrapper_unsure, fragment))
+                return cwd
+            continue
+        break
+    if not words:
+        return cwd
+
+    argv0, rest = words[0].value, words[1:]
+
+    # `cd` moves the frame every later relative path is resolved against —
+    # unless it runs in a subshell, where the move dies with it. A pipeline
+    # component is a subshell too, so `cd /tmp | true; echo x > yarn.lock`
+    # writes the repo's lockfile, not /tmp's.
+    if argv0 == "cd":
+        if piped_in or terminator == "|":
+            return cwd
+        ops = _operands(rest)
+        if not ops:
+            cwd = os.path.expanduser("~")
+        elif ops[0].expands:
+            cwd = None
+        else:
+            cwd = os.path.normpath(os.path.join(cwd, os.path.expanduser(ops[0].value))) \
+                if cwd else None
+        return cwd
+
+    cmd_targets, kind, unsure = segment_targets(argv0, rest, fed_code)
+    if unsure:
+        records.append(("UNSURE", unsure, fragment))
+    # A redirection always creates content; only the command's own operands
+    # can be a deletion.
+    targets = [(t, "TARGET") for t in targets] + [(t, kind) for t in cmd_targets]
+
+    for t, t_kind in targets:
+        if t.expands or "$" in t.value or "`" in t.value:
+            records.append(("UNSURE", "writes to a target built by shell expansion (%s)" % t.value, fragment))
+            continue
+        path = os.path.expanduser(t.value)
+        if not os.path.isabs(path):
+            if cwd is None:
+                records.append(("UNSURE", "writes to a relative path after a `cd` this parse could not follow (%s)" % t.value, fragment))
+                continue
+            path = os.path.join(cwd, path)
+        path = os.path.normpath(path)
+        records.append((t_kind, path, fragment))
+        if not t.quoted and any(c in t.value for c in "*?["):
+            records.append(("UNSURE", "writes to a glob that may cover paths beyond the one checked (%s)" % t.value, fragment))
+    return cwd
 
 
 # --------------------------------------------------------------------------

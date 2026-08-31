@@ -60,7 +60,7 @@ git -C "$REPO" remote add origin https://github.com/example/x.git 2>/dev/null ||
 verdict() {
   jq -n --arg t "$1" --arg c "$2" --arg cwd "$REPO" \
      '{tool_name:$t, cwd:$cwd,
-       tool_input:(if $t=="Bash" then {command:$c} else {file_path:$c} end)}' \
+       tool_input:(if $t=="Bash" or $t=="Shell" then {command:$c} else {file_path:$c} end)}' \
   | bash "$GUARD" 2>/dev/null \
   | jq -r 'if .hookSpecificOutput.permissionDecision=="deny" then "deny"
            elif .hookSpecificOutput.additionalContext then "warn"
@@ -144,5 +144,126 @@ judge "PM_ALLOW_PROTECTED=1 allows a Bash write" allow \
   "$(PM_ALLOW_PROTECTED=1 bash_verdict "echo x > yarn.lock")"
 judge "  ... and the guard reads it, never sets it" no \
   "$(has "$(grep -E '^[[:space:]]*(export[[:space:]]+)?PM_ALLOW_PROTECTED=' "$GUARD" "$ROOT/hooks/lib/write-targets.py" 2>/dev/null)" PM_ALLOW_PROTECTED)"
+
+# ===========================================================================
+# The five walk-arounds found in review of the PR that introduced this guard.
+#
+# Each was a way to reach a protected path with the guard installed and
+# silent — not a way to defeat it, which is the point: every one is a shape an
+# agent writes by habit. A guard with a documented walk-past is the defect this
+# suite exists to close, so each gets the assertion it lacked.
+# ===========================================================================
+
+section "1. the shipped version changes when the shipped hook does"
+# A marketplace install caches hooks against the manifest version. Changing hook
+# behaviour without bumping it leaves every installed copy running the OLD hook
+# while `/plugin update` reports them current — the guard is "installed" and
+# absent at the same time. 3.4.0 is the last version whose hooks had no
+# write-target guard at all; shipping this wiring under it, ever again, would
+# hand that stale cache the new version number.
+PRE_GUARD_VERSION="3.4.0"
+CANON_VERSION="$(jq -r '.version' "$ROOT/plugin-version.json" 2>/dev/null)"
+# yes when $1 is strictly newer than $2, by semver ordering.
+newer_than() {
+  if [ "$1" = "$2" ]; then echo no; return; fi
+  if [ "$(printf '%s\n%s\n' "$1" "$2" | sort -t. -k1,1n -k2,2n -k3,3n | head -1)" = "$2" ]; then
+    echo yes
+  else
+    echo no
+  fi
+}
+
+judge "canonical version is above the pre-guard release" yes \
+  "$(newer_than "$CANON_VERSION" "$PRE_GUARD_VERSION")"
+judge "every manifest agrees with it" 0 \
+  "$(bash "$ROOT/scripts/check-version-truth.sh" --check "$ROOT" >/dev/null 2>&1; echo $?)"
+
+section "2. the guard is wired for every tool name that runs a shell"
+# `records_for()` has always handled a `Shell` payload; only the hook MATCHER
+# said `Bash`. On a host that names the tool `Shell`, `tee yarn.lock` kept the
+# full pre-PR bypass — the guard was installed and never invoked.
+HOOKS_JSON="$ROOT/hooks/hooks.json"
+guard_matchers() {
+  jq -r '.hooks.PreToolUse[]
+         | select(any(.hooks[]; .command | test("guard-sensitive-files")))
+         | .matcher' "$HOOKS_JSON" 2>/dev/null
+}
+judge "a Bash-matching block invokes the guard"  yes "$(has "$(guard_matchers)" "Bash")"
+judge "and it matches Shell too"                 yes "$(has "$(guard_matchers)" "Shell")"
+# The wiring is only worth asserting if the guard actually decides on that payload.
+shell_verdict() { verdict Shell "$1"; }
+judge "tee into a lockfile, as a Shell call"     deny "$(shell_verdict "tee yarn.lock")"
+judge "redirect into a workflow, as a Shell call" deny \
+  "$(shell_verdict "echo x >> .github/workflows/ci.yml")"
+judge "a mention is still allowed on Shell"      allow "$(shell_verdict "cat yarn.lock")"
+
+section "3. a wrapper's own OPTIONS are consumed, not left in argv0's place"
+# Stripping only the wrapper NAME made its first option the command: `env -i tee
+# yarn.lock` was parsed as running `-i`, which writes nothing, so the write to
+# the lockfile was reported as no write at all.
+judge "env -i tee"          deny "$(bash_verdict "env -i tee yarn.lock")"
+judge "nice -n 10 tee"      deny "$(bash_verdict "nice -n 10 tee yarn.lock")"
+judge "nice -n10 tee"       deny "$(bash_verdict "nice -n10 tee yarn.lock")"
+judge "sudo -u root tee"    deny "$(bash_verdict "sudo -u root tee yarn.lock")"
+judge "sudo -- tee"         deny "$(bash_verdict "sudo -- tee yarn.lock")"
+judge "stacked wrappers"    deny "$(bash_verdict "env -u FOO nice -n5 sudo -H tee yarn.lock")"
+judge "env FOO=bar tee"     deny "$(bash_verdict "env FOO=bar tee yarn.lock")"
+# An option that MOVES THE FRAME is not consumed as an ordinary value — doing so
+# would resolve the target against the wrong directory and answer confidently.
+judge "env -C says so rather than guessing" warn "$(bash_verdict "env -C /tmp tee yarn.lock")"
+judge "an unknown wrapper option says so"   warn "$(bash_verdict "sudo --frobnicate tee yarn.lock")"
+judge "a wrapped ordinary write is allowed" allow "$(bash_verdict "sudo -u root tee src/app.ts")"
+
+section "4. a value-taking option's VALUE is not an operand"
+# `install -m 0644 /tmp/a yarn.lock` counted `0644` as a second SOURCE, which
+# made the last operand look like a DIRECTORY: the guard reported writes to
+# `yarn.lock/0644` and `yarn.lock/a` and never reported the write to the
+# lockfile itself.
+judge "install -m 0644"        deny "$(bash_verdict "install -m 0644 /tmp/a yarn.lock")"
+judge "install -m0644 -o root" deny "$(bash_verdict "install -m0644 -o root /tmp/a yarn.lock")"
+judge "install -m 0644 into the workflows dir" deny \
+  "$(bash_verdict "install -m 0644 /tmp/a .github/workflows/ci.yml")"
+judge "cp -S .bak onto a lockfile" deny "$(bash_verdict "cp -S .bak /tmp/a yarn.lock")"
+judge "sed -i -e, script given by flag" deny "$(bash_verdict "sed -i -e 's/a/b/' yarn.lock")"
+judge "touch -r ref"           deny "$(bash_verdict "touch -r /tmp/ref yarn.lock")"
+judge "truncate -s 0"          deny "$(bash_verdict "truncate -s 0 yarn.lock")"
+# `-t DIR` no longer leaves the directory sitting in the operand list as its own
+# "source", which used to invent a target named after the directory.
+judge "cp -t dir does not invent dir/dir" allow "$(bash_verdict "cp -t /tmp a b")"
+# For cp/mv/install/ln/rsync the DESTINATION is decided by operand position, so
+# an option this parse cannot size makes every later operand a guess.
+judge "an unknown cp option says so"      warn "$(bash_verdict "cp --frobnicate /tmp/a yarn.lock")"
+judge "a plain cp is still allowed"       allow "$(bash_verdict "cp /tmp/a src/app.ts")"
+judge "sed -e naming a path in its SCRIPT is still allowed" allow \
+  "$(bash_verdict "sed -i -e 's#x#yarn.lock#' src/app.ts")"
+
+section "5. a subshell's cd dies at the closing paren"
+# One global cwd, never restored at `)`, resolved `(cd /tmp); echo x > PROTECTED`
+# against /tmp — so a protected path was reported as an unprotected one while
+# Bash wrote the protected one. The write and the check disagreed about which
+# file was being written, which is the worst shape a guard can fail in.
+# Every case here writes a REPO-SCOPED protected path (shadcn UI, which is only
+# protected because $REPO/components.json exists). A lockfile would not
+# discriminate: `*.lock` is protected wherever it lands, so `/tmp/yarn.lock` is
+# denied too and the assertion would pass whether or not the cd was scoped.
+judge "write after a subshell cd"      deny \
+  "$(bash_verdict "(cd /tmp; true); echo x > src/components/ui/button.tsx")"
+judge "  ... and after && inside it"   deny \
+  "$(bash_verdict "(cd /tmp && true); printf x > src/components/ui/button.tsx")"
+judge "a cd in a PIPELINE is scoped too" deny \
+  "$(bash_verdict "cd /tmp | true; echo x > src/components/ui/button.tsx")"
+judge "nested subshells restore one level each" deny \
+  "$(bash_verdict "(cd /tmp; (cd /var; true)); echo x > src/components/ui/button.tsx")"
+# The subshell's own writes still resolve INSIDE it, and a real `cd` still moves
+# the frame — the fix must not have been "ignore cd".
+# Same path string, opposite verdict: under $REPO it is generated shadcn UI
+# (components.json is there), under /tmp it is nothing in particular. Only a cd
+# that actually took effect can produce the allow.
+judge "a write INSIDE the subshell uses its cwd" allow \
+  "$(bash_verdict "(cd /tmp; echo x > src/components/ui/button.tsx)")"
+judge "an unscoped cd still moves the frame"     deny \
+  "$(bash_verdict "cd $REPO && echo x > yarn.lock")"
+judge "an unbalanced ) leaves cwd unknown"       warn \
+  "$(bash_verdict "cd /tmp; true); echo x > yarn.lock")"
 
 harness_summary

@@ -45,6 +45,49 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   instead of the mechanism; this hook is the fast-feedback half, not the
   binding one.
 
+- **Five ways past that guard, found in review of it.** None needed any attempt
+  to evade the guard; each is a shape an agent writes by habit, and each left
+  the guard installed and silent — the failure mode the guard exists to remove,
+  reproduced inside the guard itself.
+
+  - **The hook matched the tool name `Bash` only.** `write-targets.py` had
+    always handled a `Shell` payload, and the concurrency hook next to it
+    already matched `Bash|Shell`; only this matcher was narrow. On a host that
+    names the tool `Shell`, `tee yarn.lock` kept the entire pre-guard bypass.
+  - **A wrapper's own options were not consumed, so the first one became the
+    command.** `env -i tee yarn.lock`, `nice -n 10 tee yarn.lock` and
+    `sudo -u root tee yarn.lock` each parsed as running `-i` / `-n` / `-u`,
+    which write nothing — so a real lockfile write was reported as no write at
+    all. Each wrapper's options are now consumed per its documented form.
+    `sudo -R`/`-D`, `env -C` and `env -S` are deliberately NOT consumed: the
+    first three move the directory a relative target resolves against and the
+    last hides a whole command line in one argument, so they report UNSURE
+    instead of answering confidently against the wrong frame.
+  - **A value-taking option's value counted as an operand.** In
+    `install -m 0644 src yarn.lock` the mode `0644` read as a second SOURCE,
+    which made the last operand look like a DIRECTORY — the guard reported
+    writes to `yarn.lock/0644` and `yarn.lock/src` and never reported the write
+    to the lockfile. Options are now parsed per command; for the commands whose
+    operand POSITION decides the destination (`cp`, `mv`, `install`, `ln`,
+    `rsync`) an option the parser cannot size reports UNSURE rather than
+    guessing. This also removed a false positive — `cp -t DIR a b` used to
+    invent a target named after the directory — and fixed `sed -i -e`,
+    `perl -0777 -i -pe`, `touch -r`, `truncate -s` and `awk -v`.
+  - **A `cd` inside `( … )` was never undone.** One global cwd, not restored at
+    the `)`, resolved `(cd /tmp); echo x > src/components/ui/button.tsx`
+    against `/tmp` — so the guard checked a different file from the one Bash
+    wrote, and cleared it. Paren depth is now tracked with a stack, a `cd` in a
+    pipeline component is scoped to it, and an unbalanced `)` leaves the cwd
+    unknown (UNSURE for later relative writes) rather than wrong.
+  - **The plugin version was not bumped.** Marketplace installs cache hooks
+    against the manifest version, so shipping changed hook behaviour under the
+    same `3.4.0` would leave every installed copy running the old hook while
+    `/plugin update` reported it current — installed and absent at once. The
+    canonical version is now `3.5.0` across every manifest.
+
+  `tests/test-write-target-guard.sh` grew from 38 to 73 assertions; 20 of them
+  fail against the code as it stood before this change.
+
 ### Fixed
 - **`pr-dev`'s scripts resolved the repository from the current directory, so a
   wrong cwd produced a plausible answer about a different repository instead of
