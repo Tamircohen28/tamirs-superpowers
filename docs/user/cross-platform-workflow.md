@@ -25,7 +25,11 @@ See [platform capabilities](../../skills/dev-workflow/switch-dev/references/plat
 > immediately instead of asking you to confirm with a ref first; and sessions
 > on the same machine keep unique names (a clash gets a `name-word-word`
 > variant) so a mention or bare-name send can't land on the wrong one. `/config`
-> now has rows for dialog expiry and inbound cross-session messages. Useful for
+> now has rows for dialog expiry and inbound cross-session messages. Since
+> 2.1.247, an inbound peer message collapses by default to a one-line preview
+> (Ctrl+O expands it) instead of printing in full — expect to expand a
+> `SendMessage` from another session explicitly rather than see its whole text
+> inline in a busy multi-session run. Useful for
 > coordinating parallel Claude Code sessions live; messages to a session
 > running with bypassed permissions are held for your approval
 > (`crossSessionInbound` setting). This complements — not replaces — the

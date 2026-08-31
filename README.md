@@ -10,7 +10,7 @@
 </p>
 
 <p align="center">
-  <a href="docs/engineering/build-and-release/platform-targets.json"><img src="https://img.shields.io/badge/Claude%20Code-2.1.233-blueviolet" alt="Claude Code" /></a>
+  <a href="docs/engineering/build-and-release/platform-targets.json"><img src="https://img.shields.io/badge/Claude%20Code-2.1.251-blueviolet" alt="Claude Code" /></a>
   <a href="docs/engineering/build-and-release/platform-targets.json"><img src="https://img.shields.io/badge/Cursor-3.18.9-000000" alt="Cursor" /></a>
   <a href="docs/engineering/build-and-release/platform-targets.json"><img src="https://img.shields.io/badge/Codex-0.146.0-412991" alt="Codex" /></a>
   <a href="docs/engineering/build-and-release/platform-targets.json"><img src="https://img.shields.io/badge/Gemini%20CLI-0.55.1-4285F4" alt="Gemini CLI" /></a>
@@ -53,7 +53,7 @@ One plugin, one marketplace listing, both surfaces.
 
 | Surface | Registry id | Kind | Status | Install |
 |---|---|---|---|---|
-| Claude Code | `claude_code` | CLI | ✅ supported — validated 2.1.233 | [guide](docs/user/install/claude-code.md) |
+| Claude Code | `claude_code` | CLI | ✅ supported — validated 2.1.251 | [guide](docs/user/install/claude-code.md) |
 | Claude Desktop | `claude_desktop` | desktop | ✅ supported — same plugin, different runtime surface | [guide](docs/user/install/claude-desktop.md) |
 
 ### Codex

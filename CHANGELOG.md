@@ -146,6 +146,214 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   the menu's own recommended rewrite passes the hook are all asserted.
 
 ### Changed
+- **Platform target: Claude Code 2.1.247** (from 2.1.233). Docs-only bump — no shipped
+  plugin content changed. This is the first review of the Claude Code delta against the
+  repo's current tree (post `[3.0.0]`–`[3.3.0]`, i.e. `core/`, `rules/`, the six-surface
+  registry, and `platforms/claude/settings.d/` all exist now, none of which existed when
+  the previous nightly review last ran against this branch). Reviewed 2.1.234 through
+  2.1.247:
+  - **2.1.234 — `CLAUDE_CODE_PROJECT_DIR_NAME`.** `CLAUDE.md`'s Project memory section
+    now documents pinning the auto-loaded transcript directory name instead of relying on
+    the path *derived* from the clone's absolute location, which shifts per
+    machine/username and breaks if the clone moves; the restore command prefers the pin
+    when set. Also reviewed, host-side with no plugin change needed: the GitLab MR badge
+    (this repo is GitHub-hosted), auto-continue on usage-limit reset and
+    account-email-only identification, `selection:clear`, `/permissions`/`/add-dir`
+    usable mid-turn, Remote Control and `SendMessage`/`ListAgents` session-list fixes, the
+    claude-api skill's context reduction (no `claude-api` skill bundled here), removal of
+    the "Default teammate model" setting (the six `agents/*.md` are declarative, not
+    per-teammate model call sites), and the Windows NT-namespace path-read hardening.
+  - **2.1.235 — nothing adopted.** The opt-in `spellcheck` setting, the Agent tool's
+    clearer `subagent_type` error, and UI/dialog/markdown-rendering polish are
+    host/editor-side. `spellcheck` is a personal editor preference captured from the
+    maintainer's live machine via `scripts/capture-config.sh`, not something this
+    automated review adds speculatively on Tamir's behalf — noted for Tamir's judgment in the PR description.
+  - **2.1.236 — nothing adopted.** `ANTHROPIC_DEFAULT_MODEL`, `notify_when_idle` for
+    cross-session `SendMessage` (no skill or hook here polls another session's idle state
+    for it to replace), and the macOS sandbox wildcard-deny precedence fix (no
+    `sandbox.filesystem.denyRead` entries in this repo's settings fragments) are reviewed
+    and not applicable. `ANTHROPIC_DEFAULT_MODEL` is the same kind of personal-preference
+    setting as `spellcheck` above — noted for Tamir's judgment in the PR description rather than added.
+  - **2.1.237 — nothing adopted.** The built-in "Concise" output style and its
+    prompt-caching fix for gateway/custom-base-URL sessions: this repo ships no
+    output-style file and none of the settings fragments set one.
+  - **2.1.238 — nothing adopted.** `keybindingFlavor` (personal preference, same
+    treatment as `spellcheck`); `headersHelper` for marketplace/catalog and MCP entries
+    (`.mcp.json` declares one plain `stdio` `github` server with no headers to mint); the
+    output-style mid-session drift fix (no output style here); the MCP elicitation
+    URL-length fix and the stdio `server/discover`-before-`initialize` fix (this repo's
+    one MCP server is a local `stdio` process this session launches, not one Claude Code
+    itself must discover); `claude mcp list`/`get` showing disabled servers.
+  - **2.1.239 — `name@synced` documented.** A cloud-synced copy of this plugin shows up
+    as `tamirs-superpowers@synced` and never overrides a marketplace install of the same
+    name — documented in the install guide's Update section. `/claude-api upgrade` (no
+    `claude-api` skill here) and Windows cross-session messaging (host platform support)
+    are reviewed and not applicable.
+  - **2.1.240 / 2.1.241 — bug fixes and reliability improvements only**, per the official
+    changelog, with nothing to adopt or review.
+  - **2.1.242 / 2.1.244 — no separately documented changes.**
+  - **2.1.243 — three items adopted, several reviewed and not applicable.** Adopted:
+    `/tasks` and the agent detail dialogs now show each subagent's model and effort level
+    — useful for spot-checking `orchestrate-dev`/`worker-dev` fan-outs, noted in
+    `CLAUDE.md`'s Subagents bullet; the fix for background subagents not waking when
+    their last background Bash task finished, noted in the same place so a fanned-out
+    worker that seemed to hang isn't mistaken for a bug in this repo's orchestration; and
+    the new `managed` connector marker in `/mcp`/`/plugins`, documented in the install
+    guide alongside the `name@synced` note above (this plugin is never installed as a
+    claude.ai-managed connector, so it never shows the marker on that basis alone). Also
+    genuinely relevant and reviewed with no change needed: the auto-mode fixes (the git
+    status check can no longer be fooled by `status.showUntrackedFiles=no`; Monitor allow
+    rules are set aside while auto mode is active; auto mode's classifier now matches
+    Claude-API defaults on Bedrock/Vertex/Foundry) — this repo configures
+    `autoMode.soft_deny` in `platforms/claude/settings.d/auto-mode.json`, so these
+    reliability fixes affect sessions that use it, but none required a config change;
+    and the cross-session-messaging fix for user namespaces/rootless containers, relevant
+    given this repo's multi-agent handoff workflows use `SendMessage`/`ListAgents`.
+    Reviewed and not applicable: the hook `if`-condition command-substitution fix (
+    `hooks/hooks.json` has no `if` conditions, only `matcher` patterns); the
+    plugin-dependency-with-`marketplace`-field `--plugin-dir` fix (this repo's own
+    `.claude-plugin/marketplace.json` declares one plugin with no `dependencies` field);
+    the `/reload-plugins` LSP-tool fix (no LSP plugin here); `--agents` JSON validation
+    (no command here launches with `--agents`); `modelPicker`, `promptCacheTtl`/
+    `subagentPromptCacheTtl`, and `modelPricing` (all personal/org preference or billing
+    settings, not this pass's call to add); the `/usage` Loops breakdown, keyless Console
+    sign-in, and `/web-setup` tip (host UI, no plugin surface).
+  - **2.1.245 — a Linux glibc 2.44 startup crash fix.** Host binary issue, no plugin
+    surface.
+  - **2.1.246 — two items adopted, several reviewed and not applicable.** Adopted: a
+    subagent that stops at its own `maxTurns` limit now returns output marked `partial`
+    with a hint to continue it via `SendMessage` — noted in `CLAUDE.md`'s Subagents
+    bullet next to this repo's own `completed`/`partial`/`failed`/`blocked` handoff
+    vocabulary, since a `maxTurns`-truncated worker now surfaces the same `partial`
+    signal `worker-dev` already treats as "decide, never quietly integrate around it";
+    and the `/reload-plugins` fix for plugins that declare skills under
+    `skills/*/SKILL.md` relative to a declared root — this plugin's own `skills` array in
+    `plugin.json` is exactly that shape (`./skills/dev-workflow` → `start-dev/SKILL.md`
+    one level down), so pre-2.1.246 `/reload-plugins` could report `0 skills` for this
+    install; documented as a known, now-fixed failure mode in
+    `docs/user/troubleshooting.md`. Reviewed and not applicable: the wildcard-before-
+    subcommand Bash allow-rule warning (no rule in `platforms/claude/settings.d/
+    permissions-allow.json` has a wildcard positioned before a literal subcommand token);
+    the Auto Mode tab in `/permissions` (this repo configures `autoMode.soft_deny` via
+    `platforms/claude/settings.d/auto-mode.json`, a settings file, not the interactive
+    `/permissions` UI); the dynamic-workflow subagent-restart confirmation (this repo's
+    own orchestration is `Agent`-tool fan-out under `orchestrate-dev`/`worker-dev`, not
+    Claude Code's native Workflow construct); the plugin-cache duplicate-SHA-directory
+    fix, `claude plugin update` by bare name, and the `keybindings.json` unknown-action
+    fix (host-side, no plugin surface); the skill-frontmatter-name-doubling fix (no
+    `SKILL.md` here has a `name:` that already includes a `<plugin>:` prefix); the
+    plugin.json-BOM install fix (`.claude-plugin/plugin.json` has no byte-order mark);
+    the `${CLAUDE_PLUGIN_ROOT}`-in-hook-errors fix (informational — this repo's hooks
+    already reference `${CLAUDE_PLUGIN_ROOT}` correctly, the bug was only in how errors
+    *displayed* the path); the MCP `requiresUserInteraction` permission-prompt fix (this
+    repo's one MCP server is a plain `stdio` process with no such flag); non-interactive
+    auto-continue on a cut-off response and `/code-review`'s Bedrock/Vertex/Foundry
+    self-start (host/session behavior); and `/goal`'s three-check-ins-per-goal cap
+    (informational — no hook here polls or counts `/goal` check-ins).
+  - **2.1.247 — four items adopted, several reviewed and not applicable.** Adopted: a
+    subagent whose first model call 404s now falls back through the session's own
+    fallback model chain with a detailed error instead of dying outright — the same
+    reliability class as the two 2.1.243/2.1.246 subagent fixes above, noted next to them
+    in `CLAUDE.md`'s Subagents bullet; the fixes for hook/background-task error output
+    overflowing the conversation with a "Prompt is too long" error and for unbounded
+    memory growth on repeated output-file write failures, noted in `CLAUDE.md`'s Hooks
+    bullet given this plugin wires 25 hook scripts across nine lifecycle events (no hook
+    here needed a change — none write to an unbounded log file — but the fix directly
+    covers this repo's hook surface); the Bash sandbox fix for a dotfile-managed symlink
+    being deleted when repointed outside the writable area, documented in
+    `rules/dev/plugin-version-bump.md` next to the exact symlink workflow it protects
+    (`ln -s /path/to/your/clone ~/.claude/plugins/cache/.../X.Y.Z`); and the default
+    collapse of inbound cross-session peer messages to a one-line preview (Ctrl+O
+    expands), documented in `docs/user/cross-platform-workflow.md`'s existing
+    version-tagged `SendMessage`/`ListAgents` callout. Also genuinely relevant and
+    reviewed with no change needed: the Bash-permission-prompt tip pointing at auto mode
+    (this repo already configures `autoMode.soft_deny`); the fix for shell commands in
+    background sessions logging internal errors or misleading exit codes (this repo's
+    `worktree-create.sh` and `capture-task-slug.sh` both install dependencies in the
+    background); and Bedrock/Vertex/Foundry sessions now being told explicitly when an
+    MCP server fails to connect (this repo's one MCP server, `.mcp.json`'s `github`
+    entry, is a plain `stdio` process that can fail to launch). Reviewed and not
+    applicable: `SendFeedback` and `feedbackDrafts` (host feedback-reporting feature, no
+    plugin surface); the enhanced `spinnerTipsOverride` (`{id, text, cooldownSessions,
+    priority}`, `tipsFile`, `label`) and `/claude-api cost-optimize` plus the `/claude-api`
+    skill's Admin API coverage (this repo ships no custom tip config and no `claude-api`
+    skill, same as every earlier cycle); the arrow-key/Enter input-sequence, non-Latin
+    keyboard Ctrl-shortcut, and split mouse-report-text-insertion fixes, `/terminal-setup`
+    overwriting Zed's `keymap.json` (no Zed integration here), `/rename`'s silent-confirm
+    bug, `/compact`/"Summarize from here" system-prompt fix, the background-session
+    "opening…" hang, `/install-github-app` SSH messaging, the version-less
+    marketplace-cache-directory fix (`plugin-version.json` is this plugin's canonical,
+    always-present version source — it is never installed version-less), Remote Control
+    working-tree-diff reporting, self-hosted-runner status timing, first-run managed-
+    gateway connectivity, cloud-session permission-mode display and container-restart
+    silence, the plugin-marketplace control/invisible-character hardening (this repo's
+    `marketplace.json` and `plugin.json` carry no such characters), the Sonnet 5
+    auto-compact window widening to the full 1M context, terminal-hyperlink plain-text
+    rendering, the prompt-footer PR-badge refresh-skip, and the three sign-in/analytics
+    changes (managed-gateway analytics default, `surface=claude_code` identification,
+    org sign-in exiting early on unreadable managed settings) — all host UI, terminal, or
+    account/session infrastructure with no plugin-side surface.
+  - `validated_against` advances to 2.1.247 by the same changelog + npm-registry method
+    already used for this target (`verification_method` in `platform-targets.json`) —
+    and, for the first time since the `[3.0.0]`–`[3.3.0]` refactor, this cycle's
+    automation environment had a live `claude` CLI at exactly 2.1.247, so
+    `claude plugin validate .` and `make agent:check` were run for real and both passed.
+    (`.claude/skills/run-tamirs-superpowers/smoke.sh` and the aggregate `make test-hooks`
+    loop did not complete in this environment — timing out well past their normal
+    runtime — while every individual `tests/test-*.sh` file run directly passed; noted
+    for Tamir as environment-specific test-runner flakiness to look at, not a plugin
+    regression.)
+
+- **Platform target: Claude Code 2.1.251** (from 2.1.247, extending the review above).
+  Docs-only bump — no shipped plugin content changed beyond documentation. Reviewed
+  2.1.248 through 2.1.251:
+  - **2.1.248 / 2.1.250 — nothing adopted.** `--restricted`, `experimental.cacheTtl`
+    agent-frontmatter field (no agent here needs a cache TTL narrower than the session
+    default), self-hosted-runner client labeling, managed-settings load diagnostics,
+    `/web-setup`'s `workflow`-scope warning, cross-session messaging on Bedrock/Vertex/
+    Foundry, and the Workflow tool's smaller prompt footprint are all host/session
+    behavior or org billing features with no plugin-side surface; 2.1.250 was bug fixes
+    and reliability improvements only, per the official changelog.
+  - **2.1.249 — no published entry** (version skipped in the official changelog).
+  - **2.1.251 — two items adopted, one genuinely relevant with no change needed.**
+    Adopted: `CLAUDE_CODE_SUBAGENT_MODEL` now sets only the *default* subagent model
+    instead of overriding every spawn — an agent definition's own `model:` field (every
+    `agents/*.md` here pins one explicitly) and a per-spawn model now take precedence,
+    documented in `CLAUDE.md`'s Subagents bullet next to the other subagent-reliability
+    fixes; and the fix for background sessions/subagents being unable to edit files
+    inside a git worktree they created themselves with `git worktree add`, documented in
+    `rules/dev/git-worktree-agent-workflow.md` next to `EnterWorktree` and the
+    objective/worker worktree model this repo's whole orchestration relies on. Also
+    genuinely relevant, no change needed: the new `PreModelSwitch`/`PostModelSwitch` hook
+    events and `SessionStart` resume hooks now receiving session staleness and re-cache
+    cost are new host lifecycle surfaces this plugin's 25 hooks don't currently use —
+    noted for Tamir's judgment rather than wired speculatively (see Future opportunities
+    in PR #101 for the reasoning this pass follows). Reviewed and not applicable: the
+    plugin-marketplace command path-traversal rejection (`plugin.json` declares no
+    `commands` field, only `skills` paths, none pointing outside the plugin root); the
+    Workflow-tool `scriptPath` permission-check-ordering fix (this plugin declares no
+    Workflow-tool script); the Read/Write/Edit and Grep/Glob symlink-swap fixes (this
+    repo's worktree/sensitive-file isolation is enforced by hooks —
+    `enforce-worktree-edits.sh`, `guard-sensitive-files.sh` — not by `Read(...)` deny
+    rules in settings); the project-level `.claude/settings.json` `env` restriction (this
+    repo ships no project-level `.claude/settings.json`; `platforms/claude/settings.d/`
+    renders the user-level `~/.claude/settings.json` instead, and its one `env` key,
+    `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS`, isn't one of the restricted vars); the default
+    commit-trailer change for non-Claude models (`templates/global-CLAUDE.md` states no
+    hardcoded trailer text); and the remaining items (spend-limit UI, `/cost` prompt-cache
+    line, `claude --help` subcommands, Remote Control streaming, `/effort` per-model
+    memory, analytics/sign-in changes, and the large host-reliability fix list) — all host
+    UI, terminal, CLI, or account/session infrastructure with no plugin-side surface.
+  - `validated_against` advances to 2.1.251 by the changelog + npm-registry method; no
+    live `claude` CLI was available in this cycle's automation environment, so
+    `claude plugin validate .` / `make agent:check` were not re-run for real this cycle —
+    `platform-targets.json`'s `verification_method` notes that the 2.1.247 cycle's
+    live-CLI pass remains the most recent direct validation. `make validate`'s aggregate
+    loop again did not complete inside this environment's time budget; the targeted
+    checks relevant to this docs-only change (`jq` JSON validation on
+    `platform-targets.json`, `check-platform-targets.sh`, `check-doc-claims.sh`,
+    `check-version-truth.sh`) were run directly and passed.
+
 - **Cursor 3.11 (+2026-08-27):** advance desktop/`validated_against` **3.16.29 → 3.18.9** and `changelog_date` **2026-08-19 → 2026-08-27**. Document Cloud Agent **Start from scratch** (no SCM), Origin **Create repo**, **browser port-forward preview**, and optional **Vercel publish**. Cursor-only.
 - **Cursor 3.11 (+2026-08-19) / desktop 3.16.29:** re-pin desktop/`validated_against` **3.16.17 → 3.16.29** and advance `changelog_date` **2026-08-17 → 2026-08-19**. Adopt cloud-agent **Subscriptions** (PR/Slack/schedule wake-ups; auto-subscribe to PRs agents open), **Custom Modes** (pin any skill via ⌥⏎ / Alt+Enter from `/`), **subagents on isolated VMs**, Agent Window **`/goal`** (and native CreateGoal/UpdateGoal tools), and **non-interruptive steering** (follow-ups wait for the next tool call). Document Origin CLI/integrations from the prior rolling window. Cursor-only pins and install guide; other platform nightlies untouched.
 - **`templates/global-CLAUDE.md` now pre-authorizes commits and pull requests.**

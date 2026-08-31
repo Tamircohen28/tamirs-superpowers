@@ -28,6 +28,14 @@ suffix was wrong.
 from the catalog. Reinstall with the right one, then `/reload-plugins` on Claude Code older
 than 2.1.221. Per-platform steps: [install guides](install/README.md).
 
+**If `/reload-plugins` itself reports `0 skills` found:** this plugin's `skills` array in
+`plugin.json` points at *category directories* (`./skills/dev-workflow`, `./skills/toolkit`,
+…), with each actual `SKILL.md` one level further down (`./skills/dev-workflow/start-dev/SKILL.md`)
+— exactly the `skills/*/SKILL.md`-under-a-declared-root layout that `/reload-plugins` on
+Claude Code versions before **2.1.246** failed to discover, reporting `0 skills` for the
+whole plugin even though every `SKILL.md` was well-formed. Upgrade to 2.1.246 or later;
+there is no plugin-side workaround for the older bug.
+
 ### An update reports success but nothing changed
 
 **Cause:** Claude Code and Codex cache by the manifest `version` field. A push without a
