@@ -28,13 +28,13 @@ The README's platform badge row shows **platform tool versions** directly valida
 
 ## Versions
 
-Verified **2026-08-30** — Claude Code from the official changelog (automated nightly review, through **2.1.251**); no live `claude` CLI was available in this cycle's automation environment, so this cycle used the changelog/npm-registry method rather than a real `claude plugin validate .` run (the 2.1.247 cycle's live-CLI pass remains the most recent direct validation); now the most recent verification of any target and therefore the `last_reviewed` date; Cursor against **3.16.17** on 2026-08-17; the remaining CLIs by running each on the maintainer machine (2026-08-03). Codex **0.147.0** was reviewed on **2026-08-09** against the official release delta and is the version this repo now supports/tracks; direct CLI validation remains at 0.146.0 until the next maintainer-machine run.
+Verified **2026-08-30** — Claude Code from the official changelog (automated nightly review, through **2.1.251**); no live `claude` CLI was available in this cycle's automation environment, so this cycle used the changelog/npm-registry method rather than a real `claude plugin validate .` run (the 2.1.247 cycle's live-CLI pass remains the most recent direct validation). Cursor was verified against **3.18.9** on 2026-08-30; Gemini CLI remains directly validated at **0.55.1** and OpenCode at **1.18.11** (maintainer-machine run, 2026-08-03). Codex releases are reviewed through **0.151.0** (released 2026-08-29), while direct CLI validation remains at **0.146.0** until the next maintainer-machine run. The 0.150–0.151 delta does not require a plugin-manifest migration: native task references and `Interrupt` hooks are host-specific opportunities, while optional-MCP discovery grace, MCP-result interception, and per-repository plugin catalog configuration are native Codex capabilities. The shared cross-target hook bundle remains unchanged so Codex-only lifecycle semantics cannot alter Claude/Cursor behavior.
 
 | Surface | Min supported | Validated against | Latest known | Install guide |
 |----------|---------------|-------------------|--------------|---------------|
 | Claude Code | 2.0.0 | 2.1.251 | 2.1.251 | [claude-code.md](../../user/install/claude-code.md) |
-| Cursor | 3.16.17 | 3.16.17 | 3.16.17 | [cursor.md](../../user/install/cursor.md) |
-| Codex | 0.40.0 | 0.146.0 | 0.147.0 | [codex.md](../../user/install/codex.md) |
+| Cursor | 3.18.9 | 3.18.9 | 3.18.9 | [cursor.md](../../user/install/cursor.md) |
+| Codex | 0.40.0 | 0.146.0 | 0.151.0 | [codex.md](../../user/install/codex.md) |
 | Gemini CLI | 0.55.1 | 0.55.1 | 0.55.1 | [gemini.md](../../user/install/gemini.md) |
 | OpenCode | 1.16.2 | 1.18.11 | 1.18.11 | [opencode.md](../../user/install/opencode.md) |
 

@@ -5,6 +5,146 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Fixed
+- **`pr-dev`'s scripts resolved the repository from the current directory, so a
+  wrong cwd produced a plausible answer about a different repository instead of
+  an error.** All four (`fetch-pr-state.sh`, `resolve-merge-policy.sh`,
+  `resolve-thread.sh`, `cleanup-after-merge.sh`) now accept
+  `--repo <owner>/<name>` (and `--repo=<slug>`), which pins `GH_REPO` for every
+  `gh` call they make — including `gh api repos/{owner}/{repo}`.
+
+  This is a wrong *answer*, not a failure, which is why it goes unnoticed: the
+  same PR number exists in a sibling checkout and comes back looking entirely
+  legitimate. It happened three times while developing the ruleset fix above,
+  once returning a PR that had been merged in July — which reads as "already
+  merged, nothing to do". An agent whose shell resets to a different directory
+  between commands hits this constantly.
+
+  A slug without a `/` is rejected with exit 2 rather than silently ignored, and
+  omitting the flag keeps the existing cwd inference, so nothing changes for
+  callers already running from the right directory.
+
+### Fixed
+- **`goal-condition-lint.sh` could be silently disarmed, and mishandled
+  `/GOAL`.** Three defects, two of them the same fail-open shape the hook was
+  written to prevent — found by salvaging the `goal-condition-guard` prototype
+  (PR #95), which had solved them first.
+
+  1. **A check that could not run exited 0 in silence.** No `jq`, a malformed
+     payload, or a renamed field all produced a hook that looked installed and
+     screened nothing. It now prints `CHECK DID NOT RUN — <why>` on stderr and
+     still exits 0, so the user's prompt is never erased by a broken guard but
+     the gap is visible. A *present-but-empty* prompt stays quiet — that is a
+     real state, and crying wolf on it would train people to ignore the warning.
+  2. **The prompt was read only from `.prompt`.** `.user_input` and
+     `.user_message` both appear in published schema descriptions, so a field
+     rename would have disarmed the guard while it reported healthy. All three
+     are now read, and a payload carrying none of them is loud rather than
+     treated as "no prompt".
+  3. **`/GOAL` leaked the command word into the condition.** The command match
+     is case-insensitive but the strip was a lowercase literal, so uppercase
+     invocations kept `/GOAL` inside the condition: the menu's rewrites came out
+     mangled, and `/GOAL force: …` was **blocked despite the escape hatch**.
+     Now stripped with explicit character classes — sed's `I` flag is GNU-only
+     and silently does nothing on the BSD sed shipped with macOS.
+
+  `tests/test-goal-condition-lint.sh` 45 cases (was 34): the three field names,
+  all four cannot-run paths, both quiet-by-design paths, and uppercase parity
+  including the `force:` regression.
+
+### Fixed
+- **`resolve-merge-policy.sh` read only classic branch protection, so every
+  ruleset-governed repository looked unprotected.** GitHub has two independent
+  protection systems and they do not shadow each other: classic branch
+  protection, and rulesets (whose effective result for one branch is
+  `/repos/{o}/{r}/rules/branches/{b}`). The resolver queried only the classic
+  endpoint, which answers **404 "Branch not protected"** on a ruleset-governed
+  branch — so it reported `required_checks: []`, `requires_review: false`,
+  `strict_branch_update: null` for a branch that actually required nine status
+  checks and a pull request. `pr-dev`'s readiness gate then had no required
+  checks to wait for, and the loose/strict branch-freshness rule took the loose
+  path without ever reading the setting. Observed on this repository, whose
+  `master` has been ruleset-governed since 3.2.0 landed the org rulesets.
+  Both sources are now read and unioned, and the new `protection_source` field
+  (`classic` | `rulesets` | `classic+rulesets` | `none`) records which actually
+  answered, so a wrong reading is visible instead of inferred.
+
+- **The head-branch read had the same bug with a destructive consequence.** A
+  ruleset-protected head answered 404 and was classified "unprotected — safe to
+  delete after merge", so `pr-dev` would delete a governed branch. Deleting is
+  not recoverable from the PR, so this now fails closed: an unreadable rules
+  response keeps the branch and says the read failed, rather than implying the
+  branch is unprotected.
+
+- **`jq`'s alternative operator treats `false` as empty, so an explicit
+  `strict: false` was reported as `null`.** `.required_status_checks.strict //
+  "null"` yields `"null"` when strict is genuinely `false`, meaning every
+  classic-protected repository with strict OFF reported "unknown" and reached
+  the loose path by accident rather than by reading the setting — the right
+  answer for the wrong reason, and the *wrong* answer had the default been
+  strict. Replaced with an explicit three-way test.
+
+- **A `pull_request` rule requiring 0 approvals is no longer reported as
+  `requires_review: true`.** It requires a pull request, not a review; treating
+  the block's presence as an approval requirement makes `pr-dev` wait for an
+  approval nothing will ever demand.
+
+  Covered by 11 new cases in `tests/test-shape.sh` (125 total), including the
+  classic/ruleset union, the source labelling, both `strict` paths, the
+  0-approval case, the destructive head-branch case, and the fail-closed
+  behaviour when the rules endpoint errors.
+
+## [3.4.0] — 2026-08-31
+
+### Added
+- **`goal-condition-lint.sh` — refuse to arm a `/goal` condition that cannot
+  terminate.** Claude Code's built-in `/goal` evaluator re-judges its condition
+  from scratch on every turn-end, with no memory of having already blocked and
+  without consulting `stop_hook_active`. A condition that is unsatisfiable *in
+  principle* therefore does not fail once — it blocks every turn until the
+  harness block cap trips or the user runs `/goal clear`. It has happened twice:
+  21 consecutive blocks on 2026-08-17, ~15 on 2026-08-31.
+
+  The hook refuses two families of phrasing, both with no terminating form:
+  *"do not yield" / "don't stop"*, which makes **stopping itself** the violation
+  so no world-state satisfies it; and unbounded scope (*"all remaining work"*)
+  with no carve-out, which counts third-party-blocked work as still outstanding
+  so it stays false no matter what the session does. Everything else passes,
+  including an unbounded scope that already carries a carve-out.
+
+  **Why it blocks rather than advises.** An advisory version was tried first and
+  demonstrably loses: `/goal` injects *"treat the condition itself as your
+  directive and do not pause to ask the user what to do"* in the same turn, and
+  `additionalContext` asking the model to stop and question the condition is
+  outranked by that. `goal-compact-reminder.sh` fired correctly on 2026-08-31
+  and was ignored for exactly this reason. Preventing the prompt from being
+  processed is the only intervention that survives the conflict.
+
+  **The block message is the menu**, in the shape of the `decision` skill: a
+  one-line diagnosis, two ready-to-paste rewrites derived from the user's own
+  wording, a keep-as-is escape (`/goal force: <condition>`, which arms
+  verbatim), and a free-form option. It is text rather than an
+  `AskUserQuestion` picker because the docs are explicit that a blocked
+  `UserPromptSubmit` prompt is *erased* and Claude never runs — so there is no
+  turn in which to render one, and `additionalContext` cannot accompany a block.
+
+  **It blocks via stderr + `exit 2`, not a JSON decision field.** A JSON form
+  was written first and withdrawn. The docs carry a decision-control JSON
+  example for `PreToolUse` (`permissionDecision` / `permissionDecisionReason`,
+  which is also what `lib/hook-output.sh` emits) but none for
+  `UserPromptSubmit`, and two readings of the same page produced two different
+  field spellings for this event, neither quotable. A hook whose entire job is
+  to block must not depend on a field name nobody can cite — an unrecognised key
+  fails **open**, silently, exactly when the guard matters. The exit-2 row is
+  quoted verbatim in the docs ("Blocks prompt processing and erases the
+  prompt") and needs no schema at all.
+
+  Covered by `tests/test-goal-condition-lint.sh` (32 cases). The pass cases
+  deliberately outnumber the block cases: a false positive here costs the user a
+  workflow they cannot run at all, so near-miss phrasings, both real incident
+  strings verbatim, the `force:` override, hostile quoting, and the fact that
+  the menu's own recommended rewrite passes the hook are all asserted.
+
 ### Changed
 - **Platform target: Claude Code 2.1.247** (from 2.1.233). Docs-only bump — no shipped
   plugin content changed. This is the first review of the Claude Code delta against the
@@ -214,6 +354,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
     `platform-targets.json`, `check-platform-targets.sh`, `check-doc-claims.sh`,
     `check-version-truth.sh`) were run directly and passed.
 
+- **Cursor 3.11 (+2026-08-27):** advance desktop/`validated_against` **3.16.29 → 3.18.9** and `changelog_date` **2026-08-19 → 2026-08-27**. Document Cloud Agent **Start from scratch** (no SCM), Origin **Create repo**, **browser port-forward preview**, and optional **Vercel publish**. Cursor-only.
+- **Cursor 3.11 (+2026-08-19) / desktop 3.16.29:** re-pin desktop/`validated_against` **3.16.17 → 3.16.29** and advance `changelog_date` **2026-08-17 → 2026-08-19**. Adopt cloud-agent **Subscriptions** (PR/Slack/schedule wake-ups; auto-subscribe to PRs agents open), **Custom Modes** (pin any skill via ⌥⏎ / Alt+Enter from `/`), **subagents on isolated VMs**, Agent Window **`/goal`** (and native CreateGoal/UpdateGoal tools), and **non-interruptive steering** (follow-ups wait for the next tool call). Document Origin CLI/integrations from the prior rolling window. Cursor-only pins and install guide; other platform nightlies untouched.
 - **`templates/global-CLAUDE.md` now pre-authorizes commits and pull requests.**
   The template gated *merging* behind an explicit instruction but said nothing
   about committing or opening a PR — so Claude Code's own default, *"Commit or
