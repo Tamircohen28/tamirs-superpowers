@@ -5,6 +5,44 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Added
+- **`goal-condition-lint.sh` — refuse to arm a `/goal` condition that cannot
+  terminate.** Claude Code's built-in `/goal` evaluator re-judges its condition
+  from scratch on every turn-end, with no memory of having already blocked and
+  without consulting `stop_hook_active`. A condition that is unsatisfiable *in
+  principle* therefore does not fail once — it blocks every turn until the
+  harness block cap trips or the user runs `/goal clear`. It has happened twice:
+  21 consecutive blocks on 2026-08-17, ~15 on 2026-08-31.
+
+  The hook refuses two families of phrasing, both with no terminating form:
+  *"do not yield" / "don't stop"*, which makes **stopping itself** the violation
+  so no world-state satisfies it; and unbounded scope (*"all remaining work"*)
+  with no carve-out, which counts third-party-blocked work as still outstanding
+  so it stays false no matter what the session does. Everything else passes,
+  including an unbounded scope that already carries a carve-out.
+
+  **Why it blocks rather than advises.** An advisory version was tried first and
+  demonstrably loses: `/goal` injects *"treat the condition itself as your
+  directive and do not pause to ask the user what to do"* in the same turn, and
+  `additionalContext` asking the model to stop and question the condition is
+  outranked by that. `goal-compact-reminder.sh` fired correctly on 2026-08-31
+  and was ignored for exactly this reason. Preventing the prompt from being
+  processed is the only intervention that survives the conflict.
+
+  **The block message is the menu**, in the shape of the `decision` skill: a
+  one-line diagnosis, two ready-to-paste rewrites derived from the user's own
+  wording, a keep-as-is escape (`/goal force: <condition>`, which arms
+  verbatim), and a free-form option. It is text rather than an
+  `AskUserQuestion` picker because the docs are explicit that a blocked
+  `UserPromptSubmit` prompt is *erased* and Claude never runs — so there is no
+  turn in which to render one, and `additionalContext` cannot accompany a block.
+
+  Covered by `tests/test-goal-condition-lint.sh` (32 cases). The pass cases
+  deliberately outnumber the block cases: a false positive here costs the user a
+  workflow they cannot run at all, so near-miss phrasings, both real incident
+  strings verbatim, the `force:` override, hostile quoting, and the fact that
+  the menu's own recommended rewrite passes the hook are all asserted.
+
 ### Changed
 - **`templates/global-CLAUDE.md` now pre-authorizes commits and pull requests.**
   The template gated *merging* behind an explicit instruction but said nothing
