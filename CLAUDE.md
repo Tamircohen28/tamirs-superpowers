@@ -28,7 +28,10 @@ Do not assume these exist on other providers — check [`core/capabilities/platf
   export CLAUDE_CODE_PROJECT_DIR_NAME=tamirs-superpowers
   ```
 
-  Restoring memory on a new machine prefers the pin when set, falling back to the derived path otherwise:
+  Restoring memory on a new machine prefers the pin when set, falling back to the derived path
+  otherwise — the fallback assumes the standard `~/Projects/tamirs-superpowers` clone location, so
+  set the pin explicitly on any other layout (headless/Linux checkouts, a different parent
+  directory, a different username than the one Claude derived from):
 
   ```bash
   MEMORY_DIR=~/.claude/projects/${CLAUDE_CODE_PROJECT_DIR_NAME:--Users-$(whoami)-Projects-tamirs-superpowers}/memory
