@@ -137,6 +137,10 @@ SAMPLE_JSON="$(jq -n --argjson resets "$(( $(date +%s) + 5400 ))" '{
   version: "2.1.233"
 }')"
 
+# Same payload plus rate_limits.spend_limit (Claude Code 2.1.251+, gateway-only).
+SAMPLE_JSON_SPEND="$(echo "$SAMPLE_JSON" | jq --argjson resets "$(( $(date +%s) + 5400 ))" \
+  '.rate_limits.spend_limit = {used_percentage: 55, resets_at: $resets}')"
+
 echo "--- statusline: piped JSON ---"
 
 out="$TMPROOT/piped.out"
@@ -157,8 +161,28 @@ if run_with_timeout 5 bash -c 'printf "%s" "$1" | bash "$2" > "$3" 2>&1' _ "$SAM
   # 5h and 7d lines both present => three lines.
   lines="$(printf '%s\n' "$rendered" | grep -c .)"
   if [ "$lines" -eq 3 ]; then ok "renders 5h and 7d limit lines"; else bad "renders 5h and 7d limit lines" "expected 3 lines, got $lines"; fi
+  case "$rendered" in
+    *"spend:"*) bad "omits spend line when rate_limits.spend_limit is absent" "got: $rendered" ;;
+    *) ok "omits spend line when rate_limits.spend_limit is absent" ;;
+  esac
 else
   bad "piped JSON completes" "timed out or exited non-zero"
+fi
+
+echo "--- statusline: rate_limits.spend_limit present (Claude Code 2.1.251+, gateway-only) ---"
+
+out="$TMPROOT/spend.out"
+if run_with_timeout 5 bash -c 'printf "%s" "$1" | bash "$2" > "$3" 2>&1' _ "$SAMPLE_JSON_SPEND" "$SL" "$out"; then
+  rendered="$(cat "$out")"
+  case "$rendered" in
+    *"spend: "*"55%"*) ok "renders the spend limit line" ;;
+    *) bad "renders the spend limit line" "got: $rendered" ;;
+  esac
+  # 5h, 7d, and spend lines all present => four lines.
+  lines="$(printf '%s\n' "$rendered" | grep -c .)"
+  if [ "$lines" -eq 4 ]; then ok "renders 5h, 7d, and spend limit lines"; else bad "renders 5h, 7d, and spend limit lines" "expected 4 lines, got $lines"; fi
+else
+  bad "piped JSON with spend_limit completes" "timed out or exited non-zero"
 fi
 
 echo "--- statusline: stdin absent (must not hang) ---"
