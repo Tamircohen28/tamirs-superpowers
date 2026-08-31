@@ -131,12 +131,13 @@ No objective is a perfectly normal case (a one-off PR). Continue without one.
 ### 2. Merge policy
 
 ```bash
-POLICY="$(bash "$SKILL_DIR/scripts/resolve-merge-policy.sh" "$PR" "${OBJECTIVE_ID:-}")"
+POLICY="$(bash "$SKILL_DIR/scripts/resolve-merge-policy.sh" ${REPO:+--repo "$REPO"} "$PR" "${OBJECTIVE_ID:-}")"
 echo "$POLICY" | jq .
 AUTO_MERGE="$(jq -r .auto_merge <<<"$POLICY")"            # enable | skip
 MERGE_METHOD="$(jq -r .merge_method <<<"$POLICY")"        # squash | merge | rebase
 MERGE_QUEUE="$(jq -r .merge_queue <<<"$POLICY")"          # true | false | null
 STRICT="$(jq -r .strict_branch_update <<<"$POLICY")"      # true | false | null
+PROT_SRC="$(jq -r .protection_source <<<"$POLICY")"       # classic | rulesets | classic+rulesets | none
 ```
 
 Precedence, highest first (documented in the script's header):
@@ -206,8 +207,16 @@ loop:
 ## Fetch fresh state
 
 ```bash
-bash "$SKILL_DIR/scripts/fetch-pr-state.sh" "$PR"
+bash "$SKILL_DIR/scripts/fetch-pr-state.sh" ${REPO:+--repo "$REPO"} "$PR"
 ```
+
+**Pass `--repo <owner>/<name>` whenever the working directory is not the PR's
+repository.** Every script here resolves the repo from the cwd by default, so
+the same PR number in a sibling checkout is a real, plausible-looking,
+*completely unrelated* pull request — a wrong **answer**, not an error, which is
+why it goes unnoticed. All four scripts accept `--repo` (and `--repo=<slug>`);
+it pins `GH_REPO` for every `gh` call they make. This matters most for an agent
+whose shell resets to a different directory between commands.
 
 Quick snapshot inside the loop:
 
@@ -231,7 +240,7 @@ Unchanged, and still the highest-value part of the loop:
 5. **Fix code** if you agreed or partially agreed.
 6. **Resolve**:
    ```bash
-   bash "$SKILL_DIR/scripts/resolve-thread.sh" "$THREAD_ID"
+   bash "$SKILL_DIR/scripts/resolve-thread.sh" ${REPO:+--repo "$REPO"} "$THREAD_ID"
    ```
 7. Commit, push, restart the loop.
 
@@ -270,6 +279,19 @@ gh run view "$RUN_ID" --repo "$REPO" --log-failed
 | `true` (strict) | A `BEHIND` PR cannot merge. Update it **once**: `gh pr update-branch "$PR"` (or `--rebase` where the repo prefers a linear history), then let CI re-run. |
 | `false` (loose) | A behind-but-mergeable PR merges fine. **Do not** merge the base in — every needless update restarts CI and cancels in-flight runs for nothing. |
 | `null` (unknown) | Treat as loose. Only update when GitHub actually reports the merge as blocked by staleness. |
+
+**Protection lives in two independent systems.** GitHub has classic branch protection
+(`/branches/{b}/protection`) *and* rulesets (effective result:
+`/rules/branches/{b}`). A repository may use either, both, or neither, and they do not
+shadow each other — the effective protection is the **union**. `resolve-merge-policy.sh`
+reads both and reports which answered in `protection_source`.
+
+This matters because the classic endpoint returns **404 "Branch not protected"** on a
+ruleset-governed branch. Reading only it reports `required_checks: []` and
+`requires_review: false` for a branch that in fact requires nine checks and a pull
+request — and the readiness gate then has nothing to wait for. If you ever see
+`protection_source: "none"` on a repository you believe is governed, that is the finding,
+not a green light.
 
 Never update the branch in a loop. If a single update does not clear `BEHIND`, something else is wrong — diagnose instead of repeating.
 
@@ -378,7 +400,7 @@ Long cycles (5+ min) or when other work can proceed: the Monitor `until`-loop �
 ## After merge
 
 ```bash
-bash "$SKILL_DIR/scripts/cleanup-after-merge.sh" "$PR"
+bash "$SKILL_DIR/scripts/cleanup-after-merge.sh" ${REPO:+--repo "$REPO"} "$PR"
 ```
 
 Then:
@@ -407,6 +429,7 @@ Never silently stop, guess, or take a destructive action without confirmation. W
 ## Hard rules
 
 - **Re-fetch before every decision** — cached state causes wrong merge-readiness calls after fast CI flips.
+- **Pass `--repo` when the cwd is not the PR's repository.** Repo resolution is cwd-based by default, so a wrong directory yields a plausible answer about a different repository rather than an error.
 - **Grade only the current head commit.** Superseded runs are history.
 - **Never stop on one idle poll** — CI is often queued seconds after a push.
 - **Never push to any branch other than the PR head.**
