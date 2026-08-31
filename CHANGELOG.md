@@ -6,6 +6,89 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ## [Unreleased]
 
 ### Fixed
+- **The protected-file guard was blind to `Bash`: it matched editing TOOLS, not
+  file PATHS.** `guard-sensitive-files.sh` was wired only to
+  `Edit|Write|MultiEdit|NotebookEdit|StrReplace` and read a `file_path` out of
+  the payload, so every path it protected — lockfiles, `.github/workflows/`,
+  `.yarn/releases/`, generated shadcn UI, gitignored build output — stayed
+  writable through `cat > f <<EOF`, `sed -i`, `tee`, `cp` or a shell redirect.
+  No prompt, no override, no log entry.
+
+  The guard's subject is an agent, and agents have Bash, so the bypass was
+  available to precisely the actor the control exists to constrain — by
+  default, with no intent to circumvent. An agent that simply preferred Bash
+  for edits never saw the guard and never learned the file was protected, while
+  the agents that used `Edit` and stopped were the only ones it cost anything.
+
+  The hook now runs on `Bash` as well, and decides on the write TARGET. A new
+  `hooks/lib/write-targets.py` parses the command and reports only operands in
+  a writing position: redirections, `tee`, `sed -i`/`perl -i`/`awk -i inplace`,
+  `cp`/`mv`/`install`/`rsync`/`ln`, `touch`/`truncate`, `dd of=`, `curl -o`,
+  `wget -O`, `rm`. It also follows a literal `cd` so relative targets resolve
+  against the right repo.
+
+  It deliberately does **not** grep the command for protected paths — that is
+  the defect `docker-guard.py` already has on record, where a read-only `grep`
+  and a `git commit -m` were blocked for containing a matching literal. Because
+  a path is only a target when it sits in a target position, a path named in a
+  `grep` pattern, a commit message, a `sed` script or a heredoc body is not a
+  finding. `tests/test-write-target-guard.sh` (38 assertions) holds both halves.
+
+  **What it still cannot decide, it says.** Inline interpreter code
+  (`python3 -c`, `eval`, code piped into a shell), runtime-built targets
+  (`> "$OUT"`, `xargs`, `find -exec`, globs) and paths inside a patch produce a
+  non-blocking advisory naming what went unchecked, rather than an allow that
+  reads as "nothing protected was touched". Ordinary programs that merely
+  *could* write (`make`, `npm install`, a checked-in script) are not reported —
+  at that breadth the warning fires on everything and means nothing. Closing
+  those needs a git/CI check on the modified path, which observes the outcome
+  instead of the mechanism; this hook is the fast-feedback half, not the
+  binding one.
+
+- **Five ways past that guard, found in review of it.** None needed any attempt
+  to evade the guard; each is a shape an agent writes by habit, and each left
+  the guard installed and silent — the failure mode the guard exists to remove,
+  reproduced inside the guard itself.
+
+  - **The hook matched the tool name `Bash` only.** `write-targets.py` had
+    always handled a `Shell` payload, and the concurrency hook next to it
+    already matched `Bash|Shell`; only this matcher was narrow. On a host that
+    names the tool `Shell`, `tee yarn.lock` kept the entire pre-guard bypass.
+  - **A wrapper's own options were not consumed, so the first one became the
+    command.** `env -i tee yarn.lock`, `nice -n 10 tee yarn.lock` and
+    `sudo -u root tee yarn.lock` each parsed as running `-i` / `-n` / `-u`,
+    which write nothing — so a real lockfile write was reported as no write at
+    all. Each wrapper's options are now consumed per its documented form.
+    `sudo -R`/`-D`, `env -C` and `env -S` are deliberately NOT consumed: the
+    first three move the directory a relative target resolves against and the
+    last hides a whole command line in one argument, so they report UNSURE
+    instead of answering confidently against the wrong frame.
+  - **A value-taking option's value counted as an operand.** In
+    `install -m 0644 src yarn.lock` the mode `0644` read as a second SOURCE,
+    which made the last operand look like a DIRECTORY — the guard reported
+    writes to `yarn.lock/0644` and `yarn.lock/src` and never reported the write
+    to the lockfile. Options are now parsed per command; for the commands whose
+    operand POSITION decides the destination (`cp`, `mv`, `install`, `ln`,
+    `rsync`) an option the parser cannot size reports UNSURE rather than
+    guessing. This also removed a false positive — `cp -t DIR a b` used to
+    invent a target named after the directory — and fixed `sed -i -e`,
+    `perl -0777 -i -pe`, `touch -r`, `truncate -s` and `awk -v`.
+  - **A `cd` inside `( … )` was never undone.** One global cwd, not restored at
+    the `)`, resolved `(cd /tmp); echo x > src/components/ui/button.tsx`
+    against `/tmp` — so the guard checked a different file from the one Bash
+    wrote, and cleared it. Paren depth is now tracked with a stack, a `cd` in a
+    pipeline component is scoped to it, and an unbalanced `)` leaves the cwd
+    unknown (UNSURE for later relative writes) rather than wrong.
+  - **The plugin version was not bumped.** Marketplace installs cache hooks
+    against the manifest version, so shipping changed hook behaviour under the
+    same `3.4.0` would leave every installed copy running the old hook while
+    `/plugin update` reported it current — installed and absent at once. The
+    canonical version is now `3.5.0` across every manifest.
+
+  `tests/test-write-target-guard.sh` grew from 38 to 73 assertions; 20 of them
+  fail against the code as it stood before this change.
+
+### Fixed
 - **`pr-dev`'s scripts resolved the repository from the current directory, so a
   wrong cwd produced a plausible answer about a different repository instead of
   an error.** All four (`fetch-pr-state.sh`, `resolve-merge-policy.sh`,

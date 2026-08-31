@@ -40,13 +40,19 @@
         ]
       },
       {
-        "matcher": "Bash",
+        "matcher": "Bash|Shell",
         "hooks": [
           {
             "type": "command",
             "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/docker-guard.py\"",
             "timeout": 5,
             "statusMessage": "Checking for durable Docker state..."
+          },
+          {
+            "type": "command",
+            "command": "bash ${CLAUDE_PLUGIN_ROOT}/hooks/guard-sensitive-files.sh",
+            "timeout": 5,
+            "statusMessage": "Checking for protected files..."
           }
         ]
       }
