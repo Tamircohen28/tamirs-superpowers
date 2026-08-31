@@ -1,8 +1,8 @@
 {
   "schema_version": 1,
-  "version": "3.3.0",
+  "version": "3.4.0",
   "canonical_source": true,
-  "description": "Single source of truth for the plugin version. Every consumer below must agree. Validated by scripts/check-version-truth.sh; repaired by `scripts/check-version-truth.sh --sync`. Never edit a consumer by hand — edit this file, then sync.",
+  "description": "Single source of truth for the plugin version. Every consumer below must agree. Validated by scripts/check-version-truth.sh; repaired by `scripts/check-version-truth.sh --sync`. Never edit a consumer by hand \u2014 edit this file, then sync.",
   "consumers": [
     {
       "path": ".claude-plugin/plugin.json",
@@ -41,7 +41,7 @@
       "kind": "text_pattern",
       "template": "img.shields.io/badge/version-{version}-blue",
       "required": true,
-      "note": "README version badge — the first version a visitor sees."
+      "note": "README version badge \u2014 the first version a visitor sees."
     },
     {
       "path": "docs/engineering/build-and-release/platform-targets.json",

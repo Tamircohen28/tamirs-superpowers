@@ -33,6 +33,7 @@ the one that answers "what breaks if this is gone".
 | `release-agent-claims.sh` | SessionEnd | **core-safety-invariant** | Claude Code, Cursor | Claims expire on their own staleness window instead of immediately | **Yes** |
 | `enforce-worktree-edits.sh` | PreToolUse `Edit\|Write\|…` | **core-safety-invariant** | Claude Code, Cursor | Main-checkout edits become an advisory rule in `AGENTS.md` | **Yes** |
 | `guard-sensitive-files.sh` | PreToolUse `Edit\|Write\|…` | **core-safety-invariant** | Claude Code, Cursor | Lockfiles, build output and workflows are hand-editable | **Yes** |
+| `goal-condition-lint.sh` | UserPromptSubmit | **core-safety-invariant** | Claude Code only (`/goal`) | **Unprotected.** A `/goal` condition that cannot terminate blocks every turn-end until the harness cap trips — 21 blocks on 2026-08-17, ~15 on 2026-08-31. | **Yes** |
 | `capture-task-slug.sh` | UserPromptSubmit | **worktree-lifecycle** | Claude Code only | No automatic workspace; skills must create one explicitly | **Yes**, opt-out |
 | `session-init.sh` | SessionStart | **worktree-lifecycle** | Claude Code only | No session dir, no session-files reload, no stale-worktree pruning | **Yes**, opt-out |
 | `session-end.sh` | SessionEnd | **worktree-lifecycle** | Claude Code only | Session files are not archived; stale worktrees accumulate | **Yes**, opt-out |
@@ -171,7 +172,7 @@ Not a change made here — the shape the table argues for.
 
 | Tier | Contents | Default |
 |---|---|---|
-| **safety** | `protect-other-branches`, `release-agent-claims`, `enforce-worktree-edits`, `guard-sensitive-files` | on |
+| **safety** | `protect-other-branches`, `release-agent-claims`, `enforce-worktree-edits`, `guard-sensitive-files`, `goal-condition-lint` | on |
 | **worktree** | `capture-task-slug`, `session-init`, `session-end`, `worktree-create`, `worktree-remove` | on, opt-out |
 | **convenience** | `check-done`, `directory-added`, `goal-compact-reminder`, `scope-decompose-reminder`, `skill-creator-guard`, `handoff-reminder`, `show-changelog` | on, opt-out |
 | **notification** | `notify`, `ensure-exit` | off unless configured |
@@ -186,5 +187,6 @@ Not a change made here — the shape the table argues for.
 | `tests/test-worktree-objective.sh` | Stand-down under an objective, both layouts accepted, `--list`/`--migrate`, removal refusals, dependency-install controls |
 | `tests/test-check-done-tiers.sh` | Tier resolution and per-tier wording, including the unchanged no-tier default |
 | `tests/test-statusline.sh` | Piped JSON, `</dev/null`, and an open pipe with no writer — each under a hard wall-clock timeout |
+| `tests/test-goal-condition-lint.sh` | Which `/goal` conditions are refused and — weighted deliberately heavier — which must **not** be, including near-misses, carve-outs, the `force:` override, and that the menu's own recommended rewrite passes the hook |
 
 Run them with `make test-hooks`.
