@@ -6,6 +6,34 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ## [Unreleased]
 
 ### Fixed
+- **`goal-condition-lint.sh` could be silently disarmed, and mishandled
+  `/GOAL`.** Three defects, two of them the same fail-open shape the hook was
+  written to prevent — found by salvaging the `goal-condition-guard` prototype
+  (PR #95), which had solved them first.
+
+  1. **A check that could not run exited 0 in silence.** No `jq`, a malformed
+     payload, or a renamed field all produced a hook that looked installed and
+     screened nothing. It now prints `CHECK DID NOT RUN — <why>` on stderr and
+     still exits 0, so the user's prompt is never erased by a broken guard but
+     the gap is visible. A *present-but-empty* prompt stays quiet — that is a
+     real state, and crying wolf on it would train people to ignore the warning.
+  2. **The prompt was read only from `.prompt`.** `.user_input` and
+     `.user_message` both appear in published schema descriptions, so a field
+     rename would have disarmed the guard while it reported healthy. All three
+     are now read, and a payload carrying none of them is loud rather than
+     treated as "no prompt".
+  3. **`/GOAL` leaked the command word into the condition.** The command match
+     is case-insensitive but the strip was a lowercase literal, so uppercase
+     invocations kept `/GOAL` inside the condition: the menu's rewrites came out
+     mangled, and `/GOAL force: …` was **blocked despite the escape hatch**.
+     Now stripped with explicit character classes — sed's `I` flag is GNU-only
+     and silently does nothing on the BSD sed shipped with macOS.
+
+  `tests/test-goal-condition-lint.sh` 45 cases (was 34): the three field names,
+  all four cannot-run paths, both quiet-by-design paths, and uppercase parity
+  including the `force:` regression.
+
+### Fixed
 - **`resolve-merge-policy.sh` read only classic branch protection, so every
   ruleset-governed repository looked unprotected.** GitHub has two independent
   protection systems and they do not shadow each other: classic branch

@@ -68,15 +68,57 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=lib/hook-output.sh
 source "${SCRIPT_DIR}/lib/hook-output.sh"
 
+# A guard that cannot run must SAY SO. Exiting 0 in silence is the failure this
+# hook exists to prevent, one level up: the check appears installed, blocks
+# nothing, and nobody finds out until an unsatisfiable goal runs for 21 turns.
+# stderr on a non-blocking exit reaches the user without erasing their prompt.
+# (Adopted from the goal-condition-guard prototype, PR #95.)
+cannot_run() {
+  printf '⚠ goal-condition-lint: CHECK DID NOT RUN — %s\n' "$1" >&2
+  printf '  Unsatisfiable `/goal` conditions are NOT being screened for this prompt.\n' >&2
+  exit 0
+}
+
 input="$(hook_read_stdin)"
-prompt="$(printf '%s' "$input" | jq -r '.prompt // empty' 2>/dev/null)"
+
+# No payload at all: hand-run, or a harness that sent nothing. A real state with
+# nothing to judge -- not a masked failure.
+[ -n "$(printf '%s' "$input" | tr -d '[:space:]')" ] || exit 0
+
+command -v jq >/dev/null 2>&1 || cannot_run "jq is not installed, so the hook payload cannot be parsed"
+printf '%s' "$input" | jq -e . >/dev/null 2>&1 \
+  || cannot_run "the hook payload on stdin is not valid JSON"
+
+# Read every field name the prompt has been carried under. `.prompt` is what
+# every hook in this repo reads and what the harness sends today; `.user_input`
+# and `.user_message` appear in published schema descriptions. Reading only one
+# means a field rename disarms this guard SILENTLY -- it would pass every
+# prompt while looking healthy, which is the exact fail-open mode the hook is
+# written to prevent.
+prompt="$(printf '%s' "$input" | jq -r '.prompt // .user_input // .user_message // empty' 2>/dev/null || true)"
+
+if [ -z "$prompt" ]; then
+  # Valid JSON but no prompt. Distinguish "the user submitted nothing" (boring)
+  # from "the field this hook depends on is gone" (a defect that disables it).
+  if printf '%s' "$input" | jq -e 'has("prompt") or has("user_input") or has("user_message")' >/dev/null 2>&1; then
+    exit 0
+  fi
+  cannot_run "the payload has none of .prompt / .user_input / .user_message — the field this hook reads may have been renamed"
+fi
 
 # Not a /goal invocation at all -> silent pass.
 printf '%s' "$prompt" | grep -qiE '^[[:space:]]*/goal([[:space:]]|$)' || exit 0
 
 # Everything after the command word, trimmed.
+#
+# Spelled with explicit character classes rather than a lowercase literal: the
+# match above is case-INSENSITIVE, so `/GOAL force: x` reached this sed, was not
+# stripped, and left the command word inside the condition -- which mangled the
+# menu's rewrites and defeated the `force:` escape hatch outright. sed's `I`
+# flag is GNU-only and silently does nothing on the BSD sed shipped with macOS,
+# this repo's primary platform, so it is not an option either.
 condition="$(printf '%s' "$prompt" \
-  | sed -E 's@^[[:space:]]*/goal[[:space:]]*@@' \
+  | sed -E 's@^[[:space:]]*/[Gg][Oo][Aa][Ll][[:space:]]*@@' \
   | sed -E 's@^[[:space:]]+@@; s@[[:space:]]+$@@')"
 
 # Bare `/goal`, and the management subcommands, carry no condition to lint.

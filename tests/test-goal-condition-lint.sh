@@ -175,6 +175,67 @@ else
   if [ "$d" = "none" ]; then ok "force escape passes the hook"; else bad "force escape passes the hook" "got '$d'"; fi
 fi
 
+echo "--- case-insensitivity: /GOAL must behave exactly like /goal ---"
+
+# The command match is case-insensitive but the strip was a lowercase literal,
+# so `/GOAL ...` left the command word inside the condition: the menu's rewrites
+# came out mangled and `force:` stopped being recognised at all.
+expect_block "uppercase /GOAL is still screened" \
+  "/GOAL complete all remaining work"
+expect_pass  "uppercase /GOAL force: still arms (was: blocked)" \
+  "/GOAL force: complete all remaining work"
+expect_pass  "mixed-case /GoAl clear is still a subcommand" "/GoAl clear"
+
+run "/GOAL complete all remaining work" || true
+case "$RUN_ERR" in
+  *"  complete all remaining work"*) ok "uppercase: condition echoed without the command word" ;;
+  *) bad "uppercase: condition echoed without the command word" "command word leaked into the condition" ;;
+esac
+
+echo "--- a check that cannot run says so, and never blocks ---"
+
+# The failure this hook exists to prevent, one level up: a guard that cannot run
+# must not exit 0 in silence, or it looks installed while screening nothing.
+cannot_run_case() {
+  local name="$1" payload="$2" rc err
+  err="$(printf '%s' "$payload" | bash "$HOOK" 2>&1 >/dev/null)"; rc=$?
+  if [ "$rc" -eq 0 ] && printf '%s' "$err" | grep -q "CHECK DID NOT RUN"; then
+    ok "$name"
+  else
+    bad "$name" "expected exit 0 + 'CHECK DID NOT RUN', got rc=$rc err='${err:0:60}'"
+  fi
+}
+
+cannot_run_case "malformed JSON payload is loud, not silent" 'not json at all'
+cannot_run_case "payload missing every known prompt field is loud" '{"session_id":"x","cwd":"/tmp"}'
+
+# A present-but-empty prompt is a REAL state, not a masked failure — it must be
+# quiet, or every empty submission cries wolf.
+err="$(printf '{"prompt":""}' | bash "$HOOK" 2>&1 >/dev/null)"; rc=$?
+if [ "$rc" -eq 0 ] && [ -z "$err" ]; then
+  ok "present-but-empty prompt is quiet (a real state, not a failure)"
+else
+  bad "present-but-empty prompt is quiet" "rc=$rc err='${err:0:60}'"
+fi
+
+# No payload at all (hand-run) is likewise a real state.
+err="$(printf '' | bash "$HOOK" 2>&1 >/dev/null)"; rc=$?
+if [ "$rc" -eq 0 ] && [ -z "$err" ]; then
+  ok "empty stdin is quiet"
+else
+  bad "empty stdin is quiet" "rc=$rc err='${err:0:60}'"
+fi
+
+echo "--- the prompt is read under every field name it has carried ---"
+
+# Reading only `.prompt` means a field rename disarms the guard silently: it
+# would pass every prompt while looking healthy.
+for field in prompt user_input user_message; do
+  payload="$(jq -cn --arg f "$field" --arg v "/goal complete all remaining work" '{($f): $v}')"
+  rc=0; printf '%s' "$payload" | bash "$HOOK" >/dev/null 2>&1 || rc=$?
+  if [ "$rc" -eq 2 ]; then ok "screens a prompt delivered as .$field"; else bad "screens a prompt delivered as .$field" "rc=$rc"; fi
+done
+
 echo "--- hostile input does not mangle the message ---"
 
 # A condition carrying quotes, backticks or a backslash must come back intact.
