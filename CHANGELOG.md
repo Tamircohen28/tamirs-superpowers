@@ -177,6 +177,34 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   0-approval case, the destructive head-branch case, and the fail-closed
   behaviour when the rules endpoint errors.
 
+- **`check-doc-claims.sh` asserted the README's generated badges but not the prose
+  beside them.** The per-target badges are built from `platform-targets.json`; the
+  support table three lines below them is hand-typed. Nothing derived that prose, so
+  nothing caught it drifting: the Cursor row read `validated 3.16.17` for two minor
+  versions while the badge above it correctly read `3.18.9`, and every check stayed
+  green — the badge was asserted, the target count was asserted, the version in the
+  sentence was not. The check now compares every `validated <x.y.z>` claim in Markdown
+  prose against the same `validated_against` the badge is generated from, naming the
+  file, the line, and both values. A target pinned `"unknown"` asserts nothing, which
+  is the honest state for one that is declared but not yet validated.
+- **`check-doc-claims.sh` sourced its own library out of the tree it was auditing.**
+  `. "$ROOT/scripts/lib/registry.sh"` resolved against the *target* root rather than the
+  script's own directory. That works only while the two are the same checkout: pointed at
+  another repo (which is how `repo-standards` invokes it) or at a synthetic root, the `.`
+  failed under `set -e` and the run died before a single claim was checked. It now
+  resolves from `$SCRIPT_DIR`.
+- **`check-doc-claims.sh --self-test` was failing on master and nothing ran it.** Five of
+  its seven cases had been reporting failure for the library-resolution reason above —
+  not for anything they were written to test — and no Makefile target, workflow or test
+  file invoked the flag, so the rot was invisible. `make check-doc-claims` now runs the
+  self-test before the real check, and the suite covers the new version assertion in all
+  three positions: stale prose fails, correct prose passes, and a stale value quoted
+  inside a fence stays exempt. 10 cases, all passing.
+
+### Changed
+- **README's Cursor row now reads `validated 3.18.9`**, matching `platform-targets.json`
+  and the badge. It had said `3.16.17`.
+
 ## [3.4.0] — 2026-08-31
 
 ### Added
