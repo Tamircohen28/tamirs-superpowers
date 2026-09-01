@@ -5,6 +5,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [3.5.0] — 2026-09-01
+
 ### Fixed
 - **The protected-file guard was blind to `Bash`: it matched editing TOOLS, not
   file PATHS.** `guard-sensitive-files.sh` was wired only to
