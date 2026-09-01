@@ -126,6 +126,7 @@ check-marketplace-schema:
 	@bash scripts/check-marketplace-schema.sh .
 
 check-doc-claims:
+	@bash scripts/check-doc-claims.sh --self-test
 	@bash scripts/check-doc-claims.sh .
 
 doctor:

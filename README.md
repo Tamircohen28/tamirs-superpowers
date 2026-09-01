@@ -71,7 +71,7 @@ Added as a plugin source in Cursor, then installed from it.
 
 | Surface | Registry id | Kind | Status | Install |
 |---|---|---|---|---|
-| Cursor IDE | `cursor` | IDE | ✅ supported — validated 3.16.17 | [guide](docs/user/install/cursor.md) |
+| Cursor IDE | `cursor` | IDE | ✅ supported — validated 3.18.9 | [guide](docs/user/install/cursor.md) |
 | Cursor CLI | `cursor_cli` | CLI | ⚠️ unverified — shares the plugin manifest with the IDE, but no CLI run has been recorded here | — |
 
 ### Gemini
