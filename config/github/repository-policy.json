@@ -1,7 +1,7 @@
 {
   "$schema": "../../core/schemas/repository-policy.json",
   "schema_version": 1,
-  "version": "1.1.0",
+  "version": "1.2.0",
   "last_reviewed": "2026-08-19",
   "_comment": "Canonical GitHub repository policy for the repos this account governs. Derived from the two rulesets live on Tamircohen28/tamirs-superpowers (captured 2026-08-19), not from prose — see session-files/ground-truth-rulesets.md. This file is the single source of truth: no SKILL.md, script, or doc may restate a rule, a context list, or a concurrency group found here. Change workflow: edit -> bump `version` -> `bash scripts/check-github-policy.sh` (offline) -> `scripts/github-policy.sh plan` to see live drift.",
 
@@ -93,11 +93,12 @@
         },
         {
           "type": "pull_request",
-          "_comment": "Zero required approvals, because this is a solo-authored account and a self-approval requirement would only be satisfied by --admin bypasses, which would defeat the whole ruleset. The real gate is required_review_thread_resolution: an unresolved review thread — human or bot — blocks the merge. That keeps review meaningful without inventing a second reviewer who does not exist.",
+          "_comment": "Zero required approvals AS THE ACCOUNT DEFAULT, because this is a solo-authored account and a self-approval requirement would only be satisfied by --admin bypasses, which would defeat the whole ruleset. The real gate is required_review_thread_resolution: an unresolved review thread — human or bot — blocks the merge. That keeps review meaningful without inventing a second reviewer who does not exist. A repository with outside collaborators raises the count instead of inheriting this: see repositories.<owner/repo>.required_approving_review_count below, where tamirs-superpowers sets 1 so the requirement binds COLLABORATORS while the owner keeps merging through the repository-admin bypass. The two are one policy, not a contradiction — read them together before changing either. require_extra_approval_for_unattributed_changes is recorded as true because GitHub supplies it on every ruleset and defaults it to true: the parameter did not exist when this file's ground truth was captured on 2026-08-19, so omitting it made the repository report NON-COMPLIANT forever on a field no write can change — GitHub re-supplies the default, and true is the stricter value in any case. Measured 2026-09-01 across 12 repositories on this account, including ones this policy had never been applied to: all true.",
           "parameters": {
             "allowed_merge_methods": ["merge", "squash", "rebase"],
             "dismiss_stale_reviews_on_push": false,
             "require_code_owner_review": false,
+            "require_extra_approval_for_unattributed_changes": true,
             "require_last_push_approval": false,
             "required_approving_review_count": 0,
             "required_review_thread_resolution": true,
