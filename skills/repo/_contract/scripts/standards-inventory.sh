@@ -354,8 +354,64 @@ hygiene=$(bash "$(dirname "$0")/check-repo-hygiene.sh" "$ROOT")
 # determined it says `"checked": false` and the scorer emits no gap for it.
 branding=$(bash "$(dirname "$0")/check-readme-branding.sh" "$ROOT" --json)
 
+# --- checkout freshness -----------------------------------------------------
+# An audit is a claim about what is on the default branch, so it has to be made
+# against the default branch. Auditing a stale working copy does not merely
+# report an old version number: on 2026-09-01 a review run one commit behind
+# origin/master reported the canonical version as 3.4.0 when it was 3.5.0, which
+# in turn misstated the release-gap finding as one unreleased version instead of
+# two. The wrong number changed a finding's severity, and the report outlived the
+# session that produced it.
+#
+# Read-only and best-effort: `git fetch` may fail with no network, no remote or
+# no credentials, and an audit must still run offline. Unknown is reported as
+# unknown rather than guessed.
+checkout_is_repo=false
+checkout_readable=false
+checkout_behind=0
+checkout_ahead=0
+checkout_dirty=false
+checkout_sha=null
+checkout_branch=null
+
+if git -C "$ROOT" rev-parse --git-dir >/dev/null 2>&1; then
+  checkout_is_repo=true
+  checkout_sha="\"$(git -C "$ROOT" rev-parse --short HEAD 2>/dev/null || echo unknown)\""
+  checkout_branch="\"$(git -C "$ROOT" rev-parse --abbrev-ref HEAD 2>/dev/null || echo unknown)\""
+  [ -n "$(git -C "$ROOT" status --porcelain 2>/dev/null)" ] && checkout_dirty=true
+  # Never mutate the audited tree: fetch updates remote-tracking refs only.
+  if git -C "$ROOT" fetch --quiet origin 2>/dev/null; then
+    # Re-resolve origin/HEAD from the remote before trusting it. That ref is written
+    # once at clone time and is never updated by `fetch`, so a clone taken from
+    # another working copy -- or one whose default branch was renamed -- points at
+    # whatever branch happened to be checked out then. Comparing against the wrong
+    # ref yields a bogus "behind" count, and in the worst case a false "0 behind",
+    # which is precisely the silent miss this block exists to prevent. Writes a
+    # remote-tracking ref only, the same class of change `fetch` just made.
+    git -C "$ROOT" remote set-head origin --auto >/dev/null 2>&1 || true
+    default_ref="$(git -C "$ROOT" symbolic-ref --quiet --short refs/remotes/origin/HEAD 2>/dev/null || true)"
+    if [ -n "${default_ref#origin/}" ] && git -C "$ROOT" rev-parse --verify --quiet "$default_ref" >/dev/null 2>&1; then
+      checkout_readable=true
+      checkout_behind="$(git -C "$ROOT" rev-list --count "HEAD..$default_ref" 2>/dev/null || echo 0)"
+      checkout_ahead="$(git -C "$ROOT" rev-list --count "$default_ref..HEAD" 2>/dev/null || echo 0)"
+      if [ "$checkout_behind" -gt 0 ] 2>/dev/null; then
+        echo "WARNING: audited checkout is $checkout_behind commit(s) behind $default_ref." >&2
+        echo "         Versions and counts in this report may be stale. Update the checkout" >&2
+        echo "         or state the audited commit explicitly in the report." >&2
+      fi
+    fi
+  fi
+fi
+
 jq -nc \
   --arg root "$ROOT" \
+  --argjson checkout_is_repo "$checkout_is_repo" \
+  --argjson checkout_readable "$checkout_readable" \
+  --argjson checkout_behind "$checkout_behind" \
+  --argjson checkout_ahead "$checkout_ahead" \
+  --argjson checkout_dirty "$checkout_dirty" \
+  --argjson checkout_sha "$checkout_sha" \
+  --argjson checkout_branch "$checkout_branch" \
   --argjson readme_exists "$readme_exists" \
   --argjson readme_has_badges "$readme_has_badges" \
   --argjson readme_has_prereq "$readme_has_prereq" \
@@ -485,5 +541,14 @@ jq -nc \
         violations: $actions_violations
       }
     },
-    hygiene: $hygiene.hygiene
+    hygiene: $hygiene.hygiene,
+    checkout: {
+      is_repo: $checkout_is_repo,
+      readable: $checkout_readable,
+      branch: $checkout_branch,
+      sha: $checkout_sha,
+      behind_default: $checkout_behind,
+      ahead_of_default: $checkout_ahead,
+      dirty: $checkout_dirty
+    }
   }'
