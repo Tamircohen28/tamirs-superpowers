@@ -26,19 +26,72 @@ FAILED_NAMES=()
 command -v jq >/dev/null 2>&1 || { echo "FATAL: jq is required"; exit 1; }
 
 TMPROOT="$(mktemp -d)"
-trap 'rm -rf "$TMPROOT"' EXIT
 
-# WHY THIS FILE EXISTS
-#   The watchdog self-test below is the only place in tests/ where a mktemp
-#   directory sits empty and unreferenced for ~2s; every other tmpdir-using
-#   suite writes a child within milliseconds. Three CI runs have had $TMPROOT
-#   vanish inside exactly that window (run 33595749097 on aeb42caf, and both
-#   jobs of run 33597009636 attempt 1 on 9a7c916 — a re-run of the same commit,
-#   unchanged, went 16/16 green). No code in this repo can delete a bare
-#   /tmp/tmp.XXXXXXXXXX, so the cause is outside the test process and remains
-#   unproven; keeping the directory non-empty removes the one property that
-#   distinguishes this suite from the eight that have never flaked.
-: > "$TMPROOT/.keep"
+# WHY THERE IS A SENTINEL AND A SNAPSHOT HERE
+#   $TMPROOT has vanished mid-run on four CI jobs (2026-09-02): run 33595749097
+#   on aeb42caf — which is master — and both jobs of run 33597009636 attempt 1
+#   on 9a7c916, which ran on two SEPARATE runner VMs, and run 33599695141 on a
+#   branch whose entire diff was .claude/memory/*.md. Re-runs of the same commit
+#   unchanged have gone green, and greens and reds interleave within the same
+#   hour, so it is neither deterministic nor cleanly transient.
+#
+#   THE CAUSE IS UNKNOWN. Two explanations have already been written down here
+#   as fact and both were wrong: an inherited `trap ... EXIT` in the backgrounded
+#   watcher subshell (disproven by repro on bash 3.2.57 and 5.3.15 — bash does
+#   not run an inherited EXIT trap in a subshell), and "the directory sits empty
+#   and unreferenced for ~2s, so something reaps it" (disproven when the run on
+#   the memory-only branch vanished a $TMPROOT that had a .keep file in it).
+#   Do not write a third explanation here without a repro to back it.
+#
+#   What an audit does establish: nothing in this repo can delete a bare
+#   mktemp root. Every destructive path is anchored to $WORKTREE_ROOT, itself
+#   recomputed as "${HOME}/.claude/worktrees" (hooks/lib/worktree-common.sh:4);
+#   the retirement `find` requires depth 2 plus a .git entry; the only
+#   `find -delete` is -type f. So this instrumentation exists to tell us which
+#   way to look next, not to fix anything:
+#
+#     SENTINEL is created and never touched. If it dies alongside $TMPROOT the
+#     sweeper is external and this repo is exonerated; if only $TMPROOT dies,
+#     something targets this suite specifically and the snapshot diff names
+#     every other casualty.
+SENTINEL="$(mktemp -d)"
+# macOS sets TMPDIR with a trailing slash; strip it so the listings below are
+# comparable strings rather than differing only by a "//".
+TMPDIR_BASE="${TMPDIR:-/tmp}"; TMPDIR_BASE="${TMPDIR_BASE%/}"
+TMPDIR_SNAPSHOT="$(ls -1d "$TMPDIR_BASE"/tmp.* 2>/dev/null | sort)"
+TMPROOT_VANISHED=0
+trap 'rm -rf "$TMPROOT" "$SENTINEL"' EXIT
+
+# tmproot_check <where> — report and RECOVER, never abort.
+#
+#   This suite asserts statusline behavior, not /tmp durability, and every case
+#   below works fine against a recreated directory. Hard-failing here would
+#   red-gate unrelated PRs to buy evidence the block below already captures, so
+#   it recreates and carries on — loudly, and again in the final summary, so the
+#   signal cannot scroll past.
+tmproot_check() {
+  [ -d "$TMPROOT" ] && return 0
+  TMPROOT_VANISHED=1
+  echo
+  echo "  WARN: TMPROOT vanished ($TMPROOT) — detected at: $1"
+  if [ -d "$SENTINEL" ]; then
+    echo "  WARN:   sentinel SURVIVED ($SENTINEL) -> something targeted this suite's dir"
+  else
+    echo "  WARN:   sentinel ALSO GONE ($SENTINEL) -> external sweeper, repo exonerated"
+  fi
+  echo "  WARN:   other mktemp roots that disappeared since startup:"
+  comm -23 <(printf '%s\n' "$TMPDIR_SNAPSHOT") \
+           <(ls -1d "$TMPDIR_BASE"/tmp.* 2>/dev/null | sort) | sed 's/^/  WARN:     /'
+  echo "  WARN:   ls -ld $TMPDIR_BASE: $(ls -ld "$TMPDIR_BASE" 2>&1)"
+  echo "  WARN:   processes alive (an earlier suite disowns rm -rf workers):"
+  # Truncated hard: an agent harness command line can run to several KB and
+  # would bury the four lines above it that actually carry the signal.
+  ps -eo pid,ppid,lstart,args 2>/dev/null | grep -E 'rm -rf|worktree|statusline' \
+    | grep -v grep | cut -c1-160 | sed 's/^/  WARN:     /' | head -20
+  mkdir -p "$TMPROOT"
+  echo "  WARN:   recreated $TMPROOT; continuing"
+  echo
+}
 
 ok()   { PASS=$((PASS + 1)); printf '  ok   %s\n' "$1"; }
 bad()  { FAIL=$((FAIL + 1)); FAILED_NAMES+=("$1"); printf '  FAIL %s — %s\n' "$1" "$2"; }
@@ -116,6 +169,10 @@ run_with_timeout 2 sleep 30
 _probe_rc=$?
 _probe_elapsed=$(( $(date +%s) - _probe_start ))
 
+# Halves the unknown window. Without this probe the only check is ~2.01s after
+# the mktemp, so a report could say no more than "it went sometime in there".
+tmproot_check "immediately after the 2s watchdog kill"
+
 if [ "$_probe_rc" != 124 ]; then
   echo "  FATAL: the pure-bash watchdog did not time out a 30s sleep (rc=$_probe_rc)."
   echo "         Every hang assertion in this file would pass vacuously."
@@ -155,14 +212,7 @@ SAMPLE_JSON_SPEND="$(echo "$SAMPLE_JSON" | jq --argjson resets "$(( $(date +%s) 
 
 echo "--- statusline: piped JSON ---"
 
-# If $TMPROOT went away during the ~2s watchdog self-test, say so once and
-# loudly — otherwise every case below fails as a bogus "timed out" and the
-# real event is invisible in the log.
-[ -d "$TMPROOT" ] || {
-  echo "FATAL: TMPROOT ($TMPROOT) vanished during the watchdog self-test"
-  ls -ld /tmp 2>&1
-  exit 1
-}
+tmproot_check "before first use"
 
 out="$TMPROOT/piped.out"
 if run_with_timeout 5 bash -c 'printf "%s" "$1" | bash "$2" > "$3" 2>&1' _ "$SAMPLE_JSON" "$SL" "$out"; then
@@ -257,6 +307,9 @@ fi
 
 echo
 echo "passed: $PASS   failed: $FAIL"
+if [ "$TMPROOT_VANISHED" -eq 1 ]; then
+  echo "WARN: TMPROOT vanished during this run and was recreated — see the WARN block above."
+fi
 if [ "$FAIL" -ne 0 ]; then
   printf 'failing: %s\n' "${FAILED_NAMES[*]}"
   exit 1

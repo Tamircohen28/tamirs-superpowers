@@ -72,16 +72,26 @@ harness_require() {
 # harness_have <cmd> — soft prerequisite for a skippable case.
 harness_have() { command -v "$1" >/dev/null 2>&1; }
 
-_HARNESS_TMPDIRS=()
+# WHY A FILE AND NOT AN ARRAY
+#   Every one of the 33 callers uses `d="$(harness_tmpdir)"`, and a command
+#   substitution runs in a subshell: a `_HARNESS_TMPDIRS+=(...)` inside the
+#   function mutated the subshell's copy and was discarded on return. The array
+#   was therefore always empty at exit and this trap deleted nothing — measured
+#   as ~140 leaked /tmp/tmp.* directories after a single `make test-hooks`.
+#   A file survives the subshell because the write is a syscall, not a variable.
+#
+#     bash -c 'A=(); f(){ A+=(x); echo /tmp/z; }; d="$(f)"; echo ${#A[@]}'  ->  0
+_HARNESS_TMPDIR_LIST="$(mktemp)"
 _harness_cleanup() {
   local d
-  for d in "${_HARNESS_TMPDIRS[@]:-}"; do
-    [ -n "$d" ] || continue
+  while IFS= read -r d; do
     # Worktrees inside the temp tree can hold .git files pointing outward; rm -rf
     # is still correct because every repo involved is itself inside the tree.
+    [ -n "$d" ] || continue
     chmod -R u+w "$d" 2>/dev/null || true
     rm -rf "$d"
-  done
+  done < "$_HARNESS_TMPDIR_LIST"
+  rm -f "$_HARNESS_TMPDIR_LIST"
 }
 trap _harness_cleanup EXIT
 
@@ -89,7 +99,7 @@ trap _harness_cleanup EXIT
 harness_tmpdir() {
   local d
   d="$(mktemp -d)"
-  _HARNESS_TMPDIRS+=("$d")
+  printf '%s\n' "$d" >> "$_HARNESS_TMPDIR_LIST"
   printf '%s\n' "$d"
 }
 
