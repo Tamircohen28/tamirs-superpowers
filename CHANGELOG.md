@@ -76,11 +76,12 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   the suite's own `trap ... EXIT` and deletes the shared tmpdir on its way out
   — is wrong. A minimal repro across six trap/subshell variants on bash 3.2.57
   and 5.3.15 shows bash does **not** run an inherited EXIT trap in a subshell;
-  the tmpdir survived every one. The same commit had passed the identical
-  sequence minutes earlier on the same runner image, it was the only occurrence
-  in 30 runs, and re-running the failed job unchanged went green. One-off
-  runner flake: no patch was warranted and none was made. Every assertion in
-  the file, including the two new spend-limit cases, passes.
+  the tmpdir survived every one. What the failure *is* has since been narrowed
+  but not solved — see the `tests/test-statusline.sh` entry under **Fixed**
+  below; the "one-off flake, no patch warranted" call recorded here while this
+  entry was being drafted was also wrong, and the patch it declined has now
+  been made. Every assertion in the file, including the two new spend-limit
+  cases, passes.
 - **Platform target: Claude Code 2.1.257** (from 2.1.252; 2.1.253–2.1.256 were
   never published). `CLAUDE.md`'s Subagents bullet now also names
   `CLAUDE_CODE_SUBAGENT_MODEL_FORCE`, which — unlike `CLAUDE_CODE_SUBAGENT_MODEL`
@@ -134,6 +135,28 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   `tests/test-*.sh` file passed when run directly, `tests/test-statusline.sh`
   included — see the correction above for why last cycle's "racy harness"
   note was itself wrong.
+
+### Fixed
+- **`tests/test-statusline.sh` no longer leaves its tmpdir empty, and says so
+  if it disappears anyway.** Three CI jobs have failed with the suite's
+  `$TMPROOT` gone mid-run — run 33595749097 on `aeb42caf` and both jobs of run
+  33597009636 attempt 1 on `9a7c916`, all on ubuntu-24.04 image
+  20260823.283.1. Attempt 2 of the same commit, unchanged, went green. **The
+  root cause is not established.** What is established: no code in this repo
+  can delete a bare `/tmp/tmp.XXXXXXXXXX` — every destructive path is rooted
+  under `$HOME/.claude/…` or the script's own `mktemp` output, and
+  `scripts/statusline.sh` contains no `rm`, `mktemp`, `find` or `trap` at all;
+  the runner version is not the discriminator (2.337.0 on both failures and
+  passes); and the `rm: … Directory not empty` line from
+  `cleanup_stale_worktrees` appears on green runs too, so it is a constant, not
+  the trigger. The one property that distinguishes this suite from the eight
+  other tmpdir-using suites is that its ~2s watchdog self-test leaves the
+  directory **empty and unreferenced** for that whole window, where every other
+  suite writes a child within milliseconds. So the fix removes that property —
+  `: > "$TMPROOT/.keep"` — rather than claiming a mechanism. A `[ -d "$TMPROOT" ]`
+  assertion after the self-test turns a recurrence into one named failure with
+  `ls -ld /tmp` attached, instead of five cases failing as bogus timeouts.
+  Prevention, not diagnosis; the comment in the file says exactly that.
 
 
 ## [3.5.0] — 2026-09-01
