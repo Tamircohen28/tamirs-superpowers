@@ -15,6 +15,12 @@ The push-to-master CI job **Manifest/tag version alignment** (`skills/repo/_cont
 
 **Why it warns rather than fails:** the repo bumps manifests inside feature PRs, but the tag is created afterwards by `release.yml`. At the instant a bump merges, the matching tag *provably cannot exist* — so failing there was a race, not drift. Observed live on PR #72: the alignment job ran at `12:06:00` and read `v1.8.2`; `v1.9.0` published at `12:06:14`. Fourteen seconds. Previously this reddened master on every version-bumping merge (it did so across 1.7.0 → 1.8.0 → 1.8.1).
 
+Re-confirmed on the v3.6.1 cut (2026-09-02): the release PR's alignment job passed **green** with
+the tag not yet in existence, and the push job passed on the merge commit. The index line in
+`MEMORY.md` still said "stays red until the tag exists" and was quoted back as fact in that session
+before the workflow was read — the body here was right the whole time. **The index line is what gets
+loaded into context, so a correction that only lands in the body does not actually take.**
+
 Manifest *behind* the latest tag is still a hard error under every flag — nothing legitimate moves a manifest backwards past a cut release.
 
 **How to apply:** after merging any manifest-bumping PR, still cut the release — the warning is the reminder, and skipping it strands installed users on the cached copy:
