@@ -16,6 +16,12 @@
 # Exit 0 when the install is usable, even with optional features missing. Exit 1 only
 # when the install is genuinely broken: core files absent or unparseable, a required
 # runtime dependency missing, or the version-truth check failing.
+#
+# Not the same check as Claude Code's own `/doctor` (2.1.257+ warns there about stale
+# sandbox mask files left by a killed session): that is host-process state, invisible
+# from a plain repo checkout, so it is out of scope here. The two are complementary,
+# not overlapping — run this script for the plugin install, `/doctor` inside a live
+# session for the sandbox.
 set -euo pipefail
 
 usage() { sed -n '2,17p' "$0" | sed -E 's/^# ?//'; exit "${1:-0}"; }

@@ -1,6 +1,6 @@
 {
   "schema_version": 2,
-  "last_reviewed": "2026-08-31",
+  "last_reviewed": "2026-09-02",
   "reviewed_by_skill": "tamirs-superpowers@3.5.0",
   "supported_targets": [
     "claude_code",
@@ -14,10 +14,10 @@
       "platform": "claude",
       "supported_min": "2.0.0",
       "supported_min_source": "manifest format (.claude-plugin/plugin.json) stable since 2.0.0",
-      "validated_against": "2.1.252",
-      "latest_known": "2.1.252",
-      "verified_on": "2026-08-31",
-      "verification_method": "changelog + npm-registry method (automated nightly review), now current through 2.1.252; a live `claude` CLI (2.1.252) WAS available in this cycle's automation environment — the first cycle with one since 2.1.247 — so `claude plugin validate .` and `bash scripts/doctor.sh .` were re-run for real and both passed (marketplace manifest valid; all listed capabilities report native/native-experimental/partial as expected, no unexpected gaps)",
+      "validated_against": "2.1.257",
+      "latest_known": "2.1.257",
+      "verified_on": "2026-09-02",
+      "verification_method": "changelog + npm-registry method (automated nightly review), now current through 2.1.257 (2.1.253–2.1.256 were never published); a live `claude` CLI WAS available in this cycle's automation environment and reported exactly `2.1.257` — so `claude plugin validate .` and `bash scripts/doctor.sh .` were re-run for real and both passed (marketplace manifest valid; all listed capabilities report native/native-experimental/partial as expected, no unexpected gaps)",
       "install_doc": "docs/user/install/claude-code.md",
       "doc_urls": [
         "https://code.claude.com/docs/en/plugins-reference",
@@ -52,7 +52,8 @@
         "background-worktree-edit-fix-docs-2.1.251",
         "spend-limit-statusline-2.1.251",
         "resume-staleness-recache-hint-2.1.251",
-        "marketplace-refresh-race-background-skills-docs-2.1.251"
+        "marketplace-refresh-race-background-skills-docs-2.1.251",
+        "subagent-model-force-docs-2.1.257"
       ],
       "capabilities": [
         "agent_teams",
