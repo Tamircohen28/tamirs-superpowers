@@ -28,15 +28,15 @@ The README's platform badge row shows **platform tool versions** directly valida
 
 ## Versions
 
-Verified **2026-09-02** — Claude Code from the official changelog (automated nightly review, through **2.1.251**); no live `claude` CLI was available in this cycle's automation environment, so this cycle used the changelog/npm-registry method rather than a real `claude plugin validate .` run (the 2.1.247 cycle's live-CLI pass remains the most recent direct validation). Cursor was verified against **3.18.9** on 2026-08-30; Gemini CLI remains directly validated at **0.55.1** and OpenCode at **1.18.11** (maintainer-machine run, 2026-08-03). Codex releases are reviewed through **0.152.1** (released 2026-09-01), while direct CLI validation remains at **0.146.0** until the next maintainer-machine run. The 0.150–0.152 delta does not require a plugin-manifest migration: native task references and `Interrupt` hooks are host-specific opportunities; optional-MCP discovery grace, MCP-result interception, per-repository plugin catalog configuration, package-style MCP server names, per-tool MCP `output_token_limit`, and longer app-server shell-command timeouts are native Codex capabilities. `tools.update_plan.enabled` is opt-in starting in 0.152; this repo does not depend on that tool, so no config migration is required. The shared cross-target hook bundle remains unchanged so Codex-only lifecycle semantics cannot alter Claude/Cursor behavior.
+Verified **2026-09-02** — Claude Code from the official changelog (automated nightly review, through **2.1.257**; 2.1.253–2.1.256 were never published); a live `claude` CLI **was** available in this cycle's automation environment and reported exactly `2.1.257`, so `claude plugin validate .` and `bash scripts/doctor.sh .` were re-run for real and both passed. Cursor was verified against **3.18.9** on 2026-08-30; Gemini CLI remains directly validated at **0.55.1** and OpenCode at **1.18.11** (maintainer-machine run, 2026-08-03). Codex releases are reviewed through **0.152.1** (released 2026-09-01), while direct CLI validation remains at **0.146.0** until the next maintainer-machine run. The 0.150–0.152 delta does not require a plugin-manifest migration: native task references and `Interrupt` hooks are host-specific opportunities; optional-MCP discovery grace, MCP-result interception, per-repository plugin catalog configuration, package-style MCP server names, per-tool MCP `output_token_limit`, and longer app-server shell-command timeouts are native Codex capabilities. `tools.update_plan.enabled` is opt-in starting in 0.152; this repo does not depend on that tool, so no config migration is required. The shared cross-target hook bundle remains unchanged so Codex-only lifecycle semantics cannot alter Claude/Cursor behavior.
 
 | Surface | Min supported | Validated against | Latest known | Install guide |
 |----------|---------------|-------------------|--------------|---------------|
-| Claude Code | 2.0.0 | 2.1.251 | 2.1.251 | [claude-code.md](../../user/install/claude-code.md) |
+| Claude Code | 2.0.0 | 2.1.257 | 2.1.257 | [claude-code.md](../../user/install/claude-code.md) |
 | Cursor | 3.18.9 | 3.18.9 | 3.18.9 | [cursor.md](../../user/install/cursor.md) |
 | Codex | 0.40.0 | 0.146.0 | 0.152.1 | [codex.md](../../user/install/codex.md) |
 | Gemini CLI | 0.55.1 | 0.55.1 | 0.55.1 | [gemini.md](../../user/install/gemini.md) |
-| OpenCode | 1.16.2 | 1.18.11 | 1.18.11 | [opencode.md](../../user/install/opencode.md) |
+| OpenCode | 1.16.2 | 1.18.11 | 1.18.18 | [opencode.md](../../user/install/opencode.md) |
 
 ### How each floor was set
 
