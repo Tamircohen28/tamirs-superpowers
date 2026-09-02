@@ -10,7 +10,7 @@
 </p>
 
 <p align="center">
-  <a href="docs/engineering/build-and-release/platform-targets.json"><img src="https://img.shields.io/badge/Claude%20Code-2.1.252-blueviolet" alt="Claude Code" /></a>
+  <a href="docs/engineering/build-and-release/platform-targets.json"><img src="https://img.shields.io/badge/Claude%20Code-2.1.257-blueviolet" alt="Claude Code" /></a>
   <a href="docs/engineering/build-and-release/platform-targets.json"><img src="https://img.shields.io/badge/Cursor-3.18.9-000000" alt="Cursor" /></a>
   <a href="docs/engineering/build-and-release/platform-targets.json"><img src="https://img.shields.io/badge/Codex-0.146.0-412991" alt="Codex" /></a>
   <a href="docs/engineering/build-and-release/platform-targets.json"><img src="https://img.shields.io/badge/Gemini%20CLI-0.55.1-4285F4" alt="Gemini CLI" /></a>
@@ -53,7 +53,7 @@ One plugin, one marketplace listing, both surfaces.
 
 | Surface | Registry id | Kind | Status | Install |
 |---|---|---|---|---|
-| Claude Code | `claude_code` | CLI | ✅ supported — validated 2.1.252 | [guide](docs/user/install/claude-code.md) |
+| Claude Code | `claude_code` | CLI | ✅ supported — validated 2.1.257 | [guide](docs/user/install/claude-code.md) |
 | Claude Desktop | `claude_desktop` | desktop | ✅ supported — same plugin, different runtime surface | [guide](docs/user/install/claude-desktop.md) |
 
 ### Codex
@@ -71,7 +71,7 @@ Added as a plugin source in Cursor, then installed from it.
 
 | Surface | Registry id | Kind | Status | Install |
 |---|---|---|---|---|
-| Cursor IDE | `cursor` | IDE | ✅ supported — validated 3.16.17 | [guide](docs/user/install/cursor.md) |
+| Cursor IDE | `cursor` | IDE | ✅ supported — validated 3.18.9 | [guide](docs/user/install/cursor.md) |
 | Cursor CLI | `cursor_cli` | CLI | ⚠️ unverified — shares the plugin manifest with the IDE, but no CLI run has been recorded here | — |
 
 ### Gemini
