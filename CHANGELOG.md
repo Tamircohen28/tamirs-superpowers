@@ -5,6 +5,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [3.6.1] — 2026-09-02
+
 ### Fixed
 - **`tests/lib/harness.sh` cleaned up nothing, leaking a temp directory per
   call.** `harness_tmpdir` appended to the `_HARNESS_TMPDIRS` array, but all 33
