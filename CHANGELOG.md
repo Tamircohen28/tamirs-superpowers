@@ -5,6 +5,57 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Fixed
+- **`tests/lib/harness.sh` cleaned up nothing, leaking a temp directory per
+  call.** `harness_tmpdir` appended to the `_HARNESS_TMPDIRS` array, but all 33
+  callers invoke it as `d="$(harness_tmpdir)"` — a command substitution, so the
+  append mutated a subshell's copy and was discarded on return. The
+  `trap _harness_cleanup EXIT` then iterated an empty array and deleted nothing.
+  The registry is now a file, because a write is a syscall and survives the
+  subshell where a variable does not:
+
+  ```
+  bash -c 'A=(); f(){ A+=(x); echo /tmp/z; }; d="$(f)"; echo ${#A[@]}'   ->  0
+  ```
+
+  Measured before and after on one suite: `tests/test-shape.sh` left `+1` temp
+  directory behind and now leaves `0`. This is what had put ~140 stray
+  `tmp.XXXXXXXXXX` directories in `/tmp` by the end of a CI run.
+
+### Changed
+- **`tests/test-statusline.sh` now reports and recovers when its temp root
+  vanishes, instead of aborting the suite.** Four CI jobs on 2026-09-02 have hit
+  this: run 33595749097 on `aeb42caf` (on **master**), both jobs of run
+  33597009636 attempt 1 on `9a7c916` (**two separate runner VMs**), and run
+  33599695141 on a branch whose entire diff was `.claude/memory/*.md`. Greens
+  and reds interleave inside one hour, so it is neither deterministic nor a
+  clean transient.
+
+  **The cause is still unknown, and the previous explanation shipped here has
+  been withdrawn.** v3.6.0 added `: > "$TMPROOT/.keep"` on the theory that an
+  empty, unreferenced directory was being reaped; the run on the memory-only
+  branch then vanished a `$TMPROOT` that had the `.keep` file in it. That is the
+  second mechanism claim about this bug to be falsified, so the line is gone and
+  the comment now records what is known rather than a third guess.
+
+  What replaces it is instrumentation chosen to discriminate, not to fix: a
+  `SENTINEL` temp dir that is created and never touched (if it dies too, the
+  sweeper is external and this repo is exonerated; if only `$TMPROOT` dies,
+  something targets this suite), a startup snapshot of `$TMPDIR` diffed on the
+  failure path to name every other casualty, a `ps` listing for detached workers
+  left by earlier suites, and a second probe immediately after the 2s watchdog
+  kill so the window is halved rather than "somewhere in the first ~2.01s".
+  The suite then recreates the directory and continues — asserting statusline
+  behavior is its job, `/tmp` durability is not, and hard-failing red-gated
+  unrelated PRs to buy evidence already captured. The warning is repeated in the
+  final summary line so it cannot scroll past.
+
+  An audit of every destructive path in the repo (recorded in the file) found
+  none that can reach a bare `mktemp` root: all are anchored to `$WORKTREE_ROOT`,
+  itself recomputed as `"${HOME}/.claude/worktrees"`; the retirement `find`
+  requires depth 2 plus a `.git` entry; the only `find -delete` is `-type f`.
+
+
 ## [3.6.0] — 2026-09-02
 
 ### Added
