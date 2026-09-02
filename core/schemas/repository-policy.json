@@ -263,6 +263,7 @@
                   "allowed_merge_methods",
                   "dismiss_stale_reviews_on_push",
                   "require_code_owner_review",
+                  "require_extra_approval_for_unattributed_changes",
                   "require_last_push_approval",
                   "required_approving_review_count",
                   "required_review_thread_resolution",
@@ -278,6 +279,10 @@
                   },
                   "dismiss_stale_reviews_on_push": { "type": "boolean" },
                   "require_code_owner_review": { "type": "boolean" },
+                  "require_extra_approval_for_unattributed_changes": {
+                    "type": "boolean",
+                    "description": "GitHub supplies this on every ruleset and defaults it to true. It did not exist when this policy's ground truth was captured on 2026-08-19, so the canonical file omitted it and every governed repository reported NON-COMPLIANT on a field no write could change — GitHub re-supplies the default. Stated here so the drift is real drift when it appears."
+                  },
                   "require_last_push_approval": { "type": "boolean" },
                   "required_approving_review_count": { "type": "integer", "minimum": 0, "maximum": 6 },
                   "required_review_thread_resolution": {

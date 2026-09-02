@@ -54,6 +54,7 @@ for arg in "$@"; do
   esac
 done
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(cd "${ARGS[0]:-.}" && pwd)"
 FAILED=0
 TARGETS_JSON="$ROOT/docs/engineering/build-and-release/platform-targets.json"
@@ -61,8 +62,15 @@ REGISTRY="$ROOT/core/capabilities/platforms.json"
 
 # The registry is rooted at the platform and lists its runtime surfaces underneath;
 # the checks here are per-surface, so read the flattened one-entry-per-surface view.
+#
+# Resolve the library from THIS SCRIPT's directory, not from $ROOT. $ROOT is the tree being
+# audited, and this script is run against other repos (repo-standards points it at a target)
+# and against synthetic roots (--self-test). Sourcing a tool's own library out of the tree it
+# is inspecting only works while the two happen to be the same checkout: everywhere else the
+# `.` fails under `set -e` and the run dies before a single claim is checked. That is why
+# --self-test reported 5 of 7 cases failing for a reason none of them were testing.
 # shellcheck source=scripts/lib/registry.sh
-. "$ROOT/scripts/lib/registry.sh"
+. "$SCRIPT_DIR/lib/registry.sh"
 REGISTRY="$(registry_flat_tmp "$REGISTRY")"
 trap 'rm -f "$REGISTRY"' EXIT
 
@@ -119,6 +127,24 @@ if [[ "$SELF_TEST" == true ]]; then
   for d in a b c; do printf -- '---\nname: %s\n---\n' "$d" >"$st_root/skills/$d/SKILL.md"; done
   # Tree ships 3 skills. Every case below writes the wrong number, 27.
 
+  # A one-target platform record, so the validated-version cases below have something to
+  # assert against. install_doc must point at a file that exists, or section 3 would fail
+  # every case for a reason that has nothing to do with what the case is testing.
+  mkdir -p "$st_root/docs/engineering/build-and-release" "$st_root/docs/user/install"
+  : >"$st_root/docs/user/install/cursor.md"
+  cat >"$st_root/docs/engineering/build-and-release/platform-targets.json" <<'ST_JSON'
+{
+  "supported_targets": ["cursor"],
+  "targets": {
+    "cursor": {
+      "display_name": "Cursor IDE",
+      "validated_against": "3.18.9",
+      "install_doc": "docs/user/install/cursor.md"
+    }
+  }
+}
+ST_JSON
+
   st_pass=0 st_fail=0
   st_case() {
     local name="$1" want="$2" body="$3"
@@ -161,6 +187,16 @@ as recorded.'
 ```
 
 The tree ships 27 skills today.'
+
+  # Section 4: the record pins cursor at 3.18.9.
+  st_case "stale validated version in prose"  1 '| Cursor IDE | IDE | supported - validated 3.16.17 |'
+  st_case "correct validated version in prose" 0 '| Cursor IDE | IDE | supported - validated 3.18.9 |'
+  st_case "stale validated version in a fence" 0 'Recorded output:
+
+```
+Cursor IDE — validated 3.16.17
+```
+'
 
   echo "self-test: $st_pass passed, $st_fail failed"
   (( st_fail == 0 )) || exit 1
@@ -282,6 +318,39 @@ if [[ -f "$TARGETS_JSON" ]]; then
       fi
     fi
   done
+fi
+
+# --- 4. Validated version in prose ---
+# The README's per-target badges are generated from platform-targets.json, but the prose
+# table beside them is hand-written -- and a hand-typed version drifts silently, because
+# nothing derived it. The Cursor row read "validated 3.16.17" for two minor versions while
+# the badge three lines above it correctly said 3.18.9, and every check passed the whole
+# time: the badge was asserted, the target count was asserted, the version in the sentence
+# was not. Assert the prose against the same record the badge is built from.
+if [[ -f "$TARGETS_JSON" ]]; then
+  # Gather the candidate lines once; re-walking every *.md per target is needless work.
+  version_lines=$(prose_lines "$ROOT" '*.md' | grep -v 'CHANGELOG' \
+                    | grep -E 'validated [0-9]+\.[0-9]+\.[0-9]+' || true)
+  if [[ -n "$version_lines" ]]; then
+    for key in $(jq -r '(.supported_targets // []) | .[]' "$TARGETS_JSON" 2>/dev/null || true); do
+      pinned=$(jq -r ".targets.\"$key\".validated_against // empty" "$TARGETS_JSON")
+      # "unknown" is the honest state for a declared-but-unvalidated target: nothing to assert.
+      [[ -n "$pinned" && "$pinned" != "unknown" ]] || continue
+      name=$(display_name "$key")
+      short="${name% CLI}"
+      while IFS= read -r hit; do
+        file="${hit%%:*}"
+        rest="${hit#*:}"; lineno="${rest%%:*}"; text="${rest#*:}"
+        # Only judge a line that actually names this target.
+        [[ "$text" == *"$name"* || "$text" == *"$short"* ]] || continue
+        claimed=$(sed -E 's/.*validated ([0-9]+\.[0-9]+\.[0-9]+).*/\1/' <<<"$text")
+        [[ "$claimed" != "$text" ]] || continue
+        if [[ "$claimed" != "$pinned" ]]; then
+          err "$file:$lineno says '$name ... validated $claimed'; platform-targets.json pins $pinned"
+        fi
+      done <<<"$version_lines"
+    done
+  fi
 fi
 
 if (( FAILED > 0 )); then
