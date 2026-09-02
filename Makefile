@@ -86,10 +86,16 @@ update:
 uninstall:
 	@bash scripts/uninstall.sh
 
+# SUPERPOWERS_WORKTREE_CLEANUP=0: several suites invoke a hook, and every hook
+# invocation starts a DETACHED `rm -rf` pass over ~/.claude/worktrees that keeps
+# running after the hook returns. It cannot reach a suite's tmpdir, but it does
+# leave live ownerless `rm -rf` processes in the run, which is misleading
+# evidence when a test loses a directory. test-worktree-objective.sh unsets it
+# for the cases that assert on the default behaviour.
 test-hooks:
 	@echo "--- Hook behavior tests ---"
 	@find tests -maxdepth 1 -name 'test-*.sh' 2>/dev/null | sort | while read -r f; do \
-	  echo "==> $$f"; bash "$$f" || exit 1; \
+	  echo "==> $$f"; SUPERPOWERS_WORKTREE_CLEANUP=0 bash "$$f" || exit 1; \
 	done
 
 validate: lint test-hooks test-repo-contract check-manifest-versions check-platform-equivalence \

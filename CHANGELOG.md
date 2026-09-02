@@ -56,6 +56,18 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   requires depth 2 plus a `.git` entry; the only `find -delete` is `-type f`.
 
 
+### Added
+- **`SUPERPOWERS_WORKTREE_CLEANUP=0` disables stale-worktree retirement.** Every
+  hook invocation starts a *detached* `rm -rf` pass over `~/.claude/worktrees`
+  that outlives the hook by design, so a test suite that runs a hook is running
+  alongside an ownerless `rm -rf` for the rest of its life. The pass is anchored
+  to `$WORKTREE_ROOT` and cannot reach a suite's own temp dir — that was
+  confirmed while chasing the flake above — but it is exactly the sort of thing
+  a `ps` listing turns into a false lead. `make test-hooks` now sets the guard
+  for the whole loop; `tests/test-worktree-objective.sh` unsets it for the three
+  cases that assert on the default behaviour, which is also what proves the
+  guard is wired to the pass and not merely a correct predicate nobody calls.
+
 ## [3.6.0] — 2026-09-02
 
 ### Added
