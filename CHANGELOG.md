@@ -5,6 +5,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [3.5.0] — 2026-09-01
+
 ### Fixed
 - **The protected-file guard was blind to `Bash`: it matched editing TOOLS, not
   file PATHS.** `guard-sensitive-files.sh` was wired only to
@@ -177,6 +179,30 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   0-approval case, the destructive head-branch case, and the fail-closed
   behaviour when the rules endpoint errors.
 
+- **`check-doc-claims.sh` asserted the README's generated badges but not the prose
+  beside them.** The per-target badges are built from `platform-targets.json`; the
+  support table three lines below them is hand-typed. Nothing derived that prose, so
+  nothing caught it drifting: the Cursor row read `validated 3.16.17` for two minor
+  versions while the badge above it correctly read `3.18.9`, and every check stayed
+  green — the badge was asserted, the target count was asserted, the version in the
+  sentence was not. The check now compares every `validated <x.y.z>` claim in Markdown
+  prose against the same `validated_against` the badge is generated from, naming the
+  file, the line, and both values. A target pinned `"unknown"` asserts nothing, which
+  is the honest state for one that is declared but not yet validated.
+- **`check-doc-claims.sh` sourced its own library out of the tree it was auditing.**
+  `. "$ROOT/scripts/lib/registry.sh"` resolved against the *target* root rather than the
+  script's own directory. That works only while the two are the same checkout: pointed at
+  another repo (which is how `repo-standards` invokes it) or at a synthetic root, the `.`
+  failed under `set -e` and the run died before a single claim was checked. It now
+  resolves from `$SCRIPT_DIR`.
+- **`check-doc-claims.sh --self-test` was failing on master and nothing ran it.** Five of
+  its seven cases had been reporting failure for the library-resolution reason above —
+  not for anything they were written to test — and no Makefile target, workflow or test
+  file invoked the flag, so the rot was invisible. `make check-doc-claims` now runs the
+  self-test before the real check, and the suite covers the new version assertion in all
+  three positions: stale prose fails, correct prose passes, and a stale value quoted
+  inside a fence stays exempt. 10 cases, all passing.
+
 ### Added
 - **Statusline: a `spend` line when a Claude apps gateway reports a spend
   limit.** Claude Code 2.1.251 added `rate_limits.spend_limit`
@@ -250,6 +276,64 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   wrapper. Noted for Tamir as pre-existing test-harness flakiness to fix
   separately — not a plugin regression, and not touched here to keep this
   cycle's changes traceable to the Claude Code delta it reviews.
+- **Platform target: Claude Code 2.1.257** (from 2.1.252; 2.1.253–2.1.256 were
+  never published). `CLAUDE.md`'s Subagents bullet now also names
+  `CLAUDE_CODE_SUBAGENT_MODEL_FORCE`, which — unlike `CLAUDE_CODE_SUBAGENT_MODEL`
+  — overrides every `agents/*.md` frontmatter `model:` pin and every per-spawn
+  model, so the 2.1.251 guarantee that a pinned agent model always wins no
+  longer holds unconditionally: it holds unless `_FORCE` is set. The auto-mode
+  Containment Escape rule (cloud metadata-credential fetches, egress evasion,
+  cross-tenant reach no longer auto-approved) composes automatically with
+  `platforms/claude/settings.d/auto-mode.json`'s `autoMode.soft_deny` — that
+  file's docker-containers rule sits alongside `"$defaults"`, which is exactly
+  where a new built-in rule like this lands, so nothing in that fragment needed
+  to change. `permissions.blockReadsOutsideWorkingDirectories` was reviewed and
+  left off: it is a personal auto-mode preference, not a plugin default, and
+  `platforms/claude/settings.d/` mirrors what is actually captured from the live
+  machine rather than prescribing new settings. `/doctor`'s stale-sandbox-mask
+  warning is Claude Code's own diagnostic, not this repo's `scripts/doctor.sh`
+  (a plugin-install health report); noted in
+  [doctor.sh](scripts/doctor.sh) as a complementary, not overlapping, check.
+  `/fork`'s worktree-briefing/prompt-cache fix is about Claude Code's own
+  native `/fork` briefing message, a different mechanism from this repo's
+  `hooks/session-init.sh` `SessionStart` `additionalContext` (which has always
+  arrived as context at session start, fork or not) — reviewed, no change
+  needed. The sandboxed-git-in-a-linked-worktree and
+  worktree-isolated-Bash-loop fixes are inside Claude Code's own sandbox
+  verifier; this repo's `hooks/enforce-worktree-edits.sh` only judges
+  `Edit`/`Write`/`MultiEdit`/`NotebookEdit` targets and never re-implements
+  Bash-loop worktree verification, so there is nothing here for the fix to
+  make redundant. No plugin-declared component path
+  (`.claude-plugin/plugin.json`'s `skills`/`mcpServers`, or `agents/`, or
+  `hooks/`) is a symlink, so the new plugin-symlink-path rejection changes
+  nothing here; the `.gemini/skills/*` symlinks are a different target's
+  (Gemini CLI's) surface, out of scope for this review. No `.claude/settings.json`
+  or `.claude/settings.local.json` exists in this repo, so the
+  `defaultMode: "bypassPermissions"` project-settings change is not
+  applicable; `platforms/claude/settings.d/defaults.json`'s `bypassPermissions`
+  renders into the **user's** `~/.claude/settings.json`, which this change does
+  not touch.
+
+  `validated_against`/`latest_known` advance to 2.1.257. `verified_on` →
+  2026-09-02. This cycle's automation environment had a live `claude` CLI —
+  and it reported exactly `2.1.257`, matching the changelog target — so
+  `claude plugin validate .` and `bash scripts/doctor.sh .` were re-run for
+  real (both passed: marketplace manifest valid; all capability rows
+  native/native-experimental/partial as expected) instead of the
+  changelog + npm-registry method alone; `platform-targets.json`'s
+  `verification_method` records this. `scripts/check-platform-targets.sh`,
+  `check-feature-equivalence.sh`, `check-doc-claims.sh`,
+  `check-version-truth.sh`, `check-capability-registry.sh`,
+  `check-marketplace-schema.sh`, `check-github-policy.sh`, and
+  `check-agent-drift.sh` were run directly and passed; every
+  `tests/test-*.sh` file passed when run directly, including the
+  pre-existing `tests/test-statusline.sh` flakiness workaround noted above
+  (unchanged this cycle — still test-harness racy, still not a plugin
+  regression).
+
+### Changed
+- **README's Cursor row now reads `validated 3.18.9`**, matching `platform-targets.json`
+  and the badge. It had said `3.16.17`.
 
 ## [3.4.0] — 2026-08-31
 
