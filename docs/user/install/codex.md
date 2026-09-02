@@ -8,7 +8,7 @@ direction. See [platform differences](../platform-differences.md#unverified-surf
 
 Skills require Codex **0.40+**; the manifest `hooks` field requires **0.147.0+**. Direct CLI
 validation remains **0.146.0**; the official release delta has been reviewed through
-**0.151.0**, which is the version tracked by `.codex-version`.
+**0.152.1**, which is the version tracked by `.codex-version`.
 
 ---
 
@@ -28,7 +28,7 @@ Codex also reads the repo's root [`AGENTS.md`](../../../AGENTS.md) as project in
 That file is a **thin entrypoint** into the canonical rules under
 [`rules/`](../../../rules/README.md) — it is deliberately not the whole policy source.
 
-### Codex 0.148–0.151 notes
+### Codex 0.148–0.152 notes
 
 Codex 0.148 added asynchronous command hooks and MCP-tool hook actions. This repo does not
 copy those fields into the shared cross-target hook bundle: doing so without a host-specific
@@ -62,6 +62,14 @@ without hiding valid plugins. Use the new MCP-result interception only if a futu
 Codex-specific extension actually needs result transformation; do not add a wrapper merely
 to consume the capability. Likewise, tune optional-MCP discovery grace only from measured
 startup behavior.
+
+Codex 0.152 allows package-style MCP server names containing `:`, `@`, `/`, and `.`, adds a
+per-tool `output_token_limit` setting, and lets app-server clients configure long
+`thread/shellCommand` timeouts. Prefer these native MCP controls over custom name-normalizing
+or output-truncation wrappers when a Codex-specific MCP setup needs them. The planning tool
+is now opt-in (`tools.update_plan.enabled = true`); this repo does not depend on it, so no
+config change is needed. Codex 0.152.1 is a Guardian policy-correctness fix with no plugin
+migration.
 
 ## Verify
 

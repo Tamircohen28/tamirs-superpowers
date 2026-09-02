@@ -1,6 +1,6 @@
 {
   "schema_version": 2,
-  "last_reviewed": "2026-08-30",
+  "last_reviewed": "2026-09-02",
   "reviewed_by_skill": "tamirs-superpowers@3.5.0",
   "supported_targets": [
     "claude_code",
@@ -165,9 +165,9 @@
       "supported_min": "0.40.0",
       "supported_min_source": "earliest release this repo has claimed AGENTS.md + .codex-plugin manifest support for",
       "validated_against": "0.146.0",
-      "latest_known": "0.151.0",
-      "verified_on": "2026-08-30",
-      "verification_method": "0.146.0 was exercised on the maintainer machine; 0.147.0 through 0.151.0 support was reviewed against the official OpenAI release deltas. .codex-version tracks 0.151.0 pending the next direct CLI validation. 0.150 adds native task references and Interrupt hooks; 0.151 adds optional-MCP discovery grace, extension-side MCP result interception, and stronger per-repository plugin catalog handling without requiring a shared manifest migration.",
+      "latest_known": "0.152.1",
+      "verified_on": "2026-09-02",
+      "verification_method": "0.146.0 was exercised on the maintainer machine; 0.147.0 through 0.152.1 support was reviewed against the official OpenAI release deltas. .codex-version tracks 0.152.1 pending the next direct CLI validation. 0.150 adds native task references and Interrupt hooks; 0.151 adds optional-MCP discovery grace, extension-side MCP result interception, and stronger per-repository plugin catalog handling; 0.152 adds package-style MCP names, per-tool output_token_limit, long app-server shell-command timeouts, and makes update_plan opt-in. 0.152.1 is a Guardian policy fix. None requires a shared plugin-manifest migration.",
       "install_doc": "docs/user/install/codex.md",
       "doc_urls": [
         "https://developers.openai.com/codex/guides/agents-md",
@@ -181,7 +181,10 @@
         "codex-agents-and-queue-docs-0.149.0",
         "codex-interrupt-hook-reviewed-0.150.0",
         "per-repository-plugin-catalog-config-0.151.0",
-        "mcp-result-interception-reviewed-0.151.0"
+        "mcp-result-interception-reviewed-0.151.0",
+        "package-style-mcp-server-names-reviewed-0.152.0",
+        "mcp-output-token-limit-reviewed-0.152.0",
+        "update-plan-opt-in-reviewed-0.152.0"
       ],
       "capabilities": [
         "git",
