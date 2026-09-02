@@ -25,8 +25,17 @@ slipped through in the register of fact.
 The first one is the instructive one. It explained the *entire* failure shape: three watchdog
 self-tests pass, then every case touching the temp dir dies, and the self-test is the one thing
 that forces the watcher's `exit 0` path. Accounting for all the evidence felt like confirmation.
-It was not — the real cause was a one-off runner flake, proven by re-running the same commit
-unchanged and watching it go green.
+It was not.
+
+**And the replacement explanation was wrong too.** I then recorded "one-off runner flake, proven
+by re-running the same commit unchanged and watching it go green". A green re-run proves the
+failure is *intermittent* — it proves nothing about frequency or cause, and "proven" was the
+wrong word for it. It later turned out to be three occurrences across two commits, one of them on
+`master` itself, and the root cause is still unknown. Note the shape: the second-order claim was
+made in the very act of correcting the first-order one, which is exactly when the guard is down.
+
+**A green re-run is not evidence, it is the destruction of evidence** — it overwrites the failed
+job's logs. Do not re-run a flaky CI job "to check" before collecting what the failed run holds.
 
 **How to apply:** before writing a causal or state claim as fact, ask *what would run in under a
 minute to settle this* — a minimal repro, the repo's own checker, one API read, a re-run. If such
