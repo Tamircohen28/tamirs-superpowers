@@ -12,4 +12,4 @@
 - [Verify mechanism claims, not just success](feedback-verify-mechanism-claims.md) — a hypothesis that explains all the evidence is still a hypothesis; run the cheap check
 - [make validate must be backgrounded](feedback-background-task-exit-codes.md) — >2min; read the log's `EXIT=` line, never the task notification's exit code
 - [Fetch before auditing](feedback-fetch-before-audit.md) — audit `origin/<default>`; a stale checkout put the wrong version in a review report
-- [Statusline tmpdir CI flake is unexplained](project-statusline-tmpdir-ci-flake.md) — mitigated in v3.6.0, not diagnosed; five hypotheses already ruled out
+- [Statusline tmpdir CI flake is unexplained](project-statusline-tmpdir-ci-flake.md) — not diagnosed; five hypotheses ruled out, incl. the v3.6.0 "fix" that was falsified
