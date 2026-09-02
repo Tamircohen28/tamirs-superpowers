@@ -28,6 +28,18 @@ command -v jq >/dev/null 2>&1 || { echo "FATAL: jq is required"; exit 1; }
 TMPROOT="$(mktemp -d)"
 trap 'rm -rf "$TMPROOT"' EXIT
 
+# WHY THIS FILE EXISTS
+#   The watchdog self-test below is the only place in tests/ where a mktemp
+#   directory sits empty and unreferenced for ~2s; every other tmpdir-using
+#   suite writes a child within milliseconds. Three CI runs have had $TMPROOT
+#   vanish inside exactly that window (run 33595749097 on aeb42caf, and both
+#   jobs of run 33597009636 attempt 1 on 9a7c916 — a re-run of the same commit,
+#   unchanged, went 16/16 green). No code in this repo can delete a bare
+#   /tmp/tmp.XXXXXXXXXX, so the cause is outside the test process and remains
+#   unproven; keeping the directory non-empty removes the one property that
+#   distinguishes this suite from the eight that have never flaked.
+: > "$TMPROOT/.keep"
+
 ok()   { PASS=$((PASS + 1)); printf '  ok   %s\n' "$1"; }
 bad()  { FAIL=$((FAIL + 1)); FAILED_NAMES+=("$1"); printf '  FAIL %s — %s\n' "$1" "$2"; }
 
@@ -137,7 +149,20 @@ SAMPLE_JSON="$(jq -n --argjson resets "$(( $(date +%s) + 5400 ))" '{
   version: "2.1.233"
 }')"
 
+# Same payload plus rate_limits.spend_limit (Claude Code 2.1.251+, gateway-only).
+SAMPLE_JSON_SPEND="$(echo "$SAMPLE_JSON" | jq --argjson resets "$(( $(date +%s) + 5400 ))" \
+  '.rate_limits.spend_limit = {used_percentage: 55, resets_at: $resets}')"
+
 echo "--- statusline: piped JSON ---"
+
+# If $TMPROOT went away during the ~2s watchdog self-test, say so once and
+# loudly — otherwise every case below fails as a bogus "timed out" and the
+# real event is invisible in the log.
+[ -d "$TMPROOT" ] || {
+  echo "FATAL: TMPROOT ($TMPROOT) vanished during the watchdog self-test"
+  ls -ld /tmp 2>&1
+  exit 1
+}
 
 out="$TMPROOT/piped.out"
 if run_with_timeout 5 bash -c 'printf "%s" "$1" | bash "$2" > "$3" 2>&1' _ "$SAMPLE_JSON" "$SL" "$out"; then
@@ -157,8 +182,28 @@ if run_with_timeout 5 bash -c 'printf "%s" "$1" | bash "$2" > "$3" 2>&1' _ "$SAM
   # 5h and 7d lines both present => three lines.
   lines="$(printf '%s\n' "$rendered" | grep -c .)"
   if [ "$lines" -eq 3 ]; then ok "renders 5h and 7d limit lines"; else bad "renders 5h and 7d limit lines" "expected 3 lines, got $lines"; fi
+  case "$rendered" in
+    *"spend:"*) bad "omits spend line when rate_limits.spend_limit is absent" "got: $rendered" ;;
+    *) ok "omits spend line when rate_limits.spend_limit is absent" ;;
+  esac
 else
   bad "piped JSON completes" "timed out or exited non-zero"
+fi
+
+echo "--- statusline: rate_limits.spend_limit present (Claude Code 2.1.251+, gateway-only) ---"
+
+out="$TMPROOT/spend.out"
+if run_with_timeout 5 bash -c 'printf "%s" "$1" | bash "$2" > "$3" 2>&1' _ "$SAMPLE_JSON_SPEND" "$SL" "$out"; then
+  rendered="$(cat "$out")"
+  case "$rendered" in
+    *"spend: "*"55%"*) ok "renders the spend limit line" ;;
+    *) bad "renders the spend limit line" "got: $rendered" ;;
+  esac
+  # 5h, 7d, and spend lines all present => four lines.
+  lines="$(printf '%s\n' "$rendered" | grep -c .)"
+  if [ "$lines" -eq 4 ]; then ok "renders 5h, 7d, and spend limit lines"; else bad "renders 5h, 7d, and spend limit lines" "expected 4 lines, got $lines"; fi
+else
+  bad "piped JSON with spend_limit completes" "timed out or exited non-zero"
 fi
 
 echo "--- statusline: stdin absent (must not hang) ---"

@@ -36,6 +36,15 @@ Claude Code versions before **2.1.246** failed to discover, reporting `0 skills`
 whole plugin even though every `SKILL.md` was well-formed. Upgrade to 2.1.246 or later;
 there is no plugin-side workaround for the older bug.
 
+**If it's only a background session** (`claude --bg`, `/background`, or an `agent teams`
+teammate) that starts with no skills and stays that way: on Claude Code versions before
+**2.1.251**, a background session could start at the exact moment another Claude Code
+process on the same machine was refreshing the plugin marketplace cache, and would then
+run its whole life with the plugin's skills missing. This is a background-session-vs-
+marketplace-refresh race in the host, not a manifest problem — nothing here declares
+skills incorrectly — and it also has no plugin-side workaround; if you hit it, upgrade to
+2.1.251 or later, or `attach`/restart the affected background session.
+
 ### An update reports success but nothing changed
 
 **Cause:** Claude Code and Codex cache by the manifest `version` field. A push without a

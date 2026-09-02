@@ -73,6 +73,11 @@ five_pct=$(echo "$input" | jq -r '.rate_limits.five_hour.used_percentage // empt
 five_resets=$(echo "$input" | jq -r '.rate_limits.five_hour.resets_at // empty')
 seven_pct=$(echo "$input" | jq -r '.rate_limits.seven_day.used_percentage // empty')
 seven_resets=$(echo "$input" | jq -r '.rate_limits.seven_day.resets_at // empty')
+# Claude Code 2.1.251+: present only behind a Claude apps gateway that reports
+# a spend limit whose resets_at has not passed. Absent everywhere else, so the
+# line below degrades the same way the 7d line already does.
+spend_pct=$(echo "$input" | jq -r '.rate_limits.spend_limit.used_percentage // empty')
+spend_resets=$(echo "$input" | jq -r '.rate_limits.spend_limit.resets_at // empty')
 duration_ms=$(echo "$input" | jq -r '.cost.total_duration_ms // empty')
 total_cost=$(echo "$input" | jq -r '.cost.total_cost_usd // empty')
 cc_version=$(echo "$input" | jq -r '.version // empty')
@@ -329,4 +334,7 @@ printf "%b\n" "$first_line"
 printf "%b\n" "$second_line"
 if [ -n "$seven_pct" ] && [ "$seven_pct" != "null" ]; then
   printf "%b\n" "$(format_limit_line "7d" "$seven_pct" "$seven_resets")"
+fi
+if [ -n "$spend_pct" ] && [ "$spend_pct" != "null" ]; then
+  printf "%b\n" "$(format_limit_line "spend" "$spend_pct" "$spend_resets")"
 fi

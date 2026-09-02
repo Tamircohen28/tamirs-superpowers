@@ -10,9 +10,16 @@ source "${SCRIPT_DIR}/lib/worktree-common.sh"
 source "${SCRIPT_DIR}/lib/hook-output.sh"
 
 input="$(hook_read_stdin)"
-session_id="$(echo "$input" | jq -r '.session_id // empty')"
-cwd="$(echo "$input" | jq -r '.cwd // empty')"
-source_kind="$(echo "$input" | jq -r '.source // "startup"')"
+session_id="$(printf '%s' "$input" | jq -r '.session_id // empty')"
+cwd="$(printf '%s' "$input" | jq -r '.cwd // empty')"
+source_kind="$(printf '%s' "$input" | jq -r '.source // "startup"')"
+# Claude Code 2.1.251+: resume/fork payloads add these four fields describing
+# how stale the resumed transcript's prompt cache is. Absent on every other
+# source (startup, clear, compact) and on pre-2.1.251 hosts, where the `//
+# empty` fallback leaves them blank and the staleness note below never fires.
+prompt_cache_likely_expired="$(printf '%s' "$input" | jq -r '.prompt_cache_likely_expired // empty')"
+context_tokens="$(printf '%s' "$input" | jq -r '.context_tokens // empty')"
+estimated_cache_write_usd="$(printf '%s' "$input" | jq -r '.estimated_cache_write_usd // empty')"
 
 cleanup_stale_worktrees >/dev/null 2>&1 || true
 
@@ -151,6 +158,26 @@ if [[ -d "$session_files_dir" ]] && { [[ "$source_kind" == "resume" || "$source_
     context_parts+=("Prior session files from ${session_files_dir}:")
     context_parts+=("$files_context")
   fi
+fi
+
+# Claude Code 2.1.251+: surface the re-cache warning up front rather than
+# leaving it to be inferred from an unexplained cost/latency spike on the
+# first turn back. `prompt_cache_likely_expired` is the host's own judgment
+# (seconds_since_last_response measured against the model's cache TTL); the
+# token count and cost estimate are best-effort detail, not required to warn.
+if [[ "$prompt_cache_likely_expired" == "true" ]]; then
+  staleness_note="Resumed session's prompt cache has likely expired — the next request re-caches context from scratch"
+  detail=""
+  if [[ -n "$context_tokens" && "$context_tokens" != "null" ]]; then
+    detail="~${context_tokens} tokens"
+  fi
+  if [[ -n "$estimated_cache_write_usd" && "$estimated_cache_write_usd" != "null" ]]; then
+    detail="${detail}${detail:+, }est. \$${estimated_cache_write_usd}"
+  fi
+  if [[ -n "$detail" ]]; then
+    staleness_note="${staleness_note} (${detail})"
+  fi
+  context_parts+=("${staleness_note}.")
 fi
 
 additional_context="$(printf '%s\n' "${context_parts[@]}")"

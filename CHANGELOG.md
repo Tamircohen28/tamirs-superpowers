@@ -5,6 +5,160 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [3.6.0] — 2026-09-02
+
+### Added
+- **Statusline: a `spend` line when a Claude apps gateway reports a spend
+  limit.** Claude Code 2.1.251 added `rate_limits.spend_limit`
+  (`used_percentage`, `resets_at`) to the statusline payload — present only
+  behind a gateway that has a spend limit configured and whose `resets_at`
+  has not passed. `scripts/statusline.sh` renders it as a fourth line using
+  the exact same only-when-present pattern already used for the 7-day line,
+  so nobody outside that configuration sees any change. Documented in
+  [statusline](docs/engineering/statusline.md). Covered by two new cases in
+  `tests/test-statusline.sh`: the line renders when the field is present,
+  and it is absent (not merely empty) when it is not.
+- **`session-init.sh`: a one-line heads-up when a resumed session's prompt
+  cache has likely expired.** Claude Code 2.1.251 added
+  `prompt_cache_likely_expired`, `context_tokens`, and
+  `estimated_cache_write_usd` to `SessionStart` payloads for `resume`/`fork`.
+  The hook now adds a note to `additionalContext` when the cache is likely
+  cold, naming the token count and estimated re-cache cost when the host
+  supplies them, so the first request's higher cost and latency is
+  explained up front instead of showing up afterward as an unexplained
+  spike. New `tests/test-session-init-staleness.sh` (6 cases): fires on a
+  stale resume including both detail fields, stays silent on a warm resume,
+  and stays silent on plain startup where none of these fields exist.
+
+### Changed
+- **Platform target: Claude Code 2.1.252** (from 2.1.251), plus the two
+  adoptions above. The 2.1.252 delta is "bug fixes and reliability
+  improvements" per the official changelog (a Bash task-output-swap failure
+  on some Macs, `always allow` not saving in a project with no
+  `.claude/settings.local.json` yet, Remote Control stalls hosted by Claude
+  Desktop/VS Code, oversized background-task failure notifications) — all
+  host-side, nothing with a plugin-side surface.
+
+  Re-reviewing 2.1.251 turned up two items the last cycle had bucketed into
+  its generic "no plugin-side surface" list without naming: the
+  `rate_limits.spend_limit` statusline field and the `SessionStart` resume
+  staleness / estimated re-cache cost fields, both adopted above. A third —
+  the plugin-marketplace-refresh race that could start a background session
+  with zero plugin skills — has no plugin-side fix available (it is a host
+  bug, fixed host-side in 2.1.251), but is genuinely relevant given how much
+  of this repo's own orchestration leans on background sessions and
+  worktree isolation; documented in
+  [troubleshooting](docs/user/troubleshooting.md#skills-do-not-appear-after-installing)
+  next to the existing 2.1.246 `0 skills` entry, since both present the same
+  symptom ("no skills") for a different underlying reason. Re-reviewed and
+  still not adopted: `PreModelSwitch`/`PostModelSwitch` hook events (2.1.251)
+  — nothing in this repo's orchestration currently needs to gate or observe
+  a model switch, so wiring one would be dead surface; noted in
+  [CLAUDE.md](CLAUDE.md) for Tamir's judgment rather than wired speculatively.
+  `experimental.cacheTtl` agent frontmatter (2.1.248) was re-checked against
+  all ten `agents/*.md` — still nothing here needs a cache TTL narrower than
+  the session default, same conclusion as the 2.1.250 cycle.
+
+  `validated_against` advances to 2.1.252. This cycle's automation
+  environment had a live `claude` CLI (2.1.252) — the first live-CLI cycle
+  since 2.1.247 — so `claude plugin validate .` and `bash scripts/doctor.sh .`
+  were run for real (both passed) instead of relying on the changelog +
+  npm-registry method alone; `platform-targets.json`'s `verification_method`
+  records this. `scripts/check-platform-targets.sh`,
+  `check-feature-equivalence.sh`, `check-doc-claims.sh`,
+  `check-version-truth.sh`, `check-capability-registry.sh`,
+  `check-marketplace-schema.sh`, and `check-github-policy.sh` were run
+  directly and passed; every `tests/test-*.sh` file, including the two new
+  ones above, passed when run directly — except `tests/test-statusline.sh`,
+  which failed once here — for a reason that turned out not to be in the test
+  file at all. **Correction:** the diagnosis first written up in this entry —
+  that `run_with_timeout`'s backgrounded watcher `( ... )` subshell inherits
+  the suite's own `trap ... EXIT` and deletes the shared tmpdir on its way out
+  — is wrong. A minimal repro across six trap/subshell variants on bash 3.2.57
+  and 5.3.15 shows bash does **not** run an inherited EXIT trap in a subshell;
+  the tmpdir survived every one. What the failure *is* has since been narrowed
+  but not solved — see the `tests/test-statusline.sh` entry under **Fixed**
+  below; the "one-off flake, no patch warranted" call recorded here while this
+  entry was being drafted was also wrong, and the patch it declined has now
+  been made. Every assertion in the file, including the two new spend-limit
+  cases, passes.
+- **Platform target: Claude Code 2.1.257** (from 2.1.252; 2.1.253–2.1.256 were
+  never published). `CLAUDE.md`'s Subagents bullet now also names
+  `CLAUDE_CODE_SUBAGENT_MODEL_FORCE`, which — unlike `CLAUDE_CODE_SUBAGENT_MODEL`
+  — overrides every `agents/*.md` frontmatter `model:` pin and every per-spawn
+  model, so the 2.1.251 guarantee that a pinned agent model always wins no
+  longer holds unconditionally: it holds unless `_FORCE` is set. The auto-mode
+  Containment Escape rule (cloud metadata-credential fetches, egress evasion,
+  cross-tenant reach no longer auto-approved) composes automatically with
+  `platforms/claude/settings.d/auto-mode.json`'s `autoMode.soft_deny` — that
+  file's docker-containers rule sits alongside `"$defaults"`, which is exactly
+  where a new built-in rule like this lands, so nothing in that fragment needed
+  to change. `permissions.blockReadsOutsideWorkingDirectories` was reviewed and
+  left off: it is a personal auto-mode preference, not a plugin default, and
+  `platforms/claude/settings.d/` mirrors what is actually captured from the live
+  machine rather than prescribing new settings. `/doctor`'s stale-sandbox-mask
+  warning is Claude Code's own diagnostic, not this repo's `scripts/doctor.sh`
+  (a plugin-install health report); noted in
+  [doctor.sh](scripts/doctor.sh) as a complementary, not overlapping, check.
+  `/fork`'s worktree-briefing/prompt-cache fix is about Claude Code's own
+  native `/fork` briefing message, a different mechanism from this repo's
+  `hooks/session-init.sh` `SessionStart` `additionalContext` (which has always
+  arrived as context at session start, fork or not) — reviewed, no change
+  needed. The sandboxed-git-in-a-linked-worktree and
+  worktree-isolated-Bash-loop fixes are inside Claude Code's own sandbox
+  verifier; this repo's `hooks/enforce-worktree-edits.sh` only judges
+  `Edit`/`Write`/`MultiEdit`/`NotebookEdit` targets and never re-implements
+  Bash-loop worktree verification, so there is nothing here for the fix to
+  make redundant. No plugin-declared component path
+  (`.claude-plugin/plugin.json`'s `skills`/`mcpServers`, or `agents/`, or
+  `hooks/`) is a symlink, so the new plugin-symlink-path rejection changes
+  nothing here; the `.gemini/skills/*` symlinks are a different target's
+  (Gemini CLI's) surface, out of scope for this review. No `.claude/settings.json`
+  or `.claude/settings.local.json` exists in this repo, so the
+  `defaultMode: "bypassPermissions"` project-settings change is not
+  applicable; `platforms/claude/settings.d/defaults.json`'s `bypassPermissions`
+  renders into the **user's** `~/.claude/settings.json`, which this change does
+  not touch.
+
+  `validated_against`/`latest_known` advance to 2.1.257. `verified_on` →
+  2026-09-02. This cycle's automation environment had a live `claude` CLI —
+  and it reported exactly `2.1.257`, matching the changelog target — so
+  `claude plugin validate .` and `bash scripts/doctor.sh .` were re-run for
+  real (both passed: marketplace manifest valid; all capability rows
+  native/native-experimental/partial as expected) instead of the
+  changelog + npm-registry method alone; `platform-targets.json`'s
+  `verification_method` records this. `scripts/check-platform-targets.sh`,
+  `check-feature-equivalence.sh`, `check-doc-claims.sh`,
+  `check-version-truth.sh`, `check-capability-registry.sh`,
+  `check-marketplace-schema.sh`, `check-github-policy.sh`, and
+  `check-agent-drift.sh` were run directly and passed; every
+  `tests/test-*.sh` file passed when run directly, `tests/test-statusline.sh`
+  included — see the correction above for why last cycle's "racy harness"
+  note was itself wrong.
+
+### Fixed
+- **`tests/test-statusline.sh` no longer leaves its tmpdir empty, and says so
+  if it disappears anyway.** Three CI jobs have failed with the suite's
+  `$TMPROOT` gone mid-run — run 33595749097 on `aeb42caf` and both jobs of run
+  33597009636 attempt 1 on `9a7c916`, all on ubuntu-24.04 image
+  20260823.283.1. Attempt 2 of the same commit, unchanged, went green. **The
+  root cause is not established.** What is established: no code in this repo
+  can delete a bare `/tmp/tmp.XXXXXXXXXX` — every destructive path is rooted
+  under `$HOME/.claude/…` or the script's own `mktemp` output, and
+  `scripts/statusline.sh` contains no `rm`, `mktemp`, `find` or `trap` at all;
+  the runner version is not the discriminator (2.337.0 on both failures and
+  passes); and the `rm: … Directory not empty` line from
+  `cleanup_stale_worktrees` appears on green runs too, so it is a constant, not
+  the trigger. The one property that distinguishes this suite from the eight
+  other tmpdir-using suites is that its ~2s watchdog self-test leaves the
+  directory **empty and unreferenced** for that whole window, where every other
+  suite writes a child within milliseconds. So the fix removes that property —
+  `: > "$TMPROOT/.keep"` — rather than claiming a mechanism. A `[ -d "$TMPROOT" ]`
+  assertion after the self-test turns a recurrence into one named failure with
+  `ls -ld /tmp` attached, instead of five cases failing as bogus timeouts.
+  Prevention, not diagnosis; the comment in the file says exactly that.
+
+
 ## [3.5.0] — 2026-09-01
 
 ### Fixed
