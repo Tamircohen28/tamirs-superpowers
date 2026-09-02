@@ -269,6 +269,52 @@ slots="$(bash -c 'source "$1/hooks/lib/worktree-common.sh"
   _release_install_slot "$a"; _release_install_slot "$b"' _ "$ROOT")"
 judge "the third concurrent installer is capped out" "slot-0|slot-1|NONE" "$slots"
 
+# --- SUPERPOWERS_WORKTREE_CLEANUP ---------------------------------------------
+#
+# Two layers, because the interesting one cannot be asserted synchronously.
+#
+# The predicate is a pure function, so its accepted spellings are checked
+# directly. The end-to-end case then proves the guard is actually WIRED to the
+# pass — a correct predicate nobody calls would pass the first layer alone.
+for v in 0 false off no never disabled; do
+  judge "worktree_cleanup_enabled rejects '$v'" "disabled" \
+    "$(bash -c 'source "$1/hooks/lib/worktree-common.sh"
+       SUPERPOWERS_WORKTREE_CLEANUP="$2" worktree_cleanup_enabled && echo enabled || echo disabled' _ "$ROOT" "$v")"
+done
+for v in unset auto 1 true yes; do
+  judge "worktree_cleanup_enabled accepts '$v'" "enabled" \
+    "$(bash -c 'source "$1/hooks/lib/worktree-common.sh"
+       if [ "$2" = unset ]; then unset SUPERPOWERS_WORKTREE_CLEANUP; else export SUPERPOWERS_WORKTREE_CLEANUP="$2"; fi
+       worktree_cleanup_enabled && echo enabled || echo disabled' _ "$ROOT" "$v")"
+done
+
+# End-to-end. `cleanup_stale_worktrees` detaches, so there is no exit status to
+# wait on and no synchronous moment to assert at: poll instead. "retired" is
+# proven by the directory going away; "kept" is proven by it still being there
+# after a window several times longer than the removal actually takes.
+cleanup_case() {  # cleanup_case <value or "unset">
+  local home="$TMPROOT/cleanup-home" stale i
+  rm -rf "$home"
+  stale="$home/.claude/worktrees/somerepo/old-task"
+  mkdir -p "$stale/.git"
+  touch -t 202001010000 "$stale"   # older than the 3-day default retention
+  bash -c '
+    export HOME="$1"
+    source "$2/hooks/lib/worktree-common.sh"
+    if [ "$3" = unset ]; then unset SUPERPOWERS_WORKTREE_CLEANUP; else export SUPERPOWERS_WORKTREE_CLEANUP="$3"; fi
+    cleanup_stale_worktrees
+  ' _ "$home" "$ROOT" "$1" >/dev/null 2>&1
+  for i in 1 2 3 4 5 6 7 8 9 10; do
+    [ -d "$stale" ] || { echo retired; return; }
+    sleep 0.2
+  done
+  echo kept
+}
+
+judge "cleanup retires a stale worktree by default"     "retired" "$(cleanup_case unset)"
+judge "SUPERPOWERS_WORKTREE_CLEANUP=0 skips the pass"   "kept"    "$(cleanup_case 0)"
+judge "SUPERPOWERS_WORKTREE_CLEANUP=1 still runs"       "retired" "$(cleanup_case 1)"
+
 echo
 echo "passed: $PASS   failed: $FAIL"
 if [ "$FAIL" -ne 0 ]; then

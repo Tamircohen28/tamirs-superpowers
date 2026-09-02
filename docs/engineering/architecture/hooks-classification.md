@@ -146,6 +146,23 @@ untracked file at the top level makes `git status --porcelain` non-empty, which
 is exactly the signal `cleanup_stale_worktrees` uses to decide a worktree still
 holds work — a stamp in the tree would quietly disable stale cleanup.
 
+## Stale worktree retirement
+
+`cleanup_stale_worktrees` runs from `session-init.sh` and `session-end.sh`. It
+detaches its `rm -rf` so the hook returns immediately (see the comment above
+`cleanup_stale_worktrees` for why the inline version had a 27 s worst case).
+
+| Variable | Default | Effect |
+|---|---|---|
+| `WORKTREE_RETENTION_DAYS` | `3` | Age past which a clean worktree is retired |
+| `SUPERPOWERS_WORKTREE_CLEANUP` | `auto` | `0`/`false`/`off`/`no` skips the pass entirely |
+
+Set `SUPERPOWERS_WORKTREE_CLEANUP=0` in any **test** that invokes a hook. The
+detached worker outlives the hook and keeps running alongside the suite; it is
+scoped to `$WORKTREE_ROOT` and cannot reach a suite's own tmpdir, but it appears
+in `ps` as an ownerless live `rm -rf`, which is misleading evidence for anyone
+debugging a test that lost a directory.
+
 ## Must not ship as-is
 
 Two hooks encode one employer's internal namespace into a plugin distributed to

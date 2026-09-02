@@ -547,11 +547,28 @@ append_env_exports() {
 # subshell keeps stdout and stderr off the caller's: SessionStart parses this
 # hook's stdout as JSON, and an inherited descriptor would hold that pipe open
 # and stall the very thing being fixed.
+#
+# SUPERPOWERS_WORKTREE_CLEANUP=0 turns the whole pass off. That exists for test
+# suites: a suite that invokes a hook inherits this detached `rm -rf` worker,
+# which outlives the hook and keeps running while the suite does. It is scoped
+# to `$WORKTREE_ROOT` so it cannot touch a suite's own tmpdir, but it does show
+# up in a `ps` listing as a live `rm -rf` with no obvious owner, which is
+# exactly the kind of noise that sends an investigation the wrong way. Set it
+# to 0 in any test that runs a hook and does not want the process.
 cleanup_stale_worktrees() {
+  worktree_cleanup_enabled || return 0
   ( _cleanup_stale_worktrees_blocking ) >/dev/null 2>&1 &
   # Detach where the shell supports it, so the hook exiting cannot SIGHUP the
   # deletion half-done and leave a partially-removed worktree behind.
   disown 2>/dev/null || true
+}
+
+# Same accepted spellings as worktree_deps_enabled, for one vocabulary.
+worktree_cleanup_enabled() {
+  case "$(printf '%s' "${SUPERPOWERS_WORKTREE_CLEANUP:-auto}" | tr '[:upper:]' '[:lower:]')" in
+    0|false|off|no|never|disabled) return 1 ;;
+    *) return 0 ;;
+  esac
 }
 
 # Single-flight, because sessions overlap.
