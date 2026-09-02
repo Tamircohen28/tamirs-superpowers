@@ -10,16 +10,16 @@ source "${SCRIPT_DIR}/lib/worktree-common.sh"
 source "${SCRIPT_DIR}/lib/hook-output.sh"
 
 input="$(hook_read_stdin)"
-session_id="$(echo "$input" | jq -r '.session_id // empty')"
-cwd="$(echo "$input" | jq -r '.cwd // empty')"
-source_kind="$(echo "$input" | jq -r '.source // "startup"')"
+session_id="$(printf '%s' "$input" | jq -r '.session_id // empty')"
+cwd="$(printf '%s' "$input" | jq -r '.cwd // empty')"
+source_kind="$(printf '%s' "$input" | jq -r '.source // "startup"')"
 # Claude Code 2.1.251+: resume/fork payloads add these four fields describing
 # how stale the resumed transcript's prompt cache is. Absent on every other
 # source (startup, clear, compact) and on pre-2.1.251 hosts, where the `//
 # empty` fallback leaves them blank and the staleness note below never fires.
-prompt_cache_likely_expired="$(echo "$input" | jq -r '.prompt_cache_likely_expired // empty')"
-context_tokens="$(echo "$input" | jq -r '.context_tokens // empty')"
-estimated_cache_write_usd="$(echo "$input" | jq -r '.estimated_cache_write_usd // empty')"
+prompt_cache_likely_expired="$(printf '%s' "$input" | jq -r '.prompt_cache_likely_expired // empty')"
+context_tokens="$(printf '%s' "$input" | jq -r '.context_tokens // empty')"
+estimated_cache_write_usd="$(printf '%s' "$input" | jq -r '.estimated_cache_write_usd // empty')"
 
 cleanup_stale_worktrees >/dev/null 2>&1 || true
 

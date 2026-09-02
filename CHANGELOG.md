@@ -5,6 +5,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [3.6.0] — 2026-09-02
+
 ### Added
 - **Statusline: a `spend` line when a Claude apps gateway reports a spend
   limit.** Claude Code 2.1.251 added `rate_limits.spend_limit`
