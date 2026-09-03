@@ -6,6 +6,31 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ## [Unreleased]
 
 ### Fixed
+- **`hooks/docker-guard.py` was bypassable through the `Shell` tool** (#107).
+  The guard opened with `if data.get("tool_name") != "Bash"` and dropped every
+  other payload, while `hooks/hooks.json` wires it on `"Bash|Shell"`. So the
+  no-local-Docker rule was enforceable through `Bash` and unenforceable through
+  `Shell` — the same bypass-by-sibling-tool shape closed in
+  `guard-sensitive-files.sh`, and worse for sitting inside a matcher that
+  *claims* to cover `Shell`. The tool set is now the constant `TOOLS`, pinned by
+  a test against the matcher in `hooks.json`, so the two cannot drift apart
+  silently again.
+- **The guard's allow paths emitted nothing at all.** Empty stdout is not a
+  portable pass: Claude Code reads it as allow, Cursor fail-closes on it, so one
+  verdict meant "permit" on one host and "deny" on the other. Every exit now
+  prints the allow shape `hooks/lib/hook-output.sh` defines — `{}` on Claude
+  Code, `{"permission":"allow"}` on Cursor, chosen from the payload.
+
+### Added
+- **`tests/test-docker-guard.sh`** — the guard had no tests. `test-hook-stdin.sh`
+  sweeps `hooks/*.sh`, so the one Python hook was never swept, which is how the
+  gap above went unwatched. Every risky and safe command is asserted through
+  *every* name in `TOOLS`, because a `Bash`-only suite passes unchanged against
+  the broken code — the defect exists only as the difference between two tools
+  on the same command. Verified by reverting the fix: 5 assertions fail, all of
+  them `Shell`, and every `Bash` assertion still passes.
+
+### Fixed
 - **`scripts/check-branch-literals.sh` was red, and nothing ran it.** Its single
   hit was prose, not code: a comment in
   `skills/repo/_contract/scripts/standards-inventory.sh` recounting the real
