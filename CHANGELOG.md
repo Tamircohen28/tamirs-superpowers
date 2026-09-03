@@ -51,6 +51,42 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   literals and stays silent on 6 legitimate ones, then scans the tree. Wiring it
   into `validate` carries it into CI, which already gates on `make validate`.
 
+### Changed
+- **Platform target: Claude Code 2.1.259** (from 2.1.257; 2.1.258 was already
+  reviewed in #119 with nothing to adopt). This cycle's automation environment
+  had a live `claude` CLI, and it reported exactly `2.1.259` — matching the
+  changelog target — so `validated_against` advances all the way to it instead
+  of stopping at the last text-reviewed version, the same standard set by the
+  2.1.257 cycle. `claude plugin validate .` (plain and the new `--json` mode)
+  and `bash scripts/doctor.sh .` were both re-run for real and passed:
+  marketplace manifest valid, every capability row native/native-experimental/
+  partial as expected. 2.1.259 adds `managedMcpServers`, `--permission-prompts
+  none`, `glab` merge-request subcommand recognition, and `--json` on `claude
+  plugin validate`; none apply here — this repo ships no `managed-settings.json`
+  for `managedMcpServers` to govern, its scripts do not invoke `claude`
+  non-interactively enough to need `--permission-prompts none`, its
+  `github-policy` skill targets GitHub rather than GitLab, and `--json` was
+  exercised above but not wired into `Makefile`/CI since both already gate on
+  exit code and print human-readable text that `--json` would only obscure.
+  The rest of the release is bug fixes, three of which touch capabilities this
+  repo depends on and are now documented in `CLAUDE.md`: frontmatter `model:`
+  is honored reliably in both auto mode and interactive sessions (the same
+  `agents/*.md` pin the 2.1.251/2.1.257 notes already describe — no change to
+  the pin itself, just to how faithfully the host now respects it); worktree
+  isolation no longer misidentifies hook-created worktrees or refuses Bash
+  loops, `xargs` pipelines, and launcher-wrapped commands (this repo creates
+  every worktree via `hooks/worktree-create.sh` and gates every edit inside one
+  via `hooks/enforce-worktree-edits.sh`, so both fixes land on core-safety-
+  invariant hooks); and a blocking `Stop` hook no longer costs the next turn's
+  prompt cache (this repo's `Stop`/`SessionEnd` hooks — `check-done.sh`,
+  `handoff-reminder.sh`, `release-agent-claims.sh`, `plugin-version-watch.sh`
+  — inform rather than block by design, so this closes a tax the repo was
+  already avoiding). No repo-side workaround existed for any of the three, so
+  there is nothing to remove — only fewer false-positive refusals and a more
+  reliable `model:` pin going forward. `docs/engineering/build-and-release/
+  platform-targets.{json,md}` and the README Claude Code badge/table row
+  advance to 2.1.259 alongside this entry.
+
 ## [3.6.1] — 2026-09-02
 
 ### Fixed
