@@ -15,9 +15,9 @@
       "supported_min": "2.0.0",
       "supported_min_source": "manifest format (.claude-plugin/plugin.json) stable since 2.0.0",
       "validated_against": "2.1.257",
-      "latest_known": "2.1.257",
+      "latest_known": "2.1.258",
       "verified_on": "2026-09-02",
-      "verification_method": "changelog + npm-registry method (automated nightly review), now current through 2.1.257 (2.1.253–2.1.256 were never published); a live `claude` CLI WAS available in this cycle's automation environment and reported exactly `2.1.257` — so `claude plugin validate .` and `bash scripts/doctor.sh .` were re-run for real and both passed (marketplace manifest valid; all listed capabilities report native/native-experimental/partial as expected, no unexpected gaps)",
+      "verification_method": "changelog + npm-registry method (automated nightly review), now current through 2.1.258; registry.npmjs.org confirms 2.1.258 as the published dist-tag. This cycle's automation environment had a live `claude` CLI, but it reported `2.1.257` (not yet updated to 2.1.258), so `validated_against` stays at 2.1.257 rather than asserting a version not actually run; `claude plugin validate .` and `bash scripts/doctor.sh .` were still re-run for real against that 2.1.257 CLI and both passed (marketplace manifest valid; all listed capabilities report native/native-experimental/partial as expected, no unexpected gaps). 2.1.258 is a two-bugfix release — a macOS 12 (Monterey) launch regression introduced in 2.1.255, and a fix for remote/scheduled sessions failing with a 'non-empty content' error after a re-sent permission approval could not be applied — neither touches a plugin/skill/hook/subagent/marketplace authoring surface, so no `features_adopted` entry or repo behavior change is warranted; this repo has no workaround for either bug to remove.",
       "install_doc": "docs/user/install/claude-code.md",
       "doc_urls": [
         "https://code.claude.com/docs/en/plugins-reference",
