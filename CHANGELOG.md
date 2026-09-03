@@ -5,6 +5,27 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Fixed
+- **`scripts/check-branch-literals.sh` was red, and nothing ran it.** Its single
+  hit was prose, not code: a comment in
+  `skills/repo/_contract/scripts/standards-inventory.sh` recounting the real
+  2026-09-01 incident in which a checkout one commit behind `origin/master`
+  reported the canonical version as 3.4.0 when it was 3.5.0. That literal *is*
+  the historical fact being recorded — there is no branch to resolve — so it now
+  carries the waiver the scanner was built for (`branch-literal-ok: <reason>`)
+  rather than being reworded to satisfy a matcher. PR #119 saw this failure and
+  correctly scoped it out; this is that follow-up.
+
+### Changed
+- **`make validate` now runs `check-branch-literals`.** The script was reachable
+  from no target and no CI job, which is why the failure above could sit red
+  without failing anything — precisely the rot its own header names: "a check
+  that has never been shown to fail is indistinguishable from a check that greps
+  nothing, and this repo has shipped several of those." The new target invokes it
+  as `. --self-test`, so each run first proves the detector fires on 9 planted
+  literals and stays silent on 6 legitimate ones, then scans the tree. Wiring it
+  into `validate` carries it into CI, which already gates on `make validate`.
+
 ## [3.6.1] — 2026-09-02
 
 ### Fixed
