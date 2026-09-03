@@ -1,6 +1,6 @@
 {
   "schema_version": 2,
-  "last_reviewed": "2026-09-02",
+  "last_reviewed": "2026-09-03",
   "reviewed_by_skill": "tamirs-superpowers@3.6.1",
   "supported_targets": [
     "claude_code",
@@ -14,10 +14,10 @@
       "platform": "claude",
       "supported_min": "2.0.0",
       "supported_min_source": "manifest format (.claude-plugin/plugin.json) stable since 2.0.0",
-      "validated_against": "2.1.257",
-      "latest_known": "2.1.258",
-      "verified_on": "2026-09-02",
-      "verification_method": "changelog + npm-registry method (automated nightly review), now current through 2.1.258; registry.npmjs.org confirms 2.1.258 as the published dist-tag. This cycle's automation environment had a live `claude` CLI, but it reported `2.1.257` (not yet updated to 2.1.258), so `validated_against` stays at 2.1.257 rather than asserting a version not actually run; `claude plugin validate .` and `bash scripts/doctor.sh .` were still re-run for real against that 2.1.257 CLI and both passed (marketplace manifest valid; all listed capabilities report native/native-experimental/partial as expected, no unexpected gaps). 2.1.258 is a two-bugfix release — a macOS 12 (Monterey) launch regression introduced in 2.1.255, and a fix for remote/scheduled sessions failing with a 'non-empty content' error after a re-sent permission approval could not be applied — neither touches a plugin/skill/hook/subagent/marketplace authoring surface, so no `features_adopted` entry or repo behavior change is warranted; this repo has no workaround for either bug to remove.",
+      "validated_against": "2.1.259",
+      "latest_known": "2.1.259",
+      "verified_on": "2026-09-03",
+      "verification_method": "changelog + live-CLI method (automated nightly review). This cycle's automation environment had a live `claude` CLI and it reported exactly `2.1.259`, matching the changelog target, so `validated_against` advances all the way to it rather than stopping at the last text-reviewed version; `claude plugin validate .` (both plain and `--json`, new in 2.1.259) and `bash scripts/doctor.sh .` were re-run for real and both passed (marketplace manifest valid; all listed capabilities report native/native-experimental/partial as expected, no unexpected gaps). 2.1.258 (2 bugfixes: macOS 12 launch regression, a remote/scheduled-session permission-resubmission error) was already reviewed in #119 with nothing to adopt. 2.1.259 is reviewed here for the first time: it adds `managedMcpServers` (an org-managed-settings key this repo, which ships no `managed-settings.json`, has no occasion to set), `--permission-prompts none` (a headless-host flag this repo's scripts do not invoke `claude` non-interactively enough to need), `glab` merge-request subcommand recognition (this repo's `github-policy` skill targets GitHub, not GitLab), and `--json` on `claude plugin validate` (adopted above for validation itself, not wired into CI since `plugin-validate`/CI already gate on exit code and print human-readable text, which `--json` would only obscure). The rest of the release is bug fixes; the ones touching capabilities this repo depends on are documented in `CLAUDE.md`'s Subagents and Hooks bullets (frontmatter `model:` now honored reliably in auto mode and interactive sessions; worktree isolation no longer misidentifies hook-created worktrees or refuses Bash loops/`xargs`/launcher-wrapped commands; a blocking `Stop` hook no longer costs the next turn's prompt cache) — each is a host-side reliability fix with no repo-side workaround to remove.",
       "install_doc": "docs/user/install/claude-code.md",
       "doc_urls": [
         "https://code.claude.com/docs/en/plugins-reference",
