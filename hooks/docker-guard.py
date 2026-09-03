@@ -16,13 +16,30 @@ Approve one command by prefixing it: PM_ALLOW_DOCKER=1 docker compose up -d
 Or suppress for a whole session: export PM_ALLOW_DOCKER=1
 
 Delivered by the plugin and wired from hooks/hooks.json as
-`PreToolUse:Bash` -> `python3 "${CLAUDE_PLUGIN_ROOT}/hooks/docker-guard.py"`.
+`PreToolUse:Bash|Shell` -> `python3 "${CLAUDE_PLUGIN_ROOT}/hooks/docker-guard.py"`.
 The name used in the block message comes from DOCKER_GUARD_OWNER (default
 "the user"), so nothing here is machine-specific.
 
 Hook-safe: stdin is read with a bounded wait. No payload within
 DOCKER_GUARD_STDIN_TIMEOUT seconds (default 2) means "allow and exit", so an
 interactive or absent stdin can never hang the tool call.
+
+WHY THE TOOL SET IS A CONSTANT AND NOT A LITERAL
+  Until 2026-08-31 this guard read `tool_name != "Bash"` and dropped everything
+  else, while hooks.json wired it on `Bash|Shell`. The rule was therefore
+  enforceable through Bash and unenforceable through Shell — the same
+  bypass-by-sibling-tool shape closed in guard-sensitive-files.sh, one file
+  over, and worse for sitting inside a matcher that *claims* to cover Shell.
+  TOOLS below must stay in step with that matcher; the docker-guard suite
+  asserts a matched allow/deny pair for every name in it.
+
+WHY EVERY EXIT PRINTS JSON
+  The allow paths used to be a bare `sys.exit(0)` — empty stdout. Claude Code
+  reads that as allow, but Cursor fail-closes on empty stdout, so the same
+  verdict meant "permit" on one host and "deny" on the other. Per
+  hooks/lib/hook-output.sh, an allow is `{}` on Claude Code and
+  `{"permission":"allow"}` on Cursor; allow() emits whichever the payload
+  identifies, so no path here is silent.
 """
 import json
 import os
@@ -40,6 +57,13 @@ OVERRIDE = re.compile(r"\bPM_ALLOW_DOCKER=1\b")
 LEADING = re.compile(r"^(?:\s*(?:sudo|command|time|env|nohup)\s+|\s*[A-Za-z_][A-Za-z0-9_]*=\S*\s+)+")
 
 ENGINE = r"(?:docker|podman|docker-compose|podman-compose)"
+
+# Must match the PreToolUse matcher in hooks/hooks.json ("Bash|Shell").
+TOOLS = ("Bash", "Shell")
+
+# Payload keys only Cursor sends; mirrors hook_detect_platform in
+# hooks/lib/hook-output.sh.
+CURSOR_KEYS = ("conversation_id", "cursor_version", "workspace_roots")
 
 # Read-only / cleanup — never prompt. Checked before the create patterns.
 SAFE = re.compile(
@@ -116,26 +140,39 @@ def read_payload():
         return None
 
 
+def allow(data=None):
+    """Emit this host's allow verdict and exit.
+
+    Never `sys.exit(0)` on an allow instead: empty stdout is a portable
+    ambiguity, not a portable pass (see the module docstring).
+    """
+    cursor = isinstance(data, dict) and any(
+        data.get(key) is not None for key in CURSOR_KEYS
+    )
+    print(json.dumps({"permission": "allow"} if cursor else {}))
+    sys.exit(0)
+
+
 def main():
     data = read_payload()
     if not isinstance(data, dict):
-        sys.exit(0)
+        allow()
 
-    if data.get("tool_name") != "Bash":
-        sys.exit(0)
+    if data.get("tool_name") not in TOOLS:
+        allow(data)
     if os.environ.get("PM_ALLOW_DOCKER") == "1":
-        sys.exit(0)
+        allow(data)
 
     command = (data.get("tool_input") or {}).get("command") or ""
     # Inline `PM_ALLOW_DOCKER=1 docker run ...` is the documented approval path.
     # It must be checked against the raw command: segments() strips leading env
     # assignments, and an inline assignment never reaches this process's environ.
     if OVERRIDE.search(command):
-        sys.exit(0)
+        allow(data)
 
     seg, why = verdict(command)
     if not seg:
-        sys.exit(0)
+        allow(data)
 
     owner = os.environ.get("DOCKER_GUARD_OWNER") or "the user"
     reason = (
