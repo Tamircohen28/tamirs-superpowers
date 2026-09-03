@@ -13,6 +13,13 @@
 node_modules/
 npm-debug.log*
 
+# Python bytecode. hooks/docker-guard.py is the one Python hook, and anything
+# that imports or byte-compiles it (`python3 -m py_compile`, a test run) drops a
+# __pycache__/ next to it. Untracked-but-unignored, that lands in the next
+# `git add -A` — which is exactly how a .pyc reached master once.
+__pycache__/
+*.py[cod]
+
 # Local secrets / env
 .env
 .env.local
