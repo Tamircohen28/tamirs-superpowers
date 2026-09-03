@@ -40,6 +40,7 @@ help:
 	@echo "  check-manifest-versions — plugin manifests agree with each other"
 	@echo "  check-marketplace-schema — extraKnownMarketplaces is a record, not an array"
 	@echo "  check-doc-claims        — skill counts and target coverage match reality"
+	@echo "  check-branch-literals   — no hardcoded main/master in branch position"
 	@echo "  doctor                  — environment/install health report"
 	@echo "  check-version-truth     — every manifest/doc agrees with plugin-version.json"
 	@echo "  check-capability-registry — core/capabilities/ registry is valid"
@@ -100,7 +101,7 @@ test-hooks:
 
 validate: lint test-hooks test-repo-contract check-manifest-versions check-platform-equivalence \
 	check-marketplace-schema check-doc-claims check-version-truth check-capability-registry \
-	validate-roles check-gemini-adapter check-github-policy
+	validate-roles check-gemini-adapter check-github-policy check-branch-literals
 	@echo "--- Validating JSON files ---"
 	@find . -name '*.json' -not -path '*/.git/*' | while read f; do \
 	  jq empty "$$f" 2>&1 && echo "  OK  $$f" || { echo "  FAIL $$f"; exit 1; }; \
@@ -134,6 +135,10 @@ check-marketplace-schema:
 check-doc-claims:
 	@bash scripts/check-doc-claims.sh --self-test
 	@bash scripts/check-doc-claims.sh .
+
+check-branch-literals:
+	@echo "--- Hardcoded default-branch names ---"
+	@bash scripts/check-branch-literals.sh . --self-test
 
 doctor:
 	@bash scripts/doctor.sh .

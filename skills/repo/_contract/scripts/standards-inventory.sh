@@ -358,10 +358,10 @@ branding=$(bash "$(dirname "$0")/check-readme-branding.sh" "$ROOT" --json)
 # An audit is a claim about what is on the default branch, so it has to be made
 # against the default branch. Auditing a stale working copy does not merely
 # report an old version number: on 2026-09-01 a review run one commit behind
-# origin/master reported the canonical version as 3.4.0 when it was 3.5.0, which
-# in turn misstated the release-gap finding as one unreleased version instead of
-# two. The wrong number changed a finding's severity, and the report outlived the
-# session that produced it.
+# origin/master reported the canonical version as 3.4.0 when it was 3.5.0.  branch-literal-ok: prose recording a past incident, not a branch this script resolves
+# That in turn misstated the release-gap finding as one unreleased version
+# instead of two. The wrong number changed a finding's severity, and the report
+# outlived the session that produced it.
 #
 # Read-only and best-effort: `git fetch` may fail with no network, no remote or
 # no credentials, and an audit must still run offline. Unknown is reported as
