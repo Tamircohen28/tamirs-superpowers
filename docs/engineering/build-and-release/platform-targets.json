@@ -1,6 +1,6 @@
 {
   "schema_version": 2,
-  "last_reviewed": "2026-09-02",
+  "last_reviewed": "2026-09-06",
   "reviewed_by_skill": "tamirs-superpowers@3.6.1",
   "supported_targets": [
     "claude_code",
@@ -14,10 +14,10 @@
       "platform": "claude",
       "supported_min": "2.0.0",
       "supported_min_source": "manifest format (.claude-plugin/plugin.json) stable since 2.0.0",
-      "validated_against": "2.1.257",
-      "latest_known": "2.1.258",
-      "verified_on": "2026-09-02",
-      "verification_method": "changelog + npm-registry method (automated nightly review), now current through 2.1.258; registry.npmjs.org confirms 2.1.258 as the published dist-tag. This cycle's automation environment had a live `claude` CLI, but it reported `2.1.257` (not yet updated to 2.1.258), so `validated_against` stays at 2.1.257 rather than asserting a version not actually run; `claude plugin validate .` and `bash scripts/doctor.sh .` were still re-run for real against that 2.1.257 CLI and both passed (marketplace manifest valid; all listed capabilities report native/native-experimental/partial as expected, no unexpected gaps). 2.1.258 is a two-bugfix release — a macOS 12 (Monterey) launch regression introduced in 2.1.255, and a fix for remote/scheduled sessions failing with a 'non-empty content' error after a re-sent permission approval could not be applied — neither touches a plugin/skill/hook/subagent/marketplace authoring surface, so no `features_adopted` entry or repo behavior change is warranted; this repo has no workaround for either bug to remove.",
+      "validated_against": "2.1.263",
+      "latest_known": "2.1.263",
+      "verified_on": "2026-09-06",
+      "verification_method": "changelog + live-CLI method (automated nightly review). This cycle's automation environment had a live `claude` CLI and it reported exactly `2.1.263`, matching the changelog target, so `validated_against` advances all the way to it; `claude plugin validate .` (plain and `--json`) and `bash scripts/doctor.sh .` were re-run for real and both passed (marketplace manifest valid; all listed capabilities report native/native-experimental/partial as expected, no unexpected gaps). 2.1.259 was reviewed in #123; this cycle covers 2.1.260, 2.1.261 and 2.1.263 (2.1.262 does not exist in the official changelog). 2.1.260 fixes `permissions.blockReadsOutsideWorkingDirectories` hiding a worktree-isolated sub-agent's own checkout on macOS — this repo does not set that permission (reviewed and left out of `platforms/claude/settings.d/` in an earlier cycle as a personal auto-mode preference, not a plugin default), but the fix benefits worktree isolation for anyone who enables it alongside `hooks/worktree-create.sh`/`hooks/enforce-worktree-edits.sh`, now documented in `CLAUDE.md`'s Hooks bullet. The same release adds `/reload-plugins` to headless (`-p`/SDK) sessions, documented in `CLAUDE.md`'s Remote/headless section. 2.1.261 adds `/skill-doctor` (surfaces unused loaded skills and their context cost) — directly relevant to this toolkit's 27 skills, now a maintenance tip in `docs/engineering/build-and-release/development-workflow.md` — and `bashOutputMaxChars`/`taskOutputMaxChars` (raises inline command/task output before it spills to a file), not wired anywhere since no hook or `make validate` output here is known to hit the default threshold. Reviewed and found not applicable: `--append-subagent-system-prompt-file` (2.1.261) — this repo's subagents run natively via `agents/*.md` frontmatter rather than a `claude` CLI system-prompt flag, and the one place a large prompt feeds a `claude -p` subprocess (`skill-creator`'s `improve_description.py`) already sends it over stdin, not argv, so the argv-length problem this flag solves does not exist here; the 2.1.260 revert of 2.1.259's `Read()`-deny-on-Bash-args change — this repo's worktree/sensitive-file isolation is enforced by hooks, not `Read(...)` deny rules in settings, so neither the original change nor its revert touched anything here; and Workflow tool `agent({schema})` validation (2.1.260) — this repo authors no Workflow scripts (`core/workflow/` is an unrelated, repo-internal objective-state schema).",
       "install_doc": "docs/user/install/claude-code.md",
       "doc_urls": [
         "https://code.claude.com/docs/en/plugins-reference",
@@ -53,7 +53,10 @@
         "spend-limit-statusline-2.1.251",
         "resume-staleness-recache-hint-2.1.251",
         "marketplace-refresh-race-background-skills-docs-2.1.251",
-        "subagent-model-force-docs-2.1.257"
+        "subagent-model-force-docs-2.1.257",
+        "worktree-subagent-checkout-visibility-fix-docs-2.1.260",
+        "reload-plugins-headless-docs-2.1.260",
+        "skill-doctor-context-audit-docs-2.1.261"
       ],
       "capabilities": [
         "agent_teams",

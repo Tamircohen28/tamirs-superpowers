@@ -49,6 +49,12 @@ make doctor          # or: bash scripts/doctor.sh .
 
 Full picture: [testing matrix](testing-matrix.md).
 
+**Skill context budget.** With 27 skills shipped, run `/skill-doctor` (Claude Code 2.1.261+)
+periodically in an interactive session to see which loaded skills went unused in a transcript
+and what they cost in context — a maintenance signal for `skill-quality-standards.md`'s
+pruning bar, not a CI-wired check: it reads live session data, not the repo tree, so there is
+nothing here for `make validate` to invoke.
+
 ## Working on the toolkit itself
 
 Load your working copy directly instead of the installed plugin:
