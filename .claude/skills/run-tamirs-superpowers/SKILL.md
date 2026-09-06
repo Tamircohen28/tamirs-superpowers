@@ -60,7 +60,7 @@ bash .claude/skills/run-tamirs-superpowers/smoke.sh
 | 4. SKILL.md quality | `python3 scripts/validate-skill-frontmatter.py` — tiered: portable core fails the build, `metadata.tamirs` warns while absent, Claude fields validated when present |
 | 5. Hook wiring | every `.sh` in `hooks/` is referenced in `hooks.json` |
 | 6. No `/Users/` paths | skills must use `$CLAUDE_SKILL_DIR` or relative paths, not hardcoded absolutes |
-| 7. No Wix/internal refs | employer-specific patterns must be absent from skill files |
+| 7. No employer/internal refs | internal-hostname shapes must be absent from skill files; no employer is named in the pattern — set `$TAMIRS_EMPLOYER_PATTERN` for a private one |
 
 Exit 0 = all 7 sections pass. Exit 1 = at least one FAIL (not WARN).
 

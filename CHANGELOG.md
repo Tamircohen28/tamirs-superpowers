@@ -5,6 +5,40 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Removed
+- **The employer IP-guard hook, and every remaining reference to the employer it
+  named.** The hook shipped one employer's internal namespace — registries, API
+  hostnames, credential prefixes and scoped packages, as literal strings — to
+  every user of a public plugin. It was a real need for its author and
+  meaningless to everyone else, and the names it existed to keep out of other
+  repos were sitting in this one. It is deleted and unwired from `hooks.json`.
+
+  Removed rather than converted to a configurable deny-list, which is what
+  `docs/engineering/architecture/repo-shape-conditionality.md` §5 had open. That
+  seam already exists: `scripts/lib/capture-common.sh` drives an IP scan from
+  generic internal-hostname shapes plus an optional per-machine
+  `$TAMIRS_EMPLOYER_PATTERN` / `~/.config/tamirs-superpowers/scan-patterns.txt`.
+  A second deny-list in a `PostToolUse` hook would have duplicated it, with the
+  same maintenance and one more place for a private name to land.
+
+### Changed
+- **The employer scanners no longer name a company.** `tests/test-static.sh` and
+  the `run-tamirs-superpowers` check 7 both matched a hardcoded company regex —
+  so the check against shipping an employer reference was itself an employer
+  reference. Both now use generic internal-hostname shapes plus
+  `$TAMIRS_EMPLOYER_PATTERN`, and exclude RFC 2606 / RFC 6761 documentation
+  domains so `find-skill`'s `registry.internal.example` stays clean. The static
+  suite's positive control still fires — on a synthetic internal hostname built
+  from a placeholder company, not a real one.
+- **`hooks/validate-report-links.sh`** keys its Grafana URL check on `grafana`
+  and `app-analytics` only; the employer-specific analytics hostname is gone.
+  The generic GitHub / Slack / placeholder checks are unchanged.
+- **`assets/banner.png`** re-encoded losslessly. Its compressed IDAT stream
+  happened to contain a three-byte sequence spelling the employer's name, so a
+  case-insensitive `grep -r` over the repo reported the image as a match.
+  Decoded pixel data, `IHDR` and every metadata chunk are byte-identical; the
+  file is 235 KB smaller as a side effect.
+
 ### Fixed
 - **`hooks/docker-guard.py` was bypassable through the `Shell` tool** (#107).
   The guard opened with `if data.get("tool_name") != "Bash"` and dropped every
