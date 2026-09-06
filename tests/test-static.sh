@@ -48,10 +48,10 @@ git ls-files -z --cached --others --exclude-standard > "$FILES0"
 scan() { portable_xargs0 "${2:-$FILES0}" grep -nIE "$1" 2>/dev/null || true; }
 
 # Files whose PURPOSE is to name a forbidden pattern: this scanner, the shim it
-# documents, and the repo's own employer-IP guards. Naming them explicitly (rather
+# documents, and the plugin's own health check. Naming them explicitly (rather
 # than exempting by regex) keeps the exemption visible in review — a silent
 # pattern-based carve-out is how a real leak eventually slips through.
-SELF_REFERENTIAL='^(tests/test-static\.sh|tests/lib/portable\.sh|hooks/wix-ip-guard\.sh|\.claude/skills/run-tamirs-superpowers/smoke\.sh|scripts/check-doc-claims\.sh):'
+SELF_REFERENTIAL='^(tests/test-static\.sh|tests/lib/portable\.sh|\.claude/skills/run-tamirs-superpowers/smoke\.sh|scripts/check-doc-claims\.sh):'
 
 # strip_noise — remove comment-only hits and self-referential files from a
 # `file:line:content` stream. A rule stated in a comment is documentation, not a
@@ -68,7 +68,23 @@ scan_i() { portable_xargs0 "${2:-$FILES0}" grep -nIiE "$1" 2>/dev/null || true; 
 # different pattern proves nothing.
 SECRET_RE='(ghp_|github_pat_|gho_|ghs_)[A-Za-z0-9_]{16,}|sk-[A-Za-z0-9]{32,}|AKIA[0-9A-Z]{16}|-----BEGIN [A-Z ]*PRIVATE KEY-----'
 HOMEPATH_RE='/(Users|home)/[A-Za-z0-9._-]+'
-EMPLOYER_RE='\b(wix\.com|wixpress|\.wixprod)\b'
+# A public repo cannot hardcode a private employer's name: writing one here would
+# itself ship the reference the check exists to catch. So the pattern is assembled
+# the way scripts/lib/capture-common.sh assembles its IP-scan patterns — generic
+# internal-hostname shapes that need no private name, plus an optional per-machine
+# regex in $TAMIRS_EMPLOYER_PATTERN. Every shape needs a hostname context, for the
+# reason recorded there: bare `.local`/`.prod` fired on dotted KEY PATHS, and a
+# scanner that cries wolf is one people learn to ignore.
+EMPLOYER_RE='\b[A-Za-z0-9][A-Za-z0-9-]*\.(corp|internal|intranet)\b'
+EMPLOYER_RE="$EMPLOYER_RE"'|https?://[A-Za-z0-9.-]*\.(corp|internal|intra|intranet|lan)[:/]'
+EMPLOYER_RE="$EMPLOYER_RE"'|\b(artifactory|nexus|jfrog)\.[A-Za-z0-9.-]+\b'
+if [ -n "${TAMIRS_EMPLOYER_PATTERN:-}" ]; then
+  EMPLOYER_RE="$EMPLOYER_RE|$TAMIRS_EMPLOYER_PATTERN"
+fi
+# RFC 2606 / RFC 6761 reserved names are documentation, not a leak: `find-skill`
+# documents a self-hosted source as registry.internal.example precisely so the
+# docs need no real internal hostname.
+DOC_DOMAIN_RE='\.(example|invalid|test)\b|\bexample\.(com|org|net)\b'
 # Foreign orchestrators: REFACTOR-SPEC 2.1 forbids requiring them, not naming
 # them. Prose in docs/ may name one to explain that its wiring is preserved;
 # an executable, manifest or skill naming one is a dependency and is refused.
@@ -88,7 +104,7 @@ section "harness self-test (a scanner that cannot fail proves nothing)"
 CTRL="$(harness_tmpdir)"
 printf 'token = ghp_%s\n' "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAA" > "$CTRL/secret.txt"
 printf 'path = /Users/somerealname/src/thing\n'             > "$CTRL/homepath.txt"
-printf 'see the wixpress runbook\n'                         > "$CTRL/employer.txt"
+printf 'see https://wiki.acme-co.internal/runbook\n'        > "$CTRL/employer.txt"
 printf 'requires the gas town formula\n'                    > "$CTRL/orchestrator.txt"
 CTRL0="$CTRL/list.z"
 printf '%s\0%s\0%s\0%s\0' "$CTRL/secret.txt" "$CTRL/homepath.txt" "$CTRL/employer.txt" "$CTRL/orchestrator.txt" > "$CTRL0"
@@ -258,13 +274,14 @@ fi
 section "no employer / internal references"
 
 # Enumerated in the repo's own hard constraints. Matched case-insensitively and
-# word-bounded so 'wixel' or a URL fragment does not produce noise.
+# anchored to a hostname context so an ordinary dotted key path does not produce
+# noise. See the EMPLOYER_RE definition above for why no employer is named.
 emp=""
 while IFS= read -r hit; do
   [ -n "$hit" ] || continue
   emp="$emp
     $hit"
-done < <(scan_i "$EMPLOYER_RE" | strip_noise | grep -vE '^(tests/|session-files/)' || true)
+done < <(scan_i "$EMPLOYER_RE" | strip_noise | grep -vE '^(tests/|session-files/)' | grep -vE "$DOC_DOMAIN_RE" || true)
 judge "no employer-internal reference is shipped" "" "$emp"
 
 # A foreign orchestrator named in an executable, a manifest or a skill is a

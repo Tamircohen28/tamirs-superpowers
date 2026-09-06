@@ -9,7 +9,7 @@ Thanks for your interest. This is a personal plugin, but PRs for bug fixes and g
 - MCP server stubs for publicly available npm packages
 - Documentation improvements
 
-**Not accepted:** Wix-internal references, company-specific scripts, skills that only work with private tools.
+**Not accepted:** employer-internal references, company-specific scripts, skills that only work with private tools.
 
 ## Development setup
 

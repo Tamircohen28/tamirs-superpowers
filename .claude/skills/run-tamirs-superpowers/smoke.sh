@@ -82,14 +82,24 @@ else
   for f in $hits; do warn "hardcoded /Users/ path in $f"; done
 fi
 
-# ── 7. No Wix/internal references ────────────────────────────────────────
+# ── 7. No employer/internal references ───────────────────────────────────
+# No employer is named in the pattern: a public repo that hardcodes one ships the
+# very reference this check exists to catch. Generic internal-hostname shapes need
+# no private name; $TAMIRS_EMPLOYER_PATTERN adds a per-machine regex, the same seam
+# scripts/lib/capture-common.sh uses. Documentation domains (.example/.invalid/
+# .test) are excluded — they exist so docs need no real internal hostname.
 echo ""
-echo "=== 7. No Wix/internal references ==="
-wix_hits=$(grep -rli 'wixpress\|internal\.wix\|falcon\.ci\|#skipreview' skills/ --include='*.md' 2>/dev/null | grep -v '.git' || true)
-if [ -z "$wix_hits" ]; then
-  ok "no Wix/internal references in skills"
+echo "=== 7. No employer/internal references ==="
+internal_re='[A-Za-z0-9-]+\.(corp|internal|intranet)\b|#skipreview'
+[ -n "${TAMIRS_EMPLOYER_PATTERN:-}" ] && internal_re="$internal_re|$TAMIRS_EMPLOYER_PATTERN"
+internal_hits=$(grep -rlEi "$internal_re" skills/ --include='*.md' 2>/dev/null \
+  | while IFS= read -r f; do
+      grep -Ei "$internal_re" "$f" | grep -qvE '\.(example|invalid|test)\b' && printf '%s\n' "$f"
+    done || true)
+if [ -z "$internal_hits" ]; then
+  ok "no employer/internal references in skills"
 else
-  for f in $wix_hits; do warn "Wix/internal reference in $f"; done
+  for f in $internal_hits; do warn "employer/internal reference in $f"; done
 fi
 
 # ── Summary ───────────────────────────────────────────────────────────────

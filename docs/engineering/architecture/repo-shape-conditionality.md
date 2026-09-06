@@ -24,7 +24,7 @@ only in commit messages.
 | §5 | Tier-3 done requiring green CI on repos with no CI | **done** |
 | §6 | contract asserting non-universals | **partial** — 27 `_when_*` conditionals added; docs-tree tiering by purpose remains |
 | §6 | S4-04 (auto-merge) scored as a defect | **open** — a team-norm preference, same class as the retired S4-03 |
-| §5 | `wix-ip-guard.sh` patterns hardcoded in a shipped hook | **open** — should read a user-level list |
+| §5 | employer IP-guard patterns hardcoded in a shipped hook | **done** — the hook is removed; the company-agnostic seam in `capture-common.sh` (`$TAMIRS_EMPLOYER_PATTERN`) is the one mechanism |
 | §5 | captured config always promoted machine-global | **open** — some settings are legitimately per-repo |
 
 ---
@@ -207,7 +207,7 @@ to guess; denies instead).
 | platform-sync trigger keys on `CHANGELOG.md` alone | `hooks/skill-suggest.sh:111` | **A** — fires in every repo |
 | Global worktree layout `~/.claude/worktrees/<repo>/<slug>` stated as *the* policy | `worktree-common.sh:4`; `session-init.sh:136`; `enforce-worktree-edits.sh:129` | **A** — `objective-common.sh:26-31` already supports `.agent-worktrees/` + `SUPERPOWERS_AGENT_WORKTREE_ROOT`, and `core/policies/git.md:33-35` calls both valid. Two sources of truth for "where do I edit" |
 | Worktree shapes recognized: `.claude/ .cursor/ .codex/ .gemini/ .opencode/` | `worktree-common.sh:90`; `objective-common.sh:92,152` | **A** — a foreign worktree is classified as the main checkout and edits are denied |
-| Wix IP patterns hardcoded in a shipped hook | `hooks/wix-ip-guard.sh:23` | **B** — a personal-config value living in plugin code, with no config seam. Should read a user-level list |
+| Employer IP patterns hardcoded in a shipped hook | *(resolved — hook removed)* | **B** — a personal-config value living in plugin code, with no config seam. Superseded by `capture-common.sh`'s `$TAMIRS_EMPLOYER_PATTERN` / `scan-patterns.txt` seam |
 | One GitHub handle / one employer / one projects path | `core/global-rules.md:33,36,40` | **B** — placeholders imply substitution; nothing validates it happened |
 | Captured config is always machine-global | `scripts/lib/capture-common.sh:52-54,184-199` vs `scripts/setup.sh:1-3` | **A/B** — permissions, hooks and MCP servers are legitimately per-repo `.claude/settings.json`; today they are promoted machine-wide and leak across projects |
 | `SETUP_ALL_TARGETS` fixed 5-platform list | `scripts/setup.sh:53` | **C** — a closed set is correct here; it mirrors the capability registry |

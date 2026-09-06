@@ -30,7 +30,7 @@ fi
 while IFS= read -r url; do
   [ -z "$url" ] && continue
 
-  if echo "$url" | grep -q "grafana\|wix-analytics\|app-analytics"; then
+  if echo "$url" | grep -q "grafana\|app-analytics"; then
     if ! echo "$url" | grep -qE '(from=|to=|fromTime=|toTime=|orgId=)'; then
       ISSUES="${ISSUES}\n- Grafana URL missing time range parameters: ${url:0:120}..."
       ISSUE_COUNT=$((ISSUE_COUNT + 1))
