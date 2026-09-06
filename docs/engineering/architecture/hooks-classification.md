@@ -47,8 +47,7 @@ the one that answers "what breaks if this is gone".
 | `handoff-reminder.sh` | SessionEnd | **claude-convenience** | Claude Code only | No handoff nudge; `switch-dev` is still invocable | Optional |
 | `plugin-reload-reminder.sh` | PostToolUse `Edit\|Write` | **contributor-only** | Claude Code only | Nothing; the author reloads manually | **No** — plugin authors only |
 | `plugin-version-watch.sh` | Stop | **contributor-only** | Claude Code only | No 24h `/platform-sync` nudge | **No** — agent-config authors only |
-| `wix-ip-guard.sh` | PostToolUse `Edit\|Write` | **contributor-only** | Any | Nothing | **No** — see *Must not ship as-is* |
-| `validate-report-links.sh` | PostToolUse `Write` | **contributor-only** | Claude Code only | `report.md` links are unchecked | **No** — see *Must not ship as-is* |
+| `validate-report-links.sh` | PostToolUse `Write` | **contributor-only** | Claude Code only | `report.md` links are unchecked | **No** — plugin authors only |
 | `show-changelog.sh` | SessionStart | **platform-specific** | Claude Code only (shells out to `claude --version`) | Nothing | Optional |
 | `notify.sh` | Notification | **optional-notification** | Claude Code + a terminal that honours OSC 99, or macOS `osascript` | No desktop notification | Optional |
 | `ensure-exit.sh` | UserPromptSubmit | **optional-notification** | Any (needs `curl`) | No VPN/exit-node check | Optional (already env-gated, silent by default) |
@@ -163,25 +162,27 @@ scoped to `$WORKTREE_ROOT` and cannot reach a suite's own tmpdir, but it appears
 in `ps` as an ownerless live `rm -rf`, which is misleading evidence for anyone
 debugging a test that lost a directory.
 
-## Must not ship as-is
+## Employer-specific hooks — resolved
 
-Two hooks encode one employer's internal namespace into a plugin distributed to
-everyone. Both are `contributor-only` above; neither should be in a default
-install.
+Two hooks used to encode one employer's internal namespace into a plugin
+distributed to everyone. Both are gone:
 
-- **`wix-ip-guard.sh`** exists to catch a specific employer's registries, APIs
-  and scoped packages leaking into personal projects. That is a real need for
-  its author and meaningless to every other user. It should become a
-  **configurable deny-list** (patterns from config or env, empty by default) so
-  the mechanism ships and the specific names do not.
-- **`validate-report-links.sh`** hardcodes `wix-analytics` in its Grafana URL
-  check, alongside generic GitHub/Slack/placeholder checks. The generic checks
-  are fine; the employer-specific hostname violates the repo's own hard
-  constraint against internal references and should be moved to configuration.
+- The **IP-guard hook** existed to catch one employer's registries, APIs and
+  scoped packages leaking into personal projects — a real need for its author and
+  meaningless to every other user, expressed as literal internal hostnames sitting
+  in a public repo. It was **removed** rather than made configurable: the same
+  mechanism already exists, company-agnostically, in the IP scan that
+  `scripts/lib/capture-common.sh` drives (generic internal-hostname shapes plus an
+  optional per-machine `$TAMIRS_EMPLOYER_PATTERN`), so a configurable deny-list
+  here would have been a second copy of a seam the repo already has.
+- **`validate-report-links.sh`** hardcoded an employer-specific analytics
+  hostname in its Grafana URL check, alongside generic GitHub/Slack/placeholder
+  checks. The generic checks are unchanged; the hostname is gone, so the check now
+  keys on `grafana` and `app-analytics` only.
 
-Neither was changed here — removing a guard someone relies on is a product
-decision for the repo owner, not a refactor side effect. Both are recorded in
-`session-files/requests/hooks-audit.md`.
+`tests/test-static.sh` enforces the result: its employer scanner no longer names a
+company either, matching generic internal-hostname shapes plus
+`$TAMIRS_EMPLOYER_PATTERN`, with RFC 2606 documentation domains excluded.
 
 ## Recommended packaging
 
@@ -193,7 +194,7 @@ Not a change made here — the shape the table argues for.
 | **worktree** | `capture-task-slug`, `session-init`, `session-end`, `worktree-create`, `worktree-remove` | on, opt-out |
 | **convenience** | `check-done`, `directory-added`, `goal-compact-reminder`, `scope-decompose-reminder`, `skill-creator-guard`, `handoff-reminder`, `show-changelog` | on, opt-out |
 | **notification** | `notify`, `ensure-exit` | off unless configured |
-| **contributor** | `plugin-reload-reminder`, `plugin-version-watch`, `wix-ip-guard`, `validate-report-links` | off for users |
+| **contributor** | `plugin-reload-reminder`, `plugin-version-watch`, `validate-report-links` | off for users |
 
 ## Tests
 
