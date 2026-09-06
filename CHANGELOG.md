@@ -5,6 +5,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+- **Cursor 3.11 (+2026-09-02):** advance `changelog_date` **2026-08-27 → 2026-09-02** (desktop **3.18.9** / feature **3.11** unchanged). Document Cursor **Self-Hosted Machines** (My Machines / Team Pools / partner sandboxes) + **computer use on Linux/Mac**, and the hard distinction from GitHub Actions self-hosted runners (this public plugin stays on `ubuntu-latest`). Cursor-only.
 ### Removed
 - **The employer IP-guard hook, and every remaining reference to the employer it
   named.** The hook shipped one employer's internal namespace — registries, API

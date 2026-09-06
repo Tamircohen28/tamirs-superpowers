@@ -1,6 +1,6 @@
 {
   "schema_version": 2,
-  "last_reviewed": "2026-09-02",
+  "last_reviewed": "2026-09-06",
   "reviewed_by_skill": "tamirs-superpowers@3.6.1",
   "supported_targets": [
     "claude_code",
@@ -17,7 +17,7 @@
       "validated_against": "2.1.257",
       "latest_known": "2.1.258",
       "verified_on": "2026-09-02",
-      "verification_method": "changelog + npm-registry method (automated nightly review), now current through 2.1.258; registry.npmjs.org confirms 2.1.258 as the published dist-tag. This cycle's automation environment had a live `claude` CLI, but it reported `2.1.257` (not yet updated to 2.1.258), so `validated_against` stays at 2.1.257 rather than asserting a version not actually run; `claude plugin validate .` and `bash scripts/doctor.sh .` were still re-run for real against that 2.1.257 CLI and both passed (marketplace manifest valid; all listed capabilities report native/native-experimental/partial as expected, no unexpected gaps). 2.1.258 is a two-bugfix release — a macOS 12 (Monterey) launch regression introduced in 2.1.255, and a fix for remote/scheduled sessions failing with a 'non-empty content' error after a re-sent permission approval could not be applied — neither touches a plugin/skill/hook/subagent/marketplace authoring surface, so no `features_adopted` entry or repo behavior change is warranted; this repo has no workaround for either bug to remove.",
+      "verification_method": "changelog + npm-registry method (automated nightly review), now current through 2.1.258; registry.npmjs.org confirms 2.1.258 as the published dist-tag. This cycle's automation environment had a live `claude` CLI, but it reported `2.1.257` (not yet updated to 2.1.258), so `validated_against` stays at 2.1.257 rather than asserting a version not actually run; `claude plugin validate .` and `bash scripts/doctor.sh .` were still re-run for real against that 2.1.257 CLI and both passed (marketplace manifest valid; all listed capabilities report native/native-experimental/partial as expected, no unexpected gaps). 2.1.258 is a two-bugfix release \u2014 a macOS 12 (Monterey) launch regression introduced in 2.1.255, and a fix for remote/scheduled sessions failing with a 'non-empty content' error after a re-sent permission approval could not be applied \u2014 neither touches a plugin/skill/hook/subagent/marketplace authoring surface, so no `features_adopted` entry or repo behavior change is warranted; this repo has no workaround for either bug to remove.",
       "install_doc": "docs/user/install/claude-code.md",
       "doc_urls": [
         "https://code.claude.com/docs/en/plugins-reference",
@@ -86,9 +86,9 @@
       "validated_against": "3.18.9",
       "latest_known": "3.18.9",
       "changelog_feature": "3.11",
-      "changelog_date": "2026-08-27",
-      "verified_on": "2026-08-30",
-      "verification_method": "latest desktop build from official Cursor download links (3.18.9, 2026-08-30 stable) cross-checked against cursor.com/changelog (feature 3.11; date-only entries through 2026-08-27 Start-from-scratch / Origin Create repo / browser preview / Vercel publish); Cursor CLI changelog Aug 11 2026 documented; Builds now default (2026-08-17); Origin early-beta docs + Origin CLI/integrations (2026-08-17/18); cloud-agent subscriptions / custom modes / isolated subagent VMs /goal / steering (2026-08-19)",
+      "changelog_date": "2026-09-02",
+      "verified_on": "2026-09-06",
+      "verification_method": "latest desktop build from official Cursor download links (3.18.9, 2026-08-30 stable) cross-checked against cursor.com/changelog (feature 3.11; date-only entries through 2026-09-02 Self-Hosted Machines / Team Pools / partner sandboxes / computer use; prior Start-from-scratch 2026-08-27); Cursor CLI changelog Aug 11 2026 documented; Builds now default (2026-08-17); Origin early-beta docs; cloud-agent subscriptions / custom modes / isolated subagent VMs /goal / steering (2026-08-19)",
       "install_doc": "docs/user/install/cursor.md",
       "doc_urls": [
         "https://cursor.com/docs/plugins",
@@ -100,7 +100,8 @@
         "https://cursor.com/blog/builds",
         "https://cursor.com/docs/origin",
         "https://cursor.com/codebase",
-        "https://cursor.com/changelog"
+        "https://cursor.com/changelog",
+        "https://cursor.com/docs/cloud-agent/self-hosted"
       ],
       "features_adopted": [
         "cursor-plugin-manifest",
@@ -142,7 +143,12 @@
         "cloud-agent-start-from-scratch-2026-08-27",
         "origin-create-repo-from-scratch-2026-08-27",
         "cloud-agent-browser-preview-2026-08-27",
-        "cloud-agent-vercel-publish-2026-08-27"
+        "cloud-agent-vercel-publish-2026-08-27",
+        "self-hosted-machines-2026-09-02",
+        "team-pools-dynamic-scheduling-2026-09-02",
+        "partner-sandbox-workers-2026-09-02",
+        "computer-use-linux-mac-self-hosted-2026-09-02",
+        "self-hosted-vs-gha-runners-docs-2026-09-02"
       ],
       "capabilities": [
         "git",
@@ -162,7 +168,8 @@
         "artifacts": "No artifact publishing surface.",
         "extension_install": "Cursor installs plugins, not git-URL extensions.",
         "statusline": "No plugin-declared statusline."
-      }
+      },
+      "features": []
     },
     "codex": {
       "platform": "codex",
@@ -242,8 +249,8 @@
       "capability_gaps": {
         "artifacts": "No artifact publishing surface.",
         "extension_install": "No git-URL extension install.",
-        "hooks": "OpenCode has no hooks.json; its only lifecycle mechanism is the JS/TS plugin API, and this repo ships no plugin module by design (it would add a Node runtime dependency for no other gain). As installed, the hooks/ guards do not run at all — 'adapter' would imply a generated artifact exists, as it does for subagents, and none does.",
-        "plugin_marketplace": "No plugin marketplace — install is by absolute skills.paths. Not by symlink: OpenCode does not follow them for skill discovery (see the skills row).",
+        "hooks": "OpenCode has no hooks.json; its only lifecycle mechanism is the JS/TS plugin API, and this repo ships no plugin module by design (it would add a Node runtime dependency for no other gain). As installed, the hooks/ guards do not run at all \u2014 'adapter' would imply a generated artifact exists, as it does for subagents, and none does.",
+        "plugin_marketplace": "No plugin marketplace \u2014 install is by absolute skills.paths. Not by symlink: OpenCode does not follow them for skill discovery (see the skills row).",
         "statusline": "No plugin-declared statusline."
       }
     },

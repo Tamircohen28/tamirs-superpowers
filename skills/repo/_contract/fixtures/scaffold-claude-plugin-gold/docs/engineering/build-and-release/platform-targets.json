@@ -1,6 +1,6 @@
 {
   "schema_version": 2,
-  "last_reviewed": "2026-07-09",
+  "last_reviewed": "2026-09-06",
   "reviewed_by_skill": "tamirs-superpowers@1.6.0",
   "capability_source": "core/capabilities/platforms.json",
   "capability_source_note": "targets.<key>.capabilities and capability_gaps are DERIVED from the capability registry. Regenerate with `bash scripts/check-platform-targets.sh . --sync-capabilities`.",
@@ -72,8 +72,16 @@
       "supported_min": "0.45.0",
       "validated_against": "0.45.0",
       "latest_known": "0.45.0",
-      "doc_urls": [],
-      "features_adopted": [],
+      "doc_urls": [
+        "https://cursor.com/docs/cloud-agent/self-hosted"
+      ],
+      "features_adopted": [
+        "self-hosted-machines-2026-09-02",
+        "team-pools-dynamic-scheduling-2026-09-02",
+        "partner-sandbox-workers-2026-09-02",
+        "computer-use-linux-mac-self-hosted-2026-09-02",
+        "self-hosted-vs-gha-runners-docs-2026-09-02"
+      ],
       "capabilities": [
         "git",
         "github_cli",
@@ -92,7 +100,9 @@
         "artifacts": "No artifact publishing surface.",
         "extension_install": "Cursor installs plugins, not git-URL extensions.",
         "statusline": "No plugin-declared statusline."
-      }
+      },
+      "features": [],
+      "verification_method": "latest desktop build from official Cursor download links (3.18.9, 2026-08-30 stable) cross-checked against cursor.com/changelog (feature 3.11; date-only entries through 2026-09-02 Self-Hosted Machines / Team Pools / partner sandboxes / computer use; prior Start-from-scratch 2026-08-27); Cursor CLI changelog Aug 11 2026 documented; Builds now default (2026-08-17); Origin early-beta docs; cloud-agent subscriptions / custom modes / isolated subagent VMs /goal / steering (2026-08-19)"
     },
     "gemini_cli": {
       "platform": "gemini",
@@ -144,8 +154,8 @@
       "capability_gaps": {
         "artifacts": "No artifact publishing surface.",
         "extension_install": "No git-URL extension install.",
-        "hooks": "OpenCode has no hooks.json; its only lifecycle mechanism is the JS/TS plugin API, and this repo ships no plugin module by design (it would add a Node runtime dependency for no other gain). As installed, the hooks/ guards do not run at all — 'adapter' would imply a generated artifact exists, as it does for subagents, and none does.",
-        "plugin_marketplace": "No plugin marketplace — install is by absolute skills.paths. Not by symlink: OpenCode does not follow them for skill discovery (see the skills row).",
+        "hooks": "OpenCode has no hooks.json; its only lifecycle mechanism is the JS/TS plugin API, and this repo ships no plugin module by design (it would add a Node runtime dependency for no other gain). As installed, the hooks/ guards do not run at all \u2014 'adapter' would imply a generated artifact exists, as it does for subagents, and none does.",
+        "plugin_marketplace": "No plugin marketplace \u2014 install is by absolute skills.paths. Not by symlink: OpenCode does not follow them for skill discovery (see the skills row).",
         "statusline": "No plugin-declared statusline."
       }
     }
