@@ -479,6 +479,67 @@ run_worktree_post_setup() {
   return 0
 }
 
+# ------------------------------------------- session worktree lifecycle ---
+
+# is_live_worktree <path> — true only for a real, checked-out linked worktree.
+#
+# A directory alone does not answer the question. session-init.sh creates
+# "<worktree_path>/session-files" from a path it merely COMPUTED, so `-d` says
+# yes for an empty shell that was never checked out — and a caller asking "does
+# my worktree still exist?" then gets yes for a directory with no working tree
+# in it. A linked worktree always has a .git FILE pointing back at the repo's
+# worktree metadata; that is the thing that distinguishes the two.
+is_live_worktree() {
+  local path="${1:-}"
+  [[ -n "$path" && -d "$path" && -e "${path}/.git" ]]
+}
+
+# create_session_worktree <repo_root> <worktree_path> <slug>
+#
+# The single place a session worktree comes into existence. Two callers need it
+# — the prompt hook on a session's first prompt, and the edit guard when an
+# edit arrives with no worktree to put it in — and two copies of
+# `git worktree add -B` plus its four setup steps would drift apart.
+#
+# Returns non-zero WITHOUT creating anything when an argument is missing or the
+# path is already a live worktree, so a caller can distinguish "made you one"
+# from "there was already one" instead of inferring it from a directory test it
+# would have to repeat.
+create_session_worktree() {
+  local repo_root="$1" worktree_path="$2" slug="$3"
+  [[ -n "$repo_root" && -n "$worktree_path" && -n "$slug" ]] || return 1
+  is_live_worktree "$worktree_path" && return 1
+
+  local branch_name
+  branch_name="$(branch_name_for "$slug")"
+  [[ -n "$branch_name" ]] || return 1
+
+  mkdir -p "$(dirname "$worktree_path")"
+  git -C "$repo_root" worktree add -B "$branch_name" "$worktree_path" \
+    "$(resolve_worktree_base_ref "$repo_root")" >&2 || return 1
+
+  copy_worktreeinclude_files "$repo_root" "$worktree_path"
+  write_worktree_env_local "$worktree_path" "$branch_name" 2>/dev/null || true
+  # Install deps in the background so a slow npm/yarn install never blocks the
+  # hook timeout.
+  ( run_worktree_post_setup "$worktree_path" >/dev/null 2>&1 & )
+  return 0
+}
+
+# clear_worktree_retirement <session_id>
+#
+# Retirement records that this session's worktree was removed and must not be
+# rebuilt just because another prompt arrived. Once a worktree exists again the
+# record is false, and leaving it set would make the next prompt hook describe
+# a live worktree as retired.
+clear_worktree_retirement() {
+  local sid="${1:-}" st
+  [[ -n "$sid" ]] || return 0
+  st="$(load_session_state "$sid")" || return 0
+  st="$(echo "$st" | jq 'del(.worktree_retired_at)')" || return 0
+  save_session_state "$sid" "$st"
+}
+
 ensure_session_files_dir() {
   local target_dir="$1"
   mkdir -p "$target_dir"

@@ -70,9 +70,19 @@ if is_git_repo "$cwd"; then
   if is_global_worktree_path "$cwd"; then
     session_files_dir="$(ensure_session_files_dir "${cwd}/session-files")"
     worktree_path="$cwd"
-  elif [[ -n "$worktree_path" && "$worktree_path" != "null" && -d "$worktree_path" ]]; then
+  # A LIVE worktree, not merely a directory that bears its name.
+  #
+  # ensure_session_files_dir is a mkdir. Pointed at a worktree path that no
+  # longer exists it CREATES "<worktree>/session-files" — leaving a directory
+  # with no working tree in it, which then answers `-d` yes for everything that
+  # asks "is my worktree still there?". That is how a removed worktree came
+  # back as a half-real one: SessionStart rebuilt the shell, and the prompt hook
+  # read the shell as the worktree. is_live_worktree tests for the .git file a
+  # linked worktree actually has.
+  elif is_live_worktree "$worktree_path"; then
     session_files_dir="$(ensure_session_files_dir "${worktree_path}/session-files")"
-  elif [[ -n "$task_slug" && "$task_slug" != "null" ]]; then
+  elif [[ -n "$task_slug" && "$task_slug" != "null" ]] \
+       && is_live_worktree "$(worktree_path_for "$repo_name" "$task_slug")"; then
     worktree_path="$(worktree_path_for "$repo_name" "$task_slug")"
     session_files_dir="$(ensure_session_files_dir "${worktree_path}/session-files")"
   else
