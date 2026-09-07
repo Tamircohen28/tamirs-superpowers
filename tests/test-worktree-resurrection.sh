@@ -208,6 +208,111 @@ judge "the edit in the other repo is denied" "DENY" "$(verdict "$res")"
 judge "it does not point at the first repo's worktree" "no" "$(has "$res" "/worktrees/proj/")"
 judge "it names the other repo" "yes" "$(has "$res" "worktrees/other/")"
 
+# ---------------------------------------------------------------------------
+echo "--- a session that predates the fix is adopted, not resurrected ---"
+
+# Its state has no worktree_created_at. Without a backfill, a later removal
+# leaves BOTH lifecycle fields empty, which reads as "never created" — and the
+# next prompt rebuilds. The upgrade path back into the original bug.
+UPG="$TMPROOT/upg"
+new_repo "$UPG"
+UWT="$HOME/.claude/worktrees/upg/ship-the-thing"
+run_capture "$UPG" "ship the thing" "sess-u" >/dev/null
+jq 'del(.worktree_created_at)' "$HOME/.claude/session-state/sess-u.json" > "$TMPROOT/u.json"
+mv "$TMPROOT/u.json" "$HOME/.claude/session-state/sess-u.json"
+judge "the marker is gone (pre-upgrade shape)" "none" "$(state_field sess-u worktree_created_at)"
+
+run_capture "$UPG" "carry on" "sess-u" >/dev/null
+if [ "$(state_field sess-u worktree_created_at)" = "none" ]; then
+  bad "the live worktree backfills the marker" "field still absent"
+else
+  ok "the live worktree backfills the marker"
+fi
+
+git -C "$UPG" worktree remove --force "$UWT"
+out="$(run_capture "$UPG" "and again" "sess-u")"
+judge "an upgraded session's removal also sticks" "no" "$(exists "$UWT/.git")"
+judge "and it is reported as removed" "yes" "$(has "$out" "was removed")"
+
+# ---------------------------------------------------------------------------
+echo "--- rebuilding preserves the branch tip, it does not reset it ---"
+
+# `git worktree remove` keeps wt/<slug>. That branch can hold the only copy of
+# some commits, and `worktree add -B` is "create or RESET" — it would move the
+# branch back to the base ref and strand them.
+KEEP="$TMPROOT/keep"
+new_repo "$KEEP"
+KWT="$HOME/.claude/worktrees/keep/save-my-work"
+run_capture "$KEEP" "save my work" "sess-k" >/dev/null
+echo "work in progress" > "$KWT/wip.txt"
+git -C "$KWT" add wip.txt
+git -C "$KWT" -c user.email=t@e -c user.name=t commit -q -m "wip: do not lose me"
+TIP="$(git -C "$KEEP" rev-parse wt/save-my-work)"
+git -C "$KEEP" worktree remove --force "$KWT"
+judge "the branch outlives its worktree" "$TIP" "$(git -C "$KEEP" rev-parse wt/save-my-work)"
+judge "and the commit is not on the base branch" "no" \
+  "$(git -C "$KEEP" merge-base --is-ancestor "$TIP" main 2>/dev/null && echo yes || echo no)"
+
+res="$(run_enforce "$KEEP/src/a.ts" "$KEEP" "sess-k")"
+judge "the edit guard rebuilds it" "yes" "$(exists "$KWT/.git")"
+judge "the branch tip is unchanged" "$TIP" "$(git -C "$KEEP" rev-parse wt/save-my-work)"
+judge "the commit's file came back with it" "yes" "$(exists "$KWT/wip.txt")"
+judge "the edit is still denied" "DENY" "$(verdict "$res")"
+
+# ---------------------------------------------------------------------------
+echo "--- a prunable registration does not block the rebuild ---"
+
+# The retention pass deletes the directory with rm -rf and never calls
+# `git worktree remove`, so git still holds the registration and reports the
+# branch as checked out at a path that is gone.
+PRN="$TMPROOT/prn"
+new_repo "$PRN"
+PWT="$HOME/.claude/worktrees/prn/fix-the-parser"
+run_capture "$PRN" "fix the parser" "sess-p" >/dev/null
+rm -rf "$PWT"
+judge "git still registers the dead worktree" "yes" \
+  "$(git -C "$PRN" worktree list --porcelain | grep -q "$PWT" && echo yes || echo no)"
+
+res="$(run_enforce "$PRN/src/p.ts" "$PRN" "sess-p")"
+judge "the rebuild succeeds anyway" "yes" "$(exists "$PWT/.git")"
+judge "the deny says it was recreated" "yes" "$(has "$res" "recreated")"
+
+# ---------------------------------------------------------------------------
+echo "--- a leftover session-files shell is moved aside, not lost ---"
+
+# `git worktree add` refuses a non-empty directory, so without this the rebuild
+# never happens and every edit stays denied with no way forward.
+SHL="$TMPROOT/shl"
+new_repo "$SHL"
+SWT="$HOME/.claude/worktrees/shl/write-the-plan"
+run_capture "$SHL" "write the plan" "sess-s" >/dev/null
+git -C "$SHL" worktree remove --force "$SWT"
+mkdir -p "$SWT/session-files"
+echo "my plan" > "$SWT/session-files/plan.md"
+
+res="$(run_enforce "$SHL/src/s.ts" "$SHL" "sess-s")"
+judge "the rebuild is not blocked by the shell" "yes" "$(exists "$SWT/.git")"
+judge "the plan survived" "yes" "$(exists "$SWT/session-files/plan.md")"
+judge "and it still says what it says" "my plan" "$(cat "$SWT/session-files/plan.md" 2>/dev/null)"
+
+# ---------------------------------------------------------------------------
+echo "--- retiring clears the exported worktree path ---"
+
+# The env file only accumulates. Skipping the export is not clearing it: the
+# first prompt's value would still point at the deleted worktree.
+ENVR="$TMPROOT/envr"
+new_repo "$ENVR"
+EWT="$HOME/.claude/worktrees/envr/tidy-the-exports"
+ENVFILE="$TMPROOT/claude-env"
+: > "$ENVFILE"
+CLAUDE_ENV_FILE="$ENVFILE" run_capture "$ENVR" "tidy the exports" "sess-e" >/dev/null
+judge "the live worktree is exported" "yes" "$(has "$(cat "$ENVFILE")" "CLAUDE_WORKTREE_PATH=\"$EWT\"")"
+
+git -C "$ENVR" worktree remove --force "$EWT"
+CLAUDE_ENV_FILE="$ENVFILE" run_capture "$ENVR" "still here" "sess-e" >/dev/null
+judge "the stale export is overwritten with an empty one" "yes" \
+  "$(has "$(tail -5 "$ENVFILE")" 'CLAUDE_WORKTREE_PATH=""')"
+
 echo
 echo "passed: $PASS   failed: $FAIL"
 if [ "$FAIL" -ne 0 ]; then

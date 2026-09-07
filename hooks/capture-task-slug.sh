@@ -176,6 +176,12 @@ if is_git_repo "$cwd"; then
   elif is_live_worktree "$worktree_path"; then
     worktree_live=yes
     worktree_retired_at=""
+    # Backfill for a session that predates this hook. Its state has no
+    # worktree_created_at, and without one a later removal leaves BOTH
+    # lifecycle fields empty — which reads as "never created" and sends the
+    # next prompt straight back to create_session_worktree. That is the
+    # resurrection this file exists to stop, arriving by the upgrade path.
+    worktree_created_at="${worktree_created_at:-$now_iso}"
     session_files_dir="$(ensure_session_files_dir "${worktree_path}/session-files")"
   elif [[ -n "$worktree_retired_at" || -n "$worktree_created_at" ]]; then
     worktree_retired_at="${worktree_retired_at:-$now_iso}"
@@ -217,6 +223,11 @@ if is_git_repo "$cwd"; then
       "CLAUDE_REPO_ROOT=\"${repo_root}\""
     if [[ -n "$worktree_path" && "$worktree_live" == "yes" ]]; then
       append_env_exports "$CLAUDE_ENV_FILE" "CLAUDE_WORKTREE_PATH=\"${worktree_path}\""
+    else
+      # The env file only ever accumulates, so skipping the export is not the
+      # same as clearing it: an earlier prompt's value would still point at the
+      # worktree this prompt just reported as removed. Overwrite it.
+      append_env_exports "$CLAUDE_ENV_FILE" "CLAUDE_WORKTREE_PATH=\"\""
     fi
     if [[ -n "$objective_id" ]]; then
       append_env_exports "$CLAUDE_ENV_FILE" "SUPERPOWERS_OBJECTIVE_ID=\"${objective_id}\""

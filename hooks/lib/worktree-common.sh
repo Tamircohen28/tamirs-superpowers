@@ -514,9 +514,56 @@ create_session_worktree() {
   branch_name="$(branch_name_for "$slug")"
   [[ -n "$branch_name" ]] || return 1
 
+  # A worktree the retention pass removed with `rm -rf` leaves its registration
+  # behind, marked prunable. `worktree add` then refuses the branch as "already
+  # used by worktree at <the path that is gone>", and the rebuild an edit just
+  # asked for cannot happen until somebody prunes by hand.
+  git -C "$repo_root" worktree prune >/dev/null 2>&1 || true
+
+  # A non-worktree DIRECTORY on the path — the `session-files` shell the old
+  # session-init behaviour created — makes `worktree add` refuse to populate it,
+  # so every guarded edit keeps being denied and no rebuild ever happens. Move
+  # it aside rather than delete it: the reason it is there is that somebody's
+  # plans and reviews are inside.
+  local stash=""
+  if [[ -d "$worktree_path" ]]; then
+    if [[ -n "$(ls -A "$worktree_path" 2>/dev/null)" ]]; then
+      stash="${worktree_path}.orphaned.$$"
+      mv "$worktree_path" "$stash" || return 1
+    else
+      rmdir "$worktree_path" 2>/dev/null || true
+    fi
+  fi
+
   mkdir -p "$(dirname "$worktree_path")"
-  git -C "$repo_root" worktree add -B "$branch_name" "$worktree_path" \
-    "$(resolve_worktree_base_ref "$repo_root")" >&2 || return 1
+
+  # Reuse the branch when it still exists. Removing a worktree does NOT delete
+  # its `wt/<slug>` branch — neither `git worktree remove` nor the retention
+  # pass does — and that branch may hold commits that exist nowhere else. `-B`
+  # is "create or RESET", so rebuilding with it would move the branch back to
+  # the base ref and strand them. Create from the base only when there is no
+  # branch to preserve.
+  local added=1
+  if git -C "$repo_root" show-ref --verify --quiet "refs/heads/${branch_name}"; then
+    git -C "$repo_root" worktree add "$worktree_path" "$branch_name" >&2 && added=0
+  else
+    git -C "$repo_root" worktree add -b "$branch_name" "$worktree_path" \
+      "$(resolve_worktree_base_ref "$repo_root")" >&2 && added=0
+  fi
+
+  if (( added != 0 )); then
+    [[ -n "$stash" ]] && mv "$stash" "$worktree_path" 2>/dev/null
+    return 1
+  fi
+
+  # Put the rescued artifacts back where the hook tells the session they live.
+  if [[ -n "$stash" ]]; then
+    if [[ -d "${stash}/session-files" && ! -e "${worktree_path}/session-files" ]]; then
+      mv "${stash}/session-files" "${worktree_path}/session-files" 2>/dev/null || true
+    fi
+    # Only if nothing is left. Anything else stays on disk for a human to look at.
+    rmdir "$stash" 2>/dev/null || true
+  fi
 
   copy_worktreeinclude_files "$repo_root" "$worktree_path"
   write_worktree_env_local "$worktree_path" "$branch_name" 2>/dev/null || true
