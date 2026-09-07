@@ -479,6 +479,114 @@ run_worktree_post_setup() {
   return 0
 }
 
+# ------------------------------------------- session worktree lifecycle ---
+
+# is_live_worktree <path> — true only for a real, checked-out linked worktree.
+#
+# A directory alone does not answer the question. session-init.sh creates
+# "<worktree_path>/session-files" from a path it merely COMPUTED, so `-d` says
+# yes for an empty shell that was never checked out — and a caller asking "does
+# my worktree still exist?" then gets yes for a directory with no working tree
+# in it. A linked worktree always has a .git FILE pointing back at the repo's
+# worktree metadata; that is the thing that distinguishes the two.
+is_live_worktree() {
+  local path="${1:-}"
+  [[ -n "$path" && -d "$path" && -e "${path}/.git" ]]
+}
+
+# create_session_worktree <repo_root> <worktree_path> <slug>
+#
+# The single place a session worktree comes into existence. Two callers need it
+# — the prompt hook on a session's first prompt, and the edit guard when an
+# edit arrives with no worktree to put it in — and two copies of
+# `git worktree add -B` plus its four setup steps would drift apart.
+#
+# Returns non-zero WITHOUT creating anything when an argument is missing or the
+# path is already a live worktree, so a caller can distinguish "made you one"
+# from "there was already one" instead of inferring it from a directory test it
+# would have to repeat.
+create_session_worktree() {
+  local repo_root="$1" worktree_path="$2" slug="$3"
+  [[ -n "$repo_root" && -n "$worktree_path" && -n "$slug" ]] || return 1
+  is_live_worktree "$worktree_path" && return 1
+
+  local branch_name
+  branch_name="$(branch_name_for "$slug")"
+  [[ -n "$branch_name" ]] || return 1
+
+  # A worktree the retention pass removed with `rm -rf` leaves its registration
+  # behind, marked prunable. `worktree add` then refuses the branch as "already
+  # used by worktree at <the path that is gone>", and the rebuild an edit just
+  # asked for cannot happen until somebody prunes by hand.
+  git -C "$repo_root" worktree prune >/dev/null 2>&1 || true
+
+  # A non-worktree DIRECTORY on the path — the `session-files` shell the old
+  # session-init behaviour created — makes `worktree add` refuse to populate it,
+  # so every guarded edit keeps being denied and no rebuild ever happens. Move
+  # it aside rather than delete it: the reason it is there is that somebody's
+  # plans and reviews are inside.
+  local stash=""
+  if [[ -d "$worktree_path" ]]; then
+    if [[ -n "$(ls -A "$worktree_path" 2>/dev/null)" ]]; then
+      stash="${worktree_path}.orphaned.$$"
+      mv "$worktree_path" "$stash" || return 1
+    else
+      rmdir "$worktree_path" 2>/dev/null || true
+    fi
+  fi
+
+  mkdir -p "$(dirname "$worktree_path")"
+
+  # Reuse the branch when it still exists. Removing a worktree does NOT delete
+  # its `wt/<slug>` branch — neither `git worktree remove` nor the retention
+  # pass does — and that branch may hold commits that exist nowhere else. `-B`
+  # is "create or RESET", so rebuilding with it would move the branch back to
+  # the base ref and strand them. Create from the base only when there is no
+  # branch to preserve.
+  local added=1
+  if git -C "$repo_root" show-ref --verify --quiet "refs/heads/${branch_name}"; then
+    git -C "$repo_root" worktree add "$worktree_path" "$branch_name" >&2 && added=0
+  else
+    git -C "$repo_root" worktree add -b "$branch_name" "$worktree_path" \
+      "$(resolve_worktree_base_ref "$repo_root")" >&2 && added=0
+  fi
+
+  if (( added != 0 )); then
+    [[ -n "$stash" ]] && mv "$stash" "$worktree_path" 2>/dev/null
+    return 1
+  fi
+
+  # Put the rescued artifacts back where the hook tells the session they live.
+  if [[ -n "$stash" ]]; then
+    if [[ -d "${stash}/session-files" && ! -e "${worktree_path}/session-files" ]]; then
+      mv "${stash}/session-files" "${worktree_path}/session-files" 2>/dev/null || true
+    fi
+    # Only if nothing is left. Anything else stays on disk for a human to look at.
+    rmdir "$stash" 2>/dev/null || true
+  fi
+
+  copy_worktreeinclude_files "$repo_root" "$worktree_path"
+  write_worktree_env_local "$worktree_path" "$branch_name" 2>/dev/null || true
+  # Install deps in the background so a slow npm/yarn install never blocks the
+  # hook timeout.
+  ( run_worktree_post_setup "$worktree_path" >/dev/null 2>&1 & )
+  return 0
+}
+
+# clear_worktree_retirement <session_id>
+#
+# Retirement records that this session's worktree was removed and must not be
+# rebuilt just because another prompt arrived. Once a worktree exists again the
+# record is false, and leaving it set would make the next prompt hook describe
+# a live worktree as retired.
+clear_worktree_retirement() {
+  local sid="${1:-}" st
+  [[ -n "$sid" ]] || return 0
+  st="$(load_session_state "$sid")" || return 0
+  st="$(echo "$st" | jq 'del(.worktree_retired_at)')" || return 0
+  save_session_state "$sid" "$st"
+}
+
 ensure_session_files_dir() {
   local target_dir="$1"
   mkdir -p "$target_dir"

@@ -5,6 +5,23 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Fixed
+- **A removed session worktree stays removed.** `capture-task-slug.sh` ran
+  `[[ ! -d $worktree_path ]] && git worktree add -B` on *every* prompt, which
+  undid every removal — `git worktree remove`, the `cleanup` skill's worktree
+  phase, and this plugin's own stale-worktree retention pass — restoring the
+  `wt/*` branch along with it. Creation now happens once and is recorded; a path
+  that disappears afterwards is treated as a deliberate removal and the session
+  is retired. An `Edit` is the demand signal, so `enforce-worktree-edits.sh`
+  rebuilds on demand and still denies, but with a destination that exists.
+
+  Four defects found alongside it: `session-init.sh` mistook the `session-files`
+  directory it had just created for a live worktree; a session editing a second
+  repo was pointed at the first repo's worktree; rebuilding with `-B` **reset**
+  a retained `wt/*` branch to the base ref, stranding commits that existed
+  nowhere else; and a rebuild was blocked outright by a prunable registration
+  left by `rm -rf`, or by a leftover `session-files` shell on the path.
+
 ### Removed
 - **The employer IP-guard hook, and every remaining reference to the employer it
   named.** The hook shipped one employer's internal namespace — registries, API

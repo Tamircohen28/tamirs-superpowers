@@ -118,6 +118,9 @@ if is_git_repo "$cwd"; then
   repo_root="$(repo_root_for "$cwd")"
   repo_name="$(repo_name_for "$cwd")"
   worktree_path="$(worktree_path_for "$repo_name" "$session_title")"
+  worktree_created_at="$(echo "$state" | jq -r '.worktree_created_at // empty')"
+  worktree_retired_at="$(echo "$state" | jq -r '.worktree_retired_at // empty')"
+  worktree_live=no
 
   # STAND DOWN WHEN AN ORCHESTRATOR OWNS THIS REPO.
   #
@@ -135,10 +138,14 @@ if is_git_repo "$cwd"; then
   objective_id="$(active_objective_id "$cwd" 2>/dev/null || true)"
 
   if is_global_worktree_path "$cwd"; then
+    worktree_live=yes
+    worktree_retired_at=""
     session_files_dir="$(ensure_session_files_dir "${cwd}/session-files")"
   elif is_agent_workspace "$cwd"; then
     # Already inside an objective / legacy-platform / native worktree.
     worktree_path="$(git -C "$cwd" rev-parse --show-toplevel 2>/dev/null || echo "$cwd")"
+    worktree_live=yes
+    worktree_retired_at=""
     session_files_dir="$(ensure_session_files_dir "${worktree_path}/session-files")"
   elif [[ -n "$objective_id" ]]; then
     # An objective is active but this session is in the main checkout. Creating
@@ -146,17 +153,48 @@ if is_git_repo "$cwd"; then
     # avoid — name the objective's workspaces instead.
     worktree_path=""
     session_files_dir="$(ensure_session_files_dir "$(objective_state_dir "$repo_root" "$objective_id")")"
-  else
-  if [[ ! -d "$worktree_path" ]]; then
-    mkdir -p "${WORKTREE_ROOT}/${repo_name}"
-    branch_name="$(branch_name_for "$session_title")"
-    git -C "$repo_root" worktree add -B "$branch_name" "$worktree_path" "$(resolve_worktree_base_ref "$repo_root")" >&2 || true
-    copy_worktreeinclude_files "$repo_root" "$worktree_path"
-    write_worktree_env_local "$worktree_path" "$branch_name" 2>/dev/null || true
-    # Install deps in the background so a slow npm/yarn install never blocks the hook timeout.
-    ( run_worktree_post_setup "$worktree_path" >/dev/null 2>&1 & )
-  fi
+
+  # CREATE ONCE. A REMOVAL IS A DECISION, NOT A GAP TO CLOSE.
+  #
+  # This used to be a bare `[[ ! -d "$worktree_path" ]] && git worktree add`,
+  # re-evaluated on EVERY prompt for the life of the session. Read as "keep the
+  # worktree present" it looks harmless. What it actually does is undo every
+  # removal: `git worktree remove`, the repo-cleanup skill's worktree phase,
+  # even this plugin's own stale-worktree retention pass — each is reversed by
+  # the next prompt, and `-B` restores the `wt/*` branch along with it. Someone
+  # who cleans a repo watches the worktree return minutes later with no actor
+  # named, which reads as a bug in git rather than a hook doing as it was told.
+  #
+  # So creation happens once and is recorded. If the path is gone afterwards,
+  # somebody removed it deliberately: retire it rather than rebuild it, and put
+  # session files somewhere that needs no checkout.
+  #
+  # Retirement suppresses creation HERE, where the only evidence is that a
+  # prompt arrived — which is no evidence at all that this session will touch
+  # the repo. An actual Edit is real evidence, so enforce-worktree-edits.sh
+  # rebuilds the worktree at that moment instead.
+  elif is_live_worktree "$worktree_path"; then
+    worktree_live=yes
+    worktree_retired_at=""
+    # Backfill for a session that predates this hook. Its state has no
+    # worktree_created_at, and without one a later removal leaves BOTH
+    # lifecycle fields empty — which reads as "never created" and sends the
+    # next prompt straight back to create_session_worktree. That is the
+    # resurrection this file exists to stop, arriving by the upgrade path.
+    worktree_created_at="${worktree_created_at:-$now_iso}"
     session_files_dir="$(ensure_session_files_dir "${worktree_path}/session-files")"
+  elif [[ -n "$worktree_retired_at" || -n "$worktree_created_at" ]]; then
+    worktree_retired_at="${worktree_retired_at:-$now_iso}"
+    session_files_dir="$(ensure_session_files_dir "${HOME}/.claude/outputs/${session_title}/session-files")"
+  elif create_session_worktree "$repo_root" "$worktree_path" "$session_title"; then
+    worktree_created_at="$now_iso"
+    worktree_live=yes
+    session_files_dir="$(ensure_session_files_dir "${worktree_path}/session-files")"
+  else
+    # Creation was attempted and failed — a locked worktree, a `wt/*` branch
+    # already checked out elsewhere. Do not describe a directory that is not
+    # there; the edit guard will try again when an edit actually needs one.
+    session_files_dir="$(ensure_session_files_dir "${HOME}/.claude/outputs/${session_title}/session-files")"
   fi
 
   state="$(echo "$state" | jq \
@@ -165,13 +203,17 @@ if is_git_repo "$cwd"; then
     --arg worktree_path "$worktree_path" \
     --arg session_files_dir "$session_files_dir" \
     --arg objective_id "$objective_id" \
+    --arg worktree_created_at "$worktree_created_at" \
+    --arg worktree_retired_at "$worktree_retired_at" \
   '. + {
     repo_root: $repo_root,
     repo_name: $repo_name,
     worktree_path: $worktree_path,
     session_files_dir: $session_files_dir,
     objective_id: (if ($objective_id | length) > 0 then $objective_id else null end)
-  }')"
+  }
+  | if ($worktree_created_at | length) > 0 then .worktree_created_at = $worktree_created_at else . end
+  | if ($worktree_retired_at | length) > 0 then .worktree_retired_at = $worktree_retired_at else del(.worktree_retired_at) end')"
   save_session_state "$session_id" "$state"
 
   if [[ -n "${CLAUDE_ENV_FILE:-}" ]]; then
@@ -179,8 +221,13 @@ if is_git_repo "$cwd"; then
       "CLAUDE_TASK_SLUG=\"${session_title}\"" \
       "CLAUDE_SESSION_FILES_DIR=\"${session_files_dir}\"" \
       "CLAUDE_REPO_ROOT=\"${repo_root}\""
-    if [[ -n "$worktree_path" ]]; then
+    if [[ -n "$worktree_path" && "$worktree_live" == "yes" ]]; then
       append_env_exports "$CLAUDE_ENV_FILE" "CLAUDE_WORKTREE_PATH=\"${worktree_path}\""
+    else
+      # The env file only ever accumulates, so skipping the export is not the
+      # same as clearing it: an earlier prompt's value would still point at the
+      # worktree this prompt just reported as removed. Overwrite it.
+      append_env_exports "$CLAUDE_ENV_FILE" "CLAUDE_WORKTREE_PATH=\"\""
     fi
     if [[ -n "$objective_id" ]]; then
       append_env_exports "$CLAUDE_ENV_FILE" "SUPERPOWERS_OBJECTIVE_ID=\"${objective_id}\""
@@ -192,6 +239,13 @@ if is_git_repo "$cwd"; then
     context_lines+=("Worker and integration worktrees live under: $(agent_worktree_root "$repo_root")/${objective_id}/")
     context_lines+=("Ask the orchestrator for your task worktree (task-NNN) — do not create one.")
     context_lines+=("Objective state: $(objective_state_dir "$repo_root" "$objective_id")")
+  elif [[ -n "$worktree_retired_at" ]]; then
+    context_lines+=("This session's worktree (${worktree_path}) was removed and has NOT been recreated.")
+    context_lines+=("Working in ${cwd}. An Edit/Write to repo files is still refused in the main checkout — the edit guard will rebuild the worktree then and name it.")
+    context_lines+=("Session artifacts (plans, reviews, investigations) go in: ${session_files_dir}")
+  elif [[ "$worktree_live" != "yes" ]]; then
+    context_lines+=("No session worktree could be created for ${repo_name}; working in ${cwd}.")
+    context_lines+=("Session artifacts (plans, reviews, investigations) go in: ${session_files_dir}")
   elif ! is_global_worktree_path "$cwd" && ! is_agent_workspace "$cwd"; then
     context_lines+=("Git repo task detected. Dedicated worktree: ${worktree_path}")
     context_lines+=("Before Edit/Write, run: cd \"${worktree_path}\" or use EnterWorktree.")

@@ -118,6 +118,19 @@ if [[ -z "$worktree_path" || "$worktree_path" == "null" ]]; then
   fi
 fi
 
+# The recorded path belongs to whichever repo the session started in. A session
+# that edits a second repo would otherwise be told to cd into the FIRST repo's
+# worktree — and, below, would have that worktree rebuilt for it. Recompute
+# whenever the recorded path is not this repo's.
+if [[ -n "$worktree_path" && "$worktree_path" != "null" \
+      && "$worktree_path" != "${WORKTREE_ROOT}/${repo_name}/"* ]]; then
+  if [[ -n "$task_slug" && "$task_slug" != "null" ]]; then
+    worktree_path="$(worktree_path_for "$repo_name" "$task_slug")"
+  else
+    worktree_path=""
+  fi
+fi
+
 # An active objective changes the remedy, not the verdict: the main checkout is
 # still off limits, but the correct destination is a worker/integration worktree
 # the orchestrator already owns — NOT a fresh session worktree.
@@ -127,10 +140,28 @@ if [[ -n "$objective_id" ]]; then
   reason="Repo edits must happen in an objective worktree, not the main checkout (${repo_root}). Objective '${objective_id}' is active: work in $(agent_worktree_root "$repo_root")/${objective_id}/task-NNN (worker) or .../integration (integrator). Ask the orchestrator which one is yours — do not create a new worktree."
 else
   reason="Repo edits must happen in a dedicated worktree under ~/.claude/worktrees/${repo_name}/<task-slug>, not the main checkout (${repo_root})."
-  if [[ -n "$worktree_path" && "$worktree_path" != "null" ]]; then
-    reason="${reason} Use: cd \"${worktree_path}\" or EnterWorktree before editing."
-  else
+  if [[ -z "$worktree_path" || "$worktree_path" == "null" ]]; then
     reason="${reason} Submit your task prompt first so the worktree slug is derived from it, then cd into the worktree."
+  elif is_live_worktree "$worktree_path"; then
+    reason="${reason} Use: cd \"${worktree_path}\" or EnterWorktree before editing."
+
+  # AN EDIT IS THE DEMAND SIGNAL.
+  #
+  # capture-task-slug.sh deliberately stopped rebuilding a worktree somebody
+  # removed, because a prompt arriving proves nothing about whether this session
+  # will ever touch the repo — and rebuilding on that basis is what made a
+  # cleaned-up worktree keep coming back. An Edit is the first hard evidence
+  # that a workspace is actually needed, so the rebuild belongs here.
+  #
+  # The edit is still denied: the tool call names a path in the main checkout
+  # and cannot be silently redirected. It is denied with a destination that
+  # exists, which is the part that was broken — the old message pointed at a
+  # removed directory and the retry failed the same way.
+  elif create_session_worktree "$repo_root" "$worktree_path" "$task_slug"; then
+    clear_worktree_retirement "$session_id"
+    reason="${reason} This session's worktree had been removed; it has been recreated at \"${worktree_path}\". cd there (or use EnterWorktree) and retry."
+  else
+    reason="${reason} This session's worktree (${worktree_path}) is missing and could not be recreated — use EnterWorktree, or edit inside an objective worktree."
   fi
 fi
 
