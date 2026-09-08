@@ -7,7 +7,7 @@ registry_key: codex
 # Coarse summary only. `agents` is the registry's `subagents` key.
 capabilities:
   skills: native
-  agents: native
+  agents: unknown
   hooks: native
   mcp: native
 
@@ -18,9 +18,16 @@ install:
   doc: docs/user/install/codex.md
 
 validation:
-  command: jq empty .codex-plugin/plugin.json
+  command: bash scripts/check-manifest-declares.sh .codex-plugin/plugin.json skills mcpServers hooks
 
 notes: >-
   Hooks are declared through the manifest's `hooks` field, which is not the same
-  shape as Claude's hooks/hooks.json. MCP servers are configured in
-  .codex/config.toml rather than .mcp.json.
+  shape as Claude's hooks/hooks.json. MCP servers are declared in the same manifest
+  (`mcpServers: ./.mcp.json`); .codex/config.toml is a user-level runtime config and
+  declares nothing this plugin ships. agents is `unknown`, not `native`: the
+  published plugin manifest spec lists name, version, description, author, homepage,
+  repository, license, keywords, skills, hooks, mcpServers, apps and interface — no
+  agents or subagents field — and documents no agents/ folder discovery, so there is
+  no mechanism here to point at. It is `unknown` rather than `unsupported` because
+  absence from a manifest spec is not proof the runtime lacks the feature; it is
+  proof this repo has never delivered agents to that surface.

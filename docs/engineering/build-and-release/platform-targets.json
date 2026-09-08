@@ -210,7 +210,6 @@
         "plugin_marketplace",
         "shell",
         "skills",
-        "subagents",
         "worktree_isolation"
       ],
       "capability_gaps": {

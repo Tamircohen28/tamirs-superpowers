@@ -151,7 +151,7 @@
             "mcp": {
               "status": "native",
               "since": "2.0.0",
-              "validation": "jq empty .mcp.json"
+              "validation": "bash scripts/check-manifest-declares.sh .mcp.json mcpServers"
             },
             "statusline": {
               "status": "native",
@@ -209,8 +209,8 @@
             },
             "session_transcripts": {
               "status": "native",
-              "validation": "test -d \"$HOME/.claude/projects\"",
-              "notes": "JSONL transcripts under ~/.claude/projects; the session-report skill parses this format and no other."
+              "validation": "node skills/toolkit/session-report/analyze-sessions.mjs --json | jq -e '.overall.sessions > 0'",
+              "notes": "JSONL transcripts under ~/.claude/projects; the session-report skill parses this format and no other. The claim is that the history is READABLE, so the validation reads it: the parser runs against the real transcript root and must find at least one session. It previously read `test -d \"$HOME/.claude/projects\"`, which passes on an empty directory created by any Claude Code run that never wrote a transcript, and would keep passing if the format changed under the parser."
             }
           }
         },
@@ -266,7 +266,7 @@
             },
             "mcp": {
               "status": "native",
-              "validation": "jq empty .mcp.json",
+              "validation": "bash scripts/check-manifest-declares.sh .mcp.json mcpServers",
               "notes": "Desktop is a long-standing MCP host; server config lives in the Desktop app rather than the repo."
             },
             "statusline": {
@@ -360,14 +360,14 @@
             "doc": "docs/user/install/codex.md"
           },
           "validation": {
-            "command": "jq empty .codex-plugin/plugin.json"
+            "command": "bash scripts/check-manifest-declares.sh .codex-plugin/plugin.json skills mcpServers hooks"
           },
           "capabilities": {
             "skills": {
               "status": "native",
               "since": "0.40.0",
-              "validation": "jq empty .codex-plugin/plugin.json",
-              "notes": "Declared in platform-targets.json; validated against 0.146.0."
+              "validation": "bash scripts/check-manifest-declares.sh .codex-plugin/plugin.json skills",
+              "notes": "`skills` is a documented field of the .codex-plugin/plugin.json manifest spec, and this repo's manifest carries all seven skill roots; validated against 0.146.0. The previous note offered platform-targets.json as its source — that file's capabilities array is generated FROM this registry, so the row was citing itself."
             },
             "skill_auto_invocation": {
               "status": "unknown",
@@ -375,10 +375,9 @@
               "fallback": "Document explicit invocation in docs/user/install/codex.md."
             },
             "subagents": {
-              "status": "native",
-              "since": "0.40.0",
-              "validation": "jq empty .codex-plugin/plugin.json",
-              "notes": "'agents' is a declared capability in platform-targets.json. Cloud subagents can run on their own VMs (2026-08-19)."
+              "status": "unknown",
+              "notes": "Demoted from 'native' 2026-09-08. The claim rested on two things, and neither survived checking. (1) The note cited platform-targets.json — but that file's per-target `capabilities` array is a DERIVED mirror of THIS registry (scripts/check-platform-targets.sh says so in its header), so the row was citing itself. (2) The validation was `jq empty .codex-plugin/plugin.json`, which passes on any valid JSON. Against the upstream manifest spec, .codex-plugin/plugin.json defines name, version, description, author, homepage, repository, license, keywords, skills, hooks, mcpServers, apps and interface — there is no agents or subagents field, and no documented folder discovery of an agents/ directory. This repo also ships no Codex agent mirror, unlike .gemini/agents/, which exists precisely because Gemini needed one. Codex CLI may well have a subagents feature; what is unestablished is that this plugin delivers its agents/ roles to it, and 'unknown' is what the registry says to write when nobody has measured. The identical 'Cloud subagents can run on their own VMs (2026-08-19)' sentence also sat on the cursor row verbatim, date included — one note copied, not two facts established.",
+              "fallback": "Run the role inline in the main session, sequentially, with a narrowed scope."
             },
             "parallel_subagents": {
               "status": "unknown",
@@ -397,8 +396,8 @@
             },
             "mcp": {
               "status": "native",
-              "validation": "test -f .codex/config.toml",
-              "notes": "Configured through .codex/config.toml rather than .mcp.json."
+              "validation": "bash scripts/check-manifest-declares.sh .codex-plugin/plugin.json mcpServers",
+              "notes": "Declared through the plugin manifest's mcpServers field, which points at ./.mcp.json. This row previously validated with `test -f .codex/config.toml` and said MCP was configured there instead — that file's own header comment says the opposite (\"MCP servers are declared in .codex-plugin/plugin.json\"), and it would have passed on an empty file."
             },
             "statusline": {
               "status": "unsupported",
@@ -431,7 +430,7 @@
             "plugin_marketplace": {
               "status": "native",
               "validation": "bash scripts/check-marketplace-schema.sh .",
-              "notes": "'marketplace' is a declared capability in platform-targets.json."
+              "notes": "Codex installs plugins from a marketplace; the install command on this surface is `codex plugin install {{REPO_NAME}}`. The evidence is the marketplace manifest this repo publishes, which is what the validation checks. The previous note offered platform-targets.json as its source — that file's capabilities array is generated FROM this registry, so the row was citing itself."
             },
             "extension_install": {
               "status": "unsupported",
@@ -501,13 +500,13 @@
             "doc": "docs/user/install/cursor.md"
           },
           "validation": {
-            "command": "jq empty .cursor-plugin/plugin.json"
+            "command": "bash scripts/check-manifest-declares.sh .cursor-plugin/plugin.json skills mcpServers"
           },
           "capabilities": {
             "skills": {
               "status": "native",
               "since": "3.18.9",
-              "validation": "jq empty .cursor-plugin/plugin.json",
+              "validation": "bash scripts/check-manifest-declares.sh .cursor-plugin/plugin.json skills",
               "notes": "Validated against 3.18.9; the floor is the version actually tested, not a guess."
             },
             "skill_auto_invocation": {
@@ -518,8 +517,8 @@
             "subagents": {
               "status": "native",
               "since": "3.18.9",
-              "validation": "jq empty .cursor-plugin/plugin.json",
-              "notes": "'agents' is a declared capability in platform-targets.json. Cloud subagents can run on their own VMs (2026-08-19)."
+              "validation": "bash scripts/check-manifest-declares.sh --or-discovers agents .cursor-plugin/plugin.json agents",
+              "notes": "Delivered by folder discovery, not by a manifest field: Cursor reads agents/ when the manifest does not name an agents path (https://cursor.com/docs/reference/plugins), and .cursor-plugin/plugin.json deliberately does not. The validation follows that rule rather than assuming it — if someone adds an `agents` key, discovery of agents/ stops and the check switches to the declared paths. The old note cited platform-targets.json, whose capabilities array is a DERIVED mirror of this registry, so it was evidence for itself."
             },
             "parallel_subagents": {
               "status": "partial",
@@ -538,7 +537,7 @@
             },
             "mcp": {
               "status": "native",
-              "validation": "jq empty .mcp.json"
+              "validation": "bash scripts/check-manifest-declares.sh .mcp.json mcpServers"
             },
             "statusline": {
               "status": "unsupported",
@@ -579,10 +578,11 @@
               "fallback": "Use the plugin manifest install path."
             },
             "slash_commands": {
-              "status": "native",
+              "status": "partial",
               "since": "3.18.9",
-              "validation": "jq empty .cursor-plugin/plugin.json",
-              "notes": "'commands' is a declared capability in platform-targets.json."
+              "validation": "bash scripts/check-manifest-declares.sh .cursor-plugin/plugin.json skills",
+              "notes": "Demoted from 'native' 2026-09-08, and the limit is on our side, not Cursor's. Cursor plugins do support a commands component, discovered from commands/ when the manifest names no path (https://cursor.com/docs/reference/plugins) — this repo has no commands/ directory and no commands key, so it ships zero of them. What a Cursor user actually sees under / are this plugin's skills, which is what the validation checks; see skill_auto_invocation for the / behaviour measured against 3.18.9. The old note cited platform-targets.json, whose capabilities array is a DERIVED mirror of this registry, so it was evidence for itself.",
+              "fallback": "Invoke by skill name; there is no repo-provided /command on this surface to fall back from."
             },
             "ask_user_question": {
               "status": "unknown",

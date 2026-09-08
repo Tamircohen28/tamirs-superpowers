@@ -344,27 +344,102 @@ fi
 # `false` or `null`, so it returned 0 for every possible file. It named a key
 # opencode.json has never contained, and reported success for three releases.
 #
-# This catches the mechanical form only: a `//` fallback inside a `jq -e`. It is not a
-# general "is this evidence?" judge, and it deliberately does not try to be one -- see
-# the WEAK validations noted in the PR that introduced this (nine rows validated by
-# `jq empty <file>`, which proves the file is JSON and nothing about the capability).
+# Two mechanical forms are caught, and they are different failures:
+#
+#   (a) CANNOT FAIL. A `//` fallback inside a `jq -e` substitutes a truthy default, so
+#       the command exits 0 on every possible input. Green means nothing.
+#
+#   (b) CANNOT DISTINGUISH. A validation that is *entirely* `jq empty <file>` or
+#       `test -f <file>` can fail -- delete the file and it does -- but it can only fail
+#       for a reason unrelated to the capability it is evidence for. Nine rows read
+#       `jq empty <manifest>`: drop the `skills` key, delete every skill directory, and
+#       they still exit 0, because a manifest with no skills in it is still valid JSON.
+#       codex/mcp read `test -f .codex/config.toml`, a file whose own header comment says
+#       MCP is configured somewhere else, and which passes while empty. Both are the same
+#       defect as (a) seen from one step further out: the command's verdict is decided by
+#       something other than the claim it is attached to.
+#
+# Only the WHOLE command counts as this shape. `jq empty hooks/hooks.json && make
+# test-hooks` and `test -d agents && claude plugin validate .` both open with a file test
+# and then do the real work, which is exactly the right construction.
+#
+# This is still not a general "is this evidence?" judge and does not try to be one. It
+# rejects two shapes that provably are not.
 before_val=$FAILED
 val_examined=0
 while IFS=$'\t' read -r plat surf cap v; do
   [[ -z "$surf" ]] && continue
   val_examined=$(( val_examined + 1 ))
+  if [[ "$v" == '>'* || "$v" == '|'* ]]; then
+    err "$plat/$surf $cap is a YAML block scalar this reader cannot flatten, so it was never checked; write it as a single-line plain scalar"
+    continue
+  fi
   if [[ "$v" == *"jq -e"* ]] && [[ "$v" == *"//"* ]]; then
-    err "$plat/$surf capability '$cap' has a validation that cannot fail: \`$v\`. A '//' fallback inside 'jq -e' substitutes a truthy default, so the command exits 0 on every input. Assert the value you mean, or validate something that can actually be absent."
+    err "$plat/$surf $cap has a validation that cannot fail: \`$v\`. A '//' fallback inside 'jq -e' substitutes a truthy default, so the command exits 0 on every input. Assert the value you mean, or validate something that can actually be absent."
+  fi
+  if [[ "$v" =~ ^[[:space:]]*(jq[[:space:]]+empty|test[[:space:]]+-[fed])[[:space:]]+[^[:space:]\&\|\;]+[[:space:]]*$ ]]; then
+    err "$plat/$surf $cap is validated by \`$v\`, which proves the file exists and parses and nothing about the capability -- it would stay green with the key deleted. Assert what is claimed: 'bash scripts/check-manifest-declares.sh <manifest> <key>' for a manifest-declared capability, or chain the file test to a command that exercises it."
+  fi
+done < <(jq -r '
+  .platforms | to_entries[] | .key as $p | (.value.surfaces // {}) | to_entries[] | .key as $s
+  | [ ( (.value.capabilities // {}) | to_entries[]
+        | select(.value.validation != null)
+        | [$p, $s, "capability '"'"'\(.key)'"'"'", .value.validation] ),
+      ( .value | select(.validation.command != null)
+        | [$p, $s, "surface validation", .validation.command] ) ]
+  | .[] | @tsv' "$REGISTRY_CANONICAL"
+  # Same rule, second home. platforms/*/adapter.yaml carries its own
+  # `validation.command`, and the only thing asserting it today is a test that checks it
+  # is non-empty. Two of them read `jq empty <manifest>` -- the identical defect, in the
+  # file this scan did not look at. A rule that polices one copy of a claim and not the
+  # other does not remove the class, it relocates it.
+  for y in "$ROOT"/platforms/*/adapter.yaml; do
+    [[ -f "$y" ]] || continue
+    aid="$(basename "$(dirname "$y")")"
+    acmd="$(awk '/^validation:/{inv=1;next} inv && /^[^[:space:]]/{inv=0} inv && /^  command:/{sub(/^  command:[[:space:]]*/,"");print;exit}' "$y")"
+    # A folded or block scalar (`>-`, `|`) hands this reader a marker instead of a
+    # command. It is emitted verbatim rather than diagnosed here: this producer runs in a
+    # SUBSHELL, so an `err` call inside it increments a copy of FAILED that dies with the
+    # subshell -- the message would print and the script would still exit 0, which is the
+    # exact defect this whole section exists to reject. The consumer, which runs in this
+    # shell, does the diagnosing.
+    [[ -n "$acmd" ]] && printf '%s\tadapter.yaml\tsurface validation\t%s\n' "$aid" "$acmd"
+  done)
+if (( val_examined == 0 )); then
+  err "the validation-command scan examined 0 rows -- the query is broken, not the registry clean"
+elif (( FAILED == before_val )); then
+  echo "ok:    all $val_examined validation commands (registry + platforms/*/adapter.yaml) can fail, and fail for the right reason"
+fi
+
+# --- 3g. No row may cite the file this file generates ---
+# platform-targets.json's per-target `capabilities` array is a DERIVED mirror of this
+# registry -- scripts/check-platform-targets.sh says so in its own header, and
+# --sync-capabilities is what writes it. So a note reading "'agents' is a declared
+# capability in platform-targets.json" is not evidence for anything: mark the row native
+# here, the sync copies the key over there, and the note then points at the copy. Three
+# rows were held up by exactly this loop, and one of them (codex/subagents) turned out to
+# name a manifest field the upstream spec does not define.
+#
+# Mechanical form only, deliberately: the assertive phrasings that present that file as
+# the source of a capability claim. A note that DISCUSSES the circularity, or cites the
+# file for what it legitimately owns -- which version was validated against -- is fine.
+before_circ=$FAILED
+circ_examined=0
+while IFS=$'\t' read -r plat surf cap text; do
+  [[ -z "$surf" ]] && continue
+  circ_examined=$(( circ_examined + 1 ))
+  if [[ "$text" =~ [Dd]eclared\ (capability\ )?in\ platform-targets\.json ]]; then
+    err "$plat/$surf capability '$cap' cites platform-targets.json as the source of the claim. That file's capabilities array is GENERATED from this registry, so the row is citing itself. Cite the upstream manifest spec or vendor doc, or run something that shows the capability is delivered."
   fi
 done < <(jq -r '
   .platforms | to_entries[] | .key as $p | (.value.surfaces // {}) | to_entries[] | .key as $s
   | (.value.capabilities // {}) | to_entries[]
-  | select(.value.validation != null)
-  | [$p, $s, .key, .value.validation] | @tsv' "$REGISTRY_CANONICAL")
-if (( val_examined == 0 )); then
-  err "the validation-command scan examined 0 rows -- the query is broken, not the registry clean"
-elif (( FAILED == before_val )); then
-  echo "ok:    all $val_examined validation commands are capable of failing"
+  | [$p, $s, .key, ((.value.notes // "") + " " + (.value.fallback // "") + " " + (.value.since_source // ""))]
+  | @tsv' "$REGISTRY_CANONICAL")
+if (( circ_examined == 0 )); then
+  err "the circular-citation scan examined 0 rows -- the query is broken, not the registry clean"
+elif (( FAILED == before_circ )); then
+  echo "ok:    $circ_examined rows checked, none cites the file this registry generates"
 fi
 
 # A `since` ahead of the version anyone actually ran is a documentation claim, not
