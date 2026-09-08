@@ -31,7 +31,7 @@ fi
 [[ "$file_exists" != true ]] && { add_gap "V1-01" "P1" "Missing docs/engineering/build-and-release/platform-targets.json" 5; inc P1; }
 [[ "$badges_match" != true ]] && { add_gap "V1-02" "P1" "README AI-target badges do not match platform-targets.json validated_against" 5; inc P1; }
 [[ "$md_exists" != true ]] && { add_gap "V1-03" "P2" "Missing docs/engineering/build-and-release/platform-targets.md" 5; inc P2; }
-[[ "$stale" == true ]] && { add_gap "V1-04" "P2" "validated_against < latest_known for one or more platform targets" 5; inc P2; }
+[[ "$stale" == true ]] && { add_gap "V1-04" "P2" "reviewed_through < latest_known for one or more platform targets (upstream releases nobody has read yet)" 5; inc P2; }
 [[ "$review_stale" == true ]] && { add_gap "V1-05" "P2" "platform-targets last_reviewed older than 90 days" 5; inc P2; }
 
 GAPS_JSON="["

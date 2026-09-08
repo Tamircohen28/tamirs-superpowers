@@ -256,8 +256,14 @@ if [[ "$pt_file" == true && -f "$ROOT/README.md" ]] && command -v jq >/dev/null 
     grep -qF "${prefix}-${validated}" "$ROOT/README.md" 2>/dev/null || pt_badges_match=false
   done
   # shellcheck disable=SC2086
+  # Staleness is "nobody has read what shipped", not "no live run on the newest build".
+  # `validated_against` is a live maintainer-machine run and lags on purpose; `reviewed_through`
+  # is the newest release whose notes were actually read for adapter impact, and that is the gap
+  # a contributor can close from a keyboard. Falls back to validated_against when a repo has not
+  # adopted reviewed_through, so consumer repos and the gold fixtures score exactly as before.
+  # The validated_against lag stays bounded by last_reviewed and V1-05's 90-day budget.
   for key in $pt_keys; do
-    v=$(jq -r ".targets.$key.validated_against // empty" "$PT_JSON" 2>/dev/null || true)
+    v=$(jq -r ".targets.$key.reviewed_through // .targets.$key.validated_against // empty" "$PT_JSON" 2>/dev/null || true)
     l=$(jq -r ".targets.$key.latest_known // empty" "$PT_JSON" 2>/dev/null || true)
     [[ "$v" == "unknown" || "$l" == "unknown" ]] && continue
     if [[ -n "$v" && -n "$l" && "$v" != "$l" ]]; then pt_stale=true; fi
