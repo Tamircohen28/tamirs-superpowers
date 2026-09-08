@@ -21,6 +21,19 @@
 #      files nobody asked it to watch, which trains people to ignore it. Matching must
 #      be literal: entries ending in `/` are directory prefixes, the rest exact files.
 #
+#   3. BYTE CHANGE READ AS CLAIM CHANGE. `core/capabilities/platforms.json` was
+#      watched by the same rule as the prose paths: any edit to it demanded a
+#      co-change in platform-targets.json. But platform-targets.json's `capabilities`
+#      and `capability_gaps` are a DERIVED mirror of that registry, and a normal run
+#      of the script already asserts semantically that they match. So a notes-only
+#      correction -- a prose fix to a capability whose status did not move, which
+#      nothing derives from -- fired a gate whose only remedy was to commit an
+#      unrelated edit to the derived doc. A gap asserted from where the checker looked
+#      rather than from what is true, and the more corrosive direction: acting on it
+#      means manufacturing drift to make a checker green. The registry is now judged
+#      on its capability STATUS and platform/surface projection, and a projection that
+#      cannot be made falls back to the byte answer rather than to silence.
+#
 #   Every case is asserted in both directions. The over-match cases are paired with the
 #   real watched path, so a "fix" that simply stops matching anything fails here, and
 #   the range cases are paired with a clean multi-commit range, so a fix that always
@@ -80,6 +93,27 @@ push_event() {
   f="$(mktemp "$TMP/event.XXXXXX")"
   jq -n --arg b "$2" '{before: $b}' > "$f"
   printf '%s\n' "$f"
+}
+
+# registry <repo> <status> <notes> — a minimal schema_version 2 capability registry,
+# the real shape: platform -> surfaces -> capabilities -> status. Written whole rather
+# than appended to, because the point of these cases is what the JSON *means*.
+registry() {
+  local d="$1"
+  mkdir -p "$d/core/capabilities"
+  jq -n --arg s "$2" --arg n "$3" '{
+    schema_version: 2,
+    platforms: { codex: { display_name: "Codex", surfaces: { codex: {
+      support: "supported",
+      capabilities: { subagents: { status: $s, notes: $n } }
+    } } } }
+  }' > "$d/core/capabilities/platforms.json"
+}
+
+# commit_all <repo> <message> — commit whatever is in the tree.
+commit_all() {
+  git -C "$1" add -A
+  git -C "$1" commit -q -m "$2"
 }
 
 # --- BUG 1: the range must cover the whole push/PR, not just its last commit ------
@@ -186,5 +220,67 @@ d14="$(new_repo file-prefix)"
 # `core/capabilities/platforms.json` is an EXACT file entry, not a prefix.
 commit "$d14" "backup beside a watched file" 'core/capabilities/platforms.json.bak'
 judge "platforms.json.bak does not trip the exact-file watch" clean "$(gate "$d14")"
+
+section "registry watch — the question is whether a CLAIM changed, not whether bytes did"
+
+d15="$(new_repo registry-notes)"
+registry "$d15" unknown "the original explanation"
+commit_all "$d15" "registry at base"
+registry "$d15" unknown "a better sourced explanation — same status, same claim"
+commit_all "$d15" "notes-only correction"
+judge "a notes-only registry edit does not demand a derived-doc co-change" clean \
+  "$(gate "$d15")"
+
+# Paired positive control: a "fix" that simply stops watching the registry fails here.
+d16="$(new_repo registry-status)"
+registry "$d16" native "measured"
+commit_all "$d16" "registry at base"
+registry "$d16" unknown "demoted — the evidence did not survive checking"
+commit_all "$d16" "capability demotion"
+judge "a capability STATUS change still demands the co-change" fired "$(gate "$d16")"
+
+d17="$(new_repo registry-status-cochanged)"
+registry "$d17" native "measured"
+commit_all "$d17" "registry at base"
+registry "$d17" unknown "demoted"
+mkdir -p "$d17/$(dirname "$TARGETS")"
+printf 'refreshed\n' >> "$d17/$TARGETS"
+commit_all "$d17" "demotion plus refreshed platform targets"
+judge "a status change with platform-targets.json co-changed passes" clean \
+  "$(gate "$d17")"
+
+d18="$(new_repo registry-surface)"
+registry "$d18" unknown "note"
+commit_all "$d18" "registry at base"
+jq '.platforms.codex.surfaces.codex.support = "unverified"' \
+  "$d18/core/capabilities/platforms.json" > "$d18/core/capabilities/platforms.json.new"
+mv "$d18/core/capabilities/platforms.json.new" "$d18/core/capabilities/platforms.json"
+commit_all "$d18" "surface dropped to unverified"
+judge "dropping a surface still demands the co-change" fired "$(gate "$d18")"
+
+section "registry watch — a projection that cannot be made must not read as 'no change'"
+
+d19="$(new_repo registry-added)"
+registry "$d19" unknown "note"
+commit_all "$d19" "registry added in this change"
+judge "a registry absent at base cannot be projected, so the gate still fires" fired \
+  "$(gate "$d19")"
+
+d20="$(new_repo registry-v1)"
+mkdir -p "$d20/core/capabilities"
+# schema_version 1 is flat — no `surfaces`, so the status projection comes back as `{}`
+# for both sides and a bare emptiness test would compare them EQUAL. Equal-because-
+# unreadable is exactly the defect this gate is supposed to be free of; it must degrade
+# to the byte answer instead.
+jq -n '{schema_version: 1,
+        platforms: {codex: {capabilities: {subagents: {status: "unknown", notes: "a"}}}}}' \
+  > "$d20/core/capabilities/platforms.json"
+commit_all "$d20" "v1 registry at base"
+jq -n '{schema_version: 1,
+        platforms: {codex: {capabilities: {subagents: {status: "unknown", notes: "b"}}}}}' \
+  > "$d20/core/capabilities/platforms.json"
+commit_all "$d20" "v1 registry, notes-only edit"
+judge "a schema_version 1 registry cannot be projected, so it falls back to firing" \
+  fired "$(gate "$d20")"
 
 harness_summary

@@ -170,6 +170,51 @@ if [[ "$REQUIRE_CO_CHANGE" == true ]]; then
     return 1
   }
 
+  # core/capabilities/platforms.json is watched on a different question from every
+  # other entry. The rest are prose: after touching them a human has to re-read
+  # platform-targets.json's evidence, and only a human can say whether it still holds.
+  # The registry is not prose. platform-targets.json's `capabilities` and
+  # `capability_gaps` are a DERIVED mirror of it (see this file's header), and a normal
+  # run already asserts, semantically, that the mirror matches -- so "the registry file
+  # changed" is the wrong question to ask about it. It fires on a notes-only correction
+  # that nothing derives from, and the only way to satisfy it then is to commit an
+  # unrelated edit to the derived doc: drift manufactured to make a checker green.
+  #
+  # Ask what is true instead -- did any capability STATUS, or the set of platforms and
+  # surfaces, actually change between base and HEAD? A prose edit did not. A demotion, a
+  # new platform, a dropped surface did, and those are exactly the changes whose
+  # evidence in platform-targets.json has to be re-reviewed.
+  registry_shape() { # <rev> -> capability statuses + surface support, order-independent
+    git -C "$ROOT" show "$1:core/capabilities/platforms.json" 2>/dev/null \
+      | jq -S -c '[ (.platforms // {}) | to_entries[] | .key as $p
+                    | (.value.surfaces // {}) | to_entries[] | .key as $s | .value as $sv
+                    | ({ key: "\($p)/\($s)", value: "support=\($sv.support // "")" }),
+                      ( ($sv.capabilities // {}) | to_entries[]
+                        | { key: "\($p)/\($s)/\(.key)", value: (.value.status // "") } )
+                  ] | from_entries' 2>/dev/null
+  }
+  # An empty projection on either side means it FAILED -- the file is absent at base,
+  # the registry is a flat schema_version 1 with no surfaces, or jq errored. That is "I
+  # could not tell", and it must not read as "nothing changed": fall back to the
+  # byte-level answer, which is the old behaviour and errs toward firing.
+  #
+  # `{}` counts as empty here, and that is the whole point. A schema_version 1 registry
+  # projects to `{}` on BOTH sides, so a bare emptiness test on the string would find
+  # two non-empty values, compare them equal, and report "no claim changed" about a
+  # file it could not read at all. A supported v2 registry always has at least one
+  # surface, so `{}` can only mean unreadable.
+  registry_claims_changed() {
+    local a b proj
+    # `set -e`: a failing command substitution in an assignment aborts the script, and
+    # `git show` failing is a normal outcome here (absent at base), not a crash.
+    a="$(registry_shape "$base" || true)"
+    b="$(registry_shape HEAD || true)"
+    for proj in "$a" "$b"; do
+      case "$proj" in ""|null|"{}") return 0 ;; esac
+    done
+    [[ "$a" != "$b" ]]
+  }
+
   changed=false
   targets_changed=false
   if git -C "$ROOT" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
@@ -183,7 +228,13 @@ if [[ "$REQUIRE_CO_CHANGE" == true ]]; then
       case "$f" in
         *platform-targets.json) targets_changed=true ;;
       esac
-      if is_watched "$f"; then changed=true; fi
+      if is_watched "$f"; then
+        if [[ "$f" == "core/capabilities/platforms.json" ]]; then
+          if registry_claims_changed; then changed=true; fi
+        else
+          changed=true
+        fi
+      fi
     done <<<"$changed_files"
     if [[ "$changed" == true && "$targets_changed" != true ]]; then
       err "PR changes repo skills/platform-specs but not docs/engineering/build-and-release/platform-targets.json"
