@@ -77,7 +77,7 @@ A **surface** with `runtime_surface_of` set (Claude Desktop → Claude Code) con
 | V1-01 | Multi-platform repo missing `platform-targets.json` |
 | V1-02 | README AI badges ≠ `validated_against` in JSON |
 | V1-03 | `platform-targets.md` missing or stale |
-| V1-04 | `validated_against < latest_known` |
+| V1-04 | `reviewed_through < latest_known` (falls back to `validated_against` when a repo has no `reviewed_through`) |
 | V1-05 | `last_reviewed` older than 90 days |
 | V1-06 | `supported_min` incompatible with `features_adopted` |
 

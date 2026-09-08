@@ -162,6 +162,21 @@ jobs:
       - name: Assert contract fixtures (app-gold + plugin-gold)
         run: make test-repo-contract
 
+  contract-assert:
+    # The job above asserts the gold FIXTURES. This one asserts THIS repo against the
+    # same standards contract. `make assert-contract` has always existed and no workflow
+    # has ever invoked it, so the one gate that scores this repo could never block a
+    # merge. The inventory's GitHub-settings probe is unauthenticated here, so those
+    # facts come from the filesystem only; a local run with `gh` logged in checks more.
+    name: Repo contract (this repo)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+      - name: Install PyYAML
+        run: pip install -r scripts/requirements-validate.txt
+      - name: Assert this repo against its own standards contract
+        run: make assert-contract
+
   manifest-version-alignment:
     name: Manifest/tag version alignment
     runs-on: ubuntu-latest

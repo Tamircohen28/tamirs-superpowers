@@ -30,13 +30,37 @@ The README's platform badge row shows **platform tool versions** directly valida
 
 Verified **2026-09-06** — Claude Code reviewed against the official changelog through **2.1.263** (released 2026-09-06), confirmed as the current npm dist-tag; this cycle's live `claude` CLI reported exactly `2.1.263`, so `validated_against` advances all the way to it, and `claude plugin validate .` (plus its `--json` mode) and `bash scripts/doctor.sh .` were re-run for real against that CLI and both passed. This cycle covers 2.1.259, 2.1.260, 2.1.261 and 2.1.263 (2.1.262 does not exist in the official changelog). 2.1.260 fixes `permissions.blockReadsOutsideWorkingDirectories` hiding a worktree-isolated sub-agent's own checkout on macOS (not a setting this repo ships, but directly relevant to worktree isolation) and adds `/reload-plugins` to headless (`-p`/SDK) sessions. 2.1.261 adds `/skill-doctor` (unused-skill/context-cost audit — relevant to this toolkit's 27 skills) and `bashOutputMaxChars`/`taskOutputMaxChars` (not wired anywhere yet). See `CLAUDE.md`'s Hooks and Remote/headless sections, `docs/engineering/build-and-release/development-workflow.md`'s Running checks section, and `platform-targets.json`'s `verification_method` for the full review, including what was checked and found not applicable. Cursor was verified against **3.18.9** on 2026-08-30; Gemini CLI remains directly validated at **0.55.1** and OpenCode at **1.18.11** (maintainer-machine run, 2026-08-03). Codex releases are reviewed through **0.152.1** (released 2026-09-01), while direct CLI validation remains at **0.146.0** until the next maintainer-machine run. The 0.150–0.152 delta does not require a plugin-manifest migration: native task references and `Interrupt` hooks are host-specific opportunities; optional-MCP discovery grace, MCP-result interception, per-repository plugin catalog configuration, package-style MCP server names, per-tool MCP `output_token_limit`, and longer app-server shell-command timeouts are native Codex capabilities. `tools.update_plan.enabled` is opt-in starting in 0.152; this repo does not depend on that tool, so no config migration is required. The shared cross-target hook bundle remains unchanged so Codex-only lifecycle semantics cannot alter Claude/Cursor behavior. One correction worth recording: the Codex manifest `hooks` field is not a 0.147.0 feature. 0.147.0 is portable agent plugins (catalog install); plugin-manifest hooks were wired into the hook runtime by openai/codex PR #19705, merged 2026-04-28, about twenty releases earlier. `core/capabilities/platforms.json` recorded codex hooks as `since: 0.147.0` on that confusion, ahead of the 0.146.0 actually validated. The exact floor has never been established here, so the registry now claims none rather than a wrong one.
 
-| Surface | Min supported | Validated against | Latest known | Install guide |
-|----------|---------------|-------------------|--------------|---------------|
-| Claude Code | 2.0.0 | 2.1.263 | 2.1.263 | [claude-code.md](../../user/install/claude-code.md) |
-| Cursor | 3.18.9 | 3.18.9 | 3.18.9 | [cursor.md](../../user/install/cursor.md) |
-| Codex | 0.40.0 | 0.146.0 | 0.152.1 | [codex.md](../../user/install/codex.md) |
-| Gemini CLI | 0.55.1 | 0.55.1 | 0.55.1 | [gemini.md](../../user/install/gemini.md) |
-| OpenCode | 1.16.2 | 1.18.11 | 1.18.29 | [opencode.md](../../user/install/opencode.md) |
+| Surface | Min supported | Validated against | Reviewed through | Latest known | Install guide |
+|----------|---------------|-------------------|------------------|--------------|---------------|
+| Claude Code | 2.0.0 | 2.1.263 | 2.1.263 | 2.1.263 | [claude-code.md](../../user/install/claude-code.md) |
+| Cursor | 3.18.9 | 3.18.9 | 3.18.9 | 3.18.9 | [cursor.md](../../user/install/cursor.md) |
+| Codex | 0.40.0 | 0.146.0 | 0.152.1 | 0.152.1 | [codex.md](../../user/install/codex.md) |
+| Gemini CLI | 0.55.1 | 0.55.1 | 0.55.1 | 0.55.1 | [gemini.md](../../user/install/gemini.md) |
+| OpenCode | 1.16.2 | 1.18.11 | 1.18.29 | 1.18.29 | [opencode.md](../../user/install/opencode.md) |
+
+Two different claims, deliberately kept apart. **Validated against** is the version this repo
+was last exercised against on a live maintainer machine. **Reviewed through** is the newest
+upstream release whose notes have actually been read for adapter impact. Reading release notes is
+cheap and should always be current; a live run needs a maintainer at a machine, so the two drift
+apart on purpose. `V1-04` therefore fires on `reviewed_through < latest_known` — releases nobody
+has looked at, the gap a contributor can close from a keyboard — and not on a `validated_against`
+lag, which is bounded instead by `last_reviewed` and `V1-05`'s 90-day budget. Before this split the
+rule compared `validated_against` against `latest_known`, so it reported a gap for Codex that the
+prose on this page had already closed, and it could only ever be silenced by a live run or by
+inventing a version.
+
+OpenCode is now reviewed through **1.18.29**: every release from 1.18.12 to 1.18.29 was retrieved
+individually (18 of 18 tags, none unverified) and read against this repo's five points of contact —
+`opencode.json`'s `$schema` and skill paths, `.opencode/agent/` frontmatter, the `mcp` block this
+repo deliberately does not ship, `.opencode/.gitignore`, and `opencode debug skill`. No breaking
+change, no schema-URL change, no change to skill discovery or nesting, no change to agent
+frontmatter, no change to MCP declaration; for skills and MCP that rests on zero commits to
+`src/skill` and `src/mcp` in the window rather than on absence from the release notes. Two watch
+items came out of it: 1.18.16 made the config parser ignore unknown top-level fields at runtime
+while the published schema still sets `additionalProperties: false`, and 1.18.24 added read-compat
+for v2 config, whose `skills` is a flat array rather than v1's `{paths, urls}` object — so an
+eventual v2 adoption is a real `opencode.json` shape change even though v1 remains native. The
+review is documentary, so `validated_against` stays at 1.18.11.
 
 ### How each floor was set
 

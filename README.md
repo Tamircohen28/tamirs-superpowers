@@ -99,6 +99,26 @@ was never measured rather than guessing from its sibling.
 Capabilities differ per surface, sometimes a lot. The honest, registry-generated comparison
 is [docs/user/platform-differences.md](docs/user/platform-differences.md).
 
+## Prerequisites
+
+**To use the plugin.** `git` 2.30+ and `jq`. `gh` is optional and only used by the PR and
+issue workflows. Nothing on the user path needs Node, Python, or a build step — the skills
+are shell and markdown. Each surface's install guide lists anything that surface adds on top;
+Gemini is the one that needs a second command, because its skills ship as a generated flat
+mirror installed with `--path`.
+
+**To contribute.** `make validate` is the same gate CI runs, and it needs three things the
+user path does not:
+
+| Tool | Needed by |
+|------|-----------|
+| `shellcheck` | `make lint` — shellchecks every tracked `*.sh`, at any depth |
+| Node 22 (pinned in `.nvmrc`) | builds the `scaffold-plugin-gold` contract fixture |
+| Python 3 + `pyyaml>=6.0` | `pip install -r scripts/requirements-validate.txt` — SKILL.md frontmatter and the portable skill contract |
+
+`make plugin-validate` additionally wants the `claude` CLI; `make validate` does not run it.
+Confirm a machine is ready with `bash scripts/doctor.sh .`.
+
 ## Install in 5 minutes
 
 **1. Install the plugin.** Pick your platform and surface from the tables above — each
@@ -125,8 +145,8 @@ path is now a thin shim over the same engine. **Read [setup](docs/user/setup.md)
 first `apply`:** it will switch off plugins the canonical set records as deliberately
 disabled. The other four platforms: [platform setup](docs/user/platform-setup.md).
 
-Requires `git` 2.30+ and `jq`; `gh` is optional (PR and issue workflows). Nothing here needs
-Node, Python, or a build step. Check the result with `bash scripts/doctor.sh .`.
+Check the result with `bash scripts/doctor.sh .`; the requirements are listed under
+[Prerequisites](#prerequisites) above.
 
 > Contributing to this repo is a **different** setup — `git clone`, then `make validate`.
 > See [contributor bootstrap](docs/engineering/build-and-release/development-workflow.md).

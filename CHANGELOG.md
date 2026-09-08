@@ -5,6 +5,40 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Added
+- **`make assert-contract` now runs in CI, against this repo.** The target existed,
+  passed locally, and guarded nothing: no workflow invoked it, so the one gate that
+  scores this repo against its own standards contract had never blocked a merge. The
+  existing `Repo contract (scaffold-gold)` job asserts the *fixtures*, not the repo.
+  Wiring it exposed that it was also red — see below.
+- **`reviewed_through` in `platform-targets.json`.** A second, separate version claim
+  per target: the newest upstream release whose notes have actually been read for
+  adapter impact, as distinct from `validated_against`, which this repo defines as a
+  live maintainer-machine run. They drift apart on purpose.
+- **README `## Prerequisites`.** The requirements existed as a sentence buried in the
+  install section; they are now a section, split into what using the plugin needs
+  (`git` 2.30+, `jq`, optionally `gh`) and what `make validate` additionally needs
+  (shellcheck, Node 22, Python + `pyyaml`).
+- **OpenCode reviewed through 1.18.29.** All 18 releases from 1.18.12 were retrieved
+  individually and read against this repo's five points of contact; none unverified.
+  No breaking change, no schema-URL change, no change to skill discovery, agent
+  frontmatter, or MCP declaration. `validated_against` stays at 1.18.11 — the review
+  is documentary, and claiming a live run nobody performed is the defect this repo
+  exists to prevent.
+
+### Fixed
+- **V1-04 measured a number the repo deliberately keeps behind.** The rule fired on
+  `validated_against < latest_known`, but `validated_against` means "last exercised on
+  a live maintainer machine" and lags by design — `platform-targets.md` already said
+  so in prose. So the rule reported a gap for Codex that the documentation had already
+  closed, and could only ever be silenced by a live run or by inventing a version. It
+  now fires on `reviewed_through < latest_known` — releases nobody has read, the gap a
+  contributor can actually close — and falls back to `validated_against` when a repo
+  has no `reviewed_through`, so consumer repos and the gold fixtures score exactly as
+  before. The `validated_against` lag stays bounded by `last_reviewed` and V1-05's
+  90-day budget. Verified the rule can still fail: rolling OpenCode's
+  `reviewed_through` back to 1.18.11 reproduces V1-04.
+
 ### Security
 - **Every workflow action is now pinned to a commit SHA, and a check keeps it
   that way.** `uses: actions/checkout@v7` names a tag, not a version, and a tag
