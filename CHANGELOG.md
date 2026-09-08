@@ -5,6 +5,18 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Added
+- **`tests/test-standards-inventory-paths.sh`** — a regression suite for the
+  location-probing fix that landed in #129, which shipped without one. 21
+  assertions, every case in both directions: each CODEOWNERS and licence location
+  that must be recognised is paired with a repo that has none (so a regression to
+  an unconditional `true` fails), and each widened search is paired with a
+  location the platform does *not* honour — `src/CODEOWNERS`, `docs/LICENSE` — so
+  "probe everywhere" fails too. `CLAUDE.md` and `AGENTS.md` are asserted to have
+  stayed root-only, since those are per-directory instruction files and only the
+  root one is the repository's own. Verified as a real control: reverting the
+  inventory to its pre-#129 state turns 9 of the 21 red.
+
 ### Fixed
 - **The standards scorer invented gaps from an incomplete read.**
   `standards-inventory.sh` probed a single path for two controls the platform
