@@ -5,6 +5,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [3.6.2] — 2026-09-08
+
 ### Added
 - **`make assert-contract` now runs in CI, against this repo.** The target existed,
   passed locally, and guarded nothing: no workflow invoked it, so the one gate that
