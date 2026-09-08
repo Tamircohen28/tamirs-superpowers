@@ -11,13 +11,14 @@ fi
 
 section "platform contract: Cursor"
 
-contract_registry_entry cursor "Cursor"
+contract_registry_entry cursor "Cursor IDE"
 contract_manifest "cursor" ".cursor-plugin/plugin.json"
 
 M="$REPO_ROOT/.cursor-plugin/plugin.json"
 cursor_skill_paths=()
 read_lines cursor_skill_paths < <(jq -r '.skills[]?' "$M")
 contract_skill_paths "cursor" ${cursor_skill_paths[@]+"${cursor_skill_paths[@]}"}
+contract_skill_coverage "cursor" ${cursor_skill_paths[@]+"${cursor_skill_paths[@]}"}
 
 judge "cursor manifest version matches the Claude manifest" \
   "$(jq -r .version "$REPO_ROOT/.claude-plugin/plugin.json")" "$(jq -r .version "$M")"

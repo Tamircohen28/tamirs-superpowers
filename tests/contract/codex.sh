@@ -18,6 +18,7 @@ M="$REPO_ROOT/.codex-plugin/plugin.json"
 codex_skill_paths=()
 read_lines codex_skill_paths < <(jq -r '.skills[]?' "$M")
 contract_skill_paths "codex" ${codex_skill_paths[@]+"${codex_skill_paths[@]}"}
+contract_skill_coverage "codex" ${codex_skill_paths[@]+"${codex_skill_paths[@]}"}
 
 judge "codex manifest version matches the Claude manifest" \
   "$(jq -r .version "$REPO_ROOT/.claude-plugin/plugin.json")" "$(jq -r .version "$M")"

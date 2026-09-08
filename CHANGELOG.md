@@ -6,6 +6,34 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ## [Unreleased]
 
 ### Fixed
+- **`github-policy` was unreachable on OpenCode, and invisible in the docs.** The
+  skill shipped, but `opencode.json` enumerates `skills/repo/*` one directory at a
+  time (to keep the `_contract` gold fixtures out) and the enumeration was never
+  extended when the skill landed. The same omission had propagated to the
+  user-facing catalog in `docs/user/skills.md` and to the copy-paste config block
+  in `docs/user/install/opencode.md`, so a user following the install guide
+  reproduced the broken config by hand. All three now list it.
+
+### Added
+- **Drift checks that can see an omission, not only a rename.** The old contract
+  assertion walked the manifest and checked each declared path existed, so a skill
+  the manifest never mentions passed silently — which is exactly how the above
+  shipped. `contract_skill_coverage` walks the other direction, from every
+  canonical `SKILL.md` on disk back to the declared paths, and runs in the Claude,
+  Cursor, Codex and OpenCode suites. `check-agent-drift.sh` gained a matching
+  catalog half for `docs/user/skills.md`, and a thin-adapter half that fails when a
+  `## ` section body is byte-identical in `AGENTS.md` and `CLAUDE.md`. The script
+  previously validated frontmatter only, and reported "no drift detected" while an
+  entire section sat duplicated between the two files.
+- **`make test-contract`**, wired into `make validate`, so the platform contract
+  suites run in CI with the rest of the local-parity gate instead of by hand.
+
+### Changed
+- **`CLAUDE.md` points at `AGENTS.md` for the skill-surfacing rule** rather than
+  restating it verbatim, and the Cursor `plugin-structure` adapter now names five
+  platforms and six surfaces, matching the registry and `AGENTS.md` instead of
+  dropping Claude Desktop.
+
 - **A removed session worktree stays removed.** `capture-task-slug.sh` ran
   `[[ ! -d $worktree_path ]] && git worktree add -B` on *every* prompt, which
   undid every removal — `git worktree remove`, the `cleanup` skill's worktree

@@ -93,6 +93,35 @@ contract_skill_paths() {
   judge "$label: every declared skill path contains a SKILL.md" "" "$empty"
 }
 
+# contract_skill_coverage <label> <path-list...> — the REVERSE of the check above.
+#
+# contract_skill_paths walks the manifest and asks "does this path exist?", which
+# can only catch a rename. It cannot catch an omission: a skill that no declared
+# path covers is invisible to it, and the suite passes while the target ships a
+# short deck. That is exactly how skills/repo/github-policy went unshipped to
+# OpenCode while all four manifests advertised "27 bundled skills" — opencode.json
+# enumerates skills/repo/* one by one to keep the _contract gold fixtures out, and
+# the enumeration was simply never extended when the skill landed.
+#
+# So: walk the canonical tree instead and require every skill to be reachable.
+# Fixtures under skills/repo/_contract/ are gold inputs for the repo contract
+# tests, not shipped skills, and are excluded on both sides.
+contract_skill_coverage() {
+  local label="$1"; shift
+  local unreachable="" skill rel p covered
+  while IFS= read -r skill; do
+    rel="${skill#"$REPO_ROOT/"}"
+    rel="$(dirname "$rel")"
+    covered=no
+    for p in "$@"; do
+      p="${p#./}"; p="${p%/}"
+      case "$rel" in "$p"|"$p"/*) covered=yes; break;; esac
+    done
+    [ "$covered" = yes ] || unreachable="$unreachable $rel"
+  done < <(find "$REPO_ROOT/skills" -name SKILL.md -not -path '*/_contract/*' 2>/dev/null | sort)
+  judge "$label: every canonical skill is reachable from a declared path" "" "$unreachable"
+}
+
 # contract_cli <label> <cli> <cmd...> — the CLI half. Skips, loudly, when absent.
 #
 # Run under portable_timeout: a vendor CLI that waits on auth, a prompt, or a
@@ -109,6 +138,15 @@ contract_cli() {
   out="$(portable_timeout "$CONTRACT_CLI_TIMEOUT" "$@" 2>&1)" || rc=$?
   if [ "$rc" -eq 124 ]; then
     bad "$label" "timed out after ${CONTRACT_CLI_TIMEOUT}s (watchdog: $(portable_timeout_impl))"
+    return 0
+  fi
+  # 127 is "command not found" reported by the command itself, not by us. A launcher
+  # shim can sit on PATH — satisfying harness_have — and then resolve to nothing:
+  # a cmux CLI shim answers `codex --version` with "codex not found in PATH" and
+  # exit 127. That is the CLI being absent, which this helper's contract says to
+  # skip loudly, so report it as absent rather than as a red suite.
+  if [ "$rc" -eq 127 ]; then
+    skip "$label" "$cli resolves to a shim that reports command-not-found (exit 127) — nightly job territory"
     return 0
   fi
   if [ "$rc" -eq 0 ]; then ok "$label"; else

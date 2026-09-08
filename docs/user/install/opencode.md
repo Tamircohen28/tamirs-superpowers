@@ -89,6 +89,7 @@ expanded inside JSON):
       "/Users/you/src/tamirs-superpowers/skills/mcp",
       "/Users/you/src/tamirs-superpowers/skills/toolkit",
       "/Users/you/src/tamirs-superpowers/skills/repo/cleanup",
+      "/Users/you/src/tamirs-superpowers/skills/repo/github-policy",
       "/Users/you/src/tamirs-superpowers/skills/repo/multi-agent-repo",
       "/Users/you/src/tamirs-superpowers/skills/repo/repo-scaffold",
       "/Users/you/src/tamirs-superpowers/skills/repo/repo-standards"

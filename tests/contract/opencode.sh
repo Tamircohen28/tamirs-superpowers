@@ -11,7 +11,7 @@ fi
 
 section "platform contract: OpenCode"
 
-contract_registry_entry opencode "OpenCode"
+contract_registry_entry opencode "OpenCode CLI"
 contract_manifest "opencode config" "opencode.json"
 
 M="$REPO_ROOT/opencode.json"
@@ -23,6 +23,7 @@ read_lines oc_paths < <(jq -r '.skills.paths[]? // .skills[]? // empty' "$M")
 judge "opencode.json declares skill paths" yes \
   "$(if [ "${#oc_paths[@]}" -gt 0 ]; then echo yes; else echo no; fi)"
 contract_skill_paths "opencode" ${oc_paths[@]+"${oc_paths[@]}"}
+contract_skill_coverage "opencode" ${oc_paths[@]+"${oc_paths[@]}"}
 
 # Agent adapters are GENERATED from agents/ — drift here is a real shipping bug.
 if [ -d "$REPO_ROOT/.opencode/agent" ]; then
