@@ -115,9 +115,16 @@ manifest_count=0
 # unreleased version bumps sitting on main). Only evaluated when the repo
 # has at least one manifest and at least one semver-looking tag — a repo
 # that hasn't cut its first release yet can't drift.
+#
+# A gold fixture (skills/repo/_contract/fixtures/*) has no git repo of its
+# own — `git tag` inside it walks up to this repo's real tags, so a fixture's
+# deliberately-frozen manifest version (e.g. "0.1.0") would be compared
+# against tamirs-superpowers's own release history and always drift. Fixture
+# manifests aren't tracked releases; exempt anything scored from inside one.
 manifest_version_tag_match=true
 release_tags_exist=false
-if (( manifest_count > 0 )) && [[ -n "$manifest_version" ]] && command -v git &>/dev/null; then
+if (( manifest_count > 0 )) && [[ -n "$manifest_version" ]] && command -v git &>/dev/null \
+  && [[ "$ROOT" != *"/_contract/fixtures/"* ]]; then
   latest_tag_ver=$(cd "$ROOT" && git tag -l 'v[0-9]*.[0-9]*.[0-9]*' 2>/dev/null \
     | sed 's/^v//' | sort -t. -k1,1n -k2,2n -k3,3n | tail -1 || true)
   if [[ -n "$latest_tag_ver" ]]; then
