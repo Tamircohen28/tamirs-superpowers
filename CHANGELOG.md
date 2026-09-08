@@ -5,6 +5,24 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Fixed
+- **Gold fixture capability registries now claim only what their fixture trees
+  actually deliver.** `core/capabilities/platforms.json` under `scaffold-gold`,
+  `scaffold-plugin-gold`, and `scaffold-claude-plugin-gold` claimed native
+  plugin-manifest-based skills/mcp/subagents/hooks capabilities the fixture
+  directory trees never shipped. `scaffold-gold` (the app-gold profile, not a
+  plugin-distribution repo) now has its own
+  `core/capabilities/platforms.app.json` registry instead of fake plugin
+  claims; `scaffold-plugin-gold` and `scaffold-claude-plugin-gold` gained the
+  real supporting files (`.mcp.json`, `hooks/hooks.json`, `.codex-plugin/`,
+  `.cursor-plugin/`, `agents/`,
+  `docs/agent-guidelines/platform-equivalence.md`) their registries already
+  claimed, and a schema-invalid `agents`/`commands` array-of-directory-path
+  shape in `scaffold-plugin-gold`'s inner plugin manifest — which failed
+  `claude plugin validate .` — was corrected to rely on folder discovery.
+  `scripts/check-manifest-declares.sh` is now vendored into the contract sync
+  chain and all three fixtures as a prerequisite for the new validations.
+
 ### Changed
 - **The platform-targets co-change gate now judges the capability registry by its
   claims, not by its bytes.** `core/capabilities/platforms.json` was watched by
