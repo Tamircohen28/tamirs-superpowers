@@ -6,6 +6,20 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ## [Unreleased]
 
 ### Changed
+- **The platform-targets co-change gate now judges the capability registry by its
+  claims, not by its bytes.** `core/capabilities/platforms.json` was watched by
+  the same rule as the prose paths, so any edit demanded a co-change in
+  `docs/engineering/build-and-release/platform-targets.json`. But that file's
+  `capabilities`/`capability_gaps` are a *derived* mirror of the registry, and a
+  normal run of `check-platform-targets.sh` already asserts semantically that the
+  mirror matches — so a notes-only correction fired a gate whose only remedy was
+  committing an unrelated edit to the derived doc. It is now decided by the
+  capability **status** and platform/surface projection: a demotion, a new
+  platform or a dropped surface still fires, a prose fix does not, and a
+  projection that cannot be made (registry absent at base, a flat
+  `schema_version` 1 registry, a `jq` failure) falls back to the byte answer
+  rather than to silence. Six paired cases added to
+  `tests/test-platform-targets-cochange.sh` (21 passing).
 - **The `codex/subagents` demotion now cites the upstream issue, not just the
   absence of a field.** The note argued from what the plugin manifest spec does
   *not* list, which is weak evidence: a spec can omit a field by oversight.
