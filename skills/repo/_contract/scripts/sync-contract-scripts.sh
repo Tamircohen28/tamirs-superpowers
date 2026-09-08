@@ -96,10 +96,19 @@ while IFS=$'\t' read -r gid canonical group_subs copy_json; do
     dst="$ROOT/$cpath"
     subs="$(jq -nc --argjson a "$group_subs" --argjson b "$copy_subs" '$a * $b')"
 
-    expected="$(render "$src" "$subs" "$copy_reverse")"
+    # The X sentinel is load-bearing: $(...) strips every trailing newline, and this
+    # value is both the comparison operand and the bytes written to disk. Without it the
+    # script wrote 19 of its 25 copies with no terminating newline, then compared them
+    # against a second $(cat "$dst") that stripped the same byte -- so it reported "25
+    # copies identical" while the canonical ended 0a and the copy ended with a quote.
+    # A drift checker blind to a class of drift is the defect it exists to prevent.
+    expected="$(render "$src" "$subs" "$copy_reverse"; printf X)"
+    expected="${expected%X}"
     CHECKED=$(( CHECKED + 1 ))
 
-    if [[ -f "$dst" ]] && [[ "$expected" == "$(cat "$dst")" ]]; then
+    # cmp, not [[ == ]]: string comparison of two command substitutions cannot see a
+    # trailing-newline difference, which is precisely the drift that went unnoticed.
+    if [[ -f "$dst" ]] && printf '%s' "$expected" | cmp -s - "$dst"; then
       continue
     fi
 
