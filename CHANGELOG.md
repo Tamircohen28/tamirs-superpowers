@@ -27,6 +27,10 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   entire section sat duplicated between the two files.
 - **`make test-contract`**, wired into `make validate`, so the platform contract
   suites run in CI with the rest of the local-parity gate instead of by hand.
+- **OpenCode `latest_known` refreshed** from 1.18.18 (published 2026-08-13) to
+  1.18.29 (published 2026-09-04), read from `registry.npmjs.org/opencode-ai`
+  `dist-tags.latest`. `validated_against` stays at 1.18.11 — that is the build
+  actually run, and moving it would be invention.
 
 ### Changed
 - **`CLAUDE.md` points at `AGENTS.md` for the skill-surfacing rule** rather than

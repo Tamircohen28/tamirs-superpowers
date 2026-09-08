@@ -221,9 +221,9 @@
       "supported_min": "1.16.2",
       "supported_min_source": "oldest version on which recursive (domain-nested) SKILL.md discovery was verified with `opencode debug skill`; not re-tested in this pass, so the floor is left where the evidence put it",
       "validated_against": "1.18.11",
-      "latest_known": "1.18.18",
+      "latest_known": "1.18.29",
       "verified_on": "2026-08-19",
-      "verification_method": "opencode --version on the maintainer machine (1.18.11), exercised live: opencode debug skill / debug agent / debug config against this repo and against throwaway sandboxes; agent + config field shapes cross-checked against the published JSON Schema at https://opencode.ai/config.json. latest_known from registry.npmjs.org/opencode-ai dist-tags.latest (1.18.18, published 2026-08-13). validated_against is deliberately not latest_known: 1.18.11 is the build actually run, and asserting 1.18.18 would be invention.",
+      "verification_method": "opencode --version on the maintainer machine (1.18.11), exercised live: opencode debug skill / debug agent / debug config against this repo and against throwaway sandboxes; agent + config field shapes cross-checked against the published JSON Schema at https://opencode.ai/config.json. latest_known from registry.npmjs.org/opencode-ai dist-tags.latest (1.18.29, published 2026-09-04; refreshed 2026-09-08). validated_against is deliberately not latest_known: 1.18.11 is the build actually run, and asserting 1.18.29 would be invention.",
       "install_doc": "docs/user/install/opencode.md",
       "doc_urls": [
         "https://opencode.ai/docs/skills/",

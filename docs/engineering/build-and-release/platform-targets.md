@@ -36,7 +36,7 @@ Verified **2026-09-06** — Claude Code reviewed against the official changelog 
 | Cursor | 3.18.9 | 3.18.9 | 3.18.9 | [cursor.md](../../user/install/cursor.md) |
 | Codex | 0.40.0 | 0.146.0 | 0.152.1 | [codex.md](../../user/install/codex.md) |
 | Gemini CLI | 0.55.1 | 0.55.1 | 0.55.1 | [gemini.md](../../user/install/gemini.md) |
-| OpenCode | 1.16.2 | 1.18.11 | 1.18.18 | [opencode.md](../../user/install/opencode.md) |
+| OpenCode | 1.16.2 | 1.18.11 | 1.18.29 | [opencode.md](../../user/install/opencode.md) |
 
 ### How each floor was set
 
