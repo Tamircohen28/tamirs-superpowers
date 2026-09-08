@@ -6,6 +6,27 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ## [Unreleased]
 
 ### Fixed
+- **The standards scorer invented gaps from an incomplete read.**
+  `standards-inventory.sh` probed a single path for two controls the platform
+  reads from several, so `score-standards-gaps.sh` asserted the control was
+  missing on repos where it is present and working:
+  - **S4-01 (P2), CODEOWNERS.** GitHub honours `.github/CODEOWNERS`, root
+    `CODEOWNERS` and `docs/CODEOWNERS` with equal weight, and `.github/` is the
+    most common of the three. Only the root was checked, so `st-claude` — whose
+    `.github/CODEOWNERS` reads `* @TamirCohen28` — scored a P2 gap against a
+    control it has.
+  - **S5-01 (P1), LICENSE.** Only the exact name `LICENSE` was checked, so a repo
+    carrying `LICENSE.md` was told at the highest severity that it has no licence.
+    `LICENCE`, `COPYING` and the `.md`/`.txt` spellings are now accepted too.
+
+  The S4 section of that same file already warns that "a gap invented from a
+  failed read is the defect this family used to have" — about its API-backed
+  checks. The lesson had never been applied to the local-filesystem checks
+  sitting twenty lines above it. `.gitignore` is genuinely single-name and
+  single-location; `CLAUDE.md` and `AGENTS.md` are deliberately left root-only,
+  because the inventory asks whether the repo has a root entrypoint, and a
+  nested file is supplementary context rather than that entrypoint.
+
 - **`github-policy` was unreachable on OpenCode, and invisible in the docs.** The
   skill shipped, but `opencode.json` enumerates `skills/repo/*` one directory at a
   time (to keep the `_contract` gold fixtures out) and the enumeration was never
