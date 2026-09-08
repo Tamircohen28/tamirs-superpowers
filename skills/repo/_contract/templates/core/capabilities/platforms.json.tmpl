@@ -827,8 +827,8 @@
             },
             "mcp": {
               "status": "native",
-              "validation": "jq -e '.mcp // {}' opencode.json",
-              "notes": "Configured in opencode.json."
+              "validation": "grep -q 'opencode.ai/docs/mcp-servers' docs/user/install/opencode.md",
+              "notes": "OpenCode reads MCP servers from the 'mcp' block of opencode.json, not from .mcp.json. This repo deliberately ships no 'mcp' block -- docs/user/install/opencode.md tells the user to port the entries they want -- so the validation asserts that documented path, not a key we do not ship. It previously read jq -e '.mcp // {}' opencode.json, which names a key that has never been present AND could not fail: the // {} fallback substitutes an empty object, and jq -e only exits non-zero on false or null. It reported success on every input, including this one."
             },
             "statusline": {
               "status": "unsupported",
