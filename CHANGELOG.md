@@ -20,12 +20,21 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   default propagated rather than staying local. All eight now carry the SHA the
   `v4` tag pointed at, with `# v4.4.0` beside it.
 - New `scripts/check-action-pinning.sh`, wired into `make validate`. It exempts
-  local `./...` actions (nothing external to pin), reports `docker://` refs
-  separately (a digest is the right fix, different syntax), and honours an
+  local `./...` actions (nothing external to pin), accepts a `docker://` image
+  pinned to `@sha256:<64 hex>` and fails any other docker tag, and honours an
   explicit `action-pin-ok: <reason>` waiver on the line — never a path-shaped
   carve-out, which is how a mutable ref creeps back. `--self-test` builds a
   violating workflow and its corrected twin, so the detector is proven to fire
   and proven to go quiet.
+- **The pinning check now scans the whole repository, and the scaffold templates
+  are pinned too.** The first version named two roots — `.github/workflows` and
+  `skills/repo/_contract/fixtures` — and so reported "all action refs are
+  SHA-pinned" while 18 mutable refs sat in `skills/repo/_contract/templates/`,
+  the files `repo-scaffold` actually renders into a new repository. A list of
+  places to look is only ever as complete as its author's memory; the checker
+  now walks the tree and waives by comment instead. `ci.yml.tmpl`,
+  `ci-plugin.yml.tmpl` and `legacy-scaffold-templates.md` are pinned to the same
+  SHAs the gold fixtures use, so one Dependabot PR moves both.
 
 ### Added
 - **A regression test for the standards-inventory path coverage**,
@@ -89,7 +98,44 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   while `platform-targets.json` keys them `claude_code`/`gemini_cli` — the
   platform join silently finds no target for 14 of the 21 rows. It refuses to
   report success on a zero-row scan, and names any surface it could not check.
-
+- **`docker://` was documented as exempt, reported unconditionally, and could
+  not be silenced by the fix it recommended.** The header filed it under "what
+  is exempt" as *reported, not failed*, but every finding exits 1 and the branch
+  printed before any digest handling — so
+  `uses: docker://ghcr.io/owner/img@sha256:<64 hex>`, which is already
+  immutably pinned, failed the check and was told to pin by digest. A gate whose
+  own remedy does not clear it is exactly what teaches people to add the
+  path-shaped carve-out the header warns against two lines later. Docker refs
+  now go through the same immutability test as actions, in docker's syntax:
+  `@sha256:` followed by 64 lowercase hex passes, anything else (`:v1`,
+  `:latest`, a truncated digest) fails. Third instance in this one script of a
+  verdict decided by where the code looked rather than by what is true, and the
+  second of the three inside the exemption path — the part whose job is to make
+  findings disappear, and therefore the part where a bug is silent.
+- **`check-action-pinning.sh` matched `uses:` as a substring, so
+  `**Common errors and their causes:**` parsed as a workflow step** (`ca-uses:`).
+  It now requires `uses:` to be the YAML key. In Markdown it reads only fenced
+  blocks, so prose *about* a movable tag — including the Security entries above
+  — is no longer reported as one. Found by running the detector against the real
+  tree rather than against its own fixtures: fixtures encode what the author
+  already thought of, the tree contains what they did not.
+- **`--help` printed a hardcoded line range** (`sed -n '2,36p'`) and silently
+  truncated as soon as the header grew. It now prints the header block itself.
+- **The `action-pin-ok:` waiver was itself a substring match**, so a ref carrying
+  the token waived itself and was never reported —
+  `uses: docker://ghcr.io/owner/action-pin-ok:v1` is the shape, the docker
+  `name:tag` syntax supplying the colon the glob wanted. Only the comment part of
+  a line can waive now. Same defect as the `uses:` glob above, in the code that
+  was supposed to be the deliberate escape hatch.
+- **The self-test could not see the scan root, which is the half that hid the 18
+  refs.** Every assertion called `scan()` directly, so reverting `scan "."` to
+  `scan ".github/workflows"` left the whole suite green — the coverage bug was
+  invisible to the test written to catch coverage bugs. There is now an
+  end-to-end case: the script re-invokes itself against a planted tree whose only
+  unpinned ref sits outside `.github`, and requires exit 1 exactly. Asserting the
+  exact code matters — the first version ran the planted tree under `sh`, which
+  cannot parse this script's process substitution, and the syntax error's exit
+  read as "the ref was found".
 - **The standards scorer invented gaps from an incomplete read.**
   `standards-inventory.sh` probed a single path for two controls the platform
   reads from several, so `score-standards-gaps.sh` asserted the control was
