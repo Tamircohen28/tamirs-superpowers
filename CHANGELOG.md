@@ -5,6 +5,19 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Changed
+- **The `codex/subagents` demotion now cites the upstream issue, not just the
+  absence of a field.** The note argued from what the plugin manifest spec does
+  *not* list, which is weak evidence: a spec can omit a field by oversight.
+  openai/codex#28491 — "declare custom subagents inside a plugin manifest
+  (plugin.json)", closed as a duplicate of #18988 — establishes it positively:
+  Codex subagents are standalone `.toml` files in `$CODEX_HOME/agents/` or a
+  per-repo `.codex/agents/`, and bundling one inside a plugin is an open feature
+  request, so there is no plugin-packaging path to the capability today. The
+  status stays `unknown` rather than moving to `unsupported`: the capability
+  exists on the surface, and `unsupported` would claim Codex lacks subagents,
+  which is false. What is unestablished is a route from this plugin to it.
+
 ## [3.6.2] — 2026-09-08
 
 ### Added
