@@ -2,7 +2,7 @@
 # Agents run these targets — users should not run bash scripts directly.
 
 .PHONY: check-agent-drift check-feature-equivalence check-platform-targets \
-	check-capability-registry platform-targets-sync platform-targets-sync-capabilities \
+	check-action-pinning check-capability-registry platform-targets-sync platform-targets-sync-capabilities \
 	platform-targets-assert platform-targets-cochange \
 	agent\:check agent-polish-gate assert-contract repo-standards-gate
 
@@ -14,6 +14,13 @@ check-feature-equivalence:
 
 check-platform-targets:
 	bash scripts/check-platform-targets.sh .
+
+# A movable action ref (`@v7`, `@main`) is a third party's write access to this
+# repo's CI. Shipped here, not left for each scaffolded repo to reinvent, after
+# the same detector bugs (unrecursed file walk, YAML read as prose) were
+# independently found and fixed in six separate personal repos.
+check-action-pinning:
+	bash scripts/check-action-pinning.sh .
 
 # Optional: present once the repo ships a capability registry checker. Degrades rather
 # than failing so a repo can adopt core/capabilities/platforms.json before the checker.
@@ -38,7 +45,7 @@ platform-targets-assert:
 platform-targets-cochange:
 	bash scripts/check-platform-targets.sh . --require-co-change
 
-agent\:check: check-agent-drift check-feature-equivalence check-platform-targets
+agent\:check: check-agent-drift check-feature-equivalence check-platform-targets check-action-pinning
 
 # Polish exit gate — agent runs after updating platform-targets.json + README badges
 agent-polish-gate: platform-targets-sync platform-targets-assert agent\:check

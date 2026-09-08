@@ -6,7 +6,7 @@ Canonical templates for `repo-scaffold` and `repo-standards` polish. Contract ve
 
 | Path | Purpose |
 |------|---------|
-| [`github/ci.yml.tmpl`](github/ci.yml.tmpl) | `CI` + `secret-scan` jobs, `ubuntu-latest` |
+| [`github/ci.yml.tmpl`](github/ci.yml.tmpl) | `CI` + `secret-scan` + `action-pinning` jobs, `ubuntu-latest` |
 | [`github/dependabot.yml.tmpl`](github/dependabot.yml.tmpl) | Weekly GitHub Actions updates |
 | [`github/agent_task.yml.tmpl`](github/agent_task.yml.tmpl) | Agent-task issue template with Resume block for switch-dev |
 | [`scaffold-requirements.md`](scaffold-requirements.md) | README sections, docs tree, merge settings, branch governance |
@@ -16,6 +16,7 @@ Canonical templates for `repo-scaffold` and `repo-standards` polish. Contract ve
 | [`check-agent-drift.sh.tmpl`](check-agent-drift.sh.tmpl) | Drift script copied to target `scripts/` |
 | [`check-feature-equivalence.sh.tmpl`](check-feature-equivalence.sh.tmpl) | E-layer parity + capability-registry agreement, copied to target `scripts/` |
 | [`check-platform-targets.sh.tmpl`](check-platform-targets.sh.tmpl) | V-layer version/badge checks + `--sync-capabilities`, copied to target `scripts/` |
+| [`check-action-pinning.sh.tmpl`](check-action-pinning.sh.tmpl) | Fails a mutable `uses:`/`container:` ref anywhere in the tree, copied to target `scripts/`, wired as `make check-action-pinning` and a required CI job |
 | [`core/capabilities/schema.json.tmpl`](core/capabilities/schema.json.tmpl) | Capability registry JSON Schema |
 | [`core/capabilities/platforms.json.tmpl`](core/capabilities/platforms.json.tmpl) | Capability registry instance — the ONE statement of what each target can do |
 | [`makefile-agent-targets.mk.tmpl`](makefile-agent-targets.mk.tmpl) | `make agent:check`, `make agent-polish-gate`, platform-targets-* targets — agents only |

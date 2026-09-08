@@ -40,6 +40,18 @@
       ]
     },
     {
+      "id": "check-action-pinning",
+      "canonical": "scripts/check-action-pinning.sh",
+      "note": "Fully portable, same shape as check-feature-equivalence: no repo-specific state, ROOT is always an argument. Never shipped in the scaffold template or any fixture, so every repo scaffolded from this plugin got zero action-pinning enforcement by default -- six personal repos each independently wrote and independently fixed the same detector bugs (unrecursed file walk, YAML read as prose) because there was no shared, tested implementation to inherit.",
+      "copies": [
+        "skills/repo/_contract/scripts/check-action-pinning.sh",
+        "skills/repo/_contract/templates/check-action-pinning.sh.tmpl",
+        "skills/repo/_contract/fixtures/scaffold-gold/scripts/check-action-pinning.sh",
+        "skills/repo/_contract/fixtures/scaffold-plugin-gold/scripts/check-action-pinning.sh",
+        "skills/repo/_contract/fixtures/scaffold-claude-plugin-gold/scripts/check-action-pinning.sh"
+      ]
+    },
+    {
       "id": "check-agent-drift",
       "canonical": "skills/repo/_contract/scripts/check-agent-drift.sh",
       "note": "The plugin's own scripts/check-agent-drift.sh is deliberately NOT the canonical source here: it is a 14-line wrapper around this repo's scripts/validate-skill-frontmatter.py, while the contract version is the portable generic checker. Two different scripts that share a name, not a fork.",
