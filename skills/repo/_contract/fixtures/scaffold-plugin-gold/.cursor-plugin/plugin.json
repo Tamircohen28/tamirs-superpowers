@@ -1,0 +1,20 @@
+{
+  "name": "scaffold-plugin-gold",
+  "version": "0.1.0",
+  "description": "Contract gold fixture for plugin-gold profile validation.",
+  "author": {
+    "name": "Tamir Cohen",
+    "url": "https://github.com/Tamircohen28"
+  },
+  "homepage": "https://github.com/Tamircohen28/tamirs-superpowers",
+  "repository": "https://github.com/Tamircohen28/tamirs-superpowers",
+  "license": "MIT",
+  "keywords": [
+    "contract-fixture",
+    "plugin-gold"
+  ],
+  "skills": [
+    "./canonical/skills"
+  ],
+  "mcpServers": "./.mcp.json"
+}

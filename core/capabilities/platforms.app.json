@@ -107,7 +107,7 @@
           ],
           "install": {
             "type": "manual",
-            "command": "git clone https://github.com/Tamircohen28/scaffold-gold.git && cd scaffold-gold",
+            "command": "git clone https://github.com/Tamircohen28/tamirs-superpowers.git && cd tamirs-superpowers",
             "doc": "docs/user/install/claude-code.md"
           },
           "validation": {
@@ -358,7 +358,7 @@
           ],
           "install": {
             "type": "manual",
-            "command": "git clone https://github.com/Tamircohen28/scaffold-gold.git && cd scaffold-gold",
+            "command": "git clone https://github.com/Tamircohen28/tamirs-superpowers.git && cd tamirs-superpowers",
             "doc": "docs/user/install/codex.md"
           },
           "validation": {
@@ -497,7 +497,7 @@
           ],
           "install": {
             "type": "manual",
-            "command": "git clone https://github.com/Tamircohen28/scaffold-gold.git && cd scaffold-gold",
+            "command": "git clone https://github.com/Tamircohen28/tamirs-superpowers.git && cd tamirs-superpowers",
             "doc": "docs/user/install/cursor.md"
           },
           "validation": {
@@ -637,7 +637,7 @@
           ],
           "install": {
             "type": "extension",
-            "command": "gemini extensions install https://github.com/Tamircohen28/scaffold-gold && gemini skills install https://github.com/Tamircohen28/scaffold-gold --path .gemini/skills --consent",
+            "command": "gemini extensions install https://github.com/Tamircohen28/tamirs-superpowers && gemini skills install https://github.com/Tamircohen28/tamirs-superpowers --path .gemini/skills --consent",
             "doc": "docs/user/install/gemini.md"
           },
           "validation": {
