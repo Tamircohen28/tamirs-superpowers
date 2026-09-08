@@ -5,6 +5,28 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Security
+- **Every workflow action is now pinned to a commit SHA, and a check keeps it
+  that way.** `uses: actions/checkout@v7` names a tag, not a version, and a tag
+  is a pointer its owner can move — `v7` meant v7.0.0 when `release.yml` was
+  written and means v7.0.1 today, with no commit here and no PR to review. That
+  is a third party holding write access to this repo's CI. `ci.yml` was already
+  SHA-pinned throughout; `release.yml:18` was not, and nothing noticed, because
+  the standard was *practised rather than checked* — the same failure mode as a
+  validator nobody runs.
+- The gold fixtures mattered more than either. `scaffold-gold` and
+  `scaffold-plugin-gold` shipped eight unpinned `@v4` refs, and those workflows
+  are copied into every repository scaffolded from this plugin, so the unpinned
+  default propagated rather than staying local. All eight now carry the SHA the
+  `v4` tag pointed at, with `# v4.4.0` beside it.
+- New `scripts/check-action-pinning.sh`, wired into `make validate`. It exempts
+  local `./...` actions (nothing external to pin), reports `docker://` refs
+  separately (a digest is the right fix, different syntax), and honours an
+  explicit `action-pin-ok: <reason>` waiver on the line — never a path-shaped
+  carve-out, which is how a mutable ref creeps back. `--self-test` builds a
+  violating workflow and its corrected twin, so the detector is proven to fire
+  and proven to go quiet.
+
 ### Added
 - **A regression test for the standards-inventory path coverage**,
   `tests/test-standards-inventory-paths.sh` (17 assertions, picked up

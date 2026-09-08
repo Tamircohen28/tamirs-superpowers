@@ -5,6 +5,7 @@
 	assert-contract repo-standards-gate opencode-agents opencode-agents-check \
 	check-marketplace-schema check-doc-claims test-hooks doctor check-version-truth \
 	check-capability-registry validate-roles check-gemini-adapter gemini-extension \
+	check-action-pinning \
 	gemini-extension-check bootstrap-dev github-policy github-policy-plan \
 	check-github-policy
 
@@ -41,6 +42,7 @@ help:
 	@echo "  check-marketplace-schema — extraKnownMarketplaces is a record, not an array"
 	@echo "  check-doc-claims        — skill counts and target coverage match reality"
 	@echo "  check-branch-literals   — no hardcoded main/master in branch position"
+	@echo "  check-action-pinning    — every workflow action pinned to a commit SHA"
 	@echo "  doctor                  — environment/install health report"
 	@echo "  check-version-truth     — every manifest/doc agrees with plugin-version.json"
 	@echo "  check-capability-registry — core/capabilities/ registry is valid"
@@ -110,7 +112,8 @@ test-contract:
 
 validate: lint test-hooks test-contract test-repo-contract check-manifest-versions check-platform-equivalence \
 	check-marketplace-schema check-doc-claims check-version-truth check-capability-registry \
-	validate-roles check-gemini-adapter check-github-policy check-branch-literals
+	validate-roles check-gemini-adapter check-github-policy check-branch-literals \
+	check-action-pinning
 	@echo "--- Validating JSON files ---"
 	@find . -name '*.json' -not -path '*/.git/*' | while read f; do \
 	  jq empty "$$f" 2>&1 && echo "  OK  $$f" || { echo "  FAIL $$f"; exit 1; }; \
@@ -148,6 +151,10 @@ check-doc-claims:
 check-branch-literals:
 	@echo "--- Hardcoded default-branch names ---"
 	@bash scripts/check-branch-literals.sh . --self-test
+
+check-action-pinning:
+	@echo "--- GitHub Actions pinned to commit SHAs ---"
+	@bash scripts/check-action-pinning.sh . --self-test
 
 doctor:
 	@bash scripts/doctor.sh .
