@@ -18,7 +18,7 @@ install:
   doc: docs/user/install/cursor.md
 
 validation:
-  command: jq empty .cursor-plugin/plugin.json
+  command: bash scripts/check-manifest-declares.sh .cursor-plugin/plugin.json skills mcpServers
 
 notes: >-
   hooks is `partial`, not `native`: the Claude-shaped plugin hook bundle does not
