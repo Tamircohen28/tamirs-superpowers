@@ -58,6 +58,28 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   failed: 10`.
 
 ### Fixed
+- **The platform-targets co-change gate judged a push by its last commit, and
+  matched its watch list as a regex.** Two independent defects in
+  `scripts/check-platform-targets.sh --require-co-change`. It diffed
+  `HEAD~1 HEAD`, so a push of several commits — and every PR longer than one
+  commit — was decided by whichever commit happened to be on top: a change to
+  `skills/repo/repo-standards/` in the first of three commits passed the gate
+  outright. The range now starts at the merge-base with the base the branch left
+  (`GITHUB_BASE_REF` on a `pull_request`, the event payload's before-SHA on a
+  `push`), falling back to `HEAD~1` when neither exists so a local
+  `make platform-targets-cochange` still works with no CI environment, and
+  falling back rather than crashing when a shallow clone cannot see the base.
+  Separately, each watch path was passed to `grep -q "^${p}"` as a *pattern*, so
+  every `.` matched any character and `core/capabilities/platforms.json` also
+  fired on `core/capabilities/platforms_json.txt` — a gate that fires on files
+  nobody asked it to watch is a gate people learn to ignore. Matching is now
+  literal, with the intended semantics made explicit: an entry ending in `/` is a
+  directory prefix, every other entry is an exact file. New
+  `tests/test-platform-targets-cochange.sh` (15 assertions, auto-discovered by
+  `make test-hooks`) pins both directions — the over-match cases are paired with
+  the real watched paths and the range cases with a clean multi-commit range, so
+  neither "never fire" nor "always fire" passes. Against the pre-fix script it
+  reports `passed: 9  failed: 6`.
 - **`opencode/mcp` was validated by a command that could not fail, naming a key
   this repo has never shipped.** The row read
   `validation: jq -e '.mcp // {}' opencode.json`. The `// {}` substitutes an
