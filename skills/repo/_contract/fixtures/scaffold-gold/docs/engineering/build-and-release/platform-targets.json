@@ -34,7 +34,6 @@
         "hooks",
         "mcp",
         "parallel_subagents",
-        "plugin_marketplace",
         "session_transcripts",
         "shell",
         "skill_auto_invocation",
@@ -45,7 +44,8 @@
         "worktree_isolation"
       ],
       "capability_gaps": {
-        "extension_install": "Claude installs plugins, not git-URL extensions."
+        "extension_install": "Claude installs plugins, not git-URL extensions.",
+        "plugin_marketplace": "App-gold is a greenfield app repo, not a plugin-distribution repo (see skills/repo/_contract/README.md's profile table) — it ships no .claude-plugin/plugin.json and is not published to a marketplace."
       }
     },
     "codex": {
@@ -62,16 +62,13 @@
       "capabilities": [
         "git",
         "github_cli",
-        "hooks",
-        "mcp",
-        "plugin_marketplace",
         "shell",
-        "skills",
         "worktree_isolation"
       ],
       "capability_gaps": {
         "artifacts": "No artifact publishing surface.",
         "extension_install": "Codex installs plugins, not git-URL extensions.",
+        "plugin_marketplace": "App-gold is a greenfield app repo, not a plugin-distribution repo — it ships no .codex-plugin/plugin.json and is not published to a marketplace.",
         "statusline": "Not a declared Codex capability."
       }
     },
@@ -99,17 +96,14 @@
         "hooks",
         "mcp",
         "parallel_subagents",
-        "plugin_marketplace",
         "shell",
         "skill_auto_invocation",
-        "skills",
-        "slash_commands",
-        "subagents",
         "worktree_isolation"
       ],
       "capability_gaps": {
         "artifacts": "No artifact publishing surface.",
         "extension_install": "Cursor installs plugins, not git-URL extensions.",
+        "plugin_marketplace": "App-gold is a greenfield app repo, not a plugin-distribution repo — it ships no .cursor-plugin/plugin.json and is not published to a marketplace.",
         "statusline": "No plugin-declared statusline."
       },
       "verification_method": "latest desktop build from official Cursor download links (3.18.9, 2026-08-30 stable) cross-checked against cursor.com/changelog (feature 3.11; date-only entries through 2026-09-02 Self-Hosted Machines / Team Pools / partner sandboxes / computer use; prior Start-from-scratch 2026-08-27); Cursor CLI changelog Aug 11 2026 documented; Builds now default (2026-08-17); Origin early-beta docs; cloud-agent subscriptions / custom modes / isolated subagent VMs /goal / steering (2026-08-19)"

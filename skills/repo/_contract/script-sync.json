@@ -6,13 +6,25 @@
     {
       "id": "check-feature-equivalence",
       "canonical": "scripts/check-feature-equivalence.sh",
-      "note": "Fully portable — repo type is detected at runtime, so the plugin, the template and every fixture run the identical file.",
+      "note": "Fully portable \u2014 repo type is detected at runtime, so the plugin, the template and every fixture run the identical file.",
       "copies": [
         "skills/repo/_contract/scripts/check-feature-equivalence.sh",
         "skills/repo/_contract/templates/check-feature-equivalence.sh.tmpl",
         "skills/repo/_contract/fixtures/scaffold-gold/scripts/check-feature-equivalence.sh",
         "skills/repo/_contract/fixtures/scaffold-plugin-gold/scripts/check-feature-equivalence.sh",
         "skills/repo/_contract/fixtures/scaffold-claude-plugin-gold/scripts/check-feature-equivalence.sh"
+      ]
+    },
+    {
+      "id": "check-manifest-declares",
+      "canonical": "scripts/check-manifest-declares.sh",
+      "note": "Fully portable, same shape as check-feature-equivalence above: manifest and root are always arguments, never hardcoded, so the plugin, the template and every fixture run the identical file. Vendored here because codex/cursor validation rows in the shared plugin template call it directly, and it was previously absent from every fixture's scripts/ despite that.",
+      "copies": [
+        "skills/repo/_contract/scripts/check-manifest-declares.sh",
+        "skills/repo/_contract/templates/check-manifest-declares.sh.tmpl",
+        "skills/repo/_contract/fixtures/scaffold-gold/scripts/check-manifest-declares.sh",
+        "skills/repo/_contract/fixtures/scaffold-plugin-gold/scripts/check-manifest-declares.sh",
+        "skills/repo/_contract/fixtures/scaffold-claude-plugin-gold/scripts/check-manifest-declares.sh"
       ]
     },
     {
@@ -92,6 +104,21 @@
       ]
     },
     {
+      "id": "capability-registry-platforms-app-gold-template",
+      "canonical": "core/capabilities/platforms.app.json",
+      "note": "App-gold's own capability registry, hand-authored from core/capabilities/platforms.json's verified statuses but rewritten per-row for a repo that ships no plugin manifest -- see core/capabilities/platforms.app.json's own review history for the per-row reasoning. Same reverse-template chain as the plugin registry so the scaffold-gold copy is generated, never hand-edited.",
+      "substitutions": {
+        "GITHUB_OWNER": "Tamircohen28",
+        "REPO_NAME": "tamirs-superpowers"
+      },
+      "copies": [
+        {
+          "path": "skills/repo/_contract/templates/core/capabilities/platforms.app.json.tmpl",
+          "reverse": true
+        }
+      ]
+    },
+    {
       "id": "capability-registry-schema",
       "canonical": "skills/repo/_contract/templates/core/capabilities/schema.json.tmpl",
       "note": "Rendered into fixtures with GITHUB_OWNER/REPO_NAME substituted, so the copies are NOT byte-identical. Declared with substitutions so the check compares the rendered form.",
@@ -122,17 +149,11 @@
     {
       "id": "capability-registry-platforms",
       "canonical": "skills/repo/_contract/templates/core/capabilities/platforms.json.tmpl",
-      "note": "Platform capability truth is repo-independent; only the install/repo strings vary, and those are the substitutions.",
+      "note": "Platform capability truth is repo-independent; only the install/repo strings vary, and those are the substitutions. scaffold-gold does not draw from this chain: app-gold is not a plugin-distribution profile, so its registry claims a different (non-plugin) delivery route per capability -- see the capability-registry-platforms-app-gold-template / capability-registry-platforms-app-gold groups below, which own scaffold-gold's copy of core/capabilities/platforms.json instead.",
       "substitutions": {
         "GITHUB_OWNER": "Tamircohen28"
       },
       "copies": [
-        {
-          "path": "skills/repo/_contract/fixtures/scaffold-gold/core/capabilities/platforms.json",
-          "substitutions": {
-            "REPO_NAME": "scaffold-gold"
-          }
-        },
         {
           "path": "skills/repo/_contract/fixtures/scaffold-plugin-gold/core/capabilities/platforms.json",
           "substitutions": {
@@ -143,6 +164,22 @@
           "path": "skills/repo/_contract/fixtures/scaffold-claude-plugin-gold/core/capabilities/platforms.json",
           "substitutions": {
             "REPO_NAME": "scaffold-claude-plugin-gold"
+          }
+        }
+      ]
+    },
+    {
+      "id": "capability-registry-platforms-app-gold",
+      "canonical": "skills/repo/_contract/templates/core/capabilities/platforms.app.json.tmpl",
+      "note": "app-gold profile only. scaffold-gold is the sole app-gold fixture, so this is the only copy -- unlike capability-registry-platforms above, which fans the plugin-gold registry out to every plugin-distribution fixture.",
+      "substitutions": {
+        "GITHUB_OWNER": "Tamircohen28"
+      },
+      "copies": [
+        {
+          "path": "skills/repo/_contract/fixtures/scaffold-gold/core/capabilities/platforms.json",
+          "substitutions": {
+            "REPO_NAME": "scaffold-gold"
           }
         }
       ]

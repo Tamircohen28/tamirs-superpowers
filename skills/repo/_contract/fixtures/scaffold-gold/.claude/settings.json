@@ -1,0 +1,14 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo 'scaffold-gold session started' >&2"
+          }
+        ]
+      }
+    ]
+  }
+}
