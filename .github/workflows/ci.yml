@@ -95,13 +95,17 @@ jobs:
       - name: Contract assertions
         run: bash tests/test-${{ matrix.platform }}-adapter.sh
 
-  hook-tests:
-    name: Hook behavior tests
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
-      - name: Run hook behavior tests
-        run: make test-hooks
+  # `hook-tests` (make test-hooks) stood here and was removed. `make validate` runs
+  # test-hooks as its second dependency, so full-validate already executes every
+  # tests/test-*.sh that job ran. Measured on a full run it was the most expensive
+  # duplicate in this workflow -- 249s against full-validate's 295s -- so it bought a
+  # 46-second head start on a five-minute gate at the price of a whole runner.
+  #
+  # The cheap standalone jobs below and above (6-47s) are duplicates too and were kept
+  # on purpose: they return an answer minutes before full-validate can, which is the
+  # only thing that makes a duplicated job worth its runner. Four of them are also
+  # required status checks, so removing them would block every PR on a context that
+  # never reports.
 
   validate-json:
     name: Validate JSON
