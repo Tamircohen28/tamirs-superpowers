@@ -114,18 +114,77 @@ if [[ "$REQUIRE_CO_CHANGE" == true ]]; then
     'skills/documentation/platform-sync-opencode/'
     'docs/user/install/'
   )
+  # Which commits to inspect. `HEAD~1 HEAD` only ever sees the LAST commit, so a
+  # violation in any earlier commit of a multi-commit push — or in every commit but
+  # the tip of a PR — was invisible to this gate: the one commit that happens to be
+  # on top decided the verdict for the whole change. Diff from the point the branch
+  # left its base instead:
+  #
+  #   pull_request -> merge-base with the PR's base ref (origin/<base>, then <base>)
+  #   push         -> merge-base with the event payload's before-SHA
+  #   neither      -> HEAD~1, the previous behaviour, so a local
+  #                   `make platform-targets-cochange` still works with no CI env.
+  #
+  # PLATFORM_TARGETS_BASE_REF overrides all of it (tests, and a manual re-run over an
+  # arbitrary range). Every candidate is verified to resolve before it is used, and an
+  # unresolvable one falls through to the next — a shallow clone that cannot see the
+  # base must degrade to the old range, not crash the gate.
+  cochange_base() {
+    local cand before mb
+    local candidates=()
+    if [[ -n "${PLATFORM_TARGETS_BASE_REF:-}" ]]; then
+      candidates+=("$PLATFORM_TARGETS_BASE_REF")
+    elif [[ "${GITHUB_EVENT_NAME:-}" == pull_request* ]]; then
+      if [[ -n "${GITHUB_BASE_REF:-}" ]]; then
+        candidates+=("origin/$GITHUB_BASE_REF" "$GITHUB_BASE_REF")
+      fi
+    elif [[ "${GITHUB_EVENT_NAME:-}" == "push" && -f "${GITHUB_EVENT_PATH:-/nonexistent}" ]]; then
+      before="$(jq -r '.before // empty' "$GITHUB_EVENT_PATH" 2>/dev/null || true)"
+      # A branch-creation push reports an all-zero before-SHA: there is no base.
+      if [[ -n "$before" && ! "$before" =~ ^0+$ ]]; then
+        candidates+=("$before")
+      fi
+    fi
+    candidates+=("HEAD~1")
+    for cand in "${candidates[@]}"; do
+      git -C "$ROOT" rev-parse --verify --quiet "${cand}^{commit}" >/dev/null 2>&1 || continue
+      mb="$(git -C "$ROOT" merge-base "$cand" HEAD 2>/dev/null || echo "$cand")"
+      printf '%s\n' "$mb"
+      return 0
+    done
+    return 1
+  }
+
+  # A WATCH_PATH is a literal path, not a regex. `grep -q "^${p}"` treated every `.`
+  # as "any character", so `core/capabilities/platforms.json` also matched
+  # `core/capabilities/platforms_json.txt` and the gate fired on files it does not
+  # watch. Entries ending in `/` are directory prefixes; the rest are exact files.
+  is_watched() {
+    local f="$1" p
+    for p in "${WATCH_PATHS[@]}"; do
+      case "$p" in
+        */) [[ "$f" == "$p"* ]] && return 0 ;;
+        *)  [[ "$f" == "$p" ]] && return 0 ;;
+      esac
+    done
+    return 1
+  }
+
   changed=false
   targets_changed=false
   if git -C "$ROOT" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
-    for p in "${WATCH_PATHS[@]}"; do
-      if git -C "$ROOT" diff --name-only HEAD~1 HEAD 2>/dev/null | grep -q "^${p}"; then
-        changed=true
-        break
-      fi
-    done
-    if git -C "$ROOT" diff --name-only HEAD~1 HEAD 2>/dev/null | grep -q 'platform-targets.json'; then
-      targets_changed=true
+    base="$(cochange_base || true)"
+    changed_files=""
+    if [[ -n "$base" ]]; then
+      changed_files="$(git -C "$ROOT" diff --name-only "$base" HEAD 2>/dev/null || true)"
     fi
+    while IFS= read -r f; do
+      [[ -n "$f" ]] || continue
+      case "$f" in
+        *platform-targets.json) targets_changed=true ;;
+      esac
+      if is_watched "$f"; then changed=true; fi
+    done <<<"$changed_files"
     if [[ "$changed" == true && "$targets_changed" != true ]]; then
       err "PR changes repo skills/platform-specs but not docs/engineering/build-and-release/platform-targets.json"
     fi
