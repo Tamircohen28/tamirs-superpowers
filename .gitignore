@@ -9,9 +9,23 @@
 *.swp
 *.swo
 
-# Node / npm (in case any skill spawns local deps)
+# Node / npm (in case any skill spawns local deps). `node_modules/` is a
+# DIRECTORY-only pattern: `git check-ignore` matches it only when the path
+# exists as a directory, so on a fresh CI checkout — where it does not — the
+# path is reported as not ignored. The .opencode entries below are therefore
+# spelled without a trailing slash, so the guarantee holds on any checkout.
 node_modules/
 npm-debug.log*
+
+# Artifacts the OpenCode CLI writes into the tracked .opencode/ directory when
+# it installs local deps. It also drops its own .opencode/.gitignore covering
+# these — but that file ignores ITSELF, so it can never be committed and is
+# absent in CI. Ignoring them here is what actually keeps them out of a commit.
+.opencode/node_modules
+.opencode/package.json
+.opencode/package-lock.json
+.opencode/bun.lock
+.opencode/.gitignore
 
 # Python bytecode. hooks/docker-guard.py is the one Python hook, and anything
 # that imports or byte-compiles it (`python3 -m py_compile`, a test run) drops a
