@@ -40,6 +40,40 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Changed
 - **Cursor 3.11 (+2026-09-02):** advance `changelog_date` **2026-08-27 → 2026-09-02** (desktop **3.18.9** / feature **3.11** unchanged). Document Cursor **Self-Hosted Machines** (My Machines / Team Pools / partner sandboxes) + **computer use on Linux/Mac**, and the hard distinction from GitHub Actions self-hosted runners (this public plugin stays on `ubuntu-latest`). Cursor-only.
+- **Platform target: Claude Code 2.1.263** (`validated_against` 2.1.257 → 2.1.263; this cycle covers 2.1.259,
+  2.1.260, 2.1.261 and 2.1.263 — 2.1.262 does not exist in the official changelog). This
+  cycle's automation environment had a live `claude` CLI, and it reported exactly `2.1.263` —
+  matching the changelog target — so `validated_against` advances all the way to it.
+  `claude plugin validate .` (plain and `--json`) and `bash scripts/doctor.sh .` were both
+  re-run for real and passed: marketplace manifest valid, every capability row
+  native/native-experimental/partial as expected. 2.1.260 fixes
+  `permissions.blockReadsOutsideWorkingDirectories` hiding a worktree-isolated sub-agent's own
+  checkout on macOS (this repo does not set that permission — reviewed and left out of
+  `platforms/claude/settings.d/` in an earlier cycle as a personal auto-mode preference, not a
+  plugin default — but the fix benefits worktree isolation for anyone who enables it alongside
+  `hooks/worktree-create.sh`/`hooks/enforce-worktree-edits.sh`, now documented in `CLAUDE.md`'s
+  Hooks bullet), and adds `/reload-plugins` to headless (`-p`/SDK) sessions (documented in
+  `CLAUDE.md`'s Remote/headless section). 2.1.261 adds `/skill-doctor`, which surfaces unused
+  loaded skills and their context cost — directly relevant to this toolkit's 27 skills, and
+  now called out as a maintenance tip in
+  `docs/engineering/build-and-release/development-workflow.md` — and `bashOutputMaxChars`/
+  `taskOutputMaxChars` (raises inline command/task output before it spills to a file); the
+  latter is not wired anywhere, since no hook or `make validate` output here is known to hit
+  the default threshold. Reviewed and found not applicable:
+  `--append-subagent-system-prompt-file` (2.1.261) — this repo's subagents run natively via
+  `agents/*.md` frontmatter rather than a `claude` CLI system-prompt flag, and the one place a
+  large prompt feeds a `claude -p` subprocess (`skill-creator`'s `improve_description.py`)
+  already sends it over stdin, not argv, so the argv-length problem this flag solves does not
+  exist here; the 2.1.260 revert of 2.1.259's `Read()`-deny-on-Bash-args change — this repo's
+  worktree/sensitive-file isolation is enforced by hooks, not `Read(...)` deny rules in
+  settings, so neither the original change nor its revert touched anything here; and Workflow
+  tool `agent({schema})` validation (2.1.260) — this repo authors no Workflow scripts
+  (`core/workflow/` is an unrelated, repo-internal objective-state schema). 2.1.263 is bug
+  fixes and reliability improvements only, per the official changelog; nothing plugin-facing to
+  adopt. Re-verified 2026-09-07 against a live `claude` CLI still reporting `2.1.263` and the
+  official changelog still topping out at `2.1.263`: no newer release exists.
+  `docs/engineering/build-and-release/platform-targets.{json,md}` and the README Claude Code
+  badge/table row advance to 2.1.263 alongside this entry.
 - **The employer scanners no longer name a company.** `tests/test-static.sh` and
   the `run-tamirs-superpowers` check 7 both matched a hardcoded company regex —
   so the check against shipping an employer reference was itself an employer
