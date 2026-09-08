@@ -6,6 +6,47 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ## [Unreleased]
 
 ### Fixed
+- **`github-policy` was unreachable on OpenCode, and invisible in the docs.** The
+  skill shipped, but `opencode.json` enumerates `skills/repo/*` one directory at a
+  time (to keep the `_contract` gold fixtures out) and the enumeration was never
+  extended when the skill landed. The same omission had propagated to the
+  user-facing catalog in `docs/user/skills.md` and to the copy-paste config block
+  in `docs/user/install/opencode.md`, so a user following the install guide
+  reproduced the broken config by hand. All three now list it.
+
+### Added
+- **Drift checks that can see an omission, not only a rename.** The old contract
+  assertion walked the manifest and checked each declared path existed, so a skill
+  the manifest never mentions passed silently — which is exactly how the above
+  shipped. `contract_skill_coverage` walks the other direction, from every
+  canonical `SKILL.md` on disk back to the declared paths, and runs in the Claude,
+  Cursor, Codex and OpenCode suites. `check-agent-drift.sh` gained a matching
+  catalog half for `docs/user/skills.md`, and a thin-adapter half that fails when a
+  `## ` section body is byte-identical in `AGENTS.md` and `CLAUDE.md`. The script
+  previously validated frontmatter only, and reported "no drift detected" while an
+  entire section sat duplicated between the two files.
+- **`make test-contract`**, wired into `make validate`, so the platform contract
+  suites run in CI with the rest of the local-parity gate instead of by hand.
+- **`.opencode/` build artifacts are ignored by the repo, not by a stray local
+  file.** The contract suite asserts `.opencode/node_modules` is gitignored, and
+  it passed on a maintainer machine only because the OpenCode CLI drops its own
+  `.opencode/.gitignore` there — a file that ignores *itself*, so it can never be
+  committed and does not exist on a fresh checkout. The root `.gitignore` did not
+  cover the path either: `node_modules/` is a directory-only pattern, which
+  `git check-ignore` matches only when the directory exists. Explicit,
+  trailing-slash-free entries now hold on any checkout. Surfaced by running the
+  contract suites in CI for the first time.
+- **OpenCode `latest_known` refreshed** from 1.18.18 (published 2026-08-13) to
+  1.18.29 (published 2026-09-04), read from `registry.npmjs.org/opencode-ai`
+  `dist-tags.latest`. `validated_against` stays at 1.18.11 — that is the build
+  actually run, and moving it would be invention.
+
+### Changed
+- **`CLAUDE.md` points at `AGENTS.md` for the skill-surfacing rule** rather than
+  restating it verbatim, and the Cursor `plugin-structure` adapter now names five
+  platforms and six surfaces, matching the registry and `AGENTS.md` instead of
+  dropping Claude Desktop.
+
 - **A removed session worktree stays removed.** `capture-task-slug.sh` ran
   `[[ ! -d $worktree_path ]] && git worktree add -B` on *every* prompt, which
   undid every removal — `git worktree remove`, the `cleanup` skill's worktree

@@ -99,7 +99,16 @@ test-hooks:
 	  echo "==> $$f"; SUPERPOWERS_WORKTREE_CLEANUP=0 bash "$$f" || exit 1; \
 	done
 
-validate: lint test-hooks test-repo-contract check-manifest-versions check-platform-equivalence \
+# The five per-platform contract suites. Each runs its always-on schema/contract
+# half anywhere, and skips the vendor-CLI half with a named reason when the CLI is
+# absent. Wired into `validate` because it is what CI runs: before this, run.sh was
+# reachable from no Make target and no workflow -- 101 assertions that nothing ever
+# executed, and three of them were red on real drift.
+test-contract:
+	@echo "--- Platform contract suites ---"
+	@bash tests/contract/run.sh
+
+validate: lint test-hooks test-contract test-repo-contract check-manifest-versions check-platform-equivalence \
 	check-marketplace-schema check-doc-claims check-version-truth check-capability-registry \
 	validate-roles check-gemini-adapter check-github-policy check-branch-literals
 	@echo "--- Validating JSON files ---"

@@ -5,7 +5,7 @@ alwaysApply: true
 
 # tamirs-superpowers — plugin structure
 
-A **multi-platform agent plugin** (Markdown + JSON + Bash only) for Claude Code, Cursor, Codex, Gemini CLI, and OpenCode. No build step, no `package.json`, no compiled output.
+A **multi-platform agent plugin** (Markdown + JSON + Bash only) for five platforms and six runtime surfaces: Claude (Claude Code, Claude Desktop), Codex CLI, Cursor IDE, Gemini CLI, and OpenCode CLI. No build step, no `package.json`, no compiled output.
 
 Policy is canonical and lives once: `AGENTS.md` is the shared entrypoint, `core/` holds the portable framework (policies, roles, workflow schemas, capabilities), `rules/` holds contributor rules. These `.mdc` files are thin Cursor adapters — when one disagrees with a canonical rule, the canonical rule wins.
 

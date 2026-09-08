@@ -25,6 +25,7 @@ read_lines claude_skill_paths < <(jq -r '.skills[]?' "$M")
 judge "the manifest declares skill paths" yes \
   "$(if [ "${#claude_skill_paths[@]}" -gt 0 ]; then echo yes; else echo no; fi)"
 contract_skill_paths "claude" ${claude_skill_paths[@]+"${claude_skill_paths[@]}"}
+contract_skill_coverage "claude" ${claude_skill_paths[@]+"${claude_skill_paths[@]}"}
 
 # Agent discovery: Claude reads agents/ from the plugin root.
 judge "agents/ is present and non-empty" yes \
