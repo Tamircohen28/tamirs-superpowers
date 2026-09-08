@@ -21,11 +21,13 @@
 #   4. Every target in docs/engineering/build-and-release/platform-targets.json
 #      supported_targets has a registry entry. A platform that ships without a
 #      capability row is a platform whose gaps are invisible.
+#   5. The registry's own last_reviewed is present and inside a 90-day budget. The field
+#      was read by three scripts and compared to a date by none of them.
 #
 # Exit 0 if checks pass; 1 on failure.
 set -euo pipefail
 
-usage() { sed -n '2,21p' "$0" | sed -E 's/^# ?//'; exit "${1:-0}"; }
+usage() { sed -n '2,27p' "$0" | sed -E 's/^# ?//'; exit "${1:-0}"; }
 [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]] && usage 0
 
 ROOT="$(cd "${1:-.}" && pwd)"
@@ -422,6 +424,35 @@ if [[ -f "$TARGETS" ]]; then
     echo "ok:    all $examined capability 'since' values are validated-against-backed or carry a since_source"
   fi
   [[ -n "$unchecked" ]] && echo "note:  no platform-targets entry, 'since' unchecked for:$unchecked"
+fi
+
+# --- 5. The registry's own review clock ---
+# platforms.json carries last_reviewed and, until now, nothing compared it to a date:
+# check-platform-targets.sh, check-feature-equivalence.sh and lib/registry.sh each read the
+# field only to copy it into a fact block. The repo therefore policed the review clock on
+# platform-targets.json (V1-05, 90 days) and left the clock on the registry -- the file
+# that actually makes the capability claims -- running unread. A convention with no
+# executable check decays wherever nobody looks.
+#
+# 90 days is deliberately the same budget V1-05 already applies, so the repo's two review
+# clocks run on one policy rather than two.
+registry_reviewed="$(jq -r '.last_reviewed // empty' "$REGISTRY")"
+if [[ -z "$registry_reviewed" ]]; then
+  # schema.json does not list last_reviewed as required, so absence is reachable and has
+  # to fail here. Otherwise deleting the field is the cheapest way to pass this check.
+  err "core/capabilities/platforms.json has no last_reviewed -- the registry's claims carry no date, so nothing can tell a current review from an abandoned one"
+elif cutoff="$(date -v-90d +%Y-%m-%d 2>/dev/null)" || cutoff="$(date -d '90 days ago' +%Y-%m-%d 2>/dev/null)"; then
+  today="$(date +%Y-%m-%d)"
+  if [[ "$registry_reviewed" < "$cutoff" ]]; then
+    err "registry last_reviewed ($registry_reviewed) is older than 90 days (cutoff $cutoff). Re-check the capability rows against the platforms they describe, then bump the date."
+  elif [[ "$registry_reviewed" > "$today" ]]; then
+    # A forward-dated review satisfies any freshness check forever without anyone reviewing.
+    err "registry last_reviewed ($registry_reviewed) is in the future (today $today)"
+  else
+    echo "ok:    registry last_reviewed ($registry_reviewed) is within the 90-day budget"
+  fi
+else
+  err "could not compute a 90-day cutoff with either date(1) dialect, so registry freshness went unverified -- failing rather than reporting a check that never ran"
 fi
 
 if (( FAILED > 0 )); then

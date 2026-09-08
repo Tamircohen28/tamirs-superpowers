@@ -27,6 +27,31 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   exists to prevent.
 
 ### Fixed
+- **The contract's drift checker could not see a class of drift, and caused it.**
+  `sync-contract-scripts.sh` keeps 25 vendored copies byte-identical to their canonical
+  sources. It compared `"$expected" == "$(cat "$dst")"`, and `$(...)` strips every
+  trailing newline on both sides — so a copy differing from canonical by exactly its
+  terminating newline was reported identical. The same stripping ran through the writer
+  (`printf '%s' "$expected"`), so the script had itself written 19 of its 25 copies
+  without a terminating newline, including the gold fixtures' `core/capabilities/*.json`,
+  which every scaffolded repo inherits. Render, compare and write are now byte-faithful,
+  and all 25 copies were regenerated. Proven: the old checker reports
+  "25 copies identical to canonical" (exit 0) on a file it disagrees with by one byte;
+  the new one reports `DRIFT` and exits 1.
+- **The registry's own review clock was never read.** `core/capabilities/platforms.json`
+  carries `last_reviewed`, and three scripts read the field only to copy it into a fact
+  block; none compared it to a date. The repo therefore policed the 90-day review budget
+  on `platform-targets.json` (V1-05) while the file that actually makes the capability
+  claims aged unwatched. `check-capability-registry.sh` — already in `make validate` —
+  now fails on a missing, stale, or future-dated `last_reviewed`, on the same 90-day
+  budget, so the two review clocks run on one policy.
+- **The `platform-targets.json` 90-day check could not fail, and skipped in silence.**
+  Its comment read "warn only unless assert", but no assert branch was ever written and
+  `warn()` does not touch `FAILED`. It now errors under `--assert-current` and warns
+  otherwise, as the comment always claimed. Separately, when neither `date -v-90d` nor
+  `date -d '90 days ago'` worked, `cutoff` was empty and the `[[ -n "$cutoff" && ... ]]`
+  guard skipped the comparison without a word — an unverifiable check reported as a pass.
+  It now fails loudly.
 - **V1-04 measured a number the repo deliberately keeps behind.** The rule fired on
   `validated_against < latest_known`, but `validated_against` means "last exercised on
   a live maintainer machine" and lags by design — `platform-targets.md` already said

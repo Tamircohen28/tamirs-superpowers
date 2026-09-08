@@ -492,16 +492,25 @@ if [[ "$ASSERT_CURRENT" == true ]]; then
   done
 fi
 
-# last_reviewed > 90 days (warn only unless assert)
+# last_reviewed > 90 days. Errors under --assert-current, warns otherwise -- which is what
+# the old comment here promised, except no assert branch was ever written, so the 90-day
+# budget could not fail this script at any flag. warn() does not touch FAILED.
+#
+# A cutoff that neither date(1) dialect can produce is now a loud failure. It used to fall
+# through the `-n "$cutoff"` guard and skip the comparison in silence, which reads as a
+# pass: "I could not check this" reported as "this is fine" is the exact defect this file
+# exists to catch elsewhere.
 if [[ -n "$last_reviewed" ]]; then
-  # shellcheck disable=SC2209
-  if date -v-90d +%Y-%m-%d >/dev/null 2>&1; then
-    cutoff=$(date -v-90d +%Y-%m-%d)
+  if cutoff=$(date -v-90d +%Y-%m-%d 2>/dev/null) || cutoff=$(date -d '90 days ago' +%Y-%m-%d 2>/dev/null); then
+    if [[ "$last_reviewed" < "$cutoff" ]]; then
+      if [[ "$ASSERT_CURRENT" == true ]]; then
+        err "platform-targets last_reviewed ($last_reviewed) is older than 90 days (cutoff $cutoff)"
+      else
+        warn "platform-targets last_reviewed ($last_reviewed) is older than 90 days (cutoff $cutoff)"
+      fi
+    fi
   else
-    cutoff=$(date -d '90 days ago' +%Y-%m-%d 2>/dev/null || echo "")
-  fi
-  if [[ -n "$cutoff" && "$last_reviewed" < "$cutoff" ]]; then
-    warn "platform-targets last_reviewed ($last_reviewed) is older than 90 days"
+    err "could not compute a 90-day cutoff with either date(1) dialect, so last_reviewed freshness went unverified -- failing rather than reporting a check that never ran"
   fi
 fi
 
