@@ -49,6 +49,24 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   failed: 10`.
 
 ### Fixed
+- **`opencode/mcp` was validated by a command that could not fail, naming a key
+  this repo has never shipped.** The row read
+  `validation: jq -e '.mcp // {}' opencode.json`. The `// {}` substitutes an
+  empty object when `.mcp` is absent and `jq -e` only exits non-zero on `false`
+  or `null`, so the command returned 0 for every possible input — and
+  `opencode.json` has only ever had `$schema` and `skills`. Its note also read
+  "Configured in opencode.json", which was untrue: `docs/user/install/opencode.md`
+  tells the user to port the `mcp` entries they want. The status stays `native`
+  (OpenCode does read MCP servers natively, from the `mcp` block rather than
+  `.mcp.json`); the validation now asserts the documented path, which can
+  actually fail, and the note says what this repo ships and what it does not.
+- **`check-capability-registry.sh` now rejects a validation command that cannot
+  fail** — mechanically, a `//` fallback inside a `jq -e`. The schema requires a
+  validation for every `native` claim so the claim is evidence rather than
+  assertion; a command that exits 0 on every input converts it back into an
+  assertion while looking rigorous. Scans all 50 validation commands and refuses
+  to report success on a zero-row read.
+
 - **`codex.hooks` claimed `since: 0.147.0`, a version that is not when Codex
   hooks arrived and is ahead of the `0.146.0` anyone actually ran.** The number
   had been copied from the `features_adopted` entry next to it,

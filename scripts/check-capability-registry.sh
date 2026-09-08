@@ -334,6 +334,37 @@ else
   echo "skip:  $TARGETS not found — target cross-check skipped"
 fi
 
+# A validation command that cannot fail is worse than none: the schema requires one
+# for every native claim precisely so the claim is evidence rather than assertion, and
+# a command that exits 0 on every input converts it back into an assertion while
+# looking rigorous. opencode/mcp read `jq -e '.mcp // {}' opencode.json` -- the `// {}`
+# substitutes an empty object when `.mcp` is absent, and `jq -e` only exits non-zero on
+# `false` or `null`, so it returned 0 for every possible file. It named a key
+# opencode.json has never contained, and reported success for three releases.
+#
+# This catches the mechanical form only: a `//` fallback inside a `jq -e`. It is not a
+# general "is this evidence?" judge, and it deliberately does not try to be one -- see
+# the WEAK validations noted in the PR that introduced this (nine rows validated by
+# `jq empty <file>`, which proves the file is JSON and nothing about the capability).
+before_val=$FAILED
+val_examined=0
+while IFS=$'\t' read -r plat surf cap v; do
+  [[ -z "$surf" ]] && continue
+  val_examined=$(( val_examined + 1 ))
+  if [[ "$v" == *"jq -e"* ]] && [[ "$v" == *"//"* ]]; then
+    err "$plat/$surf capability '$cap' has a validation that cannot fail: \`$v\`. A '//' fallback inside 'jq -e' substitutes a truthy default, so the command exits 0 on every input. Assert the value you mean, or validate something that can actually be absent."
+  fi
+done < <(jq -r '
+  .platforms | to_entries[] | .key as $p | (.value.surfaces // {}) | to_entries[] | .key as $s
+  | (.value.capabilities // {}) | to_entries[]
+  | select(.value.validation != null)
+  | [$p, $s, .key, .value.validation] | @tsv' "$REGISTRY_CANONICAL")
+if (( val_examined == 0 )); then
+  err "the validation-command scan examined 0 rows -- the query is broken, not the registry clean"
+elif (( FAILED == before_val )); then
+  echo "ok:    all $val_examined validation commands are capable of failing"
+fi
+
 # A `since` ahead of the version anyone actually ran is a documentation claim, not
 # a measurement, and it must say which document. This exists because codex/hooks
 # carried `since: 0.147.0` while codex was validated against 0.146.0 -- and 0.147.0
