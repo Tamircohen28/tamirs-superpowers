@@ -111,6 +111,11 @@
           "description": "Version floor at which the capability became available on this platform.",
           "pattern": "^[0-9]+\\.[0-9]+(\\.[0-9]+)?([-+][0-9A-Za-z.-]+)?$"
         },
+        "since_source": {
+          "type": "string",
+          "description": "Where the `since` version came from, required when `since` is ahead of the platform's validated_against in platform-targets.json. A version we have not run is a documentation claim, and it must name the document. Without this, a `since` copied from a neighbouring feature entry is indistinguishable from one that was established.",
+          "minLength": 1
+        },
         "validation": {
           "type": "string",
           "description": "Command that proves the status claim. Required for anything claimed as native or native-experimental — evidence over declarations.",

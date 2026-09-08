@@ -334,6 +334,65 @@ else
   echo "skip:  $TARGETS not found — target cross-check skipped"
 fi
 
+# A `since` ahead of the version anyone actually ran is a documentation claim, not
+# a measurement, and it must say which document. This exists because codex/hooks
+# carried `since: 0.147.0` while codex was validated against 0.146.0 -- and 0.147.0
+# was not the hooks version at all. It had been copied from the features_adopted
+# entry sitting next to it (portable-agent-plugins-0.147.0, an unrelated change),
+# while the hooks-field entry beside THAT is unversioned exactly because nobody
+# established a floor. Nothing could tell a borrowed version from an established
+# one, so the borrowed one read as fact.
+#
+# Read REGISTRY_CANONICAL, not REGISTRY: above, REGISTRY is reassigned to the
+# FLATTENED temp copy for schema_version >= 2, and the flattened shape has no
+# .platforms[].surfaces, so this query returns nothing there. That is not a
+# hypothetical -- the first draft of this check read $REGISTRY, jq failed with
+# "null has no keys", the loop received zero rows, and the check reported ok.
+#
+# The join is surface -> target: the registry keys platforms as `claude`/`gemini`
+# while platform-targets.json keys them `claude_code`/`gemini_cli`. Joining on the
+# platform key finds no target for 14 of the 21 rows carrying a `since`. Surfaces
+# with no target entry are reported by name rather than skipped in silence.
+if [[ -f "$TARGETS" ]]; then
+  before_since=$FAILED
+  unchecked=""
+  examined=0
+  if ! since_rows="$(jq -r '
+      .platforms | to_entries[] | .key as $p | (.value.surfaces // {}) | to_entries[] | .key as $s
+      | (.value.capabilities // {}) | to_entries[]
+      | select(.value.since != null)
+      | [$p, $s, .key, .value.since, (.value.since_source // "")] | @tsv' \
+      "$REGISTRY_CANONICAL" 2>&1)"; then
+    err "could not enumerate capability 'since' values from $REGISTRY_CANONICAL: $since_rows"
+    since_rows=""
+  fi
+  while IFS=$'\t' read -r plat surf cap since src; do
+    [[ -z "$surf" ]] && continue
+    examined=$(( examined + 1 ))
+    validated="$(jq -r --arg s "$surf" '.targets[$s].validated_against // empty' "$TARGETS")"
+    if [[ -z "$validated" ]]; then
+      unchecked="$unchecked $plat/$surf.$cap"
+      continue
+    fi
+    # sort -V puts the greater version last; equal versions are fine.
+    if [[ "$since" != "$validated" ]] \
+       && [[ "$(printf '%s\n%s\n' "$since" "$validated" | sort -V | tail -1)" == "$since" ]] \
+       && [[ -z "$src" ]]; then
+      err "$plat/$surf capability '$cap' claims since=$since, ahead of ${surf}'s validated_against=$validated in platform-targets.json, with no since_source. Either record where that version came from, or drop the claim."
+    fi
+  done <<< "$since_rows"
+  # Zero rows means the query broke, not that the registry is clean: the file
+  # ships capability rows with a `since` and always has. Reporting ok on an empty
+  # read is the exact failure this check exists to prevent, so refuse to.
+  if (( examined == 0 )); then
+    err "the capability 'since' scan examined 0 rows -- the query is broken, not the registry clean"
+  fi
+  if (( FAILED == before_since )); then
+    echo "ok:    all $examined capability 'since' values are validated-against-backed or carry a since_source"
+  fi
+  [[ -n "$unchecked" ]] && echo "note:  no platform-targets entry, 'since' unchecked for:$unchecked"
+fi
+
 if (( FAILED > 0 )); then
   echo "Capability registry check FAILED ($FAILED error(s))." >&2
   exit 1

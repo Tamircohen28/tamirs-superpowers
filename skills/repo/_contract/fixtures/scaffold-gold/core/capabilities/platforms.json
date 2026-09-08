@@ -392,9 +392,8 @@
             },
             "hooks": {
               "status": "native",
-              "since": "0.147.0",
               "validation": "jq -e '.hooks' .codex-plugin/plugin.json",
-              "notes": "Manifest hooks field; features_adopted records hooks-field and portable-agent-plugins-0.147.0. Not the same shape as Claude hooks/hooks.json."
+              "notes": "Manifest hooks field. No 'since' is recorded, deliberately. It previously read 0.147.0, which was taken from the neighbouring features_adopted entry portable-agent-plugins-0.147.0 -- a different change (plugin catalog install) -- while the hooks-field entry sitting beside it is unversioned precisely because the floor was never established. Codex accepted a manifest hooks field long before 0.147.0: openai/codex PR #19705 'Discover hooks bundled with plugins' merged 2026-04-28, roughly twenty releases earlier. The exact floor is still unestablished, so none is claimed here rather than a wrong one. Not the same shape as Claude hooks/hooks.json."
             },
             "mcp": {
               "status": "native",

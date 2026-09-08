@@ -49,6 +49,29 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   failed: 10`.
 
 ### Fixed
+- **`codex.hooks` claimed `since: 0.147.0`, a version that is not when Codex
+  hooks arrived and is ahead of the `0.146.0` anyone actually ran.** The number
+  had been copied from the `features_adopted` entry next to it,
+  `portable-agent-plugins-0.147.0` — a different change (plugin catalog
+  install) — while the `hooks-field` entry beside it is unversioned precisely
+  because the floor was never established. Codex accepted a manifest `hooks`
+  field roughly twenty releases earlier (openai/codex PR #19705, merged
+  2026-04-28). The `since` is now absent rather than wrong: the exact floor is
+  still unestablished, and the row says so. `validated_against` was left at
+  `0.146.0` — raising it would assert a validation nobody performed.
+- **`check-capability-registry.sh` now fails a `since` that is ahead of its
+  platform's `validated_against` and carries no `since_source`.** A version we
+  have not run is a documentation claim, and it must name the document; the new
+  optional `since_source` field (added to `schema.json`) is where it goes.
+  Two traps the check deliberately avoids, both hit while writing it: it reads
+  `REGISTRY_CANONICAL`, not the flattened `REGISTRY` temp copy that has no
+  `.surfaces` (the first draft read the wrong one, jq failed, the loop got zero
+  rows, and the check reported `ok`); and it joins surface → target, not
+  platform → target, because the registry keys platforms `claude`/`gemini`
+  while `platform-targets.json` keys them `claude_code`/`gemini_cli` — the
+  platform join silently finds no target for 14 of the 21 rows. It refuses to
+  report success on a zero-row scan, and names any surface it could not check.
+
 - **The standards scorer invented gaps from an incomplete read.**
   `standards-inventory.sh` probed a single path for two controls the platform
   reads from several, so `score-standards-gaps.sh` asserted the control was
