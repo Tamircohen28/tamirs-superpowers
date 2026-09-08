@@ -75,7 +75,7 @@ globalised.
 
 | ID | Check | Severity |
 |----|-------|----------|
-| S4-01 | CODEOWNERS | P2 |
+| S4-01 | CODEOWNERS — any of `CODEOWNERS`, `.github/CODEOWNERS`, `docs/CODEOWNERS`, the three locations GitHub honours | P2 |
 | S4-02 | Default branch governed by an active ruleset or classic protection | P2 |
 | S4-03 | *retired* — required ≥1 approving review, which contradicts the canonical solo-contributor policy. Superseded by S4-10. | — |
 | S4-04 | `allow_auto_merge` enabled | P2 |

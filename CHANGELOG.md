@@ -5,6 +5,18 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Added
+- **A regression test for the standards-inventory path coverage**,
+  `tests/test-standards-inventory-paths.sh` (17 assertions, picked up
+  automatically by `make test-hooks` and so by `make validate` and CI). It pins
+  every location GitHub honours for `CODEOWNERS` and every spelling it accepts
+  for `LICENSE`, and pins them **in both directions**: each recognised location
+  is paired with a repo that has the file nowhere, so a "fix" that hardcodes
+  `true` fails the suite; `src/CODEOWNERS` must still read as absent, so the
+  search is widened to the platform's rule rather than to the whole tree; and
+  root-only conventions are asserted to stay root-only. Against the pre-fix
+  inventory it reports `passed: 11  failed: 6`.
+
 ### Fixed
 - **The standards scorer invented gaps from an incomplete read.**
   `standards-inventory.sh` probed a single path for two controls the platform
