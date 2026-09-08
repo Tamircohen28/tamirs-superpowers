@@ -1,6 +1,6 @@
 {
   "schema_version": 2,
-  "last_reviewed": "2026-08-30",
+  "last_reviewed": "2026-09-06",
   "capability_definitions": {
     "skills": {
       "summary": "Discovers and loads SKILL.md files shipped by this repo.",
@@ -524,7 +524,7 @@
             },
             "parallel_subagents": {
               "status": "partial",
-              "notes": "Cloud Agents can swarm subagents each on an isolated VM (2026-08-19). Local parallel fan-out concurrency is still unmeasured here.",
+              "notes": "Cloud Agents can swarm subagents each on an isolated VM (2026-08-19). Local parallel fan-out concurrency is still unmeasured here. Self-Hosted Machines (2026-09-02): My Machines / Team Pools / partner sandboxes can host tool execution with computer use on Linux/Mac \u2014 not GitHub Actions self-hosted runners.",
               "fallback": "Prefer cloud-isolated subagents for collision-free swarms; otherwise fan out sequentially locally."
             },
             "agent_teams": {

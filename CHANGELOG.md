@@ -39,6 +39,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   same maintenance and one more place for a private name to land.
 
 ### Changed
+- **Cursor 3.11 (+2026-09-02):** advance `changelog_date` **2026-08-27 → 2026-09-02** (desktop **3.18.9** / feature **3.11** unchanged). Document Cursor **Self-Hosted Machines** (My Machines / Team Pools / partner sandboxes) + **computer use on Linux/Mac**, and the hard distinction from GitHub Actions self-hosted runners (this public plugin stays on `ubuntu-latest`). Cursor-only.
 - **The employer scanners no longer name a company.** `tests/test-static.sh` and
   the `run-tamirs-superpowers` check 7 both matched a hardcoded company regex —
   so the check against shipping an employer reference was itself an employer
