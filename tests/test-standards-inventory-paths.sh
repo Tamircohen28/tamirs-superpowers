@@ -89,10 +89,22 @@ judge "LICENSE.md is seen" true \
   "$(fact "$(repo lic-md LICENSE.md)" '.root_files.license')"
 judge "LICENSE.txt is seen" true \
   "$(fact "$(repo lic-txt LICENSE.txt)" '.root_files.license')"
+judge "LICENCE (British spelling) is seen" true \
+  "$(fact "$(repo lic-brit LICENCE)" '.root_files.license')"
+judge "LICENCE.md is seen" true \
+  "$(fact "$(repo lic-brit-md LICENCE.md)" '.root_files.license')"
+judge "LICENCE.txt is seen" true \
+  "$(fact "$(repo lic-brit-txt LICENCE.txt)" '.root_files.license')"
 judge "COPYING is seen" true \
   "$(fact "$(repo lic-copying COPYING)" '.root_files.license')"
+judge "COPYING.md is seen" true \
+  "$(fact "$(repo lic-copying-md COPYING.md)" '.root_files.license')"
 judge "no licence at all is still false" false \
   "$(fact "$(repo lic-none README.md)" '.root_files.license')"
+# The pair to the four widened spellings: widened to the eight names GitHub
+# accepts at the root, not to any file called LICENSE anywhere in the tree.
+judge "docs/LICENSE is NOT a repo licence" false \
+  "$(fact "$(repo lic-nested docs/LICENSE)" '.root_files.license')"
 
 section "root-only conventions stay root-only"
 

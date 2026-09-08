@@ -7,7 +7,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Added
 - **A regression test for the standards-inventory path coverage**,
-  `tests/test-standards-inventory-paths.sh` (17 assertions, picked up
+  `tests/test-standards-inventory-paths.sh` (22 assertions, picked up
   automatically by `make test-hooks` and so by `make validate` and CI). It pins
   every location GitHub honours for `CODEOWNERS` and every spelling it accepts
   for `LICENSE`, and pins them **in both directions**: each recognised location
@@ -16,6 +16,15 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   search is widened to the platform's rule rather than to the whole tree; and
   root-only conventions are asserted to stay root-only. Against the pre-fix
   inventory it reports `passed: 11  failed: 6`.
+- **The four licence spellings the suite above still left unasserted.** The
+  inventory probes eight names (`LICENSE`, `LICENCE` and `COPYING`, with `.md`
+  and `.txt` where GitHub accepts them); only four of them were covered, so half
+  the widened list was unprotected. Adds `LICENCE`, `LICENCE.md`, `LICENCE.txt`
+  and `COPYING.md`, plus the negative control the licence half was missing:
+  `docs/LICENSE` must **not** count, so the search is widened to the eight names
+  GitHub honours at the root rather than to any file called LICENSE anywhere in
+  the tree. 22 assertions; against the pre-fix inventory, `passed: 12
+  failed: 10`.
 
 ### Fixed
 - **The standards scorer invented gaps from an incomplete read.**
