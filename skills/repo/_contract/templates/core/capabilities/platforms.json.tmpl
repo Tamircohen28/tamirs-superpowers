@@ -1,10 +1,10 @@
 {
   "schema_version": 2,
-  "last_reviewed": "2026-09-06",
+  "last_reviewed": "2026-09-09",
   "capability_definitions": {
     "skills": {
       "summary": "Discovers and loads SKILL.md files shipped by this repo.",
-      "degradation": "None possible \u2014 a target without skills is not a supported target."
+      "degradation": "None possible — a target without skills is not a supported target."
     },
     "skill_auto_invocation": {
       "summary": "Selects a skill from its description without the user naming it.",
@@ -32,7 +32,7 @@
     },
     "statusline": {
       "summary": "Renders a repo-provided status line in the session chrome.",
-      "degradation": "Purely cosmetic \u2014 omit it. Never make a skill depend on it."
+      "degradation": "Purely cosmetic — omit it. Never make a skill depend on it."
     },
     "shell": {
       "summary": "Executes arbitrary shell commands in the workspace.",
@@ -118,7 +118,7 @@
               "status": "native",
               "since": "2.0.0",
               "validation": "claude plugin validate .",
-              "notes": "Canonical skills/ tree is consumed directly; no adapter."
+              "notes": "Canonical skills/ tree is consumed directly; no adapter. Since 2.1.265, a forked skill's kickoff prompt and text turns stream as progress events instead of arriving silently once it returns — this repo's one forked skill, targeted-debug (context: fork, agent: Explore), is now visible turn-by-turn while it runs."
             },
             "skill_auto_invocation": {
               "status": "native",
@@ -129,7 +129,8 @@
             "subagents": {
               "status": "native",
               "since": "2.0.0",
-              "validation": "test -d agents && claude plugin validate ."
+              "validation": "test -d agents && claude plugin validate .",
+              "notes": "Since 2.1.265, resuming a foreground-spawned subagent no longer rewrites its tool list/system prompt or breaks prompt-cache reuse, and agent teammates/resumed subagents no longer move SubagentStart hook context out of the prompt prefix (this repo wires no SubagentStart hook today, so that half of the fix is not exercised here). Full version history: CLAUDE.md's Subagents bullet."
             },
             "parallel_subagents": {
               "status": "native",
@@ -146,12 +147,13 @@
               "status": "native",
               "since": "2.0.0",
               "validation": "jq empty hooks/hooks.json && make test-hooks",
-              "notes": "hooks/hooks.json with CLAUDE_PLUGIN_ROOT. This is the only target where the Claude-shaped hook bundle runs as shipped."
+              "notes": "hooks/hooks.json with CLAUDE_PLUGIN_ROOT. This is the only target where the Claude-shaped hook bundle runs as shipped. Since 2.1.261, resuming a session no longer loses hook output produced around parallel tool calls. Full version history: CLAUDE.md's Hooks bullet."
             },
             "mcp": {
               "status": "native",
               "since": "2.0.0",
-              "validation": "bash scripts/check-manifest-declares.sh .mcp.json mcpServers"
+              "validation": "bash scripts/check-manifest-declares.sh .mcp.json mcpServers",
+              "notes": "The one declared server (github, via scripts/github-mcp.sh) is stdio. Since 2.1.265, a server declared http with only legacy HTTP+SSE support auto-falls-back to that transport instead of never connecting; not exercised here, since nothing shipped is http-typed."
             },
             "statusline": {
               "status": "native",
@@ -169,7 +171,7 @@
             "github_cli": {
               "status": "native",
               "validation": "gh auth status",
-              "notes": "Platform imposes no limit, but gh is an optional host dependency \u2014 presence is environment-dependent, so skills treat it as optional."
+              "notes": "Platform imposes no limit, but gh is an optional host dependency — presence is environment-dependent, so skills treat it as optional."
             },
             "background_tasks": {
               "status": "native",
@@ -281,7 +283,7 @@
             },
             "git": {
               "status": "partial",
-              "notes": "Follows shell \u2014 available only in the coding-session surface.",
+              "notes": "Follows shell — available only in the coding-session surface.",
               "fallback": "Skip git workflows."
             },
             "github_cli": {
@@ -522,7 +524,7 @@
             },
             "parallel_subagents": {
               "status": "partial",
-              "notes": "Cloud Agents can swarm subagents each on an isolated VM (2026-08-19). Local parallel fan-out concurrency is still unmeasured here. Self-Hosted Machines (2026-09-02): My Machines / Team Pools / partner sandboxes can host tool execution with computer use on Linux/Mac \u2014 not GitHub Actions self-hosted runners.",
+              "notes": "Cloud Agents can swarm subagents each on an isolated VM (2026-08-19). Local parallel fan-out concurrency is still unmeasured here. Self-Hosted Machines (2026-09-02): My Machines / Team Pools / partner sandboxes can host tool execution with computer use on Linux/Mac — not GitHub Actions self-hosted runners.",
               "fallback": "Prefer cloud-isolated subagents for collision-free swarms; otherwise fan out sequentially locally."
             },
             "agent_teams": {
@@ -650,8 +652,8 @@
               "status": "adapter",
               "since": "0.55.1",
               "validation": "make gemini-extension-check",
-              "notes": "Measured on 0.55.1: Gemini discovers skills exactly one level below a skills root, so the canonical two-level skills/<domain>/<name>/ tree resolves to ZERO skills. scripts/build-gemini-extension.sh generates a flat symlink mirror at .gemini/skills/ (one symlink per skill, so still exactly one copy in the repo), which Gemini then reads natively \u2014 in-workspace with no install at all, or via a single gemini skills install --path .gemini/skills. This row is about the generated mirror, not the canonical tree. NOTE: Gemini follows symlinks for skill discovery; OpenCode does not, at any level. Do not port one platform's mirror strategy to the other.",
-              "fallback": "None needed \u2014 the mirror is committed, and scripts/check-gemini-adapter.sh fails rather than shipping an adapter that finds nothing. Regenerate with make gemini-extension; never hand-edit .gemini/skills/. One live failure mode: an untrusted workspace folder silently skips the mirror, and the only clue is Gemini logging 'Skipping project agents due to untrusted folder'."
+              "notes": "Measured on 0.55.1: Gemini discovers skills exactly one level below a skills root, so the canonical two-level skills/<domain>/<name>/ tree resolves to ZERO skills. scripts/build-gemini-extension.sh generates a flat symlink mirror at .gemini/skills/ (one symlink per skill, so still exactly one copy in the repo), which Gemini then reads natively — in-workspace with no install at all, or via a single gemini skills install --path .gemini/skills. This row is about the generated mirror, not the canonical tree. NOTE: Gemini follows symlinks for skill discovery; OpenCode does not, at any level. Do not port one platform's mirror strategy to the other.",
+              "fallback": "None needed — the mirror is committed, and scripts/check-gemini-adapter.sh fails rather than shipping an adapter that finds nothing. Regenerate with make gemini-extension; never hand-edit .gemini/skills/. One live failure mode: an untrusted workspace folder silently skips the mirror, and the only clue is Gemini logging 'Skipping project agents due to untrusted folder'."
             },
             "skill_auto_invocation": {
               "status": "unknown",
@@ -662,8 +664,8 @@
               "status": "adapter",
               "since": "0.55.1",
               "validation": "make gemini-extension-check",
-              "notes": "The CANONICAL form does not load: agents/*.md are read from the extension root and rejected with 'tools.0: Invalid tool name', because Gemini wants tools as an array of its own tool names while this repo's agents declare Claude's (Read, Grep, Glob, Bash) as a string. A GENERATED form does: scripts/build-gemini-extension.sh emits .gemini/agents/*.md with tools as a YAML array of real Gemini names (read_file, search_file_content, glob, run_shell_command), verified against the loader rather than guessed, and omits model: entirely \u2014 a Claude alias like 'sonnet' passes validation and then fails at invocation. Verified on 0.55.1: all agents load with no errors.",
-              "fallback": "Regenerate with make gemini-extension; never hand-edit .gemini/agents/. Installing the extension still emits a harmless load error for the canonical agents/ at the extension root \u2014 noisy, not fatal, and unfixable from this side (no subdirectory flag, no manifest field relocates it)."
+              "notes": "The CANONICAL form does not load: agents/*.md are read from the extension root and rejected with 'tools.0: Invalid tool name', because Gemini wants tools as an array of its own tool names while this repo's agents declare Claude's (Read, Grep, Glob, Bash) as a string. A GENERATED form does: scripts/build-gemini-extension.sh emits .gemini/agents/*.md with tools as a YAML array of real Gemini names (read_file, search_file_content, glob, run_shell_command), verified against the loader rather than guessed, and omits model: entirely — a Claude alias like 'sonnet' passes validation and then fails at invocation. Verified on 0.55.1: all agents load with no errors.",
+              "fallback": "Regenerate with make gemini-extension; never hand-edit .gemini/agents/. Installing the extension still emits a harmless load error for the canonical agents/ at the extension root — noisy, not fatal, and unfixable from this side (no subdirectory flag, no manifest field relocates it)."
             },
             "parallel_subagents": {
               "status": "unknown",
@@ -677,7 +679,7 @@
             },
             "hooks": {
               "status": "unknown",
-              "notes": "This adapter ships no hooks, by design \u2014 a statement about the adapter, not a verdict on Gemini. Measured on 0.55.1, read from the shipped bundle rather than the docs: Gemini accepts the outer {\"hooks\": {...}} shape of the Claude Code schema without complaint, AND accepts an invented event name just as silently, so loading proves nothing about firing. The vocabularies partially overlap rather than differ wholesale \u2014 of this repo's ten declared events, three (SessionStart, SessionEnd, Notification) are real Gemini events, four (PreToolUse, PostToolUse, UserPromptSubmit, Stop) exist only as keys in the gemini hooks migrate --from-claude mapping table, and three (DirectoryAdded, WorktreeCreate, WorktreeRemove) have no counterpart at all. Whether the three shared events actually fire was NOT verified, so no claim is made in either direction. Not 'unsupported' \u2014 that would assert a measured failure that was never measured, and would also imply the dropped-in Claude file is wholly inert when three of its handlers name events Gemini has.",
+              "notes": "This adapter ships no hooks, by design — a statement about the adapter, not a verdict on Gemini. Measured on 0.55.1, read from the shipped bundle rather than the docs: Gemini accepts the outer {\"hooks\": {...}} shape of the Claude Code schema without complaint, AND accepts an invented event name just as silently, so loading proves nothing about firing. The vocabularies partially overlap rather than differ wholesale — of this repo's ten declared events, three (SessionStart, SessionEnd, Notification) are real Gemini events, four (PreToolUse, PostToolUse, UserPromptSubmit, Stop) exist only as keys in the gemini hooks migrate --from-claude mapping table, and three (DirectoryAdded, WorktreeCreate, WorktreeRemove) have no counterpart at all. Whether the three shared events actually fire was NOT verified, so no claim is made in either direction. Not 'unsupported' — that would assert a measured failure that was never measured, and would also imply the dropped-in Claude file is wholly inert when three of its handlers name events Gemini has.",
               "fallback": "Guards become explicit in-skill steps plus CI checks. gemini hooks migrate --from-claude can translate them into personal settings."
             },
             "mcp": {
@@ -723,7 +725,7 @@
               "status": "native",
               "since": "0.55.1",
               "validation": "bash scripts/check-gemini-adapter.sh",
-              "notes": "Primary install path, measured on 0.55.1: gemini extensions install <git-url>, or gemini extensions link . for local development. Note that gemini extensions validate only parses the manifest \u2014 it reports success on an extension whose context file does not exist \u2014 so it is not sufficient evidence for any row here."
+              "notes": "Primary install path, measured on 0.55.1: gemini extensions install <git-url>, or gemini extensions link . for local development. Note that gemini extensions validate only parses the manifest — it reports success on an extension whose context file does not exist — so it is not sufficient evidence for any row here."
             },
             "slash_commands": {
               "status": "unknown",
@@ -798,7 +800,7 @@
               "status": "native",
               "since": "1.16.2",
               "validation": "opencode debug skill",
-              "notes": "Recursive (domain-nested) discovery verified from 1.16.2; validated against 1.18.11. OpenCode recognises a smaller frontmatter set and ignores unknown fields. Symlinks are NOT followed for skill discovery at any level (verified 1.18.11) \u2014 the skills dir, a domain dir, and an individual skill dir all yield zero. Install with absolute skills.paths, never a symlink."
+              "notes": "Recursive (domain-nested) discovery verified from 1.16.2; validated against 1.18.11. OpenCode recognises a smaller frontmatter set and ignores unknown fields. Symlinks are NOT followed for skill discovery at any level (verified 1.18.11) — the skills dir, a domain dir, and an individual skill dir all yield zero. Install with absolute skills.paths, never a symlink."
             },
             "skill_auto_invocation": {
               "status": "unknown",
@@ -822,7 +824,7 @@
             },
             "hooks": {
               "status": "unsupported",
-              "notes": "OpenCode has no hooks.json; its only lifecycle mechanism is the JS/TS plugin API, and this repo ships no plugin module by design (it would add a Node runtime dependency for no other gain). As installed, the hooks/ guards do not run at all \u2014 'adapter' would imply a generated artifact exists, as it does for subagents, and none does.",
+              "notes": "OpenCode has no hooks.json; its only lifecycle mechanism is the JS/TS plugin API, and this repo ships no plugin module by design (it would add a Node runtime dependency for no other gain). As installed, the hooks/ guards do not run at all — 'adapter' would imply a generated artifact exists, as it does for subagents, and none does.",
               "fallback": "Guards become explicit in-skill steps plus CI checks."
             },
             "mcp": {
@@ -860,7 +862,7 @@
             },
             "plugin_marketplace": {
               "status": "unsupported",
-              "notes": "No plugin marketplace \u2014 install is by absolute skills.paths. Not by symlink: OpenCode does not follow them for skill discovery (see the skills row).",
+              "notes": "No plugin marketplace — install is by absolute skills.paths. Not by symlink: OpenCode does not follow them for skill discovery (see the skills row).",
               "fallback": "Document the absolute skills.paths install in docs/user/install/opencode.md."
             },
             "extension_install": {
