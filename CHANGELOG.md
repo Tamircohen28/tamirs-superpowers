@@ -5,6 +5,47 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [3.6.3] — 2026-09-09
+
+### Added
+- **Root `.claude-code-version` baseline pin.** A new machine-readable file at the repo
+  root records the Claude Code host CLI baseline (`2.1.267`, `validated_against:
+  2.1.263`, `reviewed_through`/`latest_known: 2.1.267`, `last_reviewed: 2026-09-09`) so
+  a script or a future review no longer has to reverse-engineer "the highest version
+  mentioned in prose" from `CLAUDE.md`. `docs/engineering/build-and-release/platform-targets.json`'s
+  `targets.claude_code` block stays authoritative on any disagreement; the new file is a
+  thin, explicitly-referenced mirror, not a competing source — `CLAUDE.md`'s new "Claude
+  Code CLI baseline" section says so and flags that it is not read by any script yet
+  (the same gap `docs/engineering/refactor/file-inventory.md` already documents for
+  `.codex-version`/`.cursor-version`), rather than leaving that orphaned quietly.
+
+### Changed
+- **Claude Code platform-sync review advances through 2.1.267** (from 2.1.263).
+  `CLAUDE.md`'s Subagents, Hooks, and Skill frontmatter sections gain dated clauses for
+  every host release in the delta that is relevant to this repo: 2.1.261 (`/skill-doctor`,
+  hook output surviving a resume mid-parallel-call, the improved `rm -rf`
+  positional-parameter safety prompt), 2.1.265 (resumed-subagent prompt-cache/tool-list
+  fix, `SubagentStart` hook-context fix — not exercised, this repo wires no
+  `SubagentStart` hook — forked-skill kickoff streaming for `targeted-debug`, MCP
+  legacy-HTTP+SSE auto-fallback, `--plugin-dir` folder-of-plugins mode, and a plugin-path
+  containment hardening), and 2.1.267 (the `effort:` frontmatter fix, so that the
+  `effort:` set on 27 `SKILL.md` files here now reliably lands on a model with a pinned
+  default effort, where it could previously be silently ignored — `maxEffortLevel`, and
+  a marketplace entry-path containment hardening relevant to this plugin's
+  `tamirs-marketplace` distribution). No breaking
+  changes or deprecations in the delta; several 2.1.261/2.1.267 items were reviewed and
+  found not applicable here (`--append-subagent-system-prompt-file`, Workflow tool
+  `agent()` schema validation, artifact-publish UTF-8 handling, sandbox clipboard
+  guidance) and are recorded as such rather than silently skipped.
+- **`core/capabilities/platforms.json` and `platform-targets.json`/`.md` re-reviewed
+  through 2.1.267.** `last_reviewed` advances to 2026-09-09 on both registries; the
+  `claude_code` capability rows for `skills`, `subagents`, `hooks` and `mcp` gain
+  precise `notes` for the fixes above, and `platform-targets.json`'s `claude_code`
+  `features_adopted` list gains 13 new dated entries. `validated_against` deliberately
+  stays at `2.1.263` — this review had no live `claude` CLI available, so only
+  `reviewed_through`/`latest_known` (changelog-only claims) advance, per the split the
+  file already documents.
+
 ### Fixed
 - **Gold fixture capability registries now claim only what their fixture trees
   actually deliver.** `core/capabilities/platforms.json` under `scaffold-gold`,
