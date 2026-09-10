@@ -5,6 +5,53 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [3.6.4] — 2026-09-10
+
+### Changed
+- **Claude Code platform-sync review advances through 2.1.268** (from 2.1.267), and — for the
+  first time in several cycles — on a **live `claude` CLI** rather than changelog reading alone:
+  this run's automation environment had `claude` 2.1.268 installed, so `claude plugin validate .`
+  and `bash scripts/doctor.sh .` were re-run for real (both passed: `√ Validation passed`;
+  `healthy, with 4 optional feature(s) unavailable` — `gh`, `shellcheck`, GitHub automation,
+  notifications, all pre-existing environment gaps, not regressions). `validated_against`,
+  `reviewed_through` and `latest_known` all advance to **2.1.268** together — the first time in
+  this repo's review history all three have matched, closing the `validated_against`-lags-behind
+  gap the split documented in `platform-targets.json` exists to track. `.claude-code-version`,
+  the README badge (Row 3, Row `##Supported platforms` table), and
+  `docs/engineering/build-and-release/platform-targets.md`'s table/prose all advance to
+  `2.1.268` for the Claude Code row only — every other target's row (Cursor, Codex, Gemini CLI,
+  OpenCode) is untouched. `CLAUDE.md`'s Hooks section gains a 2.1.268 clause: `PermissionRequest`
+  hooks now fire in `--print` mode (not exercised — no `PermissionRequest` hook is wired here),
+  and `CLAUDE_CODE_SESSIONEND_HOOKS_TIMEOUT_MS` now actually extends a `SessionEnd` hook that
+  declares no per-hook `timeout` (every `SessionEnd` hook this repo ships already sets one, so
+  unaffected). `core/capabilities/platforms.json`'s `mcp` row notes that `/mcp`/`/plugin`/MCP-login
+  errors no longer leak a secret resolved from a `${VAR}` placeholder in an MCP config — this
+  repo's `.mcp.json` declares none, so not exposed. The `agent_teams` row notes that a respawned
+  in-process teammate no longer inherits tools/system-prompt from a same-named agent file in an
+  untrusted folder — this repo's `agents/*.md` are trusted and versioned, so not a scenario this
+  repo's own orchestration creates, but relevant to anyone fanning out `orchestrate-dev`/
+  `worker-dev` from a workspace containing other, untrusted agent definitions. No breaking changes
+  or deprecations in the delta.
+
+### Added
+- **`scripts/update.sh` and `scripts/uninstall.sh` now request `claude plugin update`/
+  `uninstall ... --json`** (added in Claude Code 2.1.268) and surface the returned
+  `message`/`failureCode` on failure, instead of only a generic "run the slash command yourself"
+  fallback. Previously a failed `claude plugin update` or `uninstall` call (plugin not found,
+  wrong scope, a marketplace-declared command needing confirmation, etc.) was indistinguishable
+  from "the `claude` CLI just isn't installed" — both printed the same fallback line. Now a JSON
+  parse failure (older CLI, unexpected output) still falls back to the previous generic message,
+  so this degrades safely on a `claude` CLI older than 2.1.268.
+
+### Documentation
+- `core/capabilities/platforms.json`'s `plugin_marketplace` row documents the new
+  `--json`/`errorDetails`/`noteDetails` surface across `claude plugin install/uninstall/update/
+  enable/disable` and `list`, the git-source-URL secret-leak fix, the marketplace entry-path
+  containment hardening, and clarifies that `/plugin install/enable/disable` no longer needing
+  `/reload-plugins` after the interactive menu closes is unrelated to (and does not change)
+  `hooks/plugin-reload-reminder.sh`'s reminder for local manifest/hook edits made outside that
+  menu (e.g. under a `--plugin-dir` dev symlink).
+
 ## [3.6.3] — 2026-09-09
 
 ### Added
