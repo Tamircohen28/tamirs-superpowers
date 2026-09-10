@@ -6,6 +6,13 @@ All notable changes are recorded here and in [`../CHANGELOG.md`](../CHANGELOG.md
 
 See root [CHANGELOG.md](../CHANGELOG.md#unreleased) for in-progress entries.
 
+## [3.8.0] — 2026-09-17
+
+Opt-in local usage capture (`/usage-capture`): Claude Code OTEL plus an optional
+OpenCode plugin write Israel-dated JSONL on loopback. Metadata by default; API
+bodies are `--bodies` only. LiteLLM is labelled, never stored as a URL. See root
+[CHANGELOG.md](../CHANGELOG.md#380--2026-09-17).
+
 ## [3.6.2] — 2026-09-08
 
 `make assert-contract` now runs in CI against this repo itself — the one gate that scores the repo against its own standards contract had never blocked a merge, only the `scaffold-gold` fixture had. Also adds `reviewed_through` to `platform-targets.json` as a second, separate version claim, and judges the platform-targets co-change gate by whether a capability's claim actually changed rather than by whether the registry file's bytes did. See root [CHANGELOG.md](../CHANGELOG.md#362--2026-09-08).

@@ -24,7 +24,8 @@ shows the same split at a glance.
 ## Prerequisites
 
 `git` 2.30+, `jq`, and bash. `gh` is optional and only affects PR/issue workflows. No Node,
-no Python, no build step — the toolkit is Markdown, JSON, and bash.
+no Python, no build step — the toolkit is Markdown, JSON, and bash. The optional
+[usage-capture](../usage-capture.md) collector is stdlib Python 3 when you opt in.
 
 Gemini is the one target where installing the extension is not the whole install: skills
 live in a generated flat mirror at `.gemini/skills/` and are installed with a second command.

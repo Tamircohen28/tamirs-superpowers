@@ -51,6 +51,7 @@ the one that answers "what breaks if this is gone".
 | `show-changelog.sh` | SessionStart | **platform-specific** | Claude Code only (shells out to `claude --version`) | Nothing | Optional |
 | `notify.sh` | Notification | **optional-notification** | Claude Code + a terminal that honours OSC 99, or macOS `osascript` | No desktop notification | Optional |
 | `ensure-exit.sh` | UserPromptSubmit | **optional-notification** | Any (needs `curl`) | No VPN/exit-node check | Optional (already env-gated, silent by default) |
+| `usage-capture-ensure.sh` | SessionStart | **optional-notification** | Claude Code only | Collector is not auto-started; `enable.sh` / `collector.py --daemon` still work | Optional (env-gated `TAMIRS_USAGE_CAPTURE`, silent by default) |
 
 ### Shared libraries
 

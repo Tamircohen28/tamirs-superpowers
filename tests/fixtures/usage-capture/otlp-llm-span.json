@@ -1,0 +1,32 @@
+{
+  "resourceSpans": [
+    {
+      "resource": {
+        "attributes": [
+          {"key": "tamirs.gateway_kind", "value": {"stringValue": "litellm"}},
+          {"key": "tamirs.endpoint_label", "value": {"stringValue": "dev-gateway"}}
+        ]
+      },
+      "scopeSpans": [
+        {
+          "spans": [
+            {
+              "name": "claude_code.llm_request",
+              "startTimeUnixNano": "1000000000",
+              "endTimeUnixNano": "2500000000",
+              "attributes": [
+                {"key": "model", "value": {"stringValue": "claude-opus-5"}},
+                {"key": "ttft_ms", "value": {"intValue": "180"}},
+                {"key": "session.id", "value": {"stringValue": "sess-1"}},
+                {"key": "request_id", "value": {"stringValue": "req-99"}},
+                {"key": "litellm.deployment", "value": {"stringValue": "claude-primary"}},
+                {"key": "input_tokens", "value": {"intValue": "1200"}},
+                {"key": "output_tokens", "value": {"intValue": "90"}}
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

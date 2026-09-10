@@ -1,0 +1,30 @@
+[
+  {
+    "query": "enable usage capture for my Claude Code requests",
+    "should_trigger": true
+  },
+  {
+    "query": "record LLM requests locally with model and latency",
+    "should_trigger": true
+  },
+  {
+    "query": "which model was used and how long did that request take",
+    "should_trigger": true
+  },
+  {
+    "query": "show my local usage log for today",
+    "should_trigger": true
+  },
+  {
+    "query": "OpenCode usage metrics JSONL",
+    "should_trigger": true
+  },
+  {
+    "query": "rename the helper function in utils.go to parseHeader",
+    "should_trigger": false
+  },
+  {
+    "query": "show me my Claude token spend and cache hit rate this week",
+    "should_trigger": false
+  }
+]

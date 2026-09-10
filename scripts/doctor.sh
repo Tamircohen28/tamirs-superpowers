@@ -149,7 +149,7 @@ declare -a OPT=(
   "jq|shell helpers, every JSON validator|brew install jq (or apt-get install jq)"
   "gh|GitHub automation in pr-dev / start-dev / cleanup|brew install gh && gh auth login"
   "node|session-report usage analytics|install Node 18+ from nodejs.org or via nvm"
-  "python3|skill frontmatter + capability schema validation|python3 ships with macOS; else install from python.org"
+  "python3|skill frontmatter validation and the usage-capture collector|python3 ships with macOS; else install from python.org"
   "shellcheck|contributor lint (make lint)|brew install shellcheck"
 )
 for row in "${OPT[@]}"; do
@@ -176,6 +176,16 @@ if command -v node >/dev/null 2>&1 && [[ -d "$HOME/.claude/projects" ]]; then
 else
   warnl "session-report — needs node plus ~/.claude/projects transcripts (Claude Code format only)"
   MISSING+=("session-report: install node and run at least one Claude Code session")
+fi
+
+if command -v python3 >/dev/null 2>&1 && [[ -d "${TAMIRS_USAGE_CAPTURE_DIR:-$HOME/.local/share/tamirs-superpowers/usage}" ]]; then
+  ok "usage-capture — python3 present and log directory exists"
+elif command -v python3 >/dev/null 2>&1; then
+  warnl "usage-capture — python3 present; no local JSONL dir yet (opt-in via /usage-capture)"
+  MISSING+=("usage-capture: bash scripts/usage-capture/enable.sh")
+else
+  warnl "usage-capture — needs python3 to run the local collector"
+  MISSING+=("usage-capture: install python3")
 fi
 
 if [[ -n "${PUSHOVER_TOKEN:-}" && -n "${PUSHOVER_USER:-}" ]]; then
