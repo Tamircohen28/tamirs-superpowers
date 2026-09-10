@@ -25,9 +25,37 @@ esac
 
 if command -v claude >/dev/null 2>&1; then
   claude plugin marketplace update tamirs-marketplace 2>/dev/null || true
-  if claude plugin update tamirs-superpowers@tamirs-marketplace 2>/dev/null; then
+  # claude plugin update --json (Claude Code 2.1.268+) prints one machine-readable
+  # result line — {command, outcome, plugin, scope, message, failureCode} — instead
+  # of the human message. On failure this gives a specific reason ("Plugin ... not
+  # found", "restart required", etc.) instead of only the generic fallback below.
+  # Degrades to that same generic fallback on an older CLI (no --json support, so
+  # stdout won't parse as the JSON shape we expect) or with neither jq nor python3
+  # available to read it.
+  set +e
+  update_json="$(claude plugin update tamirs-superpowers@tamirs-marketplace --json 2>/dev/null)"
+  update_status=$?
+  set -e
+  if [[ $update_status -eq 0 ]]; then
     printf 'Updated tamirs-superpowers via claude CLI\n'
   else
+    detail=""
+    if command -v jq >/dev/null 2>&1; then
+      detail="$(printf '%s' "$update_json" | jq -r 'if .message then (.message + (if .failureCode then " (" + .failureCode + ")" else "" end)) else empty end' 2>/dev/null || true)"
+    elif command -v python3 >/dev/null 2>&1; then
+      detail="$(printf '%s' "$update_json" | python3 -c '
+import sys, json
+try:
+    d = json.load(sys.stdin)
+    msg = d.get("message")
+    code = d.get("failureCode")
+    if msg:
+        print(msg + (f" ({code})" if code else ""))
+except Exception:
+    pass
+' 2>/dev/null || true)"
+    fi
+    [[ -n "$detail" ]] && printf '%s\n' "$detail"
     printf 'Run inside Claude Code: /plugin update tamirs-superpowers@tamirs-marketplace\n'
   fi
 else
