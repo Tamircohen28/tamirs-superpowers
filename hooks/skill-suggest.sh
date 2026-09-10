@@ -97,6 +97,11 @@ if matches '\b(token|tokens)\b|\bcost(s|ing)?\b|\bspend(ing)?\b|\bexpensive\b|\b
   add session-report "session-report — reports token spend, cache hit rate and cost per project from the local session transcripts. Invoke it rather than estimating."
 fi
 
+# --- usage-capture: live per-request LLM metrics (not transcript spend) ----
+if matches 'usage[- ]capture|local usage log|record (llm|api) requests|llm (latency|request duration)|enable usage capture|which model was used|request duration'; then
+  add usage-capture "usage-capture — opt-in local JSONL of each LLM request (model, Israel time, duration, tokens, skill/command names). Complements session-report; it does not parse ~/.claude/projects."
+fi
+
 # --- targeted-debug: a stack trace was pasted -------------------------------
 # Shape-based, not vocabulary-based: the frames themselves, in any language.
 if matches_cs 'Traceback|^[[:space:]]*at [^[:space:]]+\(.*:[0-9]+|panic:|File "[^"]*", line [0-9]+|[A-Za-z]+(Exception|Error): |nil pointer dereference|goroutine [0-9]+ \['; then

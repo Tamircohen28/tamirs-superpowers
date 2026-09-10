@@ -83,6 +83,7 @@ situation per session; never repeat a declined suggestion.
 | Situation | Skill |
 |---|---|
 | The user asks what something cost, how many tokens it used, or why a session got expensive | `session-report` |
+| The user wants to record or query live LLM request metrics (model, latency, local JSONL) | `usage-capture` |
 | A stack trace, traceback, panic or crash log is pasted, or a `file:line` is named | `targeted-debug` |
 | "am I up to date", "what new features am I missing", "latest docs" — or a `*-plugin/plugin.json` or `CHANGELOG.md` is being bumped | `platform-sync` |
 | A rate limit is hit, or an objective is still open and the session is ending | `switch-dev` |

@@ -6,6 +6,13 @@ All notable changes are recorded here and in [`../CHANGELOG.md`](../CHANGELOG.md
 
 See root [CHANGELOG.md](../CHANGELOG.md#unreleased) for in-progress entries.
 
+## [3.7.0] — 2026-09-10
+
+Opt-in local usage capture (`/usage-capture`): Claude Code OTEL plus an optional
+OpenCode plugin write Israel-dated JSONL on loopback. Metadata by default; API
+bodies are `--bodies` only. LiteLLM is labelled, never stored as a URL. See root
+[CHANGELOG.md](../CHANGELOG.md#370--2026-09-10).
+
 ## [2.0.1] — 2026-08-12
 
 Worktree guard anchored to the file being edited rather than the session `cwd` (an incidental `cd` no longer arms it for every later edit, and the Claude config dir is exempt). Platform targets advanced to Claude Code 2.1.226 and Codex 0.147.0; Cursor coverage pinned with project hooks and corrected hooks documentation. See root [CHANGELOG.md](../CHANGELOG.md#201--2026-08-12).

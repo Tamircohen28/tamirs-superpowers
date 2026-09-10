@@ -141,6 +141,12 @@ never adopt anything silently. `apply` shows a diff and asks per change, default
 **No**. Re-running is a no-op — idempotence is a content comparison. Full reference:
 [setup](../setup.md) · [platform setup](../platform-setup.md).
 
+## Optional local usage capture
+
+Opt in with [`/usage-capture`](../usage-capture.md) (`bash scripts/usage-capture/enable.sh`).
+Claude Code's native OpenTelemetry export is pointed at a loopback collector; logs stay
+on this machine as one JSONL file per Israel calendar day. Restart Claude Code after enabling.
+
 ## Capabilities and limitations
 
 | Capability | Status | Notes |

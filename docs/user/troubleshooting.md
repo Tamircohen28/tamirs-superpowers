@@ -218,8 +218,9 @@ enforced in CI, which is where they bind. [Install guide](install/cursor.md).
 
 ### No hooks at all in OpenCode
 
-OpenCode has no `hooks.json`; its only lifecycle mechanism is a JS/TS plugin API, and this
-repo ships no plugin module by design. Guards become explicit in-skill steps plus CI checks.
+OpenCode has no `hooks.json`; its only lifecycle mechanism is a JS/TS plugin API.
+Worktree guards still do not run. An optional [`usage-capture`](usage-capture.md) plugin
+can record local request metrics if you add it to your own `plugin` list.
 [Install guide](install/opencode.md).
 
 ### `/session-report` returns nothing

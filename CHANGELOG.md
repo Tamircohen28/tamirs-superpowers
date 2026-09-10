@@ -102,6 +102,18 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   literals and stays silent on 6 legitimate ones, then scans the tree. Wiring it
   into `validate` carries it into CI, which already gates on `make validate`.
 
+## [3.7.0] — 2026-09-10
+
+### Added
+- **Local usage capture** (`/usage-capture`). Opt-in, localhost-only recorder: Claude
+  Code native OTEL logs/traces into a stdlib Python collector, plus an optional
+  zero-dep OpenCode plugin writing the same Israel-dated JSONL. Metadata by
+  default (model, duration, tokens, skill/command names); API bodies are an
+  explicit `--bodies` sidecar. Nothing is sent off-machine. Env-gated
+  `usage-capture-ensure.sh` on SessionStart. Complements `/session-report`
+  (transcript rollups), it does not replace it. LiteLLM is an opaque labelled
+  gateway (`--gateway-kind litellm`); URLs and raw request IDs are not stored.
+
 ## [3.6.1] — 2026-09-02
 
 ### Fixed

@@ -29,11 +29,12 @@ different thing entirely from a skill bundle. So this repo installs on OpenCode 
 path**: you point OpenCode at the skills and it reads them natively, in place. Nothing
 is copied and nothing is converted.
 
-**This repo ships no OpenCode plugin module, and does not use the plugin API.**
-Everything it needs from OpenCode — skills and subagents — is declarative. Adding a
-JS/TS plugin would introduce a Node runtime dependency to buy nothing, so it stays
-out. The one thing the plugin API *could* buy is lifecycle hooks, which is why hooks
-are listed as unsupported below rather than quietly reimplemented.
+**This repo does not ship OpenCode lifecycle guards as a plugin.** Skills and
+subagents stay declarative. The one opt-in exception is
+[`usage-capture`](../usage-capture.md): `skills/toolkit/usage-capture/opencode-plugin.mjs`
+is a zero-dependency observe-only module you may add to *your* `plugin` list. It is
+**not** listed in this repo's `opencode.json`, and it is not a substitute for the
+`hooks/` worktree guards (those still do not run on OpenCode).
 
 ### `skills.paths` is load-bearing
 
@@ -271,7 +272,7 @@ which is the authoritative registry; `platforms/opencode/adapter.yaml` is the th
 | Subagents | ⚙️ adapter | Generated `.opencode/agent/`; drift enforced by `make opencode-agents-check`. |
 | Parallel subagents | ❓ unknown | Not measured. Assume sequential fan-out. |
 | MCP | ✅ native | Via the `mcp` block of `opencode.json`, not `.mcp.json`. |
-| Hooks | ❌ unsupported | OpenCode has no `hooks.json`. Its only lifecycle mechanism is the JS/TS plugin API, and **this repo ships no plugin module** — that would add a Node runtime dependency for no other gain. The worktree guards in `hooks/` do not run at all; they are enforced in CI instead. |
+| Hooks | ❌ unsupported | OpenCode has no `hooks.json`. Lifecycle guards in `hooks/` do not run. An optional usage-capture JS plugin exists for request metrics only — add it yourself; it is not in this repo's `opencode.json`. |
 | Statusline | ❌ unsupported | No plugin-declared statusline extension point. Cosmetic only; nothing depends on it. |
 | Marketplace install | ❌ unsupported | No plugin marketplace. Install is by path. |
 | `.mcp.json` auto-wiring | ❌ unsupported | Port entries into `opencode.json` by hand. |

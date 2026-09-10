@@ -1,6 +1,6 @@
 # Skills
 
-The toolkit ships **27 skills** in 7 domains — 23 you can invoke directly, 3 internal
+The toolkit ships **28 skills** in 7 domains — 25 you can invoke directly, 3 internal
 companions invoked only by other skills. Counted from `skills/**/SKILL.md` on 2026-08-19 and
 enforced by `scripts/check-doc-claims.sh`, which fails the build when this number and the
 tree disagree.
@@ -78,6 +78,7 @@ to zero skills, silently — and instead reads a generated flat symlink mirror a
 | `/find-skill` | Search public skill and plugin marketplaces and rank matches. |
 | `/retro` | Session postmortem — find friction and propose rule/hook/memory/skill improvements. Proposes; never writes without approval. |
 | `/session-report` | Token and cache usage analytics. Requires readable session transcripts — Claude Code only today. |
+| `/usage-capture` | Opt-in local per-request metrics (model, latency, skills). Claude Code via OTEL; OpenCode via an optional plugin. |
 | `/notify-setup` | Wire opt-in phone notifications via Pushover. |
 | `/capture-config` | Detect settings you changed by hand on this machine, review each one, and land the ones worth keeping in the repo — rendered to every platform, as a PR. |
 
