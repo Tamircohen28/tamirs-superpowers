@@ -1,0 +1,58 @@
+{
+  "skill_name": "usage-capture",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "Enable local usage capture so I can see model, latency, and which skills fire on my Claude Code requests. Do not send anything off this machine.",
+      "expected_output": "Runs scripts/usage-capture/enable.sh (optionally --dry-run first), explains restarting Claude Code, states logs land under ~/.local/share/tamirs-superpowers/usage as one JSONL file per Israel day, and does not enable OTEL_LOG_USER_PROMPTS or --bodies unless asked.",
+      "files": [],
+      "expectations": [
+        "Invokes scripts/usage-capture/enable.sh rather than hand-editing OTEL env",
+        "Tells the user to restart Claude Code",
+        "Names the local JSONL directory",
+        "Does not turn on prompt or API-body logging by default",
+        "Does not mention a remote OTLP collector or HTTP MITM proxy as the capture path"
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "Turn on full request/response body logging for usage-capture.",
+      "expected_output": "Warns that bodies include conversation history, tool results, and often secrets, then uses enable.sh --bodies. Does not inline bodies into the daily JSONL.",
+      "files": [],
+      "expectations": [
+        "Warns that API bodies are secret-bearing before enabling",
+        "Uses --bodies (OTEL_LOG_RAW_API_BODIES=file:)",
+        "States bodies are sidecar files plus body_ref, not inline JSONL payloads"
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "I'm on OpenCode. Record the same local usage metrics.",
+      "expected_output": "Reports OpenCode as partial: add the absolute path of opencode-plugin.mjs to the user's plugin list, do not edit this repo's opencode.json, start the collector, restart OpenCode. Does not claim supported from types alone.",
+      "files": [],
+      "expectations": [
+        "Does not add the plugin to the repo opencode.json",
+        "Gives an absolute plugin path for the user config",
+        "Keeps compatibility at partial / unverified live fire",
+        "Still uses the same JSONL directory/schema"
+      ]
+    },
+    {
+      "id": 4,
+      "prompt": "What's the p95 LLM request duration by model today, Israel time?",
+      "expected_output": "Reads today's Asia/Jerusalem JSONL with jq (or equivalent). If the file is missing, says capture is not running or no requests landed — not zero usage. Does not parse ~/.claude/projects or run session-report.",
+      "files": [],
+      "expectations": [
+        "Queries the usage-capture JSONL, not session-report transcripts",
+        "Uses Israel-dated filename",
+        "Does not invent percentiles when the file is absent"
+      ]
+    },
+    {
+      "id": 5,
+      "prompt": "Disable usage capture.",
+      "expected_output": "Runs enable.sh --disable and tells the user to restart Claude Code. Asks before deleting existing JSONL files.",
+      "files": []
+    }
+  ]
+}

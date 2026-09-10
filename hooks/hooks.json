@@ -89,6 +89,11 @@
           {
             "type": "command",
             "command": "bash ${CLAUDE_PLUGIN_ROOT}/hooks/session-init.sh"
+          },
+          {
+            "type": "command",
+            "command": "bash ${CLAUDE_PLUGIN_ROOT}/hooks/usage-capture-ensure.sh",
+            "timeout": 5
           }
         ]
       }

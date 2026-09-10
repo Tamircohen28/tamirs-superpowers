@@ -1,0 +1,36 @@
+{
+  "resourceLogs": [
+    {
+      "resource": {
+        "attributes": [
+          {"key": "tamirs.gateway_kind", "value": {"stringValue": "litellm"}},
+          {"key": "tamirs.endpoint_label", "value": {"stringValue": "dev-gateway"}}
+        ]
+      },
+      "scopeLogs": [
+        {
+          "logRecords": [
+            {
+              "body": {"stringValue": "claude_code.api_request"},
+              "attributes": [
+                {"key": "event.name", "value": {"stringValue": "api_request"}},
+                {"key": "session.id", "value": {"stringValue": "sess-1"}},
+                {"key": "prompt.id", "value": {"stringValue": "prompt-1"}},
+                {"key": "model", "value": {"stringValue": "claude-sonnet-4-6"}},
+                {"key": "duration_ms", "value": {"intValue": "1234"}},
+                {"key": "input_tokens", "value": {"intValue": "800"}},
+                {"key": "output_tokens", "value": {"intValue": "200"}},
+                {"key": "cache_read_tokens", "value": {"intValue": "400"}},
+                {"key": "cache_creation_tokens", "value": {"intValue": "50"}},
+                {"key": "skill.name", "value": {"stringValue": "plan-dev"}},
+                {"key": "query_source", "value": {"stringValue": "repl_main_thread"}},
+                {"key": "cost_usd", "value": {"doubleValue": 0.012}},
+                {"key": "prompt", "value": {"stringValue": "SECRET PROMPT TEXT"}}
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -5,6 +5,15 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Added
+- **Local usage capture** (`/usage-capture`). Opt-in, localhost-only recorder: Claude
+  Code native OTEL logs/traces into a stdlib Python collector, plus an optional
+  zero-dep OpenCode plugin writing the same Israel-dated JSONL. Metadata by
+  default (model, duration, tokens, skill/command names); API bodies are an
+  explicit `--bodies` sidecar. Nothing is sent off-machine. Env-gated
+  `usage-capture-ensure.sh` on SessionStart. Complements `/session-report`
+  (transcript rollups), it does not replace it.
+
 ### Fixed
 - **A removed session worktree stays removed.** `capture-task-slug.sh` ran
   `[[ ! -d $worktree_path ]] && git worktree add -B` on *every* prompt, which
