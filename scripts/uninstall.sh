@@ -37,9 +37,37 @@ esac
 bash "${SCRIPT_DIR}/setup.sh" remove --yes --targets claude "$@"
 
 if command -v claude >/dev/null 2>&1; then
-  claude plugin uninstall tamirs-superpowers@tamirs-marketplace 2>/dev/null \
-    && printf 'Uninstalled tamirs-superpowers via claude CLI\n' \
-    || printf 'Run inside Claude Code: /plugin uninstall tamirs-superpowers@tamirs-marketplace\n'
+  # claude plugin uninstall --json (Claude Code 2.1.268+) prints one machine-readable
+  # result line — {command, outcome, plugin, scope, message, failureCode} — instead
+  # of the human message, so a failure ("not found in installed plugins", etc.) can
+  # be surfaced specifically rather than only via the generic fallback below.
+  # Degrades to that fallback on an older CLI or with neither jq nor python3 present.
+  set +e
+  uninstall_json="$(claude plugin uninstall tamirs-superpowers@tamirs-marketplace --json 2>/dev/null)"
+  uninstall_status=$?
+  set -e
+  if [[ $uninstall_status -eq 0 ]]; then
+    printf 'Uninstalled tamirs-superpowers via claude CLI\n'
+  else
+    detail=""
+    if command -v jq >/dev/null 2>&1; then
+      detail="$(printf '%s' "$uninstall_json" | jq -r 'if .message then (.message + (if .failureCode then " (" + .failureCode + ")" else "" end)) else empty end' 2>/dev/null || true)"
+    elif command -v python3 >/dev/null 2>&1; then
+      detail="$(printf '%s' "$uninstall_json" | python3 -c '
+import sys, json
+try:
+    d = json.load(sys.stdin)
+    msg = d.get("message")
+    code = d.get("failureCode")
+    if msg:
+        print(msg + (f" ({code})" if code else ""))
+except Exception:
+    pass
+' 2>/dev/null || true)"
+    fi
+    [[ -n "$detail" ]] && printf '%s\n' "$detail"
+    printf 'Run inside Claude Code: /plugin uninstall tamirs-superpowers@tamirs-marketplace\n'
+  fi
 else
   printf 'Run inside Claude Code: /plugin uninstall tamirs-superpowers@tamirs-marketplace\n'
 fi

@@ -5,6 +5,94 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [3.6.4] — 2026-09-10
+
+### Changed
+- **Claude Code platform-sync review advances through 2.1.268** (from 2.1.267), and — for the
+  first time in several cycles — on a **live `claude` CLI** rather than changelog reading alone:
+  this run's automation environment had `claude` 2.1.268 installed, so `claude plugin validate .`
+  and `bash scripts/doctor.sh .` were re-run for real (both passed: `√ Validation passed`;
+  `healthy, with 4 optional feature(s) unavailable` — `gh`, `shellcheck`, GitHub automation,
+  notifications, all pre-existing environment gaps, not regressions). `validated_against`,
+  `reviewed_through` and `latest_known` all advance to **2.1.268** together — the first time in
+  this repo's review history all three have matched, closing the `validated_against`-lags-behind
+  gap the split documented in `platform-targets.json` exists to track. `.claude-code-version`,
+  the README badge (Row 3, Row `##Supported platforms` table), and
+  `docs/engineering/build-and-release/platform-targets.md`'s table/prose all advance to
+  `2.1.268` for the Claude Code row only — every other target's row (Cursor, Codex, Gemini CLI,
+  OpenCode) is untouched. `CLAUDE.md`'s Hooks section gains a 2.1.268 clause: `PermissionRequest`
+  hooks now fire in `--print` mode (not exercised — no `PermissionRequest` hook is wired here),
+  and `CLAUDE_CODE_SESSIONEND_HOOKS_TIMEOUT_MS` now actually extends a `SessionEnd` hook that
+  declares no per-hook `timeout` (every `SessionEnd` hook this repo ships already sets one, so
+  unaffected). `core/capabilities/platforms.json`'s `mcp` row notes that `/mcp`/`/plugin`/MCP-login
+  errors no longer leak a secret resolved from a `${VAR}` placeholder in an MCP config — this
+  repo's `.mcp.json` declares none, so not exposed. The `agent_teams` row notes that a respawned
+  in-process teammate no longer inherits tools/system-prompt from a same-named agent file in an
+  untrusted folder — this repo's `agents/*.md` are trusted and versioned, so not a scenario this
+  repo's own orchestration creates, but relevant to anyone fanning out `orchestrate-dev`/
+  `worker-dev` from a workspace containing other, untrusted agent definitions. No breaking changes
+  or deprecations in the delta.
+
+### Added
+- **`scripts/update.sh` and `scripts/uninstall.sh` now request `claude plugin update`/
+  `uninstall ... --json`** (added in Claude Code 2.1.268) and surface the returned
+  `message`/`failureCode` on failure, instead of only a generic "run the slash command yourself"
+  fallback. Previously a failed `claude plugin update` or `uninstall` call (plugin not found,
+  wrong scope, a marketplace-declared command needing confirmation, etc.) was indistinguishable
+  from "the `claude` CLI just isn't installed" — both printed the same fallback line. Now a JSON
+  parse failure (older CLI, unexpected output) still falls back to the previous generic message,
+  so this degrades safely on a `claude` CLI older than 2.1.268.
+
+### Documentation
+- `core/capabilities/platforms.json`'s `plugin_marketplace` row documents the new
+  `--json`/`errorDetails`/`noteDetails` surface across `claude plugin install/uninstall/update/
+  enable/disable` and `list`, the git-source-URL secret-leak fix, the marketplace entry-path
+  containment hardening, and clarifies that `/plugin install/enable/disable` no longer needing
+  `/reload-plugins` after the interactive menu closes is unrelated to (and does not change)
+  `hooks/plugin-reload-reminder.sh`'s reminder for local manifest/hook edits made outside that
+  menu (e.g. under a `--plugin-dir` dev symlink).
+
+## [3.6.3] — 2026-09-09
+
+### Added
+- **Root `.claude-code-version` baseline pin.** A new machine-readable file at the repo
+  root records the Claude Code host CLI baseline (`2.1.267`, `validated_against:
+  2.1.263`, `reviewed_through`/`latest_known: 2.1.267`, `last_reviewed: 2026-09-09`) so
+  a script or a future review no longer has to reverse-engineer "the highest version
+  mentioned in prose" from `CLAUDE.md`. `docs/engineering/build-and-release/platform-targets.json`'s
+  `targets.claude_code` block stays authoritative on any disagreement; the new file is a
+  thin, explicitly-referenced mirror, not a competing source — `CLAUDE.md`'s new "Claude
+  Code CLI baseline" section says so and flags that it is not read by any script yet
+  (the same gap `docs/engineering/refactor/file-inventory.md` already documents for
+  `.codex-version`/`.cursor-version`), rather than leaving that orphaned quietly.
+
+### Changed
+- **Claude Code platform-sync review advances through 2.1.267** (from 2.1.263).
+  `CLAUDE.md`'s Subagents, Hooks, and Skill frontmatter sections gain dated clauses for
+  every host release in the delta that is relevant to this repo: 2.1.261 (`/skill-doctor`,
+  hook output surviving a resume mid-parallel-call, the improved `rm -rf`
+  positional-parameter safety prompt), 2.1.265 (resumed-subagent prompt-cache/tool-list
+  fix, `SubagentStart` hook-context fix — not exercised, this repo wires no
+  `SubagentStart` hook — forked-skill kickoff streaming for `targeted-debug`, MCP
+  legacy-HTTP+SSE auto-fallback, `--plugin-dir` folder-of-plugins mode, and a plugin-path
+  containment hardening), and 2.1.267 (the `effort:` frontmatter fix, so that the
+  `effort:` set on 27 `SKILL.md` files here now reliably lands on a model with a pinned
+  default effort, where it could previously be silently ignored — `maxEffortLevel`, and
+  a marketplace entry-path containment hardening relevant to this plugin's
+  `tamirs-marketplace` distribution). No breaking
+  changes or deprecations in the delta; several 2.1.261/2.1.267 items were reviewed and
+  found not applicable here (`--append-subagent-system-prompt-file`, Workflow tool
+  `agent()` schema validation, artifact-publish UTF-8 handling, sandbox clipboard
+  guidance) and are recorded as such rather than silently skipped.
+- **`core/capabilities/platforms.json` and `platform-targets.json`/`.md` re-reviewed
+  through 2.1.267.** `last_reviewed` advances to 2026-09-09 on both registries; the
+  `claude_code` capability rows for `skills`, `subagents`, `hooks` and `mcp` gain
+  precise `notes` for the fixes above, and `platform-targets.json`'s `claude_code`
+  `features_adopted` list gains 13 new dated entries. `validated_against` deliberately
+  stays at `2.1.263` — this review had no live `claude` CLI available, so only
+  `reviewed_through`/`latest_known` (changelog-only claims) advance, per the split the
+  file already documents.
+
 ### Fixed
 - **Gold fixture capability registries now claim only what their fixture trees
   actually deliver.** `core/capabilities/platforms.json` under `scaffold-gold`,
