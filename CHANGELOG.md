@@ -50,6 +50,21 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   exists on the surface, and `unsupported` would claim Codex lacks subagents,
   which is false. What is unestablished is a route from this plugin to it.
 
+## [3.7.0] — 2026-09-10
+
+### Added
+- **`/diagnose-refusal` skill (debugging).** Isolates which layer refused a
+  request — harness policy, project instructions, LiteLLM guardrail/routing,
+  upstream provider filter, model refusal, tool permission, or context
+  contamination — and writes a sanitized `.refusal-debug/` bundle
+  (`report.md`, `request.json`, `response.json`, `routing.md`,
+  `environment.md`, `manifest.txt`). Diagnostics only: never retries the
+  refused task, never bypasses policy, and never records secret values (env
+  names as SET/UNSET; `redact-secrets.py` for pasted bodies). Bundled scripts:
+  `init-bundle.sh`, `collect-environment.sh`, `redact-secrets.py`. Surfaced
+  from `AGENTS.md` when a session refuses/blocks and the user needs the
+  refusal origin. Skill count is now **28**.
+
 ## [3.6.2] — 2026-09-08
 
 ### Added
@@ -428,7 +443,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   `hooks/worktree-create.sh`/`hooks/enforce-worktree-edits.sh`, now documented in `CLAUDE.md`'s
   Hooks bullet), and adds `/reload-plugins` to headless (`-p`/SDK) sessions (documented in
   `CLAUDE.md`'s Remote/headless section). 2.1.261 adds `/skill-doctor`, which surfaces unused
-  loaded skills and their context cost — directly relevant to this toolkit's 27 skills, and
+  loaded skills and their context cost — directly relevant to this toolkit's "27 skills", and
   now called out as a maintenance tip in
   `docs/engineering/build-and-release/development-workflow.md` — and `bashOutputMaxChars`/
   `taskOutputMaxChars` (raises inline command/task output before it spills to a file); the

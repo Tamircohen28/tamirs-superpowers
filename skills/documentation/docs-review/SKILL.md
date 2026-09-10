@@ -359,7 +359,7 @@ find agents -name '*.md' 2>/dev/null | wc -l                     # agent count
 
 Then, for every table or count claim in `README.md`, `CLAUDE.md`, `AGENTS.md` and `docs/**`:
 
-1. **Counts** — "27 skills" must equal the ground-truth count. Check every occurrence; a
+1. **Counts** — "28 skills" must equal the ground-truth count. Check every occurrence; a
    repo typically states the count in three or four places and updates two of them.
 2. **Domain tables** — every domain directory on disk has a row, and every row has a
    directory. Report both directions.

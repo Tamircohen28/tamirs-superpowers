@@ -66,5 +66,8 @@ build/
 .dev-files/*
 !.dev-files/README.md
 
+# Diagnostic bundle written by /diagnose-refusal (sanitized session artifacts).
+.refusal-debug/
+
 # Session files (plans, reviews, investigations — visible but not committed)
 session-files/

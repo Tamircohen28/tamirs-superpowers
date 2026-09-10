@@ -1,7 +1,7 @@
 # Skills
 
-The toolkit ships **27 skills** in 7 domains — 23 you can invoke directly, 3 internal
-companions invoked only by other skills. Counted from `skills/**/SKILL.md` on 2026-08-19 and
+The toolkit ships **28 skills** in 7 domains — 24 you can invoke directly, 3 internal
+companions invoked only by other skills. Counted from `skills/**/SKILL.md` on 2026-09-10 and
 enforced by `scripts/check-doc-claims.sh`, which fails the build when this number and the
 tree disagree.
 
@@ -93,6 +93,7 @@ to zero skills, silently — and instead reads a generated flat symlink mirror a
 
 | Skill | What it does |
 |---|---|
+| `/diagnose-refusal` | Isolate which layer refused a request (harness, project instructions, LiteLLM, provider, model, tool permission). Writes a sanitized `.refusal-debug/` bundle — never retries the refused task. |
 | `/targeted-debug` | Root-cause a concrete error — a stack trace, panic, or `file:line`. Reads only the named files. |
 
 ## creative
