@@ -1,6 +1,6 @@
 {
   "schema_version": 2,
-  "last_reviewed": "2026-09-06",
+  "last_reviewed": "2026-09-13",
   "capability_definitions": {
     "skills": {
       "summary": "Discovers and loads SKILL.md files shipped by this repo.",
@@ -505,9 +505,9 @@
           "capabilities": {
             "skills": {
               "status": "native",
-              "since": "3.18.9",
+              "since": "3.20.17",
               "validation": "bash scripts/check-manifest-declares.sh .cursor-plugin/plugin.json skills",
-              "notes": "Validated against 3.18.9; the floor is the version actually tested, not a guess."
+              "notes": "Validated against 3.20.17; the floor is the version actually tested, not a guess."
             },
             "skill_auto_invocation": {
               "status": "partial",
@@ -516,18 +516,18 @@
             },
             "subagents": {
               "status": "native",
-              "since": "3.18.9",
+              "since": "3.20.17",
               "validation": "bash scripts/check-manifest-declares.sh --or-discovers agents .cursor-plugin/plugin.json agents",
               "notes": "Delivered by folder discovery, not by a manifest field: Cursor reads agents/ when the manifest does not name an agents path (https://cursor.com/docs/reference/plugins), and .cursor-plugin/plugin.json deliberately does not. The validation follows that rule rather than assuming it — if someone adds an `agents` key, discovery of agents/ stops and the check switches to the declared paths. The old note cited platform-targets.json, whose capabilities array is a DERIVED mirror of this registry, so it was evidence for itself."
             },
             "parallel_subagents": {
               "status": "partial",
-              "notes": "Cloud Agents can swarm subagents each on an isolated VM (2026-08-19). Local parallel fan-out concurrency is still unmeasured here. Self-Hosted Machines (2026-09-02): My Machines / Team Pools / partner sandboxes can host tool execution with computer use on Linux/Mac \u2014 not GitHub Actions self-hosted runners.",
+              "notes": "Cloud Agents can swarm subagents each on an isolated VM (2026-08-19). Local parallel fan-out concurrency is still unmeasured here. Self-Hosted Machines (2026-09-02): My Machines / Team Pools / partner sandboxes can host tool execution with computer use on Linux/Mac \u2014 not GitHub Actions self-hosted runners. Projects (2026-09-10) coordinators can fan work across many cloud/local agents with durable shared context.",
               "fallback": "Prefer cloud-isolated subagents for collision-free swarms; otherwise fan out sequentially locally."
             },
             "agent_teams": {
               "status": "unknown",
-              "notes": "No evidence of inter-agent messaging.",
+              "notes": "No evidence of inter-agent messaging. Projects (2026-09-10): use a Cursor Project with a coordinator agent + shared context for multi-week / multi-agent work; coordinator plans and delegates, does not write code itself.",
               "fallback": "Use session-files/ as the message bus."
             },
             "hooks": {
@@ -579,9 +579,9 @@
             },
             "slash_commands": {
               "status": "partial",
-              "since": "3.18.9",
+              "since": "3.20.17",
               "validation": "bash scripts/check-manifest-declares.sh .cursor-plugin/plugin.json skills",
-              "notes": "Demoted from 'native' 2026-09-08, and the limit is on our side, not Cursor's. Cursor plugins do support a commands component, discovered from commands/ when the manifest names no path (https://cursor.com/docs/reference/plugins) — this repo has no commands/ directory and no commands key, so it ships zero of them. What a Cursor user actually sees under / are this plugin's skills, which is what the validation checks; see skill_auto_invocation for the / behaviour measured against 3.18.9. The old note cited platform-targets.json, whose capabilities array is a DERIVED mirror of this registry, so it was evidence for itself.",
+              "notes": "Demoted from 'native' 2026-09-08, and the limit is on our side, not Cursor's. Cursor plugins do support a commands component, discovered from commands/ when the manifest names no path (https://cursor.com/docs/reference/plugins) — this repo has no commands/ directory and no commands key, so it ships zero of them. What a Cursor user actually sees under / are this plugin's skills, which is what the validation checks; see skill_auto_invocation for the / behaviour measured against 3.20.17. The old note cited platform-targets.json, whose capabilities array is a DERIVED mirror of this registry, so it was evidence for itself.",
               "fallback": "Invoke by skill name; there is no repo-provided /command on this surface to fall back from."
             },
             "ask_user_question": {

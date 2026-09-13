@@ -138,7 +138,7 @@ if [[ "$SELF_TEST" == true ]]; then
   "targets": {
     "cursor": {
       "display_name": "Cursor IDE",
-      "validated_against": "3.18.9",
+      "validated_against": "3.20.17",
       "install_doc": "docs/user/install/cursor.md"
     }
   }
@@ -188,9 +188,9 @@ as recorded.'
 
 The tree ships 27 skills today.'
 
-  # Section 4: the record pins cursor at 3.18.9.
+  # Section 4: the record pins cursor at 3.20.17.
   st_case "stale validated version in prose"  1 '| Cursor IDE | IDE | supported - validated 3.16.17 |'
-  st_case "correct validated version in prose" 0 '| Cursor IDE | IDE | supported - validated 3.18.9 |'
+  st_case "correct validated version in prose" 0 '| Cursor IDE | IDE | supported - validated 3.20.17 |'
   st_case "stale validated version in a fence" 0 'Recorded output:
 
 ```
@@ -324,7 +324,7 @@ fi
 # The README's per-target badges are generated from platform-targets.json, but the prose
 # table beside them is hand-written -- and a hand-typed version drifts silently, because
 # nothing derived it. The Cursor row read "validated 3.16.17" for two minor versions while
-# the badge three lines above it correctly said 3.18.9, and every check passed the whole
+# the badge three lines above it correctly said 3.20.17, and every check passed the whole
 # time: the badge was asserted, the target count was asserted, the version in the sentence
 # was not. Assert the prose against the same record the badge is built from.
 if [[ -f "$TARGETS_JSON" ]]; then

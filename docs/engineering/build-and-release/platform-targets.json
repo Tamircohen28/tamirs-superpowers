@@ -1,6 +1,6 @@
 {
   "schema_version": 2,
-  "last_reviewed": "2026-09-06",
+  "last_reviewed": "2026-09-13",
   "reviewed_by_skill": "tamirs-superpowers@3.6.3",
   "supported_targets": [
     "claude_code",
@@ -85,15 +85,15 @@
     },
     "cursor": {
       "platform": "cursor",
-      "supported_min": "3.18.9",
+      "supported_min": "3.20.17",
       "supported_min_source": "Cursor documents no minimum version for plugins; the floor is set to the version actually validated rather than guessed",
-      "validated_against": "3.18.9",
-      "reviewed_through": "3.18.9",
-      "latest_known": "3.18.9",
+      "validated_against": "3.20.17",
+      "reviewed_through": "3.20.17",
+      "latest_known": "3.20.17",
       "changelog_feature": "3.11",
-      "changelog_date": "2026-09-02",
-      "verified_on": "2026-09-06",
-      "verification_method": "latest desktop build from official Cursor download links (3.18.9, 2026-08-30 stable) cross-checked against cursor.com/changelog (feature 3.11; date-only entries through 2026-09-02 Self-Hosted Machines / Team Pools / partner sandboxes / computer use; prior Start-from-scratch 2026-08-27); Cursor CLI changelog Aug 11 2026 documented; Builds now default (2026-08-17); Origin early-beta docs; cloud-agent subscriptions / custom modes / isolated subagent VMs /goal / steering (2026-08-19)",
+      "changelog_date": "2026-09-10",
+      "verified_on": "2026-09-13",
+      "verification_method": "latest desktop build from official Cursor download API (3.20.17) cross-checked against cursor.com/changelog (feature 3.11; date-only entries through 2026-09-10 Projects \u2014 coordinator agent / shared context / subscriptions; prior Self-Hosted Machines 2026-09-02); Cursor CLI changelog Aug 11 2026 documented",
       "install_doc": "docs/user/install/cursor.md",
       "doc_urls": [
         "https://cursor.com/docs/plugins",
@@ -144,7 +144,7 @@
         "agent-window-goal-2026-08-19",
         "non-interruptive-steering-2026-08-19",
         "native-create-goal-tools-docs-2026-08-19",
-        "desktop-cli-pin-3.18.9",
+        "desktop-cli-pin-3.20.17",
         "cloud-agent-start-from-scratch-2026-08-27",
         "origin-create-repo-from-scratch-2026-08-27",
         "cloud-agent-browser-preview-2026-08-27",
@@ -153,7 +153,11 @@
         "team-pools-dynamic-scheduling-2026-09-02",
         "partner-sandbox-workers-2026-09-02",
         "computer-use-linux-mac-self-hosted-2026-09-02",
-        "self-hosted-vs-gha-runners-docs-2026-09-02"
+        "self-hosted-vs-gha-runners-docs-2026-09-02",
+        "cursor-projects-2026-09-10",
+        "project-coordinator-agent-2026-09-10",
+        "project-shared-context-2026-09-10",
+        "project-subscriptions-2026-09-10"
       ],
       "capabilities": [
         "git",
@@ -254,8 +258,8 @@
       "capability_gaps": {
         "artifacts": "No artifact publishing surface.",
         "extension_install": "No git-URL extension install.",
-        "hooks": "OpenCode has no hooks.json; its only lifecycle mechanism is the JS/TS plugin API, and this repo ships no plugin module by design (it would add a Node runtime dependency for no other gain). As installed, the hooks/ guards do not run at all — 'adapter' would imply a generated artifact exists, as it does for subagents, and none does.",
-        "plugin_marketplace": "No plugin marketplace — install is by absolute skills.paths. Not by symlink: OpenCode does not follow them for skill discovery (see the skills row).",
+        "hooks": "OpenCode has no hooks.json; its only lifecycle mechanism is the JS/TS plugin API, and this repo ships no plugin module by design (it would add a Node runtime dependency for no other gain). As installed, the hooks/ guards do not run at all \u2014 'adapter' would imply a generated artifact exists, as it does for subagents, and none does.",
+        "plugin_marketplace": "No plugin marketplace \u2014 install is by absolute skills.paths. Not by symlink: OpenCode does not follow them for skill discovery (see the skills row).",
         "statusline": "No plugin-declared statusline."
       }
     },
