@@ -1,6 +1,6 @@
 {
   "schema_version": 2,
-  "last_reviewed": "2026-09-06",
+  "last_reviewed": "2026-09-13",
   "reviewed_by_skill": "tamirs-superpowers@3.6.2",
   "supported_targets": [
     "claude_code",
@@ -18,7 +18,7 @@
       "reviewed_through": "2.1.263",
       "latest_known": "2.1.263",
       "verified_on": "2026-09-06",
-      "verification_method": "changelog + live-CLI method (automated nightly review). This cycle's automation environment had a live `claude` CLI and it reported exactly `2.1.263`, matching the changelog target, so `validated_against` advances all the way to it; `claude plugin validate .` (plain and `--json`) and `bash scripts/doctor.sh .` were re-run for real and both passed (marketplace manifest valid; all listed capabilities report native/native-experimental/partial as expected, no unexpected gaps). This cycle covers 2.1.259, 2.1.260, 2.1.261 and 2.1.263 (2.1.262 does not exist in the official changelog). 2.1.260 fixes `permissions.blockReadsOutsideWorkingDirectories` hiding a worktree-isolated sub-agent's own checkout on macOS — this repo does not set that permission (reviewed and left out of `platforms/claude/settings.d/` in an earlier cycle as a personal auto-mode preference, not a plugin default), but the fix benefits worktree isolation for anyone who enables it alongside `hooks/worktree-create.sh`/`hooks/enforce-worktree-edits.sh`, now documented in `CLAUDE.md`'s Hooks bullet. The same release adds `/reload-plugins` to headless (`-p`/SDK) sessions, documented in `CLAUDE.md`'s Remote/headless section. 2.1.261 adds `/skill-doctor` (surfaces unused loaded skills and their context cost) — directly relevant to this toolkit's 27 skills, now a maintenance tip in `docs/engineering/build-and-release/development-workflow.md` — and `bashOutputMaxChars`/`taskOutputMaxChars` (raises inline command/task output before it spills to a file), not wired anywhere since no hook or `make validate` output here is known to hit the default threshold. Reviewed and found not applicable: `--append-subagent-system-prompt-file` (2.1.261) — this repo's subagents run natively via `agents/*.md` frontmatter rather than a `claude` CLI system-prompt flag, and the one place a large prompt feeds a `claude -p` subprocess (`skill-creator`'s `improve_description.py`) already sends it over stdin, not argv, so the argv-length problem this flag solves does not exist here; the 2.1.260 revert of 2.1.259's `Read()`-deny-on-Bash-args change — this repo's worktree/sensitive-file isolation is enforced by hooks, not `Read(...)` deny rules in settings, so neither the original change nor its revert touched anything here; and Workflow tool `agent({schema})` validation (2.1.260) — this repo authors no Workflow scripts (`core/workflow/` is an unrelated, repo-internal objective-state schema). 2.1.263 is bug fixes and reliability improvements only, per the official changelog; nothing plugin-facing to adopt. Re-verified 2026-09-07 against a live `claude` CLI still reporting `2.1.263` and the official changelog still topping out at `2.1.263`: no newer release exists, so this entry stands unchanged.",
+      "verification_method": "changelog + live-CLI method (automated nightly review). This cycle's automation environment had a live `claude` CLI and it reported exactly `2.1.263`, matching the changelog target, so `validated_against` advances all the way to it; `claude plugin validate .` (plain and `--json`) and `bash scripts/doctor.sh .` were re-run for real and both passed (marketplace manifest valid; all listed capabilities report native/native-experimental/partial as expected, no unexpected gaps). This cycle covers 2.1.259, 2.1.260, 2.1.261 and 2.1.263 (2.1.262 does not exist in the official changelog). 2.1.260 fixes `permissions.blockReadsOutsideWorkingDirectories` hiding a worktree-isolated sub-agent's own checkout on macOS \u2014 this repo does not set that permission (reviewed and left out of `platforms/claude/settings.d/` in an earlier cycle as a personal auto-mode preference, not a plugin default), but the fix benefits worktree isolation for anyone who enables it alongside `hooks/worktree-create.sh`/`hooks/enforce-worktree-edits.sh`, now documented in `CLAUDE.md`'s Hooks bullet. The same release adds `/reload-plugins` to headless (`-p`/SDK) sessions, documented in `CLAUDE.md`'s Remote/headless section. 2.1.261 adds `/skill-doctor` (surfaces unused loaded skills and their context cost) \u2014 directly relevant to this toolkit's 27 skills, now a maintenance tip in `docs/engineering/build-and-release/development-workflow.md` \u2014 and `bashOutputMaxChars`/`taskOutputMaxChars` (raises inline command/task output before it spills to a file), not wired anywhere since no hook or `make validate` output here is known to hit the default threshold. Reviewed and found not applicable: `--append-subagent-system-prompt-file` (2.1.261) \u2014 this repo's subagents run natively via `agents/*.md` frontmatter rather than a `claude` CLI system-prompt flag, and the one place a large prompt feeds a `claude -p` subprocess (`skill-creator`'s `improve_description.py`) already sends it over stdin, not argv, so the argv-length problem this flag solves does not exist here; the 2.1.260 revert of 2.1.259's `Read()`-deny-on-Bash-args change \u2014 this repo's worktree/sensitive-file isolation is enforced by hooks, not `Read(...)` deny rules in settings, so neither the original change nor its revert touched anything here; and Workflow tool `agent({schema})` validation (2.1.260) \u2014 this repo authors no Workflow scripts (`core/workflow/` is an unrelated, repo-internal objective-state schema). 2.1.263 is bug fixes and reliability improvements only, per the official changelog; nothing plugin-facing to adopt. Re-verified 2026-09-07 against a live `claude` CLI still reporting `2.1.263` and the official changelog still topping out at `2.1.263`: no newer release exists, so this entry stands unchanged.",
       "install_doc": "docs/user/install/claude-code.md",
       "doc_urls": [
         "https://code.claude.com/docs/en/plugins-reference",
@@ -85,15 +85,15 @@
     },
     "cursor": {
       "platform": "cursor",
-      "supported_min": "3.18.9",
+      "supported_min": "3.20.17",
       "supported_min_source": "Cursor documents no minimum version for plugins; the floor is set to the version actually validated rather than guessed",
-      "validated_against": "3.18.9",
-      "reviewed_through": "3.18.9",
-      "latest_known": "3.18.9",
+      "validated_against": "3.20.17",
+      "reviewed_through": "3.20.17",
+      "latest_known": "3.20.17",
       "changelog_feature": "3.11",
-      "changelog_date": "2026-09-02",
-      "verified_on": "2026-09-06",
-      "verification_method": "latest desktop build from official Cursor download links (3.18.9, 2026-08-30 stable) cross-checked against cursor.com/changelog (feature 3.11; date-only entries through 2026-09-02 Self-Hosted Machines / Team Pools / partner sandboxes / computer use; prior Start-from-scratch 2026-08-27); Cursor CLI changelog Aug 11 2026 documented; Builds now default (2026-08-17); Origin early-beta docs; cloud-agent subscriptions / custom modes / isolated subagent VMs /goal / steering (2026-08-19)",
+      "changelog_date": "2026-09-10",
+      "verified_on": "2026-09-13",
+      "verification_method": "latest desktop build from official Cursor download API (3.20.17) cross-checked against cursor.com/changelog (feature 3.11; date-only entries through 2026-09-10 Projects \u2014 coordinator agent / shared context / subscriptions; prior Self-Hosted Machines 2026-09-02); Cursor CLI changelog Aug 11 2026 documented",
       "install_doc": "docs/user/install/cursor.md",
       "doc_urls": [
         "https://cursor.com/docs/plugins",
@@ -144,7 +144,7 @@
         "agent-window-goal-2026-08-19",
         "non-interruptive-steering-2026-08-19",
         "native-create-goal-tools-docs-2026-08-19",
-        "desktop-cli-pin-3.18.9",
+        "desktop-cli-pin-3.20.17",
         "cloud-agent-start-from-scratch-2026-08-27",
         "origin-create-repo-from-scratch-2026-08-27",
         "cloud-agent-browser-preview-2026-08-27",
@@ -153,7 +153,11 @@
         "team-pools-dynamic-scheduling-2026-09-02",
         "partner-sandbox-workers-2026-09-02",
         "computer-use-linux-mac-self-hosted-2026-09-02",
-        "self-hosted-vs-gha-runners-docs-2026-09-02"
+        "self-hosted-vs-gha-runners-docs-2026-09-02",
+        "cursor-projects-2026-09-10",
+        "project-coordinator-agent-2026-09-10",
+        "project-shared-context-2026-09-10",
+        "project-subscriptions-2026-09-10"
       ],
       "capabilities": [
         "git",
@@ -254,8 +258,8 @@
       "capability_gaps": {
         "artifacts": "No artifact publishing surface.",
         "extension_install": "No git-URL extension install.",
-        "hooks": "OpenCode has no hooks.json; its only lifecycle mechanism is the JS/TS plugin API, and this repo ships no plugin module by design (it would add a Node runtime dependency for no other gain). As installed, the hooks/ guards do not run at all — 'adapter' would imply a generated artifact exists, as it does for subagents, and none does.",
-        "plugin_marketplace": "No plugin marketplace — install is by absolute skills.paths. Not by symlink: OpenCode does not follow them for skill discovery (see the skills row).",
+        "hooks": "OpenCode has no hooks.json; its only lifecycle mechanism is the JS/TS plugin API, and this repo ships no plugin module by design (it would add a Node runtime dependency for no other gain). As installed, the hooks/ guards do not run at all \u2014 'adapter' would imply a generated artifact exists, as it does for subagents, and none does.",
+        "plugin_marketplace": "No plugin marketplace \u2014 install is by absolute skills.paths. Not by symlink: OpenCode does not follow them for skill discovery (see the skills row).",
         "statusline": "No plugin-declared statusline."
       }
     },
