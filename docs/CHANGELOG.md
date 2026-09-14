@@ -6,6 +6,10 @@ All notable changes are recorded here and in [`../CHANGELOG.md`](../CHANGELOG.md
 
 See root [CHANGELOG.md](../CHANGELOG.md#unreleased) for in-progress entries.
 
+## [3.6.5] — 2026-09-12
+
+Claude Code platform-sync review advances through 2.1.270 on a live `claude` CLI — `validated_against`, `reviewed_through`, and `latest_known` stay in agreement at 2.1.270. Documents two 2.1.269 fixes on this repo's own write-guarding hooks (`Edit()`/deny-rule coverage of Bash `tee` writes; a bare-`!` permission-rule leak) and reviews `claude plugin eval` (new in 2.1.269) as a deliberate non-adoption — its case/grader format doesn't match this repo's existing per-skill trigger-eval harness, so wiring it is tracked as a Future opportunity, not done blind. 2.1.270 is a same-week bug-fix-only release. See root [CHANGELOG.md](../CHANGELOG.md#365--2026-09-12).
+
 ## [3.6.4] — 2026-09-10
 
 Claude Code platform-sync review advances through 2.1.268 on a live `claude` CLI — `validated_against`, `reviewed_through`, and `latest_known` all now agree at 2.1.268. Adopts the new `claude plugin update/uninstall --json` diagnostics in `scripts/update.sh`/`scripts/uninstall.sh` for specific failure messages instead of a generic fallback. See root [CHANGELOG.md](../CHANGELOG.md#364--2026-09-10).
