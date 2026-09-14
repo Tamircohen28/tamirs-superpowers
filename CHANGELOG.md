@@ -5,6 +5,48 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [3.6.5] — 2026-09-12
+
+### Changed
+- **Claude Code platform-sync review advances through 2.1.270** (from 2.1.268), covering
+  2.1.269 and 2.1.270, again on a **live `claude` CLI** (2.1.270): `claude plugin validate .`
+  and `bash scripts/doctor.sh .` were both re-run for real and passed (`√ Validation passed`;
+  `healthy, with 4 optional feature(s) unavailable` — `gh`, `shellcheck`, GitHub automation,
+  notifications, all pre-existing environment gaps, not regressions). `validated_against`,
+  `reviewed_through` and `latest_known` all advance to **2.1.270** together, continuing the
+  match first reached at 2.1.268. `.claude-code-version`, the README badge and Claude Code
+  table row, and `platform-targets.md`'s table/prose all advance to `2.1.270` for the Claude
+  Code row only — Cursor, Codex, Gemini CLI and OpenCode rows are untouched.
+  `core/capabilities/platforms.json`'s `hooks` row (and its two synced contract-fixture
+  copies, regenerated via `sync-contract-scripts.sh`) documents three 2.1.269 fixes that
+  land squarely on this repo's write-guarding hooks: a `PreToolUse` deny rule and the
+  `Edit()` write-path check now also apply to a Bash `tee` write, and a `Bash(tee:*)` allow
+  rule is correctly scoped — closing, host-side, exactly the gap
+  `hooks/guard-sensitive-files.sh`'s own header comment names and was built to cover
+  independently via `hooks/lib/write-targets.py`'s `tee` parsing; a bare-`!` deny/ask rule
+  leak is fixed (no rule here starts with `!`); and the attribution-reminder-overriding-
+  CLAUDE.md bug is fixed (this repo's `CLAUDE.md` asks *for* the trailer, so never
+  conflicted). The `plugin_marketplace` row documents a plugin-archive-extraction hardening
+  fix (host-side, no manifest change). `CLAUDE.md`'s Hooks, Marketplace cache, and Remote
+  and headless Claude sessions sections, and a new Skill-frontmatter-section note, carry the
+  full per-release narrative, including why `claude plugin eval` (new in 2.1.269) was
+  reviewed and deliberately **not** wired this cycle. 2.1.270 is a same-week bug-fix-only
+  release (a regression in 2.1.269): read-only git commands in Bash no longer unexpectedly
+  ask for permission after a long-running session. No breaking changes or deprecations in
+  the delta.
+
+### Documentation
+- `docs/engineering/build-and-release/platform-targets.json`'s `targets.claude_code`
+  `verification_method` and `features_adopted` (8 new entries, 2.1.269–2.1.270) record what
+  was adopted, what was reviewed and found not applicable (plugin LSP shutdown/exit,
+  org-managed-settings headless plugin loading, synced-plugin MCP resume,
+  `/ultrareview --post`, `anthropic-skills:<name>` cloud-sync naming, Artifact-DB scratchpad
+  approval, `CLAUDE_CODE_WORKFLOW_MAX_CONCURRENT_AGENTS` against the built-in Workflow tool
+  this repo does not use), and why a `claude plugin eval` suite is tracked as a Future
+  opportunity rather than adopted blind — its `case.yaml`/`prompt.md`+`graders` shape does
+  not match this repo's existing per-skill `evals/evals.json`/`trigger-evals.json`
+  trigger-accuracy harness, so wiring it is a design decision, not a config change.
+
 ## [3.6.4] — 2026-09-10
 
 ### Changed
