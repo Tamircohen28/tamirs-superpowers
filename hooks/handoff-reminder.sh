@@ -38,11 +38,12 @@ else
   msg="Active worktree detected at ${cwd}. Before closing: push commits and run /switch-dev handoff #N (linked issue) so another platform can resume."
 fi
 
-cat <<EOF
-{
-  "hookSpecificOutput": {
-    "hookEventName": "SessionEnd",
-    "additionalContext": $(echo "$msg" | jq -Rs .)
-  }
-}
-EOF
+# systemMessage, not hookSpecificOutput.additionalContext: the schema has no
+# SessionEnd variant of hookSpecificOutput at all (only PreToolUse,
+# PermissionRequest, UserPromptSubmit, PostToolUse, PostToolBatch, and
+# Stop/SubagentStop support it), and SessionEnd has no next turn to inject
+# context into anyway — the session is already terminating. This is not the
+# systemMessage-vs-additionalContext anti-pattern the CHANGELOG documents for
+# plugin-version-watch.sh (a Stop hook, where additionalContext is a real,
+# supported, model-visible channel); that lesson doesn't transfer to SessionEnd.
+jq -n --arg msg "$msg" '{systemMessage: $msg}'
