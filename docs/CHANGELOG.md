@@ -6,9 +6,16 @@ All notable changes are recorded here and in [`../CHANGELOG.md`](../CHANGELOG.md
 
 See root [CHANGELOG.md](../CHANGELOG.md#unreleased) for in-progress entries.
 
-## [3.6.4] — 2026-09-16
+## [3.8.0] — 2026-09-17
 
-Consolidates the Claude Code platform-sync review that had accumulated across several cycles on this repo's rolling `claude-code-update` PR, now reconciled against master and extended through 2.1.273 — the largest single item is adopting `claude plugin update/uninstall --json` diagnostics in `scripts/update.sh`/`scripts/uninstall.sh` for specific failure messages instead of a generic fallback (2.1.268). See root [CHANGELOG.md](../CHANGELOG.md#364--2026-09-16) for the full per-release narrative.
+Opt-in local usage capture (`/usage-capture`): Claude Code OTEL plus an optional
+OpenCode plugin write Israel-dated JSONL on loopback. Metadata by default; API
+bodies are `--bodies` only. LiteLLM is labelled, never stored as a URL. See root
+[CHANGELOG.md](../CHANGELOG.md#380--2026-09-17).
+
+## [3.8.1] — 2026-09-16
+
+Consolidates the Claude Code platform-sync review that had accumulated across several cycles on this repo's rolling `claude-code-update` PR, now reconciled against master (through the 3.8.0 usage-capture release) and extended through 2.1.273 — the largest single item is adopting `claude plugin update/uninstall --json` diagnostics in `scripts/update.sh`/`scripts/uninstall.sh` for specific failure messages instead of a generic fallback (2.1.268). See root [CHANGELOG.md](../CHANGELOG.md#381--2026-09-16) for the full per-release narrative.
 
 ## [3.6.2] — 2026-09-08
 
