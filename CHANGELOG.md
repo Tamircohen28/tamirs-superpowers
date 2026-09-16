@@ -15,6 +15,15 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   claims) and still confirms ownership with `jq`. `session-end.sh` now runs its
   archive sync and prunes detached, returning in milliseconds. Pinned by
   `tests/test-session-end-budget.sh`.
+- **`handoff-reminder.sh` no longer fails SessionEnd hook validation.** It wrapped
+  its reminder in `hookSpecificOutput.hookEventName: "SessionEnd"`, but Claude
+  Code's schema has no `SessionEnd` variant of `hookSpecificOutput` (only
+  `PreToolUse`, `PermissionRequest`, `UserPromptSubmit`, `PostToolUse`,
+  `PostToolBatch`, and `Stop`/`SubagentStop` support it) — every session close
+  from an active worktree threw a "Hook JSON output validation failed" error
+  instead of showing the handoff nudge. It now emits the reminder via the
+  top-level `systemMessage` field, matching `session-end.sh`'s existing
+  SessionEnd output.
 - **Gold fixture capability registries now claim only what their fixture trees
   actually deliver.** `core/capabilities/platforms.json` under `scaffold-gold`,
   `scaffold-plugin-gold`, and `scaffold-claude-plugin-gold` claimed native
