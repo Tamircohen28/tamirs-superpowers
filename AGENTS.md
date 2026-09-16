@@ -84,6 +84,7 @@ situation per session; never repeat a declined suggestion.
 |---|---|
 | The user asks what something cost, how many tokens it used, or why a session got expensive | `session-report` |
 | A stack trace, traceback, panic or crash log is pasted, or a `file:line` is named | `targeted-debug` |
+| A model/session refused or blocked and the user needs which layer did it (harness, LiteLLM, provider, model) | `diagnose-refusal` |
 | "am I up to date", "what new features am I missing", "latest docs" — or a `*-plugin/plugin.json` or `CHANGELOG.md` is being bumped | `platform-sync` |
 | A rate limit is hit, or an objective is still open and the session is ending | `switch-dev` |
 | You are about to hand-write a capability a public skill or plugin plausibly already provides | `find-skill` |

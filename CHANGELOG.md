@@ -7,6 +7,21 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 - **Cursor 3.11 (+2026-09-10 / desktop 3.20.17):** advance Cursor coverage through **Projects** (coordinator, shared context, subscriptions) and desktop **3.18.9 → 3.20.17**. Feature pin remains **3.11**. `make validate` expected green. Cursor-only.
 
+## [3.7.0] — 2026-09-17
+
+### Added
+- **`/diagnose-refusal` skill (debugging).** Isolates which layer refused a
+  request — harness policy, project instructions, LiteLLM guardrail/routing,
+  upstream provider filter, model refusal, tool permission, or context
+  contamination — and writes a sanitized `.refusal-debug/` bundle
+  (`report.md`, `request.json`, `response.json`, `routing.md`,
+  `environment.md`, `manifest.txt`). Diagnostics only: never retries the
+  refused task, never bypasses policy, and never records secret values (env
+  names as SET/UNSET; `redact-secrets.py` for pasted bodies). Bundled scripts:
+  `init-bundle.sh`, `collect-environment.sh`, `redact-secrets.py`. Surfaced
+  from `AGENTS.md` when a session refuses/blocks and the user needs the
+  refusal origin. Skill count is now **28**.
+
 ## [3.6.3] — 2026-09-16
 
 ### Fixed
@@ -28,7 +43,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   instead of showing the handoff nudge. It now emits the reminder via the
   top-level `systemMessage` field, matching `session-end.sh`'s existing
   SessionEnd output.
-- **27 skills silently switched the running session onto the paid 1M-context tier.**
+- **27 of the bundled skills silently switched the running session onto the paid 1M-context tier.**
   Their `model: claude-sonnet-4-6` frontmatter pin no longer resolves to a
   standard-context model — Claude Code now resolves it to
   `claude-sonnet-4-6[1m]` instead of ignoring the stale ID, so invoking any of
@@ -463,7 +478,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   `hooks/worktree-create.sh`/`hooks/enforce-worktree-edits.sh`, now documented in `CLAUDE.md`'s
   Hooks bullet), and adds `/reload-plugins` to headless (`-p`/SDK) sessions (documented in
   `CLAUDE.md`'s Remote/headless section). 2.1.261 adds `/skill-doctor`, which surfaces unused
-  loaded skills and their context cost — directly relevant to this toolkit's 27 skills, and
+  loaded skills and their context cost — directly relevant to this toolkit's "27 skills", and
   now called out as a maintenance tip in
   `docs/engineering/build-and-release/development-workflow.md` — and `bashOutputMaxChars`/
   `taskOutputMaxChars` (raises inline command/task output before it spills to a file); the
