@@ -17,7 +17,7 @@ allowed-tools:
 - WebSearch
 - Agent
 disallowed-tools: []
-model: claude-sonnet-4-6
+model: sonnet
 effort: high
 context: ''
 agent: ''
