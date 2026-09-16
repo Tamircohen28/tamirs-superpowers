@@ -663,15 +663,26 @@ claim_push_destinations() {
 }
 
 # claim_release_all <my-agent-id> — drop every claim held by this agent.
+#
+# Runs from SessionEnd, which Claude Code cancels after 1.5 s no matter what
+# `timeout` hooks.json declares for a plugin hook. The claim dir is never swept
+# (a claim expires by being overwritten, not deleted), so it accumulates every
+# resource any agent ever touched — 1,443 files on one machine — and one `jq`
+# spawn per file measured 4.5 s: the hook was cancelled on every exit and
+# released nothing. A single `grep -lF` narrows the set to files that mention
+# this agent id at all; `jq` still decides ownership exactly, so an id that
+# merely appears inside another claim's note is never released.
 claim_release_all() {
   local me="$1" f holder released=0
   [ -d "$AGENT_CLAIM_DIR" ] || { printf '0'; return 0; }
-  for f in "$AGENT_CLAIM_DIR"/*.json; do
+  [ -n "$me" ] || { printf '0'; return 0; }
+  while IFS= read -r f; do
     [ -e "$f" ] || continue
     holder="$(jq -r '.agent_id // ""' "$f" 2>/dev/null)"
     if [ "$holder" = "$me" ]; then
       rm -f "$f" 2>/dev/null && released=$((released + 1))
     fi
-  done
+  done < <(find "$AGENT_CLAIM_DIR" -maxdepth 1 -name '*.json' -type f \
+             -exec grep -lF -- "$me" {} + 2>/dev/null)
   printf '%s' "$released"
 }
