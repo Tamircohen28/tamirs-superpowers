@@ -24,6 +24,19 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   instead of showing the handoff nudge. It now emits the reminder via the
   top-level `systemMessage` field, matching `session-end.sh`'s existing
   SessionEnd output.
+- **27 skills silently switched the running session onto the paid 1M-context tier.**
+  Their `model: claude-sonnet-4-6` frontmatter pin no longer resolves to a
+  standard-context model — Claude Code now resolves it to
+  `claude-sonnet-4-6[1m]` instead of ignoring the stale ID, so invoking any of
+  them (`decision`, `plan-dev`, `start-dev`, `pr-dev`, `orchestrate-dev`,
+  `cleanup`, `retro`, and 20 others) switched the session's model mid-run. On
+  an account without usage credits enabled for extended context, the very
+  next request failed outright with "Usage credits required for 1M context" —
+  independent of session age or context usage, since the switch happens at
+  skill-invocation time, not from genuine context growth. Repointed all 27 to
+  the bare `sonnet` alias already used by every `agents/*.md` role definition,
+  which resolves to the current standard-context model instead of a version
+  string that can go stale again.
 - **Gold fixture capability registries now claim only what their fixture trees
   actually deliver.** `core/capabilities/platforms.json` under `scaffold-gold`,
   `scaffold-plugin-gold`, and `scaffold-claude-plugin-gold` claimed native
