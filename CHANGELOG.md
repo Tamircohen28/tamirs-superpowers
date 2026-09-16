@@ -7,6 +7,18 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 - **Cursor 3.11 (+2026-09-10 / desktop 3.20.17):** advance Cursor coverage through **Projects** (coordinator, shared context, subscriptions) and desktop **3.18.9 → 3.20.17**. Feature pin remains **3.11**. `make validate` expected green. Cursor-only.
 
+## [3.8.0] — 2026-09-17
+
+### Added
+- **Local usage capture** (`/usage-capture`). Opt-in, localhost-only recorder: Claude
+  Code native OTEL logs/traces into a stdlib Python collector, plus an optional
+  zero-dep OpenCode plugin writing the same Israel-dated JSONL. Metadata by
+  default (model, duration, tokens, skill/command names); API bodies are an
+  explicit `--bodies` sidecar. Nothing is sent off-machine. Env-gated
+  `usage-capture-ensure.sh` on SessionStart. Complements `/session-report`
+  (transcript rollups), it does not replace it. LiteLLM is an opaque labelled
+  gateway (`--gateway-kind litellm`); URLs and raw request IDs are not stored.
+
 ## [3.7.0] — 2026-09-17
 
 ### Added

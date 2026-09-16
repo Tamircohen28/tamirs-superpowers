@@ -16,7 +16,8 @@ Install, verify, and run your first objective. Budget five minutes.
 | `python3` + `pyyaml` | contributors only | frontmatter validation in `make validate` |
 
 There is no build step, no `package.json`, and no runtime to install. The toolkit is
-Markdown, JSON, and bash.
+Markdown, JSON, and bash. The optional [`usage-capture`](usage-capture.md) collector
+uses the `python3` already needed for contributor validation.
 
 ## 2. Install the plugin
 

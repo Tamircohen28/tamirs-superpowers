@@ -59,6 +59,13 @@ else
   bad "fires on a cost prompt" "no session-report in output: ${out:-<empty>}"
 fi
 
+out="$(run s-capture 'enable usage capture so I can record LLM requests locally')"
+if printf '%s' "$out" | jq -e '.hookSpecificOutput.additionalContext | test("usage-capture")' >/dev/null 2>&1; then
+  ok "fires on a usage-capture prompt"
+else
+  bad "fires on a usage-capture prompt" "no usage-capture in output: ${out:-<empty>}"
+fi
+
 # --- fires on a stack trace -------------------------------------------------
 TRACE='Traceback (most recent call last):
   File "/srv/app/handler.py", line 42, in dispatch

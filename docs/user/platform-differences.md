@@ -315,8 +315,9 @@ directly through `skills.paths`, which is why it needs no mirror — and why a s
 would silently find nothing. Subagents come from an `adapter` —
 `.opencode/agent/` is generated from `agents/` because the frontmatter genuinely differs,
 and drift fails CI. Hooks do not port at all: OpenCode's only lifecycle mechanism is a JS/TS
-plugin API, and this repo ships no plugin module by design (it would add a Node runtime
-dependency for nothing else).
+plugin API, and this repo does not ship lifecycle-guard plugins. An optional
+observe-only `usage-capture` module may be added to a user's OpenCode `plugin` list; it
+is not in this repo's `opencode.json` and does not run the `hooks/` guards.
 
 ---
 
