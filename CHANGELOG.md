@@ -6,6 +6,15 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ## [Unreleased]
 
 ### Fixed
+- **SessionEnd hooks no longer print "Hook cancelled" on every exit.** Claude
+  Code cancels a plugin's SessionEnd hook after 1.5 s regardless of the
+  `timeout` in `hooks/hooks.json`. `release-agent-claims.sh` spawned one `jq`
+  per file in `~/.agent-work-claims`, which is never swept — 1,443 files took
+  4.5 s, so the hook was killed and released nothing. `claim_release_all` now
+  prefilters with a single `grep -lF` on the agent id (242 ms against 1,503
+  claims) and still confirms ownership with `jq`. `session-end.sh` now runs its
+  archive sync and prunes detached, returning in milliseconds. Pinned by
+  `tests/test-session-end-budget.sh`.
 - **Gold fixture capability registries now claim only what their fixture trees
   actually deliver.** `core/capabilities/platforms.json` under `scaffold-gold`,
   `scaffold-plugin-gold`, and `scaffold-claude-plugin-gold` claimed native
