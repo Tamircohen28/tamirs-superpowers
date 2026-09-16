@@ -38,11 +38,4 @@ else
   msg="Active worktree detected at ${cwd}. Before closing: push commits and run /switch-dev handoff #N (linked issue) so another platform can resume."
 fi
 
-cat <<EOF
-{
-  "hookSpecificOutput": {
-    "hookEventName": "SessionEnd",
-    "additionalContext": $(echo "$msg" | jq -Rs .)
-  }
-}
-EOF
+jq -n --arg msg "$msg" '{systemMessage: $msg}'
