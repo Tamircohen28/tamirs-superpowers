@@ -1,6 +1,6 @@
 {
   "name": "tamirs-superpowers",
-  "version": "3.6.2",
+  "version": "3.6.3",
   "description": "Multi-platform agent plugin: worktree-based dev workflow, repo standards, and MCP tooling. Skills install separately (see docs/user/install/gemini.md).",
   "contextFileName": ".gemini/GEMINI.md",
   "mcpServers": {

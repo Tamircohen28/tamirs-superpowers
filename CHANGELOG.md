@@ -5,6 +5,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [3.6.3] — 2026-09-16
+
 ### Fixed
 - **SessionEnd hooks no longer print "Hook cancelled" on every exit.** Claude
   Code cancels a plugin's SessionEnd hook after 1.5 s regardless of the
