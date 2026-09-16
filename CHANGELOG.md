@@ -5,137 +5,137 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
-## [3.6.5] — 2026-09-12
+- **Cursor 3.11 (+2026-09-10 / desktop 3.20.17):** advance Cursor coverage through **Projects** (coordinator, shared context, subscriptions) and desktop **3.18.9 → 3.20.17**. Feature pin remains **3.11**. `make validate` expected green. Cursor-only.
+
+## [3.6.4] — 2026-09-16
+
+Consolidates four Claude Code platform-sync review cycles that had accumulated on this
+repo's rolling `claude-code-update` PR under provisional version headings 3.6.3
+(2026-09-09), 3.6.4 (2026-09-10) and 3.6.5 (2026-09-12), plus tonight's 2.1.273 cycle.
+Those headings are renumbered away here: they never actually shipped — the PR stayed
+open the whole time — and master's own release process independently reached a real
+`3.6.3` first (see the entry below this one), so reusing any of 3.6.3/3.6.4/3.6.5 for
+this content would collide with an already-cut version. The per-release narrative below
+is the merged, de-duplicated story; nothing here changes `hooks/`, `skills/`, or
+`agents/` content, so the co-authored notes on individual host fixes are compressed.
 
 ### Changed
-- **Claude Code platform-sync review advances through 2.1.270** (from 2.1.268), covering
-  2.1.269 and 2.1.270, again on a **live `claude` CLI** (2.1.270): `claude plugin validate .`
-  and `bash scripts/doctor.sh .` were both re-run for real and passed (`√ Validation passed`;
-  `healthy, with 4 optional feature(s) unavailable` — `gh`, `shellcheck`, GitHub automation,
-  notifications, all pre-existing environment gaps, not regressions). `validated_against`,
-  `reviewed_through` and `latest_known` all advance to **2.1.270** together, continuing the
-  match first reached at 2.1.268. `.claude-code-version`, the README badge and Claude Code
-  table row, and `platform-targets.md`'s table/prose all advance to `2.1.270` for the Claude
-  Code row only — Cursor, Codex, Gemini CLI and OpenCode rows are untouched.
-  `core/capabilities/platforms.json`'s `hooks` row (and its two synced contract-fixture
-  copies, regenerated via `sync-contract-scripts.sh`) documents three 2.1.269 fixes that
-  land squarely on this repo's write-guarding hooks: a `PreToolUse` deny rule and the
-  `Edit()` write-path check now also apply to a Bash `tee` write, and a `Bash(tee:*)` allow
-  rule is correctly scoped — closing, host-side, exactly the gap
-  `hooks/guard-sensitive-files.sh`'s own header comment names and was built to cover
-  independently via `hooks/lib/write-targets.py`'s `tee` parsing; a bare-`!` deny/ask rule
-  leak is fixed (no rule here starts with `!`); and the attribution-reminder-overriding-
-  CLAUDE.md bug is fixed (this repo's `CLAUDE.md` asks *for* the trailer, so never
-  conflicted). The `plugin_marketplace` row documents a plugin-archive-extraction hardening
-  fix (host-side, no manifest change). `CLAUDE.md`'s Hooks, Marketplace cache, and Remote
-  and headless Claude sessions sections, and a new Skill-frontmatter-section note, carry the
-  full per-release narrative, including why `claude plugin eval` (new in 2.1.269) was
-  reviewed and deliberately **not** wired this cycle. 2.1.270 is a same-week bug-fix-only
-  release (a regression in 2.1.269): read-only git commands in Bash no longer unexpectedly
-  ask for permission after a long-running session. No breaking changes or deprecations in
-  the delta.
-
-### Documentation
-- `docs/engineering/build-and-release/platform-targets.json`'s `targets.claude_code`
-  `verification_method` and `features_adopted` (8 new entries, 2.1.269–2.1.270) record what
-  was adopted, what was reviewed and found not applicable (plugin LSP shutdown/exit,
-  org-managed-settings headless plugin loading, synced-plugin MCP resume,
-  `/ultrareview --post`, `anthropic-skills:<name>` cloud-sync naming, Artifact-DB scratchpad
-  approval, `CLAUDE_CODE_WORKFLOW_MAX_CONCURRENT_AGENTS` against the built-in Workflow tool
-  this repo does not use), and why a `claude plugin eval` suite is tracked as a Future
-  opportunity rather than adopted blind — its `case.yaml`/`prompt.md`+`graders` shape does
-  not match this repo's existing per-skill `evals/evals.json`/`trigger-evals.json`
-  trigger-accuracy harness, so wiring it is a design decision, not a config change.
-
-## [3.6.4] — 2026-09-10
-
-### Changed
-- **Claude Code platform-sync review advances through 2.1.268** (from 2.1.267), and — for the
-  first time in several cycles — on a **live `claude` CLI** rather than changelog reading alone:
-  this run's automation environment had `claude` 2.1.268 installed, so `claude plugin validate .`
-  and `bash scripts/doctor.sh .` were re-run for real (both passed: `√ Validation passed`;
-  `healthy, with 4 optional feature(s) unavailable` — `gh`, `shellcheck`, GitHub automation,
-  notifications, all pre-existing environment gaps, not regressions). `validated_against`,
-  `reviewed_through` and `latest_known` all advance to **2.1.268** together — the first time in
-  this repo's review history all three have matched, closing the `validated_against`-lags-behind
-  gap the split documented in `platform-targets.json` exists to track. `.claude-code-version`,
-  the README badge (Row 3, Row `##Supported platforms` table), and
-  `docs/engineering/build-and-release/platform-targets.md`'s table/prose all advance to
-  `2.1.268` for the Claude Code row only — every other target's row (Cursor, Codex, Gemini CLI,
-  OpenCode) is untouched. `CLAUDE.md`'s Hooks section gains a 2.1.268 clause: `PermissionRequest`
-  hooks now fire in `--print` mode (not exercised — no `PermissionRequest` hook is wired here),
-  and `CLAUDE_CODE_SESSIONEND_HOOKS_TIMEOUT_MS` now actually extends a `SessionEnd` hook that
-  declares no per-hook `timeout` (every `SessionEnd` hook this repo ships already sets one, so
-  unaffected). `core/capabilities/platforms.json`'s `mcp` row notes that `/mcp`/`/plugin`/MCP-login
-  errors no longer leak a secret resolved from a `${VAR}` placeholder in an MCP config — this
-  repo's `.mcp.json` declares none, so not exposed. The `agent_teams` row notes that a respawned
-  in-process teammate no longer inherits tools/system-prompt from a same-named agent file in an
-  untrusted folder — this repo's `agents/*.md` are trusted and versioned, so not a scenario this
-  repo's own orchestration creates, but relevant to anyone fanning out `orchestrate-dev`/
-  `worker-dev` from a workspace containing other, untrusted agent definitions. No breaking changes
-  or deprecations in the delta.
+- **Claude Code platform-sync review advances through 2.1.273** (from 2.1.263, the last
+  version reflected on master), covering 2.1.267, 2.1.268, 2.1.269, 2.1.270, 2.1.271,
+  2.1.272 and 2.1.273. No breaking changes or deprecations anywhere in the range.
+  `validated_against`, `reviewed_through` and `latest_known` all advance to **2.1.273**
+  together. `.claude-code-version`, the README badge/table row, and
+  `platform-targets.md`'s table/prose all advance to `2.1.273` for the Claude Code row
+  only — Cursor, Codex, Gemini CLI and OpenCode rows are untouched, since those are
+  owned by sibling automated tasks.
+  - **2.1.267** — `effort:` frontmatter on skills/subagents/commands is no longer
+    silently ignored on a model with a pinned default effort, directly relevant since 27
+    `SKILL.md` files here set `effort:`; `maxEffortLevel` (an org/user ceiling that can
+    cap it); a marketplace entry-path containment hardening protective of this plugin's
+    `tamirs-marketplace` distribution.
+  - **2.1.268** — `claude plugin install/uninstall/update/enable/disable` gained
+    `--json`, adopted below in `scripts/update.sh`/`scripts/uninstall.sh`; `/mcp`/
+    `/plugin`/MCP-login errors no longer leak a `${VAR}`-placeholder secret;
+    `/plugin install/enable/disable` no longer needing `/reload-plugins` after the menu
+    closes; a respawned in-process teammate no longer inherits tools/system-prompt from
+    a same-named untrusted agent file.
+  - **2.1.269** (largest delta) — a `PreToolUse` deny rule and the `Edit()` write-path
+    check now also apply to a Bash `tee` write, and a `Bash(tee:*)` allow rule is
+    correctly scoped — this closes, host-side, exactly the gap
+    `hooks/guard-sensitive-files.sh`'s header comment names and already covers
+    independently via `hooks/lib/write-targets.py`'s own `tee` parsing (neither bug was
+    ever exposed here, since this repo declares no `Bash(tee:*)` rule of either kind);
+    plugin archives extracted for a session are no longer readable by other local users
+    or left world-writable; `claude plugin eval` (a plugin eval-suite runner) is new and
+    relevant to this toolkit's skills but is tracked as a Future opportunity rather than
+    adopted blind — its `case.yaml`/`prompt.md`+`graders` shape does not match this
+    repo's existing per-skill `evals/evals.json`/`trigger-evals.json` trigger-accuracy
+    harness, so wiring it is a design decision, not a config change.
+  - **2.1.270** — bug-fix-only (a same-week regression in 2.1.269): read-only git
+    commands in Bash no longer unexpectedly ask for permission after a long-running
+    session; relevant since `permissions-allow.json` pre-allows several git commands
+    specifically to avoid this class of friction.
+  - **2.1.271** — a stale `.git/config.lock` after a sandboxed command failure no longer
+    breaks `git checkout -b`/`git push -u`/`git config` for the rest of the session
+    (Linux), relevant since `permissions-allow.json` pre-allows `git push *`/
+    `git remote add *`/`git init` for the same reason, and `hooks/worktree-create.sh`
+    runs through the same sandboxed Bash surface; cross-session `SendMessage` delivery
+    now gives the headless sender a delivery notice instead of holding the message
+    silently. `omitClaudeMd` (new agent frontmatter) and per-command `allowed_domains`
+    for auto-mode sandboxing were reviewed and deliberately not adopted — no `agents/*.md`
+    here should skip the target project's own `CLAUDE.md`, and no shipped rule runs Bash
+    under auto mode with sandboxing.
+  - **2.1.272** — bug-fixes-and-reliability-improvements only, per the official
+    changelog; no adoptable item, just the version bump.
+  - **2.1.273** — a 2.1.268 change that checked `Read`/`Edit` deny rules on Bash lines
+    the permission checker cannot fully analyze (`eval`, `env -C`) is reverted, so a
+    command like `time -p make build` prompts again instead of being silently denied —
+    this repo's `permissions-ask.json`/`permissions-allow.json` name no such rule
+    pattern, so the revert changes host behavior generically but nothing this repo
+    declares. `OTEL_LOG_TOOL_DETAILS=1` now also tags cost/token metrics with real
+    agent, skill, plugin and MCP server names — not wired here, since this repo ships no
+    OpenTelemetry config of its own. The `New Features` list repeats 2.1.271's entries
+    verbatim (fast mode in Remote sessions, `/config` mouse support,
+    `--drain-marker-file`, per-command `allowed_domains`, `omitClaudeMd`,
+    `--accept-command <sha256>`, `modelPricing` multiplier, a gateway spinner tip) — all
+    already reviewed in the 2.1.271 pass above; no new review needed for those.
 
 ### Added
 - **`scripts/update.sh` and `scripts/uninstall.sh` now request `claude plugin update`/
   `uninstall ... --json`** (added in Claude Code 2.1.268) and surface the returned
-  `message`/`failureCode` on failure, instead of only a generic "run the slash command yourself"
-  fallback. Previously a failed `claude plugin update` or `uninstall` call (plugin not found,
-  wrong scope, a marketplace-declared command needing confirmation, etc.) was indistinguishable
-  from "the `claude` CLI just isn't installed" — both printed the same fallback line. Now a JSON
-  parse failure (older CLI, unexpected output) still falls back to the previous generic message,
-  so this degrades safely on a `claude` CLI older than 2.1.268.
+  `message`/`failureCode` on failure, instead of only a generic "run the slash command
+  yourself" fallback. A JSON parse failure (older CLI, unexpected output) still falls
+  back to the previous generic message, so this degrades safely on a `claude` CLI older
+  than 2.1.268.
+- **Root `.claude-code-version` baseline pin**, now `2.1.273`, referenced from
+  `CLAUDE.md`'s "Claude Code CLI baseline" section so a future review does not have to
+  reverse-engineer "the highest version mentioned in prose."
+  `docs/engineering/build-and-release/platform-targets.json`'s `targets.claude_code`
+  block stays authoritative on any disagreement.
 
 ### Documentation
-- `core/capabilities/platforms.json`'s `plugin_marketplace` row documents the new
-  `--json`/`errorDetails`/`noteDetails` surface across `claude plugin install/uninstall/update/
-  enable/disable` and `list`, the git-source-URL secret-leak fix, the marketplace entry-path
-  containment hardening, and clarifies that `/plugin install/enable/disable` no longer needing
-  `/reload-plugins` after the interactive menu closes is unrelated to (and does not change)
-  `hooks/plugin-reload-reminder.sh`'s reminder for local manifest/hook edits made outside that
-  menu (e.g. under a `--plugin-dir` dev symlink).
+- `core/capabilities/platforms.json` (and its 3 contract-mirrored copies, kept in sync
+  via `sync-contract-scripts.sh`) and `platform-targets.json`/`.md` advance
+  `last_reviewed` to 2026-09-16; the `claude_code` capability rows for `subagents`,
+  `hooks`, `shell`, `git`, `mcp`, `background_tasks` and `plugin_marketplace` gain dated
+  notes for the full 2.1.263→2.1.273 delta, and `platform-targets.json` gains new
+  `features_adopted` entries. `CLAUDE.md`'s Hooks, Marketplace cache, and Remote and
+  headless Claude sessions sections carry the per-release narrative.
 
-## [3.6.3] — 2026-09-09
-
-### Added
-- **Root `.claude-code-version` baseline pin.** A new machine-readable file at the repo
-  root records the Claude Code host CLI baseline (`2.1.267`, `validated_against:
-  2.1.263`, `reviewed_through`/`latest_known: 2.1.267`, `last_reviewed: 2026-09-09`) so
-  a script or a future review no longer has to reverse-engineer "the highest version
-  mentioned in prose" from `CLAUDE.md`. `docs/engineering/build-and-release/platform-targets.json`'s
-  `targets.claude_code` block stays authoritative on any disagreement; the new file is a
-  thin, explicitly-referenced mirror, not a competing source — `CLAUDE.md`'s new "Claude
-  Code CLI baseline" section says so and flags that it is not read by any script yet
-  (the same gap `docs/engineering/refactor/file-inventory.md` already documents for
-  `.codex-version`/`.cursor-version`), rather than leaving that orphaned quietly.
-
-### Changed
-- **Claude Code platform-sync review advances through 2.1.267** (from 2.1.263).
-  `CLAUDE.md`'s Subagents, Hooks, and Skill frontmatter sections gain dated clauses for
-  every host release in the delta that is relevant to this repo: 2.1.261 (`/skill-doctor`,
-  hook output surviving a resume mid-parallel-call, the improved `rm -rf`
-  positional-parameter safety prompt), 2.1.265 (resumed-subagent prompt-cache/tool-list
-  fix, `SubagentStart` hook-context fix — not exercised, this repo wires no
-  `SubagentStart` hook — forked-skill kickoff streaming for `targeted-debug`, MCP
-  legacy-HTTP+SSE auto-fallback, `--plugin-dir` folder-of-plugins mode, and a plugin-path
-  containment hardening), and 2.1.267 (the `effort:` frontmatter fix, so that the
-  `effort:` set on 27 `SKILL.md` files here now reliably lands on a model with a pinned
-  default effort, where it could previously be silently ignored — `maxEffortLevel`, and
-  a marketplace entry-path containment hardening relevant to this plugin's
-  `tamirs-marketplace` distribution). No breaking
-  changes or deprecations in the delta; several 2.1.261/2.1.267 items were reviewed and
-  found not applicable here (`--append-subagent-system-prompt-file`, Workflow tool
-  `agent()` schema validation, artifact-publish UTF-8 handling, sandbox clipboard
-  guidance) and are recorded as such rather than silently skipped.
-- **`core/capabilities/platforms.json` and `platform-targets.json`/`.md` re-reviewed
-  through 2.1.267.** `last_reviewed` advances to 2026-09-09 on both registries; the
-  `claude_code` capability rows for `skills`, `subagents`, `hooks` and `mcp` gain
-  precise `notes` for the fixes above, and `platform-targets.json`'s `claude_code`
-  `features_adopted` list gains 13 new dated entries. `validated_against` deliberately
-  stays at `2.1.263` — this review had no live `claude` CLI available, so only
-  `reviewed_through`/`latest_known` (changelog-only claims) advance, per the split the
-  file already documents.
+## [3.6.3] — 2026-09-16
 
 ### Fixed
+- **SessionEnd hooks no longer print "Hook cancelled" on every exit.** Claude
+  Code cancels a plugin's SessionEnd hook after 1.5 s regardless of the
+  `timeout` in `hooks/hooks.json`. `release-agent-claims.sh` spawned one `jq`
+  per file in `~/.agent-work-claims`, which is never swept — 1,443 files took
+  4.5 s, so the hook was killed and released nothing. `claim_release_all` now
+  prefilters with a single `grep -lF` on the agent id (242 ms against 1,503
+  claims) and still confirms ownership with `jq`. `session-end.sh` now runs its
+  archive sync and prunes detached, returning in milliseconds. Pinned by
+  `tests/test-session-end-budget.sh`.
+- **`handoff-reminder.sh` no longer fails SessionEnd hook validation.** It wrapped
+  its reminder in `hookSpecificOutput.hookEventName: "SessionEnd"`, but Claude
+  Code's schema has no `SessionEnd` variant of `hookSpecificOutput` (only
+  `PreToolUse`, `PermissionRequest`, `UserPromptSubmit`, `PostToolUse`,
+  `PostToolBatch`, and `Stop`/`SubagentStop` support it) — every session close
+  from an active worktree threw a "Hook JSON output validation failed" error
+  instead of showing the handoff nudge. It now emits the reminder via the
+  top-level `systemMessage` field, matching `session-end.sh`'s existing
+  SessionEnd output.
+- **27 skills silently switched the running session onto the paid 1M-context tier.**
+  Their `model: claude-sonnet-4-6` frontmatter pin no longer resolves to a
+  standard-context model — Claude Code now resolves it to
+  `claude-sonnet-4-6[1m]` instead of ignoring the stale ID, so invoking any of
+  them (`decision`, `plan-dev`, `start-dev`, `pr-dev`, `orchestrate-dev`,
+  `cleanup`, `retro`, and 20 others) switched the session's model mid-run. On
+  an account without usage credits enabled for extended context, the very
+  next request failed outright with "Usage credits required for 1M context" —
+  independent of session age or context usage, since the switch happens at
+  skill-invocation time, not from genuine context growth. Repointed all 27 to
+  the bare `sonnet` alias already used by every `agents/*.md` role definition,
+  which resolves to the current standard-context model instead of a version
+  string that can go stale again.
 - **Gold fixture capability registries now claim only what their fixture trees
   actually deliver.** `core/capabilities/platforms.json` under `scaffold-gold`,
   `scaffold-plugin-gold`, and `scaffold-claude-plugin-gold` claimed native
