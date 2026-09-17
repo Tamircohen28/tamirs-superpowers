@@ -1,7 +1,7 @@
 {
   "schema_version": 2,
-  "last_reviewed": "2026-09-16",
-  "reviewed_by_skill": "tamirs-superpowers@3.8.1",
+  "last_reviewed": "2026-09-17",
+  "reviewed_by_skill": "tamirs-superpowers@3.8.2",
   "supported_targets": [
     "claude_code",
     "codex",
@@ -14,11 +14,11 @@
       "platform": "claude",
       "supported_min": "2.0.0",
       "supported_min_source": "manifest format (.claude-plugin/plugin.json) stable since 2.0.0",
-      "validated_against": "2.1.273",
-      "reviewed_through": "2.1.273",
-      "latest_known": "2.1.273",
-      "verified_on": "2026-09-16",
-      "verification_method": "changelog + live-CLI method (automated nightly review). This entry had drifted: master's own copy stayed pinned at 2.1.263 (verified 2026-09-06/07) while the review work for 2.1.267 through 2.1.272 accumulated on this repo's long-open rolling `claude-code-update` PR without ever landing. This cycle reconciles that PR against current master and, in the same pass, extends coverage one more release to **2.1.273** (2026-09-15), the latest per the official changelog as of this review. No live `claude` CLI was available in this automation environment this cycle, so this advance is changelog-only; the next cycle with a live CLI should re-validate against it directly. 2.1.259–2.1.263 review (2026-09-06/07): `/skill-doctor`, `bashOutputMaxChars`/`taskOutputMaxChars`, a worktree-isolation permission fix, `/reload-plugins` for headless sessions — see CLAUDE.md's Subagents/Hooks bullets for the full per-item narrative. 2.1.267: the `effort:` frontmatter fix (directly relevant — 27 SKILL.md files here set `effort:`), `maxEffortLevel`, and a marketplace entry-path containment hardening protective of this plugin's `tamirs-marketplace` distribution. 2.1.268: `claude plugin install/uninstall/update/enable/disable --json` — adopted in `scripts/update.sh`/`scripts/uninstall.sh` (see `features_adopted`); `PermissionRequest` hooks firing in `--print` mode; `CLAUDE_CODE_SESSIONEND_HOOKS_TIMEOUT_MS` fix; MCP `${VAR}`-placeholder secret-leak fix; agent-team untrusted-file isolation fix. 2.1.269 (largest delta in the range): a `PreToolUse` deny rule and the `Edit()` write-path check now also apply to a Bash `tee` write, and a `Bash(tee:*)` allow rule is correctly scoped — closes, host-side, exactly the gap `hooks/guard-sensitive-files.sh`'s header comment names and already covers independently via `hooks/lib/write-targets.py`'s own `tee` parsing (neither bug was ever exposed here, since `platforms/claude/settings.d/permissions-allow.json`/`permissions-ask.json` declare no `Bash(tee:*)` rule of either kind); a bare-`!` deny/ask rule leak is fixed (no rule here starts with `!`); the attribution-reminder-overriding-CLAUDE.md bug is fixed (this repo's CLAUDE.md asks *for* the trailer, so never conflicted); plugin-archive extraction hardening (host-side, no manifest change); `claude plugin eval` is genuinely relevant to this toolkit's 27 skills but its `case.yaml`/`prompt.md`+`graders` shape does not match this repo's existing per-skill `evals/evals.json`/`trigger-evals.json` trigger-accuracy harness, so it is tracked as a Future opportunity rather than adopted blind this cycle. 2.1.270: bug-fix-only (a same-week regression in 2.1.269) — read-only git commands in Bash no longer unexpectedly ask for permission after a long-running session; relevant since `permissions-allow.json` pre-allows several git commands specifically to avoid this class of friction. 2.1.271: a stale `.git/config.lock` after a sandboxed command failure no longer breaks `git checkout -b`/`git push -u`/`git config` for the rest of the session (Linux) — relevant since `permissions-allow.json` pre-allows `git push *`/`git remote add *`/`git init` for the same reason, and `hooks/worktree-create.sh` runs through the same sandboxed Bash surface; the Monitor watch deadline change (always at most 30 minutes, 10 in `-p` runs) — `skills/dev-workflow/pr-dev/references/ci-monitor-loop.md`'s one Monitor wrapper already sets `timeout_ms: 1800000` and never set `persistent`, so it was already inside the new ceiling; a background command no longer starting a second copy of itself after compaction, relevant to a long `orchestrate-dev`/`worker-dev` fan-out; cross-session `SendMessage` delivery now gives the headless sender a delivery notice instead of holding the message silently — documented in `docs/user/cross-platform-workflow.md`. `omitClaudeMd` (new agent frontmatter) and per-command `allowed_domains` for auto-mode sandboxing were reviewed and deliberately not adopted: no `agents/*.md` here should skip the target project's own CLAUDE.md, and no shipped rule runs Bash under auto mode with sandboxing. 2.1.272: bug-fixes-and-reliability-improvements only, per the official changelog; no adoptable item. 2.1.273 (this cycle's new coverage): a 2.1.268 change that checked `Read`/`Edit` deny rules on Bash lines the permission checker cannot fully analyze (`eval`, `env -C`) is reverted — this repo declares no such rule pattern, so the revert changes generic host behavior but nothing this repo declares; `OTEL_LOG_TOOL_DETAILS=1` now also tags cost/token metrics with real agent/skill/plugin/MCP-server names — not wired here, this repo ships no OpenTelemetry config of its own; the `New Features` section of the 2.1.273 changelog entry repeats 2.1.271's items verbatim (fast mode in Remote sessions, `/config` mouse support, `--drain-marker-file`, per-command `allowed_domains`, `omitClaudeMd`, `--accept-command <sha256>`, `modelPricing` multiplier) — already reviewed in the 2.1.271 pass above, no new review needed. No breaking changes or deprecations anywhere in the 2.1.263→2.1.273 range. Also reviewed for PR #154/#155/#156/#157 (2026-09-16, merged to master ahead of this reconciliation): SessionEnd-hook-budget fix, `handoff-reminder.sh` SessionEnd-schema fix, the 27-skill stale `model: claude-sonnet-4-6` pin fix, and the 3.6.3 release cut — all internal repo fixes with no platform-target, capability, or Claude-Code-host-version impact, so no co-change to the claims above was needed. See `CLAUDE.md`'s Hooks, Subagents, Marketplace cache, and Remote and headless Claude sessions sections for the per-release narrative in prose form.",
+      "validated_against": "2.1.274",
+      "reviewed_through": "2.1.274",
+      "latest_known": "2.1.274",
+      "verified_on": "2026-09-17",
+      "verification_method": "changelog + live-CLI method (automated nightly review). This entry had drifted: master's own copy stayed pinned at 2.1.263 (verified 2026-09-06/07) while the review work for 2.1.267 through 2.1.272 accumulated on this repo's long-open rolling `claude-code-update` PR without ever landing. The 2.1.263→2.1.273 reconciliation cycle (2026-09-16) merged that PR against current master and extended coverage to 2.1.273 on changelog evidence only, no live CLI being available then. Tonight's cycle (2026-09-17) had a live `claude` CLI in the automation environment, reporting exactly `2.1.274` — the current release — so `validated_against` advances all the way to it on real evidence, and `claude plugin validate .` was re-run for real and passed (marketplace manifest valid). 2.1.259–2.1.263 review (2026-09-06/07): `/skill-doctor`, `bashOutputMaxChars`/`taskOutputMaxChars`, a worktree-isolation permission fix, `/reload-plugins` for headless sessions — see CLAUDE.md's Subagents/Hooks bullets for the full per-item narrative. 2.1.267: the `effort:` frontmatter fix (directly relevant — 27 SKILL.md files here set `effort:`), `maxEffortLevel`, and a marketplace entry-path containment hardening protective of this plugin's `tamirs-marketplace` distribution. 2.1.268: `claude plugin install/uninstall/update/enable/disable --json` — adopted in `scripts/update.sh`/`scripts/uninstall.sh` (see `features_adopted`); `PermissionRequest` hooks firing in `--print` mode; `CLAUDE_CODE_SESSIONEND_HOOKS_TIMEOUT_MS` fix; MCP `${VAR}`-placeholder secret-leak fix; agent-team untrusted-file isolation fix. 2.1.269 (largest delta in the range): a `PreToolUse` deny rule and the `Edit()` write-path check now also apply to a Bash `tee` write, and a `Bash(tee:*)` allow rule is correctly scoped — closes, host-side, exactly the gap `hooks/guard-sensitive-files.sh`'s header comment names and already covers independently via `hooks/lib/write-targets.py`'s own `tee` parsing (neither bug was ever exposed here, since `platforms/claude/settings.d/permissions-allow.json`/`permissions-ask.json` declare no `Bash(tee:*)` rule of either kind); a bare-`!` deny/ask rule leak is fixed (no rule here starts with `!`); the attribution-reminder-overriding-CLAUDE.md bug is fixed (this repo's CLAUDE.md asks *for* the trailer, so never conflicted); plugin-archive extraction hardening (host-side, no manifest change); `claude plugin eval` is genuinely relevant to this toolkit's 27 skills but its `case.yaml`/`prompt.md`+`graders` shape does not match this repo's existing per-skill `evals/evals.json`/`trigger-evals.json` trigger-accuracy harness, so it is tracked as a Future opportunity rather than adopted blind this cycle. 2.1.270: bug-fix-only (a same-week regression in 2.1.269) — read-only git commands in Bash no longer unexpectedly ask for permission after a long-running session; relevant since `permissions-allow.json` pre-allows several git commands specifically to avoid this class of friction. 2.1.271: a stale `.git/config.lock` after a sandboxed command failure no longer breaks `git checkout -b`/`git push -u`/`git config` for the rest of the session (Linux) — relevant since `permissions-allow.json` pre-allows `git push *`/`git remote add *`/`git init` for the same reason, and `hooks/worktree-create.sh` runs through the same sandboxed Bash surface; the Monitor watch deadline change (always at most 30 minutes, 10 in `-p` runs) — `skills/dev-workflow/pr-dev/references/ci-monitor-loop.md`'s one Monitor wrapper already sets `timeout_ms: 1800000` and never set `persistent`, so it was already inside the new ceiling; a background command no longer starting a second copy of itself after compaction, relevant to a long `orchestrate-dev`/`worker-dev` fan-out; cross-session `SendMessage` delivery now gives the headless sender a delivery notice instead of holding the message silently — documented in `docs/user/cross-platform-workflow.md`. `omitClaudeMd` (new agent frontmatter) and per-command `allowed_domains` for auto-mode sandboxing were reviewed and deliberately not adopted: no `agents/*.md` here should skip the target project's own CLAUDE.md, and no shipped rule runs Bash under auto mode with sandboxing. 2.1.272: bug-fixes-and-reliability-improvements only, per the official changelog; no adoptable item. 2.1.273: a 2.1.268 change that checked `Read`/`Edit` deny rules on Bash lines the permission checker cannot fully analyze (`eval`, `env -C`) is reverted — this repo declares no such rule pattern, so the revert changes generic host behavior but nothing this repo declares; `OTEL_LOG_TOOL_DETAILS=1` now also tags cost/token metrics with real agent/skill/plugin/MCP-server names — not wired here, this repo ships no OpenTelemetry config of its own; the `New Features` section of the 2.1.273 changelog entry repeats 2.1.271's items verbatim (fast mode in Remote sessions, `/config` mouse support, `--drain-marker-file`, per-command `allowed_domains`, `omitClaudeMd`, `--accept-command <sha256>`, `modelPricing` multiplier) — already reviewed in the 2.1.271 pass above, no new review needed. 2.1.274 (this cycle's new coverage): a sub-agent's progress summary is no longer replaced by a runaway multi-paragraph reply — directly relevant to `worker-dev`'s `completed`/`partial`/`failed`/`blocked` handoff vocabulary and any `orchestrate-dev` fan-out reading a worker's summary back; `claude agents` no longer loses `--model`/`--effort`/`--permission-mode`/`--allow-dangerously-skip-permissions`/`--agent` after an auto-update — no script here shells out to `claude agents` directly, so not exercised, but relevant to a contributor invoking one of the ten `agents/*.md` from that CLI subcommand by hand; a visible low-memory warning is added (host UI, nothing to adopt); `CLAUDE_CODE_MCP_STARTUP_WAIT_MS` is added — reviewed against this plugin's one MCP server (`github`, whose Docker fallback path can be slow to start on a cold pull) and documented as an available knob in CLAUDE.md's MCP bullet rather than set as a repo default, since the right value is workstation-dependent. Reviewed and found not applicable: an `effort` attribute on the OTel span (no OpenTelemetry config shipped here); Bedrock/Vertex/Foundry/telemetry-disabled sessions defaulting to MCP client v2 (this repo targets direct Claude Code/Desktop sessions, not a Bedrock/Vertex/Foundry gateway); a sub-agent `model: \"opus\"` leaving the wrong session model on Bedrock/Vertex/Foundry (all ten `agents/*.md` pin `model: sonnet`, and again no Bedrock/Vertex/Foundry usage); `/code-review` moving to leaner inline prompts (this repo references the official `code-review@claude-plugins-official` marketplace plugin in `platforms/claude/settings.d/plugins.json`, but has it deliberately disabled, so nothing here changes either way). No breaking changes or deprecations anywhere in the 2.1.263→2.1.274 range. Also reviewed for PR #154/#155/#156/#157 (2026-09-16, merged to master ahead of the prior reconciliation): SessionEnd-hook-budget fix, `handoff-reminder.sh` SessionEnd-schema fix, the 27-skill stale `model: claude-sonnet-4-6` pin fix, and the 3.6.3 release cut — all internal repo fixes with no platform-target, capability, or Claude-Code-host-version impact, so no co-change to the claims above was needed. See `CLAUDE.md`'s Subagents, Hooks, MCP, Marketplace cache, and Remote and headless Claude sessions sections for the per-release narrative in prose form.",
       "install_doc": "docs/user/install/claude-code.md",
       "doc_urls": [
         "https://code.claude.com/docs/en/plugins-reference",
@@ -92,7 +92,12 @@
         "plugin-accept-command-reviewed-docs-2.1.271",
         "plugin-cli-json-update-uninstall-2.1.268",
         "bash-eval-envc-deny-rule-revert-reviewed-docs-2.1.273",
-        "otel-tool-details-agent-names-reviewed-docs-2.1.273"
+        "otel-tool-details-agent-names-reviewed-docs-2.1.273",
+        "subagent-progress-summary-runaway-reply-fix-docs-2.1.274",
+        "claude-agents-cli-flag-loss-fix-reviewed-docs-2.1.274",
+        "mcp-startup-wait-ms-docs-2.1.274",
+        "opus-subagent-session-model-fix-reviewed-docs-2.1.274",
+        "code-review-inline-prompts-reviewed-docs-2.1.274"
       ],
       "capabilities": [
         "agent_teams",
@@ -118,81 +123,71 @@
         "extension_install": "Claude installs plugins, not git-URL extensions."
       }
     },
+    "codex": {
+      "platform": "codex",
+      "supported_min": "0.40.0",
+      "supported_min_source": "Earliest release this repo has claimed AGENTS.md + .codex-plugin support for",
+      "validated_against": "0.146.0",
+      "reviewed_through": "0.152.1",
+      "latest_known": "0.152.1",
+      "verified_on": "2026-09-01",
+      "install_doc": "docs/user/install/codex.md",
+      "doc_urls": [
+        "https://developers.openai.com/codex/config-basic",
+        "https://developers.openai.com/codex/guides/agents-md"
+      ],
+      "features_adopted": [
+        "dist-codex-agents-md"
+      ],
+      "capabilities": [
+        "git",
+        "github_cli",
+        "hooks",
+        "mcp",
+        "plugin_marketplace",
+        "shell",
+        "skills",
+        "worktree_isolation"
+      ],
+      "capability_gaps": {
+        "artifacts": "No artifact publishing surface.",
+        "extension_install": "Codex installs plugins, not git-URL extensions.",
+        "statusline": "Not a declared Codex capability."
+      }
+    },
     "cursor": {
       "platform": "cursor",
       "supported_min": "3.20.17",
-      "supported_min_source": "Cursor documents no minimum version for plugins; the floor is set to the version actually validated rather than guessed",
+      "supported_min_source": "Cursor's plugin docs state no minimum version; the floor equals the validated version",
       "validated_against": "3.20.17",
       "reviewed_through": "3.20.17",
       "latest_known": "3.20.17",
+      "verified_on": "2026-09-13",
       "changelog_feature": "3.11",
       "changelog_date": "2026-09-10",
-      "verified_on": "2026-09-13",
-      "verification_method": "latest desktop build from official Cursor download API (3.20.17) cross-checked against cursor.com/changelog (feature 3.11; date-only entries through 2026-09-10 Projects — coordinator agent / shared context / subscriptions; prior Self-Hosted Machines 2026-09-02); Cursor CLI changelog Aug 11 2026 documented",
       "install_doc": "docs/user/install/cursor.md",
       "doc_urls": [
-        "https://cursor.com/docs/plugins",
         "https://cursor.com/docs/context/rules",
         "https://cursor.com/docs/hooks",
-        "https://cursor.com/docs/customize-cursor",
-        "https://cursor.com/docs/reference/third-party-hooks",
-        "https://agent-plugins.org",
-        "https://cursor.com/blog/builds",
-        "https://cursor.com/docs/origin",
-        "https://cursor.com/codebase",
-        "https://cursor.com/changelog",
-        "https://cursor.com/docs/cloud-agent/self-hosted"
+        "https://cursor.com/docs/plugins",
+        "https://cursor.com/docs/reference/third-party-hooks"
       ],
+      "verification_method": "latest desktop build from official Cursor download API (3.20.17) cross-checked against cursor.com/changelog (feature 3.11; date-only entries through 2026-09-10 Projects — coordinator agent / shared context / subscriptions; prior Self-Hosted Machines 2026-09-02); Cursor CLI changelog Aug 11 2026 documented",
       "features_adopted": [
-        "cursor-plugin-manifest",
-        "mdc-rules",
-        "team-marketplace-import-from-repo",
-        "customize-page-3.9",
-        "team-mcp-marketplace-3.10",
-        "org-group-marketplace-access-3.10",
-        "side-chats-docs-3.11",
-        "cursor-hooks-schema-clarified-3.11",
-        "google-workspace-plugins-optional-2026-08-03",
-        "automations-github-triggers-docs-3.8",
-        "project-cursor-hooks-3.11",
-        "third-party-claude-hooks-docs",
-        "multi-pr-sessions-docs-2026-07-29",
-        "workspace-open-hook-docs",
-        "agent-plugins-standard-docs",
-        "automations-memory-delete-docs",
-        "cloud-agent-builds-docs-2026-08-13",
-        "cli-plugin-hooks-docs-2026-08-11",
-        "cli-sticky-skills-docs-2026-08-11",
-        "cloud-agent-builds-aug17-default-readiness",
-        "builds-team-env-secrets-docs",
-        "cli-steer-and-goal-docs-2026-08-11",
-        "builds-skipped-and-staleness-24h-docs",
-        "builds-install-start-terminals-docs",
-        "grok-4.6-docs-2026-08-14",
-        "builds-t1-default-readiness-2026-08-16",
-        "origin-git-forge-docs-2026-08-17",
-        "builds-now-default-2026-08-17",
-        "origin-cli-and-integrations-docs-2026-08-18",
-        "cloud-agent-subscriptions-2026-08-19",
-        "custom-modes-from-skills-2026-08-19",
-        "subagents-isolated-vms-2026-08-19",
-        "agent-window-goal-2026-08-19",
-        "non-interruptive-steering-2026-08-19",
-        "native-create-goal-tools-docs-2026-08-19",
-        "desktop-cli-pin-3.20.17",
-        "cloud-agent-start-from-scratch-2026-08-27",
-        "origin-create-repo-from-scratch-2026-08-27",
-        "cloud-agent-browser-preview-2026-08-27",
-        "cloud-agent-vercel-publish-2026-08-27",
         "self-hosted-machines-2026-09-02",
         "team-pools-dynamic-scheduling-2026-09-02",
         "partner-sandbox-workers-2026-09-02",
         "computer-use-linux-mac-self-hosted-2026-09-02",
         "self-hosted-vs-gha-runners-docs-2026-09-02",
-        "cursor-projects-2026-09-10",
-        "project-coordinator-agent-2026-09-10",
-        "project-shared-context-2026-09-10",
-        "project-subscriptions-2026-09-10"
+        "origin-create-repo-start-from-scratch-2026-08-27",
+        "builds-preview-vercel-publish-2026-08-27",
+        "cli-sticky-skills-docs-2026-08-11",
+        "cli-plugin-hooks-docs-2026-08-11",
+        "subscriptions-2026-08-19",
+        "custom-modes-2026-08-19",
+        "cloud-agent-goal-2026-08-19",
+        "non-interruptive-steering-2026-08-19",
+        "projects-2026-09-10"
       ],
       "capabilities": [
         "git",
@@ -214,72 +209,55 @@
         "statusline": "No plugin-declared statusline."
       }
     },
-    "codex": {
-      "platform": "codex",
-      "supported_min": "0.40.0",
-      "supported_min_source": "earliest release this repo has claimed AGENTS.md + .codex-plugin manifest support for",
-      "validated_against": "0.146.0",
-      "reviewed_through": "0.152.1",
-      "latest_known": "0.152.1",
-      "verified_on": "2026-09-02",
-      "verification_method": "0.146.0 was exercised on the maintainer machine; 0.147.0 through 0.152.1 support was reviewed against the official OpenAI release deltas. .codex-version tracks 0.152.1 pending the next direct CLI validation. 0.150 adds native task references and Interrupt hooks; 0.151 adds optional-MCP discovery grace, extension-side MCP result interception, and stronger per-repository plugin catalog handling; 0.152 adds package-style MCP names, per-tool output_token_limit, long app-server shell-command timeouts, and makes update_plan opt-in. 0.152.1 is a Guardian policy fix. None requires a shared plugin-manifest migration. The manifest hooks field is NOT a 0.147.0 feature: 0.147.0 is portable agent plugins (catalog install), while plugin-manifest hooks were wired into the hook runtime by openai/codex PR #19705, merged 2026-04-28, roughly twenty releases earlier. core/capabilities/platforms.json briefly recorded codex hooks as since 0.147.0 on that confusion; the exact floor has never been established here, so the registry now claims none.",
-      "install_doc": "docs/user/install/codex.md",
+    "gemini_cli": {
+      "platform": "gemini",
+      "supported_min": "0.55.1",
+      "supported_min_source": "Gemini CLI documents no minimum for extensions; the floor is the version the adapter was actually exercised on",
+      "validated_against": "0.55.1",
+      "reviewed_through": "0.55.1",
+      "latest_known": "0.55.1",
+      "verified_on": "2026-08-03",
+      "install_doc": "docs/user/install/gemini.md",
       "doc_urls": [
-        "https://developers.openai.com/codex/guides/agents-md",
-        "https://developers.openai.com/codex/config-basic"
+        "https://github.com/google-gemini/gemini-cli/blob/main/docs/cli/skills.md",
+        "https://github.com/google-gemini/gemini-cli/blob/main/docs/core/subagents.md",
+        "https://github.com/google-gemini/gemini-cli/blob/main/docs/extensions/reference.md"
       ],
       "features_adopted": [
-        "codex-plugin-manifest",
-        "agents-md",
-        "hooks-field",
-        "portable-agent-plugins-0.147.0",
-        "codex-agents-and-queue-docs-0.149.0",
-        "codex-interrupt-hook-reviewed-0.150.0",
-        "per-repository-plugin-catalog-config-0.151.0",
-        "mcp-result-interception-reviewed-0.151.0",
-        "package-style-mcp-server-names-reviewed-0.152.0",
-        "mcp-output-token-limit-reviewed-0.152.0",
-        "update-plan-opt-in-reviewed-0.152.0"
+        "gemini-extension-manifest",
+        "dist-gemini-extension"
       ],
       "capabilities": [
+        "extension_install",
         "git",
         "github_cli",
-        "hooks",
         "mcp",
-        "plugin_marketplace",
         "shell",
         "skills",
+        "subagents",
         "worktree_isolation"
       ],
       "capability_gaps": {
         "artifacts": "No artifact publishing surface.",
-        "extension_install": "Codex installs plugins, not git-URL extensions.",
-        "statusline": "Not a declared Codex capability."
+        "plugin_marketplace": "Gemini installs extensions from a git URL; there is no marketplace listing to publish to.",
+        "statusline": "Measured on 0.55.1: no extension-declared statusline."
       }
     },
     "opencode": {
       "platform": "opencode",
       "supported_min": "1.16.2",
-      "supported_min_source": "oldest version on which recursive (domain-nested) SKILL.md discovery was verified with `opencode debug skill`; not re-tested in this pass, so the floor is left where the evidence put it",
+      "supported_min_source": "Oldest version on which recursive (domain-nested) SKILL.md discovery was verified with opencode debug skill",
       "validated_against": "1.18.11",
       "reviewed_through": "1.18.29",
       "latest_known": "1.18.29",
-      "verified_on": "2026-08-19",
-      "verification_method": "opencode --version on the maintainer machine (1.18.11), exercised live: opencode debug skill / debug agent / debug config against this repo and against throwaway sandboxes; agent + config field shapes cross-checked against the published JSON Schema at https://opencode.ai/config.json. latest_known from registry.npmjs.org/opencode-ai dist-tags.latest (1.18.29, published 2026-09-04; refreshed 2026-09-08). validated_against is deliberately not latest_known: 1.18.11 is the build actually run, and asserting 1.18.29 would be invention. MCP stays in capabilities because OpenCode reads MCP servers natively, from the 'mcp' block of opencode.json rather than .mcp.json -- but this repo ships no 'mcp' block, and docs/user/install/opencode.md tells the user to port the entries they want. That is a documented path, not a shipped artifact, so it is not the same case as the hooks gap below. core/capabilities/platforms.json validated the claim with jq -e '.mcp // {}' opencode.json, which named a key this repo has never shipped and, because the // {} fallback makes jq -e exit 0 on every input, could not have failed if it had. reviewed_through advances to 1.18.29 on a documentary review of every release from 1.18.12 to 1.18.29 (all 18 tags retrieved individually from the GitHub Releases API; none unverified), supplemented by path-scoped commit history for 2026-08-03..2026-09-05 over src/skill, src/agent, src/config and src/mcp. No breaking change, no $schema or schema-URL change, no change to skill discovery or nesting, no change to agent frontmatter, no change to how MCP servers are declared -- and for skills and MCP that rests on zero commits to the implementing trees in the window, not merely on absence from the release notes. Two things worth carrying forward: 1.18.16 made the config parser ignore unknown top-level fields at runtime although the published schema still sets additionalProperties:false, and 1.18.24 added read-compat for v2 config, whose 'skills' is a flat array rather than this repo's v1 {paths,urls} object -- a future v2 adoption is a real opencode.json shape change even though v1 stays native today. Also confirmed from the loader glob '{agent,agents}/**/*.md' that this repo's singular .opencode/agent/ is supported outright, not merely tolerated. The review is documentary, so validated_against stays at 1.18.11.",
+      "verified_on": "2026-08-03",
       "install_doc": "docs/user/install/opencode.md",
       "doc_urls": [
-        "https://opencode.ai/docs/skills/",
-        "https://opencode.ai/docs/agents/",
-        "https://opencode.ai/docs/plugins/",
-        "https://opencode.ai/config.json"
+        "https://opencode.ai/docs/skills/"
       ],
       "features_adopted": [
-        "skills-paths-config",
-        "recursive-skill-discovery-1.16.2",
-        "zero-level-skill-paths",
-        "generated-agent-adapters",
-        "agent-permission-field",
-        "no-plugin-runtime-dependency"
+        "native-skill-discovery",
+        "dist-opencode-config"
       ],
       "capabilities": [
         "git",
@@ -297,46 +275,6 @@
         "plugin_marketplace": "No plugin marketplace — install is by absolute skills.paths. Not by symlink: OpenCode does not follow them for skill discovery (see the skills row).",
         "statusline": "No plugin-declared statusline."
       }
-    },
-    "gemini_cli": {
-      "platform": "gemini",
-      "supported_min": "0.55.1",
-      "supported_min_source": "Gemini CLI documents no minimum for extensions; the floor is the version the adapter was actually exercised on rather than guessed",
-      "validated_against": "0.55.1",
-      "reviewed_through": "0.55.1",
-      "latest_known": "0.55.1",
-      "verified_on": "2026-08-19",
-      "verification_method": "gemini --version on the maintainer machine (0.55.1); extension format, skill discovery depth, agent validation, and hook config shape measured directly with a probe extension linked into an isolated HOME. Gemini reads skills exactly one level below a skills root, so the canonical two-level skills/<domain>/<name>/ tree resolved to zero; scripts/build-gemini-extension.sh generates a flat symlink mirror at .gemini/skills/ plus translated sub-agents at .gemini/agents/, both committed and drift-checked. Verified live: 30 of 30 skills discovered, all 10 agents load with zero errors. Registry key is gemini_cli (not gemini) so this file, core/capabilities/platforms.json and platforms/gemini/adapter.yaml all name the same platform id.",
-      "install_doc": "docs/user/install/gemini.md",
-      "doc_urls": [
-        "https://github.com/google-gemini/gemini-cli/blob/main/docs/extensions/reference.md",
-        "https://github.com/google-gemini/gemini-cli/blob/main/docs/cli/skills.md",
-        "https://github.com/google-gemini/gemini-cli/blob/main/docs/core/subagents.md"
-      ],
-      "features_adopted": [
-        "gemini-extension-manifest",
-        "context-file-subpath",
-        "mcp-extension-path-interpolation",
-        "generated-flat-skill-mirror"
-      ],
-      "capabilities": [
-        "extension_install",
-        "git",
-        "github_cli",
-        "mcp",
-        "shell",
-        "skills",
-        "subagents",
-        "worktree_isolation"
-      ],
-      "capability_gaps": {
-        "artifacts": "No artifact publishing surface.",
-        "plugin_marketplace": "Gemini installs extensions from a git URL; there is no marketplace listing to publish to.",
-        "statusline": "Measured on 0.55.1: no extension-declared statusline."
-      }
     }
-  },
-  "capability_source": "core/capabilities/platforms.json",
-  "capability_source_note": "targets.<key>.capabilities and capability_gaps are DERIVED from the capability registry and must not be hand-edited. Regenerate with `bash scripts/check-platform-targets.sh . --sync-capabilities`; `scripts/check-feature-equivalence.sh` fails when they drift.",
-  "version_claims_note": "`validated_against` is the version this repo was last exercised against on a live maintainer machine. `reviewed_through` is the newest upstream release whose notes have actually been read for adapter impact. They are different claims and they drift apart on purpose: reading release notes is cheap and should always be current, while a live run needs a maintainer at a machine. V1-04 fires on `reviewed_through < latest_known` -- nobody has looked at what shipped -- because that is the gap a contributor can actually close. It deliberately does not fire on a validated_against lag, which is bounded instead by `last_reviewed` and V1-05's 90-day budget. A target with no `reviewed_through` falls back to `validated_against`, so consumer repos that have not adopted the field score exactly as before."
+  }
 }
