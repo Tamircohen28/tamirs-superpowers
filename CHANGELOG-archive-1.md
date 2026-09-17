@@ -207,7 +207,7 @@ Older `tamirs-superpowers` changelog entries, moved out of `CHANGELOG.md` on 202
   33597009636 attempt 1 on `9a7c916`, all on ubuntu-24.04 image
   20260823.283.1. Attempt 2 of the same commit, unchanged, went green. **The
   root cause is not established.** What is established: no code in this repo
-  can delete a bare `/tmp/tmp.XXXXXXXXXX`; every destructive path is rooted
+  can delete a bare `/tmp/tmp.XXXXXXXXXX` — every destructive path is rooted
   under `$HOME/.claude/…` or the script's own `mktemp` output, and
   `scripts/statusline.sh` contains no `rm`, `mktemp`, `find` or `trap` at all;
   the runner version is not the discriminator (2.337.0 on both failures and
