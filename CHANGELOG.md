@@ -1,1 +1,710 @@
-PLACEHOLDER
+# Changelog
+
+All notable changes to `tamirs-superpowers` are recorded here.
+Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
+
+## [Unreleased]
+
+- **Cursor 3.11 (+2026-09-10 / desktop 3.20.17):** advance Cursor coverage through **Projects** (coordinator, shared context, subscriptions) and desktop **3.18.9 → 3.20.17**. Feature pin remains **3.11**. `make validate` expected green. Cursor-only.
+
+## [3.8.2] — 2026-09-17
+
+Consolidates five Claude Code platform-sync review cycles that had accumulated on this
+repo's rolling `claude-code-update` PR under provisional version headings 3.6.3
+(2026-09-09), 3.6.4 (2026-09-10) and 3.6.5 (2026-09-12), plus the 2.1.273 cycle
+(2026-09-16) and tonight's 2.1.274 cycle. Those provisional headings are renumbered
+away here: they never actually shipped — the PR stayed open the whole time — while
+master's own release process independently, and concurrently, cut real `3.6.3`, `3.7.0`
+and `3.8.0` releases from three separate sibling PRs (#153/#152, #150, and #149
+respectively — see the three entries below this one). Reusing 3.6.3, 3.6.4, 3.6.5, 3.7.0
+or 3.8.0 for this content would collide with an already-shipped version, so this
+reconciliation lands as a fresh `3.8.2`, the next patch after master's newest real cut at
+merge time. The per-release narrative below is the merged, de-duplicated story; nothing
+here changes `hooks/`, `skills/`, or `agents/` content, so the co-authored notes on
+individual host fixes are compressed. Tonight's cycle had a live `claude` CLI available
+in the automation environment, reporting exactly `2.1.274` — the same version this
+changelog delta covers — so the compatibility claims below are live-validated, not
+changelog-only.
+
+### Changed
+- **Claude Code platform-sync review advances through 2.1.274** (from 2.1.263, the last
+  version reflected on master), covering 2.1.267, 2.1.268, 2.1.269, 2.1.270, 2.1.271,
+  2.1.272, 2.1.273 and 2.1.274. No breaking changes or deprecations anywhere in the
+  range. `validated_against`, `reviewed_through` and `latest_known` all advance to
+  **2.1.274** together — this cycle's advance is live-CLI-validated (`claude --version`
+  reported `2.1.274`; `claude plugin validate .` re-ran clean). `.claude-code-version`,
+  the README badge/table row, and `platform-targets.md`'s table/prose all advance to
+  `2.1.274` for the Claude Code row only — Cursor, Codex, Gemini CLI and OpenCode rows
+  are untouched, since those are owned by sibling automated tasks.
+  - **2.1.267** — `effort:` frontmatter on skills/subagents/commands is no longer
+    silently ignored on a model with a pinned default effort, directly relevant since 27
+    `SKILL.md` files here set `effort:`; `maxEffortLevel` (an org/user ceiling that can
+    cap it); a marketplace entry-path containment hardening protective of this plugin's
+    `tamirs-marketplace` distribution.
+  - **2.1.268** — `claude plugin install/uninstall/update/enable/disable` gained
+    `--json`, adopted below in `scripts/update.sh`/`scripts/uninstall.sh`; `/mcp`/
+    `/plugin`/MCP-login errors no longer leak a `${VAR}`-placeholder secret;
+    `/plugin install/enable/disable` no longer needing `/reload-plugins` after the menu
+    closes; a respawned in-process teammate no longer inherits tools/system-prompt from
+    a same-named untrusted agent file.
+  - **2.1.269** (largest delta) — a `PreToolUse` deny rule and the `Edit()` write-path
+    check now also apply to a Bash `tee` write, and a `Bash(tee:*)` allow rule is
+    correctly scoped — this closes, host-side, exactly the gap
+    `hooks/guard-sensitive-files.sh`'s header comment names and already covers
+    independently via `hooks/lib/write-targets.py`'s own `tee` parsing (neither bug was
+    ever exposed here, since this repo declares no `Bash(tee:*)` rule of either kind);
+    plugin archives extracted for a session are no longer readable by other local users
+    or left world-writable; `claude plugin eval` (a plugin eval-suite runner) is new and
+    relevant to this toolkit's skills but is tracked as a Future opportunity rather than
+    adopted blind — its `case.yaml`/`prompt.md`+`graders` shape does not match this
+    repo's existing per-skill `evals/evals.json`/`trigger-evals.json` trigger-accuracy
+    harness, so wiring it is a design decision, not a config change.
+  - **2.1.270** — bug-fix-only (a same-week regression in 2.1.269): read-only git
+    commands in Bash no longer unexpectedly ask for permission after a long-running
+    session; relevant since `permissions-allow.json` pre-allows several git commands
+    specifically to avoid this class of friction.
+  - **2.1.271** — a stale `.git/config.lock` after a sandboxed command failure no longer
+    breaks `git checkout -b`/`git push -u`/`git config` for the rest of the session
+    (Linux), relevant since `permissions-allow.json` pre-allows `git push *`/
+    `git remote add *`/`git init` for the same reason, and `hooks/worktree-create.sh`
+    runs through the same sandboxed Bash surface; cross-session `SendMessage` delivery
+    now gives the headless sender a delivery notice instead of holding the message
+    silently. `omitClaudeMd` (new agent frontmatter) and per-command `allowed_domains`
+    for auto-mode sandboxing were reviewed and deliberately not adopted — no `agents/*.md`
+    here should skip the target project's own `CLAUDE.md`, and no shipped rule runs Bash
+    under auto mode with sandboxing.
+  - **2.1.272** — bug-fixes-and-reliability-improvements only, per the official
+    changelog; no adoptable item, just the version bump.
+  - **2.1.273** — a 2.1.268 change that checked `Read`/`Edit` deny rules on Bash lines
+    the permission checker cannot fully analyze (`eval`, `env -C`) is reverted, so a
+    command like `time -p make build` prompts again instead of being silently denied —
+    this repo's `permissions-ask.json`/`permissions-allow.json` name no such rule
+    pattern, so the revert changes host behavior generically but nothing this repo
+    declares. `OTEL_LOG_TOOL_DETAILS=1` now also tags cost/token metrics with real
+    agent, skill, plugin and MCP server names — not wired here, since this repo ships no
+    OpenTelemetry config of its own. The `New Features` list repeats 2.1.271's entries
+    verbatim (fast mode in Remote sessions, `/config` mouse support,
+    `--drain-marker-file`, per-command `allowed_domains`, `omitClaudeMd`,
+    `--accept-command <sha256>`, `modelPricing` multiplier, a gateway spinner tip) — all
+    already reviewed in the 2.1.271 pass above; no new review needed for those.
+  - **2.1.274 (this cycle's new coverage)** — a sub-agent's progress summary is no
+    longer replaced by a runaway multi-paragraph reply, directly relevant to
+    `worker-dev`'s handoff vocabulary (`completed`/`partial`/`failed`/`blocked`) and any
+    `orchestrate-dev` fan-out that reads a worker's summary back; `claude agents` no
+    longer loses `--model`/`--effort`/`--permission-mode`/
+    `--allow-dangerously-skip-permissions`/`--agent` after an auto-update — not exercised
+    by any script here (nothing in this repo shells out to `claude agents` directly),
+    but relevant to a contributor invoking one of the ten `agents/*.md` from that CLI
+    subcommand by hand; a visible low-memory warning is added (host UI, nothing to
+    adopt); `CLAUDE_CODE_MCP_STARTUP_WAIT_MS` is added to extend how long the host waits
+    for a slow-starting MCP server — reviewed against this plugin's one MCP server
+    (`github`, via `scripts/github-mcp.sh`), whose Docker fallback path
+    (`docker run ... ghcr.io/github/github-mcp-server stdio`) can be slow to start on a
+    cold image pull; documented as an available knob in `CLAUDE.md`'s MCP bullet rather
+    than set as a repo default, since it is workstation-dependent. Reviewed and found
+    not applicable: an `effort` attribute on the OTel span (this repo ships no
+    OpenTelemetry config); Bedrock/Vertex/Foundry/telemetry-disabled sessions switching
+    to MCP client v2 by default (this repo targets direct Claude Code/Desktop sessions,
+    not a Bedrock/Vertex/Foundry gateway); a sub-agent `model: "opus"` leaving the wrong
+    session model on Bedrock/Vertex/Foundry (all ten `agents/*.md` here pin
+    `model: sonnet`, and again, no Bedrock/Vertex/Foundry usage); `/code-review` moving
+    from spawning many review subagents to leaner inline prompts — this repo does
+    reference the official `code-review@claude-plugins-official` marketplace plugin in
+    `platforms/claude/settings.d/plugins.json`, but has it deliberately disabled
+    (`false`), so no behavior here changes either way.
+
+### Added
+- **`scripts/update.sh` and `scripts/uninstall.sh` now request `claude plugin update`/
+  `uninstall ... --json`** (added in Claude Code 2.1.268) and surface the returned
+  `message`/`failureCode` on failure, instead of only a generic "run the slash command
+  yourself" fallback. A JSON parse failure (older CLI, unexpected output) still falls
+  back to the previous generic message, so this degrades safely on a `claude` CLI older
+  than 2.1.268.
+- **Root `.claude-code-version` baseline pin**, now `2.1.274`, referenced from
+  `CLAUDE.md`'s "Claude Code CLI baseline" section so a future review does not have to
+  reverse-engineer "the highest version mentioned in prose."
+  `docs/engineering/build-and-release/platform-targets.json`'s `targets.claude_code`
+  block stays authoritative on any disagreement.
+- **`CLAUDE.md`'s MCP bullet now documents `CLAUDE_CODE_MCP_STARTUP_WAIT_MS`** (Claude
+  Code 2.1.274) as a knob for anyone hitting slow startup on `scripts/github-mcp.sh`'s
+  Docker fallback path.
+
+### Documentation
+- `core/capabilities/platforms.json` (and its 3 contract-mirrored copies, kept in sync
+  via `sync-contract-scripts.sh`) and `platform-targets.json`/`.md` advance
+  `last_reviewed` to 2026-09-17; the `claude_code` capability rows for `subagents`,
+  `hooks`, `mcp`, `shell`, `git`, `background_tasks` and `plugin_marketplace` gain dated
+  notes for the full 2.1.263→2.1.274 delta, and `platform-targets.json` gains new
+  `features_adopted` entries. `CLAUDE.md`'s Subagents, Hooks, MCP, Marketplace cache,
+  and Remote and headless Claude sessions sections carry the per-release narrative.
+
+## [3.8.0] — 2026-09-17
+
+### Added
+- **Local usage capture** (`/usage-capture`). Opt-in, localhost-only recorder: Claude
+  Code native OTEL logs/traces into a stdlib Python collector, plus an optional
+  zero-dep OpenCode plugin writing the same Israel-dated JSONL. Metadata by
+  default (model, duration, tokens, skill/command names); API bodies are an
+  explicit `--bodies` sidecar. Nothing is sent off-machine. Env-gated
+  `usage-capture-ensure.sh` on SessionStart. Complements `/session-report`
+  (transcript rollups), it does not replace it. LiteLLM is an opaque labelled
+  gateway (`--gateway-kind litellm`); URLs and raw request IDs are not stored.
+
+## [3.7.0] — 2026-09-17
+
+### Added
+- **`/diagnose-refusal` skill (debugging).** Isolates which layer refused a
+  request — harness policy, project instructions, LiteLLM guardrail/routing,
+  upstream provider filter, model refusal, tool permission, or context
+  contamination — and writes a sanitized `.refusal-debug/` bundle
+  (`report.md`, `request.json`, `response.json`, `routing.md`,
+  `environment.md`, `manifest.txt`). Diagnostics only: never retries the
+  refused task, never bypasses policy, and never records secret values (env
+  names as SET/UNSET; `redact-secrets.py` for pasted bodies). Bundled scripts:
+  `init-bundle.sh`, `collect-environment.sh`, `redact-secrets.py`. Surfaced
+  from `AGENTS.md` when a session refuses/blocks and the user needs the
+  refusal origin. Skill count is now **28**.
+
+## [3.6.3] — 2026-09-16
+
+### Fixed
+- **SessionEnd hooks no longer print "Hook cancelled" on every exit.** Claude
+  Code cancels a plugin's SessionEnd hook after 1.5 s regardless of the
+  `timeout` in `hooks/hooks.json`. `release-agent-claims.sh` spawned one `jq`
+  per file in `~/.agent-work-claims`, which is never swept — 1,443 files took
+  4.5 s, so the hook was killed and released nothing. `claim_release_all` now
+  prefilters with a single `grep -lF` on the agent id (242 ms against 1,503
+  claims) and still confirms ownership with `jq`. `session-end.sh` now runs its
+  archive sync and prunes detached, returning in milliseconds. Pinned by
+  `tests/test-session-end-budget.sh`.
+- **`handoff-reminder.sh` no longer fails SessionEnd hook validation.** It wrapped
+  its reminder in `hookSpecificOutput.hookEventName: "SessionEnd"`, but Claude
+  Code's schema has no `SessionEnd` variant of `hookSpecificOutput` (only
+  `PreToolUse`, `PermissionRequest`, `UserPromptSubmit`, `PostToolUse`,
+  `PostToolBatch`, and `Stop`/`SubagentStop` support it) — every session close
+  from an active worktree threw a "Hook JSON output validation failed" error
+  instead of showing the handoff nudge. It now emits the reminder via the
+  top-level `systemMessage` field, matching `session-end.sh`'s existing
+  SessionEnd output.
+- **27 of the bundled skills silently switched the running session onto the paid 1M-context tier.**
+  Their `model: claude-sonnet-4-6` frontmatter pin no longer resolves to a
+  standard-context model — Claude Code now resolves it to
+  `claude-sonnet-4-6[1m]` instead of ignoring the stale ID, so invoking any of
+  them (`decision`, `plan-dev`, `start-dev`, `pr-dev`, `orchestrate-dev`,
+  `cleanup`, `retro`, and 20 others) switched the session's model mid-run. On
+  an account without usage credits enabled for extended context, the very
+  next request failed outright with "Usage credits required for 1M context" —
+  independent of session age or context usage, since the switch happens at
+  skill-invocation time, not from genuine context growth. Repointed all 27 to
+  the bare `sonnet` alias already used by every `agents/*.md` role definition,
+  which resolves to the current standard-context model instead of a version
+  string that can go stale again.
+- **Gold fixture capability registries now claim only what their fixture trees
+  actually deliver.** `core/capabilities/platforms.json` under `scaffold-gold`,
+  `scaffold-plugin-gold`, and `scaffold-claude-plugin-gold` claimed native
+  plugin-manifest-based skills/mcp/subagents/hooks capabilities the fixture
+  directory trees never shipped. `scaffold-gold` (the app-gold profile, not a
+  plugin-distribution repo) now has its own
+  `core/capabilities/platforms.app.json` registry instead of fake plugin
+  claims; `scaffold-plugin-gold` and `scaffold-claude-plugin-gold` gained the
+  real supporting files (`.mcp.json`, `hooks/hooks.json`, `.codex-plugin/`,
+  `.cursor-plugin/`, `agents/`,
+  `docs/agent-guidelines/platform-equivalence.md`) their registries already
+  claimed, and a schema-invalid `agents`/`commands` array-of-directory-path
+  shape in `scaffold-plugin-gold`'s inner plugin manifest — which failed
+  `claude plugin validate .` — was corrected to rely on folder discovery.
+  `scripts/check-manifest-declares.sh` is now vendored into the contract sync
+  chain and all three fixtures as a prerequisite for the new validations.
+
+### Changed
+- **The platform-targets co-change gate now judges the capability registry by its
+  claims, not by its bytes.** `core/capabilities/platforms.json` was watched by
+  the same rule as the prose paths, so any edit demanded a co-change in
+  `docs/engineering/build-and-release/platform-targets.json`. But that file's
+  `capabilities`/`capability_gaps` are a *derived* mirror of the registry, and a
+  normal run of `check-platform-targets.sh` already asserts semantically that the
+  mirror matches — so a notes-only correction fired a gate whose only remedy was
+  committing an unrelated edit to the derived doc. It is now decided by the
+  capability **status** and platform/surface projection: a demotion, a new
+  platform or a dropped surface still fires, a prose fix does not, and a
+  projection that cannot be made (registry absent at base, a flat
+  `schema_version` 1 registry, a `jq` failure) falls back to the byte answer
+  rather than to silence. Six paired cases added to
+  `tests/test-platform-targets-cochange.sh` (21 passing).
+- **The `codex/subagents` demotion now cites the upstream issue, not just the
+  absence of a field.** The note argued from what the plugin manifest spec does
+  *not* list, which is weak evidence: a spec can omit a field by oversight.
+  openai/codex#28491 — "declare custom subagents inside a plugin manifest
+  (plugin.json)", closed as a duplicate of #18988 — establishes it positively:
+  Codex subagents are standalone `.toml` files in `$CODEX_HOME/agents/` or a
+  per-repo `.codex/agents/`, and bundling one inside a plugin is an open feature
+  request, so there is no plugin-packaging path to the capability today. The
+  status stays `unknown` rather than moving to `unsupported`: the capability
+  exists on the surface, and `unsupported` would claim Codex lacks subagents,
+  which is false. What is unestablished is a route from this plugin to it.
+
+## [3.6.2] — 2026-09-08
+
+### Added
+- **`make assert-contract` now runs in CI, against this repo.** The target existed,
+  passed locally, and guarded nothing: no workflow invoked it, so the one gate that
+  scores this repo against its own standards contract had never blocked a merge. The
+  existing `Repo contract (scaffold-gold)` job asserts the *fixtures*, not the repo.
+  Wiring it exposed that it was also red — see below.
+- **`reviewed_through` in `platform-targets.json`.** A second, separate version claim
+  per target: the newest upstream release whose notes have actually been read for
+  adapter impact, as distinct from `validated_against`, which this repo defines as a
+  live maintainer-machine run. They drift apart on purpose.
+- **README `## Prerequisites`.** The requirements existed as a sentence buried in the
+  install section; they are now a section, split into what using the plugin needs
+  (`git` 2.30+, `jq`, optionally `gh`) and what `make validate` additionally needs
+  (shellcheck, Node 22, Python + `pyyaml`).
+- **OpenCode reviewed through 1.18.29.** All 18 releases from 1.18.12 were retrieved
+  individually and read against this repo's five points of contact; none unverified.
+  No breaking change, no schema-URL change, no change to skill discovery, agent
+  frontmatter, or MCP declaration. `validated_against` stays at 1.18.11 — the review
+  is documentary, and claiming a live run nobody performed is the defect this repo
+  exists to prevent.
+
+### Fixed
+- **The contract's drift checker could not see a class of drift, and caused it.**
+  `sync-contract-scripts.sh` keeps 25 vendored copies byte-identical to their canonical
+  sources. It compared `"$expected" == "$(cat "$dst")"`, and `$(...)` strips every
+  trailing newline on both sides — so a copy differing from canonical by exactly its
+  terminating newline was reported identical. The same stripping ran through the writer
+  (`printf '%s' "$expected"`), so the script had itself written 19 of its 25 copies
+  without a terminating newline, including the gold fixtures' `core/capabilities/*.json`,
+  which every scaffolded repo inherits. Render, compare and write are now byte-faithful,
+  and all 25 copies were regenerated. Proven: the old checker reports
+  "25 copies identical to canonical" (exit 0) on a file it disagrees with by one byte;
+  the new one reports `DRIFT` and exits 1.
+- **The registry's own review clock was never read.** `core/capabilities/platforms.json`
+  carries `last_reviewed`, and three scripts read the field only to copy it into a fact
+  block; none compared it to a date. The repo therefore policed the 90-day review budget
+  on `platform-targets.json` (V1-05) while the file that actually makes the capability
+  claims aged unwatched. `check-capability-registry.sh` — already in `make validate` —
+  now fails on a missing, stale, or future-dated `last_reviewed`, on the same 90-day
+  budget, so the two review clocks run on one policy.
+- **The `platform-targets.json` 90-day check could not fail, and skipped in silence.**
+  Its comment read "warn only unless assert", but no assert branch was ever written and
+  `warn()` does not touch `FAILED`. It now errors under `--assert-current` and warns
+  otherwise, as the comment always claimed. Separately, when neither `date -v-90d` nor
+  `date -d '90 days ago'` worked, `cutoff` was empty and the `[[ -n "$cutoff" && ... ]]`
+  guard skipped the comparison without a word — an unverifiable check reported as a pass.
+  It now fails loudly.
+- **V1-04 measured a number the repo deliberately keeps behind.** The rule fired on
+  `validated_against < latest_known`, but `validated_against` means "last exercised on
+  a live maintainer machine" and lags by design — `platform-targets.md` already said
+  so in prose. So the rule reported a gap for Codex that the documentation had already
+  closed, and could only ever be silenced by a live run or by inventing a version. It
+  now fires on `reviewed_through < latest_known` — releases nobody has read, the gap a
+  contributor can actually close — and falls back to `validated_against` when a repo
+  has no `reviewed_through`, so consumer repos and the gold fixtures score exactly as
+  before. The `validated_against` lag stays bounded by `last_reviewed` and V1-05's
+  90-day budget. Verified the rule can still fail: rolling OpenCode's
+  `reviewed_through` back to 1.18.11 reproduces V1-04.
+
+### Security
+- **Every workflow action is now pinned to a commit SHA, and a check keeps it
+  that way.** `uses: actions/checkout@v7` names a tag, not a version, and a tag
+  is a pointer its owner can move — `v7` meant v7.0.0 when `release.yml` was
+  written and means v7.0.1 today, with no commit here and no PR to review. That
+  is a third party holding write access to this repo's CI. `ci.yml` was already
+  SHA-pinned throughout; `release.yml:18` was not, and nothing noticed, because
+  the standard was *practised rather than checked* — the same failure mode as a
+  validator nobody runs.
+- The gold fixtures mattered more than either. `scaffold-gold` and
+  `scaffold-plugin-gold` shipped eight unpinned `@v4` refs, and those workflows
+  are copied into every repository scaffolded from this plugin, so the unpinned
+  default propagated rather than staying local. All eight now carry the SHA the
+  `v4` tag pointed at, with `# v4.4.0` beside it.
+- New `scripts/check-action-pinning.sh`, wired into `make validate`. It exempts
+  local `./...` actions (nothing external to pin), accepts a `docker://` image
+  pinned to `@sha256:<64 hex>` and fails any other docker tag, and honours an
+  explicit `action-pin-ok: <reason>` waiver on the line — never a path-shaped
+  carve-out, which is how a mutable ref creeps back. `--self-test` builds a
+  violating workflow and its corrected twin, so the detector is proven to fire
+  and proven to go quiet.
+- **The pinning check now scans the whole repository, and the scaffold templates
+  are pinned too.** The first version named two roots — `.github/workflows` and
+  `skills/repo/_contract/fixtures` — and so reported "all action refs are
+  SHA-pinned" while 18 mutable refs sat in `skills/repo/_contract/templates/`,
+  the files `repo-scaffold` actually renders into a new repository. A list of
+  places to look is only ever as complete as its author's memory; the checker
+  now walks the tree and waives by comment instead. `ci.yml.tmpl`,
+  `ci-plugin.yml.tmpl` and `legacy-scaffold-templates.md` are pinned to the same
+  SHAs the gold fixtures use, so one Dependabot PR moves both.
+
+### Added
+- **A regression test for the standards-inventory path coverage**,
+  `tests/test-standards-inventory-paths.sh` (22 assertions, picked up
+  automatically by `make test-hooks` and so by `make validate` and CI). It pins
+  every location GitHub honours for `CODEOWNERS` and every spelling it accepts
+  for `LICENSE`, and pins them **in both directions**: each recognised location
+  is paired with a repo that has the file nowhere, so a "fix" that hardcodes
+  `true` fails the suite; `src/CODEOWNERS` must still read as absent, so the
+  search is widened to the platform's rule rather than to the whole tree; and
+  root-only conventions are asserted to stay root-only. Against the pre-fix
+  inventory it reports `passed: 11  failed: 6`.
+- **The four licence spellings the suite above still left unasserted.** The
+  inventory probes eight names (`LICENSE`, `LICENCE` and `COPYING`, with `.md`
+  and `.txt` where GitHub accepts them); only four of them were covered, so half
+  the widened list was unprotected. Adds `LICENCE`, `LICENCE.md`, `LICENCE.txt`
+  and `COPYING.md`, plus the negative control the licence half was missing:
+  `docs/LICENSE` must **not** count, so the search is widened to the eight names
+  GitHub honours at the root rather than to any file called LICENSE anywhere in
+  the tree. 22 assertions; against the pre-fix inventory, `passed: 12
+  failed: 10`.
+
+### Fixed
+- **The platform-targets co-change gate judged a push by its last commit, and
+  matched its watch list as a regex.** Two independent defects in
+  `scripts/check-platform-targets.sh --require-co-change`. It diffed
+  `HEAD~1 HEAD`, so a push of several commits — and every PR longer than one
+  commit — was decided by whichever commit happened to be on top: a change to
+  `skills/repo/repo-standards/` in the first of three commits passed the gate
+  outright. The range now starts at the merge-base with the base the branch left
+  (`GITHUB_BASE_REF` on a `pull_request`, the event payload's before-SHA on a
+  `push`), falling back to `HEAD~1` when neither exists so a local
+  `make platform-targets-cochange` still works with no CI environment, and
+  falling back rather than crashing when a shallow clone cannot see the base.
+  Separately, each watch path was passed to `grep -q "^${p}"` as a *pattern*, so
+  every `.` matched any character and `core/capabilities/platforms.json` also
+  fired on `core/capabilities/platforms_json.txt` — a gate that fires on files
+  nobody asked it to watch is a gate people learn to ignore. Matching is now
+  literal, with the intended semantics made explicit: an entry ending in `/` is a
+  directory prefix, every other entry is an exact file. New
+  `tests/test-platform-targets-cochange.sh` (15 assertions, auto-discovered by
+  `make test-hooks`) pins both directions — the over-match cases are paired with
+  the real watched paths and the range cases with a clean multi-commit range, so
+  neither "never fire" nor "always fire" passes. Against the pre-fix script it
+  reports `passed: 9  failed: 6`.
+- **Ten capability rows were validated by a command that could not tell whether
+  the capability existed.** Nine read `jq empty <manifest>` and one read
+  `test -d "$HOME/.claude/projects"`. Both shapes *can* fail — delete the file
+  and they do — but only for a reason unrelated to the claim: drop the `skills`
+  key from `.codex-plugin/plugin.json`, delete every skill directory, and a
+  manifest with no skills in it is still valid JSON, so the row stays green
+  while the capability is gone. This is the same defect as the `opencode/mcp`
+  one below, seen one step further out: the verdict was decided by something
+  other than the claim it was attached to. All ten now run a command that
+  asserts what the row says, and every one of them was executed against this
+  tree as evidence rather than reasoned about.
+- **New `scripts/check-manifest-declares.sh`**, wired into `make validate` as
+  `make check-manifest-declares`. Given a manifest and the keys a capability row
+  depends on, it asserts the key is present, is not an empty array/object/string,
+  and that every `./…` or `${CLAUDE_PLUGIN_ROOT}/…` path anywhere under it
+  resolves in this tree. `--or-discovers <dir>` handles the folder-discovery
+  case: Cursor reads `agents/` only while the manifest names no `agents` path,
+  so the check follows that rule rather than assuming it — the moment someone
+  adds an `agents` key, discovery stops and the check switches to the declared
+  paths, where `test -d agents` would have kept passing regardless.
+  `--self-test` runs 20 fixtures and 6 live manifest rows with their path counts
+  pinned, and was verified by mutating the checker four ways and confirming each
+  mutation turns it red.
+- **Two capability statuses were wrong, and are now demoted rather than
+  re-worded.** `codex/subagents` `native` → `unknown`: the published Codex
+  plugin manifest spec lists no agents or subagents field and documents no
+  `agents/` folder discovery, this repo ships no Codex agent mirror (unlike
+  `.gemini/agents/`), and the row's supporting sentence about cloud subagents
+  was the *same sentence, date included*, that sat on the Cursor row — one note
+  copied, not two facts established. `cursor/slash_commands` `native` →
+  `partial`: the limit is on this repo's side, not Cursor's — there is no
+  `commands/` directory and no `commands` key, so it ships zero of them.
+  `cursor/subagents` was investigated for the same demotion and **stays
+  `native`**: the vendor documentation, read verbatim rather than summarised,
+  establishes that folder discovery does deliver it.
+- **Five rows cited, as their evidence, a file this registry generates.**
+  `platform-targets.json`'s per-target `capabilities` array is a derived mirror
+  of `core/capabilities/platforms.json`, regenerated by
+  `check-platform-targets.sh --sync-capabilities`, so a row citing it was citing
+  itself. A new rule in `check-capability-registry.sh` (§3g) rejects the
+  phrasing outright — 114 rows checked. One rewritten note tripped the new rule
+  by quoting the banned phrase verbatim; the note was reworded, not the rule
+  weakened.
+- **The "cannot distinguish" rule is now mechanical, and it reaches the second
+  place these commands live.** `check-capability-registry.sh` rejects a
+  validation that is *entirely* `jq empty <file>` or `test -[fed] <file>`; only
+  the whole command counts, so `jq empty hooks/hooks.json && make test-hooks`
+  remains correct by construction. It also scans `platforms/*/adapter.yaml`,
+  which carries its own `validation.command` and had two copies of the identical
+  defect — a rule that polices one copy of a claim and not the other relocates
+  the class instead of removing it. 60 commands now checked, up from 50.
+  `platforms/codex/adapter.yaml` additionally claimed MCP servers are configured
+  in `.codex/config.toml`, a user-level runtime file that declares nothing this
+  plugin ships; they are declared in the plugin manifest.
+- **`opencode/mcp` was validated by a command that could not fail, naming a key
+  this repo has never shipped.** The row read
+  `validation: jq -e '.mcp // {}' opencode.json`. The `// {}` substitutes an
+  empty object when `.mcp` is absent and `jq -e` only exits non-zero on `false`
+  or `null`, so the command returned 0 for every possible input — and
+  `opencode.json` has only ever had `$schema` and `skills`. Its note also read
+  "Configured in opencode.json", which was untrue: `docs/user/install/opencode.md`
+  tells the user to port the `mcp` entries they want. The status stays `native`
+  (OpenCode does read MCP servers natively, from the `mcp` block rather than
+  `.mcp.json`); the validation now asserts the documented path, which can
+  actually fail, and the note says what this repo ships and what it does not.
+- **`check-capability-registry.sh` now rejects a validation command that cannot
+  fail** — mechanically, a `//` fallback inside a `jq -e`. The schema requires a
+  validation for every `native` claim so the claim is evidence rather than
+  assertion; a command that exits 0 on every input converts it back into an
+  assertion while looking rigorous. Scans all 50 validation commands and refuses
+  to report success on a zero-row read.
+
+- **`codex.hooks` claimed `since: 0.147.0`, a version that is not when Codex
+  hooks arrived and is ahead of the `0.146.0` anyone actually ran.** The number
+  had been copied from the `features_adopted` entry next to it,
+  `portable-agent-plugins-0.147.0` — a different change (plugin catalog
+  install) — while the `hooks-field` entry beside it is unversioned precisely
+  because the floor was never established. Codex accepted a manifest `hooks`
+  field roughly twenty releases earlier (openai/codex PR #19705, merged
+  2026-04-28). The `since` is now absent rather than wrong: the exact floor is
+  still unestablished, and the row says so. `validated_against` was left at
+  `0.146.0` — raising it would assert a validation nobody performed.
+- **`check-capability-registry.sh` now fails a `since` that is ahead of its
+  platform's `validated_against` and carries no `since_source`.** A version we
+  have not run is a documentation claim, and it must name the document; the new
+  optional `since_source` field (added to `schema.json`) is where it goes.
+  Two traps the check deliberately avoids, both hit while writing it: it reads
+  `REGISTRY_CANONICAL`, not the flattened `REGISTRY` temp copy that has no
+  `.surfaces` (the first draft read the wrong one, jq failed, the loop got zero
+  rows, and the check reported `ok`); and it joins surface → target, not
+  platform → target, because the registry keys platforms `claude`/`gemini`
+  while `platform-targets.json` keys them `claude_code`/`gemini_cli` — the
+  platform join silently finds no target for 14 of the 21 rows. It refuses to
+  report success on a zero-row scan, and names any surface it could not check.
+- **`docker://` was documented as exempt, reported unconditionally, and could
+  not be silenced by the fix it recommended.** The header filed it under "what
+  is exempt" as *reported, not failed*, but every finding exits 1 and the branch
+  printed before any digest handling — so
+  `uses: docker://ghcr.io/owner/img@sha256:<64 hex>`, which is already
+  immutably pinned, failed the check and was told to pin by digest. A gate whose
+  own remedy does not clear it is exactly what teaches people to add the
+  path-shaped carve-out the header warns against two lines later. Docker refs
+  now go through the same immutability test as actions, in docker's syntax:
+  `@sha256:` followed by 64 lowercase hex passes, anything else (`:v1`,
+  `:latest`, a truncated digest) fails. Third instance in this one script of a
+  verdict decided by where the code looked rather than by what is true, and the
+  second of the three inside the exemption path — the part whose job is to make
+  findings disappear, and therefore the part where a bug is silent.
+- **`check-action-pinning.sh` matched `uses:` as a substring, so
+  `**Common errors and their causes:**` parsed as a workflow step** (`ca-uses:`).
+  It now requires `uses:` to be the YAML key. In Markdown it reads only fenced
+  blocks, so prose *about* a movable tag — including the Security entries above
+  — is no longer reported as one. Found by running the detector against the real
+  tree rather than against its own fixtures: fixtures encode what the author
+  already thought of, the tree contains what they did not.
+- **`--help` printed a hardcoded line range** (`sed -n '2,36p'`) and silently
+  truncated as soon as the header grew. It now prints the header block itself.
+- **The `action-pin-ok:` waiver was itself a substring match**, so a ref carrying
+  the token waived itself and was never reported —
+  `uses: docker://ghcr.io/owner/action-pin-ok:v1` is the shape, the docker
+  `name:tag` syntax supplying the colon the glob wanted. Only the comment part of
+  a line can waive now. Same defect as the `uses:` glob above, in the code that
+  was supposed to be the deliberate escape hatch.
+- **The self-test could not see the scan root, which is the half that hid the 18
+  refs.** Every assertion called `scan()` directly, so reverting `scan "."` to
+  `scan ".github/workflows"` left the whole suite green — the coverage bug was
+  invisible to the test written to catch coverage bugs. There is now an
+  end-to-end case: the script re-invokes itself against a planted tree whose only
+  unpinned ref sits outside `.github`, and requires exit 1 exactly. Asserting the
+  exact code matters — the first version ran the planted tree under `sh`, which
+  cannot parse this script's process substitution, and the syntax error's exit
+  read as "the ref was found".
+- **The standards scorer invented gaps from an incomplete read.**
+  `standards-inventory.sh` probed a single path for two controls the platform
+  reads from several, so `score-standards-gaps.sh` asserted the control was
+  missing on repos where it is present and working:
+  - **S4-01 (P2), CODEOWNERS.** GitHub honours `.github/CODEOWNERS`, root
+    `CODEOWNERS` and `docs/CODEOWNERS` with equal weight, and `.github/` is the
+    most common of the three. Only the root was checked, so `st-claude` — whose
+    `.github/CODEOWNERS` reads `* @TamirCohen28` — scored a P2 gap against a
+    control it has.
+  - **S5-01 (P1), LICENSE.** Only the exact name `LICENSE` was checked, so a repo
+    carrying `LICENSE.md` was told at the highest severity that it has no licence.
+    `LICENCE`, `COPYING` and the `.md`/`.txt` spellings are now accepted too.
+
+  The S4 section of that same file already warns that "a gap invented from a
+  failed read is the defect this family used to have" — about its API-backed
+  checks. The lesson had never been applied to the local-filesystem checks
+  sitting twenty lines above it. `.gitignore` is genuinely single-name and
+  single-location; `CLAUDE.md` and `AGENTS.md` are deliberately left root-only,
+  because the inventory asks whether the repo has a root entrypoint, and a
+  nested file is supplementary context rather than that entrypoint.
+
+- **`github-policy` was unreachable on OpenCode, and invisible in the docs.** The
+  skill shipped, but `opencode.json` enumerates `skills/repo/*` one directory at a
+  time (to keep the `_contract` gold fixtures out) and the enumeration was never
+  extended when the skill landed. The same omission had propagated to the
+  user-facing catalog in `docs/user/skills.md` and to the copy-paste config block
+  in `docs/user/install/opencode.md`, so a user following the install guide
+  reproduced the broken config by hand. All three now list it.
+
+### Added
+- **Drift checks that can see an omission, not only a rename.** The old contract
+  assertion walked the manifest and checked each declared path existed, so a skill
+  the manifest never mentions passed silently — which is exactly how the above
+  shipped. `contract_skill_coverage` walks the other direction, from every
+  canonical `SKILL.md` on disk back to the declared paths, and runs in the Claude,
+  Cursor, Codex and OpenCode suites. `check-agent-drift.sh` gained a matching
+  catalog half for `docs/user/skills.md`, and a thin-adapter half that fails when a
+  `## ` section body is byte-identical in `AGENTS.md` and `CLAUDE.md`. The script
+  previously validated frontmatter only, and reported "no drift detected" while an
+  entire section sat duplicated between the two files.
+- **`make test-contract`**, wired into `make validate`, so the platform contract
+  suites run in CI with the rest of the local-parity gate instead of by hand.
+- **`.opencode/` build artifacts are ignored by the repo, not by a stray local
+  file.** The contract suite asserts `.opencode/node_modules` is gitignored, and
+  it passed on a maintainer machine only because the OpenCode CLI drops its own
+  `.opencode/.gitignore` there — a file that ignores *itself*, so it can never be
+  committed and does not exist on a fresh checkout. The root `.gitignore` did not
+  cover the path either: `node_modules/` is a directory-only pattern, which
+  `git check-ignore` matches only when the directory exists. Explicit,
+  trailing-slash-free entries now hold on any checkout. Surfaced by running the
+  contract suites in CI for the first time.
+- **OpenCode `latest_known` refreshed** from 1.18.18 (published 2026-08-13) to
+  1.18.29 (published 2026-09-04), read from `registry.npmjs.org/opencode-ai`
+  `dist-tags.latest`. `validated_against` stays at 1.18.11 — that is the build
+  actually run, and moving it would be invention.
+
+### Changed
+- **`CLAUDE.md` points at `AGENTS.md` for the skill-surfacing rule** rather than
+  restating it verbatim, and the Cursor `plugin-structure` adapter now names five
+  platforms and six surfaces, matching the registry and `AGENTS.md` instead of
+  dropping Claude Desktop.
+
+- **A removed session worktree stays removed.** `capture-task-slug.sh` ran
+  `[[ ! -d $worktree_path ]] && git worktree add -B` on *every* prompt, which
+  undid every removal — `git worktree remove`, the `cleanup` skill's worktree
+  phase, and this plugin's own stale-worktree retention pass — restoring the
+  `wt/*` branch along with it. Creation now happens once and is recorded; a path
+  that disappears afterwards is treated as a deliberate removal and the session
+  is retired. An `Edit` is the demand signal, so `enforce-worktree-edits.sh`
+  rebuilds on demand and still denies, but with a destination that exists.
+
+  Four defects found alongside it: `session-init.sh` mistook the `session-files`
+  directory it had just created for a live worktree; a session editing a second
+  repo was pointed at the first repo's worktree; rebuilding with `-B` **reset**
+  a retained `wt/*` branch to the base ref, stranding commits that existed
+  nowhere else; and a rebuild was blocked outright by a prunable registration
+  left by `rm -rf`, or by a leftover `session-files` shell on the path.
+
+### Removed
+- **The employer IP-guard hook, and every remaining reference to the employer it
+  named.** The hook shipped one employer's internal namespace — registries, API
+  hostnames, credential prefixes and scoped packages, as literal strings — to
+  every user of a public plugin. It was a real need for its author and
+  meaningless to everyone else, and the names it existed to keep out of other
+  repos were sitting in this one. It is deleted and unwired from `hooks.json`.
+
+  Removed rather than converted to a configurable deny-list, which is what
+  `docs/engineering/architecture/repo-shape-conditionality.md` §5 had open. That
+  seam already exists: `scripts/lib/capture-common.sh` drives an IP scan from
+  generic internal-hostname shapes plus an optional per-machine
+  `$TAMIRS_EMPLOYER_PATTERN` / `~/.config/tamirs-superpowers/scan-patterns.txt`.
+  A second deny-list in a `PostToolUse` hook would have duplicated it, with the
+  same maintenance and one more place for a private name to land.
+
+### Changed
+- **Cursor 3.11 (+2026-09-02):** advance `changelog_date` **2026-08-27 → 2026-09-02** (desktop **3.18.9** / feature **3.11** unchanged). Document Cursor **Self-Hosted Machines** (My Machines / Team Pools / partner sandboxes) + **computer use on Linux/Mac**, and the hard distinction from GitHub Actions self-hosted runners (this public plugin stays on `ubuntu-latest`). Cursor-only.
+- **Platform target: Claude Code 2.1.263** (`validated_against` 2.1.257 → 2.1.263; this cycle covers 2.1.259,
+  2.1.260, 2.1.261 and 2.1.263 — 2.1.262 does not exist in the official changelog). This
+  cycle's automation environment had a live `claude` CLI, and it reported exactly `2.1.263` —
+  matching the changelog target — so `validated_against` advances all the way to it.
+  `claude plugin validate .` (plain and `--json`) and `bash scripts/doctor.sh .` were both
+  re-run for real and passed: marketplace manifest valid, every capability row
+  native/native-experimental/partial as expected. 2.1.260 fixes
+  `permissions.blockReadsOutsideWorkingDirectories` hiding a worktree-isolated sub-agent's own
+  checkout on macOS (this repo does not set that permission — reviewed and left out of
+  `platforms/claude/settings.d/` in an earlier cycle as a personal auto-mode preference, not a
+  plugin default — but the fix benefits worktree isolation for anyone who enables it alongside
+  `hooks/worktree-create.sh`/`hooks/enforce-worktree-edits.sh`, now documented in `CLAUDE.md`'s
+  Hooks bullet), and adds `/reload-plugins` to headless (`-p`/SDK) sessions (documented in
+  `CLAUDE.md`'s Remote/headless section). 2.1.261 adds `/skill-doctor`, which surfaces unused
+  loaded skills and their context cost — directly relevant to this toolkit's "27 skills", and
+  now called out as a maintenance tip in
+  `docs/engineering/build-and-release/development-workflow.md` — and `bashOutputMaxChars`/
+  `taskOutputMaxChars` (raises inline command/task output before it spills to a file); the
+  latter is not wired anywhere, since no hook or `make validate` output here is known to hit
+  the default threshold. Reviewed and found not applicable:
+  `--append-subagent-system-prompt-file` (2.1.261) — this repo's subagents run natively via
+  `agents/*.md` frontmatter rather than a `claude` CLI system-prompt flag, and the one place a
+  large prompt feeds a `claude -p` subprocess (`skill-creator`'s `improve_description.py`)
+  already sends it over stdin, not argv, so the argv-length problem this flag solves does not
+  exist here; the 2.1.260 revert of 2.1.259's `Read()`-deny-on-Bash-args change — this repo's
+  worktree/sensitive-file isolation is enforced by hooks, not `Read(...)` deny rules in
+  settings, so neither the original change nor its revert touched anything here; and Workflow
+  tool `agent({schema})` validation (2.1.260) — this repo authors no Workflow scripts
+  (`core/workflow/` is an unrelated, repo-internal objective-state schema). 2.1.263 is bug
+  fixes and reliability improvements only, per the official changelog; nothing plugin-facing to
+  adopt. Re-verified 2026-09-07 against a live `claude` CLI still reporting `2.1.263` and the
+  official changelog still topping out at `2.1.263`: no newer release exists.
+  `docs/engineering/build-and-release/platform-targets.{json,md}` and the README Claude Code
+  badge/table row advance to 2.1.263 alongside this entry.
+- **The employer scanners no longer name a company.** `tests/test-static.sh` and
+  the `run-tamirs-superpowers` check 7 both matched a hardcoded company regex —
+  so the check against shipping an employer reference was itself an employer
+  reference. Both now use generic internal-hostname shapes plus
+  `$TAMIRS_EMPLOYER_PATTERN`, and exclude RFC 2606 / RFC 6761 documentation
+  domains so `find-skill`'s `registry.internal.example` stays clean. The static
+  suite's positive control still fires — on a synthetic internal hostname built
+  from a placeholder company, not a real one.
+- **`hooks/validate-report-links.sh`** keys its Grafana URL check on `grafana`
+  and `app-analytics` only; the employer-specific analytics hostname is gone.
+  The generic GitHub / Slack / placeholder checks are unchanged.
+- **`assets/banner.png`** re-encoded losslessly. Its compressed IDAT stream
+  happened to contain a three-byte sequence spelling the employer's name, so a
+  case-insensitive `grep -r` over the repo reported the image as a match.
+  Decoded pixel data, `IHDR` and every metadata chunk are byte-identical; the
+  file is 235 KB smaller as a side effect.
+
+### Fixed
+- **`hooks/docker-guard.py` was bypassable through the `Shell` tool** (#107).
+  The guard opened with `if data.get("tool_name") != "Bash"` and dropped every
+  other payload, while `hooks/hooks.json` wires it on `"Bash|Shell"`. So the
+  no-local-Docker rule was enforceable through `Bash` and unenforceable through
+  `Shell` — the same bypass-by-sibling-tool shape closed in
+  `guard-sensitive-files.sh`, and worse for sitting inside a matcher that
+  *claims* to cover `Shell`. The tool set is now the constant `TOOLS`, pinned by
+  a test against the matcher in `hooks.json`, so the two cannot drift apart
+  silently again.
+- **The guard's allow paths emitted nothing at all.** Empty stdout is not a
+  portable pass: Claude Code reads it as allow, Cursor fail-closes on it, so one
+  verdict meant "permit" on one host and "deny" on the other. Every exit now
+  prints the allow shape `hooks/lib/hook-output.sh` defines — `{}` on Claude
+  Code, `{"permission":"allow"}` on Cursor, chosen from the payload.
+
+### Added
+- **`tests/test-docker-guard.sh`** — the guard had no tests. `test-hook-stdin.sh`
+  sweeps `hooks/*.sh`, so the one Python hook was never swept, which is how the
+  gap above went unwatched. Every risky and safe command is asserted through
+  *every* name in `TOOLS`, because a `Bash`-only suite passes unchanged against
+  the broken code — the defect exists only as the difference between two tools
+  on the same command. Verified by reverting the fix: 5 assertions fail, all of
+  them `Shell`, and every `Bash` assertion still passes.
+
+### Fixed
+- **`scripts/check-branch-literals.sh` was red, and nothing ran it.** Its single
+  hit was prose, not code: a comment in
+  `skills/repo/_contract/scripts/standards-inventory.sh` recounting the real
+  2026-09-01 incident in which a checkout one commit behind `origin/master`
+  reported the canonical version as 3.4.0 when it was 3.5.0. That literal *is*
+  the historical fact being recorded — there is no branch to resolve — so it now
+  carries the waiver the scanner was built for (`branch-literal-ok: <reason>`)
+  rather than being reworded to satisfy a matcher. PR #119 saw this failure and
+  correctly scoped it out; this is that follow-up.
+
+### Changed
+- **`make validate` now runs `check-branch-literals`.** The script was reachable
+  from no target and no CI job, which is why the failure above could sit red
+  without failing anything — precisely the rot its own header names: "a check
+  that has never been shown to fail is indistinguishable from a check that greps
+  nothing, and this repo has shipped several of those." The new target invokes it
+  as `. --self-test`, so each run first proves the detector fires on 9 planted
+  literals and stays silent on 6 legitimate ones, then scans the tree. Wiring it
+  into `validate` carries it into CI, which already gates on `make validate`.
+
+
+---
+
+Older entries (3.6.1 and earlier) live in [CHANGELOG-archive-1.md](CHANGELOG-archive-1.md), [CHANGELOG-archive-2.md](CHANGELOG-archive-2.md), and [CHANGELOG-archive-3.md](CHANGELOG-archive-3.md) — split out 2026-09-17 to keep this file a size the repo's own tooling and its GitHub write path can reliably round-trip. No content was removed, only relocated.
