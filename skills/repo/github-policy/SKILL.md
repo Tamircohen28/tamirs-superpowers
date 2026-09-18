@@ -14,7 +14,7 @@ allowed-tools:
 - Grep
 - Glob
 disallowed-tools: []
-model: claude-sonnet-4-6
+model: sonnet
 effort: high
 context: ''
 agent: ''

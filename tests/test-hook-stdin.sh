@@ -33,7 +33,7 @@ trap 'rm -rf "$TMPROOT"' EXIT
 export HOME="$TMPROOT/home"
 mkdir -p "$HOME/.claude"
 # Keep the opt-in network check inert and claims contained.
-unset CLAUDE_EXIT_PROXY CLAUDE_EXIT_PUBLIC_IP 2>/dev/null || true
+unset CLAUDE_EXIT_PROXY CLAUDE_EXIT_PUBLIC_IP TAMIRS_USAGE_CAPTURE TAMIRS_USAGE_CAPTURE_DIR TAMIRS_USAGE_CAPTURE_PORT 2>/dev/null || true
 export AGENT_CLAIM_DIR="$TMPROOT/claims"
 
 ok()  { PASS=$((PASS + 1)); printf '  ok   %s\n' "$1"; }

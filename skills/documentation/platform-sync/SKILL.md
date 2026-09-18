@@ -32,7 +32,7 @@ allowed-tools:
   - Skill
   - WebFetch
 disallowed-tools: []
-model: claude-sonnet-4-6
+model: sonnet
 effort: high
 context: ''
 agent: ''
