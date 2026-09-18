@@ -6,6 +6,10 @@ All notable changes are recorded here and in [`../CHANGELOG.md`](../CHANGELOG.md
 
 See root [CHANGELOG.md](../CHANGELOG.md#unreleased) for in-progress entries.
 
+## [3.8.2] — 2026-09-17
+
+Consolidates the Claude Code platform-sync review cycles that had accumulated on this repo's rolling `claude-code-update` PR, now reconciled against master (through the 3.8.0 usage-capture release) and extended through 2.1.274 on live-CLI evidence — the largest single item is adopting `claude plugin update/uninstall --json` diagnostics in `scripts/update.sh`/`scripts/uninstall.sh` for specific failure messages instead of a generic fallback (2.1.268). See root [CHANGELOG.md](../CHANGELOG.md#382--2026-09-17) for the full per-release narrative.
+
 ## [3.8.0] — 2026-09-17
 
 Opt-in local usage capture (`/usage-capture`): Claude Code OTEL plus an optional

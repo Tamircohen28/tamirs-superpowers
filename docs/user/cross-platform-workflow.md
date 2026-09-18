@@ -32,7 +32,14 @@ See [platform capabilities](../../skills/dev-workflow/switch-dev/references/plat
 > inline in a busy multi-session run. Useful for
 > coordinating parallel Claude Code sessions live; messages to a session
 > running with bypassed permissions are held for your approval
-> (`crossSessionInbound` setting). This complements — not replaces — the
+> (`crossSessionInbound` setting). Since 2.1.271, a message held by the
+> receiving session's permission-mode policy no longer vanishes without a
+> trace: a headless sender now gets a delivery notice instead of silence,
+> and a `SendMessage` result no longer implies the message was read — so a
+> handoff between platform-sync automation runs (or between an
+> `orchestrate-dev` session and a headless follow-up) now surfaces a stuck
+> message instead of looking like a successful, acknowledged send. This
+> complements — not replaces — the
 > handoff flow below, which is the only path that carries task state **across
 > platforms** (Cursor, Codex, OpenCode) and across time via GitHub Issues.
 
