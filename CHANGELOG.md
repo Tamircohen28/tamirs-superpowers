@@ -7,6 +7,46 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 - **Cursor 3.11 (+2026-09-10 / desktop 3.20.17):** advance Cursor coverage through **Projects** (coordinator, shared context, subscriptions) and desktop **3.18.9 → 3.20.17**. Feature pin remains **3.11**. `make validate` expected green. Cursor-only.
 
+## [3.8.3] — 2026-09-20
+
+### Changed
+
+- **Claude Code platform-sync review advances through 2.1.278** (from 2.1.274, the last
+  version reflected on master), covering 2.1.275, 2.1.276, 2.1.277 and 2.1.278. No live
+  `claude` CLI was available this cycle, so the advance is changelog-only, the same
+  evidence basis the 2.1.263→2.1.273 reconciliation used. `validated_against`,
+  `reviewed_through` and `latest_known` all advance to **2.1.278** together.
+  `.claude-code-version`, the README badge/table row, and `platform-targets.md`'s
+  table/prose all advance to `2.1.278` for the Claude Code row only — Cursor, Codex,
+  Gemini CLI and OpenCode rows are untouched, since those are owned by sibling
+  automated tasks.
+  - **2.1.275** — `/plugin install <plugin> --marketplace <source>` installs from a
+    marketplace in one step, tracked as a Future opportunity against
+    `docs/user/install/claude-code.md`'s existing two-step sequence rather than
+    rewritten this cycle; skills/plugins enabled on a user's claude.ai account now sync
+    into terminal sessions automatically, opt-out via `syncClaudeAiSkills: false` /
+    `syncClaudeAiPlugins: false`, now documented in `CLAUDE.md`'s Marketplace cache
+    section alongside a name-collision note; plugin/marketplace messages no longer leak
+    a URL-embedded secret (host-side, not exposed here); `claude plugin marketplace
+    update` no longer deletes the local cache on a failed fetch — directly relevant to
+    this repo's own `/plugin marketplace update tamirs-marketplace` instruction.
+  - **2.1.276** — no changelog entry relevant to this repo in the reviewed delta.
+  - **2.1.277** — Claude Code now reads `AGENTS.md` instead of `CLAUDE.md` when a
+    project has none; this repo's own root and everything `repo-scaffold`/
+    `multi-agent-repo` generate always ship both files, so the fallback has nothing to
+    engage on here, reviewed and recorded as not applicable rather than silently
+    skipped. **Removed the deprecated `TaskOutput` tool** (breaking upstream) — every
+    `agents/*.md` `tools:` line and every skill/hook/doc here was grepped for
+    `TaskOutput`; zero references, so nothing here ever relied on it.
+  - **2.1.278** — Auto mode for API/Enterprise/Bedrock/Vertex/Foundry/gateway users now
+    defaults to a server-side classifier; reviewed and not applicable, same as every
+    other Bedrock/Vertex/Foundry/gateway item in this repo's review history, since this
+    repo targets direct Claude Code/Desktop sessions.
+
+  No breaking change in the 2.1.275→2.1.278 range affects this repo. Full narrative:
+  `CLAUDE.md`'s Subagents, Marketplace cache and Project instructions bullets, and
+  `platform-targets.json`'s `verification_method`.
+
 ## [3.8.2] — 2026-09-17
 
 Consolidates five Claude Code platform-sync review cycles that had accumulated on this
