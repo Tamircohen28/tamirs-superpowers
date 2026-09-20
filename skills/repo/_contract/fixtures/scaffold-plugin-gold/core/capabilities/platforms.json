@@ -4,7 +4,7 @@
   "capability_definitions": {
     "skills": {
       "summary": "Discovers and loads SKILL.md files shipped by this repo.",
-      "degradation": "None possible — a target without skills is not a supported target."
+      "degradation": "None possible \u2014 a target without skills is not a supported target."
     },
     "skill_auto_invocation": {
       "summary": "Selects a skill from its description without the user naming it.",
@@ -32,7 +32,7 @@
     },
     "statusline": {
       "summary": "Renders a repo-provided status line in the session chrome.",
-      "degradation": "Purely cosmetic — omit it. Never make a skill depend on it."
+      "degradation": "Purely cosmetic \u2014 omit it. Never make a skill depend on it."
     },
     "shell": {
       "summary": "Executes arbitrary shell commands in the workspace.",
@@ -118,7 +118,7 @@
               "status": "native",
               "since": "2.0.0",
               "validation": "claude plugin validate .",
-              "notes": "Canonical skills/ tree is consumed directly; no adapter. Since 2.1.265, a forked skill's kickoff prompt and text turns stream as progress events instead of arriving silently once it returns — this repo's one forked skill, targeted-debug (context: fork, agent: Explore), is now visible turn-by-turn while it runs."
+              "notes": "Canonical skills/ tree is consumed directly; no adapter. Since 2.1.265, a forked skill's kickoff prompt and text turns stream as progress events instead of arriving silently once it returns \u2014 this repo's one forked skill, targeted-debug (context: fork, agent: Explore), is now visible turn-by-turn while it runs."
             },
             "skill_auto_invocation": {
               "status": "native",
@@ -130,7 +130,7 @@
               "status": "native",
               "since": "2.0.0",
               "validation": "test -d agents && claude plugin validate .",
-              "notes": "Since 2.1.265, resuming a foreground-spawned subagent no longer rewrites its tool list/system prompt or breaks prompt-cache reuse, and agent teammates/resumed subagents no longer move SubagentStart hook context out of the prompt prefix (this repo wires no SubagentStart hook today, so that half of the fix is not exercised here). Since 2.1.271, agent frontmatter (and --agents JSON) gained omitClaudeMd, letting a subagent run without user/project/local CLAUDE.md files (managed policy files still load) — reviewed against all ten agents/*.md here and deliberately not set: each already loads its own canonical contract explicitly from core/roles/*.md rather than depending on CLAUDE.md for that, but still needs the *target* project's own CLAUDE.md for the domain conventions a reviewer or implementer judges against, so omitting it would remove context these roles are designed to use. Since 2.1.274, a subagent's progress summary is no longer replaced by a runaway multi-paragraph reply — directly relevant to this plugin's worker-dev handoff vocabulary (completed/partial/failed/blocked) and orchestrate-dev fan-outs that read a worker's summary back; and `claude agents` no longer loses --model/--effort/--permission-mode/--allow-dangerously-skip-permissions/--agent after an auto-update — no script here shells out to `claude agents` directly, so not exercised, but relevant to a contributor invoking one of these ten agents/*.md from that CLI subcommand by hand. Reviewed and not applicable: a fix for model:\"opus\" leaving the wrong session model on Bedrock/Vertex/Foundry — all ten agents/*.md here pin model: sonnet, and this repo targets direct Claude Code/Desktop sessions, not a Bedrock/Vertex/Foundry gateway. Full version history: CLAUDE.md's Subagents bullet."
+              "notes": "Since 2.1.265, resuming a foreground-spawned subagent no longer rewrites its tool list/system prompt or breaks prompt-cache reuse, and agent teammates/resumed subagents no longer move SubagentStart hook context out of the prompt prefix (this repo wires no SubagentStart hook today, so that half of the fix is not exercised here). Since 2.1.271, agent frontmatter (and --agents JSON) gained omitClaudeMd, letting a subagent run without user/project/local CLAUDE.md files (managed policy files still load) \u2014 reviewed against all ten agents/*.md here and deliberately not set: each already loads its own canonical contract explicitly from core/roles/*.md rather than depending on CLAUDE.md for that, but still needs the *target* project's own CLAUDE.md for the domain conventions a reviewer or implementer judges against, so omitting it would remove context these roles are designed to use. Since 2.1.274, a subagent's progress summary is no longer replaced by a runaway multi-paragraph reply \u2014 directly relevant to this plugin's worker-dev handoff vocabulary (completed/partial/failed/blocked) and orchestrate-dev fan-outs that read a worker's summary back; and `claude agents` no longer loses --model/--effort/--permission-mode/--allow-dangerously-skip-permissions/--agent after an auto-update \u2014 no script here shells out to `claude agents` directly, so not exercised, but relevant to a contributor invoking one of these ten agents/*.md from that CLI subcommand by hand. Reviewed and not applicable: a fix for model:\"opus\" leaving the wrong session model on Bedrock/Vertex/Foundry \u2014 all ten agents/*.md here pin model: sonnet, and this repo targets direct Claude Code/Desktop sessions, not a Bedrock/Vertex/Foundry gateway. Full version history: CLAUDE.md's Subagents bullet."
             },
             "parallel_subagents": {
               "status": "native",
@@ -141,19 +141,19 @@
             "agent_teams": {
               "status": "native-experimental",
               "validation": "claude plugin validate .",
-              "notes": "Teammate messaging is available but documented as evolving; skills must not require it. Since 2.1.268, a respawned in-process teammate no longer picks up tools or a system prompt from a same-named agent file sitting in a folder the session has not trusted — this repo's own agents/*.md are versioned inside the trusted plugin checkout, so a same-named untrusted file is not a scenario this repo's orchestration creates, but the fix matters to anyone running orchestrate-dev/worker-dev fan-outs from a workspace containing other, untrusted agent definitions."
+              "notes": "Teammate messaging is available but documented as evolving; skills must not require it. Since 2.1.268, a respawned in-process teammate no longer picks up tools or a system prompt from a same-named agent file sitting in a folder the session has not trusted \u2014 this repo's own agents/*.md are versioned inside the trusted plugin checkout, so a same-named untrusted file is not a scenario this repo's orchestration creates, but the fix matters to anyone running orchestrate-dev/worker-dev fan-outs from a workspace containing other, untrusted agent definitions."
             },
             "hooks": {
               "status": "native",
               "since": "2.0.0",
               "validation": "jq empty hooks/hooks.json && make test-hooks",
-              "notes": "hooks/hooks.json with CLAUDE_PLUGIN_ROOT. This is the only target where the Claude-shaped hook bundle runs as shipped. Since 2.1.261, resuming a session no longer loses hook output produced around parallel tool calls. Since 2.1.268, PermissionRequest hooks now fire in --print (headless) mode (this repo wires no PermissionRequest hook, so not exercised) and CLAUDE_CODE_SESSIONEND_HOOKS_TIMEOUT_MS now actually extends a SessionEnd hook that declares no per-hook timeout of its own (previously still cancelled at 1.5s regardless of the env var) — every SessionEnd hook this repo ships (session-end.sh, handoff-reminder.sh, release-agent-claims.sh) already sets an explicit per-hook timeout in hooks/hooks.json, so this fix changes nothing here today but matters to anyone adding a SessionEnd hook without one. Full version history: CLAUDE.md's Hooks bullet. Since 2.1.269, a PreToolUse deny rule and the write-path check behind Edit() now also apply to a file a Bash `tee` command writes (previously a tee-based write could bypass a deny rule matched only against the editing tools), and a Bash(tee:*) allow rule is now scoped the way its glob implies instead of over-matching — this closes, at the host-permission layer, exactly the gap hooks/guard-sensitive-files.sh's own header comment documents and was built to cover independently via hooks/lib/write-targets.py's tee parsing; permissions-allow.json/permissions-ask.json declare no Bash(tee:*) rule of either kind, so neither bug was ever exposed here. The same release fixed a deny/ask rule beginning with a bare `!` leaking beyond the settings source that declared it (a lone `!` is now ignored) — reviewed against every rule in both files; none starts with `!`. Since 2.1.270 (bug fix, regression in 2.1.269), read-only git commands in Bash no longer unexpectedly ask for permission after a session has been running for a while. Since 2.1.271, a stale .git/config.lock left behind after a sandboxed Bash command failed to start no longer breaks git checkout -b, git push -u or git config for the rest of the session (Linux) — relevant because permissions-allow.json pre-allows git push *, git remote add * and git init specifically to avoid exactly this class of friction, and hooks/worktree-create.sh issues git worktree add -B through the same sandboxed Bash surface; no repo-side workaround existed for the bug, so nothing to change beyond the compatibility bump."
+              "notes": "hooks/hooks.json with CLAUDE_PLUGIN_ROOT. This is the only target where the Claude-shaped hook bundle runs as shipped. Since 2.1.261, resuming a session no longer loses hook output produced around parallel tool calls. Since 2.1.268, PermissionRequest hooks now fire in --print (headless) mode (this repo wires no PermissionRequest hook, so not exercised) and CLAUDE_CODE_SESSIONEND_HOOKS_TIMEOUT_MS now actually extends a SessionEnd hook that declares no per-hook timeout of its own (previously still cancelled at 1.5s regardless of the env var) \u2014 every SessionEnd hook this repo ships (session-end.sh, handoff-reminder.sh, release-agent-claims.sh) already sets an explicit per-hook timeout in hooks/hooks.json, so this fix changes nothing here today but matters to anyone adding a SessionEnd hook without one. Full version history: CLAUDE.md's Hooks bullet. Since 2.1.269, a PreToolUse deny rule and the write-path check behind Edit() now also apply to a file a Bash `tee` command writes (previously a tee-based write could bypass a deny rule matched only against the editing tools), and a Bash(tee:*) allow rule is now scoped the way its glob implies instead of over-matching \u2014 this closes, at the host-permission layer, exactly the gap hooks/guard-sensitive-files.sh's own header comment documents and was built to cover independently via hooks/lib/write-targets.py's tee parsing; permissions-allow.json/permissions-ask.json declare no Bash(tee:*) rule of either kind, so neither bug was ever exposed here. The same release fixed a deny/ask rule beginning with a bare `!` leaking beyond the settings source that declared it (a lone `!` is now ignored) \u2014 reviewed against every rule in both files; none starts with `!`. Since 2.1.270 (bug fix, regression in 2.1.269), read-only git commands in Bash no longer unexpectedly ask for permission after a session has been running for a while. Since 2.1.271, a stale .git/config.lock left behind after a sandboxed Bash command failed to start no longer breaks git checkout -b, git push -u or git config for the rest of the session (Linux) \u2014 relevant because permissions-allow.json pre-allows git push *, git remote add * and git init specifically to avoid exactly this class of friction, and hooks/worktree-create.sh issues git worktree add -B through the same sandboxed Bash surface; no repo-side workaround existed for the bug, so nothing to change beyond the compatibility bump."
             },
             "mcp": {
               "status": "native",
               "since": "2.0.0",
               "validation": "bash scripts/check-manifest-declares.sh .mcp.json mcpServers",
-              "notes": "The one declared server (github, via scripts/github-mcp.sh) is stdio. Since 2.1.265, a server declared http with only legacy HTTP+SSE support auto-falls-back to that transport instead of never connecting; not exercised here, since nothing shipped is http-typed. Since 2.1.268, /mcp and /plugin server details, claude mcp list/get, and MCP login errors no longer show a secret resolved from a ${VAR} placeholder in an MCP config — this repo's .mcp.json declares no ${VAR} placeholder (github-mcp.sh resolves its own token internally via gh auth, not through a config-level substitution), so nothing here was ever exposed by the bug, but the fix protects any downstream fork that does use one. Since 2.1.274, CLAUDE_CODE_MCP_STARTUP_WAIT_MS extends how long the host waits for a slow-starting MCP server — reviewed against github-mcp.sh's Docker fallback path (docker run ... ghcr.io/github/github-mcp-server stdio), which can be slow to start on a cold image pull; documented as an available knob in CLAUDE.md's MCP bullet rather than set as a repo default, since the right value is workstation-dependent. The same release switched Bedrock/Vertex/Foundry/telemetry-disabled sessions to MCP client v2 by default — not applicable, since this repo targets direct Claude Code/Desktop sessions, not a Bedrock/Vertex/Foundry gateway."
+              "notes": "The one declared server (github, via scripts/github-mcp.sh) is stdio. Since 2.1.265, a server declared http with only legacy HTTP+SSE support auto-falls-back to that transport instead of never connecting; not exercised here, since nothing shipped is http-typed. Since 2.1.268, /mcp and /plugin server details, claude mcp list/get, and MCP login errors no longer show a secret resolved from a ${VAR} placeholder in an MCP config \u2014 this repo's .mcp.json declares no ${VAR} placeholder (github-mcp.sh resolves its own token internally via gh auth, not through a config-level substitution), so nothing here was ever exposed by the bug, but the fix protects any downstream fork that does use one. Since 2.1.274, CLAUDE_CODE_MCP_STARTUP_WAIT_MS extends how long the host waits for a slow-starting MCP server \u2014 reviewed against github-mcp.sh's Docker fallback path (docker run ... ghcr.io/github/github-mcp-server stdio), which can be slow to start on a cold image pull; documented as an available knob in CLAUDE.md's MCP bullet rather than set as a repo default, since the right value is workstation-dependent. The same release switched Bedrock/Vertex/Foundry/telemetry-disabled sessions to MCP client v2 by default \u2014 not applicable, since this repo targets direct Claude Code/Desktop sessions, not a Bedrock/Vertex/Foundry gateway."
             },
             "statusline": {
               "status": "native",
@@ -168,17 +168,17 @@
             "git": {
               "status": "native",
               "validation": "git rev-parse --is-inside-work-tree",
-              "notes": "Since 2.1.271, a stale .git/config.lock left behind after a sandboxed Bash command failed to start no longer breaks git checkout -b, git push -u or git config for the rest of the session (Linux) — relevant because permissions-allow.json pre-allows git push *, git remote add * and git init specifically to avoid this class of friction, and hooks/worktree-create.sh issues git worktree add -B through the same sandboxed Bash surface. No repo-side workaround existed; nothing to change beyond the compatibility bump. Full detail: CLAUDE.md's Hooks bullet."
+              "notes": "Since 2.1.271, a stale .git/config.lock left behind after a sandboxed Bash command failed to start no longer breaks git checkout -b, git push -u or git config for the rest of the session (Linux) \u2014 relevant because permissions-allow.json pre-allows git push *, git remote add * and git init specifically to avoid this class of friction, and hooks/worktree-create.sh issues git worktree add -B through the same sandboxed Bash surface. No repo-side workaround existed; nothing to change beyond the compatibility bump. Full detail: CLAUDE.md's Hooks bullet."
             },
             "github_cli": {
               "status": "native",
               "validation": "gh auth status",
-              "notes": "Platform imposes no limit, but gh is an optional host dependency — presence is environment-dependent, so skills treat it as optional."
+              "notes": "Platform imposes no limit, but gh is an optional host dependency \u2014 presence is environment-dependent, so skills treat it as optional."
             },
             "background_tasks": {
               "status": "native",
               "validation": "command -v bash",
-              "notes": "Bash tool supports detached execution with completion callback. Since 2.1.271, a Monitor until-loop watch always carries a deadline (at most 30 minutes; 10 in single-prompt -p runs) and Claude is notified to re-arm it, replacing the old no-timeout persistent option — skills/dev-workflow/pr-dev/references/ci-monitor-loop.md's one Monitor wrapper here already sets timeout_ms: 1800000 (30 minutes) and never set persistent, so this repo's one documented Monitor usage was already inside the new ceiling. The same release fixed Claude starting a second copy of a background command that was still running after the conversation was compacted — relevant to a long orchestrate-dev/worker-dev fan-out that compacts mid-run with a background watch in flight; host-side fix, no repo-side workaround existed or is needed."
+              "notes": "Bash tool supports detached execution with completion callback. Since 2.1.271, a Monitor until-loop watch always carries a deadline (at most 30 minutes; 10 in single-prompt -p runs) and Claude is notified to re-arm it, replacing the old no-timeout persistent option \u2014 skills/dev-workflow/pr-dev/references/ci-monitor-loop.md's one Monitor wrapper here already sets timeout_ms: 1800000 (30 minutes) and never set persistent, so this repo's one documented Monitor usage was already inside the new ceiling. The same release fixed Claude starting a second copy of a background command that was still running after the conversation was compacted \u2014 relevant to a long orchestrate-dev/worker-dev fan-out that compacts mid-run with a background watch in flight; host-side fix, no repo-side workaround existed or is needed."
             },
             "worktree_isolation": {
               "status": "native",
@@ -190,7 +190,7 @@
               "status": "native",
               "since": "2.0.0",
               "validation": "bash scripts/check-marketplace-schema.sh .",
-              "notes": "Since 2.1.268, claude plugin install/uninstall/update/enable/disable accept --json (one machine-readable result line: command, outcome, plugin, scope, message, failureCode), and claude plugin list --json rows gain errorDetails/noteDetails; scripts/update.sh and scripts/uninstall.sh now request --json from claude plugin update/uninstall and surface the returned message/failureCode when the CLI call fails, instead of only a generic 'run the slash command yourself' fallback. The same release also fixed plugin/marketplace errors printing a token or password embedded in a git source URL (host-side; this repo's marketplace.json source is a plain https GitHub URL with no embedded credential) and hardened marketplace entry-path containment against a backslash bypass (host-side, no manifest change). Separately, /plugin install/enable/disable now take effect when the interactive menu closes, without needing /reload-plugins afterward — this is about the interactive /plugin menu specifically, and is unrelated to hooks/plugin-reload-reminder.sh's reminder, which fires on local file edits (plugin.json/hooks.json/marketplace.json) made outside that menu, e.g. under a --plugin-dir dev symlink; that reminder is still correct and unaffected. Since 2.1.269, plugin archives extracted for a session are no longer readable by other local users, no longer leave world-writable bits, and no longer leave stale files behind a re-extraction — host-side hardening of the extraction step; nothing in this plugin's own manifest or install path changes. Since 2.1.271, claude plugin install/update accept --accept-command <sha256> to confirm exactly the command a prior --json run displayed, instead of the blanket -y. Reviewed against scripts/update.sh's and scripts/uninstall.sh's existing claude plugin update/uninstall ... --json calls: neither script passes -y or hits an interactive confirmation today, so there is no blanket-accept behavior here to tighten — not adopted this cycle, recorded rather than silently skipped."
+              "notes": "Since 2.1.268, claude plugin install/uninstall/update/enable/disable accept --json (one machine-readable result line: command, outcome, plugin, scope, message, failureCode), and claude plugin list --json rows gain errorDetails/noteDetails; scripts/update.sh and scripts/uninstall.sh now request --json from claude plugin update/uninstall and surface the returned message/failureCode when the CLI call fails, instead of only a generic 'run the slash command yourself' fallback. The same release also fixed plugin/marketplace errors printing a token or password embedded in a git source URL (host-side; this repo's marketplace.json source is a plain https GitHub URL with no embedded credential) and hardened marketplace entry-path containment against a backslash bypass (host-side, no manifest change). Separately, /plugin install/enable/disable now take effect when the interactive menu closes, without needing /reload-plugins afterward \u2014 this is about the interactive /plugin menu specifically, and is unrelated to hooks/plugin-reload-reminder.sh's reminder, which fires on local file edits (plugin.json/hooks.json/marketplace.json) made outside that menu, e.g. under a --plugin-dir dev symlink; that reminder is still correct and unaffected. Since 2.1.269, plugin archives extracted for a session are no longer readable by other local users, no longer leave world-writable bits, and no longer leave stale files behind a re-extraction \u2014 host-side hardening of the extraction step; nothing in this plugin's own manifest or install path changes. Since 2.1.271, claude plugin install/update accept --accept-command <sha256> to confirm exactly the command a prior --json run displayed, instead of the blanket -y. Reviewed against scripts/update.sh's and scripts/uninstall.sh's existing claude plugin update/uninstall ... --json calls: neither script passes -y or hits an interactive confirmation today, so there is no blanket-accept behavior here to tighten \u2014 not adopted this cycle, recorded rather than silently skipped."
             },
             "extension_install": {
               "status": "unsupported",
@@ -286,7 +286,7 @@
             },
             "git": {
               "status": "partial",
-              "notes": "Follows shell — available only in the coding-session surface.",
+              "notes": "Follows shell \u2014 available only in the coding-session surface.",
               "fallback": "Skip git workflows."
             },
             "github_cli": {
@@ -372,7 +372,7 @@
               "status": "native",
               "since": "0.40.0",
               "validation": "bash scripts/check-manifest-declares.sh .codex-plugin/plugin.json skills",
-              "notes": "`skills` is a documented field of the .codex-plugin/plugin.json manifest spec, and this repo's manifest carries all seven skill roots; validated against 0.146.0. The previous note offered platform-targets.json as its source — that file's capabilities array is generated FROM this registry, so the row was citing itself."
+              "notes": "`skills` is a documented field of the .codex-plugin/plugin.json manifest spec, and this repo's manifest carries all seven skill roots; validated against 0.146.0. The previous note offered platform-targets.json as its source \u2014 that file's capabilities array is generated FROM this registry, so the row was citing itself."
             },
             "skill_auto_invocation": {
               "status": "unknown",
@@ -381,7 +381,7 @@
             },
             "subagents": {
               "status": "unknown",
-              "notes": "Demoted from 'native' 2026-09-08. The claim rested on two things, and neither survived checking. (1) The note cited platform-targets.json — but that file's per-target `capabilities` array is a DERIVED mirror of THIS registry (scripts/check-platform-targets.sh says so in its header), so the row was citing itself. (2) The validation was `jq empty .codex-plugin/plugin.json`, which passes on any valid JSON. Against the upstream manifest spec, .codex-plugin/plugin.json defines name, version, description, author, homepage, repository, license, keywords, skills, hooks, mcpServers, apps and interface — there is no agents or subagents field, and no documented folder discovery of an agents/ directory. This repo also ships no Codex agent mirror, unlike .gemini/agents/, which exists precisely because Gemini needed one. Codex CLI does have a subagents feature, and it is deliberately outside the plugin system: subagents are standalone .toml files in $CODEX_HOME/agents/ or a per-repo .codex/agents/, and bundling one inside a plugin manifest is an OPEN feature request (https://github.com/openai/codex/issues/28491, closed as a duplicate of #18988). So the missing field is not an oversight in the spec — there is no plugin-packaging path to this capability at all today. The status stays 'unknown' rather than 'unsupported' because the capability exists on the surface; what is unestablished is a route from this plugin to it, and 'unsupported' would claim Codex lacks subagents, which is false. The identical 'Cloud subagents can run on their own VMs (2026-08-19)' sentence also sat on the cursor row verbatim, date included — one note copied, not two facts established.",
+              "notes": "Demoted from 'native' 2026-09-08. The claim rested on two things, and neither survived checking. (1) The note cited platform-targets.json \u2014 but that file's per-target `capabilities` array is a DERIVED mirror of THIS registry (scripts/check-platform-targets.sh says so in its header), so the row was citing itself. (2) The validation was `jq empty .codex-plugin/plugin.json`, which passes on any valid JSON. Against the upstream manifest spec, .codex-plugin/plugin.json defines name, version, description, author, homepage, repository, license, keywords, skills, hooks, mcpServers, apps and interface \u2014 there is no agents or subagents field, and no documented folder discovery of an agents/ directory. This repo also ships no Codex agent mirror, unlike .gemini/agents/, which exists precisely because Gemini needed one. Codex CLI does have a subagents feature, and it is deliberately outside the plugin system: subagents are standalone .toml files in $CODEX_HOME/agents/ or a per-repo .codex/agents/, and bundling one inside a plugin manifest is an OPEN feature request (https://github.com/openai/codex/issues/28491, closed as a duplicate of #18988). So the missing field is not an oversight in the spec \u2014 there is no plugin-packaging path to this capability at all today. The status stays 'unknown' rather than 'unsupported' because the capability exists on the surface; what is unestablished is a route from this plugin to it, and 'unsupported' would claim Codex lacks subagents, which is false. The identical 'Cloud subagents can run on their own VMs (2026-08-19)' sentence also sat on the cursor row verbatim, date included \u2014 one note copied, not two facts established.",
               "fallback": "Run the role inline in the main session, sequentially, with a narrowed scope."
             },
             "parallel_subagents": {
@@ -402,7 +402,7 @@
             "mcp": {
               "status": "native",
               "validation": "bash scripts/check-manifest-declares.sh .codex-plugin/plugin.json mcpServers",
-              "notes": "Declared through the plugin manifest's mcpServers field, which points at ./.mcp.json. This row previously validated with `test -f .codex/config.toml` and said MCP was configured there instead — that file's own header comment says the opposite (\"MCP servers are declared in .codex-plugin/plugin.json\"), and it would have passed on an empty file."
+              "notes": "Declared through the plugin manifest's mcpServers field, which points at ./.mcp.json. This row previously validated with `test -f .codex/config.toml` and said MCP was configured there instead \u2014 that file's own header comment says the opposite (\"MCP servers are declared in .codex-plugin/plugin.json\"), and it would have passed on an empty file."
             },
             "statusline": {
               "status": "unsupported",
@@ -435,7 +435,7 @@
             "plugin_marketplace": {
               "status": "native",
               "validation": "bash scripts/check-marketplace-schema.sh .",
-              "notes": "Codex installs plugins from a marketplace; the install command on this surface is `codex plugin install scaffold-plugin-gold`. The evidence is the marketplace manifest this repo publishes, which is what the validation checks. The previous note offered platform-targets.json as its source — that file's capabilities array is generated FROM this registry, so the row was citing itself."
+              "notes": "Codex installs plugins from a marketplace; the install command on this surface is `codex plugin install scaffold-plugin-gold`. The evidence is the marketplace manifest this repo publishes, which is what the validation checks. The previous note offered platform-targets.json as its source \u2014 that file's capabilities array is generated FROM this registry, so the row was citing itself."
             },
             "extension_install": {
               "status": "unsupported",
@@ -510,24 +510,24 @@
           "capabilities": {
             "skills": {
               "status": "native",
-              "since": "3.20.17",
+              "since": "3.21.13",
               "validation": "bash scripts/check-manifest-declares.sh .cursor-plugin/plugin.json skills",
-              "notes": "Validated against 3.20.17; the floor is the version actually tested, not a guess."
+              "notes": "Validated against 3.21.13; the floor is the version actually tested, not a guess."
             },
             "skill_auto_invocation": {
               "status": "partial",
-              "notes": "CLI sticky skills (2026-08-11) plus Agent Window Custom Modes (2026-08-19: Option+Enter from / pins a skill as an always-on mode). Automatic description-based selection across all surfaces is still unverified.",
+              "notes": "CLI sticky skills (2026-08-11) plus Agent Window Custom Modes (2026-08-19: Option+Enter from / pins a skill as an always-on mode). Automatic description-based selection across all surfaces is still unverified. CLI persistent sessions (2026-08-26) keep long skill/validation runs alive across disconnects.",
               "fallback": "Name the skill explicitly, pin it as a Custom Mode, or rely on the .cursor/rules/*.mdc entrypoint."
             },
             "subagents": {
               "status": "native",
-              "since": "3.20.17",
+              "since": "3.21.13",
               "validation": "bash scripts/check-manifest-declares.sh --or-discovers agents .cursor-plugin/plugin.json agents",
-              "notes": "Delivered by folder discovery, not by a manifest field: Cursor reads agents/ when the manifest does not name an agents path (https://cursor.com/docs/reference/plugins), and .cursor-plugin/plugin.json deliberately does not. The validation follows that rule rather than assuming it — if someone adds an `agents` key, discovery of agents/ stops and the check switches to the declared paths. The old note cited platform-targets.json, whose capabilities array is a DERIVED mirror of this registry, so it was evidence for itself."
+              "notes": "Delivered by folder discovery, not by a manifest field: Cursor reads agents/ when the manifest does not name an agents path (https://cursor.com/docs/reference/plugins), and .cursor-plugin/plugin.json deliberately does not. The validation follows that rule rather than assuming it \u2014 if someone adds an `agents` key, discovery of agents/ stops and the check switches to the declared paths. The old note cited platform-targets.json, whose capabilities array is a DERIVED mirror of this registry, so it was evidence for itself."
             },
             "parallel_subagents": {
               "status": "partial",
-              "notes": "Cloud Agents can swarm subagents each on an isolated VM (2026-08-19). Local parallel fan-out concurrency is still unmeasured here. Self-Hosted Machines (2026-09-02): My Machines / Team Pools / partner sandboxes can host tool execution with computer use on Linux/Mac — not GitHub Actions self-hosted runners. Projects (2026-09-10) coordinators can fan work across many cloud/local agents with durable shared context.",
+              "notes": "Cloud Agents can swarm subagents each on an isolated VM (2026-08-19). Local parallel fan-out concurrency is still unmeasured here. Self-Hosted Machines (2026-09-02): My Machines / Team Pools / partner sandboxes can host tool execution with computer use on Linux/Mac \u2014 not GitHub Actions self-hosted runners. Projects (2026-09-10) coordinators can fan work across many cloud/local agents with durable shared context.",
               "fallback": "Prefer cloud-isolated subagents for collision-free swarms; otherwise fan out sequentially locally."
             },
             "agent_teams": {
@@ -584,9 +584,9 @@
             },
             "slash_commands": {
               "status": "partial",
-              "since": "3.20.17",
+              "since": "3.21.13",
               "validation": "bash scripts/check-manifest-declares.sh .cursor-plugin/plugin.json skills",
-              "notes": "Demoted from 'native' 2026-09-08, and the limit is on our side, not Cursor's. Cursor plugins do support a commands component, discovered from commands/ when the manifest names no path (https://cursor.com/docs/reference/plugins) — this repo has no commands/ directory and no commands key, so it ships zero of them. What a Cursor user actually sees under / are this plugin's skills, which is what the validation checks; see skill_auto_invocation for the / behaviour measured against 3.20.17. The old note cited platform-targets.json, whose capabilities array is a DERIVED mirror of this registry, so it was evidence for itself.",
+              "notes": "Demoted from 'native' 2026-09-08, and the limit is on our side, not Cursor's. Cursor plugins do support a commands component, discovered from commands/ when the manifest names no path (https://cursor.com/docs/reference/plugins) \u2014 this repo has no commands/ directory and no commands key, so it ships zero of them. What a Cursor user actually sees under / are this plugin's skills, which is what the validation checks; see skill_auto_invocation for the / behaviour measured against 3.21.13. The old note cited platform-targets.json, whose capabilities array is a DERIVED mirror of this registry, so it was evidence for itself.",
               "fallback": "Invoke by skill name; there is no repo-provided /command on this surface to fall back from."
             },
             "ask_user_question": {
@@ -610,7 +610,7 @@
           "display_name": "Cursor CLI",
           "kind": "cli",
           "support": "unverified",
-          "unverified_reason": "The CLI shares .cursor-plugin/plugin.json with the IDE, and Cursor documents CLI sticky skills (2026-08-11 CLI changelog), but no CLI run has been recorded here. The measurements under cursor were taken against an IDE plugin install; carrying them over would be an assumption, not evidence.",
+          "unverified_reason": "The CLI shares .cursor-plugin/plugin.json with the IDE, and Cursor documents CLI sticky skills (2026-08-11) and persistent sessions (2026-08-26 CLI changelog), but no CLI run has been recorded here. The measurements under cursor were taken against an IDE plugin install; carrying them over would be an assumption, not evidence.",
           "aliases": [
             "cursor-cli"
           ],
@@ -655,8 +655,8 @@
               "status": "adapter",
               "since": "0.55.1",
               "validation": "make gemini-extension-check",
-              "notes": "Measured on 0.55.1: Gemini discovers skills exactly one level below a skills root, so the canonical two-level skills/<domain>/<name>/ tree resolves to ZERO skills. scripts/build-gemini-extension.sh generates a flat symlink mirror at .gemini/skills/ (one symlink per skill, so still exactly one copy in the repo), which Gemini then reads natively — in-workspace with no install at all, or via a single gemini skills install --path .gemini/skills. This row is about the generated mirror, not the canonical tree. NOTE: Gemini follows symlinks for skill discovery; OpenCode does not, at any level. Do not port one platform's mirror strategy to the other.",
-              "fallback": "None needed — the mirror is committed, and scripts/check-gemini-adapter.sh fails rather than shipping an adapter that finds nothing. Regenerate with make gemini-extension; never hand-edit .gemini/skills/. One live failure mode: an untrusted workspace folder silently skips the mirror, and the only clue is Gemini logging 'Skipping project agents due to untrusted folder'."
+              "notes": "Measured on 0.55.1: Gemini discovers skills exactly one level below a skills root, so the canonical two-level skills/<domain>/<name>/ tree resolves to ZERO skills. scripts/build-gemini-extension.sh generates a flat symlink mirror at .gemini/skills/ (one symlink per skill, so still exactly one copy in the repo), which Gemini then reads natively \u2014 in-workspace with no install at all, or via a single gemini skills install --path .gemini/skills. This row is about the generated mirror, not the canonical tree. NOTE: Gemini follows symlinks for skill discovery; OpenCode does not, at any level. Do not port one platform's mirror strategy to the other.",
+              "fallback": "None needed \u2014 the mirror is committed, and scripts/check-gemini-adapter.sh fails rather than shipping an adapter that finds nothing. Regenerate with make gemini-extension; never hand-edit .gemini/skills/. One live failure mode: an untrusted workspace folder silently skips the mirror, and the only clue is Gemini logging 'Skipping project agents due to untrusted folder'."
             },
             "skill_auto_invocation": {
               "status": "unknown",
@@ -667,8 +667,8 @@
               "status": "adapter",
               "since": "0.55.1",
               "validation": "make gemini-extension-check",
-              "notes": "The CANONICAL form does not load: agents/*.md are read from the extension root and rejected with 'tools.0: Invalid tool name', because Gemini wants tools as an array of its own tool names while this repo's agents declare Claude's (Read, Grep, Glob, Bash) as a string. A GENERATED form does: scripts/build-gemini-extension.sh emits .gemini/agents/*.md with tools as a YAML array of real Gemini names (read_file, search_file_content, glob, run_shell_command), verified against the loader rather than guessed, and omits model: entirely — a Claude alias like 'sonnet' passes validation and then fails at invocation. Verified on 0.55.1: all agents load with no errors.",
-              "fallback": "Regenerate with make gemini-extension; never hand-edit .gemini/agents/. Installing the extension still emits a harmless load error for the canonical agents/ at the extension root — noisy, not fatal, and unfixable from this side (no subdirectory flag, no manifest field relocates it)."
+              "notes": "The CANONICAL form does not load: agents/*.md are read from the extension root and rejected with 'tools.0: Invalid tool name', because Gemini wants tools as an array of its own tool names while this repo's agents declare Claude's (Read, Grep, Glob, Bash) as a string. A GENERATED form does: scripts/build-gemini-extension.sh emits .gemini/agents/*.md with tools as a YAML array of real Gemini names (read_file, search_file_content, glob, run_shell_command), verified against the loader rather than guessed, and omits model: entirely \u2014 a Claude alias like 'sonnet' passes validation and then fails at invocation. Verified on 0.55.1: all agents load with no errors.",
+              "fallback": "Regenerate with make gemini-extension; never hand-edit .gemini/agents/. Installing the extension still emits a harmless load error for the canonical agents/ at the extension root \u2014 noisy, not fatal, and unfixable from this side (no subdirectory flag, no manifest field relocates it)."
             },
             "parallel_subagents": {
               "status": "unknown",
@@ -682,7 +682,7 @@
             },
             "hooks": {
               "status": "unknown",
-              "notes": "This adapter ships no hooks, by design — a statement about the adapter, not a verdict on Gemini. Measured on 0.55.1, read from the shipped bundle rather than the docs: Gemini accepts the outer {\"hooks\": {...}} shape of the Claude Code schema without complaint, AND accepts an invented event name just as silently, so loading proves nothing about firing. The vocabularies partially overlap rather than differ wholesale — of this repo's ten declared events, three (SessionStart, SessionEnd, Notification) are real Gemini events, four (PreToolUse, PostToolUse, UserPromptSubmit, Stop) exist only as keys in the gemini hooks migrate --from-claude mapping table, and three (DirectoryAdded, WorktreeCreate, WorktreeRemove) have no counterpart at all. Whether the three shared events actually fire was NOT verified, so no claim is made in either direction. Not 'unsupported' — that would assert a measured failure that was never measured, and would also imply the dropped-in Claude file is wholly inert when three of its handlers name events Gemini has.",
+              "notes": "This adapter ships no hooks, by design \u2014 a statement about the adapter, not a verdict on Gemini. Measured on 0.55.1, read from the shipped bundle rather than the docs: Gemini accepts the outer {\"hooks\": {...}} shape of the Claude Code schema without complaint, AND accepts an invented event name just as silently, so loading proves nothing about firing. The vocabularies partially overlap rather than differ wholesale \u2014 of this repo's ten declared events, three (SessionStart, SessionEnd, Notification) are real Gemini events, four (PreToolUse, PostToolUse, UserPromptSubmit, Stop) exist only as keys in the gemini hooks migrate --from-claude mapping table, and three (DirectoryAdded, WorktreeCreate, WorktreeRemove) have no counterpart at all. Whether the three shared events actually fire was NOT verified, so no claim is made in either direction. Not 'unsupported' \u2014 that would assert a measured failure that was never measured, and would also imply the dropped-in Claude file is wholly inert when three of its handlers name events Gemini has.",
               "fallback": "Guards become explicit in-skill steps plus CI checks. gemini hooks migrate --from-claude can translate them into personal settings."
             },
             "mcp": {
@@ -728,7 +728,7 @@
               "status": "native",
               "since": "0.55.1",
               "validation": "bash scripts/check-gemini-adapter.sh",
-              "notes": "Primary install path, measured on 0.55.1: gemini extensions install <git-url>, or gemini extensions link . for local development. Note that gemini extensions validate only parses the manifest — it reports success on an extension whose context file does not exist — so it is not sufficient evidence for any row here."
+              "notes": "Primary install path, measured on 0.55.1: gemini extensions install <git-url>, or gemini extensions link . for local development. Note that gemini extensions validate only parses the manifest \u2014 it reports success on an extension whose context file does not exist \u2014 so it is not sufficient evidence for any row here."
             },
             "slash_commands": {
               "status": "unknown",
@@ -803,7 +803,7 @@
               "status": "native",
               "since": "1.16.2",
               "validation": "opencode debug skill",
-              "notes": "Recursive (domain-nested) discovery verified from 1.16.2; validated against 1.18.11. OpenCode recognises a smaller frontmatter set and ignores unknown fields. Symlinks are NOT followed for skill discovery at any level (verified 1.18.11) — the skills dir, a domain dir, and an individual skill dir all yield zero. Install with absolute skills.paths, never a symlink."
+              "notes": "Recursive (domain-nested) discovery verified from 1.16.2; validated against 1.18.11. OpenCode recognises a smaller frontmatter set and ignores unknown fields. Symlinks are NOT followed for skill discovery at any level (verified 1.18.11) \u2014 the skills dir, a domain dir, and an individual skill dir all yield zero. Install with absolute skills.paths, never a symlink."
             },
             "skill_auto_invocation": {
               "status": "unknown",
@@ -827,7 +827,7 @@
             },
             "hooks": {
               "status": "unsupported",
-              "notes": "OpenCode has no hooks.json; its only lifecycle mechanism is the JS/TS plugin API. Lifecycle guards from hooks/ still do not run. A narrow opt-in exception is skills/toolkit/usage-capture/opencode-plugin.mjs (zero npm imports, observe-only, not listed in this repo's opencode.json) for local usage JSONL. That plugin is not a hook-guard adapter — 'adapter' would imply generated worktree/safety artifacts, and none exist.",
+              "notes": "OpenCode has no hooks.json; its only lifecycle mechanism is the JS/TS plugin API. Lifecycle guards from hooks/ still do not run. A narrow opt-in exception is skills/toolkit/usage-capture/opencode-plugin.mjs (zero npm imports, observe-only, not listed in this repo's opencode.json) for local usage JSONL. That plugin is not a hook-guard adapter \u2014 'adapter' would imply generated worktree/safety artifacts, and none exist.",
               "fallback": "Guards become explicit in-skill steps plus CI checks."
             },
             "mcp": {
@@ -865,7 +865,7 @@
             },
             "plugin_marketplace": {
               "status": "unsupported",
-              "notes": "No plugin marketplace — install is by absolute skills.paths. Not by symlink: OpenCode does not follow them for skill discovery (see the skills row).",
+              "notes": "No plugin marketplace \u2014 install is by absolute skills.paths. Not by symlink: OpenCode does not follow them for skill discovery (see the skills row).",
               "fallback": "Document the absolute skills.paths install in docs/user/install/opencode.md."
             },
             "extension_install": {
