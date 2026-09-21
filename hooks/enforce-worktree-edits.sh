@@ -10,6 +10,8 @@ source "${SCRIPT_DIR}/lib/worktree-common.sh"
 source "${SCRIPT_DIR}/lib/objective-common.sh"
 # shellcheck source=lib/hook-output.sh
 source "${SCRIPT_DIR}/lib/hook-output.sh"
+# shellcheck source=lib/platform-tools.sh
+source "${SCRIPT_DIR}/lib/platform-tools.sh"
 
 input="$(hook_read_stdin)"
 hook_detect_platform "$input"
@@ -20,7 +22,14 @@ if [[ -z "$cwd" ]]; then
   cwd="$(echo "$input" | jq -r '.workspace_roots[0] // empty')"
 fi
 
-case "$tool_name" in
+# Dispatch decision only — normalize a platform's own tool name (e.g. Codex's
+# apply_patch) onto this repo's canonical Claude-shaped vocabulary so the case
+# arm below matches. $input itself is left untouched: nothing downstream that
+# still reads raw tool_name (there is none in this script) should ever see a
+# rewritten value.
+canonical_tool_name="$(normalize_tool_name "$tool_name")"
+
+case "$canonical_tool_name" in
   Edit|Write|MultiEdit|NotebookEdit|StrReplace) ;;
   *) hook_allow ;;
 esac
