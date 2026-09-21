@@ -809,6 +809,68 @@ def _segment_records(seg, piped_in, terminator, cwd, records):
 
 
 # --------------------------------------------------------------------------
+# apply_patch (Codex CLI's editing tool)
+# --------------------------------------------------------------------------
+# Codex's editing tool is `apply_patch`, not Edit/Write/MultiEdit. Its
+# `tool_input` is `{"command": "<patch envelope>"}` — text in the documented
+# apply_patch/"V4A" envelope format, not a shell command to tokenize:
+#
+#   *** Begin Patch
+#   *** Update File: path/to/file.py
+#   *** Move to: path/to/renamed.py
+#   @@ some context
+#   -old line
+#   +new line
+#   *** Add File: path/to/new.py
+#   +line
+#   *** Delete File: path/to/old.py
+#   *** End Patch
+#
+# Before this, `records_for` had no branch for `tool_name == "apply_patch"`,
+# and its `tool_input` has no `file_path`/`path`/`notebook_path`/`filePath`
+# key for the EDIT_PATH_KEYS fallback to find either — so every apply_patch
+# write was invisible to the guard, exactly the silent-allow this module's
+# own docstring says it exists to close.
+#
+# The markers are matched literally, not grepped for a protected path, for
+# the same reason `analyze_command` parses instead of greps: a `-` line
+# removing a reference to a protected filename is patch body, not a write
+# target, and only appears as one in a position this parser does not scan.
+#
+# `Move to:` (a rename target inside an `Update File:` block) is included
+# even though it was not one of the three literal markers asked for, because
+# without it a rename into a protected path — `*** Update File: scratch.py`
+# followed by `*** Move to: yarn.lock` — would report the write as the old
+# path and miss the one that actually lands on the protected file.
+PATCH_MARKER_KIND = (
+    ("Add File", "TARGET"),
+    ("Update File", "TARGET"),
+    ("Move to", "TARGET"),
+    ("Delete File", "DELETE"),
+)
+
+
+def apply_patch_targets(command, cwd):
+    """(kind, absolute_path, fragment) records for an apply_patch envelope."""
+    records = []
+    for line in command.splitlines():
+        stripped = line.strip()
+        if not stripped.startswith("*** "):
+            continue
+        header = stripped[4:]
+        for marker, kind in PATCH_MARKER_KIND:
+            prefix = marker + ": "
+            if not header.startswith(prefix):
+                continue
+            value = header[len(prefix):].strip()
+            if value:
+                path = os.path.expanduser(value)
+                if not os.path.isabs(path):
+                    path = os.path.join(cwd, path)
+                records.append((kind, os.path.normpath(path), stripped[:160]))
+            break
+    return records
+
 
 EDIT_PATH_KEYS = ("file_path", "path", "notebook_path", "filePath")
 
@@ -823,6 +885,12 @@ def records_for(payload):
         if not command.strip():
             return []
         return analyze_command(command, cwd)
+
+    if tool == "apply_patch":
+        command = tool_input.get("command") or ""
+        if "*** Begin Patch" in command:
+            return apply_patch_targets(command, cwd)
+        return []
 
     for key in EDIT_PATH_KEYS:
         value = tool_input.get(key)
