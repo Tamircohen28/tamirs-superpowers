@@ -111,6 +111,7 @@
         "artifacts",
         "ask_user_question",
         "background_tasks",
+        "dynamic_workflows",
         "git",
         "github_cli",
         "hooks",
@@ -140,7 +141,7 @@
       "changelog_feature": "3.11",
       "changelog_date": "2026-09-10",
       "verified_on": "2026-09-20",
-      "verification_method": "latest desktop build from official Cursor download API (3.21.13) cross-checked against cursor.com/changelog (feature 3.11; date-only entries through 2026-09-10 Projects \u2014 coordinator agent / shared context / subscriptions; prior Self-Hosted Machines 2026-09-02); Cursor CLI changelog Aug 11 2026 documented; CLI changelog through 2026-08-26 (agent persist / hibernated worker wake)",
+      "verification_method": "latest desktop build from official Cursor download API (3.21.13) cross-checked against cursor.com/changelog (feature 3.11; date-only entries through 2026-09-10 Projects — coordinator agent / shared context / subscriptions; prior Self-Hosted Machines 2026-09-02); Cursor CLI changelog Aug 11 2026 documented; CLI changelog through 2026-08-26 (agent persist / hibernated worker wake)",
       "install_doc": "docs/user/install/cursor.md",
       "doc_urls": [
         "https://cursor.com/docs/plugins",
@@ -225,6 +226,7 @@
       ],
       "capability_gaps": {
         "artifacts": "No artifact publishing surface.",
+        "dynamic_workflows": "The Workflow tool is Claude-specific; no declared Cursor equivalent.",
         "extension_install": "Cursor installs plugins, not git-URL extensions.",
         "statusline": "No plugin-declared statusline."
       }
@@ -268,6 +270,7 @@
       ],
       "capability_gaps": {
         "artifacts": "No artifact publishing surface.",
+        "dynamic_workflows": "The Workflow tool is Claude-specific; no declared Codex equivalent.",
         "extension_install": "Codex installs plugins, not git-URL extensions.",
         "statusline": "Not a declared Codex capability."
       }
@@ -307,9 +310,11 @@
       ],
       "capability_gaps": {
         "artifacts": "No artifact publishing surface.",
+        "dynamic_workflows": "The Workflow tool is Claude-specific; no declared OpenCode equivalent.",
         "extension_install": "No git-URL extension install.",
-        "hooks": "OpenCode has no hooks.json; its only lifecycle mechanism is the JS/TS plugin API. Lifecycle guards from hooks/ still do not run. A narrow opt-in exception is skills/toolkit/usage-capture/opencode-plugin.mjs (zero npm imports, observe-only, not listed in this repo's opencode.json) for local usage JSONL. That plugin is not a hook-guard adapter \u2014 'adapter' would imply generated worktree/safety artifacts, and none exist.",
-        "plugin_marketplace": "No plugin marketplace \u2014 install is by absolute skills.paths. Not by symlink: OpenCode does not follow them for skill discovery (see the skills row).",
+        "hooks": "OpenCode has no hooks.json; its only lifecycle mechanism is the JS/TS plugin API. Lifecycle guards from hooks/ still do not run. A narrow opt-in exception is skills/toolkit/usage-capture/opencode-plugin.mjs (zero npm imports, observe-only, not listed in this repo's opencode.json) for local usage JSONL. That plugin is not a hook-guard adapter — 'adapter' would imply generated worktree/safety artifacts, and none exist.",
+        "parallel_subagents": "OpenCode's subagent_depth defaults to 1 (shipped v1.18.2, 2026-07-15), so a subagent cannot itself spawn subagents — not merely unmeasured.",
+        "plugin_marketplace": "No plugin marketplace — install is by absolute skills.paths. Not by symlink: OpenCode does not follow them for skill discovery (see the skills row).",
         "statusline": "No plugin-declared statusline."
       }
     },
@@ -339,6 +344,7 @@
         "git",
         "github_cli",
         "mcp",
+        "plugin_marketplace",
         "shell",
         "skills",
         "subagents",
@@ -346,7 +352,8 @@
       ],
       "capability_gaps": {
         "artifacts": "No artifact publishing surface.",
-        "plugin_marketplace": "Gemini installs extensions from a git URL; there is no marketplace listing to publish to.",
+        "dynamic_workflows": "The Workflow tool is Claude-specific; no declared Gemini equivalent.",
+        "parallel_subagents": "Gemini subagents cannot themselves call subagents — documented recursion protection, not merely unmeasured. orchestrate-dev's fan-out pattern is structurally impossible on Gemini as a result.",
         "statusline": "Measured on 0.55.1: no extension-declared statusline."
       }
     }
