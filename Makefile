@@ -113,7 +113,7 @@ test-contract:
 
 validate: lint test-hooks test-contract test-repo-contract check-manifest-versions check-platform-equivalence \
 	check-marketplace-schema check-doc-claims check-version-truth check-capability-registry \
-	validate-roles check-gemini-adapter check-github-policy check-branch-literals \
+	validate-roles check-gemini-adapter gemini-extension-check check-github-policy check-branch-literals \
 	check-action-pinning check-manifest-declares
 	@echo "--- Validating JSON files ---"
 	@find . -name '*.json' -not -path '*/.git/*' | while read f; do \
