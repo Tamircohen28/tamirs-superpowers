@@ -1,6 +1,6 @@
 # Install — Cursor
 
-Registry id: `cursor`. Validated against Cursor desktop **3.20.17** (feature changelog
+Registry id: `cursor`. Validated against Cursor desktop **3.21.13** (feature changelog
 **3.11**, covered through date-only **2026-09-10**); that floor is the version this repo
 actually tested, not a guess.
 
@@ -86,7 +86,7 @@ never adopt anything silently. `apply` shows a diff and asks per change, default
 
 | Capability | Status | Notes |
 |---|---|---|
-| skills | native | since desktop 3.20.17 pin; pin as **Custom Mode** (2026-08-19) via ⌥⏎ / Alt+Enter from `/` |
+| skills | native | since desktop 3.21.13 pin; pin as **Custom Mode** (2026-08-19) via ⌥⏎ / Alt+Enter from `/` |
 | subagents | native | declared capability; cloud subagents can use **isolated VMs** (2026-08-19) |
 | slash commands | native | |
 | MCP | native | `.mcp.json` |
@@ -98,8 +98,9 @@ never adopt anything silently. `apply` shows a diff and asks per change, default
 | background tasks · structured questions · session transcripts | unknown | Not measured — treated as unavailable, with stated fallbacks |
 | statusline · artifacts · extension install | unsupported | Cosmetic, absent, and not a Cursor mechanism, respectively |
 
-### Working tips (3.11 → 2026-09-10; desktop CLI 3.20.17)
+### Working tips (3.11 → 2026-09-10; desktop CLI 3.21.13; CLI 2026-08-26)
 - **Projects (2026-09-10)** — Cursor **Projects** (left nav) suit multi-week / multi-agent work. A **coordinator** plans and delegates (does not write code); **shared context** files sync across cloud and local agents; **subscriptions** can watch Slack, schedules, or all PRs. Use a Project when validating this plugin across a long refactor or multi-PR initiative; keep ordinary `/diagnose-refusal` / one-shot skill runs in a normal Agent chat. Projects compose with (do not replace) Cloud Agents, Custom Modes, and Self-Hosted Machines ([changelog](https://cursor.com/changelog)).
+- **CLI persistent sessions (2026-08-26)** — keep a long `agent` validation / `make validate` session alive across disconnects with `agent persist`, `/detach`, and `agent persist attach` ([CLI changelog](https://cursor.com/docs/cli/changelog)). Useful for cloud-headless and overnight plugin checks; prefer over killing the client mid-run.
 - **Self-Hosted Machines (2026-09-02)** — Cursor can run Cloud Agent tool execution on **My Machines**, **Team Pools** (dynamic scale + hibernation), or partner sandboxes (AWS Lambda, Coder, Cloudflare, Daytona, Modal, Namespace, Vercel, E2B), with **computer use** on Linux/Mac ([docs](https://cursor.com/docs/cloud-agent/self-hosted)). Inventory workers with `list-self-hosted-workers`. **Not** the same as GitHub Actions `runs-on: [self-hosted]` — this public plugin repo stays on `ubuntu-latest` forever. Prefer managed Cloud Agents for validation; self-hosted only when private network / custom hardware requires it.
 
 - **Start from scratch / no SCM (2026-08-27)** — Cloud Agents can begin without a connected GitHub repo: pick **Start from scratch**, prompt immediately, then **Create repo** to save into Origin (private/internal). Use **browser port-forward preview** (design mode) while the agent runs; optional **Vercel publish** for a live URL. GitHub remains canonical for marketplace installs and CI.

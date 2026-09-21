@@ -83,7 +83,10 @@
         "cursor-projects-2026-09-10",
         "project-coordinator-agent-2026-09-10",
         "project-shared-context-2026-09-10",
-        "project-subscriptions-2026-09-10"
+        "project-subscriptions-2026-09-10",
+        "cli-persist-sessions-2026-08-26",
+        "cli-worker-wake-hibernated-2026-08-26",
+        "desktop-cli-patch-3.21.13"
       ],
       "capabilities": [
         "git",
@@ -104,7 +107,9 @@
         "extension_install": "Cursor installs plugins, not git-URL extensions.",
         "statusline": "No plugin-declared statusline."
       },
-      "verification_method": "latest desktop build from official Cursor download links (3.20.17, 2026-09-13 stable) cross-checked against cursor.com/changelog (feature 3.11; date-only entries through 2026-09-10 Projects; prior 2026-09-02 Self-Hosted Machines / Team Pools / partner sandboxes / computer use; prior Start-from-scratch 2026-08-27); Cursor CLI changelog Aug 11 2026 documented; Builds now default (2026-08-17); Origin early-beta docs; cloud-agent subscriptions / custom modes / isolated subagent VMs /goal / steering (2026-08-19)"
+      "verification_method": "latest desktop build from official Cursor download links (3.21.13, 2026-09-13 stable) cross-checked against cursor.com/changelog (feature 3.11; date-only entries through 2026-09-10 Projects; prior 2026-09-02 Self-Hosted Machines / Team Pools / partner sandboxes / computer use; prior Start-from-scratch 2026-08-27); Cursor CLI changelog Aug 11 2026 documented; Builds now default (2026-08-17); Origin early-beta docs; cloud-agent subscriptions / custom modes / isolated subagent VMs /goal / steering (2026-08-19); CLI changelog through 2026-08-26 (agent persist / hibernated worker wake)",
+      "changelog_feature": "3.11",
+      "changelog_date": "2026-09-10"
     },
     "gemini_cli": {
       "platform": "gemini",

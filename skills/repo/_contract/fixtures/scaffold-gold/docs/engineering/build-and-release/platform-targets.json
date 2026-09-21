@@ -45,7 +45,7 @@
       ],
       "capability_gaps": {
         "extension_install": "Claude installs plugins, not git-URL extensions.",
-        "plugin_marketplace": "App-gold is a greenfield app repo, not a plugin-distribution repo (see skills/repo/_contract/README.md's profile table) \u2014 it ships no .claude-plugin/plugin.json and is not published to a marketplace."
+        "plugin_marketplace": "App-gold is a greenfield app repo, not a plugin-distribution repo (see skills/repo/_contract/README.md's profile table) — it ships no .claude-plugin/plugin.json and is not published to a marketplace."
       }
     },
     "codex": {
@@ -68,7 +68,7 @@
       "capability_gaps": {
         "artifacts": "No artifact publishing surface.",
         "extension_install": "Codex installs plugins, not git-URL extensions.",
-        "plugin_marketplace": "App-gold is a greenfield app repo, not a plugin-distribution repo \u2014 it ships no .codex-plugin/plugin.json and is not published to a marketplace.",
+        "plugin_marketplace": "App-gold is a greenfield app repo, not a plugin-distribution repo — it ships no .codex-plugin/plugin.json and is not published to a marketplace.",
         "statusline": "Not a declared Codex capability."
       }
     },
@@ -92,7 +92,10 @@
         "cursor-projects-2026-09-10",
         "project-coordinator-agent-2026-09-10",
         "project-shared-context-2026-09-10",
-        "project-subscriptions-2026-09-10"
+        "project-subscriptions-2026-09-10",
+        "cli-persist-sessions-2026-08-26",
+        "cli-worker-wake-hibernated-2026-08-26",
+        "desktop-cli-patch-3.21.13"
       ],
       "capabilities": [
         "git",
@@ -107,10 +110,12 @@
       "capability_gaps": {
         "artifacts": "No artifact publishing surface.",
         "extension_install": "Cursor installs plugins, not git-URL extensions.",
-        "plugin_marketplace": "App-gold is a greenfield app repo, not a plugin-distribution repo \u2014 it ships no .cursor-plugin/plugin.json and is not published to a marketplace.",
+        "plugin_marketplace": "App-gold is a greenfield app repo, not a plugin-distribution repo — it ships no .cursor-plugin/plugin.json and is not published to a marketplace.",
         "statusline": "No plugin-declared statusline."
       },
-      "verification_method": "latest desktop build from official Cursor download links (3.20.17, 2026-09-13 stable) cross-checked against cursor.com/changelog (feature 3.11; date-only entries through 2026-09-10 Projects; prior 2026-09-02 Self-Hosted Machines / Team Pools / partner sandboxes / computer use; prior Start-from-scratch 2026-08-27); Cursor CLI changelog Aug 11 2026 documented; Builds now default (2026-08-17); Origin early-beta docs; cloud-agent subscriptions / custom modes / isolated subagent VMs /goal / steering (2026-08-19)"
+      "verification_method": "latest desktop build from official Cursor download links (3.21.13, 2026-09-13 stable) cross-checked against cursor.com/changelog (feature 3.11; date-only entries through 2026-09-10 Projects; prior 2026-09-02 Self-Hosted Machines / Team Pools / partner sandboxes / computer use; prior Start-from-scratch 2026-08-27); Cursor CLI changelog Aug 11 2026 documented; Builds now default (2026-08-17); Origin early-beta docs; cloud-agent subscriptions / custom modes / isolated subagent VMs /goal / steering (2026-08-19); CLI changelog through 2026-08-26 (agent persist / hibernated worker wake)",
+      "changelog_feature": "3.11",
+      "changelog_date": "2026-09-10"
     },
     "gemini_cli": {
       "platform": "gemini",
@@ -162,8 +167,8 @@
       "capability_gaps": {
         "artifacts": "No artifact publishing surface.",
         "extension_install": "No git-URL extension install.",
-        "hooks": "OpenCode has no hooks.json; its only lifecycle mechanism is the JS/TS plugin API, and this repo ships no plugin module by design (it would add a Node runtime dependency for no other gain). As installed, the hooks/ guards do not run at all \u2014 'adapter' would imply a generated artifact exists, as it does for subagents, and none does.",
-        "plugin_marketplace": "No plugin marketplace \u2014 install is by absolute skills.paths. Not by symlink: OpenCode does not follow them for skill discovery (see the skills row).",
+        "hooks": "OpenCode has no hooks.json; its only lifecycle mechanism is the JS/TS plugin API, and this repo ships no plugin module by design (it would add a Node runtime dependency for no other gain). As installed, the hooks/ guards do not run at all — 'adapter' would imply a generated artifact exists, as it does for subagents, and none does.",
+        "plugin_marketplace": "No plugin marketplace — install is by absolute skills.paths. Not by symlink: OpenCode does not follow them for skill discovery (see the skills row).",
         "statusline": "No plugin-declared statusline."
       }
     }
