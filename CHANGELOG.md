@@ -5,6 +5,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [4.0.0] — 2026-09-22
+
 - **Cursor 3.11 (+2026-09-10 / desktop 3.21.13):** advance Cursor coverage through **Projects** (coordinator, shared context, subscriptions) and desktop **3.18.9 → 3.21.13**. Feature pin remains **3.11**. `make validate` expected green. Cursor-only.
 
 - **Claude Code platform-sync review advances through 2.1.278** (from 2.1.274, the last
@@ -45,6 +47,29 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   No breaking change in the 2.1.275→2.1.278 range affects this repo. Full narrative:
   `CLAUDE.md`'s Subagents, Marketplace cache and Project instructions bullets, and
   `platform-targets.json`'s `verification_method`.
+
+- **`platform-truth`: make platform claims checkable.** Added the `dynamic_workflows`
+  capability key end-to-end (registry, schema enum, `capability-model.md` documentation,
+  and a new `check-capability-registry.sh` cross-reference against `core/roles/*.md`'s
+  backtick-quoted capability names — closes the "named-but-wrong key" case, not the
+  "unnamed anywhere" case). Fixed three registry rows that had drifted from live behavior
+  (`gemini.plugin_marketplace`, `gemini.parallel_subagents`, `opencode.parallel_subagents`)
+  and the `opencode` vendor name (SST → Anomaly). Wired `gemini-extension-check` into
+  `make validate`'s dependency chain — it was declared but never actually invoked, despite
+  being documented as CI-enforced. Fixed a real `printf` bug in `handoff.sh` (missing `--`
+  before a `-`-prefixed force-emit string) found by a worker legitimately hitting that
+  path. Corrected stale skill/effort counts in `CLAUDE.md` (27 → 29).
+
+- **`platform-currency`: a continuous platform-currency loop**, so the next audit doesn't
+  require another full manual research pass. `scripts/probe-platform-versions.sh`
+  live-checks upstream version endpoints for Cursor, Codex, Gemini CLI and OpenCode against
+  the pinned baseline (Claude Code has no public version API, reported `n/a` by design); a
+  new nightly `platform-currency.yml` workflow runs it and opens a GitHub issue on drift;
+  `platform-sync` now consumes the probe's output to skip re-fetching sources for an
+  already-current target and to scope fetches to the known delta range otherwise; every row
+  in `core/capabilities/platforms.json` now carries a `last_verified` date enforced by a new
+  90-day staleness SLA in `check-capability-registry.sh`. Corrected a stale, disproven
+  comment in `check-platform-targets.sh` claiming Cursor has no public version endpoint.
 
 ## [3.9.1] — 2026-09-21
 
