@@ -322,6 +322,53 @@ if (( FAILED == before_surfaces )); then
   echo "ok:    $(jq -r '.platforms | length' "$REGISTRY_CANONICAL") platforms, $surface_count surfaces, every support level explicit"
 fi
 
+# --- 3h. Role-declared required capabilities resolve into the schema enum ---
+# core/roles/README.md says required capabilities are "named using keys from
+# core/capabilities/schema.json" -- a convention this script never enforced.
+# Each core/roles/*.md names them as backtick-quoted keys under its own
+# "## Required capabilities" heading (e.g. implementer.md: `shell`, `git`,
+# `worktree_isolation`). Until now nothing resolved that convention against
+# the schema's capabilityKey enum, so a role could reference a typo'd,
+# renamed, or never-added key and this script would still pass -- the
+# schema/platforms.json pair only cross-reference EACH OTHER (see 2 and 3
+# above), never a role's own prose.
+#
+# This closes one real drift vector: a role naming a capability the enum
+# does not have. It does NOT close the general P4 gap. A capability that is
+# referenced NOWHERE structured -- no role file, no skill frontmatter
+# (checked separately by validate-skill-frontmatter.py), no schema enum --
+# is invisible to every check in this repo, because the enum is the only
+# declared vocabulary of "capabilities that exist." That residual gap has no
+# executable check: there is nothing outside the enum to cross-reference it
+# against. dynamic_workflows itself is the proof -- no role file or skill
+# named it by key before it was added, so even this new check would not
+# have caught that specific incident; it catches the narrower, real case of
+# a *named-but-wrong* key, not an *unnamed* one.
+before_roles_cap=$FAILED
+roles_examined=0
+ROLES_DIR="$ROOT/core/roles"
+if [[ -d "$ROLES_DIR" ]]; then
+  enum_keys="$(jq -r '.["$defs"].capabilityKey.enum[]' "$SCHEMA")"
+  for f in "$ROLES_DIR"/*.md; do
+    [[ -f "$f" ]] || continue
+    base="$(basename "$f")"
+    [[ "$base" == "README.md" ]] && continue
+    section="$(awk '/^## Required capabilities/{flag=1; next} /^## /{flag=0} flag' "$f")"
+    [[ -n "$section" ]] || continue
+    while IFS= read -r key; do
+      [[ -n "$key" ]] || continue
+      roles_examined=$(( roles_examined + 1 ))
+      grep -qxF "$key" <<<"$enum_keys" \
+        || err "core/roles/$base's Required capabilities section names \`$key\`, which is not in schema.json's capabilityKey enum"
+    done < <(grep -oE '`[a-z][a-z0-9_]*`' <<<"$section" | tr -d '`' | sort -u)
+  done
+fi
+if (( roles_examined == 0 )); then
+  err "the role-capability scan examined 0 keys -- the query is broken, not the roles clean"
+elif (( FAILED == before_roles_cap )); then
+  echo "ok:    $roles_examined role-declared capability keys (across core/roles/*.md) all resolve to schema.json's enum"
+fi
+
 # --- 4. Every shipped target has a registry entry ---
 if [[ -f "$TARGETS" ]]; then
   before_targets=$FAILED
