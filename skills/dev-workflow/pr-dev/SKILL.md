@@ -331,15 +331,22 @@ PR #N is green and has no unresolved threads, but merge policy here is "ask firs
 **Resolve that second case; never assume it.** It holds only where the repository is solo **and** the
 caller holds a ruleset bypass actor. **Read `admin_bypass_available` from
 `resolve-merge-policy.sh`'s own JSON output (Startup step 2) rather than re-deriving it by hand** —
-the naive derivation is a trap:
+the naive derivation is a trap in two different ways, both confirmed in production:
 
 ```bash
-# WRONG — silently under-reports. repos/$REPO/rulesets is the LIST endpoint, and the list does
-# not expand bypass_actors; only a per-ruleset fetch (or the effective /rules/branches/{b}
-# endpoint resolve-merge-policy.sh actually reads) does. This returns 0 even when a real
-# always-on bypass actor exists, which reads as "no bypass" and wrongly refuses a merge the
-# caller is entitled to make. Confirmed in production — do not use this form:
+# WRONG (under-reports) — repos/$REPO/rulesets is the LIST endpoint, and the list does not
+# expand bypass_actors; only a per-ruleset fetch does. This returns 0 even when a real
+# always-on bypass actor exists, reading as "no bypass" and wrongly refusing a merge the
+# caller is entitled to make.
 bypass=$(gh api "repos/$REPO/rulesets" --jq '[.[].bypass_actors // []] | flatten | length')
+
+# ALSO WRONG (over-reports) — repo permission is not proof of a ruleset bypass. A caller can
+# hold ADMIN/MAINTAIN on the repo while no bypass_actor for the rulesets that actually apply
+# to the base branch covers that role at all. resolve-merge-policy.sh derives
+# admin_bypass_available from viewerPermission ALONE was exactly this bug, until it was fixed
+# to resolve the ruleset(s) that apply to the branch (`/rules/branches/{b}`), fetch each one's
+# bypass_actors, and check whether the caller's actual permission matches a RepositoryRole
+# bypass actor with bypass_mode "always" — not from permission level in isolation.
 ```
 
 ```bash
