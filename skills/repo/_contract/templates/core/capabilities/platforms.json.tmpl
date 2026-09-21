@@ -77,6 +77,10 @@
     "session_transcripts": {
       "summary": "Session history is readable on disk in a documented format.",
       "degradation": "Usage analytics (session-report) are unavailable; say so rather than reporting zeros."
+    },
+    "dynamic_workflows": {
+      "summary": "Runs a Workflow tool script that can pause, branch, and resume mid-execution driven by model output.",
+      "degradation": "Achieve the same result with sequential subagent orchestration driven by the main session."
     }
   },
   "platforms": {
@@ -216,6 +220,11 @@
               "status": "native",
               "validation": "node skills/toolkit/session-report/analyze-sessions.mjs --json | jq -e '.overall.sessions > 0'",
               "notes": "JSONL transcripts under ~/.claude/projects; the session-report skill parses this format and no other. The claim is that the history is READABLE, so the validation reads it: the parser runs against the real transcript root and must find at least one session. It previously read `test -d \"$HOME/.claude/projects\"`, which passes on an empty directory created by any Claude Code run that never wrote a transcript, and would keep passing if the format changed under the parser."
+            },
+            "dynamic_workflows": {
+              "status": "native",
+              "validation": "claude plugin validate .",
+              "notes": "The Workflow tool runs a script that can pause, branch, and resume mid-execution driven by model output. No repo-declared artifact exercises it directly; validation follows the same plugin-load convention as ask_user_question and skill_auto_invocation."
             }
           }
         },
@@ -333,6 +342,11 @@
               "status": "unknown",
               "notes": "No documented on-disk transcript format for Desktop; session-report should refuse rather than guess.",
               "fallback": "Report that usage analytics are unavailable on this surface."
+            },
+            "dynamic_workflows": {
+              "status": "unsupported",
+              "notes": "The Workflow tool is a Claude Code CLI surface; not exercised on Desktop.",
+              "fallback": "Sequential subagent orchestration driven by the main session."
             }
           }
         }
@@ -461,6 +475,11 @@
               "status": "unknown",
               "notes": "Transcript format not documented for this repo's tooling; session-report targets the Claude JSONL format only.",
               "fallback": "Report analytics as unavailable."
+            },
+            "dynamic_workflows": {
+              "status": "unsupported",
+              "notes": "The Workflow tool is Claude-specific; no declared Codex equivalent.",
+              "fallback": "Sequential subagent orchestration driven by the main session."
             }
           }
         },
@@ -603,6 +622,11 @@
               "status": "unknown",
               "notes": "Transcript format not documented for this repo's tooling.",
               "fallback": "Report analytics as unavailable."
+            },
+            "dynamic_workflows": {
+              "status": "unsupported",
+              "notes": "The Workflow tool is Claude-specific; no declared Cursor equivalent.",
+              "fallback": "Sequential subagent orchestration driven by the main session."
             }
           }
         },
@@ -671,8 +695,8 @@
               "fallback": "Regenerate with make gemini-extension; never hand-edit .gemini/agents/. Installing the extension still emits a harmless load error for the canonical agents/ at the extension root \u2014 noisy, not fatal, and unfixable from this side (no subdirectory flag, no manifest field relocates it)."
             },
             "parallel_subagents": {
-              "status": "unknown",
-              "notes": "Concurrency behaviour undocumented here.",
+              "status": "unsupported",
+              "notes": "Gemini subagents cannot themselves call subagents — documented recursion protection, not merely unmeasured. orchestrate-dev's fan-out pattern is structurally impossible on Gemini as a result.",
               "fallback": "Fan out sequentially."
             },
             "agent_teams": {
@@ -720,9 +744,9 @@
               "fallback": "Explicit git worktree add/remove steps."
             },
             "plugin_marketplace": {
-              "status": "unsupported",
-              "notes": "Gemini installs extensions from a git URL; there is no marketplace listing to publish to.",
-              "fallback": "Use extension_install."
+              "status": "partial",
+              "notes": "Gemini auto-indexes a gallery of extensions from public repos that declare a root manifest and carry the `gemini-cli-extension` GitHub topic — no separate publish step beyond that. This repo is NOT currently listed: its GitHub topics include `gemini-cli` but not `gemini-cli-extension`. Otherwise-qualifying, but the topic gap keeps it out of the gallery today.",
+              "fallback": "Use extension_install, or add the `gemini-cli-extension` topic to appear in the auto-indexed gallery."
             },
             "extension_install": {
               "status": "native",
@@ -749,6 +773,11 @@
               "status": "unknown",
               "notes": "Transcript format not documented for this repo's tooling.",
               "fallback": "Report analytics as unavailable."
+            },
+            "dynamic_workflows": {
+              "status": "unsupported",
+              "notes": "The Workflow tool is Claude-specific; no declared Gemini equivalent.",
+              "fallback": "Sequential subagent orchestration driven by the main session."
             }
           }
         },
@@ -768,7 +797,7 @@
     },
     "opencode": {
       "display_name": "OpenCode",
-      "vendor": "SST",
+      "vendor": "Anomaly",
       "primary_surface": "opencode",
       "doc_urls": [
         "https://opencode.ai/config.json",
@@ -816,8 +845,8 @@
               "fallback": "Regenerate the adapter rather than hand-editing .opencode/agent/."
             },
             "parallel_subagents": {
-              "status": "unknown",
-              "notes": "Not measured.",
+              "status": "unsupported",
+              "notes": "OpenCode's subagent_depth defaults to 1 (shipped v1.18.2, 2026-07-15), so a subagent cannot itself spawn subagents — not merely unmeasured.",
               "fallback": "Fan out sequentially."
             },
             "agent_teams": {
@@ -892,6 +921,11 @@
               "status": "unknown",
               "notes": "Transcript format not documented for this repo's tooling.",
               "fallback": "Report analytics as unavailable."
+            },
+            "dynamic_workflows": {
+              "status": "unsupported",
+              "notes": "The Workflow tool is Claude-specific; no declared OpenCode equivalent.",
+              "fallback": "Sequential subagent orchestration driven by the main session."
             }
           }
         },

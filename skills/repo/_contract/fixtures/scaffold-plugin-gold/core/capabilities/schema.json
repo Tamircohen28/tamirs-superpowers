@@ -26,7 +26,7 @@
       "propertyNames": {
         "$ref": "#/$defs/capabilityKey"
       },
-      "minProperties": 19,
+      "minProperties": 20,
       "additionalProperties": {
         "type": "object",
         "required": [
@@ -80,7 +80,8 @@
         "slash_commands",
         "ask_user_question",
         "artifacts",
-        "session_transcripts"
+        "session_transcripts",
+        "dynamic_workflows"
       ]
     },
     "status": {
@@ -292,8 +293,8 @@
         "capabilities": {
           "type": "object",
           "description": "Every capability key must be present. Use status 'unknown' for anything unverified rather than omitting it.",
-          "minProperties": 19,
-          "maxProperties": 19,
+          "minProperties": 20,
+          "maxProperties": 20,
           "propertyNames": {
             "$ref": "#/$defs/capabilityKey"
           },
