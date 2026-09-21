@@ -85,6 +85,21 @@ In a Codex session, invoke a skill by name — *"use the repo-standards skill"* 
 it loads. Codex's slash-command surface has not been verified against these skills, so
 naming is the reliable form.
 
+**Hooks ship untrusted by default — a clean install does not mean hooks are live.** A
+non-managed hook (which includes every hook a plugin bundles) is skipped until a human
+reviews and trusts its exact current definition; installing or enabling this plugin does not
+trust its hooks automatically. When any hook needs review, Codex shows a startup consent
+prompt with the choice to review the hooks, trust all and continue, or continue without
+trusting — so this isn't something you have to know to go look for. Trust is recorded per
+hook against its content hash (see `trusted_hash` under Machine-level setup, below); editing
+a hook resets it to needing review. Confirm current state through that same hooks review
+surface, which lists each hook with its trust/enabled state — note trusted and enabled are
+separate: a hook can be trusted and still disabled. Codex's own docs also describe a `/hooks`
+command for this; take that spelling from the docs rather than as independently verified here.
+Do not treat a clean `bash scripts/doctor.sh .` run above as proof hooks are live — it
+validates the manifest, not hook trust state. (Not verified against a live `codex` run —
+based on Codex's docs and source.)
+
 ## Update
 
 ```bash
@@ -145,9 +160,9 @@ never adopt anything silently. `apply` shows a diff and asks per change, default
 | Capability | Status | Notes |
 |---|---|---|
 | skills | native | since 0.40.0 |
-| subagents | native | declared capability |
-| hooks | native | since 0.147.0, via the **manifest `hooks` field** — a different shape from Claude's `hooks/hooks.json`, which does not port |
-| MCP | native | `.codex/config.toml` |
+| subagents | unknown | Codex has a native subagents feature, but it is standalone `.toml` files under `$CODEX_HOME/agents/` or `.codex/agents/`, deliberately outside the plugin manifest (bundling one is an open upstream feature request); this repo ships no Codex agent mirror. Demoted from "native" 2026-09-08 — see registry |
+| hooks | native | via the **manifest `hooks` field**, which points at this repo's own `hooks/hooks.json` — the same file, not a different shape (see note below) |
+| MCP | native | via the plugin manifest's `mcpServers` field, which points at `./.mcp.json` — not `.codex/config.toml`, which is Codex runtime settings only |
 | plugin marketplace | native | |
 | shell · git · GitHub CLI | native | |
 | worktree isolation | emulated | The skill runs `git worktree` itself |
@@ -157,6 +172,15 @@ never adopt anything silently. `apply` shows a diff and asks per change, default
 
 With `parallel_subagents` unmeasured, orchestration here runs **serialized or sequential** —
 same task graph, same single PR.
+
+**Hooks do port, with partial coverage.** `.codex-plugin/plugin.json` points its `hooks`
+field directly at `./hooks/hooks.json`; Codex's manifest schema accepts that file through the
+same `HooksFile` type its own engine consumes (internally named `ClaudeHooksEngine`, which
+sets `CLAUDE_PLUGIN_ROOT` and ships Claude tool-name matcher aliases on purpose), and exit-2
+blocking semantics match — it is the same file shape, not a different one that fails to
+port. Coverage is partial: `WorktreeCreate`, `WorktreeRemove`, `DirectoryAdded`, and
+`Notification` — four of this repo's wired events — have no Codex equivalent and never fire
+there. (Source-derived from `openai/codex` main — not verified against a live `codex` run.)
 
 Source of truth: [`core/capabilities/platforms.json`](../../../core/capabilities/platforms.json).
 Comparison: [platform differences](../platform-differences.md).
