@@ -1,0 +1,63 @@
+name: Platform Currency
+
+on:
+  schedule:
+    - cron: '0 6 * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  probe:
+    name: Probe upstream platform versions
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Probe platform versions
+        id: probe
+        run: |
+          set +e
+          output="$(bash scripts/probe-platform-versions.sh . 2>&1)"
+          exit_code=$?
+          echo "$output"
+          {
+            echo "output<<PROBE_EOF"
+            echo "$output"
+            echo "PROBE_EOF"
+          } >> "$GITHUB_OUTPUT"
+          exit $exit_code
+        continue-on-error: true
+
+      - name: Open drift issue
+        if: steps.probe.outcome == 'failure'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PROBE_OUTPUT: ${{ steps.probe.outputs.output }}
+        run: |
+          gh issue create \
+            --title "Platform version drift detected ($(date -u +%Y-%m-%d))" \
+            --body "$(cat <<ISSUE_EOF
+          The nightly platform-currency probe found at least one platform whose
+          upstream version no longer matches the pin in
+          \`docs/engineering/build-and-release/platform-targets.json\`.
+
+          \`\`\`
+          $PROBE_OUTPUT
+          \`\`\`
+
+          Run \`bash scripts/probe-platform-versions.sh .\` locally to confirm,
+          then update the drifted platform's \`latest_known\` (and any
+          dependent narrative docs) accordingly.
+          ISSUE_EOF
+          )"
+
+      - name: Fail the job if drift was detected
+        if: steps.probe.outcome == 'failure'
+        run: exit 1
