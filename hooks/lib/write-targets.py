@@ -212,12 +212,20 @@ def strip_heredocs(command):
     `cat > f <<'EOF' … EOF` must still be seen as a write to `f`, but the body
     must not be parsed as shell — otherwise prose inside a heredoc becomes
     commands, and a document that merely mentions `yarn.lock` becomes a write to
-    it. Returns (command_without_bodies, saw_heredoc).
+    it. Returns (command_without_bodies, heredoc_bodies).
+
+    heredoc_bodies is the list of stripped body texts, in the order their
+    `<<`/`<<-` operators appear (tab-stripped when the delimiter was `<<-`).
+    Most callers never look at it — the redirect target already named in the
+    `cat > f <<EOF` line is enough. It exists for the one shape where the
+    heredoc IS the payload rather than data written elsewhere: Codex's
+    `apply_patch <<'PATCH' … PATCH`, whose write targets live inside the body
+    this function would otherwise discard. See `_segment_records`.
     """
     lines = command.split("\n")
     kept = []
+    bodies = []
     i = 0
-    saw = False
     while i < len(lines):
         line = lines[i]
         kept.append(line)
@@ -233,14 +241,16 @@ def strip_heredocs(command):
         if not delims:
             continue
 
-        saw = True
         for delim, strip_tabs in delims:
+            body_lines = []
             while i < len(lines):
                 body = lines[i]
                 i += 1
                 if (body.lstrip("\t") if strip_tabs else body).strip() == delim:
                     break
-    return "\n".join(kept), saw
+                body_lines.append(body.lstrip("\t") if strip_tabs else body)
+            bodies.append("\n".join(body_lines))
+    return "\n".join(kept), bodies
 
 
 # --------------------------------------------------------------------------
@@ -688,7 +698,8 @@ def redirect_targets(toks):
 
 def analyze_command(command, cwd):
     """Yield (kind, detail, fragment) records for one Bash command string."""
-    command, _ = strip_heredocs(command)
+    command, heredoc_bodies = strip_heredocs(command)
+    heredoc_iter = iter(heredoc_bodies)
     toks = tokenize(command)
 
     records = []
@@ -713,7 +724,7 @@ def analyze_command(command, cwd):
 
     for seg, piped_in, terminator in segments:
         if seg:
-            cwd = _segment_records(seg, piped_in, terminator, cwd, records)
+            cwd = _segment_records(seg, piped_in, terminator, cwd, records, heredoc_iter)
         # The group boundary is the terminator of the segment just processed.
         if terminator == "(":
             cwd_stack.append(cwd)
@@ -722,13 +733,22 @@ def analyze_command(command, cwd):
     return records
 
 
-def _segment_records(seg, piped_in, terminator, cwd, records):
+def _segment_records(seg, piped_in, terminator, cwd, records, heredoc_iter):
     """Append this segment's records; return the cwd the NEXT segment sees."""
     fragment = " ".join(t.value for t in seg if t.kind == "word")[:160]
 
+    # This segment's own `<<`/`<<-` bodies, in order — pulled off the shared
+    # iterator HERE, unconditionally, whether or not this segment's command
+    # ends up using them. strip_heredocs collected bodies in left-to-right
+    # source order across the WHOLE command; every segment with a heredoc
+    # operator must take its share in that same order, or a later apply_patch
+    # segment reads an earlier command's heredoc body instead of its own.
+    heredoc_bodies = [next(heredoc_iter, "") for t in seg
+                       if t.kind == "op" and t.value in ("<<", "<<-")]
+
     # An interpreter is handed a PROGRAM, not just data, by any of these.
-    fed_code = piped_in or any(
-        t.kind == "op" and t.value in ("<<", "<<-", "<") for t in seg)
+    fed_code = piped_in or bool(heredoc_bodies) or any(
+        t.kind == "op" and t.value == "<" for t in seg)
     targets = list(redirect_targets(seg))
 
     # Words only, minus redirect operands and the fd numbers glued to them.
@@ -784,6 +804,19 @@ def _segment_records(seg, piped_in, terminator, cwd, records):
                 if cwd else None
         return cwd
 
+    # Codex's apply_patch also arrives as a Bash heredoc, not only as its own
+    # `tool_name: "apply_patch"` payload — `apply_patch <<'PATCH' … PATCH`.
+    # strip_heredocs already pulled the body off for us (heredoc_bodies,
+    # above); read the patch envelope back out of it exactly the way
+    # records_for() does for the tool-call form, so both paths agree. A
+    # heredoc that is not a patch envelope — prose that merely mentions patch
+    # markers — yields no records, same as the tool-call path.
+    if os.path.basename(argv0) == "apply_patch":
+        body = heredoc_bodies[0] if heredoc_bodies else None
+        if body is not None and "*** Begin Patch" in body:
+            records.extend(apply_patch_targets(body, cwd))
+        return cwd
+
     cmd_targets, kind, unsure = segment_targets(argv0, rest, fed_code)
     if unsure:
         records.append(("UNSURE", unsure, fragment))
@@ -831,6 +864,16 @@ def _segment_records(seg, piped_in, terminator, cwd, records):
 # key for the EDIT_PATH_KEYS fallback to find either — so every apply_patch
 # write was invisible to the guard, exactly the silent-allow this module's
 # own docstring says it exists to close.
+#
+# apply_patch ALSO arrives as a Bash heredoc — `apply_patch <<'PATCH' … PATCH`
+# — with `tool_name: "Bash"`, not `"apply_patch"`. That form is handled in
+# `_segment_records`, which reads the heredoc body `strip_heredocs` pulled off
+# and calls this same function on it. Both paths funnel through
+# `apply_patch_targets` so a given patch envelope reports the same targets
+# regardless of which shape it arrived in — see the comment there. (No
+# dedicated regression test for this shell-heredoc path exists yet in
+# tests/hooks/ as of this change — task-007's scope was write-targets.py
+# only; adding one is a followup for test-engineer.)
 #
 # The markers are matched literally, not grepped for a protected path, for
 # the same reason `analyze_command` parses instead of greps: a `-` line
