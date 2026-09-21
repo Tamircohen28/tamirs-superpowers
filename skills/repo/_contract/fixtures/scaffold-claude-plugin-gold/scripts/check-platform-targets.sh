@@ -276,9 +276,14 @@ if [[ "$SYNC" == true && -f "$TARGETS_JSON" ]] && command -v curl >/dev/null 2>&
     echo "Updated codex.latest_known to $codex_latest"
   fi
 
-  # npm-distributed targets. Cursor has no public version endpoint — bump it by hand.
-  # Gemini CLI ships as @google/gemini-cli; the entry stays "unknown" until a real
-  # `gemini --version` is recorded, so only latest_known is ever synced here.
+  # npm-distributed targets. Cursor DOES have a public version endpoint
+  # (GET https://cursor.com/api/download?platform=darwin-universal&releaseTrack=stable
+  # -> {"version": "..."}), proven live by scripts/probe-platform-versions.sh — the
+  # comment here previously claimed otherwise and was wrong. It is not npm-distributed,
+  # so it cannot reuse sync_npm_latest() below as-is; wiring an equivalent auto-sync
+  # for it is a real follow-up, not done here. Gemini CLI ships as @google/gemini-cli;
+  # the entry stays "unknown" until a real `gemini --version` is recorded, so only
+  # latest_known is ever synced here.
   sync_npm_latest() {
     local key="$1" pkg="$2" latest tmpf
     jq -e ".targets.$key" "$TARGETS_JSON" >/dev/null 2>&1 || return 0
