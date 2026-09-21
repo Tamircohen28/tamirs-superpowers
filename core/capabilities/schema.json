@@ -80,7 +80,8 @@
         "slash_commands",
         "ask_user_question",
         "artifacts",
-        "session_transcripts"
+        "session_transcripts",
+        "dynamic_workflows"
       ]
     },
     "status": {
