@@ -21,8 +21,10 @@ codex plugin add tamirs-superpowers@tamirs-superpowers
 
 Codex resolves [`.agents/plugins/marketplace.json`](../../../.agents/plugins/marketplace.json)
 and [`.codex-plugin/plugin.json`](../../../.codex-plugin/plugin.json), and loads the
-canonical `skills/` tree. MCP servers are configured through
-[`.codex/config.toml`](../../../.codex/config.toml), not `.mcp.json`.
+canonical `skills/` tree. MCP servers are declared by the plugin manifest's `mcpServers`
+field, which points at [`.mcp.json`](../../../.mcp.json) — not
+[`.codex/config.toml`](../../../.codex/config.toml), which holds Codex runtime settings
+only and says so itself at its line 11.
 
 Codex also reads the repo's root [`AGENTS.md`](../../../AGENTS.md) as project instructions.
 That file is a **thin entrypoint** into the canonical rules under
@@ -77,7 +79,7 @@ migration.
 jq empty .codex-plugin/plugin.json
 jq -e '.hooks' .codex-plugin/plugin.json     # manifest hooks field present
 jq empty .agents/plugins/marketplace.json
-test -f .codex/config.toml && echo "MCP config present"
+jq -e '.mcpServers' .codex-plugin/plugin.json  # MCP declared by the manifest, -> ./.mcp.json
 bash scripts/doctor.sh .
 ```
 
@@ -120,8 +122,9 @@ codex plugin remove tamirs-superpowers
 codex plugin marketplace remove tamirs-superpowers
 ```
 
-`.codex/config.toml` is a file in your repo — remove the MCP entries by hand if you no
-longer want them.
+`.codex/config.toml` is a file in your repo holding Codex runtime settings — it declares no
+MCP servers, so there is nothing to remove there. MCP comes from the plugin manifest's
+`mcpServers` field pointing at [`.mcp.json`](../../../.mcp.json), which leaves with the plugin.
 
 ---
 

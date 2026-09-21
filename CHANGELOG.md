@@ -7,6 +7,69 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 - **Cursor 3.11 (+2026-09-10 / desktop 3.20.17):** advance Cursor coverage through **Projects** (coordinator, shared context, subscriptions) and desktop **3.18.9 → 3.20.17**. Feature pin remains **3.11**. `make validate` expected green. Cursor-only.
 
+## [3.9.0] — 2026-09-21
+
+### Fixed — a core safety invariant enforced nothing on Codex
+
+`hooks/enforce-worktree-edits.sh` silently permitted **every** edit on Codex, and nothing
+reported that it didn't. The guard allowlisted five Claude tool names and fell through to
+`*) hook_allow`; Codex's editing tool is `apply_patch`, which appeared nowhere in any of the
+25 hook scripts. Codex selects the hook via Claude-compat matcher aliases
+(`hook_names.rs:29-38` declares `matcher_aliases: ["Write","Edit"]`) but delivers the raw name
+in the payload — so the hook fired, read `apply_patch`, matched nothing, and allowed the write.
+The invariant that should have been portable — *block writes outside the worktree* — had been
+encoded as *block five Claude tool names*.
+
+`hooks/guard-sensitive-files.sh` failed alongside it for a different reason: `apply_patch`'s
+`tool_input` is `{"command": <patch text>}`, so `write-targets.py` found no path key and
+returned no targets.
+
+### Added
+
+- `hooks/lib/platform-tools.sh` — `normalize_tool_name` maps a platform's own tool name onto
+  this repo's canonical vocabulary (`apply_patch` → `Edit`); unknown names pass through
+  unchanged, so no mapping is invented without evidence.
+- `tests/hooks/**` — 5 suites, 90 assertions: the `cwd` × `target` matrix across `apply_patch`
+  and every canonical Claude tool, multi-target loop proof, the shell-heredoc bypass,
+  tool-path/shell-path target agreement, a static check of `hooks.json`'s own matchers, and
+  pinned assertions against the authoritative `codex-rs` marker constants.
+
+### Changed
+
+- `enforce-worktree-edits.sh` now judges **every** write target rather than only the first.
+  `hook_allow`/`hook_deny` both `exit(0)`, so the previous single inline check could only rule
+  on one target — a multi-file patch with one innocuous and one dangerous target was allowed on
+  the strength of the first. Decision logic moved into `judge_target_dir()`, which returns a
+  verdict and is applied per candidate.
+- `write-targets.py` parses the `apply_patch` envelope (`Add`/`Update`/`Delete File`, and
+  `Move to`, a rename destination that can otherwise be used to write to a guarded path), and
+  closes a shell-heredoc bypass: `strip_heredocs()` discarded patch bodies before the parser
+  saw them, so `apply_patch <<'PATCH' … PATCH` via the `Bash` matcher was invisible to the guard.
+- `guard-sensitive-files.sh` resolves `repo_root` from the nearest *existing* ancestor, fixing a
+  silent no-op when the target's directory did not exist yet.
+- `skill-creator-guard.sh` gates its primary and fallback extraction under one shared tool-name
+  check, removing a false positive on `Read`/`Grep`.
+- `make test-hooks` sweeps `tests/` at depth 2 — the new suites were not being run.
+
+### Fixed — false platform claims
+
+- `docs/user/install/codex.md` claimed `hooks/hooks.json` "does not port" to Codex. It does:
+  `.codex-plugin/plugin.json` points at this repo's own file and Codex consumes the same
+  `HooksFile` type. Coverage is *partial* — `WorktreeCreate`, `WorktreeRemove`, `DirectoryAdded`
+  and `Notification` have no Codex equivalent. The same table's `subagents` row (`native` →
+  `unknown`) and MCP row (`.codex/config.toml` → the manifest `mcpServers` field) were also wrong.
+- `core/capabilities/platforms.json` carried the identical false "not the same shape" claim;
+  correcting only the doc would have moved the contradiction rather than resolved it.
+- Documents Codex's hook trust gate: hooks ship untrusted and are skipped until reviewed.
+
+### Caveat
+
+Every Codex behavioural claim above is source- or test-derived from `openai/codex` main. **No
+live `codex` binary was run**, and no real captured `apply_patch` payload exists in this
+environment — the parser is written against the authoritative constants in
+`apply-patch/src/parser.rs:37-45` and Codex's own fixtures. Measured degradation if a marker
+spelling is wrong: the guard falls back to judging `cwd` — a partial fix, never a regression.
+
 ## [3.8.2] — 2026-09-17
 
 Consolidates five Claude Code platform-sync review cycles that had accumulated on this
