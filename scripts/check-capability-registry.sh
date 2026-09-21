@@ -577,6 +577,39 @@ else
   err "could not compute a 90-day cutoff with either date(1) dialect, so registry freshness went unverified -- failing rather than reporting a check that never ran"
 fi
 
+# --- 6. Per-row staleness SLA ---
+# last_reviewed (above) is one date for the whole file; it says the registry was looked
+# at, not that any particular row was re-checked. last_verified is the per-capability
+# counterpart: each row states when ITS claim was last confirmed against the platform it
+# describes. Same 90-day budget as last_reviewed, so the file carries one policy at two
+# granularities rather than two policies.
+before_stale=$FAILED
+stale_examined=0
+if cutoff90="$(date -v-90d +%Y-%m-%d 2>/dev/null)" || cutoff90="$(date -d '90 days ago' +%Y-%m-%d 2>/dev/null)"; then
+  today90="$(date +%Y-%m-%d)"
+  while IFS=$'\t' read -r plat surf cap lv; do
+    [[ -z "$surf" ]] && continue
+    stale_examined=$(( stale_examined + 1 ))
+    if [[ -z "$lv" ]]; then
+      err "$plat/$surf capability '$cap' has no last_verified -- deleting the field is the cheapest way to dodge the staleness SLA, so absence fails too"
+    elif [[ "$lv" > "$today90" ]]; then
+      err "$plat/$surf capability '$cap' has last_verified ($lv) in the future (today $today90)"
+    elif [[ "$lv" < "$cutoff90" ]]; then
+      err "$plat/$surf capability '$cap' has last_verified ($lv), older than 90 days (cutoff $cutoff90) -- re-check this row against the platform it describes, then bump the date"
+    fi
+  done < <(jq -r '
+    .platforms | to_entries[] | .key as $p | (.value.surfaces // {}) | to_entries[] | .key as $s
+    | (.value.capabilities // {}) | to_entries[]
+    | [$p, $s, .key, (.value.last_verified // "")] | @tsv' "$REGISTRY_CANONICAL")
+  if (( stale_examined == 0 )); then
+    err "the per-row staleness scan examined 0 rows -- the query is broken, not the registry clean"
+  elif (( FAILED == before_stale )); then
+    echo "ok:    all $stale_examined capability rows have a last_verified within the 90-day budget"
+  fi
+else
+  err "could not compute a 90-day cutoff with either date(1) dialect, so per-row staleness went unverified -- failing rather than reporting a check that never ran"
+fi
+
 if (( FAILED > 0 )); then
   echo "Capability registry check FAILED ($FAILED error(s))." >&2
   exit 1
