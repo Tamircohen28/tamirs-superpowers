@@ -167,6 +167,7 @@ REQUIRED_CHECKS=null
 STRICT=null
 PROTECTION_SOURCE=null
 ADMIN=null
+VIEWER_PERM=""
 MERGE_METHOD=squash
 MERGE_METHOD_SOURCE="default: squash (repository merge methods not readable)"
 DELETE_BRANCH=true
@@ -203,11 +204,7 @@ if command -v gh >/dev/null 2>&1; then
       warn "repository allows none of squash/merge/rebase — the merge cannot succeed until one is enabled"
     fi
 
-    case "$(jq -r '.viewerPermission // ""' <<<"$REPO_JSON")" in
-      ADMIN|MAINTAIN) ADMIN=true ;;
-      "") ADMIN=null ;;
-      *) ADMIN=false ;;
-    esac
+    VIEWER_PERM="$(jq -r '.viewerPermission // ""' <<<"$REPO_JSON")"
   fi
 
   BASE="$(gh pr view "$PR" --json baseRefName --jq .baseRefName 2>/dev/null || true)"
@@ -290,6 +287,43 @@ if command -v gh >/dev/null 2>&1; then
       elif [[ "$SRC_CLASSIC" == true ]]; then PROTECTION_SOURCE='"classic"'
       elif [[ "$SRC_RULES"   == true ]]; then PROTECTION_SOURCE='"rulesets"'
       else PROTECTION_SOURCE='"none"'
+      fi
+
+      # --- admin bypass eligibility ---------------------------------------
+      # viewerPermission alone is NOT proof of a bypass: a caller can hold
+      # ADMIN/MAINTAIN on the repo while no bypass_actor for the rulesets
+      # that actually apply to THIS branch covers that role at all — that
+      # produces a false "yes, use --admin" signal. Derive it from what
+      # actually grants the exemption instead of the caller's general
+      # permission level.
+      ADMIN=false
+      if [[ "$SRC_RULES" == true ]]; then
+        # `/rules/branches/<b>` (already fetched as $RULES) names which
+        # rulesets apply here; only a per-ruleset GET exposes bypass_actors
+        # — the list endpoint used elsewhere in this repo's docs does not.
+        RSIDS="$(jq -r '[.[].ruleset_id] | unique | .[]' <<<"$RULES" 2>/dev/null)"
+        while IFS= read -r rid; do
+          [[ -z "$rid" ]] && continue
+          RS="$(gh api "repos/$OWNER_REPO/rulesets/$rid" 2>/dev/null)" || continue
+          # Built-in RepositoryRole actor_id: 1=read 2=triage 3=write
+          # 4=maintain 5=admin. bypass_mode "always" is unconditional;
+          # "pull_request" only waives required reviews on THIS pr's own
+          # approval, not the rest of the ruleset, so it does not make
+          # --admin (which bypasses everything) valid and is not counted.
+          while IFS=$'	' read -r atype aid amode; do
+            [[ "$atype" != "RepositoryRole" || "$amode" != "always" ]] && continue
+            case "$aid" in
+              5) [[ "$VIEWER_PERM" == "ADMIN" ]] && ADMIN=true ;;
+              4) [[ "$VIEWER_PERM" == "ADMIN" || "$VIEWER_PERM" == "MAINTAIN" ]] && ADMIN=true ;;
+            esac
+          done < <(jq -r '.bypass_actors[]? | [.actor_type, .actor_id, .bypass_mode] | @tsv' <<<"$RS" 2>/dev/null)
+        done <<<"$RSIDS"
+      elif [[ "$SRC_CLASSIC" == true ]]; then
+        # Classic protection exempts admins from the block UNLESS
+        # enforce_admins is explicitly on — the opposite default from
+        # rulesets, where a bypass must be explicitly granted.
+        ENFORCE_ADMINS="$(jq -r '.enforce_admins.enabled // false' <<<"$PROT" 2>/dev/null || echo false)"
+        if [[ "$ENFORCE_ADMINS" == "false" && "$VIEWER_PERM" == "ADMIN" ]]; then ADMIN=true; fi
       fi
     fi
     # Delete-branch: NOT unconditionally true. "Always delete the remote branch"

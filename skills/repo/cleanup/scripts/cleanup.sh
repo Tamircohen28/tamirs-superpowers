@@ -172,6 +172,17 @@ classify_worktree() {
   if [[ -n "$(git -C "$path" status --porcelain 2>/dev/null)" ]]; then
     say "  keep (dirty — has uncommitted changes): $path"; return 1
   fi
+  # `git status --porcelain` is empty for gitignored-but-present content by design —
+  # that is not the same as "nothing here". A repo can deliberately route session or
+  # scratch output into a gitignored directory, which is then invisible to the check
+  # above while still holding real, irreplaceable work. Treat any such content the
+  # same as a dirty worktree: never force-remove it unattended.
+  local ignored_count
+  ignored_count=$(git -C "$path" ls-files --others --ignored --exclude-standard 2>/dev/null | wc -l | tr -d ' ')
+  if [[ "${ignored_count:-0}" -gt 0 ]]; then
+    say "  keep (gitignored content present, $ignored_count file(s) — git status reports clean, this does not): $path"
+    return 1
+  fi
   local cur unpushed
   cur=$(git -C "$path" branch --show-current 2>/dev/null)
   if [[ -n "$cur" ]]; then

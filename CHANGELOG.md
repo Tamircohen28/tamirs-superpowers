@@ -7,6 +7,130 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 - **Cursor 3.11 (+2026-09-10 / desktop 3.21.13):** advance Cursor coverage through **Projects** (coordinator, shared context, subscriptions) and desktop **3.18.9 → 3.21.13**. Feature pin remains **3.11**. `make validate` expected green. Cursor-only.
 
+- **Claude Code platform-sync review advances through 2.1.278** (from 2.1.274, the last
+  version reflected on master), covering 2.1.275, 2.1.276, 2.1.277 and 2.1.278. No live
+  `claude` CLI was available this cycle, so the advance is changelog-only, the same
+  evidence basis the 2.1.263→2.1.273 reconciliation used. `reviewed_through` and
+  `latest_known` advance to **2.1.278**; `validated_against` stays at **2.1.274** — the
+  last version an actual live `claude` CLI run confirmed. An earlier draft of this entry
+  claimed `validated_against` had advanced too; an automated review caught that it hadn't
+  been earned, and it was reverted before merge.
+  `.claude-code-version`, the README badge/table row, and `platform-targets.md`'s
+  table/prose all advance to `2.1.278` for the Claude Code row only — Cursor, Codex,
+  Gemini CLI and OpenCode rows are untouched, since those are owned by sibling
+  automated tasks.
+  - **2.1.275** — `/plugin install <plugin> --marketplace <source>` installs from a
+    marketplace in one step, tracked as a Future opportunity against
+    `docs/user/install/claude-code.md`'s existing two-step sequence rather than
+    rewritten this cycle; skills/plugins enabled on a user's claude.ai account now sync
+    into terminal sessions automatically, opt-out via `syncClaudeAiSkills: false` /
+    `syncClaudeAiPlugins: false`, now documented in `CLAUDE.md`'s Marketplace cache
+    section alongside a name-collision note; plugin/marketplace messages no longer leak
+    a URL-embedded secret (host-side, not exposed here); `claude plugin marketplace
+    update` no longer deletes the local cache on a failed fetch — directly relevant to
+    this repo's own `/plugin marketplace update tamirs-marketplace` instruction.
+  - **2.1.276** — no changelog entry relevant to this repo in the reviewed delta.
+  - **2.1.277** — Claude Code now reads `AGENTS.md` instead of `CLAUDE.md` when a
+    project has none; this repo's own root and everything `repo-scaffold`/
+    `multi-agent-repo` generate always ship both files, so the fallback has nothing to
+    engage on here, reviewed and recorded as not applicable rather than silently
+    skipped. **Removed the deprecated `TaskOutput` tool** (breaking upstream) — every
+    `agents/*.md` `tools:` line and every skill/hook/doc here was grepped for
+    `TaskOutput`; zero references, so nothing here ever relied on it.
+  - **2.1.278** — Auto mode for API/Enterprise/Bedrock/Vertex/Foundry/gateway users now
+    defaults to a server-side classifier; reviewed and not applicable, same as every
+    other Bedrock/Vertex/Foundry/gateway item in this repo's review history, since this
+    repo targets direct Claude Code/Desktop sessions.
+
+  No breaking change in the 2.1.275→2.1.278 range affects this repo. Full narrative:
+  `CLAUDE.md`'s Subagents, Marketplace cache and Project instructions bullets, and
+  `platform-targets.json`'s `verification_method`.
+
+## [3.9.1] — 2026-09-21
+
+### Fixed
+
+- `resolve-merge-policy.sh` derived `admin_bypass_available` purely from the caller's repo
+  `viewerPermission` (ADMIN/MAINTAIN → true), never from the branch's actual ruleset
+  `bypass_actors`. Correct by coincidence on repos where those two align, wrong wherever they
+  don't — a caller with repo permission but no real bypass actor would get a false "yes, use
+  `--admin`". Now resolves the ruleset(s) that apply to the base branch, fetches each one's
+  `bypass_actors`, and only reports `true` when the caller's permission matches a
+  `RepositoryRole` bypass with `bypass_mode: "always"` (falls back to classic protection's
+  `enforce_admins` semantics when no rulesets apply).
+- `cleanup.sh`'s `classify_worktree` — the "provably-safe" unattended path — checked only
+  `git status --porcelain` before `git worktree remove --force`, so a worktree holding real
+  content in a gitignored directory (invisible to `status` by design) could be force-removed
+  by `cleanup.sh --yes` even after the interactive `cleanup` skill gained the same guard.
+  Now checks `git ls-files --others --ignored --exclude-standard` too and keeps anything it
+  finds.
+
+Both found by an automated PR review on #185, which also caught that the PR's own two
+`SKILL.md` corrections would not have reached installed sessions without this version bump.
+
+## [3.9.0] — 2026-09-21
+
+### Fixed — a core safety invariant enforced nothing on Codex
+
+`hooks/enforce-worktree-edits.sh` silently permitted **every** edit on Codex, and nothing
+reported that it didn't. The guard allowlisted five Claude tool names and fell through to
+`*) hook_allow`; Codex's editing tool is `apply_patch`, which appeared nowhere in any of the
+25 hook scripts. Codex selects the hook via Claude-compat matcher aliases
+(`hook_names.rs:29-38` declares `matcher_aliases: ["Write","Edit"]`) but delivers the raw name
+in the payload — so the hook fired, read `apply_patch`, matched nothing, and allowed the write.
+The invariant that should have been portable — *block writes outside the worktree* — had been
+encoded as *block five Claude tool names*.
+
+`hooks/guard-sensitive-files.sh` failed alongside it for a different reason: `apply_patch`'s
+`tool_input` is `{"command": <patch text>}`, so `write-targets.py` found no path key and
+returned no targets.
+
+### Added
+
+- `hooks/lib/platform-tools.sh` — `normalize_tool_name` maps a platform's own tool name onto
+  this repo's canonical vocabulary (`apply_patch` → `Edit`); unknown names pass through
+  unchanged, so no mapping is invented without evidence.
+- `tests/hooks/**` — 5 suites, 90 assertions: the `cwd` × `target` matrix across `apply_patch`
+  and every canonical Claude tool, multi-target loop proof, the shell-heredoc bypass,
+  tool-path/shell-path target agreement, a static check of `hooks.json`'s own matchers, and
+  pinned assertions against the authoritative `codex-rs` marker constants.
+
+### Changed
+
+- `enforce-worktree-edits.sh` now judges **every** write target rather than only the first.
+  `hook_allow`/`hook_deny` both `exit(0)`, so the previous single inline check could only rule
+  on one target — a multi-file patch with one innocuous and one dangerous target was allowed on
+  the strength of the first. Decision logic moved into `judge_target_dir()`, which returns a
+  verdict and is applied per candidate.
+- `write-targets.py` parses the `apply_patch` envelope (`Add`/`Update`/`Delete File`, and
+  `Move to`, a rename destination that can otherwise be used to write to a guarded path), and
+  closes a shell-heredoc bypass: `strip_heredocs()` discarded patch bodies before the parser
+  saw them, so `apply_patch <<'PATCH' … PATCH` via the `Bash` matcher was invisible to the guard.
+- `guard-sensitive-files.sh` resolves `repo_root` from the nearest *existing* ancestor, fixing a
+  silent no-op when the target's directory did not exist yet.
+- `skill-creator-guard.sh` gates its primary and fallback extraction under one shared tool-name
+  check, removing a false positive on `Read`/`Grep`.
+- `make test-hooks` sweeps `tests/` at depth 2 — the new suites were not being run.
+
+### Fixed — false platform claims
+
+- `docs/user/install/codex.md` claimed `hooks/hooks.json` "does not port" to Codex. It does:
+  `.codex-plugin/plugin.json` points at this repo's own file and Codex consumes the same
+  `HooksFile` type. Coverage is *partial* — `WorktreeCreate`, `WorktreeRemove`, `DirectoryAdded`
+  and `Notification` have no Codex equivalent. The same table's `subagents` row (`native` →
+  `unknown`) and MCP row (`.codex/config.toml` → the manifest `mcpServers` field) were also wrong.
+- `core/capabilities/platforms.json` carried the identical false "not the same shape" claim;
+  correcting only the doc would have moved the contradiction rather than resolved it.
+- Documents Codex's hook trust gate: hooks ship untrusted and are skipped until reviewed.
+
+### Caveat
+
+Every Codex behavioural claim above is source- or test-derived from `openai/codex` main. **No
+live `codex` binary was run**, and no real captured `apply_patch` payload exists in this
+environment — the parser is written against the authoritative constants in
+`apply-patch/src/parser.rs:37-45` and Codex's own fixtures. Measured degradation if a marker
+spelling is wrong: the guard falls back to judging `cwd` — a partial fix, never a regression.
+
 ## [3.8.2] — 2026-09-17
 
 Consolidates five Claude Code platform-sync review cycles that had accumulated on this

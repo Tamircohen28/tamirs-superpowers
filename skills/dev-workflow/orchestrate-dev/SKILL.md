@@ -203,9 +203,21 @@ Every dispatched worker — subagent or your own sequential turn — runs the `w
 - objective id and task id;
 - the task's `scope[]` globs, stated as the **only** paths it may write;
 - its worktree path and branch;
+- **`OBJECTIVES_ROOT=<repo-root>/.dev-files/objectives`** — `.dev-files/` is gitignored, so it
+  never reaches a worker's own worktree; without this, `objective-state.sh`'s `resolve_root()`
+  falls back to the worker's own git toplevel and finds nothing. A worker that hits this either
+  bootstraps a stub objective from scratch or has its `handoff.sh emit` fail outright with
+  "no objective" — both real incidents, both silent until the handoff never arrives;
 - the repo's Tier 1 command for that scope;
 - the prohibitions: **no PR, no auto-merge, no merging main, no full repo suite**;
 - the instruction to end with `handoff.sh emit`.
+
+Any reference-material path handed to a worker — an earlier report, a research file, anything
+generated before dispatch — must be **absolute**, never relative to the orchestrator's own cwd.
+Both worktrees are on the same filesystem, so the file is reachable either way, but a relative
+path silently resolves against the *worker's* cwd instead and finds nothing there. A worker that
+hits this either re-derives the answer from scratch (wasted work) or escalates on a question
+that was already answered on disk.
 
 Mark tasks `running` on dispatch (`task-set --status running`). One retry per failed task (`--bump-attempts`); a second failure means re-plan the task, not re-run it.
 

@@ -8,7 +8,7 @@ direction. See [platform differences](../platform-differences.md#unverified-surf
 
 Skills require Codex **0.40+**; the manifest `hooks` field requires **0.147.0+**. Direct CLI
 validation remains **0.146.0**; the official release delta has been reviewed through
-**0.152.1**, which is the version tracked by `.codex-version`.
+**0.155.1**, which is the version tracked by `.codex-version`.
 
 ---
 
@@ -21,8 +21,10 @@ codex plugin add tamirs-superpowers@tamirs-superpowers
 
 Codex resolves [`.agents/plugins/marketplace.json`](../../../.agents/plugins/marketplace.json)
 and [`.codex-plugin/plugin.json`](../../../.codex-plugin/plugin.json), and loads the
-canonical `skills/` tree. MCP servers are configured through
-[`.codex/config.toml`](../../../.codex/config.toml), not `.mcp.json`.
+canonical `skills/` tree. MCP servers are declared by the plugin manifest's `mcpServers`
+field, which points at [`.mcp.json`](../../../.mcp.json) — not
+[`.codex/config.toml`](../../../.codex/config.toml), which holds Codex runtime settings
+only and says so itself at its line 11.
 
 Codex also reads the repo's root [`AGENTS.md`](../../../AGENTS.md) as project instructions.
 That file is a **thin entrypoint** into the canonical rules under
@@ -71,19 +73,76 @@ is now opt-in (`tools.update_plan.enabled = true`); this repo does not depend on
 config change is needed. Codex 0.152.1 is a Guardian policy-correctness fix with no plugin
 migration.
 
+### Codex 0.153–0.155 notes
+
+Codex 0.153 gives the plugin CLI remote-marketplace `list`, `install`, and `remove` — the same
+install path the commands above use. It also adds `tui.auto_recap`, Vim undo/redo, TUI
+reconnection after an app-server drop, and a disabled-by-default
+`features.context_management.experimental_mode`. All host-side; no manifest migration.
+
+Codex 0.154 matters most here for one line: **existing sessions now pick up newly installed
+plugin tools and refresh skills *and hooks* after an out-of-process plugin upgrade or
+rollback.** Because Codex records hook trust against a content hash, a refresh that changes a
+hook's content resets that hook to needing review — so the untrusted-by-default gate described
+under [Verify](#verify) applies *after* an update, not only at first install. Re-check hook
+trust after `codex plugin add` picks up a new version. Codex 0.154 also removes the deprecated
+`codex mcp-server` entry point, which this repo never referenced (MCP is declared through the
+plugin manifest's `mcpServers` field), and adds experimental worktree support via `--worktree`
+and `/worktree`.
+
+Codex 0.155 extends that with worktree ownership detail and confirmed deletion of clean managed
+worktrees, plus task hiding/archiving/deletion in the agents overview. **This repo's
+`worktree isolation` row stays `emulated` regardless**: the skill runs `git worktree` itself,
+and the native feature is experimental and lives outside the plugin manifest — adopting it
+would be a Codex-specific surface, not a change to the shared hook bundle. Codex 0.155 also
+adds Touch ID user verification for MCP requests in local TUI sessions on supported Macs, and
+makes MCP servers report expired OAuth credentials accurately with reconnect guidance; both are
+host capabilities needing no config here. Its daemon work — configurable update schedules,
+`codex app-server daemon update`, and saved-thread/active-goal recovery across daemon restarts
+— is likewise host-side.
+
+Approval and sandbox hardening across 0.154–0.155: startup no longer runs workspace-controlled
+`PATH` helpers before trust is established, the macOS sandbox blocks terminal input injection,
+Windows process escapes from restricted WSL sandboxes are blocked, and brokered shell snapshots
+are hardened against credential exposure.
+
+Codex 0.155.1 is a single bug fix: new local TUI sessions leave reasoning summaries disabled by
+default again, fixing request rejection by providers that do not support them. Explicit
+reasoning-summary settings are still respected. If you point Codex at such a provider, this is
+the release you want.
+
+These notes are derived from the official OpenAI release notes for `rust-v0.153.0`,
+`rust-v0.154.0`, `rust-v0.155.0`, and `rust-v0.155.1`. **No live `codex` binary was run** —
+direct CLI validation is still 0.146.0, as stated at the top of this page.
+
 ## Verify
 
 ```bash
 jq empty .codex-plugin/plugin.json
 jq -e '.hooks' .codex-plugin/plugin.json     # manifest hooks field present
 jq empty .agents/plugins/marketplace.json
-test -f .codex/config.toml && echo "MCP config present"
+jq -e '.mcpServers' .codex-plugin/plugin.json  # MCP declared by the manifest, -> ./.mcp.json
 bash scripts/doctor.sh .
 ```
 
 In a Codex session, invoke a skill by name — *"use the repo-standards skill"* — and confirm
 it loads. Codex's slash-command surface has not been verified against these skills, so
 naming is the reliable form.
+
+**Hooks ship untrusted by default — a clean install does not mean hooks are live.** A
+non-managed hook (which includes every hook a plugin bundles) is skipped until a human
+reviews and trusts its exact current definition; installing or enabling this plugin does not
+trust its hooks automatically. When any hook needs review, Codex shows a startup consent
+prompt with the choice to review the hooks, trust all and continue, or continue without
+trusting — so this isn't something you have to know to go look for. Trust is recorded per
+hook against its content hash (see `trusted_hash` under Machine-level setup, below); editing
+a hook resets it to needing review. Confirm current state through that same hooks review
+surface, which lists each hook with its trust/enabled state — note trusted and enabled are
+separate: a hook can be trusted and still disabled. Codex's own docs also describe a `/hooks`
+command for this; take that spelling from the docs rather than as independently verified here.
+Do not treat a clean `bash scripts/doctor.sh .` run above as proof hooks are live — it
+validates the manifest, not hook trust state. (Not verified against a live `codex` run —
+based on Codex's docs and source.)
 
 ## Update
 
@@ -105,8 +164,9 @@ codex plugin remove tamirs-superpowers
 codex plugin marketplace remove tamirs-superpowers
 ```
 
-`.codex/config.toml` is a file in your repo — remove the MCP entries by hand if you no
-longer want them.
+`.codex/config.toml` is a file in your repo holding Codex runtime settings — it declares no
+MCP servers, so there is nothing to remove there. MCP comes from the plugin manifest's
+`mcpServers` field pointing at [`.mcp.json`](../../../.mcp.json), which leaves with the plugin.
 
 ---
 
@@ -145,9 +205,9 @@ never adopt anything silently. `apply` shows a diff and asks per change, default
 | Capability | Status | Notes |
 |---|---|---|
 | skills | native | since 0.40.0 |
-| subagents | native | declared capability |
-| hooks | native | since 0.147.0, via the **manifest `hooks` field** — a different shape from Claude's `hooks/hooks.json`, which does not port |
-| MCP | native | `.codex/config.toml` |
+| subagents | unknown | Codex has a native subagents feature, but it is standalone `.toml` files under `$CODEX_HOME/agents/` or `.codex/agents/`, deliberately outside the plugin manifest (bundling one is an open upstream feature request); this repo ships no Codex agent mirror. Demoted from "native" 2026-09-08 — see registry |
+| hooks | native | via the **manifest `hooks` field**, which points at this repo's own `hooks/hooks.json` — the same file, not a different shape (see note below) |
+| MCP | native | via the plugin manifest's `mcpServers` field, which points at `./.mcp.json` — not `.codex/config.toml`, which is Codex runtime settings only |
 | plugin marketplace | native | |
 | shell · git · GitHub CLI | native | |
 | worktree isolation | emulated | The skill runs `git worktree` itself |
@@ -157,6 +217,15 @@ never adopt anything silently. `apply` shows a diff and asks per change, default
 
 With `parallel_subagents` unmeasured, orchestration here runs **serialized or sequential** —
 same task graph, same single PR.
+
+**Hooks do port, with partial coverage.** `.codex-plugin/plugin.json` points its `hooks`
+field directly at `./hooks/hooks.json`; Codex's manifest schema accepts that file through the
+same `HooksFile` type its own engine consumes (internally named `ClaudeHooksEngine`, which
+sets `CLAUDE_PLUGIN_ROOT` and ships Claude tool-name matcher aliases on purpose), and exit-2
+blocking semantics match — it is the same file shape, not a different one that fails to
+port. Coverage is partial: `WorktreeCreate`, `WorktreeRemove`, `DirectoryAdded`, and
+`Notification` — four of this repo's wired events — have no Codex equivalent and never fire
+there. (Source-derived from `openai/codex` main — not verified against a live `codex` run.)
 
 Source of truth: [`core/capabilities/platforms.json`](../../../core/capabilities/platforms.json).
 Comparison: [platform differences](../platform-differences.md).
