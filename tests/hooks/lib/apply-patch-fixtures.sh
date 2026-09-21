@@ -32,6 +32,23 @@ patch_envelope() {
   printf '*** End Patch\n'
 }
 
+# apply_patch_heredoc <patch-text> [quoted=1] [delim=PATCH] — a Bash command
+# STRING that feeds a patch envelope to `apply_patch` via a heredoc, the shape
+# a real Codex Bash-mediated apply_patch call takes (as opposed to Codex's own
+# `tool_name: "apply_patch"` tool call). quoted=1 (the default) produces
+# `<<'PATCH'` (delimiter quoted, no expansion inside the body); quoted=0
+# produces the unquoted `<<PATCH` form. Callers wrap the result in a Bash
+# tool_input themselves (`{command: "..."}`) — this only builds the text.
+apply_patch_heredoc() {
+  local patch_text="$1" quoted="${2:-1}" delim="${3:-PATCH}" open
+  if [ "$quoted" = "1" ]; then
+    open="<<'$delim'"
+  else
+    open="<<$delim"
+  fi
+  printf 'apply_patch %s\n%s\n%s' "$open" "$patch_text" "$delim"
+}
+
 # apply_patch_input <command> <cwd> [session_id] — the JSON payload a Codex
 # apply_patch tool call produces, as this repo's hooks read it.
 apply_patch_input() {

@@ -115,23 +115,26 @@ judge "PM_ALLOW_PROTECTED=1 allows an apply_patch write to a lockfile" allow \
   "$(PM_ALLOW_PROTECTED=1 verdict "$(patch "Update File: yarn.lock")")"
 
 # ===========================================================================
-section "KNOWN GAP found while writing this suite — pre-existing, NOT introduced by codex-guard-fix, out of this task's scope to fix"
+section "repo_root resolves through a not-yet-existing directory — task-008 (1623d45)"
 # ===========================================================================
-# guard-sensitive-files.sh:88 resolves repo_root via
-# `git -C "$(dirname "$file")" rev-parse --show-toplevel`. `git -C` on a
-# directory that does not exist on disk fails silently, so repo_root comes
-# back empty — and every repo_root-gated rule (shadcn ui, gitignored build
-# output, the workflow-remote lookup) then no-ops instead of denying.
+# Was a KNOWN GAP: guard-sensitive-files.sh resolved repo_root via
+# `git -C "$(dirname "$file")" rev-parse --show-toplevel`, and `git -C` on a
+# directory that does not exist on disk fails silently — repo_root came back
+# empty, and every repo_root-gated rule (shadcn ui, gitignored build output,
+# the workflow-remote lookup) then no-opped instead of denying.
 #
 # "Add File" into a directory that does not exist yet is apply_patch's own
-# normal shape for a brand-new component, so this composes badly with Codex
-# in particular — but the same jq -n --arg | bash probe below shows it is
-# NOT apply_patch-specific: the canonical Claude Write tool hits the exact
-# same silent no-op. This is a pre-existing defect in guard-sensitive-
-# files.sh's own repo_root resolution that predates this objective and this
-# task's scope is tests/hooks/** only, so it is recorded here rather than
-# fixed. warn(), not judge(), because failing THIS suite over an unrelated,
-# out-of-scope defect would misrepresent it as a codex-guard-fix regression.
+# normal shape for a brand-new component, so this composed badly with Codex
+# in particular — but the same probe below shows it was NOT apply_patch-
+# specific: the canonical Claude Write tool hit the exact same silent no-op.
+#
+# task-008 (1623d45) fixed this: repo_root now resolves via
+# nearest_existing_dir(), walking up from dirname(file) to the nearest
+# ancestor that actually exists on disk, so a write into a brand-new
+# directory is still judged against the shadcn/build-output/workflow rules.
+# Both apply_patch and Write must now agree that this is DENIED — the
+# apply_patch/Write parity is the same cross-platform property the original
+# characterization was protecting, just on the other side of the fix.
 NEWDIR_REPO="$TMP/newdir-repo"
 harness_new_repo "$NEWDIR_REPO" main
 printf '{"style":"x"}\n' > "$NEWDIR_REPO/components.json"
@@ -144,11 +147,7 @@ write_verdict="$(run_guard Write \
   "$(jq -n --arg p "$NEWDIR_REPO/src/components/ui/new.tsx" '{file_path:$p}')" \
   "$NEWDIR_REPO")"
 
-if [ "$apply_patch_verdict" = "allow" ] && [ "$write_verdict" = "allow" ]; then
-  warn "guard-sensitive-files.sh: shadcn/build-output/workflow rules silently no-op when dirname(file) does not yet exist on disk — confirmed for BOTH apply_patch Add File ($apply_patch_verdict) and Claude Write ($write_verdict) into src/components/ui/new.tsx with no pre-existing components/ui dir; not a codex-guard-fix regression, recorded as a followup"
-  ok "known gap characterized (see warning above) — apply_patch and Write agree, so it is not a cross-platform regression"
-else
-  bad "known gap characterization" "expected BOTH apply_patch and Write to silently allow (confirming this is general, not apply_patch-specific); got apply_patch=$apply_patch_verdict write=$write_verdict — the gap may have been fixed or changed shape, re-verify this section"
-fi
+judge "apply_patch Add File into a not-yet-existing src/components/ui/ is now DENIED" deny "$apply_patch_verdict"
+judge "Write into the same not-yet-existing directory is now DENIED (apply_patch and Write agree)" deny "$write_verdict"
 
 harness_summary
