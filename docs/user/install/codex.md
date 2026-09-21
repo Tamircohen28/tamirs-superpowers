@@ -8,7 +8,7 @@ direction. See [platform differences](../platform-differences.md#unverified-surf
 
 Skills require Codex **0.40+**; the manifest `hooks` field requires **0.147.0+**. Direct CLI
 validation remains **0.146.0**; the official release delta has been reviewed through
-**0.152.1**, which is the version tracked by `.codex-version`.
+**0.155.1**, which is the version tracked by `.codex-version`.
 
 ---
 
@@ -70,6 +70,48 @@ or output-truncation wrappers when a Codex-specific MCP setup needs them. The pl
 is now opt-in (`tools.update_plan.enabled = true`); this repo does not depend on it, so no
 config change is needed. Codex 0.152.1 is a Guardian policy-correctness fix with no plugin
 migration.
+
+### Codex 0.153–0.155 notes
+
+Codex 0.153 gives the plugin CLI remote-marketplace `list`, `install`, and `remove` — the same
+install path the commands above use. It also adds `tui.auto_recap`, Vim undo/redo, TUI
+reconnection after an app-server drop, and a disabled-by-default
+`features.context_management.experimental_mode`. All host-side; no manifest migration.
+
+Codex 0.154 matters most here for one line: **existing sessions now pick up newly installed
+plugin tools and refresh skills *and hooks* after an out-of-process plugin upgrade or
+rollback.** Because Codex records hook trust against a content hash, a refresh that changes a
+hook's content resets that hook to needing review — so the untrusted-by-default gate described
+under [Verify](#verify) applies *after* an update, not only at first install. Re-check hook
+trust after `codex plugin add` picks up a new version. Codex 0.154 also removes the deprecated
+`codex mcp-server` entry point, which this repo never referenced (MCP is declared through the
+plugin manifest's `mcpServers` field), and adds experimental worktree support via `--worktree`
+and `/worktree`.
+
+Codex 0.155 extends that with worktree ownership detail and confirmed deletion of clean managed
+worktrees, plus task hiding/archiving/deletion in the agents overview. **This repo's
+`worktree isolation` row stays `emulated` regardless**: the skill runs `git worktree` itself,
+and the native feature is experimental and lives outside the plugin manifest — adopting it
+would be a Codex-specific surface, not a change to the shared hook bundle. Codex 0.155 also
+adds Touch ID user verification for MCP requests in local TUI sessions on supported Macs, and
+makes MCP servers report expired OAuth credentials accurately with reconnect guidance; both are
+host capabilities needing no config here. Its daemon work — configurable update schedules,
+`codex app-server daemon update`, and saved-thread/active-goal recovery across daemon restarts
+— is likewise host-side.
+
+Approval and sandbox hardening across 0.154–0.155: startup no longer runs workspace-controlled
+`PATH` helpers before trust is established, the macOS sandbox blocks terminal input injection,
+Windows process escapes from restricted WSL sandboxes are blocked, and brokered shell snapshots
+are hardened against credential exposure.
+
+Codex 0.155.1 is a single bug fix: new local TUI sessions leave reasoning summaries disabled by
+default again, fixing request rejection by providers that do not support them. Explicit
+reasoning-summary settings are still respected. If you point Codex at such a provider, this is
+the release you want.
+
+These notes are derived from the official OpenAI release notes for `rust-v0.153.0`,
+`rust-v0.154.0`, `rust-v0.155.0`, and `rust-v0.155.1`. **No live `codex` binary was run** —
+direct CLI validation is still 0.146.0, as stated at the top of this page.
 
 ## Verify
 
