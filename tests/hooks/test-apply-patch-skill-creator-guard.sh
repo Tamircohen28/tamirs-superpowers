@@ -76,28 +76,26 @@ judge "a Bash command that merely mentions SKILL.md in prose" no \
   "$(reminder_fired Bash "$(jq -n '{command:"echo do not hand-write SKILL.md"}')" "$REPO")"
 
 # ===========================================================================
-section "KNOWN GAP found while writing this suite — pre-existing, NOT introduced by codex-guard-fix"
+section "primary extraction is gated on tool_name — task-009 (654f4da)"
 # ===========================================================================
-# skill-creator-guard.sh's FIRST extraction step (the inline python block)
-# reads tool_input.file_path/.path unconditionally — it does not gate on
-# tool_name at all, unlike its own write-targets.py FALLBACK, which does gate
-# on the normalized tool name. So a Read whose tool_input happens to carry a
-# SKILL.md file_path fires the same "about to write/edit" reminder a real
-# write would, even though nothing is being written. This suite's own first
-# attempt at this case asserted "Read must ALLOW" on the assumption that
-# hooks.json's own matcher (Edit|Write|MultiEdit|NotebookEdit|StrReplace)
-# would keep a Read from ever reaching this script — true for how Claude Code
-# dispatches it, but the SCRIPT ITSELF has no such guard, and every test in
-# this repo (this suite included) invokes the script directly, bypassing that
-# matcher. warn(), not judge(): the script's behavior here is real and
-# reproducible, but fixing it is a skill-creator-guard.sh change, outside
-# this task's tests/hooks/** scope.
-read_reminder="$(reminder_fired Read "$(jq -n --arg p "$REPO/skills/foo/SKILL.md" '{file_path:$p}')" "$REPO")"
-if [ "$read_reminder" = "yes" ]; then
-  warn "skill-creator-guard.sh's primary file_path/path extraction is not gated on tool_name — a Read of a SKILL.md path fires the write reminder exactly as an Edit would. Not a codex-guard-fix regression (pre-existing before this objective); the hooks.json matcher (Edit-family only) is the only thing preventing this from firing on a real Read in production. Recorded as a followup."
-  ok "known gap characterized (see warning above)"
-else
-  bad "known gap characterization" "expected the reminder to fire for a Read of a SKILL.md path (matching the script's unconditional primary extraction); got '$read_reminder' — the gap may have been fixed, re-verify this section"
-fi
+# Was a KNOWN GAP: skill-creator-guard.sh's FIRST extraction step (the inline
+# python block) read tool_input.file_path/.path unconditionally — it did not
+# gate on tool_name at all, unlike its own write-targets.py FALLBACK, which
+# did gate on the normalized tool name. So a Read whose tool_input happened to
+# carry a SKILL.md file_path fired the same "about to write/edit" reminder a
+# real write would, even though nothing was being written. The script itself
+# had no such guard, and every test in this repo (this suite included) invokes
+# the script directly, bypassing hooks.json's own matcher — so this was a real,
+# reproducible false positive, not merely a theoretical one.
+#
+# task-009 (654f4da) fixed this: raw_tool_name/canonical_tool_name are now
+# computed once up front, and BOTH the primary flat-key extraction and the
+# write-targets.py apply_patch fallback are gated on the same
+# Edit|Write|MultiEdit|NotebookEdit|StrReplace case arm. A Read or Grep
+# carrying a SKILL.md-shaped file_path/path must now stay silent.
+judge "Read of a SKILL.md path no longer fires the reminder" no \
+  "$(reminder_fired Read "$(jq -n --arg p "$REPO/skills/foo/SKILL.md" '{file_path:$p}')" "$REPO")"
+judge "Grep of a SKILL.md path no longer fires the reminder" no \
+  "$(reminder_fired Grep "$(jq -n --arg p "$REPO/skills/foo/SKILL.md" '{path:$p}')" "$REPO")"
 
 harness_summary
