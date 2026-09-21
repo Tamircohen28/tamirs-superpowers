@@ -66,6 +66,24 @@ hook_detect_platform "$input"
 [ -z "$input" ] && hook_allow
 [ "${PM_ALLOW_PROTECTED:-0}" = "1" ] && hook_allow
 
+# nearest_existing_dir DIR — walk up from DIR to the nearest ancestor that
+# actually exists. `git -C` on a directory that does not exist yet fails
+# silently (repo_root resolves to "", and every check below gated on
+# `[ -n "$repo_root" ]` then quietly no-ops), which let a write into a
+# not-yet-created directory — e.g. a first file under a new
+# src/components/ui/ or a gitignored dist/ — slip past the shadcn and
+# build-output rules entirely. A brand-new file's directory need not exist
+# for the file's REPO to be resolvable; walking up to the nearest real
+# ancestor finds it. Same approach as enforce-worktree-edits.sh's helper of
+# the same name, kept local here since this script doesn't source that one.
+nearest_existing_dir() {
+  local d="$1"
+  while [[ -n "$d" && "$d" != "/" && "$d" != "." && ! -d "$d" ]]; do
+    d="$(dirname "$d")"
+  done
+  printf '%s' "$d"
+}
+
 # TARGET <tab> <abs path> <tab> <fragment>   — a file this call will write
 # UNSURE <tab> <why>      <tab> <fragment>   — a write this parse cannot resolve
 analysis="$(printf '%s' "$input" \
@@ -84,8 +102,12 @@ classify() {
   [ -n "$file" ] || return 0
   [ -n "$via" ] && context=" (via: $via)"
 
-  # Repo root for the file being written — every derived check below needs it.
-  repo_root="$(git -C "$(dirname "$file")" rev-parse --show-toplevel 2>/dev/null || true)"
+  # Repo root for the file being written — every derived check below needs
+  # it. Resolved from the nearest EXISTING ancestor of the file's directory,
+  # not the directory itself, so a write that creates a new directory (a
+  # first file under src/components/ui/, a fresh dist/ output) still gets
+  # judged instead of silently skipping every repo_root-gated rule.
+  repo_root="$(git -C "$(nearest_existing_dir "$(dirname "$file")")" rev-parse --show-toplevel 2>/dev/null || true)"
 
   case "$file" in
     *.lock|*/package-lock.json|*/pnpm-lock.yaml|*/bun.lockb|*/go.sum)

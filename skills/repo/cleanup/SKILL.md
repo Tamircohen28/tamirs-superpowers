@@ -199,9 +199,20 @@ git -C "<path>" log --oneline "origin/$BRANCH..HEAD" 2>/dev/null
 
 # last commit date
 git -C "<path>" log -1 --format="%ar" 2>/dev/null
+
+# gitignored-but-present content — invisible to `git status`, not necessarily unwanted.
+# A repo can deliberately route session/scratch output into a gitignored directory; that
+# makes it clean by git's definition while still holding real, irreplaceable work.
+git -C "<path>" ls-files --others --ignored --exclude-standard 2>/dev/null
 ```
 
 ### 2b. Classify each auxiliary worktree
+
+**A nonzero ignored-file count overrides every row below to `dirty`, regardless of what
+`git status` says.** `git status --porcelain` is empty for gitignored content by design — that
+is not the same as "nothing here." Check this before applying any other classification, not
+after: a worktree can be simultaneously `stale-clean` by branch age and holding real,
+irreplaceable content that nothing in git ever saw.
 
 | State | Label | Intended action |
 |-------|-------|-----------------|
@@ -230,6 +241,24 @@ Options:
   push  — commit as "wip: save work from worktree cleanup", push, open draft PR
   skip  — leave this worktree untouched
   drop  — discard all changes and remove (IRREVERSIBLE)
+```
+
+When a worktree was reclassified to `dirty` solely because of gitignored content (no
+uncommitted git changes), show that instead — a diff summary doesn't apply to files git never
+tracked:
+
+```
+Worktree: ~/.claude/worktrees/myrepo/old-audit
+Branch: wip/old-audit (last commit 34 days ago, no open PR — would otherwise be stale-clean)
+Gitignored content: 18 files, 332K (git status reports clean — this is invisible to it)
+
+  session-files/report-01.md
+  session-files/report-02.md
+  ...
+
+Options:
+  keep  — leave this worktree untouched (default if unsure — this content is not in git anywhere else)
+  drop  — discard everything, including the gitignored content, and remove (IRREVERSIBLE)
 ```
 
 Wait for the user's choice per worktree. Never drop without an explicit `drop` response.

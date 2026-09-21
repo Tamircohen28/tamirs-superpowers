@@ -98,7 +98,7 @@ uninstall:
 # for the cases that assert on the default behaviour.
 test-hooks:
 	@echo "--- Hook behavior tests ---"
-	@find tests -maxdepth 1 -name 'test-*.sh' 2>/dev/null | sort | while read -r f; do \
+	@find tests -maxdepth 2 -name 'test-*.sh' 2>/dev/null | sort | while read -r f; do \
 	  echo "==> $$f"; SUPERPOWERS_WORKTREE_CLEANUP=0 bash "$$f" || exit 1; \
 	done
 

@@ -329,15 +329,32 @@ PR #N is green and has no unresolved threads, but merge policy here is "ask firs
   satisfied — the maintainer authors every PR, so there is nobody who *can* approve.
 
 **Resolve that second case; never assume it.** It holds only where the repository is solo **and** the
-caller holds a ruleset bypass actor — the same derivation `scripts/github-policy.sh` uses. Naming a
-specific repository here would make every repository that installs this plugin inherit the
-instruction and bypass its own branch protection:
+caller holds a ruleset bypass actor. **Read `admin_bypass_available` from
+`resolve-merge-policy.sh`'s own JSON output (Startup step 2) rather than re-deriving it by hand** —
+the naive derivation is a trap in two different ways, both confirmed in production:
 
 ```bash
-# solo?  and does the caller actually hold a bypass?
+# WRONG (under-reports) — repos/$REPO/rulesets is the LIST endpoint, and the list does not
+# expand bypass_actors; only a per-ruleset fetch does. This returns 0 even when a real
+# always-on bypass actor exists, reading as "no bypass" and wrongly refusing a merge the
+# caller is entitled to make.
+bypass=$(gh api "repos/$REPO/rulesets" --jq '[.[].bypass_actors // []] | flatten | length')
+
+# ALSO WRONG (over-reports) — repo permission is not proof of a ruleset bypass. A caller can
+# hold ADMIN/MAINTAIN on the repo while no bypass_actor for the rulesets that actually apply
+# to the base branch covers that role at all. resolve-merge-policy.sh derives
+# admin_bypass_available from viewerPermission ALONE was exactly this bug, until it was fixed
+# to resolve the ruleset(s) that apply to the branch (`/rules/branches/{b}`), fetch each one's
+# bypass_actors, and check whether the caller's actual permission matches a RepositoryRole
+# bypass actor with bypass_mode "always" — not from permission level in isolation.
+```
+
+```bash
+# RIGHT — collaborator count is still a cheap direct check; the bypass question is already
+# answered correctly in the policy object you resolved at startup.
 collaborators=$(gh api "repos/$REPO/collaborators" --jq 'length' 2>/dev/null || echo 1)
-bypass=$(gh api "repos/$REPO/rulesets" --jq '[.[].bypass_actors // []] | flatten | length' 2>/dev/null || echo 0)
-# --admin is the normal path only when collaborators == 1 AND bypass > 0
+# --admin is the normal path only when collaborators == 1 AND $ADMIN_BYPASS_AVAILABLE == true
+# (from `resolve-merge-policy.sh`'s admin_bypass_available field, not re-derived here)
 ```
 
 `--admin` still requires the user's merge intent. It bypasses protection; it does not bypass policy.
