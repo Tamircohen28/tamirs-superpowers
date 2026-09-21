@@ -45,7 +45,7 @@ metadata:
     category: documentation
     role: research-agent
     validation-tier: 0
-    updated-date: '2026-08-19'
+    updated-date: '2026-09-22'
     capabilities:
       required:
         - skills
@@ -53,6 +53,7 @@ metadata:
         - parallel_subagents
         - subagents
         - slash_commands
+        - shell
     tags:
       - documentation
       - platform
@@ -65,7 +66,7 @@ metadata:
       - opencode
   capability: documentation
   provider: developer-workflow
-  updated-date: '2026-08-19'
+  updated-date: '2026-09-22'
 ---
 
 # platform-sync
@@ -82,9 +83,17 @@ and one reference file — it must never mean editing this skill or creating ano
 **Hard constraint:** never guess what's new. Every improvement step cites a URL that was
 actually fetched. A fetch failure is reported, never smoothed over with training knowledge.
 
+**Probe-informed, not probe-dependent.** When a version probe has already found the delta
+between what this repo's docs claim and what is live upstream, this skill's real job shrinks
+to *judging* that delta — is it relevant here, does it change a capability row, does it need a
+CLAUDE.md narrative line — rather than *finding* it from a standing start via open-ended
+research. Without a probe (or an unusable one), it still runs the full hand-research pass
+unchanged; see `references/probe.md`.
+
 **Read before Step 1:**
 - `references/registry.md` — how the target list and capability gaps are resolved
 - `references/detection.md` — cross-target detection rules
+- `references/probe.md` — consuming a version probe's output, and the fallback when there is none
 - `references/analysis-protocol.md` — the per-target analysis loop
 
 ---
@@ -106,10 +115,23 @@ apply the "Detection signals" table in its reference file, under the cross-targe
 If nothing matches, emit the "No AI coding assistant usage detected" block from
 `references/detection.md` and stop.
 
-## Step 3 — Analyse each detected target
+## Step 3 — Consult probe output, if available
+
+Follow `references/probe.md`. Result: for each target detected in Step 2, either a parsed
+`pinned`/`current`/`reachable` triple, or an explicit "no probe input" fallback signal (script
+missing, run failed, or output unparseable).
+
+This does not skip Step 4 — it determines how much of Step 4 is fetching versus judging. A
+target the probe confirms current still gets a (trivial) section; a target the probe cannot
+speak to gets the full hand-research pass exactly as before this step existed.
+
+Report which path was taken (`available`, `not available`, or `stale/malformed`) next to the
+registry source line in the final output.
+
+## Step 4 — Analyse each detected target
 
 Run `references/analysis-protocol.md` once per detected target, using that target's
-reference file as its data.
+reference file as its data, and the probe result from Step 3 for that target (if any).
 
 **Parallelism is capability-gated.** Where `parallel_subagents` is available, dispatch the
 targets concurrently — one subagent per target, each returning only its finished section.
@@ -119,7 +141,7 @@ findings, and never claim a parallel run on a platform that cannot do one.
 
 Collect every section before synthesizing.
 
-## Step 4 — Synthesize the unified improvement plan
+## Step 5 — Synthesize the unified improvement plan
 
 Merge every target's section into one prioritized plan, sorted by:
 
@@ -137,6 +159,7 @@ never three steps.
 # Platform Sync — Improvement Plan
 **Repo:** <path>
 **Registry source:** <core/capabilities/platforms.json | platform-targets.json | fallback>
+**Probe:** <available | not available | stale/malformed>
 **Targets resolved:** <all ids>  **Detected:** <ids with signals>
 **Date:** <today>
 
@@ -178,3 +201,5 @@ never three steps.
   "Documented gaps", labelled honestly as unsupported or unverified.
 - Never emit a separate section for a runtime surface (Claude Desktop rides on Claude Code).
 - Report every fetch error. A partial audit stated plainly beats a complete-looking guess.
+- Report the probe path honestly. A target audited via full hand research says so — never
+  imply a probe confirmed a result that hand research actually produced.
