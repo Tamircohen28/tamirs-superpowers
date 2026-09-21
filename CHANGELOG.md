@@ -7,6 +7,28 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 - **Cursor 3.11 (+2026-09-10 / desktop 3.20.17):** advance Cursor coverage through **Projects** (coordinator, shared context, subscriptions) and desktop **3.18.9 → 3.20.17**. Feature pin remains **3.11**. `make validate` expected green. Cursor-only.
 
+## [3.9.1] — 2026-09-21
+
+### Fixed
+
+- `resolve-merge-policy.sh` derived `admin_bypass_available` purely from the caller's repo
+  `viewerPermission` (ADMIN/MAINTAIN → true), never from the branch's actual ruleset
+  `bypass_actors`. Correct by coincidence on repos where those two align, wrong wherever they
+  don't — a caller with repo permission but no real bypass actor would get a false "yes, use
+  `--admin`". Now resolves the ruleset(s) that apply to the base branch, fetches each one's
+  `bypass_actors`, and only reports `true` when the caller's permission matches a
+  `RepositoryRole` bypass with `bypass_mode: "always"` (falls back to classic protection's
+  `enforce_admins` semantics when no rulesets apply).
+- `cleanup.sh`'s `classify_worktree` — the "provably-safe" unattended path — checked only
+  `git status --porcelain` before `git worktree remove --force`, so a worktree holding real
+  content in a gitignored directory (invisible to `status` by design) could be force-removed
+  by `cleanup.sh --yes` even after the interactive `cleanup` skill gained the same guard.
+  Now checks `git ls-files --others --ignored --exclude-standard` too and keeps anything it
+  finds.
+
+Both found by an automated PR review on #185, which also caught that the PR's own two
+`SKILL.md` corrections would not have reached installed sessions without this version bump.
+
 ## [3.9.0] — 2026-09-21
 
 ### Fixed — a core safety invariant enforced nothing on Codex
