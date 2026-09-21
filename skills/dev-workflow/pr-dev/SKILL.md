@@ -329,15 +329,25 @@ PR #N is green and has no unresolved threads, but merge policy here is "ask firs
   satisfied — the maintainer authors every PR, so there is nobody who *can* approve.
 
 **Resolve that second case; never assume it.** It holds only where the repository is solo **and** the
-caller holds a ruleset bypass actor — the same derivation `scripts/github-policy.sh` uses. Naming a
-specific repository here would make every repository that installs this plugin inherit the
-instruction and bypass its own branch protection:
+caller holds a ruleset bypass actor. **Read `admin_bypass_available` from
+`resolve-merge-policy.sh`'s own JSON output (Startup step 2) rather than re-deriving it by hand** —
+the naive derivation is a trap:
 
 ```bash
-# solo?  and does the caller actually hold a bypass?
+# WRONG — silently under-reports. repos/$REPO/rulesets is the LIST endpoint, and the list does
+# not expand bypass_actors; only a per-ruleset fetch (or the effective /rules/branches/{b}
+# endpoint resolve-merge-policy.sh actually reads) does. This returns 0 even when a real
+# always-on bypass actor exists, which reads as "no bypass" and wrongly refuses a merge the
+# caller is entitled to make. Confirmed in production — do not use this form:
+bypass=$(gh api "repos/$REPO/rulesets" --jq '[.[].bypass_actors // []] | flatten | length')
+```
+
+```bash
+# RIGHT — collaborator count is still a cheap direct check; the bypass question is already
+# answered correctly in the policy object you resolved at startup.
 collaborators=$(gh api "repos/$REPO/collaborators" --jq 'length' 2>/dev/null || echo 1)
-bypass=$(gh api "repos/$REPO/rulesets" --jq '[.[].bypass_actors // []] | flatten | length' 2>/dev/null || echo 0)
-# --admin is the normal path only when collaborators == 1 AND bypass > 0
+# --admin is the normal path only when collaborators == 1 AND $ADMIN_BYPASS_AVAILABLE == true
+# (from `resolve-merge-policy.sh`'s admin_bypass_available field, not re-derived here)
 ```
 
 `--admin` still requires the user's merge intent. It bypasses protection; it does not bypass policy.
