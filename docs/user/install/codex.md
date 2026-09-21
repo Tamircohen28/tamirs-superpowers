@@ -85,6 +85,17 @@ In a Codex session, invoke a skill by name — *"use the repo-standards skill"* 
 it loads. Codex's slash-command surface has not been verified against these skills, so
 naming is the reliable form.
 
+**Hooks ship untrusted by default — a clean install does not mean hooks are live.** Codex
+requires a human to review and trust the exact definition of any non-managed hook (which
+includes every hook a plugin bundles) before it can run; installing or enabling this plugin
+does not trust its hooks automatically. If any hook needs review, Codex prints a startup
+warning telling you to open `/hooks`. Run `/hooks` in the CLI to inspect hook sources, review
+new or changed hooks, and trust them — Codex records trust against the hook's current hash, so
+any later edit to a hook marks it for re-review. To confirm hooks are actually active: the
+startup warning disappears once everything is trusted, and `/hooks` itself stops listing them
+as pending review. Do not treat a clean `bash scripts/doctor.sh .` run above as proof hooks are
+live — it validates the manifest, not hook trust state.
+
 ## Update
 
 ```bash
