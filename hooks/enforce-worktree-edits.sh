@@ -58,120 +58,178 @@ nearest_existing_dir() {
   printf '%s' "$d"
 }
 
-# Judge the FILE being edited, not the session cwd. An incidental `cd` into an
-# unrelated repo — reading a config file, inspecting a checkout — used to arm
-# the guard for every subsequent edit, including edits outside that repo.
-file_path="$(echo "$input" | jq -r '.tool_input.file_path // .tool_input.path // empty')"
-target_dir=""
-if [[ -n "$file_path" && "$file_path" != "null" ]]; then
-  target_dir="$(nearest_existing_dir "$(dirname "$file_path")")"
-fi
-if [[ -z "$target_dir" || ! -d "$target_dir" ]]; then
-  target_dir="$cwd"
-fi
-
-if [[ -z "$target_dir" ]]; then
-  hook_allow
-fi
-
-if is_claude_config_path "$target_dir"; then
-  hook_allow
-fi
-
-if ! is_git_repo "$target_dir"; then
-  hook_allow
-fi
-
-if is_global_worktree_path "$target_dir"; then
-  hook_allow
-fi
-
-# Any registered session worktree is compliant — including Claude Code's native
-# <repo>/.claude/worktrees/<name> layout on a claude/* branch. Never deny based
-# on a path rebuilt from session state; the state slug can be stale or mangled.
-if is_registered_claude_worktree "$target_dir"; then
-  hook_allow
-fi
-
-# Every agent workspace shape is compliant, old and new alike:
+# judge_target_dir TARGET_DIR — decide whether TARGET_DIR is a legitimate
+# place to write. Returns 0 (allowed) for every early-out case this hook has
+# always recognized; returns 1 and sets JUDGE_DENY_REASON otherwise (and, as
+# a real side effect on the way to a genuine deny, may recreate a removed
+# session worktree — see the AN EDIT IS THE DEMAND SIGNAL comment below).
 #
-#   objective-integration  .agent-worktrees/<objective>/integration
-#   objective-worker       .agent-worktrees/<objective>/task-NNN
-#   legacy-platform        .claude/.worktrees, .cursor/.worktrees, .codex/.worktrees
-#   legacy-global          ~/.claude/worktrees/<repo>/<slug>
-#   native-claude          <repo>/.claude/worktrees/<name>
-#
-# The legacy shapes are listed deliberately. This hook predates the objective
-# model, and a worker or integrator whose worktree it did not recognize would be
-# denied every Edit — the work would have nowhere legal to go. Recognizing a
-# layout is not endorsing it: nothing here CREATES a platform-shaped path.
-workspace_kind="$(classify_worktree_path "$target_dir")"
-case "$workspace_kind" in
-  objective-integration|objective-worker|objective-other|legacy-platform|legacy-global|native-claude)
-    hook_allow
-    ;;
-esac
+# A function, not the old inline block, because one tool call can now name
+# MORE THAN ONE write target: Codex's apply_patch can touch several files in
+# a single envelope. hook_allow/hook_deny both exit(0) immediately, so an
+# inline version could only ever answer for the FIRST target it looked at —
+# a patch with one in-worktree target and one outside it would have been
+# allowed on the strength of the first. See the candidate loop below, which
+# calls this once per target and denies on the first one that fails.
+judge_target_dir() {
+  local target_dir="$1"
+  local repo_root repo_name state task_slug worktree_path objective_id reason workspace_kind
 
-repo_root="$(repo_root_for "$target_dir")"
-repo_name="$(repo_name_for "$target_dir")"
-state="$(load_session_state "$session_id")"
-# Re-slugify on read: state files written before slugify_text stripped newlines
-# can carry multi-line slugs/paths that would mangle the suggested worktree.
-task_slug="$(slugify_text "$(echo "$state" | jq -r '.task_slug // empty')" 48)"
-worktree_path="$(echo "$state" | jq -r '.worktree_path // empty')"
-case "$worktree_path" in *$'\n'*) worktree_path="" ;; esac
-
-if [[ -z "$worktree_path" || "$worktree_path" == "null" ]]; then
-  if [[ -n "$task_slug" && "$task_slug" != "null" ]]; then
-    worktree_path="$(worktree_path_for "$repo_name" "$task_slug")"
+  if [[ -z "$target_dir" ]]; then
+    return 0
   fi
-fi
 
-# The recorded path belongs to whichever repo the session started in. A session
-# that edits a second repo would otherwise be told to cd into the FIRST repo's
-# worktree — and, below, would have that worktree rebuilt for it. Recompute
-# whenever the recorded path is not this repo's.
-if [[ -n "$worktree_path" && "$worktree_path" != "null" \
-      && "$worktree_path" != "${WORKTREE_ROOT}/${repo_name}/"* ]]; then
-  if [[ -n "$task_slug" && "$task_slug" != "null" ]]; then
-    worktree_path="$(worktree_path_for "$repo_name" "$task_slug")"
-  else
-    worktree_path=""
+  if is_claude_config_path "$target_dir"; then
+    return 0
   fi
-fi
 
-# An active objective changes the remedy, not the verdict: the main checkout is
-# still off limits, but the correct destination is a worker/integration worktree
-# the orchestrator already owns — NOT a fresh session worktree.
-objective_id="$(active_objective_id "$target_dir" 2>/dev/null || true)"
+  if ! is_git_repo "$target_dir"; then
+    return 0
+  fi
 
-if [[ -n "$objective_id" ]]; then
-  reason="Repo edits must happen in an objective worktree, not the main checkout (${repo_root}). Objective '${objective_id}' is active: work in $(agent_worktree_root "$repo_root")/${objective_id}/task-NNN (worker) or .../integration (integrator). Ask the orchestrator which one is yours — do not create a new worktree."
-else
-  reason="Repo edits must happen in a dedicated worktree under ~/.claude/worktrees/${repo_name}/<task-slug>, not the main checkout (${repo_root})."
+  if is_global_worktree_path "$target_dir"; then
+    return 0
+  fi
+
+  # Any registered session worktree is compliant — including Claude Code's native
+  # <repo>/.claude/worktrees/<name> layout on a claude/* branch. Never deny based
+  # on a path rebuilt from session state; the state slug can be stale or mangled.
+  if is_registered_claude_worktree "$target_dir"; then
+    return 0
+  fi
+
+  # Every agent workspace shape is compliant, old and new alike:
+  #
+  #   objective-integration  .agent-worktrees/<objective>/integration
+  #   objective-worker       .agent-worktrees/<objective>/task-NNN
+  #   legacy-platform        .claude/.worktrees, .cursor/.worktrees, .codex/.worktrees
+  #   legacy-global          ~/.claude/worktrees/<repo>/<slug>
+  #   native-claude          <repo>/.claude/worktrees/<name>
+  #
+  # The legacy shapes are listed deliberately. This hook predates the objective
+  # model, and a worker or integrator whose worktree it did not recognize would be
+  # denied every Edit — the work would have nowhere legal to go. Recognizing a
+  # layout is not endorsing it: nothing here CREATES a platform-shaped path.
+  workspace_kind="$(classify_worktree_path "$target_dir")"
+  case "$workspace_kind" in
+    objective-integration|objective-worker|objective-other|legacy-platform|legacy-global|native-claude)
+      return 0
+      ;;
+  esac
+
+  repo_root="$(repo_root_for "$target_dir")"
+  repo_name="$(repo_name_for "$target_dir")"
+  state="$(load_session_state "$session_id")"
+  # Re-slugify on read: state files written before slugify_text stripped newlines
+  # can carry multi-line slugs/paths that would mangle the suggested worktree.
+  task_slug="$(slugify_text "$(echo "$state" | jq -r '.task_slug // empty')" 48)"
+  worktree_path="$(echo "$state" | jq -r '.worktree_path // empty')"
+  case "$worktree_path" in *$'\n'*) worktree_path="" ;; esac
+
   if [[ -z "$worktree_path" || "$worktree_path" == "null" ]]; then
-    reason="${reason} Submit your task prompt first so the worktree slug is derived from it, then cd into the worktree."
-  elif is_live_worktree "$worktree_path"; then
-    reason="${reason} Use: cd \"${worktree_path}\" or EnterWorktree before editing."
-
-  # AN EDIT IS THE DEMAND SIGNAL.
-  #
-  # capture-task-slug.sh deliberately stopped rebuilding a worktree somebody
-  # removed, because a prompt arriving proves nothing about whether this session
-  # will ever touch the repo — and rebuilding on that basis is what made a
-  # cleaned-up worktree keep coming back. An Edit is the first hard evidence
-  # that a workspace is actually needed, so the rebuild belongs here.
-  #
-  # The edit is still denied: the tool call names a path in the main checkout
-  # and cannot be silently redirected. It is denied with a destination that
-  # exists, which is the part that was broken — the old message pointed at a
-  # removed directory and the retry failed the same way.
-  elif create_session_worktree "$repo_root" "$worktree_path" "$task_slug"; then
-    clear_worktree_retirement "$session_id"
-    reason="${reason} This session's worktree had been removed; it has been recreated at \"${worktree_path}\". cd there (or use EnterWorktree) and retry."
-  else
-    reason="${reason} This session's worktree (${worktree_path}) is missing and could not be recreated — use EnterWorktree, or edit inside an objective worktree."
+    if [[ -n "$task_slug" && "$task_slug" != "null" ]]; then
+      worktree_path="$(worktree_path_for "$repo_name" "$task_slug")"
+    fi
   fi
+
+  # The recorded path belongs to whichever repo the session started in. A session
+  # that edits a second repo would otherwise be told to cd into the FIRST repo's
+  # worktree — and, below, would have that worktree rebuilt for it. Recompute
+  # whenever the recorded path is not this repo's.
+  if [[ -n "$worktree_path" && "$worktree_path" != "null" \
+        && "$worktree_path" != "${WORKTREE_ROOT}/${repo_name}/"* ]]; then
+    if [[ -n "$task_slug" && "$task_slug" != "null" ]]; then
+      worktree_path="$(worktree_path_for "$repo_name" "$task_slug")"
+    else
+      worktree_path=""
+    fi
+  fi
+
+  # An active objective changes the remedy, not the verdict: the main checkout is
+  # still off limits, but the correct destination is a worker/integration worktree
+  # the orchestrator already owns — NOT a fresh session worktree.
+  objective_id="$(active_objective_id "$target_dir" 2>/dev/null || true)"
+
+  if [[ -n "$objective_id" ]]; then
+    reason="Repo edits must happen in an objective worktree, not the main checkout (${repo_root}). Objective '${objective_id}' is active: work in $(agent_worktree_root "$repo_root")/${objective_id}/task-NNN (worker) or .../integration (integrator). Ask the orchestrator which one is yours — do not create a new worktree."
+  else
+    reason="Repo edits must happen in a dedicated worktree under ~/.claude/worktrees/${repo_name}/<task-slug>, not the main checkout (${repo_root})."
+    if [[ -z "$worktree_path" || "$worktree_path" == "null" ]]; then
+      reason="${reason} Submit your task prompt first so the worktree slug is derived from it, then cd into the worktree."
+    elif is_live_worktree "$worktree_path"; then
+      reason="${reason} Use: cd \"${worktree_path}\" or EnterWorktree before editing."
+
+    # AN EDIT IS THE DEMAND SIGNAL.
+    #
+    # capture-task-slug.sh deliberately stopped rebuilding a worktree somebody
+    # removed, because a prompt arriving proves nothing about whether this session
+    # will ever touch the repo — and rebuilding on that basis is what made a
+    # cleaned-up worktree keep coming back. An Edit is the first hard evidence
+    # that a workspace is actually needed, so the rebuild belongs here.
+    #
+    # The edit is still denied: the tool call names a path in the main checkout
+    # and cannot be silently redirected. It is denied with a destination that
+    # exists, which is the part that was broken — the old message pointed at a
+    # removed directory and the retry failed the same way.
+    elif create_session_worktree "$repo_root" "$worktree_path" "$task_slug"; then
+      clear_worktree_retirement "$session_id"
+      reason="${reason} This session's worktree had been removed; it has been recreated at \"${worktree_path}\". cd there (or use EnterWorktree) and retry."
+    else
+      reason="${reason} This session's worktree (${worktree_path}) is missing and could not be recreated — use EnterWorktree, or edit inside an objective worktree."
+    fi
+  fi
+
+  JUDGE_DENY_REASON="$reason"
+  return 1
+}
+
+# Judge the FILE(S) being edited, not the session cwd. An incidental `cd` into
+# an unrelated repo — reading a config file, inspecting a checkout — used to
+# arm the guard for every subsequent edit, including edits outside that repo.
+#
+# A single Claude tool call carries its target at tool_input.file_path/.path.
+# apply_patch carries neither — the target(s) live inside the patch body,
+# possibly several of them in one envelope — so when the flat-key read comes
+# up empty, ask write-targets.py's own apply_patch parser (already proven
+# against 73 cases in tests/test-write-target-guard.sh) for every TARGET/
+# DELETE path instead of re-deriving the marker format a second time here.
+# $input is passed through UNCHANGED — never rewrite tool_name before this
+# call, or write-targets.py's apply_patch branch (keyed on the raw literal)
+# stops firing and the extraction goes silent again.
+file_path="$(echo "$input" | jq -r '.tool_input.file_path // .tool_input.path // empty')"
+declare -a candidate_paths=()
+if [[ -n "$file_path" && "$file_path" != "null" ]]; then
+  candidate_paths+=("$file_path")
+else
+  while IFS=$'\t' read -r kind detail _fragment; do
+    case "$kind" in
+      TARGET|DELETE) candidate_paths+=("$detail") ;;
+    esac
+  done < <(printf '%s' "$input" | python3 "${SCRIPT_DIR}/lib/write-targets.py" 2>/dev/null)
+fi
+# Nothing resolved a path at all (an unparseable payload, or a genuinely
+# path-less call that still matched the case above) — same as before, judge
+# the session cwd. The array is never left empty: an empty "${arr[@]}"
+# expansion under `set -u` is only safe on bash >= 4.4, and this sentinel
+# sidesteps the question entirely.
+if [[ ${#candidate_paths[@]} -eq 0 ]]; then
+  candidate_paths+=("")
 fi
 
-hook_deny "$reason"
+for path in "${candidate_paths[@]}"; do
+  target_dir=""
+  if [[ -n "$path" && "$path" != "null" ]]; then
+    target_dir="$(nearest_existing_dir "$(dirname "$path")")"
+  fi
+  if [[ -z "$target_dir" || ! -d "$target_dir" ]]; then
+    target_dir="$cwd"
+  fi
+  if [[ -z "$target_dir" ]]; then
+    continue
+  fi
+  if ! judge_target_dir "$target_dir"; then
+    hook_deny "$JUDGE_DENY_REASON"
+  fi
+done
+
+hook_allow
