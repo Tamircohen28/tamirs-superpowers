@@ -65,7 +65,7 @@ Every surface carries a `support` value, and the enum has two members on purpose
 
 | `support` | Meaning | Carries |
 |---|---|---|
-| `supported` | This repo installs here, validates here, and has measured what it can do. | `install`, `validation`, and all 19 capability rows. |
+| `supported` | This repo installs here, validates here, and has measured what it can do. | `install`, `validation`, and all 20 capability rows. |
 | `unverified` | A real surface of the platform that this repo has **never exercised**. | `unverified_reason`, plus the identifying fields (`display_name`, `kind`, `aliases`, `doc_urls`). No `install`, no `validation`, no `capabilities`. |
 
 The schema enforces both halves. A `supported` surface missing `install`, `validation` or
@@ -73,8 +73,8 @@ The schema enforces both halves. A `supported` surface missing `install`, `valid
 fails too.
 
 That second prohibition is the load-bearing one. **An unverified surface carries no
-capabilities block at all — not a block of nineteen `unknown` rows.** Those two look
-alike and are not. Nineteen `unknown` rows is nineteen statements, each implying someone
+capabilities block at all — not a block of twenty `unknown` rows.** Those two look
+alike and are not. Twenty `unknown` rows is twenty statements, each implying someone
 considered that capability on that surface and came up empty; a reader skims the block
 and concludes the surface does nothing. No block at all says the only true thing —
 *nobody measured this*. Silence about an unmeasured surface is honest; a page of invented
@@ -174,14 +174,19 @@ these over their own bundled URL lists.
 
 ## Capability keys
 
-Nineteen keys, fixed by the `enum` at `$defs.capabilityKey` in `schema.json`. That enum
+Twenty keys, fixed by the `enum` at `$defs.capabilityKey` in `schema.json`. That enum
 is the single capability vocabulary — skill frontmatter validation reads it directly, so
 a skill cannot declare a capability the registry does not define:
 
 `skills`, `skill_auto_invocation`, `subagents`, `parallel_subagents`, `agent_teams`,
 `hooks`, `mcp`, `statusline`, `shell`, `git`, `github_cli`, `background_tasks`,
 `worktree_isolation`, `plugin_marketplace`, `extension_install`, `slash_commands`,
-`ask_user_question`, `artifacts`, `session_transcripts`.
+`ask_user_question`, `artifacts`, `session_transcripts`, `dynamic_workflows`.
+
+`dynamic_workflows` is `native` on Claude Code only (the `Workflow` tool that runs a
+JavaScript orchestration script across many subagents) and `unsupported` everywhere
+else — every other platform's fallback is sequential subagent orchestration driven by
+the main session.
 
 Each is defined once, at the top of the registry, under `capability_definitions` — with
 a `summary` of what it means and a `degradation` line stating what a skill does without
