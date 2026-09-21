@@ -226,7 +226,7 @@ cmd_emit() {
       if [[ $force -eq 0 ]]; then
         die "refusing to emit. Move the change into scope, or record it as a followup, or pass --force." 4
       fi
-      printf '--force given: emitting anyway. The integrator must review this.\n' >&2
+      printf -- '--force given: emitting anyway. The integrator must review this.\n' >&2
     fi
   else
     printf 'note: %s has no task file — scope not checked.\n' "$tid" >&2
