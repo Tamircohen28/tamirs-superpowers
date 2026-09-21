@@ -90,7 +90,7 @@ do not add prose outside it.
 ## <Display name> — v<declared> detected → v<latest> latest
 **Signals:** <paths that triggered detection>
 **Surfaces:** <runtime surfaces these findings also cover, or omit>
-**Probe:** <pinned=X current=Y reachable=true | not available | stale/malformed>
+**Probe:** <pinned=X current=Y — verdict | not available | stale/malformed>
 
 ### Improvement steps
 1. <Feature name> — <one sentence: the benefit or the risk>
