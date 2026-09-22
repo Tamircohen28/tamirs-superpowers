@@ -71,3 +71,6 @@ build/
 
 # Session files (plans, reviews, investigations — visible but not committed)
 session-files/
+
+# Plugin eval results (claude plugin eval) — regenerated every run
+evals/results/
