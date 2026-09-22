@@ -77,7 +77,12 @@ separately from the app version. Advancing `latest_known` without a readable cha
 `reviewed_through < latest_known`, which the repo's own contract rejects as V1-04 ("upstream
 releases nobody has read yet"), and claiming a review that did not happen is exactly what these
 three fields exist to prevent. Cursor therefore stays pinned at **3.21.13** across all three
-fields, and the probe will keep reporting the drift until a Cursor changelog covers those patches.
+fields. The nightly probe no longer reports this as drift at all: comparing Cursor's desktop
+build against a `latest_known` that can only advance by feature-changelog review produced a
+permanently un-closeable DRIFT line, so `scripts/probe-platform-versions.sh` now reports Cursor
+the way it already reports Claude Code — no automated upstream source, advance via changelog
+review — printing the live build for reference without counting it toward `drift_count` or
+`unreachable_count`.
 
 OpenCode's `reviewed_through`/`latest_known` advanced again on 2026-09-22, **1.18.29 → 1.18.31**,
 against `registry.npmjs.org/opencode-ai` `dist-tags.latest` (1.18.31, published 2026-09-14) and

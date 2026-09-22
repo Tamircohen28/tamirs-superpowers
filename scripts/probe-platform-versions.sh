@@ -37,8 +37,11 @@
 # Exit 0 if no reachable platform drifted; 1 if at least one did.
 set -euo pipefail
 
+# Prints every leading comment line after the shebang, stopping at the first line that
+# is not a comment. A fixed `sed -n '2,26p'` range silently truncated --help mid-sentence
+# the moment the header grew; this cannot.
 usage() {
-  sed -n '2,26p' "$0" | sed -E 's/^# ?//'
+  awk 'NR==1 { next } /^#/ { sub(/^# ?/, ""); print; next } { exit }' "$0"
   exit "${1:-0}"
 }
 if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then usage 0; fi
@@ -87,10 +90,16 @@ cursor_build_pinned=$(pinned cursor)
 cursor_build_current=$(curl -fsSL --max-time 10 \
   "https://www.cursor.com/api/download?platform=darwin-universal&releaseTrack=stable" 2>/dev/null \
   | jq -r '.version // empty' 2>/dev/null || true)
+#
+# The `pinned=<v> current=<v|n/a|unreachable> — <verdict>` shape is a CONTRACT, not a
+# formatting choice: skills/documentation/platform-sync/references/probe.md treats any
+# line that does not match it as making the WHOLE probe result malformed, discarding
+# the other four targets too. So this emits `pinned=` like every other line, carrying
+# the feature number, and puts the build detail in the verdict text.
 if [[ -z "$cursor_build_current" ]]; then
-  echo "cursor: pinned_feature=$cursor_feature_pinned current=n/a — desktop build endpoint unreachable; feature changelog has no automated source either way"
+  echo "cursor: pinned=$cursor_feature_pinned current=n/a — no automated feature-changelog source; advance changelog_feature via changelog review (desktop build endpoint unreachable this run)"
 else
-  echo "cursor: pinned_feature=$cursor_feature_pinned current=n/a — no automated feature-changelog source; advance changelog_feature via changelog review (live desktop build for reference: pinned=$cursor_build_pinned live=$cursor_build_current, informational, not drift)"
+  echo "cursor: pinned=$cursor_feature_pinned current=n/a — no automated feature-changelog source; advance changelog_feature via changelog review (live desktop build for reference: pinned=$cursor_build_pinned live=$cursor_build_current, informational, not drift)"
 fi
 
 # --- codex: GitHub releases API, rust-vX.Y.Z tags ---
