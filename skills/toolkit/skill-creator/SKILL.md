@@ -1,7 +1,7 @@
 ---
 name: skill-creator
-description: 'Use when creating or improving an Agent Skill (SKILL.md) for Claude Code, Cursor, Codex, Gemini CLI or OpenCode, fixing a skill that isn''t triggering, optimizing its description, or running skill evals/benchmarks. Writes portable skills first, then validates platform extensions. Triggers: ''make this a skill'', ''turn this into a skill'', ''write a SKILL.md'', ''my skill isn''t triggering'', ''skill keeps missing'', ''add evals to my skill'', ''benchmark my skill'', ''improve this skill'', ''create a new skill for X''.'
-when_to_use: 'User wants to create a new SKILL.md from scratch, improve or rewrite an existing skill, fix a skill that under- or over-triggers, add test cases or evals, run a skill benchmark, or optimize the description for triggering accuracy. Key phrases: ''make this a skill'', ''skill isn''t triggering'', ''write a skill'', ''add evals'', ''benchmark this skill'', ''improve the description''.'
+description: 'Use when creating or improving an Agent Skill (SKILL.md) for Claude Code, Cursor, Codex, Gemini CLI or OpenCode, fixing a skill that isn''t triggering, or running skill evals/benchmarks. Triggers: ''make this a skill'', ''turn this into a skill'', ''write a SKILL.md'', ''my skill isn''t triggering'', ''skill keeps missing'', ''add evals to my skill'', ''benchmark my skill'', ''improve this skill'', ''create a new skill for X''.'
+when_to_use: '''write a skill'', ''benchmark this skill'', ''improve the description'' so it stops over-triggering, ''make this workflow a reusable skill'', ''add test cases to my skill''.'
 argument-hint: '[skill name or path to SKILL.md]'
 arguments: []
 disable-model-invocation: false

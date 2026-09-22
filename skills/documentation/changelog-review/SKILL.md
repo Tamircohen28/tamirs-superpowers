@@ -1,23 +1,14 @@
 ---
 name: changelog-review
-description: Internal skill invoked by repo-standards polish phase 6 to audit Claude Code plugin projects. Fetches live docs and runs scripts/validate-plugin-json.sh + scripts/validate-skill-frontmatter.py (via scripts/check-skill-frontmatter.sh) to detect misuse, broken hook paths, stale patterns, and missed capabilities. Version agreement across manifests, badges and target files is delegated entirely to plugin-version.json + scripts/check-version-truth.sh — this skill never enumerates the places a version lives. Returns structured P1 findings before PR. Never invoke directly — use repo-standards. Also callable by other skills needing live-doc-grounded answers about Claude Code hooks, skills, plugin.json, or MCP config.
-when_to_use: 'Invoked by repo-standards polish phase 6 on Claude Code plugin projects.
-
-  Also callable by other skills when they need a live-doc-grounded answer
-
-  about Claude Code hooks, skills, plugin.json, MCP, or changelog diffs.
-
-  Trigger phrases (from delegating skills):
-
-  - "audit this plugin project for Claude Code misuse"
-
-  - "what changed between Claude Code vX and vY"
-
-  - "review my hooks.json / SKILL.md / plugin.json against official docs"
-
-  - "is this Claude Code config correct"
-
-  '
+description: 'Use when a Claude Code plugin project needs auditing against live official docs — hooks.json,
+  SKILL.md, plugin.json, MCP config — for misuse, broken hook paths, stale patterns and missed
+  capabilities. Invoked by repo-standards polish phase 6; also callable by any skill needing a
+  live-doc-grounded answer about Claude Code hooks, skills, plugin.json or MCP. Version agreement
+  across manifests and badges is delegated to plugin-version.json + scripts/check-version-truth.sh.
+  Never invoke directly — use repo-standards.'
+when_to_use: 'Phrases from delegating skills: "audit this plugin project for Claude Code misuse", "what changed
+  between Claude Code vX and vY", "review my hooks.json / SKILL.md / plugin.json against the official
+  docs", "is this Claude Code config correct".'
 argument-hint: '[plugin project path or omit for current repo]'
 arguments: []
 disable-model-invocation: false

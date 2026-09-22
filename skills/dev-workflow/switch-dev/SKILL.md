@@ -1,7 +1,7 @@
 ---
 name: switch-dev
-description: 'Use when switching between AI coding platforms mid-task without losing context — Claude Code, Cursor, Codex, Gemini CLI, or OpenCode. Hand off work via local objective/task/handoff state (optionally mirrored to a GitHub issue Resume block), resume on another platform, or list active objectives, agent-owned issues and worktrees. Triggers: switch agent, hand off issue, resume issue, rate limited switch platform, continue on Cursor, continue on Gemini, continue in OpenCode, pick up where I left off, cross-platform handoff, switch-dev, agent handoff.'
-when_to_use: 'User is rate-limited or wants to pause and continue on another AI platform (Claude Code, Cursor, Codex, Gemini CLI, OpenCode). Phrases: hand off issue #N, resume #N on Cursor, switch to Codex, continue this on Gemini, pick up where I left off, cross-platform handoff, update resume block, agent switch status.'
+description: 'Use when switching AI coding platforms mid-task without losing context — Claude Code, Cursor, Codex, Gemini CLI, OpenCode. Triggers: switch agent, hand off issue, resume issue, rate limited — switch platform, continue on Cursor, continue on Gemini, continue in OpenCode, pick up where I left off, update the resume block, cross-platform handoff, switch-dev, agent handoff, which issues each agent owns.'
+when_to_use: 'hand off issue #N, resume #N on Cursor, switch to Codex, continue this work on Gemini CLI, pick up where I left off, switch-dev status.'
 argument-hint: '[handoff|resume|status] [#issue | objective=<id> | task-NNN] [target platform]'
 arguments:
 - mode

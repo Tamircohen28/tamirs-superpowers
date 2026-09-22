@@ -1,7 +1,7 @@
 ---
 name: pr-dev
-description: 'Use when the user wants to actively drive a PR to completion — ''finish this PR'', ''address review comments'', ''ship/land/close the PR'', ''drive PR #N to merge'', ''fix CI and merge'', ''clean up this PR''. Persistently loops: addresses all review threads, fixes branch-related CI, retries flakes (max 3×), resolves the repository''s merge policy (enabling auto-merge or joining the merge queue when allowed), and stops when merged or blocked (asks for help).'
-when_to_use: 'User says: finish this PR, address comments, ship/land/merge the PR, drive PR #N, handle review feedback, fix CI and merge, squash-merge, clean up PR branch — or provides a PR number/URL and asks to drive it to done.'
+description: 'Use when an open PR must be driven to completion — ''finish this PR'', ''address review comments'', ''land the PR'', ''ship/land/close the PR'', ''drive PR #N to merge'', ''fix CI and merge'', ''clean up this PR'', ''the checks are red, get it green and merged'', ''pr-dev 42''.'
+when_to_use: 'drive PR #N to done, handle review feedback, squash-merge and clean up the PR branch, get red checks green and merge, ship a PR number or URL.'
 argument-hint: '[PR number, PR URL, or omit to infer from current branch]'
 arguments: []
 disable-model-invocation: false

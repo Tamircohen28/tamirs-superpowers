@@ -1,7 +1,7 @@
 ---
 name: decision
-description: 'Use when you need to hand a decision back to the user as a plain-language summary plus a choice menu — after finishing work and needing the user to pick how to proceed, when told "waiting for your decision about X", or when the user says "display decision", "what''s the decision on/about X", "show me my options for X", "let me choose", "walk me through the open decisions", "what are my action items", or gives a GitHub issue/PR number or URL to summarize and choose from.'
-when_to_use: 'User says: "display decision 141 to me simply and let me choose", "what are my open decisions", "walk me through the action items one by one", "summarize issue #57 and give me options", "let me choose between X and Y" — or an agent has just finished work and needs the user to pick between options before continuing.'
+description: 'Use when the user must pick between options — an agent has finished work and needs them to choose how to proceed, the user was told "waiting for your decision about X", or they say "display decision", "what''s the decision on/about X", "show me my options for X", "let me choose", "walk me through the open decisions", "what are my action items", "give me a menu of choices", or give a GitHub issue/PR number or URL.'
+when_to_use: '"display decision 141 to me simply and let me choose", "what are my open decisions", "walk me through the action items one by one", "summarize issue #57 and give me options", "let me choose between X and Y".'
 argument-hint: "[decision description, GitHub issue/PR number or URL, or empty to scan the conversation]"
 arguments: []
 disable-model-invocation: false

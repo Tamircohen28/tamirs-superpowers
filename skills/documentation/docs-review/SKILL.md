@@ -1,7 +1,10 @@
 ---
 name: docs-review
-description: 'Internal docs-quality sweep invoked by repo-standards polish phase 6. Audits README.md and docs/** across 11 axes: repo inventory, visual cleanliness, git freshness, stray plan files, template conformance, broken links/anchors, agent-instruction consistency, recent-change sync, cross-platform docs consistency, install-command verification, and generated skill/platform table verification. Returns pass/fail summary to caller.'
-when_to_use: Called by repo-standards polish phase 6. Also valid when another skill explicitly needs a full documentation audit — e.g. 'run docs-review on $PROJECT_DIR'. Not for direct user invocation.
+description: 'Use when README.md and docs/** need a full documentation audit — a sweep for broken links, stale
+  counts, template conformance, agent-instruction consistency, install-command accuracy and generated
+  skill and platform tables. Invoked by repo-standards polish phase 6; not for direct user invocation.'
+when_to_use: 'Phrases: "run docs-review on $PROJECT_DIR", "verify our install commands are accurate", "re-run the
+  doc audit after I fixed the P1 items".'
 argument-hint: '[optional: subset glob like ''docs/user/**'' or single file path]'
 arguments: []
 disable-model-invocation: false

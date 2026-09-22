@@ -1,7 +1,7 @@
 ---
 name: deliver-dev
-description: 'Use when an objective is integrated and needs to become a delivery — ''deliver this objective'', ''ship it'', ''open the PR for objective X'', ''all tasks are done, create the PR'', ''turn the integration branch into a PR''. Runs the final combined-diff review and the full Tier 2 / pre-PR gates, pushes the objective branch, opens exactly ONE pull request, applies the repository''s merge policy (auto-merge is policy, not an invariant), and hands the GitHub lifecycle to pr-dev. Not for driving an already-open PR — that is pr-dev.'
-when_to_use: 'User or orchestrator says: deliver objective <id>, ship this objective, open the PR for this work, all workers are done — create the PR, turn objective/<slug> into a pull request, run the pre-PR gates and deliver.'
+description: 'Use when an integrated objective must become a delivery — ''deliver this objective'', ''ship it'', ''open the PR for objective X'', ''all tasks are done, create the PR'', ''turn the integration branch into a PR'', ''run the pre-PR gates'', ''review the combined diff and ship''. Not for driving an already-open PR — that is pr-dev.'
+when_to_use: 'deliver objective <id>, all workers are done — create the PR, turn objective/<slug> into a pull request, the integration branch is ready.'
 argument-hint: '<objective-id> (or omit to infer from the current objective/<slug> branch)'
 arguments: []
 disable-model-invocation: false
