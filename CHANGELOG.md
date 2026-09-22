@@ -5,6 +5,24 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [4.2.1] — 2026-09-22
+
+### Fixed
+
+- **The nightly probe no longer reports Cursor as drifted.** It compared Cursor's live desktop
+  *build* (3.21.x, from the public download API) against `targets.cursor.latest_known`, but Cursor
+  documents changes at *feature* granularity (`changelog_feature`, currently `3.11`) and publishes
+  no per-build release notes. `latest_known` therefore could never honestly advance to match a
+  build number — the contract's V1-04 rejects `reviewed_through < latest_known`, and no
+  build-granularity changelog exists to review — so the probe emitted a permanent, un-closeable
+  `DRIFT` line every night. Cursor is now reported the way `claude_code` already is: no automated
+  upstream source, advance via changelog review. The live build is still printed for a human to
+  judge but no longer counts toward `drift_count` or `unreachable_count`.
+- **`--help` no longer truncates mid-sentence.** `usage()` printed a hardcoded line range
+  (`sed -n '2,26p'`), so it silently cut off the moment the header comment grew. It now prints
+  every leading comment line and stops at the first non-comment, which future header edits cannot
+  break.
+
 ## [4.2.0] — 2026-09-22
 
 ### Fixed
