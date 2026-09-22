@@ -5,6 +5,33 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [4.3.0] — 2026-09-23
+
+### Changed
+
+- **OpenCode target rebased onto the v2 line.** OpenCode 2 ships under a **new npm scope**,
+  `@opencode/cli` (2.0.14, published 2026-09-22); v1's `opencode-ai` is frozen at 1.18.32.
+  `opencode.json` is converted to v2's config shape: `skills` is now a **flat array of strings**
+  (`packages/schema/src/config.ts:84` — `Schema.String.pipe(Schema.Array)`), replacing v1's
+  `skills: { paths: [...] }` object. **This is not a breaking change for v1 users:** verified on a
+  live OpenCode **1.18.32**, which accepts the array and normalizes it to `{"paths": [...],
+  "urls": []}`, and discovers this repo's skills from it. v1 already carries
+  forward-compatible handling for the v2 shape. Config file names and search locations are
+  unchanged; `SKILL.md` remains the skill format.
+- **Target pins moved to v2 with an honest evidence level.** `reviewed_through`/`latest_known`
+  advance to 2.0.14 on a documentary review of the v2 docs and the v2 source at tag `v2.0.14`.
+  `validated_against` is set to **`"unknown"`** — no `opencode2` run has exercised these skills —
+  rather than left at 1.18.11, which is a version of the other package lineage. `supported_min` is
+  2.0.0, the major boundary rather than an evidenced floor. README badge and support row are
+  downgraded to `⚠️ unverified` to match. Tracked in #200.
+
+### Fixed
+
+- **The nightly probe was blind to the OpenCode major.** It watched `registry.npmjs.org/opencode-ai`,
+  which is frozen at 1.18.32, and so reported "no drift" for the entire v2 line. It now watches
+  `@opencode/cli`. A probe that pins a package name cannot see a major that renames the package —
+  the same class of blind spot as comparing the wrong field.
+
 ## [4.2.2] — 2026-09-22
 
 ### Changed
