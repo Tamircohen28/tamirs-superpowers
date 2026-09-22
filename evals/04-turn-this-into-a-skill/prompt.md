@@ -11,4 +11,4 @@ I just walked a teammate through how we onboard a new microservice onto our obse
 
 Turn that into a skill so I stop re-explaining it every time someone ships a new service.
 
-Put it in `.claude/skills/onboard-service/`.
+Put it in `skills/onboard-service/`.

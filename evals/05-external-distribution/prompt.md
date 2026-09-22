@@ -11,4 +11,4 @@ Build me a skill that drafts release notes from a list of merged pull requests â
 
 I want to upload this one to claude.ai later so my team can use it there, so make sure it won't break when I do.
 
-Put it in `.claude/skills/release-notes/`.
+Put it in `skills/release-notes/`.

@@ -1,6 +1,6 @@
 ---
 type: llm
-focus: { source: file, path: ".claude/skills/onboard-service/SKILL.md" }
+focus: { source: file, path: "skills/onboard-service/SKILL.md" }
 ---
 This file is a generated Claude Code SKILL.md for onboarding a microservice onto an observability stack.
 

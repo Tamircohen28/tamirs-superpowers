@@ -1,4 +1,4 @@
 ---
 type: file_exists
-path: .claude/skills/onboard-service/SKILL.md
+path: skills/onboard-service/SKILL.md
 ---

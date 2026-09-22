@@ -11,4 +11,4 @@ Make me a skill that digs through a codebase to find everywhere a given environm
 
 It does a lot of searching, so it should do that digging off to the side without cluttering up my main conversation.
 
-Put it in `.claude/skills/env-var-trace/`.
+Put it in `skills/env-var-trace/`.

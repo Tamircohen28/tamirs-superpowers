@@ -71,6 +71,29 @@ nearest_existing_dir() {
 # a patch with one in-worktree target and one outside it would have been
 # allowed on the strength of the first. See the candidate loop below, which
 # calls this once per target and denies on the first one that fails.
+# is_throwaway_root DIR — true when DIR sits under a system temp root.
+#
+# The degraded path below fails OPEN, so it must only ever engage where the
+# checkout is provably disposable: an eval sandbox, a CI scratch dir, a test
+# fixture. A person's real project never lives under /tmp or $TMPDIR, so this
+# is the narrowest signal that separates "isolation is unavailable here" from
+# "one `git worktree add` happened to fail" — which is an ordinary condition
+# (branch already checked out elsewhere, stale session state, a permissions
+# blip) and must still be denied in the main checkout.
+is_throwaway_root() {
+  local dir="$1" tmp
+  [[ -z "$dir" ]] && return 1
+  case "$dir" in
+    /tmp/*|/private/tmp/*|/var/folders/*|/private/var/folders/*) return 0 ;;
+  esac
+  tmp="${TMPDIR:-}"
+  if [[ -n "$tmp" ]]; then
+    tmp="${tmp%/}"
+    [[ -n "$tmp" && "$dir" == "$tmp"/* ]] && return 0
+  fi
+  return 1
+}
+
 judge_target_dir() {
   local target_dir="$1"
   local repo_root repo_name state task_slug worktree_path objective_id reason workspace_kind
@@ -174,6 +197,36 @@ judge_target_dir() {
     elif create_session_worktree "$repo_root" "$worktree_path" "$task_slug"; then
       clear_worktree_retirement "$session_id"
       reason="${reason} This session's worktree had been removed; it has been recreated at \"${worktree_path}\". cd there (or use EnterWorktree) and retry."
+    elif [[ "${TAMIRS_ALLOW_DEGRADED_WRITES:-}" == "1" ]] || is_throwaway_root "$repo_root"; then
+      # DEGRADED PATH — no remedy exists, so denying is a dead end, not a guard.
+      #
+      # Every other branch above denies with a destination the agent can act on:
+      # a live worktree to cd into, one just recreated for it, or an objective
+      # worktree the orchestrator owns. This branch is the one where the worktree
+      # is missing AND could not be recreated — there is nowhere to send the
+      # work, and nothing the agent can do to make one. A deny here does not
+      # protect the repo, it strands the session.
+      #
+      # Measured in a `claude plugin eval` sandbox, where the harness makes the
+      # run's home a git repo but refuses worktree isolation: every Write was
+      # denied and a one-word file-creation task scored 1.00 WITHOUT the plugin
+      # and 0.00 WITH it. The same shape occurs anywhere `git worktree add`
+      # cannot run or its target is unwritable — a CI checkout, a container, a
+      # read-only mount.
+      #
+      # So: allow the write, loudly. The invariant that matters is preserved,
+      # because this degrades only where a worktree is provably unobtainable;
+      # wherever one CAN exist, the branches above still deny.
+      #
+      # GATED, because this fails open. It engages only where the checkout is
+      # provably disposable (is_throwaway_root) or an operator opted in with
+      # TAMIRS_ALLOW_DEGRADED_WRITES=1. A failed `git worktree add` in a real
+      # checkout — branch already checked out in another worktree, stale
+      # session state, a permissions blip — is an ORDINARY condition and still
+      # falls through to the deny below. Without that gate this branch would
+      # disable the guard in the user's own repo on a transient git error.
+      JUDGE_DEGRADED_REASON="Worktree policy DEGRADED: repo edits belong in a dedicated worktree (${worktree_path}), but it is missing and could not be recreated, and this checkout (${repo_root}) is a disposable one. Allowing this write so the session is not dead-locked. This never engages in a normal checkout."
+      return 0
     else
       reason="${reason} This session's worktree (${worktree_path}) is missing and could not be recreated — use EnterWorktree, or edit inside an objective worktree."
     fi
@@ -231,5 +284,13 @@ for path in "${candidate_paths[@]}"; do
     hook_deny "$JUDGE_DENY_REASON"
   fi
 done
+
+# A degraded allow is still an allow, but it must never be silent: the write
+# landed somewhere the policy would normally refuse, and the session should say
+# so. Emitted once, after every target passed, so a multi-target apply_patch
+# does not answer for its first path alone.
+if [[ -n "${JUDGE_DEGRADED_REASON:-}" ]]; then
+  hook_additional_context "$JUDGE_DEGRADED_REASON"
+fi
 
 hook_allow
