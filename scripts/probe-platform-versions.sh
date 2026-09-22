@@ -14,9 +14,19 @@
 #   claude_code — no reliable public version-check API exists. Reports the pinned
 #                 value only; advancing it stays a changelog-review decision, not
 #                 something this script can verify live.
-#   cursor      — Cursor's public download API (used by cursor.com's own download
-#                 page): GET /api/download?platform=darwin-universal&releaseTrack=stable
-#                 returns {"version": "..."} for the current stable build.
+#   cursor      — reported like claude_code, not compared for drift. Cursor's public
+#                 download API (GET /api/download?platform=darwin-universal&
+#                 releaseTrack=stable) returns the current desktop BUILD version
+#                 (e.g. 3.21.16), but Cursor documents changes at FEATURE granularity
+#                 (changelog_feature, e.g. "3.11") with no per-build release notes.
+#                 latest_known/reviewed_through are advanced by changelog review
+#                 against changelog_feature (see platform-targets.md), not against the
+#                 live build, so comparing the live build to latest_known produced
+#                 permanent, un-reviewable "drift": the repo's
+#                 own contract (V1-04) forbids advancing latest_known without a
+#                 matching review, and no build-granularity changelog exists to
+#                 review. The live build is still fetched and printed for a human to
+#                 judge, but it no longer drives drift_count or unreachable_count.
 #   codex       — GitHub releases API on openai/codex; tags are "rust-vX.Y.Z".
 #   gemini_cli  — npm registry dist-tags.latest for @google/gemini-cli.
 #   opencode    — npm registry dist-tags.latest for opencode-ai.
@@ -65,12 +75,23 @@ report() {
 claude_pinned=$(pinned claude_code)
 echo "claude_code: pinned=$claude_pinned current=n/a — no automated upstream source; advance via changelog review"
 
-# --- cursor: public download API ---
-cursor_pinned=$(pinned cursor)
-cursor_current=$(curl -fsSL --max-time 10 \
+# --- cursor: public download API, informational only — see header comment ---
+#
+# Not passed through report(): that function counts a mismatch as drift and would
+# forbid this platform from ever showing "no drift", since latest_known tracks
+# changelog_feature (undocumented at build granularity) while this endpoint returns
+# the build. Printed directly instead, in the same style as claude_code's line, so a
+# human reviewing the report still sees the live build number.
+cursor_feature_pinned=$(jq -r ".targets.cursor.changelog_feature // empty" "$TARGETS_JSON")
+cursor_build_pinned=$(pinned cursor)
+cursor_build_current=$(curl -fsSL --max-time 10 \
   "https://www.cursor.com/api/download?platform=darwin-universal&releaseTrack=stable" 2>/dev/null \
   | jq -r '.version // empty' 2>/dev/null || true)
-report cursor "$cursor_pinned" "$cursor_current"
+if [[ -z "$cursor_build_current" ]]; then
+  echo "cursor: pinned_feature=$cursor_feature_pinned current=n/a — desktop build endpoint unreachable; feature changelog has no automated source either way"
+else
+  echo "cursor: pinned_feature=$cursor_feature_pinned current=n/a — no automated feature-changelog source; advance changelog_feature via changelog review (live desktop build for reference: pinned=$cursor_build_pinned live=$cursor_build_current, informational, not drift)"
+fi
 
 # --- codex: GitHub releases API, rust-vX.Y.Z tags ---
 codex_pinned=$(pinned codex)
