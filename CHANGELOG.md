@@ -5,6 +5,36 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [4.1.0] — 2026-09-22
+
+### Fixed
+
+- **`enforce-worktree-edits.sh` no longer dead-locks a session that cannot create a worktree.**
+  When the session worktree is missing *and* cannot be recreated, the write is now allowed with a
+  visible warning instead of denied — but only where the checkout is provably disposable (under a
+  system temp root) or an operator sets `TAMIRS_ALLOW_DEGRADED_WRITES=1`. An ordinary
+  `git worktree add` failure in a real checkout (branch already checked out elsewhere, stale session
+  state, a permissions blip) still denies, so the guard's core protection is unchanged. Previously
+  every write was refused with no reachable remedy, which made the plugin unusable anywhere
+  `git worktree add` cannot run — an eval sandbox, a CI checkout, a container. Measured as
+  Δ −1.00 on creating a one-word file. (#191)
+- **`make validate` passes from inside a `wt/*` worktree.** `tests/test-hook-stdin.sh` clones the
+  repo under test, and `git clone` checks out the source's current branch as a *local* branch; from
+  a `wt/<slug>` worktree that tripped an absolute-absence assertion on a branch no hook created. The
+  assertion now baselines the `wt/*` set after the clone and checks what appears. CI only runs from
+  a plain checkout, so only contributors following the repo's own worktree policy hit it. (#192)
+
+### Changed
+
+- **`evals/` graders calibrated against real generated output for the first time.** `frontmatter-valid`
+  now anchors to a complete frontmatter block (it previously matched a `name:` line anywhere in the
+  file); `explains-mechanism` accepts any substantively correct account of description-driven skill
+  selection rather than one phrasing. Cases write to `skills/<name>/` — `.claude/` is a protected
+  path in the run sandbox and every write to it is denied.
+- `evals/README.md` and `CLAUDE.md` record the calibrated results, the corrected usage figures, and
+  the three operator footguns (`--allow-tools Write` is mandatory, use `--judge-model sonnet`, never
+  point a case at `.claude/`).
+
 ## [4.0.0] — 2026-09-22
 
 - **Cursor 3.11 (+2026-09-10 / desktop 3.21.13):** advance Cursor coverage through **Projects** (coordinator, shared context, subscriptions) and desktop **3.18.9 → 3.21.13**. Feature pin remains **3.11**. `make validate` expected green. Cursor-only.
