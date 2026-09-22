@@ -34,7 +34,7 @@ Verified **2026-09-20** — Claude Code reviewed against the official changelog 
 |----------|---------------|-------------------|------------------|--------------|---------------|
 | Claude Code | 2.0.0 | 2.1.274 | 2.1.278 | 2.1.278 | [claude-code.md](../../user/install/claude-code.md) |
 | Cursor | 3.21.13 | 3.21.13 | 3.21.13 | 3.21.13 | [cursor.md](../../user/install/cursor.md) |
-| Codex | 0.40.0 | 0.146.0 | 0.155.1 | 0.155.1 | [codex.md](../../user/install/codex.md) |
+| Codex | 0.40.0 | 0.146.0 | 0.156.0 | 0.156.0 | [codex.md](../../user/install/codex.md) |
 | Gemini CLI | 0.55.1 | 0.55.1 | 0.60.0 | 0.60.0 | [gemini.md](../../user/install/gemini.md) |
 | OpenCode | 2.0.0 | *unknown* | 2.0.14 | 2.0.14 | [opencode.md](../../user/install/opencode.md) |
 
@@ -61,6 +61,22 @@ while the published schema still sets `additionalProperties: false`, and 1.18.24
 for v2 config, whose `skills` is a flat array rather than v1's `{paths, urls}` object — so an
 eventual v2 adoption is a real `opencode.json` shape change even though v1 remains native. The
 review is documentary, so `validated_against` stays at 1.18.11.
+
+**Codex reviewed through 0.156.0 on 2026-09-23** (from 0.155.1), against the official
+`openai/codex` release notes for `rust-v0.156.0` (published 2026-09-22). `validated_against`
+stays at **0.146.0** — no live `codex` CLI exists in this environment, so the advance is
+documentary, the same evidence basis every prior Codex reconciliation used.
+
+Nothing in 0.156.0 breaks this repo's manifest, hooks or skills. Two entries are worth
+recording. **Worktree support is now enabled by default** ("Filter tasks by status and create
+worktree sessions from the agent command center; worktree support is now enabled by default")
+— that retires the premise of the backlog item that declined native Codex worktrees as
+experimental in 0.154.0, so #180's E2 needs re-evaluating rather than staying declined on
+staleness grounds. And `/usage` now reports "plugin and skill activity", which is adjacent to
+what `usage-capture` and `session-report` do here. The rest is TUI, voice, themes, sandbox
+isolation hardening (inbound Windows connections, privileged Linux/macOS sockets, writes
+through read-only macOS file handles) and MCP OAuth credential refresh on a 503 — none of it
+touching the adapter surface.
 
 **OpenCode moved to the v2 line on 2026-09-23, and the target was rebased onto it.** OpenCode 2
 ships under a **new npm scope**, `@opencode/cli` (2.0.14, published 2026-09-22); v1's `opencode-ai`
