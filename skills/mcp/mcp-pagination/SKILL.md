@@ -1,7 +1,7 @@
 ---
 name: mcp-pagination
-description: Internal guardrail invoked by mcp-builder only. Audits MCP tool definitions that contain list_*, search_*, find_*, get_all_*, or SQL-executing operations for missing pagination/limit parameters. NOT triggered by general MCP questions, single-item getters, or mutation tools. mcp-builder calls this at Phase 1.3 (after cataloging endpoints), Phase 3.0 (before writing each list/search tool schema), Phase 4.1 (post-Inspector checklist), and Phase 5 (eval design). Skip invocation when all tools are single-item getters or mutations only.
-when_to_use: Invoked automatically by mcp-builder when generating or reviewing MCP server designs that include list/search operations. Not called directly by users.
+description: 'Internal guardrail invoked by mcp-builder only — audits MCP tool schemas with list_*, search_*, find_*, get_all_* or SQL-executing operations for missing pagination, limit, offset or cursor parameters and unbounded results. Not for general MCP questions, single-item getters, or mutation-only tools.'
+when_to_use: 'mcp-builder Phase 1.3 collection endpoints, audit these tool definitions for missing limit parameters, unbounded SQL-executing results, the pagination quick-reference checklist against implemented tools, caller-driven pagination in evals.'
 argument-hint: '[path to MCP tool schema or server source file]'
 arguments: []
 disable-model-invocation: false

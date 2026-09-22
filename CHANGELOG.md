@@ -5,6 +5,35 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [4.2.0] — 2026-09-22
+
+### Changed
+
+- **Skill descriptions trimmed 28%, trigger coverage up 10 points.** The `description` +
+  `when_to_use` frontmatter across all 29 skills went from 26,686 to 19,092 characters — roughly
+  6,600 to 4,700 tokens resident in the system prompt on *every* turn. Empirical ablation (four
+  plugin variants against the same eval case) attributes ~82% of this plugin's token overhead to
+  these fields, against ~9% for all 25 hooks combined, so this is where the cost actually lives.
+
+  The cut applies the repo's own authoring contract rather than an arbitrary budget:
+  `description` is specified as triggering conditions only — "describing skill output/workflow in
+  the `description` frontmatter field" is listed under *What NOT to do* — and `when_to_use` as 3–5
+  phrases that *add* to it rather than restate it. Most of what was removed was what-it-does prose
+  that was never supposed to be in those fields.
+
+  Triggering measurably improved: against each skill's own `evals/trigger-evals.json`,
+  should-trigger coverage rose from 205/242 (84%) to 228/242 (94%). Every literal quoted trigger
+  phrase was preserved verbatim, verified against `git show HEAD:` for all 29 files. Budget freed
+  by deleting prose was spent re-earning vocabulary the eval queries needed but the old text did
+  not carry — `pagination` was not independently matchable in `mcp-pagination` (3/6 → 6/6), and
+  `land` was unreachable inside `ship/land/close` in `pr-dev` (6/10 → 9/10).
+
+  Gating was considered and rejected. `user-invocable: false` does *not* remove a description from
+  context; only `disable-model-invocation: true` does, and that flag blocks subagent and workflow
+  orchestration — the mistake that cost `switch-dev` its purpose (0 invocations across 953
+  sessions). Trimming is the lever that reduces cost without weakening triggering or breaking
+  orchestration.
+
 ## [4.1.0] — 2026-09-22
 
 ### Fixed

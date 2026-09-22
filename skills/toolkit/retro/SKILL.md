@@ -1,7 +1,7 @@
 ---
 name: retro
-description: "Use when a session should become durable improvements (CLAUDE.md rules, hooks, memory, skills) — the user asks ('/retro', 'retrospective', 'postmortem', 'what went wrong', 'find friction', 'capture lessons', 'lessons learned', 'run a retro'), OR a session is wrapping up after notable friction (repeated failures, rework, multiple corrections) with no retro yet. Offer it proactively at session end; retro only proposes and never writes without approval, so offering is safe."
-when_to_use: "User says '/retro', 'run a retrospective', 'what went wrong this session', 'find friction', 'postmortem', 'capture lessons', 'improve the workflow', 'add lessons to memory' — or the session is wrapping up after a rough stretch (repeated failures, rework, multiple corrections) and no retro has run."
+description: "Use when a session should become durable rules, hooks or memory — the user asks ('/retro', 'run a retrospective', 'postmortem', 'what went wrong this session', 'find friction', 'capture lessons', 'lessons learned'), OR a session is wrapping up after friction (repeated failures, rework, multiple corrections). Offer it proactively at session end; it only proposes and never writes without approval."
+when_to_use: "Also: 'improve the workflow', 'add lessons to memory', 'that was bumpy, let's improve the workflow so it doesn't repeat', 'we spent way too long on this'."
 argument-hint: "[none]"
 arguments: []
 disable-model-invocation: false

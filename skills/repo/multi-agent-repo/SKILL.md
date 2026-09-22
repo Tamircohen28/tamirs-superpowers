@@ -1,7 +1,7 @@
 ---
 name: multi-agent-repo
-description: 'Use when auditing or setting up a repository for multi-agent development across Claude Code, Claude Desktop, Cursor, Codex, Gemini CLI, and OpenCode — or making a repo compatible with those assistants. Triggers: multi-agent repo, audit agent setup, AGENTS.md gaps, make compatible with Claude and Cursor, add Codex support, add Gemini CLI support, add OpenCode support, add cursor rules, generate AGENTS.md, capability registry, agent drift, canonical AGENTS.md, multi-agent-repo review/plan/dev, multi-platform AI support.'
-when_to_use: 'User wants to review, plan, or implement multi-agent repo infrastructure — audit gaps for Claude Code + Cursor + Codex + Gemini CLI + OpenCode, produce a remediation plan, generate platform config files and a capability registry, or implement AGENTS.md + thin adapters + drift checks on a PR branch. Phrases: audit this repo for multi-agent, make this compatible with Claude and Cursor, set up AGENTS.md canonical layout, fix agent drift, multi-agent plan, multi-agent dev.'
+description: 'Use when auditing or setting up a repository for multi-agent development across Claude Code, Claude Desktop, Cursor, Codex, Gemini CLI, and OpenCode. Triggers: multi-agent repo, audit agent setup, AGENTS.md gaps, make this repo work with Claude and Cursor, add Codex, Gemini CLI or OpenCode support, generate cursor rules from AGENTS.md, capability registry, agent drift, canonical AGENTS.md, multi-agent-repo review, plan or dev.'
+when_to_use: 'audit this repo for multi-agent, set up a canonical AGENTS.md with thin adapters, fix agent drift between CLAUDE.md and the cursor rules, add a capability registry for its targets, multi-agent plan.'
 argument-hint: '[review|plan|dev] [repo path, review/plan doc path, or free-text constraints — default: review + cwd]'
 arguments:
 - mode

@@ -1,7 +1,7 @@
 ---
 name: repo-standards
-description: 'Use when auditing or polishing a repository to Tamir Cohen standards — README badges (author, version, AI targets), Makefile install/update/uninstall, docs tree, CI/CD, changelog + versioning policy, branch protection, employer IP scan, repo hygiene, and multi-agent setup. Triggers: repo standards, polish this repo, prepare for GitHub, world-class repo, publish-ready, scan employer IP, fix repo hygiene, repo-standards review/plan/polish, standards audit.'
-when_to_use: 'User wants to review, plan, or implement full repo standards — README and docs layout, GitHub CI/CD, branch rules, IP-clean publish prep, and multi-agent support via multi-agent-repo. Phrases: polish this repo, repo standards review, make publish-ready, audit repo hygiene, standards plan, standards polish.'
+description: 'Use when auditing or polishing a repository to Tamir Cohen standards — README badges, Makefile install/update/uninstall, docs tree, CI/CD, changelog and versioning policy, branch protection, employer IP scan, repo hygiene, multi-agent setup. Triggers: repo standards, polish this repo, prepare this for GitHub, world-class repo, publish-ready, scan employer IP, fix repo hygiene, standards audit.'
+when_to_use: 'repo standards review, standards plan, standards polish, /repo-standards, get this repo publish-ready before I open source it.'
 argument-hint: '[review|plan|polish] [repo path, review/plan doc path, or free-text constraints — default: review + cwd]'
 arguments:
 - mode

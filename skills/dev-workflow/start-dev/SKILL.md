@@ -1,7 +1,7 @@
 ---
 name: start-dev
-description: 'Use when the user wants to implement, build, code, or ship a task that will result in commits and a pull request — given a GitHub issue number, free-text task description, or spec file. Triggers: ''implement issue #N'', ''start coding X'', ''build the feature'', ''work on this spec'', ''create a PR for this'', ''ship issue #N'', ''code up the feature'', ''begin implementation of X''.'
-when_to_use: implement, build, start coding, begin implementation, work on, create PR for, ship, code up — followed by an issue number (#N), a task description, or a spec/plan file path
+description: 'Use when a task must be implemented, built, coded or shipped — from a GitHub issue number, free-text task description, or spec file. Triggers: ''implement issue #N'', ''start coding X'', ''build the feature'', ''work on this spec'', ''create a PR for this'', ''ship issue #N'', ''code up the feature'', ''begin implementation of X'', ''start-dev #17''.'
+when_to_use: 'start-dev #17, code up the retry logic, add a --json flag to a script, build the feature described in plan.md.'
 argument-hint: '[issue number(s) e.g. #42, free-text task description, or path/to/spec.md]'
 arguments: []
 disable-model-invocation: false

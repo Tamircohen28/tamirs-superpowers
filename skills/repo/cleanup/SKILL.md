@@ -1,7 +1,7 @@
 ---
 name: cleanup
-description: 'Use when the user wants to clean up, tidy, or reset a GitHub repository — covers the full sweep: delete merged/stale remote branches, drive every open PR to merge-ready in parallel, remove idle local worktrees (rescuing uncommitted work), delete build/cache artifacts, and reset the local checkout to match remote. Invoke this whenever the user mentions repo cleanup, pruning branches, stale branches, worktree housekeeping, wiping build files, or syncing local to remote — even if they only mention one part of the sweep.'
-when_to_use: 'User says: clean up the repo, prune merged branches, delete stale branches, clean local worktrees, tidy up open PRs, drive all PRs with pr-dev, reset local to remote, fresh clean environment, repo housekeeping, purge build files, sync local to remote, remove merged branches, wipe worktrees.'
+description: 'Use when the user wants to clean up, tidy, or reset a GitHub repo — even if they name only one part. Triggers: repo cleanup, repo housekeeping, prune merged branches, delete stale remote branches, tidy my worktrees, drive all open PRs to merge-ready, wipe build and cache artifacts, reset local checkout to match remote.'
+when_to_use: 'clean up this repo, my worktrees are a mess, purge the build files, sync local to remote, get me back to a fresh clean environment.'
 argument-hint: '[--remote-only | --local-only | --dry-run] [repo path, defaults to cwd]'
 arguments:
 - flags

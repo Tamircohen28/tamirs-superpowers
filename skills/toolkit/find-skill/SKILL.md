@@ -1,7 +1,7 @@
 ---
 name: find-skill
-description: 'Use when the user asks ''find a skill for X'', ''is there a plugin that does Y'', ''what skill should I use for Z'', ''recommend an agent for W'', ''compare skills for ...'', or ''search for a Claude Code skill''. Searches public skill and plugin marketplaces in real time and returns top N ranked matches. Trigger words: find skill, find plugin, skill for, plugin for, agent for, recommend skill, search skills, skill discovery, mcp server for, claude code plugin.'
-when_to_use: User asks to find, recommend, or search for a skill, plugin, or agent — e.g. 'find a skill for code review', 'is there a plugin for X', 'recommend an agent for GitHub'.
+description: 'Use when the user asks ''find a skill for X'', ''is there a plugin that does Y'', ''what skill should I use for Z'', ''recommend an agent for W'', ''compare skills for ...'', or ''search for a Claude Code skill''. Trigger words: find plugin, mcp server for, skill discovery.'
+when_to_use: '''/find-skill 5 PR review automation'', ''find a skill for code review'', ''is there a plugin for X that generates release notes from git commits'', ''recommend an agent for GitHub'', ''what skill should I use for database migrations''.'
 argument-hint: '[what you need a skill or plugin for — e.g. ''PDF comparison'', ''PR review automation'']'
 arguments: []
 disable-model-invocation: false

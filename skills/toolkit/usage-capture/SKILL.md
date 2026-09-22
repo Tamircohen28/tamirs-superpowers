@@ -1,19 +1,16 @@
 ---
 name: usage-capture
 description: >-
-  Use when the user wants to record local Claude Code or OpenCode LLM request
-  metrics, enable usage capture, inspect daily JSONL usage logs, turn on API
-  body sidecars, or find latency bottlenecks from live requests. Triggers:
-  'usage capture', 'enable usage capture', 'local usage log', 'record LLM
-  requests', 'LLM latency', 'which model was used', 'request duration',
-  'usage metrics'. Writes nothing off-machine. Complements session-report
-  (historical Claude transcripts) rather than replacing it.
+  Use when local Claude Code or OpenCode LLM requests should be recorded or
+  inspected on this machine — daily JSONL usage logs, API body sidecars,
+  latency bottlenecks. Triggers: 'usage capture', 'enable usage capture',
+  'local usage log', 'record LLM requests', 'LLM latency', 'which model was
+  used', 'request duration', 'usage metrics'.
 when_to_use: >-
-  User wants to enable, disable, or query the local usage-capture recorder —
-  'record my LLM requests', 'usage capture', 'which model and how long did
-  that take', 'local usage logs', 'enable OTEL usage capture', 'OpenCode
-  request metrics'. Claude Code is supported via native OTEL; OpenCode is
-  partial (optional plugin). Elsewhere, say unsupported.
+  Also: 'record my LLM requests', 'which model and how long did that take',
+  'show my local usage logs', 'enable OTEL usage capture', 'OpenCode request
+  metrics'. Claude Code via native OTEL; OpenCode partial; elsewhere
+  unsupported. Not session-report, which reads historical Claude transcripts.
 argument-hint: '[enable | disable | status | query | bodies]'
 arguments: []
 disable-model-invocation: false

@@ -1,18 +1,15 @@
 ---
 name: field-notebook-ui
 description: >
-  Use when a UI, explainer, dashboard, or diagram should carry this repo's engineer's
-  field-notebook look — warm stone-paper background, hand-annotated margins, monospace
-  labels, graph-paper grid. Trigger on: "field-notebook style", "warm stone-paper
-  aesthetic", "the usual notebook look", "make it look like the field notebook", or when
-  the user is building a second artifact that must visually match one already produced in
-  this style. For a generic UI or artifact with no stated aesthetic, use the harness
-  design skills instead.
+  Use when a UI, explainer, dashboard, diagram or artifact should carry this repo's engineer's
+  field-notebook look — warm stone-paper, hand-annotated margins, graph-paper grid. Trigger on:
+  "field-notebook style", "warm stone-paper aesthetic", "the usual notebook look", "make it look
+  like the field notebook", or when a second artifact must visually match one already built in
+  this style. Not for a generic UI with no stated aesthetic.
 when_to_use: >
-  User names the aesthetic — "make it look like the field-notebook style", "use the warm
-  stone-paper aesthetic", "the usual notebook look" — or asks for an artifact that must
-  share a design language with one already built in this style, without re-specifying the
-  token system each time. Not for a generic "build me a UI" with no stated look.
+  Phrases: "make it look like the field-notebook style", "use the warm stone-paper aesthetic for
+  this reference tool", "design a dashboard in the usual notebook look". Not for a generic "build
+  me a UI" with no stated look.
 argument-hint: '[what to build — e.g. "k8s glossary", "helm explainer", "auth flow diagram"]'
 arguments: []
 disable-model-invocation: false
