@@ -27,10 +27,10 @@ Real example (verbatim from a live run):
 
 ```
 claude_code: pinned=2.1.278 current=n/a — no automated upstream source; advance via changelog review
-cursor: pinned=3.21.13 current=3.21.16 — DRIFT
-codex: pinned=0.155.1 current=0.155.1 — no drift
+cursor: pinned=3.11 current=n/a — no automated feature-changelog source; advance changelog_feature via changelog review
+codex: pinned=0.155.1 current=0.156.0 — DRIFT
 gemini_cli: pinned=0.60.0 current=0.60.0 — no drift
-opencode: pinned=1.18.31 current=1.18.31 — no drift
+opencode: pinned=1.18.32 current=1.18.32 — no drift
 
 Summary: 1 drifted, 0 unreachable
 ```
@@ -45,9 +45,14 @@ three things, and they are NOT the same case:
 - **`unreachable`** — a transient fetch failure (network, endpoint down, rate limit). No
   current value exists this run; treat exactly like `n/a` for this run's analysis, but it may
   succeed on a later run — don't record this as a permanent property of the target.
-- **`n/a`** — `claude_code` only, always, by design: no public version-check API exists for
-  it at all. This is not a failure and will not resolve on a later run; advancing this target's
-  version stays a changelog-review decision forever, per the script's own header comment.
+- **`n/a`** — `claude_code` and `cursor`, always, by design: no usable automated source
+  exists for either. This is not a failure and will not resolve on a later run; advancing
+  these targets' versions stays a changelog-review decision forever, per the script's own
+  header comment. Note what `pinned` means for each: `claude_code` pins its CLI version,
+  while **`cursor` pins `changelog_feature`** (e.g. `3.11`), not the desktop build. Cursor's
+  build (3.21.x) is documented nowhere at per-build granularity, so the probe does not fetch
+  it; `targets.cursor.latest_known` in `platform-targets.json` holds that build baseline if
+  you need it.
 
 There is no literal `reachable=true|false` field in the real output — reachability is implied
 by which of the three `current` states above appears. Treat `unreachable` and `n/a` the same

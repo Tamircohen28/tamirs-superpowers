@@ -5,6 +5,17 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [4.2.2] — 2026-09-22
+
+### Changed
+
+- **The probe no longer fetches Cursor's desktop build.** 4.2.1 stopped counting that build as
+  drift but still called the download API on every nightly run and printed the result as
+  informational. Since the build can never be acted on here — advancing `latest_known` without a
+  readable changelog is exactly what V1-04 rejects — the call gated nothing. Cursor's block is now
+  two lines mirroring `claude_code`, with no network call. The build baseline remains recorded in
+  `platform-targets.json`'s `targets.cursor.latest_known` for anyone who needs it.
+
 ## [4.2.1] — 2026-09-22
 
 ### Fixed

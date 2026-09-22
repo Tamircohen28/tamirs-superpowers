@@ -14,19 +14,16 @@
 #   claude_code — no reliable public version-check API exists. Reports the pinned
 #                 value only; advancing it stays a changelog-review decision, not
 #                 something this script can verify live.
-#   cursor      — reported like claude_code, not compared for drift. Cursor's public
-#                 download API (GET /api/download?platform=darwin-universal&
-#                 releaseTrack=stable) returns the current desktop BUILD version
-#                 (e.g. 3.21.16), but Cursor documents changes at FEATURE granularity
-#                 (changelog_feature, e.g. "3.11") with no per-build release notes.
-#                 latest_known/reviewed_through are advanced by changelog review
-#                 against changelog_feature (see platform-targets.md), not against the
-#                 live build, so comparing the live build to latest_known produced
-#                 permanent, un-reviewable "drift": the repo's
-#                 own contract (V1-04) forbids advancing latest_known without a
-#                 matching review, and no build-granularity changelog exists to
-#                 review. The live build is still fetched and printed for a human to
-#                 judge, but it no longer drives drift_count or unreachable_count.
+#   cursor      — no automated source; reported like claude_code. Cursor's download
+#                 API returns the desktop BUILD (3.21.x), but Cursor documents
+#                 changes at FEATURE granularity (changelog_feature, e.g. "3.11")
+#                 with no per-build release notes, so latest_known/reviewed_through
+#                 advance by changelog review (see platform-targets.md), never
+#                 against the build. Comparing the two produced a permanent,
+#                 un-closeable DRIFT line: V1-04 forbids advancing latest_known
+#                 without a matching review, and no build-granularity changelog
+#                 exists to review. The build is not fetched — its value could not
+#                 be acted on, so the call would gate nothing.
 #   codex       — GitHub releases API on openai/codex; tags are "rust-vX.Y.Z".
 #   gemini_cli  — npm registry dist-tags.latest for @google/gemini-cli.
 #   opencode    — npm registry dist-tags.latest for opencode-ai.
@@ -78,29 +75,17 @@ report() {
 claude_pinned=$(pinned claude_code)
 echo "claude_code: pinned=$claude_pinned current=n/a — no automated upstream source; advance via changelog review"
 
-# --- cursor: public download API, informational only — see header comment ---
+# --- cursor: no automated source, same treatment as claude_code ---
 #
-# Not passed through report(): that function counts a mismatch as drift and would
-# forbid this platform from ever showing "no drift", since latest_known tracks
-# changelog_feature (undocumented at build granularity) while this endpoint returns
-# the build. Printed directly instead, in the same style as claude_code's line, so a
-# human reviewing the report still sees the live build number.
-cursor_feature_pinned=$(jq -r ".targets.cursor.changelog_feature // empty" "$TARGETS_JSON")
-cursor_build_pinned=$(pinned cursor)
-cursor_build_current=$(curl -fsSL --max-time 10 \
-  "https://www.cursor.com/api/download?platform=darwin-universal&releaseTrack=stable" 2>/dev/null \
-  | jq -r '.version // empty' 2>/dev/null || true)
-#
-# The `pinned=<v> current=<v|n/a|unreachable> — <verdict>` shape is a CONTRACT, not a
-# formatting choice: skills/documentation/platform-sync/references/probe.md treats any
-# line that does not match it as making the WHOLE probe result malformed, discarding
-# the other four targets too. So this emits `pinned=` like every other line, carrying
-# the feature number, and puts the build detail in the verdict text.
-if [[ -z "$cursor_build_current" ]]; then
-  echo "cursor: pinned=$cursor_feature_pinned current=n/a — no automated feature-changelog source; advance changelog_feature via changelog review (desktop build endpoint unreachable this run)"
-else
-  echo "cursor: pinned=$cursor_feature_pinned current=n/a — no automated feature-changelog source; advance changelog_feature via changelog review (live desktop build for reference: pinned=$cursor_build_pinned live=$cursor_build_current, informational, not drift)"
-fi
+# Cursor's download API returns the desktop BUILD (3.21.x); Cursor documents changes
+# at FEATURE granularity (changelog_feature) with no per-build notes. The build is
+# therefore not fetched at all: its value could never be acted on here — advancing
+# latest_known without a readable changelog is what the contract's V1-04 rejects —
+# so a live HTTP call on every nightly run would gate nothing. The build baseline
+# stays recorded in platform-targets.json's targets.cursor.latest_known for anyone
+# who needs it.
+cursor_pinned=$(jq -r ".targets.cursor.changelog_feature // empty" "$TARGETS_JSON")
+echo "cursor: pinned=$cursor_pinned current=n/a — no automated feature-changelog source; advance changelog_feature via changelog review"
 
 # --- codex: GitHub releases API, rust-vX.Y.Z tags ---
 codex_pinned=$(pinned codex)

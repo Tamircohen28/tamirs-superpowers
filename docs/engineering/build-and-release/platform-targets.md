@@ -81,8 +81,9 @@ fields. The nightly probe no longer reports this as drift at all: comparing Curs
 build against a `latest_known` that can only advance by feature-changelog review produced a
 permanently un-closeable DRIFT line, so `scripts/probe-platform-versions.sh` now reports Cursor
 the way it already reports Claude Code — no automated upstream source, advance via changelog
-review — printing the live build for reference without counting it toward `drift_count` or
-`unreachable_count`.
+review. As of 4.2.2 the desktop build is not fetched at all: its value could never be acted
+on here, so the call gated nothing. `targets.cursor.latest_known` still records the build
+baseline for anyone who needs it.
 
 OpenCode's `reviewed_through`/`latest_known` advanced again on 2026-09-22, **1.18.29 → 1.18.31**,
 against `registry.npmjs.org/opencode-ai` `dist-tags.latest` (1.18.31, published 2026-09-14) and
