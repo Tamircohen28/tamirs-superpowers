@@ -295,7 +295,9 @@ if [[ "$SYNC" == true && -f "$TARGETS_JSON" ]] && command -v curl >/dev/null 2>&
     mv "$tmpf" "$TARGETS_JSON"
     echo "Updated $key.latest_known to $latest"
   }
-  sync_npm_latest opencode opencode-ai
+  # @opencode/cli is the v2 line; opencode-ai is v1, frozen at 1.18.32. Syncing from
+  # the v1 package here would silently revert latest_known from 2.0.14 back to 1.18.32.
+  sync_npm_latest opencode @opencode/cli
   sync_npm_latest claude_code @anthropic-ai/claude-code
   sync_npm_latest gemini_cli @google/gemini-cli
 fi

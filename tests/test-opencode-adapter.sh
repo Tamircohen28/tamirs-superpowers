@@ -74,11 +74,21 @@ fi
 # FLAT ARRAY of strings — packages/schema/src/config.ts:84 at tag v2.0.14,
 # `Schema.String.pipe(Schema.Array)`, "Additional paths or URLs to discover skills
 # from". This repo tracks v2, so the array form is what is asserted here.
-n_paths=$(jq -r '.skills | length' "$CONFIG" 2>/dev/null || echo 0)
-if [ "$n_paths" -gt 0 ] 2>/dev/null; then
-  ok "skills is declared ($n_paths entries)"
+# ASSERT THE TYPE, NOT JUST A LENGTH.
+#
+# `.skills | length` is 1 for the v1 OBJECT form `{ "paths": [...] }` — an object's
+# length is its key count — so a regression to v1 would sail through a `> 0` check,
+# and the jq errors raised further down run inside process substitutions whose exit
+# status this script does not propagate. The guard has to fail on the wrong TYPE.
+if jq -e '(.skills | type) == "array"' "$CONFIG" >/dev/null 2>&1; then
+  ok "skills is a flat array (v2 contract)"
 else
-  bad "skills is declared" "no skills array — OpenCode would discover zero skills from this repo"
+  bad "skills is a flat array (v2 contract)" "got type '$(jq -r '.skills | type // "missing"' "$CONFIG" 2>/dev/null)' — v1's { paths: [...] } object no longer matches what this repo ships"
+fi
+if jq -e '(.skills | length) > 0 and all(.skills[]; type == "string")' "$CONFIG" >/dev/null 2>&1; then
+  ok "skills is non-empty and all entries are strings ($(jq -r '.skills | length' "$CONFIG") entries)"
+else
+  bad "skills is non-empty and all entries are strings" "empty, or a non-string entry — OpenCode would discover zero skills from this repo"
 fi
 
 echo "--- opencode.json: every skills entry resolves to real skills ---"

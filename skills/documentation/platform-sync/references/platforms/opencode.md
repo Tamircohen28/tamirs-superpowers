@@ -31,12 +31,23 @@ marketplace entry. Absence of a manifest is not absence of the target.
 
 | Topic | URL |
 |---|---|
-| npm dist-tags — authoritative `latest` | https://registry.npmjs.org/opencode-ai/latest |
-| GitHub releases (the de-facto changelog) | https://github.com/sst/opencode/releases |
+| npm dist-tags — authoritative `latest` (**v2 line**) | https://registry.npmjs.org/@opencode%2Fcli/latest |
+| GitHub releases (the de-facto changelog) | https://github.com/anomalyco/opencode/releases |
 
 OpenCode ships no hand-written changelog page. Use the npm `latest` endpoint for the
-version string — it is the same artifact `npm i -g opencode-ai` installs, so it cannot
+version string — it is the same artifact `npm i -g @opencode/cli` installs, so it cannot
 drift from what users get.
+
+> **Watch the package, not just the version.** OpenCode 2 shipped under a **new npm scope**:
+> `@opencode/cli` (2.0.14). The v1 package, `opencode-ai`, is frozen at **1.18.32**, so an
+> audit pointed at it reports "current" forever and is blind to the entire v2 major — which
+> is exactly what happened to the nightly probe before #201. The scope must be URL-encoded
+> (`%2F`) in the registry path. The upstream repo also moved from `sst/opencode` to
+> `anomalyco/opencode`; GitHub *releases* there still stop at v1.18.32 while the 2.x line
+> exists as **tags only**, so releases alone will not surface v2 either.
+>
+> Before recording a version, confirm the package being queried is still the one the platform
+> ships from.
 
 ## Sources — P1
 

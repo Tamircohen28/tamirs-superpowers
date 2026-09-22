@@ -277,8 +277,8 @@
     },
     "opencode": {
       "platform": "opencode",
-      "supported_min": "2.0.0",
-      "supported_min_source": "first release of the v2 line (@opencode/cli). This is the MAJOR boundary, not an evidenced floor: no v2 version has been run against this repo. The v1 floor was 1.16.2, established by recursive SKILL.md discovery verified with `opencode debug skill`.",
+      "supported_min": "unknown",
+      "supported_min_source": "unknown, deliberately. No v2 executable has exercised this repo, so no floor is evidenced, and platform-targets.md's contract is that supported_min is never a guess — publishing 2.0.0 would have machine-readable data assert a compatibility floor the adjacent prose admits is unproven. The v1 floor was 1.16.2, established by recursive SKILL.md discovery verified with `opencode debug skill`; it does not carry to the v2 package lineage. Set a real value once an opencode2 run establishes one.",
       "validated_against": "unknown",
       "reviewed_through": "2.0.14",
       "latest_known": "2.0.14",
