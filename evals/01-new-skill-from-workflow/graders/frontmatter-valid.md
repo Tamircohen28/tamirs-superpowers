@@ -2,6 +2,5 @@
 type: regex
 target: { source: file, path: ".claude/skills/release-preflight/SKILL.md" }
 match: contains
-flags: m
 ---
-^name:\s*[a-z0-9]+(?:-[a-z0-9]+)*\s*$
+^---\r?\n(?:[^\n]*\r?\n)*?name:[ \t]*[a-z0-9]+(?:-[a-z0-9]+)*[ \t]*\r?\n(?:[^\n]*\r?\n)*?---\r?\n
