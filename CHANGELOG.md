@@ -7,6 +7,19 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [4.2.0] — 2026-09-22
 
+### Fixed
+
+- **`parse_skill_md` truncated multi-line quoted descriptions.** The reader gathered
+  continuation lines only for YAML *block* scalars (`>`, `|`, `>-`, `|-`); a multi-line *quoted*
+  scalar — equally valid YAML, and what several skills here use — ended at its first physical
+  line. `run_eval.py` and `run_loop.py` score triggering against that string and then rewrite it,
+  so those skills were being benchmarked and optimised against roughly 17% of their own
+  description, with every trigger phrase past line one invisible: `targeted-debug` 92 of 568
+  characters, `diagnose-refusal` 99 of 590, `changelog-review` 93 of 517, `docs-review` 96 of 297.
+  The frontmatter is now parsed with `yaml.safe_load`, with the original line reader kept as a
+  fallback where pyyaml is absent. Pre-existing, not introduced by the trim in this release —
+  parsed lengths were identical before and after it. Found by automated review on #195.
+
 ### Changed
 
 - **Skill descriptions trimmed 28%, trigger coverage up 10 points.** The `description` +

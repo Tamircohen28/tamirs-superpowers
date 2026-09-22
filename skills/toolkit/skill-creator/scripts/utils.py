@@ -2,6 +2,11 @@
 
 from pathlib import Path
 
+try:  # pyyaml is declared in scripts/requirements-validate.txt
+    import yaml
+except ImportError:  # pragma: no cover - degrade to the line reader below
+    yaml = None
+
 
 
 def parse_skill_md(skill_path: Path) -> tuple[str, str, str]:
@@ -20,6 +25,36 @@ def parse_skill_md(skill_path: Path) -> tuple[str, str, str]:
 
     if end_idx is None:
         raise ValueError("SKILL.md missing frontmatter (no closing ---)")
+
+    # Prefer a real YAML parse of the frontmatter.
+    #
+    # The hand-rolled reader below gathers continuation lines only for BLOCK
+    # scalars (>, |, >-, |-). A multi-line QUOTED scalar is equally valid YAML,
+    # and several skills here use one — for those the reader stops at the first
+    # physical line and silently truncates the description.
+    #
+    # That is not cosmetic. run_eval.py and run_loop.py score triggering
+    # against this string and then rewrite it, so a truncated read benchmarks
+    # and optimises a description the model never sees in full. Measured on
+    # this repo before the fix: targeted-debug returned 92 of 568 characters,
+    # diagnose-refusal 99 of 590, changelog-review 93 of 517, docs-review 96 of
+    # 297 — roughly 17% of the text, with every trigger phrase and exclusion
+    # clause beyond line one invisible.
+    #
+    # The line reader is kept as a fallback so these scripts still run where
+    # pyyaml is not installed, or on a frontmatter block yaml refuses.
+    frontmatter = "\n".join(lines[1:end_idx])
+    if yaml is not None:
+        try:
+            data = yaml.safe_load(frontmatter)
+        except yaml.YAMLError:
+            data = None
+        if isinstance(data, dict):
+            return (
+                str(data.get("name") or ""),
+                str(data.get("description") or ""),
+                content,
+            )
 
     name = ""
     description = ""
