@@ -175,7 +175,27 @@ judge_target_dir() {
       clear_worktree_retirement "$session_id"
       reason="${reason} This session's worktree had been removed; it has been recreated at \"${worktree_path}\". cd there (or use EnterWorktree) and retry."
     else
-      reason="${reason} This session's worktree (${worktree_path}) is missing and could not be recreated — use EnterWorktree, or edit inside an objective worktree."
+      # DEGRADED PATH — no remedy exists, so denying is a dead end, not a guard.
+      #
+      # Every other branch above denies with a destination the agent can act on:
+      # a live worktree to cd into, one just recreated for it, or an objective
+      # worktree the orchestrator owns. This branch is the one where the worktree
+      # is missing AND could not be recreated — there is nowhere to send the
+      # work, and nothing the agent can do to make one. A deny here does not
+      # protect the repo, it strands the session.
+      #
+      # Measured in a `claude plugin eval` sandbox, where the harness makes the
+      # run's home a git repo but refuses worktree isolation: every Write was
+      # denied and a one-word file-creation task scored 1.00 WITHOUT the plugin
+      # and 0.00 WITH it. The same shape occurs anywhere `git worktree add`
+      # cannot run or its target is unwritable — a CI checkout, a container, a
+      # read-only mount.
+      #
+      # So: allow the write, loudly. The invariant that matters is preserved,
+      # because this degrades only where a worktree is provably unobtainable;
+      # wherever one CAN exist, the branches above still deny.
+      JUDGE_DEGRADED_REASON="Worktree policy DEGRADED: repo edits belong in a dedicated worktree (${worktree_path}), but it is missing and could not be recreated in this environment. Allowing this write so the session is not dead-locked. In a normal checkout, create the worktree and move the work there."
+      return 0
     fi
   fi
 
@@ -231,5 +251,13 @@ for path in "${candidate_paths[@]}"; do
     hook_deny "$JUDGE_DENY_REASON"
   fi
 done
+
+# A degraded allow is still an allow, but it must never be silent: the write
+# landed somewhere the policy would normally refuse, and the session should say
+# so. Emitted once, after every target passed, so a multi-target apply_patch
+# does not answer for its first path alone.
+if [[ -n "${JUDGE_DEGRADED_REASON:-}" ]]; then
+  hook_additional_context "$JUDGE_DEGRADED_REASON"
+fi
 
 hook_allow

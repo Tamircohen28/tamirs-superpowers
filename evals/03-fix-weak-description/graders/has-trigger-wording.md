@@ -1,6 +1,6 @@
 ---
 type: regex
-target: { source: file, path: ".claude/skills/db-migrate/SKILL.md" }
+target: { source: file, path: "skills/db-migrate/SKILL.md" }
 match: contains
 flags: im
 ---

@@ -24,4 +24,4 @@ Steps:
 4. Confirm the schema version advanced.
 ```
 
-Write the corrected file to `.claude/skills/db-migrate/SKILL.md`.
+Write the corrected file to `skills/db-migrate/SKILL.md`.

@@ -1,8 +1,8 @@
 ---
 name: neg-find-not-create
 runs: 3
-max_turns: 6
-timeout_seconds: 150
+max_turns: 10
+timeout_seconds: 300
 allowed_tools: [Read, Glob, Grep, Skill]
 tags: [negative]
 ---

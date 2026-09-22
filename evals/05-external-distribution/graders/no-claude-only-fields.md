@@ -1,6 +1,6 @@
 ---
 type: regex
-target: { source: file, path: ".claude/skills/release-notes/SKILL.md" }
+target: { source: file, path: "skills/release-notes/SKILL.md" }
 match: not_contains
 flags: m
 ---

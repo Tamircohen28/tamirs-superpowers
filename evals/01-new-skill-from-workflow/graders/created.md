@@ -1,4 +1,4 @@
 ---
 type: file_exists
-path: .claude/skills/release-preflight/SKILL.md
+path: skills/release-preflight/SKILL.md
 ---

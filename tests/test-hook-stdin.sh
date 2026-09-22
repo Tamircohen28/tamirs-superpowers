@@ -183,6 +183,20 @@ echo "--- an empty payload creates nothing (worktree leak regression) ---"
 LEAKREPO="$TMPROOT/leakrepo"
 if git clone -q --local --no-hardlinks "$ROOT" "$LEAKREPO" 2>/dev/null; then
   before="$(git -C "$LEAKREPO" worktree list | wc -l | tr -d ' ')"
+  # BASELINE THE wt/* BRANCHES THE CLONE ITSELF BROUGHT.
+  #
+  # `git clone` checks out $ROOT's current branch as a LOCAL branch in the
+  # clone. When $ROOT is the main checkout that branch is `master` and no wt/*
+  # branch is local, so asserting absolute absence happened to work. When $ROOT
+  # is a wt/<slug> worktree — which is exactly where this repo's own worktree
+  # policy tells every agent and contributor to run `make validate` — the clone
+  # lands on wt/<slug>, and the absence assertion below failed on a branch no
+  # hook ever created.
+  #
+  # CI only ever runs from a plain checkout, so CI never saw it; only people
+  # following the documented workflow did. Record what the clone arrived with
+  # and assert on what APPEARS, which is the leak the test is actually for.
+  wt_before="$(git -C "$LEAKREPO" branch --list 'wt/*' | tr -d ' *' | sort | tr '\n' ' ')"
   for h in "$ROOT/hooks/capture-task-slug.sh" "$ROOT/hooks/session-init.sh" "$ROOT/hooks/worktree-create.sh"; do
     ( cd "$LEAKREPO" && bash "$h" </dev/null >/dev/null 2>&1 )
   done
@@ -225,11 +239,12 @@ if git clone -q --local --no-hardlinks "$ROOT" "$LEAKREPO" 2>/dev/null; then
     bad "an unparseable payload exits 0" "exited $rc"
   fi
 
-  strays="$(git -C "$LEAKREPO" branch --list 'wt/*' | tr -d ' ' | tr '\n' ' ')"
-  if [ -z "$strays" ]; then
+  wt_after="$(git -C "$LEAKREPO" branch --list 'wt/*' | tr -d ' *' | sort | tr '\n' ' ')"
+  strays="$(comm -13 <(printf '%s\n' $wt_before) <(printf '%s\n' $wt_after) | tr '\n' ' ')"
+  if [ -z "$(printf '%s' "$strays" | tr -d ' ')" ]; then
     ok "an empty payload creates no wt/* branch"
   else
-    bad "an empty payload creates no wt/* branch" "created: $strays"
+    bad "an empty payload creates no wt/* branch" "created: $strays (clone arrived with: ${wt_before:-none})"
   fi
 
   # And the positive half: a WELL-FORMED payload must still create one, or the

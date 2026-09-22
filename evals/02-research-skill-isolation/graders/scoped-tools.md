@@ -1,6 +1,6 @@
 ---
 type: llm
-focus: { source: file, path: ".claude/skills/env-var-trace/SKILL.md" }
+focus: { source: file, path: "skills/env-var-trace/SKILL.md" }
 ---
 This file is a generated Claude Code SKILL.md for a read-only codebase-search skill.
 

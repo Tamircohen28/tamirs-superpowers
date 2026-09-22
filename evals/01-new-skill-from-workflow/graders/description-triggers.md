@@ -1,6 +1,6 @@
 ---
 type: llm
-focus: { source: file, path: ".claude/skills/release-preflight/SKILL.md" }
+focus: { source: file, path: "skills/release-preflight/SKILL.md" }
 ---
 This file is a generated Claude Code SKILL.md for a pre-release checklist.
 
