@@ -19,7 +19,25 @@ judge "opencode.json declares a \$schema" yes \
   "$(if [ -n "$(jq -r '."$schema" // ""' "$M")" ]; then echo yes; else echo no; fi)"
 
 oc_paths=()
-read_lines oc_paths < <(jq -r '.skills.paths[]? // .skills[]? // empty' "$M")
+# BOTH config shapes, branched on type rather than with `//`.
+#
+# v2 defines `skills` as a flat array of strings (packages/schema/src/config.ts:84,
+# Schema.String.pipe(Schema.Array)); v1 used `skills: { paths: [...] }`. The previous
+# expression here, `.skills.paths[]? // .skills[]? // empty`, LOOKED like it handled
+# both and could not: `?` suppresses errors raised by the `[]` iteration, not by
+# indexing an array with the string "paths", so jq aborted with
+# `Cannot index array with string "paths"` before `//` could fall through — the guard
+# failed closed on exactly the shape it was written to accept. Branch on type instead.
+#
+# URL entries are skipped: v2's array accepts "paths OR URLs", and the path/coverage
+# assertions below are about directories on disk.
+read_lines oc_paths < <(jq -r '
+  (if   (.skills | type) == "array"  then .skills[]
+   elif (.skills | type) == "object" then (.skills.paths[]? )
+   else empty end)
+  | select(type == "string")
+  | select(startswith("http") | not)
+' "$M")
 judge "opencode.json declares skill paths" yes \
   "$(if [ "${#oc_paths[@]}" -gt 0 ]; then echo yes; else echo no; fi)"
 contract_skill_paths "opencode" ${oc_paths[@]+"${oc_paths[@]}"}

@@ -26,7 +26,9 @@
 #                 be acted on, so the call would gate nothing.
 #   codex       — GitHub releases API on openai/codex; tags are "rust-vX.Y.Z".
 #   gemini_cli  — npm registry dist-tags.latest for @google/gemini-cli.
-#   opencode    — npm registry dist-tags.latest for opencode-ai.
+#   opencode    — npm registry dist-tags.latest for @opencode/cli, the v2 line.
+#                 NOT opencode-ai: that is the v1 package, frozen at 1.18.32, and
+#                 watching it hid the entire v2 major from this probe.
 #
 # A platform whose endpoint cannot be reached is reported "unreachable" and excluded
 # from the drift count — it must never be silently reported as "no drift".
@@ -101,10 +103,20 @@ gemini_current=$(curl -fsSL --max-time 10 \
   | jq -r '.version // empty' 2>/dev/null || true)
 report gemini_cli "$gemini_pinned" "$gemini_current"
 
-# --- opencode: npm registry dist-tags.latest ---
+# --- opencode: npm registry dist-tags.latest, @opencode/cli (v2 line) ---
+#
+# WATCH THE PACKAGE THE PLATFORM ACTUALLY SHIPS FROM.
+#
+# OpenCode 2 is published under a NEW npm scope, `@opencode/cli`. The v1 package,
+# `opencode-ai`, is frozen at 1.18.32 — so this probe watched it across a major
+# version boundary and reported "no drift" the entire time. A probe that pins a
+# package name cannot see a major that renames the package; that blindness is the
+# bug this line fixes, not the version number it happened to print.
+#
+# The scope must be URL-encoded (%2F) for the registry path.
 opencode_pinned=$(pinned opencode)
 opencode_current=$(curl -fsSL --max-time 10 \
-  "https://registry.npmjs.org/opencode-ai/latest" 2>/dev/null \
+  "https://registry.npmjs.org/@opencode%2Fcli/latest" 2>/dev/null \
   | jq -r '.version // empty' 2>/dev/null || true)
 report opencode "$opencode_pinned" "$opencode_current"
 

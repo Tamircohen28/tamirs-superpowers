@@ -1,5 +1,45 @@
 # Install on OpenCode CLI
 
+> ## ⚠️ OpenCode 2 has shipped — read this before following the guide below
+>
+> **v2 ships from a different npm package.** v1's `opencode-ai` is frozen at **1.18.32**;
+> the v2 line is **`@opencode/cli`**, currently **2.0.14**. Installing `opencode-ai` gets you v1.
+>
+> ```bash
+> npm install -g @opencode/cli          # or: bun install -g --trust @opencode/cli
+> brew install anomalyco/tap/opencode-v2
+> curl -fsSL https://opencode.ai/v2/install | bash
+> ```
+>
+> The package installs both an `opencode` and an **`opencode2`** binary, so side-by-side
+> installation with v1 appears supported.
+>
+> **The config shape changed.** v2 defines `skills` as a **flat array of strings**
+> ([`packages/schema/src/config.ts:84`](https://github.com/anomalyco/opencode/blob/v2.0.14/packages/schema/src/config.ts)
+> — `Schema.String.pipe(Schema.Array)`), replacing v1's `skills: { paths: [...] }` object.
+> This repo's [`opencode.json`](../../../opencode.json) now uses the v2 array form:
+>
+> ```jsonc
+> { "skills": ["skills/creative", "skills/debugging", "..."] }   // v2 — what this repo ships
+> { "skills": { "paths": ["skills/creative", "..."] } }          // v1 — also still accepted
+> ```
+>
+> **This does not break v1.** Verified on a live OpenCode **1.18.32**: it accepts the array
+> form and normalizes it to `{"paths": [...], "urls": []}`, discovering this repo's skills. v1
+> already carries forward-compatible handling for the v2 shape, so the array works on both.
+>
+> Config file names and search locations are unchanged: `opencode.json` / `opencode.jsonc`,
+> in the project, `.opencode/`, or `~/.config/opencode/`. `SKILL.md` remains the skill
+> format — v2's own repo ships `.opencode/skills/*/SKILL.md`. v2 also adds a compatibility
+> layer (`packages/core/src/config/plugin/compatibility.ts`) that discovers skills under
+> `claude` and `agents` roots.
+>
+> **Nothing below has been re-verified on v2.** Every measurement in this guide was taken on
+> **v1 1.18.11** and is labelled as such. `validated_against` for this target is `"unknown"`
+> until an actual `opencode2` run exercises this repo's skills — see
+> [#200](https://github.com/Tamircohen28/tamirs-superpowers/issues/200).
+
+
 **Platform:** OpenCode. **Surface:** OpenCode CLI, the terminal client — registry id
 `opencode`. Every measurement below was taken there. OpenCode also ships a desktop client;
 that surface, the **OpenCode desktop app**, is **unverified** — whether it reads the same

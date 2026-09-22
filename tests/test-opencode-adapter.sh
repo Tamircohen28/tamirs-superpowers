@@ -5,7 +5,7 @@
 #   The OpenCode adapter has two halves with opposite failure modes.
 #
 #   Skills are NOT adapted — the canonical skills/ tree is read in place through
-#   opencode.json `skills.paths`. The failure mode there is a path that quietly
+#   opencode.json `skills`. The failure mode there is a path that quietly
 #   stops resolving (a renamed domain, a moved skill), which looks like nothing at
 #   all until a user finds half the skills missing. So the paths are checked for
 #   existence AND for actually containing skills, and the gold fixtures under
@@ -66,36 +66,41 @@ else
   bad "declares the published \$schema" "got '$schema'"
 fi
 
-# `skills.paths` is the mechanism the whole skills story rests on. Verified on
-# OpenCode 1.18.11: WITHOUT it, a skills/ tree at the repo root is not discovered
-# at all (it is not one of the scanned locations). It is not decoration.
-n_paths=$(jq -r '.skills.paths | length' "$CONFIG" 2>/dev/null || echo 0)
+# `skills` is the mechanism the whole skills story rests on. Verified on OpenCode
+# 1.18.11 (as `skills.paths`): WITHOUT it, a skills/ tree at the repo root is not
+# discovered at all (it is not one of the scanned locations). It is not decoration.
+#
+# SHAPE CHANGED IN v2. v1 took an object, `skills: { paths: [...] }`; v2 takes a
+# FLAT ARRAY of strings — packages/schema/src/config.ts:84 at tag v2.0.14,
+# `Schema.String.pipe(Schema.Array)`, "Additional paths or URLs to discover skills
+# from". This repo tracks v2, so the array form is what is asserted here.
+n_paths=$(jq -r '.skills | length' "$CONFIG" 2>/dev/null || echo 0)
 if [ "$n_paths" -gt 0 ] 2>/dev/null; then
-  ok "skills.paths is declared ($n_paths entries)"
+  ok "skills is declared ($n_paths entries)"
 else
-  bad "skills.paths is declared" "no skills.paths — OpenCode would discover zero skills from this repo"
+  bad "skills is declared" "no skills array — OpenCode would discover zero skills from this repo"
 fi
 
-echo "--- opencode.json: every skills.paths entry resolves to real skills ---"
+echo "--- opencode.json: every skills entry resolves to real skills ---"
 
 missing=0
 empty=0
 while IFS= read -r p; do
   [ -n "$p" ] || continue
   if [ ! -d "$ROOT/$p" ]; then
-    bad "skills.paths entry exists: $p" "no such directory"
+    bad "skills entry exists: $p" "no such directory"
     missing=$((missing + 1))
     continue
   fi
-  # skills.paths recurses (verified 1.18.11), so a domain dir or a zero-level
+  # skills entries recurse (verified 1.18.11), so a domain dir or a zero-level
   # skill dir are both valid — either way it must yield at least one SKILL.md.
   if [ -z "$(find "$ROOT/$p" -name SKILL.md -print -quit)" ]; then
-    bad "skills.paths entry yields a skill: $p" "directory contains no SKILL.md"
+    bad "skills entry yields a skill: $p" "directory contains no SKILL.md"
     empty=$((empty + 1))
   fi
-done < <(jq -r '.skills.paths[]?' "$CONFIG")
-[ "$missing" -eq 0 ] && ok "every skills.paths entry is an existing directory"
-[ "$empty" -eq 0 ]   && ok "every skills.paths entry contains at least one SKILL.md"
+done < <(jq -r '.skills[]? | select(startswith("http") | not)' "$CONFIG")
+[ "$missing" -eq 0 ] && ok "every local skills entry is an existing directory"
+[ "$empty" -eq 0 ]   && ok "every local skills entry contains at least one SKILL.md"
 
 # The contract fixtures are complete skill trees. Pointing at skills/repo wholesale
 # exposes them as real user-facing skills, which is why the repo skills are listed
@@ -107,11 +112,11 @@ while IFS= read -r p; do
   if find "$ROOT/$p" -path '*/_contract/*' -name SKILL.md -print -quit | grep -q .; then
     leaked+=("$p")
   fi
-done < <(jq -r '.skills.paths[]?' "$CONFIG")
+done < <(jq -r '.skills[]? | select(startswith("http") | not)' "$CONFIG")
 if [ "${#leaked[@]}" -eq 0 ]; then
-  ok "no gold-fixture skills exposed via skills.paths"
+  ok "no gold-fixture skills exposed via skills"
 else
-  bad "no gold-fixture skills exposed via skills.paths" "these entries reach skills/repo/_contract/: ${leaked[*]}"
+  bad "no gold-fixture skills exposed via skills" "these entries reach skills/repo/_contract/: ${leaked[*]}"
 fi
 
 echo "--- .opencode/agent: generated, in sync, not hand-edited ---"

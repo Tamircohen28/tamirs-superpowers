@@ -36,7 +36,7 @@ Verified **2026-09-20** — Claude Code reviewed against the official changelog 
 | Cursor | 3.21.13 | 3.21.13 | 3.21.13 | 3.21.13 | [cursor.md](../../user/install/cursor.md) |
 | Codex | 0.40.0 | 0.146.0 | 0.155.1 | 0.155.1 | [codex.md](../../user/install/codex.md) |
 | Gemini CLI | 0.55.1 | 0.55.1 | 0.60.0 | 0.60.0 | [gemini.md](../../user/install/gemini.md) |
-| OpenCode | 1.16.2 | 1.18.11 | 1.18.32 | 1.18.32 | [opencode.md](../../user/install/opencode.md) |
+| OpenCode | 2.0.0 | *unknown* | 2.0.14 | 2.0.14 | [opencode.md](../../user/install/opencode.md) |
 
 Two different claims, deliberately kept apart. **Validated against** is the version this repo
 was last exercised against on a live maintainer machine. **Reviewed through** is the newest
@@ -61,6 +61,32 @@ while the published schema still sets `additionalProperties: false`, and 1.18.24
 for v2 config, whose `skills` is a flat array rather than v1's `{paths, urls}` object — so an
 eventual v2 adoption is a real `opencode.json` shape change even though v1 remains native. The
 review is documentary, so `validated_against` stays at 1.18.11.
+
+**OpenCode moved to the v2 line on 2026-09-23, and the target was rebased onto it.** OpenCode 2
+ships under a **new npm scope**, `@opencode/cli` (2.0.14, published 2026-09-22); v1's `opencode-ai`
+is frozen at 1.18.32. The nightly probe watched `opencode-ai` and therefore reported "no drift"
+across an entire major — a probe that pins a package name cannot see a major that renames the
+package. `scripts/probe-platform-versions.sh` now watches `@opencode/cli`.
+
+`reviewed_through`/`latest_known` move to **2.0.14** on a documentary review of the v2 docs and the
+v2 source at tag `v2.0.14`. **`validated_against` is set to `"unknown"`** — the sentinel this repo
+already uses for a declared-but-unvalidated target — because no `opencode2` run has exercised these
+skills. It is deliberately NOT left at 1.18.11: that is a version of the *other* package lineage,
+and carrying it forward would imply the thing now tracked had been validated. `supported_min` is
+**2.0.0**, the major boundary rather than an evidenced floor. The README badge and support row are
+downgraded to `⚠️ unverified` to match.
+
+One config change matters to this repo: v2 defines `skills` as a **flat array of strings**
+(`packages/schema/src/config.ts:84`, `Schema.String.pipe(Schema.Array)`), replacing v1's
+`skills: { paths: [...] }` object. `opencode.json` was converted to the array form. **This is
+not a breaking change for v1** — verified against a live OpenCode 1.18.32, which accepts the
+array and normalizes it to `{"paths": [...], "urls": []}`, discovering this repo's skills from it;
+v1 already carries forward-compatible handling for the v2 shape. An earlier draft of this
+entry called it breaking; the live check disproved that before merge. Config file
+names and search locations are unchanged, `SKILL.md` remains the skill format — v2's own repo
+carries `.opencode/skills/*/SKILL.md` — and v2 adds a compatibility layer
+(`packages/core/src/config/plugin/compatibility.ts`) that discovers skills under `claude` and
+`agents` roots. Tracked in #200.
 
 OpenCode's `reviewed_through`/`latest_known` advanced once more on 2026-09-22, **1.18.31 → 1.18.32**,
 against `registry.npmjs.org/opencode-ai` `dist-tags.latest` (1.18.32, published 2026-09-21) and the
