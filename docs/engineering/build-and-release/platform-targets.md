@@ -36,7 +36,7 @@ Verified **2026-09-20** — Claude Code reviewed against the official changelog 
 | Cursor | 3.21.13 | 3.21.13 | 3.21.13 | 3.21.13 | [cursor.md](../../user/install/cursor.md) |
 | Codex | 0.40.0 | 0.146.0 | 0.155.1 | 0.155.1 | [codex.md](../../user/install/codex.md) |
 | Gemini CLI | 0.55.1 | 0.55.1 | 0.60.0 | 0.60.0 | [gemini.md](../../user/install/gemini.md) |
-| OpenCode | 1.16.2 | 1.18.11 | 1.18.31 | 1.18.31 | [opencode.md](../../user/install/opencode.md) |
+| OpenCode | 1.16.2 | 1.18.11 | 1.18.32 | 1.18.32 | [opencode.md](../../user/install/opencode.md) |
 
 Two different claims, deliberately kept apart. **Validated against** is the version this repo
 was last exercised against on a live maintainer machine. **Reviewed through** is the newest
@@ -61,6 +61,23 @@ while the published schema still sets `additionalProperties: false`, and 1.18.24
 for v2 config, whose `skills` is a flat array rather than v1's `{paths, urls}` object — so an
 eventual v2 adoption is a real `opencode.json` shape change even though v1 remains native. The
 review is documentary, so `validated_against` stays at 1.18.11.
+
+OpenCode's `reviewed_through`/`latest_known` advanced once more on 2026-09-22, **1.18.31 → 1.18.32**,
+against `registry.npmjs.org/opencode-ai` `dist-tags.latest` (1.18.32, published 2026-09-21) and the
+upstream GitHub release notes for `v1.18.32`. That release is Bugfixes only — Bedrock image
+attachments hoisted for Claude/Nova/Llama 4 models only, and Together AI streaming usage reporting
+— plus two community model additions (DeepSeek V4.1 Flash and Grok 4.7 to Zen). **Nothing in it
+touches skills, plugins, agents, or `opencode.json`**, so no capability row, adapter or doc claim
+changes. Documentary review only; `validated_against` stays at **1.18.11**.
+
+Cursor drifted to **3.21.16** in the same nightly probe and was deliberately **not** advanced.
+Cursor publishes no per-patch release notes at 3.21.14/15/16 granularity — its public changelog is
+feature-level, which is why this repo tracks `changelog_feature`/`changelog_date` for Cursor
+separately from the app version. Advancing `latest_known` without a readable changelog would put
+`reviewed_through < latest_known`, which the repo's own contract rejects as V1-04 ("upstream
+releases nobody has read yet"), and claiming a review that did not happen is exactly what these
+three fields exist to prevent. Cursor therefore stays pinned at **3.21.13** across all three
+fields, and the probe will keep reporting the drift until a Cursor changelog covers those patches.
 
 OpenCode's `reviewed_through`/`latest_known` advanced again on 2026-09-22, **1.18.29 → 1.18.31**,
 against `registry.npmjs.org/opencode-ai` `dist-tags.latest` (1.18.31, published 2026-09-14) and
