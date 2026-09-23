@@ -5,6 +5,25 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Changed
+
+- **Claude Code advances to 2.1.281** (from 2.1.280): `validated_against`, `reviewed_through` and
+  `latest_known` all move to 2.1.281, validated on a live `claude` 2.1.281 CLI (`claude plugin
+  validate .` passes; `claude plugin eval` was not run). `.claude-code-version`, the README badge
+  and support row, `platform-targets.json`/`.md` and `CLAUDE.md` advance together. Reviewed and not
+  adopted (recorded in `platform-targets.json`): `"attribution": false` (older CLIs skip a settings
+  file that holds it), `--agents <file>`, `sandbox.network.allowLocalBinding`, the dangerous-`rm`
+  timeout, `CLAUDE_CODE_AUTO_MODE_SERVER`, and the Claude apps gateway/self-hosted-runner items.
+
+### Fixed
+
+- **`hooks/hooks.json` quotes `${CLAUDE_PLUGIN_ROOT}` in all 27 shell-form hook commands.**
+  Claude Code 2.1.281's `claude plugin validate` warns that an unquoted placeholder splits on a
+  plugin path containing a space; each command is now `bash "${CLAUDE_PLUGIN_ROOT}"/hooks/x.sh`, so
+  the command still ends in the script name. `tests/contract/claude.sh` strips the quotes when it
+  resolves each command to a script, so its "every hook command points at a script that exists"
+  check still inspects them.
+
 ## [4.9.0] — 2026-09-23
 
 ### Fixed
