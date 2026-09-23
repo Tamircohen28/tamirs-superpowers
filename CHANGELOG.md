@@ -5,6 +5,28 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Changed
+
+- **Platform version drift closed: codex 0.156.1, opencode 2.0.15** (#228). Both reviewed from
+  primary sources, so `reviewed_through` advances with them; `validated_against` stays put on both,
+  because no live CLI run happened and that field means something different on purpose.
+
+  **codex 0.156.1** is a one-commit hotfix (#47405) adding GPT-6 Sol/Luna to the model catalog.
+  Read via `gh release view` rather than a summarizing fetch — a first pass through one returned a
+  self-contradictory answer on retry. None of the six areas that matter here (plugin hooks, skills,
+  MCP, subagents, slash commands, manifest schema) is touched.
+
+  **opencode 2.0.15** publishes no GitHub release notes at all — the 2.x line exists as tags while
+  `gh release list` still tops out at v1.18.32 — so it was reviewed off the tag range: **42 commits
+  across 250 files**, which is not a trivial patch and was not treated as one. The one change that
+  could have broken this adapter is `packages/core/schema.json`, which carries `PermissionConfig`;
+  `check-opencode-permission-keys.sh . --refresh` compared the dated pin against the live schema and
+  the 15 keys are unchanged.
+
+  Package identity re-confirmed while here: `@opencode/cli` is 2.0.15 on `anomalyco/opencode`, while
+  the previously-pinned `opencode-ai` is frozen at 1.18.32 — the earlier repoint was correct and
+  still is.
+
 ### Fixed
 
 - **`CLAUDE.md` and the capability registry still said Cursor gets no hooks — #221 falsified that
