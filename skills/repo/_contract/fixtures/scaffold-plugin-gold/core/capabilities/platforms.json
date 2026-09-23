@@ -584,7 +584,7 @@
             "doc": "docs/user/install/cursor.md"
           },
           "validation": {
-            "command": "bash scripts/check-manifest-declares.sh .cursor-plugin/plugin.json skills mcpServers"
+            "command": "bash scripts/check-manifest-declares.sh .cursor-plugin/plugin.json skills mcpServers rules hooks"
           },
           "capabilities": {
             "skills": {
@@ -620,9 +620,9 @@
               "fallback": "Use session-files/ as the message bus."
             },
             "hooks": {
-              "last_verified": "2026-09-17",
+              "last_verified": "2026-09-23",
               "status": "partial",
-              "notes": "Claude-shaped plugin hooks (hooks/hooks.json, CLAUDE_PLUGIN_ROOT) do NOT run under a Cursor plugin install. Project-level .cursor/hooks.json ships soft contributor guards, and third-party Claude hooks via .claude/settings.json are opt-in in Cursor Settings.",
+              "notes": "Cursor-format plugin hooks DO run, measured 2026-09-23 on cursor-agent 2026.07.17-3e2a980: .cursor-plugin/plugin.json declares \"hooks\": \"./platforms/cursor/hooks.json\" and a write to .github/workflows/ci.yml was blocked with the guard's own reason reaching the agent and the file unchanged, while an ordinary write succeeded. Claude-shaped plugin hooks (hooks/hooks.json, CLAUDE_PLUGIN_ROOT) still do NOT run under a Cursor plugin install - Cursor reads third-party Claude hooks only from .claude/settings.local.json, .claude/settings.json and ~/.claude/settings.json, never from a plugin's own hooks.json - which is why the bundle sits at a non-default path: an undeclared component binds to that unreadable default rather than disabling itself. Status stays 'partial' because only 3 of Cursor's 21 events are wired (preToolUse, beforeShellExecution, postToolUse); extending coverage is #179 E8. Project-level .cursor/hooks.json remains a separate thing, shipping soft contributor guards for this repo as an open project. See #221.",
               "fallback": "Treat guards as advisory; enforce the same rules in CI."
             },
             "mcp": {
