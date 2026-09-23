@@ -5,6 +5,23 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Changed
+
+- **Recorded that Cursor does not enforce the agent `tools:` allowlist** (#179). Measured on
+  `cursor-agent` 2026.07.17-3e2a980: a probe agent declaring `tools: Read, Grep, Glob` wrote a
+  file when asked. The seven agents here that are read-only by declaration are therefore **not
+  sandboxed on Cursor** — what stops them is the prose in their own system prompt.
+
+  A first probe looked reassuring and proved nothing: `architecture-reviewer` refused, citing
+  being review-only. That refusal came from its own instructions. Only an agent whose prose
+  actively demanded writing separated *the model declined* from *the platform prevented*.
+
+  The `subagents` capability row keeps `status: native` — subagents genuinely load and run — but
+  its note now carries the caveat, and `docs/user/install/cursor.md` warns users to treat these
+  agents on Cursor as role prompts rather than sandboxes. This is the same failure
+  `scripts/build-opencode-agents.sh` exists to prevent on OpenCode, where the allowlist is
+  translated into explicit `permission:` entries.
+
 ## [4.6.0] — 2026-09-23
 
 ### Changed

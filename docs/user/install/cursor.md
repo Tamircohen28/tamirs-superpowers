@@ -81,6 +81,35 @@ does not drop them; the mechanism is a clone, so there is no file-type filter to
 **Still unverified:** skill *invocation* inside Cursor — palette listing and invoking a skill
 by name. Asset delivery being sound does not establish that, and the capability registry
 reflects the narrower claim.
+## Agents run on Cursor, but their `tools:` list does not constrain them
+
+Worth knowing before you rely on a reviewer agent being read-only: **Cursor does not enforce
+the `tools:` allowlist in agent frontmatter.**
+
+Measured on `cursor-agent` 2026.07.17-3e2a980. A probe agent declaring:
+
+```yaml
+tools: Read, Grep, Glob        # no Write
+```
+
+was asked to create a file, and created it.
+
+So the seven agents here that are read-only by declaration — `architecture-reviewer`,
+`security-reviewer`, `spec-reviewer`, `performance-reviewer`, `research-agent`,
+`debugging-specialist`, `orchestrator` — are **not sandboxed on Cursor**. What stops them is
+the prose in their own system prompt, which is a model instruction rather than a guarantee.
+
+A first probe looked reassuring and proved nothing: `architecture-reviewer` refused, explaining
+it was review-only. That refusal came from its own instructions. Only an agent whose prose
+actively *demanded* writing separated "the model declined" from "the platform prevented."
+
+**What this means in practice.** On Claude Code the `tools:` list is enforced; on OpenCode it is
+translated into explicit `permission:` entries by `scripts/build-opencode-agents.sh`, precisely
+because an unlisted tool otherwise stays enabled. Cursor has neither. Treat these agents there as
+**role prompts, not sandboxes**, and do not rely on one being unable to write.
+
+Tracked as [#179](https://github.com/Tamircohen28/tamirs-superpowers/issues/179).
+
 ## Rules are declared, not discovered
 
 The manifest points `rules` at `./.cursor/rules/` on purpose. Cursor's automatic component
