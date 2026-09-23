@@ -20,6 +20,31 @@ canonical `skills/` tree, [`.cursor/rules/`](../../../.cursor/rules), `agents/`,
 stubs. Enable **Auto Refresh** on the marketplace and pushes propagate without a version
 bump.
 
+## Hooks do not come with the install
+
+Worth knowing before you assume the safety guards are active: **a Cursor install of this
+plugin wires none of its hooks.**
+
+Cursor *can* import Claude Code hooks, and the setting is on by default
+(Settings → Agents → Third-Party Imports → "Include Third-Party Plugins, Skills, and Other
+Configs"). But it reads them from exactly three paths:
+
+- `.claude/settings.local.json`
+- `.claude/settings.json`
+- `~/.claude/settings.json`
+
+This plugin ships its hooks in `hooks/hooks.json`, wired through the plugin manifest — which
+is not one of those three. The files are all present on disk after an install (see the
+section below), but nothing loads them.
+
+Of the 10 events this repo wires, Cursor's published mapping covers 6 — `PreToolUse`,
+`PostToolUse`, `UserPromptSubmit`, `Stop`, `SessionStart`, `SessionEnd`. The other four —
+`Notification`, `DirectoryAdded`, `WorktreeCreate`, `WorktreeRemove` — have no Cursor
+equivalent, so even a hand-copied translation would be lossy.
+
+A Cursor-native bundle, in Cursor's own richer 21-event format, is tracked as
+[#179 E1](https://github.com/Tamircohen28/tamirs-superpowers/issues/179).
+
 ## What an install actually materializes
 
 Worth knowing, because it is the difference between 29 working skills and 29 that silently
