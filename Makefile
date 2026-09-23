@@ -4,6 +4,7 @@
 	platform-targets-assert platform-targets-cochange agent\:check agent-polish-gate \
 	assert-contract repo-standards-gate opencode-agents opencode-agents-check \
 	opencode-commands opencode-commands-check check-opencode-permission-keys \
+	cursor-commands cursor-commands-check \
 	check-marketplace-schema check-doc-claims test-hooks doctor check-version-truth \
 	check-capability-registry validate-roles check-gemini-adapter gemini-extension \
 	check-action-pinning check-manifest-declares \
@@ -37,6 +38,8 @@ help:
 	@echo "  opencode-agents-check   — fail if .opencode/agent/ has drifted from agents/"
 	@echo "  opencode-commands       — regenerate .opencode/commands/*.md from skills/"
 	@echo "  opencode-commands-check — fail if .opencode/commands/ has drifted from skills/"
+	@echo "  cursor-commands         — regenerate .cursor/commands/*.md from skills/"
+	@echo "  cursor-commands-check   — fail if .cursor/commands/ has drifted from skills/"
 	@echo "  check-opencode-permission-keys — fail if the agent generator emits a non-schema key"
 	@echo "  lint                    — shellcheck .sh files only"
 	@echo "  test-hooks              — behavior tests for hooks/ (tests/test-*.sh)"
@@ -222,10 +225,16 @@ opencode-commands:
 opencode-commands-check:
 	@bash scripts/build-opencode-commands.sh . --check
 
+cursor-commands:
+	@bash scripts/build-cursor-commands.sh .
+
+cursor-commands-check:
+	@bash scripts/build-cursor-commands.sh . --check
+
 check-opencode-permission-keys:
 	@bash scripts/check-opencode-permission-keys.sh .
 
-agent\:check: check-agent-drift check-feature-equivalence check-platform-targets opencode-agents-check opencode-commands-check check-opencode-permission-keys
+agent\:check: check-agent-drift check-feature-equivalence check-platform-targets opencode-agents-check opencode-commands-check cursor-commands-check check-opencode-permission-keys
 
 agent-polish-gate: platform-targets-sync platform-targets-assert agent\:check
 

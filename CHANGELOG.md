@@ -5,6 +5,30 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Added
+
+- **Cursor slash commands — #179's E6.** `scripts/build-cursor-commands.sh` generates
+  `.cursor/commands/` from `skills/*/*/SKILL.md`: **26 commands**, one per user-invocable skill,
+  with the three `user-invocable: false` skills excluded to match this repo's slash-surface tier.
+
+  The `slash_commands` capability row had already recorded the gap exactly — "this repo has no
+  `commands/` directory and no `commands` key, so it ships zero of them" — so this is a documented
+  gap closed, not a feature invented.
+
+  **Declared, not discovered.** `.cursor-plugin/plugin.json` now names
+  `"commands": "./.cursor/commands/"` rather than relying on Cursor's default `commands/`
+  discovery, because an undeclared component binds to a default path instead of disabling itself.
+  That is the trap that hit `rules` in 4.5.0 and `hooks` in #221; this is the third time, and the
+  first where it was designed around rather than discovered afterwards.
+
+  **No `$ARGUMENTS` line**, unlike the OpenCode generator. OpenCode documents that interpolation;
+  Cursor's plugin reference documents none for commands, so emitting a placeholder would ship a
+  literal uninterpolated string into all 26 bodies — a promise the surface does not keep.
+
+  **Status stays `partial`, deliberately.** The generator, the drift check and the 26 files are
+  verified locally, but no live Cursor run has confirmed the commands appear under `/` in the IDE.
+  Generated-and-declared is not observed, and `validated_against` is unchanged.
+
 ### Changed
 
 - **Platform version drift closed: codex 0.156.1, opencode 2.0.15** (#228). Both reviewed from
@@ -28,6 +52,37 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   still is.
 
 ### Fixed
+
+- **Pre-submission audit for the Cursor marketplace listing — the manifest advertised a
+  capability Cursor does not have, and omitted two it does.** The Cursor manifest's description
+  promised a **statusline**, which the registry records as `unsupported` on Cursor (no terminal
+  chrome to render into), while omitting the 10 specialist agents Cursor runs natively and the 26
+  commands added above. That description is the listing copy a reviewer reads. Corrected.
+
+- **`agents` is now a declared component.** Folder discovery worked, but this repo has been bitten
+  three times by an undeclared component binding to a default path — `rules` in 4.5.0, `hooks` in
+  #221, and designed around for `commands` today. Declaring it before a public listing rather than
+  after. The surface assertion covers all six components, verified both ways.
+
+- **The `subagents` row and `docs/user/install/cursor.md` still said the `tools:` allowlist is
+  unenforced on Cursor.** #223 shipped `hooks/cursor-agent-tools-guard.sh` to enforce it; neither
+  record learned about it — the same drift #229 fixed for the hooks claims, caught this time by
+  auditing what a public listing would assert. Both now describe the guard **and** its real limits:
+  it reconstructs agent identity from event order, applies the intersection of allowlists under
+  concurrency, and is advisory rather than a sandbox. The original measurement that motivated it is
+  kept, not replaced.
+
+  Also corrected in that doc: the `hooks` row said Cursor runs none of this plugin's hooks, and
+  `slash commands` was marked `native` while the registry says `partial`.
+
+- **Two capability assertions pointed at the wrong component.** The `slash_commands` row was
+  validated by checking that the manifest declares `skills` — a claim with a different component
+  behind it, the same defect #229 fixed at the surface level. It now asserts `commands`. The
+  surface assertion gains `commands` alongside `skills mcpServers rules hooks`.
+
+  Verified both ways, since an assertion that cannot fail is what would otherwise be added: the
+  five declared components pass, and an undeclared one still fails. The command drift check was
+  likewise confirmed to **fail** on a hand-edited command, not merely to pass when in sync.
 
 - **`CLAUDE.md` and the capability registry still said Cursor gets no hooks — #221 falsified that
   the same day it shipped.** Three claims were live and wrong in the file that loads into every
