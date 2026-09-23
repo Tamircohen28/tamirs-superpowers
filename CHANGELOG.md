@@ -7,6 +7,31 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Fixed
 
+- **`CLAUDE.md` and the capability registry still said Cursor gets no hooks — #221 falsified that
+  the same day it shipped.** Three claims were live and wrong in the file that loads into every
+  session: that "a Cursor install gets none of them", that `.cursor-plugin/plugin.json` "declares
+  no `hooks` field", and that E1 was still blocked because Cursor's edit-tool names and
+  `tool_input` shape were undocumented.
+
+  All three were resolved by #221. The manifest declares
+  `"hooks": "./platforms/cursor/hooks.json"`; the blocker was closed by *measuring* rather than by
+  documentation appearing — Cursor's `preToolUse` uses `tool_name` `Read`/`Write`/`Shell` with
+  `tool_input.file_path`, the same field Claude uses.
+
+  The `cursor.hooks` capability row carried the same stale claim and an older `last_verified`. It
+  now records the live measurement and keeps `status: partial`, because only 3 of Cursor's 21
+  events are wired — the status was already right for a reason the note no longer stated.
+
+  This is drift in the worst place: a project-instructions file that is authoritative by
+  construction, telling every future session that a shipped, verified guard does not exist.
+
+  **The same pass closed the reason it could drift unnoticed.** The Cursor surface's validation
+  asserted `skills mcpServers` while the manifest declares `skills rules hooks mcpServers`, so
+  `rules` (#211) and `hooks` (#221) were unasserted: deleting the `hooks` field would have
+  silently disabled every Cursor guard with all gates still green. It now asserts all four,
+  verified in both directions — the four declared fields pass, and an undeclared one (`commands`)
+  fails rather than passing vacuously.
+
 - **The orphan-hook check now reads every hooks manifest, not just the Claude bundle** (#225).
   `make validate` warned that `hooks/cursor-agent-tools-guard.sh` was unreferenced, because the
   check grepped only `hooks/hooks.json` while the hook is wired from `platforms/cursor/hooks.json`
