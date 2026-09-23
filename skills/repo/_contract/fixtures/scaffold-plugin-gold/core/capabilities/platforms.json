@@ -513,9 +513,9 @@
             },
             "slash_commands": {
               "last_verified": "2026-09-17",
-              "status": "unknown",
-              "notes": "Codex custom-command support has not been verified against the shipped skills.",
-              "fallback": "Invoke skills in prose."
+              "status": "unsupported",
+              "notes": "No plugin-shippable command mechanism found. All 9 plugins bundled with codex 0.156.0 (browser, chrome, codex-app-tools, computer-use, latex, messages, record-and-replay, unified-computer-use, visualize) were checked: 0 declare a commands manifest field and 0 ship a commands/ directory. Codex publishes no manifest reference to cite, so this is the strongest available evidence rather than a documented absence - it means a plugin cannot CONTRIBUTE commands, not that Codex has no built-in ones. The adjacent surface Codex does offer is interface.defaultPrompt, which this plugin ships with 6 entries as of 4.5.0.",
+              "fallback": "Use the interface.defaultPrompt entries, or invoke skills in prose."
             },
             "ask_user_question": {
               "last_verified": "2026-09-17",
@@ -852,7 +852,7 @@
             "slash_commands": {
               "last_verified": "2026-09-17",
               "status": "unknown",
-              "notes": "Gemini reads commands/*.toml at the extension root, but this repo ships no commands/ directory on any target, so the path was never probed.",
+              "notes": "Mechanism confirmed on 0.60.0: custom commands are TOML, discovered from ~/.gemini/commands/ (user), <project>/.gemini/commands/ (project) AND active extensions, so this extension could ship them directly; managed with /commands list and /commands reload. Status stays unknown because this repo ships no commands and the per-field TOML schema has not been read - a mechanism existing is not the same as these commands being discovered.",
               "fallback": "Users invoke skills by describing them in prose."
             },
             "ask_user_question": {
@@ -1020,7 +1020,7 @@
             "slash_commands": {
               "last_verified": "2026-09-17",
               "status": "unknown",
-              "notes": "Command surface not verified against the shipped skills.",
+              "notes": "26 commands are generated into .opencode/commands/ from the user-invocable skills as of 4.5.0, matching the documented format at opencode.ai/docs/commands. Status stays unknown because DISCOVERY is unproven, not because nothing ships: an api GET /api/command returns an empty data array from a directory holding all 26 - but it returns empty for a config-defined command block too, so that endpoint does not reflect project commands in standalone mode and cannot answer the question either way. A second, schema-documented mechanism also exists (a command object in opencode.json with template required); which is canonical on v2 is unresolved.",
               "fallback": "Invoke skills in prose."
             },
             "ask_user_question": {

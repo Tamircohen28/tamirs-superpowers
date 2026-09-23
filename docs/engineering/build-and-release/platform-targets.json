@@ -276,6 +276,7 @@
         "artifacts": "No artifact publishing surface.",
         "dynamic_workflows": "The Workflow tool is Claude-specific; no declared Codex equivalent.",
         "extension_install": "Codex installs plugins, not git-URL extensions.",
+        "slash_commands": "No plugin-shippable command mechanism found. All 9 plugins bundled with codex 0.156.0 (browser, chrome, codex-app-tools, computer-use, latex, messages, record-and-replay, unified-computer-use, visualize) were checked: 0 declare a commands manifest field and 0 ship a commands/ directory. Codex publishes no manifest reference to cite, so this is the strongest available evidence rather than a documented absence - it means a plugin cannot CONTRIBUTE commands, not that Codex has no built-in ones. The adjacent surface Codex does offer is interface.defaultPrompt, which this plugin ships with 6 entries as of 4.5.0.",
         "statusline": "Not a declared Codex capability."
       }
     },
