@@ -89,11 +89,16 @@ map_tool() {
 
 # Claude model aliases -> OpenCode provider-prefixed ids. Every id below was
 # confirmed present in the models.dev catalogue OpenCode resolves against
-# (https://models.dev/api.json, provider `anthropic`).
+# (https://models.dev/api.json, provider `anthropic`) - re-confirmed 2026-09-23,
+# when the sonnet and opus entries were repointed off the 4.x line. `haiku` is
+# unchanged because Haiku 4.5 is still the current Haiku, not because it was
+# skipped. Re-check here whenever a skill or agent `model:` pin moves: PR #156
+# repointed 27 SKILL.md pins and missed this map, which is how the sonnet entry
+# went stale without any check noticing.
 map_model() {
   case "$1" in
-    sonnet)     echo "anthropic/claude-sonnet-4-6" ;;
-    opus)       echo "anthropic/claude-opus-4-5" ;;
+    sonnet)     echo "anthropic/claude-sonnet-5" ;;
+    opus)       echo "anthropic/claude-opus-5-5" ;;
     haiku)      echo "anthropic/claude-haiku-4-5" ;;
     ""|inherit) echo "" ;;
     *)          echo "$1" ;;   # already provider-prefixed, or an explicit id

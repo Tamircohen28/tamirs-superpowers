@@ -1,7 +1,7 @@
 ---
 description: Reviews changes for vulnerabilities, leaked secrets, and over-broad permissions. Use before merging anything touching auth, input handling, secrets/env, IAM/permissions, or external I/O.
 mode: subagent
-model: anthropic/claude-sonnet-4-6
+model: anthropic/claude-sonnet-5
 permission:
   read: allow
   edit: deny

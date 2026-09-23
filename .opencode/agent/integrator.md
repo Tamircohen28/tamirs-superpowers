@@ -1,7 +1,7 @@
 ---
 description: Assembles completed worker branches into one integration branch, resolves conflicts, runs integration-level validation, and applies fixes review demands. Use once an objective's tasks are done and their branches must become one coherent change.
 mode: subagent
-model: anthropic/claude-sonnet-4-6
+model: anthropic/claude-sonnet-5
 permission:
   read: allow
   edit: allow

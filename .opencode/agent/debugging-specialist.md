@@ -1,7 +1,7 @@
 ---
 description: Root-cause analysis for bugs, test failures, and unexpected behavior — reproduces, isolates, and finds the true cause before proposing a fix. Use for any non-trivial bug or a failure that recurred.
 mode: subagent
-model: anthropic/claude-sonnet-4-6
+model: anthropic/claude-sonnet-5
 permission:
   read: allow
   edit: deny

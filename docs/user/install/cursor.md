@@ -20,6 +20,68 @@ canonical `skills/` tree, [`.cursor/rules/`](../../../.cursor/rules), `agents/`,
 stubs. Enable **Auto Refresh** on the marketplace and pushes propagate without a version
 bump.
 
+## Hooks do not come with the install
+
+Worth knowing before you assume the safety guards are active: **a Cursor install of this
+plugin wires none of its hooks.**
+
+Cursor *can* import Claude Code hooks, and the setting is on by default
+(Settings → Agents → Third-Party Imports → "Include Third-Party Plugins, Skills, and Other
+Configs"). But it reads them from exactly three paths:
+
+- `.claude/settings.local.json`
+- `.claude/settings.json`
+- `~/.claude/settings.json`
+
+This plugin ships its hooks in `hooks/hooks.json`, wired through the plugin manifest — which
+is not one of those three. The files are all present on disk after an install (see the
+section below), but nothing loads them.
+
+**One exception, and it is not part of the install.** This repo ships
+[`.cursor/hooks.json`](../../../.cursor/hooks.json) with a single advisory
+`beforeShellExecution` hook for people working *on this repo* in Cursor. Cursor reads
+`.cursor/hooks.json` from the **project root**, so that file applies when this repo is your
+open project — it is not delivered to your project by installing the plugin, and
+`.cursor-plugin/plugin.json` declares no `hooks` field. It is a useful proof that the
+Cursor-native format works here, not a counterexample to the paragraph above.
+
+Of the 10 events this repo wires, Cursor's published mapping covers 6 — `PreToolUse`,
+`PostToolUse`, `UserPromptSubmit`, `Stop`, `SessionStart`, `SessionEnd`. The other four —
+`Notification`, `DirectoryAdded`, `WorktreeCreate`, `WorktreeRemove` — have no Cursor
+equivalent, so even a hand-copied translation would be lossy.
+
+A Cursor-native bundle, in Cursor's own richer 21-event format, is tracked as
+[#179 E1](https://github.com/Tamircohen28/tamirs-superpowers/issues/179).
+
+## What an install actually materializes
+
+Worth knowing, because it is the difference between 29 working skills and 29 that silently
+no-op: **a Cursor install is a full git clone of the repo, not a Markdown-only sync.** Cursor
+materializes it twice, under `~/.cursor/plugins/cache/` and `~/.cursor/plugins/marketplaces/`,
+and both copies carry every tracked file.
+
+Measured against a real install on macOS (Cursor 3.21.16, install copy at plugin 2.0.1):
+
+| | |
+|---|---|
+| Tracked paths vs. the source commit | **identical** — zero files dropped |
+| Non-Markdown files | 263 of 452 |
+| Shell scripts | 103 `.sh`, **87 executable** |
+| Executable-bit mismatches vs. source | **0**, across all 451 files |
+| `hooks/hooks.json` + hook scripts | present, all 25 |
+| Python helpers / JSON config | 14 `.py`, 53 `.json` |
+
+`git status` inside the installed copy reports no modified or deleted tracked files — only an
+untracked `.cache-complete` marker that Cursor writes itself.
+
+This matters because the repo's contract tests run against a local checkout and never an
+installed copy, so nothing in CI would catch an install path that dropped shell assets. It
+does not drop them; the mechanism is a clone, so there is no file-type filter to get wrong.
+
+**Still unverified:** skill *invocation* inside Cursor — palette listing and invoking a skill
+by name. Asset delivery being sound does not establish that, and the capability registry
+reflects the narrower claim.
+
 ## Verify
 
 ```bash
