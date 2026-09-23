@@ -5,6 +5,38 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [4.3.2] — 2026-09-23
+
+### Changed
+
+- **Claude Code platform-sync review advances through 2.1.280** (from 2.1.278, the last
+  version reflected on master). The official changelog has no numbered 2.1.279 release, so
+  this covers 2.1.280 only. **`validated_against` advances to 2.1.280 as well — the first
+  live advance on this row since 2.1.274.** The automated job that opened the PR recorded this
+  cycle as changelog-only because no live CLI existed in that environment; the branch that
+  landed it had one. Evidence, all on the 2.1.280 build: `claude --version` reports 2.1.280,
+  `claude plugin validate .` passes, `/skill-doctor` lists all 29 tamirs-superpowers skills,
+  and `claude plugin eval . --case canary-can-write --ablation with-without` scores 1.00 in
+  both arms — exercising plugin load, PreToolUse hook execution and Skill-tool invocation end
+  to end. `reviewed_through` and `latest_known` also move to **2.1.280**, and the README
+  badge/support row advance with `validated_against`.
+  - **2.1.280** — fixed skills being wrongly trashed to `.trash/` on a `manifest.json` name
+    collision, directly closing the data-loss shape of the name-collision risk the 2.1.275
+    claude.ai-skill-sync note already flagged for this plugin's 29 `SKILL.md` names; fixed
+    `installed_plugins.json` losing its recorded commit info after a GitHub-repo plugin
+    update, relevant since this plugin installs exactly that way; added
+    `CLAUDE_CODE_MAX_MCP_DESCRIPTION_LENGTH`, documented as an available knob for the
+    `github` MCP server rather than a repo default; made Claude Opus 5.5 the default Opus
+    model, reviewed and not applicable since every `agents/*.md` here pins `model: sonnet`.
+    Everything else in the release (fullscreen-list mouse support, an OTel hook-output-size
+    stat, an auto-mode retry-loop fix, a symlink write-path permission fix, several
+    terminal-UI fixes, and a Code Review check-run notice improvement) is host-side or
+    UI-only with nothing here to adopt.
+
+  No breaking change in the 2.1.278→2.1.280 range affects this repo. Full narrative:
+  `CLAUDE.md`'s Subagents, MCP and Marketplace cache sections, and `platform-targets.json`'s
+  `verification_method`.
+
 ## [4.3.1] — 2026-09-23
 
 ### Changed
