@@ -7,6 +7,32 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Fixed
 
+- **The OpenCode agent generator emitted a permission key that does not exist** (#182 item 9).
+  Every one of the 10 generated adapters carried `write: deny`, and `write` is **not** a key of
+  `PermissionConfig` in the published schema — the 15 real keys are `bash`, `doom_loop`, `edit`,
+  `external_directory`, `glob`, `grep`, `list`, `lsp`, `question`, `read`, `skill`, `task`,
+  `todowrite`, `webfetch`, `websearch`. Canonical `Write` now maps to `edit`, the key that
+  actually governs file modification.
+
+  **No agent was over-permitted in practice** — the read-only agents deny `edit` as well, so the
+  write path was covered either way. The defect was structural: the generator's entire premise is
+  that *an allowlist stays an allowlist, everything not granted is explicitly denied*, and that
+  silently depended on every emitted key being real. One that is not is a deny-list line that
+  denies nothing, and nothing in the repo could have noticed.
+
+  `scripts/check-opencode-permission-keys.sh` now fails when `OPENCODE_TOOLS` and the schema
+  diverge, wired into `make agent:check` and `tests/test-static.sh`. Its key list is **pinned and
+  dated rather than fetched**, so CI cannot degrade to a silent pass on a network error — the same
+  failure mode this check exists to prevent; `--refresh` compares the pin against the live schema
+  on demand. Verified by reintroducing `write` and confirming the check exits 1.
+
+  Recorded but deliberately **not** changed: five real keys remain unset on every agent
+  (`doom_loop`, `external_directory`, `lsp`, `question`, `todowrite`). `external_directory` is the
+  one #182 item 9 identifies as encoding this repo's worktree invariant; what its default should
+  be is a behaviour decision, not a sweep.
+
+### Fixed
+
 - **The Cursor manifest now declares its rules path — #179's E3.** `.cursor-plugin/plugin.json`
   declared no `rules` field, and Cursor's automatic component discovery falls back to a default
   `rules/` folder. In this repo `rules/` is the **canonical markdown** (plus a `README.md`), not
