@@ -5,6 +5,43 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Added
+
+- **`StopFailure` hook on the `rate_limit` matcher — #178's E2.** `switch-dev` writes the
+  objective, task and handoff state that lets work resume on another platform, and it was
+  invoked **zero times across 953 sessions**. The reason was never that nobody needed it: the
+  moment you need a handoff is the moment you cannot ask for one, because the turn has already
+  ended on an error.
+
+  `hooks/rate-limit-handoff.sh` fires on exactly that moment. `rate_limit` is a documented
+  `StopFailure` error-type matcher alongside `overloaded`, `authentication_failed`,
+  `billing_error` and `server_error`, so this fires on rate-limit exhaustion specifically and
+  stays silent for every other API failure — an auth error is not a handoff situation. It names
+  what is actually at risk ("2 uncommitted file(s) on <branch>, objective '<id>'") rather than
+  offering generic advice, and says nothing at all when nothing is in flight, because noise is
+  how a hook earns its way into being ignored.
+
+  It emits `systemMessage`, **not** `hookSpecificOutput.additionalContext`: the turn has already
+  failed, so there is no model turn left to read injected context, and the person who needs the
+  message is the user. That is the same reasoning `handoff-reminder.sh` records for `SessionEnd`.
+
+- **`PreCompact` hook — #178's E7.** `hooks/precompact-snapshot.sh` writes the working state
+  that compaction destroys and that is expensive to re-derive: branch, uncommitted files, open
+  objective, recent commit subjects. Not a transcript — that already exists.
+
+  It writes a **file** rather than returning context, deliberately. `hookSpecificOutput` is not
+  documented for `PreCompact` (the decision-control model covers the tool events and the Stop
+  family), and while `systemMessage` is universal the docs say plainly that some events discard
+  it. A file survives compaction unconditionally and costs nothing to produce, so the hook does
+  not depend on either channel; `systemMessage` is emitted on top, best-effort. Output goes to
+  `.dev-files/compaction/latest.md`, which is already gitignored.
+
+  Both hooks are advisory: they never block, always exit 0, and stay silent when there is
+  nothing worth saying. `tests/test-rate-limit-handoff.sh` (12 assertions) and
+  `tests/test-precompact-snapshot.sh` (13) cover the speaking, silent and degenerate-payload
+  paths, and the two subtlest guards in the first — output channel, and staying silent — were
+  verified by mutating the hook to break each one and confirming the assertions fail.
+
 ## [4.4.0] — 2026-09-23
 
 ### Changed
