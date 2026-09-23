@@ -20,6 +20,35 @@ canonical `skills/` tree, [`.cursor/rules/`](../../../.cursor/rules), `agents/`,
 stubs. Enable **Auto Refresh** on the marketplace and pushes propagate without a version
 bump.
 
+## What an install actually materializes
+
+Worth knowing, because it is the difference between 29 working skills and 29 that silently
+no-op: **a Cursor install is a full git clone of the repo, not a Markdown-only sync.** Cursor
+materializes it twice, under `~/.cursor/plugins/cache/` and `~/.cursor/plugins/marketplaces/`,
+and both copies carry every tracked file.
+
+Measured against a real install on macOS (Cursor 3.21.16, install copy at plugin 2.0.1):
+
+| | |
+|---|---|
+| Tracked paths vs. the source commit | **identical** — zero files dropped |
+| Non-Markdown files | 263 of 452 |
+| Shell scripts | 103 `.sh`, **87 executable** |
+| Executable-bit mismatches vs. source | **0**, across all 451 files |
+| `hooks/hooks.json` + hook scripts | present, all 25 |
+| Python helpers / JSON config | 14 `.py`, 53 `.json` |
+
+`git status` inside the installed copy reports no modified or deleted tracked files — only an
+untracked `.cache-complete` marker that Cursor writes itself.
+
+This matters because the repo's contract tests run against a local checkout and never an
+installed copy, so nothing in CI would catch an install path that dropped shell assets. It
+does not drop them; the mechanism is a clone, so there is no file-type filter to get wrong.
+
+**Still unverified:** skill *invocation* inside Cursor — palette listing and invoking a skill
+by name. Asset delivery being sound does not establish that, and the capability registry
+reflects the narrower claim.
+
 ## Verify
 
 ```bash
