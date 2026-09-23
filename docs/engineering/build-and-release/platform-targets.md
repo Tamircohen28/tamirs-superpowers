@@ -34,9 +34,10 @@ Verified **2026-09-22** — Claude Code reviewed against the official changelog 
 |----------|---------------|-------------------|------------------|--------------|---------------|
 | Claude Code | 2.0.0 | 2.1.280 | 2.1.280 | 2.1.280 | [claude-code.md](../../user/install/claude-code.md) |
 | Cursor | 3.21.13 | 3.21.13 | 3.21.13 | 3.21.13 | [cursor.md](../../user/install/cursor.md) |
-| Codex | 0.40.0 | 0.146.0 | 0.156.0 | 0.156.0 | [codex.md](../../user/install/codex.md) |
-| Gemini CLI | 0.55.1 | 0.55.1 | 0.60.0 | 0.60.0 | [gemini.md](../../user/install/gemini.md) |
-| OpenCode | 2.0.0 | 2.0.14 | 2.0.14 | 2.0.14 | [opencode.md](../../user/install/opencode.md) |
+| Codex | 0.40.0 | 0.156.0 | 0.156.0 | 0.156.0 | [codex.md](../../user/install/codex.md) |
+| Gemini CLI | 0.55.1 | 0.60.0 | 0.60.0 | 0.60.0 | [gemini.md](../../user/install/gemini.md) |
+| OpenCode | unknown | 2.0.14 | 2.0.14 | 2.0.14 | [opencode.md](../../user/install/opencode.md) |
+
 
 Two different claims, deliberately kept apart. **Validated against** is the version this repo
 was last exercised against on a live maintainer machine. **Reviewed through** is the newest
