@@ -3,7 +3,7 @@
 	check-feature-equivalence check-platform-targets platform-targets-sync \
 	platform-targets-assert platform-targets-cochange agent\:check agent-polish-gate \
 	assert-contract repo-standards-gate opencode-agents opencode-agents-check \
-	opencode-commands opencode-commands-check \
+	opencode-commands opencode-commands-check check-opencode-permission-keys \
 	check-marketplace-schema check-doc-claims test-hooks doctor check-version-truth \
 	check-capability-registry validate-roles check-gemini-adapter gemini-extension \
 	check-action-pinning check-manifest-declares \
@@ -37,6 +37,7 @@ help:
 	@echo "  opencode-agents-check   — fail if .opencode/agent/ has drifted from agents/"
 	@echo "  opencode-commands       — regenerate .opencode/commands/*.md from skills/"
 	@echo "  opencode-commands-check — fail if .opencode/commands/ has drifted from skills/"
+	@echo "  check-opencode-permission-keys — fail if the agent generator emits a non-schema key"
 	@echo "  lint                    — shellcheck .sh files only"
 	@echo "  test-hooks              — behavior tests for hooks/ (tests/test-*.sh)"
 	@echo "  test-repo-contract      — contract fixtures (app-gold, plugin-gold, claude-plugin-gold)"
@@ -217,7 +218,10 @@ opencode-commands:
 opencode-commands-check:
 	@bash scripts/build-opencode-commands.sh . --check
 
-agent\:check: check-agent-drift check-feature-equivalence check-platform-targets opencode-agents-check opencode-commands-check
+check-opencode-permission-keys:
+	@bash scripts/check-opencode-permission-keys.sh .
+
+agent\:check: check-agent-drift check-feature-equivalence check-platform-targets opencode-agents-check opencode-commands-check check-opencode-permission-keys
 
 agent-polish-gate: platform-targets-sync platform-targets-assert agent\:check
 
