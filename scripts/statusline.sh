@@ -78,6 +78,13 @@ seven_resets=$(echo "$input" | jq -r '.rate_limits.seven_day.resets_at // empty'
 # line below degrades the same way the 7d line already does.
 spend_pct=$(echo "$input" | jq -r '.rate_limits.spend_limit.used_percentage // empty')
 spend_resets=$(echo "$input" | jq -r '.rate_limits.spend_limit.resets_at // empty')
+# prompt_cache — present when the host reports cache telemetry for the session.
+# Absent on builds or configurations that do not report it, so every use below is
+# guarded the same way the spend_limit line already is. hit_ratio is a 0..1 float.
+cache_warm=$(echo "$input" | jq -r '.prompt_cache.warm // empty')
+cache_ratio=$(echo "$input" | jq -r '.prompt_cache.hit_ratio // empty')
+cache_misses=$(echo "$input" | jq -r '.prompt_cache.misses // empty')
+cache_recache=$(echo "$input" | jq -r '.prompt_cache.recache_tokens_if_cold // empty')
 duration_ms=$(echo "$input" | jq -r '.cost.total_duration_ms // empty')
 total_cost=$(echo "$input" | jq -r '.cost.total_cost_usd // empty')
 cc_version=$(echo "$input" | jq -r '.version // empty')
@@ -337,4 +344,29 @@ if [ -n "$seven_pct" ] && [ "$seven_pct" != "null" ]; then
 fi
 if [ -n "$spend_pct" ] && [ "$spend_pct" != "null" ]; then
   printf "%b\n" "$(format_limit_line "spend" "$spend_pct" "$spend_resets")"
+fi
+
+# Prompt cache. Only rendered when the host actually reports it — a cold or
+# missing block prints nothing rather than a misleading 0%.
+if [ -n "$cache_ratio" ] && [ "$cache_ratio" != "null" ]; then
+  cache_pct=$(awk -v r="$cache_ratio" 'BEGIN{printf "%d", (r*100)+0.5}' 2>/dev/null || echo "")
+  if [ -n "$cache_pct" ]; then
+    if [ "$cache_warm" = "true" ]; then cache_state="warm"; else cache_state="cold"; fi
+    cache_line="cache ${cache_pct}% ${cache_state}"
+    if [ -n "$cache_misses" ] && [ "$cache_misses" != "null" ] && [ "$cache_misses" != "0" ]; then
+      cache_line="${cache_line}, ${cache_misses} miss"
+      [ "$cache_misses" != "1" ] && cache_line="${cache_line}es"
+    fi
+    # Only worth showing when a cold rebuild would actually cost something.
+    if [ "$cache_warm" != "true" ] && [ -n "$cache_recache" ] && [ "$cache_recache" != "null" ] && [ "$cache_recache" != "0" ]; then
+      cache_line="${cache_line}, ${cache_recache} tok to rebuild"
+    fi
+    if [ "$cache_pct" -ge 80 ] 2>/dev/null; then
+      printf '\033[32m%s\033[0m\n' "$cache_line"
+    elif [ "$cache_pct" -ge 50 ] 2>/dev/null; then
+      printf '\033[33m%s\033[0m\n' "$cache_line"
+    else
+      printf '\033[31m%s\033[0m\n' "$cache_line"
+    fi
+  fi
 fi

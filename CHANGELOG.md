@@ -23,6 +23,52 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   event format. This repo's file at that path is Claude's PascalCase format, so discovery yields
   no usable events — a cheaper route for a Cursor hook bundle than the `settings.json` import
   path, with no `settings.json` involvement at all.
+## [4.5.0] — 2026-09-23
+
+### Added
+
+- **Codex marketplace `interface` block** (#180 E3). `.codex-plugin/plugin.json` now carries the
+  presentation metadata a Codex marketplace listing renders — `displayName`, `shortDescription`,
+  `longDescription`, `developerName`, `category`, `capabilities`, `websiteURL`, `logo`,
+  `brandColor`, and six `defaultPrompt` entries. Without it, the listing fell back to the bare
+  `description` and showed no example prompts at all.
+
+  **The schema was read off real plugins, not guessed.** Codex publishes no manifest reference for
+  this block, so the shape was extracted from two bundled OpenAI plugins shipped with the CLI
+  (`messages` and `latex`, under `~/.codex/.tmp/bundled-marketplaces/openai-bundled/`) and then
+  confirmed by a full install round-trip on codex 0.156.0: the installed copy carries the block
+  intact, all six `defaultPrompt` entries included.
+
+- **`prompt_cache` statusline line** (#178 E8). When the host reports cache telemetry,
+  `scripts/statusline.sh` renders a fourth line — `cache 91% warm, 2 misses` when hot,
+  `cache 12% cold, 1 miss, 45000 tok to rebuild` when not — coloured green/amber/red by hit ratio.
+  It follows the same only-when-present rule as the existing `spend` line: a host that reports no
+  `prompt_cache` block prints nothing rather than a misleading `0%`, and the rebuild cost is shown
+  only while the cache is cold, since a warm cache is not about to be rebuilt.
+
+  `tests/test-statusline.sh` grows from 17 to 25 assertions covering the warm, cold and absent
+  cases. The two subtlest guards — miss-count pluralisation and suppressing the rebuild cost while
+  warm — were verified by mutating the renderer and confirming each one fails, rather than only by
+  confirming they pass.
+
+- **Marketplace entry metadata** (#178 E11, partial). The `.claude-plugin/marketplace.json` plugin
+  entry grows from 3 keys to 11: `displayName`, `author`, `homepage`, `repository`, `license`,
+  `category`, `keywords` and `tags`.
+
+  Two documented fields are **deliberately omitted**. `version` would pin the entry and create a
+  second cache key alongside the manifest's own — the manifest `version` is what Claude uses to
+  decide an update is available, and duplicating it invites the two to drift. `relevance` takes
+  effect only for marketplaces an administrator allowlists in managed settings, so it is inert for
+  a public marketplace listing like this one.
+
+### Notes
+
+- **#179 E2 (`icon:`/`color:` on Cursor Custom-Mode skills) was investigated and not implemented.**
+  Cursor's plugins reference documents exactly two frontmatter fields for a skill, `name` and
+  `description`; neither `icon` nor `color` appears, and Custom Modes are not documented there at
+  all. Setting them would have meant extending `core/schemas/skill-frontmatter.json` to legitimise
+  fields no Cursor document supports, and shipping them to five other platforms that would carry
+  them inertly. The finding, and what would unblock the item, are recorded on the issue.
 
 ## [4.4.0] — 2026-09-23
 
