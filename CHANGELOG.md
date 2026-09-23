@@ -5,6 +5,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [4.6.0] — 2026-09-23
+
 ### Changed
 
 - **Three `slash_commands` capability rows updated from evidence — part of #180's E6.**
@@ -304,6 +306,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   Recorded in `docs/user/install/cursor.md` as a "What an install actually materializes"
   section, since it is the difference between 29 working skills and 29 silent ones, and in the
   `cursor` row of `platform-targets.json`.
+
 ## [4.5.0] — 2026-09-23
 
 ### Added
