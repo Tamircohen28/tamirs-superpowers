@@ -32,8 +32,27 @@ trap 'rm -rf "$CLAUDE_PLUGIN_DATA"' EXIT
 CID="test-$$"
 CUR="\"conversation_id\":\"$CID\",\"cursor_version\":\"x\",\"workspace_roots\":[\"/tmp\"]"
 
-task(){ printf '{%s,"hook_event_name":"%s","tool_name":"Task","tool_input":{"subagent_type":"%s"}}' "$CUR" "$1" "$2" | bash "$H" >/dev/null 2>&1; }
-perm(){ printf '{%s,"hook_event_name":"preToolUse","tool_name":"%s","tool_input":{}}' "$CUR" "$1" | bash "$H" 2>/dev/null | jq -r '.permission // "allow"'; }
+task(){
+  local err; err="$(mktemp)"
+  printf '{%s,"hook_event_name":"%s","tool_name":"Task","tool_input":{"subagent_type":"%s"}}' "$CUR" "$1" "$2" | bash "$H" >/dev/null 2>"$err" || {
+    echo "      task($1,$2) exited non-zero; stderr:" >&2; sed 's/^/      | /' "$err" >&2; }
+  rm -f "$err"
+}
+# stderr is captured, not discarded: when this suite failed on Linux CI while
+# passing on macOS, every assertion reported an empty result and the reason was
+# in the stderr nobody kept. A test that hides the diagnostic costs more than it
+# saves.
+perm(){
+  local out err
+  err="$(mktemp)"
+  out="$(printf '{%s,"hook_event_name":"preToolUse","tool_name":"%s","tool_input":{}}' "$CUR" "$1" | bash "$H" 2>"$err")"
+  if [ -z "$out" ]; then
+    echo "      hook produced NO stdout; stderr was:" >&2
+    sed 's/^/      | /' "$err" >&2
+  fi
+  rm -f "$err"
+  printf '%s' "$out" | jq -r '.permission // "allow"' 2>/dev/null
+}
 
 echo "--- a read-only agent cannot write ---"
 task preToolUse architecture-reviewer
