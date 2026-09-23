@@ -5,6 +5,25 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Fixed
+
+- **The orphan-hook check now reads every hooks manifest, not just the Claude bundle** (#225).
+  `make validate` warned that `hooks/cursor-agent-tools-guard.sh` was unreferenced, because the
+  check grepped only `hooks/hooks.json` while the hook is wired from `platforms/cursor/hooks.json`
+  — Cursor cannot read the Claude bundle's PascalCase event names. It now also scans
+  `platforms/*/hooks.json` and `.cursor/hooks.json`.
+
+  The warning could never be cleared by correct work, and a check that is permanently wrong is
+  how the rest of the warning list stops being read.
+
+  The manifest list is **explicit rather than a `find`-based sweep**: three scaffold fixtures
+  under `skills/repo/_contract/fixtures/` also contain a `hooks.json`, and one that happened to
+  name a real script would silently clear a genuine orphan.
+
+  Verified in both directions, because a grep broadened until it matches anything would pass
+  the first test alone: the Cursor hook stops warning, **and** a deliberately unwired scratch
+  hook is still reported — and is the only thing reported.
+
 ## [4.7.0] — 2026-09-23
 
 ### Added
