@@ -5,6 +5,30 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Added
+
+- **An `Evidence` output style — #178's E9.** `output-styles/evidence.md` asks for the
+  discipline this repo already documents but could not apply to a whole session: name the
+  check before doing the work, run it, and quote what it actually said. It also asks the
+  harder question a passing check does not answer — *what would this check do if the thing
+  were broken?* — because a guard that cannot fail proves nothing.
+
+  Two frontmatter defaults are handled deliberately, and both are traps:
+
+  - **`keep-coding-instructions: true` is set.** It defaults to `false`, and the docs are
+    explicit that a custom style then *"leave[s] out Claude Code's built-in software
+    engineering instructions, such as how to scope changes, write comments, and verify
+    work."* A dev toolkit shipping a style that silently strips those would make every
+    session worse with nothing to show for it.
+  - **`force-for-plugin` is deliberately absent.** Set true, it *"appl[ies] this style
+    automatically whenever the plugin is enabled … Overrides the user's `outputStyle`
+    setting."* A plugin has no business overriding how Claude talks to someone. The style is
+    opt-in via `/output-style Evidence`, like any other.
+
+  A misspelled frontmatter field *"is ignored without an error"*, so both are pinned by
+  `tests/test-output-styles.sh` rather than trusted, and each guard was verified by
+  introducing its trap and confirming the test fails.
+
 ### Fixed
 
 - **The Cursor manifest now declares its rules path — #179's E3.** `.cursor-plugin/plugin.json`
