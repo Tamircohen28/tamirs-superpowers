@@ -46,6 +46,35 @@ The first command gives you the context file and the `github` MCP server. The se
 
 `--path skills` finds nothing, and neither does omitting `--path`: both land on the two-level canonical tree. Drop `--consent` if you would rather read the third-party-code warning and accept it interactively.
 
+## Pin a release instead of tracking the default branch
+
+Both install commands track the repo's default branch by default, so every reinstall picks up
+whatever has landed since. `--ref` takes any git ref — a tag, branch or commit — which is how
+you get a stable channel:
+
+```bash
+gemini extensions install https://github.com/Tamircohen28/tamirs-superpowers \
+  --ref v4.5.0 --consent
+gemini skills install     https://github.com/Tamircohen28/tamirs-superpowers \
+  --ref v4.5.0 --path .gemini/skills --consent
+```
+
+Two related flags, both verified on **0.60.0**:
+
+| Flag | Effect |
+|---|---|
+| `--ref <git ref>` | Install from that tag/branch/commit instead of the default branch |
+| `--auto-update` | Let Gemini update this extension on its own — the opposite trade to `--ref` |
+| `--pre-release` | Opt into pre-release versions |
+
+`--ref` and `--auto-update` pull in opposite directions: pinning a tag and then enabling
+auto-update means the pin is the thing that moves. Pick one. For a reproducible machine —
+CI, a shared box, anything you want to be able to roll back — pin the tag and update
+deliberately.
+
+This repo's tags follow `plugin-version.json`, so `--ref v<version>` matches the version the
+README badge shows.
+
 ## Method B — local clone (contributors)
 
 With the repo as your working directory, **the skills need no install at all** — `.gemini/skills/` is a workspace skills root, so Gemini reads all of them in place, along with the sub-agents in `.gemini/agents/`:
