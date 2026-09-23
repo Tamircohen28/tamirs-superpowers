@@ -601,11 +601,11 @@
               "fallback": "Name the skill explicitly, pin it as a Custom Mode, or rely on the .cursor/rules/*.mdc entrypoint."
             },
             "subagents": {
-              "last_verified": "2026-09-17",
+              "last_verified": "2026-09-23",
               "status": "native",
               "since": "3.21.13",
               "validation": "bash scripts/check-manifest-declares.sh --or-discovers agents .cursor-plugin/plugin.json agents",
-              "notes": "Delivered by folder discovery, not by a manifest field: Cursor reads agents/ when the manifest does not name an agents path (https://cursor.com/docs/reference/plugins), and .cursor-plugin/plugin.json deliberately does not. The validation follows that rule rather than assuming it \u2014 if someone adds an `agents` key, discovery of agents/ stops and the check switches to the declared paths. The old note cited platform-targets.json, whose capabilities array is a DERIVED mirror of this registry, so it was evidence for itself."
+              "notes": "Subagents load and run - measured 2026-09-23 on cursor-agent 2026.07.17-3e2a980 via --plugin-dir. BUT THE FRONTMATTER `tools:` ALLOWLIST IS NOT ENFORCED: a probe agent declaring `tools: Read, Grep, Glob` wrote a file when asked. The seven read-only agents here (architecture-reviewer, security-reviewer, spec-reviewer, performance-reviewer, research-agent, debugging-specialist, orchestrator) are therefore NOT constrained on Cursor - what stops them is the prose in their own system prompt, which is a model instruction, not a sandbox. A first probe looked reassuring (architecture-reviewer refused, citing being review-only) and proved nothing; only an agent whose prose actively demanded writing distinguished a model declining from the platform preventing. This is the same failure scripts/build-opencode-agents.sh exists to prevent on OpenCode, where permissions are translated explicitly. Status stays `native` because subagents genuinely work; the unenforced allowlist is a separate, unmet guarantee. See #179."
             },
             "parallel_subagents": {
               "last_verified": "2026-09-10",
