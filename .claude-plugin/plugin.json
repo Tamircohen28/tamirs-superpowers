@@ -36,5 +36,19 @@
       "type": "command",
       "command": "s=\"${CLAUDE_PLUGIN_ROOT:-}/scripts/statusline.sh\"; [ -f \"$s\" ] || s=$(ls $HOME/.claude/plugins/cache/tamirs-marketplace/tamirs-superpowers/*/scripts/statusline.sh 2>/dev/null | sort -rV | head -1); [ -n \"$s\" ] && [ -f \"$s\" ] && bash \"$s\" </dev/null"
     }
+  },
+  "userConfig": {
+    "pushover_token": {
+      "type": "string",
+      "title": "Pushover application token",
+      "description": "Optional. From your Pushover application at pushover.net/apps. Leave blank to keep phone notifications off - the notification hook stays silent when unconfigured.",
+      "sensitive": true
+    },
+    "pushover_user": {
+      "type": "string",
+      "title": "Pushover user key",
+      "description": "Optional. Your Pushover user key from pushover.net. Required only if you set an application token above.",
+      "sensitive": true
+    }
   }
 }

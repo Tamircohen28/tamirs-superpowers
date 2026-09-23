@@ -9,12 +9,26 @@
 #
 # Credentials are read from, in order of precedence:
 #   1. PUSHOVER_TOKEN / PUSHOVER_USER already in the environment
-#   2. $PUSHOVER_ENV                    (override, mainly for tests)
-#   3. ~/.claude/pushover.env           (written by scripts/install.sh)
+#   2. CLAUDE_PLUGIN_OPTION_PUSHOVER_TOKEN / _USER  (userConfig, Keychain-backed)
+#   3. $PUSHOVER_ENV                    (override, mainly for tests)
+#   4. ~/.claude/pushover.env           (written by scripts/install.sh)
 #
 # They deliberately live OUTSIDE the plugin directory: the marketplace cache
 # lives at ~/.claude/plugins/cache/.../<version>/ and is replaced wholesale on
 # every plugin update, which would take any credentials stored here with it.
+#
+# Source 2 is the manifest's `userConfig` block, declared with "sensitive": true,
+# which the host stores in the macOS Keychain (falling back to
+# ~/.claude/.credentials.json) and exports to hook processes as
+# CLAUDE_PLUGIN_OPTION_<KEY>. That satisfies the same constraint by a better
+# route than a 600-mode dotfile, and it is prompted for once at enable time
+# rather than passed as an env var through `make install`.
+#
+# It is inserted ABOVE the file and BELOW an explicit environment override: a
+# caller that exports PUSHOVER_TOKEN directly (a test, a CI job) still wins, and
+# an existing install whose credentials are already in pushover.env keeps working
+# untouched. Nothing here is Claude-only in a breaking way either - Codex also
+# loads this hook and simply never sets the variable, so it falls through.
 #
 # Exits 0 and stays silent when unconfigured, so an un-set-up install never
 # breaks the notification chain.
@@ -25,9 +39,27 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CREDS="${PUSHOVER_ENV:-${HOME}/.claude/pushover.env}"
 FORMATTER="${PUSHOVER_FORMATTER:-${SCRIPT_DIR}/pushover_format.py}"
 
+# Host-managed userConfig values, when the host provides them.
+if [[ -z "${PUSHOVER_TOKEN:-}" ]]; then
+  PUSHOVER_TOKEN="${CLAUDE_PLUGIN_OPTION_PUSHOVER_TOKEN:-}"
+fi
+if [[ -z "${PUSHOVER_USER:-}" ]]; then
+  PUSHOVER_USER="${CLAUDE_PLUGIN_OPTION_PUSHOVER_USER:-}"
+fi
+
+# The file fills in only what is still missing. Sourcing it plainly would
+# overwrite a value that a higher-precedence source already supplied: with a
+# token from the environment but no user, the `-z USER` arm fires and the file's
+# token silently replaces it. That was reachable before userConfig existed and is
+# more reachable now, so the pre-file values are restored afterwards.
 if [[ -z "${PUSHOVER_TOKEN:-}" || -z "${PUSHOVER_USER:-}" ]] && [[ -f "$CREDS" ]]; then
+  _pre_token="${PUSHOVER_TOKEN:-}"
+  _pre_user="${PUSHOVER_USER:-}"
   # shellcheck source=/dev/null
   . "$CREDS"
+  [[ -n "$_pre_token" ]] && PUSHOVER_TOKEN="$_pre_token"
+  [[ -n "$_pre_user" ]] && PUSHOVER_USER="$_pre_user"
+  unset _pre_token _pre_user
 fi
 
 # Unconfigured is a normal state, not an error — bail quietly.
