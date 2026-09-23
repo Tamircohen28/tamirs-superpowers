@@ -5,6 +5,34 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Changed
+
+- **Three `slash_commands` capability rows updated from evidence — part of #180's E6.**
+
+  **`codex`: `unknown` → `unsupported`.** All 9 plugins bundled with codex 0.156.0 were checked;
+  **0** declare a `commands` manifest field and **0** ship a `commands/` directory. Codex
+  publishes no manifest reference to cite, so this is the strongest available evidence rather
+  than a documented absence — and the row says what it means: a plugin cannot *contribute*
+  commands, not that Codex has no built-in ones. The adjacent surface Codex does offer is
+  `interface.defaultPrompt`, which this plugin ships with 6 entries as of 4.5.0, and the
+  `fallback` now points there.
+
+  **`gemini_cli`: note corrected, status held at `unknown`.** The old note said the path "was
+  never probed". The mechanism is now confirmed on 0.60.0 — TOML, discovered from
+  `~/.gemini/commands/`, `<project>/.gemini/commands/` **and active extensions**, so this
+  extension could ship them directly. The status stays `unknown` because this repo ships none
+  and the per-field TOML schema has not been read. A mechanism existing is not the same as this
+  repo's commands being discovered.
+
+  **`opencode`: note corrected, status held at `unknown`.** The old note said the command surface
+  was "not verified against the shipped skills" — stale, since 4.5.0 generates 26. The row now
+  records that **discovery** is what is unproven: `/api/command` returns empty from a directory
+  holding all 26, but returns empty for a config-defined `command` block too, so it does not
+  reflect project commands in standalone mode and cannot answer the question either way.
+
+  Two of the three keep `unknown` on purpose. A status is a claim, and "we now ship the thing"
+  is not evidence that the thing is read.
+
 ### Fixed
 
 - **The Cursor manifest now declares its rules path — #179's E3.** `.cursor-plugin/plugin.json`
