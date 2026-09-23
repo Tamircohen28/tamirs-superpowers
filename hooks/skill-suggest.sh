@@ -36,6 +36,8 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=lib/hook-output.sh
 source "${SCRIPT_DIR}/lib/hook-output.sh"
+# shellcheck source=lib/plugin-state.sh
+source "${SCRIPT_DIR}/lib/plugin-state.sh"
 
 input="$(hook_read_stdin)"
 prompt="$(printf '%s' "$input" | jq -r '.prompt // empty' 2>/dev/null || true)"
@@ -50,7 +52,10 @@ cwd="$(printf '%s' "$input" | jq -r '.cwd // empty' 2>/dev/null || true)"
 # Repo root, so two worktrees of one repo share a marker but two repos do not.
 repo_root="$(cd "$cwd" 2>/dev/null && git rev-parse --show-toplevel 2>/dev/null || printf '%s' "$cwd")"
 
-CACHE_DIR="${HOME}/.claude/cache/skill-suggest"
+# Persistent per-plugin state when the host provides it (CLAUDE_PLUGIN_DATA
+# survives plugin updates); the previous cache path otherwise, so behaviour on
+# Codex - which loads this hooks file but exports no such variable - is unchanged.
+CACHE_DIR="$(plugin_state_dir skill-suggest)"
 
 # repo_key — a filesystem-safe digest of the repo path.
 repo_key() {

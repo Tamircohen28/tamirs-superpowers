@@ -35,6 +35,51 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   was reachable before `userConfig` existed and more reachable with a third source, and it failed
   invisibly — the notification simply went out under different credentials. Found by the
   precedence test written for E5, not by inspection.
+- **`SubagentStop` handoff check — #178's E3.** A worker's contract ends at
+  `implementation -> targeted validation -> commit -> handoff`, and `worker-dev` is blunt
+  about the last step: *"The handoff is your entire output. The integrator will never read
+  your reasoning — only this file."* Nothing enforced that at the moment it matters.
+
+  `hooks/subagent-handoff-check.sh` fires when a subagent finishes under an objective and
+  surfaces two failures: **no handoff written at all**, and a handoff reporting `completed`
+  with an **empty `validation[]`** — which `worker-dev` already names as *"a claim with no
+  evidence"*.
+
+  **It deliberately does not flag `partial`, `failed` or `blocked` with no validation.**
+  Honest partial reporting is exactly the behaviour this repo wants; flagging it would train
+  workers to overclaim, which is the opposite of the point. Only `completed` without evidence
+  is a false claim.
+
+  The output channel is the opposite choice from `rate-limit-handoff.sh`, for the same
+  underlying reason — who can still read it. There the turn had failed and only the user
+  remained, so `systemMessage` was right. Here the session continues and the reader who must
+  act is the **orchestrator**, about to decide whether to integrate, so this emits
+  `hookSpecificOutput.additionalContext` (Stop/SubagentStop is one of the events that supports
+  it). A user-facing message would reach someone not making the call.
+
+  15 assertions, including the channel and the honest-reporting carve-out; both were verified
+  by mutating the hook to break each one and confirming the tests fail.
+### Changed
+
+- **Hook state moves to `${CLAUDE_PLUGIN_DATA}` where the host provides it — #178's E12.**
+  Claude Code exports a per-plugin directory that, in its own words, is a *"persistent
+  directory that survives plugin updates, created on first reference"*. Two hooks kept state
+  in `~/.claude/cache/` instead: `skill-suggest.sh`'s per-session suggestion markers and
+  `show-changelog.sh`'s last-seen version. A cache path is a poor home for state that is
+  supposed to be remembered — anything treating it as a cache is free to clear it — and
+  neither location was tied to this plugin's identity.
+
+  `hooks/lib/plugin-state.sh` resolves it once, and **the fallback is not a nicety**:
+  `hooks/hooks.json` is loaded by the Codex CLI too, and Codex exports no such variable. A
+  hook that assumed it would resolve an empty path and write to the filesystem root. Without
+  the host variable the previous cache path is used unchanged, so behaviour on Codex is
+  exactly what it was. Verified both ways, and the fallback guard was confirmed by removing
+  it — the test then reports the resolved path as `/skill-suggest`.
+
+  Deliberately **not** migrated: `SESSION_STATE_DIR` (per-session state, which should not
+  survive anything) and `PKG_CACHE_DIR` (pip/poetry caches, shared with other tools on
+  purpose — moving them under a plugin id would fragment a cache whose whole value is being
+  shared).
 
 ### Fixed
 
