@@ -5,6 +5,31 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [4.4.0] — 2026-09-23
+
+### Changed
+
+- **Codex and Gemini CLI validated live, closing the last two rows of the `validated_against` gap**
+  (#197). Both were installed and exercised rather than reviewed.
+
+  **Codex 0.146.0 → 0.156.0.** Installed via `npm i -g @openai/codex`, then this repo installed into
+  it through a **local** marketplace — nothing published involved: `codex plugin marketplace add .`
+  resolved `.agents/plugins/marketplace.json`, and `codex plugin add` reported
+  `installed, enabled 4.3.2`. The install copy was inspected rather than assumed: **1,633 files,
+  1,264 non-Markdown, 144 executable `.sh`**. A Codex install therefore preserves this plugin's
+  shell assets, its 10 agent definitions and `hooks/hooks.json` — not only its Markdown. That is
+  the same question #179's **E0** raises as BLOCKING for Cursor, and which no repo check covers,
+  because the contract tests run against the local checkout and never an installed copy.
+
+  **Gemini CLI 0.55.1 → 0.60.0.** Upgraded via `npm i -g @google/gemini-cli`, closing a five-minor
+  gap in which 0.57–0.60 hardened symlink resolution, extension-loader paths, workspace boundaries
+  and env-var sanitization — the four mechanisms this adapter is built on. `gemini extensions
+  validate .` passes, the `gemini skills` subcommand surface the install guide depends on is intact,
+  and the generated flat mirror at `.gemini/skills/` holds 29 symlinks with **all 29 resolving and
+  0 broken** — precisely what the symlink-resolution hardening could have broken.
+
+  Both installs were removed afterwards, leaving the machine as found.
+
 ## [4.3.2] — 2026-09-23
 
 ### Changed
