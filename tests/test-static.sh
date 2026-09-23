@@ -600,9 +600,30 @@ run_script() {  # run_script <label> <interpreter> <script> [args...]
 }
 
 run_script "generated opencode agents are in sync" bash scripts/build-opencode-agents.sh . --check
+run_script "generated opencode commands are in sync" bash scripts/build-opencode-commands.sh . --check
 run_script "no agent adapter drift"                bash scripts/check-agent-drift.sh .
 run_script "capability registry is well-formed"    bash scripts/check-capability-registry.sh .
 run_script "marketplace schema is a record"        bash scripts/check-marketplace-schema.sh .
+
+# The Cursor manifest must POINT at the .mdc mirror. Cursor's automatic component
+# discovery falls back to the default `rules/` folder, which in this repo is the
+# CANONICAL markdown (plus a README) rather than the 13 purpose-built .mdc files —
+# so an omitted `rules` field does not mean "no rules", it means "the wrong rules,
+# and five that exist only as .mdc never ship at all". Silent in both directions,
+# hence a test rather than a comment.
+cursor_rules="$(jq -r '.rules // empty' .cursor-plugin/plugin.json 2>/dev/null)"
+if [ "$cursor_rules" = "./.cursor/rules/" ]; then
+  ok "cursor manifest declares the .mdc rules mirror"
+else
+  bad "cursor manifest declares the .mdc rules mirror" "got: '${cursor_rules:-<undeclared>}'"
+fi
+
+mdc_count="$(find .cursor/rules -name '*.mdc' 2>/dev/null | wc -l | tr -d ' ')"
+if [ "${mdc_count:-0}" -gt 0 ]; then
+  ok "the declared rules path holds .mdc files ($mdc_count)"
+else
+  bad "the declared rules path holds .mdc files" "found none under .cursor/rules/"
+fi
 
 # ---------------------------------------------------------------------------
 section "version drift"

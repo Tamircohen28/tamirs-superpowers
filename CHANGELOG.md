@@ -5,6 +5,24 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Fixed
+
+- **The Cursor manifest now declares its rules path — #179's E3.** `.cursor-plugin/plugin.json`
+  declared no `rules` field, and Cursor's automatic component discovery falls back to a default
+  `rules/` folder. In this repo `rules/` is the **canonical markdown** (plus a `README.md`), not
+  the 13 purpose-built `.mdc` files with Cursor frontmatter under `.cursor/rules/`.
+
+  So the omission never meant "no rules shipped". It meant the wrong ones: canonical `.md` in
+  place of the `.mdc` mirror, a README loaded as a rule, and the five rules that exist **only**
+  as `.mdc` — `commit-conventions`, `hooks-guide`, `plugin-structure`, `skill-frontmatter`,
+  `skills-guide` — never shipping at all. Both halves are silent, so `tests/test-static.sh` now
+  asserts the declaration; the guard was verified to fail when the field is removed.
+
+  Recorded alongside it, because it is the same defect class in the same manifest: a Cursor
+  plugin's **`hooks`** component defaults to `hooks/hooks.json` and expects Cursor's camelCase
+  event format. This repo's file at that path is Claude's PascalCase format, so discovery yields
+  no usable events — a cheaper route for a Cursor hook bundle than the `settings.json` import
+  path, with no `settings.json` involvement at all.
 ### Added
 
 - **Pin a Gemini install to a release instead of the default branch — #181's E8.** Both
@@ -28,6 +46,37 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   default to inherit. Recorded as a capability note, not a recommendation to automate handoffs —
   nothing in this repo's pipeline assumes a headless receiver.
 
+- **All 26 user-invocable skills are now OpenCode commands — #182's item 1.** OpenCode users
+  reached this toolkit's skills through the narrowest door it has: `install/opencode.md` told
+  them to "name the skill explicitly," so every skill was discoverable only by already knowing
+  it existed. OpenCode has a real command surface — `/name`, listed in the TUI — and this repo
+  was not using it.
+
+  `scripts/build-opencode-commands.sh` generates `.opencode/commands/*.md` from
+  `skills/*/*/SKILL.md`, following the same generate-and-commit pattern as the existing agent
+  adapters, so a user installing from a clone still needs no build step.
+
+  **Each command is a translation, not a copy.** An OpenCode command's body is a *prompt
+  template*, not a skill; a SKILL.md body is instructions for an already-loaded skill. So each
+  command is a thin launcher that names its skill and points at the canonical file — nothing is
+  duplicated, and a command cannot drift from its skill in substance.
+
+  **The TUI `description` is derived, never invented.** A canonical `description` is written for
+  triggering: it opens "Use when …" and carries trigger phrases, up to 1536 characters of them.
+  That is the right shape for auto-invocation and the wrong shape for a command palette, where
+  the user has already typed the name. The derivation is mechanical — strip a leading
+  "Use when ", cut at the first sentence boundary, cap at 200 characters — so no new prose is
+  written for any skill.
+
+  The three internal skills (`changelog-review`, `docs-review`, `mcp-pagination`, all
+  `user-invocable: false`) deliberately get **no** command: they are reachable from a parent
+  skill, not from the slash surface, and emitting commands for them would contradict the
+  invocation tier on exactly the surface that tier is about.
+
+  Wired as `make opencode-commands` / `make opencode-commands-check`, into `make agent:check`,
+  and asserted in `tests/test-static.sh`. The drift check was verified to **fail** on a
+  hand-edited command and on a stale command whose skill no longer exists — not only to pass
+  when in sync.
 - **`StopFailure` hook on the `rate_limit` matcher — #178's E2.** `switch-dev` writes the
   objective, task and handoff state that lets work resume on another platform, and it was
   invoked **zero times across 953 sessions**. The reason was never that nobody needed it: the
