@@ -227,14 +227,41 @@ environment variables for tokens; never commit them.
 
 ## Verify
 
+**The verification commands differ between v1 and v2.** v2 removed `debug skill`
+entirely and renamed `debug agent <name>` to `debug agents` (plural, no per-agent
+argument). Its whole debug surface is `agents`, `config` and `paths` — verified against
+`@opencode/cli` 2.0.14.
+
+**v2 (`opencode2`):**
+
+```bash
+opencode2 debug agents    # every agent; this repo's carry a "GENERATED FILE" header
+opencode2 debug config    # configuration SOURCES, not a resolved config object
+```
+
+`debug config` should list this repo's own `opencode.json` **and** its `.opencode/`
+directory among the sources. `debug agents` should include all ten adapters from
+`.opencode/agent/` — `architecture-reviewer`, `debugging-specialist`, `implementer`,
+`integrator`, `orchestrator`, `performance-reviewer`, `research-agent`,
+`security-reviewer`, `spec-reviewer`, `test-engineer` — each carrying this repo's
+`GENERATED FILE — DO NOT EDIT` header, which is how you tell a real load from a stale
+global copy.
+
+> **There is no v2 equivalent of `debug skill`.** Per-skill discovery cannot currently be
+> enumerated from the v2 CLI; the `/skill` API route needs a running server. That is why
+> this target's `validated_against` records config and agent loading as confirmed and
+> skill discovery as unverified — see `platform-targets.json`'s `verification_method`.
+
+**v1 (`opencode`, 1.x):**
+
 ```bash
 opencode debug skill                      # lists every discovered skill
 opencode debug agent security-reviewer    # resolved agent config, incl. permissions
 opencode debug config                     # resolved config, including skills.paths
 ```
 
-`opencode debug skill` should list every skill in this repo and **no** fixture skills
-(`demo`, `example-skill`). If those two appear, a `skills.paths` entry points at
+On v1, `opencode debug skill` should list every skill in this repo and **no** fixture
+skills (`demo`, `example-skill`). If those two appear, a `skills` entry points at
 `skills/repo` rather than the four individual skill directories.
 
 From a clone of this repo, the full adapter contract runs as:
@@ -273,7 +300,8 @@ spec-reviewer,test-engineer}.md
 rm -rf ~/src/tamirs-superpowers
 ```
 
-Then restart OpenCode and confirm with `opencode debug skill`.
+Then restart OpenCode and confirm — with `opencode2 debug agents` and `opencode2 debug config`
+on v2, or `opencode debug skill` on v1.
 
 ## Machine-level setup
 

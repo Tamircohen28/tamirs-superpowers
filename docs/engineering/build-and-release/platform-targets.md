@@ -36,7 +36,7 @@ Verified **2026-09-22** — Claude Code reviewed against the official changelog 
 | Cursor | 3.21.13 | 3.21.13 | 3.21.13 | 3.21.13 | [cursor.md](../../user/install/cursor.md) |
 | Codex | 0.40.0 | 0.146.0 | 0.156.0 | 0.156.0 | [codex.md](../../user/install/codex.md) |
 | Gemini CLI | 0.55.1 | 0.55.1 | 0.60.0 | 0.60.0 | [gemini.md](../../user/install/gemini.md) |
-| OpenCode | 2.0.0 | *unknown* | 2.0.14 | 2.0.14 | [opencode.md](../../user/install/opencode.md) |
+| OpenCode | 2.0.0 | 2.0.14 | 2.0.14 | 2.0.14 | [opencode.md](../../user/install/opencode.md) |
 
 Two different claims, deliberately kept apart. **Validated against** is the version this repo
 was last exercised against on a live maintainer machine. **Reviewed through** is the newest
@@ -77,6 +77,8 @@ what `usage-capture` and `session-report` do here. The rest is TUI, voice, theme
 isolation hardening (inbound Windows connections, privileged Linux/macOS sockets, writes
 through read-only macOS file handles) and MCP OAuth credential refresh on a 503 — none of it
 touching the adapter surface.
+
+**OpenCode validated live on v2 2026-09-23.** `opencode2` (@opencode/cli 2.0.14) was installed alongside the v1 binary — the package ships both `opencode` and `opencode2` for exactly that — and `validated_against` advances from `unknown` to **2.0.14**, with `supported_min` to **2.0.0**. The claim is deliberately SCOPED. Confirmed live: `opencode2 debug config` lists this repo's own `opencode.json` and its `.opencode/` directory among the resolved configuration sources, so v2 accepts the flat-array `skills` form from a project config; and `opencode2 debug agents` loads **10 of 10** generated adapters, each carrying this repo's `GENERATED FILE — DO NOT EDIT` header, which distinguishes a real load from a stale global copy. NOT confirmed: per-skill discovery. **v2 removed the `debug skill` subcommand** the v1 validation relied on — its debug surface is only `agents`, `config`, `paths` — and the `/skill` API route needs a running server. That removal also made `docs/user/install/opencode.md` instruct users to run two commands that no longer exist (`debug skill`, and `debug agent <name>`, now `debug agents`); its verification section is now split by major.
 
 **OpenCode moved to the v2 line on 2026-09-23, and the target was rebased onto it.** OpenCode 2
 ships under a **new npm scope**, `@opencode/cli` (2.0.14, published 2026-09-22); v1's `opencode-ai`
