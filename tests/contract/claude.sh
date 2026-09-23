@@ -37,8 +37,11 @@ judge "hooks/hooks.json parses" 0 "$(jq empty "$REPO_ROOT/hooks/hooks.json" >/de
 hookmiss=""
 while IFS= read -r cmd; do
   [ -n "$cmd" ] || continue
-  # Commands are written against ${CLAUDE_PLUGIN_ROOT}; resolve to this checkout.
-  rel="${cmd//\$\{CLAUDE_PLUGIN_ROOT\}\//}"
+  # Commands are written against ${CLAUDE_PLUGIN_ROOT}; resolve to this checkout. The
+  # placeholder is double-quoted in hooks.json (Claude Code 2.1.281's `claude plugin validate`
+  # warns on an unquoted one), so drop the quotes first.
+  rel="${cmd//\"/}"
+  rel="${rel//\$\{CLAUDE_PLUGIN_ROOT\}\//}"
   rel="${rel//\$CLAUDE_PLUGIN_ROOT\//}"
   for tok in $rel; do
     case "$tok" in
