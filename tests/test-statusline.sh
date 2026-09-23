@@ -210,6 +210,14 @@ SAMPLE_JSON="$(jq -n --argjson resets "$(( $(date +%s) + 5400 ))" '{
 SAMPLE_JSON_SPEND="$(echo "$SAMPLE_JSON" | jq --argjson resets "$(( $(date +%s) + 5400 ))" \
   '.rate_limits.spend_limit = {used_percentage: 55, resets_at: $resets}')"
 
+# Same payload plus prompt_cache, warm and cold. The block is absent on hosts that
+# do not report cache telemetry, which is why the base payload above keeps no
+# prompt_cache key at all — that case is asserted too.
+SAMPLE_JSON_CACHE_WARM="$(echo "$SAMPLE_JSON" | jq \
+  '.prompt_cache = {warm: true, hit_ratio: 0.91, misses: 2, recache_tokens_if_cold: 45000}')"
+SAMPLE_JSON_CACHE_COLD="$(echo "$SAMPLE_JSON" | jq \
+  '.prompt_cache = {warm: false, hit_ratio: 0.12, misses: 1, recache_tokens_if_cold: 45000}')"
+
 echo "--- statusline: piped JSON ---"
 
 tmproot_check "before first use"
@@ -236,6 +244,10 @@ if run_with_timeout 5 bash -c 'printf "%s" "$1" | bash "$2" > "$3" 2>&1' _ "$SAM
     *"spend:"*) bad "omits spend line when rate_limits.spend_limit is absent" "got: $rendered" ;;
     *) ok "omits spend line when rate_limits.spend_limit is absent" ;;
   esac
+  case "$rendered" in
+    *"cache "*) bad "omits cache line when prompt_cache is absent" "got: $rendered" ;;
+    *) ok "omits cache line when prompt_cache is absent" ;;
+  esac
 else
   bad "piped JSON completes" "timed out or exited non-zero"
 fi
@@ -254,6 +266,51 @@ if run_with_timeout 5 bash -c 'printf "%s" "$1" | bash "$2" > "$3" 2>&1' _ "$SAM
   if [ "$lines" -eq 4 ]; then ok "renders 5h, 7d, and spend limit lines"; else bad "renders 5h, 7d, and spend limit lines" "expected 4 lines, got $lines"; fi
 else
   bad "piped JSON with spend_limit completes" "timed out or exited non-zero"
+fi
+
+echo "--- statusline: prompt_cache present ---"
+
+out="$TMPROOT/cache-warm.out"
+if run_with_timeout 5 bash -c 'printf "%s" "$1" | bash "$2" > "$3" 2>&1' _ "$SAMPLE_JSON_CACHE_WARM" "$SL" "$out"; then
+  rendered="$(cat "$out")"
+  case "$rendered" in
+    *"cache 91% warm"*) ok "renders a warm cache line with its hit ratio" ;;
+    *) bad "renders a warm cache line with its hit ratio" "got: $rendered" ;;
+  esac
+  case "$rendered" in
+    *"2 misses"*) ok "pluralises the miss count" ;;
+    *) bad "pluralises the miss count" "got: $rendered" ;;
+  esac
+  # A warm cache never needs rebuilding, so the rebuild cost is not worth a reader's attention.
+  case "$rendered" in
+    *"to rebuild"*) bad "omits the rebuild cost while warm" "got: $rendered" ;;
+    *) ok "omits the rebuild cost while warm" ;;
+  esac
+else
+  bad "piped JSON with a warm prompt_cache completes" "timed out or exited non-zero"
+fi
+
+out="$TMPROOT/cache-cold.out"
+if run_with_timeout 5 bash -c 'printf "%s" "$1" | bash "$2" > "$3" 2>&1' _ "$SAMPLE_JSON_CACHE_COLD" "$SL" "$out"; then
+  rendered="$(cat "$out")"
+  case "$rendered" in
+    *"cache 12% cold"*) ok "renders a cold cache line" ;;
+    *) bad "renders a cold cache line" "got: $rendered" ;;
+  esac
+  case "$rendered" in
+    *"1 miss"*) ok "keeps a single miss singular" ;;
+    *) bad "keeps a single miss singular" "got: $rendered" ;;
+  esac
+  case "$rendered" in
+    *"1 misses"*) bad "keeps a single miss singular (no stray plural)" "got: $rendered" ;;
+    *) ok "keeps a single miss singular (no stray plural)" ;;
+  esac
+  case "$rendered" in
+    *"45000 tok to rebuild"*) ok "states the cold rebuild cost" ;;
+    *) bad "states the cold rebuild cost" "got: $rendered" ;;
+  esac
+else
+  bad "piped JSON with a cold prompt_cache completes" "timed out or exited non-zero"
 fi
 
 echo "--- statusline: stdin absent (must not hang) ---"
