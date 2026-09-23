@@ -1,7 +1,7 @@
 ---
 description: Reviews architecture for unnecessary complexity, tight coupling, and layering violations, and proposes concrete simplifications. Use when adding a subsystem, before a large refactor, or when code feels over-engineered.
 mode: subagent
-model: anthropic/claude-sonnet-4-6
+model: anthropic/claude-sonnet-5
 permission:
   read: allow
   edit: deny
