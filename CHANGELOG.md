@@ -7,6 +7,39 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Added
 
+- **The agent `tools:` allowlist is now enforced on Cursor — #179's E10.**
+  `hooks/cursor-agent-tools-guard.sh` supplies what Cursor does not: Claude enforces the
+  frontmatter list itself and `build-opencode-agents.sh` translates it into explicit
+  `permission:` entries for OpenCode, but on Cursor the seven read-only agents were constrained
+  only by the prose in their own system prompts.
+
+  **How it knows which agent is running.** It cannot ask. A subagent's tool calls *do* reach
+  `preToolUse`, but they carry no agent field and their `conversation_id`, `generation_id` and
+  `session_id` are **identical to the parent's** — nothing to correlate on. What does carry the
+  name is the `Task` call that starts the subagent (`tool_input.subagent_type`), so the guard
+  reconstructs the association from event **order**: push on `Task`, check against active frames,
+  pop on `postToolUse`.
+
+  **Concurrency resolves to the intersection, deliberately.** Identical ids mean two concurrent
+  subagents cannot be told apart, so every active frame must permit a tool. With one subagent
+  that is exactly its own list; with two it is stricter than either, and can refuse a call a lone
+  agent would have been allowed. That is the direction to be wrong in — a refused call is visible
+  and recoverable, a permitted one is not.
+
+  **It fails safe.** A missed `postToolUse` leaves the frame active, making the session
+  over-restrictive rather than unguarded; state older than an hour is dropped so a crashed
+  session cannot wedge the next one. It is inert off Cursor, and inert when no subagent is
+  active.
+
+  **It is not a sandbox**, and the docs say so: it infers "inside a subagent" from event
+  sequence, raising the cost of an unlisted tool call without making one impossible. The
+  path-based guards remain the layer that constrains *where* writes land.
+
+  13 assertions, including that a permitted tool is still allowed — a guard that denied
+  everything would be indistinguishable from a working one if only the deny case were tested.
+
+### Added
+
 - **A Cursor-format hook bundle — #179's E1.** `platforms/cursor/hooks.json` wires
   `enforce-worktree-edits.sh` and `guard-sensitive-files.sh` to `preToolUse` and
   `beforeShellExecution`, declared from `.cursor-plugin/plugin.json`.
