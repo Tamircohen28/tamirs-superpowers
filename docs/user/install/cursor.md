@@ -16,8 +16,8 @@ Cursor imports a plugin marketplace straight from a repo:
 4. Install **tamirs-superpowers** from the imported listing.
 
 Cursor reads [`.cursor-plugin/plugin.json`](../../../.cursor-plugin/plugin.json), the
-canonical `skills/` tree, [`.cursor/rules/`](../../../.cursor/rules), `agents/`, and the MCP
-stubs. Enable **Auto Refresh** on the marketplace and pushes propagate without a version
+canonical `skills/` tree, [`.cursor/rules/`](../../../.cursor/rules) — declared explicitly,
+see below — `agents/`, and the MCP stubs. Enable **Auto Refresh** on the marketplace and pushes propagate without a version
 bump.
 
 ## Hooks do not come with the install
@@ -81,6 +81,28 @@ does not drop them; the mechanism is a clone, so there is no file-type filter to
 **Still unverified:** skill *invocation* inside Cursor — palette listing and invoking a skill
 by name. Asset delivery being sound does not establish that, and the capability registry
 reflects the narrower claim.
+## Rules are declared, not discovered
+
+The manifest points `rules` at `./.cursor/rules/` on purpose. Cursor's automatic component
+discovery falls back to a default `rules/` folder when the field is omitted — and in this
+repo `rules/` is the **canonical markdown** (plus a `README.md`), not the 13 purpose-built
+`.mdc` files with Cursor frontmatter.
+
+So an omitted field would not have meant "no rules". It would have meant the wrong ones:
+canonical `.md` shipped in place of the `.mdc` mirror, a README loaded as a rule, and the
+five rules that exist **only** as `.mdc` — `commit-conventions`, `hooks-guide`,
+`plugin-structure`, `skill-frontmatter`, `skills-guide` — never shipping at all.
+
+Both halves of that are silent, so `tests/test-static.sh` asserts the declaration rather
+than leaving it to a comment.
+
+**The same trap applies to `hooks`.** A Cursor plugin's `hooks` component has the identical
+discovery behaviour: it defaults to `hooks/hooks.json` and expects **Cursor's** camelCase
+event format (`preToolUse`, `beforeShellExecution`, `sessionEnd`). This repo's file at that
+exact path is Claude's **PascalCase** format, so discovery finds it and yields no usable
+events. That is a cheaper route for a Cursor hook bundle than the `settings.json` import
+path — a Cursor-format file declared in the manifest, with no `settings.json` involvement —
+and is tracked as [#179 E1](https://github.com/Tamircohen28/tamirs-superpowers/issues/179).
 
 ## Verify
 
