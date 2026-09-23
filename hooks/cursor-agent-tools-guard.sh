@@ -75,11 +75,16 @@ state_dir() {
   printf '%s' "$d"
 }
 DIR="$(state_dir)"
-STACK="${DIR}/$(printf '%s' "$conv" | tr -c 'a-zA-Z0-9_-' '_').stack"
+# Pure bash rather than `tr -c`: GNU tr parses the trailing '-' of a set as a
+# reverse range and errors, which under `set -e` kills the hook before it can
+# print anything. That failed on Linux CI while passing on macOS.
+conv_key="${conv//[^a-zA-Z0-9_-]/_}"
+STACK="${DIR}/${conv_key}.stack"
 
 # Drop a stack left behind by a crashed session rather than inheriting its rules.
 if [ -f "$STACK" ]; then
-  mtime="$(stat -f %m "$STACK" 2>/dev/null || stat -c %Y "$STACK" 2>/dev/null || echo 0)"
+  mtime="$(stat -f %m "$STACK" 2>/dev/null || stat -c %Y "$STACK" 2>/dev/null || true)"
+  [ -n "$mtime" ] || mtime=0
   now="$(date +%s)"
   if [ $(( now - mtime )) -gt "$STALE_SECONDS" ]; then rm -f "$STACK"; fi
 fi
@@ -107,8 +112,17 @@ if [ "$tool" = "Task" ]; then
     if list="$(allowlist_for "$agent")"; then
       if [ "$event" = "postToolUse" ]; then
         # Task finished: drop its frame.
-        [ -f "$STACK" ] && sed -i '' -e '$d' "$STACK" 2>/dev/null || \
-          { [ -f "$STACK" ] && sed -i -e '$d' "$STACK" 2>/dev/null; } || true
+        # Pure bash: `sed -i ''` is BSD-only and GNU sed reads '' as the script.
+        if [ -s "$STACK" ]; then
+          tmp="${STACK}.tmp.$$"
+          if [ "$(grep -c . "$STACK" 2>/dev/null || echo 0)" -le 1 ]; then
+            rm -f "$STACK"
+          else
+            head -n -1 "$STACK" > "$tmp" 2>/dev/null \
+              || awk 'NR>1{print prev} {prev=$0}' "$STACK" > "$tmp" 2>/dev/null || true
+            [ -s "$tmp" ] && mv "$tmp" "$STACK" || rm -f "$tmp" "$STACK"
+          fi
+        fi
       else
         printf '%s\t%s\n' "$agent" "$list" >> "$STACK"
       fi
