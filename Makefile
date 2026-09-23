@@ -126,11 +126,15 @@ validate: lint test-hooks test-contract test-repo-contract check-manifest-versio
 	@echo "--- Validating SKILL.md frontmatter (portable + tamirs + claude tiers) ---"
 	@python3 -c "import yaml" 2>/dev/null || python3 -m pip install -q -r scripts/requirements-validate.txt
 	@python3 scripts/validate-skill-frontmatter.py
-	@echo "--- Checking for orphan hook scripts (not referenced in hooks.json) ---"
+	@echo "--- Checking for orphan hook scripts (not referenced in any hooks manifest) ---"
 	@if [ -d "$(HOOKS_DIR)" ] && [ -f "$(HOOKS_DIR)/hooks.json" ]; then \
+	  manifests="$(HOOKS_DIR)/hooks.json"; \
+	  for m in platforms/*/hooks.json .cursor/hooks.json; do \
+	    if [ -f "$$m" ]; then manifests="$$manifests $$m"; fi; \
+	  done; \
 	  find $(HOOKS_DIR) -maxdepth 1 -name '*.sh' | while read f; do \
 	    base=$$(basename "$$f"); \
-	    grep -q "$$base" $(HOOKS_DIR)/hooks.json || { echo "  WARN  $$f not referenced in hooks.json"; }; \
+	    grep -q -- "$$base" $$manifests || { echo "  WARN  $$f not referenced in any hooks manifest ($$manifests)"; }; \
 	  done; \
 	else \
 	  echo "  hooks/ absent — skipping orphan hook check"; \
