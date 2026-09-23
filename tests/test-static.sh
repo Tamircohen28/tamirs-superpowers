@@ -600,6 +600,7 @@ run_script() {  # run_script <label> <interpreter> <script> [args...]
 }
 
 run_script "generated opencode agents are in sync" bash scripts/build-opencode-agents.sh . --check
+run_script "generated opencode commands are in sync" bash scripts/build-opencode-commands.sh . --check
 run_script "no agent adapter drift"                bash scripts/check-agent-drift.sh .
 run_script "capability registry is well-formed"    bash scripts/check-capability-registry.sh .
 run_script "marketplace schema is a record"        bash scripts/check-marketplace-schema.sh .

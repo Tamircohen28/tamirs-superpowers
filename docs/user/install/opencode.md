@@ -212,6 +212,41 @@ make opencode-agents-check    # fail if it has drifted
 naming its source, and `make opencode-agents-check` (also run by
 `tests/test-opencode-adapter.sh` and CI) fails on any drift.
 
+### Commands — every user-invocable skill as `/name`
+
+Auto-invocation is unverified on OpenCode, so until it is, the reliable way to reach a
+skill is to ask for it by name. `.opencode/commands/` turns that into a real surface:
+**26 generated commands**, one per user-invocable skill, listed in the TUI and invoked
+with `/plan-dev`, `/pr-dev`, `/retro` and so on. Arguments pass straight through:
+
+```
+/plan-dev implement the auth spec in docs/specs/auth.md
+```
+
+Each command is a thin launcher. The body names its skill and points at the canonical
+`SKILL.md`; nothing from the skill is duplicated, so the command cannot drift from it in
+substance.
+
+The `description` shown in the TUI is **derived**, not copied. A canonical `description`
+is written for triggering — it opens "Use when …" and carries trigger phrases, up to 1536
+characters of them. That is the right shape for auto-invocation and the wrong shape for a
+command palette, where the user has already typed the name. The derivation is mechanical
+(strip a leading "Use when ", cut at the first sentence boundary, cap at 200 characters);
+no new prose is written for any skill.
+
+The three **internal** skills — `changelog-review`, `docs-review`, `mcp-pagination`,
+which carry `user-invocable: false` — deliberately get no command. They are reachable
+from a parent skill, not from the slash surface, and emitting commands for them would
+contradict the invocation tier on exactly the surface that tier is about.
+
+```bash
+make opencode-commands          # write .opencode/commands/
+make opencode-commands-check    # fail if it has drifted
+```
+
+**Never hand-edit `.opencode/commands/*.md`.** Every file carries a generated-file header
+naming its source, and the drift check runs in `tests/test-static.sh` and CI.
+
 ### Permissions are translated, not copied
 
 The canonical `tools:` field is an **allowlist** — an agent declaring `Read, Grep, Glob`
@@ -348,7 +383,8 @@ which is the authoritative registry; `platforms/opencode/adapter.yaml` is the th
 | Capability | Status | Detail |
 |---|---|---|
 | Skills | ✅ native | Canonical `skills/` read in place via `skills.paths`. Nothing copied or converted. |
-| Skill auto-invocation | ❓ unknown | Discovery is verified; automatic description-based selection is not. Name the skill explicitly. |
+| Skill auto-invocation | ❓ unknown | Discovery is verified; automatic description-based selection is not. Invoke `/<skill-name>` (see Commands below) or name the skill explicitly. |
+| Custom commands | ⚙️ adapter | Generated `.opencode/commands/` — all 26 user-invocable skills as `/name`; drift enforced by `make opencode-commands-check`. |
 | Subagents | ⚙️ adapter | Generated `.opencode/agent/`; drift enforced by `make opencode-agents-check`. |
 | Parallel subagents | ❓ unknown | Not measured. Assume sequential fan-out. |
 | MCP | ✅ native | Via the `mcp` block of `opencode.json`, not `.mcp.json`. |
