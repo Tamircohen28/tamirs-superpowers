@@ -5,6 +5,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [4.7.0] — 2026-09-23
+
 ### Added
 
 - **The agent `tools:` allowlist is now enforced on Cursor — #179's E10.**
@@ -38,8 +40,6 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   13 assertions, including that a permitted tool is still allowed — a guard that denied
   everything would be indistinguishable from a working one if only the deny case were tested.
 
-### Added
-
 - **A Cursor-format hook bundle — #179's E1.** `platforms/cursor/hooks.json` wires
   `enforce-worktree-edits.sh` and `guard-sensitive-files.sh` to `preToolUse` and
   `beforeShellExecution`, declared from `.cursor-plugin/plugin.json`.
@@ -61,6 +61,11 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
   **It does not close the `tools:` gap.** These hooks constrain writes by path; they do not make
   an agent's declared `tools:` list enforceable. Separate guarantees, and the docs say so.
+
+- **A 1:1 marketplace logo — #179's E4.** `assets/logo.png` is a 512x512 centre crop of the
+  existing banner, added because the Cursor marketplace requires a square logo and a wide
+  banner renders as an unreadable sliver in a grid tile. Two crops were rendered at 128px and
+  compared before choosing; the tighter one cut the glyph.
 
 ### Changed
 
