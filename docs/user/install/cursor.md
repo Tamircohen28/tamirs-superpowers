@@ -37,6 +37,14 @@ This plugin ships its hooks in `hooks/hooks.json`, wired through the plugin mani
 is not one of those three. The files are all present on disk after an install (see the
 section below), but nothing loads them.
 
+**One exception, and it is not part of the install.** This repo ships
+[`.cursor/hooks.json`](../../../.cursor/hooks.json) with a single advisory
+`beforeShellExecution` hook for people working *on this repo* in Cursor. Cursor reads
+`.cursor/hooks.json` from the **project root**, so that file applies when this repo is your
+open project — it is not delivered to your project by installing the plugin, and
+`.cursor-plugin/plugin.json` declares no `hooks` field. It is a useful proof that the
+Cursor-native format works here, not a counterexample to the paragraph above.
+
 Of the 10 events this repo wires, Cursor's published mapping covers 6 — `PreToolUse`,
 `PostToolUse`, `UserPromptSubmit`, `Stop`, `SessionStart`, `SessionEnd`. The other four —
 `Notification`, `DirectoryAdded`, `WorktreeCreate`, `WorktreeRemove` — have no Cursor
