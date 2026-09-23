@@ -167,6 +167,30 @@ floor** — meaningfully better than prose alone, and still not an isolation bou
 Tracked as [#179](https://github.com/Tamircohen28/tamirs-superpowers/issues/179); guard shipped in
 [#223](https://github.com/Tamircohen28/tamirs-superpowers/pull/223).
 
+## Which of Cursor's 21 hook events this plugin wires
+
+Cursor exposes 21 hook events; **7 of them can deny an action**, the rest are observational.
+This plugin wires 3 events, and the other 18 are accounted for rather than merely absent —
+an event is wired because a guard needs it, not to fill in the table.
+
+| Event | Can deny | Wired | Why / why not |
+|---|:---:|:---:|---|
+| `preToolUse` | ✅ | ✅ | 5 guards: worktree edits, sensitive files, branch concurrency, skill-creator, agent `tools:` allowlist |
+| `beforeShellExecution` | ✅ | ✅ | `guard-sensitive-files.sh` — a shell command is a write path too |
+| `postToolUse` | — | ✅ | pops the agent-allowlist frame |
+| `subagentStart` | ✅ | ▲ | **Best available improvement.** Carries `subagent_type` *and* `subagent_id`, so the allowlist frame could be keyed on a real identifier instead of inferred from event order. Not yet wired: the push would need to de-duplicate against the existing `preToolUse Task` push (`subagentStart.tool_call_id` matches `preToolUse.tool_use_id`), and wiring it half-way risks a double push that never pops. |
+| `subagentStop` | — | ▲ | Fires on complete **, error, or abort** — a more reliable pop than `postToolUse Task`, and would fix the documented stuck-frame case. Blocked on the same de-duplication design: its payload carries `subagent_type` but no id, so popping must match by agent name. |
+| `beforeMCPExecution` | ✅ | ❌ | `preToolUse` already fires for MCP tool calls, so wiring this too would double-judge the same call |
+| `beforeReadFile` · `beforeTabFileRead` | ✅ | ❌ | This plugin makes no guarantee about *reads*. Every read-only agent is supposed to read |
+| `beforeSubmitPrompt` | ✅ | ❌ | Claude's `UserPromptSubmit` peers (`skill-suggest.sh`, goal/scope reminders) inject context into a model turn; the port is real work, not a wiring change |
+| `sessionStart` · `sessionEnd` | — | ❌ | Claude peers exist (`session-init.sh`, `session-end.sh`, `handoff-reminder.sh`) and are a genuine gap — a Cursor user gets no session lifecycle today |
+| `stop` · `preCompact` | — | ❌ | Claude peers exist (`check-done.sh`, `precompact-snapshot.sh`); same gap, same reason |
+| `afterShellExecution` · `afterMCPExecution` · `afterFileEdit` · `afterTabFileEdit` · `postToolUseFailure` · `afterAgentResponse` · `afterAgentThought` · `workspaceOpen` | — | ❌ | Observational. No guard here needs them; wiring one would add cost and no guarantee |
+
+**One guard is deliberately Claude-only.** `docker-guard.py` is Python and writes its Claude-shaped
+response directly rather than through `hooks/lib/hook-output.sh`, so it is not portable as written.
+It is the one `PreToolUse` guard a Cursor install does not get.
+
 ## Rules are declared, not discovered
 
 The manifest points `rules` at `./.cursor/rules/` on purpose. Cursor's automatic component

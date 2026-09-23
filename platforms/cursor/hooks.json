@@ -14,6 +14,14 @@
       {
         "command": "bash ${CURSOR_PLUGIN_ROOT}/hooks/guard-sensitive-files.sh",
         "timeout": 15
+      },
+      {
+        "command": "bash ${CURSOR_PLUGIN_ROOT}/hooks/protect-other-branches.sh",
+        "timeout": 10
+      },
+      {
+        "command": "bash ${CURSOR_PLUGIN_ROOT}/hooks/skill-creator-guard.sh",
+        "timeout": 10
       }
     ],
     "beforeShellExecution": [

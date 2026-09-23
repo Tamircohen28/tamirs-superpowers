@@ -5,6 +5,42 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Fixed
+
+- **`protect-other-branches.sh` failed OPEN on Cursor in exactly the case it fails closed on
+  Claude — #179's E8.** Its jq-missing branch emitted a hardcoded Claude-shaped denial. Cursor
+  cannot read that shape, so the deny was ignored and the concurrency guard let the write through
+  — on the one path whose entire purpose is "the guard cannot evaluate claims, so refuse."
+
+  It could not simply call `hook_deny`: that helper builds its JSON *with* jq, and this branch
+  exists because jq is absent. The fix branches on `HOOK_PLATFORM` (already set by
+  `hook_detect_platform` above it) and emits the literal JSON for each shape. Both verified to
+  parse, with the right keys per platform.
+
+### Added
+
+- **Cursor hook coverage extended, and the remaining 18 events accounted for — #179's E8.**
+  `protect-other-branches.sh` and `skill-creator-guard.sh` are now wired to Cursor's `preToolUse`;
+  both were already portable (they route through `hooks/lib/hook-output.sh`) and simply were never
+  connected. A Cursor install now runs 4 of Claude's 5 `PreToolUse` guards plus the Cursor-only
+  agent-`tools:` guard.
+
+  `docs/user/install/cursor.md` gains a full 21-event table: which events can deny, which are
+  wired, and **why each of the other 18 is not**. The blocker recorded for E8 was that this repo
+  documented none of Cursor's event names; that is now resolved from Cursor's own hook reference
+  rather than guessed — guessing is how you ship a guard that matches nothing and still looks
+  installed.
+
+  Two events are marked as the best available improvement rather than wired: `subagentStart` (can
+  deny, carries `subagent_type` **and** `subagent_id`) and `subagentStop` (fires on abort, not just
+  success). Together they would replace the tools guard's event-order inference with real identity
+  and fix its documented stuck-frame case. Not wired here because the push must de-duplicate
+  against the existing `preToolUse Task` push, and a half-wired version risks a frame that is
+  pushed twice and popped once — strictly worse than the inference it replaces.
+
+  `docker-guard.py` stays Claude-only: it is Python and writes its Claude-shaped response directly
+  instead of through `hook-output.sh`. Recorded as the one guard a Cursor install does not get.
+
 ## [4.8.0] — 2026-09-23
 
 ### Added
