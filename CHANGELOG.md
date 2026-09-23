@@ -7,6 +7,37 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Added
 
+- **All 26 user-invocable skills are now OpenCode commands — #182's item 1.** OpenCode users
+  reached this toolkit's skills through the narrowest door it has: `install/opencode.md` told
+  them to "name the skill explicitly," so every skill was discoverable only by already knowing
+  it existed. OpenCode has a real command surface — `/name`, listed in the TUI — and this repo
+  was not using it.
+
+  `scripts/build-opencode-commands.sh` generates `.opencode/commands/*.md` from
+  `skills/*/*/SKILL.md`, following the same generate-and-commit pattern as the existing agent
+  adapters, so a user installing from a clone still needs no build step.
+
+  **Each command is a translation, not a copy.** An OpenCode command's body is a *prompt
+  template*, not a skill; a SKILL.md body is instructions for an already-loaded skill. So each
+  command is a thin launcher that names its skill and points at the canonical file — nothing is
+  duplicated, and a command cannot drift from its skill in substance.
+
+  **The TUI `description` is derived, never invented.** A canonical `description` is written for
+  triggering: it opens "Use when …" and carries trigger phrases, up to 1536 characters of them.
+  That is the right shape for auto-invocation and the wrong shape for a command palette, where
+  the user has already typed the name. The derivation is mechanical — strip a leading
+  "Use when ", cut at the first sentence boundary, cap at 200 characters — so no new prose is
+  written for any skill.
+
+  The three internal skills (`changelog-review`, `docs-review`, `mcp-pagination`, all
+  `user-invocable: false`) deliberately get **no** command: they are reachable from a parent
+  skill, not from the slash surface, and emitting commands for them would contradict the
+  invocation tier on exactly the surface that tier is about.
+
+  Wired as `make opencode-commands` / `make opencode-commands-check`, into `make agent:check`,
+  and asserted in `tests/test-static.sh`. The drift check was verified to **fail** on a
+  hand-edited command and on a stale command whose skill no longer exists — not only to pass
+  when in sync.
 - **`StopFailure` hook on the `rate_limit` matcher — #178's E2.** `switch-dev` writes the
   objective, task and handoff state that lets work resume on another platform, and it was
   invoked **zero times across 953 sessions**. The reason was never that nobody needed it: the
