@@ -9,7 +9,7 @@ it. It has no install guide and no capability claims in either direction — see
 
 | | |
 |---|---|
-| **Validated against** | Gemini CLI **0.55.1** |
+| **Validated against** | Gemini CLI **0.60.0** — `gemini extensions validate .` passes and all 29 `.gemini/skills/` symlinks resolve (0 broken) |
 | **Minimum supported** | **0.55.1** — the oldest version this adapter was actually exercised on |
 | **Extension manifest** | `gemini-extension.json` (repo root) |
 | **Context file** | `.gemini/GEMINI.md` |

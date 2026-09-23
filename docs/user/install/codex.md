@@ -7,8 +7,10 @@ invoked a skill there, so it has no install guide and no capability claims in ei
 direction. See [platform differences](../platform-differences.md#unverified-surfaces).
 
 Skills require Codex **0.40+**; the manifest `hooks` field requires **0.147.0+**. Direct CLI
-validation remains **0.146.0**; the official release delta has been reviewed through
-**0.156.0**, which is the version tracked by `.codex-version`.
+validation is **0.156.0** — a live `codex` run on 2026-09-23 installed this plugin through a
+local marketplace and confirmed the install preserves its 144 executable `.sh` files,
+`hooks/hooks.json`, 10 agent definitions and 35 `SKILL.md`. The official release delta is
+reviewed through the same **0.156.0**, which is the version tracked by `.codex-version`.
 
 ---
 
@@ -112,8 +114,9 @@ reasoning-summary settings are still respected. If you point Codex at such a pro
 the release you want.
 
 These notes are derived from the official OpenAI release notes for `rust-v0.153.0`,
-`rust-v0.154.0`, `rust-v0.155.0`, and `rust-v0.155.1`. **No live `codex` binary was run** —
-direct CLI validation is still 0.146.0, as stated at the top of this page.
+`rust-v0.154.0`, `rust-v0.155.0`, and `rust-v0.155.1`. Those four were reviewed from release
+notes only. A live `codex` **0.156.0** run has since been performed — see the validation note
+at the top of this page — so direct CLI validation is no longer 0.146.0.
 
 ## Verify
 
