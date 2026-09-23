@@ -5,6 +5,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [4.8.0] — 2026-09-23
+
 ### Added
 
 - **Cursor slash commands — #179's E6.** `scripts/build-cursor-commands.sh` generates
