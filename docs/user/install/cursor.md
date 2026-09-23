@@ -120,10 +120,11 @@ and the control, so the guard is selective rather than blanket:
   ordinary.txt → written
 ```
 
-**This does not fix the `tools:` gap above.** These hooks constrain *writes by path*; they do
-not make an agent's declared `tools:` list enforceable. The two are separate guarantees.
+**These hooks constrain *writes by path*.** They do not, by themselves, make an agent's declared
+`tools:` list enforceable — that is a separate guarantee, supplied by a separate guard described
+in the next section.
 
-## Agents run on Cursor, but their `tools:` list does not constrain them
+## Cursor does not enforce an agent's `tools:` list — this plugin adds a guard that does
 
 Worth knowing before you rely on a reviewer agent being read-only: **Cursor does not enforce
 the `tools:` allowlist in agent frontmatter.**
@@ -138,19 +139,33 @@ was asked to create a file, and created it.
 
 So the seven agents here that are read-only by declaration — `architecture-reviewer`,
 `security-reviewer`, `spec-reviewer`, `performance-reviewer`, `research-agent`,
-`debugging-specialist`, `orchestrator` — are **not sandboxed on Cursor**. What stops them is
-the prose in their own system prompt, which is a model instruction rather than a guarantee.
+`debugging-specialist`, `orchestrator` — were constrained on Cursor only by the prose in their
+own system prompt, which is a model instruction rather than a guarantee.
 
 A first probe looked reassuring and proved nothing: `architecture-reviewer` refused, explaining
 it was review-only. That refusal came from its own instructions. Only an agent whose prose
 actively *demanded* writing separated "the model declined" from "the platform prevented."
 
-**What this means in practice.** On Claude Code the `tools:` list is enforced; on OpenCode it is
-translated into explicit `permission:` entries by `scripts/build-opencode-agents.sh`, precisely
-because an unlisted tool otherwise stays enabled. Cursor has neither. Treat these agents there as
-**role prompts, not sandboxes**, and do not rely on one being unable to write.
+**What this plugin does about it.** On Claude Code the `tools:` list is enforced by the host; on
+OpenCode `scripts/build-opencode-agents.sh` translates it into explicit `permission:` entries.
+Cursor has neither, so `hooks/cursor-agent-tools-guard.sh` supplies it, wired to `preToolUse` and
+`postToolUse` from `platforms/cursor/hooks.json`.
 
-Tracked as [#179](https://github.com/Tamircohen28/tamirs-superpowers/issues/179).
+It cannot simply ask which agent is running. A subagent's tool calls carry no agent field, and its
+`conversation_id`, `generation_id` and `session_id` are **identical to the parent's**. What does
+carry the name is the `Task` call that starts it (`tool_input.subagent_type`), so the guard
+reconstructs the association from event **order**: push on `Task`, check against active frames, pop
+on `postToolUse`. With two subagents running it applies the **intersection** of their allowlists —
+stricter than either alone, which is the safe direction, since a refused call is visible and a
+permitted one is not.
+
+**It is advisory, not a sandbox.** It infers "inside a subagent" from event sequence, raising the
+cost of an unlisted call without making one impossible, and a missed `postToolUse` fails safe
+(over-restrictive rather than unguarded). Treat these agents as **role prompts with a raised
+floor** — meaningfully better than prose alone, and still not an isolation boundary.
+
+Tracked as [#179](https://github.com/Tamircohen28/tamirs-superpowers/issues/179); guard shipped in
+[#223](https://github.com/Tamircohen28/tamirs-superpowers/pull/223).
 
 ## Rules are declared, not discovered
 
@@ -243,11 +258,11 @@ never adopt anything silently. `apply` shows a diff and asks per change, default
 |---|---|---|
 | skills | native | since desktop 3.21.13 pin; pin as **Custom Mode** (2026-08-19) via ⌥⏎ / Alt+Enter from `/` |
 | subagents | native | declared capability; cloud subagents can use **isolated VMs** (2026-08-19) |
-| slash commands | native | |
+| slash commands | partial | 26 generated into `.cursor/commands/`, one per user-invocable skill; declared in the manifest. `partial` because no live Cursor run has confirmed they appear under `/` |
 | MCP | native | `.mcp.json` |
 | git · shell · GitHub CLI | native | `gh` is an optional host dependency everywhere |
 | auto-invocation | partial | CLI sticky skills + Custom Modes; description-based selection across all surfaces is unverified — **name the skill** or pin a mode |
-| hooks | partial | **Claude-shaped plugin hooks (`hooks/hooks.json`, `CLAUDE_PLUGIN_ROOT`) do not run under a Cursor plugin install.** Project-level `.cursor/hooks.json` ships soft contributor guards; third-party Claude hooks via `.claude/settings.json` are opt-in in Cursor Settings |
+| hooks | partial | **Cursor-format plugin hooks DO run**, from `platforms/cursor/hooks.json`, declared in the manifest. Claude-shaped hooks (`hooks/hooks.json`) still do not — Cursor never reads a plugin's own `hooks.json`, which is why the bundle sits at a declared non-default path. `partial` because 3 of Cursor's 21 events are wired (`preToolUse`, `beforeShellExecution`, `postToolUse`) |
 | worktree isolation | emulated | The skill runs `git worktree` itself; no hook automation |
 | parallel subagents | partial | Cloud swarm on isolated VMs (2026-08-19); local concurrency unmeasured |
 | background tasks · structured questions · session transcripts | unknown | Not measured — treated as unavailable, with stated fallbacks |
