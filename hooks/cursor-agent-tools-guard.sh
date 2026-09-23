@@ -82,11 +82,17 @@ conv_key="${conv//[^a-zA-Z0-9_-]/_}"
 STACK="${DIR}/${conv_key}.stack"
 
 # Drop a stack left behind by a crashed session rather than inheriting its rules.
-if [ -f "$STACK" ]; then
-  mtime="$(stat -f %m "$STACK" 2>/dev/null || stat -c %Y "$STACK" 2>/dev/null || true)"
-  [ -n "$mtime" ] || mtime=0
-  now="$(date +%s)"
-  if [ $(( now - mtime )) -gt "$STALE_SECONDS" ]; then rm -f "$STACK"; fi
+# find -mmin rather than stat: on Linux, GNU stat's -f flag means --file-system,
+# NOT "the BSD format flag". So the chain `stat -f ... || stat -c ...` never falls
+# back there - the first form SUCCEEDS at a different job and returns non-numeric
+# text. The arithmetic that followed then read that text as a variable name and
+# died under `set -u` with "File: unbound variable", before the hook printed
+# anything at all. A fallback that never fires because the first command succeeded
+# at something else is worse than no fallback: it looks defensive and is not.
+stale_minutes=$(( STALE_SECONDS / 60 ))
+[ "$stale_minutes" -ge 1 ] || stale_minutes=1
+if [ -f "$STACK" ] && [ -n "$(find "$STACK" -mmin "+${stale_minutes}" 2>/dev/null || true)" ]; then
+  rm -f "$STACK"
 fi
 
 # Resolve an agent's declared tools, translated to the names Cursor reports.
