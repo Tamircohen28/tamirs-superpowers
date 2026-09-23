@@ -5,6 +5,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [4.9.0] — 2026-09-23
+
 ### Fixed
 
 - **`protect-other-branches.sh` failed OPEN on Cursor in exactly the case it fails closed on
