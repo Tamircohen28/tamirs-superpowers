@@ -14,7 +14,7 @@
   <a href="docs/engineering/build-and-release/platform-targets.json"><img src="https://img.shields.io/badge/Cursor-3.21.13-000000" alt="Cursor" /></a>
   <a href="docs/engineering/build-and-release/platform-targets.json"><img src="https://img.shields.io/badge/Codex-0.156.0-412991" alt="Codex" /></a>
   <a href="docs/engineering/build-and-release/platform-targets.json"><img src="https://img.shields.io/badge/Gemini%20CLI-0.60.0-4285F4" alt="Gemini CLI" /></a>
-  <a href="docs/engineering/build-and-release/platform-targets.json"><img src="https://img.shields.io/badge/OpenCode-2.0.14%20unvalidated-fab283" alt="OpenCode" /></a>
+  <a href="docs/engineering/build-and-release/platform-targets.json"><img src="https://img.shields.io/badge/OpenCode-2.0.14-fab283" alt="OpenCode" /></a>
 </p>
 
 # tamirs-superpowers
@@ -89,7 +89,7 @@ Installed by path — `opencode.json`'s `skills` array pointed at this checkout 
 
 | Surface | Registry id | Kind | Status | Install |
 |---|---|---|---|---|
-| OpenCode CLI | `opencode` | CLI | ⚠️ unverified — v2 (`@opencode/cli` 2.0.14) is the shipped line and is reviewed, but no live v2 run has been recorded; v1 was validated at 1.18.11 | [guide](docs/user/install/opencode.md) |
+| OpenCode CLI | `opencode` | CLI | ✅ supported — validated 2.0.14 (v2; `@opencode/cli`). Config and all 10 agent adapters confirmed live; per-skill discovery unverified — v2 removed `debug skill` | [guide](docs/user/install/opencode.md) | [guide](docs/user/install/opencode.md) |
 | OpenCode desktop app | `opencode_desktop` | desktop | ⚠️ unverified — whether it reads the same `skills.paths` this repo installs into has not been checked | — |
 
 `⚠️ unverified` is not a negative result. Those surfaces carry no capability claims at all;
