@@ -32,6 +32,107 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
   Two of the three keep `unknown` on purpose. A status is a claim, and "we now ship the thing"
   is not evidence that the thing is read.
+### Added
+
+- **Pushover credentials can come from the manifest's `userConfig` — #178's E5.**
+  `.claude-plugin/plugin.json` now declares `pushover_token` and `pushover_user` with
+  `"sensitive": true`, which the host prompts for once at enable time and stores in the
+  **macOS Keychain** (falling back to `~/.claude/.credentials.json`), exporting them to hook
+  processes as `CLAUDE_PLUGIN_OPTION_<KEY>`.
+
+  That is a better route to the constraint `notify-pushover.sh` already documented — credentials
+  must live outside the plugin directory, because the marketplace cache is replaced wholesale on
+  every update — than the 600-mode dotfile written by `make install` from environment variables.
+
+  **This is not the `variables` field declined on the Cursor issue**, and the difference matters:
+  that one was declined partly because `gh auth token` can *derive* a GitHub token, making a
+  prompt unnecessary. Pushover credentials have no such source — they must come from the user
+  however this is built — so the standing "never prompt for a token paste" rule does not apply.
+
+  Precedence is explicit and tested: an environment `PUSHOVER_TOKEN` still wins, `userConfig`
+  beats the credentials file, and **the file alone still works untouched** — which is what keeps
+  existing installs working and keeps notifications alive on the Codex CLI, which loads the same
+  hook and never sets `CLAUDE_PLUGIN_OPTION_*`.
+
+### Fixed
+
+- **The credentials file could overwrite a higher-precedence value.** Sourcing
+  `~/.claude/pushover.env` was unconditional once *either* value was missing, so a token supplied
+  from the environment with no accompanying user was silently replaced by the file's token. That
+  was reachable before `userConfig` existed and more reachable with a third source, and it failed
+  invisibly — the notification simply went out under different credentials. Found by the
+  precedence test written for E5, not by inspection.
+- **`SubagentStop` handoff check — #178's E3.** A worker's contract ends at
+  `implementation -> targeted validation -> commit -> handoff`, and `worker-dev` is blunt
+  about the last step: *"The handoff is your entire output. The integrator will never read
+  your reasoning — only this file."* Nothing enforced that at the moment it matters.
+
+  `hooks/subagent-handoff-check.sh` fires when a subagent finishes under an objective and
+  surfaces two failures: **no handoff written at all**, and a handoff reporting `completed`
+  with an **empty `validation[]`** — which `worker-dev` already names as *"a claim with no
+  evidence"*.
+
+  **It deliberately does not flag `partial`, `failed` or `blocked` with no validation.**
+  Honest partial reporting is exactly the behaviour this repo wants; flagging it would train
+  workers to overclaim, which is the opposite of the point. Only `completed` without evidence
+  is a false claim.
+
+  The output channel is the opposite choice from `rate-limit-handoff.sh`, for the same
+  underlying reason — who can still read it. There the turn had failed and only the user
+  remained, so `systemMessage` was right. Here the session continues and the reader who must
+  act is the **orchestrator**, about to decide whether to integrate, so this emits
+  `hookSpecificOutput.additionalContext` (Stop/SubagentStop is one of the events that supports
+  it). A user-facing message would reach someone not making the call.
+
+  15 assertions, including the channel and the honest-reporting carve-out; both were verified
+  by mutating the hook to break each one and confirming the tests fail.
+### Changed
+
+- **Hook state moves to `${CLAUDE_PLUGIN_DATA}` where the host provides it — #178's E12.**
+  Claude Code exports a per-plugin directory that, in its own words, is a *"persistent
+  directory that survives plugin updates, created on first reference"*. Two hooks kept state
+  in `~/.claude/cache/` instead: `skill-suggest.sh`'s per-session suggestion markers and
+  `show-changelog.sh`'s last-seen version. A cache path is a poor home for state that is
+  supposed to be remembered — anything treating it as a cache is free to clear it — and
+  neither location was tied to this plugin's identity.
+
+  `hooks/lib/plugin-state.sh` resolves it once, and **the fallback is not a nicety**:
+  `hooks/hooks.json` is loaded by the Codex CLI too, and Codex exports no such variable. A
+  hook that assumed it would resolve an empty path and write to the filesystem root. Without
+  the host variable the previous cache path is used unchanged, so behaviour on Codex is
+  exactly what it was. Verified both ways, and the fallback guard was confirmed by removing
+  it — the test then reports the resolved path as `/skill-suggest`.
+
+  Deliberately **not** migrated: `SESSION_STATE_DIR` (per-session state, which should not
+  survive anything) and `PKG_CACHE_DIR` (pip/poetry caches, shared with other tools on
+  purpose — moving them under a plugin id would fragment a cache whose whole value is being
+  shared).
+
+### Fixed
+
+- **The OpenCode agent generator emitted a permission key that does not exist** (#182 item 9).
+  Every one of the 10 generated adapters carried `write: deny`, and `write` is **not** a key of
+  `PermissionConfig` in the published schema — the 15 real keys are `bash`, `doom_loop`, `edit`,
+  `external_directory`, `glob`, `grep`, `list`, `lsp`, `question`, `read`, `skill`, `task`,
+  `todowrite`, `webfetch`, `websearch`. Canonical `Write` now maps to `edit`, the key that
+  actually governs file modification.
+
+  **No agent was over-permitted in practice** — the read-only agents deny `edit` as well, so the
+  write path was covered either way. The defect was structural: the generator's entire premise is
+  that *an allowlist stays an allowlist, everything not granted is explicitly denied*, and that
+  silently depended on every emitted key being real. One that is not is a deny-list line that
+  denies nothing, and nothing in the repo could have noticed.
+
+  `scripts/check-opencode-permission-keys.sh` now fails when `OPENCODE_TOOLS` and the schema
+  diverge, wired into `make agent:check` and `tests/test-static.sh`. Its key list is **pinned and
+  dated rather than fetched**, so CI cannot degrade to a silent pass on a network error — the same
+  failure mode this check exists to prevent; `--refresh` compares the pin against the live schema
+  on demand. Verified by reintroducing `write` and confirming the check exits 1.
+
+  Recorded but deliberately **not** changed: five real keys remain unset on every agent
+  (`doom_loop`, `external_directory`, `lsp`, `question`, `todowrite`). `external_directory` is the
+  one #182 item 9 identifies as encoding this repo's worktree invariant; what its default should
+  be is a behaviour decision, not a sweep.
 
 ### Fixed
 

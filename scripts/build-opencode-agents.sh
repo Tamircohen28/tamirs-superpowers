@@ -65,7 +65,15 @@ mkdir -p "$DEST"
 # canonical file is denied explicitly, so an allowlist stays an allowlist.
 # Source: https://opencode.ai/config.json, $defs.PermissionConfig (plus `write`,
 # accepted via additionalProperties and verified to resolve to write:false).
-OPENCODE_TOOLS=(read edit write glob grep list bash task webfetch websearch skill)
+# Every entry MUST be a real key of PermissionConfig in https://opencode.ai/config.json.
+# This matters more than it looks: the generator's whole premise is that an allowlist
+# stays an allowlist - everything not granted is explicitly denied. A key that does not
+# exist is a deny-list line that denies nothing, and nothing in the repo would notice.
+# `write` was emitted here until 2026-09-23 and is NOT a PermissionConfig key; file
+# modification is governed by `edit`, which the read-only agents already deny, so no
+# agent was actually over-permitted - but the guarantee was resting on a no-op line.
+# scripts/check-opencode-permission-keys.sh fails if this list and the schema diverge.
+OPENCODE_TOOLS=(read edit glob grep list bash task webfetch websearch skill)
 
 # Canonical Claude tool name -> OpenCode permission key. Unlisted canonical tools
 # (notably `mcp__*` server tools) have no OpenCode equivalent and are reported
@@ -74,7 +82,14 @@ map_tool() {
   case "$(printf '%s' "$1" | tr '[:upper:]' '[:lower:]')" in
     read)                 echo read ;;
     edit|multiedit)       echo edit ;;
-    write)                echo write ;;
+    # OpenCode has no `write` permission. PermissionConfig declares exactly:
+    #   bash doom_loop edit external_directory glob grep list lsp
+    #   question read skill task todowrite webfetch websearch
+    # (https://opencode.ai/config.json, $defs.PermissionConfig). `edit` is the
+    # key that governs file modification, so canonical Write maps to it. Emitting
+    # `write` produced a deny-list line that matched no key at all - see the
+    # OPENCODE_TOOLS note below for why that was worse than it looks.
+    write)                echo edit ;;
     glob)                 echo glob ;;
     grep)                 echo grep ;;
     ls|list)              echo list ;;

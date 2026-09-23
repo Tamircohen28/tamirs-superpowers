@@ -5,7 +5,6 @@ model: anthropic/claude-sonnet-5
 permission:
   read: allow
   edit: deny
-  write: deny
   glob: allow
   grep: allow
   list: deny
