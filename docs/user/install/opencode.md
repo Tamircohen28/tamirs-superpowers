@@ -34,9 +34,15 @@
 > layer (`packages/core/src/config/plugin/compatibility.ts`) that discovers skills under
 > `claude` and `agents` roots.
 >
-> **Nothing below has been re-verified on v2.** Every measurement in this guide was taken on
-> **v1 1.18.11** and is labelled as such. `validated_against` for this target is `"unknown"`
-> until an actual `opencode2` run exercises this repo's skills — see
+> **What has and has not been verified on v2.** `validated_against` for this target is
+> **2.0.14**, from a live `opencode2` run: config loading and all ten agent adapters were
+> confirmed. **Per-skill discovery was not** — v2 removed the `debug skill` subcommand, so
+> there is no CLI way to enumerate discovered skills, and `supported_min` stays `unknown`
+> because this row's floor has always meant the oldest version on which recursive discovery
+> was *verified*.
+>
+> Measurements in the body below that cite a version were taken on **v1 1.18.11** and are
+> labelled as such; they have not been re-run on v2. See
 > [#200](https://github.com/Tamircohen28/tamirs-superpowers/issues/200).
 
 
@@ -49,10 +55,10 @@ install guide and the skills row below is not carried over to it. See
 
 | | |
 |---|---|
-| **Validated against** | OpenCode **1.18.11** |
-| **Minimum supported** | **1.16.2** — oldest version on which recursive skill discovery was verified |
+| **Validated against** | OpenCode **2.0.14** (v2, `@opencode/cli`) — config and all 10 agent adapters confirmed live; per-skill discovery **not** confirmed (v2 removed `debug skill`). v1 was last validated at **1.18.11** |
+| **Minimum supported** | **unknown** on v2 — this row's floor means the oldest version on which recursive skill discovery was *verified*, and that could not be tested on v2. The v1 floor was **1.16.2** |
 | **Manifest** | none — OpenCode has no plugin-manifest bundle |
-| **Config** | `opencode.json` (`skills.paths`), `.opencode/agent/` |
+| **Config** | `opencode.json` — `skills` is a **flat array** on v2, `skills.paths` on v1 — plus `.opencode/agent/` |
 | **Official docs** | [Skills](https://opencode.ai/docs/skills/) · [Config](https://opencode.ai/docs/config/) · [Agents](https://opencode.ai/docs/agents/) · [Plugins](https://opencode.ai/docs/plugins/) · [JSON Schema](https://opencode.ai/config.json) |
 
 Check your version:
@@ -227,14 +233,46 @@ environment variables for tokens; never commit them.
 
 ## Verify
 
+**The verification commands differ between v1 and v2.** v2 removed `debug skill`
+entirely and renamed `debug agent <name>` to `debug agents` (plural, no per-agent
+argument). Its whole debug surface is `agents`, `config` and `paths` — verified against
+`@opencode/cli` 2.0.14.
+
+**v2 (`opencode2`):**
+
+```bash
+opencode2 debug agents    # every agent; this repo's carry a "GENERATED FILE" header
+opencode2 debug config    # configuration SOURCES, not a resolved config object
+```
+
+`debug config` lists configuration **sources**, so what you should look for depends on where
+you run it and which install method you used. Run from **this plugin's checkout**, it lists
+this repo's own `opencode.json` and `.opencode/` — that is the form the 2.0.14 validation
+used. Run from **your own project** after Method A or B, look instead for the config you
+actually edited: your global `~/.config/opencode/opencode.json`, or your project's own
+`opencode.json`/`.opencode/`. Seeing this repo's paths is *not* the success condition for a
+normal install, and their absence there does not mean the install is broken. `debug agents` should include all ten adapters from
+`.opencode/agent/` — `architecture-reviewer`, `debugging-specialist`, `implementer`,
+`integrator`, `orchestrator`, `performance-reviewer`, `research-agent`,
+`security-reviewer`, `spec-reviewer`, `test-engineer` — each carrying this repo's
+`GENERATED FILE — DO NOT EDIT` header, which is how you tell a real load from a stale
+global copy.
+
+> **There is no v2 equivalent of `debug skill`.** Per-skill discovery cannot currently be
+> enumerated from the v2 CLI; the `/skill` API route needs a running server. That is why
+> this target's `validated_against` records config and agent loading as confirmed and
+> skill discovery as unverified — see `platform-targets.json`'s `verification_method`.
+
+**v1 (`opencode`, 1.x):**
+
 ```bash
 opencode debug skill                      # lists every discovered skill
 opencode debug agent security-reviewer    # resolved agent config, incl. permissions
 opencode debug config                     # resolved config, including skills.paths
 ```
 
-`opencode debug skill` should list every skill in this repo and **no** fixture skills
-(`demo`, `example-skill`). If those two appear, a `skills.paths` entry points at
+On v1, `opencode debug skill` should list every skill in this repo and **no** fixture
+skills (`demo`, `example-skill`). If those two appear, a `skills` entry points at
 `skills/repo` rather than the four individual skill directories.
 
 From a clone of this repo, the full adapter contract runs as:
@@ -273,7 +311,8 @@ spec-reviewer,test-engineer}.md
 rm -rf ~/src/tamirs-superpowers
 ```
 
-Then restart OpenCode and confirm with `opencode debug skill`.
+Then restart OpenCode and confirm — with `opencode2 debug agents` and `opencode2 debug config`
+on v2, or `opencode debug skill` on v1.
 
 ## Machine-level setup
 

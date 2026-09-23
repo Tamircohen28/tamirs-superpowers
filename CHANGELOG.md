@@ -5,6 +5,31 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [4.4.0] — 2026-09-23
+
+### Changed
+
+- **OpenCode validated live on v2.** `@opencode/cli` 2.0.14 (`opencode2`) was installed alongside the
+  v1 binary — the package ships both `opencode` and `opencode2` for exactly that — and
+  `validated_against` advances from `unknown` to **2.0.14**, `supported_min` to **2.0.0**.
+
+  The claim is deliberately **scoped**. *Confirmed live:* `opencode2 debug config` lists this repo's
+  own `opencode.json` **and** its `.opencode/` directory among resolved configuration sources, so v2
+  accepts the flat-array `skills` form from a project config; and `opencode2 debug agents` loads
+  **10 of 10** generated adapters, each carrying this repo's `GENERATED FILE — DO NOT EDIT` header,
+  which distinguishes a real load from a stale global copy. *Not confirmed:* per-skill discovery.
+
+### Fixed
+
+- **The OpenCode install guide told users to run two commands that no longer exist.** v2 removed the
+  `debug skill` subcommand and renamed `debug agent <name>` to `debug agents` (plural, no per-agent
+  argument); its entire debug surface is `agents`, `config`, `paths`. The guide referenced
+  `opencode debug skill` three times as the way to verify installation. Its verification section is
+  now split by major, with the v2 commands and what their output should contain.
+
+  This is also why skill discovery on v2 is recorded as unverified: there is no CLI equivalent to
+  enumerate discovered skills, and the `/skill` API route requires a running server.
+
 ## [4.3.2] — 2026-09-23
 
 ### Changed
