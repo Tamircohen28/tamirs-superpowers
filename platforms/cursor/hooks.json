@@ -1,0 +1,22 @@
+{
+  "version": 1,
+  "_comment": "Cursor-format hook bundle for the two safety invariants. Declared by .cursor-plugin/plugin.json's `hooks` field, because Cursor's own component discovery defaults to hooks/hooks.json - which in this repo is the CLAUDE-format file, with PascalCase events Cursor cannot read. It runs the SAME scripts as Claude and Codex rather than forked copies: hooks/lib/hook-output.sh detects Cursor from the payload (conversation_id / cursor_version / workspace_roots) and emits {permission, user_message, agent_message} instead of hookSpecificOutput, and hooks/lib/write-targets.py already treats Cursor's `Shell` like `Bash`. Measured 2026-09-23 on cursor-agent 2026.07.17-3e2a980: preToolUse carries tool_name Read/Write/Shell with tool_input.file_path and tool_input.command - the same names and fields Claude uses for Read/Write, so no translation layer is needed.",
+  "hooks": {
+    "preToolUse": [
+      {
+        "command": "bash ${CURSOR_PLUGIN_ROOT}/hooks/enforce-worktree-edits.sh",
+        "timeout": 15
+      },
+      {
+        "command": "bash ${CURSOR_PLUGIN_ROOT}/hooks/guard-sensitive-files.sh",
+        "timeout": 15
+      }
+    ],
+    "beforeShellExecution": [
+      {
+        "command": "bash ${CURSOR_PLUGIN_ROOT}/hooks/guard-sensitive-files.sh",
+        "timeout": 15
+      }
+    ]
+  }
+}
