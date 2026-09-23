@@ -12,7 +12,32 @@
     {
       "name": "tamirs-superpowers",
       "source": "./",
-      "description": "29 bundled skills, 10 specialist agents, smart worktree hooks, statusline, and MCP server stubs — plan, implement, review, debug, multi-agent setup, and audit code from one plugin."
+      "displayName": "Tamir's Superpowers",
+      "description": "29 bundled skills, 10 specialist agents, smart worktree hooks, statusline, and MCP server stubs — plan, implement, review, debug, multi-agent setup, and audit code from one plugin.",
+      "author": {
+        "name": "Tamir Cohen",
+        "url": "https://github.com/Tamircohen28"
+      },
+      "homepage": "https://github.com/Tamircohen28/tamirs-superpowers",
+      "repository": "https://github.com/Tamircohen28/tamirs-superpowers",
+      "license": "MIT",
+      "category": "Developer Tools",
+      "keywords": [
+        "skills",
+        "hooks",
+        "developer-tools",
+        "mcp",
+        "claude-code",
+        "worktree",
+        "workflow"
+      ],
+      "tags": [
+        "multi-agent",
+        "orchestration",
+        "code-review",
+        "cross-platform",
+        "repo-scaffolding"
+      ]
     }
   ]
 }

@@ -20,6 +20,7 @@ Claude Code invokes the script and passes a JSON blob on stdin containing sessio
 5h: ████████░░ 78% | resets in 1h 23m | 4m12s | $0.43
 7d: ███░░░░░░░ 31% | resets in 3d 4h
 spend: █████░░░░░ 55% | resets in 12h 0m
+cache 91% warm, 2 misses
 ```
 
 **Line 1:** Model name (color-coded by tier), effort level, repo name, git branch (hyperlinked to GitHub), context window usage, Claude Code version (dim). The version is omitted entirely when Claude Code does not supply it.
@@ -29,6 +30,12 @@ spend: █████░░░░░ 55% | resets in 12h 0m
 **Line 3:** 7-day rate limit bar (only shown when data is available).
 
 **Line 4:** spend limit bar (only shown when `rate_limits.spend_limit` is present — since Claude Code **2.1.251**, sent only behind a Claude apps gateway that reports a spend limit whose reset time has not passed; everyone else never sees this line).
+
+**Line 5:** prompt-cache state (only shown when the host reports a `prompt_cache` block). Reads
+`cache 91% warm, 2 misses` when hot and `cache 12% cold, 1 miss, 45000 tok to rebuild` when not,
+coloured green at ≥80% hit ratio, amber at ≥50%, red below. The rebuild cost is shown only while
+the cache is cold — a warm cache is not about to be rebuilt, so the number would be noise. A host
+that sends no `prompt_cache` block prints nothing here rather than a misleading `0%`.
 
 ## Input schema
 
@@ -47,6 +54,10 @@ Claude Code passes a JSON object on stdin with these fields (all optional — th
 | `rate_limits.seven_day.resets_at` | number | Unix epoch |
 | `rate_limits.spend_limit.used_percentage` | number | 0–100. Since 2.1.251; present only behind a Claude apps gateway with a spend limit configured |
 | `rate_limits.spend_limit.resets_at` | number | Unix epoch. Since 2.1.251 |
+| `prompt_cache.warm` | boolean | Whether the session's prompt cache is currently warm |
+| `prompt_cache.hit_ratio` | number | 0–1 float, rendered as a percentage |
+| `prompt_cache.misses` | number | Cache misses so far this session |
+| `prompt_cache.recache_tokens_if_cold` | number | Tokens a cold rebuild would re-write. Rendered only while cold |
 | `cost.total_duration_ms` | number | Session wall-clock time in ms |
 | `cost.total_cost_usd` | number | Cumulative session cost in USD |
 | `version` | string | Claude Code version, e.g. `"2.1.220"` |
