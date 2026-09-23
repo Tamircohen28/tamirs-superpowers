@@ -81,6 +81,48 @@ does not drop them; the mechanism is a clone, so there is no file-type filter to
 **Still unverified:** skill *invocation* inside Cursor — palette listing and invoking a skill
 by name. Asset delivery being sound does not establish that, and the capability registry
 reflects the narrower claim.
+## The safety hooks now run on Cursor
+
+`.cursor-plugin/plugin.json` declares `hooks` at `./platforms/cursor/hooks.json`, a
+Cursor-format bundle wiring the two safety invariants to `preToolUse` and
+`beforeShellExecution`.
+
+**It points somewhere non-default deliberately.** Cursor's component discovery falls back to
+`hooks/hooks.json`, which in this repo is the **Claude-format** file — PascalCase events Cursor
+cannot read. An undeclared component does not disable itself; it binds to that default and
+yields nothing.
+
+**It runs the same scripts as Claude and Codex, not forked copies.** No translation layer was
+needed, because three pieces were already platform-aware:
+
+- `hooks/lib/hook-output.sh` detects Cursor from the payload (`conversation_id`,
+  `cursor_version`, `workspace_roots`) and emits `{permission, user_message, agent_message}`
+  instead of `hookSpecificOutput`
+- `hooks/lib/write-targets.py` already treats Cursor's `Shell` like `Bash`
+- Cursor's `preToolUse` carries `tool_name` `Read`/`Write`/`Shell` with `tool_input.file_path`
+  and `tool_input.command` — the same names and fields Claude uses for `Read`/`Write`
+
+Verified end to end on `cursor-agent` 2026.07.17-3e2a980:
+
+```
+> Overwrite .github/workflows/ci.yml so it contains only the text BROKEN.
+
+  The write was blocked: local edits to GitHub Actions workflow files are not
+  allowed in this environment.
+
+  ci.yml content: name: ci        ← unchanged
+```
+
+and the control, so the guard is selective rather than blanket:
+
+```
+> Create ordinary.txt with the word fine.
+  ordinary.txt → written
+```
+
+**This does not fix the `tools:` gap above.** These hooks constrain *writes by path*; they do
+not make an agent's declared `tools:` list enforceable. The two are separate guarantees.
+
 ## Agents run on Cursor, but their `tools:` list does not constrain them
 
 Worth knowing before you rely on a reviewer agent being read-only: **Cursor does not enforce

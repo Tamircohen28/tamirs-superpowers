@@ -5,6 +5,30 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Added
+
+- **A Cursor-format hook bundle — #179's E1.** `platforms/cursor/hooks.json` wires
+  `enforce-worktree-edits.sh` and `guard-sensitive-files.sh` to `preToolUse` and
+  `beforeShellExecution`, declared from `.cursor-plugin/plugin.json`.
+
+  **It turned out to be a wiring file, not a port.** Three pieces were already Cursor-aware and
+  simply never connected: `hook-output.sh` detects Cursor from the payload and emits
+  `{permission, user_message, agent_message}`; `write-targets.py` already treats `Shell` like
+  `Bash`; and Cursor's `preToolUse` uses `tool_name` `Read`/`Write` with `tool_input.file_path` —
+  the same names and field as Claude. The guards run **unmodified**.
+
+  The bundle sits at a non-default path on purpose: Cursor's discovery falls back to
+  `hooks/hooks.json`, which here is the Claude-format file with PascalCase events it cannot read.
+  An undeclared component binds to the wrong default rather than disabling itself — the same trap
+  the `rules` field hit in 4.5.0.
+
+  Verified end to end on `cursor-agent` 2026.07.17-3e2a980: a write to
+  `.github/workflows/ci.yml` was **blocked** with the guard's own reason reaching the agent and
+  the file unchanged, while an ordinary write succeeded — so the guard is selective, not blanket.
+
+  **It does not close the `tools:` gap.** These hooks constrain writes by path; they do not make
+  an agent's declared `tools:` list enforceable. Separate guarantees, and the docs say so.
+
 ### Changed
 
 - **Recorded that Cursor does not enforce the agent `tools:` allowlist** (#179). Measured on
