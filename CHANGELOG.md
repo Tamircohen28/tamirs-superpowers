@@ -5,6 +5,25 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Fixed
+
+- **The Cursor manifest now declares its rules path — #179's E3.** `.cursor-plugin/plugin.json`
+  declared no `rules` field, and Cursor's automatic component discovery falls back to a default
+  `rules/` folder. In this repo `rules/` is the **canonical markdown** (plus a `README.md`), not
+  the 13 purpose-built `.mdc` files with Cursor frontmatter under `.cursor/rules/`.
+
+  So the omission never meant "no rules shipped". It meant the wrong ones: canonical `.md` in
+  place of the `.mdc` mirror, a README loaded as a rule, and the five rules that exist **only**
+  as `.mdc` — `commit-conventions`, `hooks-guide`, `plugin-structure`, `skill-frontmatter`,
+  `skills-guide` — never shipping at all. Both halves are silent, so `tests/test-static.sh` now
+  asserts the declaration; the guard was verified to fail when the field is removed.
+
+  Recorded alongside it, because it is the same defect class in the same manifest: a Cursor
+  plugin's **`hooks`** component defaults to `hooks/hooks.json` and expects Cursor's camelCase
+  event format. This repo's file at that path is Claude's PascalCase format, so discovery yields
+  no usable events — a cheaper route for a Cursor hook bundle than the `settings.json` import
+  path, with no `settings.json` involvement at all.
+
 ## [4.4.0] — 2026-09-23
 
 ### Changed

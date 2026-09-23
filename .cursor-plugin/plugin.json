@@ -26,5 +26,6 @@
     "./skills/toolkit",
     "./skills/repo"
   ],
+  "rules": "./.cursor/rules/",
   "mcpServers": "./.mcp.json"
 }
