@@ -5,6 +5,21 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [4.3.1] — 2026-09-23
+
+### Changed
+
+- **Codex reviewed through 0.156.0** (from 0.155.1), against the official `openai/codex` release
+  notes for `rust-v0.156.0`. `validated_against` stays at 0.146.0 — no live `codex` CLI exists in
+  this environment, so the advance is documentary. Nothing in the release breaks this repo's
+  manifest, hooks or skills. Two entries matter downstream: **worktree support is now enabled by
+  default**, which retires the premise of the backlog item that declined native Codex worktrees as
+  experimental in 0.154.0 (#180 E2 needs re-evaluating rather than staying declined on staleness
+  grounds), and `/usage` now reports "plugin and skill activity", adjacent to `usage-capture` and
+  `session-report`.
+
+All five platform targets are now current: the probe reports **0 drifted, 0 unreachable**.
+
 ## [4.3.0] — 2026-09-23
 
 ### Changed

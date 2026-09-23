@@ -8,7 +8,7 @@ direction. See [platform differences](../platform-differences.md#unverified-surf
 
 Skills require Codex **0.40+**; the manifest `hooks` field requires **0.147.0+**. Direct CLI
 validation remains **0.146.0**; the official release delta has been reviewed through
-**0.155.1**, which is the version tracked by `.codex-version`.
+**0.156.0**, which is the version tracked by `.codex-version`.
 
 ---
 
