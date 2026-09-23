@@ -1,7 +1,12 @@
 #!/bin/bash
 
-CHANGELOG="$HOME/.claude/cache/changelog.md"
-VERSION_FILE="$HOME/.claude/cache/last_changelog_version"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=lib/plugin-state.sh
+source "${SCRIPT_DIR}/lib/plugin-state.sh"
+# Persistent per-plugin state where the host offers it; previous path otherwise.
+STATE_DIR="$(plugin_state_dir changelog)"
+CHANGELOG="${STATE_DIR}/changelog.md"
+VERSION_FILE="${STATE_DIR}/last_changelog_version"
 CURRENT_VERSION=$(claude --version 2>/dev/null | awk '{print $1}')
 
 if [ -z "$CURRENT_VERSION" ]; then
