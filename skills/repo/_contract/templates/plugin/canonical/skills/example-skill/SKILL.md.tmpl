@@ -10,7 +10,7 @@ allowed-tools:
 - Read
 - Bash
 disallowed-tools: []
-model: claude-sonnet-4-6
+model: sonnet
 effort: low
 context: ''
 agent: ''

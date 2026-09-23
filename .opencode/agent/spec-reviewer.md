@@ -1,7 +1,7 @@
 ---
 description: Reviews the combined integrated diff for completeness and correctness against the stated objective — did it do what was asked, all of it, and nothing extra. Use before delivery, after integration, and whenever scope drift is a risk.
 mode: subagent
-model: anthropic/claude-sonnet-4-6
+model: anthropic/claude-sonnet-5
 permission:
   read: allow
   edit: deny

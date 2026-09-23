@@ -1,7 +1,7 @@
 ---
 description: Generates focused tests, analyzes coverage gaps, and adds regression tests for fixed bugs. Use after implementing a feature/fix, or when coverage of a critical path is thin.
 mode: subagent
-model: anthropic/claude-sonnet-4-6
+model: anthropic/claude-sonnet-5
 permission:
   read: allow
   edit: allow
