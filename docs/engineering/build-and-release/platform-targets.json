@@ -330,7 +330,7 @@
       "reviewed_through": "0.60.0",
       "latest_known": "0.60.0",
       "verified_on": "2026-09-23",
-      "verification_method": "live run on 2026-09-23 against Gemini CLI 0.60.0, upgraded from 0.55.1 via `npm i -g @google/gemini-cli`. First direct CLI validation on this row since 0.55.1, which it replaces, closing the five-minor gap in which 0.57-0.60 hardened symlink resolution, extension-loader paths, workspace boundaries and env-var sanitization — the four mechanisms this adapter is built on. CONFIRMED: `gemini extensions validate .` reports 'Extension . has been successfully validated'; the `gemini skills` subcommand surface the install guide depends on (list/enable/disable/install/link) is intact, unlike OpenCode v2 which removed its equivalent; and the generated flat mirror at .gemini/skills/ holds 29 symlinks, all 29 resolving to a real SKILL.md with 0 broken — the specific thing the symlink-resolution hardening could have broken. NOT confirmed by CLI listing: project skill discovery, because `gemini skills list --all` reports 'Skipping project agents due to untrusted folder' in this checkout, a workspace-trust condition rather than an adapter defect.",
+      "verification_method": "Install pinning and headless mode (2026-09-23, live on gemini 0.60.0): `gemini extensions install --help` and `gemini skills install --help` confirm --ref (any git ref), --auto-update and --pre-release; `gemini --help` confirms -p/--prompt for non-interactive mode, -o/--output-format with text|json|stream-json, and --approval-mode with default|auto_edit|yolo|plan. Flag surfaces read off the live 0.60.0 binary, not the docs. No prompt was executed, so this records the flags as available rather than the headless path as exercised end to end; validated_against is unchanged. live run on 2026-09-23 against Gemini CLI 0.60.0, upgraded from 0.55.1 via `npm i -g @google/gemini-cli`. First direct CLI validation on this row since 0.55.1, which it replaces, closing the five-minor gap in which 0.57-0.60 hardened symlink resolution, extension-loader paths, workspace boundaries and env-var sanitization — the four mechanisms this adapter is built on. CONFIRMED: `gemini extensions validate .` reports 'Extension . has been successfully validated'; the `gemini skills` subcommand surface the install guide depends on (list/enable/disable/install/link) is intact, unlike OpenCode v2 which removed its equivalent; and the generated flat mirror at .gemini/skills/ holds 29 symlinks, all 29 resolving to a real SKILL.md with 0 broken — the specific thing the symlink-resolution hardening could have broken. NOT confirmed by CLI listing: project skill discovery, because `gemini skills list --all` reports 'Skipping project agents due to untrusted folder' in this checkout, a workspace-trust condition rather than an adapter defect.",
       "install_doc": "docs/user/install/gemini.md",
       "doc_urls": [
         "https://github.com/google-gemini/gemini-cli/blob/main/docs/extensions/reference.md",
@@ -341,7 +341,9 @@
         "gemini-extension-manifest",
         "context-file-subpath",
         "mcp-extension-path-interpolation",
-        "generated-flat-skill-mirror"
+        "generated-flat-skill-mirror",
+        "ref-pinned-install",
+        "headless-prompt-mode"
       ],
       "capabilities": [
         "extension_install",

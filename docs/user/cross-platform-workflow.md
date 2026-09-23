@@ -96,6 +96,36 @@ Agents update this before handoff. Git commits are the code checkpoint.
 | `agent:codex` | Codex owns the issue |
 | `agent:any` | Unassigned |
 
+## Headless on Gemini CLI
+
+A handoff does not have to land in an interactive session. Gemini CLI runs non-interactively,
+which makes it usable as the receiving end of a handoff inside CI or a script rather than only
+at a terminal. Verified on **0.60.0**:
+
+```bash
+gemini -p "read .dev-files/objectives/<id>/handoff.md and continue task-003" \
+       -o json --approval-mode plan
+```
+
+| Flag | What it does | Why it matters for a handoff |
+|---|---|---|
+| `-p, --prompt` | non-interactive mode | the whole point — no terminal needed |
+| `-o, --output-format` | `text` · `json` · `stream-json` | `json` makes the result parseable by the next step |
+| `--approval-mode` | `default` · `auto_edit` · `yolo` · `plan` | **`plan` is read-only** — the safe default for an unattended resume |
+| `-i, --prompt-interactive` | run the prompt, then stay interactive | useful when a human is going to take over mid-way |
+
+`-p` also appends to anything on stdin, so a handoff file can be piped in rather than quoted
+into the prompt.
+
+**Pick `--approval-mode` deliberately.** `plan` is read-only and cannot damage a checkout;
+`yolo` auto-approves every tool. An unattended resume that inherits the wrong mode is the
+failure this table exists to prevent — the flag is the only thing standing between "read the
+handoff and report" and "act on it unsupervised."
+
+This is a capability note, not a recommendation to automate handoffs: nothing in this repo's
+pipeline assumes a headless receiver, and [`core/policies/safety.md`](../../core/policies/safety.md)
+still applies to whatever the resumed session does.
+
 ## Worktree paths
 
 Each platform uses its own worktree root (same branch, different checkout path):

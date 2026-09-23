@@ -5,6 +5,29 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Added
+
+- **Pin a Gemini install to a release instead of the default branch — #181's E8.** Both
+  `gemini extensions install` and `gemini skills install` track the default branch, so every
+  reinstall picks up whatever has landed since. `--ref` takes any git ref, which is how you get
+  a stable channel: `--ref v4.5.0`. Verified live on **0.60.0**, alongside the two related flags
+  `--auto-update` and `--pre-release`.
+
+  Documented with the interaction that actually bites: `--ref` and `--auto-update` pull in
+  opposite directions — pin a tag and then enable auto-update and the pin is the thing that
+  moves. This repo's tags follow `plugin-version.json`, so `--ref v<version>` matches the
+  version the README badge shows.
+
+- **Gemini headless mode recorded in the cross-platform workflow — #181's E7.** A handoff does
+  not have to land in an interactive session: `gemini -p` runs non-interactively, with
+  `-o text|json|stream-json` making the result parseable by a next step. Verified live on 0.60.0.
+
+  The flag that matters for an unattended resume is `--approval-mode`: `plan` is read-only,
+  `yolo` auto-approves every tool. That is the only thing standing between "read the handoff and
+  report" and "act on it unsupervised", so it is documented as a deliberate choice rather than a
+  default to inherit. Recorded as a capability note, not a recommendation to automate handoffs —
+  nothing in this repo's pipeline assumes a headless receiver.
+
 ## [4.5.0] — 2026-09-23
 
 ### Added
