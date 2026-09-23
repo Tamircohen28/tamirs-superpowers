@@ -36,7 +36,18 @@ hook_detect_platform "$INPUT"
 # jq is required by hook-output.sh itself, but check explicitly so the failure
 # is a spoken denial rather than a malformed hook response.
 if ! command -v jq >/dev/null 2>&1; then
-  printf '%s\n' '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"CONCURRENCY GUARD CANNOT RUN: jq is not installed, so agent work-claims cannot be evaluated. Refusing to assume the artifact is free."}}'
+  # hook_deny() builds its JSON WITH jq, so it cannot be used on this path - the
+  # whole point of this branch is that jq is absent. Emit the denial literally, and
+  # branch on platform: a Claude-shaped response is unreadable to Cursor, so the
+  # deny would be silently ignored there and this guard would fail OPEN in exactly
+  # the case it exists to fail closed. hook_detect_platform ran above, so
+  # HOOK_PLATFORM is already set.
+  _reason='CONCURRENCY GUARD CANNOT RUN: jq is not installed, so agent work-claims cannot be evaluated. Refusing to assume the artifact is free.'
+  if [ "${HOOK_PLATFORM:-claude}" = "cursor" ]; then
+    printf '{"permission":"deny","user_message":"%s","agent_message":"%s"}\n' "$_reason" "$_reason"
+  else
+    printf '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"%s"}}\n' "$_reason"
+  fi
   exit 0
 fi
 
