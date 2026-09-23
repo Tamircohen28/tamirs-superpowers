@@ -5,16 +5,21 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [4.3.2] — 2026-09-23
+
+### Changed
+
 - **Claude Code platform-sync review advances through 2.1.280** (from 2.1.278, the last
   version reflected on master). The official changelog has no numbered 2.1.279 release, so
-  this covers 2.1.280 only. No live `claude` CLI was available this cycle, so the advance is
-  changelog-only, the same evidence basis every prior reconciliation on this row used.
-  `reviewed_through` and `latest_known` advance to **2.1.280**; `validated_against` stays at
-  **2.1.274** — the last version an actual live `claude` CLI run confirmed.
-  `.claude-code-version` and `platform-targets.md`'s table/prose advance to `2.1.280` for the
-  Claude Code row only — Cursor, Codex, Gemini CLI and OpenCode rows are untouched, since
-  those are owned by sibling automated tasks. The README badge/table still read `2.1.274`
-  (`validated_against`), unchanged this cycle.
+  this covers 2.1.280 only. **`validated_against` advances to 2.1.280 as well — the first
+  live advance on this row since 2.1.274.** The automated job that opened the PR recorded this
+  cycle as changelog-only because no live CLI existed in that environment; the branch that
+  landed it had one. Evidence, all on the 2.1.280 build: `claude --version` reports 2.1.280,
+  `claude plugin validate .` passes, `/skill-doctor` lists all 29 tamirs-superpowers skills,
+  and `claude plugin eval . --case canary-can-write --ablation with-without` scores 1.00 in
+  both arms — exercising plugin load, PreToolUse hook execution and Skill-tool invocation end
+  to end. `reviewed_through` and `latest_known` also move to **2.1.280**, and the README
+  badge/support row advance with `validated_against`.
   - **2.1.280** — fixed skills being wrongly trashed to `.trash/` on a `manifest.json` name
     collision, directly closing the data-loss shape of the name-collision risk the 2.1.275
     claude.ai-skill-sync note already flagged for this plugin's 29 `SKILL.md` names; fixed
@@ -31,6 +36,48 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   No breaking change in the 2.1.278→2.1.280 range affects this repo. Full narrative:
   `CLAUDE.md`'s Subagents, MCP and Marketplace cache sections, and `platform-targets.json`'s
   `verification_method`.
+
+## [4.3.1] — 2026-09-23
+
+### Changed
+
+- **Codex reviewed through 0.156.0** (from 0.155.1), against the official `openai/codex` release
+  notes for `rust-v0.156.0`. `validated_against` stays at 0.146.0 — no live `codex` CLI exists in
+  this environment, so the advance is documentary. Nothing in the release breaks this repo's
+  manifest, hooks or skills. Two entries matter downstream: **worktree support is now enabled by
+  default**, which retires the premise of the backlog item that declined native Codex worktrees as
+  experimental in 0.154.0 (#180 E2 needs re-evaluating rather than staying declined on staleness
+  grounds), and `/usage` now reports "plugin and skill activity", adjacent to `usage-capture` and
+  `session-report`.
+
+All five platform targets are now current: the probe reports **0 drifted, 0 unreachable**.
+
+## [4.3.0] — 2026-09-23
+
+### Changed
+
+- **OpenCode target rebased onto the v2 line.** OpenCode 2 ships under a **new npm scope**,
+  `@opencode/cli` (2.0.14, published 2026-09-22); v1's `opencode-ai` is frozen at 1.18.32.
+  `opencode.json` is converted to v2's config shape: `skills` is now a **flat array of strings**
+  (`packages/schema/src/config.ts:84` — `Schema.String.pipe(Schema.Array)`), replacing v1's
+  `skills: { paths: [...] }` object. **This is not a breaking change for v1 users:** verified on a
+  live OpenCode **1.18.32**, which accepts the array and normalizes it to `{"paths": [...],
+  "urls": []}`, and discovers this repo's skills from it. v1 already carries
+  forward-compatible handling for the v2 shape. Config file names and search locations are
+  unchanged; `SKILL.md` remains the skill format.
+- **Target pins moved to v2 with an honest evidence level.** `reviewed_through`/`latest_known`
+  advance to 2.0.14 on a documentary review of the v2 docs and the v2 source at tag `v2.0.14`.
+  `validated_against` is set to **`"unknown"`** — no `opencode2` run has exercised these skills —
+  rather than left at 1.18.11, which is a version of the other package lineage. `supported_min` is
+  2.0.0, the major boundary rather than an evidenced floor. README badge and support row are
+  downgraded to `⚠️ unverified` to match. Tracked in #200.
+
+### Fixed
+
+- **The nightly probe was blind to the OpenCode major.** It watched `registry.npmjs.org/opencode-ai`,
+  which is frozen at 1.18.32, and so reported "no drift" for the entire v2 line. It now watches
+  `@opencode/cli`. A probe that pins a package name cannot see a major that renames the package —
+  the same class of blind spot as comparing the wrong field.
 
 ## [4.2.2] — 2026-09-22
 

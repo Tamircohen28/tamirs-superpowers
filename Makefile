@@ -114,7 +114,7 @@ test-contract:
 validate: lint test-hooks test-contract test-repo-contract check-manifest-versions check-platform-equivalence \
 	check-marketplace-schema check-doc-claims check-version-truth check-capability-registry \
 	validate-roles check-gemini-adapter gemini-extension-check check-github-policy check-branch-literals \
-	check-action-pinning check-manifest-declares
+	check-action-pinning check-manifest-declares check-platform-version-pins
 	@echo "--- Validating JSON files ---"
 	@find . -name '*.json' -not -path '*/.git/*' | while read f; do \
 	  jq empty "$$f" 2>&1 && echo "  OK  $$f" || { echo "  FAIL $$f"; exit 1; }; \
@@ -141,6 +141,13 @@ check-feature-equivalence:
 
 check-platform-targets:
 	@bash scripts/check-platform-targets.sh .
+
+# Root pin mirrors (.claude-code-version, .codex-version, .cursor-version) against
+# platform-targets.json. Wired into validate because it was NOT, and a stale
+# .codex-version sailed through a green `make validate` — the script existed but
+# nothing ran it.
+check-platform-version-pins:
+	@bash scripts/check-platform-version-pins.sh .
 
 check-marketplace-schema:
 	@bash scripts/check-marketplace-schema.sh .

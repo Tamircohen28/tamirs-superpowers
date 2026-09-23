@@ -6,15 +6,15 @@
   <a href="https://github.com/Tamircohen28"><img src="https://img.shields.io/badge/author-Tamir%20Cohen-181717?logo=github" alt="Author" /></a>
   <a href="https://github.com/Tamircohen28/tamirs-superpowers/actions/workflows/ci.yml"><img src="https://github.com/Tamircohen28/tamirs-superpowers/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="MIT License" /></a>
-  <a href="plugin-version.json"><img src="https://img.shields.io/badge/version-4.2.2-blue" alt="Version" /></a>
+  <a href="plugin-version.json"><img src="https://img.shields.io/badge/version-4.3.2-blue" alt="Version" /></a>
 </p>
 
 <p align="center">
-  <a href="docs/engineering/build-and-release/platform-targets.json"><img src="https://img.shields.io/badge/Claude%20Code-2.1.274-blueviolet" alt="Claude Code" /></a>
+  <a href="docs/engineering/build-and-release/platform-targets.json"><img src="https://img.shields.io/badge/Claude%20Code-2.1.280-blueviolet" alt="Claude Code" /></a>
   <a href="docs/engineering/build-and-release/platform-targets.json"><img src="https://img.shields.io/badge/Cursor-3.21.13-000000" alt="Cursor" /></a>
   <a href="docs/engineering/build-and-release/platform-targets.json"><img src="https://img.shields.io/badge/Codex-0.146.0-412991" alt="Codex" /></a>
   <a href="docs/engineering/build-and-release/platform-targets.json"><img src="https://img.shields.io/badge/Gemini%20CLI-0.55.1-4285F4" alt="Gemini CLI" /></a>
-  <a href="docs/engineering/build-and-release/platform-targets.json"><img src="https://img.shields.io/badge/OpenCode-1.18.11-fab283" alt="OpenCode" /></a>
+  <a href="docs/engineering/build-and-release/platform-targets.json"><img src="https://img.shields.io/badge/OpenCode-2.0.14%20unvalidated-fab283" alt="OpenCode" /></a>
 </p>
 
 # tamirs-superpowers
@@ -53,7 +53,7 @@ One plugin, one marketplace listing, both surfaces.
 
 | Surface | Registry id | Kind | Status | Install |
 |---|---|---|---|---|
-| Claude Code | `claude_code` | CLI | ✅ supported — validated 2.1.274 | [guide](docs/user/install/claude-code.md) |
+| Claude Code | `claude_code` | CLI | ✅ supported — validated 2.1.280 | [guide](docs/user/install/claude-code.md) |
 | Claude Desktop | `claude_desktop` | desktop | ✅ supported — same plugin, different runtime surface | [guide](docs/user/install/claude-desktop.md) |
 
 ### Codex
@@ -85,11 +85,11 @@ Two commands: the extension carries context and MCP, skills install separately.
 
 ### OpenCode
 
-Installed by path — `opencode.json` `skills.paths` pointed at this checkout.
+Installed by path — `opencode.json`'s `skills` array pointed at this checkout (v2 shape; v1 used `skills.paths`).
 
 | Surface | Registry id | Kind | Status | Install |
 |---|---|---|---|---|
-| OpenCode CLI | `opencode` | CLI | ✅ supported — validated 1.18.11 | [guide](docs/user/install/opencode.md) |
+| OpenCode CLI | `opencode` | CLI | ⚠️ unverified — v2 (`@opencode/cli` 2.0.14) is the shipped line and is reviewed, but no live v2 run has been recorded; v1 was validated at 1.18.11 | [guide](docs/user/install/opencode.md) |
 | OpenCode desktop app | `opencode_desktop` | desktop | ⚠️ unverified — whether it reads the same `skills.paths` this repo installs into has not been checked | — |
 
 `⚠️ unverified` is not a negative result. Those surfaces carry no capability claims at all;
