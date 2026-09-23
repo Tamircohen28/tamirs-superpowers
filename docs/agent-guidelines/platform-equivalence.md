@@ -93,13 +93,15 @@ name just as silently, so the file loading proves nothing about a hook firing.
 
 The vocabularies **partially overlap** rather than differ wholesale, which matters because
 "they're different" invites dropping the Claude file in and assuming it does nothing.
-Measured against this repo's ten declared events on 0.55.1:
+Measured against this repo's declared events on 0.55.1 (ten at the time of measurement;
+`StopFailure` was added afterwards and has not been measured against Gemini):
 
 | Claude events | Gemini status |
 |---|---|
 | `SessionStart`, `SessionEnd`, `Notification` | real Gemini events — but firing was never tested |
 | `PreToolUse`, `PostToolUse`, `UserPromptSubmit`, `Stop` | exist only in the `gemini hooks migrate --from-claude` mapping table |
 | `DirectoryAdded`, `WorktreeCreate`, `WorktreeRemove` | no counterpart at all |
+| `StopFailure` | **not measured** — added after this table was taken |
 
 So the worktree guards need real translation nobody has done, and three handlers might
 already be live and unverified. Nothing is claimed in either direction — check the registry
