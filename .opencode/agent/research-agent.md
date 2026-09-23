@@ -1,7 +1,7 @@
 ---
 description: Verifies library/API/framework details against current documentation before you rely on them — prevents outdated-pattern and hallucinated-API mistakes. Use when unsure of an API signature, config option, version behavior, or best-practice pattern.
 mode: subagent
-model: anthropic/claude-sonnet-4-6
+model: anthropic/claude-sonnet-5
 permission:
   read: allow
   edit: deny

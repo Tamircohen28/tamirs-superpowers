@@ -1,7 +1,7 @@
 ---
 description: Finds performance bottlenecks and concrete optimization opportunities (hot paths, N+1 queries, unnecessary work, bundle/render cost). Use when something is slow or before shipping a perf-sensitive path.
 mode: subagent
-model: anthropic/claude-sonnet-4-6
+model: anthropic/claude-sonnet-5
 permission:
   read: allow
   edit: deny

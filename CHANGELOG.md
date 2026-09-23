@@ -5,6 +5,49 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Fixed
+
+- **Four stale `claude-sonnet-4-6` pins, not the one #182 reported.** The issue named
+  `scripts/build-opencode-agents.sh`'s alias map, whose `sonnet` entry fed all 10 generated
+  OpenCode adapters. Grepping for the rest of the class found three more that PR #156's
+  27-file sweep also missed: the live `.claude/skills/run-tamirs-superpowers/SKILL.md`,
+  the `model:` example in `docs/engineering/architecture/skill-schema.md` — which was
+  teaching the stale pin to anyone reading the schema — and the scaffold plugin template
+  plus its six gold fixtures, so **every repo this toolkit scaffolds** was inheriting a dead
+  model id.
+
+  `sonnet` and `opus` now map to `anthropic/claude-sonnet-5` and `anthropic/claude-opus-5-5`,
+  both re-confirmed present in the models.dev catalogue OpenCode resolves against rather than
+  assumed. `haiku` is unchanged because Haiku 4.5 is still current, not because it was skipped.
+  Everything outside the generator now uses the `sonnet` **alias**, which is what #156
+  established and what does not age.
+
+### Changed
+
+- **Cursor install verification — #179's E0, the tracking issue's BLOCKING item, is resolved
+  and its premise falsified.** E0 feared that Cursor sync materializes only "nested Markdown
+  files", so the plugin's shell assets would not ship and skills depending on them would
+  silently no-op, with no repo check able to catch it (the contract tests run against a local
+  checkout, never an installed copy).
+
+  A machine with Cursor 3.21.16 and an existing install of this plugin was available, so the
+  materialized copy was inspected rather than reasoned about. **It is a git clone.** That is
+  the whole answer: there is no file-type filter to get wrong. `git status` inside it reports
+  zero modified or deleted tracked files — only an untracked `.cache-complete` marker Cursor
+  writes — and its 451 tracked paths diff **identical** against `git ls-tree -r` of the source
+  commit. 263 of 452 files are non-Markdown: 103 `.sh` of which 87 are executable, 14 `.py`,
+  53 `.json`, plus `hooks/hooks.json` and all 25 hook scripts. An all-files mode comparison
+  found **0** exec-bit mismatches. Cursor keeps a second, equally complete materialization
+  under `plugins/marketplaces/`.
+
+  Deliberately **not** claimed: this verifies asset *delivery* only. Skill invocation inside
+  Cursor — palette listing, invoking one by name — remains unverified, so `validated_against`
+  stays 3.21.13 rather than advancing to the 3.21.16 binary on the machine. The install copy
+  examined is plugin 2.0.1, which the record states plainly.
+
+  Recorded in `docs/user/install/cursor.md` as a "What an install actually materializes"
+  section, since it is the difference between 29 working skills and 29 silent ones, and in the
+  `cursor` row of `platform-targets.json`.
 ## [4.5.0] — 2026-09-23
 
 ### Added
