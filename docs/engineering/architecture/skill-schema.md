@@ -63,7 +63,7 @@ disable-model-invocation: false
 user-invocable: true
 allowed-tools: [Bash, Read, Edit, Skill]
 disallowed-tools: []
-model: claude-sonnet-4-6
+model: sonnet                       # an alias, never a pinned id - ids age
 effort: high
 context: ''                         # 'fork' + a non-empty `agent` to run forked
 agent: ''

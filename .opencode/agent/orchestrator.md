@@ -1,7 +1,7 @@
 ---
 description: Owns a multi-task objective end to end — builds the task graph, dispatches roles in dependency order, tracks handoffs, and drives integration to a single delivery. Use when a request needs more than one unit of work or more than one specialist role.
 mode: subagent
-model: anthropic/claude-sonnet-4-6
+model: anthropic/claude-sonnet-5
 permission:
   read: allow
   edit: deny
