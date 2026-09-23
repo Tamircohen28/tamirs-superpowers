@@ -5,6 +5,33 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Added
+
+- **`SubagentStop` handoff check — #178's E3.** A worker's contract ends at
+  `implementation -> targeted validation -> commit -> handoff`, and `worker-dev` is blunt
+  about the last step: *"The handoff is your entire output. The integrator will never read
+  your reasoning — only this file."* Nothing enforced that at the moment it matters.
+
+  `hooks/subagent-handoff-check.sh` fires when a subagent finishes under an objective and
+  surfaces two failures: **no handoff written at all**, and a handoff reporting `completed`
+  with an **empty `validation[]`** — which `worker-dev` already names as *"a claim with no
+  evidence"*.
+
+  **It deliberately does not flag `partial`, `failed` or `blocked` with no validation.**
+  Honest partial reporting is exactly the behaviour this repo wants; flagging it would train
+  workers to overclaim, which is the opposite of the point. Only `completed` without evidence
+  is a false claim.
+
+  The output channel is the opposite choice from `rate-limit-handoff.sh`, for the same
+  underlying reason — who can still read it. There the turn had failed and only the user
+  remained, so `systemMessage` was right. Here the session continues and the reader who must
+  act is the **orchestrator**, about to decide whether to integrate, so this emits
+  `hookSpecificOutput.additionalContext` (Stop/SubagentStop is one of the events that supports
+  it). A user-facing message would reach someone not making the call.
+
+  15 assertions, including the channel and the honest-reporting carve-out; both were verified
+  by mutating the hook to break each one and confirming the tests fail.
+
 ### Fixed
 
 - **The Cursor manifest now declares its rules path — #179's E3.** `.cursor-plugin/plugin.json`
