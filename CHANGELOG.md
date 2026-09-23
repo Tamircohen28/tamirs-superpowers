@@ -5,6 +5,37 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Added
+
+- **Pushover credentials can come from the manifest's `userConfig` — #178's E5.**
+  `.claude-plugin/plugin.json` now declares `pushover_token` and `pushover_user` with
+  `"sensitive": true`, which the host prompts for once at enable time and stores in the
+  **macOS Keychain** (falling back to `~/.claude/.credentials.json`), exporting them to hook
+  processes as `CLAUDE_PLUGIN_OPTION_<KEY>`.
+
+  That is a better route to the constraint `notify-pushover.sh` already documented — credentials
+  must live outside the plugin directory, because the marketplace cache is replaced wholesale on
+  every update — than the 600-mode dotfile written by `make install` from environment variables.
+
+  **This is not the `variables` field declined on the Cursor issue**, and the difference matters:
+  that one was declined partly because `gh auth token` can *derive* a GitHub token, making a
+  prompt unnecessary. Pushover credentials have no such source — they must come from the user
+  however this is built — so the standing "never prompt for a token paste" rule does not apply.
+
+  Precedence is explicit and tested: an environment `PUSHOVER_TOKEN` still wins, `userConfig`
+  beats the credentials file, and **the file alone still works untouched** — which is what keeps
+  existing installs working and keeps notifications alive on the Codex CLI, which loads the same
+  hook and never sets `CLAUDE_PLUGIN_OPTION_*`.
+
+### Fixed
+
+- **The credentials file could overwrite a higher-precedence value.** Sourcing
+  `~/.claude/pushover.env` was unconditional once *either* value was missing, so a token supplied
+  from the environment with no accompanying user was silently replaced by the file's token. That
+  was reachable before `userConfig` existed and more reachable with a third source, and it failed
+  invisibly — the notification simply went out under different credentials. Found by the
+  precedence test written for E5, not by inspection.
+
 ### Fixed
 
 - **The Cursor manifest now declares its rules path — #179's E3.** `.cursor-plugin/plugin.json`
