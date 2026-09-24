@@ -5,6 +5,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [4.9.1] — 2026-09-24
+
 ### Changed
 
 - **Claude Code advances to 2.1.281** (from 2.1.280): `validated_against`, `reviewed_through` and

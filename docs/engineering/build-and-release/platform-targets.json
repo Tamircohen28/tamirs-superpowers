@@ -1,7 +1,7 @@
 {
   "schema_version": 2,
   "last_reviewed": "2026-09-23",
-  "reviewed_by_skill": "tamirs-superpowers@4.9.0",
+  "reviewed_by_skill": "tamirs-superpowers@4.9.1",
   "supported_targets": [
     "claude_code",
     "codex",
