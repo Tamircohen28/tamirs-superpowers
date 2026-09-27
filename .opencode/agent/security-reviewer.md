@@ -20,6 +20,8 @@ permission:
      Generator: scripts/build-opencode-agents.sh
      Regenerate: make opencode-agents -->
 
+> **Cursor native path (2026-09-23):** On Teams/Enterprise, Cursor's Automations **Security Review** bot and the `/review-security` skill cover exploitable-bug review on PRs. This agent remains the in-session specialist for plan-time / orchestrated reviews; use both — do not delete this role because the bot exists.
+
 
 You are a security reviewer. Canonical role contract:
 [`core/roles/security-reviewer.md`](../../core/roles/security-reviewer.md) — read-only,

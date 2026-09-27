@@ -89,7 +89,10 @@
         "project-subscriptions-2026-09-10",
         "cli-persist-sessions-2026-08-26",
         "cli-worker-wake-hibernated-2026-08-26",
-        "desktop-cli-patch-3.21.13"
+        "security-review-bot-2026-09-23",
+        "rollouts-bot-2026-09-23",
+        "review-security-skill-2026-09-23",
+        "desktop-cli-patch-3.22.7"
       ],
       "capabilities": [
         "git",
@@ -111,9 +114,9 @@
         "extension_install": "Cursor installs plugins, not git-URL extensions.",
         "statusline": "No plugin-declared statusline."
       },
-      "verification_method": "latest desktop build from official Cursor download links (3.21.13, 2026-09-13 stable) cross-checked against cursor.com/changelog (feature 3.11; date-only entries through 2026-09-10 Projects; prior 2026-09-02 Self-Hosted Machines / Team Pools / partner sandboxes / computer use; prior Start-from-scratch 2026-08-27); Cursor CLI changelog Aug 11 2026 documented; Builds now default (2026-08-17); Origin early-beta docs; cloud-agent subscriptions / custom modes / isolated subagent VMs /goal / steering (2026-08-19); CLI changelog through 2026-08-26 (agent persist / hibernated worker wake)",
+      "verification_method": "latest desktop build from official Cursor download links (3.22.7, 2026-09-13 stable) cross-checked against cursor.com/changelog (feature 3.11; date-only entries through 2026-09-23 Projects; prior 2026-09-02 Self-Hosted Machines / Team Pools / partner sandboxes / computer use; prior Start-from-scratch 2026-08-27); Cursor CLI changelog Aug 11 2026 documented; Builds now default (2026-08-17); Origin early-beta docs; cloud-agent subscriptions / custom modes / isolated subagent VMs /goal / steering (2026-08-19); CLI changelog through 2026-08-26 (agent persist / hibernated worker wake)",
       "changelog_feature": "3.11",
-      "changelog_date": "2026-09-10"
+      "changelog_date": "2026-09-23"
     },
     "gemini_cli": {
       "platform": "gemini",
@@ -140,7 +143,7 @@
       "capability_gaps": {
         "artifacts": "No artifact publishing surface.",
         "dynamic_workflows": "The Workflow tool is Claude-specific; no declared Gemini equivalent.",
-        "parallel_subagents": "Gemini subagents cannot themselves call subagents — documented recursion protection, not merely unmeasured. orchestrate-dev's fan-out pattern is structurally impossible on Gemini as a result.",
+        "parallel_subagents": "Gemini subagents cannot themselves call subagents \u2014 documented recursion protection, not merely unmeasured. orchestrate-dev's fan-out pattern is structurally impossible on Gemini as a result.",
         "statusline": "Measured on 0.55.1: no extension-declared statusline."
       }
     },
@@ -168,9 +171,9 @@
         "artifacts": "No artifact publishing surface.",
         "dynamic_workflows": "The Workflow tool is Claude-specific; no declared OpenCode equivalent.",
         "extension_install": "No git-URL extension install.",
-        "hooks": "OpenCode has no hooks.json; its only lifecycle mechanism is the JS/TS plugin API. Lifecycle guards from hooks/ still do not run. A narrow opt-in exception is skills/toolkit/usage-capture/opencode-plugin.mjs (zero npm imports, observe-only, not listed in this repo's opencode.json) for local usage JSONL. That plugin is not a hook-guard adapter — 'adapter' would imply generated worktree/safety artifacts, and none exist.",
-        "parallel_subagents": "OpenCode's subagent_depth defaults to 1 (shipped v1.18.2, 2026-07-15), so a subagent cannot itself spawn subagents — not merely unmeasured.",
-        "plugin_marketplace": "No plugin marketplace — install is by absolute skills.paths. Not by symlink: OpenCode does not follow them for skill discovery (see the skills row).",
+        "hooks": "OpenCode has no hooks.json; its only lifecycle mechanism is the JS/TS plugin API. Lifecycle guards from hooks/ still do not run. A narrow opt-in exception is skills/toolkit/usage-capture/opencode-plugin.mjs (zero npm imports, observe-only, not listed in this repo's opencode.json) for local usage JSONL. That plugin is not a hook-guard adapter \u2014 'adapter' would imply generated worktree/safety artifacts, and none exist.",
+        "parallel_subagents": "OpenCode's subagent_depth defaults to 1 (shipped v1.18.2, 2026-07-15), so a subagent cannot itself spawn subagents \u2014 not merely unmeasured.",
+        "plugin_marketplace": "No plugin marketplace \u2014 install is by absolute skills.paths. Not by symlink: OpenCode does not follow them for skill discovery (see the skills row).",
         "statusline": "No plugin-declared statusline."
       }
     }

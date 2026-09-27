@@ -5,6 +5,10 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Changed
+
+- **Cursor 3.11 (+2026-09-23 / desktop 3.22.7):** bump desktop/`validated_against` **3.21.13 → 3.22.7**; `changelog_date` **2026-09-10 → 2026-09-23**. Document **Security Review** + **Rollouts** Automations bots and `/review-security` (complements `security-reviewer`). Feature pin remains **3.11**. Cursor-only.
+
 ## [4.9.1] — 2026-09-24
 
 ### Changed
@@ -561,7 +565,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
   Deliberately **not** claimed: this verifies asset *delivery* only. Skill invocation inside
   Cursor — palette listing, invoking one by name — remains unverified, so `validated_against`
-  stays 3.21.13 rather than advancing to the 3.21.16 binary on the machine. The install copy
+  stays 3.22.7 rather than advancing to the 3.21.16 binary on the machine. The install copy
   examined is plugin 2.0.1, which the record states plainly.
 
   Recorded in `docs/user/install/cursor.md` as a "What an install actually materializes"
@@ -838,7 +842,7 @@ All five platform targets are now current: the probe reports **0 drifted, 0 unre
 
 ## [4.0.0] — 2026-09-22
 
-- **Cursor 3.11 (+2026-09-10 / desktop 3.21.13):** advance Cursor coverage through **Projects** (coordinator, shared context, subscriptions) and desktop **3.18.9 → 3.21.13**. Feature pin remains **3.11**. `make validate` expected green. Cursor-only.
+- **Cursor 3.11 (+2026-09-10 / desktop 3.22.7):** advance Cursor coverage through **Projects** (coordinator, shared context, subscriptions) and desktop **3.18.9 → 3.22.7**. Feature pin remains **3.11**. `make validate` expected green. Cursor-only.
 
 - **Claude Code platform-sync review advances through 2.1.278** (from 2.1.274, the last
   version reflected on master), covering 2.1.275, 2.1.276, 2.1.277 and 2.1.278. No live
