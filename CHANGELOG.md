@@ -5,6 +5,29 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Changed
+
+- **Claude Code advances to 2.1.286** (from 2.1.281), Claude-Code-only nightly review:
+  `validated_against`, `reviewed_through` and `latest_known` all move to 2.1.286, validated on a
+  live `claude` 2.1.286 CLI (`claude plugin validate .` passes; `claude plugin eval` was not run).
+  `.claude-code-version`, the README badge and support row, `platform-targets.json`/`.md` and
+  `CLAUDE.md` advance together — no other platform's manifest or entries touched.
+  - Documented `claude plugin configure tamirs-superpowers` (2.1.285) in
+    `docs/user/install/claude-code.md` as a one-command alternative to hand-writing
+    `~/.claude/pushover.env`.
+  - Documented `claude doctor prompt-audit .` / `/doctor prompt-audit` (2.1.283) as a
+    recommended periodic check in the same guide.
+  - Recorded, not fixed this cycle: 2.1.282's Bash mid-pattern `:*` permission-rule fix explains
+    why `permissions-allow.json`/`permissions-ask.json` pair every `docker`/`python3`/`gh api`
+    rule with a redundant literal-space duplicate; removing the duplicates needs `supported_min`
+    raised past 2.1.282 first (Future opportunity, `platform-targets.json`).
+  - Reviewed and not adopted (recorded in `platform-targets.json`): Sonnet 5.5 as the new
+    default Sonnet model (every `agents/*.md` pins `model: sonnet` by name), the commit-guidance
+    auto-run of a skill named `verify` (would require a new shared `skills/` entry and
+    regenerating the Cursor/Codex/Gemini/OpenCode adapters — out of scope for a Claude-Code-only
+    pass), and the managed-settings `allowed-tools` marketplace-preapproval change (informational
+    only — this plugin is a marketplace source, not an Anthropic-official one).
+
 ## [4.9.1] — 2026-09-24
 
 ### Changed
@@ -354,7 +377,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   `hooks/subagent-handoff-check.sh` fires when a subagent finishes under an objective and
   surfaces two failures: **no handoff written at all**, and a handoff reporting `completed`
   with an **empty `validation[]`** — which `worker-dev` already names as *"a claim with no
-  evidence"*.
+  evidence."*
 
   **It deliberately does not flag `partial`, `failed` or `blocked` with no validation.**
   Honest partial reporting is exactly the behaviour this repo wants; flagging it would train
