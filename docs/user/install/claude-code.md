@@ -49,6 +49,9 @@ claude plugin validate .
 
 `doctor` reports the detected platform, version drift, and which optional features are
 usable. `claude plugin validate` checks the manifest, skills, agents, and hook wiring.
+Since Claude Code 2.1.283, `claude doctor prompt-audit .` (or `/doctor prompt-audit` in a
+session) adds an audit of this repo's `CLAUDE.md`, skills, agents and commands for prompting
+patterns written for older models — a useful periodic check alongside the two commands above.
 
 In the session:
 
@@ -127,6 +130,12 @@ Eight modules, each skippable and each shown as a diff first:
 | `notifications-creds` | `~/.claude/pushover.env` | Mode 600; needs `PUSHOVER_TOKEN` and `PUSHOVER_USER` in the environment |
 | `notifications-hook` | `~/.claude/settings.json` | One `Notification` hook; other Notification hooks are left alone |
 | `exit-guard` | `~/.claude/ensure-exit.sh` | Proxy exit-node guard; needs `CLAUDE_EXIT_PROXY` and `CLAUDE_EXIT_PUBLIC_IP` |
+
+Since Claude Code 2.1.285, `claude plugin configure tamirs-superpowers` (optionally with
+`--values-stdin`) is a one-command alternative to the `notifications-creds` module above: it
+prompts for this plugin's `pushover_token`/`pushover_user` `userConfig` fields directly, and
+`scripts/notify-pushover.sh` already reads them back as `CLAUDE_PLUGIN_OPTION_PUSHOVER_TOKEN`/
+`_USER` ahead of `~/.claude/pushover.env`. Either path works; pick whichever fits your workflow.
 
 > **`apply` will disable plugins the canonical set records as off** — 15 of the 23 it
 > tracks. That is intended, and the plan prints the exact count before writing. Read
