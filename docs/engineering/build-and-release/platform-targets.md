@@ -33,7 +33,7 @@ Verified **2026-10-02** — Claude Code advanced from 2.1.281 to **2.1.287** on 
 | Surface | Min supported | Validated against | Reviewed through | Latest known | Install guide |
 |----------|---------------|-------------------|------------------|--------------|---------------|
 | Claude Code | 2.0.0 | 2.1.287 | 2.1.287 | 2.1.287 | [claude-code.md](../../user/install/claude-code.md) |
-| Cursor | 3.21.13 | 3.21.13 | 3.21.13 | 3.21.13 | [cursor.md](../../user/install/cursor.md) |
+| Cursor | 3.22.7 | 3.22.7 | 3.22.7 | 3.22.7 | [cursor.md](../../user/install/cursor.md) |
 | Codex | 0.40.0 | 0.156.0 | 0.156.0 | 0.156.0 | [codex.md](../../user/install/codex.md) |
 | Gemini CLI | 0.55.1 | 0.60.0 | 0.60.0 | 0.60.0 | [gemini.md](../../user/install/gemini.md) |
 | OpenCode | unknown | 2.0.14 | 2.0.14 | 2.0.14 | [opencode.md](../../user/install/opencode.md) |
@@ -121,7 +121,7 @@ feature-level, which is why this repo tracks `changelog_feature`/`changelog_date
 separately from the app version. Advancing `latest_known` without a readable changelog would put
 `reviewed_through < latest_known`, which the repo's own contract rejects as V1-04 ("upstream
 releases nobody has read yet"), and claiming a review that did not happen is exactly what these
-three fields exist to prevent. Cursor therefore stays pinned at **3.21.13** across all three
+three fields exist to prevent. Cursor therefore stays pinned at **3.22.7** across all three
 fields. The nightly probe no longer reports this as drift at all: comparing Cursor's desktop
 build against a `latest_known` that can only advance by feature-changelog review produced a
 permanently un-closeable DRIFT line, so `scripts/probe-platform-versions.sh` now reports Cursor

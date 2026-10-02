@@ -89,6 +89,7 @@ situation per session; never repeat a declined suggestion.
 | "am I up to date", "what new features am I missing", "latest docs" — or a `*-plugin/plugin.json` or `CHANGELOG.md` is being bumped | `platform-sync` |
 | A rate limit is hit, or an objective is still open and the session is ending | `switch-dev` |
 | You are about to hand-write a capability a public skill or plugin plausibly already provides | `find-skill` |
+| A PR is about to open or a security-sensitive diff needs a pass before push | Cursor native `/review-security` (Teams Security Review bot) — complements `security-reviewer` |
 | The session had repeated failures on the same thing, or the user corrected you several times | `retro` |
 
 **Why the rule and not just good trigger descriptions:** `skill_auto_invocation` in
