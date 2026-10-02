@@ -1,6 +1,6 @@
 # Changelog archive (1/3): 3.6.1 – 3.4.0
 
-Older `tamirs-superpowers` changelog entries, moved out of `CHANGELOG.md` on 2026-09-17 to keep that file a manageable size for tooling that must round-trip its full content. Same format, same content, split only by size. Continues in [CHANGELOG-archive-2.md](CHANGELOG-archive-2.md).
+Older `tamirs-superpowers` changelog entries, moved out of the root `CHANGELOG.md` on 2026-09-17 (and from the repo root into `docs/changelog/` on 2026-10-02) to keep that file a manageable size for tooling that must round-trip its full content. Same format, same content, split only by size. Continues in [CHANGELOG-archive-2.md](CHANGELOG-archive-2.md).
 
 ---
 
