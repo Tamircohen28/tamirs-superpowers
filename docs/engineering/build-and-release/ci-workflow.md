@@ -54,7 +54,7 @@ Greps for high-signal secret patterns across all source files:
 
 ### `claude plugin validate`
 
-Runs `claude plugin validate .` (Claude Code CLI) to confirm the plugin manifest and bundled skills load cleanly.
+Runs `claude plugin validate .` (Claude Code CLI) to confirm the marketplace manifest loads cleanly, then `make test-mods`: `claude plugin validate .claude-plugin/plugin.json`, which reads the plugin manifest *and* the mod's source the way the engine will (the `.` form never reads the hooks module), and `claude plugin test .`, which runs `hooks/mods/*.test.tsx` against the engine. See `docs/engineering/architecture/mods.md`.
 
 **Fails on:** any manifest or skill validation error reported by the CLI.
 
@@ -88,7 +88,7 @@ Branch protection on `master` requires these six contexts to pass before a PR ca
 | `Validate JSON` | `validate-json` |
 | `Validate SKILL.md frontmatter` | `validate-skills` |
 | `Secret scan` | `secret-scan` |
-| `claude plugin validate` | `plugin-validate` |
+| `claude plugin validate` | `plugin-validate`, `test-mods` |
 | `Manifest/tag version alignment` | `manifest-version-alignment` |
 
 `Repo contract (scaffold-gold)` and `HOL Plugin Scanner` run on every PR but are advisory (not required to merge). Branch protection is applied via `skills/repo/_contract/scripts/ensure-branch-protection.sh`.

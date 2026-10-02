@@ -152,8 +152,13 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - name: Install Claude Code CLI
         run: npm install -g @anthropic-ai/claude-code
-      - name: Run claude plugin validate
+      - name: Run claude plugin validate (marketplace manifest)
         run: claude plugin validate .
+      # The `.` form validates only the marketplace manifest and never reads the hooks
+      # module. The plugin-manifest form does, and `claude plugin test` runs the mod's own
+      # tests against the engine (hooks/mods/*.test.tsx). See docs/engineering/architecture/mods.md.
+      - name: Validate and test the mod (hooks/mods)
+        run: make test-mods
 
   contract-test:
     name: Repo contract (scaffold-gold)

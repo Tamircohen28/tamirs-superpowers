@@ -1,6 +1,6 @@
 {
   "schema_version": 2,
-  "last_reviewed": "2026-09-17",
+  "last_reviewed": "2026-10-02",
   "capability_definitions": {
     "skills": {
       "summary": "Discovers and loads SKILL.md files shipped by this repo.",
@@ -81,6 +81,10 @@
     "dynamic_workflows": {
       "summary": "Runs a Workflow tool script that can pause, branch, and resume mid-execution driven by model output.",
       "degradation": "Achieve the same result with sequential subagent orchestration driven by the main session."
+    },
+    "mods": {
+      "summary": "Loads THIS REPO'S hooks module (hooks/mods/register.tsx, the `modules` key of hooks/hooks.json) as in-process function hooks: it can draw (pane, band, spinner), read pushed rate-limit state, answer /objective without a model turn, and call the host's HTTP/model/process APIs. Claude Code 2.1.287+ only.",
+      "degradation": "Every feature the mod adds has a settings-hook or skill fallback that still runs (docs/engineering/architecture/mods.md, 'What it does'); nothing may depend on the mod having loaded."
     }
   },
   "platforms": {
@@ -245,6 +249,14 @@
               "status": "native",
               "validation": "claude plugin validate .",
               "notes": "The Workflow tool runs a script that can pause, branch, and resume mid-execution driven by model output. No repo-declared artifact exercises it directly; validation follows the same plugin-load convention as ask_user_question and skill_auto_invocation."
+            },
+            "mods": {
+              "last_verified": "2026-10-02",
+              "status": "native",
+              "since": "2.1.287",
+              "since_source": "Claude Code changelog entry 2.1.287 (\"Added Claude Mods\") and the mods overview (\"Mods require Claude Code v2.1.287 or later\"); validated on a live 2.1.287 CLI 2026-10-02.",
+              "validation": "claude plugin validate .claude-plugin/plugin.json && claude plugin test .",
+              "notes": "Validated on a live claude 2.1.287 CLI: the validator lists the module's 14 hook registrations and every $ call, and `claude plugin test .` runs the 20 tests in hooks/mods/mods.test.tsx against the engine (band, pane and spinner mounted on both terminal and desktop element tables). Drawing in a real interactive session was not exercised from this environment (headless)."
             }
           }
         },
@@ -387,6 +399,14 @@
               "status": "unsupported",
               "notes": "The Workflow tool is a Claude Code CLI surface; not exercised on Desktop.",
               "fallback": "Sequential subagent orchestration driven by the main session."
+            },
+            "mods": {
+              "last_verified": "2026-10-02",
+              "status": "native",
+              "since": "2.1.287",
+              "validation": "claude plugin test .",
+              "notes": "Per the official mods docs ('Where mods run'): hooks run and panes/bands draw in the Desktop app's Code tab, except in WSL sessions, with the element table the mods reference marks desktop-capable (no Raster/Image). The mod's UI tests mount every drawing on the `desktop` element table. Not exercised on a Desktop install from this repo; the AbovePrompt usage line exists for exactly this surface, which has no statusline.",
+              "fallback": "The settings hooks and skills; the usage line is cosmetic."
             }
           }
         }
@@ -540,6 +560,12 @@
               "status": "unsupported",
               "notes": "The Workflow tool is Claude-specific; no declared Codex equivalent.",
               "fallback": "Sequential subagent orchestration driven by the main session."
+            },
+            "mods": {
+              "last_verified": "2026-10-02",
+              "status": "unsupported",
+              "notes": "Claude Code function hooks have no Codex equivalent. Codex loads the same hooks/hooks.json that now carries the `modules` key; whether it ignores an unknown top-level key there is UNVERIFIED (no Codex run this cycle). Chosen knowingly over a sibling plugin: one hooks file, one distribution. If a Codex run ever rejects the file, point .codex-plugin/plugin.json `hooks` at a generated copy without `modules`.",
+              "fallback": "The settings hooks Codex already runs; objective-state.sh show for the objective; rate-limit-handoff.sh for the handoff nudge."
             }
           }
         },
@@ -707,6 +733,12 @@
               "status": "unsupported",
               "notes": "The Workflow tool is Claude-specific; no declared Cursor equivalent.",
               "fallback": "Sequential subagent orchestration driven by the main session."
+            },
+            "mods": {
+              "last_verified": "2026-10-02",
+              "status": "unsupported",
+              "notes": "Cursor loads platforms/cursor/hooks.json, never hooks/hooks.json, so it never sees the `modules` key. No equivalent in-process hook API.",
+              "fallback": "The Cursor hook bundle; skills."
             }
           }
         },
@@ -878,6 +910,12 @@
               "status": "unsupported",
               "notes": "The Workflow tool is Claude-specific; no declared Gemini equivalent.",
               "fallback": "Sequential subagent orchestration driven by the main session."
+            },
+            "mods": {
+              "last_verified": "2026-10-02",
+              "status": "unsupported",
+              "notes": "No equivalent; the Gemini extension reads no hooks file from this repo.",
+              "fallback": "Skills."
             }
           }
         },
@@ -1046,6 +1084,12 @@
               "status": "unsupported",
               "notes": "The Workflow tool is Claude-specific; no declared OpenCode equivalent.",
               "fallback": "Sequential subagent orchestration driven by the main session."
+            },
+            "mods": {
+              "last_verified": "2026-10-02",
+              "status": "unsupported",
+              "notes": "No equivalent; OpenCode runs no hooks from this repo.",
+              "fallback": "Skills."
             }
           }
         },
