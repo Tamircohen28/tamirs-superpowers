@@ -256,7 +256,7 @@
               "since": "2.1.287",
               "since_source": "Claude Code changelog entry 2.1.287 (\"Added Claude Mods\") and the mods overview (\"Mods require Claude Code v2.1.287 or later\"); validated on a live 2.1.287 CLI 2026-10-02.",
               "validation": "claude plugin validate .claude-plugin/plugin.json && claude plugin test .",
-              "notes": "Validated on a live claude 2.1.287 CLI: the validator lists the module's 14 hook registrations and every $ call, and `claude plugin test .` runs the 20 tests in hooks/mods/mods.test.tsx against the engine (band, pane and spinner mounted on both terminal and desktop element tables). Drawing in a real interactive session was not exercised from this environment (headless)."
+              "notes": "Validated on a live claude 2.1.287 CLI: the validator lists the module's 14 hook registrations and every $ call, and `claude plugin test .` runs the 23 tests in hooks/mods/mods.test.tsx against the engine (band, pane and spinner mounted on both terminal and desktop element tables). Drawing in a real interactive session was not exercised from this environment (headless)."
             }
           }
         },

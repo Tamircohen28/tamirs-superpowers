@@ -19,10 +19,11 @@
 #   3. the plugin-authoring skill's bundled copy, written when that skill loads in a session
 #      (newest under ${TMPDIR:-/tmp}/claude-*/bundled-skills/*/*/plugin-authoring/types/)
 #
-# Exit 0 on a clean check or a skip (with a notice); non-zero on type errors.
-set -uo pipefail
+# Exit 0 on a clean check or a skip (with a notice); non-zero on type errors, and on a
+# repo-root argument that does not resolve — a misspelled root must never read as a skip.
+set -euo pipefail
 
-ROOT="$(cd "${1:-.}" && pwd)"
+ROOT="$(cd "${1:-.}" 2>/dev/null && pwd)" || { echo "typecheck-mods: repo root '${1:-.}' is not a directory" >&2; exit 1; }
 MOD_DIR="$ROOT/hooks/mods"
 
 if [[ ! -f "$MOD_DIR/register.tsx" ]]; then

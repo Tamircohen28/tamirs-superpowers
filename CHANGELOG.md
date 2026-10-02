@@ -38,7 +38,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
     `docs/engineering/architecture/mods.md`.
 - **`make test-mods`** runs `claude plugin validate .claude-plugin/plugin.json` (the `.` form
   validates only the marketplace manifest and never reads the mod) and `claude plugin test .`
-  (20 tests in `hooks/mods/mods.test.tsx`, mounting the band, pane and spinner on both the
+  (23 tests in `hooks/mods/mods.test.tsx`, mounting the band, pane and spinner on both the
   terminal and desktop element tables). Both run in CI. **`make typecheck-mods`** type-checks
   the module against the build's `claude-code.d.ts` where one is present (the engine lays it
   beside the mod when an interactive session loads the plugin; a CI runner has none, so it is

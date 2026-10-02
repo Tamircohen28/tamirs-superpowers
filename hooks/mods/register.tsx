@@ -120,12 +120,11 @@ async function readJson($: EngineInterface, path: string): Promise<Record<string
 
 const str = (v: unknown): string | undefined => (typeof v === 'string' ? v : undefined)
 
-// The active objective under <root>/.dev-files/objectives, as hooks/lib/
+// The active objective under `dir` (resolveObjectivesDir), as hooks/lib/
 // objective-common.sh and skills/dev-workflow/_shared/scripts/objective-state.sh
 // lay it out. SUPERPOWERS_OBJECTIVE_ID wins; else the first `active` one; else
 // the first not completed/abandoned.
-async function loadObjective($: EngineInterface, root: string, preferredId: string | undefined, now: number): Promise<ModsObjective | null> {
-  const dir = `${root}/.dev-files/objectives`
+async function loadObjective($: EngineInterface, dir: string, preferredId: string | undefined, now: number): Promise<ModsObjective | null> {
   if (!(await $.fs.exists(dir))) return null
   const ids = (await $.fs.list(dir)).filter(e => e.kind === 'dir').map(e => e.name).sort()
   const ordered = preferredId && ids.includes(preferredId) ? [preferredId, ...ids.filter(i => i !== preferredId)] : ids
@@ -166,6 +165,32 @@ function objectiveText(o: ModsObjective | null): string {
   }
   if (o.tasks.length === 0) lines.push('  (no tasks yet)')
   return lines.join('\n')
+}
+
+// Where objective state lives. `.dev-files/objectives` is gitignored and exists in the
+// MAIN checkout only, while a worker session runs inside a linked worktree
+// (`.agent-worktrees/<objective>/task-NNN`), so the session's own root is the wrong
+// place to look from there. Resolution order mirrors the shell scripts:
+//   1. OBJECTIVES_ROOT — the explicit override handoff.sh/objective-state.sh honour
+//   2. the main working tree, from `git rev-parse --git-common-dir` (the linked
+//      worktree's common .git lives under the main checkout), plus
+//      SUPERPOWERS_OBJECTIVE_STATE_DIRNAME (objective-common.sh; default
+//      .dev-files/objectives)
+//   3. the session's root as a last resort (not a git checkout)
+async function resolveObjectivesDir($: EngineInterface, cwd: string, root: string): Promise<string> {
+  const override = await $.env.get('OBJECTIVES_ROOT')
+  if (override) return override.replace(/\/$/, '')
+  const dirname = (await $.env.get('SUPERPOWERS_OBJECTIVE_STATE_DIRNAME')) || '.dev-files/objectives'
+  let main = root || cwd
+  try {
+    const common = await $.process.run(['git', 'rev-parse', '--path-format=absolute', '--git-common-dir'], { cwd: cwd || root, timeoutMs: 5000 })
+    const gitDir = common.exitCode === 0 ? common.stdout.trim() : ''
+    // <main>/.git for a checkout or a linked worktree; a bare repo has no main tree.
+    if (gitDir.endsWith('/.git')) main = gitDir.slice(0, -'/.git'.length)
+  } catch {
+    // git missing or not a checkout: the session's root stands.
+  }
+  return `${main}/${dirname}`
 }
 
 // Re-reads the objective from disk into $.state; the pane and /objective draw
@@ -240,6 +265,7 @@ export const register: Register = (on, options) => {
   // Module variables: reset on a hot reload, which is fine for all of them.
   let root = ''
   let cwd = ''
+  let objectivesDir = ''
   let trailerPolicy: string | null = null
   let writesThisTurn = 0
   let lastToastedKind = ''
@@ -269,17 +295,19 @@ export const register: Register = (on, options) => {
       description: 'Show the active orchestration objective and its tasks (tamirs-superpowers)',
       immediate: true,
     })
-    await refreshObjective($, root || cwd)
+    objectivesDir = await resolveObjectivesDir($, cwd, root)
+    await refreshObjective($, objectivesDir)
     // Re-read every 5 s while an objective exists; a cheap exists() otherwise.
     $.clock.every(5000, () => {
-      void refreshObjective($, root || cwd)
+      void refreshObjective($, objectivesDir)
     })
     return next(e)
   })
 
   // ------------------------------------------------------- 1. objective pane
   on('command.run', { command: 'objective' }, async $ => {
-    const o = await refreshObjective($, root || cwd)
+    objectivesDir = await resolveObjectivesDir($, cwd, root)
+    const o = await refreshObjective($, objectivesDir)
     if (o) void $.ui.open({ id: PANE, title: `Objective ${o.id}` })
     return { text: objectiveText(o) }
   })

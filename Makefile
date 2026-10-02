@@ -285,8 +285,8 @@ check-manifest-versions:
 plugin-validate:
 	@echo "--- claude plugin validate (primary validator) ---"
 	@if command -v claude >/dev/null 2>&1; then \
-	  claude plugin validate . && echo "  marketplace manifest validate passed"; \
-	  claude plugin validate .claude-plugin/plugin.json && echo "  plugin manifest + hooks module validate passed"; \
+	  claude plugin validate . && echo "  marketplace manifest validate passed" \
+	    && claude plugin validate .claude-plugin/plugin.json && echo "  plugin manifest + hooks module validate passed"; \
 	else \
 	  echo "  claude CLI not found — install from claude.ai/code"; \
 	  exit 1; \

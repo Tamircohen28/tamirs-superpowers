@@ -29,7 +29,10 @@ function fakeDisk(): Record<string, string> {
 
 // The engine beneath the mod: fs over `disk`, a session rooted at /repo, and
 // recorders for the side effects the tests assert on.
-function stubEngine(on: On, disk: Record<string, string>, env: Record<string, string> = {}): Calls {
+// `sessionRoot` is what $.session.root()/cwd() answer; `gitDir` what `git rev-parse
+// --git-common-dir` prints — /repo/.git for the main checkout AND for every linked
+// worktree of it, which is how the mod finds the shared objective state.
+function stubEngine(on: On, disk: Record<string, string>, env: Record<string, string> = {}, sessionRoot = '/repo', gitDir = '/repo/.git'): Calls {
   const calls: Calls = { fetch: [], prompts: [], toasts: [], commands: [], state: new Map(), compactInstructions: [] }
   mock.store(on)
   mock.env(on, env)
@@ -59,8 +62,8 @@ function stubEngine(on: On, disk: Record<string, string>, env: Record<string, st
     calls.state.set(e.key, e.value)
     return next(e)
   })
-  on('session.root', () => ({ value: '/repo' }))
-  on('session.cwd', () => ({ value: '/repo' }))
+  on('session.root', () => ({ value: sessionRoot }))
+  on('session.cwd', () => ({ value: sessionRoot }))
   on('session.start', ($, e) => ({ cwd: e.cwd }))
   on('command.register', ($, e) => {
     calls.commands.push(e.name)
@@ -80,7 +83,13 @@ function stubEngine(on: On, disk: Record<string, string>, env: Record<string, st
     calls.fetch.push({ url: e.url, body: e.init?.body ?? '' })
     return { value: { status: 200, ok: true, headers: {}, text: '{"status":1}' } }
   })
-  on('process.run', () => ({ value: { exitCode: 1, stdout: '', stderr: 'not a git repo', isStdoutTruncated: false, isStderrTruncated: false } }))
+  on('process.run', ($, e) => {
+    const argv = e.argv.join(' ')
+    if (argv === 'git rev-parse --path-format=absolute --git-common-dir' && gitDir) {
+      return { value: { exitCode: 0, stdout: `${gitDir}\n`, stderr: '', isStdoutTruncated: false, isStderrTruncated: false } }
+    }
+    return { value: { exitCode: 1, stdout: '', stderr: 'not a git repo', isStdoutTruncated: false, isStderrTruncated: false } }
+  })
   on('turn.start', ($, e) => ({ turnId: e.turnId }))
   on('turn.complete', ($, e) => ({ text: e.answer }))
   on('tool.call', () => ({ deny: 'test engine: no tool runs' }))
@@ -112,8 +121,8 @@ const PANE = {
   props: { title: 'Objective', isFocused: false, bodyColumns: 100, placement: 'dock', scroll: { offset: 0, bodyRows: 20 }, view: {} },
 } as const
 
-async function start($: Engine) {
-  await $.session.start({ cwd: '/repo', surface: 'terminal', isInteractive: true })
+async function start($: Engine, cwd = '/repo') {
+  await $.session.start({ cwd, surface: 'terminal', isInteractive: true })
 }
 
 function measure($: Engine, percentUsed: number, kind = 'five_hour') {
@@ -153,6 +162,38 @@ test('/objective with no objective on disk says so instead of failing', async ($
   await start($)
   const { text } = await $.command.run({ command: 'objective', args: '', origin: { kind: 'composer' }, presentation: { isFullscreen: false, columns: 80 } })
   expect(text).toMatch(/No objective is active/)
+})
+
+test('from a linked worker worktree the objective is read from the main checkout', async ($, on) => {
+  // The session sits in .agent-worktrees/obj-1/task-002; .dev-files/objectives exists only
+  // under /repo. git's common dir points back at /repo/.git, and that is what is followed.
+  const wt = '/repo/.agent-worktrees/obj-1/task-002'
+  const calls = stubEngine(on, fakeDisk(), {}, wt, '/repo/.git')
+  mock.clock(on)
+  await start($, wt)
+  const value = calls.state.get('objective') as { id: string } | undefined
+  expect(value?.id).toBe('obj-1')
+  const { text } = await $.command.run({ command: 'objective', args: '', origin: { kind: 'composer' }, presentation: { isFullscreen: true, columns: 120 } })
+  expect(text).toContain('task-002')
+})
+
+test('OBJECTIVES_ROOT overrides where objective state is read from, as handoff.sh honours it', async ($, on) => {
+  const disk = {
+    '/elsewhere/objectives/obj-9/objective.json': JSON.stringify({ id: 'obj-9', title: 'Relocated', status: 'active', tasks: [] }),
+  }
+  const calls = stubEngine(on, disk, { OBJECTIVES_ROOT: '/elsewhere/objectives/' })
+  mock.clock(on)
+  await start($)
+  const value = calls.state.get('objective') as { id: string } | undefined
+  expect(value?.id).toBe('obj-9')
+})
+
+test('outside any git checkout the session root is used and nothing fails', async ($, on) => {
+  const calls = stubEngine(on, fakeDisk(), {}, '/repo', '')
+  mock.clock(on)
+  await start($)
+  const value = calls.state.get('objective') as { id: string } | undefined
+  expect(value?.id).toBe('obj-1')
 })
 
 test('the objective pane draws every task on the terminal and the desktop', async ($, on) => {
