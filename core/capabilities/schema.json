@@ -81,7 +81,8 @@
         "ask_user_question",
         "artifacts",
         "session_transcripts",
-        "dynamic_workflows"
+        "dynamic_workflows",
+        "mods"
       ]
     },
     "status": {
@@ -298,8 +299,8 @@
         "capabilities": {
           "type": "object",
           "description": "Every capability key must be present. Use status 'unknown' for anything unverified rather than omitting it.",
-          "minProperties": 20,
-          "maxProperties": 20,
+          "minProperties": 21,
+          "maxProperties": 21,
           "propertyNames": {
             "$ref": "#/$defs/capabilityKey"
           },

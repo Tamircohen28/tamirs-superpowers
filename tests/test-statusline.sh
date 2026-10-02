@@ -362,6 +362,36 @@ else
   bad "non-JSON payload completes" "timed out"
 fi
 
+echo "--- statusline: the manifest's statusLine command delivers stdin to the script ---"
+# Claude Code pipes the session JSON into the statusLine command's stdin. A
+# `</dev/null` on the manifest's own command line (shipped from 4.x until 4.10.0,
+# via a dependabot-titled squash) discarded it, so every installed user saw `--`
+# in every field while this suite stayed green: the `</dev/null` case above is a
+# robustness check on the SCRIPT, not a statement about the CALLER. This case
+# runs the manifest's command verbatim with a real payload and expects real data.
+manifest="$ROOT/.claude-plugin/plugin.json"
+mcmd="$(jq -r '.settings.statusLine.command // empty' "$manifest" 2>/dev/null)"
+if [ -z "$mcmd" ]; then
+  bad "manifest declares settings.statusLine.command" "missing"
+else
+  ok "manifest declares settings.statusLine.command"
+  case "$mcmd" in
+    *'</dev/null'*|*'< /dev/null'*) bad "manifest statusLine command does not redirect stdin from /dev/null" "found a </dev/null redirect: $mcmd" ;;
+    *) ok "manifest statusLine command does not redirect stdin from /dev/null" ;;
+  esac
+  out="$TMPROOT/manifest.out"
+  if run_with_timeout 5 bash -c 'printf "%s" "$3" | CLAUDE_PLUGIN_ROOT="$1" bash -c "$2" > "$4" 2>&1' _ \
+       "$ROOT" "$mcmd" '{"model":{"display_name":"Sonnet 5"},"context_window":{"used_percentage":42}}' "$out"; then
+    rendered="$(cat "$out")"
+    case "$rendered" in
+      *"ctx:42%"*) ok "manifest command renders the piped context percentage (not --)" ;;
+      *) bad "manifest command renders the piped context percentage (not --)" "got: ${rendered%%$'\n'*}" ;;
+    esac
+  else
+    bad "manifest command completes with piped JSON" "timed out or exited non-zero"
+  fi
+fi
+
 echo
 echo "passed: $PASS   failed: $FAIL"
 if [ "$TMPROOT_VANISHED" -eq 1 ]; then

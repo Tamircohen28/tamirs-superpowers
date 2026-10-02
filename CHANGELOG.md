@@ -9,6 +9,75 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 - **Cursor 3.11 (+2026-09-23 / desktop 3.22.7):** bump desktop/`validated_against` **3.21.13 → 3.22.7**; `changelog_date` **2026-09-10 → 2026-09-23**. Document **Security Review** + **Rollouts** Automations bots and `/review-security` (complements `security-reviewer`). Feature pin remains **3.11**. Cursor-only.
 
+## [4.10.0] — 2026-10-02
+
+### Added
+
+- **A mod — Claude Code 2.1.287's in-process function hooks — as an additive Claude-only
+  layer.** `hooks/mods/register.tsx`, named by the new `modules` key of `hooks/hooks.json`,
+  with its `$.state` contract at `hooks/mods/types/index.d.ts` (manifest `types`). It does only
+  what a bash hook structurally cannot, and every bash hook stays canonical because a mod runs on
+  Claude Code and the Claude Desktop Code tab only:
+  - **Objective pane + `/objective`** — the orchestration state `orchestrate-dev`/`worker-dev`
+    keep under `.dev-files/objectives/<id>/` drawn live (tasks, status, handoffs), re-read every
+    5 s; `/objective` answers at once with no model turn, even mid-turn; the spinner counts
+    workers in flight; a background task's notification row is drawn compact.
+  - **Rate-limit band** — `session.measure` pushes the rate-limit windows after every turn; at
+    `rate_limit_warn_percent` (default 85) a band above the prompt shows `[ Write handoff ]`,
+    which submits a `switch-dev handoff` prompt, and `[ Dismiss ]`. `rate-limit-handoff.sh`
+    fires after the turn died on the limit; this fires before — the moment `switch-dev` was
+    invoked zero times across 953 sessions because nobody could ask for it.
+  - **Usage line on Desktop** — the `scripts/statusline.sh` figures (context, 5h/7d/spend,
+    cost) on the one surface that has no status line. Never drawn on the terminal.
+  - **Pushover on long or failed main turns** via `$.http.fetch`, with the manifest's
+    `pushover_token`/`pushover_user` or the same env/file sources `scripts/notify-pushover.sh`
+    reads; `pushover_min_turn_seconds` (default 120).
+  - **Semantic skill suggestion**, opt-in (`semantic_skill_suggest`): a long prompt is
+    classified by the engine's small model against the bundled skill names.
+  - A **definition-of-done line** under an answer whose turn wrote files, a **working-state
+    snapshot** folded into compaction instructions, and the repo's **`Co-Authored-By` trailer
+    policy** enforced on the commit attribution text where a repo's `CLAUDE.md` declares one.
+  - Three new non-sensitive `userConfig` fields (`/config` rows; `claude plugin configure`
+    from the shell). Design, per-feature fallback table and the validator's rules:
+    `docs/engineering/architecture/mods.md`.
+- **`make test-mods`** runs `claude plugin validate .claude-plugin/plugin.json` (the `.` form
+  validates only the marketplace manifest and never reads the mod) and `claude plugin test .`
+  (23 tests in `hooks/mods/mods.test.tsx`, mounting the band, pane and spinner on both the
+  terminal and desktop element tables). Both run in CI. **`make typecheck-mods`** type-checks
+  the module against the build's `claude-code.d.ts` where one is present (the engine lays it
+  beside the mod when an interactive session loads the plugin; a CI runner has none, so it is
+  not a gate).
+- A `mods` capability row in `core/capabilities/platforms.json` (native on Claude Code and
+  Claude Desktop, unsupported elsewhere), and the matching schema change (21 rows).
+
+### Fixed
+
+- **The statusline rendered `--` in every field for every installed user.** The manifest's
+  `settings.statusLine.command` ended in `</dev/null` (since #152, a dependabot-titled
+  squash), which discarded the session JSON Claude Code pipes to the command before
+  `scripts/statusline.sh` could read it. `tests/test-statusline.sh` stayed green because its
+  `</dev/null` case tests the script's robustness, not the caller's behaviour. The redirect is
+  gone; the suite now also runs the manifest's command verbatim with a piped payload and asserts
+  a real value renders; `docs/engineering/statusline.md` records the failure mode.
+- `docs/engineering/architecture/hooks-classification.md` listed `plugin-version-watch.sh`,
+  which no longer exists, omitted six hooks that do (`docker-guard.py`, `skill-suggest.sh`,
+  `rate-limit-handoff.sh`, `subagent-handoff-check.sh`, `precompact-snapshot.sh`,
+  `cursor-agent-tools-guard.sh`), and said Codex runs none of the hooks, contradicting
+  `core/capabilities/platforms.json`. `CLAUDE.md` named the same vanished hook.
+  `docs/engineering/statusline.md` showed the pre-`CLAUDE_PLUGIN_ROOT` command and "2–3 lines".
+
+### Changed
+
+- **Claude Code advances to 2.1.287** (from 2.1.281) on a live `claude` 2.1.287 CLI:
+  `validated_against`, `reviewed_through` and `latest_known` all move; `.claude-code-version`,
+  the README badge and support row, `platform-targets.json`/`.md` and `CLAUDE.md` advance
+  together. 2.1.282–2.1.286 reviewed on changelog evidence (Sonnet 5.5 — every agent pins the
+  `sonnet` alias; `claude plugin configure`; plugin dependency tracking — none declared here).
+- **Trade-off recorded:** the `modules` key lives in the same `hooks/hooks.json` the Codex CLI
+  loads. Whether Codex ignores an unknown top-level key there is unverified; one hooks file and
+  one distribution were chosen over a sibling plugin. If Codex ever rejects the file,
+  `.codex-plugin/plugin.json` can point `hooks` at a generated copy without `modules`.
+
 ## [4.9.1] — 2026-09-24
 
 ### Changed

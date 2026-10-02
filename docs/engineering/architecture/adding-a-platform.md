@@ -40,7 +40,7 @@ sentence means before changing it.
 `runtime_surface_of: "claude_code"`: it installs the Claude Code plugin from the Claude
 Code listing and ships no manifest, adapter or version consumer of its own. A *target* is
 something this repo distributes to; Claude Desktop is a place that same distribution runs.
-So it is a fully supported surface with all 19 capability rows, and it is not a sixth
+So it is a fully supported surface with all 21 capability rows, and it is not a sixth
 target. `check-feature-equivalence.sh` and `tests/test-docs.sh` both exclude
 `runtime_surface_of` surfaces when counting targets, for exactly this reason.
 
@@ -108,7 +108,7 @@ needs, all of it, for itself:
    `docs/user/install/<surface>.md`.
 2. **A `validation` block** — the command that proves the install worked, run on the real
    surface.
-3. **All 19 capability rows**, measured on *that* surface. The sibling's rows are not
+3. **All 21 capability rows**, measured on *that* surface. The sibling's rows are not
    evidence; if they were, the surface would not have been unverified.
 4. **A `platform-sync` platform file** —
    `skills/documentation/platform-sync/references/platforms/<id>.md` — so its upstream
