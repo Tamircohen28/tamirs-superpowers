@@ -1,6 +1,6 @@
 # Changelog archive (1/3): 3.6.1 – 3.4.0
 
-Older `tamirs-superpowers` changelog entries, moved out of `CHANGELOG.md` on 2026-09-17 to keep that file a manageable size for tooling that must round-trip its full content. Same format, same content, split only by size. Continues in [CHANGELOG-archive-2.md](CHANGELOG-archive-2.md).
+Older `tamirs-superpowers` changelog entries, moved out of the root `CHANGELOG.md` on 2026-09-17 (and from the repo root into `docs/changelog/` on 2026-10-02) to keep that file a manageable size for tooling that must round-trip its full content. Same format, same content, split only by size. Continues in [CHANGELOG-archive-2.md](CHANGELOG-archive-2.md).
 
 ---
 
@@ -79,7 +79,7 @@ Older `tamirs-superpowers` changelog entries, moved out of `CHANGELOG.md` on 202
   has not passed. `scripts/statusline.sh` renders it as a fourth line using
   the exact same only-when-present pattern already used for the 7-day line,
   so nobody outside that configuration sees any change. Documented in
-  [statusline](docs/engineering/statusline.md). Covered by two new cases in
+  [statusline](../../docs/engineering/statusline.md). Covered by two new cases in
   `tests/test-statusline.sh`: the line renders when the field is present,
   and it is absent (not merely empty) when it is not.
 - **`session-init.sh`: a one-line heads-up when a resumed session's prompt
@@ -112,13 +112,13 @@ Older `tamirs-superpowers` changelog entries, moved out of `CHANGELOG.md` on 202
   bug, fixed host-side in 2.1.251), but is genuinely relevant given how much
   of this repo's own orchestration leans on background sessions and
   worktree isolation; documented in
-  [troubleshooting](docs/user/troubleshooting.md#skills-do-not-appear-after-installing)
+  [troubleshooting](../../docs/user/troubleshooting.md#skills-do-not-appear-after-installing)
   next to the existing 2.1.246 `0 skills` entry, since both present the same
   symptom ("no skills") for a different underlying reason. Re-reviewed and
   still not adopted: `PreModelSwitch`/`PostModelSwitch` hook events (2.1.251)
   — nothing in this repo's orchestration currently needs to gate or observe
   a model switch, so wiring one would be dead surface; noted in
-  [CLAUDE.md](CLAUDE.md) for Tamir's judgment rather than wired speculatively.
+  [CLAUDE.md](../../CLAUDE.md) for Tamir's judgment rather than wired speculatively.
   `experimental.cacheTtl` agent frontmatter (2.1.248) was re-checked against
   all ten `agents/*.md` — still nothing here needs a cache TTL narrower than
   the session default, same conclusion as the 2.1.250 cycle.
@@ -163,7 +163,7 @@ Older `tamirs-superpowers` changelog entries, moved out of `CHANGELOG.md` on 202
   machine rather than prescribing new settings. `/doctor`'s stale-sandbox-mask
   warning is Claude Code's own diagnostic, not this repo's `scripts/doctor.sh`
   (a plugin-install health report); noted in
-  [doctor.sh](scripts/doctor.sh) as a complementary, not overlapping, check.
+  [doctor.sh](../../scripts/doctor.sh) as a complementary, not overlapping, check.
   `/fork`'s worktree-briefing/prompt-cache fix is about Claude Code's own
   native `/fork` briefing message, a different mechanism from this repo's
   `hooks/session-init.sh` `SessionStart` `additionalContext` (which has always

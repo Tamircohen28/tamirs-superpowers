@@ -7,6 +7,9 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Changed
 
+- The three `CHANGELOG-archive-*.md` files (3.6.1 and earlier, split out 2026-09-17) move from the
+  repo root to `docs/changelog/`. Relocated, not removed: they are the only copy of that history
+  (no heading overlaps `CHANGELOG.md`). The footer link follows.
 - **Platform drift closed (#247 and its daily duplicates #236–#245):** `reviewed_through`/`latest_known`
   advance on changelog and schema evidence, `validated_against` deliberately unchanged (no live
   binary in the review environment) — **Codex** 0.156.1 → 0.160.0 (0.159.0 removed
@@ -1769,4 +1772,4 @@ changelog-only.
 
 ---
 
-Older entries (3.6.1 and earlier) live in [CHANGELOG-archive-1.md](CHANGELOG-archive-1.md), [CHANGELOG-archive-2.md](CHANGELOG-archive-2.md), and [CHANGELOG-archive-3.md](CHANGELOG-archive-3.md) — split out 2026-09-17 to keep this file a size the repo's own tooling and its GitHub write path can reliably round-trip. No content was removed, only relocated.
+Older entries (3.6.1 and earlier) live in [docs/changelog/CHANGELOG-archive-1.md](docs/changelog/CHANGELOG-archive-1.md), [CHANGELOG-archive-2.md](docs/changelog/CHANGELOG-archive-2.md), and [CHANGELOG-archive-3.md](docs/changelog/CHANGELOG-archive-3.md) — split out 2026-09-17 to keep this file a size the repo's own tooling and its GitHub write path can reliably round-trip. No content was removed, only relocated.
