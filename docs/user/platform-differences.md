@@ -136,6 +136,7 @@ them.
 | `hooks` | native | unknown | native | partial | unknown | unsupported |
 | `mcp` | native | native | native | native | native | native |
 | `statusline` | native | unsupported | unsupported | unsupported | unsupported | unsupported |
+| `mods` | native | native | unsupported | unsupported | unsupported | unsupported |
 | `shell` | native | partial | native | native | native | native |
 | `git` | native | partial | native | native | native | native |
 | `github_cli` | native | unknown | native | native | native | native |
@@ -333,6 +334,7 @@ is not in this repo's `opencode.json` and does not run the `hooks/` guards.
 | lacks `slash_commands` | invoke skills by name: *"use the orchestrate-dev skill"* |
 | lacks `skill_auto_invocation` | the agent will not pick a skill from your phrasing — name it |
 | lacks `statusline` | nothing; it is cosmetic and nothing depends on it |
+| lacks `mods` | the objective pane, the rate-limit handoff band and the Desktop usage line are absent; `objective-state.sh show`, `rate-limit-handoff.sh` and `scripts/statusline.sh` cover the same ground, and nothing depends on the mod |
 | lacks `session_transcripts` | `/session-report` refuses rather than reporting zeros |
 | lacks `github_cli` | delivery ends at a pushed branch, and says so — never a fake PR claim |
 | lacks `ask_user_question` | choices are asked in prose and wait for a free-text reply |

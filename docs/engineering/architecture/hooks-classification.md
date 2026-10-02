@@ -33,6 +33,7 @@ the one that answers "what breaks if this is gone".
 | `release-agent-claims.sh` | SessionEnd | **core-safety-invariant** | Claude Code, Cursor | Claims expire on their own staleness window instead of immediately | **Yes** |
 | `enforce-worktree-edits.sh` | PreToolUse `Edit\|Write\|…` | **core-safety-invariant** | Claude Code, Cursor | Main-checkout edits become an advisory rule in `AGENTS.md` | **Yes** |
 | `guard-sensitive-files.sh` | PreToolUse `Edit\|Write\|…` **and `Bash`** | **core-safety-invariant** | Claude Code, Cursor | Lockfiles, build output and workflows are hand-editable | **Yes** |
+| `docker-guard.py` | PreToolUse `Bash\|Shell` | **core-safety-invariant** | Claude Code, Codex (`python3`) | Docker commands that leave lasting state (`run -d`, `volume rm`, `system prune`, …) run unconfirmed | **Yes** |
 | `goal-condition-lint.sh` | UserPromptSubmit | **core-safety-invariant** | Claude Code only (`/goal`) | **Unprotected.** A `/goal` condition that cannot terminate blocks every turn-end until the harness cap trips — 21 blocks on 2026-08-17, ~15 on 2026-08-31. | **Yes** |
 | `capture-task-slug.sh` | UserPromptSubmit | **worktree-lifecycle** | Claude Code only | No automatic workspace; skills must create one explicitly | **Yes**, opt-out |
 | `session-init.sh` | SessionStart | **worktree-lifecycle** | Claude Code only | No session dir, no session-files reload, no stale-worktree pruning | **Yes**, opt-out |
@@ -45,10 +46,14 @@ the one that answers "what breaks if this is gone".
 | `scope-decompose-reminder.sh` | UserPromptSubmit | **claude-convenience** | Any (text heuristic) | Nothing; a decomposition nudge is lost | Optional |
 | `skill-creator-guard.sh` | PreToolUse `Edit\|Write\|…` | **claude-convenience** | Claude Code, Cursor | Hand-written `SKILL.md` files are not intercepted | Optional |
 | `handoff-reminder.sh` | SessionEnd | **claude-convenience** | Claude Code only | No handoff nudge; `switch-dev` is still invocable | Optional |
+| `rate-limit-handoff.sh` | StopFailure `rate_limit` | **claude-convenience** | Claude Code only | No handoff prompt at the moment a rate limit ends the turn — the moment `switch-dev` is needed and cannot be asked for (0 invocations / 953 sessions) | **Yes** |
+| `subagent-handoff-check.sh` | SubagentStop | **claude-convenience** | Claude Code only | The orchestrator is not warned when a worker returns without a handoff, or `completed` without validation | **Yes** |
+| `precompact-snapshot.sh` | PreCompact | **claude-convenience** | Claude Code only | No `.dev-files/compaction/` snapshot of branch/dirty files/objective before context is lost | **Yes** |
+| `skill-suggest.sh` | UserPromptSubmit | **claude-convenience** | Claude Code, Codex | No at-the-moment skill suggestion (`additionalContext`, once per skill per session per repo) | **Yes** |
 | `plugin-reload-reminder.sh` | PostToolUse `Edit\|Write` | **contributor-only** | Claude Code only | Nothing; the author reloads manually | **No** — plugin authors only |
-| `plugin-version-watch.sh` | Stop | **contributor-only** | Claude Code only | No 24h `/platform-sync` nudge | **No** — agent-config authors only |
 | `validate-report-links.sh` | PostToolUse `Write` | **contributor-only** | Claude Code only | `report.md` links are unchecked | **No** — plugin authors only |
 | `show-changelog.sh` | SessionStart | **platform-specific** | Claude Code only (shells out to `claude --version`) | Nothing | Optional |
+| `cursor-agent-tools-guard.sh` | Cursor `preToolUse`/`postToolUse` (wired in `platforms/cursor/hooks.json` only, never `hooks/hooks.json`) | **platform-specific** | Cursor only | An agent's `tools:` allowlist is prose, not enforcement, on Cursor (measured 2026-09-23) | **Yes** |
 | `notify.sh` | Notification | **optional-notification** | Claude Code + a terminal that honours OSC 99, or macOS `osascript` | No desktop notification | Optional |
 | `ensure-exit.sh` | UserPromptSubmit | **optional-notification** | Any (needs `curl`) | No VPN/exit-node check | Optional (already env-gated, silent by default) |
 | `usage-capture-ensure.sh` | SessionStart | **optional-notification** | Claude Code only | Collector is not auto-started; `enable.sh` / `collector.py --daemon` still work | Optional (env-gated `TAMIRS_USAGE_CAPTURE`, silent by default) |
@@ -64,11 +69,22 @@ the one that answers "what breaks if this is gone".
 
 ## What "without hooks" actually means
 
-Only Claude Code and Cursor execute anything in `hooks/`. Cursor sees the four
-PreToolUse guards (via `lib/hook-output.sh`'s dual dialect); it has no
-UserPromptSubmit, SessionStart/End, WorktreeCreate/Remove, DirectoryAdded,
-Notification or Stop equivalent. Codex, Gemini CLI and OpenCode execute none of
-them.
+Claude Code and the Codex CLI both load `hooks/hooks.json` natively (Codex has
+no `WorktreeCreate`/`WorktreeRemove`, `DirectoryAdded` or `Notification` event,
+and sends `apply_patch` where Claude sends `Edit`/`Write` — `lib/platform-tools.sh`
+maps it). Cursor executes the guards `platforms/cursor/hooks.json` wires to
+`preToolUse`/`beforeShellExecution`/`postToolUse` (via `lib/hook-output.sh`'s
+dual dialect); it has no UserPromptSubmit, SessionStart/End, WorktreeCreate/
+Remove, DirectoryAdded, Notification or Stop equivalent. Gemini CLI and OpenCode
+execute none of them. `core/capabilities/platforms.json` is the measured record;
+this paragraph summarises it.
+
+Since Claude Code **2.1.287** there is a second, Claude-only mechanism beside
+these settings hooks: a **mod**, `hooks/mods/register.tsx`, loaded from the
+`modules` key of the same `hooks/hooks.json`. It runs in-process, can draw, and
+reacts to pushed state the bash hooks never see (`session.measure`). It is
+additive by design — every row above stays canonical, because a mod runs on
+Claude Code and Claude Desktop only. See [`mods.md`](mods.md).
 
 That matters for exactly one category. A convenience or a notification that
 never fires is a smaller product, not a broken one. A **core safety invariant**
@@ -191,11 +207,11 @@ Not a change made here — the shape the table argues for.
 
 | Tier | Contents | Default |
 |---|---|---|
-| **safety** | `protect-other-branches`, `release-agent-claims`, `enforce-worktree-edits`, `guard-sensitive-files`, `goal-condition-lint` | on |
+| **safety** | `protect-other-branches`, `release-agent-claims`, `enforce-worktree-edits`, `guard-sensitive-files`, `docker-guard`, `goal-condition-lint` | on |
 | **worktree** | `capture-task-slug`, `session-init`, `session-end`, `worktree-create`, `worktree-remove` | on, opt-out |
-| **convenience** | `check-done`, `directory-added`, `goal-compact-reminder`, `scope-decompose-reminder`, `skill-creator-guard`, `handoff-reminder`, `show-changelog` | on, opt-out |
+| **convenience** | `check-done`, `directory-added`, `goal-compact-reminder`, `scope-decompose-reminder`, `skill-creator-guard`, `handoff-reminder`, `rate-limit-handoff`, `subagent-handoff-check`, `precompact-snapshot`, `skill-suggest`, `show-changelog` | on, opt-out |
 | **notification** | `notify`, `ensure-exit` | off unless configured |
-| **contributor** | `plugin-reload-reminder`, `plugin-version-watch`, `validate-report-links` | off for users |
+| **contributor** | `plugin-reload-reminder`, `validate-report-links` | off for users |
 
 ## Tests
 
@@ -208,4 +224,12 @@ Not a change made here — the shape the table argues for.
 | `tests/test-statusline.sh` | Piped JSON, `</dev/null`, and an open pipe with no writer — each under a hard wall-clock timeout |
 | `tests/test-goal-condition-lint.sh` | Which `/goal` conditions are refused and — weighted deliberately heavier — which must **not** be, including near-misses, carve-outs, the `force:` override, and that the menu's own recommended rewrite passes the hook |
 
-Run them with `make test-hooks`.
+| `tests/test-docker-guard.sh` | `docker-guard.py`, including that its `hooks.json` matcher agrees with its own tool tuple |
+| `tests/test-rate-limit-handoff.sh` | `rate-limit-handoff.sh`: silent with nothing in flight, names the resumable work otherwise |
+| `tests/test-subagent-handoff-check.sh` | `subagent-handoff-check.sh` |
+| `tests/test-precompact-snapshot.sh` | `precompact-snapshot.sh` |
+| `tests/test-skill-suggest.sh` | `skill-suggest.sh`: once per skill per session per repo |
+| `tests/test-cursor-agent-tools-guard.sh` | `cursor-agent-tools-guard.sh` |
+| `hooks/mods/*.test.ts` | The mod, under `claude plugin test hooks/mods` (`make test-mods`) |
+
+Run the shell suites with `make test-hooks`.

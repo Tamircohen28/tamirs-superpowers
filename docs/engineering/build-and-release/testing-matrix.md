@@ -93,7 +93,9 @@ unverified capabilities stay `unknown` in the registry rather than being assumed
 | Validate JSON | every `*.json` parses |
 | Validate SKILL.md frontmatter | the portable schema validator |
 | Secret scan | no credential ever lands in the tree |
-| `claude plugin validate` | the Claude manifest, skills, agents, hooks |
+| `claude plugin validate` | the marketplace manifest (`.`); the Claude manifest, skills, agents, hooks and the mod's source (`.claude-plugin/plugin.json`) |
+| `claude plugin test` (`make test-mods`) | `hooks/mods/*.test.tsx` against the engine: the mod's hooks, drawings on the terminal and desktop element tables |
+| `make typecheck-mods` | `tsc` over the mod against the build's `claude-code.d.ts`, where the engine has laid one; skips otherwise |
 | Repo contract | `make test-repo-contract` |
 | Manifest/tag version alignment | manifests vs the cut release tag |
 | Platform targets co-change | `platform-targets.json` must move when repo skills do |

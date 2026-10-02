@@ -6,11 +6,11 @@
   <a href="https://github.com/Tamircohen28"><img src="https://img.shields.io/badge/author-Tamir%20Cohen-181717?logo=github" alt="Author" /></a>
   <a href="https://github.com/Tamircohen28/tamirs-superpowers/actions/workflows/ci.yml"><img src="https://github.com/Tamircohen28/tamirs-superpowers/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="MIT License" /></a>
-  <a href="plugin-version.json"><img src="https://img.shields.io/badge/version-4.9.1-blue" alt="Version" /></a>
+  <a href="plugin-version.json"><img src="https://img.shields.io/badge/version-4.10.0-blue" alt="Version" /></a>
 </p>
 
 <p align="center">
-  <a href="docs/engineering/build-and-release/platform-targets.json"><img src="https://img.shields.io/badge/Claude%20Code-2.1.281-blueviolet" alt="Claude Code" /></a>
+  <a href="docs/engineering/build-and-release/platform-targets.json"><img src="https://img.shields.io/badge/Claude%20Code-2.1.287-blueviolet" alt="Claude Code" /></a>
   <a href="docs/engineering/build-and-release/platform-targets.json"><img src="https://img.shields.io/badge/Cursor-3.21.13-000000" alt="Cursor" /></a>
   <a href="docs/engineering/build-and-release/platform-targets.json"><img src="https://img.shields.io/badge/Codex-0.156.0-412991" alt="Codex" /></a>
   <a href="docs/engineering/build-and-release/platform-targets.json"><img src="https://img.shields.io/badge/Gemini%20CLI-0.60.0-4285F4" alt="Gemini CLI" /></a>
@@ -53,7 +53,7 @@ One plugin, one marketplace listing, both surfaces.
 
 | Surface | Registry id | Kind | Status | Install |
 |---|---|---|---|---|
-| Claude Code | `claude_code` | CLI | ✅ supported — validated 2.1.281 | [guide](docs/user/install/claude-code.md) |
+| Claude Code | `claude_code` | CLI | ✅ supported — validated 2.1.287 | [guide](docs/user/install/claude-code.md) |
 | Claude Desktop | `claude_desktop` | desktop | ✅ supported — same plugin, different runtime surface | [guide](docs/user/install/claude-desktop.md) |
 
 ### Codex
@@ -116,7 +116,7 @@ user path does not:
 | Node 22 (pinned in `.nvmrc`) | builds the `scaffold-plugin-gold` contract fixture |
 | Python 3 + `pyyaml>=6.0` | `pip install -r scripts/requirements-validate.txt` — SKILL.md frontmatter and the portable skill contract |
 
-`make plugin-validate` additionally wants the `claude` CLI; `make validate` does not run it.
+`make plugin-validate` and `make test-mods` (the mod's validator and tests) additionally want the `claude` CLI (2.1.287+ for the mod); `make validate` does not run them.
 Confirm a machine is ready with `bash scripts/doctor.sh .`.
 
 ## Install in 5 minutes

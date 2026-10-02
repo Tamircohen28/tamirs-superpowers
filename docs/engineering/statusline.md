@@ -1,17 +1,21 @@
 # Statusline
 
-`scripts/statusline.sh` renders a 2-3 line status display in the Claude Code footer on every turn. It is wired via the `statusLine` field in `.claude-plugin/plugin.json`:
+`scripts/statusline.sh` renders a 2–5 line status display in the Claude Code footer on every turn (two lines always; lines 3–5 only when the host sends their data). It is wired via `settings.statusLine` in `.claude-plugin/plugin.json`:
 
 ```json
 "statusLine": {
   "type": "command",
-  "command": "f=$(ls $HOME/.claude/plugins/cache/tamirs-marketplace/tamirs-superpowers/*/scripts/statusline.sh 2>/dev/null | sort -rV | head -1) && [ -n \"$f\" ] && bash \"$f\""
+  "command": "s=\"${CLAUDE_PLUGIN_ROOT:-}/scripts/statusline.sh\"; [ -f \"$s\" ] || s=$(ls $HOME/.claude/plugins/cache/tamirs-marketplace/tamirs-superpowers/*/scripts/statusline.sh 2>/dev/null | sort -rV | head -1); [ -n \"$s\" ] && [ -f \"$s\" ] && bash \"$s\""
 }
 ```
 
-The command uses a `$HOME`-based glob rather than `${CLAUDE_PLUGIN_ROOT}` because Claude Code only sets `CLAUDE_PLUGIN_ROOT` during hook execution — it is not set when running the `statusLine` command. The glob finds the latest installed version automatically, so the path survives plugin updates.
+The command tries `${CLAUDE_PLUGIN_ROOT}` first (set when the host exports it to the statusLine command, and under `--plugin-dir`) and falls back to a `$HOME`-based glob over the marketplace cache, which finds the latest installed version so the path survives plugin updates.
 
 Claude Code invokes the script and passes a JSON blob on stdin containing session context. The script parses it and emits colored ANSI lines.
+
+**The command must never redirect stdin.** From plugin 4.x until 4.10.0 the manifest command ended in `</dev/null`, which discarded the session JSON before the script could read it: every installed user saw `--` in every field, while `tests/test-statusline.sh` stayed green because its `</dev/null` case tests the *script's* robustness, not the *caller's* behaviour. The suite now also runs the manifest command verbatim with a piped payload and asserts a real value renders. The script's own bounded `read -t` is what protects against a hang; the redirect protected against nothing.
+
+Since Claude Code **2.1.287**, the same figures are available in-process to a mod through `$.session.usage()` (context, `five_hour`/`seven_day`/`spend_limit` rate limits, cost); `hooks/mods/register.tsx` draws them in an `AbovePrompt` band on the Desktop Code tab, where this `statusLine` command does not run. The band and the script coexist: the script stays canonical on the CLI, the band covers Desktop. See [`mods.md`](architecture/mods.md).
 
 ## Output format
 

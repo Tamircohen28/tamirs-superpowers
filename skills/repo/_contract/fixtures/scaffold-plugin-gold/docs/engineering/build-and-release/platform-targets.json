@@ -34,6 +34,7 @@
         "github_cli",
         "hooks",
         "mcp",
+        "mods",
         "parallel_subagents",
         "plugin_marketplace",
         "session_transcripts",
@@ -74,6 +75,7 @@
         "artifacts": "No artifact publishing surface.",
         "dynamic_workflows": "The Workflow tool is Claude-specific; no declared Codex equivalent.",
         "extension_install": "Codex installs plugins, not git-URL extensions.",
+        "mods": "Claude Code function hooks have no Codex equivalent. Codex loads the same hooks/hooks.json that now carries the `modules` key; whether it ignores an unknown top-level key there is UNVERIFIED (no Codex run this cycle). Chosen knowingly over a sibling plugin: one hooks file, one distribution. If a Codex run ever rejects the file, point .codex-plugin/plugin.json `hooks` at a generated copy without `modules`.",
         "slash_commands": "No plugin-shippable command mechanism found. All 9 plugins bundled with codex 0.156.0 (browser, chrome, codex-app-tools, computer-use, latex, messages, record-and-replay, unified-computer-use, visualize) were checked: 0 declare a commands manifest field and 0 ship a commands/ directory. Codex publishes no manifest reference to cite, so this is the strongest available evidence rather than a documented absence - it means a plugin cannot CONTRIBUTE commands, not that Codex has no built-in ones. The adjacent surface Codex does offer is interface.defaultPrompt, which this plugin ships with 6 entries as of 4.5.0.",
         "statusline": "Not a declared Codex capability."
       }
@@ -120,6 +122,7 @@
         "artifacts": "No artifact publishing surface.",
         "dynamic_workflows": "The Workflow tool is Claude-specific; no declared Cursor equivalent.",
         "extension_install": "Cursor installs plugins, not git-URL extensions.",
+        "mods": "Cursor loads platforms/cursor/hooks.json, never hooks/hooks.json, so it never sees the `modules` key. No equivalent in-process hook API.",
         "statusline": "No plugin-declared statusline."
       },
       "verification_method": "latest desktop build from official Cursor download links (3.21.13, 2026-09-13 stable) cross-checked against cursor.com/changelog (feature 3.11; date-only entries through 2026-09-10 Projects; prior 2026-09-02 Self-Hosted Machines / Team Pools / partner sandboxes / computer use; prior Start-from-scratch 2026-08-27); Cursor CLI changelog Aug 11 2026 documented; Builds now default (2026-08-17); Origin early-beta docs; cloud-agent subscriptions / custom modes / isolated subagent VMs /goal / steering (2026-08-19); CLI changelog through 2026-08-26 (agent persist / hibernated worker wake)",
@@ -152,6 +155,7 @@
       "capability_gaps": {
         "artifacts": "No artifact publishing surface.",
         "dynamic_workflows": "The Workflow tool is Claude-specific; no declared Gemini equivalent.",
+        "mods": "No equivalent; the Gemini extension reads no hooks file from this repo.",
         "parallel_subagents": "Gemini subagents cannot themselves call subagents — documented recursion protection, not merely unmeasured. orchestrate-dev's fan-out pattern is structurally impossible on Gemini as a result.",
         "statusline": "Measured on 0.55.1: no extension-declared statusline."
       }
@@ -182,6 +186,7 @@
         "dynamic_workflows": "The Workflow tool is Claude-specific; no declared OpenCode equivalent.",
         "extension_install": "No git-URL extension install.",
         "hooks": "OpenCode has no hooks.json; its only lifecycle mechanism is the JS/TS plugin API. Lifecycle guards from hooks/ still do not run. A narrow opt-in exception is skills/toolkit/usage-capture/opencode-plugin.mjs (zero npm imports, observe-only, not listed in this repo's opencode.json) for local usage JSONL. That plugin is not a hook-guard adapter — 'adapter' would imply generated worktree/safety artifacts, and none exist.",
+        "mods": "No equivalent; OpenCode runs no hooks from this repo.",
         "parallel_subagents": "OpenCode's subagent_depth defaults to 1 (shipped v1.18.2, 2026-07-15), so a subagent cannot itself spawn subagents — not merely unmeasured.",
         "plugin_marketplace": "No plugin marketplace — install is by absolute skills.paths. Not by symlink: OpenCode does not follow them for skill discovery (see the skills row).",
         "statusline": "No plugin-declared statusline."

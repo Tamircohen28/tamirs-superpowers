@@ -1,4 +1,4 @@
-.PHONY: help setup setup-plan capture install update uninstall validate lint test plugin-validate test-repo-contract \
+.PHONY: help setup setup-plan capture install update uninstall validate lint test plugin-validate test-mods typecheck-mods test-repo-contract \
 	check-manifest-versions check-platform-equivalence check-agent-drift \
 	check-feature-equivalence check-platform-targets platform-targets-sync \
 	platform-targets-assert platform-targets-cochange agent\:check agent-polish-gate \
@@ -45,6 +45,8 @@ help:
 	@echo "  test-hooks              — behavior tests for hooks/ (tests/test-*.sh)"
 	@echo "  test-repo-contract      — contract fixtures (app-gold, plugin-gold, claude-plugin-gold)"
 	@echo "  plugin-validate         — claude plugin validate (requires Claude Code CLI)"
+	@echo "  test-mods               — validate + test the mod, hooks/mods/ (requires Claude Code CLI 2.1.287+)"
+	@echo "  typecheck-mods          — tsc over the mod against the build's claude-code.d.ts (skips when none is laid)"
 	@echo "  check-manifest-versions — plugin manifests agree with each other"
 	@echo "  check-marketplace-schema — extraKnownMarketplaces is a record, not an array"
 	@echo "  check-doc-claims        — skill counts and target coverage match reality"
@@ -283,10 +285,27 @@ check-manifest-versions:
 plugin-validate:
 	@echo "--- claude plugin validate (primary validator) ---"
 	@if command -v claude >/dev/null 2>&1; then \
-	  claude plugin validate . && echo "  plugin validate passed"; \
+	  claude plugin validate . && echo "  marketplace manifest validate passed" \
+	    && claude plugin validate .claude-plugin/plugin.json && echo "  plugin manifest + hooks module validate passed"; \
 	else \
 	  echo "  claude CLI not found — install from claude.ai/code"; \
 	  exit 1; \
 	fi
+
+# The mod (hooks/mods/register.tsx). `claude plugin validate .` reads only the MARKETPLACE
+# manifest and never the hooks module, so the plugin-manifest form is what validates the
+# mod; `claude plugin test` runs hooks/mods/*.test.tsx against the engine itself. Both need
+# the Claude Code CLI (2.1.287+), which `make validate` deliberately does not require.
+test-mods:
+	@echo "--- mod: claude plugin validate .claude-plugin/plugin.json + claude plugin test . ---"
+	@if command -v claude >/dev/null 2>&1; then \
+	  claude plugin validate .claude-plugin/plugin.json && claude plugin test . && echo "  mod validate + tests passed"; \
+	else \
+	  echo "  claude CLI not found — install from claude.ai/code"; \
+	  exit 1; \
+	fi
+
+typecheck-mods:
+	@bash scripts/typecheck-mods.sh .
 
 test: validate

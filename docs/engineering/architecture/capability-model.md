@@ -65,7 +65,7 @@ Every surface carries a `support` value, and the enum has two members on purpose
 
 | `support` | Meaning | Carries |
 |---|---|---|
-| `supported` | This repo installs here, validates here, and has measured what it can do. | `install`, `validation`, and all 20 capability rows. |
+| `supported` | This repo installs here, validates here, and has measured what it can do. | `install`, `validation`, and all 21 capability rows. |
 | `unverified` | A real surface of the platform that this repo has **never exercised**. | `unverified_reason`, plus the identifying fields (`display_name`, `kind`, `aliases`, `doc_urls`). No `install`, no `validation`, no `capabilities`. |
 
 The schema enforces both halves. A `supported` surface missing `install`, `validation` or
@@ -174,19 +174,27 @@ these over their own bundled URL lists.
 
 ## Capability keys
 
-Twenty keys, fixed by the `enum` at `$defs.capabilityKey` in `schema.json`. That enum
+Twenty-one keys, fixed by the `enum` at `$defs.capabilityKey` in `schema.json`. That enum
 is the single capability vocabulary — skill frontmatter validation reads it directly, so
 a skill cannot declare a capability the registry does not define:
 
 `skills`, `skill_auto_invocation`, `subagents`, `parallel_subagents`, `agent_teams`,
 `hooks`, `mcp`, `statusline`, `shell`, `git`, `github_cli`, `background_tasks`,
 `worktree_isolation`, `plugin_marketplace`, `extension_install`, `slash_commands`,
-`ask_user_question`, `artifacts`, `session_transcripts`, `dynamic_workflows`.
+`ask_user_question`, `artifacts`, `session_transcripts`, `dynamic_workflows`, `mods`.
 
 `dynamic_workflows` is `native` on Claude Code only (the `Workflow` tool that runs a
 JavaScript orchestration script across many subagents) and `unsupported` everywhere
 else — every other platform's fallback is sequential subagent orchestration driven by
 the main session.
+
+`mods` is `native` on Claude Code (2.1.287+) and the Claude Desktop Code tab, and
+`unsupported` everywhere else: it is whether THIS REPO'S hooks module
+(`hooks/mods/register.tsx`, the `modules` key of `hooks/hooks.json`) loads as in-process
+function hooks — a pane, a band above the prompt, pushed rate-limit state, a command that
+answers without a model turn. Its degradation is total and deliberate: every feature the mod
+adds has a settings-hook or skill fallback, and nothing may depend on the mod having loaded
+(see `docs/engineering/architecture/mods.md`).
 
 Each is defined once, at the top of the registry, under `capability_definitions` — with
 a `summary` of what it means and a `degradation` line stating what a skill does without
