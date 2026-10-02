@@ -7,6 +7,15 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Changed
 
+- **Platform drift closed (#247 and its daily duplicates #236–#245):** `reviewed_through`/`latest_known`
+  advance on changelog and schema evidence, `validated_against` deliberately unchanged (no live
+  binary in the review environment) — **Codex** 0.156.1 → 0.160.0 (0.159.0 removed
+  `tui.prompt_suggestions` and the bundled `plugin-creator` skill, neither referenced here;
+  0.160.0 caches parsed plugin manifests), **Gemini CLI** 0.60.0 → 0.62.0 (its extension,
+  skills and subagent docs are byte-identical between the tags), **OpenCode** 2.0.15 → 2.0.22
+  (release notes unreadable upstream; the config/permission/agent/command schema files are
+  byte-identical v2.0.14→v2.0.22 and the live `config.json` still declares the pinned 15
+  permission keys, re-read 2026-10-02). `.codex-version` follows to 0.160.0.
 - **Cursor 3.11 (+2026-09-23 / desktop 3.22.7):** bump desktop/`validated_against` **3.21.13 → 3.22.7**; `changelog_date` **2026-09-10 → 2026-09-23**. Document **Security Review** + **Rollouts** Automations bots and `/review-security` (complements `security-reviewer`). Feature pin remains **3.11**. Cursor-only.
 
 ## [4.10.0] — 2026-10-02
