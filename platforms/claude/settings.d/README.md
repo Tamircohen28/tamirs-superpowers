@@ -60,11 +60,11 @@ unportable. The GitKraken tooling installs it itself.
 
 ## Not captured here, on purpose
 
-- **Secrets.** No credential value ever enters this directory. Pushover is
-  configured from `PUSHOVER_TOKEN` / `PUSHOVER_USER` at install time and written
-  to `~/.claude/pushover.env` (mode 600).
-- **`hooks`** — wired by `hooks/hooks.json` (plugin-delivered) and, for the
-  Pushover `Notification` hook, by the installer when the env vars are present.
+- **Secrets.** No credential value ever enters this directory. Pushover and the
+  GitHub MCP token are the plugin's sensitive `userConfig` options, held by the
+  host's credential store.
+- **`hooks`** — wired by `hooks/hooks.json` (plugin-delivered), the Pushover
+  `Notification` hook included.
 - **`statusLine`** — comes from `.claude-plugin/plugin.json`.
 - **`settings.local.json`** — machine-local overrides by definition.
 

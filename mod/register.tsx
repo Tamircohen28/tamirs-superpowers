@@ -28,8 +28,10 @@
 //   3. Usage line on Desktop — the figures scripts/statusline.sh draws on the
 //      CLI, where Desktop has no status line to draw into.
 //   4. Pushover on long or failed main-session turns — with the manifest's
-//      pushover_token/pushover_user (or the same env/file sources
-//      scripts/notify-pushover.sh reads), via $.http.fetch; no curl, no subprocess.
+//      pushover_token/pushover_user ONLY, via $.http.fetch; no curl, no
+//      subprocess. Nothing is read from the environment or from a file: the
+//      directory policy forbids a plugin sending a credential it found on the
+//      machine, and the userConfig options are the sanctioned source.
 //   5. Semantic skill suggestion — opt-in (`semantic_skill_suggest`): a small
 //      model classifies a long prompt against the bundled skill names and the
 //      match is attached as context to the prompt. skill-suggest.sh's keyword
@@ -39,12 +41,21 @@
 //      (session.compact), and the repo's Co-Authored-By trailer policy enforced
 //      on the commit attribution text when the repo's CLAUDE.md declares one.
 //
+// HOW IT IS WRITTEN
+//   Every call on `$` is written out in full inside the hook that makes it:
+//   `$` is never handed to a helper. The directory's scanner reads a mod the
+//   same way `claude plugin validate` does, and a capability it cannot see at
+//   the call site is one it cannot vouch for. The helpers below are pure: they
+//   take text or data and give back text or data. No subprocess runs either:
+//   the main working tree comes from `$.session.repo()` and the branch from
+//   reading `.git/HEAD`, both plain `$.fs`/`$.session` calls.
+//
 // BUDGET
 //   Every hook has 10 s of its own time per dispatch; `next` and `$` calls do
 //   not count. Nothing here sleeps. The objective re-read is bounded by the
 //   number of tasks (a handful of small JSON files).
 import { atom, read, update } from 'claude-code'
-import type { EngineInterface, PluginOptions, Register } from 'claude-code'
+import type { Register } from 'claude-code'
 
 import type {
   ModsLimitWarning,
@@ -78,11 +89,16 @@ const SKILL_LABELS = [
 
 const WRITE_TOOLS = new Set(['Edit', 'Write', 'MultiEdit', 'NotebookEdit'])
 const RATE_WINDOWS: Record<string, string> = { five_hour: '5h', seven_day: '7d', spend_limit: 'spend' }
+const MAX_TASKS = 50
+
+// ------------------------------------------------------------ pure helpers
 
 function asNumber(v: unknown, fallback: number): number {
   const n = typeof v === 'number' ? v : typeof v === 'string' ? Number(v) : NaN
   return Number.isFinite(n) ? n : fallback
 }
+
+const str = (v: unknown): string | undefined => (typeof v === 'string' ? v : undefined)
 
 function wordCount(text: string): number {
   return text.trim().split(/\s+/).filter(Boolean).length
@@ -108,52 +124,48 @@ function usageLine(u: ModsUsage, now: number): string {
   return parts.join(' · ')
 }
 
-async function readJson($: EngineInterface, path: string): Promise<Record<string, unknown> | null> {
-  if (!(await $.fs.exists(path))) return null
+// JSON text to an object, or null for anything that is not one.
+function parseObject(text: string | null): Record<string, unknown> | null {
+  if (text === null) return null
   try {
-    const v: unknown = JSON.parse(await $.fs.read(path))
-    return v && typeof v === 'object' ? (v as Record<string, unknown>) : null
+    const v: unknown = JSON.parse(text)
+    return v && typeof v === 'object' && !Array.isArray(v) ? (v as Record<string, unknown>) : null
   } catch {
     return null
   }
 }
 
-const str = (v: unknown): string | undefined => (typeof v === 'string' ? v : undefined)
-
-// The active objective under `dir` (resolveObjectivesDir), as hooks/lib/
+// Which objective under the state directory is the active one, as hooks/lib/
 // objective-common.sh and skills/dev-workflow/_shared/scripts/objective-state.sh
-// lay it out. SUPERPOWERS_OBJECTIVE_ID wins; else the first `active` one; else
-// the first not completed/abandoned.
-async function loadObjective($: EngineInterface, dir: string, preferredId: string | undefined, now: number): Promise<ModsObjective | null> {
-  if (!(await $.fs.exists(dir))) return null
-  const ids = (await $.fs.list(dir)).filter(e => e.kind === 'dir').map(e => e.name).sort()
+// decide it: SUPERPOWERS_OBJECTIVE_ID wins; else the first `active`; else the
+// first not completed/abandoned. `objectives` is id -> parsed objective.json.
+function pickObjective(ids: string[], objectives: Map<string, Record<string, unknown> | null>, preferredId: string | undefined): { id: string; obj: Record<string, unknown> } | null {
   const ordered = preferredId && ids.includes(preferredId) ? [preferredId, ...ids.filter(i => i !== preferredId)] : ids
   let fallback: { id: string; obj: Record<string, unknown> } | null = null
-  let chosen: { id: string; obj: Record<string, unknown> } | null = null
   for (const id of ordered) {
-    const obj = await readJson($, `${dir}/${id}/objective.json`)
+    const obj = objectives.get(id) ?? null
     if (!obj) continue
     const status = str(obj.status) ?? ''
-    if (id === preferredId || status === 'active') { chosen = { id, obj }; break }
+    if (id === preferredId || status === 'active') return { id, obj }
     if (!fallback && status !== 'completed' && status !== 'abandoned') fallback = { id, obj }
   }
-  const pick = chosen ?? fallback
-  if (!pick) return null
-  const taskIds = Array.isArray(pick.obj.tasks) ? pick.obj.tasks.filter((t): t is string => typeof t === 'string') : []
-  const tasks: ModsObjectiveTask[] = []
-  for (const tid of taskIds.slice(0, 50)) {
-    const t = await readJson($, `${dir}/${pick.id}/tasks/${tid}.json`)
-    const h = await readJson($, `${dir}/${pick.id}/handoffs/${tid}.json`)
-    tasks.push({
-      id: tid,
-      title: str(t?.title) ?? tid,
-      status: str(t?.status) ?? 'pending',
-      role: str(t?.role),
-      branch: str(t?.branch),
-      handoff: str(h?.status),
-    })
+  return fallback
+}
+
+function taskIdsOf(obj: Record<string, unknown>): string[] {
+  const tasks = Array.isArray(obj.tasks) ? obj.tasks.filter((t): t is string => typeof t === 'string') : []
+  return tasks.slice(0, MAX_TASKS)
+}
+
+function taskRow(tid: string, task: Record<string, unknown> | null, handoff: Record<string, unknown> | null): ModsObjectiveTask {
+  return {
+    id: tid,
+    title: str(task?.title) ?? tid,
+    status: str(task?.status) ?? 'pending',
+    role: str(task?.role),
+    branch: str(task?.branch),
+    handoff: str(handoff?.status),
   }
-  return { id: pick.id, title: str(pick.obj.title) ?? pick.id, status: str(pick.obj.status) ?? 'unknown', tasks, readAt: now }
 }
 
 function objectiveText(o: ModsObjective | null): string {
@@ -167,90 +179,34 @@ function objectiveText(o: ModsObjective | null): string {
   return lines.join('\n')
 }
 
-// Where objective state lives. `.dev-files/objectives` is gitignored and exists in the
-// MAIN checkout only, while a worker session runs inside a linked worktree
-// (`.agent-worktrees/<objective>/task-NNN`), so the session's own root is the wrong
-// place to look from there. Resolution order mirrors the shell scripts:
-//   1. OBJECTIVES_ROOT — the explicit override handoff.sh/objective-state.sh honour
-//   2. the main working tree, from `git rev-parse --git-common-dir` (the linked
-//      worktree's common .git lives under the main checkout), plus
-//      SUPERPOWERS_OBJECTIVE_STATE_DIRNAME (objective-common.sh; default
-//      .dev-files/objectives)
-//   3. the session's root as a last resort (not a git checkout)
-async function resolveObjectivesDir($: EngineInterface, cwd: string, root: string): Promise<string> {
-  const override = await $.env.get('OBJECTIVES_ROOT')
-  if (override) return override.replace(/\/$/, '')
-  const dirname = (await $.env.get('SUPERPOWERS_OBJECTIVE_STATE_DIRNAME')) || '.dev-files/objectives'
-  let main = root || cwd
-  try {
-    const common = await $.process.run(['git', 'rev-parse', '--path-format=absolute', '--git-common-dir'], { cwd: cwd || root, timeoutMs: 5000 })
-    const gitDir = common.exitCode === 0 ? common.stdout.trim() : ''
-    // <main>/.git for a checkout or a linked worktree; a bare repo has no main tree.
-    if (gitDir.endsWith('/.git')) main = gitDir.slice(0, -'/.git'.length)
-  } catch {
-    // git missing or not a checkout: the session's root stands.
-  }
-  return `${main}/${dirname}`
+// The branch a .git/HEAD names, or the short commit when detached.
+function branchOf(head: string | null): string {
+  if (!head) return ''
+  const ref = head.match(/^ref:\s*refs\/heads\/(\S+)/m)?.[1]
+  if (ref) return ref
+  const sha = head.trim()
+  return /^[0-9a-f]{40}$/.test(sha) ? sha.slice(0, 12) : ''
 }
 
-// Re-reads the objective from disk into $.state; the pane and /objective draw
-// from the state, never from disk directly.
-async function refreshObjective($: EngineInterface, dir: string): Promise<ModsObjective | null> {
-  const preferred = await $.env.get('SUPERPOWERS_OBJECTIVE_ID')
-  const now = await $.clock.now()
-  const next = await loadObjective($, dir, preferred, now)
-  await update($, objective, () => next)
-  return next
+// The gitdir a linked worktree's `.git` FILE points at, or null when the text
+// is not that (a main checkout has a `.git` directory, which reads as nothing).
+function linkedGitDir(dotGit: string | null): string | null {
+  const m = dotGit?.match(/^gitdir:\s*(.+)$/m)
+  return m?.[1]?.trim() || null
 }
 
-// Pushover credentials in the precedence scripts/notify-pushover.sh uses: the
-// environment, then the manifest's userConfig (`options`, or the
-// CLAUDE_PLUGIN_OPTION_* form the host exports to hooks), then
-// ~/.claude/pushover.env (written by scripts/install.sh).
-async function pushoverCredentials($: EngineInterface, options: PluginOptions): Promise<{ token: string; user: string } | null> {
-  let token = (await $.env.get('PUSHOVER_TOKEN')) || str(options.pushover_token) || (await $.env.get('CLAUDE_PLUGIN_OPTION_PUSHOVER_TOKEN')) || ''
-  let user = (await $.env.get('PUSHOVER_USER')) || str(options.pushover_user) || (await $.env.get('CLAUDE_PLUGIN_OPTION_PUSHOVER_USER')) || ''
-  if (!token || !user) {
-    const home = await $.env.get('HOME')
-    const file = home ? `${home}/.claude/pushover.env` : ''
-    if (file && (await $.fs.exists(file))) {
-      const text = await $.fs.read(file)
-      const pick = (name: string) => text.match(new RegExp(`^\\s*(?:export\\s+)?${name}=["']?([^"'\\n]+)`, 'm'))?.[1]?.trim()
-      token ||= pick('PUSHOVER_TOKEN') ?? ''
-      user ||= pick('PUSHOVER_USER') ?? ''
-    }
-  }
-  return token && user ? { token, user } : null
-}
-
-type TurnSummary = { answer: string; durationMs: number; reason: string }
-
-// One Pushover message for a finished or failed main-session turn. A network
-// failure is swallowed: it is not the turn's problem, and notify-pushover.sh
-// swallows the same failure for the same reason.
-async function notifyPushover($: EngineInterface, e: TurnSummary, options: PluginOptions, minMs: number, project: string): Promise<void> {
-  if (e.reason === 'answer' && e.durationMs < minMs) return
-  const creds = await pushoverCredentials($, options)
-  if (!creds) return
-  const secs = Math.round(e.durationMs / 1000)
-  const head = e.reason === 'error' ? 'Turn ended on an API error' : `Turn finished (${secs}s)`
-  const snippet = e.answer.replace(/\s+/g, ' ').trim().slice(0, 300)
-  const body = new URLSearchParams({
-    token: creds.token,
-    user: creds.user,
+// The Pushover form body for one finished or failed main-session turn.
+function pushoverBody(token: string, user: string, project: string, answer: string, durationMs: number, reason: string): string {
+  const secs = Math.round(durationMs / 1000)
+  const head = reason === 'error' ? 'Turn ended on an API error' : `Turn finished (${secs}s)`
+  const snippet = answer.replace(/\s+/g, ' ').trim().slice(0, 300)
+  return new URLSearchParams({
+    token,
+    user,
     title: `Claude Code — ${project}`.slice(0, 250),
     message: `${head}${snippet ? `: ${snippet}` : ''}`.slice(0, 1024),
-    priority: e.reason === 'error' ? '1' : '0',
+    priority: reason === 'error' ? '1' : '0',
   }).toString()
-  try {
-    await $.http.fetch('https://api.pushover.net/1/messages.json', {
-      method: 'POST',
-      headers: { 'content-type': 'application/x-www-form-urlencoded' },
-      body,
-    })
-  } catch {
-    // see above
-  }
 }
 
 const STATUS_COLOR: Record<string, string> = {
@@ -261,10 +217,14 @@ export const register: Register = (on, options) => {
   const warnAt = Math.min(100, Math.max(50, asNumber(options.rate_limit_warn_percent, 85)))
   const pushoverMinMs = Math.max(0, asNumber(options.pushover_min_turn_seconds, 120)) * 1000
   const semanticSuggest = options.semantic_skill_suggest === true
+  // The only credential source (see the header). Blank means Pushover is off.
+  const pushoverToken = str(options.pushover_token) ?? ''
+  const pushoverUser = str(options.pushover_user) ?? ''
 
   // Module variables: reset on a hot reload, which is fine for all of them.
   let root = ''
   let cwd = ''
+  let mainRoot = ''
   let objectivesDir = ''
   let trailerPolicy: string | null = null
   let writesThisTurn = 0
@@ -279,35 +239,83 @@ export const register: Register = (on, options) => {
     } catch {
       root = e.cwd
     }
+
+    // Where objective state lives. `.dev-files/objectives` is gitignored and exists
+    // in the MAIN checkout only, while a worker session runs inside a linked
+    // worktree (`.agent-worktrees/<objective>/task-NNN`), so the session's own root
+    // is the wrong place to look from there. Resolution order mirrors the shell
+    // scripts: OBJECTIVES_ROOT (the override handoff.sh/objective-state.sh honour),
+    // else the main working tree ($.session.repo() answers it for a worktree too)
+    // plus SUPERPOWERS_OBJECTIVE_STATE_DIRNAME, else the session's root.
+    mainRoot = root || cwd
+    try {
+      const repo = await $.session.repo()
+      if (repo?.root) mainRoot = repo.root
+    } catch {
+      // Not a git checkout: the session's root stands.
+    }
+    const override = await $.env.get('OBJECTIVES_ROOT')
+    const dirname = (await $.env.get('SUPERPOWERS_OBJECTIVE_STATE_DIRNAME')) || '.dev-files/objectives'
+    objectivesDir = override ? override.replace(/\/$/, '') : `${mainRoot}/${dirname}`
+
     // The repo's commit-trailer policy, when it declares one (CLAUDE.md
     // "Commit trailer"). Enforced in attribution.text below; a repo without the
     // line gets no trailer added by this mod.
     trailerPolicy = null
     try {
-      const claudeMd = await $.fs.exists(`${root}/CLAUDE.md`) ? await $.fs.read(`${root}/CLAUDE.md`) : ''
+      const claudeMd = (await $.fs.exists(`${root}/CLAUDE.md`)) ? await $.fs.read(`${root}/CLAUDE.md`) : ''
       const m = claudeMd.match(/^\s*(Co-Authored-By:\s*Claude\s*<[^>\n]+>)\s*$/im)
       if (m?.[1]) trailerPolicy = m[1].trim()
     } catch {
       trailerPolicy = null
     }
+
     await $.command.register({
       name: 'objective',
       description: 'Show the active orchestration objective and its tasks (tamirs-superpowers)',
       immediate: true,
     })
-    objectivesDir = await resolveObjectivesDir($, cwd, root)
-    await refreshObjective($, objectivesDir)
-    // Re-read every 5 s while an objective exists; a cheap exists() otherwise.
+
+    // Re-read the objective from disk into $.state. The pane, /objective and the
+    // compaction snapshot draw from the state, never from disk directly. Runs
+    // once now and every 5 s after (a cheap exists() while there is nothing).
+    const refresh = async (): Promise<void> => {
+      const preferred = await $.env.get('SUPERPOWERS_OBJECTIVE_ID')
+      const now = await $.clock.now()
+      let found: ModsObjective | null = null
+      if (await $.fs.exists(objectivesDir)) {
+        const ids = (await $.fs.list(objectivesDir)).filter(d => d.kind === 'dir').map(d => d.name).sort()
+        const objectives = new Map<string, Record<string, unknown> | null>()
+        for (const id of ids) {
+          const path = `${objectivesDir}/${id}/objective.json`
+          objectives.set(id, parseObject((await $.fs.exists(path)) ? await $.fs.read(path) : null))
+        }
+        const pick = pickObjective(ids, objectives, preferred)
+        if (pick) {
+          const tasks: ModsObjectiveTask[] = []
+          for (const tid of taskIdsOf(pick.obj)) {
+            const taskPath = `${objectivesDir}/${pick.id}/tasks/${tid}.json`
+            const handoffPath = `${objectivesDir}/${pick.id}/handoffs/${tid}.json`
+            const task = parseObject((await $.fs.exists(taskPath)) ? await $.fs.read(taskPath) : null)
+            const handoff = parseObject((await $.fs.exists(handoffPath)) ? await $.fs.read(handoffPath) : null)
+            tasks.push(taskRow(tid, task, handoff))
+          }
+          found = { id: pick.id, title: str(pick.obj.title) ?? pick.id, status: str(pick.obj.status) ?? 'unknown', tasks, readAt: now }
+        }
+      }
+      await update($, objective, () => found)
+    }
+    await refresh()
     $.clock.every(5000, () => {
-      void refreshObjective($, objectivesDir)
+      void refresh()
     })
     return next(e)
   })
 
   // ------------------------------------------------------- 1. objective pane
+  // Answers from $.state, which the 5 s re-read above keeps current.
   on('command.run', { command: 'objective' }, async $ => {
-    objectivesDir = await resolveObjectivesDir($, cwd, root)
-    const o = await refreshObjective($, objectivesDir)
+    const o = await read($, objective)
     if (o) void $.ui.open({ id: PANE, title: `Objective ${o.id}` })
     return { text: objectiveText(o) }
   })
@@ -345,6 +353,8 @@ export const register: Register = (on, options) => {
     )
   })
 
+  // Counts a worker in flight for the spinner suffix. Nothing is decided here:
+  // the spawn always goes through unchanged.
   on('agent.spawn', async ($, e, next) => {
     await update($, workers, n => (n ?? 0) + 1)
     $.ui.invalidate('ui.render')
@@ -445,9 +455,6 @@ export const register: Register = (on, options) => {
     )
   })
 
-  // ------------------------------------------------------------ 4. pushover
-  // See notifyPushover above; called from the one turn.complete hook below.
-
   // ----------------------------------------- 5. semantic skill suggestion
   on('prompt.submit', async ($, e, next) => {
     if (!semanticSuggest || e.origin.kind !== 'composer') return next(e)
@@ -465,7 +472,7 @@ export const register: Register = (on, options) => {
     return next({ ...e, context: [...(e.context ?? []), note] })
   })
 
-  // ---------------------------------------------- 6. DoD, compaction, trailer
+  // ------------------------------------- 4+6. pushover, DoD, compaction, trailer
   on('turn.start', ($, e, next) => {
     writesThisTurn = 0
     return next(e)
@@ -486,9 +493,20 @@ export const register: Register = (on, options) => {
       $.ui.invalidate('ui.render')
       return ran
     }
-    if (e.reason === 'answer' || e.reason === 'error') {
+    const notable = e.reason === 'error' || (e.reason === 'answer' && e.durationMs >= pushoverMinMs)
+    if (notable && pushoverToken && pushoverUser) {
       const project = (root || cwd).split('/').filter(Boolean).pop() ?? 'claude'
-      await notifyPushover($, e, options, pushoverMinMs, project)
+      try {
+        // A network failure is swallowed: it is not the turn's problem, and
+        // notify-pushover.sh swallows the same failure for the same reason.
+        await $.http.fetch('https://api.pushover.net/1/messages.json', {
+          method: 'POST',
+          headers: { 'content-type': 'application/x-www-form-urlencoded' },
+          body: pushoverBody(pushoverToken, pushoverUser, project, e.answer, e.durationMs, e.reason),
+        })
+      } catch {
+        // see above
+      }
     }
     if (e.reason !== 'answer' || writesThisTurn === 0) return ran
     const n = writesThisTurn
@@ -501,16 +519,24 @@ export const register: Register = (on, options) => {
 
   on('session.compact', async ($, e, next) => {
     if (e.agentId) return next(e)
-    const dir = root || cwd
     const lines: string[] = []
+    // The branch, from .git/HEAD: a linked worktree's `.git` is a file naming
+    // its gitdir, a main checkout's is a directory (reading it throws).
     try {
-      const branch = await $.process.run(['git', 'rev-parse', '--abbrev-ref', 'HEAD'], { cwd: dir, timeoutMs: 5000 })
-      if (branch.exitCode === 0 && branch.stdout.trim()) lines.push(`branch: ${branch.stdout.trim()}`)
-      const status = await $.process.run(['git', 'status', '--porcelain'], { cwd: dir, timeoutMs: 5000 })
-      const dirty = status.stdout.split('\n').filter(Boolean)
-      if (status.exitCode === 0 && dirty.length > 0) lines.push(`uncommitted (${dirty.length}): ${dirty.slice(0, 15).join('; ')}`)
+      const dotGit = `${root || cwd}/.git`
+      let gitDir = `${mainRoot || root || cwd}/.git`
+      if (await $.fs.exists(dotGit)) {
+        try {
+          gitDir = linkedGitDir(await $.fs.read(dotGit)) ?? gitDir
+        } catch {
+          // a directory: the main checkout's own .git
+        }
+      }
+      const headPath = `${gitDir}/HEAD`
+      const branch = branchOf((await $.fs.exists(headPath)) ? await $.fs.read(headPath) : null)
+      if (branch) lines.push(`branch: ${branch}`)
     } catch {
-      // Not a git checkout, or git is missing: the snapshot is just smaller.
+      // Not a git checkout: the snapshot is just smaller.
     }
     const o = await read($, objective)
     if (o) lines.push(objectiveText(o))

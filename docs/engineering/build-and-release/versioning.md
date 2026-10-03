@@ -59,6 +59,10 @@ users — `/reload-plugins` does not fetch from GitHub. See
    ```
 
 6. Publish through the `Tamircohen28/tamirs-marketplace` catalog if you distribute there.
+7. The same workflow run then builds the Claude-only distribution and tags it `vX.Y.Z-claude`,
+   moving the tag `claude` (the one Anthropic's plugin directory tracks) onto it. Nothing to
+   do unless the `claude-dist` job fails; see
+   [directory-distribution.md](directory-distribution.md).
 
 **Cut the release after merging a manifest bump.** The push-to-master job *Manifest/tag
 version alignment* reports a pending release as a `::warning::` rather than failing — the tag

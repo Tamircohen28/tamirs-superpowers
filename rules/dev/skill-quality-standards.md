@@ -150,7 +150,12 @@ Still enforced whenever the relevant fields are present:
 - `description` + `when_to_use` <= 1536 chars combined.
 - `user-invocable: false` requires `disable-model-invocation: true`.
 - `context: fork` requires a non-empty `agent`; otherwise `agent` is `''`.
-- `allowed-tools` must be non-empty when present.
+- `allowed-tools` must be non-empty when present, and every shell or skill entry must be
+  scoped: never a bare `Bash`, `Bash(*)`, or a wildcard right after an interpreter or runner
+  (`Bash(python3:*)`, `Bash(npx:*)`), and never a bare `Skill`. Write `Bash(git status:*)`,
+  `Bash(bash ${CLAUDE_PLUGIN_ROOT}/scripts/x.sh:*)` or `Skill(tamirs-superpowers:pr-dev)`, or
+  leave the tool out and let the person approve each call. Anthropic's plugin directory holds
+  a plugin for every broad entry (`ALLOWED_TOOLS_BROAD`); `make validate` fails on one.
 
 ### Invocation tiers
 

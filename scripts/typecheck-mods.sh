@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# typecheck-mods.sh — `tsc` over the mod (hooks/mods/) against the build's claude-code.d.ts.
+# typecheck-mods.sh — `tsc` over the mod (mod/) against the build's claude-code.d.ts.
 #
 # Usage: typecheck-mods.sh [repo-root]
 #
@@ -24,7 +24,7 @@
 set -euo pipefail
 
 ROOT="$(cd "${1:-.}" 2>/dev/null && pwd)" || { echo "typecheck-mods: repo root '${1:-.}' is not a directory" >&2; exit 1; }
-MOD_DIR="$ROOT/hooks/mods"
+MOD_DIR="$ROOT/mod"
 
 if [[ ! -f "$MOD_DIR/register.tsx" ]]; then
   echo "typecheck-mods: no mod at $MOD_DIR — nothing to check"

@@ -292,70 +292,14 @@ claude_claude_md_summary() {
 }
 
 # ---------------------------------------------------------------------------
-# notifications-creds / notifications-hook — both env-gated (`--only notifications`
-# selects the pair, since --only matches a module or a `<module>-` prefix)
+# Pushover is NOT a setup module any more. The Notification hook is wired by the
+# plugin's own hooks/hooks.json, and the credentials are the manifest's sensitive
+# `pushover_token`/`pushover_user` userConfig options (the host exports them to
+# that hook as CLAUDE_PLUGIN_OPTION_*). A hook in ~/.claude/settings.json never
+# receives those options, and a credentials file on disk is what the Anthropic
+# directory policy forbids a plugin to read, so both earlier modules are gone.
+# `scripts/uninstall.sh` still removes the settings.json hook older installs wrote.
 # ---------------------------------------------------------------------------
-
-claude_notifications_creds_kind()  { printf 'file'; }
-claude_notifications_creds_label() { printf 'pushover.env'; }
-claude_notifications_creds_path()  { printf '%s/pushover.env' "$SETUP_TARGET_DIR"; }
-
-claude_notifications_creds_available() {
-  if [ -n "${PUSHOVER_TOKEN:-}" ] && [ -n "${PUSHOVER_USER:-}" ]; then printf 'yes'
-  elif [ -n "${PUSHOVER_TOKEN:-}" ] || [ -n "${PUSHOVER_USER:-}" ]; then
-    printf 'no:need BOTH PUSHOVER_TOKEN and PUSHOVER_USER'
-  else
-    printf 'no:no PUSHOVER_TOKEN/PUSHOVER_USER in env — run /notify-setup'
-  fi
-}
-
-# Credentials live outside the plugin cache on purpose: that directory is
-# version-pathed and replaced wholesale on every update, which would delete them.
-claude_notifications_creds_render() {
-  printf '# Pushover credentials for scripts/notify-pushover.sh — keep private, never commit.\n'
-  printf 'PUSHOVER_TOKEN=%s\n' "${PUSHOVER_TOKEN:-}"
-  printf 'PUSHOVER_USER=%s\n' "${PUSHOVER_USER:-}"
-}
-
-# Deliberately NOT deleted by `remove`: they are user secrets, and a reinstall
-# should not need them re-entered. Documented in docs/user/setup.md.
-claude_notifications_creds_unrender() { [ -f "$1" ] && cat "$1"; return 0; }
-claude_notifications_creds_destructive() { printf 'no'; }
-claude_notifications_creds_postwrite() { chmod 600 "$1" 2>/dev/null || true; }
-claude_notifications_creds_summary() { printf 'mode 600, outside the plugin cache'; }
-
-claude_notifications_hook_kind()  { printf 'file'; }
-claude_notifications_hook_label() { printf 'pushover hook'; }
-claude_notifications_hook_path()  { printf '%s/settings.json' "$SETUP_TARGET_DIR"; }
-claude_notifications_hook_available() { claude_notifications_creds_available; }
-
-# shellcheck disable=SC2016  # $HOME must expand at hook-run time, not now
-CLAUDE_PUSHOVER_CMD='f=$(ls "$HOME"/.claude/plugins/cache/tamirs-marketplace/tamirs-superpowers/*/scripts/notify-pushover.sh 2>/dev/null | sort -rV | head -1) && [ -n "$f" ] && bash "$f"'
-
-# Drop any previous pushover entry before appending, so this is idempotent, and
-# select() rather than assignment so other Notification hooks are untouched.
-claude_notifications_hook_render() {
-  setup_json_read "$1" | jq --arg cmd "$CLAUDE_PUSHOVER_CMD" '
-    .hooks //= {} |
-    .hooks.Notification = (
-      ((.hooks.Notification // [])
-        | map(select([(.hooks // [])[] | .command // "" | test("notify-pushover")] | any | not)))
-      + [{hooks: [{type: "command", command: $cmd, timeout: 10}]}])' \
-    | setup_json_normalize
-}
-
-claude_notifications_hook_unrender() {
-  setup_json_read "$1" | jq '
-    if (.hooks.Notification // null) == null then . else
-      .hooks.Notification = ((.hooks.Notification // [])
-        | map(select([(.hooks // [])[] | .command // "" | test("notify-pushover")] | any | not)))
-      | if (.hooks.Notification | length) == 0 then del(.hooks.Notification) else . end
-      | if (.hooks | length) == 0 then del(.hooks) else . end
-    end' | setup_json_normalize
-}
-
-claude_notifications_hook_destructive() { printf 'no'; }
-claude_notifications_hook_summary() { printf 'one Notification hook, others preserved'; }
 
 # ---------------------------------------------------------------------------
 # exit-guard — env-gated proxy exit-node guard (preserved from install.sh)

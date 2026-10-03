@@ -8,7 +8,6 @@ disable-model-invocation: false
 user-invocable: false
 allowed-tools:
 - Read
-- Bash
 disallowed-tools: []
 model: sonnet
 effort: low

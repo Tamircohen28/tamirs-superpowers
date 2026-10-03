@@ -1,9 +1,9 @@
 # Mods — the in-process layer (Claude Code ≥ 2.1.287)
 
-`hooks/mods/register.tsx` is this plugin's **mod**: a module of function hooks that Claude
+`mod/register.tsx` is this plugin's **mod**: a module of function hooks that Claude
 Code runs inside its own process. It is named by the `modules` key of `hooks/hooks.json`,
 beside the settings hooks the same file has always declared, and its `$.state` contract is
-`hooks/mods/types/index.d.ts`, named by `types` in `.claude-plugin/plugin.json`.
+`mod/types/index.d.ts`, named by `types` in `.claude-plugin/plugin.json`.
 
 This page says what the mod does, why each feature is a mod and not a bash hook, where it
 runs, how it is validated, and what to know before changing it. The host-side reference is
@@ -42,7 +42,7 @@ cannot load.
 | 1 | **Objective pane + `/objective`** — the orchestration state `orchestrate-dev`/`worker-dev` keep in `.dev-files/objectives/<id>/` (`objective.json`, `tasks/*.json`, `handoffs/*.json`) drawn live, re-read every 5 s; `/objective` answers at once (`immediate`); the spinner counts workers in flight; a task-notification row is drawn compact | `session.start`, `command.run`, `ui.render{Pane}`, `agent.spawn`, `turn.complete`, `ui.render{Spinner}`, `ui.render{UserMessage}` | New capability. `objective-state.sh show` from a shell is the fallback |
 | 2 | **Rate-limit band** — at `rate_limit_warn_percent` (default 85) of any window a band shows `[ Write handoff ]`, which submits a `switch-dev handoff` prompt, and `[ Dismiss ]`; one toast per 5-point crossing | `session.measure`, `ui.render{AbovePrompt}` | `hooks/rate-limit-handoff.sh` (`StopFailure`, after the fact). Both stay |
 | 3 | **Usage line on Desktop** — `ctx 12% · 5h 40% (resets 2h10m) · 7d 31% · $1.50`, Desktop only | `session.measure`, `ui.render{AbovePrompt}` | `scripts/statusline.sh` on the CLI (Desktop has no status line). The mod never draws it on the terminal |
-| 4 | **Pushover on long or failed main turns** — with `pushover_token`/`pushover_user` from the manifest, the environment or `~/.claude/pushover.env` (same precedence as `scripts/notify-pushover.sh`); `pushover_min_turn_seconds` (default 120); an API-error turn posts at high priority regardless | `turn.complete`, `$.http.fetch` | `scripts/notify-pushover.sh` on the `Notification` event ("needs input"). Different trigger; both stay |
+| 4 | **Pushover on long or failed main turns** — with `pushover_token`/`pushover_user` from the manifest options and nowhere else (the same single source `scripts/notify-pushover.sh` reads); `pushover_min_turn_seconds` (default 120); an API-error turn posts at high priority regardless | `turn.complete`, `$.http.fetch` | `scripts/notify-pushover.sh` on the `Notification` event ("needs input"). Different trigger; both stay |
 | 5 | **Semantic skill suggestion** — opt-in `semantic_skill_suggest`: a prompt of 12+ words is classified by the engine's small model against the bundled skill names; a match is attached as context once per skill per load | `prompt.submit`, `$.model.classify` | `hooks/skill-suggest.sh` keyword matching stays on either way |
 | 6 | **Definition-of-done line** under an answer whose turn wrote files | `turn.start`, `tool.call`, `turn.complete` | `hooks/check-done.sh` (`Stop`, stderr) |
 | 6 | **Compaction snapshot** — branch, uncommitted files and the objective folded into the summariser's instructions | `session.compact`, `$.process.run` | `hooks/precompact-snapshot.sh` (writes a file; `PreCompact` has no context channel) |
@@ -67,10 +67,27 @@ Three non-sensitive `userConfig` fields, shown as rows in `/config` and editable
 | `pushover_min_turn_seconds` | 120 | Turns shorter than this do not notify; 0 notifies on every turn |
 | `semantic_skill_suggest` | false | One small-model call per long prompt when on |
 
-`pushover_token`/`pushover_user` are the existing sensitive fields. Whether a sensitive
-value reaches `register(on, options)` is not something this repo asserts: the mod reads
-`options` first and falls back through `CLAUDE_PLUGIN_OPTION_*`, `PUSHOVER_*` and
-`~/.claude/pushover.env`, so every route `scripts/notify-pushover.sh` honours works here.
+`pushover_token`/`pushover_user` are the existing sensitive fields and the mod's **only**
+credential source: it reads `options` and nothing else. An earlier draft fell back through
+`CLAUDE_PLUGIN_OPTION_*`, `PUSHOVER_*` and `~/.claude/pushover.env`; the Anthropic directory
+scanner flags a mod that reads a credential from the environment or a file and sends it
+(`MOD_FORWARDS_CREDENTIAL_ENV`, a listing blocker), so those routes are gone from the mod
+and from `scripts/notify-pushover.sh` alike. A test in `mod/mods.test.tsx` holds the line.
+
+## What the plugin directory requires of it
+
+Anthropic's plugin directory scans a mod the way `claude plugin validate` does and adds rules
+of its own (the first review of 4.10.0 raised them; the codes are the portal's). The mod meets
+them on `master`, and `scripts/check-claude-dist.sh` holds the line:
+
+| Rule | How the mod meets it |
+|---|---|
+| `MOD_CAPABILITY_USE_NOT_PLAIN` (blocks) — every `$.noun.method` call written at its call site, `$` handed to no helper | the helpers in `mod/register.tsx` are pure (text or data in, text or data out); the objective loader is a closure inside `session.start` where its `$.fs` calls are spelled out, reused by the 5 s timer; only the `claude-code` state helpers (`read`, `update`) take `$` |
+| `MOD_FORWARDS_CREDENTIAL_ENV` (blocks) / `MOD_READS_CREDENTIAL_ENV` — no credential read from the environment or a file and sent | Pushover credentials come from `options` only |
+| `MOD_RUNS_PROCESS` / `MOD_PROCESS_COMMAND_COMPUTED` / `MOD_CAN_FETCH_AND_RUN` (held) | no `$.process` at all: the main working tree from `$.session.repo()`, the branch from reading `.git/HEAD` |
+| `COMMAND_NAMES_MOD_FILE` (held) — no shipped command, script or configuration names the mod's files or folders | the mod lives in its own top-level `mod/`, named only by the `modules` entry of `hooks/hooks.json` (which does not count); `scripts/typecheck-mods.sh` and the `Makefile`, which do name it, are not shipped |
+| `MOD_LOCAL_DATA_LEAVES` / `MOD_SESSION_DATA_LEAVES` / `MOD_DATA_LEAVES_BY_PROMPT` (held) | disclosed in `PRIVACY.md` and the directory README; Pushover is opt-in, the handoff prompt is a button the person presses |
+| `MOD_ANSWERS_PERMISSION` / `MOD_HOOKS_POLICY_EVENT` (held) — the `agent.spawn` hook can deny a spawn | it only counts a worker and calls `next(e)`; the comment says so |
 
 ## Where it runs, and the Codex trade-off
 
@@ -97,7 +114,7 @@ Three gates, in `make validate` and CI (`make test-mods`):
    (a second unmatched `on("turn.complete")`, `$` passed to a closure, a `$.state` key the
    contract does not declare). Note `claude plugin validate .` validates the **marketplace**
    manifest only and never reads the mod; CI runs both.
-2. `claude plugin test .` — runs `hooks/mods/*.test.tsx` against the engine itself. The
+2. `claude plugin test .` — runs `mod/*.test.tsx` against the engine itself. The
    test's `on` hooks sit beneath the mod and stand for the engine, so each test stubs the
    world the feature touches (`fs.*`, `http.fetch`, `prompt.submit`, …) and records what the
    mod asked for. UI tests mount the band, the pane and the spinner on both `terminal` and

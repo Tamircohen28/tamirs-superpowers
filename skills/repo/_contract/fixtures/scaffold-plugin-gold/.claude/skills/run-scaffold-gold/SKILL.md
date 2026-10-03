@@ -7,7 +7,8 @@ arguments: []
 disable-model-invocation: true
 user-invocable: true
 allowed-tools:
-- Bash
+- Bash(make test:*)
+- Bash(make lint:*)
 disallowed-tools: []
 model: sonnet
 effort: low

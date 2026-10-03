@@ -9,8 +9,7 @@ user-invocable: true
 allowed-tools:
 - WebSearch
 - WebFetch
-- Bash
-- Skill
+- Skill(tamirs-superpowers:skill-creator)
 disallowed-tools: []
 model: sonnet
 effort: medium

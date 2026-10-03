@@ -15,7 +15,7 @@ Claude Code invokes the script and passes a JSON blob on stdin containing sessio
 
 **The command must never redirect stdin.** From plugin 4.x until 4.10.0 the manifest command ended in `</dev/null`, which discarded the session JSON before the script could read it: every installed user saw `--` in every field, while `tests/test-statusline.sh` stayed green because its `</dev/null` case tests the *script's* robustness, not the *caller's* behaviour. The suite now also runs the manifest command verbatim with a piped payload and asserts a real value renders. The script's own bounded `read -t` is what protects against a hang; the redirect protected against nothing.
 
-Since Claude Code **2.1.287**, the same figures are available in-process to a mod through `$.session.usage()` (context, `five_hour`/`seven_day`/`spend_limit` rate limits, cost); `hooks/mods/register.tsx` draws them in an `AbovePrompt` band on the Desktop Code tab, where this `statusLine` command does not run. The band and the script coexist: the script stays canonical on the CLI, the band covers Desktop. See [`mods.md`](architecture/mods.md).
+Since Claude Code **2.1.287**, the same figures are available in-process to a mod through `$.session.usage()` (context, `five_hour`/`seven_day`/`spend_limit` rate limits, cost); `mod/register.tsx` draws them in an `AbovePrompt` band on the Desktop Code tab, where this `statusLine` command does not run. The band and the script coexist: the script stays canonical on the CLI, the band covers Desktop. See [`mods.md`](architecture/mods.md).
 
 ## Output format
 

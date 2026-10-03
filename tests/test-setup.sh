@@ -239,8 +239,11 @@ judge "--only statusline wires the statusline" '"command"' "$(jq -c '.statusLine
 judge "--only statusline does not install agents" no "$(exists "$h/.claude/agents")"
 judge "--only statusline does not touch the model" null "$(jq -c '.model' "$S")"
 
-out="$(run_setup "$h" plan --targets claude --only notifications)"
-judge "--only notifications matches both notifications-* modules" 2 \
+# Pushover left setup in 4.11.0: the hook ships in hooks/hooks.json and the
+# credentials are plugin options, so no module writes pushover.env or a
+# settings.json hook any more. A plan must never show one.
+out="$(run_setup "$h" plan --targets claude)"
+judge "no module writes pushover.env or a Pushover settings hook" 0 \
   "$(printf '%s\n' "$out" | grep -c 'pushover')"
 
 # A typo must not look like a clean run that did nothing.

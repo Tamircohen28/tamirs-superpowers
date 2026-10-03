@@ -36,7 +36,8 @@ A user **objective** decomposes into worker **tasks** (a DAG). Each task runs in
 ## Commands
 
 ```bash
-make validate           # shellcheck + JSON + skill frontmatter + repo contract + doc claims
+make validate           # shellcheck + JSON + skill frontmatter + repo contract + doc claims + Claude-only distribution check
+make check-claude-dist  # build the Claude-only distribution to a temp dir and hold it to the plugin directory's rules
 make lint               # shellcheck only
 make test               # same as validate
 make test-repo-contract # scaffold-gold (app-gold) + scaffold-plugin-gold (plugin-gold)

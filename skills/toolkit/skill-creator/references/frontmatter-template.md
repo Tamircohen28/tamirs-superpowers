@@ -84,7 +84,7 @@ Claude Code / Claude Desktop fields — all optional, all validated when present
 | `when_to_use` | Claude trigger text. Counts toward the 1536-char listing cap with `description` |
 | `argument-hint`, `arguments` | Slash-command surface |
 | `user-invocable`, `disable-model-invocation` | Invocation tier — see below |
-| `allowed-tools`, `disallowed-tools` | Tool names |
+| `allowed-tools`, `disallowed-tools` | Tool names; shell and skill entries scoped (`Bash(git status:*)`, `Skill(tamirs-superpowers:pr-dev)`), never bare `Bash`/`Skill` |
 | `model`, `effort` | `effort`: `low`\|`medium`\|`high`\|`xhigh`\|`max` |
 | `context`, `agent` | `context: fork` requires a non-empty `agent`; otherwise `agent` must be `''` |
 | `hooks`, `paths`, `shell` | `shell`: `bash` \| `powershell` |
@@ -151,7 +151,7 @@ argument-hint: '[input]'
 arguments: []
 disable-model-invocation: false
 user-invocable: true
-allowed-tools: [Read, Write, Bash]
+allowed-tools: [Read, Write, "Bash(git status:*)"]
 disallowed-tools: []
 effort: medium
 context: ''

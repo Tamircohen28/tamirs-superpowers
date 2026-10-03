@@ -301,8 +301,9 @@ direction. Separately, and this is a different fact: **this adapter ships no hoo
 design.** Guards live in the skills as explicit steps and in CI. If you want to try them
 yourself, `gemini hooks migrate --from-claude` translates them into your personal settings.
 
-MCP works natively; the bundled `github` server reads `gh auth token` at startup, so
-`gh auth login` is a prerequisite for its first call. There is no extension-declared
+MCP works natively; the bundled `github` server needs `GITHUB_PERSONAL_ACCESS_TOKEN` in its
+environment (on Claude Code the plugin's `github_token` option supplies it; here, export it
+in the shell that starts `gemini`). There is no extension-declared
 statusline (measured, not assumed).
 
 ### OpenCode CLI

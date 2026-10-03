@@ -14,11 +14,12 @@
 # Optional — proxy exit-node guard (writes ~/.claude/ensure-exit.sh):
 #   CLAUDE_EXIT_PROXY=http://proxy:port CLAUDE_EXIT_PUBLIC_IP=1.2.3.4 make install
 #
-# Optional — phone notifications (writes ~/.claude/pushover.env, mode 600):
-#   PUSHOVER_TOKEN=... PUSHOVER_USER=... make install
-#
 # What it writes: ~/.claude/settings.json (MERGED, not overwritten — see below),
-# ~/.claude/agents/, ~/.claude/CLAUDE.md, and the two optional files above.
+# ~/.claude/agents/, ~/.claude/CLAUDE.md, and the optional exit guard above.
+#
+# Phone notifications are NOT configured here: the Pushover credentials are the
+# plugin's own sensitive options (/plugin > tamirs-superpowers > Configure, or
+# `claude plugin configure tamirs-superpowers`), and the hook ships in hooks.json.
 #
 # CHANGED IN PHASE 2 — settings.json is now merged, not clobbered. Earlier
 # versions of this script rewrote the file wholesale on every run, preserving
@@ -48,6 +49,4 @@ printf '  1. Open Claude Code\n'
 printf '  2. Settings > Plugins > Add marketplace: tamirs-marketplace\n'
 printf '  3. Install tamirs-superpowers\n'
 printf '  4. On Claude Code < 2.1.221 only: run /reload-plugins\n'
-if [ -z "${PUSHOVER_TOKEN:-}" ] || [ -z "${PUSHOVER_USER:-}" ]; then
-  printf '\nOptional: phone notifications via Pushover — run /tamirs-superpowers:notify-setup\n'
-fi
+printf '\nOptional: phone notifications via Pushover — run /tamirs-superpowers:notify-setup\n'

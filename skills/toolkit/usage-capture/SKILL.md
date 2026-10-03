@@ -16,7 +16,6 @@ arguments: []
 disable-model-invocation: false
 user-invocable: true
 allowed-tools:
-  - Bash
   - Read
 disallowed-tools: []
 effort: medium

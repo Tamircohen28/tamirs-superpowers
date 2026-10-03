@@ -21,7 +21,6 @@ allowed-tools:
   - Read
   - Glob
   - Grep
-  - Skill
   - WebFetch
 disallowed-tools: []
 model: sonnet

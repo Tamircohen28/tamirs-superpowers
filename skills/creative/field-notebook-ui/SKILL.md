@@ -17,7 +17,6 @@ user-invocable: true
 allowed-tools:
   - Read
   - Write
-  - Bash
 disallowed-tools: []
 model: sonnet
 effort: medium

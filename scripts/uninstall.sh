@@ -14,11 +14,13 @@
 #     current file is rotated first, so this undo is itself undoable.
 #   - the agents this repo installed into ~/.claude/agents/
 #   - ~/.claude/CLAUDE.md, only when it is byte-identical to the template we wrote
-#   - the Pushover Notification hook, leaving any other Notification hooks alone
+#   - the Pushover Notification hook an older install (< 4.11.0) wrote into
+#     settings.json, leaving any other Notification hooks alone; since 4.11.0 the
+#     hook lives in the plugin's own hooks.json and needs no unwiring
 #
 # What it deliberately KEEPS:
-#   - ~/.claude/pushover.env — those are your credentials, and a reinstall should
-#     not need them re-entered. Delete it by hand to purge.
+#   - ~/.claude/pushover.env, if an install older than 4.11.0 left one. Nothing
+#     reads it any more (credentials are plugin options now); delete it by hand.
 #   - the marketplace entry, and every plugin other than this one.
 #
 # Preview first:
@@ -35,6 +37,24 @@ case "${1:-}" in
 esac
 
 bash "${SCRIPT_DIR}/setup.sh" remove --yes --targets claude "$@"
+
+# An install older than 4.11.0 wired the Pushover hook into ~/.claude/settings.json
+# (the plugin's own hooks.json carries it now). Strip that one entry, leave every
+# other Notification hook alone, and touch nothing when there is none.
+SETTINGS="${CLAUDE_CONFIG_DIR:-$HOME/.claude}/settings.json"
+if [ -f "$SETTINGS" ] && command -v jq >/dev/null 2>&1 \
+   && jq -e '[.hooks.Notification // [] | .[] | .hooks // [] | .[] | .command // ""] | any(test("notify-pushover"))' "$SETTINGS" >/dev/null 2>&1; then
+  case " $* " in *" --dry-run "*) echo "would remove the legacy Pushover Notification hook from $SETTINGS" ;;
+  *)
+    tmp="$(mktemp)"
+    jq '.hooks.Notification = ((.hooks.Notification // [])
+          | map(select([(.hooks // [])[] | .command // "" | test("notify-pushover")] | any | not)))
+        | if (.hooks.Notification | length) == 0 then del(.hooks.Notification) else . end
+        | if (.hooks | length) == 0 then del(.hooks) else . end' "$SETTINGS" > "$tmp" && mv "$tmp" "$SETTINGS"
+    echo "removed the legacy Pushover Notification hook from $SETTINGS"
+    ;;
+  esac
+fi
 
 if command -v claude >/dev/null 2>&1; then
   # claude plugin uninstall --json (Claude Code 2.1.268+) prints one machine-readable

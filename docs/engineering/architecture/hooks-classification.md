@@ -80,7 +80,7 @@ execute none of them. `core/capabilities/platforms.json` is the measured record;
 this paragraph summarises it.
 
 Since Claude Code **2.1.287** there is a second, Claude-only mechanism beside
-these settings hooks: a **mod**, `hooks/mods/register.tsx`, loaded from the
+these settings hooks: a **mod**, `mod/register.tsx`, loaded from the
 `modules` key of the same `hooks/hooks.json`. It runs in-process, can draw, and
 reacts to pushed state the bash hooks never see (`session.measure`). It is
 additive by design — every row above stays canonical, because a mod runs on
@@ -230,6 +230,6 @@ Not a change made here — the shape the table argues for.
 | `tests/test-precompact-snapshot.sh` | `precompact-snapshot.sh` |
 | `tests/test-skill-suggest.sh` | `skill-suggest.sh`: once per skill per session per repo |
 | `tests/test-cursor-agent-tools-guard.sh` | `cursor-agent-tools-guard.sh` |
-| `hooks/mods/*.test.ts` | The mod, under `claude plugin test hooks/mods` (`make test-mods`) |
+| `mod/*.test.ts` | The mod, under `claude plugin test mod` (`make test-mods`) |
 
 Run the shell suites with `make test-hooks`.

@@ -18,7 +18,6 @@ allowed-tools:
 - Read
 - Grep
 - Glob
-- Bash
 disallowed-tools: []
 model: sonnet
 effort: medium

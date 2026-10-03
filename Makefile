@@ -45,8 +45,10 @@ help:
 	@echo "  test-hooks              — behavior tests for hooks/ (tests/test-*.sh)"
 	@echo "  test-repo-contract      — contract fixtures (app-gold, plugin-gold, claude-plugin-gold)"
 	@echo "  plugin-validate         — claude plugin validate (requires Claude Code CLI)"
-	@echo "  test-mods               — validate + test the mod, hooks/mods/ (requires Claude Code CLI 2.1.287+)"
+	@echo "  test-mods               — validate + test the mod, mod/ (requires Claude Code CLI 2.1.287+)"
 	@echo "  typecheck-mods          — tsc over the mod against the build's claude-code.d.ts (skips when none is laid)"
+	@echo "  build-claude-dist       — write the Claude-only distribution to DIST (default build/claude-dist)"
+	@echo "  check-claude-dist       — build it to a temp dir and hold it to the plugin directory's rules"
 	@echo "  check-manifest-versions — plugin manifests agree with each other"
 	@echo "  check-marketplace-schema — extraKnownMarketplaces is a record, not an array"
 	@echo "  check-doc-claims        — skill counts and target coverage match reality"
@@ -123,7 +125,7 @@ test-contract:
 validate: lint test-hooks test-contract test-repo-contract check-manifest-versions check-platform-equivalence \
 	check-marketplace-schema check-doc-claims check-version-truth check-capability-registry \
 	validate-roles check-gemini-adapter gemini-extension-check check-github-policy check-branch-literals \
-	check-action-pinning check-manifest-declares check-platform-version-pins
+	check-action-pinning check-manifest-declares check-platform-version-pins check-claude-dist
 	@echo "--- Validating JSON files ---"
 	@find . -name '*.json' -not -path '*/.git/*' | while read f; do \
 	  jq empty "$$f" 2>&1 && echo "  OK  $$f" || { echo "  FAIL $$f"; exit 1; }; \
@@ -292,9 +294,9 @@ plugin-validate:
 	  exit 1; \
 	fi
 
-# The mod (hooks/mods/register.tsx). `claude plugin validate .` reads only the MARKETPLACE
+# The mod (mod/register.tsx). `claude plugin validate .` reads only the MARKETPLACE
 # manifest and never the hooks module, so the plugin-manifest form is what validates the
-# mod; `claude plugin test` runs hooks/mods/*.test.tsx against the engine itself. Both need
+# mod; `claude plugin test` runs mod/*.test.tsx against the engine itself. Both need
 # the Claude Code CLI (2.1.287+), which `make validate` deliberately does not require.
 test-mods:
 	@echo "--- mod: claude plugin validate .claude-plugin/plugin.json + claude plugin test . ---"
@@ -307,5 +309,17 @@ test-mods:
 
 typecheck-mods:
 	@bash scripts/typecheck-mods.sh .
+
+# The Claude-only distribution: the subset of this tree Anthropic's plugin directory
+# tracks (tag `claude`, moved by release.yml). Built from master, never edited.
+# docs/engineering/build-and-release/directory-distribution.md has the design.
+DIST ?= build/claude-dist
+build-claude-dist:
+	@bash scripts/build-claude-dist.sh "$(DIST)" --force
+
+check-claude-dist:
+	@echo "--- Claude-only distribution: build + directory rules ---"
+	@tmp="$$(mktemp -d)"; trap 'rm -rf "$$tmp"' EXIT; \
+	  bash scripts/build-claude-dist.sh "$$tmp" --quiet && bash scripts/check-claude-dist.sh "$$tmp"
 
 test: validate

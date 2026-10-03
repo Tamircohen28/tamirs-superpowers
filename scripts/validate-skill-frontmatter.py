@@ -493,6 +493,39 @@ def check_tamirs(
 # ---------------------------------------------------------------------------
 
 
+
+# Anthropic's plugin directory holds a plugin for review on every broad shell or
+# skill entry in a skill's allowed-tools (its ALLOWED_TOOLS_BROAD / ALLOWED_TOOLS_SKILL_ANY
+# rules): a bare `Bash`, `Bash(*)`, a wildcard right after a shell, interpreter,
+# package manager, runner or curl, or a bare `Skill`. The directory's own wording:
+# "While it is active, Claude Code runs matching commands without asking the user."
+# Scope the entry (`Bash(git status:*)`, `Skill(tamirs-superpowers:pr-dev)`) or
+# leave the tool out. Checked here so the hold is caught at authoring time.
+_BROAD_SHELL = {"bash", "sh", "zsh", "fish", "pwsh", "powershell", "cmd",
+                "python", "python3", "node", "deno", "bun", "ruby", "perl", "php",
+                "npm", "npx", "pnpm", "yarn", "bunx", "pip", "pipx", "uv", "uvx",
+                "cargo", "go", "make", "env", "xargs", "eval", "exec", "curl", "wget"}
+
+
+def broad_tool_entry(entry):
+    """Return why an allowed-tools entry is too broad for the directory, or None."""
+    if not isinstance(entry, str):
+        return "not a string"
+    text = entry.strip()
+    if text in ("Bash", "Skill"):
+        return f"bare {text} allows anything; scope it like {text}(...) or omit it"
+    if text in ("Bash(*)", "Bash(*:*)", "Skill(*)"):
+        return "a wildcard matches every command"
+    if text.startswith("Bash(") and text.endswith(")"):
+        inner = text[5:-1].strip()
+        spec = inner[:-2] if inner.endswith(":*") else inner
+        first = spec.split()[0] if spec.split() else ""
+        if not spec or spec == "*":
+            return "a wildcard matches every command"
+        if len(spec.split()) == 1 and first in _BROAD_SHELL:
+            return f"a wildcard right after `{first}` runs anything that interpreter accepts"
+    return None
+
 def check_claude(path: Path, fm: dict[str, Any], body: str) -> list[str]:
     errors: list[str] = []
 
@@ -536,6 +569,11 @@ def check_claude(path: Path, fm: dict[str, Any], body: str) -> list[str]:
                 errors.append(f"{list_field} must be a YAML list")
             elif list_field == "allowed-tools" and not value:
                 errors.append("allowed-tools must list at least one tool")
+            elif list_field == "allowed-tools":
+                for entry in value:
+                    reason = broad_tool_entry(entry)
+                    if reason:
+                        errors.append(f"allowed-tools entry {entry!r} is too broad: {reason}")
 
     if "model" in fm and (not isinstance(fm["model"], str) or not fm["model"].strip()):
         errors.append("model must be a non-empty string when present")
