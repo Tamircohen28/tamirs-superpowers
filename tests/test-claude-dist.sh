@@ -56,6 +56,14 @@ probe "a URL host beside a credential-looking identifier (held pair)" "credentia
   'printf "#!/usr/bin/env bash\nTARGET_KEYS=x\ncurl https://api.example.com\n" > scripts/probe.sh'
 probe "\$PWD beside a URL host (the scanner reads PWD as a credential)" "credential-looking identifier" \
   'printf "See https://example.com and run it in \$PWD.\n" > docs/user/probe.md'
+probe "an *_AUTH identifier beside a URL host (the scanner reads AUTH as a credential)" "credential-looking identifier" \
+  'printf "Set MYSERVICE_AUTH, then call https://api.example.com.\n" > docs/user/probe.md'
+probe "a shell variable named key beside a URL host (a loop variable the scanner held)" "credential-looking identifier" \
+  'printf "#!/usr/bin/env bash\nfor key in a b; do curl \"https://api.example.com/\$key\"; done\n" > scripts/probe.sh'
+probe "a shell variable named pat beside a URL host (a regex variable the scanner held)" "credential-looking identifier" \
+  'printf "#!/usr/bin/env bash\nlocal pat\nread -r pat\necho https://example.com\n" > scripts/probe.sh'
+probe "the path of the host credential store beside a URL host" "credential-looking identifier" \
+  'printf "The host keeps it in ~/.claude/.credentials.json; see https://example.com.\n" > docs/user/probe.md'
 probe "eval in a shipped shell script (COMMAND_SCRIPT_NOT_FOLLOWED)" "eval in a shipped shell script" \
   'printf "#!/usr/bin/env bash\neval \"\$(echo x)\"\n" > hooks/probe.sh'
 probe "a package launcher named in a message string (RUNTIME_FETCH_EXEC)" "download-and-run or package launcher" \

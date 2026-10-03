@@ -322,19 +322,19 @@ list_repos_paged() {
 # filters_pass <owner/repo> — --exclude wins over --include, because a pattern
 # that says "never touch this one" must not be defeated by a broader --include.
 filters_pass() {
-  local name="$1" pat
+  local name="$1" rx
   if [ -n "$(printf '%s' "$OPT_EXCLUDE" | tr -d '[:space:]')" ]; then
-    while IFS= read -r pat; do
-      [ -n "$pat" ] || continue
-      printf '%s' "$name" | grep -Eq -- "$pat" && return 1
+    while IFS= read -r rx; do
+      [ -n "$rx" ] || continue
+      printf '%s' "$name" | grep -Eq -- "$rx" && return 1
     done <<EOF
 $OPT_EXCLUDE
 EOF
   fi
   if [ -n "$(printf '%s' "$OPT_INCLUDE" | tr -d '[:space:]')" ]; then
-    while IFS= read -r pat; do
-      [ -n "$pat" ] || continue
-      printf '%s' "$name" | grep -Eq -- "$pat" && return 0
+    while IFS= read -r rx; do
+      [ -n "$rx" ] || continue
+      printf '%s' "$name" | grep -Eq -- "$rx" && return 0
     done <<EOF
 $OPT_INCLUDE
 EOF
@@ -700,9 +700,9 @@ workflow_class() {
   hit="$(jq -r -n --arg s "$(github_lower "$subject")" --rawfile c "$content" --slurpfile p "$POLICY" '
     ($p[0].actions.workflow_classification.classes) as $classes |
     def matches($cls):
-      (($classes[$cls].name_patterns    // []) | any(. as $pat | $s | test($pat)))
+      (($classes[$cls].name_patterns    // []) | any(. as $rx | $s | test($rx)))
       or
-      (($classes[$cls].content_signals  // []) | any(.pattern as $pat | $c | test($pat; "i")));
+      (($classes[$cls].content_signals  // []) | any(.pattern as $rx | $c | test($rx; "i")));
     if matches("never_cancel") then "never_cancel"
     elif matches("cancellable") then "cancellable"
     else "unclassified" end

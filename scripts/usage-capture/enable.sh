@@ -168,8 +168,8 @@ if current_otlp and current_otlp != wanted_otlp and not disable and not force:
     raise SystemExit(2)
 
 if disable:
-    for key in owned:
-        env.pop(key, None)
+    for name in owned:
+        env.pop(name, None)
 else:
     resource = env.get("OTEL_RESOURCE_ATTRIBUTES", "")
     parts = [p for p in resource.split(",") if p and not p.startswith("tamirs.endpoint=") and not p.startswith("tamirs.gateway_kind=") and not p.startswith("tamirs.endpoint_label=")]

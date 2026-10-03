@@ -5,6 +5,30 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [4.11.3] — 2026-10-03
+
+The portal's validation of 4.11.2 passed with 9 warnings and 34 policy holds, down from 11
+and 40. The icon holds are gone; the credential-pairing heuristic widened instead, reading
+`*_AUTH` (the names 4.11.2 chose for the `mcp-builder` examples), `TOKEN_VAR`, a shell
+variable named `key` or `pat`, and the literal path of the host's own credential store as
+credentials beside a URL host. Each reading is now mirrored in the check and planted by a
+test; what remains is structural and reviewer-by-design (hooks naming `hooks/`, here-docs,
+a stdio MCP server, the `prompt.submit` text, a vendor credential beside its vendor's host).
+
+### Changed
+
+- `scripts/check-claude-dist.sh` widens the pairing rule to `*_AUTH`, `*_PAT`,
+  `AUTH_*`/`PAT_*`/`KEY_*`/`TOKEN_*`/`SECRET_*`, a shell `key`/`pat` variable (`local`,
+  `for`, `read`, `$key`, `$pat`) and `.credentials.json`; `tests/test-claude-dist.sh`
+  plants each one (26 probes).
+- Shipped files no longer carry those: the `mcp-builder` examples and scaffold use
+  `MYSERVICE_ACCESS`/`MY_SERVICE_ACCESS`/`ACCESS_ENV`/`ACCESS_VAR` and generate
+  `<PREFIX>_ACCESS`; `check-manifest-declares.sh` loops over `field`,
+  `check-platform-targets.sh` over `tid`, `usage-capture/enable.sh` over `name`;
+  `github-policy.sh` matches on `rx`; the Pushover docs, `notify-setup` and
+  `notify-pushover.sh` describe the host's credential store instead of naming its file.
+  Contract copies and templates re-synced.
+
 ## [4.11.2] — 2026-10-03
 
 The portal's validation of 4.11.1 passed with 11 warnings and 40 policy holds: the icon

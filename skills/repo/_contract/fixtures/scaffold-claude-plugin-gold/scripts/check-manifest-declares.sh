@@ -97,25 +97,25 @@ declares() {
     return 1
   fi
 
-  local key type len
-  for key in "$@"; do
+  local field type len
+  for field in "$@"; do
     keys_examined=$(( keys_examined + 1 ))
 
-    type="$(jq -r --arg k "$key" 'if has($k) then (.[$k] | type) else "absent" end' "$file")"
+    type="$(jq -r --arg k "$field" 'if has($k) then (.[$k] | type) else "absent" end' "$file")"
     case "$type" in
       absent)
-        echo "FAIL $manifest: declares no '$key' — the capability claimed on this row is not in this manifest" >&2
+        echo "FAIL $manifest: declares no '$field' — the capability claimed on this row is not in this manifest" >&2
         rc=1; continue ;;
       "null")
-        echo "FAIL $manifest: '$key' is null" >&2
+        echo "FAIL $manifest: '$field' is null" >&2
         rc=1; continue ;;
     esac
 
     # Non-empty, measured the way each type can be empty. `jq -e '.k'` passes on [] and
     # {} and "" — all three are a declaration of nothing.
-    len="$(jq -r --arg k "$key" '.[$k] | if type == "array" or type == "object" or type == "string" then length else 1 end' "$file")"
+    len="$(jq -r --arg k "$field" '.[$k] | if type == "array" or type == "object" or type == "string" then length else 1 end' "$file")"
     if [ "$len" -eq 0 ]; then
-      echo "FAIL $manifest: '$key' is an empty $type — declares nothing" >&2
+      echo "FAIL $manifest: '$field' is an empty $type — declares nothing" >&2
       rc=1; continue
     fi
 
@@ -130,10 +130,10 @@ declares() {
       resolved="${p#\$\{CLAUDE_PLUGIN_ROOT\}/}"
       resolved="${resolved#./}"
       if [ ! -e "$root/$resolved" ]; then
-        echo "FAIL $manifest: '$key' names '$p', which does not exist in this tree" >&2
+        echo "FAIL $manifest: '$field' names '$p', which does not exist in this tree" >&2
         rc=1
       fi
-    done < <(jq -r --arg k "$key" '
+    done < <(jq -r --arg k "$field" '
       [ .[$k] | .. | strings | select(test("^(\\./|\\$\\{CLAUDE_PLUGIN_ROOT\\}/)")) ] | .[]' "$file")
 
     # `len` is an element count for a container and a character count for a string;
@@ -145,7 +145,7 @@ declares() {
       *)            size="non-empty $type" ;;
     esac
     printf 'ok:    %s declares %s (%s, %s path%s checked)\n' \
-      "$manifest" "$key" "$size" "$found" "$( [ "$found" = 1 ] && echo '' || echo s )"
+      "$manifest" "$field" "$size" "$found" "$( [ "$found" = 1 ] && echo '' || echo s )"
   done
 
   # Cardinality. A run that examined nothing must not report success: that is the whole
@@ -161,7 +161,7 @@ declares() {
 # Exactly one route delivers the component, and the manifest decides which. Check the one
 # that is actually in force; never both, and never the wrong one.
 discovers() {
-  local root="$1" manifest="$2" key="$3" dir="$4"
+  local root="$1" manifest="$2" field="$3" dir="$4"
   local file="$manifest"
   case "$file" in /*) ;; *) file="$root/$manifest" ;; esac
 
@@ -174,9 +174,9 @@ discovers() {
     return 1
   fi
 
-  if jq -e --arg k "$key" 'has($k)' "$file" >/dev/null 2>&1; then
-    echo "note:  $manifest specifies '$key', so folder discovery of '$dir' is switched off — checking the declared paths instead"
-    declares "$root" "$manifest" "$key"
+  if jq -e --arg k "$field" 'has($k)' "$file" >/dev/null 2>&1; then
+    echo "note:  $manifest specifies '$field', so folder discovery of '$dir' is switched off — checking the declared paths instead"
+    declares "$root" "$manifest" "$field"
     return $?
   fi
 
@@ -184,16 +184,16 @@ discovers() {
   # delivers nothing, and is the state a green `test -d` is least able to distinguish.
   local target="$root/$dir" n
   if [ ! -d "$target" ]; then
-    echo "FAIL $manifest omits '$key', so the host falls back to '$dir/' — which does not exist, so nothing is delivered" >&2
+    echo "FAIL $manifest omits '$field', so the host falls back to '$dir/' — which does not exist, so nothing is delivered" >&2
     return 1
   fi
   n="$(find "$target" -maxdepth 2 -type f ! -name '.*' 2>/dev/null | wc -l | tr -d ' ')"
   if [ "$n" -eq 0 ]; then
-    echo "FAIL $manifest omits '$key', so the host falls back to '$dir/' — which is empty, so nothing is delivered" >&2
+    echo "FAIL $manifest omits '$field', so the host falls back to '$dir/' — which is empty, so nothing is delivered" >&2
     return 1
   fi
   printf "ok:    %s omits '%s', so '%s/' is discovered — %s file%s present\n" \
-    "$manifest" "$key" "$dir" "$n" "$( [ "$n" = 1 ] && echo '' || echo s )"
+    "$manifest" "$field" "$dir" "$n" "$( [ "$n" = 1 ] && echo '' || echo s )"
   return 0
 }
 

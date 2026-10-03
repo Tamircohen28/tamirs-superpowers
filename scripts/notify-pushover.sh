@@ -8,8 +8,8 @@
 # $1/$2 (message / priority-name) when stdin is empty.
 #
 # Credentials come from ONE place: the manifest's `userConfig` block, declared
-# with "sensitive": true, which the host stores in the macOS Keychain (falling
-# back to ~/.claude/.credentials.json) and exports to hook processes as
+# with "sensitive": true, which the host stores in its own credential store (the
+# macOS Keychain, or its file-backed fallback) and exports to hook processes as
 # CLAUDE_PLUGIN_OPTION_PUSHOVER_TOKEN / CLAUDE_PLUGIN_OPTION_PUSHOVER_USER. The
 # person is prompted for both once when the plugin is enabled, or sets them with
 # `claude plugin configure tamirs-superpowers`.
