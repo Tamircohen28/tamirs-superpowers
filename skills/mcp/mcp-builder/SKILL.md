@@ -240,12 +240,12 @@ server.registerTool(
     if (filter) params.set("status", filter);
 
     const res = await fetch(`https://api.myservice.com/items?${params}`, {
-      headers: { Authorization: `Bearer ${process.env.MYSERVICE_AUTH}` },
+      headers: { Authorization: `Bearer ${process.env.MYSERVICE_ACCESS}` },
     });
 
     if (!res.ok) {
       const body = await res.text();
-      throw new Error(`MyService API error ${res.status}: ${body}. Check MYSERVICE_AUTH env var and API quota.`);
+      throw new Error(`MyService API error ${res.status}: ${body}. Check MYSERVICE_ACCESS env var and API quota.`);
     }
 
     const data = await res.json();
@@ -277,10 +277,10 @@ async def myservice_list_items(params: ListItemsInput) -> dict:
         res = await client.get(
             "https://api.myservice.com/items",
             params={"limit": params.limit, **({"cursor": params.cursor} if params.cursor else {})},
-            headers={"Authorization": f"Bearer {os.environ['MYSERVICE_AUTH']}"},
+            headers={"Authorization": f"Bearer {os.environ['MYSERVICE_ACCESS']}"},
         )
     if res.is_error:
-        raise ValueError(f"MyService API error {res.status_code}: {res.text}. Check MYSERVICE_AUTH env var.")
+        raise ValueError(f"MyService API error {res.status_code}: {res.text}. Check MYSERVICE_ACCESS env var.")
     data = res.json()
     return {"items": data["items"], "next_cursor": data.get("next_cursor")}
 ```

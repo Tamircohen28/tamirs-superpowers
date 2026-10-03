@@ -285,15 +285,15 @@ if [[ "$SYNC" == true && -f "$TARGETS_JSON" ]] && command -v curl >/dev/null 2>&
   # the entry stays "unknown" until a real `gemini --version` is recorded, so only
   # latest_known is ever synced here.
   sync_npm_latest() {
-    local key="$1" pkg="$2" latest tmpf
-    jq -e ".targets.$key" "$TARGETS_JSON" >/dev/null 2>&1 || return 0
+    local tid="$1" pkg="$2" latest tmpf
+    jq -e ".targets.$tid" "$TARGETS_JSON" >/dev/null 2>&1 || return 0
     latest=$(curl -fsSL "https://registry.npmjs.org/${pkg}/latest" 2>/dev/null \
       | jq -r '.version // empty' 2>/dev/null || true)
     [[ "$latest" =~ ^[0-9]+\.[0-9]+\.[0-9]+ ]] || return 0
     tmpf=$(mktemp)
-    jq --arg v "$latest" ".targets.$key.latest_known = \$v" "$TARGETS_JSON" >"$tmpf"
+    jq --arg v "$latest" ".targets.$tid.latest_known = \$v" "$TARGETS_JSON" >"$tmpf"
     mv "$tmpf" "$TARGETS_JSON"
-    echo "Updated $key.latest_known to $latest"
+    echo "Updated $tid.latest_known to $latest"
   }
   # @opencode/cli is the v2 line; opencode-ai is v1, frozen at 1.18.32. Syncing from
   # the v1 package here would silently revert latest_known from 2.0.14 back to 1.18.32.
@@ -328,9 +328,9 @@ PROVIDED = {"native", "native-experimental", "partial", "emulated", "adapter"}
 
 problems = []
 changed = False
-for key in d.get("supported_targets", []):
-    t = d.get("targets", {}).get(key)
-    plat = reg.get("platforms", {}).get(key)
+for tid in d.get("supported_targets", []):
+    t = d.get("targets", {}).get(tid)
+    plat = reg.get("platforms", {}).get(tid)
     if t is None or plat is None:
         continue
     caps = plat["capabilities"]
@@ -354,7 +354,7 @@ for key in d.get("supported_targets", []):
     else:
         if t.get("capabilities") != want_caps:
             problems.append(
-                f"targets.{key}.capabilities is stale: registry derives "
+                f"targets.{tid}.capabilities is stale: registry derives "
                 f"{want_caps} but the file says {t.get('capabilities')}"
             )
         have_gaps = t.get("capability_gaps") or collections.OrderedDict()
@@ -377,7 +377,7 @@ for key in d.get("supported_targets", []):
                     f"      file:     {have_gaps[k]}"
                 )
             problems.append(
-                f"targets.{key}.capability_gaps is stale: " + "; ".join(detail)
+                f"targets.{tid}.capability_gaps is stale: " + "; ".join(detail)
             )
 
 if mode == "sync":
@@ -456,30 +456,30 @@ is_unvalidated() {
 }
 
 # shellcheck disable=SC2086
-for key in $TARGET_IDS; do
-  jq -e ".targets.$key.validated_against" "$TARGETS_JSON" >/dev/null 2>&1 \
-    || err "platform-targets.json missing targets.$key.validated_against"
+for tid in $TARGET_IDS; do
+  jq -e ".targets.$tid.validated_against" "$TARGETS_JSON" >/dev/null 2>&1 \
+    || err "platform-targets.json missing targets.$tid.validated_against"
 
   # Coverage by /platform-sync. Prefer the reference-file engine; fall back to the
   # legacy per-target sub-skill layout when this repo still uses it.
-  if [[ -z "$(badge_prefix "$key")" ]]; then
-    err "platform-targets.json declares unknown target '$key' — add it to badge_prefix() and legacy_subskill_name() in $(basename "$0")"
+  if [[ -z "$(badge_prefix "$tid")" ]]; then
+    err "platform-targets.json declares unknown target '$tid' — add it to badge_prefix() and legacy_subskill_name() in $(basename "$0")"
   elif [[ -d "$PLATFORM_REF_DIR" ]]; then
-    ref="$PLATFORM_REF_DIR/$(platform_ref_name "$key").md"
+    ref="$PLATFORM_REF_DIR/$(platform_ref_name "$tid").md"
     if [[ ! -f "$ref" ]]; then
-      if is_unvalidated "$key"; then
-        warn "declared target '$key' has no ${ref#"$ROOT"/} — /platform-sync cannot audit it (warning only while validated_against is \"unknown\")"
+      if is_unvalidated "$tid"; then
+        warn "declared target '$tid' has no ${ref#"$ROOT"/} — /platform-sync cannot audit it (warning only while validated_against is \"unknown\")"
       else
-        err "supported target '$key' has no ${ref#"$ROOT"/} — /platform-sync cannot audit it"
+        err "supported target '$tid' has no ${ref#"$ROOT"/} — /platform-sync cannot audit it"
       fi
     fi
   elif [[ -d "$ROOT/skills/documentation" ]]; then
-    sub=$(legacy_subskill_name "$key")
+    sub=$(legacy_subskill_name "$tid")
     if [[ -n "$sub" && ! -d "$ROOT/skills/documentation/$sub" ]]; then
-      if is_unvalidated "$key"; then
-        warn "declared target '$key' has no skills/documentation/$sub/ — /platform-sync cannot audit it (warning only while validated_against is \"unknown\")"
+      if is_unvalidated "$tid"; then
+        warn "declared target '$tid' has no skills/documentation/$sub/ — /platform-sync cannot audit it (warning only while validated_against is \"unknown\")"
       else
-        err "supported target '$key' has no skills/documentation/$sub/ — /platform-sync cannot audit it"
+        err "supported target '$tid' has no skills/documentation/$sub/ — /platform-sync cannot audit it"
       fi
     fi
   fi
@@ -493,14 +493,14 @@ done
 if [[ -f "$REGISTRY" ]] && jq -e 'any(.platforms[]; has("platform"))' "$REGISTRY" >/dev/null 2>&1; then
   before_owner=$FAILED
   # shellcheck disable=SC2086
-  for key in $TARGET_IDS; do
-    want=$(jq -r --arg k "$key" '.platforms[$k].platform // empty' "$REGISTRY")
-    have=$(jq -r --arg k "$key" '.targets[$k].platform // empty' "$TARGETS_JSON")
+  for tid in $TARGET_IDS; do
+    want=$(jq -r --arg k "$tid" '.platforms[$k].platform // empty' "$REGISTRY")
+    have=$(jq -r --arg k "$tid" '.targets[$k].platform // empty' "$TARGETS_JSON")
     [[ -n "$want" ]] || continue
     if [[ -z "$have" ]]; then
-      err "targets.$key declares no 'platform' — the registry says this surface belongs to '$want'"
+      err "targets.$tid declares no 'platform' — the registry says this surface belongs to '$want'"
     elif [[ "$have" != "$want" ]]; then
-      err "targets.$key.platform is '$have' but the registry files that surface under '$want'"
+      err "targets.$tid.platform is '$have' but the registry files that surface under '$want'"
     fi
   done
   if (( FAILED == before_owner )); then
@@ -518,34 +518,34 @@ fi
 # README badge vs JSON
 if [[ -f "$README" ]]; then
   check_badge() {
-    local key="$1" prefix
+    local tid="$1" prefix
     local validated
-    prefix=$(badge_prefix "$key")
+    prefix=$(badge_prefix "$tid")
     [[ -n "$prefix" ]] || return 0
-    validated=$(jq -r ".targets.$key.validated_against // empty" "$TARGETS_JSON")
+    validated=$(jq -r ".targets.$tid.validated_against // empty" "$TARGETS_JSON")
     [[ -n "$validated" ]] || return 0
     if [[ "$validated" == "unknown" ]]; then
       grep -qF "${prefix}-" "$README" 2>/dev/null \
-        || warn "README has no $key badge yet (target declared, validated_against=\"unknown\" — badge required once a version is recorded)"
+        || warn "README has no $tid badge yet (target declared, validated_against=\"unknown\" — badge required once a version is recorded)"
       return 0
     fi
     if ! grep -qF "${prefix}-${validated}" "$README" 2>/dev/null; then
-      err "README missing $key badge for validated_against=$validated (expected ${prefix}-${validated})"
+      err "README missing $tid badge for validated_against=$validated (expected ${prefix}-${validated})"
     fi
   }
   # shellcheck disable=SC2086
-  for key in $TARGET_IDS; do check_badge "$key"; done
+  for tid in $TARGET_IDS; do check_badge "$tid"; done
 fi
 
 # stale targets
 if [[ "$ASSERT_CURRENT" == true ]]; then
   # shellcheck disable=SC2086
-  for key in $TARGET_IDS; do
-    v=$(jq -r ".targets.$key.validated_against // empty" "$TARGETS_JSON")
-    l=$(jq -r ".targets.$key.latest_known // empty" "$TARGETS_JSON")
+  for tid in $TARGET_IDS; do
+    v=$(jq -r ".targets.$tid.validated_against // empty" "$TARGETS_JSON")
+    l=$(jq -r ".targets.$tid.latest_known // empty" "$TARGETS_JSON")
     [[ "$v" == "unknown" || "$l" == "unknown" ]] && continue
     if [[ -n "$v" && -n "$l" && "$v" != "$l" ]]; then
-      err "Stale platform target $key: validated_against=$v latest_known=$l"
+      err "Stale platform target $tid: validated_against=$v latest_known=$l"
     fi
   done
 fi

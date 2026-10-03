@@ -66,7 +66,7 @@ PKGJSON
 }
 TSCJSON
 
-  TOKEN_VAR="${PREFIX_UC}_TOKEN"
+  ACCESS_VAR="${PREFIX_UC}_ACCESS"
 
   cat > "$PROJECT/README.md" <<README
 # $PROJECT MCP Server
@@ -77,7 +77,7 @@ An MCP server that exposes $PROJECT as Claude tools.
 
 | Variable | Description |
 |----------|-------------|
-| \`$TOKEN_VAR\` | API token for $PROJECT |
+| \`$ACCESS_VAR\` | API token for $PROJECT |
 
 ## Setup
 
@@ -89,7 +89,7 @@ npm run build
 ## Run (stdio)
 
 \`\`\`bash
-$TOKEN_VAR=your-token node dist/index.js
+$ACCESS_VAR=your-token node dist/index.js
 \`\`\`
 
 ## Test with MCP Inspector
@@ -111,12 +111,12 @@ const server = new McpServer({
 
 // TODO: Replace with real API base URL
 const API_BASE = "https://api.example.com";
-const AUTH_ENV = "PREFIX_AUTH";
+const ACCESS_ENV = "PREFIX_ACCESS";
 
 function getToken(): string {
-  const token = process.env[AUTH_ENV];
+  const token = process.env[ACCESS_ENV];
   if (!token) {
-    throw new Error(`${AUTH_ENV} environment variable is required. Add it to your MCP client config.`);
+    throw new Error(`${ACCESS_ENV} environment variable is required. Add it to your MCP client config.`);
   }
   return token;
 }
@@ -154,7 +154,7 @@ server.registerTool(
       const body = await res.text();
       throw new Error(
         `PROJECT_NAME API error ${res.status}: ${body.slice(0, 200)}. ` +
-          `Check the ${AUTH_ENV} env var and verify permissions.`
+          `Check the ${ACCESS_ENV} env var and verify permissions.`
       );
     }
 
@@ -188,7 +188,7 @@ server.registerTool(
       const body = await res.text();
       throw new Error(
         `PROJECT_NAME API error ${res.status}: ${body.slice(0, 200)}. ` +
-          `Verify item ID '${id}' exists and check ${AUTH_ENV}.`
+          `Verify item ID '${id}' exists and check ${ACCESS_ENV}.`
       );
     }
 
@@ -206,15 +206,15 @@ await server.connect(transport);
 TSEOF
 
   # Replace placeholders
-  TOKEN_VAR="${PREFIX_UC}_TOKEN"
+  ACCESS_VAR="${PREFIX_UC}_ACCESS"
   sed -i '' \
     -e "s/PROJECT_NAME/$PROJECT/g" \
-    -e "s/PREFIX_AUTH/$TOKEN_VAR/g" \
+    -e "s/PREFIX_ACCESS/$ACCESS_VAR/g" \
     -e "s/PREFIX_/${PREFIX}_/g" \
     "$PROJECT/src/index.ts" 2>/dev/null || \
   sed -i \
     -e "s/PROJECT_NAME/$PROJECT/g" \
-    -e "s/PREFIX_AUTH/$TOKEN_VAR/g" \
+    -e "s/PREFIX_ACCESS/$ACCESS_VAR/g" \
     -e "s/PREFIX_/${PREFIX}_/g" \
     "$PROJECT/src/index.ts"
 
@@ -226,7 +226,7 @@ TSEOF
 
 elif [[ "$LANG" == "py" ]]; then
   # --- Python skeleton ---
-  TOKEN_VAR="${PREFIX_UC}_TOKEN"
+  ACCESS_VAR="${PREFIX_UC}_ACCESS"
 
   cat > "$PROJECT/server.py" <<PYEOF
 """$PROJECT MCP server (FastMCP)"""
@@ -241,13 +241,13 @@ mcp = FastMCP("$PROJECT")
 
 # TODO: Replace with real API base URL
 API_BASE = "https://api.example.com"
-AUTH_ENV = "$TOKEN_VAR"
+ACCESS_ENV = "$ACCESS_VAR"
 
 
 def get_token() -> str:
-    token = os.environ.get(AUTH_ENV)
+    token = os.environ.get(ACCESS_ENV)
     if not token:
-        raise ValueError(f"{AUTH_ENV} environment variable is required. Add it to your MCP client config.")
+        raise ValueError(f"{ACCESS_ENV} environment variable is required. Add it to your MCP client config.")
     return token
 
 
@@ -273,7 +273,7 @@ async def ${PREFIX}_list_items(params: ListItemsInput) -> dict:
     if res.is_error:
         raise ValueError(
             f"$PROJECT API error {res.status_code}: {res.text[:200]}. "
-            f"Check the {AUTH_ENV} env var and verify permissions."
+            f"Check the {ACCESS_ENV} env var and verify permissions."
         )
     data = res.json()
     return {"items": data.get("items", []), "next_cursor": data.get("next_cursor")}
@@ -295,7 +295,7 @@ async def ${PREFIX}_get_item(params: GetItemInput) -> dict:
     if res.is_error:
         raise ValueError(
             f"$PROJECT API error {res.status_code}: {res.text[:200]}. "
-            f"Verify item ID '{params.id}' exists and check {AUTH_ENV}."
+            f"Verify item ID '{params.id}' exists and check {ACCESS_ENV}."
         )
     return res.json()
 
@@ -319,7 +319,7 @@ An MCP server that exposes $PROJECT as Claude tools.
 
 | Variable | Description |
 |----------|-------------|
-| \`$TOKEN_VAR\` | API token for $PROJECT |
+| \`$ACCESS_VAR\` | API token for $PROJECT |
 
 ## Setup
 
@@ -331,7 +331,7 @@ pip install -r requirements.txt
 ## Run (stdio)
 
 \`\`\`bash
-$TOKEN_VAR=your-token python server.py
+$ACCESS_VAR=your-token python server.py
 \`\`\`
 
 ## Test with MCP Inspector
