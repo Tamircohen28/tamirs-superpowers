@@ -23,11 +23,17 @@ Lessons from a long multi-agent session: agents sat on piles of uncommitted work
   only when both `push` and `pull_request` runs of the final head are green and no thread is
   unresolved, pre-merge conditions as blocking review threads, batched thread rounds, the
   early-start pattern, commit per task, and a periodic `agent-health.sh` check.
+- `github-policy.sh audit`/`plan`/`verify` on a single repo warns (never changes the verdict or
+  exit code) when a configured required context is not reported by any check run or commit
+  status on the default-branch head; `--json` gains a `warnings` array.
 
 ### Changed
 
 - `scripts/check-github-policy.sh` rejects a non-array or non-string `contexts` list cleanly;
   `tests/test-github-policy.sh` gains rendering and drift cases for required contexts.
+- The `Tamircohen28/iBrain` manifest context is the check display name `Manifest/tag version
+  alignment`, not the job id `manifest-version-alignment`, which would never report and would
+  block every merge once applied.
 
 ## [4.11.11] — 2026-10-04
 

@@ -112,7 +112,7 @@
   "repositories": {
     "_comment": "Per-repository overrides, keyed by owner/repo. An absent repo inherits the defaults above with an empty required-context list — protected, but not gated on checks it does not have.",
     "Tamircohen28/iBrain": {
-      "_comment": "Required contexts are the CI job names of this repository's own workflows; they exist nowhere else, which is why they live here and not in the account default. Adding a CI job does NOT make it blocking: add its `name:` here and apply. Strict stays off (see required_checks).",
+      "_comment": "Required contexts are the CI job names of this repository's own workflows; they exist nowhere else, which is why they live here and not in the account default. Adding a CI job does NOT make it blocking: add its `name:` here and apply. Strict stays off (see required_checks). A context is the check DISPLAY name (the job's `name:` if set, else its id): `Manifest/tag version alignment` is the display name of job manifest-version-alignment; the bare job id would never report and would block every merge.",
       "required_checks": {
         "contexts": [
           "CI",
@@ -124,7 +124,7 @@
           "p4-governance",
           "postgres-16-migrations",
           "secret-scan",
-          "manifest-version-alignment",
+          "Manifest/tag version alignment",
           "action-pinning"
         ]
       }
