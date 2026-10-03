@@ -30,6 +30,24 @@
       "prompt": "Two of the workers both edited src/config.ts and the merge conflicts. Sort it out.",
       "expected_output": "CONFLICT AT INTEGRATION: resolves on the integration branch as the integrator, using both handoffs to understand each side. Does not ask a worker to resolve it and does not merge main into a worker branch. Notes that the shared write scope means the task graph was wrong and says how it should have been partitioned (shared file owned by one task, or sequenced).",
       "files": []
+    },
+    {
+      "id": 6,
+      "prompt": "Phase 2 depends on phase 1, whose PR is still in CI and review. Don't make the team wait - how do we proceed?",
+      "expected_output": "Starts phase 2 from phase 1's head SHA; does not open phase 2's PR until phase 1 merges; then runs git rebase --onto origin/<default> <phase-1-head-sha>. States collision rules: disjoint paths, separate migration ranges, additive registration points.",
+      "files": []
+    },
+    {
+      "id": 7,
+      "prompt": "Three workers have been running for 40 minutes. How do you keep tabs on them?",
+      "expected_output": "Workers commit per task as targeted tests pass; orchestrator periodically runs scripts/agent-health.sh (--idle-min, --pile, --json, --repo) and nudges workers with uncommitted-pile or ~20 min without a write.",
+      "files": []
+    },
+    {
+      "id": 8,
+      "prompt": "I need the security review finished before PR #77 merges, and two sub-agents own open review threads on it. How do you coordinate?",
+      "expected_output": "Posts the pre-merge condition as a blocking review thread on the PR (not a chat message); triages all open threads at once, one message per owning sub-agent, one push per round.",
+      "files": []
     }
   ]
 }

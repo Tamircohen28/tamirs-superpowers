@@ -122,7 +122,7 @@ Every command you run becomes a `--validation` entry with its real result. A com
 
 ## Step 5 — commit
 
-One or a few focused commits on the task branch. Repo commit convention applies (`<type>(<scope>): <description>`). Never amend or rebase commits from another task.
+Commit **as each task passes its targeted tests** — never leave a pile uncommitted (the orchestrator runs `scripts/agent-health.sh` and nudges on piles or ~20 min without a write). One or a few focused commits on the task branch. Repo commit convention applies (`<type>(<scope>): <description>`). Never amend or rebase commits from another task.
 
 ```bash
 git add <paths inside scope>
@@ -175,6 +175,7 @@ Report to whoever dispatched you: task id, status, commits, what you validated, 
 | merging the default branch in because the branch is behind | Leave it; the integrator handles divergence |
 | `make test` / full suite "to be safe" | Targeted Tier 1 only |
 | Fix a bug you noticed in another module | Record it as a followup |
+| Keep work uncommitted until the end | Commit each time targeted tests pass |
 | Report success in prose only | The handoff file is the deliverable |
 | List a validation command you didn't run | Only real runs, with real results |
 | Mark `completed` when a test still fails | `partial` or `failed`, with the reason |
