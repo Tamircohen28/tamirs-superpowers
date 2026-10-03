@@ -406,7 +406,7 @@ fi
 #       defect as (a) seen from one step further out: the command's verdict is decided by
 #       something other than the claim it is attached to.
 #
-# Only the WHOLE command counts as this shape. `jq empty hooks/hooks.json && make
+# Only the WHOLE command counts as this shape. `jq empty <hook manifest> && make
 # test-hooks` and `test -d agents && claude plugin validate .` both open with a file test
 # and then do the real work, which is exactly the right construction.
 #

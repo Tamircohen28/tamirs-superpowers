@@ -191,8 +191,10 @@ Sequence:
 3. **Implement** — Read before Edit; one conventional commit per logical unit; `git add -p`, never `git add .`.
 4. **Validate** — Tier 1 first, then Tier 2 before pushing:
    ```bash
-   CMDS=$(bash "$SKILL_DIR/scripts/detect-stack.sh" "$WORKTREE")
-   while IFS= read -r cmd; do echo "Running: $cmd"; eval "$cmd" || exit 1; done <<< "$CMDS"
+   bash "$SKILL_DIR/scripts/detect-stack.sh" "$WORKTREE"
+   ```
+   Run each command it prints, one at a time, from `$WORKTREE`, and stop at the first failure:
+   ```bash
    if bash "$SHARED_DIR/detect-multi-platform-repo.sh" "$WORKTREE"; then
      bash "$SHARED_DIR/run-pre-pr-gates.sh" "$WORKTREE"
    fi

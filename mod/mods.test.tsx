@@ -221,7 +221,7 @@ test('the band stays the engine\'s while every rate-limit window is under the th
   await ui.unmount()
 })
 
-test('crossing the threshold toasts once, draws the band, and the button submits a handoff prompt', async ($, on) => {
+test('crossing the threshold toasts once, draws a band that names /switch-dev handoff, and submits no prompt', async ($, on) => {
   const calls = stubEngine(on, fakeDisk())
   mock.clock(on)
   await start($)
@@ -232,12 +232,11 @@ test('crossing the threshold toasts once, draws the band, and the button submits
   for (const surface of ['terminal', 'desktop'] as const) {
     const ui = await $.ui.mount({ plugin: PLUGIN, surface, ...BAND })
     expect(await ui.find({ type: 'Text', text: /5h limit 92%/ })).toBeDefined()
-    await ui.press({ key: 'handoff' })
+    expect(await ui.find({ type: 'Text', text: /type \/switch-dev handoff/ })).toBeDefined()
     await ui.unmount()
   }
-  expect(calls.prompts).toHaveLength(2)
-  expect(calls.prompts[0]).toMatch(/switch-dev handoff/)
-  expect(calls.prompts[0]).toMatch(/92%/)
+  // The mod makes no prompt.submit call: the band only tells the user the command.
+  expect(calls.prompts).toHaveLength(0)
 })
 
 test('Dismiss hides the band until the window climbs further', async ($, on) => {

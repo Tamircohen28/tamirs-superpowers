@@ -8,7 +8,7 @@ This file is the `privacyPolicyUrl` in [`.claude-plugin/plugin.json`](.claude-pl
 
 - **Hooks** (`hooks/`) read the tool call or event they are given, and read and write files inside your checkout (worktrees, objective state under `.dev-files/`, handoff files). They make no network requests.
 - **Skills and agents** are instructions for the model. They run inside your own Claude session and reach the network only through tools you have already allowed that session to use.
-- **The mod** (Claude Code 2.1.287+) draws panes and bands, counts workers, and reads objective state, your project's `CLAUDE.md` and `.git/HEAD` from disk. It makes no network call. The one thing it can put into the conversation is a fixed handoff prompt, and only when you press the **Write handoff** button on the rate-limit band; the prompt names the rate-limit window and asks the `switch-dev` skill to write the objective state to disk.
+- **The mod** (Claude Code 2.1.287+) draws panes and bands, counts workers, and reads objective state, your project's `CLAUDE.md` and `.git/HEAD` from disk. It makes no network call. It submits no prompt: the rate-limit band only displays the text "type /switch-dev handoff".
 - **Usage capture** (`/usage-capture`, opt-in) writes JSONL files under `~/.local/share/tamirs-superpowers/` and sends nothing.
 - **Statusline** reads the JSON Claude Code pipes to it and prints a line. Nothing leaves.
 

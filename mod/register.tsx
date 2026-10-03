@@ -4,10 +4,10 @@
 //   A mod runs IN-PROCESS on Claude Code and the Claude Desktop Code tab. It can
 //   draw (a pane, the band above the prompt, the spinner), react to state the
 //   host PUSHES (`session.measure`), and act before a turn dies. The bash hooks
-//   in hooks/hooks.json can do none of those three things.
+//   in the hook manifest can do none of those three things.
 //
 //   It is ADDITIVE. Every guard, every worktree hook and every reminder in
-//   hooks/*.sh stays canonical, because those run on Codex and (via
+//   the shell hook scripts stay canonical, because those run on Codex and (via
 //   platforms/cursor/hooks.json) Cursor too, and a mod never will. Nothing here
 //   denies a tool call, creates a worktree, or replaces a bash hook. Where a
 //   feature below overlaps one (rate-limit-handoff.sh, check-done.sh,
@@ -23,7 +23,7 @@
 //      workers in flight; a task-notification row is drawn compact.
 //   2. Rate-limit band — `session.measure` pushes rate-limit windows after every
 //      turn. At `rate_limit_warn_percent` the band above the prompt shows a
-//      one-press "Write handoff" that submits a switch-dev handoff prompt.
+//      a reminder to type /switch-dev handoff; the mod submits no prompt itself.
 //      rate-limit-handoff.sh fires AFTER the turn died; this fires BEFORE.
 //   3. Usage line on Desktop — the figures scripts/statusline.sh draws on the
 //      CLI, where Desktop has no status line to draw into.
@@ -410,18 +410,7 @@ export const register: Register = (on, options) => {
             <Text color="red" bold>
               {RATE_WINDOWS[warning.kind] ?? warning.kind} limit {Math.round(warning.percentUsed)}%
             </Text>
-            <Text dimColor>{resetsIn(warning.resetsAt, now) ? `resets in ${resetsIn(warning.resetsAt, now)} ·` : ''} hand off before the window closes</Text>
-            <Button
-              key="handoff"
-              label="Write handoff"
-              hotkey="h"
-              variant="primary"
-              onPress={() =>
-                $.prompt.submit({
-                  text: `Run the switch-dev skill now: /switch-dev handoff. The ${RATE_WINDOWS[warning.kind] ?? warning.kind} rate-limit window is at ${Math.round(warning.percentUsed)}%; write the objective, task and handoff state to disk so this work resumes on another platform.`,
-                })
-              }
-            />
+            <Text dimColor>{resetsIn(warning.resetsAt, now) ? `resets in ${resetsIn(warning.resetsAt, now)} ·` : ''} hand off before the window closes: type /switch-dev handoff</Text>
             <Button
               key="dismiss"
               label="Dismiss"

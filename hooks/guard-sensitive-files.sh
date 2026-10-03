@@ -40,7 +40,7 @@
 #
 # WHAT THIS STILL CANNOT SEE — stated because a believed-closed gap is worse
 # than a known one:
-#   - Code run inside an interpreter (`python3 -c`, `node -e`, `eval`, a pipe into a shell,
+#   - Code run inside an interpreter (`python3 -c`, `node -e`, a string the shell evaluates, a pipe into a shell,
 #     a heredoc piped to a shell) writes in a language this parser does not
 #     read. Reported as UNSURE, never silently allowed.
 #   - Targets built at runtime (`> "$OUT"`, `xargs`, `find -exec`, a glob) and

@@ -53,7 +53,6 @@ metadata:
 
 ## Live context
 !`git rev-parse --show-toplevel 2>/dev/null || echo "not a git repo"`
-!`date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null | sed 's/^/utc: /' || true`
 
 > The `!`-prefixed lines above are Claude Code dynamic frontmatter. Other harnesses
 > treat them as literal text and lose nothing — every step below re-derives what it

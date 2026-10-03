@@ -24,7 +24,7 @@ and OpenCode. Source, issues and the full documentation:
   session snapshots before compaction, a done-check on stop, and a desktop notification when
   the session needs you. All run locally; none makes a network request.
 - **Mod** (Claude Code 2.1.287+) — a live objective pane and `/objective` command, a
-  rate-limit band with a one-press handoff, usage figures on Desktop, and a definition-of-done
+  rate-limit band that reminds you to run `/switch-dev handoff`, usage figures on Desktop, and a definition-of-done
   line under answers that wrote files. It makes no network call and runs no process; what it
   does with what it sees is listed below.
 - **Statusline** — context, rate-limit windows, cost and prompt-cache state on one line.
@@ -65,15 +65,18 @@ details: [PRIVACY.md](PRIVACY.md).
   your checkout, your project's `CLAUDE.md` (for a declared commit trailer line) and
   `.git/HEAD` (for the branch name), plus the usage and rate-limit figures Claude Code
   pushes to it. It counts file-writing tool calls; it does not read their contents.
-- **Changes**: on `tool.call` and `agent.spawn` it only counts and passes the call through
-  unchanged. On `attribution.text` it appends the commit trailer your project's `CLAUDE.md`
+- **Hooks**: `command.run` answers `/objective` with the objective summary and changes
+  nothing. `agent.spawn` counts workers in flight for the spinner and passes the spawn through
+  unchanged, as does `tool.call` for file-writing calls. `session.start` and `session.measure`
+  only read state and rate-limit figures. `ui.render` draws the objective pane, the spinner
+  suffix and the rate-limit band. On `attribution.text` it appends the commit trailer your project's `CLAUDE.md`
   declares, if any. On `session.compact` it adds the branch and objective to the
   compaction instructions. It registers one command, `/objective`.
-- **Submits** (the mod's one `prompt.submit` call): one fixed prompt, only when you press
-  **Write handoff** on the rate-limit band. The text names the rate-limit window and its percentage and asks the
-  `switch-dev` skill to write the objective state to disk. Nothing else is ever submitted,
-  and with `semantic_skill_suggest` on, a one-line note naming a matching skill is attached
-  as context to your own prompt.
+- **Submits**: nothing. The mod makes no `prompt.submit` call; the rate-limit band only
+  displays the text "type /switch-dev handoff". With `semantic_skill_suggest` on (off by
+  default), a one-line note naming a matching skill is attached as context to your own
+  prompt, and the first 2,000 characters of that prompt go to your session's own model to
+  pick the skill name.
 
 ## Install
 

@@ -5,7 +5,7 @@
 This repository contains Markdown skill files, Bash hook scripts, and JSON configuration. It does not run a server, store user data, or handle authentication.
 
 **In scope for reports:**
-- Shell injection vulnerabilities in hook scripts (`hooks/*.sh`)
+- Shell injection vulnerabilities in hook scripts
 - Secrets accidentally committed to the repository
 - Skills that instruct Claude to execute dangerous commands without user confirmation
 

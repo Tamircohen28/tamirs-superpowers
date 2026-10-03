@@ -1,7 +1,7 @@
 {
   "name": "tamirs-superpowers",
   "displayName": "Tamir's Superpowers",
-  "version": "4.11.5",
+  "version": "4.11.6",
   "description": "29 bundled skills, 10 specialist agents, smart worktree hooks, statusline, and MCP server stubs — plan, implement, review, debug, multi-agent setup, and audit code from one plugin.",
   "homepage": "https://github.com/Tamircohen28/tamirs-superpowers",
   "repository": "https://github.com/Tamircohen28/tamirs-superpowers",
@@ -63,7 +63,7 @@
     "rate_limit_warn_percent": {
       "type": "number",
       "title": "Rate-limit warning threshold (%)",
-      "description": "The mod shows a band above the prompt with a one-press handoff once any rate-limit window (5h, 7d, spend) reaches this percentage. Claude Code and Claude Desktop only.",
+      "description": "The mod shows a band above the prompt with a handoff reminder once any rate-limit window (5h, 7d, spend) reaches this percentage. Claude Code and Claude Desktop only.",
       "default": 85,
       "min": 50,
       "max": 100

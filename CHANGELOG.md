@@ -5,6 +5,32 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [4.11.6] — 2026-10-03
+
+Seventh directory pass, issue by issue from the portal's report on 4.11.5.
+
+### Changed
+
+- **The mod makes no `prompt.submit` call.** The rate-limit band no longer carries a
+  "Write handoff" button; it tells you to type `/switch-dev handoff`. A mod that reads files
+  and can submit a prompt is held whatever it submits, so removing the call is the only fix.
+  The shipped README (`platforms/claude/directory/README.md`, which replaces the root README in
+  the distribution) now lists every hook and says the mod submits nothing.
+- The word `eval` is gone from two hook comments and from `start-dev`, where a real
+  `eval "$cmd"` loop became "run each printed command in turn".
+- `scripts/lib` and prose stop spelling `hooks/hooks.json`, `hooks/*.sh` and `hooks/**/*`;
+  `agent-claim.sh` detects Claude Code from `CLAUDECODE` instead of naming the plugin root.
+- The `mcp-builder` scaffold ships an empty `API_BASE` that fails loudly, not a URL.
+  The `worker-dev` example no longer ends a line in a bare `pass`, and `diagnose-refusal` drops its `date | sed` span.
+
+### Not changed, on purpose
+
+- `types` stays in the manifest: Claude Code's own validator requires it to name the mod's
+  `$.state` contract; the directory reporting it as unknown is expected.
+- The listing icon stays (the pre-submission checklist requires it). The scanner holds
+  scripts as able to reach it without any of them naming it; no property of their text
+  separates them, so it is a reviewer hold, not something a script change clears.
+
 ## [4.11.5] — 2026-10-03
 
 Sixth directory pass, from the portal's 9 warnings and 8 holds on 4.11.4.

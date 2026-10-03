@@ -3,7 +3,7 @@
 `mod/register.tsx` is this plugin's **mod**: a module of function hooks that Claude
 Code runs inside its own process. It is named by the `modules` key of `hooks/hooks.json`,
 beside the settings hooks the same file has always declared, and its `$.state` contract is
-`mod/types/index.d.ts`, named by `types` in `.claude-plugin/plugin.json`.
+`mod/types/index.d.ts`, named by `types` in `.claude-plugin/plugin.json`. Claude Code's own validator requires that field for a mod (the `$.state` contract must be named); the directory lists it as an unknown key, which is expected and stays.
 
 This page says what the mod does, why each feature is a mod and not a bash hook, where it
 runs, how it is validated, and what to know before changing it. The host-side reference is
@@ -40,7 +40,7 @@ cannot load.
 | # | Feature | Hooks | Overlaps / fallback |
 |---|---|---|---|
 | 1 | **Objective pane + `/objective`** — the orchestration state `orchestrate-dev`/`worker-dev` keep in `.dev-files/objectives/<id>/` (`objective.json`, `tasks/*.json`, `handoffs/*.json`) drawn live, re-read every 5 s; `/objective` answers at once (`immediate`); the spinner counts workers in flight; a task-notification row is drawn compact | `session.start`, `command.run`, `ui.render{Pane}`, `agent.spawn`, `turn.complete`, `ui.render{Spinner}`, `ui.render{UserMessage}` | New capability. `objective-state.sh show` from a shell is the fallback |
-| 2 | **Rate-limit band** — at `rate_limit_warn_percent` (default 85) of any window a band shows `[ Write handoff ]`, which submits a `switch-dev handoff` prompt, and `[ Dismiss ]`; one toast per 5-point crossing | `session.measure`, `ui.render{AbovePrompt}` | `hooks/rate-limit-handoff.sh` (`StopFailure`, after the fact). Both stay |
+| 2 | **Rate-limit band** — at `rate_limit_warn_percent` (default 85) of any window a band tells the user to type `/switch-dev handoff` (the mod submits no prompt; a `prompt.submit` call beside its file reads is a `MOD_DATA_LEAVES_BY_PROMPT` hold) and shows `[ Dismiss ]`; one toast per 5-point crossing | `session.measure`, `ui.render{AbovePrompt}` | `hooks/rate-limit-handoff.sh` (`StopFailure`, after the fact). Both stay |
 | 3 | **Usage line on Desktop** — `ctx 12% · 5h 40% (resets 2h10m) · 7d 31% · $1.50`, Desktop only | `session.measure`, `ui.render{AbovePrompt}` | `scripts/statusline.sh` on the CLI (Desktop has no status line). The mod never draws it on the terminal |
 | 4 | *(removed in 4.11.1)* A Pushover post on long or failed turns lived here as the mod's one network call. The plugin directory holds a mod that both reads the conversation and sends data out, and the `Notification` bash hook already covers phone alerts, so the mod now makes no network call at all | — | `scripts/notify-pushover.sh` on the `Notification` event is the one Pushover path |
 | 5 | **Semantic skill suggestion** — opt-in `semantic_skill_suggest`: a prompt of 12+ words is classified by the engine's small model against the bundled skill names; a match is attached as context once per skill per load | `prompt.submit`, `$.model.classify` | `hooks/skill-suggest.sh` keyword matching stays on either way |

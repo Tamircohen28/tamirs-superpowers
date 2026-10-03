@@ -112,7 +112,7 @@ caught here rather than a release later.
 | `eval` of a program's output, and a here-document, are code the validator cannot follow (`COMMAND_SCRIPT_NOT_FOLLOWED`) | `notify-pushover.sh` evaluated the formatter's output | the formatter prints base64 lines read back as data; no shipped shell script uses `eval`; the here-documents in hooks stay, as a reviewer hold |
 | A launcher or a download-and-run command in a string or a comment is one the plugin runs (`RUNTIME_FETCH_EXEC`) | an `npx shadcn` hint in a deny message, a `curl -o` in a comment | strings and comments in what the plugin runs name no launcher; a skill that teaches `npx tsc --noEmit` is content and only warns |
 | `Monitor` in `allowed-tools` is a shell grant (`ALLOWED_TOOLS_BROAD`) | two skills | dropped; the person approves the watch |
-| A mod that reads files and can submit a prompt is held whatever it submits (`MOD_DATA_LEAVES_BY_PROMPT`) | the handoff button | the directory README names the `prompt.submit` call and the fixed text it sends; the hold stays for the reviewer |
+| A mod that reads files and can submit a prompt is held whatever it submits (`MOD_DATA_LEAVES_BY_PROMPT`) | the handoff button | the button is gone: the band displays "type /switch-dev handoff" and the mod makes no `prompt.submit` call, so there is no pair to name; the directory README says so |
 | Every script that names `hooks/` names a folder holding mod files, because `hooks/hooks.json` names the mod (`COMMAND_NAMES_MOD_FILE`) | every hook that sources `hooks/lib/` | structural; the hooks file has to live there. Reviewer hold, accepted |
 
 Held for a reviewer by design, and left alone: the here-documents, the `hooks/` naming, the

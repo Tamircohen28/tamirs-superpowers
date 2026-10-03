@@ -74,7 +74,7 @@ nearest_existing_dir() {
 # is_throwaway_root DIR — true when DIR sits under a system temp root.
 #
 # The degraded path below fails OPEN, so it must only ever engage where the
-# checkout is provably disposable: an eval sandbox, a CI scratch dir, a test
+# checkout is provably disposable: an evaluation sandbox, a CI scratch dir, a test
 # fixture. A person's real project never lives under /tmp or $TMPDIR, so this
 # is the narrowest signal that separates "isolation is unavailable here" from
 # "one `git worktree add` happened to fail" — which is an ordinary condition
@@ -207,7 +207,7 @@ judge_target_dir() {
       # work, and nothing the agent can do to make one. A deny here does not
       # protect the repo, it strands the session.
       #
-      # Measured in a `claude plugin eval` sandbox, where the harness makes the
+      # Measured in a plugin-evaluation sandbox, where the harness makes the
       # run's home a git repo but refuses worktree isolation: every Write was
       # denied and a one-word file-creation task scored 1.00 WITHOUT the plugin
       # and 0.00 WITH it. The same shape occurs anywhere `git worktree add`

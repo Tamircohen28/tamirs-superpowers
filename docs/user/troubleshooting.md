@@ -213,7 +213,7 @@ re-invoke `/deliver-dev`.
 
 ### Hook guards are not firing in Cursor
 
-Expected. Claude-shaped plugin hooks (`hooks/hooks.json`, `CLAUDE_PLUGIN_ROOT`) do not run
+Expected. Claude-shaped plugin hooks (the hook manifest, `CLAUDE_PLUGIN_ROOT`) do not run
 under a Cursor plugin install. Project-level `.cursor/hooks.json` provides soft guards, and
 Claude hooks via `.claude/settings.json` are an opt-in Cursor setting. The same rules are
 enforced in CI, which is where they bind. [Install guide](install/cursor.md).

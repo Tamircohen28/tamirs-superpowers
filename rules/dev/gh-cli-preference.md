@@ -5,7 +5,6 @@ globs:
   - ".github/**/*"
   - "skills/dev-workflow/**/*"
   - "scripts/**/*"
-  - "hooks/**/*"
 ---
 
 # GitHub Transport Policy
