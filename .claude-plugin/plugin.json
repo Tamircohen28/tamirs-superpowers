@@ -2,10 +2,11 @@
   "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "tamirs-superpowers",
   "displayName": "Tamir's Superpowers",
-  "version": "4.11.0",
+  "version": "4.11.1",
   "description": "29 bundled skills, 10 specialist agents, smart worktree hooks, statusline, and MCP server stubs — plan, implement, review, debug, multi-agent setup, and audit code from one plugin.",
   "homepage": "https://github.com/Tamircohen28/tamirs-superpowers",
   "repository": "https://github.com/Tamircohen28/tamirs-superpowers",
+  "icon": "./.claude-plugin/icon.png",
   "documentationUrl": "https://github.com/Tamircohen28/tamirs-superpowers/blob/master/docs/user/install/claude-code.md",
   "supportUrl": "https://github.com/Tamircohen28/tamirs-superpowers/issues",
   "privacyPolicyUrl": "https://github.com/Tamircohen28/tamirs-superpowers/blob/master/PRIVACY.md",
@@ -57,7 +58,7 @@
     "pushover_user": {
       "type": "string",
       "title": "Pushover user key",
-      "description": "Optional. Your Pushover user key from pushover.net. Required only if you set an application token above.",
+      "description": "Optional. Your Pushover user key from pushover.net. Required only if you set an application token above. Read by the Notification hook only; the mod sends nothing.",
       "sensitive": true
     },
     "rate_limit_warn_percent": {
@@ -67,13 +68,6 @@
       "default": 85,
       "min": 50,
       "max": 100
-    },
-    "pushover_min_turn_seconds": {
-      "type": "number",
-      "title": "Pushover: notify after turns longer than (seconds)",
-      "description": "With pushover_token and pushover_user set, the mod sends a Pushover message when a main-session turn longer than this finishes or dies on an API error. 0 notifies on every turn. Claude Code and Claude Desktop only.",
-      "default": 120,
-      "min": 0
     },
     "semantic_skill_suggest": {
       "type": "boolean",

@@ -16,7 +16,6 @@ disable-model-invocation: false
 user-invocable: true
 allowed-tools:
   - Read
-  - Write
 disallowed-tools: []
 model: sonnet
 effort: medium

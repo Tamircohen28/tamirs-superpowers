@@ -155,7 +155,7 @@ gh auth status                                       # what you have now
 gh auth refresh -h github.com -s repo -s admin:org   # add what is missing
 ```
 
-Never paste a token by hand; derive it with `gh auth token` if a tool needs one.
+Never paste a token by hand into a prompt or a file; a tool that needs one takes it from the gh CLI's own login.
 
 ---
 

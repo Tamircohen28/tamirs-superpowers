@@ -115,7 +115,7 @@ Later runs that need another copy rotate to
 `remove` restores from the fixed backup — and rotates a dated copy of the current
 file before it does, so undoing is itself undoable.
 
-Pushover credentials are not files setup manages: since 4.11.0 they are the plugin's sensitive `pushover_token` / `pushover_user` options (`/plugin` > tamirs-superpowers > Configure, or `claude plugin configure tamirs-superpowers`), held by the host's credential store. A `~/.claude/pushover.env` an older install left behind is read by nothing; delete it by hand.
+Pushover credentials are not files setup manages: since 4.11.0 they are the plugin's sensitive `pushover_token` / `pushover_user` options (`/plugin` > tamirs-superpowers > Configure, or `claude plugin configure tamirs-superpowers`), held by the host's credential store. A Pushover credentials dotfile an older install left under `~/.claude` is read by nothing; delete it by hand.
 
 ---
 

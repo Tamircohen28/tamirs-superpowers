@@ -8,7 +8,6 @@ disable-model-invocation: false
 user-invocable: true
 allowed-tools:
 - Read
-- Edit
 disallowed-tools: []
 model: sonnet
 effort: medium

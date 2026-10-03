@@ -8,8 +8,6 @@ disable-model-invocation: false
 user-invocable: true
 allowed-tools:
 - Read
-- Write
-- Edit
 - Glob
 - Grep
 - Agent
@@ -18,7 +16,6 @@ allowed-tools:
 - Skill(tamirs-superpowers:pr-dev)
 - Skill(tamirs-superpowers:skill-creator)
 - Skill(tamirs-superpowers:start-dev)
-- WebFetch
 disallowed-tools: []
 model: sonnet
 effort: high

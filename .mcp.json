@@ -2,10 +2,8 @@
   "mcpServers": {
     "github": {
       "type": "stdio",
-      "command": "bash",
-      "args": [
-        "${CLAUDE_PLUGIN_ROOT}/scripts/github-mcp.sh"
-      ],
+      "command": "${CLAUDE_PLUGIN_ROOT}/scripts/github-mcp.sh",
+      "args": [],
       "env": {
         "GITHUB_PERSONAL_ACCESS_TOKEN": "${user_config.github_token}"
       }

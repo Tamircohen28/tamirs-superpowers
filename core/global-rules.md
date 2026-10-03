@@ -37,8 +37,7 @@
 
 ## GitHub Authentication
 
-- Always derive tokens via `gh auth token`. Never prompt the user to manually copy/paste a token.
-- Example: `gh auth token | <command>` — not interactive token entry.
+- GitHub calls go through the `gh` CLI, which carries its own login. Never prompt the user to copy/paste a token into a prompt or a file, and never read one out of their environment for them.
 - **Never start an OAuth / browser login flow** for any account, plugin, or MCP server I did not explicitly ask you to authenticate. If a tool needs auth, stop and tell me which one — do not initiate the login yourself.
 
 ## Verification Workflow

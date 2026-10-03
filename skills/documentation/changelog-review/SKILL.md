@@ -14,7 +14,9 @@ arguments: []
 disable-model-invocation: false
 user-invocable: false
 allowed-tools:
-- WebFetch
+- WebFetch(domain:code.claude.com)
+- WebFetch(domain:github.com)
+- WebFetch(domain:raw.githubusercontent.com)
 - Read
 - Grep
 - Glob

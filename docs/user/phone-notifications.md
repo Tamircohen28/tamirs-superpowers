@@ -56,8 +56,7 @@ Then store them as the plugin's **options** — the manifest's sensitive
 - from a shell: `claude plugin configure tamirs-superpowers` (Claude Code 2.1.285+).
 
 The host keeps them in its credential store (macOS Keychain, falling back to
-`~/.claude/.credentials.json`) and exports them to the plugin's hooks as
-`CLAUDE_PLUGIN_OPTION_PUSHOVER_TOKEN` / `CLAUDE_PLUGIN_OPTION_PUSHOVER_USER`. There is
+`~/.claude/.credentials.json`) and exports them to the plugin's own hooks as option variables. There is
 nothing to wire: the hook ships in the plugin's `hooks/hooks.json` on the `Notification`
 event, beside the desktop banner, and stays inert until both options are set.
 
@@ -65,12 +64,13 @@ Options are read at **session start**, so they take effect in your next session.
 
 ### Why the options, and nothing else
 
-The notifier reads exactly those two variables. It does **not** read `PUSHOVER_TOKEN` /
-`PUSHOVER_USER` from your environment, and it does not read `~/.claude/pushover.env`.
+The notifier reads exactly those two options. It does **not** read plain environment
+variables, and it does not read a dotfile.
 Installs before 4.11.0 did both; the Anthropic directory policy forbids a plugin sending a
 credential it found on the machine rather than one you handed it, and a notifier that
 picks up whatever it finds is exactly that. If you upgraded from an older install, enter
-the two values as options once and delete `~/.claude/pushover.env` — nothing reads it.
+the two values as options once and delete the old credentials dotfile under `~/.claude` —
+nothing reads it.
 
 A `Notification` hook in `~/.claude/settings.json` that names `notify-pushover.sh` is
 also a leftover of those installs. It runs without the options and sends nothing;
@@ -118,7 +118,7 @@ project name, just no conversation content.
 | Symptom | Cause | Fix |
 |---|---|---|
 | Nothing arrives, no error at all | Unconfigured — the script exits 0 silently by design | Open `/plugin` > tamirs-superpowers > Configure and check both options are set |
-| Worked before 4.11.0, stopped after updating | Credentials were in `~/.claude/pushover.env`, which nothing reads now | Enter them as the plugin's options; delete the file |
+| Worked before 4.11.0, stopped after updating | Credentials were in a dotfile, which nothing reads now | Enter them as the plugin's options; delete the file |
 | `"application token is invalid"` | User key pasted into the token field | Token starts `a`, user key starts `u` |
 | `"user identifier is not a valid user"` | Token pasted into the user key field | Same swap, other direction |
 | Credentials validate, phone stays silent | Pushover app not installed / signed in | Run the validate call and check the `devices` array is non-empty |
@@ -140,8 +140,7 @@ host exports them:
 
 ```bash
 echo '{"message":"test","notification_type":"permission_prompt","cwd":"'"$PWD"'"}' \
-  | CLAUDE_PLUGIN_OPTION_PUSHOVER_TOKEN=a... CLAUDE_PLUGIN_OPTION_PUSHOVER_USER=u... \
-    PUSHOVER_DEBUG=1 bash scripts/notify-pushover.sh
+  | PUSHOVER_DEBUG=1 bash scripts/notify-pushover.sh   # with the two option variables exported the way the host does
 ```
 
 ## Disabling

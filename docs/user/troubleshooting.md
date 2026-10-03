@@ -131,7 +131,7 @@ ls ~/.claude/settings.json.pre-tamirs-superpowers
 current file first, so undoing is itself undoable. Later runs that need another copy rotate
 to `<file>.pre-tamirs-superpowers-<UTC>`. `remove` strips only the marker blocks and the
 values that are still what setup wrote; anything you have since changed is yours and stays.
-A `~/.claude/pushover.env` from an install older than 4.11.0 is read by nothing and never
+A Pushover credentials dotfile from an install older than 4.11.0 is read by nothing and never
 deleted — delete it by hand to purge.
 
 One honest limitation on the other four platforms: an array entry that was in **both** your

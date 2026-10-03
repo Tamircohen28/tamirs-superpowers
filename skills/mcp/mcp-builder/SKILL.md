@@ -8,11 +8,8 @@ disable-model-invocation: false
 user-invocable: true
 allowed-tools:
 - Read
-- Write
-- Edit
 - Glob
 - Grep
-- WebFetch
 - Skill(tamirs-superpowers:mcp-pagination)
 - Skill(tamirs-superpowers:platform-sync)
 disallowed-tools: []
