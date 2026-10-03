@@ -84,6 +84,9 @@ ROOTS=(
 # matches that directory at any depth.
 PRUNE_DIRS=(evals fixtures eval-viewer __pycache__ .pytest_cache node_modules)
 PRUNE_PATHS=(
+  scripts/check-branch-literals.sh
+  scripts/check-capability-registry.sh
+  scripts/check-feature-equivalence.sh
   platforms/claude/directory
   docs/engineering
   docs/changelog

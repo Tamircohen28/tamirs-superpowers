@@ -5,6 +5,32 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [4.11.7] — 2026-10-04
+
+Eighth directory pass, from the portal's report on 4.11.6. The mod's `prompt.submit` hold, the
+`RUNTIME_FETCH_EXEC` warning and its notes, and the `rules/` and `agent-claim.sh` findings are
+gone; what is left is below.
+
+### Changed
+
+- The Claude distribution no longer ships `scripts/check-branch-literals.sh`,
+  `check-capability-registry.sh` and `check-feature-equivalence.sh`: they are contributor
+  checkers `make validate` runs, nothing shipped calls them, and the directory read each as a
+  script that can name the hook manifest. `skills/repo/_contract/scripts/` keeps its own copy of the
+  equivalence checker for the repositories the skills audit.
+- The `capture-config` skill, its helper and `docs/user/capture.md` use `${EXAMPLE_VAR}` instead of a
+  credential-named placeholder, and `diagnose-refusal` drops its one inline `!` shell span (its
+  steps already re-derive the same facts). Together they broke the "reads a credential, sends data
+  off the machine" pairing the directory drew across surfaces.
+- Comments in `install.sh`, `uninstall.sh` and `notify-pushover.sh` no longer spell the hook
+  manifest's path.
+
+### Not changed, on purpose
+
+- `UNREAD_ASSET_REFERENCED` (14 scripts) stays: it is the cost of shipping the icon the
+  pre-submission checklist requires, and no property of those scripts' text separates them.
+- `notify-pushover.sh` stays: the credential is the vendor's own, passed as a sensitive option.
+
 ## [4.11.6] — 2026-10-03
 
 Seventh directory pass, issue by issue from the portal's report on 4.11.5.

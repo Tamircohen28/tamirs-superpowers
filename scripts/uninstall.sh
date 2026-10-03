@@ -16,7 +16,7 @@
 #   - ~/.claude/CLAUDE.md, only when it is byte-identical to the template we wrote
 #   - the Pushover Notification hook an older install (< 4.11.0) wrote into
 #     settings.json, leaving any other Notification hooks alone; since 4.11.0 the
-#     hook lives in the plugin's own hooks.json and needs no unwiring
+#     hook lives in the plugin's own hook manifest and needs no unwiring
 #
 # What it deliberately KEEPS:
 #   - the Pushover credentials dotfile under ~/.claude, if an install older than
@@ -40,7 +40,7 @@ esac
 bash "${SCRIPT_DIR}/setup.sh" remove --yes --targets claude "$@"
 
 # An install older than 4.11.0 wired the Pushover hook into ~/.claude/settings.json
-# (the plugin's own hooks.json carries it now). Strip that one entry, leave every
+# (the plugin's own hook manifest carries it now). Strip that one entry, leave every
 # other Notification hook alone, and touch nothing when there is none.
 SETTINGS="${CLAUDE_CONFIG_DIR:-$HOME/.claude}/settings.json"
 if [ -f "$SETTINGS" ] && command -v jq >/dev/null 2>&1 \

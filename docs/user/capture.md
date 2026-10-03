@@ -124,7 +124,7 @@ All blocking, all per hunk. A hit blocks **that hunk**, not the run.
    ```
 
 2. **Secrets are refused, not skipped.** A token-shaped value never reaches the
-   offer list and is never printed. An env var *reference* — `${SOME_SECRET}` —
+   offer list and is never printed. An env var *reference* — `${EXAMPLE_VAR}` —
    is portable and is captured as the name, which is exactly what belongs in
    the repo.
 
