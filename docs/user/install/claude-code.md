@@ -172,7 +172,7 @@ on this machine as one JSONL file per Israel calendar day. Restart Claude Code a
 | skills · auto-invocation | native | Description-driven; suppressed per skill with `disable-model-invocation` |
 | subagents · parallel subagents | native | **The only target where orchestration runs concurrently** |
 | agent teams | native (experimental) | Documented as evolving — no skill requires it |
-| hooks | native | The only target where `hooks/hooks.json` runs as shipped |
+| hooks | native | The only target where the hook manifest runs as shipped |
 | MCP · slash commands · statusline | native | |
 | worktree isolation | native | Automated by the repo's worktree hooks |
 | plugin marketplace | native | Install and update path |

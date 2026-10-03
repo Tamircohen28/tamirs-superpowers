@@ -82,7 +82,7 @@ claim_tool_label() {
     cursor) printf 'cursor'; return 0 ;;
     claude) printf 'claude-code'; return 0 ;;
   esac
-  if [ -n "${CLAUDE_SESSION_ID:-}" ] || [ -n "$(printenv CLAUDE_PLUGIN_ROOT)" ]; then printf 'claude-code'; return 0; fi
+  if [ -n "${CLAUDE_SESSION_ID:-}${CLAUDECODE:-}${CLAUDE_CODE_ENTRYPOINT:-}" ]; then printf 'claude-code'; return 0; fi
   printf 'unknown-agent'
 }
 

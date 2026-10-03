@@ -141,8 +141,8 @@ bash $H emit auth-system task-001 --status completed \
   --branch worker/auth-system/001 \
   --commit a1b2c3d \
   --file 'src/auth/hash.ts:added' --file 'src/auth/session.ts:added' \
-  --validation 'npm test -- src/auth|worker|pass|14 passed' \
-  --validation 'npx tsc --noEmit -p src/auth|worker|pass' \
+  --validation 'npm test -- src/auth|worker|pass|14 tests' \
+  --validation 'npx tsc --noEmit -p src/auth|worker|pass|no type errors' \
   --decision 'opaque session tokens over JWTs|simpler revocation' \
   --risk 'no login rate limiting yet|medium|followup task' \
   --followup 'add login rate limiting|true|implementer'

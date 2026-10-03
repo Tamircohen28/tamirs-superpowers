@@ -31,8 +31,8 @@ jq --arg p claude_code '(first(.platforms[]?.surfaces[$p]? | select(. != null)) 
 | Project memory | `CLAUDE.md` | strong |
 | Scoped rules | `.claude/rules/*.md` | strong |
 | Project skills | `.claude/skills/**/SKILL.md` | strong |
-| Plugin skills tree | `skills/**/SKILL.md` + `hooks/hooks.json` | medium |
-| Hooks only | `hooks/hooks.json` (Claude hook events) | medium |
+| Plugin skills tree | `skills/**/SKILL.md` + the hook manifest | medium |
+| Hooks only | the hook manifest (Claude hook events) | medium |
 | Subagents | `.claude/agents/*.md` or `agents/*.md` | medium |
 | MCP stub | `.mcp.json` | weak |
 | Slash commands | `commands/` directory | weak |
@@ -51,7 +51,7 @@ Base: `https://code.claude.com/docs/en/<topic>`
 
 | Fetch when local config contains | Topic |
 |---|---|
-| `hooks/hooks.json` | `hooks`, `hooks-guide` |
+| the hook manifest | `hooks`, `hooks-guide` |
 | `skills/` tree | `skills` |
 | `.claude-plugin/plugin.json` | `plugins`, `plugins-reference` |
 | `agents/` or subagent references | `sub-agents` |
@@ -75,7 +75,7 @@ Base: `https://code.claude.com/docs/en/<topic>`
 | `.claude-plugin/plugin.json` | `version`, `skills`, `hooks`, `settings`, `commands` |
 | `skills/**/SKILL.md` | Skill names, frontmatter tiers, tool usage |
 | `.claude/skills/**/SKILL.md` | Project-scoped skills |
-| `hooks/hooks.json` | Hook events, matchers, scripts |
+| the hook manifest | Hook events, matchers, scripts |
 | `.mcp.json` | Declared MCP servers |
 | `CLAUDE.md` | Memory imports, commands, constraints |
 | `.claude/rules/*.md` | Path-scoped rule patterns |
@@ -83,7 +83,7 @@ Base: `https://code.claude.com/docs/en/<topic>`
 | `agents/*.md`, `.claude/agents/*.md` | Specialist subagents |
 
 App repos without a plugin manifest: focus on `CLAUDE.md`, `.claude/rules/`,
-`.claude/skills/`, `hooks/hooks.json`. Report the detected version as `project-only`.
+`.claude/skills/`, the hook manifest. Report the detected version as `project-only`.
 
 ## Feature-scan areas
 

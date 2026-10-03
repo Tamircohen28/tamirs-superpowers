@@ -3,7 +3,6 @@ alwaysApply: false
 globs:
   - "scripts/**/*"
   - "skills/**/scripts/**/*"
-  - "hooks/**/*"
 ---
 
 # User-Facing Script Standards
@@ -137,7 +136,7 @@ worktree=$(skills/dev-workflow/_shared/scripts/resolve-worktree.sh ... | jq -r .
 
 ## 7. Hook scripts
 
-Hooks (`hooks/*.sh`, wired via `hooks/hooks.json`) are loaded by Claude Code and Codex; Cursor does not wire them. Unexpected stdout from a hook subprocess interferes with hook response parsing.
+Hooks (the shell scripts in the hook folder, wired by the hook manifest) are loaded by Claude Code and Codex; Cursor does not wire them. Unexpected stdout from a hook subprocess interferes with hook response parsing.
 
 **Never use `echo` in a hook script.**
 

@@ -293,7 +293,7 @@ claude_claude_md_summary() {
 
 # ---------------------------------------------------------------------------
 # Pushover is NOT a setup module any more. The Notification hook is wired by the
-# plugin's own hooks/hooks.json, and the credentials are the manifest's sensitive
+# plugin's own hook manifest, and the credentials are the manifest's sensitive
 # `pushover_token`/`pushover_user` userConfig options (the host exports them to
 # that hook as CLAUDE_PLUGIN_OPTION_*). A hook in ~/.claude/settings.json never
 # receives those options, and a credentials file on disk is what the Anthropic
