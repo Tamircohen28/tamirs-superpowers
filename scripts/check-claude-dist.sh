@@ -162,15 +162,17 @@ evals="$(grep -rnE '(^|[;&|(]|\s)eval\s' "$DIST/scripts" "$DIST/hooks" "$DIST/sk
 fetchexec="$( { grep -rnE '(curl|wget)[^|]*\|\s*(ba)?sh\b' "$DIST" --include='*.sh' --include='*.py' --include='*.ts' --include='*.tsx' --include='*.md' --include='*.tmpl' 2>/dev/null; grep -rnE '\b(npx|bunx|uvx|pipx run|pnpm dlx|yarn dlx|uv run)\s' "$DIST/scripts" "$DIST/hooks" "$DIST/mod" "$DIST/README.md" --include='*.sh' --include='*.py' --include='*.ts' --include='*.tsx' --include='*.md' 2>/dev/null; } | head -3)"
 [[ -z "$fetchexec" ]] && ok "no shipped file names a download-and-run or package-launcher command, strings and docs included" || bad "download-and-run or package launcher named in a shipped file" "$fetchexec"
 # The scanner pairs a URL host with any credential-looking identifier in the same file
-# (TARGET_KEYS and \$PWD included) and holds the pair. Mirror it: a shipped file that
-# names an https host may not also carry such an identifier, except the vendor's own
-# credential beside the vendor's own host (the two Pushover/GitHub files).
+# and holds the pair. Its reading is wide: TARGET_KEYS, \$PWD, *_AUTH, a shell variable
+# named `key` or `pat`, and the literal path of the host's own credential store
+# (~/.claude/.credentials.json) have all been held. Mirror it: a shipped file that names
+# an https host may not also carry any of those, except the vendor's own credential
+# beside the vendor's own host (the two Pushover/GitHub files).
 pairs="$(grep -rlE 'https?://[A-Za-z0-9.-]+' "$DIST" --include='*.sh' --include='*.py' --include='*.md' --include='*.json' --include='*.tmpl' --include='*.tsx' --include='*.ts' --include='*.yaml' 2>/dev/null \
   | grep -vE '/(scripts/notify-pushover\.sh|scripts/github-mcp\.sh|\.mcp\.json|\.claude-plugin/plugin\.json)$' \
   | while IFS= read -r f; do
-      grep -nE '\b[A-Z][A-Z0-9_]*(TOKEN|SECRET|PASSWORD|_KEY|_KEYS|CREDENTIAL)S?\b|\$PWD\b|\$\{PWD' "$f" 2>/dev/null | head -1 | sed "s#^#${f#"$DIST"/}:#"
+      grep -nE '\b[A-Z][A-Z0-9_]*(TOKEN|SECRET|PASSWORD|_KEY|_KEYS|CREDENTIAL|_AUTH|_PAT)S?\b|\b(AUTH|PAT|KEY|TOKEN|SECRET)_[A-Z0-9_]+\b|\$PWD\b|\$\{PWD|\.credentials\.json|\$\{?(key|pat)\b|\b(local|for|read -r|read)\s+(key|pat)\b' "$f" 2>/dev/null | head -1 | sed "s#^#${f#"$DIST"/}:#"
     done | head -3)"
-[[ -z "$pairs" ]] && ok "no shipped file pairs a URL host with a credential-looking identifier or \$PWD" || bad "URL host beside a credential-looking identifier (the scanner holds the pair)" "$pairs"
+[[ -z "$pairs" ]] && ok "no shipped file pairs a URL host with a credential-looking identifier, \$PWD, a key/pat variable or the credential-store path" || bad "URL host beside a credential-looking identifier (the scanner holds the pair)" "$pairs"
 # The mod hands $ to no helper (the directory's MOD_CAPABILITY_USE_NOT_PLAIN).
 if [[ -f "$DIST/mod/register.tsx" ]]; then
   # A call `name($ ...)`: an identifier right before the parenthesis. A hook's own

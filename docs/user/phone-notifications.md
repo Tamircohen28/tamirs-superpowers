@@ -55,8 +55,8 @@ Then store them as the plugin's **options** — the manifest's sensitive
 - in the session: `/plugin` > **tamirs-superpowers** > **Configure**, or
 - from a shell: `claude plugin configure tamirs-superpowers` (Claude Code 2.1.285+).
 
-The host keeps them in its credential store (macOS Keychain, falling back to
-`~/.claude/.credentials.json`) and exports them to the plugin's own hooks as option variables. There is
+The host keeps them in its own credential store (the macOS Keychain, or its file-backed
+fallback where there is no Keychain) and exports them to the plugin's own hooks as option variables. There is
 nothing to wire: the hook ships in the plugin's `hooks/hooks.json` on the `Notification`
 event, beside the desktop banner, and stays inert until both options are set.
 
