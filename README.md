@@ -6,7 +6,7 @@
   <a href="https://github.com/Tamircohen28"><img src="https://img.shields.io/badge/author-Tamir%20Cohen-181717?logo=github" alt="Author" /></a>
   <a href="https://github.com/Tamircohen28/tamirs-superpowers/actions/workflows/ci.yml"><img src="https://github.com/Tamircohen28/tamirs-superpowers/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="MIT License" /></a>
-  <a href="plugin-version.json"><img src="https://img.shields.io/badge/version-4.11.4-blue" alt="Version" /></a>
+  <a href="plugin-version.json"><img src="https://img.shields.io/badge/version-4.11.5-blue" alt="Version" /></a>
 </p>
 
 <p align="center">
@@ -172,6 +172,16 @@ Check the result with `bash scripts/doctor.sh .`; the requirements are listed un
 
 Orchestration works with **no subagents at all**: same task graph, same handoffs, same one
 PR, run sequentially. See [docs/user/orchestration.md](docs/user/orchestration.md).
+
+## What the mod does
+
+On Claude Code 2.1.287+ the plugin ships one mod (`mod/register.tsx`). It makes no network call.
+
+- **Reads** (local, never sent anywhere): objective, task and handoff JSON under `.dev-files/objectives`, your project's `CLAUDE.md` (only to find the commit-trailer line), and `.git/HEAD`.
+- **Prompts it submits:** exactly one, and only when you press **Write handoff** on the rate-limit band. Its text is fixed: it names the rate-limit window and its percentage and asks the `switch-dev` skill to write the objective state to disk. No file content is placed in it.
+- **`command.run` hook:** answers `/objective` with the current objective summary. It changes nothing.
+- **`agent.spawn` hooks (2):** count workers in flight for the spinner and the objective pane. The spawn always passes through unchanged.
+- **Optional `semantic_skill_suggest` (off by default):** see [PRIVACY.md](PRIVACY.md).
 
 ## Links
 

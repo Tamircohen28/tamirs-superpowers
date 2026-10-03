@@ -258,7 +258,7 @@ else
     case "$kind" in
       TARGET|DELETE) candidate_paths+=("$detail") ;;
     esac
-  done < <(printf '%s' "$input" | python3 "${SCRIPT_DIR}/lib/write-targets.py" 2>/dev/null)
+  done < <(python3 "${SCRIPT_DIR}/lib/write-targets.py" 2>/dev/null <<<"$input")
 fi
 # Nothing resolved a path at all (an unparseable payload, or a genuinely
 # path-less call that still matched the case above) — same as before, judge

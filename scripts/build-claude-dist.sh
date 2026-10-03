@@ -62,6 +62,7 @@ log() { [[ "$QUIET" -eq 1 ]] || echo "$@"; }
 ROOTS=(
   .claude-plugin/plugin.json
   .mcp.json
+  listing/icon.png
   LICENSE
   SECURITY.md
   PRIVACY.md

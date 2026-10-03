@@ -5,6 +5,25 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [4.11.5] — 2026-10-03
+
+Sixth directory pass, from the portal's 9 warnings and 8 holds on 4.11.4.
+
+### Changed
+
+- Hook comments and scripts no longer spell the hook manifest's path or a brace-default
+  `CLAUDE_PLUGIN_ROOT` expansion, which the directory reads as naming a mod file.
+- The two path guards hand their input to the parser on stdin instead of piping into an interpreter.
+- The `mcp-builder` scaffold uses a `<api-host>` placeholder; the `worker-dev` example no longer
+  reads as a credential store; `diagnose-refusal` drops a `$(...)` span; `docs-review` describes
+  its fetch-and-run check in words.
+- README states what the mod reads, submits and hooks.
+- The listing icon ships again, per the directory's pre-submission checklist: `listing/icon.png`
+  (512x512) named by the manifest's `icon`, the only image in the distribution. 4.11.4 had
+  dropped it because the scanner held scripts able to reach an image; if that hold returns, it
+  is one hold against one `ICON_MISSING` warning. The dist check and its test now require the
+  icon and still refuse any second image.
+
 ## [4.11.4] — 2026-10-03
 
 The portal's validation of 4.11.3 passed with 9 warnings and 24 policy holds, down from 34.

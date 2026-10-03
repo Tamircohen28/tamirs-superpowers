@@ -90,13 +90,22 @@ else
 fi
 [[ -f "$DIST/PRIVACY.md" ]] && ok "PRIVACY.md present" || bad "PRIVACY.md missing"
 # The scanner holds every script that can "reach" an image as running unread code
-# (UNREAD_ASSET_REFERENCED). On 4.11.1 that was every script naming the manifest's
-# folder; on 4.11.2 none, with the icon in a folder of its own; on 4.11.3 fourteen
-# scripts again, several of which name no folder at all. The rule cannot be met by
-# placement, so the distribution ships no image or font and the manifest names no icon.
-imgs="$(find "$DIST" -type f \( -iname '*.png' -o -iname '*.jpg' -o -iname '*.jpeg' -o -iname '*.gif' -o -iname '*.webp' -o -iname '*.ico' -o -iname '*.bmp' -o -iname '*.svg' -o -iname '*.woff' -o -iname '*.woff2' -o -iname '*.ttf' -o -iname '*.otf' \) | head -3)"
-[[ -z "$imgs" ]] && ok "no image or font file ships (every script that could reach one is held)" || bad "image or font file in the distribution (the scanner holds every script that can reach it)" "$(echo "$imgs" | tr '\n' ' ')"
-jq -e 'has("icon")' "$M" >/dev/null 2>&1 && bad "manifest names an icon (the scanner holds every script that can reach the image)" "$(jq -r .icon "$M")" || ok "manifest names no icon"
+# (UNREAD_ASSET_REFERENCED), and what counts as reaching has widened per validation (4.11.1:
+# every script naming the manifest's folder; 4.11.2: none, with the icon in a folder of its
+# own; 4.11.3: fourteen). The directory's pre-submission checklist requires an icon in
+# plugin.json, so the icon ships, alone, in listing/ (a folder nothing else names), and no
+# other image or font ships.
+imgs="$(find "$DIST" -type f \( -iname '*.png' -o -iname '*.jpg' -o -iname '*.jpeg' -o -iname '*.gif' -o -iname '*.webp' -o -iname '*.ico' -o -iname '*.bmp' -o -iname '*.svg' -o -iname '*.woff' -o -iname '*.woff2' -o -iname '*.ttf' -o -iname '*.otf' \) ! -path "$DIST/listing/icon.png" | head -3)"
+[[ -z "$imgs" ]] && ok "no image or font ships besides listing/icon.png" || bad "image or font file beyond the listing icon" "$(echo "$imgs" | tr '\n' ' ')"
+ICON="$(jq -r '.icon // empty' "$M" 2>/dev/null)"
+if [[ "$ICON" == "./listing/icon.png" && -f "$DIST/listing/icon.png" ]]; then
+  dims="$(file "$DIST/listing/icon.png" | grep -oE '[0-9]+ x [0-9]+' | head -1)"
+  sz="$(wc -c < "$DIST/listing/icon.png")"
+  w="${dims%% x *}"; h="${dims##* x }"
+  if [[ "$w" == "$h" && "${w:-0}" -ge 512 && "${w:-0}" -le 2048 && "$sz" -lt 2097152 ]]; then ok "icon is a square PNG ($dims, $sz bytes)"; else bad "icon must be square, 512-2048 px, under 2 MB" "$dims, $sz bytes"; fi
+else
+  bad "manifest must name ./listing/icon.png and the file must ship" "icon=${ICON:-none}"
+fi
 jq -e 'has("$schema") | not' "$M" >/dev/null 2>&1 && ok "plugin.json carries no \$schema URL (a URL beside a credential name reads as a send)" || bad "plugin.json has a \$schema URL; drop it"
 for gone in CHANGELOG.md docs/engineering docs/changelog AGENTS.md Makefile; do
   [[ -e "$DIST/$gone" ]] && bad "$gone is in the distribution" "it belongs to the source repository, not the listing"

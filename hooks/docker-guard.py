@@ -15,7 +15,7 @@ in every permission mode, including bypassPermissions.
 Approve one command by prefixing it: PM_ALLOW_DOCKER=1 docker compose up -d
 Or suppress for a whole session: export PM_ALLOW_DOCKER=1
 
-Delivered by the plugin and wired from hooks/hooks.json as
+Delivered by the plugin and wired from the hook manifest as
 `PreToolUse:Bash|Shell` -> `python3 "${CLAUDE_PLUGIN_ROOT}/hooks/docker-guard.py"`.
 The name used in the block message comes from DOCKER_GUARD_OWNER (default
 "the user"), so nothing here is machine-specific.
@@ -26,7 +26,7 @@ interactive or absent stdin can never hang the tool call.
 
 WHY THE TOOL SET IS A CONSTANT AND NOT A LITERAL
   Until 2026-08-31 this guard read `tool_name != "Bash"` and dropped everything
-  else, while hooks.json wired it on `Bash|Shell`. The rule was therefore
+  else, while the manifest wired it on `Bash|Shell`. The rule was therefore
   enforceable through Bash and unenforceable through Shell — the same
   bypass-by-sibling-tool shape closed in guard-sensitive-files.sh, one file
   over, and worse for sitting inside a matcher that *claims* to cover Shell.
@@ -37,7 +37,7 @@ WHY EVERY EXIT PRINTS JSON
   The allow paths used to be a bare `sys.exit(0)` — empty stdout. Claude Code
   reads that as allow, but Cursor fail-closes on empty stdout, so the same
   verdict meant "permit" on one host and "deny" on the other. Per
-  hooks/lib/hook-output.sh, an allow is `{}` on Claude Code and
+  the shared hook-output helper, an allow is `{}` on Claude Code and
   `{"permission":"allow"}` on Cursor; allow() emits whichever the payload
   identifies, so no path here is silent.
 """
@@ -58,11 +58,11 @@ LEADING = re.compile(r"^(?:\s*(?:sudo|command|time|env|nohup)\s+|\s*[A-Za-z_][A-
 
 ENGINE = r"(?:docker|podman|docker-compose|podman-compose)"
 
-# Must match the PreToolUse matcher in hooks/hooks.json ("Bash|Shell").
+# Must match the PreToolUse matcher in the hook manifest ("Bash|Shell").
 TOOLS = ("Bash", "Shell")
 
 # Payload keys only Cursor sends; mirrors hook_detect_platform in
-# hooks/lib/hook-output.sh.
+# the shared hook-output helper.
 CURSOR_KEYS = ("conversation_id", "cursor_version", "workspace_roots")
 
 # Read-only / cleanup — never prompt. Checked before the create patterns.

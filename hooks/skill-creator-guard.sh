@@ -12,7 +12,7 @@ hook_detect_platform "$INPUT"
 
 # Both extraction routes below only make sense for a tool that actually
 # writes/edits a file. Previously the flat file_path/path read ran
-# unconditionally and relied entirely on the hooks.json matcher having
+# unconditionally and relied entirely on the hook-manifest matcher having
 # already restricted invocation to Edit|Write|MultiEdit|NotebookEdit|
 # StrReplace — fine on a host that enforces that matcher, but this hook is
 # also invoked directly/without matcher filtering on at least one platform

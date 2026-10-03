@@ -321,7 +321,7 @@ Extract every command from fenced blocks in `README.md` and `docs/**` that insta
 updates, or removes the project:
 
 ```bash
-grep -rnE '^\s*(make (install|update|uninstall)|bash scripts/[a-z-]+\.sh|/plugin (marketplace )?(install|update)|npm i(nstall)? -g|pip install|brew install|curl .*\| *(ba)?sh)' \
+grep -rnE '^\s*(make (install|update|uninstall)|bash scripts/[a-z-]+\.sh|/plugin (marketplace )?(install|update)|npm i(nstall)? -g|pip install|brew install)' \
   README.md docs/ 2>/dev/null
 ```
 

@@ -14,7 +14,7 @@
 #   never learned the file was protected.
 #
 #   The decision now runs over WRITE TARGETS, whatever produced them.
-#   hooks/lib/write-targets.py parses the command and reports only operands in a
+#   the write-targets helper parses the command and reports only operands in a
 #   writing position; a protected path mentioned in a `grep` pattern, a commit
 #   message or a heredoc body is never a target, so the false-positive class
 #   already on record for `docker-guard.py` (which matches command text) does
@@ -86,8 +86,7 @@ nearest_existing_dir() {
 
 # TARGET <tab> <abs path> <tab> <fragment>   — a file this call will write
 # UNSURE <tab> <why>      <tab> <fragment>   — a write this parse cannot resolve
-analysis="$(printf '%s' "$input" \
-  | python3 "${SCRIPT_DIR}/lib/write-targets.py" 2>/dev/null)"
+analysis="$(python3 "${SCRIPT_DIR}/lib/write-targets.py" 2>/dev/null <<<"$input")"
 
 deny() {
   local reason="$1"

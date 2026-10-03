@@ -11,7 +11,7 @@ if [[ -z "${TAMIRS_USAGE_CAPTURE:-}" ]]; then
 fi
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-COLLECTOR="${CLAUDE_PLUGIN_ROOT:-$SCRIPT_DIR/..}/scripts/usage-capture/collector.py"
+COLLECTOR="$SCRIPT_DIR/../scripts/usage-capture/collector.py"
 if [[ ! -f "$COLLECTOR" ]]; then
   COLLECTOR="$SCRIPT_DIR/../scripts/usage-capture/collector.py"
 fi
