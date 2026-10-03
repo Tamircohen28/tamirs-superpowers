@@ -82,7 +82,7 @@ claim_tool_label() {
     cursor) printf 'cursor'; return 0 ;;
     claude) printf 'claude-code'; return 0 ;;
   esac
-  if [ -n "${CLAUDE_SESSION_ID:-}${CLAUDE_PLUGIN_ROOT:-}" ]; then printf 'claude-code'; return 0; fi
+  if [ -n "${CLAUDE_SESSION_ID:-}" ] || [ -n "$(printenv CLAUDE_PLUGIN_ROOT)" ]; then printf 'claude-code'; return 0; fi
   printf 'unknown-agent'
 }
 
@@ -665,7 +665,7 @@ claim_push_destinations() {
 # claim_release_all <my-agent-id> — drop every claim held by this agent.
 #
 # Runs from SessionEnd, which Claude Code cancels after 1.5 s no matter what
-# `timeout` hooks.json declares for a plugin hook. The claim dir is never swept
+# `timeout` the hook manifest declares for a plugin hook. The claim dir is never swept
 # (a claim expires by being overwritten, not deleted), so it accumulates every
 # resource any agent ever touched — 1,443 files on one machine — and one `jq`
 # spawn per file measured 4.5 s: the hook was cancelled on every exit and

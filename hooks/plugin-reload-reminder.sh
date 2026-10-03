@@ -3,7 +3,7 @@
 # SKILL.md and command edits are intentionally NOT matched: since Claude Code
 # 2.1.216, skills and commands changed during a session are picked up without
 # a restart, so a reminder for them is pure noise. Manifests and hooks
-# (plugin.json, hooks.json, marketplace.json) still need a reload.
+# (the plugin, hook and marketplace manifests) still need a reload.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

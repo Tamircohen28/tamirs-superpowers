@@ -18,7 +18,7 @@ session_files_dir="$(echo "$state" | jq -r '.session_files_dir // empty')"
 session_slug="$(echo "$state" | jq -r '.session_slug // empty')"
 
 # Claude Code cancels SessionEnd hooks after 1.5 s regardless of the `timeout`
-# declared in hooks.json, and every SessionEnd hook runs concurrently at the
+# declared in the hook manifest, and every SessionEnd hook runs concurrently at the
 # moment the machine is busiest (the session tearing down). None of the work
 # below produces output anyone reads, so it runs detached: the hook answers in
 # milliseconds and the rsync/prune finish on their own time. Same pattern, and

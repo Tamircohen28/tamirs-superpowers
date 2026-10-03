@@ -110,7 +110,7 @@ const server = new McpServer({
 });
 
 // TODO: Replace with real API base URL
-const API_BASE = "https://api.example.com";
+const API_BASE = "https://<api-host>"; // placeholder: set the real base URL
 const ACCESS_ENV = "PREFIX_ACCESS";
 
 function accessValue(): string {
@@ -240,7 +240,7 @@ from pydantic import BaseModel, Field
 mcp = FastMCP("$PROJECT")
 
 # TODO: Replace with real API base URL
-API_BASE = "https://api.example.com"
+API_BASE = "https://<api-host>"  # placeholder: set the real base URL
 ACCESS_ENV = "$ACCESS_VAR"
 
 

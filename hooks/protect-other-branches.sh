@@ -167,7 +167,7 @@ add_target() { TARGETS="${TARGETS}${1}	${2}
 # ------------------------------------------------------- target detection ---
 #
 # Detection is STRUCTURE-aware, never substring-aware. The command string is
-# tokenized by claim_effective_segments (hooks/lib/agent-claim.sh), so a
+# tokenized by claim_effective_segments (the agent-claim helper), so a
 # `git push` or `gh issue comment` appearing inside a quoted argument, a `-m`
 # message or a heredoc body is what it actually is — text — and only the first
 # word of a real segment can name a guarded command. Matching the raw string
