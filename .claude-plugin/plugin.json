@@ -1,11 +1,10 @@
 {
   "name": "tamirs-superpowers",
   "displayName": "Tamir's Superpowers",
-  "version": "4.11.3",
+  "version": "4.11.4",
   "description": "29 bundled skills, 10 specialist agents, smart worktree hooks, statusline, and MCP server stubs — plan, implement, review, debug, multi-agent setup, and audit code from one plugin.",
   "homepage": "https://github.com/Tamircohen28/tamirs-superpowers",
   "repository": "https://github.com/Tamircohen28/tamirs-superpowers",
-  "icon": "./listing/icon.png",
   "documentationUrl": "https://github.com/Tamircohen28/tamirs-superpowers/blob/master/docs/user/install/claude-code.md",
   "supportUrl": "https://github.com/Tamircohen28/tamirs-superpowers/issues",
   "privacyPolicyUrl": "https://github.com/Tamircohen28/tamirs-superpowers/blob/master/PRIVACY.md",
