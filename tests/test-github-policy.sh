@@ -923,6 +923,56 @@ judge "validate: strict=true is rejected" "rejected" \
   "$(bad_policy_check strict '.required_checks.strict_required_status_checks_policy = true')"
 
 # ---------------------------------------------------------------------------
+section "unreported required contexts are flagged (warning only)"
+# ---------------------------------------------------------------------------
+# A context matches a check DISPLAY name. One that no check run or status on the
+# default-branch head reports would block every merge once applied.
+derive ctx-ok canonical
+scenario ctx-ok "$TARGET_REPO"
+run_policy audit --repo "$TARGET_REPO" --json
+judge   "ctx: matching names produce no warning" "0" "$(jout '[.warnings[] | select(.code == "unreported-context")] | length')"
+judge   "ctx: check-runs endpoint was read" "yes" "$([ "$(gh_calls 'commits/master/check-runs')" -ge 1 ] && echo yes || echo no)"
+run_policy audit --repo "$TARGET_REPO"
+judge   "ctx: human report says every context is reported" "yes" "$(outhas 'every required context is reported')"
+
+derive ctx-bad canonical
+jqi "$FIX/ctx-bad/check-runs.json" '.check_runs |= map(select(.name != "Secret scan")) | .check_runs += [{name:"secret-scan",status:"completed",conclusion:"success"}]'
+scenario ctx-bad "$TARGET_REPO"
+run_policy audit --repo "$TARGET_REPO" --json
+judge   "ctx: a context matching nothing is flagged" "1" "$(jout '[.warnings[] | select(.code == "unreported-context")] | length')"
+judge   "ctx: the warning names the context" "yes" "$(has "$(jout '.warnings[0].message')" '"Secret scan"')"
+judge   "ctx: it is a warning only, the verdict is unchanged" "already_compliant" "$(jout '.repositories[0].bucket')"
+run_policy audit --repo "$TARGET_REPO"
+judge   "ctx: human report carries the warning" "yes" "$(outhas 'is not reported by any check run')"
+judge   "ctx: exit code is unchanged (0)" "0" "$RC"
+
+# A context reported only as a commit status is satisfied by it.
+jqi "$FIX/ctx-bad/commit-status.json" '.statuses = [{context:"Secret scan",state:"success"}]'
+run_policy audit --repo "$TARGET_REPO" --json
+judge   "ctx: a commit-status context satisfies it" "0" "$(jout '[.warnings[] | select(.code == "unreported-context")] | length')"
+
+# No configured contexts: silent, and the endpoints are never called.
+scenario ctx-ok "$TARGET_REPO"
+jq '.repositories[$r].required_checks.contexts = []' --arg r "$TARGET_REPO" \
+  "$REPO_ROOT/config/github/repository-policy.json" >"$TMP/policy-noctx.json"
+GITHUB_POLICY_FILE="$TMP/policy-noctx.json" run_policy audit --repo "$TARGET_REPO" --json
+atleast "ctx: (non-vacuity) the audit ran and read the repo" "3" "$(reads)"
+judge   "ctx: no configured contexts => no warnings" "0" "$(jout '.warnings | length')"
+judge   "ctx: no configured contexts => no check-runs call" "0" "$(gh_calls 'check-runs')"
+judge   "ctx: no configured contexts => no status call" "0" "$(gh_calls 'commits/master/status')"
+
+# API failure degrades to a warning, never a crash or a changed verdict.
+derive ctx-fail canonical
+printf 'GET repos/*/*/commits/*/check-runs 404\n' >>"$FIX/ctx-fail/errors.txt"
+scenario ctx-fail "$TARGET_REPO"
+run_policy audit --repo "$TARGET_REPO" --json
+judge   "ctx: unreadable check runs degrade to a warning" "required-contexts-unreadable" "$(jout '.warnings[0].code')"
+judge   "ctx: unreadable check runs keep the verdict" "already_compliant" "$(jout '.repositories[0].bucket')"
+run_policy audit --repo "$TARGET_REPO"
+judge   "ctx: human report says could not be read" "yes" "$(outhas 'required status-check contexts could not be read')"
+judge   "ctx: exit code unchanged on API failure" "0" "$RC"
+
+# ---------------------------------------------------------------------------
 section "the mock itself never fell through"
 # ---------------------------------------------------------------------------
 # Exit 78 is fake-gh's "I do not know how to answer this". A suite that quietly

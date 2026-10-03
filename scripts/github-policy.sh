@@ -816,6 +816,74 @@ report_actions() {
   return "$bad"
 }
 
+# configured_contexts <owner/repo> — the required-status-check contexts the policy
+# resolves for a repository (override, else the account default), one per line.
+configured_contexts() {
+  jq -r --arg repo "$1" '
+    (.repositories[$repo].required_checks.contexts // .required_checks.default_contexts // [])[]' "$POLICY"
+}
+
+# reported_check_names <owner/repo> <ref> <out-file> — every check-run name and
+# commit-status context reported on <ref>'s head commit, one per line, sorted.
+# Paginated by hand (per_page=100) for the same reason as list_repos_paged.
+reported_check_names() {
+  local repo="$1" ref="$2" f="$3" page n
+  : >"$f"
+  page=1
+  while :; do
+    api_json "$WORK/cr.json" "repos/$repo/commits/$ref/check-runs?per_page=100&page=$page" || return 1
+    jq -r '(.check_runs // [])[].name' "$WORK/cr.json" >>"$f"
+    n="$(jq '(.check_runs // []) | length' "$WORK/cr.json" 2>/dev/null)" || n=0
+    [ "${n:-0}" -ge 100 ] || break
+    page=$((page + 1))
+    [ "$page" -gt 20 ] && break
+  done
+  page=1
+  while :; do
+    api_json "$WORK/st.json" "repos/$repo/commits/$ref/status?per_page=100&page=$page" || return 1
+    jq -r '(.statuses // [])[].context' "$WORK/st.json" >>"$f"
+    n="$(jq '(.statuses // []) | length' "$WORK/st.json" 2>/dev/null)" || n=0
+    [ "${n:-0}" -ge 100 ] || break
+    page=$((page + 1))
+    [ "$page" -gt 20 ] && break
+  done
+  sort -u "$f" >"$f.sorted" && mv "$f.sorted" "$f"
+}
+
+# report_contexts <owner/repo> <default-branch> — prints the `Required checks:`
+# block. A required context matches the check's DISPLAY name, so one that no
+# check run or status on the default-branch head ever reports would block every
+# merge once applied. WARNING ONLY: never changes the verdict. Silent when the
+# repository has no configured contexts (and then makes no API call). Findings
+# are also appended to $WORK/warnings.tsv for --json.
+report_contexts() {
+  local repo="$1" branch="$2" ctx any=0 missing=0
+  : >"$WORK/contexts.cfg"
+  configured_contexts "$repo" >"$WORK/contexts.cfg" 2>/dev/null || true
+  [ -s "$WORK/contexts.cfg" ] || return 0
+  if ! reported_check_names "$repo" "$branch" "$WORK/contexts.seen"; then
+    aout "  $MARK_WARN required status-check contexts could not be read — $(github_explain)"
+    printf '%s\t%s\t%s\n' "$repo" "required-contexts-unreadable" \
+      "required status-check contexts could not be read" >>"$WORK/warnings.tsv"
+    return 0
+  fi
+  while IFS= read -r ctx; do
+    [ -n "$ctx" ] || continue
+    any=1
+    if grep -Fxq -- "$ctx" "$WORK/contexts.seen"; then
+      continue
+    fi
+    missing=$((missing + 1))
+    aout "  $MARK_WARN required context \"$ctx\" is not reported by any check run on $branch head — it would block every merge; contexts are check display names"
+    printf '%s\t%s\t%s\n' "$repo" "unreported-context" \
+      "required context \"$ctx\" is not reported by any check run on $branch head" >>"$WORK/warnings.tsv"
+  done <"$WORK/contexts.cfg"
+  if [ "$any" = 1 ] && [ "$missing" = 0 ]; then
+    aout "  $MARK_OK every required context is reported on $branch head"
+  fi
+  return 0
+}
+
 # ---------------------------------------------------------------------------
 # Per-repository compliance
 # ---------------------------------------------------------------------------
@@ -1167,6 +1235,12 @@ CLASSICPLAN
   out "Actions:"
   while IFS= read -r line; do out "$line"; done <"$WORK/actions.out"
 
+  if [ -s "$WORK/contexts.out" ]; then
+    out ""
+    out "Required checks:"
+    while IFS= read -r line; do out "$line"; done <"$WORK/contexts.out"
+  fi
+
   out ""
   # A repository whose rulesets are perfect but whose default branch is ALSO
   # governed by a classic rule forcing "branch must be up to date" is not
@@ -1239,6 +1313,16 @@ print_json() {
       '{target:$t,label:$l,status:$s,note:$note,destructive:($dz=="yes"),blocked:$b,reason:$rsn}' \
       | tr -d '\n'
   done
+  printf '],"warnings":['
+  first=1
+  if [ -s "$WORK/warnings.tsv" ]; then
+    local wr wc wm
+    while IFS="$(printf '\t')" read -r wr wc wm; do
+      [ "$first" -eq 1 ] || printf ','
+      first=0
+      jq -nc --arg r "$wr" --arg c "$wc" --arg m "$wm" '{repo:$r,code:$c,message:$m}' | tr -d '\n'
+    done <"$WORK/warnings.tsv"
+  fi
   printf '],"summary":{"changes":%s,"up_to_date":%s,"skipped":%s,"conflicts":%s,"failed":%s}}\n' \
     "$(( $(count_change_status modify) + $(count_change_status create) ))" \
     "$(count_change_status ok)" \
@@ -1334,6 +1418,9 @@ main() {
   ACTIONS_BAD=0
   if [ -z "$BULK" ] && [ "$REPO_N" -gt 0 ]; then
     report_actions "$(field "$WORK/repos/0001" repo)" >"$WORK/actions.out" || ACTIONS_BAD=1
+    # Read-only and advisory: never feeds ACTIONS_BAD or the exit code.
+    : >"$WORK/warnings.tsv"
+    report_contexts "$(field "$WORK/repos/0001" repo)" "$(field "$WORK/repos/0001" branch)" >"$WORK/contexts.out" || true
   fi
 
   if [ -n "$OPT_JSON" ]; then

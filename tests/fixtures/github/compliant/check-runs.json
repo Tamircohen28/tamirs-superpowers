@@ -1,0 +1,50 @@
+{
+  "total_count": 9,
+  "check_runs": [
+    {
+      "name": "shellcheck",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "name": "Validate JSON",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "name": "Validate SKILL.md frontmatter",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "name": "Secret scan",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "name": "claude plugin validate",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "name": "Repo contract (scaffold-gold)",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "name": "Manifest/tag version alignment",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "name": "Platform targets co-change",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "name": "HOL Plugin Scanner",
+      "status": "completed",
+      "conclusion": "success"
+    }
+  ]
+}
