@@ -569,7 +569,7 @@ capture_setup_load() {
        fi ;;
   esac
   if [ -n "$SETUP_ENV_OVERRIDE" ]; then
-    eval "override=\${${SETUP_ENV_OVERRIDE}:-}"
+    override="${!SETUP_ENV_OVERRIDE:-}"
     [ -n "$override" ] && SETUP_CONFIG_DIR="$override"
   fi
   SETUP_TARGET_DIR="$SETUP_CONFIG_DIR"

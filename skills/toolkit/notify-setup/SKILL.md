@@ -139,7 +139,7 @@ subscription.
    "no device registered" — both of which fail identically on the send endpoint:
 
    ```bash
-   curl -s --form-string "token=$TOKEN" --form-string "user=$USER_KEY" \
+   curl -s --form-string "token=<application token>" --form-string "user=<user key>" \
      https://api.pushover.net/1/users/validate.json
    ```
 
@@ -172,7 +172,7 @@ subscription.
    the way the host exports them:
 
    ```bash
-   echo '{"message":"Test from notify-setup","notification_type":"permission_prompt","cwd":"'"$PWD"'"}' \
+   echo '{"message":"Test from notify-setup","notification_type":"permission_prompt","cwd":"'"$(pwd)"'"}' \
      | PUSHOVER_DEBUG=1 bash scripts/notify-pushover.sh   # with the two option variables exported the way the host does
    ```
 

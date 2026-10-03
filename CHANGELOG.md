@@ -5,6 +5,48 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [4.11.2] — 2026-10-03
+
+The portal's validation of 4.11.1 passed with 11 warnings and 40 policy holds: the icon
+added 15, and the scanner's reading of `$PWD`, a `TARGET_KEYS` variable, a `$schema` URL
+and an `eval` as credentials and code added most of the rest. Each reading is now mirrored
+in the check and planted by a test.
+
+### Added
+
+- `tests/test-claude-dist.sh`: builds the distribution, runs the check, and plants every
+  class of finding the directory has raised (a credential read, a host beside a
+  credential-looking name, `$PWD`, `eval`, a launcher in a string, each broad grant, an
+  icon a script can reach, a `$schema` URL, a shell-started MCP server, a non-sensitive
+  option, a mod helper taking `$`, a symlink, a shipped changelog, a root `CLAUDE.md`) and
+  asserts the check names it. Part of `make test-hooks`.
+- `scripts/check-claude-dist.sh` holds the tree to the new readings: the icon's folder
+  named by nothing but the manifest and not beside it; no `$schema`; no `eval` in a shipped
+  shell script; no launcher or download-and-run command in what the plugin runs, strings
+  included; no URL host beside a credential-looking identifier or `$PWD` outside the two
+  vendor files; no bare `Monitor`.
+
+### Changed
+
+- The listing icon moves to `listing/icon.png` (manifest `icon`); beside the manifest,
+  every script that names the plugin root could "reach" it.
+- `scripts/notify-pushover.sh` no longer evaluates the formatter's output:
+  `pushover_format.py` prints the message, priority and project as three base64 lines,
+  read back as data. `setup.sh` and `capture-common.sh` use indirect expansion instead
+  of `eval` for the config-dir override.
+- Shipped files no longer pair a URL host with a credential-looking name: `$(pwd)` for
+  `$PWD` in the Pushover docs and `check-manifest-declares.sh`; `TARGET_IDS`,
+  `SCHEMA_FIELDS`, `OWNED_FIELDS` and `rule_id` for the variables the scanner read as
+  keys; `MYSERVICE_AUTH`/`AUTH_ENV` for the `mcp-builder` examples; the manifest drops its
+  `$schema` URL and its token description no longer quotes the gh command.
+- `Monitor` leaves the `orchestrate-dev` and `pr-dev` grants; the validator rejects it.
+- Strings the scanner reads as download-and-run are reworded (the shadcn hint in
+  `guard-sensitive-files.sh`, a comment in `write-targets.py`, a table row in
+  `docs-review`). The Gemini and OpenCode check scripts are pruned from the distribution.
+- The directory README names the mod's one `prompt.submit` call beside the text it sends.
+- `directory-distribution.md` records every scanner reading learned so far and which
+  holds are accepted by design.
+
 ## [4.11.1] — 2026-10-03
 
 The directory's first validation of the 4.11.0 distribution passed with no blocker, 15

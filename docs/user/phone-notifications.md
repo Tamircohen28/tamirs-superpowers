@@ -128,7 +128,7 @@ project name, just no conversation content.
 Validate credentials independently of sending:
 
 ```bash
-curl -s --form-string "token=$TOKEN" --form-string "user=$USER_KEY" \
+curl -s --form-string "token=<application token>" --form-string "user=<user key>" \
   https://api.pushover.net/1/users/validate.json
 ```
 
@@ -139,7 +139,7 @@ Send a test through the real script, with the options in its environment the way
 host exports them:
 
 ```bash
-echo '{"message":"test","notification_type":"permission_prompt","cwd":"'"$PWD"'"}' \
+echo '{"message":"test","notification_type":"permission_prompt","cwd":"'"$(pwd)"'"}' \
   | PUSHOVER_DEBUG=1 bash scripts/notify-pushover.sh   # with the two option variables exported the way the host does
 ```
 
