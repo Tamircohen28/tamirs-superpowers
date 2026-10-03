@@ -1,0 +1,97 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/TamirCohen28/tamirs-superpowers/core/workflow/handoff-schema.json",
+  "title": "Handoff",
+  "description": "What a task returns when it finishes. This is the end of a work unit: commit + handoff, not PR + merge.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["task_id", "status"],
+  "properties": {
+    "schema_version": { "type": "integer", "const": 1 },
+    "task_id": { "type": "string", "pattern": "^task-[0-9]{3}$" },
+    "status": {
+      "type": "string",
+      "enum": ["completed", "partial", "failed", "blocked", "cancelled"]
+    },
+    "summary": {
+      "type": "string",
+      "description": "One paragraph: what was done, and anything the integrator must know first."
+    },
+    "branch": { "type": "string" },
+    "commits": {
+      "type": "array",
+      "items": { "type": "string", "pattern": "^[0-9a-f]{7,40}$" },
+      "description": "Real commit SHAs on the task branch. Never fabricated."
+    },
+    "files_changed": {
+      "type": "array",
+      "description": "Every path touched. All must fall inside the task's scope[].",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["path", "change"],
+        "properties": {
+          "path": { "type": "string" },
+          "change": { "type": "string", "enum": ["added", "modified", "deleted", "renamed"] }
+        }
+      }
+    },
+    "validation": {
+      "type": "array",
+      "description": "Only commands that were actually run. An unrun command must not appear here.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["command", "result"],
+        "properties": {
+          "command": { "type": "string" },
+          "tier": { "type": "string", "enum": ["edit", "worker", "integration", "delivery"] },
+          "result": { "type": "string", "enum": ["pass", "fail", "skipped"] },
+          "skip_reason": { "type": "string", "description": "Required when result is skipped." },
+          "output_excerpt": { "type": "string" }
+        }
+      }
+    },
+    "decisions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["decision"],
+        "properties": {
+          "decision": { "type": "string" },
+          "rationale": { "type": "string" },
+          "alternatives": { "type": "array", "items": { "type": "string" } }
+        }
+      }
+    },
+    "risks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["risk"],
+        "properties": {
+          "risk": { "type": "string" },
+          "severity": { "type": "string", "enum": ["critical", "high", "medium", "low"] },
+          "mitigation": { "type": "string" }
+        }
+      }
+    },
+    "followups": {
+      "type": "array",
+      "description": "Work deliberately left undone, including anything the task needed outside its scope[].",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["item"],
+        "properties": {
+          "item": { "type": "string" },
+          "blocking": { "type": "boolean", "default": false },
+          "suggested_role": { "type": "string" }
+        }
+      }
+    },
+    "completed": { "type": "string", "format": "date-time" }
+  }
+}

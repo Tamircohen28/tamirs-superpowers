@@ -1,0 +1,662 @@
+# repo-scaffold Templates
+
+Reference templates used by Agent A, B, C, D during scaffolding. All `{{PLACEHOLDER}}` values must be replaced with actual project data — never leave them unfilled.
+
+---
+
+## README Templates
+
+### Hero Section (all stacks)
+
+```markdown
+<div align="center">
+
+# {{REPO_NAME}}
+
+<p>{{SHORT_DESCRIPTION}}</p>
+
+[![CI](https://github.com/TamirCohen28/{{REPO_NAME}}/actions/workflows/ci.yml/badge.svg)](https://github.com/TamirCohen28/{{REPO_NAME}}/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Claude Code](https://img.shields.io/badge/Claude_Code-v0.1.0-D97757?logo=anthropic&logoColor=white)](https://claude.ai/code)
+
+</div>
+
+---
+
+## What It Does
+
+{{ONE_PARAGRAPH_DESCRIPTION}}
+
+## Features
+
+- {{FEATURE_1}}
+- {{FEATURE_2}}
+- {{FEATURE_3}}
+- {{FEATURE_4}}
+
+## Quick Start
+
+```bash
+git clone https://github.com/TamirCohen28/{{REPO_NAME}}.git
+cd {{REPO_NAME}}
+make install
+make dev
+```
+
+See [docs/user/quick-start.md](docs/user/quick-start.md) for full setup.
+
+## Architecture
+
+{{ARCHITECTURE_SUMMARY_1_PARAGRAPH}}
+
+See [docs/engineering/architecture/overview.md](docs/engineering/architecture/overview.md) for the full picture.
+
+## Documentation
+
+| Doc | Purpose |
+|-----|---------|
+| [Quick Start](docs/user/quick-start.md) | Get running in 5 minutes |
+| [Usage Guide](docs/user/usage.md) | Common workflows |
+| [Architecture](docs/engineering/architecture/overview.md) | System design |
+| [CLAUDE.md](CLAUDE.md) | Developer guide for AI-assisted work |
+| [Contributing](CONTRIBUTING.md) | How to contribute |
+
+## License
+
+MIT — see [LICENSE](LICENSE).
+```
+
+### By The Numbers Section (add when project has measurable stats)
+
+```markdown
+<div align="center">
+
+![Skills](https://img.shields.io/badge/skills-{{N}}-blue?style=flat-square)
+![Tests](https://img.shields.io/badge/tests-{{N}}-green?style=flat-square)
+![CI checks](https://img.shields.io/badge/CI_checks-{{N}}-red?style=flat-square)
+
+</div>
+```
+
+---
+
+## CLAUDE.md Template
+
+```markdown
+# {{REPO_NAME}} — Developer Guide
+
+> Required reading before making changes. Keep this file up to date.
+
+## Overview
+
+{{DESCRIPTION}}
+
+**Primary language / stack:** {{TECH}}
+**Repo:** https://github.com/TamirCohen28/{{REPO_NAME}}
+
+## Architecture
+
+{{COMPONENT_MAP}}
+
+Key files:
+- `{{KEY_FILE_1}}` — {{PURPOSE_1}}
+- `{{KEY_FILE_2}}` — {{PURPOSE_2}}
+- `{{KEY_FILE_3}}` — {{PURPOSE_3}}
+
+## Quick Start
+
+```bash
+git clone https://github.com/TamirCohen28/{{REPO_NAME}}.git
+cd {{REPO_NAME}}
+make install   # install dependencies
+make dev       # start development server / REPL
+```
+
+## Commands
+
+| Command | Purpose |
+|---------|---------|
+| `make install` | Install all dependencies |
+| `make build` | Build for production |
+| `make test` | Run test suite |
+| `make lint` | Run linter |
+| `make dev` | Start dev server |
+| `make clean` | Remove build artifacts |
+
+## Coding Standards
+
+- {{STANDARD_1}}
+- {{STANDARD_2}}
+- {{STANDARD_3}}
+- File names: kebab-case for scripts, PascalCase for components/classes
+- No commented-out code — delete dead code, use git history
+
+## Commit Convention
+
+```
+<type>(<scope>): <description>
+
+[optional body]
+
+Co-Authored-By: Claude <noreply@anthropic.com>
+```
+
+Types: `feat`, `fix`, `chore`, `docs`, `refactor`, `test`
+
+## Constraints
+
+- Never commit secrets, tokens, or `.env` files
+- No direct pushes to the default branch — always open a PR
+- No `git push --force` to the default branch
+  (resolve it, never assume: `git symbolic-ref --short refs/remotes/origin/HEAD`)
+- Do not modify `.github/workflows/` without review
+- {{PROJECT_SPECIFIC_CONSTRAINT}}
+
+## Working With Claude Code
+
+```bash
+# Install tamirs-marketplace marketplace
+/plugin marketplace add Tamircohen28/tamirs-marketplace
+
+# Install plugins
+/plugin install tamirs-superpowers@tamirs-marketplace
+/plugin install headhunter@tamirs-marketplace
+/plugin install jose-claudinho@tamirs-marketplace
+```
+
+Available skills after install: `/repo-scaffold`, `/repo-standards`, `/multi-agent-repo`, and more.
+See [docs/engineering/guides/getting-started.md](docs/engineering/guides/getting-started.md) for full setup.
+```
+
+---
+
+## .claude/settings.json Template
+
+> **`extraKnownMarketplaces` is a record keyed by marketplace name — never an array.**
+> Claude Code validates this key against a schema and **silently drops the whole key**
+> when the shape is wrong: no error at startup, no warning, the marketplace simply never
+> registers. A scaffolded repo can therefore look correct for months while every
+> `enabledPlugins` entry resolves only because a *global* `~/.claude/settings.json`
+> happens to declare the same marketplace. There is no `sourceUrl` field — the nested
+> object is `source: { source, repo }` for GitHub or `source: { source, url }` for git.
+> Verify with `claude doctor` after scaffolding; it reports
+> `Expected record, but received array` when this is wrong.
+
+```json
+{
+  "extraKnownMarketplaces": {
+    "tamirs-marketplace": {
+      "source": {
+        "source": "github",
+        "repo": "Tamircohen28/tamirs-marketplace"
+      }
+    }
+  },
+  "enabledPlugins": {
+    "tamirs-superpowers@tamirs-marketplace": true,
+    "headhunter@tamirs-marketplace": true,
+    "jose-claudinho@tamirs-marketplace": true
+  },
+  "permissions": {
+    "allow": [
+      "Bash(git *)",
+      "Bash(gh *)",
+      "Read(*)",
+      "Edit(*)",
+      "Write(*)",
+      "Glob(*)",
+      "Grep(*)"
+    ]
+  },
+  "attribution": {
+    "commit": "Co-Authored-By: Claude <noreply@anthropic.com>"
+  }
+}
+```
+
+**Stack-specific additions to `permissions.allow`:**
+
+Node / Next.js:
+```json
+"Bash(npm *)", "Bash(npx *)", "Bash(node *)", "Bash(make *)"
+```
+
+Python:
+```json
+"Bash(python *)", "Bash(pip *)", "Bash(pytest *)", "Bash(make *)"
+```
+
+Swift / macOS:
+```json
+"Bash(swift *)", "Bash(xcodebuild *)", "Bash(make *)"
+```
+
+Generic:
+```json
+"Bash(make *)", "Bash(sh *)", "Bash(bash *)"
+```
+
+---
+
+## GitHub Actions CI Templates
+
+### Node / Next.js (`ci.yml`)
+
+```yaml
+name: CI
+
+on:
+  # NO branch-name filter, deliberately. `on.push.branches` cannot take a
+  # dynamic default-branch token — triggers are parsed before any context
+  # exists, so `github.event.repository.default_branch` is unavailable here.
+  # Enumerating names (`[main]`, `[master]`, or both) is how a workflow
+  # silently never runs on a repo whose default is spelled differently — and
+  # `gh repo create` does not make them all the same. Gate on the default
+  # branch at JOB level, where the context does exist:
+  #   if: github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+  push:
+  pull_request:
+
+# Supersede obsolete runs of THIS workflow only. `github.workflow` in the key is
+# load-bearing — without it every workflow for a PR shares one group and a newly
+# started workflow cancels an unrelated one that was already running.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  CI:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Test
+        run: npm test
+```
+
+### Python (`ci.yml`)
+
+```yaml
+name: CI
+
+on:
+  # NO branch-name filter, deliberately. `on.push.branches` cannot take a
+  # dynamic default-branch token — triggers are parsed before any context
+  # exists, so `github.event.repository.default_branch` is unavailable here.
+  # Enumerating names (`[main]`, `[master]`, or both) is how a workflow
+  # silently never runs on a repo whose default is spelled differently — and
+  # `gh repo create` does not make them all the same. Gate on the default
+  # branch at JOB level, where the context does exist:
+  #   if: github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+  push:
+  pull_request:
+
+# Supersede obsolete runs of THIS workflow only. `github.workflow` in the key is
+# load-bearing — without it every workflow for a PR shares one group and a newly
+# started workflow cancels an unrelated one that was already running.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  CI:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install -e ".[dev]"
+
+      - name: Lint
+        run: ruff check .
+
+      - name: Test
+        run: pytest
+```
+
+### Swift (`ci.yml`)
+
+```yaml
+name: CI
+
+on:
+  # NO branch-name filter, deliberately. `on.push.branches` cannot take a
+  # dynamic default-branch token — triggers are parsed before any context
+  # exists, so `github.event.repository.default_branch` is unavailable here.
+  # Enumerating names (`[main]`, `[master]`, or both) is how a workflow
+  # silently never runs on a repo whose default is spelled differently — and
+  # `gh repo create` does not make them all the same. Gate on the default
+  # branch at JOB level, where the context does exist:
+  #   if: github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+  push:
+  pull_request:
+
+# Supersede obsolete runs of THIS workflow only. `github.workflow` in the key is
+# load-bearing — without it every workflow for a PR shares one group and a newly
+# started workflow cancels an unrelated one that was already running.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  CI:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - name: Build
+        run: swift build
+
+      - name: Test
+        run: swift test
+```
+
+### Generic (`ci.yml`)
+
+```yaml
+name: CI
+
+on:
+  # NO branch-name filter, deliberately. `on.push.branches` cannot take a
+  # dynamic default-branch token — triggers are parsed before any context
+  # exists, so `github.event.repository.default_branch` is unavailable here.
+  # Enumerating names (`[main]`, `[master]`, or both) is how a workflow
+  # silently never runs on a repo whose default is spelled differently — and
+  # `gh repo create` does not make them all the same. Gate on the default
+  # branch at JOB level, where the context does exist:
+  #   if: github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+  push:
+  pull_request:
+
+# Supersede obsolete runs of THIS workflow only. `github.workflow` in the key is
+# load-bearing — without it every workflow for a PR shares one group and a newly
+# started workflow cancels an unrelated one that was already running.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  CI:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - name: Lint shell scripts
+        run: find . -name "*.sh" -exec shellcheck {} \;
+
+      - name: Validate JSON
+        run: find . -name "*.json" ! -path "*/node_modules/*" -exec python3 -m json.tool {} \; > /dev/null
+
+      - name: Run tests
+        run: make test
+```
+
+---
+
+### claude.yml (all stacks)
+
+```yaml
+name: Claude Code
+
+on:
+  issue_comment:
+    types: [created]
+  pull_request:
+    types: [labeled]
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+jobs:
+  claude:
+    if: |
+      (github.event_name == 'issue_comment' && contains(github.event.comment.body, '@claude')) ||
+      (github.event_name == 'pull_request' && contains(github.event.label.name, 'claude'))
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          fetch-depth: 1
+
+      - uses: anthropics/claude-code-action@9c5ddab2e6d17b83ea679153b31f1d5f023cf636 # v1.0.217
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          model: claude-opus-4-8
+```
+
+---
+
+### release.yml (all stacks)
+
+```yaml
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          fetch-depth: 0
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create ${{ github.ref_name }} \
+            --title "${{ github.ref_name }}" \
+            --generate-notes \
+            --draft=false
+
+      - name: Update stable branch
+        run: |
+          git push origin HEAD:stable --force-with-lease
+```
+
+---
+
+## Makefile Templates
+
+### Node / Next.js
+
+```makefile
+.DEFAULT_GOAL := help
+
+.PHONY: help install build test lint dev clean
+
+help: ## Show this help
+	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-15s\033[0m %s\n", $$1, $$2}'
+
+install: ## Install dependencies
+	npm ci
+
+build: ## Build for production
+	npm run build
+
+test: ## Run tests
+	npm test
+
+lint: ## Run linter
+	npm run lint
+
+dev: ## Start development server
+	npm run dev
+
+clean: ## Remove build artifacts
+	rm -rf .next dist node_modules/.cache
+```
+
+### Python
+
+```makefile
+.DEFAULT_GOAL := help
+
+.PHONY: help install build test lint dev clean
+
+help: ## Show this help
+	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-15s\033[0m %s\n", $$1, $$2}'
+
+install: ## Install dependencies
+	pip install -e ".[dev]"
+
+build: ## Build package
+	python -m build
+
+test: ## Run tests
+	pytest
+
+lint: ## Run linter
+	ruff check .
+
+dev: ## Start dev mode
+	python -m {{PACKAGE_NAME}}
+
+clean: ## Remove build artifacts
+	rm -rf dist/ __pycache__/ .pytest_cache/ *.egg-info/
+```
+
+### Generic
+
+```makefile
+.DEFAULT_GOAL := help
+
+.PHONY: help install test lint clean
+
+help: ## Show this help
+	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-15s\033[0m %s\n", $$1, $$2}'
+
+install: ## Setup environment
+	@echo "Add setup steps here"
+
+test: ## Run tests
+	@echo "Add test steps here"
+
+lint: ## Lint shell scripts
+	find . -name "*.sh" -exec shellcheck {} \;
+
+clean: ## Clean artifacts
+	@echo "Add clean steps here"
+```
+
+---
+
+## .gitignore Templates
+
+### Node / Next.js
+
+```
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Build
+dist/
+.next/
+out/
+build/
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Logs
+*.log
+npm-debug.log*
+
+# Runtime
+.DS_Store
+*.tgz
+coverage/
+.nyc_output/
+
+# Claude Code
+.dev-files/
+.claude/worktrees/
+```
+
+### Python
+
+```
+# Dependencies
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+.venv/
+venv/
+env/
+
+# Build
+dist/
+build/
+
+# Environment
+.env
+.env.*
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Logs
+*.log
+
+# OS
+.DS_Store
+
+# Claude Code
+.dev-files/
+.claude/worktrees/
+```
+
+### Generic
+
+```
+# Environment
+.env
+.env.*
+
+# Logs
+*.log
+
+# Build
+dist/
+build/
+.build/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Claude Code
+.dev-files/
+.claude/worktrees/
+```

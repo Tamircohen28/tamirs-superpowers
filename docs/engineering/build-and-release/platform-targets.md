@@ -1,0 +1,222 @@
+# Platform target versions
+
+Machine-readable source: [`platform-targets.json`](platform-targets.json).
+
+**This file is keyed by SURFACE id, and the reshape of the capability registry did not change it.** The capability registry is now rooted at the platform (`claude`, `codex`, `cursor`, `gemini`, `opencode`) with surfaces underneath; `platform-targets.json` was already keyed the way the registry's *surfaces* are keyed, so it stayed exactly as it was. `supported_targets` is still `claude_code`, `codex`, `cursor`, `gemini_cli`, `opencode` — nothing was added, removed, or renamed. If you came here expecting platform-level keys after seeing the new registry, that is the assumption to drop. The one addition is a `platform` back-pointer on each target, naming the registry platform its surface belongs to (`claude_code` → `claude`, `gemini_cli` → `gemini`), so the two files can be joined without a hardcoded mapping.
+
+## The five supported targets
+
+`tamirs-superpowers` ships as a **multi-platform plugin**. These five surfaces are the officially supported targets — every skill, doc, and release is validated against all five:
+
+1. **Claude Code**
+2. **Cursor IDE**
+3. **Codex CLI**
+4. **Gemini CLI**
+5. **OpenCode CLI**
+
+### Five targets, six supported surfaces
+
+Both counts are right, and they answer different questions. The capability registry marks **six** surfaces `supported` — the five above plus **Claude Desktop** — while `supported_targets` lists five.
+
+Claude Desktop is the difference. It carries `runtime_surface_of: "claude_code"` in the registry: it installs the Claude Code plugin from the Claude Code listing and ships no manifest, adapter, install command or version consumer of its own. A *target* is something this repo distributes to and validates as a distribution; Claude Desktop is a place that same distribution runs. It is fully supported — all 21 capability rows, several of them honestly `unknown` — and it is not a sixth target. `scripts/check-feature-equivalence.sh` and `tests/test-docs.sh` both skip `runtime_surface_of` surfaces when counting targets, for exactly this reason.
+
+The registry also lists four **unverified** surfaces — Codex IDE extension, Cursor CLI, Gemini Code Assist and OpenCode desktop app. They are not targets and must never be added to `supported_targets`, given a badge, or counted here: nobody has measured them, and they claim nothing in either direction.
+
+Anything else is unsupported. Adding a target means adding its surface id to `supported_targets` in `platform-targets.json`, to the table below, to `scripts/check-platform-targets.sh`, and shipping a `docs/user/install/<target>.md` guide — full procedure: [adding a platform](../architecture/adding-a-platform.md).
+
+The README's platform badge row shows **platform tool versions** directly validated in this release — not the plugin semver, which comes from [`plugin-version.json`](../../../plugin-version.json).
+
+## Versions
+
+Reviewed **2026-10-02** (changelog/schema only, no live binary; `validated_against` unchanged on all three) — **Codex** `reviewed_through`/`latest_known` 0.156.1 → **0.160.0** (0.159.0 removed `tui.prompt_suggestions` and the bundled `plugin-creator` skill, both unreferenced here; 0.160.0 caches parsed plugin manifests, which benefits this plugin's marketplace path; nothing to adopt), **Gemini CLI** 0.60.0 → **0.62.0** (the three extension/skills/subagent docs this adapter follows are byte-identical between the tags; 0.61.0 is security hardening, 0.62.0 MCP-title/OAuth/PTY fixes), **OpenCode** 2.0.15 → **2.0.22** (upstream release notes unreadable from the review environment; the config/permission/agent/command schema files are byte-identical v2.0.14→v2.0.22 and the live `config.json` still declares the pinned 15 permission keys, re-read today). Closes the nightly drift issue #247 and its daily duplicates. Verified **2026-10-02** — Claude Code advanced from 2.1.281 to **2.1.287** on a live `claude` 2.1.287 CLI: `claude plugin validate .claude-plugin/plugin.json` passes and lists the new mod's hooks and calls, and `claude plugin test .` runs its 23 tests against the engine; `validated_against`, `reviewed_through` and `latest_known` all move to **2.1.287**. 2.1.287 is the **mods** release (plugins of in-process function hooks, on by default; `CLAUDE_CODE_ENABLE_FUNCTION_HOOKS` is now ignored) — adopted as `mod/register.tsx`, additive to the bash hooks, see `docs/engineering/architecture/mods.md`; it also made `gh api` a built-in and shipped the opt-in `cc-plugin-you-should-know` side-agent mod. Reviewed on changelog evidence in the same delta: 2.1.282 (prose-width capping, telemetry status notices, compaction error handling — nothing to adopt), 2.1.283 (prompt-audit diagnostic, MCP form-field checks — nothing to adopt), 2.1.284 (Sonnet 5.5 — every `agents/*.md` pins the `sonnet` alias, so it resolves to the new model with no change here; keybinding actions, which a mod's Button may bind via `action`), 2.1.285 (`claude --desktop`; `claude plugin configure` to read and set `userConfig` from the shell — the way to set the mod's three options outside `/config`), 2.1.286 (plugin dependency tracking — this plugin declares no `dependencies`; permission-prompt counters). No breaking change in 2.1.282→2.1.287 affects this repo. Earlier note, 2026-09-23 — Claude Code advanced from 2.1.280 to **2.1.281** on a live `claude` 2.1.281 CLI (`claude plugin validate .` passes; its new unquoted-`${CLAUDE_PLUGIN_ROOT}` shell-hook warning fired on all 27 `hooks/hooks.json` commands and is fixed by quoting them); `validated_against`, `reviewed_through` and `latest_known` all move to **2.1.281**. Earlier note, 2026-09-22 — Claude Code reviewed against the official changelog through **2.1.280** (released 2026-09-22), advancing from the **2.1.278** recorded on 2026-09-20 (the official changelog has no numbered 2.1.279 release). This cycle again had no live `claude` CLI in the automation environment, so the advance from 2.1.278 to 2.1.280 is changelog-only, the same evidence basis the 2.1.274→2.1.278 and 2.1.263→2.1.273 reconciliations used; `reviewed_through`/`latest_known` move to **2.1.280**; `validated_against` stays at **2.1.274** — the last version an actual live `claude` CLI run confirmed. New in this delta: 2.1.275 added `/plugin install <plugin> --marketplace <source>` (a Future opportunity for `docs/user/install/claude-code.md`'s two-step install sequence) and syncing of a user's claude.ai-enabled skills/plugins into terminal sessions (opt-out via `syncClaudeAiSkills`/`syncClaudeAiPlugins`), and fixed `claude plugin marketplace update` deleting the local cache on a failed fetch — directly relevant to this repo's own `/plugin marketplace update tamirs-marketplace` instruction; 2.1.276 carried no relevant entry; 2.1.277 added `AGENTS.md` as the fallback project-instructions file when a project has no `CLAUDE.md` (this repo and everything `repo-scaffold`/`multi-agent-repo` generate always ship both, so not applicable) and **removed the deprecated `TaskOutput` tool** (breaking upstream; grepped clean — this repo never referenced it); 2.1.278 defaulted Auto mode to a server-side classifier for API/Enterprise/Bedrock/Vertex/Foundry/gateway users, reviewed and not applicable (direct Claude Code/Desktop sessions only, as with every other Bedrock/Vertex/Foundry/gateway item in this history); 2.1.280 fixed skills being wrongly trashed to `.trash/` on a `manifest.json` name collision — directly closes the data-loss shape of the name-collision risk the 2.1.275 claude.ai-skill-sync note already flagged for this plugin's 29 `SKILL.md` names — and fixed `installed_plugins.json` losing recorded commit info after a GitHub-repo plugin update, relevant since this plugin installs exactly that way; also added `CLAUDE_CODE_MAX_MCP_DESCRIPTION_LENGTH` (documented as an available knob for the `github` MCP server, not set as a default) and made Claude Opus 5.5 the default Opus model (not applicable — every `agents/*.md` here pins `model: sonnet`). No breaking change in the range affects this repo. Full narrative: `CLAUDE.md`'s Subagents, Hooks, MCP, Marketplace cache, Skill frontmatter, Claude Code CLI baseline and Remote and headless Claude sessions sections, `docs/user/cross-platform-workflow.md`, and `platform-targets.json`'s `verification_method`. Cursor was verified against **3.21.13** on 2026-09-20 (changelog through Projects **2026-09-10**, desktop **3.18.9 → 3.21.13**); Gemini CLI and OpenCode remain directly validated at **0.55.1** and **1.18.11** respectively (maintainer-machine runs, 2026-08-19 and 2026-08-03) while their `reviewed_through`/`latest_known` advanced on 2026-09-22 to **0.60.0** and **1.18.31** — changelog-only, no live binary run this cycle for either, same evidence basis as the Claude Code and Codex reconciliations above. Codex releases are reviewed through **0.155.1** (advanced from 0.152.1 via official OpenAI release notes for rust-v0.153.0 through v0.155.1, PR #158), while direct CLI validation remains at **0.146.0** until the next maintainer-machine run. The 0.150–0.152 delta does not require a plugin-manifest migration: native task references and `Interrupt` hooks are host-specific opportunities; optional-MCP discovery grace, MCP-result interception, per-repository plugin catalog configuration, package-style MCP server names, per-tool MCP `output_token_limit`, and longer app-server shell-command timeouts are native Codex capabilities. `tools.update_plan.enabled` is opt-in starting in 0.152; this repo does not depend on that tool, so no config migration is required. The shared cross-target hook bundle remains unchanged so Codex-only lifecycle semantics cannot alter Claude/Cursor behavior. One correction worth recording: the Codex manifest `hooks` field is not a 0.147.0 feature. 0.147.0 is portable agent plugins (catalog install); plugin-manifest hooks were wired into the hook runtime by openai/codex PR #19705, merged 2026-04-28, about twenty releases earlier. `core/capabilities/platforms.json` recorded codex hooks as `since: 0.147.0` on that confusion, ahead of the 0.146.0 actually validated. The exact floor has never been established here, so the registry now claims none rather than a wrong one.
+
+| Surface | Min supported | Validated against | Reviewed through | Latest known | Install guide |
+|----------|---------------|-------------------|------------------|--------------|---------------|
+| Claude Code | 2.0.0 | 2.1.287 | 2.1.287 | 2.1.287 | [claude-code.md](../../user/install/claude-code.md) |
+| Cursor | 3.22.7 | 3.22.7 | 3.22.7 | 3.22.7 | [cursor.md](../../user/install/cursor.md) |
+| Codex | 0.40.0 | 0.156.0 | 0.160.0 | 0.160.0 | [codex.md](../../user/install/codex.md) |
+| Gemini CLI | 0.55.1 | 0.60.0 | 0.62.0 | 0.62.0 | [gemini.md](../../user/install/gemini.md) |
+| OpenCode | unknown | 2.0.14 | 2.0.22 | 2.0.22 | [opencode.md](../../user/install/opencode.md) |
+
+
+Two different claims, deliberately kept apart. **Validated against** is the version this repo
+was last exercised against on a live maintainer machine. **Reviewed through** is the newest
+upstream release whose notes have actually been read for adapter impact. Reading release notes is
+cheap and should always be current; a live run needs a maintainer at a machine, so the two drift
+apart on purpose. `V1-04` therefore fires on `reviewed_through < latest_known` — releases nobody
+has looked at, the gap a contributor can close from a keyboard — and not on a `validated_against`
+lag, which is bounded instead by `last_reviewed` and `V1-05`'s 90-day budget. Before this split the
+rule compared `validated_against` against `latest_known`, so it reported a gap for Codex that the
+prose on this page had already closed, and it could only ever be silenced by a live run or by
+inventing a version.
+
+OpenCode is now reviewed through **1.18.29**: every release from 1.18.12 to 1.18.29 was retrieved
+individually (18 of 18 tags, none unverified) and read against this repo's five points of contact —
+`opencode.json`'s `$schema` and skill paths, `.opencode/agent/` frontmatter, the `mcp` block this
+repo deliberately does not ship, `.opencode/.gitignore`, and `opencode debug skill`. No breaking
+change, no schema-URL change, no change to skill discovery or nesting, no change to agent
+frontmatter, no change to MCP declaration; for skills and MCP that rests on zero commits to
+`src/skill` and `src/mcp` in the window rather than on absence from the release notes. Two watch
+items came out of it: 1.18.16 made the config parser ignore unknown top-level fields at runtime
+while the published schema still sets `additionalProperties: false`, and 1.18.24 added read-compat
+for v2 config, whose `skills` is a flat array rather than v1's `{paths, urls}` object — so an
+eventual v2 adoption is a real `opencode.json` shape change even though v1 remains native. The
+review is documentary, so `validated_against` stays at 1.18.11.
+
+**Codex reviewed through 0.156.0 on 2026-09-23** (from 0.155.1), against the official
+`openai/codex` release notes for `rust-v0.156.0` (published 2026-09-22). `validated_against`
+stays at **0.146.0** — no live `codex` CLI exists in this environment, so the advance is
+documentary, the same evidence basis every prior Codex reconciliation used.
+
+Nothing in 0.156.0 breaks this repo's manifest, hooks or skills. Two entries are worth
+recording. **Worktree support is now enabled by default** ("Filter tasks by status and create
+worktree sessions from the agent command center; worktree support is now enabled by default")
+— that retires the premise of the backlog item that declined native Codex worktrees as
+experimental in 0.154.0, so #180's E2 needs re-evaluating rather than staying declined on
+staleness grounds. And `/usage` now reports "plugin and skill activity", which is adjacent to
+what `usage-capture` and `session-report` do here. The rest is TUI, voice, themes, sandbox
+isolation hardening (inbound Windows connections, privileged Linux/macOS sockets, writes
+through read-only macOS file handles) and MCP OAuth credential refresh on a 503 — none of it
+touching the adapter surface.
+
+**OpenCode validated live on v2 2026-09-23.** `opencode2` (@opencode/cli 2.0.14) was installed alongside the v1 binary — the package ships both `opencode` and `opencode2` for exactly that — and `validated_against` advances from `unknown` to **2.0.14**, with `supported_min` to **2.0.0**. The claim is deliberately SCOPED. Confirmed live: `opencode2 debug config` lists this repo's own `opencode.json` and its `.opencode/` directory among the resolved configuration sources, so v2 accepts the flat-array `skills` form from a project config; and `opencode2 debug agents` loads **10 of 10** generated adapters, each carrying this repo's `GENERATED FILE — DO NOT EDIT` header, which distinguishes a real load from a stale global copy. NOT confirmed: per-skill discovery. **v2 removed the `debug skill` subcommand** the v1 validation relied on — its debug surface is only `agents`, `config`, `paths` — and the `/skill` API route needs a running server. That removal also made `docs/user/install/opencode.md` instruct users to run two commands that no longer exist (`debug skill`, and `debug agent <name>`, now `debug agents`); its verification section is now split by major.
+
+**OpenCode moved to the v2 line on 2026-09-23, and the target was rebased onto it.** OpenCode 2
+ships under a **new npm scope**, `@opencode/cli` (2.0.14, published 2026-09-22); v1's `opencode-ai`
+is frozen at 1.18.32. The nightly probe watched `opencode-ai` and therefore reported "no drift"
+across an entire major — a probe that pins a package name cannot see a major that renames the
+package. `scripts/probe-platform-versions.sh` now watches `@opencode/cli`.
+
+`reviewed_through`/`latest_known` move to **2.0.14** on a documentary review of the v2 docs and the
+v2 source at tag `v2.0.14`. **`validated_against` is set to `"unknown"`** — the sentinel this repo
+already uses for a declared-but-unvalidated target — because no `opencode2` run has exercised these
+skills. It is deliberately NOT left at 1.18.11: that is a version of the *other* package lineage,
+and carrying it forward would imply the thing now tracked had been validated. `supported_min` is
+**2.0.0**, the major boundary rather than an evidenced floor. The README badge and support row are
+downgraded to `⚠️ unverified` to match.
+
+One config change matters to this repo: v2 defines `skills` as a **flat array of strings**
+(`packages/schema/src/config.ts:84`, `Schema.String.pipe(Schema.Array)`), replacing v1's
+`skills: { paths: [...] }` object. `opencode.json` was converted to the array form. **This is
+not a breaking change for v1** — verified against a live OpenCode 1.18.32, which accepts the
+array and normalizes it to `{"paths": [...], "urls": []}`, discovering this repo's skills from it;
+v1 already carries forward-compatible handling for the v2 shape. An earlier draft of this
+entry called it breaking; the live check disproved that before merge. Config file
+names and search locations are unchanged, `SKILL.md` remains the skill format — v2's own repo
+carries `.opencode/skills/*/SKILL.md` — and v2 adds a compatibility layer
+(`packages/core/src/config/plugin/compatibility.ts`) that discovers skills under `claude` and
+`agents` roots. Tracked in #200.
+
+OpenCode's `reviewed_through`/`latest_known` advanced once more on 2026-09-22, **1.18.31 → 1.18.32**,
+against `registry.npmjs.org/opencode-ai` `dist-tags.latest` (1.18.32, published 2026-09-21) and the
+upstream GitHub release notes for `v1.18.32`. That release is Bugfixes only — Bedrock image
+attachments hoisted for Claude/Nova/Llama 4 models only, and Together AI streaming usage reporting
+— plus two community model additions (DeepSeek V4.1 Flash and Grok 4.7 to Zen). **Nothing in it
+touches skills, plugins, agents, or `opencode.json`**, so no capability row, adapter or doc claim
+changes. Documentary review only; `validated_against` stays at **1.18.11**.
+
+Cursor drifted to **3.21.16** in the same nightly probe and was deliberately **not** advanced.
+Cursor publishes no per-patch release notes at 3.21.14/15/16 granularity — its public changelog is
+feature-level, which is why this repo tracks `changelog_feature`/`changelog_date` for Cursor
+separately from the app version. Advancing `latest_known` without a readable changelog would put
+`reviewed_through < latest_known`, which the repo's own contract rejects as V1-04 ("upstream
+releases nobody has read yet"), and claiming a review that did not happen is exactly what these
+three fields exist to prevent. Cursor therefore stays pinned at **3.22.7** across all three
+fields. The nightly probe no longer reports this as drift at all: comparing Cursor's desktop
+build against a `latest_known` that can only advance by feature-changelog review produced a
+permanently un-closeable DRIFT line, so `scripts/probe-platform-versions.sh` now reports Cursor
+the way it already reports Claude Code — no automated upstream source, advance via changelog
+review. As of 4.2.2 the desktop build is not fetched at all: its value could never be acted
+on here, so the call gated nothing. `targets.cursor.latest_known` still records the build
+baseline for anyone who needs it.
+
+OpenCode's `reviewed_through`/`latest_known` advanced again on 2026-09-22, **1.18.29 → 1.18.31**,
+against `registry.npmjs.org/opencode-ai` `dist-tags.latest` (1.18.31, published 2026-09-14) and
+commit history for 2026-09-04..2026-09-14 on the upstream repo. That upstream repo has moved from
+`sst/opencode` to `anomalyco/opencode` on GitHub — the npm package name (`opencode-ai`) and the
+`dist-tags.latest` this repo tracks are unaffected, and GitHub API requests to the old slug now
+301-redirect. Path-scoped commit history over `packages/opencode/src/skill`, `src/agent`,
+`src/config` and `src/mcp` shows zero commits in the 1.18.29→1.18.31 window, and the published
+schema at `https://opencode.ai/config.json` still defines `Config.skills` as the v1 `{paths, urls}`
+object with `additionalProperties: false` — the v1/v2 divergence noted above has not resolved
+either way. The upstream repo also carries a separate `v2.0.x` GitHub tag series that does not
+correspond to any 2.x version of the `opencode-ai` npm package; not chased further since it does
+not affect the dist-tag this repo's convention tracks. No live `opencode` binary was run this
+cycle, so `validated_against` stays at 1.18.11.
+
+Gemini CLI's `reviewed_through`/`latest_known` advanced on 2026-09-22, **0.55.1 → 0.60.0**, against
+the official `google-gemini/gemini-cli` GitHub Releases for v0.56.0 through v0.60.0 (five stable
+tags retrieved individually; intervening `-nightly`/`-preview` tags were not separately reviewed)
+and against `registry.npmjs.org/@google/gemini-cli` `dist-tags.latest` (0.60.0, published
+2026-09-15). None of the five releases changes the extension manifest format, the one-level-below-
+root skill discovery depth, the agent config shape, or the MCP extension path-interpolation this
+repo depends on — confirmed by reading each release's PR list. Two items are carried forward as an
+unverified risk rather than a confirmed break: v0.57.0 added a guard preventing subagents from
+running when agents mode is disabled and fixed a sub-agent handoff token regression on startup
+(this repo's ten committed `.gemini/agents/` adapters were not re-run against either fix); v0.60.0
+hardened path resolution and boundary validation in the extension loader, and an adjacent change in
+the same release window expanded the extension-install consent prompt to enumerate a declared MCP
+server's environment variables and headers — both land on `scripts/build-gemini-extension.sh`'s
+generated symlink mirror and `.gemini/skills/` output, neither re-exercised this cycle. No live
+`gemini` binary was run, so `validated_against` stays at 0.55.1.
+
+### How each floor was set
+
+`supported_min` is never a guess. Each target records a `supported_min_source` in `platform-targets.json`:
+
+| Surface | Why that floor |
+|----------|----------------|
+| Claude Code | `.claude-plugin/plugin.json` manifest format has been stable since 2.0.0 |
+| Cursor | Cursor's plugin docs state **no** minimum version. Rather than invent one, the floor equals the validated version. Older Cursor releases may work; they are simply untested. |
+| Codex | Earliest release this repo has claimed `AGENTS.md` + `.codex-plugin` support for |
+| Gemini CLI | Gemini CLI documents no minimum for extensions; the floor is the version the adapter was actually exercised on (0.55.1) rather than guessed |
+| OpenCode | Oldest version on which recursive (domain-nested) `SKILL.md` discovery was verified with `opencode debug skill` |
+
+## Capability coverage
+
+Coarse summary only — the authoritative, per-capability picture is
+[`core/capabilities/platforms.json`](../../../core/capabilities/platforms.json), rendered for
+users at [platform differences](../../user/platform-differences.md). The columns are the
+five *targets*; Claude Desktop's rows live in the registry and in
+[`platform-equivalence.md`](../../agent-guidelines/platform-equivalence.md), which is
+keyed by all six supported surfaces.
+
+| Capability | Claude Code | Cursor IDE | Codex CLI | Gemini CLI | OpenCode CLI |
+|------------|:---:|:---:|:---:|:---:|:---:|
+| Skills | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Agents | ✅ | ✅ | ✅ | ❌ frontmatter rejected | ✅ (adapters) |
+| MCP servers | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Rules | via `CLAUDE.md` | ✅ `.mdc` | via `AGENTS.md` | via `.gemini/GEMINI.md` | via `AGENTS.md` |
+| Hooks | ✅ | ⚠️ project-level only | ✅ manifest field | see install guide | ❌ JS plugins only |
+| Statusline | ✅ | ❌ | ❌ | ❌ | ❌ |
+| Marketplace install | ✅ | ✅ | ✅ | ❌ git-URL extension | ❌ path install |
+
+Gemini's gaps are recorded as `capability_gaps` in `platform-targets.json`, measured on
+0.55.1: no extension-declared statusline, no marketplace, and `agents/*.md` rejected because
+Gemini expects its own tool names rather than Claude's. Nothing is shipped that would error
+on every command.
+
+OpenCode's gaps are recorded the same way. The two that matter:
+
+- **No `hooks.json`.** OpenCode's lifecycle automation is JS/TS plugin modules, so the worktree hooks under `hooks/` do not port. Their intent is carried by `AGENTS.md` contributor rules instead.
+- **Agent files need adapters.** A Claude Code agent (`tools: Read, Grep, Glob, Bash`, `model: sonnet`) fails OpenCode's config validation — it wants `tools` as an object and a provider-prefixed model. `.opencode/agent/*.md` holds the converted files; regenerate with `make opencode-agents`.
+
+See [`platform-equivalence.md`](../../agent-guidelines/platform-equivalence.md) for the full capability mapping.
+
+## Maintenance
+
+When changing `skills/repo/**`, `platform-specs.md`, or platform-sync sub-skills:
+
+**Agents** (not users) run these Make targets:
+
+| Target | When |
+|--------|------|
+| `make platform-targets-sync` | Refresh `latest_known` after skill/platform-spec changes |
+| `make platform-targets-assert` | Polish exit — configs caught up to latest_known |
+| `make opencode-agents` | Regenerate `.opencode/agent/*.md` after editing `agents/*.md` |
+| `make agent-polish-gate` | Full pre-PR gate (sync + assert + agent:check) |
+| `make platform-targets-cochange` | CI on PRs touching `skills/repo/**` |
+
+After `make platform-targets-sync`, the agent updates `validated_against`, README Row 3 badges, this table, and `CHANGELOG.md`.
+
+Users run `/repo-standards polish` or `/multi-agent-repo dev` — not these Make targets directly.

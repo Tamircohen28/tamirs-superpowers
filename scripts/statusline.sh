@@ -1,0 +1,372 @@
+#!/usr/bin/env bash
+# Claude Code statusLine renderer.
+#
+# NEVER BLOCKS ON STDIN.
+#   `input=$(cat)` reads until EOF. When the caller forgets `</dev/null`, or the
+#   script is run by hand, or a harness starts it with an inherited terminal or
+#   an open pipe nobody writes to, that `cat` waits forever — and a statusline
+#   that never returns is a session that never paints. Correctness here cannot
+#   depend on every caller remembering a redirect, so the read is bounded and
+#   the empty case is a first-class input: with no payload every field is
+#   already handled as "unknown" ("--"), so the script renders a degraded line
+#   and exits instead of hanging.
+#
+#   The bound is bash's OWN `read -t`, a shell built-in. It is deliberately not
+#   `timeout(1)`: that is GNU coreutils, absent from a stock macOS — which is
+#   this repo's primary development platform — so a guarantee resting on it
+#   would simply not hold on the maintainer's machine, and would fail in the
+#   worst way: silently, as a hang. `read -t` is always there.
+#
+#   Note also that `set -e` is deliberately NOT enabled: `read -t` returns
+#   non-zero when it times out, which is the SUCCESS path here, and `-e` would
+#   abort the script on the exact case this code exists to survive.
+#
+#   STATUSLINE_STDIN_TIMEOUT overrides the per-read timeout (seconds).
+#
+# PLUGIN ROOT.
+#   PLUGIN_ROOT is resolved from this script's own location, so nothing here
+#   depends on the marketplace cache path. The `~/.claude/plugins/cache/
+#   tamirs-marketplace/tamirs-superpowers/<version>/` glob remains only in the
+#   INVOCATION recorded in settings (see .claude-plugin/plugin.json and
+#   docs/engineering/statusline.md) — it is the documented fallback for an
+#   installed copy, not an assumption made by this file.
+set -uo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PLUGIN_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+export PLUGIN_ROOT
+
+# read_input — the whole payload, or "" if none arrives in time.
+read_input() {
+  local timeout="${STATUSLINE_STDIN_TIMEOUT:-2}" line buf=""
+
+  # An interactive terminal on stdin means nobody is piping a payload; reading
+  # would steal the user's keystrokes and block until they hit enter.
+  if [ -t 0 ]; then
+    return 0
+  fi
+
+  while IFS= read -r -t "$timeout" line; do
+    buf="${buf}${line}"
+  done
+  # A final line without a trailing newline lands in $line, not in the loop.
+  buf="${buf}${line}"
+
+  printf '%s' "$buf"
+}
+
+input="$(read_input)"
+
+# A non-JSON or empty payload is not an error — every field below already
+# degrades to "--". Normalizing to {} keeps jq from writing parse errors into
+# the status line itself.
+if [ -z "$input" ] || ! printf '%s' "$input" | jq -e . >/dev/null 2>&1; then
+  input='{}'
+fi
+
+model=$(echo "$input" | jq -r '.model.display_name // empty')
+current_dir=$(echo "$input" | jq -r '.workspace.current_dir // .cwd // empty')
+branch=$(echo "$input" | jq -r '.worktree.branch // empty')
+effort=$(echo "$input" | jq -r '.effort.level // empty')
+ctx_pct=$(echo "$input" | jq -r '.context_window.used_percentage // empty')
+five_pct=$(echo "$input" | jq -r '.rate_limits.five_hour.used_percentage // empty')
+five_resets=$(echo "$input" | jq -r '.rate_limits.five_hour.resets_at // empty')
+seven_pct=$(echo "$input" | jq -r '.rate_limits.seven_day.used_percentage // empty')
+seven_resets=$(echo "$input" | jq -r '.rate_limits.seven_day.resets_at // empty')
+# Claude Code 2.1.251+: present only behind a Claude apps gateway that reports
+# a spend limit whose resets_at has not passed. Absent everywhere else, so the
+# line below degrades the same way the 7d line already does.
+spend_pct=$(echo "$input" | jq -r '.rate_limits.spend_limit.used_percentage // empty')
+spend_resets=$(echo "$input" | jq -r '.rate_limits.spend_limit.resets_at // empty')
+# prompt_cache — present when the host reports cache telemetry for the session.
+# Absent on builds or configurations that do not report it, so every use below is
+# guarded the same way the spend_limit line already is. hit_ratio is a 0..1 float.
+cache_warm=$(echo "$input" | jq -r '.prompt_cache.warm // empty')
+cache_ratio=$(echo "$input" | jq -r '.prompt_cache.hit_ratio // empty')
+cache_misses=$(echo "$input" | jq -r '.prompt_cache.misses // empty')
+cache_recache=$(echo "$input" | jq -r '.prompt_cache.recache_tokens_if_cold // empty')
+duration_ms=$(echo "$input" | jq -r '.cost.total_duration_ms // empty')
+total_cost=$(echo "$input" | jq -r '.cost.total_cost_usd // empty')
+cc_version=$(echo "$input" | jq -r '.version // empty')
+
+fmt_model() {
+  local name="$1"
+  local lower=""
+  name="${name//1M context/1M}"
+  lower=$(printf '%s' "$name" | tr '[:upper:]' '[:lower:]')
+
+  case "$lower" in
+    *haiku*) printf '\033[33m%s\033[0m\n' "$name" ;;
+    *sonnet*) printf '\033[32m%s\033[0m\n' "$name" ;;
+    *opus*) printf '\033[34m%s\033[0m\n' "$name" ;;
+    *) echo "$name" ;;
+  esac
+}
+
+fmt_effort() {
+  case "$1" in
+    low) printf '\033[33m○ Low\033[0m\n' ;;
+    medium) printf '\033[32m◐ Medium\033[0m\n' ;;
+    high) printf '\033[38;5;208m● High\033[0m\n' ;;
+    xhigh) printf '\033[34m◉ xHigh\033[0m\n' ;;
+    max) printf '\033[31m◈ Max\033[0m\n' ;;
+    *) echo "" ;;
+  esac
+}
+
+fmt_pct() {
+  local pct="$1"
+  if [ -z "$pct" ] || [ "$pct" = "null" ]; then
+    echo "--"
+    return
+  fi
+  printf "%.0f" "$pct"
+}
+
+fmt_resets() {
+  local epoch="$1"
+  if [ -z "$epoch" ] || [ "$epoch" = "null" ]; then
+    echo "resets --"
+    return
+  fi
+
+  local now
+  now=$(date +%s)
+  local diff=$(( epoch - now ))
+
+  if [ "$diff" -le 0 ]; then
+    echo "resets now"
+    return
+  fi
+
+  local h=$(( diff / 3600 ))
+  local m=$(( (diff % 3600) / 60 ))
+
+  if [ "$h" -gt 0 ]; then
+    echo "resets in ${h}h ${m}m"
+  else
+    echo "resets in ${m}m"
+  fi
+}
+
+fmt_duration() {
+  local ms="$1"
+  if [ -z "$ms" ] || [ "$ms" = "null" ]; then
+    echo "--"
+    return
+  fi
+
+  local total_sec=$(( ms / 1000 ))
+  local d=$(( total_sec / 86400 ))
+  local h=$(( (total_sec % 86400) / 3600 ))
+  local m=$(( (total_sec % 3600) / 60 ))
+  local s=$(( total_sec % 60 ))
+
+  if [ "$d" -gt 0 ]; then
+    echo "${d}d${h}H${m}m"
+  elif [ "$h" -gt 0 ]; then
+    echo "${h}H${m}m"
+  elif [ "$m" -gt 0 ]; then
+    echo "${m}m${s}s"
+  else
+    echo "${s}s"
+  fi
+}
+
+fmt_cost() {
+  local cost="$1"
+  if [ -z "$cost" ] || [ "$cost" = "null" ]; then
+    echo '$--'
+    return
+  fi
+
+  printf '$%.2f' "$cost"
+}
+
+build_bar() {
+  local pct="$1"
+  local bar_width=10
+  local filled=0
+
+  if [ -n "$pct" ] && [ "$pct" != "null" ]; then
+    local rounded
+    rounded=$(fmt_pct "$pct")
+    filled=$(( rounded * bar_width / 100 ))
+    [ "$filled" -lt 0 ] && filled=0
+    [ "$filled" -gt "$bar_width" ] && filled=$bar_width
+  fi
+
+  local empty=$(( bar_width - filled ))
+  local bar=""
+  local fill=""
+  local pad=""
+
+  [ "$filled" -gt 0 ] && printf -v fill "%${filled}s" && bar="${fill// /█}"
+  [ "$empty" -gt 0 ] && printf -v pad "%${empty}s" && bar="${bar}${pad// /░}"
+
+  echo "$bar"
+}
+
+bar_color() {
+  local pct="$1"
+  if [ -z "$pct" ] || [ "$pct" = "null" ]; then
+    echo ""
+    return
+  fi
+
+  local rounded
+  rounded=$(fmt_pct "$pct")
+
+  if [ "$rounded" -ge 90 ] 2>/dev/null; then
+    printf '\033[31m'
+  elif [ "$rounded" -ge 70 ] 2>/dev/null; then
+    printf '\033[33m'
+  else
+    printf '\033[32m'
+  fi
+}
+
+github_repo_url() {
+  local remote_name=""
+  local remote=""
+  local repo_path=""
+
+  if [ -z "$current_dir" ]; then
+    return
+  fi
+
+  if [ -n "$branch" ]; then
+    remote_name=$(git -C "$current_dir" config --get "branch.${branch}.remote" 2>/dev/null || true)
+  fi
+
+  [ -z "$remote_name" ] && remote_name="origin"
+  remote=$(git -C "$current_dir" remote get-url "$remote_name" 2>/dev/null || true)
+
+  if [ -z "$remote" ]; then
+    remote_name=$(git -C "$current_dir" remote 2>/dev/null | sed -n '1p')
+    [ -n "$remote_name" ] && remote=$(git -C "$current_dir" remote get-url "$remote_name" 2>/dev/null || true)
+  fi
+
+  case "$remote" in
+    git@github.com:*)
+      repo_path="${remote#git@github.com:}"
+      repo_path="${repo_path%.git}"
+      echo "https://github.com/${repo_path}"
+      ;;
+    https://github.com/*)
+      repo_path="${remote#https://github.com/}"
+      repo_path="${repo_path%.git}"
+      echo "https://github.com/${repo_path}"
+      ;;
+  esac
+}
+
+fmt_repo() {
+  local label="$1"
+  local green='\033[32m'
+  local bold='\033[1m'
+  local reset='\033[0m'
+  local display="📁 ${label}"
+
+  printf '%b' "${green}${bold}${display}${reset}"
+}
+
+fmt_branch() {
+  local branch_name="$1"
+  local repo_url="$2"
+  local yellow='\033[33m'
+  local reset='\033[0m'
+  local label="⎇ ${branch_name}"
+
+  if [ -n "$repo_url" ]; then
+    printf '%b' "${yellow}\e]8;;${repo_url}/tree/${branch_name}\a${label}\e]8;;\a${reset}"
+    return
+  fi
+
+  printf '%b' "${yellow}${label}${reset}"
+}
+
+fmt_version() {
+  local ver="$1"
+  local dim='\033[2m'
+  local reset='\033[0m'
+
+  printf '%b' "${dim}v${ver}${reset}"
+}
+
+if [ -z "$branch" ] && [ -n "$current_dir" ]; then
+  branch=$(git -C "$current_dir" branch --show-current 2>/dev/null || true)
+fi
+
+dir_name="${current_dir##*/}"
+[ -z "$dir_name" ] && dir_name="$current_dir"
+
+ctx_fmt=$(fmt_pct "$ctx_pct")
+model_fmt=$(fmt_model "${model:-unknown}")
+effort_fmt=$(fmt_effort "$effort")
+repo_url=$(github_repo_url)
+first_line="[${model_fmt:-unknown}"
+[ -n "$effort_fmt" ] && first_line="$first_line $effort_fmt"
+first_line="$first_line]"
+[ -n "$dir_name" ] && first_line="$first_line $(fmt_repo "$dir_name")"
+[ -n "$branch" ] && first_line="$first_line $(fmt_branch "$branch" "$repo_url")"
+first_line="$first_line ctx:${ctx_fmt}"
+[ "$ctx_fmt" != "--" ] && first_line="${first_line}%"
+[ -n "$cc_version" ] && [ "$cc_version" != "null" ] && first_line="$first_line $(fmt_version "$cc_version")"
+
+reset='\033[0m'
+duration_fmt=$(fmt_duration "$duration_ms")
+cost_fmt=$(fmt_cost "$total_cost")
+
+format_limit_line() {
+  local label="$1"
+  local pct="$2"
+  local resets="$3"
+  local bar color fmt
+
+  bar=$(build_bar "$pct")
+  color=$(bar_color "$pct")
+  fmt=$(fmt_pct "$pct")
+
+  if [ "$fmt" = "--" ]; then
+    printf '%s: -- %s | %s' "$label" "$bar" "$(fmt_resets "$resets")"
+  else
+    printf '%s: %b%s%b %s%% | %s' "$label" "$color" "$bar" "$reset" "$fmt" "$(fmt_resets "$resets")"
+  fi
+}
+
+second_line="$(format_limit_line "5h" "$five_pct" "$five_resets") | ${duration_fmt} | ${cost_fmt}"
+
+printf "%b\n" "$first_line"
+printf "%b\n" "$second_line"
+if [ -n "$seven_pct" ] && [ "$seven_pct" != "null" ]; then
+  printf "%b\n" "$(format_limit_line "7d" "$seven_pct" "$seven_resets")"
+fi
+if [ -n "$spend_pct" ] && [ "$spend_pct" != "null" ]; then
+  printf "%b\n" "$(format_limit_line "spend" "$spend_pct" "$spend_resets")"
+fi
+
+# Prompt cache. Only rendered when the host actually reports it — a cold or
+# missing block prints nothing rather than a misleading 0%.
+if [ -n "$cache_ratio" ] && [ "$cache_ratio" != "null" ]; then
+  cache_pct=$(awk -v r="$cache_ratio" 'BEGIN{printf "%d", (r*100)+0.5}' 2>/dev/null || echo "")
+  if [ -n "$cache_pct" ]; then
+    if [ "$cache_warm" = "true" ]; then cache_state="warm"; else cache_state="cold"; fi
+    cache_line="cache ${cache_pct}% ${cache_state}"
+    if [ -n "$cache_misses" ] && [ "$cache_misses" != "null" ] && [ "$cache_misses" != "0" ]; then
+      cache_line="${cache_line}, ${cache_misses} miss"
+      [ "$cache_misses" != "1" ] && cache_line="${cache_line}es"
+    fi
+    # Only worth showing when a cold rebuild would actually cost something.
+    if [ "$cache_warm" != "true" ] && [ -n "$cache_recache" ] && [ "$cache_recache" != "null" ] && [ "$cache_recache" != "0" ]; then
+      cache_line="${cache_line}, ${cache_recache} tok to rebuild"
+    fi
+    if [ "$cache_pct" -ge 80 ] 2>/dev/null; then
+      printf '\033[32m%s\033[0m\n' "$cache_line"
+    elif [ "$cache_pct" -ge 50 ] 2>/dev/null; then
+      printf '\033[33m%s\033[0m\n' "$cache_line"
+    else
+      printf '\033[31m%s\033[0m\n' "$cache_line"
+    fi
+  fi
+fi

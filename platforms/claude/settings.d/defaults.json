@@ -1,0 +1,22 @@
+{
+  "_comment": "Model, effort, theme, TUI, default permission mode, and the UX booleans. defaultMode bypassPermissions is deliberate and is why docker-guard.py exists as a hook rather than relying on permissions.ask alone.",
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "model": "opus[1m]",
+  "effortLevel": "medium",
+  "theme": "dark",
+  "tui": "fullscreen",
+  "permissions": {
+    "defaultMode": "bypassPermissions"
+  },
+  "agentPushNotifEnabled": true,
+  "alwaysThinkingEnabled": true,
+  "autoCompactEnabled": true,
+  "autoScrollEnabled": true,
+  "fileCheckpointingEnabled": true,
+  "inputNeededNotifEnabled": true,
+  "preferredNotifChannel": "auto",
+  "showTurnDuration": true,
+  "skipDangerousModePermissionPrompt": true,
+  "skipWorkflowUsageWarning": true,
+  "todoFeatureEnabled": true
+}

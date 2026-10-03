@@ -1,0 +1,9 @@
+{
+  "_comment": "autoMode.soft_deny. \"$defaults\" keeps the built-in list; the prose rule that follows is the hard-won docker-containers rule. Kept even though it went inert under bypassPermissions — it still applies in other modes, and docker-guard.py covers the bypass case.",
+  "autoMode": {
+    "soft_deny": [
+      "$defaults",
+      "Creating, starting, or destroying Docker containers, images, volumes or networks on the user's machine — including indirectly via make/npm/script targets that wrap docker (e.g. `make e2e-db`, `make test:ui`), and including `docker *prune*`. These outlive the session: a test Postgres container created by an agent ran unnoticed on this Mac for a month. Ask first, say what will be left running, and say how to stop it. Read-only inspection (ps/inspect/logs/df/ls) and `docker stop` do not need approval."
+    ]
+  }
+}

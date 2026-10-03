@@ -1,0 +1,617 @@
+#!/usr/bin/env bash
+# check-capability-registry.sh — validate the platform capability registry.
+#
+# Usage:
+#   check-capability-registry.sh [repo-root]
+#   check-capability-registry.sh -h | --help
+#
+# Checks, in order:
+#   1. core/capabilities/schema.json and core/capabilities/platforms.json are valid JSON.
+#   2. platforms.json validates against schema.json (JSON Schema draft 2020-12) when
+#      python3 + jsonschema are installed. When they are not, the run degrades to a
+#      jq-based structural check and says so — a missing contributor dependency must
+#      never be reported as a registry failure.
+#   3. Structural invariants jq can prove without the schema library: every SUPPORTED
+#      surface covers every declared capability key, every status is in the enum, native
+#      claims carry a validation command, and non-native statuses carry a fallback or a
+#      note. These run against the flattened one-entry-per-surface view, because that is
+#      the granularity the claims are made at — a vendor does not have capabilities, its
+#      surfaces do. Unverified surfaces are checked separately: they must state why, and
+#      must claim nothing.
+#   4. Every target in docs/engineering/build-and-release/platform-targets.json
+#      supported_targets has a registry entry. A platform that ships without a
+#      capability row is a platform whose gaps are invisible.
+#   5. The registry's own last_reviewed is present and inside a 90-day budget. The field
+#      was read by three scripts and compared to a date by none of them.
+#
+# Exit 0 if checks pass; 1 on failure.
+set -euo pipefail
+
+usage() { sed -n '2,27p' "$0" | sed -E 's/^# ?//'; exit "${1:-0}"; }
+[[ "${1:-}" == "-h" || "${1:-}" == "--help" ]] && usage 0
+
+ROOT="$(cd "${1:-.}" && pwd)"
+SCHEMA="$ROOT/core/capabilities/schema.json"
+REGISTRY="$ROOT/core/capabilities/platforms.json"
+TARGETS="$ROOT/docs/engineering/build-and-release/platform-targets.json"
+FAILED=0
+
+err() { echo "ERROR: $*" >&2; FAILED=$(( FAILED + 1 )); }
+
+command -v jq >/dev/null 2>&1 || { echo "ERROR: jq is required by check-capability-registry.sh" >&2; exit 1; }
+
+for f in "$SCHEMA" "$REGISTRY"; do
+  [[ -f "$f" ]] || { echo "ERROR: missing $f" >&2; exit 1; }
+  jq empty "$f" 2>/dev/null || { echo "ERROR: ${f#"$ROOT"/} is not valid JSON" >&2; exit 1; }
+done
+echo "ok:    both registry files parse as JSON"
+
+# The registry is rooted at the platform (Claude, Codex, ...) with its runtime surfaces
+# underneath. Schema validation below runs against that canonical file; the structural
+# checks run per surface, so keep both addressable rather than reshaping in place.
+# shellcheck source=scripts/lib/registry.sh
+. "$ROOT/scripts/lib/registry.sh"
+REGISTRY_CANONICAL="$REGISTRY"
+if jq -e '(.schema_version // 1) >= 2' "$REGISTRY_CANONICAL" >/dev/null 2>&1; then
+  REGISTRY="$(registry_flat_tmp "$REGISTRY_CANONICAL")"
+  trap 'rm -f "$REGISTRY"' EXIT
+fi
+
+# --- 2. Schema validation (optional dependency) ---
+if command -v python3 >/dev/null 2>&1 && python3 -c 'import jsonschema' 2>/dev/null; then
+  if python3 - "$SCHEMA" "$REGISTRY_CANONICAL" <<'PY'
+import json, sys
+import jsonschema
+
+schema = json.load(open(sys.argv[1]))
+data = json.load(open(sys.argv[2]))
+validator = jsonschema.Draft202012Validator(schema)
+errors = sorted(validator.iter_errors(data), key=lambda e: list(e.absolute_path))
+for e in errors:
+    path = "/".join(str(p) for p in e.absolute_path) or "<root>"
+    print(f"  {path}: {e.message}", file=sys.stderr)
+sys.exit(1 if errors else 0)
+PY
+  then
+    echo "ok:    platforms.json validates against schema.json (jsonschema)"
+  else
+    err "platforms.json does not validate against schema.json"
+  fi
+else
+  echo "skip:  jsonschema not installed — schema validation skipped, structural checks still run"
+  echo "       remedy: python3 -m pip install -r scripts/requirements-validate.txt"
+fi
+
+# --- 3. Structural invariants (always run) ---
+STATUSES="native native-experimental partial emulated adapter unsupported unknown"
+before_structural=$FAILED
+
+keys="$(jq -r '.capability_definitions | keys_unsorted[]' "$REGISTRY")"
+platforms="$(jq -r '.platforms | keys_unsorted[]' "$REGISTRY")"
+
+for p in $platforms; do
+  for k in $keys; do
+    entry="$(jq -c --arg p "$p" --arg k "$k" '.platforms[$p].capabilities[$k] // empty' "$REGISTRY")"
+    if [[ -z "$entry" ]]; then
+      err "platform '$p' declares no entry for capability '$k' (use status 'unknown', never omission)"
+      continue
+    fi
+    status="$(jq -r '.status // empty' <<<"$entry")"
+    if [[ " $STATUSES " != *" $status "* ]]; then
+      err "platform '$p' capability '$k' has status '$status', which is not in the enum"
+      continue
+    fi
+    case "$status" in
+      native|native-experimental)
+        [[ "$(jq -r '.validation // empty' <<<"$entry")" != "" ]] \
+          || err "platform '$p' capability '$k' claims '$status' with no validation command — evidence over declarations"
+        ;;
+      *)
+        [[ "$(jq -r '(.fallback // "") + (.notes // "")' <<<"$entry")" != "" ]] \
+          || err "platform '$p' capability '$k' is '$status' with neither fallback nor notes"
+        ;;
+    esac
+  done
+
+  for field in display_name install validation; do
+    [[ "$(jq -r --arg p "$p" --arg f "$field" '.platforms[$p][$f] // empty' "$REGISTRY")" != "" ]] \
+      || err "platform '$p' is missing adapter metadata field '$field'"
+  done
+done
+if (( FAILED == before_structural )); then
+  echo "ok:    $(wc -w <<<"$platforms" | tr -d ' ') platforms x $(wc -w <<<"$keys" | tr -d ' ') capabilities, all rows explicit"
+fi
+
+# --- 3b. Alias namespace is unambiguous ---
+# Consumers normalize an incoming id by matching it against ids and aliases. If two
+# platforms claimed the same alias, that normalization would be non-deterministic.
+# Platform ids, surface ids, and every alias of either share ONE namespace: a consumer
+# handed "cursor" or "claude" must land somewhere deterministic, and a surface id that
+# collided with a platform id would make that lookup order-dependent.
+# One exception, and only one: a platform may share its id with its OWN primary surface.
+# "cursor" as a platform and "cursor" as the surface a user installs into are the same
+# answer to the same question, and forcing them apart would rename the surface ids that
+# platform-targets.json, every skill's compatibility block, and the adapter directories
+# are keyed by — churn that buys nothing. Any other repeat is genuinely ambiguous.
+dupes="$(jq -r '.platforms | to_entries
+                | map(.key as $pid | .value.primary_surface as $primary
+                      | [ if ((.value.surfaces // {}) | has($pid)) and $pid == $primary
+                          then empty else $pid end ]
+                        + (.value.aliases // [])
+                        + ((.value.surfaces // {}) | to_entries
+                           | map([.key] + (.value.aliases // [])) | flatten))
+                | flatten | .[]' "$REGISTRY_CANONICAL" \
+         | sort | uniq -d)"
+if [[ -n "$dupes" ]]; then
+  while IFS= read -r d; do
+    err "id/alias '$d' is claimed more than once across platforms and surfaces — normalization would be ambiguous"
+  done <<<"$dupes"
+else
+  echo "ok:    platform ids and aliases are collision-free"
+fi
+
+# --- 3c. Frontmatter platform ids resolve into the registry ---
+# Skill frontmatter `compatibility:` keys are kebab-case by frontmatter convention, while
+# registry ids are snake_case. Two namespaces for one concept is a standing drift risk, so
+# assert every frontmatter id resolves through the id+alias table. Read-only on a file
+# owned by the skill-schema contract; absent file is a skip.
+FM_SCHEMA="$ROOT/core/schemas/skill-frontmatter.json"
+if [[ -f "$FM_SCHEMA" ]] && jq -e '.["$defs"].compatibility.propertyNames.enum' "$FM_SCHEMA" >/dev/null 2>&1; then
+  before_fm=$FAILED
+  resolvable="$(jq -r '.platforms | to_entries
+                       | map([.key] + (.value.aliases // [])
+                             + ((.value.surfaces // {}) | to_entries
+                                | map([.key] + (.value.aliases // [])) | flatten))
+                       | flatten | .[]' "$REGISTRY_CANONICAL")"
+  while IFS= read -r fid; do
+    grep -qxF "$fid" <<<"$resolvable" \
+      || err "skill frontmatter allows platform id '$fid', which matches no registry id or alias"
+  done < <(jq -r '.["$defs"].compatibility.propertyNames.enum[]' "$FM_SCHEMA")
+  if (( FAILED == before_fm )); then
+    echo "ok:    every skill-frontmatter platform id resolves to a registry entry"
+  fi
+else
+  echo "skip:  core/schemas/skill-frontmatter.json absent or has no compatibility enum"
+fi
+
+# --- 3d. The two vocabularies remain derivable from one another ---
+# Registry status answers "how does platform P implement capability C?" (a mechanism
+# claim). Skill frontmatter `compatibility:` answers "does skill S work on platform P?"
+# (an outcome claim). They are deliberately different enums; what must hold is that a
+# skill's compatibility is DERIVABLE from the registry, so per-skill tables can be
+# generated rather than hand-asserted. That derivation is this map, and it must stay
+# total in both directions — if either enum grows a value with no counterpart, the
+# derivation is silently undefined, which is exactly the drift this check exists to stop.
+DERIVATION="supported:native,native-experimental,adapter
+partial:partial
+emulated:emulated
+unsupported:unsupported
+unknown:unknown"
+
+if [[ -f "$FM_SCHEMA" ]] && jq -e '.["$defs"].compatibility.additionalProperties.enum' "$FM_SCHEMA" >/dev/null 2>&1; then
+  before_vocab=$FAILED
+  compat_values="$(jq -r '.["$defs"].compatibility.additionalProperties.enum[]' "$FM_SCHEMA")"
+  registry_statuses="$(jq -r '.["$defs"].status.enum[]' "$SCHEMA")"
+  mapped_targets="$(cut -d: -f1 <<<"$DERIVATION")"
+  mapped_sources="$(cut -d: -f2 <<<"$DERIVATION" | tr ',' '\n')"
+
+  # (a) every compatibility value is produced by the derivation
+  while IFS= read -r v; do
+    grep -qxF "$v" <<<"$mapped_targets" \
+      || err "skill compatibility allows '$v', which the derivation table never produces — the mapping in this script needs updating"
+  done <<<"$compat_values"
+
+  # (b) every registry status derives to something
+  while IFS= read -r st; do
+    grep -qxF "$st" <<<"$mapped_sources" \
+      || err "registry status '$st' maps to no compatibility value — a skill on such a platform could not state its compatibility"
+  done <<<"$registry_statuses"
+
+  # (c) the derivation never produces a value the frontmatter schema rejects
+  while IFS= read -r t; do
+    grep -qxF "$t" <<<"$compat_values" \
+      || err "derivation produces compatibility value '$t', which the frontmatter schema does not allow"
+  done <<<"$mapped_targets"
+
+  if (( FAILED == before_vocab )); then
+    echo "ok:    capability statuses and skill-compatibility values are mutually derivable"
+  fi
+else
+  echo "skip:  no compatibility value enum in core/schemas/skill-frontmatter.json"
+fi
+
+# --- 3e. Every command the registry names is actually runnable ---
+# `validation` is the evidence field: it is the answer to "how do you know?" for every
+# native claim, and fallback/notes strings get copy-pasted by users straight off the row.
+# A command naming a Makefile target that does not exist is worse than no command at all
+# — it reads as evidence and fails with "No rule to make target". Nothing checked this
+# until a row shipped `make gemini-adapter-check` against a Makefile whose real target is
+# `gemini-extension-check`.
+#
+# Two passes, because the fields differ in kind. `validation` values ARE commands, so any
+# `make X` in one is a target reference and is checked strictly. Prose fields are not, and
+# a bare-word match there hits ordinary English ("Never make a skill depend on it"), so
+# prose is held to hyphenated targets only — the shape every real target here has.
+before_cmds=$FAILED
+MAKEFILE="$ROOT/Makefile"
+
+check_make_target() {
+  grep -qE "^$1:" "$MAKEFILE" || err "registry names 'make $1' ($2), which is not a target in Makefile"
+}
+
+if [[ -f "$MAKEFILE" ]]; then
+  # Pass 1 — validation fields, strict.
+  while IFS= read -r target; do
+    [[ -n "$target" ]] || continue
+    check_make_target "$target" "a validation command"
+  done < <(
+    jq -r '[ (.platforms[] | .validation.command),
+             (.platforms[].capabilities[] | .validation // empty) ] | .[]' "$REGISTRY" \
+      | grep -oE 'make [a-z][a-z0-9-]*' | awk '{print $2}' | sort -u
+  )
+
+  # Pass 2 — prose fields, hyphenated targets only.
+  while IFS= read -r target; do
+    [[ -n "$target" ]] || continue
+    check_make_target "$target" "named in notes or fallback"
+  done < <(
+    jq -r '[ (.capability_definitions[] | .summary, .degradation // empty),
+             (.platforms[].capabilities[] | .notes // empty, .fallback // empty) ] | .[]' "$REGISTRY" \
+      | grep -oE 'make [a-z][a-z0-9]*(-[a-z0-9]+)+' | awk '{print $2}' | sort -u
+  )
+else
+  echo "skip:  no Makefile — 'make' target references not checked"
+fi
+
+# Script paths are repo-relative; a renamed or unwritten script silently guts the evidence.
+while IFS= read -r script; do
+  [[ -n "$script" ]] || continue
+  [[ -f "$ROOT/$script" ]] || err "registry names '$script', which does not exist in this tree"
+done < <(grep -oE '(scripts|hooks|tests)/[A-Za-z0-9._/-]+\.sh' "$REGISTRY_CANONICAL" | sort -u)
+
+if (( FAILED == before_cmds )); then
+  echo "ok:    every make target and script path the registry names exists"
+fi
+
+# --- 3f. Platform/surface invariants ---
+# The flat view above drops unverified surfaces by design, so nothing else in this script
+# ever looks at one. That is precisely why they need their own pass: an unverified surface
+# is a claim about what was NOT measured, and an unpoliced one drifts into either a silent
+# supported target or a fabricated capability block.
+before_surfaces=$FAILED
+surface_count=0
+while IFS=$'\t' read -r pid sid support; do
+  [[ -n "$sid" ]] || continue
+  surface_count=$(( surface_count + 1 ))
+  case "$support" in
+    supported)
+      [[ "$(jq -r --arg p "$pid" --arg s "$sid" '.platforms[$p].surfaces[$s].capabilities // empty | length' "$REGISTRY_CANONICAL")" != "" ]] \
+        || err "surface '$pid.$sid' is supported but declares no capabilities block"
+      ;;
+    unverified)
+      [[ "$(jq -r --arg p "$pid" --arg s "$sid" '.platforms[$p].surfaces[$s].unverified_reason // empty' "$REGISTRY_CANONICAL")" != "" ]] \
+        || err "surface '$pid.$sid' is unverified with no unverified_reason — say what was not measured, and why the sibling surface's results were not carried over"
+      [[ "$(jq -r --arg p "$pid" --arg s "$sid" '.platforms[$p].surfaces[$s].capabilities // empty' "$REGISTRY_CANONICAL")" == "" ]] \
+        || err "surface '$pid.$sid' is unverified but ships a capabilities block — those rows would be evidence nobody gathered"
+      ;;
+    *)
+      err "surface '$pid.$sid' has support '$support', which is not 'supported' or 'unverified'"
+      ;;
+  esac
+done < <(jq -r '.platforms | to_entries[] | .key as $p
+                | (.value.surfaces // {}) | to_entries[]
+                | "\($p)\t\(.key)\t\(.value.support // "")"' "$REGISTRY_CANONICAL")
+
+# A platform whose reference surface is missing or unverified has no install this repo
+# can point a user at, while still reading as a supported platform everywhere else.
+while IFS=$'\t' read -r pid primary; do
+  [[ -n "$pid" ]] || continue
+  if [[ -z "$primary" ]]; then
+    err "platform '$pid' declares no primary_surface"
+    continue
+  fi
+  st="$(jq -r --arg p "$pid" --arg s "$primary" '.platforms[$p].surfaces[$s].support // "absent"' "$REGISTRY_CANONICAL")"
+  case "$st" in
+    supported) ;;
+    absent)  err "platform '$pid' names primary_surface '$primary', which is not one of its surfaces" ;;
+    *)       err "platform '$pid' names primary_surface '$primary', which is '$st' — a platform's reference surface must be one this repo actually validates" ;;
+  esac
+done < <(jq -r '.platforms | to_entries[] | "\(.key)\t\(.value.primary_surface // "")"' "$REGISTRY_CANONICAL")
+
+if (( FAILED == before_surfaces )); then
+  echo "ok:    $(jq -r '.platforms | length' "$REGISTRY_CANONICAL") platforms, $surface_count surfaces, every support level explicit"
+fi
+
+# --- 3h. Role-declared required capabilities resolve into the schema enum ---
+# core/roles/README.md says required capabilities are "named using keys from
+# core/capabilities/schema.json" -- a convention this script never enforced.
+# Each core/roles/*.md names them as backtick-quoted keys under its own
+# "## Required capabilities" heading (e.g. implementer.md: `shell`, `git`,
+# `worktree_isolation`). Until now nothing resolved that convention against
+# the schema's capabilityKey enum, so a role could reference a typo'd,
+# renamed, or never-added key and this script would still pass -- the
+# schema/platforms.json pair only cross-reference EACH OTHER (see 2 and 3
+# above), never a role's own prose.
+#
+# This closes one real drift vector: a role naming a capability the enum
+# does not have. It does NOT close the general P4 gap. A capability that is
+# referenced NOWHERE structured -- no role file, no skill frontmatter
+# (checked separately by validate-skill-frontmatter.py), no schema enum --
+# is invisible to every check in this repo, because the enum is the only
+# declared vocabulary of "capabilities that exist." That residual gap has no
+# executable check: there is nothing outside the enum to cross-reference it
+# against. dynamic_workflows itself is the proof -- no role file or skill
+# named it by key before it was added, so even this new check would not
+# have caught that specific incident; it catches the narrower, real case of
+# a *named-but-wrong* key, not an *unnamed* one.
+before_roles_cap=$FAILED
+roles_examined=0
+ROLES_DIR="$ROOT/core/roles"
+if [[ -d "$ROLES_DIR" ]]; then
+  enum_keys="$(jq -r '.["$defs"].capabilityKey.enum[]' "$SCHEMA")"
+  for f in "$ROLES_DIR"/*.md; do
+    [[ -f "$f" ]] || continue
+    base="$(basename "$f")"
+    [[ "$base" == "README.md" ]] && continue
+    section="$(awk '/^## Required capabilities/{flag=1; next} /^## /{flag=0} flag' "$f")"
+    [[ -n "$section" ]] || continue
+    while IFS= read -r key; do
+      [[ -n "$key" ]] || continue
+      roles_examined=$(( roles_examined + 1 ))
+      grep -qxF "$key" <<<"$enum_keys" \
+        || err "core/roles/$base's Required capabilities section names \`$key\`, which is not in schema.json's capabilityKey enum"
+    done < <(grep -oE '`[a-z][a-z0-9_]*`' <<<"$section" | tr -d '`' | sort -u)
+  done
+fi
+if (( roles_examined == 0 )); then
+  err "the role-capability scan examined 0 keys -- the query is broken, not the roles clean"
+elif (( FAILED == before_roles_cap )); then
+  echo "ok:    $roles_examined role-declared capability keys (across core/roles/*.md) all resolve to schema.json's enum"
+fi
+
+# --- 4. Every shipped target has a registry entry ---
+if [[ -f "$TARGETS" ]]; then
+  before_targets=$FAILED
+  for t in $(jq -r '(.supported_targets // [])[]' "$TARGETS"); do
+    jq -e --arg t "$t" '.platforms | has($t)' "$REGISTRY" >/dev/null \
+      || err "platform-targets.json ships target '$t' with no entry in core/capabilities/platforms.json"
+  done
+  if (( FAILED == before_targets )); then
+    echo "ok:    every supported_target in platform-targets.json has a registry entry"
+  fi
+else
+  echo "skip:  $TARGETS not found — target cross-check skipped"
+fi
+
+# A validation command that cannot fail is worse than none: the schema requires one
+# for every native claim precisely so the claim is evidence rather than assertion, and
+# a command that exits 0 on every input converts it back into an assertion while
+# looking rigorous. opencode/mcp read `jq -e '.mcp // {}' opencode.json` -- the `// {}`
+# substitutes an empty object when `.mcp` is absent, and `jq -e` only exits non-zero on
+# `false` or `null`, so it returned 0 for every possible file. It named a key
+# opencode.json has never contained, and reported success for three releases.
+#
+# Two mechanical forms are caught, and they are different failures:
+#
+#   (a) CANNOT FAIL. A `//` fallback inside a `jq -e` substitutes a truthy default, so
+#       the command exits 0 on every possible input. Green means nothing.
+#
+#   (b) CANNOT DISTINGUISH. A validation that is *entirely* `jq empty <file>` or
+#       `test -f <file>` can fail -- delete the file and it does -- but it can only fail
+#       for a reason unrelated to the capability it is evidence for. Nine rows read
+#       `jq empty <manifest>`: drop the `skills` key, delete every skill directory, and
+#       they still exit 0, because a manifest with no skills in it is still valid JSON.
+#       codex/mcp read `test -f .codex/config.toml`, a file whose own header comment says
+#       MCP is configured somewhere else, and which passes while empty. Both are the same
+#       defect as (a) seen from one step further out: the command's verdict is decided by
+#       something other than the claim it is attached to.
+#
+# Only the WHOLE command counts as this shape. `jq empty hooks/hooks.json && make
+# test-hooks` and `test -d agents && claude plugin validate .` both open with a file test
+# and then do the real work, which is exactly the right construction.
+#
+# This is still not a general "is this evidence?" judge and does not try to be one. It
+# rejects two shapes that provably are not.
+before_val=$FAILED
+val_examined=0
+while IFS=$'\t' read -r plat surf cap v; do
+  [[ -z "$surf" ]] && continue
+  val_examined=$(( val_examined + 1 ))
+  if [[ "$v" == '>'* || "$v" == '|'* ]]; then
+    err "$plat/$surf $cap is a YAML block scalar this reader cannot flatten, so it was never checked; write it as a single-line plain scalar"
+    continue
+  fi
+  if [[ "$v" == *"jq -e"* ]] && [[ "$v" == *"//"* ]]; then
+    err "$plat/$surf $cap has a validation that cannot fail: \`$v\`. A '//' fallback inside 'jq -e' substitutes a truthy default, so the command exits 0 on every input. Assert the value you mean, or validate something that can actually be absent."
+  fi
+  if [[ "$v" =~ ^[[:space:]]*(jq[[:space:]]+empty|test[[:space:]]+-[fed])[[:space:]]+[^[:space:]\&\|\;]+[[:space:]]*$ ]]; then
+    err "$plat/$surf $cap is validated by \`$v\`, which proves the file exists and parses and nothing about the capability -- it would stay green with the key deleted. Assert what is claimed: 'bash scripts/check-manifest-declares.sh <manifest> <key>' for a manifest-declared capability, or chain the file test to a command that exercises it."
+  fi
+done < <(jq -r '
+  .platforms | to_entries[] | .key as $p | (.value.surfaces // {}) | to_entries[] | .key as $s
+  | [ ( (.value.capabilities // {}) | to_entries[]
+        | select(.value.validation != null)
+        | [$p, $s, "capability '"'"'\(.key)'"'"'", .value.validation] ),
+      ( .value | select(.validation.command != null)
+        | [$p, $s, "surface validation", .validation.command] ) ]
+  | .[] | @tsv' "$REGISTRY_CANONICAL"
+  # Same rule, second home. platforms/*/adapter.yaml carries its own
+  # `validation.command`, and the only thing asserting it today is a test that checks it
+  # is non-empty. Two of them read `jq empty <manifest>` -- the identical defect, in the
+  # file this scan did not look at. A rule that polices one copy of a claim and not the
+  # other does not remove the class, it relocates it.
+  for y in "$ROOT"/platforms/*/adapter.yaml; do
+    [[ -f "$y" ]] || continue
+    aid="$(basename "$(dirname "$y")")"
+    acmd="$(awk '/^validation:/{inv=1;next} inv && /^[^[:space:]]/{inv=0} inv && /^  command:/{sub(/^  command:[[:space:]]*/,"");print;exit}' "$y")"
+    # A folded or block scalar (`>-`, `|`) hands this reader a marker instead of a
+    # command. It is emitted verbatim rather than diagnosed here: this producer runs in a
+    # SUBSHELL, so an `err` call inside it increments a copy of FAILED that dies with the
+    # subshell -- the message would print and the script would still exit 0, which is the
+    # exact defect this whole section exists to reject. The consumer, which runs in this
+    # shell, does the diagnosing.
+    [[ -n "$acmd" ]] && printf '%s\tadapter.yaml\tsurface validation\t%s\n' "$aid" "$acmd"
+  done)
+if (( val_examined == 0 )); then
+  err "the validation-command scan examined 0 rows -- the query is broken, not the registry clean"
+elif (( FAILED == before_val )); then
+  echo "ok:    all $val_examined validation commands (registry + platforms/*/adapter.yaml) can fail, and fail for the right reason"
+fi
+
+# --- 3g. No row may cite the file this file generates ---
+# platform-targets.json's per-target `capabilities` array is a DERIVED mirror of this
+# registry -- scripts/check-platform-targets.sh says so in its own header, and
+# --sync-capabilities is what writes it. So a note reading "'agents' is a declared
+# capability in platform-targets.json" is not evidence for anything: mark the row native
+# here, the sync copies the key over there, and the note then points at the copy. Three
+# rows were held up by exactly this loop, and one of them (codex/subagents) turned out to
+# name a manifest field the upstream spec does not define.
+#
+# Mechanical form only, deliberately: the assertive phrasings that present that file as
+# the source of a capability claim. A note that DISCUSSES the circularity, or cites the
+# file for what it legitimately owns -- which version was validated against -- is fine.
+before_circ=$FAILED
+circ_examined=0
+while IFS=$'\t' read -r plat surf cap text; do
+  [[ -z "$surf" ]] && continue
+  circ_examined=$(( circ_examined + 1 ))
+  if [[ "$text" =~ [Dd]eclared\ (capability\ )?in\ platform-targets\.json ]]; then
+    err "$plat/$surf capability '$cap' cites platform-targets.json as the source of the claim. That file's capabilities array is GENERATED from this registry, so the row is citing itself. Cite the upstream manifest spec or vendor doc, or run something that shows the capability is delivered."
+  fi
+done < <(jq -r '
+  .platforms | to_entries[] | .key as $p | (.value.surfaces // {}) | to_entries[] | .key as $s
+  | (.value.capabilities // {}) | to_entries[]
+  | [$p, $s, .key, ((.value.notes // "") + " " + (.value.fallback // "") + " " + (.value.since_source // ""))]
+  | @tsv' "$REGISTRY_CANONICAL")
+if (( circ_examined == 0 )); then
+  err "the circular-citation scan examined 0 rows -- the query is broken, not the registry clean"
+elif (( FAILED == before_circ )); then
+  echo "ok:    $circ_examined rows checked, none cites the file this registry generates"
+fi
+
+# A `since` ahead of the version anyone actually ran is a documentation claim, not
+# a measurement, and it must say which document. This exists because codex/hooks
+# carried `since: 0.147.0` while codex was validated against 0.146.0 -- and 0.147.0
+# was not the hooks version at all. It had been copied from the features_adopted
+# entry sitting next to it (portable-agent-plugins-0.147.0, an unrelated change),
+# while the hooks-field entry beside THAT is unversioned exactly because nobody
+# established a floor. Nothing could tell a borrowed version from an established
+# one, so the borrowed one read as fact.
+#
+# Read REGISTRY_CANONICAL, not REGISTRY: above, REGISTRY is reassigned to the
+# FLATTENED temp copy for schema_version >= 2, and the flattened shape has no
+# .platforms[].surfaces, so this query returns nothing there. That is not a
+# hypothetical -- the first draft of this check read $REGISTRY, jq failed with
+# "null has no keys", the loop received zero rows, and the check reported ok.
+#
+# The join is surface -> target: the registry keys platforms as `claude`/`gemini`
+# while platform-targets.json keys them `claude_code`/`gemini_cli`. Joining on the
+# platform key finds no target for 14 of the 21 rows carrying a `since`. Surfaces
+# with no target entry are reported by name rather than skipped in silence.
+if [[ -f "$TARGETS" ]]; then
+  before_since=$FAILED
+  unchecked=""
+  examined=0
+  if ! since_rows="$(jq -r '
+      .platforms | to_entries[] | .key as $p | (.value.surfaces // {}) | to_entries[] | .key as $s
+      | (.value.capabilities // {}) | to_entries[]
+      | select(.value.since != null)
+      | [$p, $s, .key, .value.since, (.value.since_source // "")] | @tsv' \
+      "$REGISTRY_CANONICAL" 2>&1)"; then
+    err "could not enumerate capability 'since' values from $REGISTRY_CANONICAL: $since_rows"
+    since_rows=""
+  fi
+  while IFS=$'\t' read -r plat surf cap since src; do
+    [[ -z "$surf" ]] && continue
+    examined=$(( examined + 1 ))
+    validated="$(jq -r --arg s "$surf" '.targets[$s].validated_against // empty' "$TARGETS")"
+    if [[ -z "$validated" ]]; then
+      unchecked="$unchecked $plat/$surf.$cap"
+      continue
+    fi
+    # sort -V puts the greater version last; equal versions are fine.
+    if [[ "$since" != "$validated" ]] \
+       && [[ "$(printf '%s\n%s\n' "$since" "$validated" | sort -V | tail -1)" == "$since" ]] \
+       && [[ -z "$src" ]]; then
+      err "$plat/$surf capability '$cap' claims since=$since, ahead of ${surf}'s validated_against=$validated in platform-targets.json, with no since_source. Either record where that version came from, or drop the claim."
+    fi
+  done <<< "$since_rows"
+  # Zero rows means the query broke, not that the registry is clean: the file
+  # ships capability rows with a `since` and always has. Reporting ok on an empty
+  # read is the exact failure this check exists to prevent, so refuse to.
+  if (( examined == 0 )); then
+    err "the capability 'since' scan examined 0 rows -- the query is broken, not the registry clean"
+  fi
+  if (( FAILED == before_since )); then
+    echo "ok:    all $examined capability 'since' values are validated-against-backed or carry a since_source"
+  fi
+  [[ -n "$unchecked" ]] && echo "note:  no platform-targets entry, 'since' unchecked for:$unchecked"
+fi
+
+# --- 5. The registry's own review clock ---
+# platforms.json carries last_reviewed and, until now, nothing compared it to a date:
+# check-platform-targets.sh, check-feature-equivalence.sh and lib/registry.sh each read the
+# field only to copy it into a fact block. The repo therefore policed the review clock on
+# platform-targets.json (V1-05, 90 days) and left the clock on the registry -- the file
+# that actually makes the capability claims -- running unread. A convention with no
+# executable check decays wherever nobody looks.
+#
+# 90 days is deliberately the same budget V1-05 already applies, so the repo's two review
+# clocks run on one policy rather than two.
+registry_reviewed="$(jq -r '.last_reviewed // empty' "$REGISTRY")"
+if [[ -z "$registry_reviewed" ]]; then
+  # schema.json does not list last_reviewed as required, so absence is reachable and has
+  # to fail here. Otherwise deleting the field is the cheapest way to pass this check.
+  err "core/capabilities/platforms.json has no last_reviewed -- the registry's claims carry no date, so nothing can tell a current review from an abandoned one"
+elif cutoff="$(date -v-90d +%Y-%m-%d 2>/dev/null)" || cutoff="$(date -d '90 days ago' +%Y-%m-%d 2>/dev/null)"; then
+  today="$(date +%Y-%m-%d)"
+  if [[ "$registry_reviewed" < "$cutoff" ]]; then
+    err "registry last_reviewed ($registry_reviewed) is older than 90 days (cutoff $cutoff). Re-check the capability rows against the platforms they describe, then bump the date."
+  elif [[ "$registry_reviewed" > "$today" ]]; then
+    # A forward-dated review satisfies any freshness check forever without anyone reviewing.
+    err "registry last_reviewed ($registry_reviewed) is in the future (today $today)"
+  else
+    echo "ok:    registry last_reviewed ($registry_reviewed) is within the 90-day budget"
+  fi
+else
+  err "could not compute a 90-day cutoff with either date(1) dialect, so registry freshness went unverified -- failing rather than reporting a check that never ran"
+fi
+
+# --- 6. Per-row staleness SLA ---
+# last_reviewed (above) is one date for the whole file; it says the registry was looked
+# at, not that any particular row was re-checked. last_verified is the per-capability
+# counterpart: each row states when ITS claim was last confirmed against the platform it
+# describes. Same 90-day budget as last_reviewed, so the file carries one policy at two
+# granularities rather than two policies.
+before_stale=$FAILED
+stale_examined=0
+if cutoff90="$(date -v-90d +%Y-%m-%d 2>/dev/null)" || cutoff90="$(date -d '90 days ago' +%Y-%m-%d 2>/dev/null)"; then
+  today90="$(date +%Y-%m-%d)"
+  while IFS=$'\t' read -r plat surf cap lv; do
+    [[ -z "$surf" ]] && continue
+    stale_examined=$(( stale_examined + 1 ))
+    if [[ -z "$lv" ]]; then
+      err "$plat/$surf capability '$cap' has no last_verified -- deleting the field is the cheapest way to dodge the staleness SLA, so absence fails too"
+    elif [[ "$lv" > "$today90" ]]; then
+      err "$plat/$surf capability '$cap' has last_verified ($lv) in the future (today $today90)"
+    elif [[ "$lv" < "$cutoff90" ]]; then
+      err "$plat/$surf capability '$cap' has last_verified ($lv), older than 90 days (cutoff $cutoff90) -- re-check this row against the platform it describes, then bump the date"
+    fi
+  done < <(jq -r '
+    .platforms | to_entries[] | .key as $p | (.value.surfaces // {}) | to_entries[] | .key as $s
+    | (.value.capabilities // {}) | to_entries[]
+    | [$p, $s, .key, (.value.last_verified // "")] | @tsv' "$REGISTRY_CANONICAL")
+  if (( stale_examined == 0 )); then
+    err "the per-row staleness scan examined 0 rows -- the query is broken, not the registry clean"
+  elif (( FAILED == before_stale )); then
+    echo "ok:    all $stale_examined capability rows have a last_verified within the 90-day budget"
+  fi
+else
+  err "could not compute a 90-day cutoff with either date(1) dialect, so per-row staleness went unverified -- failing rather than reporting a check that never ran"
+fi
+
+if (( FAILED > 0 )); then
+  echo "Capability registry check FAILED ($FAILED error(s))." >&2
+  exit 1
+fi
+echo "Capability registry check passed."

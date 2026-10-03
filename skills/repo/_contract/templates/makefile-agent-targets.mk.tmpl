@@ -1,0 +1,58 @@
+# Multi-agent + platform-target validation (copy into consumer Makefile or include).
+# Agents run these targets — users should not run bash scripts directly.
+
+.PHONY: check-agent-drift check-feature-equivalence check-platform-targets \
+	check-action-pinning check-capability-registry platform-targets-sync platform-targets-sync-capabilities \
+	platform-targets-assert platform-targets-cochange \
+	agent\:check agent-polish-gate assert-contract repo-standards-gate
+
+check-agent-drift:
+	bash scripts/check-agent-drift.sh .
+
+check-feature-equivalence:
+	bash scripts/check-feature-equivalence.sh .
+
+check-platform-targets:
+	bash scripts/check-platform-targets.sh .
+
+# A movable action ref (`@v7`, `@main`) is a third party's write access to this
+# repo's CI. Shipped here, not left for each scaffolded repo to reinvent, after
+# the same detector bugs (unrecursed file walk, YAML read as prose) were
+# independently found and fixed in six separate personal repos.
+check-action-pinning:
+	bash scripts/check-action-pinning.sh .
+
+# Optional: present once the repo ships a capability registry checker. Degrades rather
+# than failing so a repo can adopt core/capabilities/platforms.json before the checker.
+check-capability-registry:
+	@if [ -f scripts/check-capability-registry.sh ]; then \
+	  bash scripts/check-capability-registry.sh .; \
+	else \
+	  echo "  scripts/check-capability-registry.sh absent — registry agreement still enforced by check-feature-equivalence"; \
+	fi
+
+platform-targets-sync:
+	bash scripts/check-platform-targets.sh . --sync
+
+# Regenerate the derived capability mirror in platform-targets.json from
+# core/capabilities/platforms.json. Never hand-edit those two fields.
+platform-targets-sync-capabilities:
+	bash scripts/check-platform-targets.sh . --sync-capabilities
+
+platform-targets-assert:
+	bash scripts/check-platform-targets.sh . --assert-current
+
+platform-targets-cochange:
+	bash scripts/check-platform-targets.sh . --require-co-change
+
+agent\:check: check-agent-drift check-feature-equivalence check-platform-targets check-action-pinning
+
+# Polish exit gate — agent runs after updating platform-targets.json + README badges
+agent-polish-gate: platform-targets-sync platform-targets-assert agent\:check
+
+# repo-standards phase 7 exit — use --manifests-only on release PRs before tag exists
+assert-contract:
+	@PROFILE=$$(bash skills/repo/_contract/scripts/detect-contract-profile.sh . 2>/dev/null || echo app-gold); \
+	bash skills/repo/_contract/scripts/assert-contract.sh . "$$PROFILE" --manifests-only
+
+repo-standards-gate: agent-polish-gate assert-contract

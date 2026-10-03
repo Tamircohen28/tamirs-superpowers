@@ -1,0 +1,85 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
+  "name": "tamirs-superpowers",
+  "displayName": "Tamir's Superpowers",
+  "version": "4.11.0",
+  "description": "29 bundled skills, 10 specialist agents, smart worktree hooks, statusline, and MCP server stubs — plan, implement, review, debug, multi-agent setup, and audit code from one plugin.",
+  "homepage": "https://github.com/Tamircohen28/tamirs-superpowers",
+  "repository": "https://github.com/Tamircohen28/tamirs-superpowers",
+  "documentationUrl": "https://github.com/Tamircohen28/tamirs-superpowers/blob/master/docs/user/install/claude-code.md",
+  "supportUrl": "https://github.com/Tamircohen28/tamirs-superpowers/issues",
+  "privacyPolicyUrl": "https://github.com/Tamircohen28/tamirs-superpowers/blob/master/PRIVACY.md",
+  "author": {
+    "name": "Tamir Cohen",
+    "url": "https://github.com/Tamircohen28"
+  },
+  "keywords": [
+    "skills",
+    "hooks",
+    "developer-tools",
+    "mcp",
+    "claude-code",
+    "worktree",
+    "workflow"
+  ],
+  "license": "MIT",
+  "types": "./mod/types/index.d.ts",
+  "defaultEnabled": true,
+  "mcpServers": "./.mcp.json",
+  "skills": [
+    "./skills/creative",
+    "./skills/debugging",
+    "./skills/dev-workflow",
+    "./skills/documentation",
+    "./skills/mcp",
+    "./skills/toolkit",
+    "./skills/repo"
+  ],
+  "settings": {
+    "statusLine": {
+      "type": "command",
+      "command": "s=\"${CLAUDE_PLUGIN_ROOT:-}/scripts/statusline.sh\"; [ -f \"$s\" ] || s=$(ls $HOME/.claude/plugins/cache/tamirs-marketplace/tamirs-superpowers/*/scripts/statusline.sh 2>/dev/null | sort -rV | head -1); [ -n \"$s\" ] && [ -f \"$s\" ] && bash \"$s\""
+    }
+  },
+  "userConfig": {
+    "github_token": {
+      "type": "string",
+      "title": "GitHub token for the bundled github MCP server",
+      "description": "Optional. A GitHub personal access token with repo scope (gh auth token prints the gh CLI's). Leave blank to keep the github MCP server off - it refuses to start without one and nothing else needs it.",
+      "sensitive": true
+    },
+    "pushover_token": {
+      "type": "string",
+      "title": "Pushover application token",
+      "description": "Optional. From your Pushover application at pushover.net/apps. Leave blank to keep phone notifications off - the notification hook stays silent when unconfigured.",
+      "sensitive": true
+    },
+    "pushover_user": {
+      "type": "string",
+      "title": "Pushover user key",
+      "description": "Optional. Your Pushover user key from pushover.net. Required only if you set an application token above.",
+      "sensitive": true
+    },
+    "rate_limit_warn_percent": {
+      "type": "number",
+      "title": "Rate-limit warning threshold (%)",
+      "description": "The mod shows a band above the prompt with a one-press handoff once any rate-limit window (5h, 7d, spend) reaches this percentage. Claude Code and Claude Desktop only.",
+      "default": 85,
+      "min": 50,
+      "max": 100
+    },
+    "pushover_min_turn_seconds": {
+      "type": "number",
+      "title": "Pushover: notify after turns longer than (seconds)",
+      "description": "With pushover_token and pushover_user set, the mod sends a Pushover message when a main-session turn longer than this finishes or dies on an API error. 0 notifies on every turn. Claude Code and Claude Desktop only.",
+      "default": 120,
+      "min": 0
+    },
+    "semantic_skill_suggest": {
+      "type": "boolean",
+      "title": "Semantic skill suggestions (one small-model call per long prompt)",
+      "description": "Off by default. When on, prompts of 12+ words are classified by a small model against the bundled skill names and a matching skill is named to Claude as context. hooks/skill-suggest.sh's keyword matching stays on either way.",
+      "default": false
+    }
+  }
+}

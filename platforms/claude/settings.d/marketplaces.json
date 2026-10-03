@@ -1,0 +1,24 @@
+{
+  "_comment": "extraKnownMarketplaces, github sources only. The gitkraken entry present on the live machine is EXCLUDED: its source is a local directory under ~/.claude/plugins/marketplaces/gitkraken, which does not exist on another machine and would make the settings file unportable. It is installed by the GitKraken tooling itself, not by this repo.",
+  "extraKnownMarketplaces": {
+    "claude-plugins-official": {
+      "source": {
+        "source": "github",
+        "repo": "anthropics/claude-plugins-official"
+      }
+    },
+    "tamirs-marketplace": {
+      "source": {
+        "source": "github",
+        "repo": "Tamircohen28/tamirs-marketplace"
+      },
+      "autoUpdate": true
+    },
+    "claude-code-warp": {
+      "source": {
+        "source": "github",
+        "repo": "warpdotdev/claude-code-warp"
+      }
+    }
+  }
+}

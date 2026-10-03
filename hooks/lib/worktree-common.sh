@@ -1,0 +1,750 @@
+#!/usr/bin/env bash
+# Shared helpers for Make-worktree-in-~/.claude/worktrees session workflow.
+
+WORKTREE_ROOT="${HOME}/.claude/worktrees"
+SESSION_STATE_DIR="${HOME}/.claude/session-state"
+SESSION_FILES_ARCHIVE="${HOME}/.claude/session-files"
+WORKTREE_RETENTION_DAYS="${WORKTREE_RETENTION_DAYS:-3}"
+
+# Always emits a single line: newlines are folded to spaces BEFORE the
+# line-oriented sed/cut stages, otherwise a multi-line prompt yields a
+# multi-line "slug" that poisons every derived path and branch name.
+slugify_text() {
+  local text="$1"
+  local max_len="${2:-48}"
+  printf '%s' "$text" \
+    | tr '\n\r\t' '   ' \
+    | tr '[:upper:]' '[:lower:]' \
+    | sed -E 's/^[[:space:]]+//; s/[[:space:]]+$//' \
+    | sed -E 's/[^a-z0-9]+/-/g; s/-+/-/g; s/^-//; s/-$//' \
+    | cut -c1-"$max_len" \
+    | sed -E 's/-+$//'
+}
+
+session_state_path() {
+  local session_id="$1"
+  echo "${SESSION_STATE_DIR}/${session_id}.json"
+}
+
+load_session_state() {
+  local session_id="$1"
+  local path
+  path="$(session_state_path "$session_id")"
+  if [[ -f "$path" ]]; then
+    cat "$path"
+  else
+    echo '{}'
+  fi
+}
+
+save_session_state() {
+  local session_id="$1"
+  local json="$2"
+  mkdir -p "$SESSION_STATE_DIR"
+  echo "$json" > "$(session_state_path "$session_id")"
+}
+
+# is_git_repo [dir] — true when dir is inside a git repository.
+#
+# An EXPLICIT empty argument is false, not "use the current directory". The
+# `${1:-.}` default exists for callers that pass nothing at all, but a hook
+# reading `.cwd` from a malformed or absent payload passes an empty STRING —
+# and silently reinterpreting that as "wherever this process happens to be
+# running" is how a hook ends up creating a branch and a worktree in the
+# developer's real checkout instead of doing nothing. Absent input must mean
+# "I don't know", never "here".
+is_git_repo() {
+  if [[ $# -gt 0 && -z "$1" ]]; then
+    return 1
+  fi
+  local dir="${1:-.}"
+  git -C "$dir" rev-parse --git-dir >/dev/null 2>&1
+}
+
+repo_root_for() {
+  local dir="$1"
+  git -C "$dir" rev-parse --show-toplevel 2>/dev/null
+}
+
+repo_name_for() {
+  basename "$(repo_root_for "$1")"
+}
+
+is_global_worktree_path() {
+  local path="$1"
+  [[ "$path" == "${WORKTREE_ROOT}/"* ]]
+}
+
+# True when dir is inside a REGISTERED git worktree that lives under a
+# .claude/worktrees/ directory — either the ~/.claude/worktrees/<repo>/<slug>
+# layout or Claude Code's native <repo>/.claude/worktrees/<name> layout — and
+# is checked out on a session branch (wt/* or claude/*). Such a worktree is a
+# dedicated session workspace regardless of whether its name matches a slug
+# rebuilt from session state, so enforcement must not string-match paths.
+is_registered_claude_worktree() {
+  local dir="$1"
+  local top branch
+  top="$(git -C "$dir" rev-parse --show-toplevel 2>/dev/null)" || return 1
+  case "$top" in
+    "${WORKTREE_ROOT}"/*) ;;
+    */.claude/worktrees/*) ;;
+    *) return 1 ;;
+  esac
+  # A linked (registered) worktree has a .git FILE at its top level; the main
+  # checkout has a .git directory. An unregistered/pruned copy fails rev-parse.
+  [[ -f "${top}/.git" ]] || return 1
+  branch="$(git -C "$dir" symbolic-ref --quiet --short HEAD 2>/dev/null)" || return 1
+  case "$branch" in
+    wt/*|claude/*) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+# Both refuse an empty slug rather than composing a path or branch around the
+# gap. `wt/` and `<root>/<repo>/` are not degraded names, they are different
+# things entirely — and a caller that reached here with nothing has a bug the
+# caller must handle, not one to paper over with a placeholder. This is the
+# last line of defence behind the callers' own guards: the observed leak was a
+# `wt/session-` branch built from a slug that carried no information at all.
+worktree_path_for() {
+  local repo_name="$1"
+  local task_slug="$2"
+  [[ -n "$repo_name" && -n "$task_slug" ]] || return 1
+  echo "${WORKTREE_ROOT}/${repo_name}/${task_slug}"
+}
+
+branch_name_for() {
+  local task_slug="$1"
+  [[ -n "$task_slug" ]] || return 1
+  echo "wt/${task_slug}"
+}
+
+resolve_worktree_base_ref() {
+  local repo_root="$1"
+  local base_ref="${CLAUDE_WORKTREE_BASE_REF:-fresh}"
+
+  if [[ "$base_ref" == "head" ]]; then
+    git -C "$repo_root" rev-parse HEAD
+    return
+  fi
+
+  local default_branch
+  default_branch="$(git -C "$repo_root" symbolic-ref --quiet refs/remotes/origin/HEAD 2>/dev/null | sed 's|^refs/remotes/origin/||')"
+  if [[ -n "$default_branch" ]] && git -C "$repo_root" rev-parse "origin/${default_branch}" >/dev/null 2>&1; then
+    echo "origin/${default_branch}"
+    return
+  fi
+
+  git -C "$repo_root" rev-parse HEAD
+}
+
+# Copy gitignored files matching a pattern from the repo into the worktree.
+# Tracked files already exist in the worktree via git; .worktreeinclude exists
+# to bring across gitignored files (.env.local, credentials, build caches).
+# Supports a trailing-slash directory pattern, a single file, or a glob.
+copy_pattern_if_gitignored() {
+  local repo_root="$1"
+  local worktree_path="$2"
+  local pattern="$3"
+  local rel
+
+  if [[ "$pattern" == */ ]]; then
+    pattern="${pattern%/}"
+    while IFS= read -r rel; do
+      [[ -z "$rel" ]] && continue
+      mkdir -p "$(dirname "${worktree_path}/${rel}")"
+      cp -f "${repo_root}/${rel}" "${worktree_path}/${rel}" 2>/dev/null || true
+    done < <(git -C "$repo_root" ls-files -oi --exclude-standard -- "${pattern}" "${pattern}/**" 2>/dev/null || true)
+    return 0
+  fi
+
+  if [[ -f "${repo_root}/${pattern}" ]] && git -C "$repo_root" check-ignore -q "$pattern" 2>/dev/null; then
+    mkdir -p "$(dirname "${worktree_path}/${pattern}")"
+    cp -f "${repo_root}/${pattern}" "${worktree_path}/${pattern}" 2>/dev/null || true
+    return 0
+  fi
+
+  while IFS= read -r rel; do
+    [[ -z "$rel" ]] && continue
+    mkdir -p "$(dirname "${worktree_path}/${rel}")"
+    cp -f "${repo_root}/${rel}" "${worktree_path}/${rel}" 2>/dev/null || true
+  done < <(git -C "$repo_root" ls-files -oi --exclude-standard -- "$pattern" 2>/dev/null || true)
+}
+
+# Apply .worktreeinclude patterns. Reads global defaults first
+# (~/.claude/defaults/worktreeinclude), then the repo-level .worktreeinclude,
+# so a repo can extend the global set.
+copy_worktreeinclude_files() {
+  local repo_root="$1"
+  local worktree_path="$2"
+  local include_file
+
+  for include_file in "${HOME}/.claude/defaults/worktreeinclude" "${repo_root}/.worktreeinclude"; do
+    [[ -f "$include_file" ]] || continue
+    while IFS= read -r pattern || [[ -n "$pattern" ]]; do
+      [[ -z "$pattern" || "$pattern" =~ ^[[:space:]]*# ]] && continue
+      pattern="${pattern%%#*}"
+      pattern="$(echo "$pattern" | sed 's/^[[:space:]]*//; s/[[:space:]]*$//')"
+      [[ -z "$pattern" ]] && continue
+      copy_pattern_if_gitignored "$repo_root" "$worktree_path" "$pattern"
+    done < "$include_file"
+  done
+}
+
+# Deterministic dev-server port (3100-9999) derived from the branch name, so
+# parallel worktrees don't collide on the same port.
+hash_port_for_branch() {
+  local branch="$1"
+  local hash
+  hash="$(printf '%s' "$branch" | md5 2>/dev/null | tr -dc '0-9' | head -c 5)"
+  if [[ -z "$hash" ]]; then
+    hash="$(printf '%s' "$branch" | cksum | tr -dc '0-9' | head -c 5)"
+  fi
+  echo $(( (10#${hash:-12345} % 6900) + 3100 ))
+}
+
+# Write a per-worktree DEV_PORT into .env.local (without clobbering an existing one).
+# Only writes when .env.local is gitignored or already exists — avoids leaving an
+# untracked file that would block cleanup_stale_worktrees' porcelain check.
+write_worktree_env_local() {
+  local worktree_path="$1"
+  local branch_name="$2"
+  local port
+  port="$(hash_port_for_branch "$branch_name")"
+
+  local env_local="${worktree_path}/.env.local"
+  if [[ -f "$env_local" ]]; then
+    grep -q '^DEV_PORT=' "$env_local" 2>/dev/null || echo "DEV_PORT=${port}" >> "$env_local"
+  elif git -C "$worktree_path" check-ignore -q .env.local 2>/dev/null; then
+    echo "DEV_PORT=${port}" > "$env_local"
+  fi
+}
+
+# --------------------------------------------------------- dependency setup ---
+#
+# WHY THIS IS CONFIGURABLE AND CAPPED
+#   One prompt used to mean one worktree, so one install. Under the objective
+#   model an orchestrator can stand up a dozen worker worktrees for the same
+#   objective at once, and the naive version of this function would then run a
+#   dozen simultaneous `npm ci` against the same lockfile — each one a full
+#   dependency tree on disk and all of them competing for the same CPU, network
+#   and package-manager cache locks. The install is also entirely optional: it
+#   is a convenience, never a correctness requirement.
+#
+#   So: it can be switched off, it reuses one shared package-manager cache
+#   across worktrees, it skips when the lockfiles have not changed since the
+#   last successful install in that worktree, and no more than
+#   SUPERPOWERS_MAX_CONCURRENT_INSTALLS run at once.
+#
+# ENVIRONMENT
+#   SUPERPOWERS_WORKTREE_INSTALL_DEPS   auto (default) | 0/false/off/no to disable
+#   SUPERPOWERS_MAX_CONCURRENT_INSTALLS max simultaneous installers (default 2)
+#   SUPERPOWERS_INSTALL_SLOT_WAIT       seconds to wait for a slot (default 300)
+#   SUPERPOWERS_PKG_CACHE_DIR           shared package-manager cache root
+#                                       (default ~/.claude/cache/pkg)
+
+# The stamp lives in the worktree's private git directory, NOT in the tree: an
+# untracked file at the top level makes `git status --porcelain` non-empty,
+# which is exactly the signal cleanup_stale_worktrees uses to decide a worktree
+# still holds work — a stamp in the tree would quietly disable stale cleanup.
+WORKTREE_DEPS_STAMP="superpowers-deps"
+PKG_CACHE_DIR="${SUPERPOWERS_PKG_CACHE_DIR:-${HOME}/.claude/cache/pkg}"
+INSTALL_SLOT_DIR="${PKG_CACHE_DIR}/.slots"
+
+# Path of the install stamp for a worktree — inside its git dir, falling back
+# to the tree only when git cannot answer (an unregistered directory).
+worktree_deps_stamp_path() {
+  local worktree_path="$1" gitdir
+  gitdir="$(git -C "$worktree_path" rev-parse --absolute-git-dir 2>/dev/null || true)"
+  if [[ -n "$gitdir" && -d "$gitdir" ]]; then
+    printf '%s/%s' "$gitdir" "$WORKTREE_DEPS_STAMP"
+  else
+    printf '%s/.%s' "${worktree_path%/}" "$WORKTREE_DEPS_STAMP"
+  fi
+}
+
+worktree_deps_enabled() {
+  case "$(printf '%s' "${SUPERPOWERS_WORKTREE_INSTALL_DEPS:-auto}" | tr '[:upper:]' '[:lower:]')" in
+    0|false|off|no|never|disabled) return 1 ;;
+    *) return 0 ;;
+  esac
+}
+
+# A single digest over every lockfile present. Any dependency change moves it;
+# nothing else does, so an unchanged digest is a safe skip.
+# Digest of every lockfile present, or EMPTY when the worktree has none.
+#
+# Emptiness matters: run_worktree_post_setup skips the install when the digest
+# matches the stamp, and hashing an empty stream yields a CONSTANT digest. So a
+# repo with no lockfile at all used to produce the same non-empty hash forever
+# — the first create stamped it and every later create "matched" and skipped,
+# whether or not anything had been installed. No lockfile means no basis for
+# claiming the deps are unchanged, and that must read as "unknown", not "same".
+worktree_lockfile_hash() {
+  local worktree_path="$1" f found=0
+  local files=(
+    package-lock.json yarn.lock pnpm-lock.yaml bun.lockb bun.lock deno.lock
+    poetry.lock uv.lock Pipfile.lock requirements.txt
+    Cargo.lock go.sum Gemfile.lock composer.lock mix.lock
+  )
+  for f in "${files[@]}"; do
+    [[ -f "${worktree_path}/${f}" ]] && found=1
+  done
+  (( found )) || return 0
+  {
+    for f in "${files[@]}"; do
+      [[ -f "${worktree_path}/${f}" ]] && printf '%s ' "$f" && cat "${worktree_path}/${f}"
+    done
+  } 2>/dev/null | { shasum -a 256 2>/dev/null || sha256sum 2>/dev/null || cksum; } | awk '{print $1}'
+}
+
+# Slots are directories: mkdir is atomic on every filesystem this runs on, and
+# unlike a counter file it cannot drift when an installer is killed — a slot
+# whose holder is gone is reclaimed by age.
+_acquire_install_slot() {
+  local max="${SUPERPOWERS_MAX_CONCURRENT_INSTALLS:-2}"
+  local wait_left="${SUPERPOWERS_INSTALL_SLOT_WAIT:-300}"
+  local i slot now mtime
+  mkdir -p "$INSTALL_SLOT_DIR" 2>/dev/null || return 1
+
+  # Attempt-then-wait, not wait-then-attempt: a caller with a zero wait budget
+  # is asking "is a slot free right now", and must still get an answer.
+  while :; do
+    for ((i = 0; i < max; i++)); do
+      slot="${INSTALL_SLOT_DIR}/slot-${i}"
+      if mkdir "$slot" 2>/dev/null; then
+        printf '%s' "$slot"
+        return 0
+      fi
+      # Reclaim a slot abandoned by a killed installer.
+      mtime="$(stat -f %m "$slot" 2>/dev/null || stat -c %Y "$slot" 2>/dev/null || echo 0)"
+      now="$(date +%s)"
+      if ((now - mtime > 3600)); then
+        rmdir "$slot" 2>/dev/null || true
+      fi
+    done
+    ((wait_left > 0)) || return 1
+    sleep 5
+    wait_left=$((wait_left - 5))
+  done
+}
+
+_release_install_slot() {
+  [[ -n "${1:-}" ]] && rmdir "$1" 2>/dev/null || true
+}
+
+# Point every package manager at one shared cache, so N worktrees download a
+# package once rather than N times.
+_export_shared_pkg_cache() {
+  mkdir -p "${PKG_CACHE_DIR}" 2>/dev/null || return 0
+  export npm_config_cache="${PKG_CACHE_DIR}/npm"
+  export YARN_CACHE_FOLDER="${PKG_CACHE_DIR}/yarn"
+  export PNPM_STORE_DIR="${PKG_CACHE_DIR}/pnpm"
+  export POETRY_CACHE_DIR="${PKG_CACHE_DIR}/poetry"
+  export PIP_CACHE_DIR="${PKG_CACHE_DIR}/pip"
+}
+
+# Install dependencies in a freshly created worktree, matching the project's
+# package manager. Skips when node_modules is already present (e.g. symlinked),
+# when deps are disabled, or when the lockfile digest matches the last
+# successful install. Logs to session-files/worktree-setup.log; never fatal.
+# The setup log is OUR artifact, not the user's work. Left visible to git it
+# shows up in `git status --porcelain`, and worktree-remove.sh reads a non-empty
+# porcelain as "uncommitted changes — not removed" — so a worktree would refuse
+# to be cleaned up because of a file this function wrote. A per-worktree
+# .git/info/exclude entry hides it without touching the repo's tracked
+# .gitignore. (Latent before this change; unmissable now that the log always
+# records an outcome, including "nothing to install".)
+_exclude_session_files() {
+  local worktree_path="$1" exclude
+  exclude="$(git -C "$worktree_path" rev-parse --git-path info/exclude 2>/dev/null || true)"
+  [[ -n "$exclude" ]] || return 0
+  case "$exclude" in /*) : ;; *) exclude="${worktree_path}/${exclude}" ;; esac
+  mkdir -p "$(dirname "$exclude")" 2>/dev/null || return 0
+  grep -qxF 'session-files/' "$exclude" 2>/dev/null && return 0
+  printf 'session-files/\n' >> "$exclude" 2>/dev/null || true
+}
+
+run_worktree_post_setup() {
+  local worktree_path="$1"
+  local logfile="${worktree_path}/session-files/worktree-setup.log"
+  _exclude_session_files "$worktree_path"
+  mkdir -p "$(dirname "$logfile")"
+  local stamp errors=()
+  stamp="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+
+  if ! worktree_deps_enabled; then
+    echo "${stamp} dependency install disabled (SUPERPOWERS_WORKTREE_INSTALL_DEPS)" >> "$logfile"
+    return 0
+  fi
+
+  if [[ -L "${worktree_path}/node_modules" || -d "${worktree_path}/node_modules" ]]; then
+    echo "${stamp} node_modules present (native symlink or existing install)" >> "$logfile"
+    return 0
+  fi
+
+  local want_hash have_hash="" stamp_file
+  stamp_file="$(worktree_deps_stamp_path "$worktree_path")"
+  want_hash="$(worktree_lockfile_hash "$worktree_path")"
+  [[ -f "$stamp_file" ]] && have_hash="$(cat "$stamp_file" 2>/dev/null || true)"
+  if [[ -n "$want_hash" && "$want_hash" == "$have_hash" ]]; then
+    echo "${stamp} lockfiles unchanged since last install (${want_hash:0:12}) — skipping" >> "$logfile"
+    return 0
+  fi
+
+  local slot=""
+  if ! slot="$(_acquire_install_slot)"; then
+    echo "${stamp} no installer slot free after ${SUPERPOWERS_INSTALL_SLOT_WAIT:-300}s — skipping install (run it manually if needed)" >> "$logfile"
+    return 0
+  fi
+  _export_shared_pkg_cache
+
+  # Dependency install, per ecosystem. This used to cover JS (three lockfiles)
+  # and poetry only: a Go, Rust, uv, bun or Deno worktree came up with no deps
+  # and the log said nothing at all about why. Every branch below logs what it
+  # ran, and the tail of the function logs when nothing matched — a worktree
+  # without deps must be a stated outcome, not a silent one.
+  local installed=0
+  run_install() { # run_install <label> <cmd...>
+    local label="$1"; shift
+    echo "${stamp} ${label}" >> "$logfile"
+    installed=1
+    (cd "$worktree_path" && "$@" >> "$logfile" 2>&1) || errors+=("$label")
+  }
+  have() { command -v "$1" >/dev/null 2>&1; }
+
+  if [[ -f "${worktree_path}/package.json" ]]; then
+    if   [[ -f "${worktree_path}/yarn.lock" ]] && have yarn; then
+      run_install "yarn install" yarn install --immutable
+    elif [[ -f "${worktree_path}/package-lock.json" ]] && have npm; then
+      run_install "npm ci" npm ci
+    elif [[ -f "${worktree_path}/pnpm-lock.yaml" ]] && have pnpm; then
+      run_install "pnpm install" pnpm install --frozen-lockfile
+    elif [[ -f "${worktree_path}/bun.lockb" || -f "${worktree_path}/bun.lock" ]] && have bun; then
+      run_install "bun install" bun install --frozen-lockfile
+    elif have npm; then
+      # package.json with no lockfile: `npm ci` would fail, `npm install` is the
+      # honest equivalent. Previously this case installed nothing, silently.
+      run_install "npm install (no lockfile present)" npm install
+    else
+      echo "${stamp} package.json present but no usable package manager on PATH — deps NOT installed" >> "$logfile"
+    fi
+  fi
+
+  if [[ -f "${worktree_path}/deno.json" || -f "${worktree_path}/deno.jsonc" ]] && have deno; then
+    run_install "deno install" deno install
+  fi
+
+  if [[ ! -d "${worktree_path}/.venv" ]]; then
+    if   [[ -f "${worktree_path}/uv.lock" ]] && have uv; then
+      run_install "uv sync" uv sync
+    elif [[ -f "${worktree_path}/poetry.lock" || -f "${worktree_path}/pyproject.toml" ]] && have poetry; then
+      run_install "poetry install" poetry install
+    elif [[ -f "${worktree_path}/Pipfile.lock" ]] && have pipenv; then
+      run_install "pipenv sync" pipenv sync
+    elif [[ -f "${worktree_path}/pyproject.toml" || -f "${worktree_path}/requirements.txt" ]]; then
+      echo "${stamp} Python project detected but no uv/poetry/pipenv on PATH — deps NOT installed (create a venv and install manually)" >> "$logfile"
+    fi
+  fi
+
+  if [[ -f "${worktree_path}/go.mod" ]] && have go; then
+    run_install "go mod download" go mod download
+  fi
+
+  if [[ -f "${worktree_path}/Cargo.toml" ]] && have cargo; then
+    run_install "cargo fetch" cargo fetch
+  fi
+
+  if [[ -f "${worktree_path}/Gemfile" ]] && have bundle; then
+    run_install "bundle install" bundle install
+  fi
+
+  if [[ -f "${worktree_path}/composer.json" ]] && have composer; then
+    run_install "composer install" composer install
+  fi
+
+  if (( ! installed )); then
+    echo "${stamp} no recognised dependency manifest (package.json, pyproject.toml, go.mod, Cargo.toml, Gemfile, composer.json, deno.json) — nothing installed" >> "$logfile"
+  fi
+
+  _release_install_slot "$slot"
+
+  if ((${#errors[@]})); then
+    echo "setup errors: ${errors[*]}" >> "$logfile"
+    return 1
+  fi
+  # Only stamp a clean run — a failed install must not be mistaken for a
+  # satisfied one on the next pass.
+  [[ -n "$want_hash" ]] && printf '%s\n' "$want_hash" > "$stamp_file"
+  return 0
+}
+
+# ------------------------------------------- session worktree lifecycle ---
+
+# is_live_worktree <path> — true only for a real, checked-out linked worktree.
+#
+# A directory alone does not answer the question. session-init.sh creates
+# "<worktree_path>/session-files" from a path it merely COMPUTED, so `-d` says
+# yes for an empty shell that was never checked out — and a caller asking "does
+# my worktree still exist?" then gets yes for a directory with no working tree
+# in it. A linked worktree always has a .git FILE pointing back at the repo's
+# worktree metadata; that is the thing that distinguishes the two.
+is_live_worktree() {
+  local path="${1:-}"
+  [[ -n "$path" && -d "$path" && -e "${path}/.git" ]]
+}
+
+# create_session_worktree <repo_root> <worktree_path> <slug>
+#
+# The single place a session worktree comes into existence. Two callers need it
+# — the prompt hook on a session's first prompt, and the edit guard when an
+# edit arrives with no worktree to put it in — and two copies of
+# `git worktree add -B` plus its four setup steps would drift apart.
+#
+# Returns non-zero WITHOUT creating anything when an argument is missing or the
+# path is already a live worktree, so a caller can distinguish "made you one"
+# from "there was already one" instead of inferring it from a directory test it
+# would have to repeat.
+create_session_worktree() {
+  local repo_root="$1" worktree_path="$2" slug="$3"
+  [[ -n "$repo_root" && -n "$worktree_path" && -n "$slug" ]] || return 1
+  is_live_worktree "$worktree_path" && return 1
+
+  local branch_name
+  branch_name="$(branch_name_for "$slug")"
+  [[ -n "$branch_name" ]] || return 1
+
+  # A worktree the retention pass removed with `rm -rf` leaves its registration
+  # behind, marked prunable. `worktree add` then refuses the branch as "already
+  # used by worktree at <the path that is gone>", and the rebuild an edit just
+  # asked for cannot happen until somebody prunes by hand.
+  git -C "$repo_root" worktree prune >/dev/null 2>&1 || true
+
+  # A non-worktree DIRECTORY on the path — the `session-files` shell the old
+  # session-init behaviour created — makes `worktree add` refuse to populate it,
+  # so every guarded edit keeps being denied and no rebuild ever happens. Move
+  # it aside rather than delete it: the reason it is there is that somebody's
+  # plans and reviews are inside.
+  local stash=""
+  if [[ -d "$worktree_path" ]]; then
+    if [[ -n "$(ls -A "$worktree_path" 2>/dev/null)" ]]; then
+      stash="${worktree_path}.orphaned.$$"
+      mv "$worktree_path" "$stash" || return 1
+    else
+      rmdir "$worktree_path" 2>/dev/null || true
+    fi
+  fi
+
+  mkdir -p "$(dirname "$worktree_path")"
+
+  # Reuse the branch when it still exists. Removing a worktree does NOT delete
+  # its `wt/<slug>` branch — neither `git worktree remove` nor the retention
+  # pass does — and that branch may hold commits that exist nowhere else. `-B`
+  # is "create or RESET", so rebuilding with it would move the branch back to
+  # the base ref and strand them. Create from the base only when there is no
+  # branch to preserve.
+  local added=1
+  if git -C "$repo_root" show-ref --verify --quiet "refs/heads/${branch_name}"; then
+    git -C "$repo_root" worktree add "$worktree_path" "$branch_name" >&2 && added=0
+  else
+    git -C "$repo_root" worktree add -b "$branch_name" "$worktree_path" \
+      "$(resolve_worktree_base_ref "$repo_root")" >&2 && added=0
+  fi
+
+  if (( added != 0 )); then
+    [[ -n "$stash" ]] && mv "$stash" "$worktree_path" 2>/dev/null
+    return 1
+  fi
+
+  # Put the rescued artifacts back where the hook tells the session they live.
+  if [[ -n "$stash" ]]; then
+    if [[ -d "${stash}/session-files" && ! -e "${worktree_path}/session-files" ]]; then
+      mv "${stash}/session-files" "${worktree_path}/session-files" 2>/dev/null || true
+    fi
+    # Only if nothing is left. Anything else stays on disk for a human to look at.
+    rmdir "$stash" 2>/dev/null || true
+  fi
+
+  copy_worktreeinclude_files "$repo_root" "$worktree_path"
+  write_worktree_env_local "$worktree_path" "$branch_name" 2>/dev/null || true
+  # Install deps in the background so a slow npm/yarn install never blocks the
+  # hook timeout.
+  ( run_worktree_post_setup "$worktree_path" >/dev/null 2>&1 & )
+  return 0
+}
+
+# clear_worktree_retirement <session_id>
+#
+# Retirement records that this session's worktree was removed and must not be
+# rebuilt just because another prompt arrived. Once a worktree exists again the
+# record is false, and leaving it set would make the next prompt hook describe
+# a live worktree as retired.
+clear_worktree_retirement() {
+  local sid="${1:-}" st
+  [[ -n "$sid" ]] || return 0
+  st="$(load_session_state "$sid")" || return 0
+  st="$(echo "$st" | jq 'del(.worktree_retired_at)')" || return 0
+  save_session_state "$sid" "$st"
+}
+
+ensure_session_files_dir() {
+  local target_dir="$1"
+  mkdir -p "$target_dir"
+  echo "$target_dir"
+}
+
+sync_session_files_archive() {
+  local source_dir="$1"
+  local session_name="$2"
+  local archive_dir="${SESSION_FILES_ARCHIVE}/${session_name}"
+
+  [[ -d "$source_dir" ]] || return 0
+  mkdir -p "$archive_dir"
+  rsync -a --delete "${source_dir}/" "${archive_dir}/" 2>/dev/null \
+    || cp -R "${source_dir}/." "${archive_dir}/" 2>/dev/null \
+    || true
+}
+
+read_session_files_context() {
+  local session_files_dir="$1"
+  local max_files="${2:-20}"
+
+  [[ -d "$session_files_dir" ]] || return 0
+
+  local count=0
+  while IFS= read -r file; do
+    [[ -f "$file" ]] || continue
+    count=$((count + 1))
+    [[ "$count" -gt "$max_files" ]] && break
+    echo ""
+    echo "### ${file}"
+    echo '```'
+    head -n 200 "$file"
+    local lines
+    lines="$(wc -l < "$file" | tr -d ' ')"
+    if [[ "$lines" -gt 200 ]]; then
+      echo ""
+      echo "... truncated ($(("$lines" - 200)) more lines) ..."
+    fi
+    echo '```'
+  done < <(find "$session_files_dir" -type f \( -name '*.md' -o -name '*.txt' \) | sort)
+}
+
+append_env_exports() {
+  local env_file="$1"
+  shift
+  [[ -n "$env_file" ]] || return 0
+  while (($#)); do
+    echo "export $1" >> "$env_file"
+    shift
+  done
+}
+
+# Retiring stale worktrees, detached from the caller.
+#
+# The work itself is `rm -rf` of a whole checkout. A JS worktree carries its own
+# node_modules — measured at ~1.2 GB and hundreds of thousands of inodes, with
+# 16 GB across all worktrees on one machine — so retiring a few in one pass is
+# seconds of pure disk work, and it ran INLINE in the SessionStart hook, which
+# blocks the session until it returns. Measured over 430 runs: 468 ms typical,
+# 27 s worst case. The worst case is not an anomaly, it is simply the run that
+# had several JS worktrees to delete.
+#
+# No caller consumes the result — both discard output and ignore failure — so
+# this returns immediately and lets the deletion finish on its own time. The
+# subshell keeps stdout and stderr off the caller's: SessionStart parses this
+# hook's stdout as JSON, and an inherited descriptor would hold that pipe open
+# and stall the very thing being fixed.
+#
+# SUPERPOWERS_WORKTREE_CLEANUP=0 turns the whole pass off. That exists for test
+# suites: a suite that invokes a hook inherits this detached `rm -rf` worker,
+# which outlives the hook and keeps running while the suite does. It is scoped
+# to `$WORKTREE_ROOT` so it cannot touch a suite's own tmpdir, but it does show
+# up in a `ps` listing as a live `rm -rf` with no obvious owner, which is
+# exactly the kind of noise that sends an investigation the wrong way. Set it
+# to 0 in any test that runs a hook and does not want the process.
+cleanup_stale_worktrees() {
+  worktree_cleanup_enabled || return 0
+  ( _cleanup_stale_worktrees_blocking ) >/dev/null 2>&1 &
+  # Detach where the shell supports it, so the hook exiting cannot SIGHUP the
+  # deletion half-done and leave a partially-removed worktree behind.
+  disown 2>/dev/null || true
+}
+
+# Same accepted spellings as worktree_deps_enabled, for one vocabulary.
+worktree_cleanup_enabled() {
+  case "$(printf '%s' "${SUPERPOWERS_WORKTREE_CLEANUP:-auto}" | tr '[:upper:]' '[:lower:]')" in
+    0|false|off|no|never|disabled) return 1 ;;
+    *) return 0 ;;
+  esac
+}
+
+# Single-flight, because sessions overlap.
+#
+# Sessions start concurrently (430 SessionStart runs in three days here), and
+# without a lock each one would walk the same directories and race the same
+# `rm -rf` — duplicated disk work, and `git worktree remove` failing against a
+# tree another run already took. The lock is a mkdir, which is atomic on every
+# filesystem this runs on; a lock left behind by a killed run is reclaimed once
+# it is older than the retention pass could plausibly take.
+_cleanup_stale_worktrees_blocking() {
+  local lock="${WORKTREE_ROOT}/.cleanup.lock"
+  mkdir -p "$WORKTREE_ROOT" 2>/dev/null || return 0
+
+  if ! mkdir "$lock" 2>/dev/null; then
+    local lock_mtime now
+    lock_mtime="$(stat -f %m "$lock" 2>/dev/null || stat -c %Y "$lock" 2>/dev/null || echo 0)"
+    now="$(date +%s)"
+    # 30 min is far longer than a real pass and short enough that a crashed run
+    # does not disable cleanup until someone notices.
+    if (( now - lock_mtime < 1800 )); then
+      return 0
+    fi
+    rmdir "$lock" 2>/dev/null || true
+    mkdir "$lock" 2>/dev/null || return 0
+  fi
+  # Released explicitly at the end rather than from a trap: the trap body runs
+  # at SHELL exit, by which point `local lock` is out of scope, so it both fails
+  # to remove the lock and trips `set -u`. A run that dies before the release
+  # leaves the lock behind, which is what the staleness reclaim above is for.
+
+  local cutoff_epoch
+  cutoff_epoch="$(date -v-"${WORKTREE_RETENTION_DAYS}"d +%s 2>/dev/null || date -d "${WORKTREE_RETENTION_DAYS} days ago" +%s)"
+
+  find "$WORKTREE_ROOT" -mindepth 2 -maxdepth 2 -type d 2>/dev/null | while read -r wt_dir; do
+    [[ -d "$wt_dir/.git" || -f "$wt_dir/.git" ]] || continue
+
+    local mtime
+    mtime="$(stat -c %Y "$wt_dir" 2>/dev/null || stat -f %m "$wt_dir" 2>/dev/null || echo 0)"
+    [[ "$mtime" -lt "$cutoff_epoch" ]] || continue
+
+    if [[ -n "$(git -C "$wt_dir" status --porcelain 2>/dev/null)" ]]; then
+      continue
+    fi
+
+    local repo_root
+    repo_root="$(git -C "$wt_dir" rev-parse --show-toplevel 2>/dev/null || true)"
+    if [[ -n "$repo_root" && "$repo_root" != "$wt_dir" ]]; then
+      git -C "$(dirname "$repo_root")" worktree remove "$wt_dir" --force 2>/dev/null \
+        || rm -rf "$wt_dir"
+    else
+      rm -rf "$wt_dir"
+    fi
+  done
+
+  rmdir "$lock" 2>/dev/null || true
+}
+
+# Prune archived session-files older than WORKTREE_RETENTION_DAYS.
+prune_session_files_archive() {
+  [[ -d "$SESSION_FILES_ARCHIVE" ]] || return 0
+
+  local cutoff_epoch
+  cutoff_epoch="$(date -v-"${WORKTREE_RETENTION_DAYS}"d +%s 2>/dev/null || date -d "${WORKTREE_RETENTION_DAYS} days ago" +%s)"
+
+  find "$SESSION_FILES_ARCHIVE" -mindepth 1 -maxdepth 1 -type d 2>/dev/null | while read -r dir; do
+    local mtime
+    mtime="$(stat -c %Y "$dir" 2>/dev/null || stat -f %m "$dir" 2>/dev/null || echo 0)"
+    [[ "$mtime" -lt "$cutoff_epoch" ]] && rm -rf "$dir"
+  done
+}

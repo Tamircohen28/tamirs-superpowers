@@ -1,0 +1,208 @@
+{
+  "version": "1.2.0",
+  "description": "Canonical source -> byte-identical copies. Every checker that ships in three places (the plugin's own scripts/, the scaffold template, and each gold fixture) is declared here so the copies can be regenerated and asserted instead of hand-maintained. A copy that drifts is a stale fork: the fixture stops testing what the live script does, and scaffolded repos inherit a bug that was already fixed upstream. Regenerate: bash skills/repo/_contract/scripts/sync-contract-scripts.sh. Assert: same script with --check.",
+  "rationale": "Observed: skills/repo/_contract/fixtures/*/scripts/check-feature-equivalence.sh sat on a pre-fix revision of scripts/check-feature-equivalence.sh (SC2055 single-bracket form) for as long as fixtures were outside the lint scope, and templates/check-manifest-version-alignment.sh.tmpl never received --allow-pending-release or the BSD-sed usage() fix. Neither was detected because nothing compared them.",
+  "groups": [
+    {
+      "id": "check-feature-equivalence",
+      "canonical": "scripts/check-feature-equivalence.sh",
+      "note": "Fully portable \u2014 repo type is detected at runtime, so the plugin, the template and every fixture run the identical file.",
+      "copies": [
+        "skills/repo/_contract/scripts/check-feature-equivalence.sh",
+        "skills/repo/_contract/templates/check-feature-equivalence.sh.tmpl",
+        "skills/repo/_contract/fixtures/scaffold-gold/scripts/check-feature-equivalence.sh",
+        "skills/repo/_contract/fixtures/scaffold-plugin-gold/scripts/check-feature-equivalence.sh",
+        "skills/repo/_contract/fixtures/scaffold-claude-plugin-gold/scripts/check-feature-equivalence.sh"
+      ]
+    },
+    {
+      "id": "check-manifest-declares",
+      "canonical": "scripts/check-manifest-declares.sh",
+      "note": "Fully portable, same shape as check-feature-equivalence above: manifest and root are always arguments, never hardcoded, so the plugin, the template and every fixture run the identical file. Vendored here because codex/cursor validation rows in the shared plugin template call it directly, and it was previously absent from every fixture's scripts/ despite that.",
+      "copies": [
+        "skills/repo/_contract/scripts/check-manifest-declares.sh",
+        "skills/repo/_contract/templates/check-manifest-declares.sh.tmpl",
+        "skills/repo/_contract/fixtures/scaffold-gold/scripts/check-manifest-declares.sh",
+        "skills/repo/_contract/fixtures/scaffold-plugin-gold/scripts/check-manifest-declares.sh",
+        "skills/repo/_contract/fixtures/scaffold-claude-plugin-gold/scripts/check-manifest-declares.sh"
+      ]
+    },
+    {
+      "id": "check-platform-targets",
+      "canonical": "scripts/check-platform-targets.sh",
+      "note": "Portable. Repo-specific behaviour is guarded by directory existence (skills/documentation/, core/capabilities/), not by editing the copy.",
+      "copies": [
+        "skills/repo/_contract/scripts/check-platform-targets.sh",
+        "skills/repo/_contract/templates/check-platform-targets.sh.tmpl",
+        "skills/repo/_contract/fixtures/scaffold-gold/scripts/check-platform-targets.sh",
+        "skills/repo/_contract/fixtures/scaffold-plugin-gold/scripts/check-platform-targets.sh",
+        "skills/repo/_contract/fixtures/scaffold-claude-plugin-gold/scripts/check-platform-targets.sh"
+      ]
+    },
+    {
+      "id": "check-action-pinning",
+      "canonical": "scripts/check-action-pinning.sh",
+      "note": "Fully portable, same shape as check-feature-equivalence: no repo-specific state, ROOT is always an argument. Never shipped in the scaffold template or any fixture, so every repo scaffolded from this plugin got zero action-pinning enforcement by default -- six personal repos each independently wrote and independently fixed the same detector bugs (unrecursed file walk, YAML read as prose) because there was no shared, tested implementation to inherit.",
+      "copies": [
+        "skills/repo/_contract/scripts/check-action-pinning.sh",
+        "skills/repo/_contract/templates/check-action-pinning.sh.tmpl",
+        "skills/repo/_contract/fixtures/scaffold-gold/scripts/check-action-pinning.sh",
+        "skills/repo/_contract/fixtures/scaffold-plugin-gold/scripts/check-action-pinning.sh",
+        "skills/repo/_contract/fixtures/scaffold-claude-plugin-gold/scripts/check-action-pinning.sh"
+      ]
+    },
+    {
+      "id": "check-agent-drift",
+      "canonical": "skills/repo/_contract/scripts/check-agent-drift.sh",
+      "note": "The plugin's own scripts/check-agent-drift.sh is deliberately NOT the canonical source here: it is a 14-line wrapper around this repo's scripts/validate-skill-frontmatter.py, while the contract version is the portable generic checker. Two different scripts that share a name, not a fork.",
+      "copies": [
+        "skills/repo/_contract/templates/check-agent-drift.sh.tmpl",
+        "skills/repo/_contract/fixtures/scaffold-gold/scripts/check-agent-drift.sh",
+        "skills/repo/_contract/fixtures/scaffold-plugin-gold/scripts/check-agent-drift.sh",
+        "skills/repo/_contract/fixtures/scaffold-claude-plugin-gold/scripts/check-agent-drift.sh"
+      ]
+    },
+    {
+      "id": "check-manifest-version-alignment",
+      "canonical": "skills/repo/_contract/scripts/check-manifest-version-alignment.sh",
+      "note": "Template had forked: it lacked --allow-pending-release, directional ahead/behind drift detection, and the BSD-sed usage() fix (GNU-only `# \\?` leaves the comment prefixes visible on macOS). Scaffolded repos were inheriting all three defects.",
+      "copies": [
+        "skills/repo/_contract/templates/check-manifest-version-alignment.sh.tmpl"
+      ]
+    },
+    {
+      "id": "plugin-build-mjs",
+      "canonical": "skills/repo/_contract/templates/plugin/scripts/build.mjs.tmpl",
+      "note": "The template is canonical because repo-scaffold renders it; the fixture is the rendered result and carries no substitutions.",
+      "copies": [
+        "skills/repo/_contract/fixtures/scaffold-plugin-gold/scripts/build.mjs"
+      ]
+    },
+    {
+      "id": "plugin-validate-mjs",
+      "canonical": "skills/repo/_contract/templates/plugin/scripts/validate.mjs.tmpl",
+      "copies": [
+        "skills/repo/_contract/fixtures/scaffold-plugin-gold/scripts/validate.mjs"
+      ]
+    },
+    {
+      "id": "capability-registry-schema-template",
+      "canonical": "core/capabilities/schema.json",
+      "note": "The scaffold template is GENERATED from the live registry schema by lifting this repo's owner/name out into placeholders. Declared before the fixture group so one sync pass propagates registry -> template -> fixtures.",
+      "substitutions": {
+        "GITHUB_OWNER": "Tamircohen28",
+        "REPO_NAME": "tamirs-superpowers"
+      },
+      "copies": [
+        {
+          "path": "skills/repo/_contract/templates/core/capabilities/schema.json.tmpl",
+          "reverse": true
+        }
+      ]
+    },
+    {
+      "id": "capability-registry-platforms-template",
+      "canonical": "core/capabilities/platforms.json",
+      "note": "Same chain for the registry instance. Platform capability truth is repo-independent, so a scaffolded repo should start from the verified statuses rather than a copy that rotted. This link is why the corrected OpenCode symlink guidance now reaches the template automatically.",
+      "substitutions": {
+        "GITHUB_OWNER": "Tamircohen28",
+        "REPO_NAME": "tamirs-superpowers"
+      },
+      "copies": [
+        {
+          "path": "skills/repo/_contract/templates/core/capabilities/platforms.json.tmpl",
+          "reverse": true
+        }
+      ]
+    },
+    {
+      "id": "capability-registry-platforms-app-gold-template",
+      "canonical": "core/capabilities/platforms.app.json",
+      "note": "App-gold's own capability registry, hand-authored from core/capabilities/platforms.json's verified statuses but rewritten per-row for a repo that ships no plugin manifest -- see core/capabilities/platforms.app.json's own review history for the per-row reasoning. Same reverse-template chain as the plugin registry so the scaffold-gold copy is generated, never hand-edited.",
+      "substitutions": {
+        "GITHUB_OWNER": "Tamircohen28",
+        "REPO_NAME": "tamirs-superpowers"
+      },
+      "copies": [
+        {
+          "path": "skills/repo/_contract/templates/core/capabilities/platforms.app.json.tmpl",
+          "reverse": true
+        }
+      ]
+    },
+    {
+      "id": "capability-registry-schema",
+      "canonical": "skills/repo/_contract/templates/core/capabilities/schema.json.tmpl",
+      "note": "Rendered into fixtures with GITHUB_OWNER/REPO_NAME substituted, so the copies are NOT byte-identical. Declared with substitutions so the check compares the rendered form.",
+      "substitutions": {
+        "GITHUB_OWNER": "Tamircohen28"
+      },
+      "copies": [
+        {
+          "path": "skills/repo/_contract/fixtures/scaffold-gold/core/capabilities/schema.json",
+          "substitutions": {
+            "REPO_NAME": "scaffold-gold"
+          }
+        },
+        {
+          "path": "skills/repo/_contract/fixtures/scaffold-plugin-gold/core/capabilities/schema.json",
+          "substitutions": {
+            "REPO_NAME": "scaffold-plugin-gold"
+          }
+        },
+        {
+          "path": "skills/repo/_contract/fixtures/scaffold-claude-plugin-gold/core/capabilities/schema.json",
+          "substitutions": {
+            "REPO_NAME": "scaffold-claude-plugin-gold"
+          }
+        }
+      ]
+    },
+    {
+      "id": "capability-registry-platforms",
+      "canonical": "skills/repo/_contract/templates/core/capabilities/platforms.json.tmpl",
+      "note": "Platform capability truth is repo-independent; only the install/repo strings vary, and those are the substitutions. scaffold-gold does not draw from this chain: app-gold is not a plugin-distribution profile, so its registry claims a different (non-plugin) delivery route per capability -- see the capability-registry-platforms-app-gold-template / capability-registry-platforms-app-gold groups below, which own scaffold-gold's copy of core/capabilities/platforms.json instead.",
+      "substitutions": {
+        "GITHUB_OWNER": "Tamircohen28"
+      },
+      "copies": [
+        {
+          "path": "skills/repo/_contract/fixtures/scaffold-plugin-gold/core/capabilities/platforms.json",
+          "substitutions": {
+            "REPO_NAME": "scaffold-plugin-gold"
+          }
+        },
+        {
+          "path": "skills/repo/_contract/fixtures/scaffold-claude-plugin-gold/core/capabilities/platforms.json",
+          "substitutions": {
+            "REPO_NAME": "scaffold-claude-plugin-gold"
+          }
+        }
+      ]
+    },
+    {
+      "id": "capability-registry-platforms-app-gold",
+      "canonical": "skills/repo/_contract/templates/core/capabilities/platforms.app.json.tmpl",
+      "note": "app-gold profile only. scaffold-gold is the sole app-gold fixture, so this is the only copy -- unlike capability-registry-platforms above, which fans the plugin-gold registry out to every plugin-distribution fixture.",
+      "substitutions": {
+        "GITHUB_OWNER": "Tamircohen28"
+      },
+      "copies": [
+        {
+          "path": "skills/repo/_contract/fixtures/scaffold-gold/core/capabilities/platforms.json",
+          "substitutions": {
+            "REPO_NAME": "scaffold-gold"
+          }
+        }
+      ]
+    }
+  ],
+  "capability_mirror_roots": {
+    "note": "platform-targets.json carries a DERIVED capability mirror generated from that tree's core/capabilities/platforms.json. Re-rendering a fixture registry (which happens whenever the live registry is corrected) leaves its mirror stale, so the sync entry point regenerates these too. Under --check nothing is done here: each fixture's own check-platform-targets.sh run already fails on a stale mirror, and that is the message you want to see.",
+    "roots": [
+      "skills/repo/_contract/fixtures/scaffold-gold",
+      "skills/repo/_contract/fixtures/scaffold-plugin-gold",
+      "skills/repo/_contract/fixtures/scaffold-claude-plugin-gold"
+    ]
+  }
+}

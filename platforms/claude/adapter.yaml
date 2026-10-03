@@ -1,0 +1,26 @@
+# Adapter metadata — Claude Code (REFACTOR-SPEC §21).
+# Thin pointer file. Authoritative capabilities: core/capabilities/platforms.json.
+id: claude
+display_name: Claude Code
+registry_key: claude_code
+
+# Coarse summary only. `agents` is the registry's `subagents` key.
+capabilities:
+  skills: native
+  agents: native
+  hooks: native
+  mcp: native
+
+manifest: .claude-plugin/plugin.json
+
+install:
+  type: marketplace
+  doc: docs/user/install/claude-code.md
+
+validation:
+  command: claude plugin validate .
+
+notes: >-
+  The canonical surface. skills/, agents/, hooks/hooks.json and .mcp.json are
+  consumed as-is with no generated adapter. Claude Desktop is a runtime surface of
+  this same plugin, not a separate format — it has no manifest of its own.

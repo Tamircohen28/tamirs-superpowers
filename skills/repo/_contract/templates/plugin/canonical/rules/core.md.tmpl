@@ -1,0 +1,16 @@
+# Core Agent Rules
+
+## Non-negotiables
+
+- Prefer small, reviewable diffs.
+- Do not add production dependencies without explaining why.
+- Do not bypass lint, typecheck, tests, or security checks.
+- Do not introduce secrets, credentials, tokens, or private keys.
+- Follow existing project patterns before creating new abstractions.
+
+## Required workflow
+
+1. Inspect relevant files before editing.
+2. Make the smallest change that solves the task.
+3. Run the narrowest relevant validation.
+4. Report exactly what changed and what validation ran.
