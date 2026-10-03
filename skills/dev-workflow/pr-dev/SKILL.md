@@ -11,7 +11,6 @@ allowed-tools:
 - Glob
 - Grep
 - Agent
-- Monitor
 - Skill(tamirs-superpowers:cleanup)
 - Skill(tamirs-superpowers:decision)
 - Skill(tamirs-superpowers:deliver-dev)

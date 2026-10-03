@@ -522,6 +522,8 @@ def broad_tool_entry(entry):
         return f"bare {text} pre-approves changing any file; the person approves each edit instead, so omit it"
     if text == "WebSearch":
         return "WebSearch cannot be scoped and pre-approves any query; omit it"
+    if text == "Monitor":
+        return "bare Monitor pre-approves any shell command; omit it and let the person approve the watch"
     if text == "WebFetch":
         return "bare WebFetch pre-approves any address; scope it like WebFetch(domain:docs.example.com) or omit it"
     if text in ("Bash(*)", "Bash(*:*)", "Skill(*)"):

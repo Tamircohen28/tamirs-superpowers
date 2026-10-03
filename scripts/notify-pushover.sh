@@ -45,9 +45,18 @@ INPUT=""
 [[ -t 0 ]] || INPUT="$(cat 2>/dev/null || true)"
 
 # pushover_format.py parses the event, converts any Markdown snippet to plain
-# text, and prints shell-quoted MESSAGE/PRIORITY/PROJECT assignments to eval.
+# text, and prints the message, priority and project as three base64 lines. They
+# are read back as data: nothing the formatter prints is ever run as shell.
 if [[ -n "$INPUT" && -f "$FORMATTER" ]]; then
-  eval "$(printf '%s' "$INPUT" | python3 "$FORMATTER" 2>/dev/null)"
+  {
+    IFS= read -r _b64_message || true
+    IFS= read -r _b64_priority || true
+    IFS= read -r _b64_project || true
+  } < <(printf '%s' "$INPUT" | python3 "$FORMATTER" 2>/dev/null)
+  [[ -n "${_b64_message:-}" ]] && MESSAGE="$(printf '%s' "$_b64_message" | base64 -d 2>/dev/null || true)"
+  [[ -n "${_b64_priority:-}" ]] && PRIORITY="$(printf '%s' "$_b64_priority" | base64 -d 2>/dev/null || true)"
+  [[ -n "${_b64_project:-}" ]] && PROJECT="$(printf '%s' "$_b64_project" | base64 -d 2>/dev/null || true)"
+  unset _b64_message _b64_priority _b64_project
 fi
 
 # Fallback path: $2 arrives as a name, map it onto a Pushover level.

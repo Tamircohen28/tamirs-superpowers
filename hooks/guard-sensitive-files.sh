@@ -127,7 +127,7 @@ classify() {
       # The only honest signal that this directory is generated is a shadcn
       # config. Without it, this is hand-written source in a conventional place.
       if [ -n "$repo_root" ] && [ -f "$repo_root/components.json" ]; then
-        deny "BLOCKED: '$file' sits under components/ui/ in a shadcn project (detected: $repo_root/components.json) — these files are generated.$context Re-generate with 'npx shadcn@latest add <component>', or move your customisation into a wrapper component outside components/ui/."
+        deny "BLOCKED: '$file' sits under components/ui/ in a shadcn project (detected: $repo_root/components.json) — these files are generated.$context Re-generate with the shadcn CLI's add command, or move your customisation into a wrapper component outside components/ui/."
       fi
       ;;
     */dist/*|*/build/*|*/out/*|*/.next/*|*/target/debug/*|*/target/release/*)

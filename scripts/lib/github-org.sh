@@ -242,11 +242,11 @@ github_org_get_ruleset_by_name() {
 #      repository's overrides into a ruleset that governs the whole org would
 #      quietly impose one repo's exceptions on every other repo.
 github_org_render_ruleset() {
-  local policy="$1" key="$2" org="$3"
+  local policy="$1" rule_id="$2" org="$3"
   shift 3
 
   local base include_json
-  base="$(github_policy_render_ruleset "$policy" "$key" "$org")" || return 1
+  base="$(github_policy_render_ruleset "$policy" "$rule_id" "$org")" || return 1
 
   if [ "$#" -eq 0 ]; then
     include_json='["~ALL"]'
@@ -263,10 +263,10 @@ github_org_render_ruleset() {
 
 # github_org_render_payload_file <policy> <key> <org> <out-file> [include...]
 github_org_render_payload_file() {
-  local policy="$1" key="$2" org="$3" out="$4"
+  local policy="$1" rule_id="$2" org="$3" out="$4"
   shift 4
   local rendered
-  rendered="$(github_org_render_ruleset "$policy" "$key" "$org" "$@")" || return 1
+  rendered="$(github_org_render_ruleset "$policy" "$rule_id" "$org" "$@")" || return 1
   printf '%s\n' "$rendered" >"$out"
 }
 
@@ -474,7 +474,7 @@ github_org_update_ruleset() {
 # Returns 0 when everything matches, 3 when anything is absent or drifted,
 # 1 on a failure, 2 when org rulesets are unavailable on this organization.
 github_org_verify() {
-  local policy="$1" org="$2" key name rc worst=0 work
+  local policy="$1" org="$2" rule_id name rc worst=0 work
   work="$(mktemp -d)" || { github_fail unknown "could not create a temp dir"; return 1; }
 
   # `if ! cmd; then rc=$?` would record the INVERTED status (always 1), which is
@@ -488,22 +488,22 @@ github_org_verify() {
     return 1
   fi
 
-  for key in $(jq -r '.rulesets[].key' "$policy"); do
-    name="$(jq -r --arg k "$key" '.rulesets[] | select(.key == $k) | .name' "$policy")"
-    if ! github_org_render_ruleset "$policy" "$key" "$org" >"$work/desired"; then
-      printf '%s\terror\t%s\n' "$key" "$(github_explain)"
+  for rule_id in $(jq -r '.rulesets[].key' "$policy"); do
+    name="$(jq -r --arg k "$rule_id" '.rulesets[] | select(.key == $k) | .name' "$policy")"
+    if ! github_org_render_ruleset "$policy" "$rule_id" "$org" >"$work/desired"; then
+      printf '%s\terror\t%s\n' "$rule_id" "$(github_explain)"
       worst=1
       continue
     fi
     local id
     id="$(jq -r --arg n "$name" '[.[] | select(.name == $n) | .id] | first // empty' "$work/list.json")"
     if [ -z "$id" ]; then
-      printf '%s\tabsent\n' "$key"
+      printf '%s\tabsent\n' "$rule_id"
       [ "$worst" -lt 3 ] && worst=3
       continue
     fi
     if ! github_org_get_ruleset "$org" "$id" | github_ruleset_normalize >"$work/live"; then
-      printf '%s\terror\t%s\n' "$key" "$(github_explain)"
+      printf '%s\terror\t%s\n' "$rule_id" "$(github_explain)"
       worst=1
       continue
     fi
@@ -511,15 +511,15 @@ github_org_verify() {
     # repository-specific state at the repo level: who may merge around the
     # rules is a fact about the org's people, not a rule canonical can know.
     # Carry the live value across before comparing so a comparison never
-    # proposes revoking somebody's key.
+    # proposes revoking somebody's rule_id.
     jq --slurpfile live "$work/live" '.bypass_actors = (($live[0].bypass_actors) // [])' \
       "$work/desired" | github_ruleset_normalize >"$work/desired.patched"
     mv "$work/desired.patched" "$work/desired"
 
     if cmp -s "$work/desired" "$work/live"; then
-      printf '%s\tup_to_date\n' "$key"
+      printf '%s\tup_to_date\n' "$rule_id"
     else
-      printf '%s\tdrifted\n' "$key"
+      printf '%s\tdrifted\n' "$rule_id"
       [ "$worst" -lt 3 ] && worst=3
     fi
   done
@@ -656,7 +656,7 @@ EOF
 #   actor and more than one collaborator, the two read together as: anyone
 #   else's change needs a review, the owner keeps an escape hatch on their own
 #   repository. Without the bypass actor, raising the count to 1 is not
-#   stricter, it is a lock on a door with no key.
+#   stricter, it is a lock on a door with no rule_id.
 #
 #   Both inputs are facts in the API, so storing the answer per repository in
 #   the policy file would be storing a stale copy of something readable. The
