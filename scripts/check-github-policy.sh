@@ -181,6 +181,11 @@ iid="$(jq -r '.required_checks.integration_id' "$POLICY")"
 before=$FAILED
 while IFS= read -r repo; do
   [[ -n "$repo" ]] || continue
+  # Shape first: a non-array or a non-string entry would make the length/unique
+  # probes below crash or lie, and it could never match a job name anyway.
+  jq -e --arg r "$repo" '(.repositories[$r].required_checks.contexts // []) as $c
+                         | ($c | type) == "array" and ($c | all(type == "string"))' "$POLICY" >/dev/null \
+    || { err "repository '$repo' required_checks.contexts must be an array of strings"; continue; }
   n="$(jq -r --arg r "$repo" '.repositories[$r].required_checks.contexts // [] | length' "$POLICY")"
   u="$(jq -r --arg r "$repo" '.repositories[$r].required_checks.contexts // [] | unique | length' "$POLICY")"
   [[ "$n" == "$u" ]] || err "repository '$repo' lists a duplicate required context"

@@ -152,6 +152,53 @@
         "Polling still never stops on a single idle poll",
         "Merge policy resolution and the review-thread loop are unaffected by the degradation"
       ]
+    },
+    {
+      "id": 8,
+      "prompt": "You are a sub-agent driving PR #31 for the orchestrator. You just pushed a fix. Nothing more to do until CI finishes and the reviewer responds - what do you do?",
+      "expected_output": "Does not end the turn waiting for a notification. Polls CI and review threads with a bounded until/Monitor loop with a deadline (per ci-monitor-loop.md); if the wait exceeds the stated bound, reports PR, head SHA and the outstanding item to the orchestrator.",
+      "files": [],
+      "expectations": [
+        "Actively polls CI and review threads rather than idling for a notification",
+        "The poll loop has an explicit deadline/timeout",
+        "An overrun is reported to the orchestrator rather than silently extended",
+        "Does not merge around the overrun"
+      ]
+    },
+    {
+      "id": 9,
+      "prompt": "This repo's ruleset has no required status checks. PR #44's pull_request run is green but the push run on the same head is red, and the user told you to land it. Merge?",
+      "expected_output": "Refuses to merge: with no required checks the agent must itself require both push and pull_request runs of the FINAL head fully green and zero unresolved threads. Fixes the push-run failure first. Merge authorization (user say-so) is acknowledged but does not override the gate.",
+      "files": [],
+      "expectations": [
+        "Checks both the push and pull_request runs of the final head SHA",
+        "Does not merge while the push run is red",
+        "Verifies zero unresolved review threads before merging",
+        "Does not claim the ruleset will block the merge"
+      ]
+    },
+    {
+      "id": 10,
+      "prompt": "As orchestrator I need the DB migration confirmed applied before PR #12 merges. How do I make sure that condition is not missed?",
+      "expected_output": "Post the condition as a review thread on the PR so the ruleset blocks merge until it is resolved, rather than sending a chat message that can cross with the merge.",
+      "files": [],
+      "expectations": [
+        "Recommends a blocking review thread on the PR",
+        "Explains the chat message can cross with the merge",
+        "Driving agent resolves the thread only when the condition is met"
+      ]
+    },
+    {
+      "id": 11,
+      "prompt": "PR #50 has 6 open review threads spread across the auth worker and the UI worker. Handle them.",
+      "expected_output": "Triages all 6 threads at once, groups by owning sub-agent, sends one message per owner, and makes one push for the round.",
+      "files": [],
+      "expectations": [
+        "Lists and triages all open threads in a single pass",
+        "Sends one message per owning sub-agent, not per thread",
+        "Makes a single push for the round",
+        "Resolves threads after the fix"
+      ]
     }
   ]
 }

@@ -9,6 +9,11 @@ bash scripts/doctor.sh .
 It names the detected platform, any version drift, missing required and optional tools, and
 a one-line remedy per gap. It exits non-zero only when the install is genuinely broken.
 
+To check parallel agents rather than the install, `bash scripts/agent-health.sh` lists every
+git worktree with commits ahead, uncommitted files, minutes since the last write and a verdict
+(`ok`, `uncommitted-pile`, `idle`, `no-commits`) — it catches an agent holding a pile of
+uncommitted work or one that died silently. `--json` for machines; `--help` for thresholds.
+
 Before treating something as a bug, check [platform differences](platform-differences.md).
 A lot of "it does not work" is documented, honest degradation: hooks do not run under a
 Cursor plugin install, parallel subagents exist only on Claude Code, session transcripts are

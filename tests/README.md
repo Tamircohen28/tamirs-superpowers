@@ -32,6 +32,7 @@ bash tests/test-worktree-objective.sh
 bash tests/test-statusline.sh
 bash tests/test-gemini-adapter.sh
 bash tests/test-opencode-adapter.sh
+bash tests/test-agent-health.sh           # scripts/agent-health.sh verdicts, --json, thresholds
 ```
 
 `test-orchestration.sh` and `contract/run.sh` accept a subset as arguments:

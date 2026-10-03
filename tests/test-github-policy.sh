@@ -168,6 +168,16 @@ jqi "$FIX/strict-drift/ruleset-21049069.json" \
   '.rules |= map(if .type == "required_status_checks"
                  then .parameters.strict_required_status_checks_policy = true else . end)'
 
+# Required-context drift, both directions, one list entry apart from canonical.
+derive ctx-missing canonical
+jqi "$FIX/ctx-missing/ruleset-21049069.json" \
+  '.rules |= map(if .type == "required_status_checks"
+                 then .parameters.required_status_checks |= .[1:] else . end)'
+derive ctx-extra canonical
+jqi "$FIX/ctx-extra/ruleset-21049069.json" \
+  '.rules |= map(if .type == "required_status_checks"
+                 then .parameters.required_status_checks += [{context: "Surplus job", integration_id: 15368}] else . end)'
+
 # The bypass actor is already on the canonical fixture, because it is on the
 # real repository. This variant additionally DRIFTS, so a write must happen and
 # must carry the actor through — a run that writes nothing could "preserve" an
@@ -679,6 +689,43 @@ judge "strict (guard): nothing else differs from canonical" "0" \
      | grep -E '^[<>]' | grep -vc 'strict_required_status_checks_policy')"
 
 # ---------------------------------------------------------------------------
+section "per-repository required_checks.contexts: rendering, strictness, drift"
+# ---------------------------------------------------------------------------
+IB_REPO="Tamircohen28/iBrain"
+render_for() {  # <repo> <out>
+  bash -c '. "$1/scripts/lib/github-common.sh"
+           github_render_payload_file "$2" pr_ci "$3" "$4"' _ "$REPO_ROOT" "$POLICY" "$1" "$2"
+}
+render_for "Tamircohen28/no-such-override" "$TMP/render/default.json"
+judge "ctx: account default is the empty list" "0" "$(jq -r '.required_checks.default_contexts | length' "$POLICY")"
+judge "ctx: a repository without an override gets NO status-check rule" "0" \
+  "$(jq -r '[.rules[] | select(.type == "required_status_checks")] | length' "$TMP/render/default.json")"
+render_for "$IB_REPO" "$TMP/render/ibrain.json"
+judge "ctx: a per-repo list renders the rule with every context" "11" \
+  "$(jq -r '[.rules[] | select(.type == "required_status_checks") | .parameters.required_status_checks[]] | length' "$TMP/render/ibrain.json")"
+judge "ctx: contexts are pinned to the GitHub Actions integration" "15368" \
+  "$(jq -r '[.rules[] | select(.type == "required_status_checks") | .parameters.required_status_checks[].integration_id] | unique | .[0]' "$TMP/render/ibrain.json")"
+judge "ctx: strict stays false when contexts are rendered" "false" \
+  "$(jq -r '.rules[] | select(.type == "required_status_checks") | .parameters.strict_required_status_checks_policy' "$TMP/render/ibrain.json")"
+judge "ctx: strict stays false for the plugin repo too" "false" \
+  "$(jq -r '.rules[] | select(.type == "required_status_checks") | .parameters.strict_required_status_checks_policy' "$TMP/render/pr_ci.json")"
+judge "ctx: iBrain's list does not leak into another repo" "no" \
+  "$(has "$(cat "$TMP/render/pr_ci.json")" 'postgres-16-migrations')"
+
+scenario ctx-missing "$TARGET_REPO"
+run_policy plan --repo "$TARGET_REPO" --json
+judge "ctx: live is missing a context -> not compliant" "no" \
+  "$([ "$(jout '.repositories[0].bucket')" = compliant ] && echo yes || echo no)"
+atleast "ctx: missing-context plan has a change on PR & CI" "1" \
+  "$(jout '[.changes[] | select(.label | startswith("Default Branch - PR")) | select(.status != "ok")] | length')"
+judge "ctx: planning writes nothing" "0" "$(gh_mutations)"
+scenario ctx-extra "$TARGET_REPO"
+run_policy plan --repo "$TARGET_REPO" --json
+judge "ctx: live has an extra context -> reported, not silently dropped" "yes" \
+  "$(has "$(jout '.changes[] | select(.label | startswith("Default Branch - PR")) | .note')" 'Surplus job')"
+judge "ctx: extra-context plan writes nothing" "0" "$(gh_mutations)"
+
+# ---------------------------------------------------------------------------
 section "bypass actors are preserved, never asserted"
 # ---------------------------------------------------------------------------
 # The regression that would silently take away someone's ability to merge. The
@@ -850,6 +897,30 @@ judge "scope: refusing costs no API call" "0"                "$(reads)"
 run_policy plan --repo "$TARGET_REPO" --all
 judge "scope: two scopes at once is refused" "1"             "$RC"
 judge "scope: with the reason" "yes"                         "$(outhas 'exactly one of --repo / --all / --org')"
+
+# ---------------------------------------------------------------------------
+section "policy file validation rejects malformed per-repo contexts"
+# ---------------------------------------------------------------------------
+bad_policy_check() {  # <name> <jq-filter>
+  local d="$TMP/chk-$1"
+  rm -rf "$d"; mkdir -p "$d/config/github" "$d/core/schemas"
+  cp "$POLICY" "$d/config/github/repository-policy.json"
+  cp "$REPO_ROOT/core/schemas/repository-policy.json" "$d/core/schemas/"
+  jqi "$d/config/github/repository-policy.json" "$2"
+  bash "$REPO_ROOT/scripts/check-github-policy.sh" "$d" >/dev/null 2>&1 && echo accepted || echo rejected
+}
+judge "validate: the shipped policy passes" "0" \
+  "$(bash "$REPO_ROOT/scripts/check-github-policy.sh" "$REPO_ROOT" >/dev/null 2>&1; echo $?)"
+judge "validate: non-array contexts are rejected" "rejected" \
+  "$(bad_policy_check nonarray '.repositories["Tamircohen28/iBrain"].required_checks.contexts = "CI"')"
+judge "validate: non-string entry is rejected" "rejected" \
+  "$(bad_policy_check nonstring '.repositories["Tamircohen28/iBrain"].required_checks.contexts += [5]')"
+judge "validate: duplicate entry is rejected" "rejected" \
+  "$(bad_policy_check dup '.repositories["Tamircohen28/iBrain"].required_checks.contexts += ["CI"]')"
+judge "validate: non-empty account default is rejected" "rejected" \
+  "$(bad_policy_check globalctx '.required_checks.default_contexts = ["CI"]')"
+judge "validate: strict=true is rejected" "rejected" \
+  "$(bad_policy_check strict '.required_checks.strict_required_status_checks_policy = true')"
 
 # ---------------------------------------------------------------------------
 section "the mock itself never fell through"

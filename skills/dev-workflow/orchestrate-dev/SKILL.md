@@ -221,6 +221,10 @@ that was already answered on disk.
 
 Mark tasks `running` on dispatch (`task-set --status running`). One retry per failed task (`--bump-attempts`); a second failure means re-plan the task, not re-run it.
 
+**Early start.** A dependent phase may start from its predecessor's head SHA while that PR is in CI/review, but must not open its PR until the predecessor merges; then `git rebase --onto origin/<default> <predecessor-head-sha>`. Needs disjoint paths, separate migration ranges, additive registration points: [`references/early-start.md`](references/early-start.md).
+
+**Health.** Workers commit as each task passes targeted tests. While they run, check each worktree periodically with `scripts/agent-health.sh` (`--idle-min N --pile N --json --repo PATH`; verdicts `ok|uncommitted-pile|idle|no-commits`) and nudge any worker with an uncommitted pile or no write for ~20 min: [`references/worker-health.md`](references/worker-health.md).
+
 ## Step 8 — sequential fallback (first-class, not a footnote)
 
 No subagents, or the user asked for a single-threaded run:
@@ -289,6 +293,7 @@ bash $S set-delivery auth-system --strategy multi-pr --reason '<which enumerated
 - **Never claim a capability you did not check.** Missing capability → stated fallback, or plainly "this platform does not support that".
 - **Never fabricate a handoff.** If a worker returned nothing, its task is `failed`, not `completed`.
 - **Concurrent tasks never share write scope.** `objective-state.sh validate` is the gate.
+- **Pre-merge conditions go on the PR as review threads** (the ruleset blocks merge until resolved), never as a chat message that can cross with the merge. Drive the PR per `pr-dev` (poll, batch threads one message per owner, one push per round).
 - **The integrator owns modifications.** Reviewers are read-only.
 - Do not commit `.dev-files/` unless the project explicitly wants durable checked-in workflow state.
 
