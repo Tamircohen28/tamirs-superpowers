@@ -101,6 +101,14 @@ if [[ -f "$DIST/$icon" ]]; then
 else
   bad "listing icon missing" "$icon (the directory warns, and the first submission fixes the icon for good)"
 fi
+# The scanner holds every script that can "reach" an image: naming the icon's folder
+# (or the plugin root alone, when the icon sits beside the manifest) is enough. So the
+# icon lives in a folder of its own that no shipped script, hook or config names.
+icondir="${icon%/*}"
+reach="$(grep -rlF "$icondir/" "$DIST" --include='*.sh' --include='*.py' --include='*.json' --include='*.tsx' --include='*.ts' --include='*.tmpl' --include='*.yaml' 2>/dev/null | grep -v '/.claude-plugin/plugin.json$' | head -3)"
+[[ -z "$reach" ]] && ok "no shipped script or config names the icon's folder ($icondir/)" || bad "a shipped file names the icon's folder, so the scanner holds it as reachable" "$(echo "$reach" | tr '\n' ' ')"
+[[ "$icondir" != ".claude-plugin" && "$icondir" != "." ]] && ok "icon is not beside the manifest (every script that names the plugin root would reach it)" || bad "icon sits beside the manifest or at the root; move it to a folder of its own"
+jq -e 'has("$schema") | not' "$M" >/dev/null 2>&1 && ok "plugin.json carries no \$schema URL (a URL beside a credential name reads as a send)" || bad "plugin.json has a \$schema URL; drop it"
 for gone in CHANGELOG.md docs/engineering docs/changelog AGENTS.md Makefile; do
   [[ -e "$DIST/$gone" ]] && bad "$gone is in the distribution" "it belongs to the source repository, not the listing"
 done
@@ -140,11 +148,29 @@ fi
 # Nothing shipped reads a credential off the machine and could forward it.
 creds="$(grep -rnE 'gh auth token|pushover\.env|\$\{?(GITHUB_TOKEN|GH_TOKEN|PUSHOVER_TOKEN|PUSHOVER_USER|ANTHROPIC_API_KEY|OPENAI_API_KEY)\b' "$DIST/scripts" "$DIST/hooks" "$DIST/mod" --include='*.sh' --include='*.py' --include='*.ts' --include='*.tsx' 2>/dev/null | grep -vE '^[^:]+:[0-9]+:\s*#' | grep -v 'mods\.test\.tsx' | head -3)"
 [[ -z "$creds" ]] && ok "no shipped script or mod reads a credential from the environment or a file" || bad "credential read off the machine" "$creds"
+# No `eval` in a shipped script: the scanner reads evaluated output as code that can
+# change after review, and a formatter's output read back as data needs none.
+evals="$(grep -rnE '(^|[;&|(]|\s)eval\s' "$DIST/scripts" "$DIST/hooks" "$DIST/skills" --include='*.sh' 2>/dev/null | grep -vE '^[^:]+:[0-9]+:\s*#' | head -3)"
+[[ -z "$evals" ]] && ok "no shipped shell script uses eval" || bad "eval in a shipped shell script" "$evals"
 # No download-and-run in anything that executes.
 # A launcher counts only at command position (line start, or after ; & | $( or a
 # backtick): a word inside a message string is not a launch.
-fetchexec="$(grep -rnE '(curl|wget)[^|"]*\|\s*(ba)?sh\b|(^|[;&|(`]|\$\()\s*(npx|bunx|uvx|pipx run|pnpm dlx|yarn dlx|uv run)\s' "$DIST/scripts" "$DIST/hooks" "$DIST/mod" --include='*.sh' --include='*.py' --include='*.ts' --include='*.tsx' 2>/dev/null | grep -vE '^[^:]+:[0-9]+:\s*#' | head -3)"
-[[ -z "$fetchexec" ]] && ok "no shipped script downloads and runs code, and no package launcher" || bad "download-and-run or package launcher in a shipped script" "$fetchexec"
+# A download piped into a shell is flagged anywhere, strings and docs included. A package
+# launcher (npx, uvx, …) is flagged in what the plugin itself runs (hooks, scripts, the
+# mod) and in the listing README; a skill that teaches `npx tsc --noEmit` as a validation
+# command is content, and the directory only warns on it.
+fetchexec="$( { grep -rnE '(curl|wget)[^|]*\|\s*(ba)?sh\b' "$DIST" --include='*.sh' --include='*.py' --include='*.ts' --include='*.tsx' --include='*.md' --include='*.tmpl' 2>/dev/null; grep -rnE '\b(npx|bunx|uvx|pipx run|pnpm dlx|yarn dlx|uv run)\s' "$DIST/scripts" "$DIST/hooks" "$DIST/mod" "$DIST/README.md" --include='*.sh' --include='*.py' --include='*.ts' --include='*.tsx' --include='*.md' 2>/dev/null; } | head -3)"
+[[ -z "$fetchexec" ]] && ok "no shipped file names a download-and-run or package-launcher command, strings and docs included" || bad "download-and-run or package launcher named in a shipped file" "$fetchexec"
+# The scanner pairs a URL host with any credential-looking identifier in the same file
+# (TARGET_KEYS and \$PWD included) and holds the pair. Mirror it: a shipped file that
+# names an https host may not also carry such an identifier, except the vendor's own
+# credential beside the vendor's own host (the two Pushover/GitHub files).
+pairs="$(grep -rlE 'https?://[A-Za-z0-9.-]+' "$DIST" --include='*.sh' --include='*.py' --include='*.md' --include='*.json' --include='*.tmpl' --include='*.tsx' --include='*.ts' --include='*.yaml' 2>/dev/null \
+  | grep -vE '/(scripts/notify-pushover\.sh|scripts/github-mcp\.sh|\.mcp\.json|\.claude-plugin/plugin\.json)$' \
+  | while IFS= read -r f; do
+      grep -nE '\b[A-Z][A-Z0-9_]*(TOKEN|SECRET|PASSWORD|_KEY|_KEYS|CREDENTIAL)S?\b|\$PWD\b|\$\{PWD' "$f" 2>/dev/null | head -1 | sed "s#^#${f#"$DIST"/}:#"
+    done | head -3)"
+[[ -z "$pairs" ]] && ok "no shipped file pairs a URL host with a credential-looking identifier or \$PWD" || bad "URL host beside a credential-looking identifier (the scanner holds the pair)" "$pairs"
 # The mod hands $ to no helper (the directory's MOD_CAPABILITY_USE_NOT_PLAIN).
 if [[ -f "$DIST/mod/register.tsx" ]]; then
   # A call `name($ ...)`: an identifier right before the parenthesis. A hook's own
@@ -163,8 +189,8 @@ if [[ -f "$HERE/validate-skill-frontmatter.py" ]]; then
   fi
   rm -f /tmp/claude-dist-skills.$$
 fi
-broad="$(awk 'FNR==1{f=0} /^allowed-tools:/{f=1;next} f&&/^[a-z-]+:/{f=0} f&&/^\s*- (Bash|Skill|Write|Edit|MultiEdit|NotebookEdit|WebFetch|WebSearch|Bash\(\*\)|Bash\([a-z0-9]+:\*\))\s*$/{print FILENAME": "$0}' "$DIST"/skills/*/*/SKILL.md 2>/dev/null | head -3)"
-[[ -z "$broad" ]] && ok "no bare Bash/Skill/Write/Edit/WebFetch/WebSearch or interpreter wildcard in any allowed-tools" || bad "broad or unscoped allowed-tools entry" "$broad"
+broad="$(awk 'FNR==1{f=0} /^allowed-tools:/{f=1;next} f&&/^[a-z-]+:/{f=0} f&&/^\s*- (Bash|Skill|Write|Edit|MultiEdit|NotebookEdit|WebFetch|WebSearch|Monitor|Bash\(\*\)|Bash\([a-z0-9]+:\*\))\s*$/{print FILENAME": "$0}' "$DIST"/skills/*/*/SKILL.md 2>/dev/null | head -3)"
+[[ -z "$broad" ]] && ok "no bare Bash/Skill/Write/Edit/WebFetch/WebSearch/Monitor or interpreter wildcard in any allowed-tools" || bad "broad or unscoped allowed-tools entry" "$broad"
 
 echo "--- links ---"
 dangling="$(python3 - "$DIST" <<'PY'

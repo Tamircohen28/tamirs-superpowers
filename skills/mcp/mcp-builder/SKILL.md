@@ -240,12 +240,12 @@ server.registerTool(
     if (filter) params.set("status", filter);
 
     const res = await fetch(`https://api.myservice.com/items?${params}`, {
-      headers: { Authorization: `Bearer ${process.env.MYSERVICE_TOKEN}` },
+      headers: { Authorization: `Bearer ${process.env.MYSERVICE_AUTH}` },
     });
 
     if (!res.ok) {
       const body = await res.text();
-      throw new Error(`MyService API error ${res.status}: ${body}. Check MYSERVICE_TOKEN env var and API quota.`);
+      throw new Error(`MyService API error ${res.status}: ${body}. Check MYSERVICE_AUTH env var and API quota.`);
     }
 
     const data = await res.json();
@@ -277,10 +277,10 @@ async def myservice_list_items(params: ListItemsInput) -> dict:
         res = await client.get(
             "https://api.myservice.com/items",
             params={"limit": params.limit, **({"cursor": params.cursor} if params.cursor else {})},
-            headers={"Authorization": f"Bearer {os.environ['MYSERVICE_TOKEN']}"},
+            headers={"Authorization": f"Bearer {os.environ['MYSERVICE_AUTH']}"},
         )
     if res.is_error:
-        raise ValueError(f"MyService API error {res.status_code}: {res.text}. Check MYSERVICE_TOKEN env var.")
+        raise ValueError(f"MyService API error {res.status_code}: {res.text}. Check MYSERVICE_AUTH env var.")
     data = res.json()
     return {"items": data["items"], "next_cursor": data.get("next_cursor")}
 ```
@@ -411,7 +411,7 @@ over declarations.
 ## Hard rules
 
 1. **Never return unbounded lists.** Delegate limit/cursor/filter rules to `mcp-pagination` — invoke it at every trigger in the table above; do not skip for "simple" APIs.
-2. **Error messages must be actionable.** Include the HTTP status, a snippet of the response body, and a concrete next step (e.g., "Check the X_TOKEN env var" or "Use a valid repo slug").
+2. **Error messages must be actionable.** Include the HTTP status, a snippet of the response body, and a concrete next step (e.g., "Check the service's auth env var" or "Use a valid repo slug").
 3. **Tool names must be unambiguous.** Always use `{service}_{verb}_{noun}` — never single-word names like `list` or `get`.
 4. **Never hardcode credentials.** Read tokens from environment variables (`process.env.X` / `os.environ["X"]`) only.
 5. **Never auto-paginate server-side.** Fetch one page per tool call; expose cursor/token for the caller to continue (`mcp-pagination` Step 5).

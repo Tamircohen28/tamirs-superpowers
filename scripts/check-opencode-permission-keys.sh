@@ -33,7 +33,7 @@ REFRESH=false
 for a in "$@"; do [[ "$a" == "--refresh" ]] && REFRESH=true; done
 
 # PermissionConfig keys, https://opencode.ai/config.json, read 2026-09-23.
-SCHEMA_KEYS="bash doom_loop edit external_directory glob grep list lsp question read skill task todowrite webfetch websearch"
+SCHEMA_FIELDS="bash doom_loop edit external_directory glob grep list lsp question read skill task todowrite webfetch websearch"
 
 [[ -f "$GEN" ]] || { echo "ERROR: generator not found at $GEN" >&2; exit 2; }
 
@@ -42,7 +42,7 @@ emitted="$(sed -n 's/^OPENCODE_TOOLS=(\(.*\))$/\1/p' "$GEN")"
 
 fail=0
 for k in $emitted; do
-  case " $SCHEMA_KEYS " in
+  case " $SCHEMA_FIELDS " in
     *" $k "*) ;;
     *) echo "ERROR: OPENCODE_TOOLS emits '$k', which is not a PermissionConfig key." >&2
        echo "       A non-existent key is a deny-list line that denies nothing." >&2
@@ -57,11 +57,11 @@ import json,sys
 d=json.load(sys.stdin)
 o=[x for x in d["$defs"]["PermissionConfig"]["anyOf"] if "properties" in x][0]
 print(" ".join(sorted(o["properties"].keys())))')"
-    if [[ "$live_keys" != "$(echo "$SCHEMA_KEYS" | tr ' ' '\n' | sort | tr '\n' ' ' | sed 's/ $//')" ]]; then
+    if [[ "$live_keys" != "$(echo "$SCHEMA_FIELDS" | tr ' ' '\n' | sort | tr '\n' ' ' | sed 's/ $//')" ]]; then
       echo "NOTE: the pinned key list has drifted from the published schema." >&2
-      echo "  pinned: $SCHEMA_KEYS" >&2
+      echo "  pinned: $SCHEMA_FIELDS" >&2
       echo "  live:   $live_keys" >&2
-      echo "  Update SCHEMA_KEYS in this script deliberately, then re-run." >&2
+      echo "  Update SCHEMA_FIELDS in this script deliberately, then re-run." >&2
     else
       echo "pinned key list matches the published schema"
     fi

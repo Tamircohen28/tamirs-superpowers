@@ -111,12 +111,12 @@ const server = new McpServer({
 
 // TODO: Replace with real API base URL
 const API_BASE = "https://api.example.com";
-const TOKEN_ENV = "PREFIX_TOKEN";
+const AUTH_ENV = "PREFIX_AUTH";
 
 function getToken(): string {
-  const token = process.env[TOKEN_ENV];
+  const token = process.env[AUTH_ENV];
   if (!token) {
-    throw new Error(`${TOKEN_ENV} environment variable is required. Add it to your MCP client config.`);
+    throw new Error(`${AUTH_ENV} environment variable is required. Add it to your MCP client config.`);
   }
   return token;
 }
@@ -154,7 +154,7 @@ server.registerTool(
       const body = await res.text();
       throw new Error(
         `PROJECT_NAME API error ${res.status}: ${body.slice(0, 200)}. ` +
-          `Check the ${TOKEN_ENV} env var and verify permissions.`
+          `Check the ${AUTH_ENV} env var and verify permissions.`
       );
     }
 
@@ -188,7 +188,7 @@ server.registerTool(
       const body = await res.text();
       throw new Error(
         `PROJECT_NAME API error ${res.status}: ${body.slice(0, 200)}. ` +
-          `Verify item ID '${id}' exists and check ${TOKEN_ENV}.`
+          `Verify item ID '${id}' exists and check ${AUTH_ENV}.`
       );
     }
 
@@ -209,12 +209,12 @@ TSEOF
   TOKEN_VAR="${PREFIX_UC}_TOKEN"
   sed -i '' \
     -e "s/PROJECT_NAME/$PROJECT/g" \
-    -e "s/PREFIX_TOKEN/$TOKEN_VAR/g" \
+    -e "s/PREFIX_AUTH/$TOKEN_VAR/g" \
     -e "s/PREFIX_/${PREFIX}_/g" \
     "$PROJECT/src/index.ts" 2>/dev/null || \
   sed -i \
     -e "s/PROJECT_NAME/$PROJECT/g" \
-    -e "s/PREFIX_TOKEN/$TOKEN_VAR/g" \
+    -e "s/PREFIX_AUTH/$TOKEN_VAR/g" \
     -e "s/PREFIX_/${PREFIX}_/g" \
     "$PROJECT/src/index.ts"
 
@@ -241,13 +241,13 @@ mcp = FastMCP("$PROJECT")
 
 # TODO: Replace with real API base URL
 API_BASE = "https://api.example.com"
-TOKEN_ENV = "$TOKEN_VAR"
+AUTH_ENV = "$TOKEN_VAR"
 
 
 def get_token() -> str:
-    token = os.environ.get(TOKEN_ENV)
+    token = os.environ.get(AUTH_ENV)
     if not token:
-        raise ValueError(f"{TOKEN_ENV} environment variable is required. Add it to your MCP client config.")
+        raise ValueError(f"{AUTH_ENV} environment variable is required. Add it to your MCP client config.")
     return token
 
 
@@ -273,7 +273,7 @@ async def ${PREFIX}_list_items(params: ListItemsInput) -> dict:
     if res.is_error:
         raise ValueError(
             f"$PROJECT API error {res.status_code}: {res.text[:200]}. "
-            f"Check the {TOKEN_ENV} env var and verify permissions."
+            f"Check the {AUTH_ENV} env var and verify permissions."
         )
     data = res.json()
     return {"items": data.get("items", []), "next_cursor": data.get("next_cursor")}
@@ -295,7 +295,7 @@ async def ${PREFIX}_get_item(params: GetItemInput) -> dict:
     if res.is_error:
         raise ValueError(
             f"$PROJECT API error {res.status_code}: {res.text[:200]}. "
-            f"Verify item ID '{params.id}' exists and check {TOKEN_ENV}."
+            f"Verify item ID '{params.id}' exists and check {AUTH_ENV}."
         )
     return res.json()
 

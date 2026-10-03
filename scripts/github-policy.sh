@@ -508,7 +508,7 @@ org_conflicts() {
 #
 # org_preflight <org> <repo-count> — prints its own block; never aborts the run.
 org_preflight() {
-  local org="$1" n="$2" rc=0 filters=no line key name id desired live diff weaken note
+  local org="$1" n="$2" rc=0 filters=no line rule_id name id desired live diff weaken note
   local mode="" reason="" conflicted=""
 
   : >"$WORK/org-plan"
@@ -573,10 +573,10 @@ org_preflight() {
 
   [ "$mode" = "org" ] || return 0
 
-  for key in $(jq -r '.rulesets[].key' "$POLICY"); do
-    name="$(jq -r --arg k "$key" '.rulesets[] | select(.key == $k) | .name' "$POLICY")"
-    desired="$WORK/org-desired.$key"
-    if ! github_org_render_payload_file "$POLICY" "$key" "$org" "$desired"; then
+  for rule_id in $(jq -r '.rulesets[].key' "$POLICY"); do
+    name="$(jq -r --arg k "$rule_id" '.rulesets[] | select(.key == $k) | .name' "$POLICY")"
+    desired="$WORK/org-desired.$rule_id"
+    if ! github_org_render_payload_file "$POLICY" "$rule_id" "$org" "$desired"; then
       out "  $MARK_BAD $name — $(github_explain)"
       add_change "$org" "$name (organization)" error "$(github_explain)" no "render" "$GITHUB_LAST_CLASS"
       continue
@@ -606,19 +606,19 @@ org_preflight() {
       continue
     fi
 
-    live="$WORK/org-live.$key"
-    if ! api_json "$WORK/org-live.raw.$key" "orgs/$org/rulesets/$id"; then
+    live="$WORK/org-live.$rule_id"
+    if ! api_json "$WORK/org-live.raw.$rule_id" "orgs/$org/rulesets/$id"; then
       out "  $MARK_BAD $name — $(github_explain)"
       add_change "$org" "$name (organization)" error "$(github_explain)" no "api" "$GITHUB_LAST_CLASS"
       continue
     fi
-    github_ruleset_normalize <"$WORK/org-live.raw.$key" >"$live"
+    github_ruleset_normalize <"$WORK/org-live.raw.$rule_id" >"$live"
 
     # Bypass actors are preserved here for the same reason they are preserved at
     # repository level: who may merge around the rules is a fact about people,
     # not a rule canonical can know, and asserting [] would revoke somebody's
-    # only key while the diff looked like a tightening.
-    jq --slurpfile l "$WORK/org-live.raw.$key" '.bypass_actors = (($l[0].bypass_actors) // [])' \
+    # only rule_id while the diff looked like a tightening.
+    jq --slurpfile l "$WORK/org-live.raw.$rule_id" '.bypass_actors = (($l[0].bypass_actors) // [])' \
       "$desired" | github_ruleset_normalize >"$desired.patched"
     mv "$desired.patched" "$desired"
 
@@ -628,7 +628,7 @@ org_preflight() {
       continue
     fi
 
-    diff="$WORK/org-diff.$key"
+    diff="$WORK/org-diff.$rule_id"
     diff -u "$live" "$desired" 2>/dev/null | sed '1,2d' >"$diff" || true
     weaken="$(github_org_weakens "$live" "$desired")"
     if [ -n "$weaken" ] && [ -z "$OPT_ALLOW_WEAKEN" ]; then
@@ -835,7 +835,7 @@ resolve_branch() {
 # repository's result, not the end of the sweep.
 process_repo() {
   local repo="$1" fork="$2" arch="$3" branch="$4" otype="$5"
-  local rc key name desired diff conflicts weaken id status note line
+  local rc rule_id name desired diff conflicts weaken id status note line
   local ckind cseverity cline n_classic_critical=0
   R_BUCKET=""; R_NOTE=""; R_BRANCH=""
 
@@ -874,11 +874,11 @@ EOF
   : >"$WORK/plan.$RIDX"
   : >"$WORK/bypass.$RIDX"
 
-  for key in $(jq -r '.rulesets[].key' "$POLICY"); do
-    name="$(jq -r --arg k "$key" '.rulesets[] | select(.key == $k) | .name' "$POLICY")"
+  for rule_id in $(jq -r '.rulesets[].key' "$POLICY"); do
+    name="$(jq -r --arg k "$rule_id" '.rulesets[] | select(.key == $k) | .name' "$POLICY")"
 
-    desired="$WORK/desired.$key"
-    if ! github_render_payload_file "$POLICY" "$key" "$repo" "$desired"; then
+    desired="$WORK/desired.$rule_id"
+    if ! github_render_payload_file "$POLICY" "$rule_id" "$repo" "$desired"; then
       printf '%s\terror\t%s\n' "$name" "$(github_explain)" >>"$WORK/rulesets.$RIDX"
       add_change "$repo" "$name" error "$(github_explain)" no "render" "$GITHUB_LAST_CLASS"
       R_BUCKET=failed; R_NOTE="$(github_explain)"; return 0
@@ -896,7 +896,7 @@ EOF
     id="$(jq -r --arg n "$name" '[.[] | select(.name == $n) | .id] | first // empty' "$WORK/rslist.json")"
     rc=0
     if [ -n "$id" ]; then
-      api_json "$WORK/live.raw.$key" "repos/$repo/rulesets/$id" || rc=1
+      api_json "$WORK/live.raw.$rule_id" "repos/$repo/rulesets/$id" || rc=1
     else
       rc=2
     fi
@@ -928,7 +928,7 @@ EOF
     fi
 
     # Present. Normalize both sides and compare — the idempotence primitive.
-    github_ruleset_normalize <"$WORK/live.raw.$key" >"$WORK/live.$key"
+    github_ruleset_normalize <"$WORK/live.raw.$rule_id" >"$WORK/live.$rule_id"
 
     # BYPASS ACTORS ARE PRESERVED, NEVER ASSERTED — carry the live value into the
     # desired payload before anything compares or writes.
@@ -942,7 +942,7 @@ EOF
     # merge into their own default branch. That is "a policy tool can lock the
     # author out" arriving from the one direction nobody watches, because it wears
     # the costume of a STRENGTHENING: the diff looks like tightening a control
-    # while it actually removes the operator's only key.
+    # while it actually removes the operator's only rule_id.
     #
     # ACCEPTED TRADE-OFF, stated rather than hidden: a repository carrying an
     # over-broad bypass — say Everyone — will never be corrected by this tool. The
@@ -952,18 +952,18 @@ EOF
     # A ruleset being CREATED gets no bypass actors at all (the policy's `[]`
     # stands): there is no live value to preserve, and inventing one would be
     # granting an exemption nobody asked for.
-    jq --slurpfile live "$WORK/live.raw.$key" \
+    jq --slurpfile live "$WORK/live.raw.$rule_id" \
        '.bypass_actors = (($live[0].bypass_actors) // [])' "$desired" \
-      | github_ruleset_normalize >"$WORK/desired.patched.$key"
-    mv "$WORK/desired.patched.$key" "$desired"
+      | github_ruleset_normalize >"$WORK/desired.patched.$rule_id"
+    mv "$WORK/desired.patched.$rule_id" "$desired"
 
     jq -r --arg n "$name" '
       (.bypass_actors // [])
       | if length == 0 then empty
         else "\($n)\t\(length)\t" + ([.[] | "\(.actor_type // "?") \(.actor_id // "?") (\(.bypass_mode // "?"))"] | join(", "))
-        end' "$WORK/live.raw.$key" >>"$WORK/bypass.$RIDX"
+        end' "$WORK/live.raw.$rule_id" >>"$WORK/bypass.$RIDX"
 
-    if cmp -s "$desired" "$WORK/live.$key"; then
+    if cmp -s "$desired" "$WORK/live.$rule_id"; then
       n_ok=$((n_ok + 1))
       printf '%s\tup_to_date\t\n' "$name" >>"$WORK/rulesets.$RIDX"
       add_change "$repo" "$name" ok "already up to date" no "" ""
@@ -972,11 +972,11 @@ EOF
 
     n_drift=$((n_drift + 1))
     printf '%s\tdrifted\t\n' "$name" >>"$WORK/rulesets.$RIDX"
-    diff="$WORK/diff.$key"
-    diff -u "$WORK/live.$key" "$desired" 2>/dev/null | sed '1,2d' >"$diff" || true
+    diff="$WORK/diff.$rule_id"
+    diff -u "$WORK/live.$rule_id" "$desired" 2>/dev/null | sed '1,2d' >"$diff" || true
 
     # The two blocking guards, in order: never weaken, never bypass an org.
-    weaken="$(policy_weakens "$WORK/live.$key" "$desired")"
+    weaken="$(policy_weakens "$WORK/live.$rule_id" "$desired")"
     note=""
     if [ -n "$weaken" ]; then
       note="$(printf '%s' "$weaken" | tr '\n' ';' | sed 's/;$//')"

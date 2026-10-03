@@ -137,7 +137,7 @@ load_target() {
   fi
   # The config dir the platform's own env var points at wins over the default.
   if [ -n "$SETUP_ENV_OVERRIDE" ]; then
-    local override; eval "override=\${${SETUP_ENV_OVERRIDE}:-}"
+    local override; override="${!SETUP_ENV_OVERRIDE:-}"
     [ -n "$override" ] && SETUP_CONFIG_DIR="$override"
   fi
   SETUP_TARGET_DIR="$SETUP_CONFIG_DIR"

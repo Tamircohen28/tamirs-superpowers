@@ -406,7 +406,7 @@ fi
 
 # Which targets to enforce: the JSON's own supported_targets list when present,
 # otherwise the legacy three (keeps schema_version 1 files passing unchanged).
-TARGET_KEYS=$(jq -r '(.supported_targets // ["claude_code","cursor","codex"]) | join(" ")' "$TARGETS_JSON")
+TARGET_IDS=$(jq -r '(.supported_targets // ["claude_code","cursor","codex"]) | join(" ")' "$TARGETS_JSON")
 
 badge_prefix() {
   case "$1" in
@@ -456,7 +456,7 @@ is_unvalidated() {
 }
 
 # shellcheck disable=SC2086
-for key in $TARGET_KEYS; do
+for key in $TARGET_IDS; do
   jq -e ".targets.$key.validated_against" "$TARGETS_JSON" >/dev/null 2>&1 \
     || err "platform-targets.json missing targets.$key.validated_against"
 
@@ -493,7 +493,7 @@ done
 if [[ -f "$REGISTRY" ]] && jq -e 'any(.platforms[]; has("platform"))' "$REGISTRY" >/dev/null 2>&1; then
   before_owner=$FAILED
   # shellcheck disable=SC2086
-  for key in $TARGET_KEYS; do
+  for key in $TARGET_IDS; do
     want=$(jq -r --arg k "$key" '.platforms[$k].platform // empty' "$REGISTRY")
     have=$(jq -r --arg k "$key" '.targets[$k].platform // empty' "$TARGETS_JSON")
     [[ -n "$want" ]] || continue
@@ -534,13 +534,13 @@ if [[ -f "$README" ]]; then
     fi
   }
   # shellcheck disable=SC2086
-  for key in $TARGET_KEYS; do check_badge "$key"; done
+  for key in $TARGET_IDS; do check_badge "$key"; done
 fi
 
 # stale targets
 if [[ "$ASSERT_CURRENT" == true ]]; then
   # shellcheck disable=SC2086
-  for key in $TARGET_KEYS; do
+  for key in $TARGET_IDS; do
     v=$(jq -r ".targets.$key.validated_against // empty" "$TARGETS_JSON")
     l=$(jq -r ".targets.$key.latest_known // empty" "$TARGETS_JSON")
     [[ "$v" == "unknown" || "$l" == "unknown" ]] && continue

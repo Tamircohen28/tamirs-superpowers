@@ -50,7 +50,7 @@ which satisfies the directory's "raise it with every release" rule without a sec
 
 [`scripts/build-claude-dist.sh`](../../../scripts/build-claude-dist.sh) writes it:
 
-1. **Roots, copied whole**: `.claude-plugin/plugin.json`, `.claude-plugin/icon.png`,
+1. **Roots, copied whole**: `.claude-plugin/plugin.json`, `listing/icon.png`,
    `.mcp.json`, `hooks/`, `mod/`, `agents/`, `skills/`, `core/`, `rules/`, `output-styles/`,
    `templates/`, `config/`, `scripts/`, `platforms/claude/`, `LICENSE`, `SECURITY.md`,
    `PRIVACY.md`, `plugin-version.json`. Symbolic links are dereferenced.
@@ -98,6 +98,27 @@ portal is the authority; this is the local stand-in, so a change that would bloc
 the listing fails on the pull request rather than at release. It mirrors the automated rules
 only; the [Anthropic Software Directory Policy](https://support.claude.com/en/articles/13145358-anthropic-software-directory-policy)
 still applies to what the plugin does.
+
+## What the scanner reads that no checklist says
+
+Each portal validation has taught a rule the public checklist does not state. They are
+mirrored in `check-claude-dist.sh`, and `tests/test-claude-dist.sh` plants each shape into
+a copy of the built tree and asserts the check names it, so a rule that stops firing is
+caught here rather than a release later.
+
+| The scanner's reading | What it looked like here | What the tree does now |
+|---|---|---|
+| Any script that names a folder, or the plugin root, can "reach" an image in it; an image a script can reach is held as unread code (`UNREAD_ASSET_REFERENCED`) | the icon at `.claude-plugin/icon.png`, beside the manifest every script reads, drew 15 holds | the icon lives in `listing/`, a folder nothing but the manifest names |
+| A URL host and a credential-looking identifier in the same file is a credential sent to that host (`MCP_FORWARDS_CREDENTIAL_ENV`); `$PWD`, `TARGET_KEYS`, a loop variable named `key` and a `$schema` URL all count | 24 files, from a `$(pwd)` next to `pushover.net` to the manifest's schema URL next to the words "gh auth token" | no shipped file pairs a host with such an identifier; the manifest has no `$schema`; example env vars in `mcp-builder` are `*_AUTH`; the two files whose vendor credential sits beside the vendor's own host (`notify-pushover.sh`, `github-mcp.sh`) are the only allowed pair |
+| `eval` of a program's output, and a here-document, are code the validator cannot follow (`COMMAND_SCRIPT_NOT_FOLLOWED`) | `notify-pushover.sh` evaluated the formatter's output | the formatter prints base64 lines read back as data; no shipped shell script uses `eval`; the here-documents in hooks stay, as a reviewer hold |
+| A launcher or a download-and-run command in a string or a comment is one the plugin runs (`RUNTIME_FETCH_EXEC`) | an `npx shadcn` hint in a deny message, a `curl -o` in a comment | strings and comments in what the plugin runs name no launcher; a skill that teaches `npx tsc --noEmit` is content and only warns |
+| `Monitor` in `allowed-tools` is a shell grant (`ALLOWED_TOOLS_BROAD`) | two skills | dropped; the person approves the watch |
+| A mod that reads files and can submit a prompt is held whatever it submits (`MOD_DATA_LEAVES_BY_PROMPT`) | the handoff button | the directory README names the `prompt.submit` call and the fixed text it sends; the hold stays for the reviewer |
+| Every script that names `hooks/` names a folder holding mod files, because `hooks/hooks.json` names the mod (`COMMAND_NAMES_MOD_FILE`) | every hook that sources `hooks/lib/` | structural; the hooks file has to live there. Reviewer hold, accepted |
+
+Held for a reviewer by design, and left alone: the here-documents, the `hooks/` naming, the
+stdio MCP server, the prompt the handoff button submits, and `hooks/notify.sh` running
+`osascript`.
 
 ## How a release flows
 

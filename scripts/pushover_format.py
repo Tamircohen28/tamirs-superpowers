@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
 """Format a Claude Code Notification hook event for notify-pushover.sh.
 
-Reads the hook JSON on stdin and prints shell-quoted MESSAGE=, PRIORITY= and
-PROJECT= assignments on stdout, for the caller to eval.
+Reads the hook JSON on stdin and prints three lines on stdout — the message,
+the priority and the project name, each base64-encoded — for notify-pushover.sh
+to read back with `read`. Base64 keeps a message with newlines or quotes on one
+line and means the caller never evaluates formatter output as shell.
 
 Any transcript snippet is converted from Markdown to plain text first: Pushover
 renders notifications as plain text, so raw Markdown (headings, tables, fences,
@@ -14,7 +16,7 @@ Self-test:  python3 pushover_format.py --selftest < some.md
 import json
 import os
 import re
-import shlex
+import base64
 import sys
 
 SNIPPET_LIMIT = 300
@@ -159,9 +161,8 @@ def main():
     else:
         priority = os.environ.get("PUSHOVER_IDLE_PRIORITY", "0")
 
-    print("MESSAGE=" + shlex.quote(body))
-    print("PRIORITY=" + shlex.quote(priority))
-    print("PROJECT=" + shlex.quote(project))
+    for value in (body, priority, project):
+        print(base64.b64encode(value.encode("utf-8")).decode("ascii"))
     return 0
 
 

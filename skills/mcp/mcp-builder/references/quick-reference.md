@@ -82,15 +82,15 @@ return {
 
 ```typescript
 // TypeScript
-const token = process.env.MY_SERVICE_TOKEN;
-if (!token) throw new Error("MY_SERVICE_TOKEN is required. Set it in your MCP client config.");
+const token = process.env.MY_SERVICE_AUTH;
+if (!token) throw new Error("MY_SERVICE_AUTH is required. Set it in your MCP client config.");
 ```
 
 ```python
 # Python
-token = os.environ.get("MY_SERVICE_TOKEN")
+token = os.environ.get("MY_SERVICE_AUTH")
 if not token:
-    raise ValueError("MY_SERVICE_TOKEN is required. Set it in your MCP client config.")
+    raise ValueError("MY_SERVICE_AUTH is required. Set it in your MCP client config.")
 ```
 
 ---
@@ -113,7 +113,7 @@ if not token:
 
 ```
 {Service} API error {status_code}: {body_snippet_200_chars}.
-{Concrete fix — e.g. "Check {TOKEN_ENV} env var" or "Use a valid {noun} ID like 'cus_ABC123'".}
+{Concrete fix — e.g. "Check {AUTH_ENV} env var" or "Use a valid {noun} ID like 'cus_ABC123'".}
 ```
 
 ---
@@ -132,7 +132,7 @@ in `opencode.json`, and Codex CLI uses a TOML `[mcp_servers.<name>]` table.
       "command": "node",
       "args": ["dist/index.js"],
       "env": {
-        "MY_SERVICE_TOKEN": "${MY_SERVICE_TOKEN}"
+        "MY_SERVICE_AUTH": "${MY_SERVICE_AUTH}"
       }
     }
   }

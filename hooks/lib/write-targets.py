@@ -31,7 +31,7 @@ WHY IT EXTRACTS TARGETS INSTEAD OF GREPPING THE COMMAND
 
     So nothing here looks for protected paths. It parses the command, finds the
     constructs that WRITE (redirections, `tee`, in-place editors, `cp`/`mv`,
-    `curl -o`, …) and reports only the operands those constructs write to. A
+    a downloader's output flag, …) and reports only the operands those constructs write to. A
     path that appears anywhere else in the command — a `grep` pattern, a commit
     message, a `sed` script, a heredoc body — is never a target, because it is
     never in a target position. That is a property of the parse, not a list of

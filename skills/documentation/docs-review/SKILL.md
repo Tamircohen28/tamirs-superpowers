@@ -333,7 +333,7 @@ For each extracted command, verify **without executing anything that mutates the
 | `bash scripts/<x>.sh` | the file exists and is executable; `bash -n` parses it |
 | `/plugin install <name>@<marketplace>` | the marketplace name and plugin name match the manifest |
 | package-manager install | the package name matches the one this repo publishes |
-| `curl ... \| sh` | flag it — a piped remote script in docs needs an explicit reason |
+| a remote script piped straight into a shell | flag it — it needs an explicit reason in the docs |
 
 Never run an install command to test it. `make -n`, `bash -n`, and reading the manifest are
 the verification; actually installing mutates the user's machine and is out of scope for a

@@ -1,12 +1,11 @@
 {
-  "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "tamirs-superpowers",
   "displayName": "Tamir's Superpowers",
-  "version": "4.11.1",
+  "version": "4.11.2",
   "description": "29 bundled skills, 10 specialist agents, smart worktree hooks, statusline, and MCP server stubs — plan, implement, review, debug, multi-agent setup, and audit code from one plugin.",
   "homepage": "https://github.com/Tamircohen28/tamirs-superpowers",
   "repository": "https://github.com/Tamircohen28/tamirs-superpowers",
-  "icon": "./.claude-plugin/icon.png",
+  "icon": "./listing/icon.png",
   "documentationUrl": "https://github.com/Tamircohen28/tamirs-superpowers/blob/master/docs/user/install/claude-code.md",
   "supportUrl": "https://github.com/Tamircohen28/tamirs-superpowers/issues",
   "privacyPolicyUrl": "https://github.com/Tamircohen28/tamirs-superpowers/blob/master/PRIVACY.md",
@@ -46,7 +45,7 @@
     "github_token": {
       "type": "string",
       "title": "GitHub token for the bundled github MCP server",
-      "description": "Optional. A GitHub personal access token with repo scope (gh auth token prints the gh CLI's). Leave blank to keep the github MCP server off - it refuses to start without one and nothing else needs it.",
+      "description": "Optional. A GitHub personal access token with repo scope (the gh CLI can print its own). Leave blank to keep the github MCP server off - it refuses to start without one and nothing else needs it.",
       "sensitive": true
     },
     "pushover_token": {

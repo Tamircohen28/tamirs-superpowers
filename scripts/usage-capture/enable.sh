@@ -114,7 +114,7 @@ PY
 
 logv() { [[ "$VERBOSE" == 1 ]] && printf '%s\n' "$*" >&2 || true; }
 
-OWNED_KEYS=(
+OWNED_FIELDS=(
   TAMIRS_USAGE_CAPTURE
   TAMIRS_USAGE_CAPTURE_PORT
   TAMIRS_USAGE_CAPTURE_DIR
@@ -133,7 +133,7 @@ OWNED_KEYS=(
 )
 
 merge_settings() {
-  python3 - "$SETTINGS" "$DIR" "$PORT" "$GATEWAY_KIND" "$ENDPOINT_LABEL" "$BODIES" "$DISABLE" "$DRY_RUN" "$FORCE" "${OWNED_KEYS[*]}" <<'PY'
+  python3 - "$SETTINGS" "$DIR" "$PORT" "$GATEWAY_KIND" "$ENDPOINT_LABEL" "$BODIES" "$DISABLE" "$DRY_RUN" "$FORCE" "${OWNED_FIELDS[*]}" <<'PY'
 import json, os, sys
 import re
 

@@ -69,8 +69,8 @@ details: [PRIVACY.md](PRIVACY.md).
   unchanged. On `attribution.text` it appends the commit trailer your project's `CLAUDE.md`
   declares, if any. On `session.compact` it adds the branch and objective to the
   compaction instructions. It registers one command, `/objective`.
-- **Submits**: one fixed prompt, only when you press **Write handoff** on the rate-limit
-  band. The text names the rate-limit window and its percentage and asks the
+- **Submits** (the mod's one `prompt.submit` call): one fixed prompt, only when you press
+  **Write handoff** on the rate-limit band. The text names the rate-limit window and its percentage and asks the
   `switch-dev` skill to write the objective state to disk. Nothing else is ever submitted,
   and with `semantic_skill_suggest` on, a one-line note naming a matching skill is attached
   as context to your own prompt.

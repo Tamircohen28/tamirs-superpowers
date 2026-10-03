@@ -61,7 +61,7 @@ log() { [[ "$QUIET" -eq 1 ]] || echo "$@"; }
 # Files and directories shipped whole. Order does not matter.
 ROOTS=(
   .claude-plugin/plugin.json
-  .claude-plugin/icon.png
+  listing/icon.png
   .mcp.json
   LICENSE
   SECURITY.md
@@ -104,6 +104,8 @@ PRUNE_PATHS=(
   scripts/probe-platform-versions.sh
   scripts/typecheck-mods.sh
   scripts/check-platform-version-pins.sh
+  scripts/check-gemini-adapter.sh
+  scripts/check-opencode-permission-keys.sh
   scripts/lib/setup-codex.sh
   scripts/lib/setup-cursor.sh
   scripts/lib/setup-gemini.sh

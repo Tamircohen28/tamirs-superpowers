@@ -16,7 +16,6 @@ allowed-tools:
 - Skill(tamirs-superpowers:pr-dev)
 - Skill(tamirs-superpowers:start-dev)
 - Skill(tamirs-superpowers:worker-dev)
-- Monitor
 disallowed-tools: []
 model: sonnet
 effort: high

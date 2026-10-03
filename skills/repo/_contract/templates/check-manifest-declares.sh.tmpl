@@ -28,7 +28,7 @@
 #      nothing, and `jq -e '.skills'` would pass on all three;
 #   4. every repo path the value names exists. Manifest paths are plugin-root relative and
 #      this repo's plugin root is the repo root, so they resolve against --root (default
-#      $PWD, where the registry's other validation commands already run).
+#      $(pwd), where the registry's other validation commands already run).
 #      `${CLAUDE_PLUGIN_ROOT}/x` is that same path spelled for a runtime that has already
 #      installed the plugin, so the prefix is stripped before resolving.
 #
@@ -61,7 +61,7 @@ set -euo pipefail
 
 usage() { sed -n '2,10p' "$0" | sed -E 's/^# ?//'; exit "${1:-0}"; }
 
-ROOT="$PWD"
+ROOT="$(pwd)"
 SELF_TEST=false
 DISCOVERS=""
 args=()
@@ -278,7 +278,7 @@ JSON
   # key naming the count; grep for the exact number so a manifest losing four of its seven
   # skill entries is a failure here and not a quieter pass.
   local out
-  local repo="${SELF_TEST_ROOT:-$PWD}"
+  local repo="${SELF_TEST_ROOT:-$(pwd)}"
   check_live() { # <manifest> <key> <expected paths>
     local m="$1" k="$2" want="$3"
     if ! out="$(declares "$repo" "$m" "$k" 2>&1)"; then
