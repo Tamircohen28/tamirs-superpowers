@@ -19,8 +19,9 @@
 #     hook lives in the plugin's own hooks.json and needs no unwiring
 #
 # What it deliberately KEEPS:
-#   - ~/.claude/pushover.env, if an install older than 4.11.0 left one. Nothing
-#     reads it any more (credentials are plugin options now); delete it by hand.
+#   - the Pushover credentials dotfile under ~/.claude, if an install older than
+#     4.11.0 left one. Nothing reads it any more (credentials are plugin options
+#     now); delete it by hand.
 #   - the marketplace entry, and every plugin other than this one.
 #
 # Preview first:

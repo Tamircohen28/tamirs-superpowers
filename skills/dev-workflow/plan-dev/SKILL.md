@@ -8,12 +8,8 @@ disable-model-invocation: false
 user-invocable: true
 allowed-tools:
 - Read
-- Write
-- Edit
 - Glob
 - Grep
-- WebFetch
-- WebSearch
 - Agent
 disallowed-tools: []
 model: sonnet

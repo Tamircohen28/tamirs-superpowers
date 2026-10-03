@@ -154,8 +154,12 @@ Still enforced whenever the relevant fields are present:
   scoped: never a bare `Bash`, `Bash(*)`, or a wildcard right after an interpreter or runner
   (`Bash(python3:*)`, `Bash(npx:*)`), and never a bare `Skill`. Write `Bash(git status:*)`,
   `Bash(bash ${CLAUDE_PLUGIN_ROOT}/scripts/x.sh:*)` or `Skill(tamirs-superpowers:pr-dev)`, or
-  leave the tool out and let the person approve each call. Anthropic's plugin directory holds
-  a plugin for every broad entry (`ALLOWED_TOOLS_BROAD`); `make validate` fails on one.
+  leave the tool out and let the person approve each call. The same goes for a bare `Write`,
+  `Edit`, `WebFetch` or any `WebSearch`: the skills here act on arbitrary repositories, so no
+  path scope fits — omit the grant (auto mode never prompts anyway) and scope `WebFetch` to
+  the hosts a skill reads (`WebFetch(domain:code.claude.com)`). Anthropic's plugin directory
+  holds a plugin for every broad entry (`ALLOWED_TOOLS_BROAD`) and flags unscoped write and
+  fetch grants (`ALLOWED_TOOLS_UNSCOPED_WRITE`/`_FETCH`); `make validate` fails on all of them.
 
 ### Invocation tiers
 

@@ -6,11 +6,11 @@
 # the person pastes it once in the plugin's config dialog (or `claude plugin
 # configure tamirs-superpowers`), and the host keeps it in secure storage.
 #
-# Nothing is read from the machine. An earlier version derived the token from
-# `gh auth token`; the Anthropic directory policy forbids a plugin reading a
-# credential already on the user's machine and handing it to a server, so that
-# path is gone. A person who prefers the gh CLI's token runs `gh auth token`
-# themselves and pastes the result into the option.
+# Nothing is read from the machine. An earlier version asked the gh CLI for its
+# token; the Anthropic directory policy forbids a plugin reading a credential
+# already on the user's machine and handing it to a server, so that path is gone.
+# A person who prefers the gh CLI's token prints it with the gh CLI and pastes the
+# result into the option.
 #
 # Tries the official binary first, falls back to Docker.
 set -euo pipefail

@@ -8,8 +8,6 @@ disable-model-invocation: false
 user-invocable: true
 allowed-tools:
   - Read
-  - Edit
-  - Write
 disallowed-tools: []
 model: sonnet
 effort: high

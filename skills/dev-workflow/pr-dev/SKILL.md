@@ -8,11 +8,8 @@ disable-model-invocation: false
 user-invocable: true
 allowed-tools:
 - Read
-- Write
-- Edit
 - Glob
 - Grep
-- WebFetch
 - Agent
 - Monitor
 - Skill(tamirs-superpowers:cleanup)

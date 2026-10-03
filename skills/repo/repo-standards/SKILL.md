@@ -10,11 +10,8 @@ disable-model-invocation: false
 user-invocable: true
 allowed-tools:
 - Read
-- Write
-- Edit
 - Glob
 - Grep
-- WebFetch
 - Agent
 - Skill(tamirs-superpowers:changelog-review)
 - Skill(tamirs-superpowers:docs-review)

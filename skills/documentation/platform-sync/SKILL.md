@@ -21,7 +21,16 @@ allowed-tools:
   - Read
   - Glob
   - Grep
-  - WebFetch
+  - WebFetch(domain:code.claude.com)
+  - WebFetch(domain:docs.claude.com)
+  - WebFetch(domain:support.claude.com)
+  - WebFetch(domain:github.com)
+  - WebFetch(domain:raw.githubusercontent.com)
+  - WebFetch(domain:docs.cursor.com)
+  - WebFetch(domain:opencode.ai)
+  - WebFetch(domain:registry.npmjs.org)
+  - WebFetch(domain:cloud.google.com)
+  - WebFetch(domain:developers.openai.com)
 disallowed-tools: []
 model: sonnet
 effort: high

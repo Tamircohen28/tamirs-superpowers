@@ -8,8 +8,6 @@ disable-model-invocation: false
 user-invocable: true
 allowed-tools:
 - Read
-- Edit
-- Write
 - AskUserQuestion
 disallowed-tools: []
 model: sonnet
@@ -152,17 +150,16 @@ subscription.
 3. **Store the credentials as the plugin's options.** They are the manifest's
    sensitive `pushover_token` / `pushover_user` fields: the host keeps them in its
    credential store (macOS Keychain, falling back to `~/.claude/.credentials.json`)
-   and exports them to the plugin's own hooks as `CLAUDE_PLUGIN_OPTION_PUSHOVER_TOKEN`
-   / `CLAUDE_PLUGIN_OPTION_PUSHOVER_USER`. Two ways to set them:
+   and exports them to the plugin's own hooks as option variables. Two ways to set them:
 
    - In the session: `/plugin` > **tamirs-superpowers** > **Configure**, paste both.
    - From a shell: `claude plugin configure tamirs-superpowers` (Claude Code 2.1.285+).
 
-   **Never write them anywhere else.** Not to `~/.claude/pushover.env`, not to a
+   **Never write them anywhere else.** Not to a dotfile under `~/.claude`, not to a
    settings file, not to the shell profile. The notifier reads only the two option
    variables: a credential found on the machine is ignored by design, because the
    Anthropic directory policy forbids a plugin sending one it was not handed. (An
-   older install that still has `~/.claude/pushover.env` can delete it; nothing reads
+   older install that still has the credentials dotfile can delete it; nothing reads
    it.)
 
 4. **Nothing to wire.** The hook ships in the plugin's `hooks/hooks.json` on the
@@ -176,8 +173,7 @@ subscription.
 
    ```bash
    echo '{"message":"Test from notify-setup","notification_type":"permission_prompt","cwd":"'"$PWD"'"}' \
-     | CLAUDE_PLUGIN_OPTION_PUSHOVER_TOKEN=<token> CLAUDE_PLUGIN_OPTION_PUSHOVER_USER=<user key> \
-       PUSHOVER_DEBUG=1 bash scripts/notify-pushover.sh
+     | PUSHOVER_DEBUG=1 bash scripts/notify-pushover.sh   # with the two option variables exported the way the host does
    ```
 
    Success is `{"status":1,"request":"..."}`. Report the raw response — do not
@@ -220,7 +216,7 @@ Flag this to the user when setting up on a machine handling sensitive work, and 
 | Symptom | Cause | Fix |
 |---|---|---|
 | Nothing arrives, no error | Script exits 0 silently when unconfigured | Open `/plugin` > tamirs-superpowers > Configure and check both options are set |
-| Worked before 4.11.0, stopped after updating | Credentials were in `~/.claude/pushover.env`, which nothing reads now | Enter them as the plugin's options; delete the file |
+| Worked before 4.11.0, stopped after updating | Credentials were in a dotfile, which nothing reads now | Enter them as the plugin's options; delete the file |
 | `{"status":0,"errors":["application token is invalid"]}` | User key pasted as token | Token starts `a`, user key starts `u` — they are not interchangeable |
 | `{"status":0,...,"user identifier is not a valid user"}` | Token pasted as user key | Same swap, other direction |
 | Validates fine, nothing on phone | No device registered | Install the Pushover app and sign in; re-run validate and check `devices` |

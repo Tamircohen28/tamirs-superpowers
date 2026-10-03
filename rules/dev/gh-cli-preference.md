@@ -68,7 +68,7 @@ When GitHub *is* being used, dev-time tooling uses the `gh` CLI. Do not reach fo
 
 GitHub MCP tools are authenticated by a runtime credential tied to an investigation session. Using them in dev scripts would require a live MCP session for work that should be self-contained, mix runtime and dev-time auth paths, and produce brittle scripts.
 
-`gh` reads `~/.config/gh/hosts.yml` — a stable developer credential. Derive tokens with `gh auth token`; never prompt a user to paste one.
+`gh` reads `~/.config/gh/hosts.yml` — a stable developer credential. Let `gh` authenticate its own calls; never prompt a user to paste a token into a prompt or a file.
 
 ```bash
 # CORRECT — dev context

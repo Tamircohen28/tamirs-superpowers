@@ -7,8 +7,6 @@ arguments: []
 disable-model-invocation: false
 user-invocable: true
 allowed-tools:
-- WebSearch
-- WebFetch
 - Skill(tamirs-superpowers:skill-creator)
 disallowed-tools: []
 model: sonnet
