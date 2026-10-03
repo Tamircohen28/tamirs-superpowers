@@ -5,6 +5,30 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [4.12.0] — 2026-10-03
+
+Lessons from a long multi-agent session: agents sat on piles of uncommitted work, looked
+"running" while dead, and a red PR could merge because the ruleset required no checks.
+
+### Added
+
+- `scripts/agent-health.sh` — per-worktree report (branch, commits ahead, uncommitted files,
+  minutes since last write and last commit) with a verdict `ok | uncommitted-pile | idle |
+  no-commits`; flags `--idle-min`, `--pile`, `--json`, `--repo`. Report-only, exit 0.
+  `tests/test-agent-health.sh` covers it on a temp repo with several worktrees.
+- `Tamircohen28/iBrain` entry in `config/github/repository-policy.json` requiring its eleven
+  CI contexts (`required_checks.contexts`, strict stays false). The account default stays
+  empty. The policy file is changed here; it is not applied to GitHub by this release.
+- `pr-dev`, `orchestrate-dev` and `worker-dev`: poll your own PR with a bounded loop, merge
+  only when both `push` and `pull_request` runs of the final head are green and no thread is
+  unresolved, pre-merge conditions as blocking review threads, batched thread rounds, the
+  early-start pattern, commit per task, and a periodic `agent-health.sh` check.
+
+### Changed
+
+- `scripts/check-github-policy.sh` rejects a non-array or non-string `contexts` list cleanly;
+  `tests/test-github-policy.sh` gains rendering and drift cases for required contexts.
+
 ## [4.11.11] — 2026-10-04
 
 Twelfth directory pass, from the portal's report on 4.11.10 (5 warnings, 20 holds: 14 for the icon,

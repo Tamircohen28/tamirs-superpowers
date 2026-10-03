@@ -225,7 +225,7 @@ reviewDecision,statusCheckRollup,headRefOid,headRefName,autoMergeRequest
 
 ## Address a review thread
 
-Unchanged, and still the highest-value part of the loop:
+Highest-value part of the loop. Triage **all** open threads per round (batching: `references/drive-discipline.md`):
 
 1. **Read** the full thread body — understand what the reviewer is asking.
 2. **Assess** and state in conversation: `agree`, `partially agree`, or `disagree`.
@@ -240,9 +240,9 @@ Unchanged, and still the highest-value part of the loop:
    ```bash
    bash "$SKILL_DIR/scripts/resolve-thread.sh" ${REPO:+--repo "$REPO"} "$THREAD_ID"
    ```
-7. Commit, push, restart the loop.
+7. One push per round, then restart the loop.
 
-When the PR spans an objective, say which task a comment lands in — it makes the reply concrete and tells the reviewer the change was intentional, not incidental.
+When the PR spans an objective, say which task a comment lands in.
 
 ## Diagnose a CI failure
 
@@ -366,6 +366,8 @@ Confirm ALL before merging or waiting on auto-merge:
 - [ ] 0 unresolved review threads (re-run `fetch-pr-state.sh` — do not trust cached state)
 - [ ] Branch freshness satisfied per the loose/strict rule
 - [ ] Merge policy resolved and stated
+- [ ] **No required checks?** Merge only when the `push` AND `pull_request` runs of the FINAL head are fully green and 0 threads are unresolved (nothing else stops a red merge); authorization is unchanged: user say-so or the pr-dev exception
+- [ ] Orchestrator pre-merge conditions are **review threads** on the PR (ruleset blocks until resolved), not chat messages
 
 Print:
 
@@ -395,12 +397,14 @@ git push origin HEAD
 
 Push only to the PR's head branch. When that head is an objective integration branch, the fix belongs there — not on a worker branch that is already merged into it.
 
-Then **restart the loop immediately** — a push is never a terminal outcome.
+Then **restart the loop immediately**; a push is never terminal.
 
 ## Wait for CI
 
 Short cycles: `gh pr checks "$PR" --watch`.
-Long cycles (5+ min) or when other work can proceed: the Monitor `until`-loop — see `$SKILL_DIR/references/ci-monitor-loop.md`. On a platform without background tasks, poll on the cadence below instead.
+Long cycles (5+ min) or when other work can proceed: the Monitor `until`-loop (`$SKILL_DIR/references/ci-monitor-loop.md`); no background tasks: poll on the cadence below.
+
+**Poll your own PR; never idle waiting for a notification.** Poll CI and review threads with a bounded loop (a deadline on every wait); if a wait exceeds its stated bound, report to the orchestrator. See `$SKILL_DIR/references/drive-discipline.md`.
 
 ## Polling cadence
 
@@ -468,9 +472,7 @@ Never silently stop, guess, or take a destructive action without confirmation. W
 | Treat a `cancelled` superseded run as a failure | Grade the current head only |
 | Merge base into the branch every loop | Update once, and only when the base is strict |
 | Bypass the merge queue with a direct merge | Enqueue and wait |
-| Retry a flaky runner 10× | Max 3×; then surface |
-| Stop on one idle poll | Keep looping |
-| Stop after pushing a fix | Restart the loop immediately |
+| Idle until a notification arrives | Poll CI and threads with a deadline; report overruns |
 | Post a reply without stating it first | State it, then post |
 | Patch CI config to silence a flaky test | Retry; escalate if it persists |
 | `--admin` to skip a review you just did not want | `--admin` only for billing/solo-maintainer protection cases, with user intent |
@@ -484,6 +486,7 @@ Never silently stop, guess, or take a destructive action without confirmation. W
 | `scripts/resolve-thread.sh` | Resolve one review thread |
 | `scripts/cleanup-after-merge.sh` | Post-merge branch cleanup verification |
 | `references/ci-monitor-loop.md` | Long-cycle CI waiting with Monitor |
+| `references/drive-discipline.md` | Polling bounds, no-required-checks merge gate, blocking pre-merge threads, batched review rounds |
 | `templates/review-reply.md.tmpl` | Review reply shapes |
 
 ## Output format

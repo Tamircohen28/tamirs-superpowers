@@ -75,6 +75,8 @@ So: the account-wide default context list is **empty**, and each repository opts
 
 **Adding a CI job does not make it blocking.** The job's `name:` must also be added to that repository's context list and the policy re-applied. This repository requires 9 of its CI jobs; the rest run and report without gating.
 
+Two repositories opt in today: `Tamircohen28/tamirs-superpowers` (9 contexts) and `Tamircohen28/iBrain` (11). A repository with no list — or an empty one — renders **no** `required_status_checks` rule at all, because a rule gating on nothing is a lie in the UI. `strict_required_status_checks_policy` stays `false` whichever list is rendered. `scripts/check-github-policy.sh` rejects a non-array list, non-string, empty, whitespace-padded or duplicate entries, and any non-empty account default.
+
 ---
 
 ## 5. Reviews: zero approvals, mandatory thread resolution
