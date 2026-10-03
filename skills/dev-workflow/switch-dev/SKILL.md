@@ -146,7 +146,7 @@ bash "$SHARED_DIR/handoff.sh" emit "$OBJECTIVE" "$TASK" \
   --branch "$BRANCH" \
   --commit "$SHA" \
   --file 'src/auth/middleware.ts:modified' \
-  --validation 'npm test -- src/auth|worker|pass' \
+  --validation 'npm test -- src/auth|worker|ok' \
   --decision 'used jose over jsonwebtoken|maintained, ESM-native' \
   --followup 'refresh-token rotation still unimplemented|blocking'
 ```

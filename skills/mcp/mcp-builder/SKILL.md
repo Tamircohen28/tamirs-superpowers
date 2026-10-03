@@ -359,7 +359,7 @@ Never write a config file on the assumption a host supports MCP.
 | Target | Config path | Shape |
 |---|---|---|
 | Claude Code (project) | `.mcp.json` | `{"mcpServers": {"<name>": {"command", "args", "env"}}}` |
-| Claude Code (user) | `~/.claude.json` | same `mcpServers` object |
+| Claude Code (user) | the user-level config file in the home directory | same `mcpServers` object |
 | Claude Desktop | `claude_desktop_config.json` (OS-specific dir) | same `mcpServers` object |
 | Cursor | `.cursor/mcp.json` | `{"mcpServers": {...}}` |
 | Codex CLI | `.codex/config.toml` (or the path the fetched Codex docs name) | TOML `[mcp_servers.<name>]` table |
