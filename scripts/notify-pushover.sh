@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # notify-pushover.sh — Notification hook that pushes to your phone via Pushover.
 #
-# Complements hooks/notify.sh (macOS desktop banner) rather than replacing it:
+# Complements the notify hook (macOS desktop banner) rather than replacing it:
 # the banner catches you at the machine, this catches you away from it.
 #
 # Reads Claude Code's Notification hook JSON on stdin. Falls back to

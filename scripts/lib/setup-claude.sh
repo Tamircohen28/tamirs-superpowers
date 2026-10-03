@@ -311,7 +311,7 @@ claude_exit_guard_path()  { printf '%s/ensure-exit.sh' "$SETUP_TARGET_DIR"; }
 
 claude_exit_guard_available() {
   if [ ! -f "${SETUP_REPO_ROOT}/hooks/ensure-exit.sh" ]; then
-    printf 'no:hooks/ensure-exit.sh not found in this checkout'
+    printf 'no:the ensure-exit hook script was not found in this checkout'
   elif [ -n "${CLAUDE_EXIT_PROXY:-}" ] && [ -n "${CLAUDE_EXIT_PUBLIC_IP:-}" ]; then
     printf 'yes'
   else
