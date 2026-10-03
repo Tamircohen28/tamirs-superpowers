@@ -115,9 +115,7 @@ Later runs that need another copy rotate to
 `remove` restores from the fixed backup — and rotates a dated copy of the current
 file before it does, so undoing is itself undoable.
 
-`~/.claude/pushover.env` is never deleted by `remove`. Those are your
-credentials; a reinstall should not make you re-enter them. Delete it by hand to
-purge.
+Pushover credentials are not files setup manages: since 4.11.0 they are the plugin's sensitive `pushover_token` / `pushover_user` options (`/plugin` > tamirs-superpowers > Configure, or `claude plugin configure tamirs-superpowers`), held by the host's credential store. A `~/.claude/pushover.env` an older install left behind is read by nothing; delete it by hand.
 
 ---
 
@@ -170,14 +168,12 @@ future, but no shipped target uses it today.
 | `statusline` | `~/.claude/settings.json` | Wires `statusLine` to a command that resolves the newest installed plugin version at runtime, so it survives updates |
 | `agents` | `~/.claude/agents/` | Copies the specialist subagent definitions |
 | `claude-md` | `~/.claude/CLAUDE.md` | Installs the global rules template. Destructive — see rule 5 |
-| `notifications-creds` | `~/.claude/pushover.env` | Mode 600. Requires `PUSHOVER_TOKEN` **and** `PUSHOVER_USER` in the environment |
-| `notifications-hook` | `~/.claude/settings.json` | One `Notification` hook; any other Notification hooks are left alone |
 | `exit-guard` | `~/.claude/ensure-exit.sh` | Proxy exit-node guard. Requires `CLAUDE_EXIT_PROXY` and `CLAUDE_EXIT_PUBLIC_IP` |
 
 Modules whose prerequisites are absent report why rather than failing:
 
 ```
-    pushover.env   skip   ~/.claude/pushover.env   no PUSHOVER_TOKEN/PUSHOVER_USER in env — run /notify-setup
+    ensure-exit.sh   skip   ~/.claude/ensure-exit.sh   no CLAUDE_EXIT_PROXY/CLAUDE_EXIT_PUBLIC_IP in env
 ```
 
 ### Applying will switch some plugins off

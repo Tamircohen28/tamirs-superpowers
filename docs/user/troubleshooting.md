@@ -108,8 +108,9 @@ Plugins the repo says nothing about are never touched.
 Read the reason in the plan line; `setup` reports why rather than failing silently. The
 usual ones:
 
-- **`no PUSHOVER_TOKEN/PUSHOVER_USER in env`** — an optional module whose prerequisites are
-  absent. Run `/notify-setup`, or ignore it.
+- **`no CLAUDE_EXIT_PROXY/CLAUDE_EXIT_PUBLIC_IP in env`** — an optional module whose
+  prerequisites are absent. Set them, or ignore it. (Pushover is no longer a setup module:
+  its credentials are plugin options, see [phone-notifications.md](phone-notifications.md).)
 - **`--only` or `--targets` filtered it out.** `--targets` is a *filter over detection*, not
   a menu — but naming a target explicitly also plans it even if the platform is not
   installed yet, which is how a fresh machine gets bootstrapped.
@@ -130,7 +131,8 @@ ls ~/.claude/settings.json.pre-tamirs-superpowers
 current file first, so undoing is itself undoable. Later runs that need another copy rotate
 to `<file>.pre-tamirs-superpowers-<UTC>`. `remove` strips only the marker blocks and the
 values that are still what setup wrote; anything you have since changed is yours and stays.
-`~/.claude/pushover.env` is deliberately never deleted — delete it by hand to purge.
+A `~/.claude/pushover.env` from an install older than 4.11.0 is read by nothing and never
+deleted — delete it by hand to purge.
 
 One honest limitation on the other four platforms: an array entry that was in **both** your
 config and our fragment is removed on `remove`, because the merge leaves no record of who

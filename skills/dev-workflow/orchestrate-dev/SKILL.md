@@ -7,14 +7,17 @@ arguments: []
 disable-model-invocation: false
 user-invocable: true
 allowed-tools:
-- Bash
 - Read
 - Write
 - Edit
 - Glob
 - Grep
 - Agent
-- Skill
+- Skill(tamirs-superpowers:decision)
+- Skill(tamirs-superpowers:deliver-dev)
+- Skill(tamirs-superpowers:pr-dev)
+- Skill(tamirs-superpowers:start-dev)
+- Skill(tamirs-superpowers:worker-dev)
 - Monitor
 disallowed-tools: []
 model: sonnet

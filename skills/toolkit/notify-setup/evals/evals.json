@@ -17,12 +17,12 @@
     {
       "id": 2,
       "prompt": "Here's my Pushover key: u46cj64eyovssko7276jpwdgijqdqv \u2014 set it up and send me a test.",
-      "expected_output": "The skill recognizes only the user key was supplied (it starts with 'u'), asks for the application token as well, and does not attempt a send with one credential. Once both are present it validates via /1/users/validate.json, writes ~/.claude/pushover.env at mode 600, sends a test through scripts/notify-pushover.sh with PUSHOVER_DEBUG=1, and reports the raw API response.",
+      "expected_output": "The skill recognizes only the user key was supplied (it starts with 'u'), asks for the application token as well, and does not attempt a send with one credential. Once both are present it validates via /1/users/validate.json, has the user store them as the plugin's sensitive pushover_token/pushover_user options (/plugin > Configure or `claude plugin configure`), never writes them to a file, sends a test through scripts/notify-pushover.sh with the CLAUDE_PLUGIN_OPTION_* variables set and PUSHOVER_DEBUG=1, and reports the raw API response.",
       "files": [],
       "expectations": [
         "Identifies the supplied value as the user key (u-prefix) and requests the missing application token",
         "Does not call /1/messages.json with only one credential",
-        "Credentials are written to ~/.claude/pushover.env with mode 600, never inside the plugin cache directory",
+        "Credentials are stored as the plugin's sensitive options, never written to a file or a settings file",
         "The test send goes through scripts/notify-pushover.sh rather than a hand-rolled curl",
         "The raw {\"status\":1,...} response is shown as evidence of delivery",
         "The user is told hooks load at session start, so the wiring applies to the next session"
@@ -31,11 +31,11 @@
     {
       "id": 3,
       "prompt": "My phone notifications from Claude Code just stopped working after I updated the plugin. Nothing arrives and there's no error.",
-      "expected_output": "The skill diagnoses using the troubleshooting table: checks that ~/.claude/pushover.env still exists and holds both values, confirms the settings.json hook uses the version-resolving glob rather than a hardcoded version path (the likely cause after an update), and re-runs a test with PUSHOVER_DEBUG=1 to surface the API response instead of silence.",
+      "expected_output": "The skill diagnoses using the troubleshooting table: checks that both plugin options are still set (an install older than 4.11.0 kept them in ~/.claude/pushover.env, which nothing reads now — the likely cause after an update), confirms no stale Notification hook naming notify-pushover.sh sits in ~/.claude/settings.json, and re-runs a test with the CLAUDE_PLUGIN_OPTION_* variables and PUSHOVER_DEBUG=1 to surface the API response instead of silence.",
       "files": [],
       "expectations": [
         "Identifies a hardcoded version path in settings.json as the probable cause of breakage after a plugin update",
-        "Checks whether ~/.claude/pushover.env survived the update",
+        "Checks whether the credentials are set as plugin options rather than in the retired ~/.claude/pushover.env",
         "Uses PUSHOVER_DEBUG=1 to convert the silent failure into a visible API response",
         "Explains that the script exits 0 silently when unconfigured, which is why there is no error",
         "Proposes re-running the installer to restore the glob-resolving hook command"
@@ -44,7 +44,7 @@
     {
       "id": 4,
       "prompt": "Set up phone notifications for me. I'm using Cursor.",
-      "expected_output": "Should check the `hooks` capability for cursor, report that push notifications rely on Claude Code's Notification hook event which Cursor does not provide, and STOP. Must not write ~/.claude/pushover.env, must not edit any settings file, and must not partially configure a hook that will never fire \u2014 a half-configured notifier is worse than none.",
+      "expected_output": "Should check the `hooks` capability for cursor, report that push notifications rely on Claude Code's Notification hook event which Cursor does not provide, and STOP. Must not set the plugin's Pushover options, must not edit any settings file, and must not partially configure a hook that will never fire \u2014 a half-configured notifier is worse than none.",
       "files": []
     },
     {
@@ -62,7 +62,7 @@
     {
       "id": 7,
       "prompt": "Set up phone notifications \u2014 I'm on OpenCode.",
-      "expected_output": "Should find hooks unsupported for opencode in the capability registry and stop before writing anything. Must not create ~/.claude/pushover.env or edit a settings file: a half-configured notifier is worse than none, because the user believes they are covered and stops watching the terminal.",
+      "expected_output": "Should find hooks unsupported for opencode in the capability registry and stop before writing anything. Must not set the plugin's Pushover options or edit a settings file: a half-configured notifier is worse than none, because the user believes they are covered and stops watching the terminal.",
       "files": []
     }
   ]

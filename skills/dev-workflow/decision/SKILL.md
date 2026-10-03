@@ -8,7 +8,6 @@ disable-model-invocation: false
 user-invocable: true
 allowed-tools:
   - AskUserQuestion
-  - Bash
 disallowed-tools: []
 model: sonnet
 effort: medium

@@ -5,7 +5,10 @@
       "command": "bash",
       "args": [
         "${CLAUDE_PLUGIN_ROOT}/scripts/github-mcp.sh"
-      ]
+      ],
+      "env": {
+        "GITHUB_PERSONAL_ACCESS_TOKEN": "${user_config.github_token}"
+      }
     }
   }
 }

@@ -7,7 +7,13 @@ arguments: []
 disable-model-invocation: false
 user-invocable: true
 allowed-tools:
-- Bash
+- Bash(make validate:*)
+- Bash(make lint:*)
+- Bash(make plugin-validate:*)
+- Bash(make test-mods:*)
+- Bash(bash .claude/skills/run-tamirs-superpowers/smoke.sh:*)
+- Bash(bash scripts/statusline.sh:*)
+- Bash(python3 -m pip install:*)
 - Read
 disallowed-tools: []
 model: sonnet

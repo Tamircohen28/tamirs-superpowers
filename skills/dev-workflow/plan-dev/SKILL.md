@@ -7,7 +7,6 @@ arguments: []
 disable-model-invocation: false
 user-invocable: true
 allowed-tools:
-- Bash
 - Read
 - Write
 - Edit

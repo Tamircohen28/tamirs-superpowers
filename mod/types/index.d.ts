@@ -1,6 +1,6 @@
 // The mod's $.state contract (Claude Code >= 2.1.287 "mods"). Named by
 // .claude-plugin/plugin.json `types`; `claude plugin validate` holds every
-// $.state key hooks/mods/register.tsx names to what is declared here.
+// $.state key mod/register.tsx names to what is declared here.
 //
 // Every value here is session state the host keeps across a hot reload of the
 // module. Nothing is persisted: the objective is re-read from disk, the usage

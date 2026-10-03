@@ -32,7 +32,7 @@
 # EXAMPLES
 #   bash scripts/setup.sh plan
 #   bash scripts/setup.sh apply --targets claude
-#   bash scripts/setup.sh apply --yes --only notifications
+#   bash scripts/setup.sh apply --yes --only statusline
 #   bash scripts/setup.sh remove --targets claude
 #
 # EXIT CODES
@@ -157,8 +157,8 @@ target_requested() {
 }
 
 # --only accepts one module or a comma list, and a bare family name selects the
-# whole family (`--only notifications` picks up notifications-creds and
-# notifications-hook) so the user does not have to know how a module is split up.
+# whole family (`--only foo` picks up foo-creds and foo-hook) so the user does
+# not have to know how a module is split up.
 module_selected() {
   local want
   [ -n "$OPT_ONLY" ] || return 0
@@ -215,7 +215,7 @@ add_item() {
 field() { cat "$1/$2" 2>/dev/null || printf ''; }
 
 # SHADOW STATE — why the plan does not render against the real file
-#   `settings`, `plugins`, `statusline` and `notifications-hook` all manage the
+#   `settings`, `plugins` and `statusline` all manage the
 #   SAME ~/.claude/settings.json. If each rendered against the file on disk, the
 #   plan would show four independent diffs that each silently discard the other
 #   three, and applying them in order would leave only the last one's changes.

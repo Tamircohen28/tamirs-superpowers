@@ -7,14 +7,17 @@ arguments: []
 disable-model-invocation: false
 user-invocable: true
 allowed-tools:
-- Bash
 - Read
 - Write
 - Edit
 - Glob
 - Grep
 - Agent
-- Skill
+- Skill(tamirs-superpowers:github-policy)
+- Skill(tamirs-superpowers:multi-agent-repo)
+- Skill(tamirs-superpowers:pr-dev)
+- Skill(tamirs-superpowers:skill-creator)
+- Skill(tamirs-superpowers:start-dev)
 - WebFetch
 disallowed-tools: []
 model: sonnet

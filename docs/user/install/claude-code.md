@@ -28,8 +28,27 @@ Two sources, same plugin. Pick one.
 /plugin install tamirs-superpowers@tamirs-marketplace
 ```
 
+**From Anthropic's directory** (claude.ai → Directory → tamirs-superpowers): the listing is
+the Claude-only distribution the repository builds on every release; it reaches your Claude
+Code sessions through account sync and updates on its own.
+
 The `@` suffix names the *marketplace*, so it differs between the two — using the wrong one
 is the most common install error.
+
+### Options
+
+Everything works with no configuration. Three optional features take a credential, entered
+once in `/plugin` > **tamirs-superpowers** > **Configure** (or `claude plugin configure
+tamirs-superpowers`) and held by the host's credential store, never read from your
+environment or a file:
+
+| Option | Turns on |
+|---|---|
+| `github_token` | The bundled `github` MCP server (`gh auth token` prints the gh CLI's token if you want to reuse it) |
+| `pushover_token` + `pushover_user` | Phone notifications, see [phone-notifications.md](../phone-notifications.md) |
+| `semantic_skill_suggest` | A small-model skill match on long prompts (no credential; off by default) |
+
+What each sends, and where: [`PRIVACY.md`](../../../PRIVACY.md).
 
 Since Claude Code 2.1.221 an installed plugin activates immediately when it is safe to do
 so. On older versions, finish with `/reload-plugins`.
@@ -96,9 +115,10 @@ basis alone.
 /plugin marketplace remove tamirs-superpowers
 ```
 
-Then restart the session. Anything you configured outside the plugin —
-`~/.claude/pushover.env`, a manual `statusLine` entry in `~/.claude/settings.json` — is
-yours to remove separately.
+Then restart the session. Anything you configured outside the plugin — a manual
+`statusLine` entry in `~/.claude/settings.json`, a `~/.claude/pushover.env` an install
+older than 4.11.0 wrote — is yours to remove separately. The plugin's own options
+(Pushover and GitHub tokens) go with the plugin.
 
 ---
 
@@ -124,8 +144,6 @@ Eight modules, each skippable and each shown as a diff first:
 | `statusline` | `~/.claude/settings.json` | Wires `statusLine` to a version-agnostic command that survives updates |
 | `agents` | `~/.claude/agents/` | Copies the specialist subagent definitions |
 | `claude-md` | `~/.claude/CLAUDE.md` | Renders `core/global-rules.md`. Not mergeable, so it asks overwrite / backup-and-write / skip |
-| `notifications-creds` | `~/.claude/pushover.env` | Mode 600; needs `PUSHOVER_TOKEN` and `PUSHOVER_USER` in the environment |
-| `notifications-hook` | `~/.claude/settings.json` | One `Notification` hook; other Notification hooks are left alone |
 | `exit-guard` | `~/.claude/ensure-exit.sh` | Proxy exit-node guard; needs `CLAUDE_EXIT_PROXY` and `CLAUDE_EXIT_PUBLIC_IP` |
 
 > **`apply` will disable plugins the canonical set records as off** — 15 of the 23 it

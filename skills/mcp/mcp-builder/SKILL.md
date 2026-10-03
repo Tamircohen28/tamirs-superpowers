@@ -7,14 +7,14 @@ arguments: []
 disable-model-invocation: false
 user-invocable: true
 allowed-tools:
-- Bash
 - Read
 - Write
 - Edit
 - Glob
 - Grep
 - WebFetch
-- Skill
+- Skill(tamirs-superpowers:mcp-pagination)
+- Skill(tamirs-superpowers:platform-sync)
 disallowed-tools: []
 model: sonnet
 effort: medium

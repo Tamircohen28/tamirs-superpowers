@@ -10,7 +10,6 @@ arguments: []
 disable-model-invocation: false
 user-invocable: false
 allowed-tools:
-- Bash
 - Read
 - Write
 - Edit

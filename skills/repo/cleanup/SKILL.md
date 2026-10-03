@@ -9,10 +9,10 @@ arguments:
 disable-model-invocation: false
 user-invocable: true
 allowed-tools:
-- Bash
 - Read
 - Agent
-- Skill
+- Skill(tamirs-superpowers:decision)
+- Skill(tamirs-superpowers:pr-dev)
 - Glob
 - Grep
 disallowed-tools: []

@@ -9,7 +9,6 @@ arguments:
 user-invocable: true
 disable-model-invocation: false
 allowed-tools:
-- Bash
 - Read
 - Grep
 - Glob

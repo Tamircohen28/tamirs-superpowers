@@ -15,8 +15,8 @@ Phone notifications are a **second, independent** Notification hook. Both fire:
 
 | | Desktop banner (`notify.sh`) | Phone push (`notify-pushover.sh`) |
 |---|---|---|
-| Wired via | `hooks/hooks.json` (automatic) | `~/.claude/settings.json` (opt-in at install) |
-| Needs credentials | No | Yes — Pushover token + user key |
+| Wired via | `hooks/hooks.json` (automatic) | `hooks/hooks.json` (automatic; inert until configured) |
+| Needs credentials | No | Yes — Pushover token + user key, as plugin options |
 | Reaches you | At the machine | Anywhere |
 | Cost | Free | One-time ~$5 per platform, after a 30-day trial |
 
@@ -49,37 +49,37 @@ common mistake — they are not interchangeable:
 | Application/API token | `a` | <https://pushover.net/apps/build> — register an app, name it "Claude Code" |
 | User key | `u` | <https://pushover.net> — dashboard, top right |
 
-Then re-run the installer with both in the environment:
+Then store them as the plugin's **options** — the manifest's sensitive
+`pushover_token` / `pushover_user` fields. Either:
 
-```bash
-PUSHOVER_TOKEN=a... PUSHOVER_USER=u... bash scripts/install.sh
-```
+- in the session: `/plugin` > **tamirs-superpowers** > **Configure**, or
+- from a shell: `claude plugin configure tamirs-superpowers` (Claude Code 2.1.285+).
 
-That writes `~/.claude/pushover.env` (mode 600) and appends a Notification hook to
-`~/.claude/settings.json`. It is idempotent — re-running replaces the existing
-Pushover hook rather than duplicating it, and leaves any other Notification hooks
-alone.
+The host keeps them in its credential store (macOS Keychain, falling back to
+`~/.claude/.credentials.json`) and exports them to the plugin's hooks as
+`CLAUDE_PLUGIN_OPTION_PUSHOVER_TOKEN` / `CLAUDE_PLUGIN_OPTION_PUSHOVER_USER`. There is
+nothing to wire: the hook ships in the plugin's `hooks/hooks.json` on the `Notification`
+event, beside the desktop banner, and stays inert until both options are set.
 
-Hooks are read at **session start**, so the wiring takes effect in your next session.
+Options are read at **session start**, so they take effect in your next session.
 
-### Why credentials live outside the plugin
+### Why the options, and nothing else
 
-`~/.claude/pushover.env`, not the plugin directory. The marketplace cache lives at
-`~/.claude/plugins/cache/tamirs-marketplace/tamirs-superpowers/<version>/` and is replaced
-wholesale on every plugin update — anything stored there is deleted on upgrade.
+The notifier reads exactly those two variables. It does **not** read `PUSHOVER_TOKEN` /
+`PUSHOVER_USER` from your environment, and it does not read `~/.claude/pushover.env`.
+Installs before 4.11.0 did both; the Anthropic directory policy forbids a plugin sending a
+credential it found on the machine rather than one you handed it, and a notifier that
+picks up whatever it finds is exactly that. If you upgraded from an older install, enter
+the two values as options once and delete `~/.claude/pushover.env` — nothing reads it.
 
-For the same reason the hook command resolves the script path at runtime:
-
-```bash
-f=$(ls "$HOME"/.claude/plugins/cache/tamirs-marketplace/tamirs-superpowers/*/scripts/notify-pushover.sh 2>/dev/null | sort -rV | head -1) && [ -n "$f" ] && bash "$f"
-```
-
-A hardcoded version path breaks on the next update. This is the same pattern the
-statusline uses.
+A `Notification` hook in `~/.claude/settings.json` that names `notify-pushover.sh` is
+also a leftover of those installs. It runs without the options and sends nothing;
+`bash scripts/uninstall.sh` strips it, or remove the entry by hand.
 
 ## Tuning
 
-All of these go in `~/.claude/pushover.env`, which is sourced alongside the credentials:
+These are ordinary environment variables the hook reads — export them in the shell that
+starts Claude Code. They are not credentials and not plugin options:
 
 | Variable | Default | Effect |
 |---|---|---|
@@ -117,11 +117,11 @@ project name, just no conversation content.
 
 | Symptom | Cause | Fix |
 |---|---|---|
-| Nothing arrives, no error at all | Unconfigured — the script exits 0 silently by design | Check `~/.claude/pushover.env` exists and has both values |
+| Nothing arrives, no error at all | Unconfigured — the script exits 0 silently by design | Open `/plugin` > tamirs-superpowers > Configure and check both options are set |
+| Worked before 4.11.0, stopped after updating | Credentials were in `~/.claude/pushover.env`, which nothing reads now | Enter them as the plugin's options; delete the file |
 | `"application token is invalid"` | User key pasted into the token field | Token starts `a`, user key starts `u` |
 | `"user identifier is not a valid user"` | Token pasted into the user key field | Same swap, other direction |
 | Credentials validate, phone stays silent | Pushover app not installed / signed in | Run the validate call and check the `devices` array is non-empty |
-| Stopped working right after a plugin update | Hardcoded version path in `settings.json` | Re-run the installer to restore the glob-resolving command |
 | Notification is a wall of `**` and `##` | Missing or stale `pushover_format.py` | Confirm it sits beside `notify-pushover.sh` in `scripts/` |
 | Arrives at the desk, missed when away | Idle priority too low for your setup | Set `PUSHOVER_IDLE_PRIORITY=1` |
 
@@ -135,19 +135,20 @@ curl -s --form-string "token=$TOKEN" --form-string "user=$USER_KEY" \
 `{"status":1,...,"devices":["iphone"]}` means both credentials are good *and* a device
 is registered. This separates two failures that look identical on the send endpoint.
 
-Send a test through the real script:
+Send a test through the real script, with the options in its environment the way the
+host exports them:
 
 ```bash
 echo '{"message":"test","notification_type":"permission_prompt","cwd":"'"$PWD"'"}' \
-  | PUSHOVER_DEBUG=1 bash scripts/notify-pushover.sh
+  | CLAUDE_PLUGIN_OPTION_PUSHOVER_TOKEN=a... CLAUDE_PLUGIN_OPTION_PUSHOVER_USER=u... \
+    PUSHOVER_DEBUG=1 bash scripts/notify-pushover.sh
 ```
 
 ## Disabling
 
-```bash
-bash scripts/uninstall.sh   # unwires the hook, keeps credentials
-rm ~/.claude/pushover.env   # purge credentials
-```
+Clear both options (`/plugin` > tamirs-superpowers > Configure, or
+`claude plugin configure tamirs-superpowers`). The script exits 0 silently when
+unconfigured, so the hook becomes a harmless no-op. Nothing else to unwire.
 
 Deleting only the credentials file is enough: the script exits 0 silently when
 unconfigured, so the hook becomes a no-op.

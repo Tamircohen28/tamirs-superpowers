@@ -5,7 +5,73 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [4.11.0] — 2026-10-03
+
+Anthropic's plugin directory rejected 4.10.0 (two blocking findings in the mod, a validator that
+ran out of budget on 1,100 files and 29 symlinks, and a long list of holds). This release meets
+the directory's rules at the source and adds a generated Claude-only distribution for it to
+track, so the repository stays a five-platform source and nobody develops on a second tree.
+
+### Added
+
+- **A Claude-only distribution, built and tagged by the release workflow.**
+  `scripts/build-claude-dist.sh` writes the subset of this tree the directory should see
+  (no tests, docs/engineering, evals, fixtures, platform mirrors or symlinks; around 420
+  files; a directory-specific README; every relative link closed over), and
+  `scripts/check-claude-dist.sh` holds it to the directory's checklist plus the findings of
+  the first review — file count, symlinks, file types, listing URLs, sensitive options,
+  no credential read off the machine, no download-and-run, scoped `allowed-tools`, a mod
+  with every `$` call at the call site and no process, then `claude plugin validate --strict`
+  and `claude plugin test` on the built tree. `make check-claude-dist` is part of
+  `make validate`; CI runs it as the `claude-dist` job on every pull request. `release.yml`
+  gains a `claude-dist` job that commits the built tree with the previous generated commit
+  as parent, tags it `v<version>-claude` (immutable) and moves the tag `claude` onto it —
+  the tag the directory tracks. No branch; nothing to edit. Design, the tag ruleset and the
+  resubmission steps: `docs/engineering/build-and-release/directory-distribution.md`.
+- **Listing fields and a privacy policy.** `privacyPolicyUrl`, `documentationUrl` and
+  `supportUrl` in `.claude-plugin/plugin.json`; `PRIVACY.md` names everything that leaves the
+  machine (Pushover, the GitHub MCP server, the opt-in classifier) and when;
+  `platforms/claude/directory/README.md` is the listing's README and says what the plugin
+  runs, sends and fetches.
+- **`github_token` userConfig option** (sensitive) for the bundled `github` MCP server,
+  passed to it as `GITHUB_PERSONAL_ACCESS_TOKEN` through `.mcp.json`'s `env`.
+- `scripts/validate-skill-frontmatter.py` rejects a broad `allowed-tools` entry (bare
+  `Bash`/`Skill`, `Bash(*)`, a wildcard right after an interpreter or runner), the
+  directory's `ALLOWED_TOOLS_BROAD` rule, at authoring time.
+
 ### Changed
+
+- **Every credential comes from a sensitive `userConfig` option and nothing shipped reads
+  one off the machine.** The Anthropic directory policy forbids a plugin sending a credential
+  it found in the user's environment or files; two paths here did. `scripts/notify-pushover.sh`
+  and the mod now read `pushover_token`/`pushover_user` only — not `PUSHOVER_TOKEN` from the
+  environment, not `~/.claude/pushover.env` — and `scripts/github-mcp.sh` no longer runs
+  `gh auth token`: it reads `GITHUB_PERSONAL_ACCESS_TOKEN` from the option and refuses to start
+  with a message when it is unset. The Pushover `Notification` hook moves into the plugin's
+  own `hooks/hooks.json` (a hook in `~/.claude/settings.json` never receives the options),
+  so the `notifications-creds`/`notifications-hook` setup modules are gone, `install.sh` no
+  longer takes `PUSHOVER_TOKEN`, and `uninstall.sh` strips the settings hook older installs
+  wrote. `notify-setup`, `phone-notifications.md`, `configuration.md`, the install docs and the
+  capability notes follow. **Upgrading:** enter the Pushover values once in `/plugin` >
+  tamirs-superpowers > Configure (or `claude plugin configure tamirs-superpowers`) and delete
+  `~/.claude/pushover.env`; set `github_token` the same way to keep the GitHub MCP server
+  (`gh auth token` prints the gh CLI's). Gemini CLI, which has no option store, exports
+  `GITHUB_PERSONAL_ACCESS_TOKEN` in the shell that starts `gemini`.
+- **The mod meets the directory's mod rules.** `hooks/mods/` moves to a top-level `mod/`
+  (`hooks/hooks.json` names it as `../mod/register.tsx`, manifest `types` follows) so no shipped
+  script or configuration names its folder; every `$.noun.method` call is written inside the
+  hook that makes it and `$` is handed to no helper (the objective loader is a closure in
+  `session.start`, reused by its 5 s timer; `/objective` answers from `$.state`); the two git
+  subprocesses are gone — the main working tree comes from `$.session.repo()`, the branch from
+  reading `.git/HEAD`, and the compaction snapshot no longer lists uncommitted files. 24 tests
+  (one new: a linked worktree's branch from the gitdir its `.git` file names).
+- **No bare `Bash` or `Skill` in any `allowed-tools`.** Twenty-seven `SKILL.md` files drop `Bash` (the person
+  approves each command, as the directory suggests) and scope `Skill` to the skills they
+  actually invoke (`Skill(tamirs-superpowers:pr-dev)`); the repo's and the fixtures' smoke
+  skills scope `Bash` to the `make` targets they run. `skill-creator`, its frontmatter
+  template and `rules/dev/skill-quality-standards.md` teach the scoped form.
+- `scripts/doctor.sh` no longer probes `PUSHOVER_TOKEN` (a script outside a hook cannot see
+  the options, and must not read a credential), and reports Pushover as opt-in via options.
 
 - The three `CHANGELOG-archive-*.md` files (3.6.1 and earlier, split out 2026-09-17) move from the
   repo root to `docs/changelog/`. Relocated, not removed: they are the only copy of that history
@@ -20,6 +86,12 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   byte-identical v2.0.14→v2.0.22 and the live `config.json` still declares the pinned 15
   permission keys, re-read 2026-10-02). `.codex-version` follows to 0.160.0.
 - **Cursor 3.11 (+2026-09-23 / desktop 3.22.7):** bump desktop/`validated_against` **3.21.13 → 3.22.7**; `changelog_date` **2026-09-10 → 2026-09-23**. Document **Security Review** + **Rollouts** Automations bots and `/review-security` (complements `security-reviewer`). Feature pin remains **3.11**. Cursor-only.
+
+### Removed
+
+- The `notifications-creds` and `notifications-hook` setup modules, the `PUSHOVER_ENV`
+  override and the environment/file credential fallbacks in `scripts/notify-pushover.sh`,
+  and the `gh auth token` lookup in `scripts/github-mcp.sh` (see Changed).
 
 ## [4.10.0] — 2026-10-02
 

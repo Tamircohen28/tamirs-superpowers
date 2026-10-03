@@ -19,7 +19,7 @@ is rebuilt — that is the failure this directory closes.
 | `~/.claude/agents/*.md` | `agents/*.md` |
 | hooks (incl. `docker-guard.py`) | `hooks/` + `hooks/hooks.json`, delivered via the plugin cache |
 | statusline | `.claude-plugin/plugin.json` → `scripts/statusline.sh` |
-| `~/.claude/pushover.env` | written from env at install time; **no source file, by design** |
+| Pushover / GitHub tokens | the plugin's sensitive `userConfig` options, held by the host's credential store; **no file, by design** |
 
 ## Why `settings.d/` is split
 
@@ -109,7 +109,7 @@ call.
 
 | Not captured | Why |
 |---|---|
-| Pushover token/user, `~/.claude/pushover.env` | Secrets. They come from `PUSHOVER_TOKEN` / `PUSHOVER_USER` at install time and are written mode 600. Naming the env var is the most the repo may do. |
+| Pushover token/user, GitHub token | Secrets. They are the plugin's sensitive `userConfig` options, stored by the host, never on disk by this repo. Naming the option is the most the repo may do. |
 | `~/.claude/settings.local.json` | Machine-local overrides by definition — capturing them would make "local" meaningless and would leak per-machine state into a shared repo. |
 | `extraKnownMarketplaces.gitkraken` | Its source is a local *directory* under `$HOME/.claude/plugins/marketplaces/`, which does not exist on another machine. Recording it makes the rendered settings unportable; the GitKraken tooling installs it itself. |
 | `settings.json` `hooks` and `statusLine` | Owned by `hooks/hooks.json` and `.claude-plugin/plugin.json`. Duplicating them in `settings.d/` would create two sources for one value. |

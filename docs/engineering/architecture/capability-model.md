@@ -190,7 +190,7 @@ the main session.
 
 `mods` is `native` on Claude Code (2.1.287+) and the Claude Desktop Code tab, and
 `unsupported` everywhere else: it is whether THIS REPO'S hooks module
-(`hooks/mods/register.tsx`, the `modules` key of `hooks/hooks.json`) loads as in-process
+(`mod/register.tsx`, the `modules` key of `hooks/hooks.json`) loads as in-process
 function hooks — a pane, a band above the prompt, pushed rate-limit state, a command that
 answers without a model turn. Its degradation is total and deliberate: every feature the mod
 adds has a settings-hook or skill fallback, and nothing may depend on the mod having loaded

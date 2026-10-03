@@ -156,9 +156,28 @@ jobs:
         run: claude plugin validate .
       # The `.` form validates only the marketplace manifest and never reads the hooks
       # module. The plugin-manifest form does, and `claude plugin test` runs the mod's own
-      # tests against the engine (hooks/mods/*.test.tsx). See docs/engineering/architecture/mods.md.
-      - name: Validate and test the mod (hooks/mods)
+      # tests against the engine (mod/*.test.tsx). See docs/engineering/architecture/mods.md.
+      - name: Validate and test the mod (mod)
         run: make test-mods
+
+  claude-dist:
+    # The Claude-only distribution Anthropic's plugin directory tracks (tag `claude`,
+    # moved by release.yml) is generated from this tree. Build it here on every change
+    # and hold it to the directory's own rules, so a change that would block or hold
+    # the listing fails on the pull request, not at release.
+    # See docs/engineering/build-and-release/directory-distribution.md.
+    name: Claude-only distribution
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - name: Install Claude Code CLI
+        run: npm install -g @anthropic-ai/claude-code
+      - name: Install PyYAML
+        run: python3 -m pip install -q -r scripts/requirements-validate.txt
+      - name: Build and check the distribution
+        run: |
+          bash scripts/build-claude-dist.sh "$RUNNER_TEMP/claude-dist" --quiet
+          bash scripts/check-claude-dist.sh "$RUNNER_TEMP/claude-dist"
 
   contract-test:
     name: Repo contract (scaffold-gold)

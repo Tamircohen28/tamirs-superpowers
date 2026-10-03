@@ -188,12 +188,10 @@ else
   MISSING+=("usage-capture: install python3")
 fi
 
-if [[ -n "${PUSHOVER_TOKEN:-}" && -n "${PUSHOVER_USER:-}" ]]; then
-  ok "notifications — Pushover credentials present in the environment"
-else
-  warnl "notifications — PUSHOVER_TOKEN / PUSHOVER_USER not set"
-  MISSING+=("notifications: run the notify-setup skill")
-fi
+# Pushover credentials are the plugin's sensitive userConfig options, held by the
+# host's credential store and visible only to the plugin's own hooks — a script
+# outside a hook cannot (and must not) read them, so there is nothing to probe.
+ok "notifications — Pushover is opt-in via plugin options (/notify-setup to set up or test)"
 
 # --- Capabilities on the detected platform ---
 hdr "Capabilities"

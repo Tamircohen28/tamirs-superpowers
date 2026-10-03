@@ -1,4 +1,4 @@
-// Tests for hooks/mods/register.tsx, run by `claude plugin test .` (make test-mods).
+// Tests for mod/register.tsx, run by `claude plugin test .` (make test-mods).
 //
 // The kit loads this plugin from the folder through the engine's own host; the
 // hooks `on` registers here sit BENEATH the mod and stand for the engine, so
@@ -20,6 +20,7 @@ function fakeDisk(): Record<string, string> {
   const obj = { id: 'obj-1', title: 'Ship the thing', status: 'active', tasks: ['task-001', 'task-002'] }
   return {
     '/repo/CLAUDE.md': '# CLAUDE.md\n\n## Commit trailer\n\n```text\nCo-Authored-By: Claude <noreply@anthropic.com>\n```\n',
+    '/repo/.git/HEAD': 'ref: refs/heads/feature/parser\n',
     '/repo/.dev-files/objectives/obj-1/objective.json': JSON.stringify(obj),
     '/repo/.dev-files/objectives/obj-1/tasks/task-001.json': JSON.stringify({ id: 'task-001', title: 'Add the parser', status: 'completed', role: 'implementer', branch: 'worker/obj-1/001' }),
     '/repo/.dev-files/objectives/obj-1/tasks/task-002.json': JSON.stringify({ id: 'task-002', title: 'Write the tests', status: 'running', role: 'test-engineer' }),
@@ -29,10 +30,11 @@ function fakeDisk(): Record<string, string> {
 
 // The engine beneath the mod: fs over `disk`, a session rooted at /repo, and
 // recorders for the side effects the tests assert on.
-// `sessionRoot` is what $.session.root()/cwd() answer; `gitDir` what `git rev-parse
-// --git-common-dir` prints — /repo/.git for the main checkout AND for every linked
-// worktree of it, which is how the mod finds the shared objective state.
-function stubEngine(on: On, disk: Record<string, string>, env: Record<string, string> = {}, sessionRoot = '/repo', gitDir = '/repo/.git'): Calls {
+// `sessionRoot` is what $.session.root()/cwd() answer; `repoRoot` what
+// $.session.repo() answers as the repository's root — /repo for the main checkout
+// AND for every linked worktree of it, which is how the mod finds the shared
+// objective state. An empty `repoRoot` means no repository (repo() answers null).
+function stubEngine(on: On, disk: Record<string, string>, env: Record<string, string> = {}, sessionRoot = '/repo', repoRoot = '/repo'): Calls {
   const calls: Calls = { fetch: [], prompts: [], toasts: [], commands: [], state: new Map(), compactInstructions: [] }
   mock.store(on)
   mock.env(on, env)
@@ -83,12 +85,10 @@ function stubEngine(on: On, disk: Record<string, string>, env: Record<string, st
     calls.fetch.push({ url: e.url, body: e.init?.body ?? '' })
     return { value: { status: 200, ok: true, headers: {}, text: '{"status":1}' } }
   })
-  on('process.run', ($, e) => {
-    const argv = e.argv.join(' ')
-    if (argv === 'git rev-parse --path-format=absolute --git-common-dir' && gitDir) {
-      return { value: { exitCode: 0, stdout: `${gitDir}\n`, stderr: '', isStdoutTruncated: false, isStderrTruncated: false } }
-    }
-    return { value: { exitCode: 1, stdout: '', stderr: 'not a git repo', isStdoutTruncated: false, isStderrTruncated: false } }
+  on('session.repo', () => ({ value: repoRoot ? { root: repoRoot, remote: null, internal: false, name: null } : null }))
+  // The mod never runs a process; a test that sees one has found a regression.
+  on('process.run', () => {
+    throw new Error('test engine: the mod must not run a process')
   })
   on('turn.start', ($, e) => ({ turnId: e.turnId }))
   on('turn.complete', ($, e) => ({ text: e.answer }))
@@ -166,9 +166,9 @@ test('/objective with no objective on disk says so instead of failing', async ($
 
 test('from a linked worker worktree the objective is read from the main checkout', async ($, on) => {
   // The session sits in .agent-worktrees/obj-1/task-002; .dev-files/objectives exists only
-  // under /repo. git's common dir points back at /repo/.git, and that is what is followed.
+  // under /repo. $.session.repo() answers the main working tree, and that is what is followed.
   const wt = '/repo/.agent-worktrees/obj-1/task-002'
-  const calls = stubEngine(on, fakeDisk(), {}, wt, '/repo/.git')
+  const calls = stubEngine(on, fakeDisk(), {}, wt, '/repo')
   mock.clock(on)
   await start($, wt)
   const value = calls.state.get('objective') as { id: string } | undefined
@@ -304,15 +304,15 @@ test('without credentials anywhere nothing is sent', async ($, on) => {
   expect(calls.fetch).toHaveLength(0)
 })
 
-test('credentials fall back to ~/.claude/pushover.env, as scripts/notify-pushover.sh reads it', async ($, on) => {
+test('a credential in the environment or in ~/.claude/pushover.env is never used: only the manifest options send', async ($, on) => {
+  // The directory policy forbids a plugin sending a credential it found on the
+  // machine, so neither source may reach Pushover even when both are present.
   const disk = { ...fakeDisk(), '/Users/you/.claude/pushover.env': 'PUSHOVER_TOKEN=file-tok\nPUSHOVER_USER="file-usr"\n' }
-  const calls = stubEngine(on, disk, { HOME: '/Users/you' })
+  const calls = stubEngine(on, disk, { HOME: '/Users/you', PUSHOVER_TOKEN: 'env-tok', PUSHOVER_USER: 'env-usr', CLAUDE_PLUGIN_OPTION_PUSHOVER_TOKEN: 'opt-tok', CLAUDE_PLUGIN_OPTION_PUSHOVER_USER: 'opt-usr' })
   mock.clock(on)
   await start($)
   await $.turn.complete({ answer: 'x', durationMs: 999999, isAborted: false, turnId: 't1', reason: 'answer' })
-  const body = new URLSearchParams(calls.fetch[0]?.body ?? '')
-  expect(body.get('token')).toBe('file-tok')
-  expect(body.get('user')).toBe('file-usr')
+  expect(calls.fetch).toHaveLength(0)
 })
 
 test('semantic skill suggestion is off by default and attaches context when on', async ($, on) => {
@@ -381,8 +381,23 @@ test('compaction instructions carry the objective when one is active', async ($,
   await $.session.compact({ trigger: 'manual', messages: oneMessage() })
   const seen = calls.compactInstructions[0]
   expect(seen).toMatch(/Working state to preserve/)
+  expect(seen).toMatch(/branch: feature\/parser/)
   expect(seen).toMatch(/obj-1/)
   expect(seen).toMatch(/task-002/)
+})
+
+test('compaction from a linked worktree reads the branch from the gitdir its .git file names', async ($, on) => {
+  const wt = '/repo/.agent-worktrees/obj-1/task-002'
+  const disk = {
+    ...fakeDisk(),
+    [`${wt}/.git`]: 'gitdir: /repo/.git/worktrees/task-002\n',
+    '/repo/.git/worktrees/task-002/HEAD': 'ref: refs/heads/worker/obj-1/002\n',
+  }
+  const calls = stubEngine(on, disk, {}, wt, '/repo')
+  mock.clock(on)
+  await start($, wt)
+  await $.session.compact({ trigger: 'manual', messages: oneMessage() })
+  expect(calls.compactInstructions[0]).toMatch(/branch: worker\/obj-1\/002/)
 })
 
 test('compaction with nothing in flight leaves the instructions alone', async ($, on) => {

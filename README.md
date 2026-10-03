@@ -6,7 +6,7 @@
   <a href="https://github.com/Tamircohen28"><img src="https://img.shields.io/badge/author-Tamir%20Cohen-181717?logo=github" alt="Author" /></a>
   <a href="https://github.com/Tamircohen28/tamirs-superpowers/actions/workflows/ci.yml"><img src="https://github.com/Tamircohen28/tamirs-superpowers/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="MIT License" /></a>
-  <a href="plugin-version.json"><img src="https://img.shields.io/badge/version-4.10.0-blue" alt="Version" /></a>
+  <a href="plugin-version.json"><img src="https://img.shields.io/badge/version-4.11.0-blue" alt="Version" /></a>
 </p>
 
 <p align="center">
@@ -122,7 +122,10 @@ Confirm a machine is ready with `bash scripts/doctor.sh .`.
 ## Install in 5 minutes
 
 **1. Install the plugin.** Pick your platform and surface from the tables above — each
-supported surface's guide covers install, **verify**, update, and uninstall. Gemini alone
+supported surface's guide covers install, **verify**, update, and uninstall. On Claude you can
+also add it from [Anthropic's plugin directory](https://claude.ai/directory), which tracks a
+Claude-only distribution this repository builds on every release ([how](docs/engineering/build-and-release/directory-distribution.md));
+[`PRIVACY.md`](PRIVACY.md) says what the plugin sends, and only when you opt in. Gemini alone
 takes two commands: the extension carries context and MCP, while skills come from a generated
 flat mirror at `.gemini/skills/` that must be installed with `--path`. [Why](docs/user/install/gemini.md).
 

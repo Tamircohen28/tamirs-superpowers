@@ -110,7 +110,12 @@ Marketplace declarations are per-target and not interchangeable. Claude Code's `
    ```
 
    A tag can be cut from the wrong ref and still look right in the UI. A local install that "has" the feature proves nothing — the cache may have been hand-patched. Only the tag is evidence.
-7. Tell users to refresh:
+7. The same `release.yml` run builds the Claude-only distribution from the tag and tags it
+   `vX.Y.Z-claude`, then moves the tag `claude` onto it. Anthropic's plugin directory tracks
+   `claude`, so a release reaches the directory on its own; the portal's **Check for new
+   commits** hurries it. Design, tag ruleset and rollback:
+   [`directory-distribution.md`](../../docs/engineering/build-and-release/directory-distribution.md).
+8. Tell users to refresh:
 
    ```text
    /plugin marketplace update tamirs-marketplace

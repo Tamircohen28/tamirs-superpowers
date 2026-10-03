@@ -134,7 +134,7 @@ MCP:
 gemini mcp list
 ```
 
-The `github` server runs `scripts/github-mcp.sh`, which takes its token from `gh auth token`. No token is stored in the manifest. Run `gh auth login` first, or the server exits with an authentication error on its first call.
+The `github` server runs `scripts/github-mcp.sh`, which expects its token in `GITHUB_PERSONAL_ACCESS_TOKEN`. On Claude Code that variable comes from the plugin's sensitive `github_token` option; Gemini CLI has no equivalent option store, so export it in the shell that starts `gemini` (`export GITHUB_PERSONAL_ACCESS_TOKEN="$(gh auth token)"` reuses the gh CLI's token) or the server exits with a message saying the token is unset. No token is stored in the manifest.
 
 ## Update
 
@@ -222,7 +222,7 @@ Noisy, not fatal — the extension still loads, skills still work, and the sub-a
 | `.gemini/ is out of sync` in CI | The mirror is generated. Run `make gemini-extension` and commit the result |
 | `extensions validate` passes but nothing works | It only checks the manifest. Run `bash scripts/check-gemini-adapter.sh` |
 | `Error loading agent ... Invalid tool name` naming `agents/` | Known and documented above — the canonical Claude agents at the extension root. The working sub-agents are in `.gemini/agents/`. Nothing to fix |
-| MCP `github` fails on first call | `gh auth login`. The server reads `gh auth token` at startup and stores nothing |
+| MCP `github` fails on first call | Export `GITHUB_PERSONAL_ACCESS_TOKEN` in the shell that starts `gemini`; the server stores nothing and reads nothing else |
 | Changes to a linked clone have no effect | Restart the CLI session — extension state is read at startup |
 | Fixture skills `demo` / `example-skill` appear | A `--path` pointed into `skills/repo/_contract/fixtures`. Uninstall them and use the domain paths |
 
