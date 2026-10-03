@@ -9,13 +9,13 @@ This is **opt-in**. Nothing here activates unless you supply Pushover credential
 
 The plugin already ships `hooks/notify.sh`, which raises a **macOS desktop banner**
 via a terminal OSC escape sequence (with an `osascript` fallback). That is wired
-through `hooks/hooks.json` and needs no configuration.
+through the hook manifest and needs no configuration.
 
 Phone notifications are a **second, independent** Notification hook. Both fire:
 
 | | Desktop banner (`notify.sh`) | Phone push (`notify-pushover.sh`) |
 |---|---|---|
-| Wired via | `hooks/hooks.json` (automatic) | `hooks/hooks.json` (automatic; inert until configured) |
+| Wired via | the hook manifest (automatic) | the hook manifest (automatic; inert until configured) |
 | Needs credentials | No | Yes — Pushover token + user key, as plugin options |
 | Reaches you | At the machine | Anywhere |
 | Cost | Free | One-time ~$5 per platform, after a 30-day trial |
@@ -57,7 +57,7 @@ Then store them as the plugin's **options** — the manifest's sensitive
 
 The host keeps them in its own credential store (the macOS Keychain, or its file-backed
 fallback where there is no Keychain) and exports them to the plugin's own hooks as option variables. There is
-nothing to wire: the hook ships in the plugin's `hooks/hooks.json` on the `Notification`
+nothing to wire: the hook ships in the plugin's the hook manifest on the `Notification`
 event, beside the desktop banner, and stays inert until both options are set.
 
 Options are read at **session start**, so they take effect in your next session.

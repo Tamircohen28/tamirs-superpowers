@@ -45,7 +45,7 @@ discover `skills/` without configuration.
 
 ## Hooks
 
-Hooks are Claude Code's mechanism ([`hooks/hooks.json`](../../hooks/hooks.json)) and run as
+Hooks are Claude Code's mechanism (the hook manifest) and run as
 shipped only there. They automate worktree creation, edit isolation, sensitive-file guards,
 changelog display on update, and session bookkeeping.
 
@@ -56,7 +56,7 @@ not run, the same guarantees are enforced as explicit steps inside the skills an
 in CI — never assumed. Classification per platform:
 [engineering/architecture/hooks-classification.md](../engineering/architecture/hooks-classification.md).
 
-To disable a hook, remove its entry from `hooks/hooks.json` in your install and restart the
+To disable a hook, remove its entry from the hook manifest in your install and restart the
 session.
 
 ## Worktree behavior
@@ -95,7 +95,7 @@ Without `gh`, delivery ends at a pushed integration branch and reports exactly t
 ## Phone notifications (opt-in)
 
 `/notify-setup` sets up [Pushover](https://pushover.net) so an agent can reach you away from
-the desk. The hook ships in `hooks/hooks.json`; the credentials are the plugin's sensitive
+the desk. The hook ships in the hook manifest; the credentials are the plugin's sensitive
 `pushover_token` / `pushover_user` options and nothing else — no environment variable, no
 dotfile. The hook is inert until both are set. Details:
 [phone-notifications.md](phone-notifications.md).

@@ -61,7 +61,7 @@ checked. Do not hand work to it.
 - **Agents** — configured in `opencode.json`; primary and subagent modes
 - **Agent Skills** — smaller recognised frontmatter set; unknown fields are ignored rather than rejected, so `metadata.tamirs` travels safely
 - **Sessions** — `opencode` resumes the last session per directory
-- **Hooks:** plugin API, *not* Claude Code hooks. Nothing in `hooks/hooks.json` applies here.
+- **Hooks:** plugin API, *not* Claude Code hooks. Nothing in the hook manifest applies here.
 - **Statusline:** unsupported — never make a workflow depend on it
 - Docs: https://opencode.ai/docs/
 

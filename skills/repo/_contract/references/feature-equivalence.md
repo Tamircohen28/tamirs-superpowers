@@ -97,7 +97,7 @@ Plugin **semver** (manifest `version`) is separate — see S10-04. Row 3 README 
 
 ## Cursor hook substitute
 
-When Claude ships `hooks/hooks.json`, document in [`docs/agent-guidelines/platform-equivalence.md`](../../../../docs/agent-guidelines/platform-equivalence.md):
+When Claude ships the hook manifest, document in [`docs/agent-guidelines/platform-equivalence.md`](../../../../docs/agent-guidelines/platform-equivalence.md):
 
 - Which hook events run on Claude/Codex
 - Cursor IDE equivalent (scoped `.mdc` rules, manual reminders, or "no equivalent")

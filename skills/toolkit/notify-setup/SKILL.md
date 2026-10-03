@@ -162,7 +162,7 @@ subscription.
    older install that still has the credentials dotfile can delete it; nothing reads
    it.)
 
-4. **Nothing to wire.** The hook ships in the plugin's `hooks/hooks.json` on the
+4. **Nothing to wire.** The hook ships in the plugin's the hook manifest on the
    `Notification` event, beside the desktop banner, and is inert until both options
    are set. Do not add a `Notification` hook to `~/.claude/settings.json`: a hook
    there never receives the plugin's options, so it would run and send nothing. If

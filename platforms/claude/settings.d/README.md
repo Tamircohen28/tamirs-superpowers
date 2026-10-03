@@ -63,7 +63,7 @@ unportable. The GitKraken tooling installs it itself.
 - **Secrets.** No credential value ever enters this directory. Pushover and the
   GitHub MCP token are the plugin's sensitive `userConfig` options, held by the
   host's credential store.
-- **`hooks`** — wired by `hooks/hooks.json` (plugin-delivered), the Pushover
+- **`hooks`** — wired by the hook manifest (plugin-delivered), the Pushover
   `Notification` hook included.
 - **`statusLine`** — comes from `.claude-plugin/plugin.json`.
 - **`settings.local.json`** — machine-local overrides by definition.
