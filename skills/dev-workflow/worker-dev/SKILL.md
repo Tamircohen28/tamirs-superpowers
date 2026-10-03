@@ -126,7 +126,7 @@ One or a few focused commits on the task branch. Repo commit convention applies 
 
 ```bash
 git add <paths inside scope>
-git commit -m "feat(auth): add argon2id password hashing"
+git commit -m "feat(auth): add scrypt password hashing"
 git rev-parse --short HEAD
 ```
 
@@ -143,7 +143,7 @@ bash $H emit auth-system task-001 --status completed \
   --file 'src/auth/hash.ts:added' --file 'src/auth/session.ts:added' \
   --validation 'npm test -- src/auth|worker|pass|14 passed' \
   --validation 'npx tsc --noEmit -p src/auth|worker|pass' \
-  --decision 'argon2id over bcrypt|OWASP 2024 guidance' \
+  --decision 'opaque session tokens over JWTs|simpler revocation' \
   --risk 'no login rate limiting yet|medium|followup task' \
   --followup 'add login rate limiting|true|implementer'
 bash $H validate auth-system task-001

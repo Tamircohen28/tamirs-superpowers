@@ -43,7 +43,7 @@
 #   terminate", not "this looks risky".
 #
 # ONE THING VERIFIED BY DOCS, AND ONE THING NOT
-#   Verified against code.claude.com/docs/en/hooks: `decision:"block"` is a
+#   Verified against the official Claude Code hooks reference: `decision:"block"` is a
 #   valid UserPromptSubmit output, `reason` is shown to the USER, and a blocked
 #   prompt is "erased" with Claude never running. That last point is why the
 #   menu is text -- there is no turn in which to render a picker, and

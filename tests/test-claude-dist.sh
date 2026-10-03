@@ -31,7 +31,8 @@ n="$(find "$T/dist" -type f | wc -l | tr -d ' ')"
 for absent in CHANGELOG.md docs/engineering docs/changelog AGENTS.md CLAUDE.md Makefile tests .cursor-plugin .gemini opencode.json; do
   [ ! -e "$T/dist/$absent" ] && ok "$absent is not shipped" || bad "$absent is shipped" "it belongs to the source repository"
 done
-[ -z "$(find "$T/dist" -type f -iname '*.png' -o -type f -iname '*.svg' | head -1)" ] && ok "no image ships" || bad "an image ships" "the scanner holds every script that can reach it"
+[ -z "$(find "$T/dist" -type f \( -iname '*.png' -o -iname '*.svg' \) ! -path "$T/dist/listing/icon.png" | head -1)" ] && ok "no image ships besides the listing icon" || bad "an extra image ships" "the scanner holds every script that can reach it"
+[ -f "$T/dist/listing/icon.png" ] && ok "listing/icon.png ships" || bad "listing/icon.png missing" "the checklist requires an icon"
 [ -x "$T/dist/scripts/github-mcp.sh" ] && ok "MCP launcher is executable" || bad "MCP launcher not executable" ""
 
 # probe <name> <rule-text-expected-in-FAIL-line> <shell that mutates $P>
@@ -97,12 +98,12 @@ p=sys.argv[1]; s=open(p).read()
 s=re.sub(r"^allowed-tools:\n", "allowed-tools:\n- Write\n", s, count=1, flags=re.M)
 open(p,"w").write(s)
 PY'
-probe "an image file in the tree (UNREAD_ASSET_REFERENCED)" "image or font file" \
-  'mkdir -p listing && printf "\x89PNG\r\n" > listing/icon.png'
-probe "an icon named by the manifest (UNREAD_ASSET_REFERENCED)" "manifest names an icon" \
+probe "a second image file in the tree (UNREAD_ASSET_REFERENCED)" "image or font file" \
+  'mkdir -p assets && printf "\x89PNG\r\n" > assets/extra.png'
+probe "an icon the manifest names but that is not listing/icon.png" "manifest must name" \
   'python3 - <<'"'"'PY'"'"'
 import json
-p=".claude-plugin/plugin.json"; d=json.load(open(p)); d["icon"]="./listing/icon.png"; json.dump(d,open(p,"w"),indent=2)
+p=".claude-plugin/plugin.json"; d=json.load(open(p)); d["icon"]="./assets/other.png"; json.dump(d,open(p,"w"),indent=2)
 PY'
 probe "a \$schema URL in the manifest" "schema" \
   'python3 - <<'"'"'PY'"'"'

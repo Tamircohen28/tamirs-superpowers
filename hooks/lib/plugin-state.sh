@@ -11,7 +11,7 @@
 #   to clear it, and nothing tied it to this plugin's identity.
 #
 # WHY THERE IS A FALLBACK, AND WHY IT IS NOT OPTIONAL
-#   `hooks/hooks.json` is loaded by Claude Code AND the Codex CLI. Codex does not
+#   the hook manifest is loaded by Claude Code AND the Codex CLI. Codex does not
 #   export `CLAUDE_PLUGIN_DATA`, so a hook that assumed it would resolve to an
 #   empty path and write to the filesystem root or silently no-op. The fallback is
 #   the previous location, unchanged, so behaviour on Codex is exactly what it was.
