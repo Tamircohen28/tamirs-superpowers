@@ -19,7 +19,7 @@
 #
 # Phone notifications are NOT configured here: the Pushover credentials are the
 # plugin's own sensitive options (/plugin > tamirs-superpowers > Configure, or
-# `claude plugin configure tamirs-superpowers`), and the hook ships in hooks.json.
+# `claude plugin configure tamirs-superpowers`), and the hook ships in the hook manifest.
 #
 # CHANGED IN PHASE 2 — settings.json is now merged, not clobbered. Earlier
 # versions of this script rewrote the file wholesale on every run, preserving
