@@ -14,8 +14,8 @@
 # person is prompted for both once when the plugin is enabled, or sets them with
 # `claude plugin configure tamirs-superpowers`.
 #
-# Earlier versions also read PUSHOVER_TOKEN/PUSHOVER_USER from the environment
-# and from ~/.claude/pushover.env. Both are gone: the Anthropic directory policy
+# Earlier versions also read the two values from plain environment variables
+# and from a dotfile under ~/.claude. Both are gone: the Anthropic directory policy
 # forbids a plugin reading a credential already on the user's machine and sending
 # it to a server, and a notifier that silently picks up whatever it finds is
 # exactly that. A host that exports no option (the Codex CLI loads this same

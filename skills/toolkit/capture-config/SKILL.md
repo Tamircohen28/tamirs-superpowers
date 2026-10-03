@@ -8,7 +8,6 @@ disable-model-invocation: false
 user-invocable: true
 allowed-tools:
 - Read
-- Edit
 - Grep
 - AskUserQuestion
 disallowed-tools: []
@@ -143,7 +142,7 @@ It does **not** push and does **not** open the PR. Show the user the printed
 |---|---|
 | `portable` | offered — this is what the user is here for |
 | `machine-local` | skipped; name the reason (absolute path, machine state) so it does not look like an oversight |
-| `secret` | **refused.** Never print, echo, or work around the value. If the user wants the setting, capture the env var *name* (`${GITHUB_TOKEN}`) instead |
+| `secret` | **refused.** Never print, echo, or work around the value. If the user wants the setting, capture the env var *name* (`${SOME_SECRET}`) instead |
 | `third-party` | skipped, owner named. Do not adopt another tool's wiring on the user's behalf |
 | `unknown` | asked. If you have a view, give it — but the user answers |
 

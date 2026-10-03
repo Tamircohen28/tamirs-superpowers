@@ -5,6 +5,56 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [4.11.1] — 2026-10-03
+
+The directory's first validation of the 4.11.0 distribution passed with no blocker, 15
+warnings and 35 policy holds. This release removes the holds that were ours to remove and
+trims the distribution so the scanner stops reading history as behaviour.
+
+### Added
+
+- A listing icon: `.claude-plugin/icon.png` (the 512 px logo), named by `icon` in the
+  manifest and shipped in the distribution.
+- `scripts/check-claude-dist.sh` also holds the tree to: a square PNG icon; every local MCP
+  server started by running a plugin file directly, executable, with no shell in front of it;
+  no `CHANGELOG.md`, `docs/engineering/`, `AGENTS.md` or `Makefile` in the tree; no credential
+  variable name or gh token command in any shipped file outside the three that must name the
+  server's own variable; no bare `Write`/`Edit`/`WebFetch`/`WebSearch` grant.
+
+### Changed
+
+- **The mod makes no network call.** Its Pushover post on long or failed turns (the one
+  `$.http.fetch`) is gone, and with it the `pushover_min_turn_seconds` option: the directory
+  holds a mod that both reads the conversation and sends data out, and the `Notification`
+  bash hook already covers phone alerts. The `pushover_token`/`pushover_user` options stay for
+  that hook. 21 mod tests; a new one asserts a long or failed turn sends nothing.
+- **The `github` MCP server runs its launcher directly** (`${CLAUDE_PLUGIN_ROOT}/scripts/github-mcp.sh`,
+  now executable, no `bash` in front) — the directory reads a server started through a shell
+  as "command wasn't read".
+- **No unscoped write, fetch or search grant in any `allowed-tools`.** Twenty-three skills drop
+  bare `Write`/`Edit` (the person approves each edit; auto mode never prompts) and
+  `WebSearch`; bare `WebFetch` is dropped everywhere except `platform-sync` and
+  `changelog-review`, where it is scoped to the documentation hosts they read
+  (`WebFetch(domain:code.claude.com)`, …). `validate-skill-frontmatter.py` rejects the bare
+  forms; `skill-creator` and the quality rule teach the scoped ones.
+- **The distribution is leaner (about 380 files):** `CHANGELOG.md`, `docs/changelog/`,
+  `docs/engineering/`, the other platforms' install and comparison docs and the legacy
+  scaffold template are pruned, and the link closure pulls from `docs/user/` only. Those
+  files are where the repository describes what it used to do, and the scanner reads "no
+  longer reads the token from the environment" as a credential read.
+- Shipped prose no longer names a credential variable or the gh token command: the house
+  rule in `core/global-rules.md` and `templates/global-CLAUDE.md` now says to let `gh` carry
+  its own login and never read a token out of the user's environment; the Pushover docs say
+  "option variables" and "a dotfile" instead of naming them; the capture docs use a neutral
+  placeholder.
+- The directory README and `PRIVACY.md` say what every hook does with the calls it sees,
+  what the mod reads, what it changes on the events it hooks, and the exact prompt the
+  handoff button submits — the disclosures the remaining holds ask for.
+
+### Removed
+
+- `pushover_min_turn_seconds` (manifest option) and the mod's Pushover post (see Changed).
+
 ## [4.11.0] — 2026-10-03
 
 Anthropic's plugin directory rejected 4.10.0 (two blocking findings in the mod, a validator that

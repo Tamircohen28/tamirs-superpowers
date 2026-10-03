@@ -112,7 +112,7 @@ capture_secret_reason() {
   fi
   lower="$(setup_lower "$key")"
   if printf '%s' "$lower" | grep -qE "$CAPTURE_SECRET_KEY"; then
-    # A name is not a value: `${GITHUB_TOKEN}` is exactly what we DO want in the
+    # A name is not a value: `${SOME_SECRET}` is exactly what we DO want in the
     # repo, and an empty string carries nothing.
     if capture_is_env_ref "$val"; then return 1; fi
     if [ -z "$val" ] || [ "$val" = '""' ]; then return 1; fi

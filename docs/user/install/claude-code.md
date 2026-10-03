@@ -44,7 +44,7 @@ environment or a file:
 
 | Option | Turns on |
 |---|---|
-| `github_token` | The bundled `github` MCP server (`gh auth token` prints the gh CLI's token if you want to reuse it) |
+| `github_token` | The bundled `github` MCP server (the gh CLI can print its own token if you want to reuse it) |
 | `pushover_token` + `pushover_user` | Phone notifications, see [phone-notifications.md](../phone-notifications.md) |
 | `semantic_skill_suggest` | A small-model skill match on long prompts (no credential; off by default) |
 
@@ -116,7 +116,7 @@ basis alone.
 ```
 
 Then restart the session. Anything you configured outside the plugin — a manual
-`statusLine` entry in `~/.claude/settings.json`, a `~/.claude/pushover.env` an install
+`statusLine` entry in `~/.claude/settings.json`, a Pushover credentials dotfile an install
 older than 4.11.0 wrote — is yours to remove separately. The plugin's own options
 (Pushover and GitHub tokens) go with the plugin.
 

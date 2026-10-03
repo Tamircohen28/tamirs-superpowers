@@ -497,7 +497,11 @@ def check_tamirs(
 # Anthropic's plugin directory holds a plugin for review on every broad shell or
 # skill entry in a skill's allowed-tools (its ALLOWED_TOOLS_BROAD / ALLOWED_TOOLS_SKILL_ANY
 # rules): a bare `Bash`, `Bash(*)`, a wildcard right after a shell, interpreter,
-# package manager, runner or curl, or a bare `Skill`. The directory's own wording:
+# package manager, runner or curl, or a bare `Skill`; and it flags an unscoped
+# write or fetch grant (ALLOWED_TOOLS_UNSCOPED_WRITE / _FETCH): bare `Write`/`Edit`,
+# bare `WebFetch`, any `WebSearch`. This repo's skills act on arbitrary target
+# repositories, so a path scope means nothing to them: they omit the write grant
+# and let the person approve each edit, which auto mode does silently anyway. The directory's own wording:
 # "While it is active, Claude Code runs matching commands without asking the user."
 # Scope the entry (`Bash(git status:*)`, `Skill(tamirs-superpowers:pr-dev)`) or
 # leave the tool out. Checked here so the hold is caught at authoring time.
@@ -514,6 +518,12 @@ def broad_tool_entry(entry):
     text = entry.strip()
     if text in ("Bash", "Skill"):
         return f"bare {text} allows anything; scope it like {text}(...) or omit it"
+    if text in ("Write", "Edit", "MultiEdit", "NotebookEdit"):
+        return f"bare {text} pre-approves changing any file; the person approves each edit instead, so omit it"
+    if text == "WebSearch":
+        return "WebSearch cannot be scoped and pre-approves any query; omit it"
+    if text == "WebFetch":
+        return "bare WebFetch pre-approves any address; scope it like WebFetch(domain:docs.example.com) or omit it"
     if text in ("Bash(*)", "Bash(*:*)", "Skill(*)"):
         return "a wildcard matches every command"
     if text.startswith("Bash(") and text.endswith(")"):

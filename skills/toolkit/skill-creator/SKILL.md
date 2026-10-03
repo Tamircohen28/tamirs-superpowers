@@ -8,11 +8,8 @@ disable-model-invocation: false
 user-invocable: true
 allowed-tools:
 - Read
-- Write
-- Edit
 - Glob
 - Grep
-- WebFetch
 - Agent
 disallowed-tools: []
 model: sonnet
@@ -160,10 +157,12 @@ Key authoring notes:
   by default, so lean slightly pushy.
 - **when_to_use** (Claude): 3–5 concrete phrases a user would type. An *addition* to
   `description`, never a replacement for its triggers.
-- **allowed-tools**: exhaustive list of every tool the body actually uses, each shell or skill
-  entry scoped (`Bash(git status:*)`, `Skill(tamirs-superpowers:pr-dev)`) — never a bare `Bash`
-  or `Skill`, which the plugin directory holds for review and `make validate` rejects. A
-  skill that runs arbitrary commands omits `Bash` and lets the person approve each call
+- **allowed-tools**: the read-only tools the body uses (`Read`, `Grep`, `Glob`, `Agent`,
+  `AskUserQuestion`), scoped shell and skill entries (`Bash(git status:*)`,
+  `Skill(tamirs-superpowers:pr-dev)`) and host-scoped fetches (`WebFetch(domain:code.claude.com)`).
+  Never a bare `Bash`, `Skill`, `Write`, `Edit`, `WebFetch` or any `WebSearch`: the plugin
+  directory holds or flags those and `make validate` rejects them. A skill that edits files or
+  runs arbitrary commands omits the grant and lets the person approve each call
 - **model**: omit unless there is a specific reason — a pinned model id ages
 - **context / agent**: `''` unless `context: fork`, which requires a non-empty `agent`
 - **user-invocable: false** requires `disable-model-invocation: true`

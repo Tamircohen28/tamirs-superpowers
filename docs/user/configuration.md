@@ -19,9 +19,9 @@ instructions for the second: [setup](setup.md) and [platform setup](platform-set
 
 [`.mcp.json`](../../.mcp.json) declares a `github` server that shells out to
 `scripts/github-mcp.sh`. Its token is the plugin's sensitive `github_token` option, which
-the host passes to the server as `GITHUB_PERSONAL_ACCESS_TOKEN` — set it once in `/plugin`
+the host passes to the server in the environment variable the official server reads — set it once in `/plugin`
 > tamirs-superpowers > Configure, or with `claude plugin configure tamirs-superpowers`
-(`gh auth token` prints the gh CLI's token if you want to reuse it). Leave it blank and the
+(the gh CLI can print its own token if you want to reuse it). Leave it blank and the
 server refuses to start with a message saying so; nothing else needs it. No secret is ever
 committed — any credential in this repo is a `${user_config.KEY}` placeholder. The plugin
 never reads a token off your machine: the Anthropic directory policy forbids it.
@@ -97,7 +97,7 @@ Without `gh`, delivery ends at a pushed integration branch and reports exactly t
 `/notify-setup` sets up [Pushover](https://pushover.net) so an agent can reach you away from
 the desk. The hook ships in `hooks/hooks.json`; the credentials are the plugin's sensitive
 `pushover_token` / `pushover_user` options and nothing else — no environment variable, no
-`~/.claude/pushover.env`. The hook is inert until both are set. Details:
+dotfile. The hook is inert until both are set. Details:
 [phone-notifications.md](phone-notifications.md).
 
 ## Statusline

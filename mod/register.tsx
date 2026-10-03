@@ -27,11 +27,10 @@
 //      rate-limit-handoff.sh fires AFTER the turn died; this fires BEFORE.
 //   3. Usage line on Desktop — the figures scripts/statusline.sh draws on the
 //      CLI, where Desktop has no status line to draw into.
-//   4. Pushover on long or failed main-session turns — with the manifest's
-//      pushover_token/pushover_user ONLY, via $.http.fetch; no curl, no
-//      subprocess. Nothing is read from the environment or from a file: the
-//      directory policy forbids a plugin sending a credential it found on the
-//      machine, and the userConfig options are the sanctioned source.
+//   4. (removed in 4.11.1) A Pushover post on long or failed turns lived here
+//      as a network call. The Notification bash hook covers phone alerts, and a
+//      mod that both reads the conversation and sends it out is held by the
+//      directory for review, so the mod now makes no network call at all.
 //   5. Semantic skill suggestion — opt-in (`semantic_skill_suggest`): a small
 //      model classifies a long prompt against the bundled skill names and the
 //      match is attached as context to the prompt. skill-suggest.sh's keyword
@@ -46,9 +45,11 @@
 //   `$` is never handed to a helper. The directory's scanner reads a mod the
 //   same way `claude plugin validate` does, and a capability it cannot see at
 //   the call site is one it cannot vouch for. The helpers below are pure: they
-//   take text or data and give back text or data. No subprocess runs either:
-//   the main working tree comes from `$.session.repo()` and the branch from
-//   reading `.git/HEAD`, both plain `$.fs`/`$.session` calls.
+//   take text or data and give back text or data. No subprocess runs and no
+//   network call is made: the main working tree comes from `$.session.repo()`
+//   and the branch from reading `.git/HEAD`, both plain `$.fs`/`$.session` calls.
+//   What leaves the session is one thing, on one press: the handoff button
+//   submits a fixed prompt naming the rate-limit window (see the band below).
 //
 // BUDGET
 //   Every hook has 10 s of its own time per dispatch; `next` and `$` calls do
@@ -195,31 +196,13 @@ function linkedGitDir(dotGit: string | null): string | null {
   return m?.[1]?.trim() || null
 }
 
-// The Pushover form body for one finished or failed main-session turn.
-function pushoverBody(token: string, user: string, project: string, answer: string, durationMs: number, reason: string): string {
-  const secs = Math.round(durationMs / 1000)
-  const head = reason === 'error' ? 'Turn ended on an API error' : `Turn finished (${secs}s)`
-  const snippet = answer.replace(/\s+/g, ' ').trim().slice(0, 300)
-  return new URLSearchParams({
-    token,
-    user,
-    title: `Claude Code — ${project}`.slice(0, 250),
-    message: `${head}${snippet ? `: ${snippet}` : ''}`.slice(0, 1024),
-    priority: reason === 'error' ? '1' : '0',
-  }).toString()
-}
-
 const STATUS_COLOR: Record<string, string> = {
   running: 'yellow', completed: 'green', failed: 'red', blocked: 'red', cancelled: 'gray', ready: 'cyan', pending: 'gray',
 }
 
 export const register: Register = (on, options) => {
   const warnAt = Math.min(100, Math.max(50, asNumber(options.rate_limit_warn_percent, 85)))
-  const pushoverMinMs = Math.max(0, asNumber(options.pushover_min_turn_seconds, 120)) * 1000
   const semanticSuggest = options.semantic_skill_suggest === true
-  // The only credential source (see the header). Blank means Pushover is off.
-  const pushoverToken = str(options.pushover_token) ?? ''
-  const pushoverUser = str(options.pushover_user) ?? ''
 
   // Module variables: reset on a hot reload, which is fine for all of them.
   let root = ''
@@ -472,7 +455,7 @@ export const register: Register = (on, options) => {
     return next({ ...e, context: [...(e.context ?? []), note] })
   })
 
-  // ------------------------------------- 4+6. pushover, DoD, compaction, trailer
+  // ------------------------------------------ 6. DoD, compaction, trailer
   on('turn.start', ($, e, next) => {
     writesThisTurn = 0
     return next(e)
@@ -485,28 +468,13 @@ export const register: Register = (on, options) => {
 
   // The module's one turn.complete hook (the engine refuses a second unmatched
   // registration of an event): a worker's turn frees its spinner slot; a main
-  // turn may notify Pushover and gets a DoD line when it wrote files.
+  // turn gets a DoD line when it wrote files.
   on('turn.complete', async ($, e, next) => {
     const ran = await next(e)
     if (e.agentId) {
       await update($, workers, n => Math.max(0, (n ?? 0) - 1))
       $.ui.invalidate('ui.render')
       return ran
-    }
-    const notable = e.reason === 'error' || (e.reason === 'answer' && e.durationMs >= pushoverMinMs)
-    if (notable && pushoverToken && pushoverUser) {
-      const project = (root || cwd).split('/').filter(Boolean).pop() ?? 'claude'
-      try {
-        // A network failure is swallowed: it is not the turn's problem, and
-        // notify-pushover.sh swallows the same failure for the same reason.
-        await $.http.fetch('https://api.pushover.net/1/messages.json', {
-          method: 'POST',
-          headers: { 'content-type': 'application/x-www-form-urlencoded' },
-          body: pushoverBody(pushoverToken, pushoverUser, project, e.answer, e.durationMs, e.reason),
-        })
-      } catch {
-        // see above
-      }
     }
     if (e.reason !== 'answer' || writesThisTurn === 0) return ran
     const n = writesThisTurn

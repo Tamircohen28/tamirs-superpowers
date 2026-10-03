@@ -61,11 +61,11 @@ log() { [[ "$QUIET" -eq 1 ]] || echo "$@"; }
 # Files and directories shipped whole. Order does not matter.
 ROOTS=(
   .claude-plugin/plugin.json
+  .claude-plugin/icon.png
   .mcp.json
   LICENSE
   SECURITY.md
   PRIVACY.md
-  CHANGELOG.md
   plugin-version.json
   hooks
   mod
@@ -85,6 +85,16 @@ ROOTS=(
 PRUNE_DIRS=(evals fixtures eval-viewer __pycache__ .pytest_cache node_modules)
 PRUNE_PATHS=(
   platforms/claude/directory
+  docs/engineering
+  docs/changelog
+  docs/user/install/codex.md
+  docs/user/install/cursor.md
+  docs/user/install/gemini.md
+  docs/user/install/opencode.md
+  docs/user/platform-setup.md
+  docs/user/platform-differences.md
+  docs/user/cross-platform-workflow.md
+  skills/repo/_contract/templates/legacy-scaffold-templates.md
   scripts/build-claude-dist.sh
   scripts/check-claude-dist.sh
   scripts/build-cursor-commands.sh
@@ -129,11 +139,15 @@ cp -L "$SRC/platforms/claude/directory/README.md" "$OUT/README.md"
 # Every shipped .md may link to a file that is not shipped yet (a doc under docs/,
 # say). Pull such targets in from the source, transitively, so the shipped tree is
 # self-contained. Targets missing from the source too are listed, not fetched.
-# Only a target inside the shipped roots or under docs/ is pulled; a link to a
-# contributor or other-platform file (CLAUDE.md, AGENTS.md, .cursor-plugin/, the
-# evals and fixtures pruned above, ...) is left out and listed, since those are not
-# part of the Claude distribution whatever links to them.
-CLOSURE_ALLOW="docs ${ROOTS[*]}"
+# Only a target inside the shipped roots or under docs/user/ is pulled; a link to a
+# contributor, engineering or other-platform file (CLAUDE.md, AGENTS.md, CHANGELOG.md,
+# docs/engineering/, .cursor-plugin/, the evals and fixtures pruned above, ...) is
+# left out and listed, since those are not part of the Claude distribution whatever
+# links to them. The changelog and the engineering docs are left out on purpose:
+# they are where this repository talks about what it used to do, and the directory's
+# scanner reads a sentence such as "no longer reads the token from the environment"
+# as a credential read.
+CLOSURE_ALLOW="docs/user ${ROOTS[*]}"
 CLOSURE_PRUNE_DIRS="${PRUNE_DIRS[*]}"
 CLOSURE_PRUNE_PATHS="${PRUNE_PATHS[*]}"
 export CLOSURE_ALLOW CLOSURE_PRUNE_DIRS CLOSURE_PRUNE_PATHS

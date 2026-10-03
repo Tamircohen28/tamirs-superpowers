@@ -81,9 +81,10 @@ function stubEngine(on: On, disk: Record<string, string>, env: Record<string, st
     calls.prompts.push(e.text)
     return { text: e.text, context: e.context }
   })
+  // The mod makes no network call; a test that sees one has found a regression.
   on('http.fetch', ($, e) => {
     calls.fetch.push({ url: e.url, body: e.init?.body ?? '' })
-    return { value: { status: 200, ok: true, headers: {}, text: '{"status":1}' } }
+    throw new Error('test engine: the mod must not call the network')
   })
   on('session.repo', () => ({ value: repoRoot ? { root: repoRoot, remote: null, internal: false, name: null } : null }))
   // The mod never runs a process; a test that sees one has found a regression.
@@ -268,50 +269,16 @@ test('the usage line draws on the desktop only — the CLI has scripts/statuslin
   await terminal.unmount()
 })
 
-test('a long main-session turn posts to Pushover with the manifest credentials; a short one does not', { options: { pushover_token: 'tok-123', pushover_user: 'usr-456', pushover_min_turn_seconds: 60 } }, async ($, on) => {
+
+
+
+
+test('a long or failed main-session turn sends nothing anywhere: phone alerts are the Notification hook\'s job', { options: { pushover_token: 'tok', pushover_user: 'usr' } }, async ($, on) => {
   const calls = stubEngine(on, fakeDisk())
   mock.clock(on)
   await start($)
-  await $.turn.complete({ answer: 'Quick.', durationMs: 5000, isAborted: false, turnId: 't1', reason: 'answer' })
-  expect(calls.fetch).toHaveLength(0)
-  await $.turn.complete({ answer: 'All done, the parser is in.', durationMs: 180000, isAborted: false, turnId: 't2', reason: 'answer' })
-  expect(calls.fetch).toHaveLength(1)
-  expect(calls.fetch[0]?.url).toBe('https://api.pushover.net/1/messages.json')
-  const body = new URLSearchParams(calls.fetch[0]?.body ?? '')
-  expect(body.get('token')).toBe('tok-123')
-  expect(body.get('user')).toBe('usr-456')
-  expect(body.get('title')).toBe('Claude Code — repo')
-  expect(body.get('message')).toMatch(/Turn finished \(180s\): All done/)
-  expect(body.get('priority')).toBe('0')
-})
-
-test('an API-error turn posts at high priority even when short; a subagent turn never posts', { options: { pushover_token: 'tok', pushover_user: 'usr' } }, async ($, on) => {
-  const calls = stubEngine(on, fakeDisk())
-  mock.clock(on)
-  await start($)
-  await $.turn.complete({ answer: '', durationMs: 1000, isAborted: false, turnId: 't1', reason: 'error' })
-  expect(calls.fetch).toHaveLength(1)
-  expect(new URLSearchParams(calls.fetch[0]?.body ?? '').get('priority')).toBe('1')
-  await $.turn.complete({ answer: 'worker', durationMs: 900000, isAborted: false, turnId: 't2', reason: 'answer', agentId: 'agent-1' })
-  expect(calls.fetch).toHaveLength(1)
-})
-
-test('without credentials anywhere nothing is sent', async ($, on) => {
-  const calls = stubEngine(on, fakeDisk())
-  mock.clock(on)
-  await start($)
-  await $.turn.complete({ answer: 'x', durationMs: 999999, isAborted: false, turnId: 't1', reason: 'answer' })
-  expect(calls.fetch).toHaveLength(0)
-})
-
-test('a credential in the environment or in ~/.claude/pushover.env is never used: only the manifest options send', async ($, on) => {
-  // The directory policy forbids a plugin sending a credential it found on the
-  // machine, so neither source may reach Pushover even when both are present.
-  const disk = { ...fakeDisk(), '/Users/you/.claude/pushover.env': 'PUSHOVER_TOKEN=file-tok\nPUSHOVER_USER="file-usr"\n' }
-  const calls = stubEngine(on, disk, { HOME: '/Users/you', PUSHOVER_TOKEN: 'env-tok', PUSHOVER_USER: 'env-usr', CLAUDE_PLUGIN_OPTION_PUSHOVER_TOKEN: 'opt-tok', CLAUDE_PLUGIN_OPTION_PUSHOVER_USER: 'opt-usr' })
-  mock.clock(on)
-  await start($)
-  await $.turn.complete({ answer: 'x', durationMs: 999999, isAborted: false, turnId: 't1', reason: 'answer' })
+  await $.turn.complete({ answer: 'All done.', durationMs: 900000, isAborted: false, turnId: 't1', reason: 'answer' })
+  await $.turn.complete({ answer: '', durationMs: 1000, isAborted: false, turnId: 't2', reason: 'error' })
   expect(calls.fetch).toHaveLength(0)
 })
 

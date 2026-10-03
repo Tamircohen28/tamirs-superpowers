@@ -18,7 +18,6 @@ allowed-tools:
 - Read
 - Grep
 - Glob
-- Write
 disallowed-tools: []
 effort: medium
 context: ''

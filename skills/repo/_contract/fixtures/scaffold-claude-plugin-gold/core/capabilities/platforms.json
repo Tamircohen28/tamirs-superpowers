@@ -832,7 +832,7 @@
               "status": "native",
               "since": "0.55.1",
               "validation": "bash scripts/check-gemini-adapter.sh",
-              "notes": "Measured on 0.55.1. The github server needs GITHUB_PERSONAL_ACCESS_TOKEN in its environment (Claude Code supplies it from the github_token option; Gemini has no option store, so export it in the shell that starts gemini)."
+              "notes": "Measured on 0.55.1. The github server needs its token in the environment variable the official server reads (Claude Code supplies it from the github_token option; Gemini has no option store, so export it in the shell that starts gemini)."
             },
             "statusline": {
               "last_verified": "2026-09-17",

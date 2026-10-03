@@ -89,6 +89,26 @@ else
   bad "README.md missing"
 fi
 [[ -f "$DIST/PRIVACY.md" ]] && ok "PRIVACY.md present" || bad "PRIVACY.md missing"
+icon="$(jq -r '.icon // ".claude-plugin/icon.png"' "$M" 2>/dev/null | sed 's#^\./##')"
+if [[ -f "$DIST/$icon" ]]; then
+  read -r iw ih < <(python3 -c "import struct,sys;d=open(sys.argv[1],'rb').read(32);print(*struct.unpack('>II',d[16:24]))" "$DIST/$icon" 2>/dev/null || echo "0 0")
+  isz="$(stat -c %s "$DIST/$icon" 2>/dev/null || stat -f %z "$DIST/$icon")"
+  if head -c 8 "$DIST/$icon" | grep -q 'PNG' && [[ "$iw" -eq "$ih" && "$iw" -ge 512 && "$iw" -le 2048 && "$isz" -lt 2097152 ]]; then
+    ok "listing icon $icon is a square PNG (${iw}px, $((isz/1024)) KiB)"
+  else
+    bad "listing icon $icon must be a square PNG, 512–2048 px, under 2 MB" "${iw}x${ih}, $isz bytes"
+  fi
+else
+  bad "listing icon missing" "$icon (the directory warns, and the first submission fixes the icon for good)"
+fi
+for gone in CHANGELOG.md docs/engineering docs/changelog AGENTS.md Makefile; do
+  [[ -e "$DIST/$gone" ]] && bad "$gone is in the distribution" "it belongs to the source repository, not the listing"
+done
+# Prose that names a credential variable or the gh token command reads as a credential
+# read to the scanner, whatever the sentence says. The three files that must name
+# GITHUB_PERSONAL_ACCESS_TOKEN (the manifest, .mcp.json and the launcher) are allowed.
+prose="$(grep -rnE 'gh auth token|PUSHOVER_TOKEN|PUSHOVER_USER|GITHUB_TOKEN|GH_TOKEN|GITHUB_PERSONAL_ACCESS_TOKEN|pushover\.env' "$DIST" --include='*.md' --include='*.json' --include='*.sh' --include='*.py' --include='*.tsx' --include='*.tmpl' --include='*.yaml' 2>/dev/null | grep -vE '^[^:]+/(\.mcp\.json|\.claude-plugin/plugin\.json|scripts/github-mcp\.sh|scripts/notify-pushover\.sh):' | head -3)"
+[[ -z "$prose" ]] && ok "no shipped file names a credential variable or the gh token command (outside the three that must)" || bad "credential name in shipped text" "$prose"
 
 echo "--- hooks, mod and MCP ---"
 H="$DIST/hooks/hooks.json"
@@ -110,6 +130,12 @@ if [[ -f "$MCP" ]]; then
   [[ -z "$badurl" ]] && ok "every remote MCP url is https/wss or a user_config reference" || bad "MCP url not https" "$badurl"
   secretval="$(jq -r '.mcpServers[] | (.env // {}, .headers // {}) | to_entries[] | select(.key | test("token|secret|key|password"; "i")) | .value' "$MCP" | grep -vE '^\$\{user_config\.[A-Za-z0-9_]+\}$' | head -2)"
   [[ -z "$secretval" ]] && ok "every MCP credential is a \${user_config.KEY} reference" || bad "MCP credential is not a user_config reference" "$secretval"
+  # A local server starts by running a file in the plugin with plain arguments, not a shell.
+  shellcmd="$(jq -r '.mcpServers[] | select(.command) | .command' "$MCP" | grep -vE '^\$\{CLAUDE_PLUGIN_ROOT\}/[A-Za-z0-9_./-]+$' | head -2)"
+  [[ -z "$shellcmd" ]] && ok "every local MCP server runs a plugin file directly (no shell, no launcher)" || bad "MCP server command goes through a shell or launcher" "$shellcmd"
+  while IFS= read -r cmdf; do
+    [[ -x "$DIST/$cmdf" ]] && ok "MCP command $cmdf is executable" || bad "MCP command $cmdf is not executable"
+  done < <(jq -r '.mcpServers[] | select(.command) | .command' "$MCP" | sed 's#^\${CLAUDE_PLUGIN_ROOT}/##')
 fi
 # Nothing shipped reads a credential off the machine and could forward it.
 creds="$(grep -rnE 'gh auth token|pushover\.env|\$\{?(GITHUB_TOKEN|GH_TOKEN|PUSHOVER_TOKEN|PUSHOVER_USER|ANTHROPIC_API_KEY|OPENAI_API_KEY)\b' "$DIST/scripts" "$DIST/hooks" "$DIST/mod" --include='*.sh' --include='*.py' --include='*.ts' --include='*.tsx' 2>/dev/null | grep -vE '^[^:]+:[0-9]+:\s*#' | grep -v 'mods\.test\.tsx' | head -3)"
@@ -137,8 +163,8 @@ if [[ -f "$HERE/validate-skill-frontmatter.py" ]]; then
   fi
   rm -f /tmp/claude-dist-skills.$$
 fi
-broad="$(awk 'FNR==1{f=0} /^allowed-tools:/{f=1;next} f&&/^[a-z-]+:/{f=0} f&&/^\s*- (Bash|Skill|Bash\(\*\)|Bash\([a-z0-9]+:\*\))\s*$/{print FILENAME": "$0}' "$DIST"/skills/*/*/SKILL.md 2>/dev/null | head -3)"
-[[ -z "$broad" ]] && ok "no bare Bash/Skill or interpreter wildcard in any allowed-tools" || bad "broad allowed-tools entry" "$broad"
+broad="$(awk 'FNR==1{f=0} /^allowed-tools:/{f=1;next} f&&/^[a-z-]+:/{f=0} f&&/^\s*- (Bash|Skill|Write|Edit|MultiEdit|NotebookEdit|WebFetch|WebSearch|Bash\(\*\)|Bash\([a-z0-9]+:\*\))\s*$/{print FILENAME": "$0}' "$DIST"/skills/*/*/SKILL.md 2>/dev/null | head -3)"
+[[ -z "$broad" ]] && ok "no bare Bash/Skill/Write/Edit/WebFetch/WebSearch or interpreter wildcard in any allowed-tools" || bad "broad or unscoped allowed-tools entry" "$broad"
 
 echo "--- links ---"
 dangling="$(python3 - "$DIST" <<'PY'

@@ -11,8 +11,6 @@ disable-model-invocation: false
 user-invocable: false
 allowed-tools:
 - Read
-- Write
-- Edit
 - Glob
 - Grep
 disallowed-tools: []

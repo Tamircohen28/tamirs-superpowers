@@ -50,23 +50,28 @@ which satisfies the directory's "raise it with every release" rule without a sec
 
 [`scripts/build-claude-dist.sh`](../../../scripts/build-claude-dist.sh) writes it:
 
-1. **Roots, copied whole**: `.claude-plugin/plugin.json`, `.mcp.json`, `hooks/`, `mod/`,
-   `agents/`, `skills/`, `core/`, `rules/`, `output-styles/`, `templates/`, `config/`,
-   `scripts/`, `platforms/claude/`, `LICENSE`, `SECURITY.md`, `PRIVACY.md`, `CHANGELOG.md`,
-   `plugin-version.json`. Symbolic links are dereferenced.
+1. **Roots, copied whole**: `.claude-plugin/plugin.json`, `.claude-plugin/icon.png`,
+   `.mcp.json`, `hooks/`, `mod/`, `agents/`, `skills/`, `core/`, `rules/`, `output-styles/`,
+   `templates/`, `config/`, `scripts/`, `platforms/claude/`, `LICENSE`, `SECURITY.md`,
+   `PRIVACY.md`, `plugin-version.json`. Symbolic links are dereferenced.
 2. **Pruned from those roots**: every `evals/`, `fixtures/` and `eval-viewer/` directory,
    the other platforms' build and setup scripts (`build-cursor-commands.sh`,
-   `scripts/lib/setup-codex.sh`, …), `typecheck-mods.sh`, and the two distribution scripts
-   themselves.
+   `scripts/lib/setup-codex.sh`, …), the other platforms' install and comparison docs,
+   `typecheck-mods.sh`, and the two distribution scripts themselves. `CHANGELOG.md`,
+   `docs/changelog/` and `docs/engineering/` are left out on purpose: they are where this
+   repository describes what it *used* to do, and the directory's scanner reads a sentence
+   such as "no longer reads the token from the environment" as a credential read. For the
+   same reason no shipped file names a credential variable or the gh token command; the
+   check below fails on one.
 3. **README**: `platforms/claude/directory/README.md` replaces the five-platform README. It is
    what the listing shows, so it names everything the plugin runs, sends and fetches.
 4. **Link closure**: every relative Markdown link in a shipped file is followed; a target
-   under `docs/` or inside the roots is pulled in, transitively, so no shipped doc points at
+   under `docs/user/` or inside the roots is pulled in, transitively, so no shipped doc points at
    a 404. A target outside the distribution (`CLAUDE.md`, `AGENTS.md`, another platform's
    manifest, a pruned fixture) is left out and listed. A target that exists nowhere is
    reported as already broken on `master`.
 
-The result is around 420 files and no symlinks. Nothing in it is edited after the build.
+The result is around 380 files and no symlinks. Nothing in it is edited after the build.
 
 Not in the tree, deliberately: `CLAUDE.md` and `AGENTS.md` (contributor instructions, never
 loaded as plugin context), `tests/`, `evals/`, `docs/engineering/`, `.github/`, the
@@ -77,11 +82,13 @@ loaded as plugin context), `tests/`, `evals/`, `docs/engineering/`, `.github/`, 
 
 [`scripts/check-claude-dist.sh`](../../../scripts/check-claude-dist.sh) holds a built tree to
 the directory's rules before anything is pushed: file count, symlinks, file sizes and types,
-the manifest's listing fields, every credential-shaped `userConfig` option marked
-`sensitive`, every MCP credential a `${user_config.KEY}` reference, no shipped script or mod
+the manifest's listing fields and a square PNG icon, every credential-shaped `userConfig`
+option marked `sensitive`, every MCP credential a `${user_config.KEY}` reference and every
+local MCP server started by running a plugin file directly (no shell in front of it), no shipped script or mod
 reading a credential from the environment or a file, no download-and-run and no package
 launcher, hook commands in the plain `"${CLAUDE_PLUGIN_ROOT}"/path` form, a mod that hands
-`$` to no helper and runs no process, scoped `allowed-tools` in every skill, a README that
+`$` to no helper and runs no process, no bare `Bash`/`Skill`/`Write`/`Edit`/`WebFetch`/`WebSearch`
+in any `allowed-tools`, no credential name in shipped prose, a README that
 resolves its links, and, where the `claude` CLI is present, `claude plugin validate --strict`
 and `claude plugin test` on the built tree.
 

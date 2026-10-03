@@ -466,7 +466,7 @@ jobs:
 
       - name: Create GitHub Release
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           gh release create ${{ github.ref_name }} \
             --title "${{ github.ref_name }}" \
