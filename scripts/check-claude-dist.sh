@@ -89,25 +89,14 @@ else
   bad "README.md missing"
 fi
 [[ -f "$DIST/PRIVACY.md" ]] && ok "PRIVACY.md present" || bad "PRIVACY.md missing"
-icon="$(jq -r '.icon // ".claude-plugin/icon.png"' "$M" 2>/dev/null | sed 's#^\./##')"
-if [[ -f "$DIST/$icon" ]]; then
-  read -r iw ih < <(python3 -c "import struct,sys;d=open(sys.argv[1],'rb').read(32);print(*struct.unpack('>II',d[16:24]))" "$DIST/$icon" 2>/dev/null || echo "0 0")
-  isz="$(stat -c %s "$DIST/$icon" 2>/dev/null || stat -f %z "$DIST/$icon")"
-  if head -c 8 "$DIST/$icon" | grep -q 'PNG' && [[ "$iw" -eq "$ih" && "$iw" -ge 512 && "$iw" -le 2048 && "$isz" -lt 2097152 ]]; then
-    ok "listing icon $icon is a square PNG (${iw}px, $((isz/1024)) KiB)"
-  else
-    bad "listing icon $icon must be a square PNG, 512–2048 px, under 2 MB" "${iw}x${ih}, $isz bytes"
-  fi
-else
-  bad "listing icon missing" "$icon (the directory warns, and the first submission fixes the icon for good)"
-fi
-# The scanner holds every script that can "reach" an image: naming the icon's folder
-# (or the plugin root alone, when the icon sits beside the manifest) is enough. So the
-# icon lives in a folder of its own that no shipped script, hook or config names.
-icondir="${icon%/*}"
-reach="$(grep -rlF "$icondir/" "$DIST" --include='*.sh' --include='*.py' --include='*.json' --include='*.tsx' --include='*.ts' --include='*.tmpl' --include='*.yaml' 2>/dev/null | grep -v '/.claude-plugin/plugin.json$' | head -3)"
-[[ -z "$reach" ]] && ok "no shipped script or config names the icon's folder ($icondir/)" || bad "a shipped file names the icon's folder, so the scanner holds it as reachable" "$(echo "$reach" | tr '\n' ' ')"
-[[ "$icondir" != ".claude-plugin" && "$icondir" != "." ]] && ok "icon is not beside the manifest (every script that names the plugin root would reach it)" || bad "icon sits beside the manifest or at the root; move it to a folder of its own"
+# The scanner holds every script that can "reach" an image as running unread code
+# (UNREAD_ASSET_REFERENCED). On 4.11.1 that was every script naming the manifest's
+# folder; on 4.11.2 none, with the icon in a folder of its own; on 4.11.3 fourteen
+# scripts again, several of which name no folder at all. The rule cannot be met by
+# placement, so the distribution ships no image or font and the manifest names no icon.
+imgs="$(find "$DIST" -type f \( -iname '*.png' -o -iname '*.jpg' -o -iname '*.jpeg' -o -iname '*.gif' -o -iname '*.webp' -o -iname '*.ico' -o -iname '*.bmp' -o -iname '*.svg' -o -iname '*.woff' -o -iname '*.woff2' -o -iname '*.ttf' -o -iname '*.otf' \) | head -3)"
+[[ -z "$imgs" ]] && ok "no image or font file ships (every script that could reach one is held)" || bad "image or font file in the distribution (the scanner holds every script that can reach it)" "$(echo "$imgs" | tr '\n' ' ')"
+jq -e 'has("icon")' "$M" >/dev/null 2>&1 && bad "manifest names an icon (the scanner holds every script that can reach the image)" "$(jq -r .icon "$M")" || ok "manifest names no icon"
 jq -e 'has("$schema") | not' "$M" >/dev/null 2>&1 && ok "plugin.json carries no \$schema URL (a URL beside a credential name reads as a send)" || bad "plugin.json has a \$schema URL; drop it"
 for gone in CHANGELOG.md docs/engineering docs/changelog AGENTS.md Makefile; do
   [[ -e "$DIST/$gone" ]] && bad "$gone is in the distribution" "it belongs to the source repository, not the listing"
@@ -164,13 +153,14 @@ fetchexec="$( { grep -rnE '(curl|wget)[^|]*\|\s*(ba)?sh\b' "$DIST" --include='*.
 # The scanner pairs a URL host with any credential-looking identifier in the same file
 # and holds the pair. Its reading is wide: TARGET_KEYS, \$PWD, *_AUTH, a shell variable
 # named `key` or `pat`, and the literal path of the host's own credential store
-# (~/.claude/.credentials.json) have all been held. Mirror it: a shipped file that names
+# (~/.claude/.credentials.json), a camel-case getToken, the user config file
+# (~/.claude.json) and the words printenv / export -p have all been held. Mirror it: a shipped file that names
 # an https host may not also carry any of those, except the vendor's own credential
 # beside the vendor's own host (the two Pushover/GitHub files).
 pairs="$(grep -rlE 'https?://[A-Za-z0-9.-]+' "$DIST" --include='*.sh' --include='*.py' --include='*.md' --include='*.json' --include='*.tmpl' --include='*.tsx' --include='*.ts' --include='*.yaml' 2>/dev/null \
   | grep -vE '/(scripts/notify-pushover\.sh|scripts/github-mcp\.sh|\.mcp\.json|\.claude-plugin/plugin\.json)$' \
   | while IFS= read -r f; do
-      grep -nE '\b[A-Z][A-Z0-9_]*(TOKEN|SECRET|PASSWORD|_KEY|_KEYS|CREDENTIAL|_AUTH|_PAT)S?\b|\b(AUTH|PAT|KEY|TOKEN|SECRET)_[A-Z0-9_]+\b|\$PWD\b|\$\{PWD|\.credentials\.json|\$\{?(key|pat)\b|\b(local|for|read -r|read)\s+(key|pat)\b' "$f" 2>/dev/null | head -1 | sed "s#^#${f#"$DIST"/}:#"
+      grep -nE '\b[A-Z][A-Z0-9_]*(TOKEN|SECRET|PASSWORD|_KEY|_KEYS|CREDENTIAL|_AUTH|_PAT)S?\b|\b(AUTH|PAT|KEY|TOKEN|SECRET)_[A-Z0-9_]+\b|\$PWD\b|\$\{PWD|\.credentials\.json|\$\{?(key|pat)\b|\b(local|for|read -r|read)\s+(key|pat)\b|\b[a-z]+(Token|Secret|Password|Credential)s?\b|\.claude\.json\b|\bprintenv\b|\bexport -p\b' "$f" 2>/dev/null | head -1 | sed "s#^#${f#"$DIST"/}:#"
     done | head -3)"
 [[ -z "$pairs" ]] && ok "no shipped file pairs a URL host with a credential-looking identifier, \$PWD, a key/pat variable or the credential-store path" || bad "URL host beside a credential-looking identifier (the scanner holds the pair)" "$pairs"
 # The mod hands $ to no helper (the directory's MOD_CAPABILITY_USE_NOT_PLAIN).

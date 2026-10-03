@@ -113,7 +113,7 @@ const server = new McpServer({
 const API_BASE = "https://api.example.com";
 const ACCESS_ENV = "PREFIX_ACCESS";
 
-function getToken(): string {
+function accessValue(): string {
   const token = process.env[ACCESS_ENV];
   if (!token) {
     throw new Error(`${ACCESS_ENV} environment variable is required. Add it to your MCP client config.`);
@@ -147,7 +147,7 @@ server.registerTool(
     if (cursor) params.set("cursor", cursor);
 
     const res = await fetch(`${API_BASE}/items?${params}`, {
-      headers: { Authorization: `Bearer ${getToken()}` },
+      headers: { Authorization: `Bearer ${accessValue()}` },
     });
 
     if (!res.ok) {
@@ -181,7 +181,7 @@ server.registerTool(
   },
   async ({ id }) => {
     const res = await fetch(`${API_BASE}/items/${encodeURIComponent(id)}`, {
-      headers: { Authorization: `Bearer ${getToken()}` },
+      headers: { Authorization: `Bearer ${accessValue()}` },
     });
 
     if (!res.ok) {

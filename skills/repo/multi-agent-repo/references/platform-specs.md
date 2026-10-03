@@ -264,8 +264,8 @@ alwaysApply: false
 | `alwaysApply` | `globs` | `description` | Behavior |
 |---|---|---|---|
 | `true` | — | — | Every session |
-| `false` | set | — | Auto-attach when files match |
-| `false` | — | set | Agent evaluates relevance |
+| `false` | present | — | Auto-attach when files match |
+| `false` | — | present | Agent evaluates relevance |
 | `false` | — | — | Manual `@rule-name` only |
 
 Keep each `.mdc` file under 500 lines. `.md` files in `.cursor/rules/` are silently ignored.

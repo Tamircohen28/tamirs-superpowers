@@ -61,7 +61,6 @@ log() { [[ "$QUIET" -eq 1 ]] || echo "$@"; }
 # Files and directories shipped whole. Order does not matter.
 ROOTS=(
   .claude-plugin/plugin.json
-  listing/icon.png
   .mcp.json
   LICENSE
   SECURITY.md

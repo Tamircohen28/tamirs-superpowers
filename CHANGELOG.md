@@ -5,6 +5,33 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [4.11.4] — 2026-10-03
+
+The portal's validation of 4.11.3 passed with 9 warnings and 24 policy holds, down from 34.
+The pairing holds this release cleared stayed cleared; the image-reachability reading came
+back instead, holding fourteen scripts as able to reach `listing/icon.png`, several of
+which name no folder at all. That rule cannot be met by placement, so the distribution
+ships no image and the manifest names no icon. Three new pairing readings (`getToken`,
+`~/.claude.json`, an environment dump) are mirrored and planted as before.
+
+### Removed
+
+- `listing/icon.png` and the manifest's `icon` field. Claude Code never read either; only
+  the directory did, and every script it judged able to reach the image was held. The
+  listing's icon is uploaded in the submission form where the portal offers one.
+
+### Changed
+
+- `scripts/check-claude-dist.sh` holds the tree to no image or font file and no manifest
+  `icon`, and widens the pairing rule to a camel-case `getToken`-style name,
+  `.claude.json` and `printenv` / `export -p`; `tests/test-claude-dist.sh` plants each
+  (29 probes).
+- `mcp-builder`'s scaffold reads the access value through `accessValue()`; its config
+  table describes the user-level config file instead of naming it; `switch-dev`'s example
+  validation reads `ok` rather than `pass`; a `guard-sensitive-files.sh` comment no longer
+  spells a pipe into a shell; a `platform-specs.md` table says `present` where the
+  scanner read its bare `set` as an environment dump.
+
 ## [4.11.3] — 2026-10-03
 
 The portal's validation of 4.11.2 passed with 9 warnings and 34 policy holds, down from 11

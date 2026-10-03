@@ -31,7 +31,7 @@ n="$(find "$T/dist" -type f | wc -l | tr -d ' ')"
 for absent in CHANGELOG.md docs/engineering docs/changelog AGENTS.md CLAUDE.md Makefile tests .cursor-plugin .gemini opencode.json; do
   [ ! -e "$T/dist/$absent" ] && ok "$absent is not shipped" || bad "$absent is shipped" "it belongs to the source repository"
 done
-[ -f "$T/dist/listing/icon.png" ] && ok "icon ships in its own folder" || bad "icon missing from listing/" ""
+[ -z "$(find "$T/dist" -type f -iname '*.png' -o -type f -iname '*.svg' | head -1)" ] && ok "no image ships" || bad "an image ships" "the scanner holds every script that can reach it"
 [ -x "$T/dist/scripts/github-mcp.sh" ] && ok "MCP launcher is executable" || bad "MCP launcher not executable" ""
 
 # probe <name> <rule-text-expected-in-FAIL-line> <shell that mutates $P>
@@ -64,6 +64,12 @@ probe "a shell variable named pat beside a URL host (a regex variable the scanne
   'printf "#!/usr/bin/env bash\nlocal pat\nread -r pat\necho https://example.com\n" > scripts/probe.sh'
 probe "the path of the host credential store beside a URL host" "credential-looking identifier" \
   'printf "The host keeps it in ~/.claude/.credentials.json; see https://example.com.\n" > docs/user/probe.md'
+probe "a camel-case getToken beside a URL host" "credential-looking identifier" \
+  'printf "const t = getToken(); fetch(\"https://api.example.com\", t)\n" > docs/user/probe.md'
+probe "the user config file path beside a URL host" "credential-looking identifier" \
+  'printf "Add the server to ~/.claude.json; docs at https://example.com.\n" > docs/user/probe.md'
+probe "an environment dump beside a URL host" "credential-looking identifier" \
+  'printf "#!/usr/bin/env bash\nprintenv\ncurl https://api.example.com\n" > scripts/probe.sh'
 probe "eval in a shipped shell script (COMMAND_SCRIPT_NOT_FOLLOWED)" "eval in a shipped shell script" \
   'printf "#!/usr/bin/env bash\neval \"\$(echo x)\"\n" > hooks/probe.sh'
 probe "a package launcher named in a message string (RUNTIME_FETCH_EXEC)" "download-and-run or package launcher" \
@@ -91,12 +97,12 @@ p=sys.argv[1]; s=open(p).read()
 s=re.sub(r"^allowed-tools:\n", "allowed-tools:\n- Write\n", s, count=1, flags=re.M)
 open(p,"w").write(s)
 PY'
-probe "a script that names the icon's folder (UNREAD_ASSET_REFERENCED)" "icon's folder" \
-  'printf "#!/usr/bin/env bash\nls listing/\n" > scripts/probe.sh'
-probe "the icon beside the manifest (every root-naming script reaches it)" "beside the manifest" \
-  'mv listing/icon.png .claude-plugin/icon.png && rmdir listing && python3 - <<'"'"'PY'"'"'
+probe "an image file in the tree (UNREAD_ASSET_REFERENCED)" "image or font file" \
+  'mkdir -p listing && printf "\x89PNG\r\n" > listing/icon.png'
+probe "an icon named by the manifest (UNREAD_ASSET_REFERENCED)" "manifest names an icon" \
+  'python3 - <<'"'"'PY'"'"'
 import json
-p=".claude-plugin/plugin.json"; d=json.load(open(p)); d["icon"]="./.claude-plugin/icon.png"; json.dump(d,open(p,"w"),indent=2)
+p=".claude-plugin/plugin.json"; d=json.load(open(p)); d["icon"]="./listing/icon.png"; json.dump(d,open(p,"w"),indent=2)
 PY'
 probe "a \$schema URL in the manifest" "schema" \
   'python3 - <<'"'"'PY'"'"'
