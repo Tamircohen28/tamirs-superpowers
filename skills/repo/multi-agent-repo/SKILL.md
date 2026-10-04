@@ -47,9 +47,6 @@ metadata:
 
 ---
 
-## Live context
-!`git rev-parse --show-toplevel 2>/dev/null || echo "not a git repo"`
-
 # multi-agent-repo
 
 Audit, plan, and implement canonical multi-agent repository setup: **one `AGENTS.md` source of truth**, thin adapters per tool, portable skills, and CI-enforced validation.

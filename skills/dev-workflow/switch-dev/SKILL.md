@@ -57,11 +57,6 @@ metadata:
   updated-date: '2026-06-30'
 ---
 
-## Live context
-!`git rev-parse --show-toplevel 2>/dev/null && bash skills/dev-workflow/_shared/scripts/detect-platform.sh 2>/dev/null | sed 's/^/platform: /' || echo "not a git repo"`
-!`ls -1 .dev-files/objectives 2>/dev/null | sed 's/^/objective: /' || true`
-!`gh issue list --state open --label agent:any --limit 3 --json number,title --jq '.[] | "  #\(.number): \(.title)"' 2>/dev/null || true`
-
 # switch-dev
 
 Hand off and resume development work across **Claude Code**, **Cursor**, **Codex**, **Gemini CLI** and **OpenCode**.

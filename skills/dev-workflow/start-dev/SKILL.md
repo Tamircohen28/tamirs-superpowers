@@ -55,11 +55,6 @@ metadata:
   updated-date: '2026-07-09'
 ---
 
-## Live context
-!`git branch --show-current 2>/dev/null | sed 's/^/current branch: /' || echo "not a git repo"`
-!`gh repo view --json defaultBranchRef --jq '"default branch: \(.defaultBranchRef.name)"' 2>/dev/null || true`
-!`gh issue list --state open --limit 5 --json number,title --jq '.[] | "  #\(.number): \(.title)"' 2>/dev/null | head -5 || true`
-
 # start-dev
 
 Compatibility entry point for "implement this". Routes the request to the right piece of the workflow and stays out of the way.

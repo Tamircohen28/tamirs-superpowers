@@ -52,9 +52,6 @@ metadata:
 
 ---
 
-## Live context
-!`git rev-parse --show-toplevel 2>/dev/null || echo "not a git repo"`
-
 # repo-standards
 
 Audit, plan, and implement **Tamir Cohen repo standards**: README + docs tree, GitHub CI/CD, branch governance, employer-IP clean, repo hygiene, and **multi-agent** support (via `multi-agent-repo`). Auto-detects `app-gold` vs `plugin-gold` (agent-kit repos).
