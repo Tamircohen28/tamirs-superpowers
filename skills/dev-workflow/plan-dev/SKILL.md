@@ -51,11 +51,6 @@ metadata:
   updated-date: '2026-07-09'
 ---
 
-## Live context
-!`git branch --show-current 2>/dev/null | sed 's/^/current branch: /' || echo "not a git repo"`
-!`gh repo view --json defaultBranchRef,nameWithOwner --jq '"repo: \(.nameWithOwner) | default branch: \(.defaultBranchRef.name)"' 2>/dev/null || true`
-!`gh issue list --state open --limit 5 --json number,title --jq '.[] | "  open issue #\(.number): \(.title)"' 2>/dev/null | head -5 || true`
-
 # plan-dev
 
 Turn a raw task, spec, or review doc into **one objective and a dependency-aware task DAG** — reviewed by the user before anything is written down.

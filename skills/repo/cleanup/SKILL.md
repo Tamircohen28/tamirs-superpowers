@@ -45,9 +45,6 @@ metadata:
 
 ---
 
-## Live context
-!`git rev-parse --show-toplevel 2>/dev/null && git remote get-url origin 2>/dev/null || echo "not a git repo"`
-
 # repo-cleanup
 
 Full repository housekeeping: prune remote branches, drive open PRs in parallel via sub-agents, clean local worktrees, discard or rescue uncommitted work, and reset the local environment to a clean state matching remote.

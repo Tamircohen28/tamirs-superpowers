@@ -33,9 +33,6 @@ metadata:
     validation-tier: 2
 ---
 
-## Live context
-!`git rev-parse --show-toplevel >/dev/null 2>&1 && git remote get-url origin 2>/dev/null || echo "no github origin in cwd"`
-
 # github-policy
 
 Hold GitHub repositories to one canonical policy — rulesets, branch settings,

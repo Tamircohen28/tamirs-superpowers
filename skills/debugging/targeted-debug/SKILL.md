@@ -57,19 +57,11 @@ metadata:
   updated-date: '2026-08-19'
 ---
 
-## Live context
-!`git rev-parse --show-toplevel 2>/dev/null || echo "not a git repo"`
-!`git branch --show-current 2>/dev/null | sed 's/^/branch: /' || true`
-
-> The `!`-prefixed lines above are Claude Code dynamic frontmatter. Harnesses that do not
-> expand them render them as literal text and lose nothing else — every step below either
-> re-derives the repo root with `git rev-parse --show-toplevel` or works from paths as
-> given. If `git` is unavailable, treat every path as relative to the working directory and
-> say so in the report rather than guessing a root.
-
 # Targeted Debug
 
 Scope-bounded debugging. Reads **only** files explicitly named in the stack trace or by the user. Forms a hypothesis from observable evidence. Does NOT explore the codebase broadly. Does NOT launch a full investigation pipeline.
+
+Find the repo root with `git rev-parse --show-toplevel`. If `git` is unavailable, treat every path as relative to the working directory and say so in the report rather than guessing a root.
 
 ## Why this skill exists
 
