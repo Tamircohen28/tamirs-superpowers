@@ -84,7 +84,7 @@ The full interactive skill below remains the default for a single repo — it ad
 ## Startup checks
 
 Before doing anything:
-1. Confirm the GitHub CLI is signed in (`gh api user` succeeds) — if not, stop and ask the user to sign in to the GitHub CLI.
+1. Confirm the GitHub CLI is signed in to this repository's host (`gh repo view` succeeds in the checkout; it resolves the host from the remote, so GitHub Enterprise works) — if not, stop and ask the user to sign in to the GitHub CLI for that host.
 2. Confirm cwd is a git repo with a remote. If not, stop.
 3. Resolve `REPO` and `DEFAULT` once; reuse throughout:
    ```bash

@@ -19,10 +19,11 @@ names one example of each per validation. Each release fixed the named example a
 
 - No skill body names a `gh auth` subcommand. `github-policy` defers to its script, which checks sign-in
   and scopes on every run and prints the exact fix; `cleanup` and `multi-agent-repo` check sign-in with
-  `gh api user`. `notify-setup` says "secure storage" for the host's credential store, and `switch-dev`
+  `gh repo view` in the checkout, which resolves the host from the remote (so GitHub Enterprise works; an
+  automated review on the PR caught that a github.com-only check would not). `notify-setup` says "secure storage" for the host's credential store, and `switch-dev`
   names its three schemas in words where it had a brace pattern.
-- `scripts/check-claude-dist.sh` refuses a `gh auth` subcommand or an inline shell span in any shipped
-  skill body, and `tests/test-claude-dist.sh` plants both.
+- `scripts/check-claude-dist.sh` refuses a `gh auth` subcommand (any whitespace between the words) or an
+  inline shell span in any shipped skill body, and `tests/test-claude-dist.sh` plants each.
 
 ### Not fixable from this repository (measured, not assumed)
 

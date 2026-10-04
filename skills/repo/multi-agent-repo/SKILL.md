@@ -169,7 +169,7 @@ ALWAYS include these sections in order:
 ### Preconditions
 
 - Git repo at `$TARGET_ROOT`
-- `gh` signed in (`gh api user` succeeds)
+- `gh` signed in to the repository's host (`gh repo view` succeeds in `$TARGET_ROOT`; it resolves the host from the remote)
 - Warn if working tree dirty; do not discard user changes
 
 ### Steps

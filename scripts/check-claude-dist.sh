@@ -199,7 +199,7 @@ broad="$(awk 'FNR==1{f=0} /^allowed-tools:/{f=1;next} f&&/^[a-z-]+:/{f=0} f&&/^\
 # credential-named placeholder and `gh auth ...` on one side, and three skills' inline shell
 # spans on the other. The class is what is refused here: no skill body names a `gh auth`
 # subcommand, and none carries an inline shell span.
-credcmd="$(grep -rnE 'gh auth [a-z]+|^!`' "$DIST/skills" --include='SKILL.md' 2>/dev/null | head -3)"
+credcmd="$(grep -rnE 'gh[[:space:]]+auth[[:space:]]+[a-z]+|^!`' "$DIST/skills" --include='SKILL.md' 2>/dev/null | head -3)"
 [[ -z "$credcmd" ]] && ok "no skill body names a credential-store command or carries an inline shell span" || bad "skill body names a credential-store command or carries an inline shell span (the directory pairs these as a credential leaving the machine)" "$(echo "$credcmd" | cut -c1-160 | tr '\n' ' ')"
 
 echo "--- links ---"
