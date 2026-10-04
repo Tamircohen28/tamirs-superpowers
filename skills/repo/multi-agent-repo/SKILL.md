@@ -169,7 +169,7 @@ ALWAYS include these sections in order:
 ### Preconditions
 
 - Git repo at `$TARGET_ROOT`
-- `gh` authenticated (`gh auth status`)
+- `gh` signed in to the repository's host (`gh repo view` succeeds in `$TARGET_ROOT`; it resolves the host from the remote)
 - Warn if working tree dirty; do not discard user changes
 
 ### Steps
@@ -287,7 +287,7 @@ Users invoke `/repo-standards polish` or `/multi-agent-repo dev` — not manual 
 |-----------|--------|
 | Target not a directory | Ask for valid path; stop |
 | Not a git repo in dev mode | Stop; suggest review/plan only |
-| `gh` not authenticated | Stop; print `gh auth login` instructions |
+| `gh` not signed in | Stop; ask the user to sign in to the GitHub CLI |
 | Platform doc fetch partial failure | Log platform; use `references/platform-specs.md` fallback; continue |
 | Inventory shows P1 after dev | List remaining gaps; do not claim complete |
 

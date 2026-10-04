@@ -149,7 +149,7 @@ subscription.
 
 3. **Store the credentials as the plugin's options.** They are the manifest's
    sensitive `pushover_token` / `pushover_user` fields: the host keeps them in its
-   credential store (the macOS Keychain, or its file-backed fallback where there is none)
+   own secure storage
    and exports them to the plugin's own hooks as option variables. Two ways to set them:
 
    - In the session: `/plugin` > **tamirs-superpowers** > **Configure**, paste both.
