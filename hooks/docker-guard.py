@@ -16,7 +16,7 @@ Approve one command by prefixing it: PM_ALLOW_DOCKER=1 docker compose up -d
 Or suppress for a whole session: export PM_ALLOW_DOCKER=1
 
 Delivered by the plugin and wired from the hook manifest as
-`PreToolUse:Bash|Shell` -> `python3 "${CLAUDE_PLUGIN_ROOT}/hooks/docker-guard.py"`.
+`PreToolUse:Bash|Shell` -> python3 on this file, by its path inside the plugin.
 The name used in the block message comes from DOCKER_GUARD_OWNER (default
 "the user"), so nothing here is machine-specific.
 

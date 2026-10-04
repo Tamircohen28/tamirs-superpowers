@@ -35,7 +35,6 @@ metadata:
 
 ## Live context
 !`git rev-parse --show-toplevel >/dev/null 2>&1 && git remote get-url origin 2>/dev/null || echo "no github origin in cwd"`
-!`gh auth status 2>&1 | head -2 || echo "gh: not available"`
 
 # github-policy
 

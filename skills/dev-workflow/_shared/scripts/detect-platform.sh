@@ -49,7 +49,7 @@ if [[ -n "${OPENCODE:-}" || -n "${OPENCODE_BIN:-}" || -n "${OPENCODE_CONFIG:-}" 
   exit 0
 fi
 
-if [[ -n "${CLAUDE_PLUGIN_ROOT:-}" || -n "${CLAUDE_CODE_ENTRYPOINT:-}" || -n "${CLAUDE_SESSION_ID:-}" ]]; then
+if [[ -n "${CLAUDECODE:-}" || -n "${CLAUDE_CODE_ENTRYPOINT:-}" || -n "${CLAUDE_SESSION_ID:-}" ]]; then
   echo "claude"
   exit 0
 fi

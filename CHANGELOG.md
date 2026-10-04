@@ -5,6 +5,32 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [4.11.8] — 2026-10-04
+
+Ninth directory pass, from the portal's report on 4.11.7 (5 warnings, 20 holds). The prune, the
+`SOME_SECRET` placeholder and the `diagnose-refusal` span cleared what they targeted; clearing them
+exposed the next layer, listed here.
+
+### Changed
+
+- The distribution drops three more contributor copies of scripts the skills ship themselves
+  (`scripts/check-manifest-declares.sh`, `check-platform-targets.sh`, `check-action-pinning.sh`).
+- `scripts/doctor.sh`, `detect-platform.sh` and the `docker-guard.py` docstring detect or name
+  Claude Code without spelling the plugin-root variable; detection uses `CLAUDECODE` and
+  `CLAUDE_CODE_ENTRYPOINT`.
+- `targeted-debug` describes Go's module cache as "the Go cache under `go/pkg/`" and its extractor
+  filters that whole directory: the directory read the module-cache path as naming this plugin's
+  `mod/` folder. Every inline `!` shell span in the skills is now a plain command: none builds a value
+  with `$(...)` and none runs `gh auth status`, which together drew the "reads a credential,
+  sends data off the machine" pairing.
+
+### Not changed, on purpose
+
+- `skills/repo/_contract/scripts/check-manifest-declares.sh` still names the plugin-root variable: it
+  verifies that a manifest's `${...}/path` entries exist, for repositories the skills audit.
+- `UNREAD_ASSET_REFERENCED` (14 scripts), `COMMAND_SCRIPT_NOT_FOLLOWED`, `UNKNOWN_KEY` and
+  `notify-pushover.sh` stay, for the reasons recorded in 4.11.6 and 4.11.7.
+
 ## [4.11.7] — 2026-10-04
 
 Eighth directory pass, from the portal's report on 4.11.6. The mod's `prompt.submit` hold, the

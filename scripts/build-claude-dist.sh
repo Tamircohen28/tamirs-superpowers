@@ -87,6 +87,9 @@ PRUNE_PATHS=(
   scripts/check-branch-literals.sh
   scripts/check-capability-registry.sh
   scripts/check-feature-equivalence.sh
+  scripts/check-manifest-declares.sh
+  scripts/check-platform-targets.sh
+  scripts/check-action-pinning.sh
   platforms/claude/directory
   docs/engineering
   docs/changelog
