@@ -72,7 +72,7 @@ echo "repo: $ROOT"
 # --- Detected platform(s) ---
 hdr "Detected platform(s)"
 detected=()
-[[ -n "${CLAUDE_PLUGIN_ROOT:-}${CLAUDECODE:-}${CLAUDE_CODE_ENTRYPOINT:-}" ]] && detected+=("claude_code (session env)")
+[[ -n "${CLAUDECODE:-}${CLAUDE_CODE_ENTRYPOINT:-}" ]] && detected+=("claude_code (session env)")
 [[ -n "${CURSOR_TRACE_ID:-}${CURSOR_AGENT:-}" ]]                           && detected+=("cursor (session env)")
 [[ -n "${CODEX_HOME:-}${CODEX_SANDBOX:-}" ]]                               && detected+=("codex (session env)")
 [[ -n "${GEMINI_CLI:-}${GEMINI_API_KEY:-}" ]]                              && detected+=("gemini_cli (session env)")
@@ -200,7 +200,7 @@ if [[ ! -f "$REGISTRY" ]] || ! command -v jq >/dev/null 2>&1; then
   echo "  unavailable — needs core/capabilities/platforms.json and jq"
 else
   primary=""
-  for pair in "CLAUDE_PLUGIN_ROOT:claude_code" "CLAUDECODE:claude_code" "CURSOR_TRACE_ID:cursor" \
+  for pair in "CLAUDECODE:claude_code" "CURSOR_TRACE_ID:cursor" \
               "CODEX_HOME:codex" "GEMINI_CLI:gemini_cli" "OPENCODE:opencode"; do
     var="${pair%%:*}"; id="${pair##*:}"
     if [[ -n "${!var:-}" ]]; then primary="$id"; break; fi

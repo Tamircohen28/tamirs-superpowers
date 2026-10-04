@@ -46,8 +46,7 @@ metadata:
 ---
 
 ## Live context
-!`git rev-parse --show-toplevel 2>/dev/null && echo "repo root: $(git rev-parse --show-toplevel)" && git remote get-url origin 2>/dev/null || echo "not a git repo"`
-!`gh auth status 2>&1 | head -1 || echo "gh: not available"`
+!`git rev-parse --show-toplevel 2>/dev/null && git remote get-url origin 2>/dev/null || echo "not a git repo"`
 
 # repo-cleanup
 

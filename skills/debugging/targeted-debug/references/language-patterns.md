@@ -47,7 +47,7 @@ main.handlerFunc(...)
 ```
 
 **In-scope:** Lines with tab-indented absolute paths inside the project source tree (e.g., `/app/pkg/service.go`).
-**Out-of-scope:** Go stdlib paths (`/usr/local/go/src/...`), goroutine scheduler frames (`runtime/...`), and frames from `/home/<user>/go/pkg/mod/` (vendor cache).
+**Out-of-scope:** Go stdlib paths (`/usr/local/go/src/...`), goroutine scheduler frames (`runtime/...`), and frames from the Go cache under `/home/<user>/go/pkg/` (vendor cache).
 
 **Common panics and their in-scope evidence:**
 | Panic message | What to look for |
@@ -98,7 +98,7 @@ After running `extract-error-paths.sh`, you may see vendor/stdlib paths mixed in
 
 **Always exclude:**
 - Paths starting with `/root/.cargo/` or `~/.cargo/` (Rust vendor cache)
-- Paths starting with `/home/<user>/go/pkg/mod/` (Go module cache)
+- Paths starting with `/home/<user>/go/pkg/` (Go module cache)
 - Paths starting with `/usr/local/go/src/` (Go stdlib)
 - Paths containing `node_modules/` (JS/TS)
 - Paths ending in `.class` or `.jar` (JVM bytecode — unreadable)
