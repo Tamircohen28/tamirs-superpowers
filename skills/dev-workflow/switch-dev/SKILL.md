@@ -65,7 +65,7 @@ Hand off and resume development work across **Claude Code**, **Cursor**, **Codex
 
 Rate limits and tool preferences force mid-task switches, and session context does not transfer between tools. The earlier version solved this with GitHub issues as the shared memory — which works, but makes a network service and a `gh` login mandatory for a purely local operation, and quietly assumed only three platforms exist.
 
-State now lives **locally first**: `.dev-files/objectives/<id>/` holds the objective, its tasks, and a structured handoff record per task, conforming to `core/workflow/{objective,task,handoff}-schema.json`. Git holds the code. The GitHub issue Resume block is still fully supported as **optional remote persistence** — for work that other people need to see, or a switch to a different machine.
+State now lives **locally first**: `.dev-files/objectives/<id>/` holds the objective, its tasks, and a structured handoff record per task, conforming to the objective, task and handoff schemas under `core/workflow/`. Git holds the code. The GitHub issue Resume block is still fully supported as **optional remote persistence** — for work that other people need to see, or a switch to a different machine.
 
 ## Validation tier
 

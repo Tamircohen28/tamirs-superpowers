@@ -5,6 +5,37 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [4.11.11] — 2026-10-04
+
+Twelfth directory pass, from the portal's report on 4.11.10 (5 warnings, 20 holds: 14 for the icon,
+3 listed for `skills/repo/_contract/scripts/`, 2 for credentials, 1 for unfollowed scripts).
+
+Why the credential pairing survived six releases: both of its sides are open lists and the directory
+names one example of each per validation. Each release fixed the named example and exposed the next
+(`pass`, a credential-named placeholder, then `gh auth` as the reader; `diagnose-refusal`,
+`targeted-debug`, then `switch-dev` as the sender). This release removes the reader class instead.
+
+### Changed
+
+- No skill body names a `gh auth` subcommand. `github-policy` defers to its script, which checks sign-in
+  and scopes on every run and prints the exact fix; `cleanup` and `multi-agent-repo` check sign-in with
+  `gh repo view` in the checkout, which resolves the host from the remote (so GitHub Enterprise works; an
+  automated review on the PR caught that a github.com-only check would not). `notify-setup` says "secure storage" for the host's credential store, and `switch-dev`
+  names its three schemas in words where it had a brace pattern.
+- `scripts/check-claude-dist.sh` refuses a `gh auth` subcommand (any whitespace between the words) or an
+  inline shell span in any shipped skill body, and `tests/test-claude-dist.sh` plants each.
+
+### Not fixable from this repository (measured, not assumed)
+
+- `UNREAD_ASSET_REFERENCED` (14): no token is common to the 13 held scripts and rare elsewhere (the
+  closest, `$1`, is in 58 of the 108 scripts that are not held), so nothing in their text causes it. The
+  hold exists while an icon ships; the pre-submission checklist requires the icon.
+- `COMMAND_NAMES_MOD_FILE` (6 places, all under `skills/repo/_contract/scripts/`): the scripts check whether
+  an audited repository has a hook manifest and whether its manifest's plugin-root paths exist. Spelling
+  those names any other way would be hiding them from the reader.
+- `COMMAND_SCRIPT_NOT_FOLLOWED`, `UNKNOWN_KEY` (`types` is required by Claude Code's validator for a mod)
+  and `notify-pushover.sh` (the vendor's own credential) stay, as recorded in 4.11.6.
+
 ## [4.11.10] — 2026-10-04
 
 Eleventh directory pass, from the portal's report on 4.11.9. `COMMAND_NAMES_MOD_FILE` is gone entirely.

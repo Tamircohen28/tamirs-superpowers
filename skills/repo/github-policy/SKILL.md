@@ -69,13 +69,13 @@ repositories the user cannot easily un-break, so:
 
 ## Preflight
 
-```bash
-gh auth status        # `gh` missing or unauthenticated is a hard stop here
-```
+`gh` must be installed and signed in; either one missing is a hard stop here.
+`scripts/github-policy.sh` checks both itself on every run and, when one fails,
+stops and prints the exact command that fixes it, so there is no separate check to run.
 
 `gh` is not optional for this skill — the GitHub action *is* the request, so
-there is no local substitute. If it is missing, say so and stop:
-`brew install gh && gh auth login`. If a scope is missing, the tool names it.
+there is no local substitute. If it is missing or signed out, relay the tool's
+message and stop. If a scope is missing, the tool names it.
 
 ---
 
@@ -164,7 +164,7 @@ The report opens with an `Organization-level rulesets` block. Read the
   verbatim rather than paraphrasing; the reasons are not interchangeable:
   - *the organization's plan* — org rulesets need GitHub Team or Enterprise.
     Nothing the user can do in the CLI fixes this. Say so plainly and fall back.
-  - *a missing scope* — fixable: `gh auth refresh -h github.com -s admin:org`.
+  - *a missing scope* — fixable: the tool prints the scope-refresh command to run (it adds `admin:org`).
   - *not an organization owner* — needs somebody else.
   - *a repository filter is in effect* — `--include`/`--exclude` are EREs and
     GitHub's targeting takes globs; drop the filter to use org-level, or keep it

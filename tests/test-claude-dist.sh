@@ -132,6 +132,12 @@ probe "a CLAUDE.md at the plugin root (ROOT_CLAUDE_MD)" "CLAUDE.md at the plugin
   'printf "# x\n" > CLAUDE.md'
 probe "a credential name in shipped prose" "credential name in shipped text" \
   'printf "Set PUSHOVER_TOKEN in your shell.\n" > docs/user/probe.md'
+probe "a credential-store command in a skill body (MCP_FORWARDS_CREDENTIAL_ENV)" "credential-store command" \
+  'printf "\nRun gh auth status first.\n" >> skills/repo/cleanup/SKILL.md'
+probe "a credential-store command spelled with extra whitespace" "credential-store command" \
+  'printf "\nRun gh  auth\tstatus first.\n" >> skills/repo/cleanup/SKILL.md'
+probe "an inline shell span in a skill body (MCP_FORWARDS_CREDENTIAL_ENV)" "inline shell span" \
+  'printf "\n!\140git status\140\n" >> skills/repo/cleanup/SKILL.md'
 
 echo
 echo "passed: $PASS   failed: $FAIL"
