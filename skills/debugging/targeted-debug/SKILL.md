@@ -58,7 +58,7 @@ metadata:
 ---
 
 ## Live context
-!`git rev-parse --show-toplevel 2>/dev/null && echo "repo: $(basename $(git rev-parse --show-toplevel))" || echo "not a git repo"`
+!`git rev-parse --show-toplevel 2>/dev/null || echo "not a git repo"`
 !`git branch --show-current 2>/dev/null | sed 's/^/branch: /' || true`
 
 > The `!`-prefixed lines above are Claude Code dynamic frontmatter. Harnesses that do not
@@ -100,7 +100,7 @@ Recognized trace shapes:
 | Go | `\t/app/services/order.go:114 +0x1c2` | `/app/services/order.go` |
 | Generic (Vim) | `path/to/file.py:42` | `path/to/file.py` |
 
-**Vendor/stdlib exclusion:** The extractor automatically suppresses paths from `~/.cargo/`, `~/go/pkg/mod/`, `/usr/local/go/src/`, and `node_modules/`. If a trace mixes project files with runtime internals, only project-source paths remain in the output.
+**Vendor/stdlib exclusion:** The extractor automatically suppresses paths from `~/.cargo/`, the Go cache under `~/go/pkg/`, `/usr/local/go/src/`, and `node_modules/`. If a trace mixes project files with runtime internals, only project-source paths remain in the output.
 
 For language-specific panic patterns and scope rules (Rust unwrap, Go nil pointer, Bash set -u), see `references/language-patterns.md`.
 

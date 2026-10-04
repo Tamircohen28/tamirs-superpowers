@@ -32,7 +32,7 @@
 #   Paths from known vendor caches are suppressed from output since they
 #   are unreadable in the user's repo. Filtered prefixes:
 #     - /root/.cargo/  and  ~/.cargo/        (Rust crate cache)
-#     - /home/*/go/pkg/mod/  and  ~/go/pkg/mod/  (Go module cache)
+#     - the Go cache under the user's go/pkg directory (module cache)
 #     - /usr/local/go/src/                   (Go stdlib)
 #     - any path containing /node_modules/   (JS vendor)
 set -uo pipefail
@@ -89,7 +89,7 @@ fi
 
 } | grep -v '^$' \
   | grep -v '^/root/\.cargo/' \
-  | grep -v '^/home/[^/]*/go/pkg/mod/' \
+  | grep -v '^/home/[^/]*/go/pkg/' \
   | grep -v '^/usr/local/go/src/' \
   | grep -v '/node_modules/' \
   | grep -v '^core::' \

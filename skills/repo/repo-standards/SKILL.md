@@ -53,8 +53,7 @@ metadata:
 ---
 
 ## Live context
-!`git rev-parse --show-toplevel 2>/dev/null && echo "cwd repo: $(basename "$(git rev-parse --show-toplevel)")" || echo "not a git repo"`
-!`gh auth status 2>&1 | head -1 || echo "gh: not available"`
+!`git rev-parse --show-toplevel 2>/dev/null || echo "not a git repo"`
 
 # repo-standards
 
