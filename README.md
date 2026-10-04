@@ -11,7 +11,7 @@
 
 <p align="center">
   <a href="docs/engineering/build-and-release/platform-targets.json"><img src="https://img.shields.io/badge/Claude%20Code-2.1.287-blueviolet" alt="Claude Code" /></a>
-  <a href="docs/engineering/build-and-release/platform-targets.json"><img src="https://img.shields.io/badge/Cursor-3.22.7-000000" alt="Cursor" /></a>
+  <a href="docs/engineering/build-and-release/platform-targets.json"><img src="https://img.shields.io/badge/Cursor-3.23.12-000000" alt="Cursor" /></a>
   <a href="docs/engineering/build-and-release/platform-targets.json"><img src="https://img.shields.io/badge/Codex-0.156.0-412991" alt="Codex" /></a>
   <a href="docs/engineering/build-and-release/platform-targets.json"><img src="https://img.shields.io/badge/Gemini%20CLI-0.60.0-4285F4" alt="Gemini CLI" /></a>
   <a href="docs/engineering/build-and-release/platform-targets.json"><img src="https://img.shields.io/badge/OpenCode-2.0.14-fab283" alt="OpenCode" /></a>
@@ -71,7 +71,7 @@ Added as a plugin source in Cursor, then installed from it.
 
 | Surface | Registry id | Kind | Status | Install |
 |---|---|---|---|---|
-| Cursor IDE | `cursor` | IDE | ✅ supported — validated 3.22.7 | [guide](docs/user/install/cursor.md) |
+| Cursor IDE | `cursor` | IDE | ✅ supported — validated 3.23.12 | [guide](docs/user/install/cursor.md) |
 | Cursor CLI | `cursor_cli` | CLI | ⚠️ unverified — shares the plugin manifest with the IDE, but no CLI run has been recorded here | — |
 
 ### Gemini
