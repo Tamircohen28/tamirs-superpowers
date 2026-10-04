@@ -80,8 +80,8 @@ When a stack trace or error message is already in hand, broad codebase explorati
 A deterministic path extractor is available at `scripts/extract-error-paths.sh`. Run it on the raw stack trace to get the exact file list — no manual parsing needed:
 
 ```bash
-# From the repo root — pipe a stack trace through the extractor
-cat stacktrace.txt | bash "$(dirname "$0")/scripts/extract-error-paths.sh"
+# From the repo root — feed a stack trace file to the extractor
+bash scripts/extract-error-paths.sh < stacktrace.txt
 
 # Or pass it inline
 bash scripts/extract-error-paths.sh "at Foo.bar(Foo.java:42) caused by NullPointerException"
