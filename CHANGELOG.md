@@ -5,6 +5,29 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [4.11.10] — 2026-10-04
+
+Eleventh directory pass, from the portal's report on 4.11.9. `COMMAND_NAMES_MOD_FILE` is gone entirely.
+The "reads a credential, sends data off the machine" pairing is not: the skill the directory names as
+the sender has moved down the path order each round (`diagnose-refusal`, then `targeted-debug`), which
+points at the inline `!` shell spans themselves, plain `git` commands included, not at what they contain.
+
+### Removed
+
+- Every `## Live context` block, eight skills (`targeted-debug`, `plan-dev`, `start-dev`,
+  `switch-dev`, `cleanup`, `github-policy`, `multi-agent-repo`, `repo-standards`): the inline
+  `!` spans that pre-ran `git` and `gh` when a skill loaded. Each skill's steps already ran the same
+  commands themselves, so they now do so on demand, except `plan-dev`: its block was the only place that resolved the
+  default branch for `base_branch` (caught by automated review on the PR), so Step 2 now says to resolve it with
+  `default-branch.sh`. `targeted-debug` keeps its one piece of guidance from
+  the removed note as a plain sentence: if `git` is unavailable, treat paths as relative and say so.
+
+### Not changed, on purpose
+
+- `github-policy` still documents `gh auth status`, `gh auth login` and `gh auth refresh`. If the pairing
+  survives this release, that is the reading half and the next lever is rewording it.
+- `UNREAD_ASSET_REFERENCED`, `COMMAND_SCRIPT_NOT_FOLLOWED`, `UNKNOWN_KEY` and `notify-pushover.sh` stay.
+
 ## [4.11.9] — 2026-10-04
 
 Tenth directory pass, from the portal's report on 4.11.8. The `COMMAND_NAMES_MOD_FILE` hold fell to the
