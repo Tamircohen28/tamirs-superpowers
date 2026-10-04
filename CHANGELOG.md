@@ -5,6 +5,28 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [4.11.9] — 2026-10-04
+
+Tenth directory pass, from the portal's report on 4.11.8. The `COMMAND_NAMES_MOD_FILE` hold fell to the
+copies of the hook-manifest and plugin-root checks that `skills/repo/_contract/scripts/` ships for the
+repositories the skills audit, which have to name those paths; they stay.
+
+### Changed
+
+- The "reads a credential, sends data off the machine" pairing the directory draws across surfaces
+  survived the inline-span cleanup because its second half is a skill body that pipes into `bash`
+  with a path built at run time: `targeted-debug` fed its extractor with
+  `cat file | bash "$(dirname "$0")/..."`. It now redirects the file into a literal script path.
+  `multi-agent-repo` piped an inventory into `bash` the same way and now passes it on stdin by
+  here-string. No skill body pipes into a shell any more.
+
+### Not changed, on purpose
+
+- `github-policy` still documents `gh auth status`, `gh auth login` and `gh auth refresh`: they are the
+  skill's own preconditions and remediation, and none of them reads a credential.
+- `UNREAD_ASSET_REFERENCED`, `COMMAND_SCRIPT_NOT_FOLLOWED`, `UNKNOWN_KEY`, `notify-pushover.sh` and
+  the `_contract` copies above stay, for the reasons recorded in 4.11.6 to 4.11.8.
+
 ## [4.11.8] — 2026-10-04
 
 Ninth directory pass, from the portal's report on 4.11.7 (5 warnings, 20 holds). The prune, the
