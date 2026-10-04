@@ -84,7 +84,7 @@ The full interactive skill below remains the default for a single repo — it ad
 ## Startup checks
 
 Before doing anything:
-1. Confirm `gh auth status` succeeds — if not, stop and tell the user to run `gh auth login`.
+1. Confirm the GitHub CLI is signed in (`gh api user` succeeds) — if not, stop and ask the user to sign in to the GitHub CLI.
 2. Confirm cwd is a git repo with a remote. If not, stop.
 3. Resolve `REPO` and `DEFAULT` once; reuse throughout:
    ```bash

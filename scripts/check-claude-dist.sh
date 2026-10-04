@@ -192,6 +192,15 @@ if [[ -f "$HERE/validate-skill-frontmatter.py" ]]; then
 fi
 broad="$(awk 'FNR==1{f=0} /^allowed-tools:/{f=1;next} f&&/^[a-z-]+:/{f=0} f&&/^\s*- (Bash|Skill|Write|Edit|MultiEdit|NotebookEdit|WebFetch|WebSearch|Monitor|Bash\(\*\)|Bash\([a-z0-9]+:\*\))\s*$/{print FILENAME": "$0}' "$DIST"/skills/*/*/SKILL.md 2>/dev/null | head -3)"
 [[ -z "$broad" ]] && ok "no bare Bash/Skill/Write/Edit/WebFetch/WebSearch/Monitor or interpreter wildcard in any allowed-tools" || bad "broad or unscoped allowed-tools entry" "$broad"
+# The directory pairs any credential-store command in a skill body ("reads the installer's
+# credential") with any run-time command in another ("sends data off the machine") and holds the
+# plugin for the pair. Both sides are open lists and it names one example per validation, so
+# fixing the named example only exposes the next: 4.11.5 to 4.11.10 chased `pass`, a
+# credential-named placeholder and `gh auth ...` on one side, and three skills' inline shell
+# spans on the other. The class is what is refused here: no skill body names a `gh auth`
+# subcommand, and none carries an inline shell span.
+credcmd="$(grep -rnE 'gh auth [a-z]+|^!`' "$DIST/skills" --include='SKILL.md' 2>/dev/null | head -3)"
+[[ -z "$credcmd" ]] && ok "no skill body names a credential-store command or carries an inline shell span" || bad "skill body names a credential-store command or carries an inline shell span (the directory pairs these as a credential leaving the machine)" "$(echo "$credcmd" | cut -c1-160 | tr '\n' ' ')"
 
 echo "--- links ---"
 dangling="$(python3 - "$DIST" <<'PY'
