@@ -103,7 +103,7 @@ One objective per invocation. Give it:
 
 - an `id` — lowercase slug, e.g. `auth-system`;
 - a `title` — one sentence of what the user actually wants;
-- `base_branch` — the repo's default branch;
+- `base_branch` — the repo's default branch. Resolve it, never guess it: `bash skills/dev-workflow/_shared/scripts/default-branch.sh`;
 - `integration_branch` — `objective/<id>`;
 - a `delivery.strategy` — **`single-pr` by default**.
 

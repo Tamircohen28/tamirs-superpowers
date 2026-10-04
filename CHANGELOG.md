@@ -17,7 +17,9 @@ points at the inline `!` shell spans themselves, plain `git` commands included, 
 - Every `## Live context` block, eight skills (`targeted-debug`, `plan-dev`, `start-dev`,
   `switch-dev`, `cleanup`, `github-policy`, `multi-agent-repo`, `repo-standards`): the inline
   `!` spans that pre-ran `git` and `gh` when a skill loaded. Each skill's steps already ran the same
-  commands themselves, so they now do so on demand. `targeted-debug` keeps its one piece of guidance from
+  commands themselves, so they now do so on demand, except `plan-dev`: its block was the only place that resolved the
+  default branch for `base_branch` (caught by automated review on the PR), so Step 2 now says to resolve it with
+  `default-branch.sh`. `targeted-debug` keeps its one piece of guidance from
   the removed note as a plain sentence: if `git` is unavailable, treat paths as relative and say so.
 
 ### Not changed, on purpose
