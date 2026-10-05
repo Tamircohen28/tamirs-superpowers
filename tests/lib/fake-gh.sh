@@ -190,6 +190,8 @@ _fgh_fixture_name() {
     5:repos/*/*/branches/*/protection) printf 'protection' ;;
     4:repos/*/*/actions/workflows)     printf 'workflows' ;;
     4:repos/*/*/actions/runs)          printf 'runs' ;;
+    5:repos/*/*/commits/*/check-runs) printf 'check-runs' ;;
+    5:repos/*/*/commits/*/status) printf 'commit-status' ;;
     3:orgs/*/rulesets/*)               printf 'org-ruleset-%s' "${p##*/}" ;;
     2:orgs/*/rulesets)                 printf 'org-rulesets' ;;
     1:user/repos|2:users/*/repos|2:orgs/*/repos) printf 'repo-list' ;;
