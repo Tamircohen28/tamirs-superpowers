@@ -34,6 +34,7 @@ Lessons from a long multi-agent session: agents sat on piles of uncommitted work
 - The `Tamircohen28/iBrain` manifest context is the check display name `Manifest/tag version
   alignment`, not the job id `manifest-version-alignment`, which would never report and would
   block every merge once applied.
+- **Cursor 3.11 (+2026-09-23 / desktop 3.23.12):** advance `reviewed_through`/`latest_known` **3.22.7 → 3.23.12** (changelog review only; `validated_against` and `supported_min` stay **3.22.7**, no live run); document team/org MCP allowlists, service tokens, Origin MCP, and Required-plugin removal. Feature pin remains **3.11** / **2026-09-23**. Cursor-only.
 
 ## [4.11.11] — 2026-10-04
 
