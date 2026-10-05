@@ -1,8 +1,9 @@
 # Install — Cursor
 
-Registry id: `cursor`. Validated against Cursor desktop **3.23.12** (feature changelog
-**3.11**, covered through date-only **2026-09-23**; desktop 3.23 MCP allowlists / service
-tokens reviewed); that floor is the version this repo actually tested, not a guess.
+Registry id: `cursor`. Validated against Cursor desktop **3.22.7** (feature changelog
+**3.11**, covered through date-only **2026-09-23**); that floor is the version this repo
+actually tested, not a guess. Desktop **3.23.12** (MCP allowlists / service tokens) was
+reviewed from the changelog only; no live run has validated it.
 
 ---
 
@@ -280,7 +281,7 @@ never adopt anything silently. `apply` shows a diff and asks per change, default
 
 | Capability | Status | Notes |
 |---|---|---|
-| skills | native | since desktop 3.23.12 pin; pin as **Custom Mode** (2026-08-19) via ⌥⏎ / Alt+Enter from `/` |
+| skills | native | since desktop 3.22.7 pin; pin as **Custom Mode** (2026-08-19) via ⌥⏎ / Alt+Enter from `/` |
 | subagents | native | declared capability; cloud subagents can use **isolated VMs** (2026-08-19) |
 | slash commands | partial | 26 generated into `.cursor/commands/`, one per user-invocable skill; declared in the manifest. `partial` because no live Cursor run has confirmed they appear under `/` |
 | MCP | native | `.mcp.json` |
@@ -292,7 +293,7 @@ never adopt anything silently. `apply` shows a diff and asks per change, default
 | background tasks · structured questions · session transcripts | unknown | Not measured — treated as unavailable, with stated fallbacks |
 | statusline · artifacts · extension install | unsupported | Cosmetic, absent, and not a Cursor mechanism, respectively |
 
-### Working tips (3.11 → 2026-09-23; desktop CLI 3.23.12; CLI 2026-08-26)
+### Working tips (3.11 → 2026-09-23; desktop CLI 3.22.7 validated, 3.23.12 reviewed; CLI 2026-08-26)
 - **Desktop 3.23.12 (2026-10-01):** team/org **MCP allowlists** — keep the bundled `github` MCP (and any Team MCP) on the org allowlist after upgrade; Origin MCP endpoint is `api.origin.cursor.com/mcp`. Prefer **service tokens** for Automations that install/update this plugin. **Required** team-marketplace plugins removed — install modes are Default Off / Default On + groups only.
 - **Security Review + Rollouts (2026-09-23):** Teams/Enterprise bots from [Automations](https://cursor.com/automations) ([Security Agents docs](https://cursor.com/docs/security-agents)). Security Review posts exploitable-bug findings on ready PRs (drafts skipped; Bugbot keeps style). Run Cursor's `/review-security` or `/review` before push — complements this plugin's `security-reviewer` agent (in-session role) rather than replacing it. **Rollouts** monitors deploy health per environment after merge; optional for this public plugin (no product deploy). [Changelog](https://cursor.com/changelog/rollouts-and-security-reviewer).
 - **Projects (2026-09-10)** — Cursor **Projects** (left nav) suit multi-week / multi-agent work. A **coordinator** plans and delegates (does not write code); **shared context** files sync across cloud and local agents; **subscriptions** can watch Slack, schedules, or all PRs. Use a Project when validating this plugin across a long refactor or multi-PR initiative; keep ordinary `/diagnose-refusal` / one-shot skill runs in a normal Agent chat. Projects compose with (do not replace) Cloud Agents, Custom Modes, and Self-Hosted Machines ([changelog](https://cursor.com/changelog)).
