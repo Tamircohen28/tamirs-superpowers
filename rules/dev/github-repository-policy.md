@@ -75,6 +75,14 @@ So: the account-wide default context list is **empty**, and each repository opts
 
 **Adding a CI job does not make it blocking.** The job's `name:` must also be added to that repository's context list and the policy re-applied. This repository requires 9 of its CI jobs; the rest run and report without gating.
 
+Two repositories opt in today: `Tamircohen28/tamirs-superpowers` (9 contexts) and `Tamircohen28/iBrain` (11). A repository with no list — or an empty one — renders **no** `required_status_checks` rule at all, because a rule gating on nothing is a lie in the UI. `strict_required_status_checks_policy` stays `false` whichever list is rendered. `scripts/check-github-policy.sh` rejects a non-array list, non-string, empty, whitespace-padded or duplicate entries, and any non-empty account default.
+
+### Contexts are check display names
+
+A context matches a check's **display name**: the job's `name:` if it sets one, otherwise the job id. A job `manifest-version-alignment` with `name: Manifest/tag version alignment` reports as the latter, so only the latter is a valid context. A context that never reports blocks **every** merge, and nothing at apply time catches it.
+
+Before any `apply`, run `bash scripts/github-policy.sh audit --repo <owner/repo>` and confirm the `Required checks:` block shows no `is not reported by any check run` warning. The audit reads the default-branch head's check runs and commit statuses (read-only); the warning is advisory and does not change the verdict, so it is on you to read it. A new or never-run job may legitimately show it until it has run once on the default branch.
+
 ---
 
 ## 5. Reviews: zero approvals, mandatory thread resolution
