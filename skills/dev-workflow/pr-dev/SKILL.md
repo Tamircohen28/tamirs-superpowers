@@ -366,7 +366,7 @@ Confirm ALL before merging or waiting on auto-merge:
 - [ ] 0 unresolved review threads (re-run `fetch-pr-state.sh` — do not trust cached state)
 - [ ] Branch freshness satisfied per the loose/strict rule
 - [ ] Merge policy resolved and stated
-- [ ] **No required checks?** Merge only when the `push` AND `pull_request` runs of the FINAL head are fully green and 0 threads are unresolved (nothing else stops a red merge); authorization is unchanged: user say-so or the pr-dev exception
+- [ ] **No required checks?** Merge only when every workflow run that exists for the FINAL head is fully green (and at least one exists) and 0 threads are unresolved (nothing else stops a red merge); authorization is unchanged: user say-so or the pr-dev exception
 - [ ] Orchestrator pre-merge conditions are **review threads** on the PR (ruleset blocks until resolved), not chat messages
 
 Print:

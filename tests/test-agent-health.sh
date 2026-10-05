@@ -113,6 +113,31 @@ bash "$SCRIPT" --repo "$TMPROOT/plain" >/dev/null 2>&1; check "non-git dir exits
 bash "$SCRIPT" -h >/dev/null 2>&1; check "-h exits 0" 0 "$?"
 bash "$SCRIPT" --repo "$REPO" >/dev/null 2>&1; check "report exits 0 despite bad verdicts" 0 "$?"
 
+echo "== default branch is the remote-tracking ref"
+UP="$TMPROOT/up.git"; git init -q --bare -b main "$UP"
+R2="$TMPROOT/r2"; git clone -q "$UP" "$R2" 2>/dev/null
+G "$R2" checkout -q -b main 2>/dev/null || true
+echo a >"$R2/a.txt"; G "$R2" add -A; G "$R2" commit -q -m c1; G "$R2" push -q origin main
+G "$R2" worktree add -q -b w-branch "$TMPROOT/w2"
+# Upstream advances; local main stays stale, the worker rebases onto origin/main.
+echo b >"$R2/b.txt"; G "$R2" add -A; G "$R2" commit -q -m c2; G "$R2" push -q origin main
+G "$R2" reset -q --hard HEAD~1
+git -C "$R2" remote set-head origin main >/dev/null 2>&1
+G "$R2" fetch -q origin
+G "$TMPROOT/w2" merge -q --ff-only origin/main
+echo w >"$TMPROOT/w2/w.txt"; G "$TMPROOT/w2" add -A; G "$TMPROOT/w2" commit -q -m own
+check "ahead counts only own commits, not upstream" 1 "$(bash "$SCRIPT" --repo "$R2" --json | jq '[.worktrees[] | select(.branch=="w-branch")][0].ahead')"
+
+echo "== nested worktrees do not drive a checkout's age"
+G "$REPO" worktree add -q -b outer-branch "$TMPROOT/outerwt"
+echo x >"$TMPROOT/outerwt/f.txt"; G "$TMPROOT/outerwt" add -A; G "$TMPROOT/outerwt" commit -q -m o
+find "$TMPROOT/outerwt" -type f -not -path '*/.git*' -exec touch -t 202001010000 {} +
+touch -t 202001010000 "$TMPROOT/outerwt/.git"
+mkdir -p "$TMPROOT/outerwt/.agent-worktrees/inner" "$TMPROOT/outerwt/vendor/sub"
+echo fresh >"$TMPROOT/outerwt/.agent-worktrees/inner/new.txt"
+echo gitdir: x >"$TMPROOT/outerwt/vendor/sub/.git"; echo fresh >"$TMPROOT/outerwt/vendor/sub/new.txt"
+check "fresh writes in nested worktrees leave the outer idle" idle "$(verdict_text outer-branch)"
+
 echo
 echo "agent-health: $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]

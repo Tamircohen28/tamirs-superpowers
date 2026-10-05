@@ -73,7 +73,8 @@ oh="$(git -C "$REPO" symbolic-ref -q --short refs/remotes/origin/HEAD 2>/dev/nul
 if [ -n "$oh" ]; then
   DEF_NAME="${oh#origin/}"
   DEF_REF="refs/remotes/$oh"
-  if git -C "$REPO" show-ref --verify -q "refs/heads/$DEF_NAME"; then DEF_REF="refs/heads/$DEF_NAME"; fi
+  # Compare against the remote-tracking ref, never a local branch of the same
+  # name: a stale local default would count upstream commits as the worker's own.
 else
   for b in main master; do
     if git -C "$REPO" show-ref --verify -q "refs/heads/$b"; then DEF_NAME="$b"; DEF_REF="refs/heads/$b"; break; fi
@@ -81,12 +82,19 @@ else
 fi
 
 # newest_write_min DIR — minutes since the newest file write under DIR (ignoring
-# .git, node_modules, dist). Prints nothing when there are no files. Doubles an
+# .git, node_modules, dist, nested worktrees). Prints nothing when there are no files. Doubles an
 # upper bound with find -mmin, then bisects; each probe stops at the first hit.
 newest_write_min() {
   local dir="$1" hi=1 lo=0 mid
+  # Also prune nested worktree dirs and any directory holding a .git FILE (a
+  # nested worktree root), so one checkout's age is not driven by its workers.
+  local -a prune=( -name .git -o -name node_modules -o -name dist -o -path ./.agent-worktrees -o -path ./.claude/.worktrees )
+  local nested
+  while IFS= read -r nested; do
+    [ -n "$nested" ] && prune+=( -o -path "${nested%/.git}" )
+  done < <(cd "$dir" && find . -mindepth 2 \( -name node_modules -o -name dist \) -prune -o -type f -name .git -print 2>/dev/null)
   has_newer() {
-    [ -n "$(cd "$dir" && find . \( -name .git -o -name node_modules -o -name dist \) -prune -o -type f -mmin "-$1" -print 2>/dev/null | head -n 1)" ]
+    [ -n "$(cd "$dir" && find . \( "${prune[@]}" \) -prune -o -type f -mmin "-$1" -print 2>/dev/null | head -n 1)" ]
   }
   while ! has_newer "$hi"; do
     [ "$hi" -ge 5256000 ] && return 0

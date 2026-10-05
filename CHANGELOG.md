@@ -20,7 +20,7 @@ Lessons from a long multi-agent session: agents sat on piles of uncommitted work
   CI contexts (`required_checks.contexts`, strict stays false). The account default stays
   empty. The policy file is changed here; it is not applied to GitHub by this release.
 - `pr-dev`, `orchestrate-dev` and `worker-dev`: poll your own PR with a bounded loop, merge
-  only when both `push` and `pull_request` runs of the final head are green and no thread is
+  only when every run that exists for the final head is green (at least one) and no thread is
   unresolved, pre-merge conditions as blocking review threads, batched thread rounds, the
   early-start pattern, commit per task, and a periodic `agent-health.sh` check.
 - `github-policy.sh audit`/`plan`/`verify` on a single repo warns (never changes the verdict or

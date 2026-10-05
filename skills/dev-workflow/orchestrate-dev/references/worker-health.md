@@ -3,10 +3,10 @@
 Uncommitted work is lost work: a worker that dies, hits a limit or is restarted leaves nothing to resume from.
 
 - Workers **commit as each task passes its targeted tests** (worker-dev Step 5), not at the end.
-- The orchestrator runs `scripts/agent-health.sh` periodically (every few minutes while workers run) against each worker worktree:
+- The orchestrator runs `scripts/agent-health.sh` periodically (every few minutes while workers run) once per check; it lists every worktree of the repo, so read the row whose path matches each worker:
 
   ```bash
-  bash scripts/agent-health.sh --repo <worker-worktree> --idle-min 20 --pile 10 --json
+  bash scripts/agent-health.sh --repo <repo-root> --idle-min 20 --pile 10 --json
   ```
 
   Flags: `--idle-min N` (minutes without a write), `--pile N` (uncommitted-file threshold), `--json`, `--repo PATH`. Verdicts: `ok`, `uncommitted-pile`, `idle`, `no-commits`.

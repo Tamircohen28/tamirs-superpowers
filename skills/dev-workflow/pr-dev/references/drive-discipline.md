@@ -14,17 +14,17 @@ An agent driving a PR owns its progress. A notification may never arrive (it can
 
 A ruleset with no required status checks will not stop a red merge. In that repo the gate is yours. Merge only when ALL hold on the **final head SHA** (re-fetch; the head after your last push):
 
-- the `push` run **and** the `pull_request` run are each fully green (every job, none pending or cancelled-by-failure);
+- every workflow run that exists for that head SHA is fully green (every job, none pending or cancelled-by-failure), and at least one run exists. Judge the runs the workflow's triggers actually produce for the PR head: a repo whose CI triggers only on `pull_request`, or whose `push` trigger is limited to the default branch, never produces a `push` run on a PR branch, so demanding one would make the gate unpassable;
 - zero unresolved review threads;
 - the merge itself is authorized: explicit user say-so, or the active pr-dev exception in the repo/user rules. This gate narrows when a merge is allowed; it never grants permission to merge.
 
 ```bash
 SHA=$(gh pr view "$PR" --json headRefOid -q .headRefOid)
 gh run list --commit "$SHA" --json event,status,conclusion,name \
-  --jq '.[] | select(.event=="push" or .event=="pull_request") | "\(.event) \(.name) \(.status)/\(.conclusion)"'
+  --jq '.[] | "\(.event) \(.name) \(.status)/\(.conclusion)"'
 ```
 
-A missing `push` or `pull_request` run for the head counts as not green, not as skipped.
+No runs at all for the head counts as not green, not as skipped. A run that should exist but has not appeared yet (just pushed) means wait, not merge. A trigger that does not fire for a PR branch is not a missing run.
 
 ## 3. Pre-merge conditions are blocking review threads
 
