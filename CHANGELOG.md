@@ -5,6 +5,24 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [4.12.1] — 2026-10-06
+
+### Changed
+
+- **`pr-dev` CI watch** (`references/ci-monitor-loop.md`): a failed `gh pr checks` call (a GitHub 5xx or a
+  network error) is now unknown, never done, and three failures in a row print one `API-ERROR` line; "all
+  settled" requires the required checks themselves to be registered (`--required`), so a partial list right after
+  a push no longer reads as done; the exit status is not read at all (with `--json` it is 0 whatever the state) and "no checks reported" right after a push is an empty list, not an API error; an expired watch is read once before re-arming, and a watch over a local log
+  reports `STALLED` after 5 quiet minutes. Tested against real PRs: settled PR -> `ALL-DONE`, floor not met ->
+  keeps waiting, bad repository -> `API-ERROR`.
+- **`pr-dev` readiness gate**: do not merge while an automated reviewer is still mid-review (a 👀 reaction
+  from a `[bot]` login). The Codex reviewer posts 5-10 minutes after CI is green and caught real bugs on three
+  of the last four PRs; one landed after a merge and needed a follow-up PR. The reference shows the reactions
+  query (all pages, and match the `[bot]` login suffix: the API types these app users as `User`). The Codex connector does not re-review on push, so after a fix push the gate asks for `@codex review` and waits for a completed review of the new head.
+- `.claude/memory/`: three lessons from the directory-submission sessions (fix the class not the named example,
+  wait for the reviewer bot, which directory holds are structural) and an update to the
+  verify-mechanism-claims note.
+
 ### Changed
 
 - **Platform review, 2026-10-06** (changelog/schema only, no live binary; `validated_against` unchanged): **Codex**
