@@ -976,7 +976,7 @@
             "skill_auto_invocation": {
               "last_verified": "2026-09-17",
               "status": "unknown",
-              "notes": "Discovery is verified; automatic selection is not.",
+              "notes": "Discovery is verified; automatic selection is not. Since 2.0.23 (changelog only, anomalyco/opencode#52747) skill frontmatter accepts disable-model-invocation to keep a skill out of model selection; not exercised here, and no shipped skill sets it.",
               "fallback": "Name the skill explicitly."
             },
             "subagents": {
