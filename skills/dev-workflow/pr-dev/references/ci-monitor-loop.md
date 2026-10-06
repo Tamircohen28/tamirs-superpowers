@@ -19,10 +19,12 @@
 ```bash
 # MIN = how many REQUIRED checks must be registered before "all settled" means anything: the
 # number of required checks from resolve-merge-policy.sh (`required_checks | length`), or 0 if none.
-# The exit status is NOT the signal: gh exits 8 while checks are pending (and non-zero when one
-# failed), with valid JSON on stdout. Only output that is not a JSON array is an API error.
-MIN=<min-checks>; prev=""; errs=0; while true; do
-  s=$(gh pr checks <PR> --repo <owner>/<repo> --json name,bucket 2>/dev/null)
+# The exit status is NOT the signal: with --json, gh exits 0 whatever the checks' state (8 for
+# pending and 1 for a failure only happen without --json). A JSON array on stdout is state;
+# "no checks reported" (nothing registered yet) is an empty list, not an error; anything else is.
+MIN=<min-checks>; prev=""; errs=0; ef=$(mktemp); while true; do
+  s=$(gh pr checks <PR> --repo <owner>/<repo> --json name,bucket 2>"$ef")
+  grep -q "no checks reported" "$ef" && s='[]'
   if ! jq -e 'type=="array"' <<<"$s" >/dev/null 2>&1; then
     errs=$((errs+1)); [ "$errs" -eq 3 ] && echo "API-ERROR: gh pr checks returned no state 3 times in a row; unknown, still waiting"
     sleep 30; continue
@@ -45,7 +47,7 @@ done
 
 Each iteration:
 
-1. Queries `gh pr checks` for the current name/bucket of every check. **The exit status is not the signal**: `gh` exits 8 while checks are pending and non-zero when one failed, with valid JSON either way. Only output that is not a JSON array (a GitHub 5xx, a network error) is **unknown, never done**: it is retried, and three in a row print one `API-ERROR` line so a long outage is visible instead of silent.
+1. Queries `gh pr checks` for the current name/bucket of every check. **The exit status is not the signal**: with `--json`, `gh` exits 0 whatever the checks' state (exit 8 for pending and 1 for a failure only occur without `--json`), so the loop reads the output instead. "no checks reported" — nothing registered yet, normal right after a push — is an empty list: not an error and not settled. Any other output that is not a JSON array (a GitHub 5xx, a network error) is **unknown, never done**: it is retried, and three in a row print one `API-ERROR` line so a long outage is visible instead of silent. A PR whose workflows are all path-filtered never registers a check, so its watch only ends at the Monitor timeout; read the state then, as below.
 2. Computes the set of `(name: bucket)` pairs for checks that have *left* `pending` and prints any line that wasn't in the previous iteration's set — so you see exactly which check just completed and with what verdict.
 3. If at least `MIN` **required** checks are registered (`--required`) and no check is pending, prints an `ALL-DONE: <bucket counts>` line and exits. Counting required checks by identity matters right after a push: GitHub registers checks over the first seconds, and a few optional checks that already passed would otherwise satisfy a plain total-count floor before any required check exists.
 4. Otherwise sleeps 30 s.
@@ -63,8 +65,9 @@ Monitor({
   description: "PR #<PR> CI rollup state changes",
   timeout_ms: 1800000,
   command: `
-    MIN=<min-checks>; prev=""; errs=0; while true; do
-      s=$(gh pr checks <PR> --repo <owner>/<repo> --json name,bucket 2>/dev/null)
+    MIN=<min-checks>; prev=""; errs=0; ef=$(mktemp); while true; do
+      s=$(gh pr checks <PR> --repo <owner>/<repo> --json name,bucket 2>"$ef")
+      grep -q "no checks reported" "$ef" && s='[]'
       if ! jq -e 'type=="array"' <<<"$s" >/dev/null 2>&1; then
         errs=$((errs+1)); [ "$errs" -eq 3 ] && echo "API-ERROR: gh pr checks returned no state 3 times in a row; unknown, still waiting"
         sleep 30; continue

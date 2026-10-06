@@ -12,7 +12,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - **`pr-dev` CI watch** (`references/ci-monitor-loop.md`): a failed `gh pr checks` call (a GitHub 5xx or a
   network error) is now unknown, never done, and three failures in a row print one `API-ERROR` line; "all
   settled" requires the required checks themselves to be registered (`--required`), so a partial list right after
-  a push no longer reads as done; the exit status is not read as an error (`gh` exits 8 while checks are pending); an expired watch is read once before re-arming, and a watch over a local log
+  a push no longer reads as done; the exit status is not read at all (with `--json` it is 0 whatever the state) and "no checks reported" right after a push is an empty list, not an API error; an expired watch is read once before re-arming, and a watch over a local log
   reports `STALLED` after 5 quiet minutes. Tested against real PRs: settled PR -> `ALL-DONE`, floor not met ->
   keeps waiting, bad repository -> `API-ERROR`.
 - **`pr-dev` readiness gate**: do not merge while an automated reviewer is still mid-review (a 👀 reaction
