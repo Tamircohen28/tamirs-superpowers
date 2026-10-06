@@ -13,3 +13,6 @@
 - [make validate must be backgrounded](feedback-background-task-exit-codes.md) — >2min; read the log's `EXIT=` line, never the task notification's exit code
 - [Fetch before auditing](feedback-fetch-before-audit.md) — audit `origin/<default>`; a stale checkout put the wrong version in a review report
 - [Statusline tmpdir CI flake is unexplained](project-statusline-tmpdir-ci-flake.md) — not diagnosed; five hypotheses ruled out, incl. the v3.6.0 "fix" that was falsified
+- [Fix the class, not the named example](feedback-fix-the-class-not-the-example.md) — a scanner naming a new example after each fix means sweep the shape + add a guard
+- [Wait for Codex before merging](feedback-wait-for-codex-before-merge.md) — 👀 reaction = still reviewing; it caught real bugs on 3 of 4 PRs
+- [Directory submission holds](project-directory-submission-holds.md) — submitted 2026-10-05; which portal holds are structural and must not be re-chased

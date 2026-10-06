@@ -5,7 +5,7 @@ metadata:
   node_type: memory
   type: feedback
   originSessionId: 0ecd4a1e-ed87-4ea9-a55d-5727b73b1a29
-  modified: 2026-09-01T22:00:28.585Z
+  modified: 2026-10-06T16:01:06.128Z
 ---
 
 Three times in one session (2026-09-01) I asserted a **verifiable fact** as settled without
@@ -45,6 +45,16 @@ body in the voice of a finding.
 
 Corollary that worked the same session: before recording a GitHub ruleset default as canonical, I
 read the field across 12 repositories first. That is the shape to copy.
+
+**Coverage claims are state claims too (2026-10-04, three misses in two PRs, all caught by Codex):**
+"each skill's steps already run the commands this PR removes" was false for `plan-dev`; a replacement
+`gh api user` check silently narrowed `gh auth status` to github.com only; a guard regex matched one
+spelling of `gh auth`. Before saying "X already covers Y", grep every consumer of what is removed.
+
+**A check must not fail open.** Same week, three verifications reported a clean result because their
+input never loaded: a zsh `$V:path` modifier fed `git show` nothing (0 hits), `git grep -E` on macOS
+ignored `\s`/`\b` (0 hits), and a CI watcher read a GitHub 504 (empty output) as "no pending checks".
+Assert the input is non-empty before trusting a zero, and treat an API error as unknown, never as done.
 
 Related: [[feedback-background-task-exit-codes]] for the specific trap behind the third row, and
 [[feedback-fetch-before-audit]] for a state claim that came from stale local data.
