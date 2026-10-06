@@ -5,6 +5,17 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Changed
+
+- **Platform review, 2026-10-06** (changelog/schema only, no live binary; `validated_against` unchanged): **Codex**
+  `reviewed_through`/`latest_known` 0.160.0 → **0.160.1** (one backported fix preserving Windows environment
+  variables for remote stdio MCP servers; nothing to adopt). **OpenCode** 2.0.22 → **2.0.24**: the v2 line has tags
+  but no releases, so the 181 commits between the tags were read; `packages/core/schema.json` and
+  `packages/schema/src/config.ts` are byte-identical and the live `config.json` still declares the 15 pinned
+  permission keys. 2.0.23 accepts `disable-model-invocation` in skill frontmatter, recorded on the OpenCode
+  `skill_auto_invocation` row (status stays `unknown`; no shipped skill sets it). `.codex-version` follows to
+  0.160.1. Closes the nightly drift issues #265 and #266.
+
 ## [4.12.0] — 2026-10-03
 
 Lessons from a long multi-agent session: agents sat on piles of uncommitted work, looked
