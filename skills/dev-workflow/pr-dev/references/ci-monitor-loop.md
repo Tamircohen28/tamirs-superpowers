@@ -114,3 +114,5 @@ gh api --paginate repos/<owner>/<repo>/issues/<PR>/reactions \
 ```
 
 Merging while it is still 👀 is how a valid finding lands on an already-merged PR and needs a follow-up.
+
+**A reviewer may not re-review on push.** The Codex connector reviews when a PR is opened, marked ready, or someone comments `@codex review` — not when you push. After pushing fixes for its findings there is no 👀 and no new review, so "no 👀" would pass the gate with the fix itself unreviewed. Comment `@codex review` after a fix push, then wait (bounded) until its summary comment shows a completed review for the new head commit.

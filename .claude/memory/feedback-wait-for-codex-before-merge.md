@@ -20,4 +20,9 @@ Enterprise and a guard regex missing whitespace variants; #267 a contradicted fi
 **How to apply:** at the readiness gate, if the Codex reaction on the PR is 👀, wait (bounded, ~10 min)
 for the review, then re-read unresolved threads before merging. Check reactions with
 `gh api repos/<repo>/issues/<n>/reactions`. If you merge anyway (user approved), say the review is
-still pending. Related: [[project-admin-merge-personal-repo]].
+still pending.
+
+**It does not re-review on push** (2026-10-06, #269): only on open, ready-for-review, or an
+`@codex review` comment. After pushing fixes, comment `@codex review` and wait for its summary
+comment ("Codex Review Summary") to list a completed review for the new head; "no 👀" alone would
+pass with the fix unreviewed. Related: [[project-admin-merge-personal-repo]].

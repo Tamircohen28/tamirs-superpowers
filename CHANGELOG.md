@@ -18,7 +18,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - **`pr-dev` readiness gate**: do not merge while an automated reviewer is still mid-review (a 👀 reaction
   from a `[bot]` login). The Codex reviewer posts 5-10 minutes after CI is green and caught real bugs on three
   of the last four PRs; one landed after a merge and needed a follow-up PR. The reference shows the reactions
-  query (all pages, and match the `[bot]` login suffix: the API types these app users as `User`).
+  query (all pages, and match the `[bot]` login suffix: the API types these app users as `User`). The Codex connector does not re-review on push, so after a fix push the gate asks for `@codex review` and waits for a completed review of the new head.
 - `.claude/memory/`: three lessons from the directory-submission sessions (fix the class not the named example,
   wait for the reviewer bot, which directory holds are structural) and an update to the
   verify-mechanism-claims note.
