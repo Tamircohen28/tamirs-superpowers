@@ -17,30 +17,37 @@
 ## The loop
 
 ```bash
-# MIN = how many checks must be registered before "all settled" means anything: the number of
-# required checks from resolve-merge-policy.sh (`required_checks | length`), or 1 if none.
+# MIN = how many REQUIRED checks must be registered before "all settled" means anything: the
+# number of required checks from resolve-merge-policy.sh (`required_checks | length`), or 0 if none.
+# The exit status is NOT the signal: gh exits 8 while checks are pending (and non-zero when one
+# failed), with valid JSON on stdout. Only output that is not a JSON array is an API error.
 MIN=<min-checks>; prev=""; errs=0; while true; do
-  if ! s=$(gh pr checks <PR> --repo <owner>/<repo> --json name,bucket 2>/dev/null); then
-    errs=$((errs+1)); [ "$errs" -eq 3 ] && echo "API-ERROR: gh pr checks failed 3 times in a row; state unknown, still waiting"
+  s=$(gh pr checks <PR> --repo <owner>/<repo> --json name,bucket 2>/dev/null)
+  if ! jq -e 'type=="array"' <<<"$s" >/dev/null 2>&1; then
+    errs=$((errs+1)); [ "$errs" -eq 3 ] && echo "API-ERROR: gh pr checks returned no state 3 times in a row; unknown, still waiting"
     sleep 30; continue
   fi
   errs=0
   cur=$(jq -r '.[] | select(.bucket!="pending") | "\(.name): \(.bucket)"' <<<"$s" 2>/dev/null | sort)
   comm -13 <(echo "$prev") <(echo "$cur")
   prev=$cur
-  jq -e --argjson min "$MIN" 'length>=$min and all(.bucket!="pending")' <<<"$s" >/dev/null 2>&1 && {
+  # Settled = the REQUIRED checks are all registered and none is pending, and nothing at all is pending.
+  r=$(gh pr checks <PR> --repo <owner>/<repo> --required --json name,bucket 2>/dev/null)
+  jq -e 'type=="array"' <<<"$r" >/dev/null 2>&1 || r='[]'
+  if jq -e --argjson min "$MIN" 'length>=$min' <<<"$r" >/dev/null 2>&1 \
+     && jq -e 'length>0 and all(.bucket!="pending")' <<<"$s" >/dev/null 2>&1; then
     echo "ALL-DONE: $(jq -r 'group_by(.bucket)|map("\(.[0].bucket)=\(length)")|join(" ")' <<<"$s")"
     break
-  }
+  fi
   sleep 30
 done
 ```
 
 Each iteration:
 
-1. Queries `gh pr checks` for the current name/bucket of every check. A failed call (a GitHub 5xx, a network error) is **unknown, never done**: it is retried, and three failures in a row print one `API-ERROR` line so a long outage is visible instead of silent.
+1. Queries `gh pr checks` for the current name/bucket of every check. **The exit status is not the signal**: `gh` exits 8 while checks are pending and non-zero when one failed, with valid JSON either way. Only output that is not a JSON array (a GitHub 5xx, a network error) is **unknown, never done**: it is retried, and three in a row print one `API-ERROR` line so a long outage is visible instead of silent.
 2. Computes the set of `(name: bucket)` pairs for checks that have *left* `pending` and prints any line that wasn't in the previous iteration's set — so you see exactly which check just completed and with what verdict.
-3. If at least `MIN` checks are registered and every one has settled (`bucket != "pending"`), prints an `ALL-DONE: <bucket counts>` line and exits. The `MIN` floor matters right after a push: GitHub registers checks over the first seconds, and a partial list whose first few checks already passed would otherwise read as "all done".
+3. If at least `MIN` **required** checks are registered (`--required`) and no check is pending, prints an `ALL-DONE: <bucket counts>` line and exits. Counting required checks by identity matters right after a push: GitHub registers checks over the first seconds, and a few optional checks that already passed would otherwise satisfy a plain total-count floor before any required check exists.
 4. Otherwise sleeps 30 s.
 
 `comm -13 <(echo "$prev") <(echo "$cur")` is "lines present in `cur` but not in `prev`" — the new-since-last-tick deltas.
@@ -57,18 +64,22 @@ Monitor({
   timeout_ms: 1800000,
   command: `
     MIN=<min-checks>; prev=""; errs=0; while true; do
-      if ! s=$(gh pr checks <PR> --repo <owner>/<repo> --json name,bucket 2>/dev/null); then
-        errs=$((errs+1)); [ "$errs" -eq 3 ] && echo "API-ERROR: gh pr checks failed 3 times in a row; state unknown, still waiting"
+      s=$(gh pr checks <PR> --repo <owner>/<repo> --json name,bucket 2>/dev/null)
+      if ! jq -e 'type=="array"' <<<"$s" >/dev/null 2>&1; then
+        errs=$((errs+1)); [ "$errs" -eq 3 ] && echo "API-ERROR: gh pr checks returned no state 3 times in a row; unknown, still waiting"
         sleep 30; continue
       fi
       errs=0
       cur=$(jq -r '.[] | select(.bucket!="pending") | "\\(.name): \\(.bucket)"' <<<"$s" 2>/dev/null | sort)
       comm -13 <(echo "$prev") <(echo "$cur")
       prev=$cur
-      jq -e --argjson min "$MIN" 'length>=$min and all(.bucket!="pending")' <<<"$s" >/dev/null 2>&1 && {
+      r=$(gh pr checks <PR> --repo <owner>/<repo> --required --json name,bucket 2>/dev/null)
+      jq -e 'type=="array"' <<<"$r" >/dev/null 2>&1 || r='[]'
+      if jq -e --argjson min "$MIN" 'length>=$min' <<<"$r" >/dev/null 2>&1 \\
+         && jq -e 'length>0 and all(.bucket!="pending")' <<<"$s" >/dev/null 2>&1; then
         echo "ALL-DONE: $(jq -r 'group_by(.bucket)|map("\\(.[0].bucket)=\\(length)")|join(" ")' <<<"$s")"
         break
-      }
+      fi
       sleep 30
     done
   `
@@ -95,11 +106,11 @@ gh pr view <PR> --repo <owner>/<repo> \
 - `reviewDecision=REVIEW_REQUIRED` with green CI → the only blocker is human approval; investigation is done.
 - `mergeStateStatus=BEHIND` → rebase needed.
 
-**Automated reviewers lag the checks.** A bot reviewer (for example the Codex connector) often posts 5-10 minutes *after* CI is green. While it is working it shows a 👀 reaction on the PR (match it by the `[bot]` login suffix: the API reports such app users as `type: "User"`, so a `type=="Bot"` filter finds nothing); once it posts its review the 👀 is removed, so read the review and its threads; a 👍 with no review means it found nothing. Before merging, read the reactions and wait (bounded) while one is 👀, then re-read unresolved threads:
+**Automated reviewers lag the checks.** A bot reviewer (for example the Codex connector) often posts 5-10 minutes *after* CI is green. While it is working it shows a 👀 reaction on the PR (match it by the `[bot]` login suffix: the API reports such app users as `type: "User"`, so a `type=="Bot"` filter finds nothing); once it posts its review the 👀 is removed, so read the review and its threads; a 👍 with no review means it found nothing. Before merging, read **all pages** of the reactions (the endpoint returns 30 per page, so a later 👀 can sit on page 2) and wait (bounded) while one is 👀, then re-read unresolved threads:
 
 ```bash
-gh api repos/<owner>/<repo>/issues/<PR>/reactions \
-  --jq '[.[] | select(.user.login | endswith("[bot]")) | "\(.user.login): \(.content)"] | join(", ")'
+gh api --paginate repos/<owner>/<repo>/issues/<PR>/reactions \
+  | jq -rs 'add // [] | [.[] | select(.user.login | endswith("[bot]")) | "\(.user.login): \(.content)"] | join(", ")'
 ```
 
 Merging while it is still 👀 is how a valid finding lands on an already-merged PR and needs a follow-up.
