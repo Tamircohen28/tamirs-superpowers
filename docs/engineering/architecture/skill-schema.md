@@ -230,11 +230,16 @@ the harness you installed into, not of the vendor.
 | `when_to_use` | read | read | ignored | ignored | ignored | ignored |
 | `argument-hint` / `arguments` | read | read | ignored | ignored | ignored | ignored |
 | `user-invocable` | read | read | ignored | ignored | ignored | ignored |
-| `disable-model-invocation` | read | read | ignored | ignored | ignored | ignored |
+| `disable-model-invocation` | read | read | ignored | ignored | ignored | read² |
 | `allowed-tools` / `disallowed-tools` | read | read | ignored | ignored | ignored | ignored |
 | `model` / `effort` | read | read | ignored | ignored | ignored | ignored |
 | `context` / `agent` / `background` | read | read | ignored | ignored | ignored | ignored |
 | `hooks` / `paths` / `shell` | read | read | ignored | ignored | ignored | ignored |
+
+² OpenCode reads `disable-model-invocation` from **2.0.23** ([anomalyco/opencode#52747](https://github.com/anomalyco/opencode/pull/52747)),
+on changelog evidence only: no live OpenCode run has exercised it here, and the registry's
+OpenCode `skill_auto_invocation` row stays `unknown` for the same reason. On OpenCode before
+2.0.23 the field is ignored.
 
 "ignored" is the Agent Skills standard's stated behaviour for unrecognised
 frontmatter keys — it is what makes tier 3 safe to keep in the canonical file.
