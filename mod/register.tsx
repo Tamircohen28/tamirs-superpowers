@@ -337,12 +337,14 @@ export const register: Register = (on, options) => {
   })
 
   // Counts a worker in flight for the spinner suffix. Nothing is decided here:
-  // the spawn always goes through unchanged.
+  // the spawn always goes through unchanged. `.catch` makes that explicit for
+  // `claude plugin validate`'s gating-hooks report (2.1.290): a failed state
+  // write here must never hold up a spawn, so the handler just replays `next`.
   on('agent.spawn', async ($, e, next) => {
     await update($, workers, n => (n ?? 0) + 1)
     $.ui.invalidate('ui.render')
     return next(e)
-  })
+  }).catch(($, e, next) => next(e))
 
   on('ui.render', { component: 'Spinner' }, async ($, e, next) => {
     const n = await read($, workers)
@@ -428,6 +430,8 @@ export const register: Register = (on, options) => {
   })
 
   // ----------------------------------------- 5. semantic skill suggestion
+  // `.catch` makes the engine's own default explicit for the 2.1.290
+  // gating-hooks report: a broken suggestion never drops the person's prompt.
   on('prompt.submit', async ($, e, next) => {
     if (!semanticSuggest || e.origin.kind !== 'composer') return next(e)
     const text = e.text.trim()
@@ -442,7 +446,7 @@ export const register: Register = (on, options) => {
     suggested.add(label)
     const note = `[tamirs-superpowers] The bundled skill \`${label}\` covers what this prompt asks for. Invoke it with the Skill tool (or /${label}) before doing the work by hand.`
     return next({ ...e, context: [...(e.context ?? []), note] })
-  })
+  }).catch(($, e, next) => next(e))
 
   // ------------------------------------------ 6. DoD, compaction, trailer
   on('turn.start', ($, e, next) => {
@@ -450,10 +454,13 @@ export const register: Register = (on, options) => {
     return next(e)
   })
 
+  // `.catch`: explicit per the 2.1.290 gating-hooks report. A broken counter
+  // must never deny a tool call — this hook never denies even on the happy
+  // path, so the fallback simply runs the chain beneath unchanged.
   on('tool.call', ($, e, next) => {
     if (!e.agentId && WRITE_TOOLS.has(String(e.tool))) writesThisTurn += 1
     return next(e)
-  })
+  }).catch(($, e, next) => next(e))
 
   // The module's one turn.complete hook (the engine refuses a second unmatched
   // registration of an event): a worker's turn frees its spinner slot; a main
@@ -500,7 +507,7 @@ export const register: Register = (on, options) => {
     if (lines.length === 0) return next(e)
     const snapshot = `Working state to preserve verbatim in the summary (tamirs-superpowers):\n${lines.join('\n')}`
     return next({ ...e, instructions: [e.instructions, snapshot].filter(Boolean).join('\n\n') })
-  })
+  }).catch(($, e, next) => next(e)) // 2.1.290 gating-hooks report: a broken snapshot must never block compaction.
 
   on('attribution.text', { kind: 'commit' }, async ($, e, next) => {
     const ran = await next(e)
