@@ -1,9 +1,8 @@
-# Changelog
-
-All notable changes to `tamirs-superpowers` are recorded here.
-Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
-
 ## [Unreleased]
+
+### Changed
+- **Cursor desktop pin 3.23.12 → 3.24.12** (feature changelog still 3.11 / 2026-09-23). `hooks/cursor-agent-tools-guard.sh` now keys subagent `tools:` allowlists on Task `tool_use_id` + child `parent_tool_call_id` (desktop ≥ 3.22/3.24), so concurrent subagents are attributed correctly; order-stack intersection remains the fallback for older payloads. Docs cover auto-review risky-delete approval, cloud-agent OOM recognition, MCP OAuth hosted callback, and worktree-cleanup OOM settings.
+
 
 ## [4.12.1] — 2026-10-06
 

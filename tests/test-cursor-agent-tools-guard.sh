@@ -10,12 +10,15 @@
 #   3. Bash maps to Shell. Agents declare Claude names; Cursor reports Shell. Miss
 #      this and every shell call from every agent is wrongly denied.
 #   4. Nesting takes the INTERSECTION, and popping restores the outer frame. With
-#      identical ids there is no way to attribute a call to one of two concurrent
-#      subagents, so every active frame must permit it.
+#      identical ids and no parent_tool_call_id there is no way to attribute a call
+#      to one of two concurrent subagents, so every active frame must permit it.
 #   5. With no agent active, nothing is constrained — the main conversation is not
 #      a subagent and must not inherit anyone's list.
 #   6. It is inert off Cursor. Claude enforces tools: itself; a second opinion here
 #      could only ever disagree with the platform.
+#   7. When parent_tool_call_id is present (desktop ≥ 3.22), concurrent subagents
+#      are attributed by id — a Write allowed for implementer is not denied just
+#      because a read-only sibling is also running.
 
 set -uo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -34,8 +37,16 @@ CUR="\"conversation_id\":\"$CID\",\"cursor_version\":\"x\",\"workspace_roots\":[
 
 task(){
   local err; err="$(mktemp)"
-  printf '{%s,"hook_event_name":"%s","tool_name":"Task","tool_input":{"subagent_type":"%s"}}' "$CUR" "$1" "$2" | bash "$H" >/dev/null 2>"$err" || {
-    echo "      task($1,$2) exited non-zero; stderr:" >&2; sed 's/^/      | /' "$err" >&2; }
+  # $3 optional tool_use_id for id-keyed frames (desktop ≥ 3.24 correlation).
+  if [ -n "${3:-}" ]; then
+    printf '{%s,"hook_event_name":"%s","tool_name":"Task","tool_use_id":"%s","tool_input":{"subagent_type":"%s"}}' \
+      "$CUR" "$1" "$3" "$2" | bash "$H" >/dev/null 2>"$err" || {
+      echo "      task($1,$2,$3) exited non-zero; stderr:" >&2; sed 's/^/      | /' "$err" >&2; }
+  else
+    printf '{%s,"hook_event_name":"%s","tool_name":"Task","tool_input":{"subagent_type":"%s"}}' \
+      "$CUR" "$1" "$2" | bash "$H" >/dev/null 2>"$err" || {
+      echo "      task($1,$2) exited non-zero; stderr:" >&2; sed 's/^/      | /' "$err" >&2; }
+  fi
   rm -f "$err"
 }
 # stderr is captured, not discarded: when this suite failed on Linux CI while
@@ -45,7 +56,13 @@ task(){
 perm(){
   local out err
   err="$(mktemp)"
-  out="$(printf '{%s,"hook_event_name":"preToolUse","tool_name":"%s","tool_input":{}}' "$CUR" "$1" | bash "$H" 2>"$err")"
+  # $2 optional parent_tool_call_id (desktop ≥ 3.22 subagent attribution).
+  if [ -n "${2:-}" ]; then
+    out="$(printf '{%s,"hook_event_name":"preToolUse","tool_name":"%s","parent_tool_call_id":"%s","tool_input":{}}' \
+      "$CUR" "$1" "$2" | bash "$H" 2>"$err")"
+  else
+    out="$(printf '{%s,"hook_event_name":"preToolUse","tool_name":"%s","tool_input":{}}' "$CUR" "$1" | bash "$H" 2>"$err")"
+  fi
   if [ -z "$out" ]; then
     echo "      hook produced NO stdout; stderr was:" >&2
     sed 's/^/      | /' "$err" >&2
@@ -97,6 +114,24 @@ fi
 echo "--- an unknown agent is not guessed at ---"
 task preToolUse no-such-agent
 [ "$(perm Write)" = "allow" ] && ok "unknown agent adds no frame" || bad "unknown agent adds no frame" "got $(perm Write)"
+
+echo "--- parent_tool_call_id attributes concurrent subagents ---"
+# Two Tasks with distinct tool_use_ids; a Write carrying implementer's id must
+# be allowed even while the read-only sibling frame is still active.
+task preToolUse implementer task-impl-1
+task preToolUse architecture-reviewer task-rev-1
+[ "$(perm Write)" = "deny" ] && ok "fallback intersection still denies Write without parent id" \
+  || bad "fallback intersection denies Write" "got $(perm Write)"
+[ "$(perm Write task-impl-1)" = "allow" ] && ok "parent_tool_call_id lets implementer Write beside a reviewer" \
+  || bad "id-keyed Write for implementer" "got $(perm Write task-impl-1)"
+[ "$(perm Write task-rev-1)" = "deny" ] && ok "parent_tool_call_id still denies Write for the reviewer" \
+  || bad "id-keyed deny for reviewer" "got $(perm Write task-rev-1)"
+[ "$(perm Read task-rev-1)" = "allow" ] && ok "parent_tool_call_id allows Read for the reviewer" \
+  || bad "id-keyed Read for reviewer" "got $(perm Read task-rev-1)"
+task postToolUse architecture-reviewer task-rev-1
+task postToolUse implementer task-impl-1
+[ "$(perm Write)" = "allow" ] && ok "popping both id-keyed frames clears the stack" \
+  || bad "cleared after id-keyed pops" "got $(perm Write)"
 
 echo
 echo "passed: $PASS   failed: $FAIL"
