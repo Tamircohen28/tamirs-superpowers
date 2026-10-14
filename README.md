@@ -10,7 +10,7 @@
 </p>
 
 <p align="center">
-  <a href="docs/engineering/build-and-release/platform-targets.json"><img src="https://img.shields.io/badge/Claude%20Code-2.1.293-blueviolet" alt="Claude Code" /></a>
+  <a href="docs/engineering/build-and-release/platform-targets.json"><img src="https://img.shields.io/badge/Claude%20Code-2.1.300-blueviolet" alt="Claude Code" /></a>
   <a href="docs/engineering/build-and-release/platform-targets.json"><img src="https://img.shields.io/badge/Cursor-3.22.7-000000" alt="Cursor" /></a>
   <a href="docs/engineering/build-and-release/platform-targets.json"><img src="https://img.shields.io/badge/Codex-0.156.0-412991" alt="Codex" /></a>
   <a href="docs/engineering/build-and-release/platform-targets.json"><img src="https://img.shields.io/badge/Gemini%20CLI-0.60.0-4285F4" alt="Gemini CLI" /></a>
@@ -53,7 +53,7 @@ One plugin, one marketplace listing, both surfaces.
 
 | Surface | Registry id | Kind | Status | Install |
 |---|---|---|---|---|
-| Claude Code | `claude_code` | CLI | ✅ supported — validated 2.1.293 | [guide](docs/user/install/claude-code.md) |
+| Claude Code | `claude_code` | CLI | ✅ supported — validated 2.1.300 | [guide](docs/user/install/claude-code.md) |
 | Claude Desktop | `claude_desktop` | desktop | ✅ supported — same plugin, different runtime surface | [guide](docs/user/install/claude-desktop.md) |
 
 ### Codex
@@ -122,7 +122,15 @@ Confirm a machine is ready with `bash scripts/doctor.sh .`.
 ## Install in 5 minutes
 
 **1. Install the plugin.** Pick your platform and surface from the tables above — each
-supported surface's guide covers install, **verify**, update, and uninstall. On Claude you can
+supported surface's guide covers install, **verify**, update, and uninstall. On Claude Code,
+the one-step form installs straight from this repo:
+
+```text
+/plugin install tamirs-superpowers --marketplace Tamircohen28/tamirs-superpowers
+```
+
+(the per-platform guides cover the two-step `/plugin marketplace add` + `/plugin install`
+form too, and the catalog marketplace, `tamirs-marketplace`). On Claude you can
 also add it from [Anthropic's plugin directory](https://claude.ai/directory), which tracks a
 Claude-only distribution this repository builds on every release ([how](docs/engineering/build-and-release/directory-distribution.md));
 [`PRIVACY.md`](PRIVACY.md) says what the plugin sends, and only when you opt in. Gemini alone
