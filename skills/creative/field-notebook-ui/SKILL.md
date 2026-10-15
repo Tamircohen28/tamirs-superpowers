@@ -170,7 +170,7 @@ function Card({ accent = T.green, fill, children, style = {} }) {
 
 ### AirGap — the signature element
 
-A dashed enclosure with a small corner label. Use this for Paragon-specific context,
+A dashed enclosure with a small corner label. Use this for project-specific context,
 important notes, security warnings, or any annotation that must stand apart.
 This is the single most distinctive element of the design — use it deliberately, not on every card.
 
@@ -319,7 +319,7 @@ Add `className="nb-focus"` to every `<button>`.
 ## Layout rules
 
 **Header** — always present. Contains:
-1. Eyebrow: `CONTEXT · DOMAIN` (e.g., `PARAGON INTERVIEW PREP · INFRASTRUCTURE`)
+1. Eyebrow: `CONTEXT · DOMAIN` (e.g., `SYSTEM DESIGN PREP · INFRASTRUCTURE`)
 2. H1 in Space Grotesk 700, sentence case
 3. Subtitle in Inter 13px, T.inkDim
 
