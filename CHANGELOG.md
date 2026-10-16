@@ -5,6 +5,17 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [4.12.2] — 2026-10-16
+
+### Changed
+
+- **Capability registry, OpenCode `parallel_subagents`**: `unsupported` -> `unknown` in both the plugin and the
+  app-scaffold registries, rechecked 2026-10-16 against the docs and issue tracker. The evidence conflicts (v1
+  foreground task calls ran serially, sst/opencode#29638; v2 documents `background: true` subagents) and no live
+  v2 run has settled it, so the row no longer claims a verified absence. The fallback is unchanged: fan out
+  sequentially. The row had passed its 90-day `last_verified` budget, which had `make validate` red on `master`.
+- **`field-notebook-ui`** (#282): two example strings now use neutral wording.
+
 ## [4.12.1] — 2026-10-06
 
 ### Changed
