@@ -986,10 +986,10 @@
               "fallback": "Regenerate the adapter rather than hand-editing .opencode/agent/."
             },
             "parallel_subagents": {
-              "last_verified": "2026-07-15",
-              "status": "unsupported",
-              "notes": "OpenCode's subagent_depth defaults to 1 (shipped v1.18.2, 2026-07-15), so a subagent cannot itself spawn subagents — not merely unmeasured.",
-              "fallback": "Fan out sequentially."
+              "last_verified": "2026-10-16",
+              "status": "partial",
+              "notes": "Re-verified against OpenCode v2.0.30. The primary agent can fan out several subagents: task calls in one turn are evaluated in parallel per the maintainers (sst/opencode#14195), and v2 adds background subagents, though some reports still show serial execution (sst/opencode#29638). Nesting is the limit: subagent_depth defaults to 1 (since v1.18.2, opencode.ai/docs/config), so a subagent cannot spawn its own subagents unless that is raised.",
+              "fallback": "Fan out from the primary agent only; never rely on nested spawning, and fall back to sequential if the calls run serially."
             },
             "agent_teams": {
               "last_verified": "2026-09-17",

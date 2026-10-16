@@ -5,6 +5,16 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [4.12.2] — 2026-10-16
+
+### Changed
+
+- **Capability registry, OpenCode `parallel_subagents`**: `unsupported` -> `partial`, re-verified against OpenCode
+  v2.0.30. The old row conflated nesting with fan-out: `subagent_depth` (default 1) stops a subagent spawning its
+  own subagents, but the primary agent can still run several task calls in one turn. The row was also past its
+  90-day `last_verified` budget, which had `make validate` red on `master`. `platform-targets.json` resynced.
+- **`field-notebook-ui`** (#282): two example strings now use neutral wording.
+
 ## [4.12.1] — 2026-10-06
 
 ### Changed
