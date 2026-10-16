@@ -9,10 +9,11 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Changed
 
-- **Capability registry, OpenCode `parallel_subagents`**: `unsupported` -> `partial`, re-verified against OpenCode
-  v2.0.30. The old row conflated nesting with fan-out: `subagent_depth` (default 1) stops a subagent spawning its
-  own subagents, but the primary agent can still run several task calls in one turn. The row was also past its
-  90-day `last_verified` budget, which had `make validate` red on `master`. `platform-targets.json` resynced.
+- **Capability registry, OpenCode `parallel_subagents`**: still `unsupported`, rechecked 2026-10-16 against the
+  docs and issue tracker (no live v2 run). The note now gives the real reason: foreground task calls in one turn
+  run serially (sst/opencode#29638), on top of `subagent_depth` defaulting to 1. v2 background subagents are not
+  counted until a run proves them. The row had passed its 90-day `last_verified` budget, which had
+  `make validate` red on `master`.
 - **`field-notebook-ui`** (#282): two example strings now use neutral wording.
 
 ## [4.12.1] — 2026-10-06
