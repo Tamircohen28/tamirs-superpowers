@@ -9,11 +9,11 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Changed
 
-- **Capability registry, OpenCode `parallel_subagents`**: still `unsupported`, rechecked 2026-10-16 against the
-  docs and issue tracker (no live v2 run). The note now gives the real reason: foreground task calls in one turn
-  run serially (sst/opencode#29638), on top of `subagent_depth` defaulting to 1. v2 background subagents are not
-  counted until a run proves them. The row had passed its 90-day `last_verified` budget, which had
-  `make validate` red on `master`.
+- **Capability registry, OpenCode `parallel_subagents`**: `unsupported` -> `unknown` in both the plugin and the
+  app-scaffold registries, rechecked 2026-10-16 against the docs and issue tracker. The evidence conflicts (v1
+  foreground task calls ran serially, sst/opencode#29638; v2 documents `background: true` subagents) and no live
+  v2 run has settled it, so the row no longer claims a verified absence. The fallback is unchanged: fan out
+  sequentially. The row had passed its 90-day `last_verified` budget, which had `make validate` red on `master`.
 - **`field-notebook-ui`** (#282): two example strings now use neutral wording.
 
 ## [4.12.1] — 2026-10-06

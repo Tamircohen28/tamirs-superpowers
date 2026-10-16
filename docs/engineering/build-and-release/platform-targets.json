@@ -360,7 +360,6 @@
         "extension_install": "No git-URL extension install.",
         "hooks": "OpenCode has no hooks.json; its only lifecycle mechanism is the JS/TS plugin API. Lifecycle guards from hooks/ still do not run. A narrow opt-in exception is skills/toolkit/usage-capture/opencode-plugin.mjs (zero npm imports, observe-only, not listed in this repo's opencode.json) for local usage JSONL. That plugin is not a hook-guard adapter — 'adapter' would imply generated worktree/safety artifacts, and none exist.",
         "mods": "No equivalent; OpenCode runs no hooks from this repo.",
-        "parallel_subagents": "Foreground task calls issued in one turn run serially: sst/opencode#29638 reports the prompt loop pops one subtask and blocks until it finishes (re-reporting #14195; closed not planned, no fix). Nesting is also off: subagent_depth defaults to 1 (since v1.18.2, opencode.ai/docs/config). OpenCode v2 background subagents may offer an opt-in parallel path, but its configuration is unrecorded and no run here has proven it, so it is not counted. Docs and issues rechecked 2026-10-16; no live v2 run.",
         "plugin_marketplace": "No plugin marketplace — install is by absolute skills.paths. Not by symlink: OpenCode does not follow them for skill discovery (see the skills row).",
         "statusline": "No plugin-declared statusline."
       }

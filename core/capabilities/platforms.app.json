@@ -809,8 +809,8 @@
               "fallback": "Regenerate the adapter rather than hand-editing .opencode/agent/."
             },
             "parallel_subagents": {
-              "status": "unsupported",
-              "notes": "Foreground task calls issued in one turn run serially: sst/opencode#29638 reports the prompt loop pops one subtask and blocks until it finishes (re-reporting #14195; closed not planned, no fix). Nesting is also off: subagent_depth defaults to 1 (since v1.18.2, opencode.ai/docs/config). OpenCode v2 background subagents may offer an opt-in parallel path, but its configuration is unrecorded and no run here has proven it, so it is not counted. Docs and issues rechecked 2026-10-16; no live v2 run.",
+              "status": "unknown",
+              "notes": "Unmeasured: the evidence conflicts and no live v2 run has settled it. Against: foreground task calls issued in one turn ran serially on v1 (sst/opencode#29638, re-reporting #14195; closed not planned), and subagent_depth defaults to 1 (since v1.18.2, opencode.ai/docs/config), so subagents cannot nest. For: the v2 tools docs (dev.opencode.ai/v2/docs/tools) document background: true, which returns immediately and notifies the parent. Docs and issues rechecked 2026-10-16. Until a v2 run exercises the background path, treat parallel fan-out as unavailable.",
               "fallback": "Fan out sequentially."
             },
             "agent_teams": {
