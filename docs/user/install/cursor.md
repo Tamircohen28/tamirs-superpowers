@@ -2,8 +2,9 @@
 
 Registry id: `cursor`. Validated against Cursor desktop **3.22.7** (feature changelog
 **3.11**, covered through date-only **2026-09-23**); that floor is the version this repo
-actually tested, not a guess. Desktop **3.23.12** (MCP allowlists / service tokens) was
-reviewed from the changelog only; no live run has validated it.
+actually tested, not a guess. Desktop **3.24.12** (hook `tool_use_id` / `parent_tool_call_id`
+correlation, auto-review risky-delete approval) was reviewed from the IDE release notes;
+no live run has validated it yet.
 
 ---
 
@@ -18,13 +19,36 @@ Cursor imports a plugin marketplace straight from a repo:
 
 Cursor reads [`.cursor-plugin/plugin.json`](../../../.cursor-plugin/plugin.json), the
 canonical `skills/` tree, [`.cursor/rules/`](../../../.cursor/rules) — declared explicitly,
-see below — `agents/`, and the MCP stubs. Enable **Auto Refresh** on the marketplace and pushes propagate without a version
-bump.
+see below — `agents/`, and the github MCP server from
+[`platforms/cursor/mcp.json`](../../../platforms/cursor/mcp.json), a Cursor-specific file
+generated with the manifest from one source
+([manifests](../../engineering/build-and-release/manifests.md)). Enable **Auto Refresh**
+on the marketplace and pushes propagate without a version bump.
 
-## Hooks do not come with the install
+## Set the `GITHUB_TOKEN` plugin variable
 
-Worth knowing before you assume the safety guards are active: **a Cursor install of this
-plugin wires none of its hooks.**
+The bundled github MCP server needs a GitHub personal access token, and in a Cursor plugin
+a token is a **plugin variable**: the MCP file says `${GITHUB_TOKEN}`, the manifest
+declares `GITHUB_TOKEN` under `variables`, and the value is set by you — never in the repo.
+
+1. Dashboard → **Plugins** → **tamirs-superpowers** → **Configure**.
+2. Set **GitHub token for the bundled github MCP server** to a token with `repo` scope.
+
+Cursor hands it to the server as `GITHUB_PERSONAL_ACCESS_TOKEN`; nothing else in the
+plugin reads it. Leave it unset to keep the server off — it refuses to start without one,
+and no skill depends on it.
+
+Why a separate MCP file: Cursor treats every `${VAR}` in a plugin's MCP config as a
+plugin variable that must be declared under `variables`, and the Claude file's
+`${user_config.github_token}` is not a declarable name. The generator refuses to write a
+Cursor MCP file that uses a variable the manifest does not declare, and
+`tests/test-manifests.sh` plants one to prove it.
+
+## The Claude-format hooks file does not come with the install
+
+Worth knowing before you go looking for `hooks/hooks.json` in Cursor's hook list: **a Cursor
+install never loads that file.** The hooks that do run come from a separate, Cursor-format
+bundle — the next section.
 
 Cursor *can* import Claude Code hooks, and the setting is on by default
 (Settings → Agents → Third-Party Imports → "Include Third-Party Plugins, Skills, and Other
@@ -34,9 +58,10 @@ Configs"). But it reads them from exactly three paths:
 - `.claude/settings.json`
 - `~/.claude/settings.json`
 
-This plugin ships its hooks in `hooks/hooks.json`, wired through the plugin manifest — which
-is not one of those three. The files are all present on disk after an install (see the
-section below), but nothing loads them.
+This plugin ships its Claude hooks in `hooks/hooks.json`, wired through the Claude plugin
+manifest — which is not one of those three. The file is present on disk after an install
+(see the section below), but nothing on Cursor loads it; the Cursor manifest points at
+`platforms/cursor/hooks.json` instead.
 
 **One exception, and it is not part of the install.** This repo ships
 [`.cursor/hooks.json`](../../../.cursor/hooks.json) with a single advisory
@@ -46,13 +71,13 @@ open project — it is not delivered to your project by installing the plugin, a
 `.cursor-plugin/plugin.json` declares no `hooks` field. It is a useful proof that the
 Cursor-native format works here, not a counterexample to the paragraph above.
 
-Of the 10 events this repo wires, Cursor's published mapping covers 6 — `PreToolUse`,
-`PostToolUse`, `UserPromptSubmit`, `Stop`, `SessionStart`, `SessionEnd`. The other four —
-`Notification`, `DirectoryAdded`, `WorktreeCreate`, `WorktreeRemove` — have no Cursor
-equivalent, so even a hand-copied translation would be lossy.
-
-A Cursor-native bundle, in Cursor's own richer 21-event format, is tracked as
-[#179 E1](https://github.com/Tamircohen28/tamirs-superpowers/issues/179).
+Of the events `hooks/hooks.json` wires, Cursor's published import mapping covers
+`PreToolUse`, `PostToolUse`, `UserPromptSubmit`, `Stop`, `SubagentStop`, `SessionStart`,
+`SessionEnd` and `PreCompact`. `StopFailure`, `Notification`, `DirectoryAdded`,
+`WorktreeCreate`, `WorktreeRemove` and the agent-teams pair `TaskCompleted` and
+`TeammateIdle` have no Cursor equivalent, so even a hand-copied
+translation would be lossy — which is why the plugin ships a Cursor-native bundle instead
+of relying on the import.
 
 ## What an install actually materializes
 
@@ -82,23 +107,39 @@ does not drop them; the mechanism is a clone, so there is no file-type filter to
 **Still unverified:** skill *invocation* inside Cursor — palette listing and invoking a skill
 by name. Asset delivery being sound does not establish that, and the capability registry
 reflects the narrower claim.
-## The safety hooks now run on Cursor
+## The safety hooks, the session lifecycle and the prompt hooks run on Cursor
 
 `.cursor-plugin/plugin.json` declares `hooks` at `./platforms/cursor/hooks.json`, a
-Cursor-format bundle wiring the two safety invariants to `preToolUse` and
-`beforeShellExecution`.
+Cursor-format bundle wiring ten of Cursor's 21 events: the two safety invariants on
+`preToolUse` and `beforeShellExecution`, the agent `tools:` guard on `preToolUse`/`postToolUse`,
+the session lifecycle on `sessionStart`/`sessionEnd`, the `/goal` lint and the two prompt
+reminders on `beforeSubmitPrompt`, the definition-of-done reminder on `stop`, the
+pre-compaction snapshot on `preCompact`, and a `workspaceOpen` hook that can auto-load a
+checkout of the plugin. The engineering note behind every entry is
+[`platforms/cursor/README.md`](../../../platforms/cursor/README.md).
+
+**The safety tier fails closed.** `enforce-worktree-edits.sh`, `guard-sensitive-files.sh`
+(both events), `protect-other-branches.sh` and the agent-tools guard carry `failClosed: true`
+— Cursor's `onFailure: "block"` — so a guard that crashes or times out **denies** rather than
+allows, and `loop_limit: null` so Cursor's default cap of five firings per loop never turns a
+guard off. Every advisory entry stays fail-open: a broken reminder costs a reminder, not a
+tool call.
 
 **It points somewhere non-default deliberately.** Cursor's component discovery falls back to
 `hooks/hooks.json`, which in this repo is the **Claude-format** file — PascalCase events Cursor
 cannot read. An undeclared component does not disable itself; it binds to that default and
 yields nothing.
 
-**It runs the same scripts as Claude and Codex, not forked copies.** No translation layer was
-needed, because three pieces were already platform-aware:
+**It runs the same scripts as Claude and Codex, not forked copies.** The dialect lives in
+three shared pieces:
 
 - `hooks/lib/hook-output.sh` detects Cursor from the payload (`conversation_id`,
   `cursor_version`, `workspace_roots`) and emits `{permission, user_message, agent_message}`
-  instead of `hookSpecificOutput`
+  instead of `hookSpecificOutput` on the tool events
+- `hooks/lib/cursor-output.sh` speaks the other shapes: `{continue, user_message}` on
+  `beforeSubmitPrompt`, `{additional_context}` on `sessionStart`, `{pluginPaths}` on
+  `workspaceOpen`, nothing on `sessionEnd` — and never `followup_message`, which Cursor would
+  auto-submit as your next message
 - `hooks/lib/write-targets.py` already treats Cursor's `Shell` like `Bash`
 - Cursor's `preToolUse` carries `tool_name` `Read`/`Write`/`Shell` with `tool_input.file_path`
   and `tool_input.command` — the same names and fields Claude uses for `Read`/`Write`
@@ -154,16 +195,21 @@ Cursor has neither, so `hooks/cursor-agent-tools-guard.sh` supplies it, wired to
 
 It cannot simply ask which agent is running. A subagent's tool calls carry no agent field, and its
 `conversation_id`, `generation_id` and `session_id` are **identical to the parent's**. What does
-carry the name is the `Task` call that starts it (`tool_input.subagent_type`), so the guard
-reconstructs the association from event **order**: push on `Task`, check against active frames, pop
-on `postToolUse`. With two subagents running it applies the **intersection** of their allowlists —
-stricter than either alone, which is the safe direction, since a refused call is visible and a
-permitted one is not.
+carry the name is the `Task` call that starts it (`tool_input.subagent_type`).
 
-**It is advisory, not a sandbox.** It infers "inside a subagent" from event sequence, raising the
-cost of an unlisted call without making one impossible, and a missed `postToolUse` fails safe
-(over-restrictive rather than unguarded). Treat these agents as **role prompts with a raised
-floor** — meaningfully better than prose alone, and still not an isolation boundary.
+**Desktop ≥ 3.22 / 3.24 (adopted):** Cursor now sends `tool_use_id` on the Task `preToolUse` and
+`parent_tool_call_id` on the subagent's own tool calls (the Task id). The guard keys frames on
+that id, so two concurrent subagents are attributed correctly — a Write allowed for `implementer`
+is no longer denied just because a read-only sibling is also running. Shell/MCP hooks also receive
+the same `tool_use_id` (3.24), and every hook gets `transcript_path` / `CURSOR_TRANSCRIPT_PATH`.
+
+**Fallback (older payloads):** when those ids are absent, the guard still reconstructs from event
+**order** — push on `Task`, check against active frames, pop on `postToolUse` — and under
+concurrency applies the **intersection** of allowlists (safer than guessing).
+
+**It is advisory, not a sandbox.** A missed `postToolUse` fails safe (over-restrictive rather than
+unguarded). Treat these agents as **role prompts with a raised floor** — meaningfully better than
+prose alone, and still not an isolation boundary.
 
 Tracked as [#179](https://github.com/Tamircohen28/tamirs-superpowers/issues/179); guard shipped in
 [#223](https://github.com/Tamircohen28/tamirs-superpowers/pull/223).
@@ -171,22 +217,41 @@ Tracked as [#179](https://github.com/Tamircohen28/tamirs-superpowers/issues/179)
 ## Which of Cursor's 21 hook events this plugin wires
 
 Cursor exposes 21 hook events; **7 of them can deny an action**, the rest are observational.
-This plugin wires 3 events, and the other 18 are accounted for rather than merely absent —
-an event is wired because a guard needs it, not to fill in the table.
+This plugin wires 10, and the other 11 are accounted for rather than merely absent — an event
+is wired because a script needs it, not to fill in the table. The **Cloud** column says whether
+the event fires at all inside a [cloud agent](#what-runs-where-cloud-agents).
 
-| Event | Can deny | Wired | Why / why not |
-|---|:---:|:---:|---|
-| `preToolUse` | ✅ | ✅ | 5 guards: worktree edits, sensitive files, branch concurrency, skill-creator, agent `tools:` allowlist |
-| `beforeShellExecution` | ✅ | ✅ | `guard-sensitive-files.sh` — a shell command is a write path too |
-| `postToolUse` | — | ✅ | pops the agent-allowlist frame |
-| `subagentStart` | ✅ | ▲ | **Best available improvement.** Carries `subagent_type` *and* `subagent_id`, so the allowlist frame could be keyed on a real identifier instead of inferred from event order. Not yet wired: the push would need to de-duplicate against the existing `preToolUse Task` push (`subagentStart.tool_call_id` matches `preToolUse.tool_use_id`), and wiring it half-way risks a double push that never pops. |
-| `subagentStop` | — | ▲ | Fires on complete **, error, or abort** — a more reliable pop than `postToolUse Task`, and would fix the documented stuck-frame case. Blocked on the same de-duplication design: its payload carries `subagent_type` but no id, so popping must match by agent name. |
-| `beforeMCPExecution` | ✅ | ❌ | `preToolUse` already fires for MCP tool calls, so wiring this too would double-judge the same call |
-| `beforeReadFile` · `beforeTabFileRead` | ✅ | ❌ | This plugin makes no guarantee about *reads*. Every read-only agent is supposed to read |
-| `beforeSubmitPrompt` | ✅ | ❌ | Claude's `UserPromptSubmit` peers (`skill-suggest.sh`, goal/scope reminders) inject context into a model turn; the port is real work, not a wiring change |
-| `sessionStart` · `sessionEnd` | — | ❌ | Claude peers exist (`session-init.sh`, `session-end.sh`, `handoff-reminder.sh`) and are a genuine gap — a Cursor user gets no session lifecycle today |
-| `stop` · `preCompact` | — | ❌ | Claude peers exist (`check-done.sh`, `precompact-snapshot.sh`); same gap, same reason |
-| `afterShellExecution` · `afterMCPExecution` · `afterFileEdit` · `afterTabFileEdit` · `postToolUseFailure` · `afterAgentResponse` · `afterAgentThought` · `workspaceOpen` | — | ❌ | Observational. No guard here needs them; wiring one would add cost and no guarantee |
+| Event | Can deny | Cloud | Wired | What / why not |
+|---|:---:|:---:|:---:|---|
+| `preToolUse` | ✅ | ✅ | ✅ **fail-closed** | `enforce-worktree-edits.sh`, `guard-sensitive-files.sh`, `protect-other-branches.sh`, `cursor-agent-tools-guard.sh` (all `failClosed: true`); `skill-creator-guard.sh` (contributor tier, fail-open) |
+| `beforeShellExecution` | ✅ | ✅ | ✅ **fail-closed** | `guard-sensitive-files.sh` — a shell command is a write path too |
+| `postToolUse` | — | ✅ | ✅ | pops the agent-allowlist frame; fail-open on purpose (a missed pop is over-restrictive, never unguarded) |
+| `beforeSubmitPrompt` | ✅ | ✅ | ✅ | `goal-condition-lint.sh` refuses an unsatisfiable `/goal` with `continue:false` and the rewrite menu as `user_message`; `scope-decompose-reminder.sh` and `skill-suggest.sh` pass with `continue:true` and a note. This event has no model-visible channel, so the notes are addressed to **you** |
+| `sessionStart` | — | ❌ | ✅ | `session-init.sh` → `additional_context` (session dirs, prior session files on resume, stale-worktree prune); session state keyed by `session_id`/`conversation_id` the way the guards key it |
+| `sessionEnd` | — | ❌ | ✅ | `session-end.sh` (archive, prune), `release-agent-claims.sh`, `handoff-reminder.sh` (reminder on stderr from a `~/.cursor/worktrees/…` checkout). Cursor documents no output for this event; none is printed |
+| `stop` | — | ✅ | ✅ | `check-done.sh`, the definition-of-done reminder — on stderr (stdout is the no-op `{}`), never as `followup_message` |
+| `preCompact` | — | ✅ | ✅ | `precompact-snapshot.sh` writes `.dev-files/compaction/latest.md` before context is lost |
+| `workspaceOpen` | — | ❌ | ✅ | `cursor-workspace-open.sh` → `{"pluginPaths": […]}` from `SUPERPOWERS_CURSOR_PLUGIN_PATH` (colon-separated absolute plugin checkouts); `[]` otherwise. The route to auto-load a checkout of this plugin without a marketplace install |
+| `subagentStop` | — | ✅ | ❌ | Its peer `subagent-handoff-check.sh` still answers its warning in Claude's dialect (`hookSpecificOutput`), which Cursor drops; wired the day it speaks Cursor — `tests/test-cursor-lifecycle.sh` re-checks that path each run. Its only documented output is `followup_message`, which this plugin never emits |
+| `subagentStart` | ✅ | ✅ | ❌ | `cursor-agent-tools-guard.sh` would **deny every spawn** under an active frame as written (no `tool_name` on this payload); a spawn-time deny needs its own branch keyed on `subagent_type` + `tool_call_id`, de-duplicated against the `preToolUse` Task push |
+| `postToolUseFailure` | — | ✅ | ❌ | Observation point (`error_message`, `failure_type`, `is_interrupt` → `additional_context`); available, nothing needs it yet |
+| `beforeMCPExecution` · `afterMCPExecution` | ✅ / — | ❌ | ❌ | `preToolUse` already fires for MCP tool calls; wiring this too would double-judge the same call |
+| `beforeReadFile` · `beforeTabFileRead` | ✅ | ✅ / ❌ | ❌ | This plugin makes no guarantee about *reads*. Every read-only agent is supposed to read |
+| `afterShellExecution` · `afterFileEdit` · `afterTabFileEdit` · `afterAgentResponse` · `afterAgentThought` | — | mostly | ❌ | Observational, no output. Nothing here needs them; each is a process spawn per event |
+
+Not ported: `capture-task-slug.sh` — on Cursor `enforce-worktree-edits.sh` creates the
+worktree at the first write, and Cursor's own `--worktree`/cloud-VM isolation covers the
+rest. `docker-guard.py` stays Claude-only (below).
+
+### What runs where: cloud agents
+
+Cloud agents run 14 of the 21 events and **do not load user-level hooks**. Of the ten events
+wired here, `preToolUse`, `postToolUse`, `beforeShellExecution`, `beforeSubmitPrompt`, `stop`
+and `preCompact` fire in a cloud agent; `sessionStart`, `sessionEnd` and `workspaceOpen` do
+not. So a cloud agent keeps every guard, the `/goal` lint and both prompt reminders, but gets
+no session lifecycle: no session-files directory from `session-init.sh` (the first write still
+creates the worktree), no archive/prune/claim-release at the end, and no `pluginPaths`
+injection. Set the `GITHUB_TOKEN` plugin variable the same way in both cases.
 
 **One guard is deliberately Claude-only.** `docker-guard.py` is Python and writes its Claude-shaped
 response directly rather than through `hooks/lib/hook-output.sh`, so it is not portable as written.
@@ -210,15 +275,18 @@ than leaving it to a comment.
 **The same trap applies to `hooks`.** A Cursor plugin's `hooks` component has the identical
 discovery behaviour: it defaults to `hooks/hooks.json` and expects **Cursor's** camelCase
 event format (`preToolUse`, `beforeShellExecution`, `sessionEnd`). This repo's file at that
-exact path is Claude's **PascalCase** format, so discovery finds it and yields no usable
-events. That is a cheaper route for a Cursor hook bundle than the `settings.json` import
-path — a Cursor-format file declared in the manifest, with no `settings.json` involvement —
-and is tracked as [#179 E1](https://github.com/Tamircohen28/tamirs-superpowers/issues/179).
+exact path is Claude's **PascalCase** format, so discovery would find it and yield no usable
+events. That is why the manifest declares `platforms/cursor/hooks.json` explicitly — a
+Cursor-format file, with no `settings.json` involvement — and why
+`tests/test-cursor-hooks-bundle.sh` asserts the declaration.
 
 ## Verify
 
 ```bash
 jq empty .cursor-plugin/plugin.json
+jq -e '.variables.properties.GITHUB_TOKEN' .cursor-plugin/plugin.json   # the plugin variable is declared
+jq -e '.mcpServers.github' platforms/cursor/mcp.json                     # the Cursor MCP file
+bash scripts/build-manifests.sh . --check                               # manifest and MCP file match their sources
 bash scripts/doctor.sh .
 ```
 
@@ -284,16 +352,17 @@ never adopt anything silently. `apply` shows a diff and asks per change, default
 | skills | native | since desktop 3.22.7 pin; pin as **Custom Mode** (2026-08-19) via ⌥⏎ / Alt+Enter from `/` |
 | subagents | native | declared capability; cloud subagents can use **isolated VMs** (2026-08-19) |
 | slash commands | partial | 26 generated into `.cursor/commands/`, one per user-invocable skill; declared in the manifest. `partial` because no live Cursor run has confirmed they appear under `/` |
-| MCP | native | `.mcp.json` |
+| MCP | native | generated `platforms/cursor/mcp.json`, declared in the manifest; the github token is the `GITHUB_TOKEN` plugin variable set under Plugins → Configure |
 | git · shell · GitHub CLI | native | `gh` is an optional host dependency everywhere |
 | auto-invocation | partial | CLI sticky skills + Custom Modes; description-based selection across all surfaces is unverified — **name the skill** or pin a mode |
-| hooks | partial | **Cursor-format plugin hooks DO run**, from `platforms/cursor/hooks.json`, declared in the manifest. Claude-shaped hooks (`hooks/hooks.json`) still do not — Cursor never reads a plugin's own `hooks.json`, which is why the bundle sits at a declared non-default path. `partial` because 3 of Cursor's 21 events are wired (`preToolUse`, `beforeShellExecution`, `postToolUse`) |
+| hooks | partial | **Cursor-format plugin hooks DO run**, from `platforms/cursor/hooks.json`, declared in the manifest. Claude-shaped hooks (`hooks/hooks.json`) still do not — Cursor never reads a plugin's own `hooks.json`, which is why the bundle sits at a declared non-default path. 10 of Cursor's 21 events are wired (`workspaceOpen`, `sessionStart`, `sessionEnd`, `beforeSubmitPrompt`, `preToolUse`, `beforeShellExecution`, `postToolUse`, `stop`, `preCompact`) with `failClosed` on the safety tier; still `partial` because `subagentStart`/`subagentStop` are unwired, cloud agents get no session lifecycle, and the lifecycle port has had no live run |
 | worktree isolation | emulated | The skill runs `git worktree` itself; no hook automation |
 | parallel subagents | partial | Cloud swarm on isolated VMs (2026-08-19); local concurrency unmeasured |
 | background tasks · structured questions · session transcripts | unknown | Not measured — treated as unavailable, with stated fallbacks |
 | statusline · artifacts · extension install | unsupported | Cosmetic, absent, and not a Cursor mechanism, respectively |
 
-### Working tips (3.11 → 2026-09-23; desktop CLI 3.22.7 validated, 3.23.12 reviewed; CLI 2026-08-26)
+### Working tips (3.11 → 2026-09-23; desktop CLI 3.22.7 validated, 3.24.12 reviewed; CLI 2026-08-26)
+- **Desktop 3.24.12 (2026-10-10/11 stable):** IDE notes add **hook `tool_use_id`** correlation (shell/MCP hooks match `preToolUse`) and always-on **`transcript_path` / `CURSOR_TRANSCRIPT_PATH`** — this plugin's `cursor-agent-tools-guard.sh` now keys subagent allowlists on Task `tool_use_id` + child `parent_tool_call_id`. **Auto-review** asks before risky recursive/force/wildcard/mirror deletes whose targets could resolve differently than written. Cloud agents recognize **OOM kills** (memory limit reported). MCP OAuth can complete via a **Cursor-hosted callback** when local redirect URLs are rejected. Large worktree cleanups can OOM the main process — if heap climbs after launch, set `"cursor.worktreesGlobalMaxSizeGb": 0` and `"cursor.worktreeCleanupIntervalHours": 500` (Cursor staff workaround, forum 2026-10-11).
 - **Desktop 3.23.12 (2026-10-01):** team/org **MCP allowlists** — keep the bundled `github` MCP (and any Team MCP) on the org allowlist after upgrade; Origin MCP endpoint is `api.origin.cursor.com/mcp`. Prefer **service tokens** for Automations that install/update this plugin. **Required** team-marketplace plugins removed — install modes are Default Off / Default On + groups only.
 - **Security Review + Rollouts (2026-09-23):** Teams/Enterprise bots from [Automations](https://cursor.com/automations) ([Security Agents docs](https://cursor.com/docs/security-agents)). Security Review posts exploitable-bug findings on ready PRs (drafts skipped; Bugbot keeps style). Run Cursor's `/review-security` or `/review` before push — complements this plugin's `security-reviewer` agent (in-session role) rather than replacing it. **Rollouts** monitors deploy health per environment after merge; optional for this public plugin (no product deploy). [Changelog](https://cursor.com/changelog/rollouts-and-security-reviewer).
 - **Projects (2026-09-10)** — Cursor **Projects** (left nav) suit multi-week / multi-agent work. A **coordinator** plans and delegates (does not write code); **shared context** files sync across cloud and local agents; **subscriptions** can watch Slack, schedules, or all PRs. Use a Project when validating this plugin across a long refactor or multi-PR initiative; keep ordinary `/diagnose-refusal` / one-shot skill runs in a normal Agent chat. Projects compose with (do not replace) Cloud Agents, Custom Modes, and Self-Hosted Machines ([changelog](https://cursor.com/changelog)).
@@ -308,8 +377,8 @@ never adopt anything silently. `apply` shows a diff and asks per change, default
 - **Subagents on their own machines (2026-08-19)** — cloud subagents get isolated project copies. Prefer for collision-free `make validate` / swarm checks.
 - **Origin (2026-08-17)** / **Builds (default 2026-08-17)** — GitHub remains canonical for marketplace installs and CI; Origin is optional mirror. Confirm Cloud environments have a recent successful Build.
 
-**The one to internalize:** hook guards are advisory in Cursor. The same rules are enforced
-in CI, which is where they actually bind.
+**The one to internalize:** on Cursor the safety guards now fail closed, but a hook is not a
+sandbox — the same rules are enforced in CI, which is where they actually bind.
 
 Source of truth: [`core/capabilities/platforms.json`](../../../core/capabilities/platforms.json).
 Comparison: [platform differences](../platform-differences.md).

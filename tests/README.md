@@ -33,6 +33,12 @@ bash tests/test-statusline.sh
 bash tests/test-gemini-adapter.sh
 bash tests/test-opencode-adapter.sh
 bash tests/test-agent-health.sh           # scripts/agent-health.sh verdicts, --json, thresholds
+bash tests/test-hook-conformance.sh       # every hook, four host dialects, one set of invariants
+bash tests/hooks/test-codex-contract.sh   # captured Codex payloads through every hook
+bash tests/test-cursor-lifecycle.sh       # Cursor's ten wired events, documented output per event
+bash tests/test-gemini-hooks.sh           # the generated Gemini hooks file and the wrapper
+bash tests/test-dist.sh                   # per-host distributions build, check, planted findings
+bash tests/test-skill-budget.sh           # always-on token budget + skills-ref gates
 ```
 
 `test-orchestration.sh` and `contract/run.sh` accept a subset as arguments:

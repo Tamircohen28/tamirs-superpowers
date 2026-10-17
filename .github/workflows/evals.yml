@@ -1,0 +1,110 @@
+name: Plugin evals (nightly)
+
+# Runs the `claude plugin eval` suite under evals/ against this plugin with a real API
+# key, nightly and on demand — never on pull requests: a keyed run bills for real, the
+# result is noisy at --runs 1, and a flaky $12-per-push gate would be disabled within a
+# week. The static shape of the suite is checked on every push by
+# tests/test-evals-suite.sh (part of `make validate`); this workflow is the only place
+# the cases execute. See evals/README.md → "Running in CI".
+
+on:
+  schedule:
+    - cron: '23 3 * * *'   # 03:23 UTC nightly
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: plugin-evals
+  cancel-in-progress: false
+
+jobs:
+  evals:
+    name: claude plugin eval
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    env:
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Require the API key
+        run: |
+          if [ -z "${ANTHROPIC_API_KEY:-}" ]; then
+            echo "::error::ANTHROPIC_API_KEY secret is not set; the eval suite cannot run."
+            exit 1
+          fi
+
+      - name: Install Claude Code (pinned to .claude-code-version)
+        run: |
+          v="$(head -1 .claude-code-version | tr -d '[:space:]')"
+          npm install -g "@anthropic-ai/claude-code@${v}"
+          claude --version
+
+      - name: Run the eval suite
+        id: evals
+        # Exit 1 = a case below --threshold, a load error, or a run that ended on an API
+        # error; exit 2 = the --max-cost-usd ceiling was hit (results.json carries
+        # partial: true). Both fail the job; the summary step below says which.
+        run: |
+          set +e
+          claude plugin eval . --trust-plugin --json results.json \
+            --judge-model sonnet \
+            --allow-tools Write --threshold 0.8 --no-publish --max-cost-usd 30 --runs 1
+          rc=$?
+          echo "exit_code=$rc" >> "$GITHUB_OUTPUT"
+          exit "$rc"
+
+      - name: Δ per case → job summary
+        if: always()
+        run: |
+          rc="${{ steps.evals.outputs.exit_code }}"
+          {
+            echo "## Plugin evals — nightly"
+            echo
+            if [ ! -s results.json ]; then
+              echo "**No results.json was written** (exit ${rc:-unknown}). See the run log."
+              exit 0
+            fi
+            jq -r '
+              "Exit: '"${rc:-?}"' · overall " + ((.aggregates.overallScore // 0) * 100 | round | tostring) + "% · mean Δ "
+              + (if .aggregates.meanDelta == null then "—" else ((.aggregates.meanDelta * 100 | round) / 100 | tostring) end)
+              + " · cases passed " + ((.aggregates.casesPassed // 0) | tostring) + "/" + ((.aggregates.casesTotal // 0) | tostring)
+              + " · est. $" + ((.costUsd // 0) * 100 | round / 100 | tostring)
+              + (if .partial then "\n\n**PARTIAL RUN** (" + (.partialReason // "unknown") + ") — leave out of trend charts." else "" end)
+            ' results.json
+            echo
+            echo "| Case | WITH | W/OUT | Δ |"
+            echo "|---|---|---|---|"
+            jq -r '
+              .cases[] |
+              (.aggregates.score // 0) as $w |
+              (if .aggregates.delta == null then null else ($w - .aggregates.delta) end) as $wo |
+              "| `" + .name + "` | " + ($w | . * 100 | round / 100 | tostring)
+              + " | " + (if $wo == null then "—" else ($wo * 100 | round / 100 | tostring) end)
+              + " | " + (if .aggregates.delta == null then "—"
+                         else ((if .aggregates.delta > 0 then "+" else "" end) + (.aggregates.delta * 100 | round / 100 | tostring)) end)
+              + " |"
+            ' results.json
+            echo
+            echo "Runs that ended on an error:"
+            jq -r '
+              [ .cases[] | .name as $n | (.arms.with // [])[] | select(.error != null) | "- `" + $n + "` (with): " + .error ],
+              [ .cases[] | .name as $n | (.arms.without // [])[] | select(.error != null) | "- `" + $n + "` (without): " + .error ]
+              | .[]' results.json
+            echo
+            echo "Full per-grader verdicts: the \`eval-results\` artifact (results.json + report.html)."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload results
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: eval-results
+          path: |
+            results.json
+            evals/results/**/report.html
+            evals/results/**/aggregate-result.json
+          if-no-files-found: warn
+          retention-days: 30

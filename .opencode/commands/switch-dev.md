@@ -1,5 +1,6 @@
 ---
 description: 'Switching AI coding platforms mid-task without losing context — Claude Code, Cursor, Codex, Gemini CLI, OpenCode.'
+subagent: false
 ---
 
 <!-- GENERATED FILE — DO NOT EDIT.

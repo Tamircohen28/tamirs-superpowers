@@ -1,8 +1,13 @@
 ---
 description: "Skill authoring standards for skills/ — portable across every target. Canonical: rules/dev/skill-quality-standards.md"
-globs: "skills/**/SKILL.md"
 alwaysApply: false
+globs: "skills/**/SKILL.md"
 ---
+
+<!-- GENERATED FILE — DO NOT EDIT.
+     Source:    rules/dev/skill-quality-standards.md (frontmatter + summary: platforms/cursor/rules.map.json)
+     Generator: scripts/build-cursor-rules.sh
+     Regenerate: make cursor-rules -->
 
 # Skill Quality Standards
 

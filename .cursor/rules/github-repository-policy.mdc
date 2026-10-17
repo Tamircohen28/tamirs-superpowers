@@ -4,6 +4,11 @@ alwaysApply: false
 globs: ["config/github/**/*", "core/schemas/repository-policy.json", "scripts/github-policy.sh", "scripts/lib/github-common.sh", "scripts/check-github-policy.sh", ".github/workflows/**/*", "skills/repo/**/*"]
 ---
 
+<!-- GENERATED FILE — DO NOT EDIT.
+     Source:    rules/dev/github-repository-policy.md (frontmatter + summary: platforms/cursor/rules.map.json)
+     Generator: scripts/build-cursor-rules.sh
+     Regenerate: make cursor-rules -->
+
 # GitHub repository policy
 
 Canonical rule: `rules/dev/github-repository-policy.md`. The policy itself is data in `config/github/repository-policy.json`, constrained by `core/schemas/repository-policy.json` — never restate a rule, a status-check context, or a concurrency group anywhere else.

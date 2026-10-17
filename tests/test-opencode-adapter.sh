@@ -11,16 +11,23 @@
 #   existence AND for actually containing skills, and the gold fixtures under
 #   skills/repo/_contract/ are asserted NOT to be exposed.
 #
-#   Agents ARE adapted — .opencode/agent/*.md is generated from agents/*.md. The
+#   Agents ARE adapted — .opencode/agents/*.md is generated from agents/*.md. The
 #   failure mode there is drift: someone hand-edits an adapter, or adds a canonical
 #   agent without regenerating. Both are caught by --check, and hand-editing is
 #   caught again by the generated-header assertion.
 #
 #   The third failure mode is subtler and is the reason this file exists at all: an
 #   adapter that LOADS but silently widens permissions. The canonical `tools:` field
-#   is an allowlist, and an OpenCode agent that lists only its allowed tools leaves
-#   every other tool ENABLED. A read-only reviewer would gain bash, edit and write
-#   without anything failing. So every adapter is asserted to deny explicitly.
+#   is an allowlist, and OpenCode's base policy allows every action, so an agent
+#   that names only its allowed tools leaves every other action ENABLED. A
+#   read-only reviewer would gain shell, edit and subagent without anything
+#   failing. So every adapter is asserted to deny explicitly.
+#
+#   The OpenCode 2 shape itself (plural dir, `mode: subagent`, `permissions:`
+#   ruleset, action vocabulary, `external_directory: ask`, V2 commands, the
+#   plugin, opencode.json) is pinned by tests/test-opencode-v2.sh; this file keeps
+#   the platform-contract half that predates V2 and is shared with the contract
+#   runner.
 #
 # These tests are schema/contract only and run without the OpenCode CLI. The
 # optional live section runs only when `opencode` is on PATH.
@@ -32,7 +39,7 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 BUILD="$ROOT/scripts/build-opencode-agents.sh"
 CONFIG="$ROOT/opencode.json"
 SRC="$ROOT/agents"
-DEST="$ROOT/.opencode/agent"
+DEST="$ROOT/.opencode/agents"
 
 PASS=0
 FAIL=0
@@ -129,7 +136,7 @@ else
   bad "no gold-fixture skills exposed via skills" "these entries reach skills/repo/_contract/: ${leaked[*]}"
 fi
 
-echo "--- .opencode/agent: generated, in sync, not hand-edited ---"
+echo "--- .opencode/agents: generated, in sync, not hand-edited ---"
 
 assert "generator runs clean (--check passes; no drift from agents/)" \
   "run: make opencode-agents" \
@@ -142,7 +149,7 @@ n_dest=$(find "$DEST" -maxdepth 1 -name '*.md' 2>/dev/null | wc -l | tr -d ' ')
 if [ "$n_src" = "$n_dest" ] && [ "$n_src" -gt 0 ]; then
   ok "one adapter per canonical agent ($n_src)"
 else
-  bad "one adapter per canonical agent" "agents/=$n_src but .opencode/agent/=$n_dest"
+  bad "one adapter per canonical agent" "agents/=$n_src but .opencode/agents/=$n_dest"
 fi
 
 for f in "$SRC"/*.md; do
@@ -172,13 +179,15 @@ else
   bad "every adapter names its canonical source file" "wrong/absent source in: ${badsource[*]}"
 fi
 
-echo "--- .opencode/agent: allowlist semantics survive translation ---"
+echo "--- .opencode/agents: allowlist semantics survive translation ---"
 
 # The defect this pins: canonical `tools: Read, Grep, Glob` is read-only, but an
-# OpenCode agent listing only its granted tools leaves the rest ENABLED. Verified on
-# 1.18.11 — that shape resolves to bash/edit/write/task all true. Every adapter that
-# came from a canonical file with a `tools:` allowlist must therefore deny
-# explicitly, or the role's read/write boundary is silently gone.
+# OpenCode agent listing only its granted tools leaves the rest ENABLED — the V2
+# base policy starts with `{action: "*", resource: "*", effect: allow}` (measured
+# on 2.0.32 with `opencode debug agents`; the same widening was measured on
+# 1.18.11 with the V1 map). Every adapter that came from a canonical file with a
+# `tools:` allowlist must therefore deny explicitly, or the role's read/write
+# boundary is silently gone.
 noperm=()
 nodeny=()
 for f in "$SRC"/*.md; do
@@ -187,21 +196,28 @@ for f in "$SRC"/*.md; do
   [ -f "$DEST/$b" ] || continue
   # Only agents whose canonical file declares an allowlist are constrained.
   awk 'NR==1&&/^---/{fm=1;next} fm&&/^---/{exit} fm&&/^tools:/{found=1} END{exit !found}' "$f" || continue
-  grep -q '^permission:' "$DEST/$b" || { noperm+=("$b"); continue; }
-  grep -qE '^  [a-z_]+: deny' "$DEST/$b" || nodeny+=("$b")
+  grep -q '^permissions:' "$DEST/$b" || { noperm+=("$b"); continue; }
+  grep -qE '^    effect: deny$' "$DEST/$b" || nodeny+=("$b")
 done
 if [ "${#noperm[@]}" -eq 0 ]; then
-  ok "adapters use the non-deprecated 'permission:' field"
+  ok "adapters use the OpenCode 2 'permissions:' ruleset"
 else
-  bad "adapters use the non-deprecated 'permission:' field" "missing permission block: ${noperm[*]}"
+  bad "adapters use the OpenCode 2 'permissions:' ruleset" "missing permissions block: ${noperm[*]}"
 fi
 if [ "${#nodeny[@]}" -eq 0 ]; then
-  ok "adapters deny non-granted tools explicitly (allowlist is not silently widened)"
+  ok "adapters deny non-granted actions explicitly (allowlist is not silently widened)"
 else
-  bad "adapters deny non-granted tools explicitly" "no deny entries in: ${nodeny[*]}"
+  bad "adapters deny non-granted actions explicitly" "no deny rules in: ${nodeny[*]}"
 fi
 
-# `tools:` is "@deprecated Use 'permission' field instead" in the published schema.
+# The V1 map is deprecated and V2 only auto-translates it; this repo targets V2.
+if grep -l '^permission:' "$DEST"/*.md >/dev/null 2>&1; then
+  bad "adapters avoid the deprecated V1 'permission:' map" "still emitted in: $(grep -l '^permission:' "$DEST"/*.md | xargs -n1 basename | tr '\n' ' ')"
+else
+  ok "adapters avoid the deprecated V1 'permission:' map"
+fi
+
+# `tools:` is a deprecated V1 key (`AgentConfig.tools`); `Config.AgentEncoded` has no such field.
 if grep -l '^tools:' "$DEST"/*.md >/dev/null 2>&1; then
   bad "adapters avoid the deprecated 'tools:' field" "still emitted in: $(grep -l '^tools:' "$DEST"/*.md | xargs -n1 basename | tr '\n' ' ')"
 else
@@ -223,10 +239,10 @@ else
   bad "every adapter model id is provider-prefixed" "OpenCode rejects bare aliases: ${badmodel[*]}"
 fi
 
-echo "--- .opencode/agent: relative links survive the depth change ---"
+echo "--- .opencode/agents: relative links survive the depth change ---"
 
 # Canonical agents/<n>.md sits ONE level below the root, so its links read
-# `](../core/policies/safety.md)`. The generated file sits at .opencode/agent/<n>.md —
+# `](../core/policies/safety.md)`. The generated file sits at .opencode/agents/<n>.md —
 # TWO levels down — where that identical text points at .opencode/core/..., which does
 # not exist. Copying the body verbatim silently invalidates every relative link: the
 # file still parses, still loads, and every link in it is dead.
@@ -240,7 +256,7 @@ import glob, os, re, sys
 root = sys.argv[1]
 total = 0
 broken = []
-for f in sorted(glob.glob(os.path.join(root, ".opencode", "agent", "*.md"))):
+for f in sorted(glob.glob(os.path.join(root, ".opencode", "agents", "*.md"))):
     d = os.path.dirname(f)
     with open(f) as fh:
         body = fh.read()
@@ -270,6 +286,10 @@ REG="$ROOT/core/capabilities/platforms.json"
 for d in "$ROOT"/platforms/*/; do
   [ -d "$d" ] || continue
   id="$(basename "$d")"
+  # platforms/agent-plugins/ holds the generated Agent Plugins package files, not a
+  # platform adapter (there is no surface to install into: the files ship at the root
+  # of the agent-plugins tarball). Nothing else under platforms/ is exempt.
+  [ "$id" = "agent-plugins" ] && continue
   y="$d/adapter.yaml"
   if [ ! -f "$y" ]; then
     bad "platforms/$id has an adapter.yaml" "missing $y"
@@ -291,6 +311,11 @@ raw = json.load(open(reg_path))["platforms"]
 # adapter.yaml registry_key names a SURFACE, so read the flat per-surface view.
 reg = {sid: surf for p in raw.values() for sid, surf in (p.get("surfaces") or {"": p}).items()
        if surf.get("support", "supported") == "supported"}
+# An unverified surface (no live run recorded) may still carry an adapter, provided the
+# adapter says so too; its coarse keys are all `unknown` and there is no capability block
+# to compare against, so the comparison is skipped for it.
+unverified = {sid for p in raw.values() for sid, surf in (p.get("surfaces") or {}).items()
+              if surf.get("support") == "unverified"}
 alias = {"agents": "subagents"}
 problems = []
 for y in sorted(glob.glob(os.path.join(root, "platforms", "*", "adapter.yaml"))):
@@ -302,6 +327,13 @@ for y in sorted(glob.glob(os.path.join(root, "platforms", "*", "adapter.yaml")))
     if a.get("id") != pid:
         problems.append(f"{pid}: id '{a.get('id')}' does not match directory name")
     key = a.get("registry_key")
+    if key in unverified and key not in reg:
+        if a.get("support") != "unverified":
+            problems.append(f"{pid}: registry surface '{key}' is unverified but the adapter does not say support: unverified")
+        bad_caps = [k for k, v in (a.get("capabilities") or {}).items() if v != "unknown"]
+        if bad_caps:
+            problems.append(f"{pid}: unverified surface '{key}' claims {bad_caps}; every coarse key must be unknown until a live run records one")
+        continue
     if key not in reg:
         problems.append(f"{pid}: registry_key '{key}' not in core/capabilities/platforms.json")
         continue
@@ -342,40 +374,29 @@ if command -v opencode >/dev/null 2>&1; then
   ver="$(opencode --version 2>/dev/null | head -1)"
   printf '  ..   opencode %s detected\n' "$ver"
 
-  tmp="$(mktemp -d)"; trap 'rm -rf "$tmp"' EXIT
-  if (cd "$ROOT" && opencode debug skill >"$tmp/skills.json" 2>/dev/null); then
-    res=$(python3 - "$tmp/skills.json" "$ROOT" <<'PY'
-import json, sys, os
-skills = json.load(open(sys.argv[1])); root = os.path.realpath(sys.argv[2])
-mine = [s for s in skills if os.path.realpath(str(s.get("location") or "/nowhere")).startswith(root + os.sep)
-        and "/skills/" in str(s.get("location"))]
-fixtures = [s["name"] for s in mine if "/_contract/" in str(s.get("location"))]
-print(json.dumps({"count": len(mine), "fixtures": fixtures}))
-PY
-    )
-    cnt=$(printf '%s' "$res" | jq -r '.count')
-    fix=$(printf '%s' "$res" | jq -r '.fixtures | join(",")')
-    if [ "$cnt" -gt 0 ]; then ok "opencode discovers this repo's skills ($cnt)"
-    else bad "opencode discovers this repo's skills" "discovered 0 from skills/"; fi
-    if [ -z "$fix" ]; then ok "opencode exposes no gold-fixture skills"
-    else bad "opencode exposes no gold-fixture skills" "leaked: $fix"; fi
+  # OpenCode 2 removed `debug skill` and the per-agent `debug agent <name>`; its
+  # debug surface is `agents` (every resolved agent, JSON), `config` and `paths`
+  # (measured on 2.0.32). Skill discovery therefore cannot be enumerated from the
+  # CLI — `opencode api --standalone skill.list` returned an empty list on 2.0.32
+  # even for agents `debug agents` lists — and stays unverified live.
+  agents_json="$(cd "$ROOT" && opencode debug agents 2>/dev/null)"
+  if [ -n "$agents_json" ]; then
+    loaded="$(printf '%s' "$agents_json" | jq -r '.[] | select(.system // "" | contains("GENERATED FILE — DO NOT EDIT")) | .id' 2>/dev/null)"
+    loadfail=()
+    for f in "$DEST"/*.md; do
+      [ -e "$f" ] || continue
+      a="$(basename "${f%.md}")"
+      printf '%s\n' "$loaded" | grep -qx "$a" || loadfail+=("$a")
+    done
+    if [ "${#loadfail[@]}" -eq 0 ]; then
+      ok "every generated adapter loads in OpenCode (debug agents)"
+    else
+      bad "every generated adapter loads in OpenCode (debug agents)" "not listed: ${loadfail[*]}"
+    fi
   else
-    bad "opencode debug skill succeeds" "command failed in $ROOT"
+    bad "opencode debug agents succeeds" "command produced no output in $ROOT"
   fi
-
-  # An adapter that parses as YAML can still be rejected by OpenCode's own config
-  # validation, which is the only authority that matters for "does it load".
-  loadfail=()
-  for f in "$DEST"/*.md; do
-    [ -e "$f" ] || continue
-    a="$(basename "${f%.md}")"
-    (cd "$ROOT" && opencode debug agent "$a" >/dev/null 2>&1) || loadfail+=("$a")
-  done
-  if [ "${#loadfail[@]}" -eq 0 ]; then
-    ok "every generated adapter loads in OpenCode"
-  else
-    bad "every generated adapter loads in OpenCode" "rejected: ${loadfail[*]}"
-  fi
+  printf '  skip per-skill discovery — OpenCode 2 has no CLI enumeration (see header)\n'
 else
   printf '  skip opencode CLI not on PATH — schema/contract tests only\n'
 fi

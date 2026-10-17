@@ -63,7 +63,7 @@ AI subscription to complete.**
 | Claude Code | `native` | `agents/*.md` are read as shipped |
 | Codex · Cursor | `native` | same canonical files |
 | Gemini CLI | `adapter` | the canonical files are **rejected** by Gemini (`tools.0: Invalid tool name`); `.gemini/agents/*.md` is generated with Gemini's own tool names and loads clean |
-| OpenCode | `adapter` | `.opencode/agent/` is generated because OpenCode's frontmatter genuinely differs |
+| OpenCode | `adapter` | `.opencode/agents/` is generated because OpenCode's frontmatter genuinely differs |
 | Claude Desktop | `unknown` | not exercised there by this repo — assume unavailable, but that is not a measured failure |
 
 `adapter` means **you have the agents**, through a file this repo builds and drift-checks —
@@ -79,6 +79,6 @@ See [platform differences](platform-differences.md) and
 
 ## Adapters
 
-OpenCode's agent frontmatter genuinely differs, so `.opencode/agent/` is **generated** from
+OpenCode's agent frontmatter genuinely differs, so `.opencode/agents/` is **generated** from
 `agents/` by `scripts/build-opencode-agents.sh`. Never hand-edit the generated copies;
 regenerate them. `make opencode-agents-check` fails on drift.

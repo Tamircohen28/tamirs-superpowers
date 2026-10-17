@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# build-opencode-agents.sh — generate .opencode/agent/*.md from canonical agents/*.md.
+# build-opencode-agents.sh — generate .opencode/agents/*.md from canonical agents/*.md.
 #
 # Usage:
 #   bash scripts/build-opencode-agents.sh [repo-root] [--check]
@@ -7,31 +7,67 @@
 #
 # --check regenerates into a temp dir and diffs, so CI can fail on drift without
 # writing to the working tree. Drift includes adapters whose canonical source was
-# deleted; a normal run prunes those.
+# deleted, and a stale OpenCode 1 `.opencode/agent/` (singular) tree; a normal run
+# prunes both.
 #
 # WHY THIS EXISTS
 #   OpenCode validates config strictly and refuses to start on a bad field, and its
 #   agent frontmatter genuinely differs from the canonical Claude-shaped one:
-#     - canonical `tools: Read, Grep, Bash` is a comma string; OpenCode has no such
-#       field shape, and its `tools` object is deprecated in the published schema
-#       ("@deprecated Use 'permission' field instead" — https://opencode.ai/config.json,
-#       $defs.AgentConfig.properties.tools).
+#     - canonical `tools: Read, Grep, Bash` is a comma string; OpenCode 2 has no such
+#       field at all (`tools` is a deprecated V1 key the published schema lists only
+#       under the legacy `AgentConfig`, not under `Config.AgentEncoded`).
 #     - canonical `model: sonnet` is an alias; OpenCode wants a provider-prefixed id.
-#     - canonical `name:` is not an AgentConfig property at all — OpenCode derives the
+#     - canonical `name:` is not an agent property at all — OpenCode derives the
 #       agent id from the FILENAME.
 #   So the canonical files cannot be copied, they are translated. The translation is
 #   committed so a user installing from a clone needs no build step.
 #
-# WHY `permission:` AND NOT `tools:`
+# OPENCODE 2 ONLY
+#   The output is the V2 shape (https://opencode.ai/config.json, $defs.Config.AgentEncoded,
+#   read 2026-10-17 against @opencode/cli 2.0.32):
+#     - directory `.opencode/agents/` (plural). V2 still reads the legacy singular
+#       `agent/`, so a stale copy there would load a SECOND set of the same ids —
+#       the generator prunes it and --check fails while it exists.
+#     - `mode: subagent` always explicit. V2 changed the default mode for a custom
+#       agent from `all` to `primary`; an adapter that omitted it would become a
+#       primary agent the user can select, which none of these roles is.
+#     - `permissions:` — an ORDERED RULE LIST of {action, resource, effect}, where
+#       "the last matching rule wins". The V1 `permission:` map (bash/task/doom_loop/
+#       lsp/list/todowrite keys) is deprecated; V2 auto-translates it, but this
+#       generator no longer emits it and scripts/check-opencode-permission-keys.sh
+#       fails if any V1-only action ever reappears.
+#
+# WHY `permissions:` RULES AND NOT A BARE ALLOWLIST
 #   The canonical `tools:` list is an ALLOWLIST — an agent declaring `Read, Grep, Glob`
-#   is read-only. Emitting only `{read: true, grep: true, glob: true}` does NOT say
-#   that: every unlisted tool stays ENABLED. Verified on OpenCode 1.18.11 — an agent
-#   with exactly that map resolves to
-#     {bash: true, edit: true, write: true, task: true, webfetch: true, ...}
-#   i.e. the read-only constraint is silently dropped. This generator therefore emits
-#   an explicit `permission:` entry for every tool in OPENCODE_TOOLS: `allow` for the
-#   ones the canonical file grants, `deny` for everything else. Same probe with the
-#   generated shape resolves the denied tools to false.
+#   is read-only. OpenCode's base policy for every agent starts with
+#   `{action: "*", resource: "*", effect: allow}` (https://opencode.ai/v2/docs/permissions/
+#   "Defaults"), so emitting only the granted actions does NOT say that: every
+#   unlisted action stays ALLOWED. Measured on OpenCode 1.18.11 with the V1 map —
+#   an agent granting only read/grep/glob resolved to bash/edit/task all true — and
+#   the V2 default policy makes the same silent widening the documented behaviour.
+#   This generator therefore emits a `deny` rule for every action in OPENCODE_ACTIONS
+#   the canonical file does NOT grant, plus an explicit `external_directory: ask`
+#   rule for every agent.
+#
+# WHY NO `allow` RULES FOR THE GRANTED ACTIONS
+#   Measured on @opencode/cli 2.0.32 (`opencode debug agents`): an agent's rules are
+#   appended AFTER the base policy, and the base policy is
+#     *  * allow / read *.env ask / read *.env.* ask / read *.env.example allow
+#   With "last matching rule wins", an emitted `read * allow` lands after
+#   `read *.env ask` and silently switches off the host's own secrets prompt; an
+#   emitted `shell * allow` likewise overrides a `shell * ask` the user put in
+#   their global opencode.json, because global rules load before agent rules. A
+#   granted action needs no rule at all — the base policy already allows it — so
+#   emitting one can only ever WIDEN what the user and host configured. The
+#   allowlist is expressed purely as denies, which can only narrow.
+#
+# WHY `external_directory` IS ALWAYS `ask`
+#   V1 asked before touching a path outside the project; V2 ALLOWS it by default
+#   ("The default policy allows external_directory, so external paths are not
+#   prompted unless you add a rule"). This repo's worktree invariant — a worker
+#   edits inside its own worktree, nothing else — depends on that prompt, so the
+#   rule is restored explicitly. `ask`, not `deny`: an objective worktree may sit
+#   outside the repo (SUPERPOWERS_AGENT_WORKTREE_ROOT), and a deny would strand it.
 #
 # Exit 0 on success; 1 if --check finds drift; 2 on a malformed canonical file.
 set -euo pipefail
@@ -51,7 +87,8 @@ done
 ROOT="$(cd "$ROOT" && pwd)"
 
 SRC="$ROOT/agents"
-REAL_DEST="$ROOT/.opencode/agent"
+REAL_DEST="$ROOT/.opencode/agents"
+LEGACY_DEST="$ROOT/.opencode/agent"
 [[ -d "$SRC" ]] || { echo "No agents/ directory — nothing to build"; exit 0; }
 
 DEST="$REAL_DEST"
@@ -61,43 +98,40 @@ if [[ "$CHECK" == true ]]; then
 fi
 mkdir -p "$DEST"
 
-# Every tool OpenCode can gate through `permission`. Anything not granted by the
-# canonical file is denied explicitly, so an allowlist stays an allowlist.
-# Source: https://opencode.ai/config.json, $defs.PermissionConfig (plus `write`,
-# accepted via additionalProperties and verified to resolve to write:false).
-# Every entry MUST be a real key of PermissionConfig in https://opencode.ai/config.json.
-# This matters more than it looks: the generator's whole premise is that an allowlist
-# stays an allowlist - everything not granted is explicitly denied. A key that does not
-# exist is a deny-list line that denies nothing, and nothing in the repo would notice.
-# `write` was emitted here until 2026-09-23 and is NOT a PermissionConfig key; file
-# modification is governed by `edit`, which the read-only agents already deny, so no
-# agent was actually over-permitted - but the guarantee was resting on a no-op line.
-# scripts/check-opencode-permission-keys.sh fails if this list and the schema diverge.
-OPENCODE_TOOLS=(read edit glob grep list bash task webfetch websearch skill)
+# Every OpenCode 2 Core permission ACTION a canonical tool can map onto. Anything
+# not granted by the canonical file is denied explicitly, so an allowlist stays an
+# allowlist. Source: https://opencode.ai/v2/docs/permissions/ ("Built-in tools
+# currently use these actions"), read 2026-10-17. The published schema does not
+# enumerate actions — `Permission.Rule.action` is a free string, "so plugins may
+# define more" — which is exactly why the list is pinned here and in
+# scripts/check-opencode-permission-keys.sh rather than fetched: a misspelt action
+# is a deny rule that denies nothing, and nothing would notice.
+#
+# Deliberately absent: `external_directory` (emitted separately, always `ask`),
+# `execute` (Code Mode; "nested tools enforce their rules", so the per-action
+# rules above already govern what it can reach), the MCP `<server>_<tool>` family
+# (no canonical equivalent — see map_tool), and every V1-only key: `bash` (now
+# `shell`), `task` (now `subagent`), `doom_loop`, `lsp`, `list`, `todowrite`, `write`.
+OPENCODE_ACTIONS=(read edit glob grep shell subagent skill question webfetch websearch)
 
-# Canonical Claude tool name -> OpenCode permission key. Unlisted canonical tools
-# (notably `mcp__*` server tools) have no OpenCode equivalent and are reported
-# rather than silently dropped.
+# Canonical Claude tool name -> OpenCode 2 permission action. Unlisted canonical
+# tools (notably `mcp__*` server tools, and LS — V2 has no `list` action; `glob`
+# is the listing capability) have no OpenCode equivalent and are reported rather
+# than silently dropped.
 map_tool() {
   case "$(printf '%s' "$1" | tr '[:upper:]' '[:lower:]')" in
     read)                 echo read ;;
-    edit|multiedit)       echo edit ;;
-    # OpenCode has no `write` permission. PermissionConfig declares exactly:
-    #   bash doom_loop edit external_directory glob grep list lsp
-    #   question read skill task todowrite webfetch websearch
-    # (https://opencode.ai/config.json, $defs.PermissionConfig). `edit` is the
-    # key that governs file modification, so canonical Write maps to it. Emitting
-    # `write` produced a deny-list line that matched no key at all - see the
-    # OPENCODE_TOOLS note below for why that was worse than it looks.
-    write)                echo edit ;;
+    # `edit` governs edit, write AND patch in V2 ("Target path for edit, write,
+    # and patch"), so canonical Write/MultiEdit fold into it.
+    edit|multiedit|write) echo edit ;;
     glob)                 echo glob ;;
     grep)                 echo grep ;;
-    ls|list)              echo list ;;
-    bash)                 echo bash ;;
-    task|agent)           echo task ;;
+    bash)                 echo shell ;;
+    task|agent)           echo subagent ;;
     webfetch)             echo webfetch ;;
     websearch)            echo websearch ;;
     skill)                echo skill ;;
+    askuserquestion)      echo question ;;
     *)                    echo "" ;;
   esac
 }
@@ -129,6 +163,11 @@ fm_get() {
     infm && /^---[[:space:]]*$/    { exit }
     infm && $0 ~ k                 { sub(k, ""); print; exit }
   ' "$file"
+}
+
+# emit_rule <action> <effect> — one block-style list item of the V2 ruleset.
+emit_rule() {
+  printf '  - action: %s\n    resource: "*"\n    effect: %s\n' "$1" "$2"
 }
 
 count=0
@@ -178,15 +217,16 @@ for f in "$SRC"/*.md; do
     oc_model=$(map_model "$model")
     [[ -n "$oc_model" ]] && echo "model: $oc_model"
     if [[ -n "$tools" ]]; then
-      # An allowlist stays an allowlist: everything not granted is denied.
-      echo "permission:"
-      for oc in "${OPENCODE_TOOLS[@]}"; do
-        if [[ "$granted" == *" $oc "* ]]; then
-          echo "  $oc: allow"
-        else
-          echo "  $oc: deny"
-        fi
+      # An allowlist stays an allowlist: everything not granted is denied, and
+      # nothing granted gets an allow rule (see the header: an allow placed after
+      # the base policy would override the host's own `.env` asks). One rule per
+      # denied action, so order among them is irrelevant; external_directory
+      # last, as the documented place for the rule that restores the V1 prompt.
+      echo "permissions:"
+      for oc in "${OPENCODE_ACTIONS[@]}"; do
+        [[ "$granted" == *" $oc "* ]] || emit_rule "$oc" deny
       done
+      emit_rule external_directory ask
     fi
     echo "---"
     echo
@@ -196,9 +236,9 @@ for f in "$SRC"/*.md; do
     echo "     Regenerate: make opencode-agents -->"
     echo
     # RELATIVE LINKS MUST BE RE-BASED FOR THE NEW DEPTH.
-    #   canonical  agents/<n>.md          -> dir depth 1, so `](../core/x)` = <root>/core/x
-    #   generated  .opencode/agent/<n>.md -> dir depth 2, so the SAME text means
-    #                                        <root>/.opencode/core/x, which does not exist.
+    #   canonical  agents/<n>.md           -> dir depth 1, so `](../core/x)` = <root>/core/x
+    #   generated  .opencode/agents/<n>.md -> dir depth 2, so the SAME text means
+    #                                         <root>/.opencode/core/x, which does not exist.
     # One level deeper means one more `../`. Verified: without this, all 24 relative
     # links in agents/*.md resolve nowhere from the generated location; with it, all 24
     # resolve. Only `](../` is touched, so absolute paths, anchors and http(s) URLs are
@@ -232,23 +272,52 @@ for existing in "$DEST"/*.md; do
   fi
 done
 
+# The OpenCode 1 output directory. V2 reads `agent/` AND `agents/`, so a stale
+# singular tree is not harmless: the same ten ids would load twice, the older copy
+# carrying the deprecated V1 `permission:` map. Only files that carry this
+# generator's own header are touched — anything else there is the user's.
+legacy_stale=()
+if [[ -d "$LEGACY_DEST" ]]; then
+  for existing in "$LEGACY_DEST"/*.md; do
+    [[ -e "$existing" ]] || continue
+    grep -q 'Generator: scripts/build-opencode-agents.sh' "$existing" && legacy_stale+=("$existing")
+  done
+fi
+
 if ((${#unmapped_report[@]})); then
   echo "note: canonical tools with no OpenCode equivalent (not granted in the adapter):" >&2
   printf '  %s\n' "${unmapped_report[@]}" >&2
 fi
 
 if [[ "$CHECK" == true ]]; then
+  drift=0
   if ! diff -r -q "$REAL_DEST" "$DEST" >/dev/null 2>&1; then
     {
-      echo "ERROR: .opencode/agent/ is out of sync with agents/."
+      echo "ERROR: .opencode/agents/ is out of sync with agents/."
       echo "       These files are GENERATED — fix agents/*.md, then run: make opencode-agents"
       echo
       diff -r -u "$REAL_DEST" "$DEST" || true
     } >&2
-    exit 1
+    drift=1
   fi
+  if ((${#legacy_stale[@]})); then
+    {
+      echo "ERROR: stale OpenCode 1 adapters remain in .opencode/agent/ (singular):"
+      printf '         %s\n' "${legacy_stale[@]}"
+      echo "       OpenCode 2 reads both directories, so these would load a second copy of every"
+      echo "       agent. Run: make opencode-agents (it removes them)."
+    } >&2
+    drift=1
+  fi
+  [[ "$drift" -eq 0 ]] || exit 1
   echo "OpenCode agent adapters in sync ($count agent(s))"
   exit 0
 fi
 
-echo "Generated $count OpenCode agent adapter(s) in .opencode/agent/${pruned:+ (pruned $pruned stale)}"
+if ((${#legacy_stale[@]})); then
+  rm -f "${legacy_stale[@]}"
+  rmdir "$LEGACY_DEST" 2>/dev/null || true
+  echo "Removed ${#legacy_stale[@]} stale OpenCode 1 adapter(s) from .opencode/agent/ (V2 reads .opencode/agents/)"
+fi
+
+echo "Generated $count OpenCode agent adapter(s) in .opencode/agents/${pruned:+ (pruned $pruned stale)}"

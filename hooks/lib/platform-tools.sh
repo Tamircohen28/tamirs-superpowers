@@ -27,13 +27,27 @@
 #     enforce-worktree-edits.sh), so a single representative name is enough
 #     for a caller matching that group.
 #
+#   write_file -> Write, replace -> Edit, run_shell_command -> Bash
+#     Gemini CLI's file-create, in-place-edit and shell tools (names and
+#     parameter shapes read from the 0.64.0 bundle: write_file {file_path,
+#     content}, replace {file_path, instruction, old_string, new_string,
+#     allow_multiple}, run_shell_command {command, description, dir_path,
+#     is_background}). Under the Gemini extension these hooks are reached
+#     through hooks/gemini-wrap.sh, which translates the payload BEFORE the
+#     hook runs, so a hook normally never sees these names; the mapping is
+#     here so a hook wired to Gemini directly (a user's own settings.json,
+#     `gemini hooks migrate --from-claude`) still dispatches correctly.
+#
 # Usage:
 #   source "$(dirname "$0")/lib/platform-tools.sh"
 #   canonical="$(normalize_tool_name "$tool_name")"
 normalize_tool_name() {
   local raw="$1"
   case "$raw" in
-    apply_patch) printf '%s' "Edit" ;;
-    *)           printf '%s' "$raw" ;;
+    apply_patch)       printf '%s' "Edit" ;;
+    write_file)        printf '%s' "Write" ;;
+    replace)           printf '%s' "Edit" ;;
+    run_shell_command) printf '%s' "Bash" ;;
+    *)                 printf '%s' "$raw" ;;
   esac
 }

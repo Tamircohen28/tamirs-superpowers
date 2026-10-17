@@ -77,7 +77,7 @@ request timing, model, endpoint, and skill/command inventory. Point at
 |---|---|---|
 | Claude Code | supported | Native OTEL logs + traces → local collector |
 | Claude Desktop | partial | Same settings file *may* apply; not verified here — check for JSONL before claiming it works |
-| OpenCode CLI | partial | Optional `opencode-plugin.mjs`; not loaded by this repo's `opencode.json`; live 1.18.x fire was not recorded in this change |
+| OpenCode CLI | partial | Optional `opencode-plugin.mjs` (OpenCode 2 `Plugin.define`, `ctx.event.subscribe`); not loaded by this repo's `opencode.json`; a live fire has not been recorded |
 | Codex, Cursor, Gemini CLI | unsupported | No capture path shipped |
 
 **Before enabling**, confirm `shell` is available. The `hooks` capability is
@@ -122,17 +122,20 @@ refuses unless `--force`.
 ### 2. Enable (OpenCode) — optional plugin
 
 Do **not** add the plugin to this repo's `opencode.json`. In the user's
-`~/.config/opencode/opencode.json` (or project config), add an absolute path:
+`~/.config/opencode/opencode.json` (or project config), add an absolute path under
+the OpenCode 2 `plugins` key (the plugin is an OpenCode 2 `Plugin.define` module
+since 5.0.0; OpenCode 1 does not run it):
 
 ```json
 {
-  "plugin": ["/absolute/path/to/tamirs-superpowers/skills/toolkit/usage-capture/opencode-plugin.mjs"]
+  "plugins": ["/absolute/path/to/tamirs-superpowers/skills/toolkit/usage-capture/opencode-plugin.mjs"]
 }
 ```
 
 Start the collector the same way (`collector.py --daemon`, or the Claude enable
-script). Restart OpenCode. Mark this row `partial` in any report: types exist;
-a live 1.18.x verification has not been filed.
+script). Restart OpenCode. Mark this row `partial` in any report: the module
+loads on 2.0.32 (`opencode plugin list`); a live fire of its event
+subscription has not been recorded.
 
 Bodies: `TAMIRS_USAGE_CAPTURE_BODIES=1`.
 

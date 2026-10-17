@@ -1,5 +1,6 @@
 ---
 description: 'Creating a brand-new GitHub repository from scratch with production-ready infrastructure.'
+subagent: false
 ---
 
 <!-- GENERATED FILE — DO NOT EDIT.

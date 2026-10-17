@@ -98,6 +98,101 @@ case "$msg" in
   *) bad "names the open objective even with a clean tree" "got: ${out}" ;;
 esac
 
+echo "--- rate-limit-handoff: the structured record (handoff-protocol.md) ---"
+
+# The systemMessage reaches the user and nobody else. The next session, a
+# sibling, or diagnose-objective needs the same facts as data, so a record is
+# dropped at .dev-files/handoffs/rate-limit-<ts>.json — only when the repo
+# already keeps a .dev-files/ workspace, and never touching stdout.
+REC="$TMPROOT/rec"
+mkdir -p "$REC/.dev-files/objectives/auth-system" && git -C "$REC" init -q
+git -C "$REC" config user.email t@e.x && git -C "$REC" config user.name t
+echo hello > "$REC/a.txt"; echo world > "$REC/b.txt"
+run_rec() {  # <cwd> [env...] — passes session_id, strips the messaging vars unless given
+  local d="$1"; shift
+  rm -f "$d"/.dev-files/handoffs/rate-limit-*.json 2>/dev/null   # one record per case
+  printf '{"cwd":"%s","session_id":"sess-42","hook_event_name":"StopFailure","error":"rate_limit"}' "$d" \
+    | env -u CLAUDE_CODE_MESSAGING_SOCKET -u CLAUDE_CODE_MESSAGING_TOKEN "$@" bash "$H" 2>/dev/null
+}
+latest_rec() { find "$1/.dev-files/handoffs" -name 'rate-limit-*.json' 2>/dev/null | sort | tail -1; }
+
+out="$(run_rec "$REC")"
+keys="$(printf '%s' "$out" | jq -c 'keys' 2>/dev/null)"
+[ "$keys" = '["systemMessage"]' ] && ok "no socket vars => stdout is exactly {systemMessage}" \
+  || bad "no socket vars => stdout is exactly {systemMessage}" "keys: $keys out: $out"
+rec="$(latest_rec "$REC")"
+[ -n "$rec" ] && [ -f "$rec" ] && ok "a record is written under .dev-files/handoffs/" \
+  || bad "a record is written under .dev-files/handoffs/" "none found"
+if [ -n "$rec" ]; then
+  jq -e '.kind == "rate-limit-handoff" and .schema_version == 1' "$rec" >/dev/null 2>&1 \
+    && ok "record: kind and schema_version" || bad "record: kind and schema_version" "$(cat "$rec")"
+  jq -e '.objective == "auth-system"' "$rec" >/dev/null 2>&1 \
+    && ok "record: names the open objective" || bad "record: names the open objective" "$(jq -c .objective "$rec")"
+  jq -e '.uncommitted == 2' "$rec" >/dev/null 2>&1 \
+    && ok "record: uncommitted is the real count, as a number" || bad "record: uncommitted is a number" "$(jq -c .uncommitted "$rec")"
+  jq -e '.resume == "/switch-dev handoff objective=auth-system"' "$rec" >/dev/null 2>&1 \
+    && ok "record: resume is the switch-dev command for the objective" || bad "record: resume command" "$(jq -c .resume "$rec")"
+  jq -e '.session_id == "sess-42"' "$rec" >/dev/null 2>&1 \
+    && ok "record: carries the session id" || bad "record: carries the session id" "$(jq -c .session_id "$rec")"
+  jq -e '.branch != null and .cwd != null and .written_at != null' "$rec" >/dev/null 2>&1 \
+    && ok "record: branch, cwd and written_at" || bad "record: branch, cwd and written_at" "$(cat "$rec")"
+  [ "$(jq -r .message "$rec")" = "$(printf '%s' "$out" | jq -r .systemMessage)" ] \
+    && ok "record: message equals the systemMessage text" || bad "record: message equals the systemMessage" "differs"
+  jq -e '.messaging.socket == null and .messaging.posted == false' "$rec" >/dev/null 2>&1 \
+    && ok "record: messaging.socket null, posted false without the vars" || bad "record: messaging without vars" "$(jq -c .messaging "$rec")"
+fi
+
+echo "--- rate-limit-handoff: socket vars set but no socket there ---"
+out="$(run_rec "$REC" CLAUDE_CODE_MESSAGING_SOCKET="$TMPROOT/no-such.sock" CLAUDE_CODE_MESSAGING_TOKEN="tok-SECRET-9f1")"
+rc=$?
+[ "$rc" -eq 0 ] && ok "exits 0 with the vars set and the socket absent" || bad "exits 0 with the vars set and the socket absent" "rc=$rc"
+msg="$(printf '%s' "$out" | jq -r '.systemMessage // empty' 2>/dev/null)"
+[ -n "$msg" ] && ok "still emits the systemMessage" || bad "still emits the systemMessage" "got: $out"
+rec="$(latest_rec "$REC")"
+jq -e '.messaging.posted == false and (.messaging.reason | test("no socket exists"))' "$rec" >/dev/null 2>&1 \
+  && ok "record: posted false, reason says the socket is absent" || bad "record: absent-socket reason" "$(jq -c .messaging "$rec")"
+jq -e --arg s "$TMPROOT/no-such.sock" '.messaging.socket == $s' "$rec" >/dev/null 2>&1 \
+  && ok "record: names the socket path a reader could post to" || bad "record: names the socket path" "$(jq -c .messaging "$rec")"
+if grep -q 'tok-SECRET-9f1' "$rec" || printf '%s' "$out" | grep -q 'tok-SECRET-9f1'; then
+  bad "the token never reaches the record or stdout" "token found"
+else ok "the token never reaches the record or stdout"; fi
+
+echo "--- rate-limit-handoff: socket vars set and a socket present ---"
+# A real listening socket, so the hook sees -S true. Nothing may be written to
+# it today (the message line format is undocumented); the record says so.
+SOCK="$TMPROOT/live.sock"
+if command -v python3 >/dev/null 2>&1; then
+  python3 - "$SOCK" <<'PY2' &
+import socket, sys, time
+s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM); s.bind(sys.argv[1]); s.listen(1); s.settimeout(8)
+try:
+    c, _ = s.accept(); c.settimeout(2)
+    data = c.recv(4096)
+    sys.stdout.write(data.decode('utf-8', 'replace')); sys.stdout.flush()
+except Exception:
+    pass
+PY2
+  listener=$!
+  for _ in 1 2 3 4 5 6 7 8 9 10; do [ -S "$SOCK" ] && break; sleep 0.2; done
+  out="$(run_rec "$REC" CLAUDE_CODE_MESSAGING_SOCKET="$SOCK" CLAUDE_CODE_MESSAGING_TOKEN="tok-SECRET-9f1")"
+  rc=$?
+  [ "$rc" -eq 0 ] && ok "exits 0 with a live socket" || bad "exits 0 with a live socket" "rc=$rc"
+  rec="$(latest_rec "$REC")"
+  jq -e '.messaging.posted == false and (.messaging.reason | test("undocumented"))' "$rec" >/dev/null 2>&1 \
+    && ok "record: posted false, reason names the undocumented line format" || bad "record: live-socket reason" "$(jq -c .messaging "$rec")"
+  kill "$listener" 2>/dev/null; wait "$listener" 2>/dev/null
+else
+  echo "  skip live-socket case — python3 not available"
+fi
+
+echo "--- rate-limit-handoff: no .dev-files workspace => message only, nothing created ---"
+NOWS="$TMPROOT/nows"
+mkdir -p "$NOWS" && git -C "$NOWS" init -q && echo x > "$NOWS/a.txt"
+out="$(run_rec "$NOWS" CLAUDE_CODE_MESSAGING_SOCKET="$TMPROOT/no-such.sock" CLAUDE_CODE_MESSAGING_TOKEN="t")"
+printf '%s' "$out" | jq -e '.systemMessage' >/dev/null 2>&1 && ok "still speaks" || bad "still speaks" "got: $out"
+[ ! -e "$NOWS/.dev-files" ] && ok "does not create .dev-files/ in a repo that never opted in" \
+  || bad "does not create .dev-files/ in a repo that never opted in" "created"
+
 echo "--- rate-limit-handoff: degenerate payloads never hang or fail ---"
 
 for label in empty malformed devnull; do

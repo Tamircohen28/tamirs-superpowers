@@ -1,0 +1,49 @@
+{
+  "skill_name": "diagnose-objective",
+  "description": "Behaviour evals — the skill explains a failed or stalled objective from its state files, writes diagnosis.md, and hands off to exactly one next command without changing state.",
+  "evals": [
+    {
+      "id": 1,
+      "name": "worker-returned-without-handoff",
+      "prompt": "Objective auth-system stalled. task-002 is still 'running' in .dev-files/objectives/auth-system/tasks/task-002.json but there is no handoffs/task-002.json, and the other two tasks have completed handoffs. Why did it stall and what do I run next?",
+      "expected_output": "The skill runs scripts/objective-timeline.sh on the objective directory first, reports first_cause worker-stopped-without-handoff for task-002 (invariant 6: no handoff means the task is failed, never completed), writes .dev-files/objectives/auth-system/diagnosis.md with the timeline, first cause, evidence and next command, and recommends exactly one command: /switch-dev handoff objective=auth-system task-002 if the task worktree has uncommitted work, otherwise /worker-dev auth-system task-002.",
+      "files": [],
+      "expectations": [
+        "The skill runs objective-timeline.sh before reading any file by hand",
+        "The report names worker-stopped-without-handoff (or rate-limit-death when a rate-limit record exists) for task-002 as the first cause",
+        "The report cites tasks/task-002.json and the absence of handoffs/task-002.json as evidence",
+        "Exactly one next command is given, and it is /switch-dev handoff or /worker-dev, never /orchestrate-dev",
+        "The skill does NOT run task-set, set-status, or write a handoff itself",
+        "diagnosis.md is written under the objective directory and nothing else is written"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "completed-without-validation-then-integrated",
+      "prompt": "Diagnose objective payments-v2. It was marked integrating but the integrated branch is broken. One handoff says completed with validation: [] and another says partial but its task is marked completed.",
+      "expected_output": "The skill reports two findings — completed-without-validation (a claim with no evidence) and integrated-around-partial (critical) — picks the earlier high-severity one as first cause, explains from the handoff summaries what each worker actually did, and recommends /orchestrate-dev payments-v2 to decide (re-plan, drop or narrow) before re-integrating. It quotes the handoff files as evidence and does not guess at test results that were never recorded.",
+      "files": [],
+      "expectations": [
+        "Both completed-without-validation and integrated-around-partial appear in All findings",
+        "The first cause is justified by timestamp and severity, not by which finding sounds worse",
+        "The report quotes the partial handoff's summary when explaining the mechanism",
+        "The next command is /orchestrate-dev payments-v2 — a planning/integration problem is never handed to /worker-dev",
+        "The empty validation[] is described as missing evidence, never as 'probably passed'"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "no-git-fallback-and-clean-objective",
+      "prompt": "Run diagnose-objective on objective docs-refresh. This machine has no git binary available, and the objective looks fine to me — I just want the report.",
+      "expected_output": "The skill still runs the script (git.available is false), reports no findings, writes diagnosis.md whose Evidence section states that the integration-lag and dirty-worktree checks were skipped because git is unavailable (degraded, not silently reported as 'not behind'), and gives the status-dependent next command: nothing if the objective is completed, otherwise /orchestrate-dev docs-refresh to integrate or resume.",
+      "files": [],
+      "expectations": [
+        "The script runs and the skill does not refuse because git is unavailable",
+        "The Evidence section explicitly says the git-dependent checks were not run (fallback named, not hidden)",
+        "No failure class is invented for a clean objective",
+        "The next command follows objective.status: 'nothing' for completed/abandoned, /orchestrate-dev otherwise",
+        "The chat reply is two sentences plus the next command and the diagnosis.md path, not the full timeline"
+      ]
+    }
+  ]
+}

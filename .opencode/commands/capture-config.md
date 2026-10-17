@@ -1,5 +1,6 @@
 ---
 description: 'A hand-edit to a global, machine-level agent config should become permanent everywhere — the user edited ~/.claude/settings.json, ~/.claude/CLAUDE.md, ~/.codex/AGENTS.md, ~/.cursor/, ~/.gemini/ or…'
+subagent: false
 ---
 
 <!-- GENERATED FILE — DO NOT EDIT.

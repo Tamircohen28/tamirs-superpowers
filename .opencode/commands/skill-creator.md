@@ -1,5 +1,6 @@
 ---
 description: 'Creating or improving an Agent Skill (SKILL.md) for Claude Code, Cursor, Codex, Gemini CLI or OpenCode, fixing a skill that isn''t triggering, or running skill evals/benchmarks.'
+subagent: false
 ---
 
 <!-- GENERATED FILE — DO NOT EDIT.

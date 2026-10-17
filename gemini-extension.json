@@ -1,13 +1,23 @@
 {
   "name": "tamirs-superpowers",
-  "version": "4.12.2",
+  "version": "5.0.0",
   "description": "Multi-platform agent plugin: worktree-based dev workflow, repo standards, and MCP tooling. Skills install separately (see docs/user/install/gemini.md).",
   "contextFileName": ".gemini/GEMINI.md",
   "mcpServers": {
     "github": {
       "command": "bash",
-      "args": ["${extensionPath}/scripts/github-mcp.sh"],
+      "args": [
+        "${extensionPath}/scripts/github-mcp.sh"
+      ],
       "cwd": "${extensionPath}"
     }
-  }
+  },
+  "settings": [
+    {
+      "name": "GITHUB_PERSONAL_ACCESS_TOKEN",
+      "description": "GitHub personal access token (repo scope) for the bundled github MCP server. Stored in the system keychain and handed to scripts/github-mcp.sh as GITHUB_PERSONAL_ACCESS_TOKEN; nothing else in the extension reads it. Leave it empty to keep the server off - it refuses to start without one.",
+      "envVar": "GITHUB_PERSONAL_ACCESS_TOKEN",
+      "sensitive": true
+    }
+  ]
 }

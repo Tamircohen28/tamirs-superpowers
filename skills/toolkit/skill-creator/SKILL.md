@@ -25,7 +25,7 @@ metadata:
     category: toolkit
     role: implementer
     validation-tier: 1
-    updated-date: '2026-08-19'
+    updated-date: '2026-10-17'
     capabilities:
       required:
         - skills
@@ -42,7 +42,7 @@ metadata:
       - portable
       - schema
   capability: toolkit
-  updated-date: '2026-08-19'
+  updated-date: '2026-10-17'
 ---
 
 # Skill Creator
@@ -164,7 +164,10 @@ Key authoring notes:
   directory holds or flags those and `make validate` rejects them. A skill that edits files or
   runs arbitrary commands omits the grant and lets the person approve each call
 - **model**: omit unless there is a specific reason — a pinned model id ages
-- **context / agent**: `''` unless `context: fork`, which requires a non-empty `agent`
+- **context / agent**: `''` unless `context: fork`, which requires a non-empty `agent`. Fork
+  when the skill's work is research-shaped — it digs, scans or traces across a codebase and
+  the conversation needs its *findings*, not its transcript. The decision rule and the agent
+  types to name are in `references/frontmatter-template.md` → "When to fork"
 - **user-invocable: false** requires `disable-model-invocation: true`
 
 #### Validate across the tiers
@@ -422,6 +425,13 @@ is the field every platform reads, so it is where triggering is won or lost.
 Full procedure (trigger eval set, review UI, the `run_loop.py` optimisation loop, and the
 capability limits — it needs the `claude` CLI and is unavailable elsewhere) is in
 **`references/description-optimization.md`**. Read it when you reach this phase.
+
+**When the user asks why a skill never fires, diagnose before you fix.** State the cause in
+one or two sentences first — auto-invocation is the model's own decision over each skill's
+`description` (plus `when_to_use` on Claude Code); the body is never read at selection time,
+so a description that names a topic without the phrases a user actually types gives the model
+nothing to match — and only then show the rewritten frontmatter. A before/after with no cause
+answers half the request and teaches nothing for the next skill.
 
 ## Hard Rules
 

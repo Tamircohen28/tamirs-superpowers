@@ -13,7 +13,7 @@
       "name": "tamirs-superpowers",
       "source": "./",
       "displayName": "Tamir's Superpowers",
-      "description": "29 bundled skills, 10 specialist agents, smart worktree hooks, statusline, and MCP server stubs — plan, implement, review, debug, multi-agent setup, and audit code from one plugin.",
+      "description": "30 bundled skills, 10 specialist agents, smart worktree hooks, statusline, and MCP server stubs — plan, implement, review, debug, multi-agent setup, and audit code from one plugin.",
       "author": {
         "name": "Tamir Cohen",
         "url": "https://github.com/Tamircohen28"
@@ -37,6 +37,34 @@
         "code-review",
         "cross-platform",
         "repo-scaffolding"
+      ]
+    },
+    {
+      "name": "tamirs-superpowers-guard",
+      "source": "./plugins/guard",
+      "displayName": "Tamir's Superpowers Guard",
+      "description": "In-process guard for tamirs-superpowers: holds a destructive shell command (force push, rm -rf, git reset --hard, ...) until you answer Proceed or Cancel, and refuses a file write in the main checkout while an orchestration objective is active. Companion to the core plugin; Claude Code and Claude Desktop only.",
+      "author": {
+        "name": "Tamir Cohen",
+        "url": "https://github.com/Tamircohen28"
+      },
+      "homepage": "https://github.com/Tamircohen28/tamirs-superpowers",
+      "repository": "https://github.com/Tamircohen28/tamirs-superpowers",
+      "license": "MIT",
+      "category": "Developer Tools",
+      "keywords": [
+        "hooks",
+        "guard",
+        "safety",
+        "developer-tools",
+        "claude-code",
+        "worktree"
+      ],
+      "tags": [
+        "mods",
+        "guardrails",
+        "destructive-commands",
+        "worktree-isolation"
       ]
     }
   ]

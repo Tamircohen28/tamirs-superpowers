@@ -1,7 +1,7 @@
 {
   "name": "tamirs-superpowers",
-  "version": "4.12.2",
-  "description": "29 bundled skills, 10 specialist agents, 26 slash commands, smart worktree hooks, and MCP server stubs — plan, implement, review, debug, multi-agent setup, and audit code from one plugin.",
+  "version": "5.0.0",
+  "description": "30 bundled skills, 10 specialist agents, 27 slash commands, smart worktree hooks, and MCP server stubs — plan, implement, review, debug, multi-agent setup, and audit code from one plugin.",
   "author": {
     "name": "Tamir Cohen",
     "url": "https://github.com/Tamircohen28"
@@ -30,5 +30,15 @@
   "commands": "./.cursor/commands/",
   "agents": "./agents/",
   "hooks": "./platforms/cursor/hooks.json",
-  "mcpServers": "./.mcp.json"
+  "mcpServers": "./platforms/cursor/mcp.json",
+  "variables": {
+    "type": "object",
+    "properties": {
+      "GITHUB_TOKEN": {
+        "type": "string",
+        "title": "GitHub token for the bundled github MCP server",
+        "description": "Optional. A GitHub personal access token with repo scope. Set it under Plugins > Configure; it is handed to the github MCP server as GITHUB_PERSONAL_ACCESS_TOKEN and nothing else reads it. Leave it unset to keep the server off - it refuses to start without one."
+      }
+    }
+  }
 }

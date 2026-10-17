@@ -1,3 +1,4 @@
+.PHONY: gemini-hooks gemini-hooks-check antigravity-plugin antigravity-plugin-check agents-skills agents-skills-check check-skills-ref check-token-budget test-skill-contract-strict
 .PHONY: help setup setup-plan capture install update uninstall validate lint test plugin-validate test-mods typecheck-mods test-repo-contract \
 	check-manifest-versions check-platform-equivalence check-agent-drift \
 	check-feature-equivalence check-platform-targets platform-targets-sync \
@@ -34,8 +35,10 @@ help:
 	@echo "  platform-targets-sync   — refresh latest_known in platform-targets.json (agents)"
 	@echo "  platform-targets-assert — fail if validated_against lags latest_known (agents)"
 	@echo "  platform-targets-cochange — CI: require platform-targets.json when repo skills change"
-	@echo "  opencode-agents         — regenerate .opencode/agent/*.md from agents/*.md"
-	@echo "  opencode-agents-check   — fail if .opencode/agent/ has drifted from agents/"
+	@echo "  opencode-agents         — regenerate .opencode/agents/*.md (OpenCode 2 permissions rules) from agents/*.md"
+	@echo "  opencode-agents-check   — fail if .opencode/agents/ has drifted from agents/ (or a stale .opencode/agent/ remains)"
+	@echo "  opencode-plugin-test    — unit-test the OpenCode 2 guard plugin's pure rules (node, no network)"
+	@echo "  opencode-plugin-check   — type-check the OpenCode 2 plugin against @opencode/plugin (npm, network)"
 	@echo "  opencode-commands       — regenerate .opencode/commands/*.md from skills/"
 	@echo "  opencode-commands-check — fail if .opencode/commands/ has drifted from skills/"
 	@echo "  cursor-commands         — regenerate .cursor/commands/*.md from skills/"
@@ -45,10 +48,16 @@ help:
 	@echo "  test-hooks              — behavior tests for hooks/ (tests/test-*.sh)"
 	@echo "  test-repo-contract      — contract fixtures (app-gold, plugin-gold, claude-plugin-gold)"
 	@echo "  plugin-validate         — claude plugin validate (requires Claude Code CLI)"
-	@echo "  test-mods               — validate + test the mod, mod/ (requires Claude Code CLI 2.1.287+)"
+	@echo "  test-mods               — validate + test the mod (mod/) and the guard plugin (plugins/guard); requires Claude Code CLI 2.1.287+"
 	@echo "  typecheck-mods          — tsc over the mod against the build's claude-code.d.ts (skips when none is laid)"
 	@echo "  build-claude-dist       — write the Claude-only distribution to DIST (default build/claude-dist)"
 	@echo "  check-claude-dist       — build it to a temp dir and hold it to the plugin directory's rules"
+	@echo "  check-dists             — build every other host's subset and hold each to its host's rules"
+	@echo "  build-dist TARGET=<t>   — write one host's subset to DIST (default build/<target>)"
+	@echo "  manifests[-check]       — regenerate (or assert) the one-source manifests: root plugin.json, mcp.json, .codex-plugin, .cursor-plugin, gemini-extension.json"
+	@echo "  codex-hooks[-check]     — regenerate (or assert) platforms/codex/hooks.json"
+	@echo "  codex-agents[-check]    — regenerate (or assert) .codex/agents/*.toml"
+	@echo "  cursor-rules[-check]    — regenerate (or assert) .cursor/rules/*.mdc"
 	@echo "  check-manifest-versions — plugin manifests agree with each other"
 	@echo "  check-marketplace-schema — extraKnownMarketplaces is a record, not an array"
 	@echo "  check-doc-claims        — skill counts and target coverage match reality"
@@ -61,6 +70,12 @@ help:
 	@echo "  validate-roles          — canonical roles, agents, workflow schemas"
 	@echo "  check-gemini-adapter    — Gemini CLI extension adapter"
 	@echo "  gemini-extension        — regenerate the Gemini extension mirror"
+	@echo "  gemini-hooks[-check]    — regenerate (or assert) the Gemini hooks file and deny policies from hooks/hooks.json"
+	@echo "  antigravity-plugin[-check] — regenerate (or assert) the Antigravity plugin.json and mcp_config.json"
+	@echo "  agents-skills[-check]   — regenerate (or assert) the .agents/skills mirror (Antigravity, Agent Skills clients)"
+	@echo "  check-skills-ref        — hold every SKILL.md to the Agent Skills reference validator (npx skills-ref; skips offline)"
+	@echo "  check-token-budget      — measure the plugin's always-on token cost and hold it to evals/budget.json (needs the CLI)"
+	@echo "  test-skill-contract-strict — the skill contract with every warning promoted to a failure"
 	@echo "  bootstrap-dev           — contributor toolchain setup"
 	@echo "  test                    — alias for validate"
 
@@ -125,7 +140,9 @@ test-contract:
 validate: lint test-hooks test-contract test-repo-contract check-manifest-versions check-platform-equivalence \
 	check-marketplace-schema check-doc-claims check-version-truth check-capability-registry \
 	validate-roles check-gemini-adapter gemini-extension-check check-github-policy check-branch-literals \
-	check-action-pinning check-manifest-declares check-platform-version-pins check-claude-dist
+	check-action-pinning check-manifest-declares check-platform-version-pins check-claude-dist check-dists \
+	manifests-check codex-hooks-check cursor-rules-check codex-agents-check opencode-plugin-test \
+	gemini-hooks-check antigravity-plugin-check agents-skills-check check-skills-ref test-skill-contract-strict
 	@echo "--- Validating JSON files ---"
 	@find . -name '*.json' -not -path '*/.git/*' | while read f; do \
 	  jq empty "$$f" 2>&1 && echo "  OK  $$f" || { echo "  FAIL $$f"; exit 1; }; \
@@ -208,6 +225,33 @@ gemini-extension:
 gemini-extension-check:
 	@bash scripts/build-gemini-extension.sh . --check
 
+gemini-hooks:
+	@bash scripts/build-gemini-hooks.sh .
+
+gemini-hooks-check:
+	@bash scripts/build-gemini-hooks.sh . --check
+
+antigravity-plugin:
+	@bash scripts/build-antigravity-plugin.sh .
+
+antigravity-plugin-check:
+	@bash scripts/build-antigravity-plugin.sh . --check
+
+agents-skills:
+	@bash scripts/build-agents-skills.sh .
+
+agents-skills-check:
+	@bash scripts/build-agents-skills.sh . --check
+
+check-skills-ref:
+	@bash scripts/check-skills-ref.sh .
+
+check-token-budget:
+	@bash scripts/check-token-budget.sh .
+
+test-skill-contract-strict:
+	@bash tests/test-skill-contract.sh --strict
+
 platform-targets-sync:
 	@bash scripts/check-platform-targets.sh . --sync
 
@@ -238,7 +282,13 @@ cursor-commands-check:
 check-opencode-permission-keys:
 	@bash scripts/check-opencode-permission-keys.sh .
 
-agent\:check: check-agent-drift check-feature-equivalence check-platform-targets opencode-agents-check opencode-commands-check cursor-commands-check check-opencode-permission-keys
+opencode-plugin-test:
+	@node --test platforms/opencode/plugin/rules.test.mjs
+
+opencode-plugin-check:
+	@cd platforms/opencode/plugin && npm install --no-audit --no-fund --no-package-lock && npm run check
+
+agent\:check: check-agent-drift check-feature-equivalence check-platform-targets opencode-agents-check opencode-commands-check cursor-commands-check cursor-rules-check codex-agents-check codex-hooks-check manifests-check check-opencode-permission-keys opencode-plugin-test gemini-hooks-check antigravity-plugin-check agents-skills-check
 
 agent-polish-gate: platform-targets-sync platform-targets-assert agent\:check
 
@@ -298,10 +348,20 @@ plugin-validate:
 # manifest and never the hooks module, so the plugin-manifest form is what validates the
 # mod; `claude plugin test` runs mod/*.test.tsx against the engine itself. Both need
 # the Claude Code CLI (2.1.287+), which `make validate` deliberately does not require.
+# `claude plugin test <dir>` runs every *.test.tsx under <dir> against the ONE mod that
+# dir's hooks/hooks.json names, so from the repo root it would also pick up the guard
+# plugin's tests and run them against the wrong mod. The core mod is therefore tested
+# from a scratch copy of the tree without plugins/, and the guard plugin from its own
+# folder. (The Claude distribution has no plugins/ either, so check-claude-dist's run
+# of the same command needs no such copy.)
 test-mods:
-	@echo "--- mod: claude plugin validate .claude-plugin/plugin.json + claude plugin test . ---"
+	@echo "--- mod: claude plugin validate .claude-plugin/plugin.json + claude plugin test (tree without plugins/) ; guard: plugins/guard ---"
 	@if command -v claude >/dev/null 2>&1; then \
-	  claude plugin validate .claude-plugin/plugin.json && claude plugin test . && echo "  mod validate + tests passed"; \
+	  tmp="$$(mktemp -d)"; trap 'rm -rf "$$tmp"' EXIT; \
+	  tar --exclude=./plugins --exclude=./.git --exclude=./node_modules -cf - . | tar -C "$$tmp" -xf - \
+	    && claude plugin validate .claude-plugin/plugin.json && (cd "$$tmp" && claude plugin test .) \
+	    && claude plugin validate plugins/guard/.claude-plugin/plugin.json && claude plugin test plugins/guard \
+	    && echo "  mod + guard validate + tests passed"; \
 	else \
 	  echo "  claude CLI not found — install from claude.ai/code"; \
 	  exit 1; \
@@ -321,5 +381,45 @@ check-claude-dist:
 	@echo "--- Claude-only distribution: build + directory rules ---"
 	@tmp="$$(mktemp -d)"; trap 'rm -rf "$$tmp"' EXIT; \
 	  bash scripts/build-claude-dist.sh "$$tmp" --quiet && bash scripts/check-claude-dist.sh "$$tmp"
+
+# Every other host's subset, built by the same generator and held to its own rules
+# (docs/engineering/build-and-release/distributions.md). release.yml attaches these to
+# the GitHub Release as tarballs.
+check-dists:
+	@echo "--- Per-host distributions: build + host rules ---"
+	@tmp="$$(mktemp -d)"; trap 'rm -rf "$$tmp"' EXIT; \
+	  for t in codex cursor gemini antigravity opencode agent-plugins; do \
+	    bash scripts/build-dist.sh "$$tmp/$$t" --target "$$t" --quiet && bash scripts/check-dist.sh "$$tmp/$$t" --target "$$t" || exit 1; \
+	  done
+
+build-dist:
+	@[ -n "$(TARGET)" ] || { echo "usage: make build-dist TARGET=<codex|cursor|gemini|antigravity|opencode|agent-plugins|claude> [DIST=build/<target>]"; exit 2; }
+	@bash scripts/build-dist.sh "$${DIST:-build/$(TARGET)}" --target "$(TARGET)" --force
+
+# The one-source manifests and the generated per-host adapters
+# (docs/engineering/build-and-release/manifests.md, docs/engineering/architecture/generated-adapters.md).
+manifests:
+	@bash scripts/build-manifests.sh .
+
+manifests-check:
+	@bash scripts/build-manifests.sh . --check
+
+codex-hooks:
+	@bash scripts/build-codex-hooks.sh .
+
+codex-hooks-check:
+	@bash scripts/build-codex-hooks.sh . --check
+
+codex-agents:
+	@bash scripts/build-codex-agents.sh .
+
+codex-agents-check:
+	@bash scripts/build-codex-agents.sh . --check
+
+cursor-rules:
+	@bash scripts/build-cursor-rules.sh .
+
+cursor-rules-check:
+	@bash scripts/build-cursor-rules.sh . --check
 
 test: validate

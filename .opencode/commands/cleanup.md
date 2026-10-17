@@ -1,5 +1,6 @@
 ---
 description: 'The user wants to clean up, tidy, or reset a GitHub repo — even if they name only one part.'
+subagent: false
 ---
 
 <!-- GENERATED FILE — DO NOT EDIT.

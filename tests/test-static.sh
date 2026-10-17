@@ -640,7 +640,7 @@ run_script "documented skill and target counts match the filesystem" \
 
 # Agent count drift: every canonical role/agent must have its adapters.
 agents_n="$(find agents -maxdepth 1 -name '*.md' 2>/dev/null | wc -l | tr -d ' ')"
-opencode_n="$(find .opencode/agent -maxdepth 1 -name '*.md' 2>/dev/null | wc -l | tr -d ' ')"
-judge "every agents/*.md has an .opencode/agent/*.md adapter" "$agents_n" "$opencode_n"
+opencode_n="$(find .opencode/agents -maxdepth 1 -name '*.md' 2>/dev/null | wc -l | tr -d ' ')"
+judge "every agents/*.md has an .opencode/agents/*.md adapter" "$agents_n" "$opencode_n"
 
 harness_summary

@@ -6,20 +6,20 @@
   <a href="https://github.com/Tamircohen28"><img src="https://img.shields.io/badge/author-Tamir%20Cohen-181717?logo=github" alt="Author" /></a>
   <a href="https://github.com/Tamircohen28/tamirs-superpowers/actions/workflows/ci.yml"><img src="https://github.com/Tamircohen28/tamirs-superpowers/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="MIT License" /></a>
-  <a href="plugin-version.json"><img src="https://img.shields.io/badge/version-4.12.2-blue" alt="Version" /></a>
+  <a href="plugin-version.json"><img src="https://img.shields.io/badge/version-5.0.0-blue" alt="Version" /></a>
 </p>
 
 <p align="center">
-  <a href="docs/engineering/build-and-release/platform-targets.json"><img src="https://img.shields.io/badge/Claude%20Code-2.1.287-blueviolet" alt="Claude Code" /></a>
+  <a href="docs/engineering/build-and-release/platform-targets.json"><img src="https://img.shields.io/badge/Claude%20Code-2.1.302-blueviolet" alt="Claude Code" /></a>
   <a href="docs/engineering/build-and-release/platform-targets.json"><img src="https://img.shields.io/badge/Cursor-3.22.7-000000" alt="Cursor" /></a>
-  <a href="docs/engineering/build-and-release/platform-targets.json"><img src="https://img.shields.io/badge/Codex-0.156.0-412991" alt="Codex" /></a>
-  <a href="docs/engineering/build-and-release/platform-targets.json"><img src="https://img.shields.io/badge/Gemini%20CLI-0.60.0-4285F4" alt="Gemini CLI" /></a>
-  <a href="docs/engineering/build-and-release/platform-targets.json"><img src="https://img.shields.io/badge/OpenCode-2.0.14-fab283" alt="OpenCode" /></a>
+  <a href="docs/engineering/build-and-release/platform-targets.json"><img src="https://img.shields.io/badge/Codex-0.163.0-412991" alt="Codex" /></a>
+  <a href="docs/engineering/build-and-release/platform-targets.json"><img src="https://img.shields.io/badge/Gemini%20CLI-0.64.0-4285F4" alt="Gemini CLI" /></a>
+  <a href="docs/engineering/build-and-release/platform-targets.json"><img src="https://img.shields.io/badge/OpenCode-2.0.32-fab283" alt="OpenCode" /></a>
 </p>
 
 # tamirs-superpowers
 
-A portable agent toolkit: **29 skills**, 10 role-based agents, worktree hooks, and MCP
+A portable agent toolkit: **30 skills**, 10 role-based agents, worktree hooks, and MCP
 stubs, shipped from one canonical source to six agent surfaces across five platforms.
 
 ## What problem it solves
@@ -53,7 +53,7 @@ One plugin, one marketplace listing, both surfaces.
 
 | Surface | Registry id | Kind | Status | Install |
 |---|---|---|---|---|
-| Claude Code | `claude_code` | CLI | ✅ supported — validated 2.1.287 | [guide](docs/user/install/claude-code.md) |
+| Claude Code | `claude_code` | CLI | ✅ supported — validated 2.1.302 | [guide](docs/user/install/claude-code.md) |
 | Claude Desktop | `claude_desktop` | desktop | ✅ supported — same plugin, different runtime surface | [guide](docs/user/install/claude-desktop.md) |
 
 ### Codex
@@ -62,7 +62,7 @@ Installed from the plugin marketplace; the CLI is the measured surface.
 
 | Surface | Registry id | Kind | Status | Install |
 |---|---|---|---|---|
-| Codex CLI | `codex` | CLI | ✅ supported — validated 0.156.0 | [guide](docs/user/install/codex.md) |
+| Codex CLI | `codex` | CLI | ✅ supported — validated 0.163.0 | [guide](docs/user/install/codex.md) |
 | Codex IDE extension | `codex_ide` | IDE | ⚠️ unverified — reads the same `AGENTS.md` and manifest, but the plugin has never been installed or a skill invoked there | — |
 
 ### Cursor
@@ -80,7 +80,7 @@ Two commands: the extension carries context and MCP, skills install separately.
 
 | Surface | Registry id | Kind | Status | Install |
 |---|---|---|---|---|
-| Gemini CLI | `gemini_cli` | CLI | ✅ supported — validated 0.60.0 | [guide](docs/user/install/gemini.md) |
+| Gemini CLI | `gemini_cli` | CLI | ✅ supported — validated 0.64.0 | [guide](docs/user/install/gemini.md) |
 | Gemini Code Assist | `gemini_code_assist` | IDE | ⚠️ unverified — a different host that does not install CLI extensions, so the `.gemini/` mirror has no established install path there | — |
 
 ### OpenCode
@@ -89,7 +89,7 @@ Installed by path — `opencode.json`'s `skills` array pointed at this checkout 
 
 | Surface | Registry id | Kind | Status | Install |
 |---|---|---|---|---|
-| OpenCode CLI | `opencode` | CLI | ✅ supported — validated 2.0.14 (v2; `@opencode/cli`). Config and all 10 agent adapters confirmed live; per-skill discovery unverified — v2 removed `debug skill` | [guide](docs/user/install/opencode.md) | [guide](docs/user/install/opencode.md) |
+| OpenCode CLI | `opencode` | CLI | ✅ supported — validated 2.0.32 (v2; `@opencode/cli`). Config and all 10 agent adapters confirmed live; per-skill discovery unverified — v2 removed `debug skill` | [guide](docs/user/install/opencode.md) | [guide](docs/user/install/opencode.md) |
 | OpenCode desktop app | `opencode_desktop` | desktop | ⚠️ unverified — whether it reads the same `skills.paths` this repo installs into has not been checked | — |
 
 `⚠️ unverified` is not a negative result. Those surfaces carry no capability claims at all;
@@ -122,7 +122,15 @@ Confirm a machine is ready with `bash scripts/doctor.sh .`.
 ## Install in 5 minutes
 
 **1. Install the plugin.** Pick your platform and surface from the tables above — each
-supported surface's guide covers install, **verify**, update, and uninstall. On Claude you can
+supported surface's guide covers install, **verify**, update, and uninstall. On Claude Code,
+the one-step form installs straight from this repo:
+
+```text
+/plugin install tamirs-superpowers --marketplace Tamircohen28/tamirs-superpowers
+```
+
+(the per-platform guides cover the two-step `/plugin marketplace add` + `/plugin install`
+form too, and the catalog marketplace, `tamirs-marketplace`). On Claude you can
 also add it from [Anthropic's plugin directory](https://claude.ai/directory), which tracks a
 Claude-only distribution this repository builds on every release ([how](docs/engineering/build-and-release/directory-distribution.md));
 [`PRIVACY.md`](PRIVACY.md) says what the plugin sends, and only when you opt in. Gemini alone
@@ -188,6 +196,7 @@ On Claude Code 2.1.287+ the plugin ships one mod (`mod/register.tsx`). It makes 
 - [Getting started](docs/user/getting-started.md) · [Setup](docs/user/setup.md) · [Platform setup](docs/user/platform-setup.md) · [Capture](docs/user/capture.md) · [Configuration](docs/user/configuration.md) · [Troubleshooting](docs/user/troubleshooting.md)
 - [Concepts](docs/user/concepts.md) · [Skills](docs/user/skills.md) · [Agents](docs/user/agents.md) · [Orchestration](docs/user/orchestration.md) · [Platform differences](docs/user/platform-differences.md)
 - [Engineering docs](docs/engineering/README.md) — architecture, capability model, adapter contract, skill schema, release process
+- [Upgrading to 5.0](docs/user/upgrade-to-v5.md) — what changes per host and what to do about it
 - [Changelog](CHANGELOG.md) · [Contributing](docs/CONTRIBUTING.md) · [Contributor bootstrap](docs/engineering/build-and-release/development-workflow.md) · [License](LICENSE)
 
 ---

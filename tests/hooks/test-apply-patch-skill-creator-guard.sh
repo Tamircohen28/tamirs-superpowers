@@ -25,6 +25,11 @@ mkdir -p "$HOME"
 export GIT_CONFIG_NOSYSTEM=1
 
 GUARD="$ROOT/hooks/skill-creator-guard.sh"
+# The guard is contributor-tier (plugin option contributor_hooks, default OFF):
+# switched off it answers every write with a plain allow. This suite tests the
+# path extraction behind the reminder, so it runs with the tier on;
+# tests/test-hook-tiers.sh covers the off state.
+export CLAUDE_PLUGIN_OPTION_CONTRIBUTOR_HOOKS=true
 OBJ="pears"
 REPO="$(setup_apply_patch_repo "$TMP" "$OBJ")"
 

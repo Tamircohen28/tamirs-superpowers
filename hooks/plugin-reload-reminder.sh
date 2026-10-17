@@ -11,6 +11,9 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${SCRIPT_DIR}/lib/hook-output.sh"
 
 input="$(hook_read_stdin)"
+# Contributor tier (plugin option contributor_hooks, default off): plugin
+# authors only — everyone else gets no reminder and no output.
+hook_tier_gate contributor
 file="$(echo "$input" | python3 -c "
 import sys, json
 try:

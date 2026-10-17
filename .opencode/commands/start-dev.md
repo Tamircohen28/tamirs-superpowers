@@ -1,5 +1,6 @@
 ---
 description: 'A task must be implemented, built, coded or shipped — from a GitHub issue number, free-text task description, or spec file.'
+subagent: false
 ---
 
 <!-- GENERATED FILE — DO NOT EDIT.

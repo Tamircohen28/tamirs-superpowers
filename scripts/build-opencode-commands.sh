@@ -18,10 +18,24 @@
 # WHY IT IS A TRANSLATION AND NOT A COPY
 #   An OpenCode command is a flat markdown file whose BODY IS A PROMPT TEMPLATE, not
 #   a skill: `.opencode/commands/<name>.md`, frontmatter `description`/`agent`/
-#   `model`/`subtask`, body sent to the model with `$ARGUMENTS` interpolated
-#   (https://opencode.ai/docs/commands/). A SKILL.md body is instructions for an
+#   `model`/`subagent`, body sent to the model with `$ARGUMENTS` interpolated
+#   (https://opencode.ai/v2/docs/commands/). A SKILL.md body is instructions for an
 #   already-loaded skill. So each command is a thin launcher that names its skill;
 #   the skill itself stays canonical and is not duplicated.
+#
+# OPENCODE 2 FRONTMATTER
+#   `subagent: false` is emitted explicitly. V2 renamed V1's `subtask` to `subagent`
+#   (`subtask` is a deprecated alias; `subagent` wins when both are present) and
+#   made the OMITTED value depend on the selected agent's mode — "Use a child only
+#   when the selected agent has mode: subagent". These launchers must run in the
+#   user's own session: the whole point of `/plan-dev` is to load the skill HERE,
+#   not to hand it to a background child whose result arrives later as a report.
+#   `false` says so regardless of which agent the user has selected.
+#
+#   V2 also stopped expanding `@path` inside stored templates ("it remains ordinary
+#   prompt text"). Nothing here relies on that: the SKILL.md path in the body is a
+#   backticked instruction to the model to READ the file, never an `@` attachment,
+#   so the same text reads correctly on both lines.
 #
 # WHY `description` IS DERIVED AND NOT COPIED
 #   A canonical `description` is written for TRIGGERING — it opens "Use when …" and
@@ -130,6 +144,7 @@ while IFS= read -r -d '' name && IFS= read -r -d '' relpath && IFS= read -r -d '
     echo "---"
     # description is single-quoted YAML; a literal quote is doubled per the YAML spec.
     printf "description: '%s'\n" "${brief//\'/\'\'}"
+    echo "subagent: false"
     echo "---"
     echo
     echo "<!-- GENERATED FILE — DO NOT EDIT."

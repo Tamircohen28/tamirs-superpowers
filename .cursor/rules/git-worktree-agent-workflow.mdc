@@ -1,8 +1,13 @@
 ---
 description: "Objective/worker/integration worktrees — provider is metadata, not path identity. Canonical: rules/dev/git-worktree-agent-workflow.md"
-globs: ".agent-worktrees/**/*,.claude/.worktrees/**/*,.cursor/.worktrees/**/*,.codex/.worktrees/**/*"
 alwaysApply: false
+globs: ".agent-worktrees/**/*,.claude/.worktrees/**/*,.cursor/.worktrees/**/*,.codex/.worktrees/**/*"
 ---
+
+<!-- GENERATED FILE — DO NOT EDIT.
+     Source:    rules/dev/git-worktree-agent-workflow.md (frontmatter + summary: platforms/cursor/rules.map.json)
+     Generator: scripts/build-cursor-rules.sh
+     Regenerate: make cursor-rules -->
 
 # Git Worktree Agent Workflow
 

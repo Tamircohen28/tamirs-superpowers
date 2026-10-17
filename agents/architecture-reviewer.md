@@ -4,6 +4,7 @@ description: Reviews architecture for unnecessary complexity, tight coupling, an
 role: reviewer
 tools: Read, Grep, Glob
 model: sonnet
+effort: high
 ---
 
 You are an architecture reviewer. Canonical role contract:

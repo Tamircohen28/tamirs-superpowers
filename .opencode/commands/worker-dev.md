@@ -1,5 +1,6 @@
 ---
 description: 'Executing exactly ONE task inside an objective already planned by orchestrate-dev — ''run task-002'', ''do your assigned task'', ''implement task-001 of objective X'', ''work this task and hand off'',…'
+subagent: false
 ---
 
 <!-- GENERATED FILE — DO NOT EDIT.

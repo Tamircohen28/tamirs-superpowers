@@ -1,5 +1,6 @@
 ---
 description: 'Building or scaffolding an MCP (Model Context Protocol) server wrapping a REST API, database, or service as tools for an MCP client.'
+subagent: false
 ---
 
 <!-- GENERATED FILE — DO NOT EDIT.

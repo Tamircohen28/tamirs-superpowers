@@ -1,5 +1,6 @@
 ---
 description: 'Auditing or setting up a repository for multi-agent development across Claude Code, Claude Desktop, Cursor, Codex, Gemini CLI, and OpenCode.'
+subagent: false
 ---
 
 <!-- GENERATED FILE — DO NOT EDIT.

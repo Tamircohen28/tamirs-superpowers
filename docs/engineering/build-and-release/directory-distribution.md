@@ -48,7 +48,7 @@ which satisfies the directory's "raise it with every release" rule without a sec
 
 ## What is in the tree
 
-[`scripts/build-claude-dist.sh`](../../../scripts/build-claude-dist.sh) writes it:
+[`scripts/build-claude-dist.sh`](../../../scripts/build-claude-dist.sh) writes it — since 5.0.0 a wrapper around [`scripts/build-dist.sh`](../../../scripts/build-dist.sh) `--target claude`, the generic builder every host's subset comes from (see [`distributions.md`](distributions.md)); the Claude arm of its per-target table is what this section describes:
 
 1. **Roots, copied whole**: `.claude-plugin/plugin.json`, `.mcp.json`, `hooks/`, `mod/`, `agents/`, `skills/`, `core/`, `rules/`, `output-styles/`,
    `templates/`, `config/`, `scripts/`, `platforms/claude/`, `LICENSE`, `SECURITY.md`,
@@ -179,7 +179,7 @@ Every later release needs only step 2: the moved tag is picked up on its own.
 
 | Change on `master` | What follows |
 |---|---|
-| A new root-level file the plugin needs | add it to `ROOTS` in `build-claude-dist.sh`; the link closure does not reach files nothing links to |
+| A new root-level file the plugin needs | add it to the `claude` arm of `build-dist.sh`'s target table; the link closure does not reach files nothing links to |
 | A new development-only subtree under a shipped root | add it to `PRUNE_DIRS`/`PRUNE_PATHS`, or the file count climbs toward 512 |
 | A new `userConfig` option whose name contains `token`, `secret`, `key` or `password` | it must be `sensitive: true`, or the check fails |
 | A new rule in the directory's checklist | mirror it in `check-claude-dist.sh`, so it fails here first |

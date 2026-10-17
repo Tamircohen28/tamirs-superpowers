@@ -4,6 +4,7 @@ description: Finds performance bottlenecks and concrete optimization opportuniti
 role: performance-reviewer
 tools: Read, Grep, Glob, Bash
 model: sonnet
+effort: high
 ---
 
 You are a performance reviewer. Canonical role contract:

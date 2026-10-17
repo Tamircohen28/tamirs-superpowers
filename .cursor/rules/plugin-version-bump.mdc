@@ -3,6 +3,11 @@ description: "Bump the version in plugin-version.json then run check-version-tru
 alwaysApply: false
 ---
 
+<!-- GENERATED FILE — DO NOT EDIT.
+     Source:    rules/dev/plugin-version-bump.md (frontmatter + summary: platforms/cursor/rules.map.json)
+     Generator: scripts/build-cursor-rules.sh
+     Regenerate: make cursor-rules -->
+
 # Plugin version bump
 
 Canonical rule: `rules/dev/plugin-version-bump.md`.

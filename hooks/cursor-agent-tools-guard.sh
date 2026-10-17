@@ -11,35 +11,29 @@
 #   nothing, so this supplies it.
 #
 # HOW IT KNOWS WHICH AGENT IS RUNNING
-#   It cannot ask. The subagent's own tool calls DO reach preToolUse, but they carry
-#   no agent field and their conversation_id / generation_id / session_id are
-#   IDENTICAL to the parent's — there is nothing to correlate on. What does carry the
-#   name is the `Task` call that starts the subagent:
+#   A subagent's tool calls carry no agent field and share the parent's
+#   conversation_id / generation_id / session_id. The `Task` call that starts the
+#   subagent carries `tool_input.subagent_type`.
 #
-#       tool_input: {"subagent_type": "architecture-reviewer", ...}
+#   Desktop ≥ 3.22 also sends `parent_tool_call_id` on subagent tool calls (the
+#   Task call's `tool_use_id`), and desktop ≥ 3.24 keeps `tool_use_id` stable
+#   across preToolUse and shell/MCP hooks. When those ids are present this guard
+#   attributes a call to exactly one frame — concurrent subagents no longer
+#   collapse to an intersection.
 #
-#   So this reconstructs the association from event ORDER rather than from an id:
+#   Fallback (older Cursor / missing ids): reconstruct from event ORDER —
 #     preToolUse  Task  -> push that agent's allowlist
 #     preToolUse  other -> deny if an allowlist is active and the tool is not in it
 #     postToolUse Task  -> pop
-#
-# CONCURRENCY: INTERSECTION, DELIBERATELY
-#   Identical ids mean two concurrent subagents cannot be told apart. Rather than
-#   guess which one a call belongs to, every active allowlist must permit the tool —
-#   the INTERSECTION. With one subagent that is exactly its own list. With two it is
-#   stricter than either, which can refuse a call a lone agent would have been
-#   allowed. That is the direction to be wrong in: a refused call is visible and
-#   recoverable, a permitted one is not.
+#   Under that fallback, concurrency still uses INTERSECTION (safer than guessing).
 #
 # FAILS SAFE, NOT OPEN
 #   If a `postToolUse` is missed the allowlist stays active and the session becomes
 #   over-restrictive rather than unguarded. State older than STALE_SECONDS is dropped
 #   so a crashed session cannot wedge the next one.
 #
-# NOT A SANDBOX. This infers "we are inside a subagent" from event sequence. It
-# raises the cost of an unlisted tool call; it does not make one impossible. The
-# path-based guards (enforce-worktree-edits.sh, guard-sensitive-files.sh) remain the
-# layer that constrains WHERE writes land.
+# NOT A SANDBOX. Path-based guards (enforce-worktree-edits.sh,
+# guard-sensitive-files.sh) remain the layer that constrains WHERE writes land.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -63,10 +57,27 @@ cursor_name_for() {
 event="$(printf '%s' "$input" | jq -r '.hook_event_name // empty' 2>/dev/null || true)"
 tool="$(printf '%s' "$input" | jq -r '.tool_name // empty' 2>/dev/null || true)"
 conv="$(printf '%s' "$input" | jq -r '.conversation_id // .session_id // empty' 2>/dev/null || true)"
+# Prefer tool_use_id (3.24 correlation); accept tool_call_id as an alias.
+tool_use_id="$(printf '%s' "$input" | jq -r '.tool_use_id // .tool_call_id // empty' 2>/dev/null || true)"
+parent_tool_call_id="$(printf '%s' "$input" | jq -r '.parent_tool_call_id // empty' 2>/dev/null || true)"
 
 # Outside Cursor this guard has nothing to add: Claude enforces the list itself.
 [ "${HOOK_PLATFORM:-claude}" = "cursor" ] || hook_allow
-[ -n "$conv" ] || hook_allow
+
+# done_ok — the "nothing to decide" answer in the event's own dialect. Cursor's
+# postToolUse is observational: its documented output is updated_mcp_tool_output /
+# additional_context, not `permission`, so the pop path answers `{}` (one JSON object,
+# exit 0) rather than hook_allow's {"permission":"allow"}, which that event ignores.
+# Every other event this guard is wired to is a permission event, where hook_allow
+# is the right shape.
+done_ok() {
+  if [ "$event" = "postToolUse" ]; then
+    printf '%s\n' '{}'
+    exit 0
+  fi
+  hook_allow
+}
+[ -n "$conv" ] || done_ok
 
 state_dir() {
   local base="${CLAUDE_PLUGIN_DATA:-${TMPDIR:-/tmp}}"
@@ -80,8 +91,9 @@ DIR="$(state_dir)"
 # print anything. That failed on Linux CI while passing on macOS.
 conv_key="${conv//[^a-zA-Z0-9_-]/_}"
 STACK="${DIR}/${conv_key}.stack"
+FRAMES="${DIR}/${conv_key}.frames"
 
-# Drop a stack left behind by a crashed session rather than inheriting its rules.
+# Drop state left behind by a crashed session rather than inheriting its rules.
 # find -mmin rather than stat: on Linux, GNU stat's -f flag means --file-system,
 # NOT "the BSD format flag". So the chain `stat -f ... || stat -c ...` never falls
 # back there - the first form SUCCEEDS at a different job and returns non-numeric
@@ -91,9 +103,11 @@ STACK="${DIR}/${conv_key}.stack"
 # at something else is worse than no fallback: it looks defensive and is not.
 stale_minutes=$(( STALE_SECONDS / 60 ))
 [ "$stale_minutes" -ge 1 ] || stale_minutes=1
-if [ -f "$STACK" ] && [ -n "$(find "$STACK" -mmin "+${stale_minutes}" 2>/dev/null || true)" ]; then
-  rm -f "$STACK"
-fi
+for state_file in "$STACK" "$FRAMES"; do
+  if [ -f "$state_file" ] && [ -n "$(find "$state_file" -mmin "+${stale_minutes}" 2>/dev/null || true)" ]; then
+    rm -f "$state_file"
+  fi
+done
 
 # Resolve an agent's declared tools, translated to the names Cursor reports.
 allowlist_for() {
@@ -112,35 +126,105 @@ allowlist_for() {
   return 1
 }
 
+safe_id_key() {
+  local id="$1"
+  printf '%s' "${id//[^a-zA-Z0-9_-]/_}"
+}
+
+frame_put() {
+  # frame_put <tool_use_id> <agent> <allowlist>
+  local id="$1" agent="$2" list="$3" key tmp
+  key="$(safe_id_key "$id")"
+  [ -n "$key" ] || return 1
+  tmp="${FRAMES}.tmp.$$"
+  if [ -f "$FRAMES" ]; then
+    # Drop any prior row for this id, then append.
+    awk -F'\t' -v k="$key" '$1 != k { print }' "$FRAMES" > "$tmp" 2>/dev/null || true
+  else
+    : > "$tmp"
+  fi
+  printf '%s\t%s\t%s\n' "$key" "$agent" "$list" >> "$tmp"
+  mv "$tmp" "$FRAMES"
+}
+
+frame_get() {
+  # frame_get <parent_tool_call_id> -> prints "agent<TAB>list" or fails
+  local id="$1" key
+  key="$(safe_id_key "$id")"
+  [ -n "$key" ] && [ -f "$FRAMES" ] || return 1
+  awk -F'\t' -v k="$key" '$1 == k { print $2 "\t" $3; found=1; exit } END { exit !found }' "$FRAMES"
+}
+
+frame_del() {
+  local id="$1" key tmp
+  key="$(safe_id_key "$id")"
+  [ -n "$key" ] && [ -f "$FRAMES" ] || return 0
+  tmp="${FRAMES}.tmp.$$"
+  awk -F'\t' -v k="$key" '$1 != k { print }' "$FRAMES" > "$tmp" 2>/dev/null || true
+  if [ -s "$tmp" ]; then
+    mv "$tmp" "$FRAMES"
+  else
+    rm -f "$tmp" "$FRAMES"
+  fi
+}
+
+stack_push() {
+  local agent="$1" list="$2"
+  printf '%s\t%s\n' "$agent" "$list" >> "$STACK"
+}
+
+stack_pop() {
+  if [ -s "$STACK" ]; then
+    tmp="${STACK}.tmp.$$"
+    if [ "$(grep -c . "$STACK" 2>/dev/null || echo 0)" -le 1 ]; then
+      rm -f "$STACK"
+    else
+      head -n -1 "$STACK" > "$tmp" 2>/dev/null \
+        || awk 'NR>1{print prev} {prev=$0}' "$STACK" > "$tmp" 2>/dev/null || true
+      [ -s "$tmp" ] && mv "$tmp" "$STACK" || rm -f "$tmp" "$STACK"
+    fi
+  fi
+}
+
 if [ "$tool" = "Task" ]; then
   agent="$(printf '%s' "$input" | jq -r '.tool_input.subagent_type // empty' 2>/dev/null || true)"
   if [ -n "$agent" ]; then
     if list="$(allowlist_for "$agent")"; then
       if [ "$event" = "postToolUse" ]; then
-        # Task finished: drop its frame.
-        # Pure bash: `sed -i ''` is BSD-only and GNU sed reads '' as the script.
-        if [ -s "$STACK" ]; then
-          tmp="${STACK}.tmp.$$"
-          if [ "$(grep -c . "$STACK" 2>/dev/null || echo 0)" -le 1 ]; then
-            rm -f "$STACK"
-          else
-            head -n -1 "$STACK" > "$tmp" 2>/dev/null \
-              || awk 'NR>1{print prev} {prev=$0}' "$STACK" > "$tmp" 2>/dev/null || true
-            [ -s "$tmp" ] && mv "$tmp" "$STACK" || rm -f "$tmp" "$STACK"
-          fi
+        if [ -n "$tool_use_id" ]; then
+          frame_del "$tool_use_id"
         fi
+        # Always pop the order stack too (keeps fallback in sync).
+        stack_pop
       else
-        printf '%s\t%s\n' "$agent" "$list" >> "$STACK"
+        if [ -n "$tool_use_id" ]; then
+          frame_put "$tool_use_id" "$agent" "$list"
+        fi
+        stack_push "$agent" "$list"
       fi
     fi
   fi
-  hook_allow
+  done_ok
 fi
 
-# No frame active: nothing to enforce.
-[ -s "$STACK" ] || hook_allow
+# Preferred path (desktop ≥ 3.22): attribute via parent_tool_call_id → Task frame.
+if [ -n "$parent_tool_call_id" ]; then
+  if frame_row="$(frame_get "$parent_tool_call_id")"; then
+    agent="${frame_row%%$'\t'*}"
+    list="${frame_row#*$'\t'}"
+    case " $list " in
+      *" $tool "*) done_ok ;;
+      *)
+        hook_deny "The '${agent}' agent declares tools: ${list} — '${tool}' is not among them. Cursor does not enforce this list itself, so this guard does (keyed by parent_tool_call_id). Use a tool the agent declares, or hand the work to an agent that declares this one."
+        ;;
+    esac
+  fi
+  # Unknown parent id: fall through to stack fallback (or allow if none).
+fi
 
-# Intersection: every active frame must permit the tool.
+# Fallback: no parent id (or unknown) — order-stack / intersection.
+[ -s "$STACK" ] || done_ok
+
 denied_by=""
 while IFS=$'\t' read -r agent list; do
   [ -n "$list" ] || continue
@@ -154,4 +238,4 @@ if [ -n "$denied_by" ]; then
   hook_deny "The '${denied_by}' agent declares tools: $(printf '%s' "$(grep -m1 "^${denied_by}	" "$STACK" | cut -f2)") — '${tool}' is not among them. Cursor does not enforce this list itself, so this guard does. Use a tool the agent declares, or hand the work to an agent that declares this one."
 fi
 
-hook_allow
+done_ok

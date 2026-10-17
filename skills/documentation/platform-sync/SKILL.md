@@ -86,7 +86,7 @@ actually fetched. A fetch failure is reported, never smoothed over with training
 **Probe-informed, not probe-dependent.** When a version probe has already found the delta
 between what this repo's docs claim and what is live upstream, this skill's real job shrinks
 to *judging* that delta — is it relevant here, does it change a capability row, does it need a
-CLAUDE.md narrative line — rather than *finding* it from a standing start via open-ended
+`docs/engineering/host-notes/<host>.md` line — rather than *finding* it from a standing start via open-ended
 research. Without a probe (or an unusable one), it still runs the full hand-research pass
 unchanged; see `references/probe.md`.
 

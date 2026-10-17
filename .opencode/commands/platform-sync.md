@@ -1,5 +1,6 @@
 ---
 description: 'This repo may have fallen behind the AI coding platforms it targets — Claude Code, Codex CLI, Cursor, Gemini CLI, OpenCode.'
+subagent: false
 ---
 
 <!-- GENERATED FILE — DO NOT EDIT.

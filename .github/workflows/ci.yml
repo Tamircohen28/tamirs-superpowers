@@ -66,6 +66,15 @@ jobs:
         run: pip install -r scripts/requirements-validate.txt
       - name: Assert the portable skill contract
         run: bash tests/test-skill-contract.sh
+      # Every warning the contract can raise is a failure here: a warning that is allowed
+      # to persist is a check that stopped checking (docs/engineering/architecture/validation-tiers.md).
+      - name: Assert the skill contract strictly
+        run: bash tests/test-skill-contract.sh --strict
+      # The Agent Skills reference validator (npx skills-ref), with this repo's two known
+      # divergences (Claude extension fields; the compatibility map) classified and every
+      # other finding fatal. Skips itself only when the npm registry is unreachable.
+      - name: Hold every SKILL.md to the Agent Skills reference validator
+        run: bash scripts/check-skills-ref.sh .
 
   static-and-docs:
     name: Static repo + docs tests
@@ -159,6 +168,14 @@ jobs:
       # tests against the engine (mod/*.test.tsx). See docs/engineering/architecture/mods.md.
       - name: Validate and test the mod (mod)
         run: make test-mods
+      # The always-on token cost the host charges every session for this plugin, measured
+      # by `claude plugin details` on an install from this checkout and held to the committed
+      # baseline in evals/budget.json (ceiling and tolerance). A skill that silently grows
+      # the figure fails here, not in a user's context window.
+      - name: Install the plugin from this checkout
+        run: claude plugin marketplace add ./ && claude plugin install tamirs-superpowers@tamirs-superpowers
+      - name: Hold the always-on token cost to its budget
+        run: bash scripts/check-token-budget.sh .
 
   claude-dist:
     # The Claude-only distribution Anthropic's plugin directory tracks (tag `claude`,
@@ -178,6 +195,31 @@ jobs:
         run: |
           bash scripts/build-claude-dist.sh "$RUNNER_TEMP/claude-dist" --quiet
           bash scripts/check-claude-dist.sh "$RUNNER_TEMP/claude-dist"
+
+  host-dists:
+    # Every other host's subset (docs/engineering/build-and-release/distributions.md):
+    # built by the same generator, held to each host's own parser rules, so a change
+    # that Codex, Cursor, Gemini, Antigravity, OpenCode or an Agent Plugins client would reject
+    # fails on the pull request. The release workflow attaches these as assets.
+    name: Per-host distributions
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - name: Install PyYAML
+        run: python3 -m pip install -q -r scripts/requirements-validate.txt
+      - name: Generated files are current (manifests, Codex hooks and agents, Cursor rules, Gemini hooks, Antigravity plugin, .agents/skills)
+        run: |
+          bash scripts/build-manifests.sh . --check
+          bash scripts/build-codex-hooks.sh . --check
+          bash scripts/build-codex-agents.sh . --check
+          bash scripts/build-cursor-rules.sh . --check
+          bash scripts/build-gemini-hooks.sh . --check
+          bash scripts/build-antigravity-plugin.sh . --check
+          bash scripts/build-agents-skills.sh . --check
+      - name: Build and check every target
+        run: make check-dists
+      - name: Planted-finding probes
+        run: bash tests/test-dist.sh
 
   contract-test:
     name: Repo contract (scaffold-gold)

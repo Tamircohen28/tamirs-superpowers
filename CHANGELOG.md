@@ -5,6 +5,331 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [5.0.0] — 2026-10-17
+
+The major version: one source tree built into a distribution per host, the mod on the
+2.1.288–2.1.302 API with a guard plugin beside it, every host measured against its own
+parser, and three new gates (provenance, token budget, hook conformance). Read
+[`docs/user/upgrade-to-v5.md`](docs/user/upgrade-to-v5.md) before updating: it lists what
+changes per host and what to do. Nothing in 5.0.0 touches on-disk objective state. The
+work landed in five phases, recorded below in the order they shipped (newest first); the
+plan and the research behind it are in `docs/engineering/roadmap/`.
+
+**Breaking:** Claude Code floor 2.1.287 (was 2.0.0); OpenCode 2 only (1.x stays on 4.12.x);
+Codex hooks now load and need `/hooks` trust; Cursor's GitHub token is a plugin variable;
+Gemini hooks and policies ship in the release tarball with a consent prompt and a keychain
+setting; the Agent Plugins manifest lives under `platforms/agent-plugins/`, never at the root.
+
+### Phase 5 — new capabilities
+
+#### Added
+
+- **`diagnose-objective`** (`skills/dev-workflow/diagnose-objective/`, the thirtieth skill, user-
+  and model-invocable, `effort: medium`): explains why an objective failed or stalled and what
+  to run next, without changing any state. `scripts/objective-timeline.sh` reads
+  `.dev-files/objectives/<id>/` (tasks, handoffs, the compaction snapshot, the rate-limit
+  record) and git, and emits a timeline, fifteen classified findings
+  (`task-completed-without-handoff`, `worker-stopped-without-handoff`, `rate-limit-death`,
+  `completed-without-validation`, `integrated-around-partial`, `shared-branch`,
+  `dependency-order-violation`, `integration-behind-workers`, `stuck-running`,
+  `scope-escape`, …), the first cause and the one command to run (`/switch-dev handoff`,
+  `/worker-dev`, `/orchestrate-dev`); the skill writes `diagnosis.md` beside the objective.
+  `tests/test-diagnose-objective.sh` (68 checks) builds four objectives with the real state
+  scripts. Catalogued in `docs/user/skills.md`, `docs/user/orchestration.md` and the
+  `AGENTS.md` trigger table; every "29 skills" count is now 30 and the mod's typeahead and
+  classifier tables carry it.
+- **Agent-teams hooks.** `hooks/task-handoff-check.sh` (`TaskCompleted`) and
+  `hooks/teammate-idle-check.sh` (`TeammateIdle`) extend the handoff contract to
+  `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1` teams: when a teammate marks a task complete, the
+  handoff file must exist, carry a status from the vocabulary, and back `completed` with
+  validation; when a teammate goes idle, the `running` tasks with no handoff are named.
+  Advisory, exit 0, `systemMessage` plus `additionalContext`, never `continue: false`.
+  Both are known-dropped on Codex, Cursor and Gemini (no such events).
+  `tests/test-agent-teams-hooks.sh` (54 checks).
+- **The handoff protocol has one document.** `docs/engineering/architecture/handoff-protocol.md`:
+  the vocabulary (`completed`/`partial`/`failed`/`blocked`/`cancelled`), the file shape, who
+  writes and who reads at each point (subagent, teammate, rate limit, compaction), and
+  the rate-limit record `hooks/rate-limit-handoff.sh` now writes
+  (`.dev-files/handoffs/rate-limit-<ts>.json`: objective, branch, written_at, resume) so a
+  killed session leaves the resume command on disk, which `diagnose-objective` reads back.
+  `tests/test-rate-limit-handoff.sh` (31 checks).
+- **A CI channel for `pr-dev`.** `skills/dev-workflow/pr-dev/references/ci-channels.md`: a
+  one-way MCP channel receiver (`claude/channel`) that turns a GitHub webhook delivery into a
+  session wake, with the HMAC check, so a PR drive reacts to a check result instead of
+  polling; `pr-dev` points at it as the alternative to the Monitor loop.
+- **Agent frontmatter.** Every `agents/*.md` sets `effort` (`high` for the orchestrator,
+  integrator, the four reviewers and the debugging specialist; `medium` for the
+  implementer, test engineer and research agent), authoritative since Claude Code 2.1.267.
+  The two long-running workers (`implementer`, `test-engineer`) also set
+  `autoCompactWindow: 150000` (2.1.296+, lowers only) so a tool-heavy worker compacts before
+  its context is mostly tool output. The generated Codex, Gemini and OpenCode adapters read
+  the fields they translate and ignore these.
+
+### Phase 4 — trust and measurement
+
+#### Added
+
+- **Build provenance on every release asset.** `release.yml`'s `dist-assets` job attests each
+  tarball, `SHA256SUMS-<version>.txt` and `platforms-<version>.json` with
+  `actions/attest-build-provenance` (Sigstore; `id-token`/`attestations: write`), verifiable
+  with `gh attestation verify <file> --repo Tamircohen28/tamirs-superpowers`.
+  `docs/engineering/build-and-release/release-verification.md` has the steps.
+- **A token budget.** `scripts/check-token-budget.sh` measures the always-on cost
+  `claude plugin details` reports for an install from the checkout and holds it to
+  `evals/budget.json` (baseline 8,279 tokens on 2.1.302 with thirty skills; ceiling 8,500;
+  tolerance 10 %). `--update` rewrites the baseline and never raises the ceiling; a figure
+  that parses as nothing fails loudly. CI runs it in the `plugin-validate` job after
+  installing the plugin from the checkout. The figure is roughly four times the
+  marketplace's 2,000-token highlight; the budget exists so it only goes down from here.
+- **The Agent Skills reference validator as a gate.** `scripts/check-skills-ref.sh` runs
+  `npx skills-ref validate` over every skill. The two divergences this repo chooses — the
+  documented Claude extension fields, and `compatibility` as a platform map rather than a
+  string — are classified and printed, every other finding fails, `--spec-strict` promotes
+  the divergences, and an unreachable registry skips rather than fails. CI's `skill-contract`
+  job runs it beside `tests/test-skill-contract.sh --strict` (every warning a failure; eval
+  coverage now 30 of 30 skills, with fallback cases added to `diagnose-refusal` and
+  `usage-capture`).
+- **Hook conformance.** `tests/test-hook-conformance.sh` (940 checks): one scenario corpus (a
+  plain checkout; an active objective with a task worktree) replayed through every wired
+  hook under the Claude Code, Codex, Cursor and Gemini dialects, judging exit codes,
+  one-JSON-object stdout, each host's key vocabulary (never `followup_message` on Cursor),
+  stderr traces, declared timeouts, selectivity (no guard denies an ordinary edit or command
+  in a plain checkout), and equivalence: `enforce-worktree-edits.sh` and
+  `guard-sensitive-files.sh` give the same answer on every host, each in its own dialect.
+  It found one divergence, fixed: `cursor-agent-tools-guard.sh` answered Cursor's
+  observational `postToolUse` with a `permission` key; it now answers `{}`.
+- **The eval suite grew and runs nightly.** Four cases join the `claude plugin eval` suite:
+  `start-dev` from an issue, a `worker-dev` handoff, `pr-dev` driving a red PR, and a
+  negative plain-question case — the GitHub-dependent ones against deterministic mocks under
+  `evals/mocks/github/`. Two calibrated regressions were fixed at the source (`skill-creator`
+  now says when to `context: fork`, and diagnoses before rewriting a weak description).
+  `.github/workflows/evals.yml` runs the suite nightly and on demand with
+  `ANTHROPIC_API_KEY`, never on pull requests, posts the per-case Δ table to the job summary
+  and uploads `results.json`; `tests/test-evals-suite.sh` (28 checks) holds the suite's
+  static shape on every push.
+- `docs/engineering/architecture/validation-tiers.md` names the three measurable trust
+  gates; `docs/engineering/build-and-release/testing-matrix.md` and `tests/README.md` list
+  every new suite.
+
+### Phase 3 — per-platform parity, measured host by host
+
+#### Added
+
+- **Codex CLI.** The twelve-event Codex hooks file is generated from `hooks/hooks.json` with
+  the host's own clamps: `SessionEnd` and `Interrupt` hooks are capped at the 3-second limit
+  Codex enforces, every `Stop`/`SubagentStop` hook prints JSON (`{}` is the no-op; Codex
+  treats an empty stdout on exit 0 as a failed hook) through the new `hook_stop_ok` helper in
+  `hooks/lib/hook-output.sh`, and the hook library detects Codex from `PLUGIN_ROOT`/`turn_id` so
+  a hook can answer in the host's dialect. `tests/hooks/test-codex-contract.sh` (93 checks)
+  replays a Codex payload corpus (`tests/fixtures/codex/`) through every shipped hook. Measured
+  on codex-cli 0.163.0: a plugin carrying a root Agent Plugins `plugin.json` has every hook
+  source emptied, so the manifest lives under `platforms/agent-plugins/` and the `codex`
+  distribution refuses a root one (`check-dist.sh`, with a planted probe). `.codex/agents/*.toml`
+  are generated from `agents/*.md` by `scripts/build-codex-agents.sh`.
+- **Cursor.** The bundle covers ten of Cursor's twenty-one events (was six): `sessionStart`,
+  `sessionEnd`, `beforeSubmitPrompt`, `stop`, `subagentStop`, `preCompact`, `workspaceOpen` join
+  the three tool guards. The three fail-closed guards carry `failClosed: true` and
+  `loop_limit: null` on the safety tier. Every lifecycle hook speaks Cursor's documented output
+  shape through `hooks/lib/cursor-output.sh` — `continue`/`user_message` on prompts,
+  `additional_context` on session start, `pluginPaths` on workspace open, `user_message` on
+  stop and subagent stop — and **never** `followup_message`, which Cursor would auto-submit as
+  the person's next message. The `github` MCP server's token is a declared plugin variable
+  (`GITHUB_TOKEN` under `variables.properties`), which Cursor requires for every `${VAR}`.
+  `tests/test-cursor-lifecycle.sh` (124 checks) replays `tests/fixtures/cursor/` through the
+  bundle and asserts the no-`followup_message` rule.
+- **Gemini CLI (0.64.0).** The adapter now ships hooks and policies. `platforms/gemini/hooks.json`
+  is generated from `hooks/hooks.json` by `scripts/build-gemini-hooks.sh` (Gemini event names,
+  anchored Gemini tool matchers, millisecond timeouts, every command through
+  `hooks/gemini-wrap.sh`, which translates the payload in and the envelope out and always exits
+  0 because Gemini denies on every non-zero exit but 1) and placed at `hooks/hooks.json` in the
+  `gemini` distribution, the one path Gemini reads. `policies/tamirs-superpowers.toml` adds five
+  deny-only rules that hold with hooks disabled. The manifest declares the GitHub token under
+  `settings[]` (`sensitive: true`, OS keychain; reaches MCP servers only). Measured: the
+  extension validates, installs (`--consent --skip-settings`) and lists with the file in place;
+  firing was not observed (needs an authenticated session), so the registry row stays
+  `unknown`. `tests/test-gemini-hooks.sh` (87 checks). `docs/user/install/gemini.md` carries the
+  consumer-sunset banner and the hooks section.
+- **Antigravity.** A new `antigravity` distribution target and adapter (`platforms/antigravity/`):
+  `plugin.json` (the closed `{name, description}` schema) and `mcp_config.json` generated by
+  `scripts/build-antigravity-plugin.sh`, the `.agents/skills` mirror (`scripts/build-agents-skills.sh`, one
+  relative symlink per skill) dereferenced and flattened to `skills/`, the Gemini agent
+  translations as `agents/`, no hooks file. Registered as an **unverified** surface
+  (`antigravity_cli`) under the gemini platform: no live `agy` run has recorded anything, every
+  coarse key in the adapter is `unknown`, and `docs/user/install/antigravity.md` says which
+  route (`agy plugin import gemini`, `agy plugin install`) is documented rather than measured.
+  `tests/test-antigravity-adapter.sh`, `tests/test-agents-skills.sh`.
+- **OpenCode 2 (2.0.32).** `opencode.json` moves to the V2 vocabulary: `permissions` rules
+  (`shell`/`subagent`, deny-only plus `external_directory: ask`), `.opencode/agents/` (plural),
+  `mcp.servers.github` with the token through `{env:}`, and `plugins[]` naming
+  `platforms/opencode/plugin/`, an OpenCode 2 server plugin that carries the three core guards
+  (`guard.ts`: `permission.hook('evaluate')` on edit and shell, `shell.hook('create.before')`
+  backstop) and a TUI plugin (`tui.tsx`) drawing the status line and the objective pane. It
+  loads on 2.0.32; whether a deny stops an action live is not yet measured, so `hooks`,
+  `statusline` and `mods` read `adapter`. `scripts/check-opencode-permission-keys.sh` holds the
+  V2 vocabulary; `tests/test-opencode-v2.sh` (179 checks); `make opencode-plugin-test` runs the
+  plugin's pure rules under node and is part of `make validate`.
+- **Distribution checks for the new shapes.** `check-dist.sh` holds the `gemini` tree to the
+  generated hooks file (no `modules`, no `onFailure`, no `${CLAUDE_PLUGIN_ROOT}`, only Gemini's
+  eleven events, every command through the wrapper naming a shipped script, millisecond
+  timeouts, policies present) and the `antigravity` tree to its closed schema and flat layout;
+  `tests/test-dist.sh` plants each finding (42 probes). `make check-dists`, CI's `host-dists`
+  job and `release.yml`'s `dist-assets` job build and check all six non-Claude targets.
+
+#### Changed
+
+- Every hook that answers a lifecycle event is one script on every host: Claude, Codex, Cursor
+  and Gemini dialects are selected at run time (`hook_detect_platform`), never by a per-host
+  copy. `hooks/precompact-snapshot.sh`, `hooks/check-done.sh`, `hooks/subagent-handoff-check.sh`,
+  `hooks/session-init.sh`, `hooks/session-end.sh`, `hooks/skill-suggest.sh`,
+  `hooks/goal-condition-lint.sh`, `hooks/scope-decompose-reminder.sh`,
+  `hooks/release-agent-claims.sh` and `hooks/handoff-reminder.sh` gained the Cursor branch;
+  `hooks/lib/write-targets.py` understands Gemini's `run_shell_command`/`replace`/`write_file`
+  and Cursor's `Shell`.
+- `platforms/codex/adapter.yaml` points at `.codex-plugin/plugin.json` (the overlay route) rather
+  than a root manifest; `tests/test-opencode-adapter.sh` accepts an adapter for an unverified
+  registry surface when the adapter says so and every coarse key is `unknown`.
+- `docs/user/platform-differences.md`, `.gemini/GEMINI.md`, the capability registry
+  (`gemini_cli` hooks and mcp notes, `antigravity_cli` install and validation) and
+  `docs/engineering/build-and-release/distributions.md` describe the measured state above.
+- `tests/test-subagent-handoff-check.sh` accepts `{}` as silence (the Codex no-op), and
+  `tests/test-renderers.sh` expects OpenCode's rendered notes to say `hooks — adapter`.
+
+### Phase 2 — the mod, and a guard plugin beside it
+
+#### Added
+
+- **The mod uses the 2.1.288–2.1.302 API** (`mod/register.tsx`, now 18 hooks, split into
+  `register.tsx` for every hook and `$` call plus pure `objective.ts`, `usage.ts`, `skills.ts`,
+  `compat.ts`): `prompt.autocomplete` offers the 26 public skills, `/objective` and
+  `/switch-dev handoff` as the person types `/`; `skill.prompt` appends the live objective id,
+  worktree and open-task count when a dev-workflow skill of this plugin expands under an active
+  objective; an `objective_status` tool (registered upfront, not deferred) answers the model with
+  the objective as JSON; the objective pane shows each task's agent status from `$.agent.list()`
+  with a view button that opens that worker's transcript (`$.ui.view`, 2.1.300+); the rate-limit
+  band also raises a native notification once per crossing (`$.ui.notify`, 2.1.295+);
+  `classic.SessionStart` on clear/resume/fork reloads the pane and the dismissal, which `/clear`
+  used to blank; `$.store` keeps the skill-suggest "seen" set and the rate-limit dismissal across
+  sessions; every drawing is mounted on terminal, desktop and the VS Code chat panel (2.1.299+),
+  typography gated on `$.session.version()`. 40 mod tests (was 22); every gating hook has
+  `.catch`; still no process, no network, no prompt submission, no permission answer.
+- **`tamirs-superpowers-guard`**, a second plugin in the in-repo marketplace
+  (`plugins/guard`, `/plugin install tamirs-superpowers-guard --marketplace
+  Tamircohen28/tamirs-superpowers`): an in-process hold on destructive shell commands (force
+  push, `git branch -D`, `git reset --hard`, `git clean -f`, `rm -rf` outside a temp dir, …)
+  through `$.ui.ask`, let through where nothing can ask; an in-process deny of writes into the
+  main checkout while an objective is active, mirroring `enforce-worktree-edits.sh`; a `/guard`
+  command; two options to switch each off. It is a separate plugin because a mod that holds or
+  denies reads as a policy-answering mod to the plugin directory, and the core plugin keeps its
+  clean footprint. 19 tests; `make test-mods` and CI run both plugins;
+  `tests/test-guard-plugin.sh` holds its shape. Design:
+  `docs/engineering/architecture/guard-plugin.md`.
+
+#### Changed
+
+- **Claude Code floor 2.0.0 → 2.1.287** (`platform-targets.json` `supported_min`): the release
+  that introduced mods. 2.1.299 is the recommended surface. Bash hooks, skills and agents still
+  run on older builds; the plugin is no longer validated there.
+- `make typecheck-mods` type-checks against the plugin-authoring skill's bundled
+  `claude-code.d.ts` (2.1.302 here) and stays a local gate: the engine's type file is not
+  redistributed with the repository, and `claude plugin test` is the CI gate.
+
+### Phase 1 — packaging: one source, one subset per host
+
+#### Added
+
+- **Agent Plugins 1.0 manifest.** `platforms/agent-plugins/plugin.json` (`$schema` 1.0.0,
+  identity fields) and `mcp.json` (the `github` server as a `stdio` entry rooted at
+  `${PLUGIN_ROOT}`), the package format Codex, Cursor, Copilot CLI, Kiro and VS Code read,
+  placed at the root of the `agent-plugins` distribution tarball. They are deliberately NOT at
+  the repository root: measured on codex-cli 0.163.0 (Phase 3), a plugin carrying a root Agent
+  Plugins manifest has its hook sources emptied before any hooks path is read, so Codex keeps
+  reading `.codex-plugin/plugin.json` and its seven explicit skill roots. The Codex overlay can
+  ride in the Agent Plugins manifest as `extensions.com.openai`; that switch
+  (`emit_codex_extension` in `platforms/manifests.source.json`) ships **off**.
+- **One source for every per-host manifest.** `scripts/build-manifests.sh` writes the root
+  manifest, `mcp.json`, `.codex-plugin/plugin.json`, `.cursor-plugin/plugin.json`,
+  `platforms/cursor/mcp.json` and `gemini-extension.json` from `.claude-plugin/plugin.json`
+  (identity), `plugin-version.json` (version) and `platforms/manifests.source.json` (per-host
+  overlay); `--check` is a CI gate (`make manifests-check`). The Cursor manifest now declares the
+  `GITHUB_TOKEN` plugin variable its `mcp.json` uses, as Cursor requires.
+- **A Codex hooks file Codex can parse.** `scripts/build-codex-hooks.sh` generates
+  `platforms/codex/hooks.json` from `hooks/hooks.json` without the `modules` key, without the
+  five events Codex lacks and without `onFailure`; both Codex manifests point at it. Until now
+  Codex loaded the Claude file, whose `modules` key its strict parser rejects, so no plugin hook
+  can have run there since 4.10.0 (source-read, not run live; recorded in the registry).
+- **Generated adapters, with drift checks.** `scripts/build-cursor-rules.sh` writes
+  `.cursor/rules/*.mdc` from `platforms/cursor/rules.map.json` (five hand-kept adapters stay
+  manual and are checked, not rewritten); `scripts/build-codex-agents.sh` writes
+  `.codex/agents/*.toml` (name, description, `developer_instructions`, `features.shell_tool`
+  where the allowlist has no shell; never a model) from `agents/*.md`, a repo-level route to the
+  ten specialist agents on Codex. Inventory of every generated file:
+  `docs/engineering/architecture/generated-adapters.md`.
+- **One builder, one subset per host.** `scripts/build-dist.sh --target {claude, codex, cursor,
+  gemini, opencode, agent-plugins}` replaces the Claude-only builder (kept as a wrapper);
+  `scripts/check-dist.sh` holds each subset to its host's parser rules and
+  `tests/test-dist.sh` plants each rule's failure shape (Codex `modules`/events/`onFailure`,
+  Cursor `version: 1` and undeclared variables, the Agent Plugins `$schema` and transport
+  names, no secrets, one version everywhere). CI job `host-dists`; `make check-dists` in
+  `make validate`. `release.yml` attaches the non-Claude subsets to the GitHub Release as
+  tarballs with a `SHA256SUMS` file and the capability registry as a further asset.
+  Design: `docs/engineering/build-and-release/distributions.md`.
+- **Hook tiers as plugin options.** `notification_hooks` (default on: desktop and phone
+  notifications, the VPN exit check, the usage-capture collector start) and
+  `contributor_hooks` (default off: the reload reminder, report-link validation and the
+  hand-written `SKILL.md` guard, which answers with the platform allow when off so Cursor is
+  never fail-closed). Core-safety, worktree-lifecycle and user-facing convenience hooks are
+  never gated; Codex and Cursor get the defaults. Chosen over a core/notify/contrib plugin
+  split: `docs/engineering/decisions/003-hook-tiers-as-options.md`.
+- Capability registry: `claude_vscode` and `antigravity_cli` recorded as unverified surfaces
+  (the VS Code extension draws mods since 2.1.299; Antigravity CLI is Google's successor to
+  the consumer Gemini CLI with its own plugin format).
+
+#### Changed
+
+- `release.yml` bumps the version in `plugin-version.json` and propagates it with
+  `check-version-truth.sh --sync` plus the manifest generator, instead of editing three
+  manifests by hand; the release now also publishes the per-host tarballs.
+- `CLAUDE.md` is a 13 KB current-only contributor page; the per-release host notes
+  (2.1.234–2.1.287) moved to `docs/engineering/host-notes/claude-code.md`, extended through
+  2.1.302 with each item marked adopted, reviewed-not-applicable or open. The nightly
+  `platform-sync` skill appends there now.
+
+### Phase 0 — baselines (merged nightly branches, fail-closed guards, pins)
+
+#### Changed
+
+- **Claude Code pin 2.1.300 → 2.1.302** (live `claude` CLI run; `claude plugin validate` and
+  `claude plugin test` pass). Merges the nightly `claude-code-update` branch (PR #271): a
+  worker's `turn.start` (which also fires for subagents since 2.1.299) no longer zeroes the main
+  turn's write count; `.catch` on the four gating mod hooks so a broken counter, snapshot or
+  classifier never denies what it was never meant to gate; one-step
+  `claude plugin install --marketplace` install docs; 22 mod tests.
+- **Cursor desktop pin 3.23.12 → 3.24.12** (feature changelog still 3.11 / 2026-09-23). Merges
+  the nightly `cursor-update` branch (PR #277): `hooks/cursor-agent-tools-guard.sh` keys
+  subagent `tools:` allowlists on Task `tool_use_id` + child `parent_tool_call_id`, with the
+  order-stack intersection as the fallback for older payloads.
+- **Codex 0.160.1 → 0.163.0, Gemini CLI 0.62.0 → 0.64.0, OpenCode 2.0.24 → 2.0.32**
+  (`reviewed_through`/`latest_known`; no live binary, so `validated_against` stays). Closes the
+  daily drift issues #270–#283. The review recorded two facts the adapters act on later in this
+  release: Codex's hooks parser rejects unknown top-level keys (so the shared `hooks/hooks.json`
+  with its `modules` key cannot load there), and OpenCode 2 does not run V1 plugins and has
+  deprecated the 15-key `permission` object.
+- **The four core-safety guards fail closed.** `protect-other-branches.sh`,
+  `enforce-worktree-edits.sh`, `guard-sensitive-files.sh` (both wirings) and `docker-guard.py`
+  carry `onFailure: "block"` in `hooks/hooks.json` (Claude Code 2.1.295+): a guard that cannot
+  start, times out or exits oddly now blocks the action instead of letting it through. Advisory
+  hooks stay fail-open. `tests/test-manifest-invariants.sh` holds both sides.
+- `actions/setup-node` 7.0.0 → 7.1.0 (PR #276).
+
+#### Fixed
+
+- Stale prose: `mods.md` listed three non-sensitive options (there are two), still named
+  `$.process.run` and "uncommitted files" in the compaction row (both removed in 4.11.0) and a
+  handoff button (removed in 4.11.6); the mod's header said the same; `CLAUDE.md` said no script
+  parses `.claude-code-version` (`check-platform-version-pins.sh` has since 4.12.0) and quoted
+  21 mod tests. `tests/test-manifest-invariants.sh` now holds the option count, the Options
+  table and the test count to the files.
+
 ## [4.12.2] — 2026-10-16
 
 ### Changed
@@ -1326,7 +1651,7 @@ All five platform targets are now current: the probe reports **0 drifted, 0 unre
 ### Changed
 
 - **Skill descriptions trimmed 28%, trigger coverage up 10 points.** The `description` +
-  `when_to_use` frontmatter across all 29 skills went from 26,686 to 19,092 characters — roughly
+  `when_to_use` frontmatter across all `29 skills` (the count shipped then) went from 26,686 to 19,092 characters — roughly
   6,600 to 4,700 tokens resident in the system prompt on *every* turn. Empirical ablation (four
   plugin variants against the same eval case) attributes ~82% of this plugin's token overhead to
   these fields, against ~9% for all 25 hooks combined, so this is where the cost actually lives.

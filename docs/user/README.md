@@ -19,10 +19,11 @@ Start here: **[Getting started](getting-started.md)** → **[Concepts](concepts.
 
 | Page | What it covers |
 |---|---|
-| [Skills](skills.md) | All 29 skills, by domain, with roles and tiers |
+| [Skills](skills.md) | All 30 skills, by domain, with roles and tiers |
 | [Agents](agents.md) | The ten canonical roles and the agents that play them |
 | [Platform differences](platform-differences.md) | Registry-generated capability matrix, honest about gaps |
 | [Installation](install/README.md) | Per-platform install · verify · update · uninstall |
+| [Upgrading to 5.0](upgrade-to-v5.md) | What 5.0.0 changes per host and what to do about it |
 
 ## Guides
 

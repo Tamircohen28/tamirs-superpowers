@@ -1,7 +1,7 @@
 {
   "name": "tamirs-superpowers",
-  "version": "4.12.2",
-  "description": "29 bundled skills, smart worktree hooks, statusline, and MCP server stubs — plan, implement, review, debug, multi-agent setup, and audit code from one plugin.",
+  "version": "5.0.0",
+  "description": "30 bundled skills, smart worktree hooks, statusline, and MCP server stubs — plan, implement, review, debug, multi-agent setup, and audit code from one plugin.",
   "author": {
     "name": "Tamir Cohen",
     "url": "https://github.com/Tamircohen28"
@@ -20,7 +20,7 @@
   "interface": {
     "displayName": "Tamir's Superpowers",
     "shortDescription": "Plan, implement, review and ship code across five agent platforms",
-    "longDescription": "A portable agent toolkit: 29 skills, 10 role-based agents, worktree hooks and MCP stubs, shipped from one canonical source to every supported surface. Covers the full development lifecycle - decompose a request into a task graph, run each task under a role, integrate onto one branch, review the combined diff, and deliver a single pull request - plus repository scaffolding, standards audits, multi-agent setup, debugging and documentation review.",
+    "longDescription": "A portable agent toolkit: 30 skills, 10 role-based agents, worktree hooks and MCP stubs, shipped from one canonical source to every supported surface. Covers the full development lifecycle - decompose a request into a task graph, run each task under a role, integrate onto one branch, review the combined diff, and deliver a single pull request - plus repository scaffolding, standards audits, multi-agent setup, debugging and documentation review.",
     "developerName": "Tamir Cohen",
     "category": "Developer Tools",
     "capabilities": [
@@ -34,10 +34,7 @@
     "defaultPrompt": [
       "Plan this feature and break it into phases",
       "Implement issue #42 and open a pull request",
-      "Drive this PR to merge - address the review comments and fix CI",
-      "Audit this repo against multi-agent standards",
-      "Scaffold a new repo for a CLI that tracks job applications",
-      "Turn this workflow into a reusable skill"
+      "Drive this PR to merge - address the review comments and fix CI"
     ]
   },
   "skills": [
@@ -50,5 +47,5 @@
     "./skills/repo"
   ],
   "mcpServers": "./.mcp.json",
-  "hooks": "./hooks/hooks.json"
+  "hooks": "./platforms/codex/hooks.json"
 }

@@ -1,0 +1,23 @@
+{
+  "conversation_id": "conv-0123456789abcdef",
+  "generation_id": "gen-0001",
+  "model": "auto",
+  "model_id": "auto",
+  "hook_event_name": "subagentStop",
+  "cursor_version": "3.24.12",
+  "workspace_roots": [
+    "/workspace/project"
+  ],
+  "transcript_path": "/workspace/project/.cursor/transcripts/conv-0123456789abcdef.jsonl",
+  "status": "completed",
+  "task": "Find every caller of parseConfig",
+  "description": "explore",
+  "summary": "Three callers.",
+  "duration_ms": 9100,
+  "message_count": 4,
+  "tool_call_count": 6,
+  "loop_count": 1,
+  "modified_files": [],
+  "agent_transcript_path": "/workspace/project/.cursor/transcripts/sub-0001.jsonl",
+  "child_conversation_id": "conv-child-0001"
+}

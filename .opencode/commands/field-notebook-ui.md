@@ -1,5 +1,6 @@
 ---
 description: 'A UI, explainer, dashboard, diagram or artifact should carry this repo''s engineer''s field-notebook look — warm stone-paper, hand-annotated margins, graph-paper grid.'
+subagent: false
 ---
 
 <!-- GENERATED FILE — DO NOT EDIT.

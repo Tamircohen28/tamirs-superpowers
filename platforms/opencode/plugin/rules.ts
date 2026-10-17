@@ -1,0 +1,733 @@
+// rules.ts — the pure decision functions behind the OpenCode 2 guard plugin.
+//
+// Nothing here touches the filesystem, the environment, a process or the OpenCode
+// context. Every fact a rule needs arrives as an argument, so tests/test-opencode-v2.sh
+// can drive each rule with plain Node (`node --test`), with no OpenCode host and no
+// npm install. guard.ts is the thin IO layer that gathers the facts and wires
+// these functions to ctx.permission.hook / ctx.shell.hook.
+//
+// Each function names the shell hook it mirrors. The hooks stay canonical
+// (hooks/*.sh run on Claude Code, Codex and Cursor); this file is the OpenCode
+// translation of their DECISIONS, not of their plumbing. Where a hook's judgment
+// depends on something OpenCode cannot provide (a session worktree slug, a hook
+// envelope), the narrower rule is stated and the reason recorded inline.
+//
+// Erasable TypeScript only — no enums, no parameter properties, no namespaces —
+// so `node file.ts` works without a build step.
+
+export type Effect = "allow" | "ask" | "deny"
+
+export interface Decision {
+  readonly effect: Effect
+  readonly reason?: string
+}
+
+export const ALLOW: Decision = { effect: "allow" }
+
+export function deny(reason: string): Decision {
+  return { effect: "deny", reason }
+}
+
+// ---------------------------------------------------------------- paths ---
+
+// Normalise a path for pattern matching: forward slashes, no trailing slash.
+export function normPath(p: string): string {
+  let s = p.replace(/\\/g, "/")
+  while (s.length > 1 && s.endsWith("/")) s = s.slice(0, -1)
+  return s
+}
+
+// True when `child` is `parent` or lies beneath it (both already absolute).
+export function isWithin(child: string, parent: string): boolean {
+  const c = normPath(child)
+  const p = normPath(parent)
+  if (!p) return false
+  return c === p || c.startsWith(p.endsWith("/") ? p : p + "/")
+}
+
+// ---------------------------------------------- hooks/guard-sensitive-files.sh ---
+
+export interface SensitiveFacts {
+  /** git toplevel of the file being written, when it is inside a repo. */
+  readonly repoRoot?: string | null
+  /** `<repoRoot>/components.json` exists (shadcn) — the only honest signal that components/ui/ is generated. */
+  readonly hasShadcnConfig?: boolean
+  /** `git check-ignore` says the path is ignored (only consulted for build-output dirs). */
+  readonly gitIgnored?: boolean
+  /** origin remote points at github.com — chooses the remedy wording for a workflow file. */
+  readonly remoteIsGithub?: boolean
+}
+
+export type WriteKind = "write" | "delete"
+
+const OVERRIDE_HINT =
+  " If this edit is genuinely intended and the user asked for it, set PM_ALLOW_PROTECTED=1 in the environment and retry."
+
+/**
+ * Mirrors the `classify` function of hooks/guard-sensitive-files.sh rule for rule.
+ * Returns the deny reason, or null when the path is not protected.
+ */
+export function sensitiveReason(file: string, facts: SensitiveFacts = {}, kind: WriteKind = "write", via = ""): string | null {
+  const f = normPath(file)
+  const context = via ? ` (via: ${via})` : ""
+  if (/\.lock$|\/package-lock\.json$|\/pnpm-lock\.yaml$|\/bun\.lockb$|\/go\.sum$/.test(f)) {
+    return (
+      `BLOCKED: '${file}' is a package-manager lockfile — it is generated, never hand-edited.${context} ` +
+      "Change the manifest (package.json / Cargo.toml / pyproject.toml / go.mod) and re-run the package manager so the lockfile is regenerated." +
+      OVERRIDE_HINT
+    )
+  }
+  if (f.includes("/.yarn/releases/")) {
+    return `BLOCKED: '${file}' is the vendored Yarn binary under .yarn/releases/.${context} Change it with 'yarn set version <version>', not by editing the file.` + OVERRIDE_HINT
+  }
+  if (f.includes("/.github/workflows/")) {
+    const remedy = facts.remoteIsGithub
+      ? "Edit it via the GitHub MCP (create_or_update_file) if that server is configured for this session; otherwise use 'gh api' or the GitHub web UI"
+      : "Edit it through your GitHub host's API or web UI rather than the local file"
+    return `BLOCKED: '${file}' is a GitHub Actions workflow.${context} ${remedy}.` + OVERRIDE_HINT
+  }
+  if (/\/components\/ui\//.test(f)) {
+    if (facts.repoRoot && facts.hasShadcnConfig) {
+      return (
+        `BLOCKED: '${file}' sits under components/ui/ in a shadcn project (detected: ${facts.repoRoot}/components.json) — these files are generated.${context} ` +
+        "Re-generate with the shadcn CLI's add command, or move your customisation into a wrapper component outside components/ui/." +
+        OVERRIDE_HINT
+      )
+    }
+    return null
+  }
+  if (/\/(dist|build|out|\.next|target\/debug|target\/release)\//.test(f)) {
+    // Blocked only when git ignores it, and only for content — `rm -rf dist/` is fine.
+    if (kind !== "delete" && facts.repoRoot && facts.gitIgnored) {
+      return (
+        `BLOCKED: '${file}' is build output — git ignores this path in ${facts.repoRoot}, so it is regenerated by the build and any edit here is discarded.${context} ` +
+        "Change the source and re-run the build." +
+        OVERRIDE_HINT
+      )
+    }
+  }
+  return null
+}
+
+// ---------------------------------------------- hooks/enforce-worktree-edits.sh ---
+
+export interface WorktreeFacts {
+  /** Main checkout root of the repo the path belongs to; null when the path is not in a git repo. */
+  readonly mainRoot: string | null
+  /** Active objective id (SUPERPOWERS_OBJECTIVE_ID, or an objective.json with status "active"); null when none. */
+  readonly objectiveId: string | null
+  /** SUPERPOWERS_AGENT_WORKTREE_ROOT — objective worktrees relocated outside the repo. */
+  readonly agentWorktreeRoot?: string
+  /** SUPERPOWERS_AGENT_WORKTREE_DIRNAME, default ".agent-worktrees". */
+  readonly agentWorktreeDirname?: string
+  /** CLAUDE_CONFIG_DIR or ~/.claude — machine housekeeping, never forced through a worktree. */
+  readonly claudeConfigRoot?: string
+  /** WORKTREE_ROOT or ~/.claude/worktrees — the legacy single-task layout. */
+  readonly globalWorktreeRoot?: string
+}
+
+/**
+ * Mirrors is_agent_workspace / is_objective_worktree_path / is_platform_worktree_path
+ * from hooks/lib/objective-common.sh: every layout in which repo edits are legitimate.
+ */
+export function isAgentWorkspacePath(path: string, facts: WorktreeFacts): boolean {
+  const p = normPath(path)
+  const dirname = facts.agentWorktreeDirname || ".agent-worktrees"
+  if (p.includes(`/${dirname}/`)) return true
+  if (facts.agentWorktreeRoot && isWithin(p, facts.agentWorktreeRoot)) return true
+  if (/\/\.(claude|cursor|codex)\/\.worktrees\//.test(p)) return true
+  if (facts.globalWorktreeRoot && isWithin(p, facts.globalWorktreeRoot)) return true
+  if (/\/\.claude\/worktrees\//.test(p)) return true
+  return false
+}
+
+/**
+ * Mirrors judge_target_dir of hooks/enforce-worktree-edits.sh for the objective
+ * case. The shell hook denies a main-checkout edit even with no objective, because
+ * it can name (and recreate) the session's own worktree as the remedy; OpenCode has
+ * no session-slug machinery to derive that worktree from, so a deny there would be
+ * a dead end with no destination — the exact "degraded path" the shell hook
+ * refuses to create. Hence: no objective, no verdict. With an objective active the
+ * remedy exists (the orchestrator's own worktrees) and the deny is the same text.
+ */
+export function judgeEdit(path: string, facts: WorktreeFacts): Decision {
+  if (!facts.mainRoot) return ALLOW
+  if (!facts.objectiveId) return ALLOW
+  const p = normPath(path)
+  if (facts.claudeConfigRoot && isWithin(p, facts.claudeConfigRoot)) return ALLOW
+  if (isAgentWorkspacePath(p, facts)) return ALLOW
+  if (!isWithin(p, facts.mainRoot)) return ALLOW
+  const base = facts.agentWorktreeRoot
+    ? normPath(facts.agentWorktreeRoot)
+    : `${normPath(facts.mainRoot)}/${facts.agentWorktreeDirname || ".agent-worktrees"}`
+  return deny(
+    `Repo edits must happen in an objective worktree, not the main checkout (${facts.mainRoot}). ` +
+      `Objective '${facts.objectiveId}' is active: work in ${base}/${facts.objectiveId}/task-NNN (worker) or .../integration (integrator). ` +
+      "Ask the orchestrator which one is yours — do not create a new worktree.",
+  )
+}
+
+// ------------------------------------------------------------- objectives ---
+
+export interface ObjectiveEntry {
+  readonly id: string
+  readonly json: string | null
+}
+
+export function parseObject(text: string | null): Record<string, unknown> | null {
+  if (text === null) return null
+  try {
+    const v: unknown = JSON.parse(text)
+    return v && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, unknown>) : null
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Mirrors active_objective_id of hooks/lib/objective-common.sh: the env override
+ * wins; else the first objective.json whose status is "active" (ids sorted); else
+ * none. Deliberately NOT the mod's looser "first not completed/abandoned" fallback —
+ * the guard must only ever deny on the same signal the shell hook denies on.
+ */
+export function activeObjectiveId(entries: readonly ObjectiveEntry[], envOverride: string | undefined): string | null {
+  if (envOverride) return envOverride
+  for (const e of [...entries].sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))) {
+    const obj = parseObject(e.json)
+    if (!obj || obj.status !== "active") continue
+    return typeof obj.id === "string" && obj.id ? obj.id : e.id
+  }
+  return null
+}
+
+// ------------------------------------------------- hooks/lib/agent-claim.sh ---
+
+/** Filesystem-safe key for a resource identifier — the same bytes claim_key emits. */
+export function claimKey(resource: string): string {
+  return resource.replace(/[/:@#]/g, "_").replace(/[^A-Za-z0-9._-]/g, "_")
+}
+
+export type ClaimStatus = "FREE" | "MINE" | "LIVE" | "STALE" | "ERROR"
+
+export interface ClaimVerdict {
+  readonly status: ClaimStatus
+  readonly holder?: string
+  readonly tool?: string
+  readonly ageSeconds?: number
+  readonly detail: string
+}
+
+export interface ClaimClock {
+  readonly now: number // epoch seconds
+  readonly host: string
+  /** true = alive, false = gone, null = cannot tell (treated as alive, like the shell's EPERM caveat). */
+  readonly pidAlive: (pid: number) => boolean | null
+  readonly staleSeconds: number // AGENT_CLAIM_STALE_SECONDS, default 900
+}
+
+/**
+ * Mirrors claim_inspect. `json` is the claim file's text (null = no file). ERROR is
+ * returned for anything unreadable or malformed, and callers must treat it as a
+ * hard failure — never as FREE.
+ */
+export function inspectClaim(json: string | null | undefined, me: string, clock: ClaimClock): ClaimVerdict {
+  if (json === null || json === undefined) return { status: "FREE", detail: "no claim file" }
+  const obj = parseObject(json)
+  if (!obj) return { status: "ERROR", detail: "claim file is not valid JSON — claim state is corrupt and cannot be evaluated" }
+  const holder = typeof obj.agent_id === "string" ? obj.agent_id : ""
+  const tool = typeof obj.tool === "string" ? obj.tool : "unknown"
+  const hbRaw = obj.heartbeat_at
+  const hb = typeof hbRaw === "number" ? hbRaw : typeof hbRaw === "string" && /^[0-9]+$/.test(hbRaw) ? Number(hbRaw) : NaN
+  if (!holder || !Number.isFinite(hb)) {
+    return { status: "ERROR", detail: "claim file is missing required fields (agent_id/heartbeat_at) — claim state cannot be evaluated" }
+  }
+  const age = Math.max(0, clock.now - hb)
+  if (holder === me) return { status: "MINE", holder, tool, ageSeconds: age, detail: "self" }
+  const pid = typeof obj.pid === "number" ? obj.pid : typeof obj.pid === "string" && /^[0-9]+$/.test(obj.pid) ? Number(obj.pid) : NaN
+  const host = typeof obj.host === "string" ? obj.host : ""
+  if (host && host === clock.host && Number.isFinite(pid)) {
+    if (clock.pidAlive(pid) === false) {
+      return { status: "STALE", holder, tool, ageSeconds: age, detail: `holder pid ${pid} is gone on this host` }
+    }
+  }
+  if (age > clock.staleSeconds) {
+    return { status: "STALE", holder, tool, ageSeconds: age, detail: `heartbeat older than ${clock.staleSeconds}s` }
+  }
+  return { status: "LIVE", holder, tool, ageSeconds: age, detail: `heartbeat ${age}s ago` }
+}
+
+// ---------------------------------------------------- shell structure parsing ---
+//
+// A port of claim_shell_segments / claim_effective_segments: the command string is
+// read the way a shell reads it. Quoted text and heredoc bodies are ARGUMENTS and
+// can never be commands; only the first word of a real segment names the program.
+// `git commit -m "git push origin main"` therefore invokes no push.
+
+export type Segment = string[]
+
+export function shellSegments(s: string): Segment[] {
+  const out: Segment[] = []
+  let seg: string[] = []
+  let tok = ""
+  let haveTok = false
+  let state = 0 // 0 unquoted, 1 single, 2 double
+  let expectHd = false
+  const pendingHd: string[] = []
+  const stack: number[] = []
+  let i = 0
+  const n = s.length
+
+  const emitTok = () => {
+    if (haveTok) {
+      if (expectHd) {
+        expectHd = false
+        pendingHd.push(tok)
+      } else {
+        seg.push(tok.replace(/\n/g, " "))
+      }
+    }
+    tok = ""
+    haveTok = false
+  }
+  const emitSeg = () => {
+    emitTok()
+    if (seg.length) out.push(seg)
+    seg = []
+  }
+  const skipHeredocs = () => {
+    while (pendingHd.length) {
+      const delim = pendingHd.shift() as string
+      while (i < n) {
+        let j = i
+        while (j < n && s[j] !== "\n") j++
+        const line = s.slice(i, j).trim()
+        i = j < n ? j + 1 : n
+        if (line === delim) break
+      }
+    }
+  }
+
+  while (i < n) {
+    const c = s[i]
+    if (state === 1) {
+      if (c === "'") state = 0
+      else tok += c
+      i++
+      continue
+    }
+    if (state === 2) {
+      if (c === "\\" && i + 1 < n) {
+        const c2 = s[i + 1]
+        if (c2 === '"' || c2 === "\\" || c2 === "$" || c2 === "`") {
+          tok += c2
+          i += 2
+          continue
+        }
+        tok += c
+        i++
+        continue
+      }
+      if (c === '"') {
+        state = 0
+        i++
+        continue
+      }
+      if (c === "$" && s[i + 1] === "(") {
+        stack.push(2)
+        emitSeg()
+        state = 0
+        i += 2
+        continue
+      }
+      tok += c
+      haveTok = true
+      i++
+      continue
+    }
+    if (c === "'") {
+      state = 1
+      haveTok = true
+      i++
+      continue
+    }
+    if (c === '"') {
+      state = 2
+      haveTok = true
+      i++
+      continue
+    }
+    if (c === "\\") {
+      if (i + 1 < n) {
+        const c2 = s[i + 1]
+        if (c2 !== "\n") {
+          tok += c2
+          haveTok = true
+        }
+        i += 2
+      } else i++
+      continue
+    }
+    if (c === "$" && s[i + 1] === "(") {
+      stack.push(0)
+      emitSeg()
+      i += 2
+      continue
+    }
+    if (c === ")" && stack.length) {
+      emitSeg()
+      state = stack.pop() as number
+      i++
+      continue
+    }
+    if (c === "<" && s[i + 1] === "<") {
+      emitTok()
+      if (s[i + 2] === "<") {
+        i += 3
+      } else {
+        i += 2
+        if (s[i] === "-") i++
+        expectHd = true
+      }
+      continue
+    }
+    if (c === ">" || c === "<" || (c === "&" && s[i + 1] === ">")) {
+      // A pending all-digits token is this redirect's fd prefix, not an argument.
+      if (/^[0-9]+$/.test(tok)) {
+        tok = ""
+        haveTok = false
+      }
+      emitTok()
+      if (c === "&") i++
+      i++
+      if (s[i] === ">") i++
+      if (s[i] === "&") i++
+      while (i < n && (s[i] === " " || s[i] === "\t")) i++
+      while (i < n && !" \t\n;&|()".includes(s[i])) i++
+      continue
+    }
+    if (c === " " || c === "\t") {
+      emitTok()
+      i++
+      continue
+    }
+    if (c === "\n") {
+      emitSeg()
+      i++
+      skipHeredocs()
+      continue
+    }
+    if (";&|()`".includes(c)) {
+      emitSeg()
+      i++
+      continue
+    }
+    tok += c
+    haveTok = true
+    i++
+  }
+  emitSeg()
+  return out
+}
+
+const WRAPPERS = new Set(["sudo", "env", "command", "builtin", "exec", "nohup", "nice", "time", "timeout", "stdbuf"])
+
+/** claim_effective_segments: leading FOO=bar and wrappers removed; `sh -c '<string>'` descended into. */
+export function effectiveSegments(command: string, depth = 0): Segment[] {
+  const out: Segment[] = []
+  for (const toks of shellSegments(command)) {
+    let k = 0
+    let wrapped = false
+    while (k < toks.length) {
+      const t = toks[k]
+      if (/^[A-Za-z_][A-Za-z0-9_]*=/.test(t)) k++
+      else if (WRAPPERS.has(t)) {
+        k++
+        wrapped = true
+      } else if ((t.startsWith("-") || /^[0-9]/.test(t)) && wrapped) k++
+      else break
+    }
+    if (k >= toks.length) continue
+    const base = toks[k].split("/").pop() as string
+    if (["sh", "bash", "zsh", "ksh", "dash"].includes(base) && depth < 4) {
+      const ci = toks.indexOf("-c", k + 1)
+      if (ci > 0 && ci + 1 < toks.length) {
+        out.push(...effectiveSegments(toks[ci + 1], depth + 1))
+        continue
+      }
+    }
+    out.push(toks.slice(k))
+  }
+  return out
+}
+
+// ---------------------------------------------------------- git push parsing ---
+
+export interface PushInvocation {
+  /** Resolved destination branches; empty when `error` is set. */
+  readonly dests: string[]
+  /** --force / -f / --force-with-lease / --force-if-includes / +refspec */
+  readonly force: boolean
+  /** Set when the destination cannot be determined — the caller must fail loud, never allow. */
+  readonly error?: string
+}
+
+/**
+ * Mirrors claim_push_destinations plus a force flag. One entry per `git push`
+ * segment; `[]` when the command invokes no push at all. `fallback` is the
+ * current branch's upstream (or name), used ONLY where git itself would use it.
+ */
+export function gitPushes(command: string, fallback: string | null): PushInvocation[] {
+  const pushes: PushInvocation[] = []
+  for (const toks of effectiveSegments(command)) {
+    if (!toks.length) continue
+    const base = toks[0].split("/").pop()
+    if (base !== "git") continue
+    let j = 1
+    let argstart = -1
+    while (j < toks.length) {
+      const t = toks[j]
+      if (["-C", "-c", "--git-dir", "--work-tree", "--namespace", "--exec-path"].includes(t)) j += 2
+      else if (t === "push") {
+        argstart = j + 1
+        break
+      } else if (t.startsWith("-")) j++
+      else break
+    }
+    if (argstart < 0) continue
+
+    let force = false
+    let del = false
+    let broad = ""
+    let noMoreFlags = false
+    const positional: string[] = []
+    for (let i = argstart; i < toks.length; i++) {
+      const t = toks[i]
+      if (noMoreFlags) {
+        positional.push(t)
+        continue
+      }
+      if (t === "--") noMoreFlags = true
+      else if (t === "-d" || t === "--delete") del = true
+      else if (t === "--all" || t === "--mirror") broad = t
+      else if (["-o", "--push-option", "--receive-pack", "--exec", "--repo"].includes(t)) i++
+      else if (t === "--force" || t.startsWith("--force-with-lease") || t === "--force-if-includes") force = true
+      else if (/^-[a-zA-Z]+$/.test(t)) {
+        if (t.includes("f")) force = true
+      } else if (t.startsWith("-")) {
+        /* other long flag */
+      } else positional.push(t)
+    }
+    if (positional.some((p) => p.startsWith("+"))) force = true
+
+    if (broad) {
+      pushes.push({ dests: [], force, error: `the push uses ${broad}, which sends every ref — the set of destination branches cannot be enumerated from the command` })
+      continue
+    }
+    if (positional.length <= 1) {
+      if (del) {
+        pushes.push({ dests: [], force, error: "--delete was given with no ref to delete, so the destination branch cannot be determined" })
+        continue
+      }
+      if (!fallback) {
+        pushes.push({ dests: [], force, error: "the push names no refspec and the current branch/upstream could not be resolved, so the destination branch cannot be determined" })
+        continue
+      }
+      pushes.push({ dests: [fallback], force })
+      continue
+    }
+    const dests: string[] = []
+    let error: string | undefined
+    for (const spec of positional.slice(1)) {
+      let dst = spec.replace(/^\+/, "")
+      let hadColon = false
+      if (dst.includes(":")) {
+        hadColon = true
+        dst = dst.slice(dst.indexOf(":") + 1)
+      }
+      dst = dst.replace(/^refs\/heads\//, "")
+      if (dst === "HEAD" && !hadColon) {
+        if (!fallback) {
+          error = "the push targets HEAD but the current branch could not be resolved, so the destination branch cannot be determined"
+          break
+        }
+        dst = fallback
+      }
+      if (dst === "" || dst === "HEAD" || dst.includes("*")) {
+        error = `refspec ${spec} does not resolve to a single named destination branch`
+        break
+      }
+      dests.push(dst)
+    }
+    pushes.push(error ? { dests: [], force, error } : { dests, force })
+  }
+  return pushes
+}
+
+// ------------------------------------------- hooks/protect-other-branches.sh ---
+
+export interface PushFacts {
+  /** `owner/repo` of the origin remote; null when it cannot be determined. */
+  readonly repoSlug: string | null
+  /** Upstream (or name) of the current branch, for a bare `git push`. */
+  readonly fallbackBranch: string | null
+  /** This agent's claim id — claims it holds itself are MINE, never a block. */
+  readonly me: string
+  /** Reads the claim for `git:<slug>@<branch>`; receives the claim-file text (null = none). */
+  readonly inspect: (resource: string) => ClaimVerdict
+  /** When SUPERPOWERS_ROLE=integrator and an objective is active, that objective's id (carve-out for its worker branches). */
+  readonly integratorObjectiveId?: string | null
+  /** Protected branches a force push is refused on outright (default: every branch). */
+  readonly forceAllowedPrefixes?: readonly string[]
+}
+
+export function isWorkerBranch(branch: string): boolean {
+  return /^worker\/[^/]+\/.+/.test(branch)
+}
+
+export function objectiveIdFromBranch(branch: string): string {
+  if (branch.startsWith("objective/")) return branch.slice("objective/".length)
+  if (branch.startsWith("worker/")) return branch.slice("worker/".length).split("/")[0]
+  return ""
+}
+
+/**
+ * The push half of protect-other-branches.sh, plus the force-push refusal that
+ * rules/dev/git-worktree-agent-workflow.md states and the shell hook leaves to the
+ * branch-protection layer. Returns ALLOW for a command with no `git push` in it.
+ */
+export function judgePush(command: string, facts: PushFacts): Decision {
+  const pushes = gitPushes(command, facts.fallbackBranch)
+  if (!pushes.length) return ALLOW
+  for (const push of pushes) {
+    if (push.error) {
+      return deny(`BLOCKED: this command cannot be checked for conflicts with other agents — ${push.error}. Name the destination explicitly (git push <remote> <branch>) and retry.`)
+    }
+    for (const branch of push.dests) {
+      if (push.force) {
+        const ok = (facts.forceAllowedPrefixes ?? []).some((p) => branch.startsWith(p))
+        if (!ok) {
+          return deny(
+            `BLOCKED: force push to '${branch}' refused. A force push rewrites history other agents and the integrator may have already built on; ` +
+              "rebase onto the branch tip and push normally, or ask the user to run the force push themselves.",
+          )
+        }
+      }
+      if (!facts.repoSlug) {
+        return deny(
+          `BLOCKED: 'git push' to '${branch}' targets a repository that could not be identified (no origin remote), so the guard cannot tell whether another agent is working on that branch.`,
+        )
+      }
+      const resource = `git:${facts.repoSlug}@${branch}`
+      const v = facts.inspect(resource)
+      if (v.status === "ERROR") {
+        return deny(`BLOCKED: cannot determine whether another agent holds ${resource}: ${v.detail}. Fix the claim state under ~/.agent-work-claims and retry.`)
+      }
+      if (v.status === "LIVE") {
+        const carve = facts.integratorObjectiveId && isWorkerBranch(branch) && objectiveIdFromBranch(branch) === facts.integratorObjectiveId
+        if (!carve) {
+          return deny(
+            `BLOCKED: another agent is actively working on ${resource} (${v.tool ?? "unknown"} ${v.holder ?? ""}, ${v.detail}). ` +
+              "Pushing to it now would race their work. Wait for their claim to lapse, coordinate through the orchestrator, or push to your own branch.",
+          )
+        }
+      }
+    }
+  }
+  return ALLOW
+}
+
+// ------------------------------------------------------- shell write targets ---
+
+export interface ShellWriteTarget {
+  readonly path: string
+  readonly kind: WriteKind
+  readonly via: string
+}
+
+/**
+ * The subset of hooks/lib/write-targets.py this plugin can read without Python:
+ * `>`/`>>` redirect operands, `tee`, `sed -i`, `cp`/`mv`/`install` destinations
+ * and `rm` operands. Anything built at runtime (`> "$OUT"`, xargs, find -exec,
+ * interpreters) is invisible here — the Python helper reports those as UNSURE and
+ * this port, honestly, does not see them at all. Paths are returned as written;
+ * the caller resolves them against the command's cwd.
+ */
+export function shellWriteTargets(command: string): ShellWriteTarget[] {
+  const out: ShellWriteTarget[] = []
+  // Redirect operands are dropped by shellSegments (they are not arguments), so
+  // scan the raw text for them separately, outside quotes.
+  let state = 0
+  for (let i = 0; i < command.length; i++) {
+    const c = command[i]
+    if (state === 1) {
+      if (c === "'") state = 0
+      continue
+    }
+    if (state === 2) {
+      if (c === "\\") {
+        i++
+        continue
+      }
+      if (c === '"') state = 0
+      continue
+    }
+    if (c === "'") state = 1
+    else if (c === '"') state = 2
+    else if (c === "\\") i++
+    else if (c === ">" && command[i + 1] !== "&" && command[i - 1] !== "<") {
+      let j = i + 1
+      if (command[j] === ">") j++
+      if (command[j] === "|") j++
+      while (command[j] === " " || command[j] === "\t") j++
+      let k = j
+      let q = ""
+      let word = ""
+      while (k < command.length) {
+        const d = command[k]
+        if (q) {
+          if (d === q) q = ""
+          else word += d
+        } else if (d === "'" || d === '"') q = d
+        else if (" \t\n;&|()".includes(d)) break
+        else word += d
+        k++
+      }
+      if (word && word !== "/dev/null" && !word.startsWith("&")) out.push({ path: word, kind: "write", via: "redirect" })
+      i = k - 1
+    }
+  }
+  for (const toks of effectiveSegments(command)) {
+    if (!toks.length) continue
+    const base = toks[0].split("/").pop() as string
+    const args = toks.slice(1)
+    const operands = args.filter((a) => !a.startsWith("-") && a !== "--")
+    if (base === "tee") {
+      for (const a of operands) out.push({ path: a, kind: "write", via: "tee" })
+    } else if (base === "sed" && args.some((a) => a === "-i" || /^-[a-zA-Z]*i/.test(a) || a.startsWith("--in-place"))) {
+      // `sed -i -e EXPR file`, `sed -i 's/a/b/' file`: the files are the operands after the script.
+      let script = args.some((a) => a === "-e" || a === "--expression" || a === "-f" || a === "--file")
+      const files: string[] = []
+      for (let k = 0; k < args.length; k++) {
+        const a = args[k]
+        if (a === "-e" || a === "--expression" || a === "-f" || a === "--file") {
+          k++
+          continue
+        }
+        if (a.startsWith("-")) continue
+        if (!script) {
+          script = true
+          continue
+        }
+        files.push(a)
+      }
+      for (const f of files) out.push({ path: f, kind: "write", via: "sed -i" })
+    } else if (base === "cp" || base === "mv" || base === "install") {
+      if (operands.length >= 2) out.push({ path: operands[operands.length - 1], kind: "write", via: base })
+    } else if (base === "rm") {
+      for (const a of operands) out.push({ path: a, kind: "delete", via: "rm" })
+    } else if (base === "truncate") {
+      for (const a of operands) out.push({ path: a, kind: "write", via: "truncate" })
+    }
+  }
+  return out
+}

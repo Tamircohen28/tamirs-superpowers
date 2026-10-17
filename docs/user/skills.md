@@ -1,7 +1,7 @@
 # Skills
 
-The toolkit ships **29 skills** in 7 domains — 26 you can invoke directly, 3 internal
-companions invoked only by other skills. Counted from `skills/**/SKILL.md` on 2026-09-10 and
+The toolkit ships **30 skills** in 7 domains — 27 you can invoke directly, 3 internal
+companions invoked only by other skills. Counted from `skills/**/SKILL.md` on 2026-10-17 and
 enforced by `scripts/check-doc-claims.sh`, which fails the build when this number and the
 tree disagree.
 
@@ -47,6 +47,7 @@ to zero skills, silently — and instead reads a generated flat symlink mirror a
 | `/start-dev` | implementer | 2 | Compatibility front door. Routes to worker-only, orchestrate, or worker+deliver. |
 | `/switch-dev` | — | — | Hand off, resume, or list work across platforms. Explicit invocation only. |
 | `/decision` | — | 0 | Summarize a pending decision, issue, or PR in plain language and hand you a choice menu. |
+| `/diagnose-objective` | debugger | 0 | Explain why an objective failed or stalled from its state files: timeline, first cause, evidence, one next command. Writes `diagnosis.md`; changes no state. |
 
 `/start-dev` still works exactly as before for a simple standalone task — it now calls
 `worker-dev` and `deliver-dev` instead of doing everything itself. See

@@ -403,6 +403,7 @@ Then **restart the loop immediately**; a push is never terminal.
 
 Short cycles: `gh pr checks "$PR" --watch`.
 Long cycles (5+ min) or when other work can proceed: the Monitor `until`-loop (`$SKILL_DIR/references/ci-monitor-loop.md`); no background tasks: poll on the cadence below.
+Pushed CI and review events instead of polling, on Claude Code started with `--channels`: `$SKILL_DIR/references/ci-channels.md` — the event restarts the loop early, the bounded poll below stays as the backstop, and the Monitor loop is the fallback wherever channels are unavailable.
 
 **Poll your own PR; never idle waiting for a notification.** Poll CI and review threads with a bounded loop (a deadline on every wait); if a wait exceeds its stated bound, report to the orchestrator. See `$SKILL_DIR/references/drive-discipline.md`.
 

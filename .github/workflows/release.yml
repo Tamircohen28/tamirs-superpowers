@@ -31,22 +31,34 @@ jobs:
             exit 1
           fi
 
-      - name: Bump version in every present plugin.json manifest
+      - name: Bump the version in its one source and propagate it
+        # plugin-version.json is the single source of the plugin version; every consumer
+        # (the Claude, Codex, Cursor and Gemini manifests, the Agent Plugins root manifest,
+        # the README badge, platform-targets.json) is rewritten by check-version-truth.sh
+        # --sync. The generated manifests are then rebuilt so the committed tree is what
+        # the generators produce, not a one-field edit of it.
         run: |
-          for manifest in .claude-plugin/plugin.json .cursor-plugin/plugin.json .codex-plugin/plugin.json; do
-            [[ -f "$manifest" ]] || continue
-            jq --arg v "${{ inputs.version }}" '.version = $v' "$manifest" > /tmp/plugin.json
-            mv /tmp/plugin.json "$manifest"
-            echo "Bumped $manifest to ${{ inputs.version }}"
-          done
+          set -euo pipefail
+          python3 - "${{ inputs.version }}" <<'PY'
+          import json, sys
+          p = "plugin-version.json"
+          d = json.load(open(p))
+          d["version"] = sys.argv[1]
+          json.dump(d, open(p, "w"), indent=2, ensure_ascii=False)
+          open(p, "a").write("\n")
+          PY
+          bash scripts/check-version-truth.sh --sync .
+          bash scripts/build-manifests.sh . >/dev/null
+          bash scripts/check-version-truth.sh .
+          bash scripts/build-manifests.sh . --check
 
       - name: Commit version bump
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add .claude-plugin/plugin.json .cursor-plugin/plugin.json .codex-plugin/plugin.json 2>/dev/null || true
+          git add -A
           if git diff --cached --quiet; then
-            echo "No manifest changes (already at ${{ inputs.version }}) — skipping commit"
+            echo "No version changes (already at ${{ inputs.version }}) — skipping commit"
           else
             git commit -m "chore(release): bump version to ${{ inputs.version }}"
             git push
@@ -149,3 +161,50 @@ jobs:
             echo "- tag \`claude\` moved onto it — the directory picks it up on its next check"
             echo "- portal: https://claude.ai/directory/manage (Check for new commits)"
           } >> "$GITHUB_STEP_SUMMARY"
+
+  dist-assets:
+    # Every other host's subset of the tree, built by the same generator as the Claude
+    # one (scripts/build-dist.sh --target <t>), held to its own check, and attached to
+    # the GitHub Release as a tarball with a sha256 sum beside it. The capability
+    # registry ships as an asset too, so a consumer can read what each surface supports
+    # for this exact version without cloning. Nothing here is a tag: the Claude
+    # distribution is tagged because Anthropic's directory tracks a tag; the others are
+    # release artifacts a marketplace or a person downloads and verifies.
+    name: Per-host distributions (release assets)
+    needs: release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      # Build provenance: every asset gets a Sigstore-backed attestation naming this
+      # workflow, this commit and this run, verifiable with
+      # `gh attestation verify <file> --repo Tamircohen28/tamirs-superpowers`.
+      # docs/engineering/build-and-release/release-verification.md has the steps.
+      id-token: write
+      attestations: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: v${{ inputs.version }}
+      - name: Install PyYAML
+        run: python3 -m pip install -q -r scripts/requirements-validate.txt
+      - name: Build, check and pack every target
+        run: |
+          set -euo pipefail
+          out="$RUNNER_TEMP/assets"; mkdir -p "$out"
+          for t in codex cursor gemini antigravity opencode agent-plugins; do
+            d="$RUNNER_TEMP/dist-$t"
+            bash scripts/build-dist.sh "$d" --target "$t" --quiet
+            bash scripts/check-dist.sh "$d" --target "$t"
+            tar -C "$d" -czf "$out/tamirs-superpowers-${{ inputs.version }}-$t.tar.gz" .
+          done
+          cp core/capabilities/platforms.json "$out/platforms-${{ inputs.version }}.json"
+          (cd "$out" && sha256sum ./* > "SHA256SUMS-${{ inputs.version }}.txt")
+          ls -la "$out"
+      - name: Attest build provenance for every asset
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: ${{ runner.temp }}/assets/*
+      - name: Attach to the release
+        run: gh release upload "v${{ inputs.version }}" "$RUNNER_TEMP"/assets/* --clobber
+        env:
+          GH_TOKEN: ${{ github.token }}

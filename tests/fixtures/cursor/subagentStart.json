@@ -1,0 +1,20 @@
+{
+  "conversation_id": "conv-0123456789abcdef",
+  "generation_id": "gen-0001",
+  "model": "auto",
+  "model_id": "auto",
+  "hook_event_name": "subagentStart",
+  "cursor_version": "3.24.12",
+  "workspace_roots": [
+    "/workspace/project"
+  ],
+  "transcript_path": "/workspace/project/.cursor/transcripts/conv-0123456789abcdef.jsonl",
+  "subagent_id": "sub-0001",
+  "subagent_type": "explore",
+  "task": "Find every caller of parseConfig",
+  "parent_conversation_id": "conv-0123456789abcdef",
+  "tool_call_id": "call-task-0001",
+  "subagent_model": "auto",
+  "is_parallel_worker": false,
+  "git_branch": "main"
+}

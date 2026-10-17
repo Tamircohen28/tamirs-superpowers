@@ -44,25 +44,28 @@ the one that answers "what breaks if this is gone".
 | `directory-added.sh` | DirectoryAdded | **claude-convenience** | Claude Code 2.1.219+ | The same warning arrives later, at the first denied edit | **Yes** |
 | `goal-compact-reminder.sh` | UserPromptSubmit | **claude-convenience** | Claude Code only (`/compact`, `/goal`, `/login`) | Nothing; a cache-warmth tip is lost | Optional |
 | `scope-decompose-reminder.sh` | UserPromptSubmit | **claude-convenience** | Any (text heuristic) | Nothing; a decomposition nudge is lost | Optional |
-| `skill-creator-guard.sh` | PreToolUse `Edit\|Write\|…` | **claude-convenience** | Claude Code, Cursor | Hand-written `SKILL.md` files are not intercepted | Optional |
+| `skill-creator-guard.sh` | PreToolUse `Edit\|Write\|…` | **claude-convenience** | Claude Code, Cursor | Hand-written `SKILL.md` files are not intercepted | Optional — **contributor tier**, off by default |
 | `handoff-reminder.sh` | SessionEnd | **claude-convenience** | Claude Code only | No handoff nudge; `switch-dev` is still invocable | Optional |
 | `rate-limit-handoff.sh` | StopFailure `rate_limit` | **claude-convenience** | Claude Code only | No handoff prompt at the moment a rate limit ends the turn — the moment `switch-dev` is needed and cannot be asked for (0 invocations / 953 sessions) | **Yes** |
 | `subagent-handoff-check.sh` | SubagentStop | **claude-convenience** | Claude Code only | The orchestrator is not warned when a worker returns without a handoff, or `completed` without validation | **Yes** |
+| `task-handoff-check.sh` | TaskCompleted | **claude-convenience** | Claude Code only (agent teams, `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1`) | A teammate marks a task complete with no handoff file, an out-of-vocabulary status, or `completed` without validation, and the lead integrates on the task list alone | **Yes** |
+| `teammate-idle-check.sh` | TeammateIdle | **claude-convenience** | Claude Code only (agent teams) | A teammate goes idle leaving `running` tasks with no handoff and nothing on disk says whether the work is done, partial or abandoned | **Yes** |
 | `precompact-snapshot.sh` | PreCompact | **claude-convenience** | Claude Code only | No `.dev-files/compaction/` snapshot of branch/dirty files/objective before context is lost | **Yes** |
 | `skill-suggest.sh` | UserPromptSubmit | **claude-convenience** | Claude Code, Codex | No at-the-moment skill suggestion (`additionalContext`, once per skill per session per repo) | **Yes** |
-| `plugin-reload-reminder.sh` | PostToolUse `Edit\|Write` | **contributor-only** | Claude Code only | Nothing; the author reloads manually | **No** — plugin authors only |
-| `validate-report-links.sh` | PostToolUse `Write` | **contributor-only** | Claude Code only | `report.md` links are unchecked | **No** — plugin authors only |
+| `plugin-reload-reminder.sh` | PostToolUse `Edit\|Write` | **contributor-only** | Claude Code only | Nothing; the author reloads manually | **No** — **contributor tier**, off by default |
+| `validate-report-links.sh` | PostToolUse `Write` | **contributor-only** | Claude Code only | `report.md` links are unchecked | **No** — **contributor tier**, off by default |
 | `show-changelog.sh` | SessionStart | **platform-specific** | Claude Code only (shells out to `claude --version`) | Nothing | Optional |
 | `cursor-agent-tools-guard.sh` | Cursor `preToolUse`/`postToolUse` (wired in `platforms/cursor/hooks.json` only, never `hooks/hooks.json`) | **platform-specific** | Cursor only | An agent's `tools:` allowlist is prose, not enforcement, on Cursor (measured 2026-09-23) | **Yes** |
-| `notify.sh` | Notification | **optional-notification** | Claude Code + a terminal that honours OSC 99, or macOS `osascript` | No desktop notification | Optional |
-| `ensure-exit.sh` | UserPromptSubmit | **optional-notification** | Any (needs `curl`) | No VPN/exit-node check | Optional (already env-gated, silent by default) |
-| `usage-capture-ensure.sh` | SessionStart | **optional-notification** | Claude Code only | Collector is not auto-started; `enable.sh` / `collector.py --daemon` still work | Optional (env-gated `TAMIRS_USAGE_CAPTURE`, silent by default) |
+| `notify.sh` | Notification | **optional-notification** | Claude Code + a terminal that honours OSC 99, or macOS `osascript` | No desktop notification | Optional — **notification tier**, on by default |
+| `scripts/notify-pushover.sh` | Notification | **optional-notification** | Claude Code only (`CLAUDE_PLUGIN_OPTION_*` credentials) | No phone notification | Optional — **notification tier**, on by default; inert without credentials |
+| `ensure-exit.sh` | UserPromptSubmit | **optional-notification** | Any (needs `curl`) | No VPN/exit-node check | Optional — **notification tier** (and still env-gated, silent by default) |
+| `usage-capture-ensure.sh` | SessionStart | **optional-notification** | Claude Code only | Collector is not auto-started; `enable.sh` / `collector.py --daemon` still work | Optional — **notification tier** (and still env-gated `TAMIRS_USAGE_CAPTURE`, silent by default) |
 
 ### Shared libraries
 
 | File | Role |
 |---|---|
-| `lib/hook-output.sh` | Claude Code / Cursor PreToolUse JSON dialect. Cursor fail-closes on empty stdout; Claude Code treats it as allow — so every guard must emit valid JSON either way. |
+| `lib/hook-output.sh` | Claude Code / Cursor PreToolUse JSON dialect. Cursor fail-closes on empty stdout; Claude Code treats it as allow — so every guard must emit valid JSON either way. Also `hook_tier_enabled`/`hook_tier_gate`, the [tier](#tiers) switch every gated hook calls first. |
 | `lib/agent-claim.sh` | The cross-tool work-claim store behind `protect-other-branches.sh`. Tool-neutral by design: Claude Code, Cursor and Codex read and write the same files. |
 | `lib/worktree-common.sh` | Single-task worktree model (`~/.claude/worktrees/<repo>/<slug>`, `wt/*` branches) plus dependency-install and retention policy. **Protected**: any change requires shellcheck plus exercising both `capture-task-slug.sh` and `worktree-create.sh`. |
 | `lib/objective-common.sh` | Objective model — `.agent-worktrees/<objective>/{integration,task-NNN}`, `objective/<slug>` and `worker/<slug>/NNN` branches, active-objective detection, and cross-layout classification. |
@@ -201,17 +204,68 @@ distributed to everyone. Both are gone:
 company either, matching generic internal-hostname shapes plus
 `$TAMIRS_EMPLOYER_PATTERN`, with RFC 2606 documentation domains excluded.
 
-## Recommended packaging
+## Tiers
 
-Not a change made here — the shape the table argues for.
+The two removable tiers the table argues for are **implemented as plugin
+options**, not as separate plugins (the reasoning, and the split that was
+rejected, are in [ADR 003](../decisions/003-hook-tiers-as-options.md)). Claude
+Code exports every manifest `userConfig` option to a hook process as
+`CLAUDE_PLUGIN_OPTION_<NAME>`; each gated hook calls `hook_tier_gate <tier>`
+from `lib/hook-output.sh` as the first thing after reading stdin, and that
+helper reads the option, applies the default when it is unset, and exits with
+the dialect-correct no-op when the tier is off.
+
+| Option | Default | Variable the hooks read | Gates |
+|---|---|---|---|
+| `notification_hooks` | `true` | `CLAUDE_PLUGIN_OPTION_NOTIFICATION_HOOKS` | `notify.sh`, `scripts/notify-pushover.sh`, `ensure-exit.sh`, `usage-capture-ensure.sh` |
+| `contributor_hooks` | `false` | `CLAUDE_PLUGIN_OPTION_CONTRIBUTOR_HOOKS` | `plugin-reload-reminder.sh`, `validate-report-links.sh`, `skill-creator-guard.sh` |
+
+Accepted values are `true`/`false`, `1`/`0`, `yes`/`no`, `on`/`off`, case-insensitive;
+unset, empty or anything else means the default. A hook's own opt-in survives the tier:
+`ensure-exit.sh` still needs `CLAUDE_EXIT_PROXY`/`CLAUDE_EXIT_PUBLIC_IP`,
+`usage-capture-ensure.sh` still needs `TAMIRS_USAGE_CAPTURE`, and the Pushover
+hook still needs both credentials. The tier is a switch *in front of* those
+gates, not a replacement for them.
+
+**What is never gated.** Every core-safety-invariant hook, every
+worktree-lifecycle hook, and the user-facing convenience hooks (`check-done`,
+`directory-added`, `goal-compact-reminder`, `scope-decompose-reminder`,
+`handoff-reminder`, `rate-limit-handoff`, `subagent-handoff-check`,
+`precompact-snapshot`, `skill-suggest`, `show-changelog`) run exactly as
+before and read neither variable. `tests/test-hook-tiers.sh` asserts that the
+seven hooks above are the only callers of `hook_tier_gate`.
+
+**The no-op is per dialect.** A gated-off PostToolUse, SessionStart,
+UserPromptSubmit or Notification hook prints nothing — empty stdout already
+means "nothing to say" on every host for those events. A gated-off PreToolUse
+guard must not: `skill-creator-guard.sh` is also wired in
+`platforms/cursor/hooks.json`, and Cursor fail-closes on empty stdout, so a
+silent "off" would deny every `SKILL.md` write while looking disabled. It
+therefore gates with `hook_tier_gate contributor allow`, which emits
+`hook_allow`'s JSON for the detected platform (`{}` on Claude Code,
+`{"permission":"allow"}` on Cursor). A third mode, `suppress`, emits
+`{"suppressOutput": true}` for a hook that already answers with that shape;
+no gated hook uses it today.
+
+**An option on Claude Code, the default everywhere else.** The Codex CLI loads
+the generated `platforms/codex/hooks.json` (the same scripts, without the `modules` key its
+parser rejects) and Cursor loads `platforms/cursor/hooks.json`, but
+neither has `userConfig`, so neither exports the variable — the default applies:
+notification hooks on, contributor hooks off. A contributor on one of those
+hosts can set the variable in the environment by hand; nothing in the plugin
+does so.
+
+### Recommended packaging
+
+The shape the table argues for, with the two tiers that are now options marked.
 
 | Tier | Contents | Default |
 |---|---|---|
-| **safety** | `protect-other-branches`, `release-agent-claims`, `enforce-worktree-edits`, `guard-sensitive-files`, `docker-guard`, `goal-condition-lint` | on |
-| **worktree** | `capture-task-slug`, `session-init`, `session-end`, `worktree-create`, `worktree-remove` | on, opt-out |
-| **convenience** | `check-done`, `directory-added`, `goal-compact-reminder`, `scope-decompose-reminder`, `skill-creator-guard`, `handoff-reminder`, `rate-limit-handoff`, `subagent-handoff-check`, `precompact-snapshot`, `skill-suggest`, `show-changelog` | on, opt-out |
-| **notification** | `notify`, `ensure-exit` | off unless configured |
-| **contributor** | `plugin-reload-reminder`, `validate-report-links` | off for users |
+| **safety** | `protect-other-branches`, `release-agent-claims`, `enforce-worktree-edits`, `guard-sensitive-files`, `docker-guard`, `goal-condition-lint` | on, never gated |
+| **worktree** | `capture-task-slug`, `session-init`, `session-end`, `worktree-create`, `worktree-remove` | on, never gated |
+| **convenience** | `check-done`, `directory-added`, `goal-compact-reminder`, `scope-decompose-reminder`, `handoff-reminder`, `rate-limit-handoff`, `subagent-handoff-check`, `precompact-snapshot`, `skill-suggest`, `show-changelog` | on, never gated |
+| **notification** | `notify`, `notify-pushover`, `ensure-exit`, `usage-capture-ensure` | on — the `notification_hooks` option |
+| **contributor** | `plugin-reload-reminder`, `validate-report-links`, `skill-creator-guard` | off — the `contributor_hooks` option |
 
 ## Tests
 
@@ -230,6 +284,7 @@ Not a change made here — the shape the table argues for.
 | `tests/test-precompact-snapshot.sh` | `precompact-snapshot.sh` |
 | `tests/test-skill-suggest.sh` | `skill-suggest.sh`: once per skill per session per repo |
 | `tests/test-cursor-agent-tools-guard.sh` | `cursor-agent-tools-guard.sh` |
+| `tests/test-hook-tiers.sh` | The two [tiers](#tiers): value parsing against the manifest's own defaults, each gated hook off (silent, or the dialect's allow) and on (its existing behaviour), the Cursor allow for `skill-creator-guard.sh`, and that nothing else calls the gate |
 | `mod/*.test.ts` | The mod, under `claude plugin test mod` (`make test-mods`) |
 
 Run the shell suites with `make test-hooks`.

@@ -11,26 +11,57 @@ capabilities:
   hooks: native
   mcp: native
 
+# Codex reads the overlay manifest. The Agent Plugins route (a root plugin.json with
+# extensions.com.openai) is deliberately NOT shipped to Codex: measured on codex-cli
+# 0.163.0, a plugin carrying a root Agent Plugins manifest has its hook sources emptied
+# before any hooks path is read, so the Codex distribution ships the overlay only. The
+# portable manifest is generated under platforms/agent-plugins/ for the agent-plugins
+# target. Both are generated from one source by scripts/build-manifests.sh — see
+# docs/engineering/build-and-release/manifests.md.
 manifest: .codex-plugin/plugin.json
+
+# Generated files Codex is pointed at. Never edit; regenerate.
+generated:
+  hooks: platforms/codex/hooks.json        # scripts/build-codex-hooks.sh, from hooks/hooks.json
+  mcp: mcp.json                            # Agent Plugins route (root manifest)
+  mcp_fallback: .mcp.json                  # overlay route (.codex-plugin/plugin.json)
+  regenerate: bash scripts/build-manifests.sh . && bash scripts/build-codex-hooks.sh .
+  check: bash scripts/build-manifests.sh . --check && bash scripts/build-codex-hooks.sh . --check
 
 install:
   type: marketplace
   doc: docs/user/install/codex.md
 
 validation:
-  command: bash scripts/check-manifest-declares.sh .codex-plugin/plugin.json skills mcpServers hooks
+  # One line, plain scalar: scripts/check-capability-registry.sh reads it and rejects a
+  # block scalar. The manifest check proves the declaration; the contract suite proves
+  # every hook the generated file wires answers in the shapes Codex's parser accepts.
+  command: bash scripts/check-manifest-declares.sh .codex-plugin/plugin.json skills mcpServers hooks && bash tests/hooks/test-codex-contract.sh
 
 notes: >-
-  Hooks are declared through the manifest's `hooks` field, which is not the same
-  shape as Claude's hooks/hooks.json. MCP servers are declared in the same manifest
-  (`mcpServers: ./.mcp.json`); .codex/config.toml is a user-level runtime config and
-  declares nothing this plugin ships. agents is `unknown`, not `native`: the
-  published plugin manifest spec lists name, version, description, author, homepage,
-  repository, license, keywords, skills, hooks, mcpServers, apps and interface — no
-  agents or subagents field — and documents no agents/ folder discovery, so there is
-  no mechanism here to point at. Codex subagents do exist, as standalone .toml files
-  in $CODEX_HOME/agents/ or a per-repo .codex/agents/; bundling one inside a plugin
-  manifest is an open feature request (openai/codex#28491, closed as a duplicate of
-  #18988). It stays `unknown` rather than `unsupported` because the capability exists
-  on the surface — what is unestablished is a route from this plugin to it, and
-  `unsupported` would claim Codex lacks subagents, which is false.
+  Hooks are declared through the manifest's `hooks` field (root
+  extensions.com.openai.hooks and the overlay's `hooks`, both -> platforms/codex/hooks.json).
+  That file is GENERATED from hooks/hooks.json: Codex's hooks-file parser accepts exactly
+  `description` and `hooks` at the top level and rejects the `modules` key the Claude file
+  carries for the mod (source-read, not run live), so the Claude file cannot be pointed at
+  directly. The generator also drops the five events Codex lacks (Notification,
+  DirectoryAdded, WorktreeCreate, WorktreeRemove, StopFailure) and Claude's per-hook
+  `onFailure`, which Codex's command hook has no field for — so every guard is fail-open on
+  Codex, and the install doc says so. Codex ties hook trust to a content hash, so each
+  plugin update needs a `/hooks` re-trust. MCP servers are declared in the manifest
+  (root mcp.json, or `mcpServers: ./.mcp.json` on the overlay); neither can carry the
+  github token on Codex — Agent Plugins 1.0 defines no credential mechanism and Codex is
+  not documented to expand `${user_config.*}` — so the server starts only if the host
+  supplies GITHUB_PERSONAL_ACCESS_TOKEN itself (unverified). .codex/config.toml is a
+  user-level runtime config and declares nothing this plugin ships. The public plugin
+  directory refuses packages with hooks and limits local stdio MCP to approved partners,
+  so the self-hosted marketplace (.agents/plugins/marketplace.json) is the only route.
+  agents is `unknown`, not `native`: the published plugin manifest spec lists name,
+  version, description, author, homepage, repository, license, keywords, skills, hooks,
+  mcpServers, apps and interface — no agents or subagents field — and documents no
+  agents/ folder discovery, so there is no mechanism here to point at. Codex subagents do
+  exist, as standalone .toml files in $CODEX_HOME/agents/ or a per-repo .codex/agents/;
+  bundling one inside a plugin manifest is an open feature request (openai/codex#28491,
+  closed as a duplicate of #18988). It stays `unknown` rather than `unsupported` because
+  the capability exists on the surface — what is unestablished is a route from this
+  plugin to it, and `unsupported` would claim Codex lacks subagents, which is false.

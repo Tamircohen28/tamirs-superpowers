@@ -17,7 +17,7 @@ in one skill with a "sender" in another; both sides are open lists and the porta
 of each per validation. Six releases (4.11.5 -> 4.11.11, 2026-10-03/04) each fixed the named example:
 reader `pass --decision` -> `${SOME_SECRET}` -> `gh auth ...`; sender diagnose-refusal -> targeted-debug
 -> switch-dev. Each round cost a full gate + release + portal validation (~1h). Only round 6 swept the
-whole reader class (7 lines in 29 skills) and added a guard to `scripts/check-claude-dist.sh`. One
+whole reader class (7 lines in each of the 29 `SKILL.md` files shipped then) and added a guard to `scripts/check-claude-dist.sh`. One
 round (4.11.9, "pipes into bash") shipped a wrong reading that the history already contradicted.
 
 **How to apply:**

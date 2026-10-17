@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "github": {
+      "type": "stdio",
+      "command": "${CURSOR_PLUGIN_ROOT}/scripts/github-mcp.sh",
+      "args": [],
+      "env": {
+        "GITHUB_PERSONAL_ACCESS_TOKEN": "${GITHUB_TOKEN}"
+      }
+    }
+  }
+}

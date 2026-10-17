@@ -251,7 +251,7 @@ The mirror-image error is reaching for `native` or `adapter` when a capability w
 through a documented detour. That is what `partial` is for: Gemini loads zero skills from
 the extension itself, yet skills do work through a second per-domain install command, so
 the row is `partial` with the detour in the `fallback`. `adapter` is narrower still — it
-means a *generated artifact* exists, as `.opencode/agent/` does for OpenCode subagents.
+means a *generated artifact* exists, as `.opencode/agents/` does for OpenCode subagents.
 Where no artifact is generated and nothing runs, the answer is `unsupported`.
 
 ## Row shape
@@ -332,7 +332,7 @@ unavailable at runtime, while a partial one still works within stated limits.
 
 `adapter` derives to `supported` rather than `emulated` on purpose: an adapter means a
 generated artifact exists and the platform then consumes it natively — OpenCode loads
-`.opencode/agent/` as ordinary agents. `emulated` means the framework performs primitive
+`.opencode/agents/` as ordinary agents. `emulated` means the framework performs primitive
 steps at runtime, every time, each of which can fail. From a skill's point of view the
 first is indistinguishable from native and the second is not.
 
@@ -407,7 +407,7 @@ background_tasks]`.
 | Surface | Result |
 |---|---|
 | Claude Code | Everything native. Full run: subagents fix review threads in parallel, `gh` merges. |
-| OpenCode | `subagents` is `adapter` (generated `.opencode/agent/`), `github_cli` depends on the host. Runs, sequentially, with `gh` if present. |
+| OpenCode | `subagents` is `adapter` (generated `.opencode/agents/`), `github_cli` depends on the host. Runs, sequentially, with `gh` if present. |
 | Any surface, `gh` absent | Runs through the diff and review work, then prints the PR body and the exact `gh pr create` command for the user. Reports the degradation. |
 
 ## Where capabilities are consumed

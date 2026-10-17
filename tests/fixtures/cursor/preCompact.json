@@ -1,0 +1,19 @@
+{
+  "conversation_id": "conv-0123456789abcdef",
+  "generation_id": "gen-0001",
+  "model": "auto",
+  "model_id": "auto",
+  "hook_event_name": "preCompact",
+  "cursor_version": "3.24.12",
+  "workspace_roots": [
+    "/workspace/project"
+  ],
+  "transcript_path": "/workspace/project/.cursor/transcripts/conv-0123456789abcdef.jsonl",
+  "trigger": "auto",
+  "context_usage_percent": 91.4,
+  "context_tokens": 182800,
+  "context_window_size": 200000,
+  "message_count": 143,
+  "messages_to_compact": 120,
+  "is_first_compaction": true
+}

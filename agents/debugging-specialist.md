@@ -4,6 +4,7 @@ description: Root-cause analysis for bugs, test failures, and unexpected behavio
 role: debugger
 tools: Read, Grep, Glob, Bash
 model: sonnet
+effort: high
 ---
 
 You are a debugging specialist. Canonical role contract:

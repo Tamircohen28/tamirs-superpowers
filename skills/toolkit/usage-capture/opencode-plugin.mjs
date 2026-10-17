@@ -1,14 +1,37 @@
 #!/usr/bin/env node
 /**
- * Optional OpenCode usage-capture plugin.
+ * Optional OpenCode 2 usage-capture plugin.
  *
- * Observe-only: never mutates chat.params, messages, or headers. Writes the
- * same JSONL schema as scripts/usage-capture/collector.py, either by POSTing
- * /ingest on 127.0.0.1 or by appending the daily file directly.
+ * Observe-only: registers no hook, no transform and no tool — it only reads
+ * the public event stream through `ctx.event.subscribe()` and never mutates a
+ * message, a request or a header. Writes the same JSONL schema as
+ * scripts/usage-capture/collector.py, either by POSTing /ingest on 127.0.0.1
+ * or by appending the daily file directly.
+ *
+ * OPENCODE 2 ONLY. The previous revision of this file was an OpenCode 1 hooks
+ * object (`chat.params`, `experimental.chat.messages.transform`, `event`);
+ * "V1 plugin implementations do not run in V2"
+ * (https://opencode.ai/v2/docs/build/plugins/migrate-v1/). The V2 shape is a
+ * default export with `id` and `setup(ctx)` — exactly what `Plugin.define()`
+ * from `@opencode/plugin` returns (it is an identity function, see
+ * packages/plugin/src/promise/plugin.ts). The object is exported directly rather
+ * than through that import so this file keeps its one property that matters:
+ * zero imports, loadable by `node` for a test with a fake ctx, and nothing on
+ * the machine is read other than its own TAMIRS_USAGE_CAPTURE_* variables.
  *
  * Not loaded by this repo's opencode.json. Add the absolute path of this file
- * to your OpenCode `plugin` list to opt in. Bodies stay off unless
- * TAMIRS_USAGE_CAPTURE_BODIES=1.
+ * to your OpenCode `plugins` list to opt in. Bodies stay off: V2 exposes no
+ * outgoing request body to a passive subscriber (that was the V1
+ * messages.transform hook), so TAMIRS_USAGE_CAPTURE_BODIES is accepted but
+ * records nothing on OpenCode 2 — stated here rather than silently.
+ *
+ * Event -> record mapping (names from @opencode/client 2.0.32's event union):
+ *   session.created          -> session_start
+ *   session.skill.activated  -> skill_activated  (skill_name = data.name)
+ *   session.model.selected   -> remembered; stamps `model` on later requests
+ *   session.step.ended       -> api_request      (tokens, cost, finish reason)
+ *   session.step.failed      -> api_error
+ *   session.usage.recorded   -> api_request with query_source title|compaction
  */
 const DEFAULT_PORT = "17431"
 const DEFAULT_DIR = "~/.local/share/tamirs-superpowers/usage"
@@ -73,47 +96,6 @@ function omitEmpty(rec) {
   return out
 }
 
-function walk(node, visit) {
-  if (!node) return
-  if (Array.isArray(node)) {
-    for (const item of node) walk(item, visit)
-    return
-  }
-  if (typeof node === "object") {
-    visit(node)
-    for (const v of Object.values(node)) walk(v, visit)
-  }
-}
-
-function inventory(messages) {
-  const skills = new Set()
-  const commands = new Set()
-  walk(messages, (node) => {
-    const skill = node.skill || node.skill_name || node.skillName
-    if (typeof skill === "string" && skill) skills.add(skill)
-    if (node.tool === "skill" || node.name === "Skill" || node.toolName === "Skill") {
-      const input = node.input || node.args || {}
-      const named = input.skill || input.name || input.skill_name
-      if (typeof named === "string") skills.add(named)
-    }
-    const text = typeof node.text === "string" ? node.text : (typeof node.content === "string" ? node.content : "")
-    const slash = text.trim().match(/^\/([a-z0-9]+(?:-[a-z0-9]+)*)\b/)
-    if (slash) commands.add(slash[1])
-  })
-  return {
-    skill_name: [...skills][0],
-    command_name: [...commands][0],
-  }
-}
-
-function requestBytes(messages) {
-  try {
-    return Buffer.byteLength(JSON.stringify(messages || []), "utf8")
-  } catch {
-    return undefined
-  }
-}
-
 async function appendFile(record) {
   const fs = await import("node:fs/promises")
   const path = await import("node:path")
@@ -124,7 +106,8 @@ async function appendFile(record) {
   await fs.appendFile(file, line, { encoding: "utf8", mode: 0o600 })
 }
 
-async function persist(record) {
+// Exported for the test: a sink other than fetch/append can be injected.
+export async function persist(record, sink) {
   const rec = omitEmpty({
     ts: israelParts(),
     harness: "opencode",
@@ -132,6 +115,7 @@ async function persist(record) {
     endpoint_label: opaqueLabel(process.env.TAMIRS_USAGE_CAPTURE_ENDPOINT_LABEL),
     ...record,
   })
+  if (sink) return sink(rec)
   const url = "http://127.0.0.1:" + port() + "/ingest"
   try {
     const res = await fetch(url, {
@@ -153,98 +137,95 @@ async function persist(record) {
   }
 }
 
-async function maybeWriteBody(messages, requestId) {
-  if (process.env.TAMIRS_USAGE_CAPTURE_BODIES !== "1") return undefined
-  try {
-    const fs = await import("node:fs/promises")
-    const path = await import("node:path")
-    const dir = path.join(logDir(), "bodies")
-    await fs.mkdir(dir, { recursive: true, mode: 0o700 })
-    const file = path.join(dir, String(requestId || Date.now()) + ".request.json")
-    await fs.writeFile(file, JSON.stringify(messages, null, 2), { encoding: "utf8", mode: 0o600 })
-    return file
-  } catch {
-    return undefined
+function modelId(ref) {
+  if (!ref || typeof ref !== "object") return undefined
+  const id = ref.modelID || ref.id
+  return ref.providerID && id ? ref.providerID + "/" + id : id
+}
+
+/**
+ * Translate one V2 event into zero or one usage record. Pure; exported for the
+ * test. `models` is the per-session model memory (sessionID -> model id).
+ */
+export function recordFor(event, models) {
+  if (!event || typeof event !== "object") return undefined
+  const type = String(event.type || "")
+  const data = event.data && typeof event.data === "object" ? event.data : {}
+  const sessionID = data.sessionID
+  switch (type) {
+    case "session.created":
+      if (data.model) models.set(sessionID, modelId(data.model))
+      return { event: "session_start", session_id: sessionID }
+    case "session.model.selected":
+      models.set(sessionID, modelId(data.model))
+      return undefined
+    case "session.skill.activated":
+      return { event: "skill_activated", session_id: sessionID, skill_name: data.name || data.id }
+    case "session.step.ended": {
+      const t = data.tokens || {}
+      const cache = t.cache || {}
+      return {
+        event: "api_request",
+        session_id: sessionID,
+        request_id: data.assistantMessageID,
+        model: models.get(sessionID),
+        input_tokens: t.input,
+        output_tokens: t.output,
+        cache_read_tokens: cache.read,
+        cache_creation_tokens: cache.write,
+        cost_usd: data.cost,
+        stop_reason: data.finish,
+        success: data.finish !== "error",
+      }
+    }
+    case "session.step.failed":
+      return {
+        event: "api_error",
+        session_id: sessionID,
+        request_id: data.assistantMessageID,
+        model: models.get(sessionID),
+        success: false,
+      }
+    case "session.usage.recorded": {
+      const t = data.tokens || {}
+      const cache = t.cache || {}
+      return {
+        event: "api_request",
+        session_id: sessionID,
+        query_source: data.source,
+        model: models.get(sessionID),
+        input_tokens: t.input,
+        output_tokens: t.output,
+        cache_read_tokens: cache.read,
+        cache_creation_tokens: cache.write,
+        cost_usd: data.cost,
+        success: true,
+      }
+    }
+    default:
+      return undefined
   }
 }
 
-function unwrapEvent(input) {
-  const ev = input && (input.event || input)
-  if (!ev || typeof ev !== "object") return { type: "", payload: {} }
-  const type = ev.type || ev.event || ev.name || ""
-  const payload = ev.properties || ev.payload || ev.info || ev
-  return { type, payload, raw: ev }
-}
-
-export default async function usageCapturePlugin() {
-  let lastModel
-  let lastMessages
-  let lastBytes
-  let lastInv
-
-  return {
-    "chat.params": async (input) => {
+export default {
+  id: "tamirs-superpowers.usage-capture",
+  setup(ctx) {
+    const controller = new AbortController()
+    const models = new Map()
+    void (async () => {
       try {
-        const model = input && (input.model || input)
-        lastModel = (model && (model.modelID || model.id || model.model)) || lastModel
-      } catch {
-        // observe-only, fail-open
-      }
-    },
-
-    "experimental.chat.messages.transform": async (_input, output) => {
-      try {
-        const messages = (output && output.messages) || []
-        lastMessages = messages
-        lastBytes = requestBytes(messages)
-        lastInv = inventory(messages)
-      } catch {
-        // do not mutate output.messages
-      }
-    },
-
-    event: async (input) => {
-      try {
-        const { type, payload } = unwrapEvent(input)
-        if (type === "session.created" || type === "session.updated" && payload && payload.status === "created") {
-          await persist({ event: "session_start", session_id: payload.sessionID || payload.id })
-          return
+        for await (const event of ctx.event.subscribe({ signal: controller.signal })) {
+          try {
+            const rec = recordFor(event, models)
+            if (rec) await persist(rec)
+          } catch {
+            // observe-only, fail-open
+          }
         }
-        if (type === "command.executed") {
-          await persist({
-            event: "skill_activated",
-            session_id: payload.sessionID,
-            command_name: payload.command || payload.name,
-            skill_name: payload.skill || payload.name,
-          })
-          return
-        }
-        const ended = type === "session.next.step.ended" || /\.step\.ended$/.test(String(type))
-        if (!ended) return
-        const tokens = payload.tokens || payload.usage || {}
-        const requestId = payload.id || payload.requestID || payload.request_id || String(Date.now())
-        const bodyRef = await maybeWriteBody(lastMessages, requestId)
-        await persist({
-          event: "api_request",
-          session_id: payload.sessionID || payload.session_id,
-          request_id: requestId,
-          model: lastModel || payload.model || (payload.modelID),
-          duration_ms: payload.duration || payload.duration_ms || payload.ms,
-          input_tokens: tokens.input || tokens.input_tokens,
-          output_tokens: tokens.output || tokens.output_tokens,
-          cache_read_tokens: tokens.cache || tokens.cacheRead || tokens.cache_read,
-          cache_creation_tokens: tokens.cacheWrite || tokens.cache_creation,
-          cost_usd: payload.cost || payload.cost_usd,
-          request_bytes: lastBytes,
-          body_ref: bodyRef,
-          body_length: lastBytes,
-          stop_reason: payload.reason || payload.finish || payload.finishReason,
-          success: payload.error ? false : true,
-          ...(lastInv || {}),
-        })
       } catch {
-        // fail-open
+        // stream closed (abort on unload) or unavailable — nothing to do
       }
-    },
-  }
+    })()
+    return () => controller.abort()
+  },
 }

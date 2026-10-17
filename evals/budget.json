@@ -1,0 +1,8 @@
+{
+  "always_on_tokens": 8279,
+  "ceiling": 8500,
+  "tolerance_percent": 10,
+  "measured_on": "2.1.302",
+  "measured_at": "2026-10-17",
+  "note": "Always-on cost as printed by `claude plugin details tamirs-superpowers`: the name, description and when_to_use of every skill and agent, paid by every session before any skill fires (hooks and MCP tool schemas are not counted). The official marketplace highlights a plugin's context cost to users once always-on reaches 2,000 tokens. This plugin measured 8,279 on 2026-10-17, so the ceiling is pinned at the measured figure rounded up to the next 500 rather than lowered by trimming descriptions in the same change; 2,000 is the figure to drive down to. Lower the ceiling as the cost comes down; never raise it without updating this note. Refresh always_on_tokens/measured_on/measured_at with `bash scripts/check-token-budget.sh --update`."
+}

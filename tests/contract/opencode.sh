@@ -44,18 +44,18 @@ contract_skill_paths "opencode" ${oc_paths[@]+"${oc_paths[@]}"}
 contract_skill_coverage "opencode" ${oc_paths[@]+"${oc_paths[@]}"}
 
 # Agent adapters are GENERATED from agents/ — drift here is a real shipping bug.
-if [ -d "$REPO_ROOT/.opencode/agent" ]; then
-  an="$(find "$REPO_ROOT/.opencode/agent" -maxdepth 1 -name '*.md' | wc -l | tr -d ' ')"
+if [ -d "$REPO_ROOT/.opencode/agents" ]; then
+  an="$(find "$REPO_ROOT/.opencode/agents" -maxdepth 1 -name '*.md' | wc -l | tr -d ' ')"
   cn="$(find "$REPO_ROOT/agents" -maxdepth 1 -name '*.md' | wc -l | tr -d ' ')"
-  judge ".opencode/agent mirrors agents/ one-for-one" "$cn" "$an"
+  judge ".opencode/agents mirrors agents/ one-for-one" "$cn" "$an"
 
   nofm=""
   while IFS= read -r f; do
     head -1 "$f" | grep -q '^---' || nofm="$nofm $(basename "$f")"
-  done < <(find "$REPO_ROOT/.opencode/agent" -maxdepth 1 -name '*.md')
+  done < <(find "$REPO_ROOT/.opencode/agents" -maxdepth 1 -name '*.md')
   judge "every generated OpenCode agent opens with frontmatter" "" "$nofm"
 else
-  skip "opencode agent adapters" ".opencode/agent not present"
+  skip "opencode agent adapters" ".opencode/agents not present"
 fi
 
 # node_modules must never be shipped as repo content.

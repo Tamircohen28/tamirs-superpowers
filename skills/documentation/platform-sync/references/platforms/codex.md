@@ -29,6 +29,8 @@ alone triggers every platform that claims it; do not treat it as Codex-exclusive
 |---|---|
 | `AGENTS.md` present or proposed | https://github.com/openai/codex/blob/main/AGENTS.md |
 | Rendered repo context needed | https://github.com/openai/codex |
+| Hooks wired (`platforms/codex/hooks.json` exists) | https://learn.chatgpt.com/docs/hooks |
+| Hook-loading source of truth for a plugin manifest | https://raw.githubusercontent.com/openai/codex/main/codex-rs/core-plugins/src/loader.rs |
 
 ## Sources — P2
 
@@ -61,7 +63,12 @@ against current AGENTS.md guidance in the fetched README.
   capability loss.
 - **MCP servers** — documented support with nothing wired locally.
 - **Hooks** — only if the fetched README documents lifecycle hooks. Do not port Claude
-  hook events on the assumption they exist.
+  hook events on the assumption they exist. When the hooks page is fetched, diff its
+  contract against `tests/hooks/test-codex-contract.sh` (the twelve event names, the
+  stdin fields, the PreToolUse output keys Codex rejects, the Stop-family JSON rule) and
+  against `loader.rs`'s manifest-format gate: at `rust-v0.163.0` a plugin with a root
+  Agent Plugins `plugin.json` loads no hooks at all. A change on either side is a
+  correctness finding, not a style one.
 
 ## Version detection
 
