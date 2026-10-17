@@ -39,7 +39,7 @@ static form when it is absent.
 | `test-integrator-carveout.sh` | the integrator carve-out in `protect-other-branches.sh` — the integrator may touch worker branches, nobody else may |
 | `test-skill-contract.sh` | the per-skill contract, plus the eval-coverage report |
 | `test-orchestration.sh` | the orchestration state machine transitions correctly |
-| `test-opencode-adapter.sh` | `.opencode/agent/` matches `agents/`; adapter and registry agree |
+| `test-opencode-adapter.sh` | `.opencode/agents/` matches `agents/`; adapter and registry agree |
 | `test-gemini-adapter.sh` | the Gemini extension manifest is well-formed and consistent |
 | `test-setup.sh` | `scripts/setup.sh`: `plan` never writes, `apply` is idempotent by content comparison, the plugin-disable warning counts correctly, prompts never read stdin, `remove` is symmetric. Every case runs against a `mktemp -d` fake `HOME` and asserts the real `~/.claude` was untouched |
 | `test-renderers.sh` | the four machine-level renderers (codex, cursor, gemini, opencode) — marker blocks, merge-not-clobber, and a hermetic apply → re-apply → remove round trip |
@@ -47,6 +47,11 @@ static form when it is absent.
 | `test-skill-suggest.sh` | the suggestion hook uses `additionalContext`, keys its cache per repo, and suggests once per skill per session — the three defects that made its predecessor inert |
 | `test-hook-stdin.sh` | a suite-wide sweep: **every** hook returns promptly whatever stdin does |
 | `test-docs.sh` · `test-static.sh` | documentation and static repository tests — see §1 and below |
+| `test-hook-conformance.sh` | one scenario corpus (a plain checkout; an active objective with a task worktree) replayed through every wired hook under the Claude Code, Codex, Cursor and Gemini dialects, judging exit codes, one-JSON-object stdout, each host's key vocabulary (never `followup_message` on Cursor), stderr traces, timeouts, selectivity, and that `enforce-worktree-edits.sh` and `guard-sensitive-files.sh` give the same answer on every host in that host's dialect |
+| `hooks/test-codex-contract.sh` · `test-cursor-lifecycle.sh` · `test-gemini-hooks.sh` | the per-host hook suites: captured Codex payloads (`fixtures/codex/`) with Codex's Stop-family JSON rule and 3-second clamps; Cursor's ten wired events (`fixtures/cursor/`) with its documented output shape per event; the generated Gemini hooks file, policies and `hooks/gemini-wrap.sh` translation |
+| `test-dist.sh` · `test-claude-dist.sh` | every per-host distribution builds and passes its check, and a planted finding of each class makes the check fail |
+| `test-opencode-v2.sh` · `test-antigravity-adapter.sh` · `test-agents-skills.sh` | the OpenCode 2 configuration, plugin and permissions vocabulary; the Antigravity adapter's closed schema; the `.agents/skills` mirror |
+| `test-skill-budget.sh` · `test-evals-suite.sh` | the always-on token budget gate and the skills-ref gate (hermetic through saved CLI output; the live case self-skips without the CLI); the static shape of the `claude plugin eval` suite under `evals/` |
 
 ## 3. Orchestration simulations
 

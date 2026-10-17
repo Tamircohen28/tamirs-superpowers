@@ -175,6 +175,12 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      # Build provenance: every asset gets a Sigstore-backed attestation naming this
+      # workflow, this commit and this run, verifiable with
+      # `gh attestation verify <file> --repo Tamircohen28/tamirs-superpowers`.
+      # docs/engineering/build-and-release/release-verification.md has the steps.
+      id-token: write
+      attestations: write
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -185,7 +191,7 @@ jobs:
         run: |
           set -euo pipefail
           out="$RUNNER_TEMP/assets"; mkdir -p "$out"
-          for t in codex cursor gemini opencode agent-plugins; do
+          for t in codex cursor gemini antigravity opencode agent-plugins; do
             d="$RUNNER_TEMP/dist-$t"
             bash scripts/build-dist.sh "$d" --target "$t" --quiet
             bash scripts/check-dist.sh "$d" --target "$t"
@@ -194,6 +200,10 @@ jobs:
           cp core/capabilities/platforms.json "$out/platforms-${{ inputs.version }}.json"
           (cd "$out" && sha256sum ./* > "SHA256SUMS-${{ inputs.version }}.txt")
           ls -la "$out"
+      - name: Attest build provenance for every asset
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: ${{ runner.temp }}/assets/*
       - name: Attach to the release
         run: gh release upload "v${{ inputs.version }}" "$RUNNER_TEMP"/assets/* --clobber
         env:

@@ -63,7 +63,21 @@ parent_tool_call_id="$(printf '%s' "$input" | jq -r '.parent_tool_call_id // emp
 
 # Outside Cursor this guard has nothing to add: Claude enforces the list itself.
 [ "${HOOK_PLATFORM:-claude}" = "cursor" ] || hook_allow
-[ -n "$conv" ] || hook_allow
+
+# done_ok — the "nothing to decide" answer in the event's own dialect. Cursor's
+# postToolUse is observational: its documented output is updated_mcp_tool_output /
+# additional_context, not `permission`, so the pop path answers `{}` (one JSON object,
+# exit 0) rather than hook_allow's {"permission":"allow"}, which that event ignores.
+# Every other event this guard is wired to is a permission event, where hook_allow
+# is the right shape.
+done_ok() {
+  if [ "$event" = "postToolUse" ]; then
+    printf '%s\n' '{}'
+    exit 0
+  fi
+  hook_allow
+}
+[ -n "$conv" ] || done_ok
 
 state_dir() {
   local base="${CLAUDE_PLUGIN_DATA:-${TMPDIR:-/tmp}}"
@@ -190,7 +204,7 @@ if [ "$tool" = "Task" ]; then
       fi
     fi
   fi
-  hook_allow
+  done_ok
 fi
 
 # Preferred path (desktop ≥ 3.22): attribute via parent_tool_call_id → Task frame.
@@ -199,7 +213,7 @@ if [ -n "$parent_tool_call_id" ]; then
     agent="${frame_row%%$'\t'*}"
     list="${frame_row#*$'\t'}"
     case " $list " in
-      *" $tool "*) hook_allow ;;
+      *" $tool "*) done_ok ;;
       *)
         hook_deny "The '${agent}' agent declares tools: ${list} — '${tool}' is not among them. Cursor does not enforce this list itself, so this guard does (keyed by parent_tool_call_id). Use a tool the agent declares, or hand the work to an agent that declares this one."
         ;;
@@ -209,7 +223,7 @@ if [ -n "$parent_tool_call_id" ]; then
 fi
 
 # Fallback: no parent id (or unknown) — order-stack / intersection.
-[ -s "$STACK" ] || hook_allow
+[ -s "$STACK" ] || done_ok
 
 denied_by=""
 while IFS=$'\t' read -r agent list; do
@@ -224,4 +238,4 @@ if [ -n "$denied_by" ]; then
   hook_deny "The '${denied_by}' agent declares tools: $(printf '%s' "$(grep -m1 "^${denied_by}	" "$STACK" | cut -f2)") — '${tool}' is not among them. Cursor does not enforce this list itself, so this guard does. Use a tool the agent declares, or hand the work to an agent that declares this one."
 fi
 
-hook_allow
+done_ok

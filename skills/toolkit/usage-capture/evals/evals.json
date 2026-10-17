@@ -53,6 +53,20 @@
       "prompt": "Disable usage capture.",
       "expected_output": "Runs enable.sh --disable and tells the user to restart Claude Code. Asks before deleting existing JSONL files.",
       "files": []
+    },
+    {
+      "id": 6,
+      "prompt": "Enable usage capture for me. I'm running on a surface that has no SessionStart hook support at all (the hooks capability is absent), so nothing can auto-start on session open.",
+      "expected_output": "Treats hooks as the optional capability it is and uses the documented fallback: still runs scripts/usage-capture/enable.sh to write the OTEL settings, then tells the user to start the collector themselves with python3 scripts/usage-capture/collector.py --daemon (bound to 127.0.0.1) because usage-capture-ensure.sh cannot fire without SessionStart. Says plainly that auto-start is unavailable on this surface rather than claiming the hook will handle it, keeps the same JSONL directory and schema, and does not enable prompt or body logging.",
+      "files": [],
+      "expectations": [
+        "Does not refuse or stop because the hooks capability is absent",
+        "Still runs enable.sh for the OTEL settings rather than hand-editing env",
+        "Tells the user to run collector.py --daemon manually instead of relying on usage-capture-ensure.sh / SessionStart",
+        "States that auto-start is unavailable on this surface; does not claim the SessionStart hook will start the collector",
+        "Keeps the same local JSONL directory and schema as the hook-backed path",
+        "Does not turn on OTEL_LOG_USER_PROMPTS or --bodies"
+      ]
     }
   ]
 }
