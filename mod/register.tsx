@@ -4,8 +4,8 @@
 //   A mod runs IN-PROCESS on Claude Code, the Claude Desktop Code tab and (since
 //   2.1.299) the VS Code extension's chat panel. It can draw (a pane, the band
 //   above the prompt, the spinner), react to state the host PUSHES
-//   (`session.measure`), answer the model's tool call and the prompt box's
-//   typeahead, and act before a turn dies. The bash hooks in the hook manifest
+//   (`session.measure`), answer the model's tool call, and act before a turn
+//   dies. The bash hooks in the hook manifest
 //   can do none of those things.
 //
 //   It is ADDITIVE. Every guard, every worktree hook and every reminder in
@@ -21,8 +21,7 @@
 //   1. Objective pane + /objective [id] — the orchestration state orchestrate-dev
 //      and worker-dev keep in .dev-files/objectives/<id>/ (objective.json,
 //      tasks/*.json, handoffs/*.json) drawn live, one row per task; a task a
-//      worker agent is on shows that agent's status and a [ view ] button that
-//      opens its transcript ($.ui.view, 2.1.300). `/objective` answers at once,
+//      worker agent is on shows that agent's status. `/objective` answers at once,
 //      with no model turn, even mid-turn (`immediate`). Spinner suffix counts
 //      workers in flight; a task-notification row is drawn compact. After
 //      /clear, /resume or /branch (which reset $.state while `session.start`
@@ -49,9 +48,11 @@
 //      a working-state snapshot folded into compaction instructions
 //      (session.compact), and the repo's Co-Authored-By trailer policy enforced
 //      on the commit attribution text when the repo's CLAUDE.md declares one.
-//   7. Typeahead rows (prompt.autocomplete, 2.1.292) — a `/` in the prompt box
-//      offers the 26 public skills, /objective and /switch-dev handoff with a
-//      one-line description each, from the static table in skills.ts.
+//   7. (withdrawn in 5.0.0) Typeahead rows on `prompt.autocomplete` (2.1.292)
+//      and a [ view ] button on `$.ui.view` (2.1.300) shipped briefly. The
+//      plugin directory's list of events and calls predates both and blocks a
+//      mod that hooks an event it does not know, so both are left out until
+//      that list holds them.
 //   8. Skill context (skill.prompt, 2.1.299 fields) — when a dev-workflow skill
 //      of this plugin expands while an objective is active, the live objective
 //      id, title, worktree and open-task count are appended to its text.
@@ -82,7 +83,7 @@
 import { atom, read, update } from 'claude-code'
 import type { Register } from 'claude-code'
 
-import { hasAgentView, hasNotify, strongText } from './compat'
+import { hasNotify, strongText } from './compat'
 import {
   STATUS_COLOR,
   agentsByTask,
@@ -100,7 +101,7 @@ import {
   taskRow,
 } from './objective'
 import type { AgentRow } from './objective'
-import { SKILL_LABELS, autocompleteRows, isDevWorkflowSkill, seenLabels, wordCount } from './skills'
+import { SKILL_LABELS, isDevWorkflowSkill, seenLabels, wordCount } from './skills'
 import {
   STATUS_MAX,
   clip,
@@ -304,7 +305,7 @@ export const register: Register = (on, options) => {
   })
 
   on('ui.render', { component: 'Pane', requestId: PANE }, async ($, e) => {
-    const { Box, Text, Button } = $.ui.resolve(e)
+    const { Box, Text } = $.ui.resolve(e)
     const o = await read($, objective)
     const n = await read($, workers)
     const width = Math.max(20, e.props.bodyColumns)
@@ -317,12 +318,7 @@ export const register: Register = (on, options) => {
         </Box>
       )
     }
-    // Which worker is on which task, from the session's own agent list; a
-    // [ view ] button opens that worker's transcript where the host can
-    // ($.ui.view, 2.1.300; gated by version, since the validator refuses a `$`
-    // member read as a value). The VS Code surface draws Buttons without
-    // hotkey, plain, autoFocus or action; none is used, so one tree serves all
-    // three.
+    // Which worker is on which task, from the session's own agent list.
     let agents: AgentRow[] = []
     try {
       agents = (await $.agent.list()).map(a => ({ id: a.id, description: a.description, status: a.status }))
@@ -330,7 +326,6 @@ export const register: Register = (on, options) => {
       agents = []
     }
     const byTask = agentsByTask(o.tasks, agents)
-    const canView = hasAgentView(hostVersion)
     const done = o.tasks.filter(t => t.status === 'completed').length
     return (
       <Box flexDirection="column">
@@ -347,9 +342,6 @@ export const register: Register = (on, options) => {
               <Text wrap="truncate-end">{t.title.slice(0, Math.max(8, width - 40))}</Text>
               {t.handoff ? <Text dimColor>handoff:{t.handoff}</Text> : null}
               {agent ? <Text color={agent.status === 'failed' || agent.status === 'killed' ? 'red' : 'cyan'}>agent {agent.status}</Text> : null}
-              {agent && canView ? (
-                <Button key={`view:${t.id}`} label="view" dimColor onPress={() => $.ui.view({ agentId: agent.id })} />
-              ) : null}
             </Box>
           )
         })}
@@ -485,15 +477,6 @@ export const register: Register = (on, options) => {
         {showUsage && u ? <Text dimColor>{clip(usageLine(u, now), STATUS_MAX)}</Text> : null}
       </Box>
     )
-  })
-
-  // ---------------------------------------- 7. typeahead rows for `/`
-  // Only while the first word of the draft opens with `/`: the public skills,
-  // /objective and /switch-dev handoff, each with its one-line description.
-  // The engine's own rows draw first; these join beneath them.
-  on('prompt.autocomplete', { start: 0, token: /^\// }, async ($, e, next) => {
-    const ran = await next(e)
-    return { suggestions: [...ran.suggestions, ...autocompleteRows(e.token)] }
   })
 
   // ---------------------------------------- 8. skill context on expansion
