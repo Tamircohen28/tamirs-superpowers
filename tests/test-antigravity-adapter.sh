@@ -123,7 +123,13 @@ judge "this test file is executable" yes "$(if [ -x "$ROOT/tests/test-antigravit
 
 section "live CLI (agy) — nightly territory"
 if harness_have agy; then
-  out="$(cd "$TMP" && portable_timeout 60 agy plugin list --json </dev/null 2>&1)" && ok "agy plugin list --json runs" || bad "agy plugin list --json" "${out:0:200}"
+  rc=0; out="$(cd "$TMP" && portable_timeout 60 agy plugin list --json </dev/null 2>&1)" || rc=$?
+  # Exit 127 from agy itself is a launcher shim on PATH with no real binary behind
+  # it (cmux ships one that answers "agy not found in PATH"): the CLI is absent, so
+  # skip as below, the same rule contract_cli in tests/contract/_common.sh applies.
+  if [ "$rc" -eq 0 ]; then ok "agy plugin list --json runs"
+  elif [ "$rc" -eq 127 ]; then skip "agy plugin install/list" "agy resolves to a shim that reports command-not-found (exit 127) — nightly job territory"
+  else bad "agy plugin list --json" "${out:0:200}"; fi
 else
   skip "agy plugin install/list" "agy not on PATH — nothing here is measured against a live binary"
 fi

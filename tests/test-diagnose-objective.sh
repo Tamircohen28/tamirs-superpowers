@@ -37,7 +37,9 @@ classes() { jq -r '[.findings[].class] | join(" ")'; }
 
 # pin_times <objective-dir> — deterministic timestamps: handoff N completed at 01:0N,
 # task file N touched at 01:0N, objective created 01:00 / updated 01:10. `touch -t`
-# is the one form GNU and BSD touch share.
+# is the one form GNU and BSD touch share. It reads LOCAL time while the JSON stamps
+# above are UTC, so it runs under TZ=UTC: anywhere east or west of UTC the mtimes
+# would otherwise land hours away from the stamps and reorder the timeline.
 pin_times() {
   local d="$1" f n
   jq '.created = "2026-10-17T01:00:00Z" | .updated = "2026-10-17T01:10:00Z"' "$d/objective.json" > "$d/o.tmp" && mv "$d/o.tmp" "$d/objective.json"
@@ -47,9 +49,9 @@ pin_times() {
     if [[ "$f" == */handoffs/* ]]; then
       jq --arg t "2026-10-17T01:0${n}:00Z" '.completed = $t' "$f" > "$f.tmp" && mv "$f.tmp" "$f"
     fi
-    touch -t "20261017010${n}" "$f"
+    TZ=UTC touch -t "20261017010${n}" "$f"
   done
-  touch -t "202610170100" "$d/objective.json"
+  TZ=UTC touch -t "202610170100" "$d/objective.json"
 }
 
 # --------------------------------------------------------------------------

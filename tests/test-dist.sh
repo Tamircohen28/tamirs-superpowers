@@ -143,7 +143,7 @@ import json
 p="gemini-extension.json"; d=json.load(open(p)); d["version"]="0.0.0"; json.dump(d,open(p,"w"),indent=2)
 PY'
 probe opencode "a skill whose name differs from its folder" "name differs from its folder" \
-  'f="$(find skills -name SKILL.md -not -path "*/_contract/*" | head -1)"; sed -i "s/^name: .*/name: something-else/" "$f"'
+  'f="$(find skills -name SKILL.md -not -path "*/_contract/*" | head -1)"; sed -i.bak "s/^name: .*/name: something-else/" "$f" && rm -f "$f.bak"'
 probe opencode "CHANGELOG.md shipped" "CHANGELOG.md is shipped" \
   'printf "# Changelog\n" > CHANGELOG.md'
 probe opencode "a credential-shaped literal" "credential-shaped literal" \
