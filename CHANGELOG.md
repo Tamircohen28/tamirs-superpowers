@@ -5,6 +5,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [5.0.1] — 2026-10-17
+
 ### Fixed
 
 - **`check-manifest-version-alignment.sh` read the Claude distribution tag as a release.**
