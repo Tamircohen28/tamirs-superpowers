@@ -5,6 +5,42 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Phase 0 — baselines (merged nightly branches, fail-closed guards, pins)
+
+#### Changed
+
+- **Claude Code pin 2.1.300 → 2.1.302** (live `claude` CLI run; `claude plugin validate` and
+  `claude plugin test` pass). Merges the nightly `claude-code-update` branch (PR #271): a
+  worker's `turn.start` (which also fires for subagents since 2.1.299) no longer zeroes the main
+  turn's write count; `.catch` on the four gating mod hooks so a broken counter, snapshot or
+  classifier never denies what it was never meant to gate; one-step
+  `claude plugin install --marketplace` install docs; 22 mod tests.
+- **Cursor desktop pin 3.23.12 → 3.24.12** (feature changelog still 3.11 / 2026-09-23). Merges
+  the nightly `cursor-update` branch (PR #277): `hooks/cursor-agent-tools-guard.sh` keys
+  subagent `tools:` allowlists on Task `tool_use_id` + child `parent_tool_call_id`, with the
+  order-stack intersection as the fallback for older payloads.
+- **Codex 0.160.1 → 0.163.0, Gemini CLI 0.62.0 → 0.64.0, OpenCode 2.0.24 → 2.0.32**
+  (`reviewed_through`/`latest_known`; no live binary, so `validated_against` stays). Closes the
+  daily drift issues #270–#283. The review recorded two facts the adapters act on later in this
+  release: Codex's hooks parser rejects unknown top-level keys (so the shared `hooks/hooks.json`
+  with its `modules` key cannot load there), and OpenCode 2 does not run V1 plugins and has
+  deprecated the 15-key `permission` object.
+- **The four core-safety guards fail closed.** `protect-other-branches.sh`,
+  `enforce-worktree-edits.sh`, `guard-sensitive-files.sh` (both wirings) and `docker-guard.py`
+  carry `onFailure: "block"` in `hooks/hooks.json` (Claude Code 2.1.295+): a guard that cannot
+  start, times out or exits oddly now blocks the action instead of letting it through. Advisory
+  hooks stay fail-open. `tests/test-manifest-invariants.sh` holds both sides.
+- `actions/setup-node` 7.0.0 → 7.1.0 (PR #276).
+
+#### Fixed
+
+- Stale prose: `mods.md` listed three non-sensitive options (there are two), still named
+  `$.process.run` and "uncommitted files" in the compaction row (both removed in 4.11.0) and a
+  handoff button (removed in 4.11.6); the mod's header said the same; `CLAUDE.md` said no script
+  parses `.claude-code-version` (`check-platform-version-pins.sh` has since 4.12.0) and quoted
+  21 mod tests. `tests/test-manifest-invariants.sh` now holds the option count, the Options
+  table and the test count to the files.
+
 ## [4.12.2] — 2026-10-16
 
 ### Changed

@@ -48,8 +48,8 @@
 //   take text or data and give back text or data. No subprocess runs and no
 //   network call is made: the main working tree comes from `$.session.repo()`
 //   and the branch from reading `.git/HEAD`, both plain `$.fs`/`$.session` calls.
-//   What leaves the session is one thing, on one press: the handoff button
-//   submits a fixed prompt naming the rate-limit window (see the band below).
+//   Nothing leaves the session: the mod submits no prompt (the band below
+//   tells the person what to type) and makes no network call.
 //
 // BUDGET
 //   Every hook has 10 s of its own time per dispatch; `next` and `$` calls do

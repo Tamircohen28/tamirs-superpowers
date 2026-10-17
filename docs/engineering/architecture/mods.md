@@ -45,7 +45,7 @@ cannot load.
 | 4 | *(removed in 4.11.1)* A Pushover post on long or failed turns lived here as the mod's one network call. The plugin directory holds a mod that both reads the conversation and sends data out, and the `Notification` bash hook already covers phone alerts, so the mod now makes no network call at all | — | `scripts/notify-pushover.sh` on the `Notification` event is the one Pushover path |
 | 5 | **Semantic skill suggestion** — opt-in `semantic_skill_suggest`: a prompt of 12+ words is classified by the engine's small model against the bundled skill names; a match is attached as context once per skill per load | `prompt.submit`, `$.model.classify` | `hooks/skill-suggest.sh` keyword matching stays on either way |
 | 6 | **Definition-of-done line** under an answer whose turn wrote files | `turn.start`, `tool.call`, `turn.complete` | `hooks/check-done.sh` (`Stop`, stderr) |
-| 6 | **Compaction snapshot** — branch, uncommitted files and the objective folded into the summariser's instructions | `session.compact`, `$.process.run` | `hooks/precompact-snapshot.sh` (writes a file; `PreCompact` has no context channel) |
+| 6 | **Compaction snapshot** — branch and the objective folded into the summariser's instructions (the branch from `.git/HEAD`, read with `$.fs`; no process runs) | `session.compact`, `$.fs.read` | `hooks/precompact-snapshot.sh` (writes a file; `PreCompact` has no context channel) |
 | 6 | **Commit trailer policy** — when the repo's `CLAUDE.md` declares a `Co-Authored-By: Claude <…>` line and the attribution text lacks one, it is appended | `attribution.text{commit}` | The CLAUDE.md prose. Only enforced where the repo declares it; a repo without the line gets nothing |
 
 Reviewed and deliberately **not** ported: `show-changelog.sh` (its `systemMessage` already
@@ -58,7 +58,7 @@ already approximates.
 
 ## Options
 
-Three non-sensitive `userConfig` fields, shown as rows in `/config` and editable with
+Two non-sensitive `userConfig` fields, shown as rows in `/config` and editable with
 `claude plugin configure tamirs-superpowers`:
 
 | Field | Default | Effect |
@@ -83,7 +83,7 @@ them on `master`, and `scripts/check-claude-dist.sh` holds the line:
 | `MOD_RUNS_PROCESS` / `MOD_PROCESS_COMMAND_COMPUTED` / `MOD_CAN_FETCH_AND_RUN` (held) | no `$.process` at all: the main working tree from `$.session.repo()`, the branch from reading `.git/HEAD` |
 | `COMMAND_NAMES_MOD_FILE` (held) — no shipped command, script or configuration names the mod's files or folders | the mod lives in its own top-level `mod/`, named only by the `modules` entry of `hooks/hooks.json` (which does not count); `scripts/typecheck-mods.sh` and the `Makefile`, which do name it, are not shipped |
 | `MOD_LOCAL_DATA_LEAVES` / `MOD_SESSION_DATA_LEAVES` (held in 4.11.0) | gone with the network call in 4.11.1 |
-| `MOD_DATA_LEAVES_BY_PROMPT` (held) | the handoff prompt is fixed text, submitted only when the person presses the button; the directory README says exactly what it contains |
+| `MOD_DATA_LEAVES_BY_PROMPT` (held) | the mod submits no prompt at all (the handoff button went in 4.11.6); the band tells the person what to type. The portal still names the pair `fs.read` + `prompt.submit` because a `prompt.submit` *hook* is registered for the opt-in suggestion, so the hold stays and the directory README says so |
 | `MOD_ANSWERS_PERMISSION` / `MOD_HOOKS_POLICY_EVENT` (held) — the `agent.spawn` hook can deny a spawn | it only counts a worker and calls `next(e)`; the comment says so |
 
 ## Where it runs, and the Codex trade-off
