@@ -13,6 +13,14 @@
       "note": "Claude Code / Claude Desktop plugin manifest. Claude treats this value as the marketplace update cache key."
     },
     {
+      "path": "plugins/guard/.claude-plugin/plugin.json",
+      "kind": "json_field",
+      "field": ".version",
+      "template": "{version}",
+      "required": true,
+      "note": "The guard plugin's manifest (plugins/guard, installed from the in-repo marketplace). Versioned in lockstep with the core plugin so one release moves both."
+    },
+    {
       "path": ".cursor-plugin/plugin.json",
       "kind": "json_field",
       "field": ".version",

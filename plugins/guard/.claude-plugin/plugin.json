@@ -1,0 +1,39 @@
+{
+  "name": "tamirs-superpowers-guard",
+  "displayName": "Tamir's Superpowers Guard",
+  "version": "4.12.2",
+  "description": "In-process guard for tamirs-superpowers: holds a destructive shell command (force push, rm -rf, git reset --hard, ...) until you answer Proceed or Cancel, and refuses a file write in the main checkout while an orchestration objective is active. Companion to the core plugin; Claude Code and Claude Desktop only.",
+  "homepage": "https://github.com/Tamircohen28/tamirs-superpowers",
+  "repository": "https://github.com/Tamircohen28/tamirs-superpowers",
+  "documentationUrl": "https://github.com/Tamircohen28/tamirs-superpowers/blob/master/docs/engineering/architecture/guard-plugin.md",
+  "supportUrl": "https://github.com/Tamircohen28/tamirs-superpowers/issues",
+  "privacyPolicyUrl": "https://github.com/Tamircohen28/tamirs-superpowers/blob/master/PRIVACY.md",
+  "author": {
+    "name": "Tamir Cohen",
+    "url": "https://github.com/Tamircohen28"
+  },
+  "keywords": [
+    "hooks",
+    "guard",
+    "safety",
+    "developer-tools",
+    "claude-code",
+    "worktree"
+  ],
+  "license": "MIT",
+  "types": "./types/index.d.ts",
+  "userConfig": {
+    "hold_destructive_commands": {
+      "type": "boolean",
+      "title": "Hold destructive shell commands until you answer",
+      "description": "On by default. A Bash call that force-pushes, deletes a branch with -D, removes a worktree with --force, resets --hard, cleans with -f, runs rm -rf outside a temp directory, or discards the working tree (git checkout -- . / git restore .) pauses in a Proceed/Cancel dialog before it runs. Cancel refuses the call with the guard's reason. Where nothing can draw the dialog (claude -p, the SDK) the call goes through unheld.",
+      "default": true
+    },
+    "deny_main_checkout_writes": {
+      "type": "boolean",
+      "title": "Refuse main-checkout writes while an objective is active",
+      "description": "On by default. While an orchestration objective is active (SUPERPOWERS_OBJECTIVE_ID, or an objective.json with status active under .dev-files/objectives/) and the session sits in the main checkout rather than a worktree, an Edit/Write/MultiEdit/NotebookEdit of a file inside the repository is refused with the objective's worktrees named. Writes under .dev-files/ and inside any agent worktree pass. The in-process mirror of hooks/enforce-worktree-edits.sh, which stays canonical.",
+      "default": true
+    }
+  }
+}

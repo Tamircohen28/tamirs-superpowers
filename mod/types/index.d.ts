@@ -3,8 +3,11 @@
 // $.state key mod/register.tsx names to what is declared here.
 //
 // Every value here is session state the host keeps across a hot reload of the
-// module. Nothing is persisted: the objective is re-read from disk, the usage
-// figures are re-pushed by `session.measure`, the warning re-derives.
+// module, and nothing more: /clear, /resume and /branch reset it, and the
+// mod's `classic.SessionStart` hook reloads it then. Two values are also
+// written through to `$.store`, which outlives the session (see
+// mod/register.tsx: `rate-limit.dismissed`, `skill-suggest.seen`); the rest is
+// re-read from disk or re-pushed by `session.measure`.
 
 /** One task of the active objective, as the pane draws it. */
 export type ModsObjectiveTask = {
@@ -49,8 +52,12 @@ declare module 'claude-code' {
       objective: ModsObjective | null
       usage: ModsUsage | null
       limitWarning: ModsLimitWarning | null
-      /** The person pressed Dismiss on the warning band at this percentage. */
-      dismissedAtPercent: number
+      /**
+       * The person pressed Dismiss on the warning band at this percentage, per
+       * window kind (`five_hour`, `seven_day`, `spend_limit`). The session's
+       * cache of the `rate-limit.dismissed` store value.
+       */
+      dismissed: Record<string, number>
       /** Subagents spawned and not yet completed, for the spinner suffix. */
       workers: number
     }

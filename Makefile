@@ -45,7 +45,7 @@ help:
 	@echo "  test-hooks              — behavior tests for hooks/ (tests/test-*.sh)"
 	@echo "  test-repo-contract      — contract fixtures (app-gold, plugin-gold, claude-plugin-gold)"
 	@echo "  plugin-validate         — claude plugin validate (requires Claude Code CLI)"
-	@echo "  test-mods               — validate + test the mod, mod/ (requires Claude Code CLI 2.1.287+)"
+	@echo "  test-mods               — validate + test the mod (mod/) and the guard plugin (plugins/guard); requires Claude Code CLI 2.1.287+"
 	@echo "  typecheck-mods          — tsc over the mod against the build's claude-code.d.ts (skips when none is laid)"
 	@echo "  build-claude-dist       — write the Claude-only distribution to DIST (default build/claude-dist)"
 	@echo "  check-claude-dist       — build it to a temp dir and hold it to the plugin directory's rules"
@@ -305,10 +305,20 @@ plugin-validate:
 # manifest and never the hooks module, so the plugin-manifest form is what validates the
 # mod; `claude plugin test` runs mod/*.test.tsx against the engine itself. Both need
 # the Claude Code CLI (2.1.287+), which `make validate` deliberately does not require.
+# `claude plugin test <dir>` runs every *.test.tsx under <dir> against the ONE mod that
+# dir's hooks/hooks.json names, so from the repo root it would also pick up the guard
+# plugin's tests and run them against the wrong mod. The core mod is therefore tested
+# from a scratch copy of the tree without plugins/, and the guard plugin from its own
+# folder. (The Claude distribution has no plugins/ either, so check-claude-dist's run
+# of the same command needs no such copy.)
 test-mods:
-	@echo "--- mod: claude plugin validate .claude-plugin/plugin.json + claude plugin test . ---"
+	@echo "--- mod: claude plugin validate .claude-plugin/plugin.json + claude plugin test (tree without plugins/) ; guard: plugins/guard ---"
 	@if command -v claude >/dev/null 2>&1; then \
-	  claude plugin validate .claude-plugin/plugin.json && claude plugin test . && echo "  mod validate + tests passed"; \
+	  tmp="$$(mktemp -d)"; trap 'rm -rf "$$tmp"' EXIT; \
+	  tar --exclude=./plugins --exclude=./.git --exclude=./node_modules -cf - . | tar -C "$$tmp" -xf - \
+	    && claude plugin validate .claude-plugin/plugin.json && (cd "$$tmp" && claude plugin test .) \
+	    && claude plugin validate plugins/guard/.claude-plugin/plugin.json && claude plugin test plugins/guard \
+	    && echo "  mod + guard validate + tests passed"; \
 	else \
 	  echo "  claude CLI not found — install from claude.ai/code"; \
 	  exit 1; \

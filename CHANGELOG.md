@@ -5,6 +5,45 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Phase 2 — the mod, and a guard plugin beside it
+
+#### Added
+
+- **The mod uses the 2.1.288–2.1.302 API** (`mod/register.tsx`, now 18 hooks, split into
+  `register.tsx` for every hook and `$` call plus pure `objective.ts`, `usage.ts`, `skills.ts`,
+  `compat.ts`): `prompt.autocomplete` offers the 26 public skills, `/objective` and
+  `/switch-dev handoff` as the person types `/`; `skill.prompt` appends the live objective id,
+  worktree and open-task count when a dev-workflow skill of this plugin expands under an active
+  objective; an `objective_status` tool (registered upfront, not deferred) answers the model with
+  the objective as JSON; the objective pane shows each task's agent status from `$.agent.list()`
+  with a view button that opens that worker's transcript (`$.ui.view`, 2.1.300+); the rate-limit
+  band also raises a native notification once per crossing (`$.ui.notify`, 2.1.295+);
+  `classic.SessionStart` on clear/resume/fork reloads the pane and the dismissal, which `/clear`
+  used to blank; `$.store` keeps the skill-suggest "seen" set and the rate-limit dismissal across
+  sessions; every drawing is mounted on terminal, desktop and the VS Code chat panel (2.1.299+),
+  typography gated on `$.session.version()`. 40 mod tests (was 22); every gating hook has
+  `.catch`; still no process, no network, no prompt submission, no permission answer.
+- **`tamirs-superpowers-guard`**, a second plugin in the in-repo marketplace
+  (`plugins/guard`, `/plugin install tamirs-superpowers-guard --marketplace
+  Tamircohen28/tamirs-superpowers`): an in-process hold on destructive shell commands (force
+  push, `git branch -D`, `git reset --hard`, `git clean -f`, `rm -rf` outside a temp dir, …)
+  through `$.ui.ask`, let through where nothing can ask; an in-process deny of writes into the
+  main checkout while an objective is active, mirroring `enforce-worktree-edits.sh`; a `/guard`
+  command; two options to switch each off. It is a separate plugin because a mod that holds or
+  denies reads as a policy-answering mod to the plugin directory, and the core plugin keeps its
+  clean footprint. 19 tests; `make test-mods` and CI run both plugins;
+  `tests/test-guard-plugin.sh` holds its shape. Design:
+  `docs/engineering/architecture/guard-plugin.md`.
+
+#### Changed
+
+- **Claude Code floor 2.0.0 → 2.1.287** (`platform-targets.json` `supported_min`): the release
+  that introduced mods. 2.1.299 is the recommended surface. Bash hooks, skills and agents still
+  run on older builds; the plugin is no longer validated there.
+- `make typecheck-mods` type-checks against the plugin-authoring skill's bundled
+  `claude-code.d.ts` (2.1.302 here) and stays a local gate: the engine's type file is not
+  redistributed with the repository, and `claude plugin test` is the CI gate.
+
 ### Phase 1 — packaging: one source, one subset per host
 
 #### Added

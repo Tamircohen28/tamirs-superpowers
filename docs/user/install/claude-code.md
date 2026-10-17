@@ -189,6 +189,39 @@ Opt in with [`/usage-capture`](../usage-capture.md) (`bash scripts/usage-capture
 Claude Code's native OpenTelemetry export is pointed at a loopback collector; logs stay
 on this machine as one JSONL file per Israel calendar day. Restart Claude Code after enabling.
 
+## The guard plugin
+
+A second, optional plugin in the same repository: `tamirs-superpowers-guard`. It runs
+in-process (Claude Code 2.1.287+, Claude Code and the Claude Desktop Code tab only) and does
+two things the core plugin's bash hooks cannot:
+
+- **Holds a destructive shell command until you answer.** A `Bash` call that force-pushes,
+  deletes a branch with `-D`, removes a worktree with `--force`, resets `--hard`, cleans with
+  `-f`, runs `rm -rf` outside a temp directory, or discards the working tree
+  (`git checkout -- .`, `git restore .`) pauses in Claude Code's question dialog with
+  **Proceed** and **Cancel**. Cancel refuses it with the guard's reason. Under `claude -p`
+  or the SDK, where nothing draws the dialog, the call goes through unheld.
+- **Refuses a main-checkout write while an objective is active.** The same rule as the core
+  plugin's `enforce-worktree-edits.sh` (which keeps running), applied in-process: with an
+  orchestration objective active and the session in the main checkout rather than a
+  worktree, an `Edit`/`Write`/`MultiEdit`/`NotebookEdit` inside the repository is refused
+  and the objective's worktrees are named.
+
+It is separate because a hook that can refuse a tool call is one Anthropic's plugin directory
+holds for review; the core plugin keeps its listing clean and the guard installs from this
+repository's own marketplace instead. Install it with the core plugin already in place:
+
+```text
+/plugin install tamirs-superpowers-guard --marketplace Tamircohen28/tamirs-superpowers
+```
+
+Both behaviours are options, on by default, under `/config` or
+`claude plugin configure tamirs-superpowers-guard`: `hold_destructive_commands` and
+`deny_main_checkout_writes`. `/guard` shows their current values and what the guard has held
+or refused this session. It is not in the catalog marketplace or Anthropic's directory. Design
+and the full vocabulary: [guard plugin](../../engineering/architecture/guard-plugin.md); the
+plugin's own README: [`plugins/guard/README.md`](../../../plugins/guard/README.md).
+
 ## Capabilities and limitations
 
 | Capability | Status | Notes |
