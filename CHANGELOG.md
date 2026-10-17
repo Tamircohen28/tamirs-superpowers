@@ -33,6 +33,11 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   CI reports drift as a warning on every event (no commit can fix it, so a red check
   would only hide the next real failure); offline it skips.
   `tests/test-repo-description.sh` (8 checks).
+- **The mod no longer rings a native notification at a rate-limit crossing.** The plugin
+  directory held 5.0.0 and 5.0.1 for `$.ui.notify` (2.1.295), a call its list does not know,
+  made by a mod that also reads files and the conversation (`MOD_LOCAL_DATA_LEAVES`,
+  `MOD_SESSION_DATA_LEAVES`). The band and its one toast per crossing carry the warning; the
+  `Notification` hook stays the out-of-band channel. `hasNotify()` goes with it; 37 mod tests.
 
 ## [5.0.0] — 2026-10-17
 

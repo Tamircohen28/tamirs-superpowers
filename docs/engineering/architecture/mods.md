@@ -13,7 +13,7 @@ The module is five files, split so that every hook and every `$` call sits in on
 | `mod/objective.ts` | readers and formatters of the `.dev-files/objectives/<id>/` JSON (pick the active objective, task rows, the `/objective` text, the `objective_status` JSON, the skill-context line, agent-to-task mapping) — already-read text or data in, data or text out | no |
 | `mod/usage.ts` | the rate-limit band's headline, instruction, toast and notification text, the usage line, the crossing key, the store-value readers | no |
 | `mod/skills.ts` | `SKILL_LABELS` for the classifier, the 27 public skills' one-line descriptions, the typeahead rows, the dev-workflow set | no |
-| `mod/compat.ts` | version comparison and the feature gates (`hasTypography`, `hasNotify`, `hasAgentView`) taking a version string | no |
+| `mod/compat.ts` | version comparison and the feature gates (`hasTypography`) taking a version string | no |
 
 `mod/mods.test.tsx` is the test file; `mod/types/index.d.ts` the contract.
 
@@ -58,7 +58,7 @@ cannot load.
 | 1 | **Reload after `/clear`, `/resume`, `/branch`** — those reset `$.state` while `session.start` does not fire again; the classic `SessionStart` event does, with `source`, and the objective is re-read and the stored dismissals restored (the band re-derives from the next `session.measure`) | `classic.SessionStart{source: clear\|resume\|fork}` | Before 5.0.0 the pane went blank until the 5 s re-read and a dismissal was forgotten |
 | 1 | **Worker rows** (2.1.300) — a task whose worker `$.agent.list()` reports (matched by the task id in the agent's description, else by order of running agents) shows the agent's status (`pending`/`running`/`waiting`/`idle`/`completed`/`failed`/`killed`). No `[ view ]` button: `$.ui.view` (2.1.300) is not on the plugin directory's list of calls, and an unknown call beside a conversation read holds the listing | `ui.render{Pane}`, `$.agent.list` | `/tasks` and the agent detail dialogs (host UI) |
 | 2 | **Rate-limit band** — at `rate_limit_warn_percent` (default 85) of any window a band tells the user to type `/switch-dev handoff` (the mod submits no prompt; a `prompt.submit` call beside its file reads is a `MOD_DATA_LEAVES_BY_PROMPT` hold) and shows `[ Dismiss ]`; one toast per 5-point crossing. A dismissal is kept per window kind in `$.state` and written through to `$.store` (`rate-limit.dismissed`), so it outlives the session; the window dropping 10 points under the threshold clears both | `session.measure`, `ui.render{AbovePrompt}`, `$.store.get/set/delete` | `hooks/rate-limit-handoff.sh` (`StopFailure`, after the fact). Both stay |
-| 2 | **Native notification** (2.1.295) — the band's first appearance for a window also calls `$.ui.notify`, once per crossing, so the warning reaches the person's own `preferredNotifChannel` (a Desktop with no terminal bell included); host-local, no network; a host before 2.1.295 is left alone (`hasNotify`) | `session.measure`, `$.ui.notify` | `scripts/notify-pushover.sh` (`Notification`) stays the one out-of-band channel |
+| 2 | **Native notification — withdrawn.** `$.ui.notify` (2.1.295) is not on the plugin directory's list of calls, and an unknown call in a mod that also reads files and the conversation is held as a possible way out (`MOD_LOCAL_DATA_LEAVES`, `MOD_SESSION_DATA_LEAVES`). The band and its one toast per crossing carry the warning | — | `scripts/notify-pushover.sh` (`Notification`) stays the out-of-band channel |
 | 3 | **Usage line on Desktop and VS Code** — `ctx 12% · 5h 40% (resets 2h10m) · 7d 31% · $1.50`, held to 200 characters, on the two surfaces with no status line | `session.measure`, `ui.render{AbovePrompt}` | `scripts/statusline.sh` on the CLI. The mod never draws it on the terminal |
 | 4 | *(removed in 4.11.1)* A Pushover post on long or failed turns lived here as the mod's one network call. The plugin directory holds a mod that both reads the conversation and sends data out, and the `Notification` bash hook already covers phone alerts, so the mod now makes no network call at all | — | `scripts/notify-pushover.sh` on the `Notification` event is the one Pushover path |
 | 5 | **Semantic skill suggestion** — opt-in `semantic_skill_suggest`: a prompt of 12+ words is classified by the engine's small model against the bundled skill names; a match is attached as context once per skill across sessions (`$.store` `skill-suggest.seen`, the session set as cache) | `prompt.submit`, `$.model.classify`, `$.store.get/set` | `hooks/skill-suggest.sh` keyword matching stays on either way |
@@ -144,10 +144,10 @@ Three gates, in `make validate` and CI (`make test-mods`):
    (a second unmatched `on("turn.complete")`, `$` passed to a closure, a `$.state` key the
    contract does not declare). Note `claude plugin validate .` validates the **marketplace**
    manifest only and never reads the mod; CI runs both.
-2. `claude plugin test .` — runs `mod/*.test.tsx` against the engine itself (38 tests).
+2. `claude plugin test .` — runs `mod/*.test.tsx` against the engine itself (37 tests).
    The test's `on` hooks sit beneath the mod and stand for the engine, so each test stubs the
    world the feature touches (`fs.*`, `prompt.submit`, `model.classify`, `agent.list`,
-   `ui.notify`, `ui.view` (to prove the pane never calls it), `tool.register`, …), `mock.store`/`mock.env`/`mock.clock`/
+   `ui.notify` and `ui.view` (to prove the mod never calls them), `tool.register`, …), `mock.store`/`mock.env`/`mock.clock`/
    `mock.session` answer those nouns from memory, and recorders hold what the mod asked
    for. Every drawing test mounts the band, the pane and the spinner on `terminal`,
    `desktop` and `vscode`, and asserts the `part: { plugin }` stamp on the root that

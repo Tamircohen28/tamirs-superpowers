@@ -30,7 +30,8 @@
 //      turn. At `rate_limit_warn_percent` the band above the prompt shows a
 //      reminder to type /switch-dev handoff, with a Dismiss button; the mod
 //      submits no prompt itself. The first time the band appears for a window
-//      the person's own notification channel is rung too ($.ui.notify, 2.1.295).
+//      a toast says the same once. (A native notification on `$.ui.notify`,
+//      2.1.295, was withdrawn: the plugin directory does not know the call.)
 //      rate-limit-handoff.sh fires AFTER the turn died; this fires BEFORE. The
 //      dismissal is kept per window kind in $.store (`rate-limit.dismissed`).
 //   3. Usage line on Desktop and VS Code — the figures scripts/statusline.sh
@@ -83,7 +84,7 @@
 import { atom, read, update } from 'claude-code'
 import type { Register } from 'claude-code'
 
-import { hasNotify, strongText } from './compat'
+import { strongText } from './compat'
 import {
   STATUS_COLOR,
   agentsByTask,
@@ -147,7 +148,6 @@ export const register: Register = (on, options) => {
   let trailerPolicy: string | null = null
   let writesThisTurn = 0
   let lastToastedKey = ''
-  let notifiedKind = ''
   let suggested = new Set<string>()
   // The objective loader session.start builds over its own `$` (its `$.fs`
   // calls spelled out there), reused by the 5 s timer, the SessionStart
@@ -287,7 +287,6 @@ export const register: Register = (on, options) => {
       // Unreadable store: the band starts over, as a fresh session would.
     }
     await update($, limitWarning, () => null)
-    notifiedKind = ''
     lastToastedKey = ''
     $.ui.invalidate('ui.render')
     return next(e)
@@ -408,18 +407,6 @@ export const register: Register = (on, options) => {
         lastToastedKey = key
         $.ui.toast(limitAlert(w, now), { timeoutMs: 8000 })
       }
-      // The band's first appearance for a window also rings the person's own
-      // notification channel (their preferredNotifChannel; 2.1.295), once per
-      // crossing: it reaches a Desktop with no terminal bell. Host-local, no
-      // network; a host before 2.1.295 has no such method and is left alone.
-      if (notifiedKind !== w.kind && hasNotify(hostVersion)) {
-        notifiedKind = w.kind
-        try {
-          await $.ui.notify(limitAlert(w, now), { title: 'Rate limit — hand off' })
-        } catch {
-          // A hook above refused it, or the write failed: the band still shows.
-        }
-      }
     } else if (!worst || worst.percentUsed < warnAt - 10) {
       await update($, limitWarning, () => null)
       await update($, dismissed, () => ({}))
@@ -429,7 +416,6 @@ export const register: Register = (on, options) => {
         // The stale dismissal stays in the store until the next write.
       }
       lastToastedKey = ''
-      notifiedKind = ''
     }
     return next(e)
   })
