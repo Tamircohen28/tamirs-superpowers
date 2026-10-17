@@ -14,7 +14,7 @@
 #   from a real host failure goes here with the failure quoted, the way the Claude
 #   checker does, and tests/test-dist.sh plants the shape to prove the rule fires.
 #
-# Usage: check-dist.sh <dist-dir> --target <codex|cursor|gemini|opencode|agent-plugins> [--source <repo-root>]
+# Usage: check-dist.sh <dist-dir> --target <codex|cursor|gemini|antigravity|opencode|agent-plugins> [--source <repo-root>]
 #   For --target claude use check-claude-dist.sh.
 # shellcheck disable=SC2015,SC2016  # `test && ok || bad` is the intended shape: ok() never fails; the single-quoted xargs bodies are literal shell
 set -uo pipefail
@@ -28,7 +28,7 @@ while [[ $# -gt 0 ]]; do
     *) DIST="$1"; shift ;;
   esac
 done
-[[ -n "$DIST" && -d "$DIST" && -n "$TARGET" ]] || { echo "usage: check-dist.sh <dist-dir> --target <codex|cursor|gemini|opencode|agent-plugins> [--source <repo-root>]" >&2; exit 2; }
+[[ -n "$DIST" && -d "$DIST" && -n "$TARGET" ]] || { echo "usage: check-dist.sh <dist-dir> --target <codex|cursor|gemini|antigravity|opencode|agent-plugins> [--source <repo-root>]" >&2; exit 2; }
 [[ "$TARGET" != "claude" ]] || { echo "check-dist: use check-claude-dist.sh for the Claude tree" >&2; exit 2; }
 DIST="$(cd "$DIST" && pwd)"
 SRC="${SRC:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
@@ -62,6 +62,8 @@ ver="$(python3 -c "import json,sys; print(json.load(open(sys.argv[1]))['version'
 [[ -n "$ver" ]] && ok "plugin-version.json says $ver" || bad "plugin-version.json unreadable"
 for m in plugin.json .codex-plugin/plugin.json .cursor-plugin/plugin.json gemini-extension.json; do
   has "$m" || continue
+  # Antigravity's plugin.json is a closed {name, description} schema with no version field.
+  [[ "$TARGET" == "antigravity" && "$m" == "plugin.json" ]] && continue
   mv_="$(python3 -c "import json,sys; print(json.load(open(sys.argv[1])).get('version',''))" "$DIST/$m")"
   [[ "$mv_" == "$ver" ]] && ok "$m is $ver" || bad "$m version differs" "$mv_"
 done
@@ -82,8 +84,11 @@ fi
 case "$TARGET" in
   codex)
     echo "--- codex ---"
-    has plugin.json && ok "root plugin.json present" || bad "root plugin.json missing"
-    has .codex-plugin/plugin.json && ok ".codex-plugin/plugin.json present (pre-0.147 fallback)" || bad ".codex-plugin/plugin.json missing"
+    # Measured on codex-cli 0.163.0 (tests/hooks/test-codex-contract.sh provenance): a plugin
+    # with a root Agent Plugins plugin.json has its hook sources emptied before any hooks
+    # path is read, whichever manifest names them. The Codex subset ships the overlay route.
+    has plugin.json && bad "root plugin.json is shipped" "Codex 0.163.0 empties a plugin's hook sources when a root Agent Plugins manifest is present" || ok "no root Agent Plugins manifest (Codex would drop every hook)"
+    has .codex-plugin/plugin.json && ok ".codex-plugin/plugin.json present (the Codex route)" || bad ".codex-plugin/plugin.json missing"
     has platforms/codex/hooks.json && ok "platforms/codex/hooks.json present" || bad "platforms/codex/hooks.json missing"
     has hooks/hooks.json && bad "hooks/hooks.json is shipped" "Codex's HooksFile rejects its modules key; only the generated file ships" || ok "the Claude hooks file is not shipped"
     has mod && bad "mod/ is shipped" "Codex runs no mod" || ok "no mod"
@@ -138,8 +143,83 @@ PY
     echo "--- gemini ---"
     has gemini-extension.json && ok "gemini-extension.json present" || bad "gemini-extension.json missing"
     [[ -d "$DIST/.gemini/skills" ]] && ok ".gemini/skills mirror present (dereferenced)" || bad ".gemini/skills missing"
-    has hooks/hooks.json && bad "hooks/hooks.json is shipped" "Gemini reads its own hooks file" || ok "the Claude hooks file is not shipped"
+    # Gemini CLI 0.64.0 runs hooks from <extension>/hooks/hooks.json only (loadExtensionHooks
+    # reads the `hooks` object of that one path; the manifest cannot point elsewhere). The
+    # shipped file must be the GENERATED one from scripts/build-gemini-hooks.sh: Gemini
+    # event names, anchored Gemini tool matchers, millisecond timeouts, every command
+    # through hooks/gemini-wrap.sh. The Claude file would run `/hooks/x.sh` (Gemini never
+    # exports CLAUDE_PLUGIN_ROOT) and misname every event but three.
+    if has hooks/hooks.json; then
+      ok "hooks/hooks.json present (the generated Gemini file)"
+      gem_err="$(python3 - "$DIST" <<'PYG'
+import json, os, re, sys
+dist = sys.argv[1]
+d = json.load(open(os.path.join(dist, "hooks/hooks.json")))
+events = {"SessionStart", "SessionEnd", "BeforeAgent", "AfterAgent", "BeforeModel", "AfterModel",
+          "BeforeToolSelection", "BeforeTool", "AfterTool", "PreCompress", "Notification"}
+errs = []
+if "modules" in d:
+    errs.append("modules key present (a Claude mods key; the Claude file was shipped)")
+hooks = d.get("hooks")
+if not isinstance(hooks, dict) or not hooks:
+    errs.append("no hooks object")
+    hooks = {}
+for ev, groups in hooks.items():
+    if ev not in events:
+        errs.append("event %s is not a Gemini event" % ev)
+    for g in groups:
+        for h in g.get("hooks", []):
+            if "onFailure" in h:
+                errs.append("%s: onFailure is a Claude key" % ev)
+            cmd = h.get("command", "")
+            if "${CLAUDE_PLUGIN_ROOT}" in cmd:
+                errs.append("%s: ${CLAUDE_PLUGIN_ROOT} (Gemini never exports it)" % ev)
+            if "hooks/gemini-wrap.sh" not in cmd:
+                errs.append("%s: command does not run through hooks/gemini-wrap.sh" % ev)
+            for m in re.findall(r'\$\{extensionPath\}/([^"\s]+)', cmd):
+                if not os.path.exists(os.path.join(dist, m)):
+                    errs.append("%s: names %s, which the tree does not ship" % (ev, m))
+            t = h.get("timeout")
+            if t is not None and (not isinstance(t, int) or t < 1000):
+                errs.append("%s: timeout %r is not milliseconds (Gemini's unit)" % (ev, t))
+print("; ".join(errs[:4]))
+PYG
+)"
+      [[ -z "$gem_err" ]] && ok "hooks/hooks.json keeps Gemini's shape (events, wrapper, timeouts, shipped scripts)" || bad "hooks/hooks.json breaks a Gemini rule" "$gem_err"
+    else
+      bad "hooks/hooks.json missing" "Gemini runs hooks from this one path; the generated platforms/gemini/hooks.json must be placed here"
+    fi
+    has hooks/gemini-wrap.sh && ok "hooks/gemini-wrap.sh present" || bad "hooks/gemini-wrap.sh missing" "every Gemini hook command runs through it"
+    has policies/tamirs-superpowers.toml && ok "policies/tamirs-superpowers.toml present (deny rules that hold with hooks disabled)" || bad "policies/tamirs-superpowers.toml missing"
+    has platforms/gemini/hooks.json && bad "platforms/gemini/hooks.json is shipped" "the generated file belongs at hooks/hooks.json only" || ok "no second copy of the hooks file"
     has mod && bad "mod/ is shipped" || ok "no mod"
+    ;;
+  antigravity)
+    echo "--- antigravity ---"
+    # Antigravity's plugin schema is closed (https://antigravity.google/docs/plugins):
+    # plugin.json carries exactly name and description, mcp_config.json exactly mcpServers,
+    # skills sit one level under skills/, agents under agents/, and no hooks file exists
+    # in the format. None of this is measured against a live binary; the registry lists the
+    # surface as unverified and the rules here are the documented schema.
+    if has plugin.json; then
+      keys="$(python3 -c "import json,sys; print(' '.join(sorted(json.load(open(sys.argv[1])).keys())))" "$DIST/plugin.json")"
+      [[ "$keys" == "description name" ]] && ok "plugin.json carries exactly name and description" || bad "plugin.json breaks the closed Antigravity schema" "keys: $keys"
+    else
+      bad "plugin.json missing"
+    fi
+    if has mcp_config.json; then
+      keys="$(python3 -c "import json,sys; print(' '.join(sorted(json.load(open(sys.argv[1])).keys())))" "$DIST/mcp_config.json")"
+      [[ "$keys" == "mcpServers" ]] && ok "mcp_config.json carries exactly mcpServers" || bad "mcp_config.json breaks the Antigravity shape" "keys: $keys"
+    else
+      bad "mcp_config.json missing"
+    fi
+    for absent in hooks hooks.json mod platforms .agents .gemini gemini-extension.json; do
+      has "$absent" && bad "$absent is shipped" "Antigravity's format has no such thing" || ok "$absent is not shipped"
+    done
+    deep="$(find "$DIST/skills" -mindepth 3 -name SKILL.md 2>/dev/null | head -2)"
+    [[ -d "$DIST/skills" && -z "$deep" ]] && ok "skills sit one level under skills/" || bad "skills are not one level deep" "$(echo "$deep" | tr '\n' ' ')"
+    nagents="$(find "$DIST/agents" -maxdepth 1 -name '*.md' 2>/dev/null | wc -l | tr -d ' ')"
+    [[ "$nagents" -gt 0 ]] && ok "$nagents agents under agents/" || bad "agents/ missing or empty"
     ;;
   opencode)
     echo "--- opencode ---"

@@ -13,6 +13,17 @@ capabilities:
 
 manifest: gemini-extension.json
 
+# Generated files Gemini is pointed at. Never edit; regenerate.
+generated:
+  skills: .gemini/skills                                  # scripts/build-gemini-extension.sh
+  agents: .gemini/agents                                  # scripts/build-gemini-extension.sh
+  hooks: platforms/gemini/hooks.json                      # scripts/build-gemini-hooks.sh, from hooks/hooks.json;
+                                                          # shipped at hooks/hooks.json in the gemini distribution
+  policies: platforms/gemini/policies/tamirs-superpowers.toml   # scripts/build-gemini-hooks.sh, from policies.source.json
+  portable_skills: .agents/skills                         # scripts/build-agents-skills.sh (the .gemini/skills alias)
+  regenerate: bash scripts/build-gemini-extension.sh . && bash scripts/build-gemini-hooks.sh . && bash scripts/build-agents-skills.sh .
+  check: bash scripts/build-gemini-extension.sh . --check && bash scripts/build-gemini-hooks.sh . --check && bash scripts/build-agents-skills.sh . --check
+
 install:
   type: extension
   doc: docs/user/install/gemini.md
@@ -21,41 +32,44 @@ validation:
   command: bash scripts/check-gemini-adapter.sh
 
 notes: >-
-  Every value here was measured against Gemini CLI 0.55.1 with a probe extension,
-  not read from documentation — the published docs over-claim. skills is `adapter`:
-  Gemini discovers skills exactly one level below a skills root, so the canonical
-  two-level skills/<domain>/<name>/ tree resolves to ZERO skills anywhere Gemini
-  looks. scripts/build-gemini-extension.sh generates a flat symlink mirror at
-  .gemini/skills/, read natively at the workspace tier and installable in one
-  command with `gemini skills install <url> --path .gemini/skills`; drift is
-  enforced by `make gemini-extension-check`. agents is `adapter` for the same reason
-  OpenCode's is: Gemini requires `tools` as an array of Gemini tool names and
-  rejects the canonical Claude comma-string with `tools.0: Invalid tool name`, so
-  .gemini/agents/ is generated too, with `model:` omitted because a Claude alias
-  passes validation and then fails at invocation. hooks is `unknown`, not `unsupported`, and the
-  distinction is deliberate: what was measured is that Gemini silently accepts BOTH
-  a Claude-shaped hooks/hooks.json AND a completely invented event name, which
-  proves acceptance is not evidence — it does NOT establish that a correctly-shaped
-  Gemini hook fails to fire. Firing was never tested. Separately and definitely:
-  THIS ADAPTER SHIPS NO HOOKS, by design.
-  Gemini's runtime events, read from the shipped 0.55.1 bundle rather than the
-  docs: BeforeTool, AfterTool, BeforeAgent, AfterAgent, BeforeModel, AfterModel,
-  BeforeToolSelection, SessionStart, SessionEnd, Notification, PreCompress. The
-  vocabularies are NOT disjoint — SessionStart, SessionEnd and Notification are
-  shared with Claude — but PreToolUse, PostToolUse, UserPromptSubmit and Stop are
-  Claude-only, and DirectoryAdded/WorktreeCreate/WorktreeRemove have no Gemini
-  counterpart at all. Those names survive in the bundle only as keys of
-  EVENT_MAPPING, the `gemini hooks migrate --from-claude` translation table
-  (PreToolUse->BeforeTool, PostToolUse->AfterTool, UserPromptSubmit->BeforeAgent,
-  Stop->AfterAgent), i.e. migration inputs, not runtime events. That table is also
-  the reason translated hooks are tractable future work rather than an open
-  question, and it sizes the job: of the ten events this repo declares, 3 already
-  work by name (SessionStart, SessionEnd, Notification), 4 translate mechanically
-  through the table (PreToolUse, PostToolUse, UserPromptSubmit, Stop), and only 3
-  would need designing (DirectoryAdded, WorktreeCreate, WorktreeRemove). The
-  mapping is published in the shipped code, so seven tenths of it is transcription.
-  Known limitation, not fixable from here: an extension installed from a bare git
-  URL roots at the repo root, so Gemini reads the canonical Claude-shaped agents/
-  and logs one `Invalid tool name` error per file on every invocation. There is no
-  subdirectory flag for `gemini extensions install` and no manifest field to
-  relocate it.
+  Values measured against Gemini CLI 0.55.1 (skills, agents) and 0.64.0 (hooks file
+  loading, settings, policies, install) with a probe extension and the installed bundle,
+  not read from documentation. skills is `adapter`: Gemini discovers skills exactly one
+  level below a skills root, so the canonical two-level skills/<domain>/<name>/ tree
+  resolves to ZERO skills anywhere Gemini looks. scripts/build-gemini-extension.sh
+  generates a flat symlink mirror at .gemini/skills/, and scripts/build-agents-skills.sh
+  the same mirror at .agents/skills/ (Gemini's higher-precedence alias of the workspace
+  tier, also read by Codex, Antigravity and Copilot); with both present in a clone, 0.64.0
+  logs one 'Skill conflict detected ... overriding' line per skill and loads each once
+  from .agents/skills/ — one per canonical skill, no error. agents is `adapter` for the same reason
+  OpenCode's is: Gemini requires `tools` as an array of Gemini tool names and rejects the
+  canonical Claude comma-string with `tools.0: Invalid tool name`, so .gemini/agents/ is
+  generated too, with `model:` omitted. hooks stays `unknown` in the registry until a hook
+  is observed FIRING; what changed is that this adapter now SHIPS hooks and policies:
+  platforms/gemini/hooks.json is generated from hooks/hooks.json (PreToolUse->BeforeTool
+  with matchers ^(replace|write_file)$ / ^(run_shell_command)$, PostToolUse->AfterTool,
+  UserPromptSubmit->BeforeAgent, Stop->AfterAgent, PreCompact->PreCompress, SessionStart/
+  SessionEnd/Notification by name; WorktreeCreate/WorktreeRemove/DirectoryAdded/
+  StopFailure/SubagentStop dropped), every command running the unmodified canonical hook
+  through hooks/gemini-wrap.sh, which translates write_file->Write, replace->Edit,
+  run_shell_command->Bash (dir_path -> cwd) on the way in and the Claude answer into
+  {decision:deny,reason} / {} / hookSpecificOutput.additionalContext or systemMessage on
+  the way out, always exiting 0 because Gemini treats every non-zero exit but 1 as a deny.
+  Measured on 0.64.0: an extension built with that file at hooks/hooks.json and
+  policies/tamirs-superpowers.toml installs (`gemini extensions install <path> --consent
+  --skip-settings`), lists with its MCP server and its GITHUB_PERSONAL_ACCESS_TOKEN setting,
+  and keeps both files in the installed copy; the loader reads only the `hooks` object and
+  hydrates ${extensionPath}. Firing was not observed (no API key, no interactive session),
+  so the registry row is unchanged. Policies are deny-only by construction (the generator
+  forces decision = deny; Gemini ignores allow in extension policies): force push, branch
+  -D, and write_file/replace onto lockfiles, .yarn/releases/ and .github/workflows/. The
+  token is a manifest `settings[]` entry with `sensitive: true` (OS keychain) and
+  `envVar: GITHUB_PERSONAL_ACCESS_TOKEN`, set with `gemini extensions config
+  tamirs-superpowers GITHUB_PERSONAL_ACCESS_TOKEN`; measured: settings values reach the
+  extension's MCP servers only, not its hooks. Known limitation, not fixable from here: an
+  extension installed from a bare git URL roots at the repo root, where hooks/hooks.json is
+  the CLAUDE file (its ${CLAUDE_PLUGIN_ROOT} commands cannot run on Gemini) and agents/ is
+  Claude-shaped (one `Invalid tool name` error per file); the gemini release tarball is the
+  tree with the generated files in place. Gemini CLI itself was retired for consumer tiers
+  on 2026-06-18 (Antigravity CLI is the successor: platforms/antigravity/); enterprise
+  Code Assist and paid API-key users keep it, and this adapter keeps serving them.

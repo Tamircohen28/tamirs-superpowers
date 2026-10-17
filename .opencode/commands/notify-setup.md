@@ -1,5 +1,6 @@
 ---
 description: 'The user wants Claude Code to reach them on their phone, or phone notifications have stopped arriving — ''notify me on my phone when Claude needs me'', ''send notifications to my phone'', ''set up push…'
+subagent: false
 ---
 
 <!-- GENERATED FILE — DO NOT EDIT.

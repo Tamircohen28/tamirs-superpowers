@@ -12,14 +12,14 @@
 <p align="center">
   <a href="docs/engineering/build-and-release/platform-targets.json"><img src="https://img.shields.io/badge/Claude%20Code-2.1.302-blueviolet" alt="Claude Code" /></a>
   <a href="docs/engineering/build-and-release/platform-targets.json"><img src="https://img.shields.io/badge/Cursor-3.22.7-000000" alt="Cursor" /></a>
-  <a href="docs/engineering/build-and-release/platform-targets.json"><img src="https://img.shields.io/badge/Codex-0.156.0-412991" alt="Codex" /></a>
-  <a href="docs/engineering/build-and-release/platform-targets.json"><img src="https://img.shields.io/badge/Gemini%20CLI-0.60.0-4285F4" alt="Gemini CLI" /></a>
-  <a href="docs/engineering/build-and-release/platform-targets.json"><img src="https://img.shields.io/badge/OpenCode-2.0.14-fab283" alt="OpenCode" /></a>
+  <a href="docs/engineering/build-and-release/platform-targets.json"><img src="https://img.shields.io/badge/Codex-0.163.0-412991" alt="Codex" /></a>
+  <a href="docs/engineering/build-and-release/platform-targets.json"><img src="https://img.shields.io/badge/Gemini%20CLI-0.64.0-4285F4" alt="Gemini CLI" /></a>
+  <a href="docs/engineering/build-and-release/platform-targets.json"><img src="https://img.shields.io/badge/OpenCode-2.0.32-fab283" alt="OpenCode" /></a>
 </p>
 
 # tamirs-superpowers
 
-A portable agent toolkit: **29 skills**, 10 role-based agents, worktree hooks, and MCP
+A portable agent toolkit: **30 skills**, 10 role-based agents, worktree hooks, and MCP
 stubs, shipped from one canonical source to six agent surfaces across five platforms.
 
 ## What problem it solves
@@ -62,7 +62,7 @@ Installed from the plugin marketplace; the CLI is the measured surface.
 
 | Surface | Registry id | Kind | Status | Install |
 |---|---|---|---|---|
-| Codex CLI | `codex` | CLI | ✅ supported — validated 0.156.0 | [guide](docs/user/install/codex.md) |
+| Codex CLI | `codex` | CLI | ✅ supported — validated 0.163.0 | [guide](docs/user/install/codex.md) |
 | Codex IDE extension | `codex_ide` | IDE | ⚠️ unverified — reads the same `AGENTS.md` and manifest, but the plugin has never been installed or a skill invoked there | — |
 
 ### Cursor
@@ -80,7 +80,7 @@ Two commands: the extension carries context and MCP, skills install separately.
 
 | Surface | Registry id | Kind | Status | Install |
 |---|---|---|---|---|
-| Gemini CLI | `gemini_cli` | CLI | ✅ supported — validated 0.60.0 | [guide](docs/user/install/gemini.md) |
+| Gemini CLI | `gemini_cli` | CLI | ✅ supported — validated 0.64.0 | [guide](docs/user/install/gemini.md) |
 | Gemini Code Assist | `gemini_code_assist` | IDE | ⚠️ unverified — a different host that does not install CLI extensions, so the `.gemini/` mirror has no established install path there | — |
 
 ### OpenCode
@@ -89,7 +89,7 @@ Installed by path — `opencode.json`'s `skills` array pointed at this checkout 
 
 | Surface | Registry id | Kind | Status | Install |
 |---|---|---|---|---|
-| OpenCode CLI | `opencode` | CLI | ✅ supported — validated 2.0.14 (v2; `@opencode/cli`). Config and all 10 agent adapters confirmed live; per-skill discovery unverified — v2 removed `debug skill` | [guide](docs/user/install/opencode.md) | [guide](docs/user/install/opencode.md) |
+| OpenCode CLI | `opencode` | CLI | ✅ supported — validated 2.0.32 (v2; `@opencode/cli`). Config and all 10 agent adapters confirmed live; per-skill discovery unverified — v2 removed `debug skill` | [guide](docs/user/install/opencode.md) | [guide](docs/user/install/opencode.md) |
 | OpenCode desktop app | `opencode_desktop` | desktop | ⚠️ unverified — whether it reads the same `skills.paths` this repo installs into has not been checked | — |
 
 `⚠️ unverified` is not a negative result. Those surfaces carry no capability claims at all;

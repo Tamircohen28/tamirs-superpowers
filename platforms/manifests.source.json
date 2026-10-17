@@ -15,7 +15,7 @@
         "interface": {
           "displayName": "Tamir's Superpowers",
           "shortDescription": "Plan, implement, review and ship code across five agent platforms",
-          "longDescription": "A portable agent toolkit: 29 skills, 10 role-based agents, worktree hooks and MCP stubs, shipped from one canonical source to every supported surface. Covers the full development lifecycle - decompose a request into a task graph, run each task under a role, integrate onto one branch, review the combined diff, and deliver a single pull request - plus repository scaffolding, standards audits, multi-agent setup, debugging and documentation review.",
+          "longDescription": "A portable agent toolkit: 30 skills, 10 role-based agents, worktree hooks and MCP stubs, shipped from one canonical source to every supported surface. Covers the full development lifecycle - decompose a request into a task graph, run each task under a role, integrate onto one branch, review the combined diff, and deliver a single pull request - plus repository scaffolding, standards audits, multi-agent setup, debugging and documentation review.",
           "developerName": "Tamir Cohen",
           "category": "Developer Tools",
           "capabilities": [
@@ -29,10 +29,7 @@
           "defaultPrompt": [
             "Plan this feature and break it into phases",
             "Implement issue #42 and open a pull request",
-            "Drive this PR to merge - address the review comments and fix CI",
-            "Audit this repo against multi-agent standards",
-            "Scaffold a new repo for a CLI that tracks job applications",
-            "Turn this workflow into a reusable skill"
+            "Drive this PR to merge - address the review comments and fix CI"
           ]
         }
       }
@@ -47,7 +44,7 @@
     }
   },
   "codex": {
-    "description": "29 bundled skills, smart worktree hooks, statusline, and MCP server stubs — plan, implement, review, debug, multi-agent setup, and audit code from one plugin.",
+    "description": "30 bundled skills, smart worktree hooks, statusline, and MCP server stubs — plan, implement, review, debug, multi-agent setup, and audit code from one plugin.",
     "keywords_exclude": [
       "claude-code"
     ],
@@ -55,7 +52,7 @@
       "interface": {
         "displayName": "Tamir's Superpowers",
         "shortDescription": "Plan, implement, review and ship code across five agent platforms",
-        "longDescription": "A portable agent toolkit: 29 skills, 10 role-based agents, worktree hooks and MCP stubs, shipped from one canonical source to every supported surface. Covers the full development lifecycle - decompose a request into a task graph, run each task under a role, integrate onto one branch, review the combined diff, and deliver a single pull request - plus repository scaffolding, standards audits, multi-agent setup, debugging and documentation review.",
+        "longDescription": "A portable agent toolkit: 30 skills, 10 role-based agents, worktree hooks and MCP stubs, shipped from one canonical source to every supported surface. Covers the full development lifecycle - decompose a request into a task graph, run each task under a role, integrate onto one branch, review the combined diff, and deliver a single pull request - plus repository scaffolding, standards audits, multi-agent setup, debugging and documentation review.",
         "developerName": "Tamir Cohen",
         "category": "Developer Tools",
         "capabilities": [
@@ -69,10 +66,7 @@
         "defaultPrompt": [
           "Plan this feature and break it into phases",
           "Implement issue #42 and open a pull request",
-          "Drive this PR to merge - address the review comments and fix CI",
-          "Audit this repo against multi-agent standards",
-          "Scaffold a new repo for a CLI that tracks job applications",
-          "Turn this workflow into a reusable skill"
+          "Drive this PR to merge - address the review comments and fix CI"
         ]
       },
       "skills": null,
@@ -81,7 +75,7 @@
     }
   },
   "cursor": {
-    "description": "29 bundled skills, 10 specialist agents, 26 slash commands, smart worktree hooks, and MCP server stubs — plan, implement, review, debug, multi-agent setup, and audit code from one plugin.",
+    "description": "30 bundled skills, 10 specialist agents, 27 slash commands, smart worktree hooks, and MCP server stubs — plan, implement, review, debug, multi-agent setup, and audit code from one plugin.",
     "keywords_exclude": [
       "claude-code"
     ],
@@ -126,7 +120,29 @@
           ],
           "cwd": "${extensionPath}"
         }
+      },
+      "settings": [
+        {
+          "name": "GITHUB_PERSONAL_ACCESS_TOKEN",
+          "description": "GitHub personal access token (repo scope) for the bundled github MCP server. Stored in the system keychain and handed to scripts/github-mcp.sh as GITHUB_PERSONAL_ACCESS_TOKEN; nothing else in the extension reads it. Leave it empty to keep the server off - it refuses to start without one.",
+          "envVar": "GITHUB_PERSONAL_ACCESS_TOKEN",
+          "sensitive": true
+        }
+      ]
+    },
+    "settings_note": "`settings` is Gemini's userConfig analogue: `sensitive: true` stores the value in the OS keychain and `envVar` is the variable the extension's MCP servers receive (measured on 0.64.0: getExtensionEnvironment feeds MCP transports only, not hooks). Set it with `gemini extensions config tamirs-superpowers GITHUB_PERSONAL_ACCESS_TOKEN`. No `excludeTools`: nothing this plugin ships needs a core tool removed, and an exclusion would apply to every session the extension is enabled in."
+  },
+  "antigravity": {
+    "description": "Antigravity CLI plugin folder (platforms/antigravity/), generated by scripts/build-antigravity-plugin.sh. plugin.json is a CLOSED schema ({name, description}, additionalProperties false), so identity fields other than these two are not emitted; mcp_config.json carries the github stdio server.",
+    "plugin_description": "30 bundled skills, 10 specialist agents, worktree workflow and MCP server stubs - plan, implement, review, debug, multi-agent setup, and audit code from one plugin.",
+    "mcpServers": {
+      "github": {
+        "command": "bash",
+        "args": [
+          "scripts/github-mcp.sh"
+        ]
       }
-    }
+    },
+    "mcp_note": "Antigravity documents stdio servers as {command, args, env, cwd} with absolute example paths and no plugin-root placeholder; whether a relative command path resolves against the plugin directory is UNVERIFIED (no agy binary was available). `agy plugin import gemini` from an installed Gemini extension is the route known to produce absolute paths."
   }
 }

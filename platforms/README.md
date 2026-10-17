@@ -82,7 +82,7 @@ check what the *absence* of an entry means on the target — it is rarely "denie
 The same failure, one step removed: there, meaning was lost in *translation*; here,
 context is lost in *relocation*. Canonical `agents/<n>.md` sits one level below the
 root, so its links read `](../core/policies/safety.md)`. The generated file sits at
-`.opencode/agent/<n>.md` — two levels down — where that identical text points at
+`.opencode/agents/<n>.md` — two levels down — where that identical text points at
 `.opencode/core/...`, which does not exist. Copying the body verbatim silently
 invalidated all 24 relative links: the file still parsed, still loaded, and every link
 in it was dead.

@@ -1,5 +1,6 @@
 ---
 description: 'A single-file HTML technical document should carry a dark developer / terminal aesthetic — monospace, terminal-green on near-black.'
+subagent: false
 ---
 
 <!-- GENERATED FILE — DO NOT EDIT.

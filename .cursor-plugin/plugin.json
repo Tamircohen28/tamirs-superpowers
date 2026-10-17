@@ -1,7 +1,7 @@
 {
   "name": "tamirs-superpowers",
   "version": "4.12.2",
-  "description": "29 bundled skills, 10 specialist agents, 26 slash commands, smart worktree hooks, and MCP server stubs — plan, implement, review, debug, multi-agent setup, and audit code from one plugin.",
+  "description": "30 bundled skills, 10 specialist agents, 27 slash commands, smart worktree hooks, and MCP server stubs — plan, implement, review, debug, multi-agent setup, and audit code from one plugin.",
   "author": {
     "name": "Tamir Cohen",
     "url": "https://github.com/Tamircohen28"

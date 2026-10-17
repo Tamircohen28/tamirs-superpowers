@@ -223,7 +223,7 @@
             ".gemini/skills/ (flat mirror)",
             ".gemini/agents/ (translated roles)",
             "dist/opencode/opencode.json",
-            ".opencode/agent/ (translated roles)"
+            ".opencode/agents/ (translated roles)"
           ]
         },
         "rules": {

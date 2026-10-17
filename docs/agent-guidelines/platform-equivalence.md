@@ -24,7 +24,7 @@ If this table and the registry disagree, the registry is right and this page is 
 
 | Capability | Claude Code | Claude Desktop | Codex CLI | Cursor IDE | Gemini CLI | OpenCode CLI |
 |------------|-------------|----------------|-----------|------------|------------|--------------|
-| Bundled skills | `skills/` via `.claude-plugin/plugin.json` | the same plugin, installed from the same listing — no manifest of its own | same paths in `.codex-plugin/plugin.json` | same paths in `.cursor-plugin/plugin.json` | generated flat mirror at `.gemini/skills/` | `skills.paths` in `opencode.json` (absolute paths) |
+| Bundled skills | `skills/` via `.claude-plugin/plugin.json` | the same plugin, installed from the same listing — no manifest of its own | same paths in `.codex-plugin/plugin.json` | same paths in `.cursor-plugin/plugin.json` | generated flat mirror at `.gemini/skills/` | `skills` in `opencode.json` (absolute paths) |
 
 **Claude Desktop is a runtime surface of the Claude Code plugin, not a second adapter.** It consumes the Claude Code plugin format and needs no manifest, no build step and no separate install artifact — which is exactly why it is a *surface* of the `claude` platform rather than a platform in its own right. What it is not is a duplicate of Claude Code's capability rows: several of them are `unknown` there, because a Desktop run has never been recorded. Where that matters, the row below says so.
 
@@ -33,7 +33,7 @@ OpenCode scans `.opencode/skills/`, `.claude/skills/`, and `.agents/skills/` (pr
 **OpenCode does not follow symlinks for skill discovery, at any level** — a symlinked
 `skills` directory, a symlinked domain directory, and a symlinked individual skill
 directory all yield zero discovered skills (verified 1.18.11). Use absolute
-`skills.paths`; do not recommend a symlink install.
+`skills`; do not recommend a symlink install.
 
 **Gemini CLI reads a skills root exactly one level deep** (verified 0.55.1):
 `skills/<name>/SKILL.md` is discovered, `skills/<domain>/<name>/SKILL.md` is not — so the
@@ -51,7 +51,7 @@ silent zero-skill install on the other.
 
 | Capability | Claude Code | Claude Desktop | Codex CLI | Cursor IDE | Gemini CLI | OpenCode CLI |
 |------------|-------------|----------------|-----------|------------|------------|--------------|
-| Specialist agents | `agents/*.md` via the Agent tool | ⚠️ ships with the plugin; whether subagents run there is `unknown` — never measured | `agents/` at the repo root | `agents/` auto-discovered from the plugin root | `.gemini/agents/*.md` — generated adapters | `.opencode/agent/*.md` — generated adapters |
+| Specialist agents | `agents/*.md` via the Agent tool | ⚠️ ships with the plugin; whether subagents run there is `unknown` — never measured | `agents/` at the repo root | `agents/` auto-discovered from the plugin root | `.gemini/agents/*.md` — generated adapters | `.opencode/agents/*.md` — generated adapters |
 
 **Gemini needs a translation, and now has one.** The canonical `agents/*.md` are rejected
 with `tools.0: Invalid tool name`: Gemini wants `tools` as an array of its own tool names
@@ -61,9 +61,9 @@ while this repo declares Claude's (`Read`, `Grep`, `Glob`, `Bash`) as a string.
 loader, and omits `model:` entirely — a Claude alias such as `sonnet` passes validation and
 then fails at invocation, which is worse than absent. A Gemini-shaped translation cannot
 live at `agents/` without breaking Claude, which is exactly why it is generated, like
-`.opencode/agent/`.
+`.opencode/agents/`.
 
-OpenCode validates agent frontmatter strictly and refuses to start on a bad field: `tools` must be an object of tool→boolean (not Claude's comma string) and `model` needs a provider prefix. `scripts/build-opencode-agents.sh` translates `agents/*.md` into `.opencode/agent/*.md`; the output is committed so a clone needs no build step. Regenerate with `make opencode-agents`; `make agent:check` fails on drift.
+OpenCode 2 reads agents from `.opencode/agents/` with a different frontmatter: no `tools` field at all (the V1 `tools` object and the 15-key `permission` map are deprecated; V2 wants an ordered `permissions` ruleset of `{action, resource, effect}` where the last matching rule wins), `mode: subagent` explicit (V2 defaults a custom agent to `primary`), and a provider-prefixed `model`. `scripts/build-opencode-agents.sh` translates `agents/*.md` into `.opencode/agents/*.md` — a `deny` rule for every OpenCode 2 Core action the canonical allowlist does not grant, plus `external_directory: ask` because V2 allows outside-project access by default where V1 asked; the output is committed so a clone needs no build step. Measured on 2.0.32: an unknown frontmatter key is ignored rather than rejected, so drift here is silent, which is why `make agent:check` fails on it. Regenerate with `make opencode-agents`.
 
 ## MCP servers
 
@@ -113,7 +113,7 @@ for the live status rather than trusting this paragraph.
 
 | Capability | Claude Code | Claude Desktop | Codex CLI | Cursor IDE | Gemini CLI | OpenCode CLI |
 |------------|-------------|----------------|-----------|------------|------------|--------------|
-| Standalone install from this repo | ✅ `/plugin marketplace add Tamircohen28/tamirs-superpowers` | ✅ the same marketplace listing as Claude Code | ✅ `codex plugin marketplace add Tamircohen28/tamirs-superpowers` | ✅ Import from Repo | ✅ `gemini extensions install <repo-url>` then one `gemini skills install <repo-url> --path .gemini/skills --consent` | ✅ by path — absolute `skills.paths` |
+| Standalone install from this repo | ✅ `/plugin marketplace add Tamircohen28/tamirs-superpowers` | ✅ the same marketplace listing as Claude Code | ✅ `codex plugin marketplace add Tamircohen28/tamirs-superpowers` | ✅ Import from Repo | ✅ `gemini extensions install <repo-url>` then one `gemini skills install <repo-url> --path .gemini/skills --consent` | ✅ by path — absolute `skills` |
 | Marketplace manifest | `.claude-plugin/marketplace.json` / catalog | none of its own — that is what "runtime surface" means | `.agents/plugins/marketplace.json` | `.cursor-plugin/plugin.json` (+ `marketplace.json` for multi-plugin repos) | ❌ no marketplace — installs from a git URL | ❌ no marketplace |
 | Update mechanism | `/plugin update` — keyed on `version` | same `/plugin update`, same version key | `codex plugin marketplace upgrade` | Auto Refresh re-reads the whole manifest | `gemini extensions update` | `git pull` |
 

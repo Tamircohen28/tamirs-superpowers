@@ -1,0 +1,26 @@
+{
+  "name": "tamirs-superpowers-opencode",
+  "version": "0.0.0",
+  "private": true,
+  "description": "OpenCode 2 plugin for tamirs-superpowers: the three core safety guards (server) and the status line + objective pane (TUI). Loaded by path from this repo's opencode.json; not published.",
+  "type": "module",
+  "exports": {
+    ".": "./index.ts",
+    "./tui": "./tui.ts"
+  },
+  "scripts": {
+    "check": "tsc --noEmit -p tsconfig.json",
+    "test": "node --test rules.test.mjs"
+  },
+  "peerDependencies": {
+    "@opencode/plugin": ">=2.0.32"
+  },
+  "devDependencies": {
+    "@opencode/plugin": "2.0.32",
+    "@opentui/core": ">=0.5.17",
+    "@opentui/solid": ">=0.5.17",
+    "@types/node": "^22.0.0",
+    "solid-js": ">=1.9.0",
+    "typescript": "^5.9.0"
+  }
+}

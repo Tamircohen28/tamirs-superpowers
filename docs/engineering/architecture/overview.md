@@ -79,7 +79,7 @@ Details: [orchestration-state-machine.md](orchestration-state-machine.md),
 ### 5. Adapters
 
 Each platform gets a `platforms/<id>/adapter.yaml` descriptor plus whatever manifest that
-platform actually resolves. Generated artifacts (`.opencode/agent/`, `.cursor/rules/*.mdc`)
+platform actually resolves. Generated artifacts (`.opencode/agents/`, `.cursor/rules/*.mdc`)
 have a generator and a drift check; hand-editing them is a bug.
 Details: [adapter-contract.md](adapter-contract.md),
 [adding-a-platform.md](adding-a-platform.md).

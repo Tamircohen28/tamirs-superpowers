@@ -22,7 +22,7 @@ bad(){ FAIL=$((FAIL+1)); FAILED+=("$1"); echo "  FAIL $1 — $2"; }
 T="$(mktemp -d)"; trap 'rm -rf "$T"' EXIT
 
 echo "--- every target builds and passes its check ---"
-for t in codex cursor gemini opencode agent-plugins; do
+for t in codex cursor gemini antigravity opencode agent-plugins; do
   if bash "$BUILD" "$T/$t" --target "$t" --quiet >"$T/$t.build.log" 2>&1; then ok "$t builds"; else bad "$t builds" "$(tail -2 "$T/$t.build.log" | tr '\n' ' ')"; continue; fi
   if bash "$CHECK" "$T/$t" --target "$t" >"$T/$t.check.log" 2>&1; then ok "$t passes its check"; else bad "$t passes its check" "$(grep FAIL "$T/$t.check.log" | head -2 | tr '\n' ' ')"; fi
 done
@@ -51,6 +51,8 @@ probe() {
 echo "--- each class of host finding makes the check fail ---"
 probe codex "the Claude hooks file shipped to Codex (its modules key fails Codex's parser)" "hooks/hooks.json is shipped" \
   'cp platforms/codex/hooks.json hooks/hooks.json'
+probe codex "a root Agent Plugins manifest shipped to Codex (its loader then empties every hook source)" "root plugin.json is shipped" \
+  'printf "{\"\$schema\":\"https://agent-plugins.org/schemas/1.0.0/plugin.schema.json\",\"name\":\"tamirs-superpowers\"}\n" > plugin.json'
 probe codex "a modules key in the Codex hooks file" "breaks a Codex rule" \
   'python3 - <<'"'"'PY'"'"'
 import json
@@ -99,6 +101,40 @@ probe agent-plugins "hooks shipped in the portable package" "hooks is shipped" \
   'mkdir -p hooks && printf "{}\n" > hooks/hooks.json'
 probe opencode "a shell hook shipped to OpenCode" "hooks/ is shipped" \
   'mkdir -p hooks && printf "#!/usr/bin/env bash\n" > hooks/x.sh'
+probe gemini "the generated Gemini hooks file missing (Gemini reads only hooks/hooks.json)" "hooks/hooks.json missing" \
+  'rm hooks/hooks.json'
+probe gemini "the Claude hooks file shipped to Gemini (its modules key, CLAUDE_PLUGIN_ROOT and event names)" "breaks a Gemini rule" \
+  'python3 - <<'"'"'PY'"'"'
+import json
+d={"modules":["./mod/register.tsx"],"hooks":{"PreToolUse":[{"matcher":"Bash","hooks":[{"type":"command","command":"bash \"${CLAUDE_PLUGIN_ROOT}\"/hooks/protect-other-branches.sh"}]}]}}
+json.dump(d,open("hooks/hooks.json","w"),indent=2)
+PY'
+probe gemini "an event Gemini lacks in the Gemini hooks file" "breaks a Gemini rule" \
+  'python3 - <<'"'"'PY'"'"'
+import json
+p="hooks/hooks.json"; d=json.load(open(p)); d["hooks"]["SubagentStop"]=d["hooks"]["AfterAgent"]; json.dump(d,open(p,"w"),indent=2)
+PY'
+probe gemini "a Gemini hook naming a script the tree does not ship" "breaks a Gemini rule" \
+  'python3 - <<'"'"'PY'"'"'
+import json
+p="hooks/hooks.json"; d=json.load(open(p)); d["hooks"]["AfterAgent"][0]["hooks"][0]["command"]="bash \"${extensionPath}/hooks/gemini-wrap.sh\" \"${extensionPath}/hooks/missing.sh\""; json.dump(d,open(p,"w"),indent=2)
+PY'
+probe gemini "a Gemini hook timeout in seconds (Gemini's unit is milliseconds)" "breaks a Gemini rule" \
+  'python3 - <<'"'"'PY'"'"'
+import json
+p="hooks/hooks.json"; d=json.load(open(p)); d["hooks"]["AfterAgent"][0]["hooks"][0]["timeout"]=10; json.dump(d,open(p,"w"),indent=2)
+PY'
+probe gemini "the deny policies missing" "policies/tamirs-superpowers.toml missing" \
+  'rm policies/tamirs-superpowers.toml'
+probe antigravity "an extra key in the closed Antigravity plugin.json" "closed Antigravity schema" \
+  'python3 - <<'"'"'PY'"'"'
+import json
+p="plugin.json"; d=json.load(open(p)); d["version"]="1.0.0"; json.dump(d,open(p,"w"),indent=2)
+PY'
+probe antigravity "a hooks file shipped to Antigravity" "hooks.json is shipped" \
+  'printf "{}\n" > hooks.json'
+probe antigravity "a two-level skill tree shipped to Antigravity" "not one level deep" \
+  'mkdir -p skills/dev-workflow/deep && printf -- "---\nname: deep\n---\n" > skills/dev-workflow/deep/SKILL.md'
 probe gemini "a symbolic link in the Gemini tree" "symbolic link" \
   'ln -s README.md probe-link.md'
 probe gemini "a version that disagrees with plugin-version.json" "version differs" \

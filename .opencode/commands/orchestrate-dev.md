@@ -1,5 +1,6 @@
 ---
 description: 'An implementation request is bigger than one unit of work — a spec or plan file, a multi-part feature, a review doc with several items, ''implement all of this'', ''build X end to end'', ''do these N…'
+subagent: false
 ---
 
 <!-- GENERATED FILE — DO NOT EDIT.

@@ -23,13 +23,17 @@ inventory.
 |--------|--------|-----------|------------|------------|
 | `.gemini/skills/<name>` (symlinks, flat) | `skills/<domain>/<name>/` | `scripts/build-gemini-extension.sh` | `make gemini-extension` | `make gemini-extension-check` |
 | `.gemini/agents/<name>.md` | `agents/<name>.md` | `scripts/build-gemini-extension.sh` | `make gemini-extension` | `make gemini-extension-check` |
-| `.opencode/agent/<name>.md` | `agents/<name>.md` | `scripts/build-opencode-agents.sh` | `make opencode-agents` | `make opencode-agents-check` |
-| `.opencode/commands/<skill>.md` | `skills/<domain>/<skill>/SKILL.md` | `scripts/build-opencode-commands.sh` | `make opencode-commands` | `make opencode-commands-check` |
+| `.opencode/agents/<name>.md` (OpenCode 2: `mode: subagent`, `permissions:` ruleset) | `agents/<name>.md` | `scripts/build-opencode-agents.sh` | `make opencode-agents` | `make opencode-agents-check` |
+| `.opencode/commands/<skill>.md` (OpenCode 2: `subagent: false`) | `skills/<domain>/<skill>/SKILL.md` | `scripts/build-opencode-commands.sh` | `make opencode-commands` | `make opencode-commands-check` |
 | `.cursor/commands/<skill>.md` | `skills/<domain>/<skill>/SKILL.md` | `scripts/build-cursor-commands.sh` | `make cursor-commands` | `make cursor-commands-check` |
 | `.cursor/rules/<rule>.mdc` (generated entries) | `rules/dev/<rule>.md` + [`platforms/cursor/rules.map.json`](../../../platforms/cursor/rules.map.json) | `scripts/build-cursor-rules.sh` | `make cursor-rules` | `make cursor-rules-check` |
 | `.codex/agents/<name>.toml` | `agents/<name>.md` | `scripts/build-codex-agents.sh` | `make codex-agents` | `make codex-agents-check` |
 | `platforms/codex/hooks.json` | `hooks/hooks.json` (Codex event subset, no `modules`) | `scripts/build-codex-hooks.sh` | see the script's `--help` | its `--check` |
 | platform manifests (`.claude-plugin/`, `.codex-plugin/`, `.cursor-plugin/`, root `plugin.json`) | `plugin-version.json` + `platforms/manifest.source.json` | `scripts/build-manifests.sh` | see the script's `--help` | its `--check` |
+| `platforms/gemini/hooks.json` | `hooks/hooks.json` (Gemini event subset, matchers on Gemini tool names, every command through `hooks/gemini-wrap.sh`, timeouts in ms, no `onFailure`) | `scripts/build-gemini-hooks.sh` | `bash scripts/build-gemini-hooks.sh .` | its `--check` (`tests/test-gemini-hooks.sh` plants drift) |
+| `platforms/gemini/policies/tamirs-superpowers.toml` | [`platforms/gemini/policies.source.json`](../../../platforms/gemini/policies.source.json) (deny-only `[[rule]]`s) | `scripts/build-gemini-hooks.sh` | `bash scripts/build-gemini-hooks.sh .` | its `--check` |
+| `platforms/antigravity/plugin.json`, `platforms/antigravity/mcp_config.json` | `.claude-plugin/plugin.json` + the `antigravity` section of `platforms/manifests.source.json` | `scripts/build-antigravity-plugin.sh` | `bash scripts/build-antigravity-plugin.sh .` | its `--check` (`tests/test-antigravity-adapter.sh` plants drift) |
+| `.agents/skills/<name>` (symlinks, flat) | `skills/<domain>/<name>/` | `scripts/build-agents-skills.sh` | `bash scripts/build-agents-skills.sh .` | its `--check` (`tests/test-agents-skills.sh` plants drift) |
 
 The last two rows are being added in the same release as this page (the V5 Phase 1
 "one-source build" in
@@ -61,9 +65,13 @@ The translations are lossy on purpose; the omissions are the contract.
   shell_tool = false` for an agent whose canonical `tools:` allowlist has no Bash, and
   nothing else: `apps`, `plugins`, `memories` and `request_permissions_tool` are
   documented Codex reductions, but nothing in the canonical frontmatter maps onto them,
-  so they are not guessed at. `build-opencode-agents.sh` likewise emits only keys that
-  exist in OpenCode's published `PermissionConfig`, enforced by
-  `scripts/check-opencode-permission-keys.sh`.
+  so they are not guessed at. `build-opencode-agents.sh` likewise emits only OpenCode 2
+  Core permission actions (`read edit glob grep shell subagent skill question webfetch
+  websearch external_directory`) — never the deprecated V1 keys `bash`/`task`/
+  `doom_loop`/`lsp`/`list`/`todowrite` — and never an `allow` rule, because a rule
+  appended after OpenCode's base policy overrides the host's own `.env` asks (last
+  match wins). Enforced by `scripts/check-opencode-permission-keys.sh` and
+  `tests/test-opencode-v2.sh`.
 
 ## Adding a generator
 

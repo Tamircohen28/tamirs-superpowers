@@ -1,15 +1,18 @@
 #!/usr/bin/env bash
-# Dual Claude Code / Cursor PreToolUse JSON helpers.
+# Claude Code / Cursor / Codex hook JSON helpers.
 #
 # Cursor fail-closes when preToolUse stdout is empty or non-JSON.
-# Claude Code treats empty stdout as allow. Always emit valid JSON.
+# Claude Code treats empty stdout as allow. Codex requires a Stop or
+# SubagentStop hook that exits 0 to print JSON (plain text fails the hook).
+# Always emit valid JSON.
 #
 # Usage (after reading stdin into HOOK_INPUT):
 #   source "$(dirname "$0")/lib/hook-output.sh"
-#   hook_detect_platform "$HOOK_INPUT"
+#   hook_detect_platform "$HOOK_INPUT"     # HOOK_PLATFORM=claude|cursor|codex
 #   hook_allow
 #   hook_deny "reason"
 #   hook_additional_context "message"
+#   hook_stop_ok                            # Stop/SubagentStop: nothing to decide
 #
 # Hook tiers (plugin options, read by the bash hooks — never by the mod):
 #   hook_tier_enabled notification|contributor   # 0 = on, 1 = off
@@ -60,11 +63,44 @@ hook_read_stdin() {
   printf '%s' "$buf"
 }
 
+# hook_detect_platform <payload> — sets and exports HOOK_PLATFORM: claude
+# (the default), cursor or codex.
+#
+#   cursor  payload keys only Cursor sends: conversation_id, cursor_version,
+#           workspace_roots.
+#   codex   PLUGIN_ROOT or PLUGIN_DATA exported in the hook's environment.
+#           Codex's hooks doc (learn.chatgpt.com/docs/hooks) names them "a
+#           Codex-specific extension" set for plugin hook commands, beside the
+#           CLAUDE_PLUGIN_ROOT/CLAUDE_PLUGIN_DATA it also sets "for compatibility
+#           with existing plugin hooks". Claude Code exports only the CLAUDE_*
+#           pair, and Cursor's plugin reference says it "does not expand
+#           ${PLUGIN_ROOT} or ${PLUGIN_DATA}". Measured on codex-cli 0.163.0
+#           (2026-10-17, tests/fixtures/codex/README.md): every plugin hook ran
+#           with PLUGIN_ROOT, PLUGIN_DATA, CLAUDE_PLUGIN_ROOT, CLAUDE_PLUGIN_DATA
+#           and CODEX_HOME in its environment. Fallback when neither variable is
+#           exported (a hook run by hand with a captured payload): a `turn_id`
+#           key in the payload, which the same doc lists as a Codex-specific
+#           extension and which every measured turn-scoped payload carried;
+#           Claude Code's payloads have no such key.
+#
+#   Cursor is checked first: its payload keys are the only positive Cursor
+#   signal, and a Cursor host exports no PLUGIN_ROOT. The environment check
+#   precedes the payload fallback because a hook can be handed an empty payload
+#   (hook_read_stdin's bounded read) and still owes the right dialect.
+#
+#   The codex dialect today answers exactly like claude: Codex accepts the same
+#   PreToolUse deny shape (permissionDecision + a non-empty reason) and reads
+#   `{}` as "no decision" on every event. What it adds is the name, so a hook
+#   can branch where Codex is stricter — see hook_stop_ok.
 hook_detect_platform() {
   local input="${1:-}"
   HOOK_PLATFORM=claude
   if printf '%s' "$input" | jq -e '(.conversation_id // .cursor_version // .workspace_roots) != null' >/dev/null 2>&1; then
     HOOK_PLATFORM=cursor
+  elif [[ -n "${PLUGIN_ROOT:-}" || -n "${PLUGIN_DATA:-}" ]]; then
+    HOOK_PLATFORM=codex
+  elif printf '%s' "$input" | jq -e '.turn_id != null' >/dev/null 2>&1; then
+    HOOK_PLATFORM=codex
   fi
   export HOOK_PLATFORM
 }
@@ -99,6 +135,23 @@ hook_additional_context() {
     jq -n --arg msg "$msg" \
       '{hookSpecificOutput:{hookEventName:"PreToolUse",additionalContext:$msg},systemMessage:$msg}'
   fi
+  exit 0
+}
+
+# hook_stop_ok — the exit-0 answer of a Stop/SubagentStop hook with nothing
+# to decide. Prints exactly one JSON object and exits 0.
+#
+#   Codex's hooks doc: Stop and SubagentStop "must print JSON on exit 0, plain
+#   text is invalid" — a bare `exit 0` after advisory text on stderr is fine,
+#   but any non-JSON byte on stdout fails the hook. Its parser (hooks/src/
+#   events/stop.rs, read at rust-v0.163.0) tolerates empty stdout, but the doc
+#   does not promise that, so this prints `{}` rather than nothing. `{}` is the
+#   one answer that is a no-op on every host: Claude Code reads it as "no
+#   decision", Codex parses an object with no continue/decision/systemMessage
+#   and does nothing, and Cursor's stop event takes `{}` as "nothing to add" too. Advisory
+#   text belongs on stderr, as check-done.sh already does.
+hook_stop_ok() {
+  printf '%s\n' '{}'
   exit 0
 }
 

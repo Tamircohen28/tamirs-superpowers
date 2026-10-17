@@ -1,5 +1,6 @@
 ---
 description: 'An integrated objective must become a delivery — ''deliver this objective'', ''ship it'', ''open the PR for objective X'', ''all tasks are done, create the PR'', ''turn the integration branch into a PR'', ''run…'
+subagent: false
 ---
 
 <!-- GENERATED FILE — DO NOT EDIT.

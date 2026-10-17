@@ -11,13 +11,14 @@ capabilities:
   hooks: native
   mcp: native
 
-# Codex >= 0.147 reads the root Agent Plugins manifest and takes its settings from
-# extensions.com.openai; when that object is present the overlay below is ignored
-# entirely (the two are never merged). Older hosts read the overlay. Both are generated
-# from one source by scripts/build-manifests.sh — see
+# Codex reads the overlay manifest. The Agent Plugins route (a root plugin.json with
+# extensions.com.openai) is deliberately NOT shipped to Codex: measured on codex-cli
+# 0.163.0, a plugin carrying a root Agent Plugins manifest has its hook sources emptied
+# before any hooks path is read, so the Codex distribution ships the overlay only. The
+# portable manifest is generated under platforms/agent-plugins/ for the agent-plugins
+# target. Both are generated from one source by scripts/build-manifests.sh — see
 # docs/engineering/build-and-release/manifests.md.
-manifest: plugin.json
-fallback_manifest: .codex-plugin/plugin.json
+manifest: .codex-plugin/plugin.json
 
 # Generated files Codex is pointed at. Never edit; regenerate.
 generated:
@@ -32,7 +33,10 @@ install:
   doc: docs/user/install/codex.md
 
 validation:
-  command: bash scripts/check-manifest-declares.sh .codex-plugin/plugin.json skills mcpServers hooks
+  # One line, plain scalar: scripts/check-capability-registry.sh reads it and rejects a
+  # block scalar. The manifest check proves the declaration; the contract suite proves
+  # every hook the generated file wires answers in the shapes Codex's parser accepts.
+  command: bash scripts/check-manifest-declares.sh .codex-plugin/plugin.json skills mcpServers hooks && bash tests/hooks/test-codex-contract.sh
 
 notes: >-
   Hooks are declared through the manifest's `hooks` field (root

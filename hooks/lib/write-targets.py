@@ -915,6 +915,9 @@ def apply_patch_targets(command, cwd):
     return records
 
 
+# `file_path` is also what Gemini CLI's write_file and replace tools carry, so
+# no Gemini-specific branch is needed for them (tool names are mapped in
+# hooks/lib/platform-tools.sh and by hooks/gemini-wrap.sh).
 EDIT_PATH_KEYS = ("file_path", "path", "notebook_path", "filePath")
 
 
@@ -923,10 +926,19 @@ def records_for(payload):
     tool_input = payload.get("tool_input") or {}
     cwd = payload.get("cwd") or os.getcwd()
 
-    if tool in ("Bash", "Shell", "BashOutput", "run_terminal_cmd"):
+    if tool in ("Bash", "Shell", "BashOutput", "run_terminal_cmd", "run_shell_command"):
         command = tool_input.get("command") or ""
         if not command.strip():
             return []
+        # Gemini's run_shell_command carries the directory the command runs in
+        # as `dir_path` (absolute or workspace-relative); a relative write
+        # target resolves against THAT, not the session cwd. (The Gemini
+        # extension's wrapper, hooks/gemini-wrap.sh, already folds dir_path
+        # into cwd before the hook runs; this is for a payload that arrives
+        # untranslated.)
+        dir_path = tool_input.get("dir_path")
+        if isinstance(dir_path, str) and dir_path.strip():
+            cwd = dir_path if os.path.isabs(dir_path) else os.path.join(cwd, dir_path)
         return analyze_command(command, cwd)
 
     if tool == "apply_patch":

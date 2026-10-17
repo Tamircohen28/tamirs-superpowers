@@ -1,0 +1,14 @@
+{
+  "conversation_id": "conv-0123456789abcdef",
+  "generation_id": "gen-0001",
+  "model": "auto",
+  "model_id": "auto",
+  "hook_event_name": "beforeSubmitPrompt",
+  "cursor_version": "3.24.12",
+  "workspace_roots": [
+    "/workspace/project"
+  ],
+  "transcript_path": "/workspace/project/.cursor/transcripts/conv-0123456789abcdef.jsonl",
+  "prompt": "Rename the helper in src/util.ts and update its two callers.",
+  "attachments": []
+}

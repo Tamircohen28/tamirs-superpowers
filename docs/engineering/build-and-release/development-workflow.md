@@ -44,12 +44,12 @@ make doctor          # or: bash scripts/doctor.sh .
 | `bash scripts/check-doc-claims.sh .` | skill counts and target coverage match the tree | 0 |
 | `bash scripts/check-capability-registry.sh .` | the capability registry satisfies its schema | 0 |
 | `make check-gemini-adapter` · `make gemini-extension-check` | the generated `.gemini/` mirror is present and current | 0 |
-| `make opencode-agents-check` | the generated `.opencode/agent/` mirror is current | 0 |
+| `make opencode-agents-check` | the generated `.opencode/agents/` mirror is current | 0 |
 | `bash scripts/validate-roles.sh` | roles, agents, and workflow schemas agree | 0 |
 
 Full picture: [testing matrix](testing-matrix.md).
 
-**Skill context budget.** With 29 skills shipped, run `/skill-doctor` (Claude Code 2.1.261+)
+**Skill context budget.** With 30 skills shipped, run `/skill-doctor` (Claude Code 2.1.261+)
 periodically in an interactive session to see which loaded skills went unused in a transcript
 and what they cost in context — a maintenance signal for `skill-quality-standards.md`'s
 pruning bar, not a CI-wired check: it reads live session data, not the repo tree, so there is
@@ -100,7 +100,7 @@ For Cursor, import the repo as a team marketplace with Auto Refresh. For OpenCod
    Never hand-edit a manifest version. See [versioning](versioning.md).
 9. If you touched `agents/*.md` or `skills/**`, regenerate the platform mirrors —
    `make gemini-extension` and `make opencode-agents` — and never hand-edit `.gemini/` or
-   `.opencode/agent/` directly. Their `*-check` counterparts fail CI on drift.
+   `.opencode/agents/` directly. Their `*-check` counterparts fail CI on drift.
 10. Open a PR.
 
 ## Commit convention

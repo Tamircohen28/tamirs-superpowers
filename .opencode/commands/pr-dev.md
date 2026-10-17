@@ -1,5 +1,6 @@
 ---
 description: 'An open PR must be driven to completion — ''finish this PR'', ''address review comments'', ''land the PR'', ''ship/land/close the PR'', ''drive PR #N to merge'', ''fix CI and merge'', ''clean up this PR'', ''the…'
+subagent: false
 ---
 
 <!-- GENERATED FILE — DO NOT EDIT.

@@ -19,7 +19,7 @@ Use a single GitHub repo (`Tamircohen28/tamirs-superpowers`) that is simultaneou
 | Claude Code | `.claude-plugin/marketplace.json` (`"source": "./"`) | `.claude-plugin/plugin.json` |
 | Cursor | the plugin manifest is imported directly | `.cursor-plugin/plugin.json` |
 | Codex | `.agents/plugins/marketplace.json` | `.codex-plugin/plugin.json` |
-| OpenCode | none — no marketplace concept | none — `opencode.json` + `.opencode/agent/` |
+| OpenCode | none — no marketplace concept | none — `opencode.json` + `.opencode/agents/` |
 
 The catalog remains the recommended install path on Claude Code and Cursor; the in-repo marketplaces make the repo installable on its own.
 

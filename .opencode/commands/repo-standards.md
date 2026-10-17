@@ -1,5 +1,6 @@
 ---
 description: 'Auditing or polishing a repository to Tamir Cohen standards — README badges, Makefile install/update/uninstall, docs tree, CI/CD, changelog and versioning policy, branch protection, employer IP scan,…'
+subagent: false
 ---
 
 <!-- GENERATED FILE — DO NOT EDIT.

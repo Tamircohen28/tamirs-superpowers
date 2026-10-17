@@ -23,7 +23,10 @@
 #
 # CONTRACT
 #   Never blocks. Always exits 0. Silent unless there is an objective in play — a
-#   subagent spawned outside orchestration has no handoff to owe anyone.
+#   subagent spawned outside orchestration has no handoff to owe anyone. "Silent"
+#   is hook_stop_ok's `{}`, never an empty stdout: Codex requires a SubagentStop
+#   hook that exits 0 to print JSON, and `{}` is the no-op on every host
+#   (tests/hooks/test-codex-contract.sh pins it).
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -31,17 +34,21 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${SCRIPT_DIR}/lib/hook-output.sh"
 
 input="$(hook_read_stdin)"
-cwd="$(printf '%s' "$input" | jq -r '.cwd // empty' 2>/dev/null || true)"
+hook_detect_platform "$input"
+# shellcheck source=lib/cursor-output.sh
+source "${SCRIPT_DIR}/lib/cursor-output.sh"
+# Cursor's subagentStop carries workspace_roots rather than cwd.
+cwd="$(printf '%s' "$input" | jq -r '.cwd // .workspace_roots[0] // empty' 2>/dev/null || true)"
 [ -n "$cwd" ] || cwd="$PWD"
 
 repo_root="$(git -C "$cwd" rev-parse --show-toplevel 2>/dev/null || printf '%s' "$cwd")"
 obj_dir="${repo_root}/.dev-files/objectives"
 
 # No orchestrated work in play: a subagent here owes no handoff. Say nothing.
-[ -d "$obj_dir" ] || { echo '{"suppressOutput": true}'; exit 0; }
+[ -d "$obj_dir" ] || hook_stop_ok
 
 objective="$(find "$obj_dir" -mindepth 1 -maxdepth 1 -type d -print 2>/dev/null | head -1 || true)"
-[ -n "$objective" ] || { echo '{"suppressOutput": true}'; exit 0; }
+[ -n "$objective" ] || hook_stop_ok
 
 obj_id="$(basename "$objective")"
 handoff_dir="${objective}/handoffs"
@@ -66,8 +73,7 @@ fi
 
 # Nothing to report: there are handoffs and none of them claim success unevidenced.
 if [ "${handoff_count:-0}" -gt 0 ] && [ "${#unevidenced[@]}" -eq 0 ]; then
-  echo '{"suppressOutput": true}'
-  exit 0
+  hook_stop_ok
 fi
 
 msg="Subagent finished under objective '${obj_id}'."
@@ -77,4 +83,11 @@ else
   msg="${msg} These handoffs report status 'completed' with an empty validation[]: ${unevidenced[*]}. That is a claim with no evidence. Verify before integrating, or have the task re-report honestly as partial/failed/blocked."
 fi
 
+# Cursor's subagentStop documents only followup_message, which Cursor would auto-submit
+# as the person's next message — never from an advisory hook. The note goes to the
+# person (user_message) and to stderr, the channel every host shows.
+if [ "${HOOK_PLATFORM:-claude}" = cursor ]; then
+  printf '%s\n' "$msg" >&2
+  cursor_subagent_note "$msg"
+fi
 jq -n --arg m "$msg" '{hookSpecificOutput:{hookEventName:"SubagentStop",additionalContext:$m}}'

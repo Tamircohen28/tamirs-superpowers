@@ -1,5 +1,6 @@
 ---
 description: 'The user must pick between options — an agent has finished work and needs them to choose how to proceed, the user was told "waiting for your decision about X", or they say "display decision", "what''s…'
+subagent: false
 ---
 
 <!-- GENERATED FILE — DO NOT EDIT.

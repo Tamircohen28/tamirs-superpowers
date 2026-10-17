@@ -27,7 +27,7 @@
 #   broken on master); a link to a file outside the target's allowed set (another
 #   host's docs, the changelog, docs/engineering/) is left out and listed.
 #
-# Usage: build-dist.sh <out-dir> --target <claude|codex|cursor|gemini|opencode|agent-plugins>
+# Usage: build-dist.sh <out-dir> --target <claude|codex|cursor|gemini|antigravity|opencode|agent-plugins>
 #                      [--source <repo-root>] [--force] [--quiet]
 #   <out-dir> must not exist, or be empty, unless --force (then it is emptied).
 #   --list-targets prints the target names and exits.
@@ -40,12 +40,12 @@ while [[ $# -gt 0 ]]; do
     --source) SRC="$2"; shift 2 ;;
     --force) FORCE=1; shift ;;
     --quiet) QUIET=1; shift ;;
-    --list-targets) echo "claude codex cursor gemini opencode agent-plugins"; exit 0 ;;
+    --list-targets) echo "claude codex cursor gemini antigravity opencode agent-plugins"; exit 0 ;;
     -h|--help) sed -n '2,/^set -euo/p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//; $d'; exit 0 ;;
     *) if [[ -z "$OUT" ]]; then OUT="$1"; shift; else echo "unexpected argument: $1" >&2; exit 2; fi ;;
   esac
 done
-usage() { echo "usage: build-dist.sh <out-dir> --target <claude|codex|cursor|gemini|opencode|agent-plugins> [--source <repo-root>] [--force] [--quiet]" >&2; exit 2; }
+usage() { echo "usage: build-dist.sh <out-dir> --target <claude|codex|cursor|gemini|antigravity|opencode|agent-plugins> [--source <repo-root>] [--force] [--quiet]" >&2; exit 2; }
 [[ -n "$OUT" && -n "$TARGET" ]] || usage
 
 SRC="${SRC:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
@@ -73,7 +73,8 @@ COMMON_PRUNE=(
   scripts/build-opencode-commands.sh scripts/build-codex-hooks.sh scripts/build-codex-agents.sh
   scripts/build-cursor-rules.sh scripts/build-manifests.sh scripts/probe-platform-versions.sh
   scripts/typecheck-mods.sh scripts/check-platform-version-pins.sh scripts/check-gemini-adapter.sh
-  scripts/check-opencode-permission-keys.sh
+  scripts/check-opencode-permission-keys.sh scripts/build-gemini-hooks.sh scripts/build-antigravity-plugin.sh
+  scripts/build-agents-skills.sh scripts/check-skills-ref.sh scripts/check-token-budget.sh
 )
 ROOTS=(); PRUNE_PATHS=("${COMMON_PRUNE[@]}"); README_SRC="README.md"; CLOSURE_EXTRA="docs/user"
 case "$TARGET" in
@@ -92,7 +93,10 @@ case "$TARGET" in
     # 0.147, .codex-plugin/plugin.json; both point hooks at the generated Codex file,
     # which has no `modules` key. The mod, output styles and the Claude hooks file stay
     # out: Codex runs none of them.
-    ROOTS=(plugin.json mcp.json .codex-plugin/plugin.json .agents/plugins/marketplace.json platforms/codex .codex hooks "${COMMON_ROOTS[@]}")
+    # No Agent Plugins root manifest here: measured on codex-cli 0.163.0, a plugin that
+    # carries one has its hook sources emptied before any hooks path is read, so the
+    # Codex subset ships the overlay route only.
+    ROOTS=(.codex-plugin/plugin.json .agents/plugins/marketplace.json platforms/codex .codex hooks "${COMMON_ROOTS[@]}")
     PRUNE_PATHS+=(hooks/hooks.json
       docs/user/install/claude-code.md docs/user/install/claude-desktop.md docs/user/install/cursor.md docs/user/install/gemini.md docs/user/install/opencode.md
       scripts/lib/setup-claude.sh scripts/lib/setup-cursor.sh scripts/lib/setup-gemini.sh scripts/lib/setup-opencode.sh
@@ -102,7 +106,7 @@ case "$TARGET" in
     # Cursor prefers .cursor-plugin/plugin.json; its hooks bundle and mcp.json (with the
     # declared plugin variable) live under platforms/cursor. Rules and commands are the
     # generated .cursor/ adapters; agents are read from agents/ directly.
-    ROOTS=(.cursor-plugin/plugin.json plugin.json mcp.json platforms/cursor .cursor agents hooks "${COMMON_ROOTS[@]}")
+    ROOTS=(.cursor-plugin/plugin.json platforms/cursor .cursor agents hooks "${COMMON_ROOTS[@]}")
     PRUNE_PATHS+=(hooks/hooks.json
       docs/user/install/claude-code.md docs/user/install/claude-desktop.md docs/user/install/codex.md docs/user/install/gemini.md docs/user/install/opencode.md
       scripts/lib/setup-claude.sh scripts/lib/setup-codex.sh scripts/lib/setup-gemini.sh scripts/lib/setup-opencode.sh
@@ -111,9 +115,12 @@ case "$TARGET" in
   gemini)
     # Gemini CLI reads gemini-extension.json and the .gemini/ adapter (flat skill mirror,
     # translated agents). The mirror's symlinks are dereferenced into copies here, so the
-    # tarball is self-contained.
+    # tarball is self-contained. Gemini runs hooks from <extension>/hooks/hooks.json and
+    # nowhere else (the manifest cannot point elsewhere; measured on 0.64.0), so the
+    # Claude file is pruned and the GENERATED platforms/gemini/hooks.json takes its
+    # place below, with the deny policies beside it under policies/.
     ROOTS=(gemini-extension.json .gemini platforms/gemini hooks "${COMMON_ROOTS[@]}")
-    PRUNE_PATHS+=(hooks/hooks.json
+    PRUNE_PATHS+=(hooks/hooks.json platforms/gemini/hooks.json platforms/gemini/policies platforms/gemini/policies.source.json
       docs/user/install/claude-code.md docs/user/install/claude-desktop.md docs/user/install/codex.md docs/user/install/cursor.md docs/user/install/opencode.md
       scripts/lib/setup-claude.sh scripts/lib/setup-codex.sh scripts/lib/setup-cursor.sh scripts/lib/setup-opencode.sh
       scripts/statusline.sh)
@@ -127,11 +134,25 @@ case "$TARGET" in
       scripts/lib/setup-claude.sh scripts/lib/setup-codex.sh scripts/lib/setup-cursor.sh scripts/lib/setup-gemini.sh
       scripts/statusline.sh)
     ;;
+  antigravity)
+    # Antigravity's plugin is a closed schema: plugin.json {name, description},
+    # mcp_config.json {mcpServers}, skills/<name>/SKILL.md one level deep, agents/*.md,
+    # and no hooks file (it runs none). The flat skill set is the .agents/skills mirror
+    # dereferenced into copies and moved to skills/ below; the agents are the Gemini
+    # translations. Nothing here is measured against a live binary
+    # (core/capabilities/platforms.json lists the surface as unverified).
+    ROOTS=(platforms/antigravity .agents/skills .gemini/agents core rules templates config scripts/github-mcp.sh LICENSE SECURITY.md PRIVACY.md plugin-version.json)
+    PRUNE_PATHS+=(platforms/antigravity/adapter.yaml platforms/antigravity/README.md docs/user/install scripts/lib scripts/statusline.sh)
+    README_SRC="platforms/antigravity/README.md"
+    ;;
   agent-plugins)
     # The portable package: the Agent Plugins 1.0 root manifest, mcp.json, skills, and
     # what the skills link to. No hooks, no agents, no host manifest — a client that
     # wants more reads its own namespace from plugin.json's extensions.
-    ROOTS=(plugin.json mcp.json skills core rules templates config scripts/github-mcp.sh LICENSE SECURITY.md PRIVACY.md plugin-version.json)
+    # The manifest and mcp.json are generated under platforms/agent-plugins/ (a root
+    # plugin.json in the repository makes Codex drop every hook) and moved to the root of
+    # this subset below.
+    ROOTS=(platforms/agent-plugins skills core rules templates config scripts/github-mcp.sh LICENSE SECURITY.md PRIVACY.md plugin-version.json)
     PRUNE_PATHS+=(docs/user/install scripts/lib scripts/statusline.sh)
     ;;
   *) echo "build-dist: unknown target '$TARGET' (try --list-targets)" >&2; exit 2 ;;
@@ -170,6 +191,18 @@ done
 
 # The README: the directory-specific one for Claude, the repository's for everyone else.
 cp -L "$SRC/$README_SRC" "$OUT/README.md"
+
+# The Agent Plugins package reads its manifest and mcp.json at the package root.
+if [[ "$TARGET" == "agent-plugins" && -d "$OUT/platforms/agent-plugins" ]]; then
+  mv "$OUT/platforms/agent-plugins/plugin.json" "$OUT/plugin.json"
+  mv "$OUT/platforms/agent-plugins/mcp.json" "$OUT/mcp.json"
+fi
+
+# Gemini reads only <extension>/hooks/hooks.json: the generated file and the policies.
+if [[ "$TARGET" == "gemini" ]]; then
+  cp -L "$SRC/platforms/gemini/hooks.json" "$OUT/hooks/hooks.json"
+  mkdir -p "$OUT/policies" && cp -L "$SRC"/platforms/gemini/policies/*.toml "$OUT/policies/"
+fi
 
 # --- markdown-link closure ---------------------------------------------------------------
 # Every shipped .md may link to a file not shipped yet. Pull such targets in from the
@@ -277,5 +310,23 @@ PY
 find "$OUT" -type d -empty -delete
 count="$(find "$OUT" -type f | wc -l | tr -d ' ')"
 links="$(find "$OUT" -type l | wc -l | tr -d ' ')"
+# Antigravity's layout, applied after the link closure so every relative link was
+# resolved against the source layout: manifest and MCP config at the root, the flat
+# skill mirror at skills/, the translated agents at agents/. The flat layout sits one
+# directory shallower than the source tree, so a skill's relative link into core/ or
+# rules/ resolves one level short there; Antigravity reads SKILL.md for the model, which
+# the host resolves by name, not by path, so the prose link is informational.
+if [[ "$TARGET" == "antigravity" ]]; then
+  mv "$OUT/platforms/antigravity/plugin.json" "$OUT/plugin.json"
+  mv "$OUT/platforms/antigravity/mcp_config.json" "$OUT/mcp_config.json"
+  rmdir "$OUT/platforms/antigravity" "$OUT/platforms" 2>/dev/null || true
+  if [[ -d "$OUT/.agents/skills" ]]; then
+    mv "$OUT/.agents/skills" "$OUT/skills"; rmdir "$OUT/.agents" 2>/dev/null || true
+  fi
+  if [[ -d "$OUT/.gemini/agents" ]]; then
+    mv "$OUT/.gemini/agents" "$OUT/agents"; rmdir "$OUT/.gemini" 2>/dev/null || true
+  fi
+fi
+
 log "build-dist[$TARGET]: $count files, $links symlinks -> $OUT"
 [[ "$links" -eq 0 ]] || { echo "build-dist: symlinks in the output" >&2; exit 1; }

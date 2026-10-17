@@ -7,10 +7,11 @@
 #
 # Generates, from .claude-plugin/plugin.json (identity), plugin-version.json (version)
 # and platforms/manifests.source.json (per-target overlay):
-#   plugin.json                   — root Agent Plugins 1.0 manifest (Codex >= 0.147,
+#   platforms/agent-plugins/plugin.json — the Agent Plugins 1.0 manifest, shipped at the
+#                                   ROOT of the agent-plugins distribution only (Codex >= 0.147,
 #                                   Cursor, Copilot CLI, Kiro); carries the Codex
 #                                   settings under extensions.com.openai
-#   mcp.json                      — root Agent Plugins MCP file (stdio, ${PLUGIN_ROOT})
+#   platforms/agent-plugins/mcp.json — its MCP file (stdio, ${PLUGIN_ROOT}); same placement
 #   .codex-plugin/plugin.json     — Codex overlay, kept as the pre-0.147 fallback
 #   .cursor-plugin/plugin.json    — Cursor manifest, with the `variables` schema
 #   platforms/cursor/mcp.json     — Cursor MCP file (plugin variables, ${CURSOR_PLUGIN_ROOT})
@@ -29,7 +30,17 @@
 #   the identity single-sourced the same way, with the per-target differences written
 #   down in one overlay file where a reader can see they are deliberate.
 #
-# WHY A ROOT plugin.json AT ALL
+# WHY THE AGENT PLUGINS MANIFEST IS NOT AT THE REPOSITORY ROOT
+#   Measured on codex-cli 0.163.0 (tests/hooks/test-codex-contract.sh's provenance, 2026-10-17):
+#   when a plugin carries a root Agent Plugins plugin.json, Codex's loader empties the
+#   plugin's hook sources before reading any hooks path — overlay `hooks`,
+#   `extensions.com.openai.hooks`, or both — so a repository with that file at its root
+#   ships ZERO hooks to Codex, and `codex doctor` reports no MCP servers either. The
+#   Codex route therefore stays .codex-plugin/plugin.json, and the Agent Plugins manifest
+#   is generated under platforms/agent-plugins/ and placed at the root of the
+#   agent-plugins distribution tarball by scripts/build-dist.sh, never at the repo root.
+#
+# WHY AN AGENT PLUGINS MANIFEST AT ALL
 #   Agent Plugins 1.0 is the manifest Codex, Cursor, Copilot CLI and Kiro all read. On
 #   Codex it is the primary manifest from 0.147 and, when extensions.com.openai is
 #   present, it REPLACES .codex-plugin/plugin.json entirely (the two are not merged),
@@ -85,8 +96,8 @@ fi
 # The generated files, relative to the plugin root. The order is the order --check
 # reports drift in.
 OUTPUTS=(
-  plugin.json
-  mcp.json
+  platforms/agent-plugins/plugin.json
+  platforms/agent-plugins/mcp.json
   .codex-plugin/plugin.json
   .cursor-plugin/plugin.json
   platforms/cursor/mcp.json
@@ -192,8 +203,8 @@ gem = ov["gemini"]
 gemini = with_manifest_keys({"name": name, "version": version, "description": description(gem)}, gem)
 
 outputs = {
-    "plugin.json": root_manifest,
-    "mcp.json": root_mcp,
+    "platforms/agent-plugins/plugin.json": root_manifest,
+    "platforms/agent-plugins/mcp.json": root_mcp,
     ".codex-plugin/plugin.json": codex,
     ".cursor-plugin/plugin.json": cursor,
     "platforms/cursor/mcp.json": cursor_mcp,

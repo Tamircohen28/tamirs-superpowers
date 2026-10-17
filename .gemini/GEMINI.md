@@ -18,7 +18,7 @@ A multi-platform agent plugin (skills, agents, hooks, MCP stubs) shipped to Clau
 | MCP | ✅ `github` | `${extensionPath}` keeps it portable |
 | Skills | ✅ | generated symlink mirror at `.gemini/skills/` |
 | Sub-agents | ✅ | generated at `.gemini/agents/`, `tools` translated to Gemini names |
-| Hooks | ❌ none shipped | By design, not a verdict on Gemini. Of this repo's ten hook events, three (`SessionStart`, `SessionEnd`, `Notification`) name real Gemini events and are simply untested; four translate only through `gemini hooks migrate --from-claude`; three have no counterpart. Gemini accepts unknown event names silently, so a dropped-in Claude file would look live while most of it did nothing |
+| Hooks | ⚠️ generated, firing unverified | `platforms/gemini/hooks.json` is generated from `hooks/hooks.json` by `scripts/build-gemini-hooks.sh` (Gemini event names, anchored Gemini tool matchers, millisecond timeouts, every command through `hooks/gemini-wrap.sh`) and placed at `hooks/hooks.json` in the gemini distribution only — Gemini reads that one path. `policies/*.toml` adds deny-only rules that hold with hooks disabled. Measured on 0.64.0: the extension installs and lists with the file in place; firing was not observed (needs an authenticated session), so the registry row stays `unknown` |
 
 ## `.gemini/skills/` and `.gemini/agents/` are GENERATED
 

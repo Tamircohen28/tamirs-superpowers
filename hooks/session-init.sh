@@ -2,16 +2,32 @@
 set -euo pipefail
 
 # SessionStart — initialize session dirs, load prior session-files, prune stale worktrees.
+#
+# ON CURSOR (platforms/cursor/hooks.json, event sessionStart)
+#   Same work, different envelope. Cursor's sessionStart carries session_id plus
+#   the common conversation_id / workspace_roots and no cwd, so the session key
+#   falls back to conversation_id and the directory to workspace_roots[0] — the
+#   same fallbacks enforce-worktree-edits.sh uses, so every hook in a Cursor
+#   session keys its state the same way. The output is `{"additional_context":
+#   ...}` (snake_case, Cursor's field) instead of hookSpecificOutput; there is
+#   no sessionTitle on Cursor, and CLAUDE_ENV_FILE is never set there, so the
+#   env exports simply do not happen. Cursor's `env` output field is NOT emitted
+#   yet: its value shape is undocumented, and a schema mismatch could cost the
+#   additional_context next to it. Cloud agents never fire sessionStart, so a
+#   cloud session gets none of this and the first edit creates the worktree.
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=lib/worktree-common.sh
 source "${SCRIPT_DIR}/lib/worktree-common.sh"
 # shellcheck source=lib/hook-output.sh
 source "${SCRIPT_DIR}/lib/hook-output.sh"
+# shellcheck source=lib/cursor-output.sh
+source "${SCRIPT_DIR}/lib/cursor-output.sh"
 
 input="$(hook_read_stdin)"
-session_id="$(printf '%s' "$input" | jq -r '.session_id // empty')"
-cwd="$(printf '%s' "$input" | jq -r '.cwd // empty')"
+hook_detect_platform "$input"
+session_id="$(printf '%s' "$input" | jq -r '.session_id // .conversation_id // empty')"
+cwd="$(printf '%s' "$input" | jq -r '.cwd // .workspace_roots[0] // empty')"
 source_kind="$(printf '%s' "$input" | jq -r '.source // "startup"')"
 # Claude Code 2.1.251+: resume/fork payloads add these four fields describing
 # how stale the resumed transcript's prompt cache is. Absent on every other
@@ -191,6 +207,10 @@ if [[ "$prompt_cache_likely_expired" == "true" ]]; then
 fi
 
 additional_context="$(printf '%s\n' "${context_parts[@]}")"
+
+if [[ "${HOOK_PLATFORM:-claude}" == "cursor" ]]; then
+  cursor_session_context "$additional_context"
+fi
 
 cat <<EOF
 {

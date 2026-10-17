@@ -9,7 +9,7 @@ Data consumed by the `platform-sync` engine (`references/analysis-protocol.md`).
   same string in `platform-targets.json` and in a skill's `compatibility` block. The platform
   and its CLI surface happen to share the id; the capabilities are on the surface.
 - **Sibling surface:** `opencode_desktop` ("OpenCode desktop app") is **unverified** —
-  whether the desktop client reads the same `opencode.json` `skills.paths` this repo installs
+  whether the desktop client reads the same `opencode.json` `skills` this repo installs
   into has not been checked, so the `skills` row under `opencode` is not carried over to it.
   It carries no capabilities block and is **not a target**: never audit it, and never claim
   it does or does not work.
@@ -19,8 +19,8 @@ Data consumed by the `platform-sync` engine (`references/analysis-protocol.md`).
 | Signal | Path / pattern | Strength |
 |--------|----------------|----------|
 | Config file | `opencode.json` at repo root | strong |
-| Agent adapters | `.opencode/agent/*.md` | strong |
-| Plugin modules | `.opencode/plugin/*.{js,ts}` | medium |
+| Agent adapters | `.opencode/agents/*.md` | strong |
+| Plugin modules | `.opencode/plugins/*/index.ts`, `opencode.json` `plugins[]` (this repo: `platforms/opencode/plugin/`) | medium |
 | Config directory | `.opencode/` (any contents) | medium |
 | Global config only | `~/.config/opencode/opencode.json` | weak — repo may rely on user config |
 
@@ -53,8 +53,8 @@ drift from what users get.
 
 | Fetch when local config contains / lacks | URL |
 |---|---|
-| `skills.paths` present, or a skills tree exists | https://opencode.ai/docs/skills/ |
-| `.opencode/agent/*.md` present, or agents to port | https://opencode.ai/docs/agents/ |
+| `skills` present, or a skills tree exists | https://opencode.ai/docs/skills/ |
+| `.opencode/agents/*.md` present, or agents to port | https://opencode.ai/docs/agents/ |
 | Any `opencode.json` | https://opencode.ai/config.json |
 | MCP servers declared elsewhere but not here | https://opencode.ai/docs/mcp-servers/ |
 
@@ -69,23 +69,23 @@ drift from what users get.
 
 | Path | What to note |
 |------|--------------|
-| `opencode.json` | `$schema`, `skills.paths` coverage, `mcp`, `agent` blocks |
-| `.opencode/agent/*.md` | Which specialist agents are ported, and their frontmatter |
-| `.opencode/plugin/*.{js,ts}` | Lifecycle plugin modules |
+| `opencode.json` | `$schema`, `skills` coverage, `plugins`, `mcp.servers`, `permissions`, `agents` blocks |
+| `.opencode/agents/*.md` | Which specialist agents are ported, and their frontmatter |
+| `platforms/opencode/plugin/*.ts` | Lifecycle (server) and TUI plugin modules |
 | `AGENTS.md` | Whether OpenCode inherits canonical agent policy |
-| `skills/**/SKILL.md` | Domain nesting depth vs what `skills.paths` enumerates |
+| `skills/**/SKILL.md` | Domain nesting depth vs what `skills` enumerates |
 
 ## Feature-scan areas
 
-- **`skills.paths` drift — check this first.** OpenCode discovers skills under the paths
+- **`skills` drift — check this first.** OpenCode discovers skills under the paths
   listed in `opencode.json`. A skill added to a **new** domain directory is invisible until
   that domain is added. Compare the set of top-level domains under `skills/` against the
   enumerated paths and flag any domain on disk but absent from config. This is the single
   most common OpenCode drift in a multi-target repo, because every other target discovers
   skills by tree walk and needs no such list.
 - **Agent parity** — a repo shipping N specialist agents to Claude Code but fewer as
-  `.opencode/agent/*.md` has silent capability loss. Report the delta explicitly.
-- **Generated-adapter drift** — `.opencode/agent/*.md` files generated from canonical
+  `.opencode/agents/*.md` has silent capability loss. Report the delta explicitly.
+- **Generated-adapter drift** — `.opencode/agents/*.md` files generated from canonical
   `agents/` must be regenerated, not hand-edited. Flag any that has diverged.
 - **Config schema** — is `$schema` pinned? New top-level keys in the published schema?
 - **MCP** — servers wired for other targets but not declared here.

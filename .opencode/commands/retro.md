@@ -1,5 +1,6 @@
 ---
 description: 'A session should become durable rules, hooks or memory — the user asks (''/retro'', ''run a retrospective'', ''postmortem'', ''what went wrong this session'', ''find friction'', ''capture lessons'', ''lessons…'
+subagent: false
 ---
 
 <!-- GENERATED FILE — DO NOT EDIT.

@@ -19,7 +19,7 @@
 #   .mdc files were hand-maintained: a rule renamed in rules/dev/ left a stale adapter
 #   pointing at a path that no longer existed, and a summary edited in the adapter
 #   never reached the canonical rule. Nothing failed, because nothing compared them.
-#   This generator makes the adapters output, the same way .opencode/agent/,
+#   This generator makes the adapters output, the same way .opencode/agents/,
 #   .cursor/commands/ and .gemini/ already are, with the same --check drift gate.
 #
 # WHY A MAP FILE AND NOT THE RULE ITSELF

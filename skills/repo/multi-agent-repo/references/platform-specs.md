@@ -40,7 +40,7 @@ and each carries an explicit status for all 19 capability keys.
 | `codex` | `codex` | Codex CLI | CLI | `.codex-plugin/plugin.json` + `AGENTS.md` |
 | `cursor` | `cursor` | Cursor IDE | IDE | `.cursor-plugin/plugin.json` + `.cursor/rules/*.mdc` |
 | `gemini` | `gemini_cli` | Gemini CLI | CLI | `gemini-extension.json`, installed from a git URL |
-| `opencode` | `opencode` | OpenCode CLI | CLI | `opencode.json` (`skills.paths`) + generated `.opencode/agent/` |
+| `opencode` | `opencode` | OpenCode CLI | CLI | `opencode.json` (`skills.paths`) + generated `.opencode/agents/` |
 
 ### Unverified surfaces (4) — listed, never targeted
 
@@ -115,11 +115,11 @@ plugin module only.
 ```
 <repo-root>/
   opencode.json            # { "skills": { "paths": ["./skills"] }, "mcp": { … } }
-  .opencode/agent/*.md     # GENERATED from canonical agents/ — frontmatter genuinely differs
+  .opencode/agents/*.md     # GENERATED from canonical agents/ — frontmatter genuinely differs
 ```
 
 Install is by path (`skills.paths` or a symlink), never by marketplace. Agent adapters are
-generated and drift-checked; never hand-copy an agent definition into `.opencode/agent/`.
+generated and drift-checked; never hand-copy an agent definition into `.opencode/agents/`.
 
 ---
 

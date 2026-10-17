@@ -12,5 +12,36 @@
     "skills/repo/multi-agent-repo",
     "skills/repo/repo-scaffold",
     "skills/repo/repo-standards"
+  ],
+  "plugins": [
+    "./platforms/opencode/plugin"
+  ],
+  "mcp": {
+    "servers": {
+      "github": {
+        "type": "local",
+        "command": ["bash", "scripts/github-mcp.sh"],
+        "environment": {
+          "GITHUB_PERSONAL_ACCESS_TOKEN": "{env:GITHUB_PERSONAL_ACCESS_TOKEN}"
+        }
+      }
+    }
+  },
+  "permissions": [
+    { "action": "edit", "resource": "*.lock", "effect": "deny" },
+    { "action": "edit", "resource": "*package-lock.json", "effect": "deny" },
+    { "action": "edit", "resource": "*pnpm-lock.yaml", "effect": "deny" },
+    { "action": "edit", "resource": "*bun.lockb", "effect": "deny" },
+    { "action": "edit", "resource": "*go.sum", "effect": "deny" },
+    { "action": "edit", "resource": ".github/workflows/*", "effect": "deny" },
+    { "action": "edit", "resource": "*/.github/workflows/*", "effect": "deny" },
+    { "action": "edit", "resource": ".yarn/releases/*", "effect": "deny" },
+    { "action": "edit", "resource": "*/.yarn/releases/*", "effect": "deny" },
+    { "action": "shell", "resource": "git push --force*", "effect": "deny" },
+    { "action": "shell", "resource": "git push -f *", "effect": "deny" },
+    { "action": "shell", "resource": "git push * --force*", "effect": "deny" },
+    { "action": "shell", "resource": "git push * -f", "effect": "deny" },
+    { "action": "shell", "resource": "git push * -f *", "effect": "deny" },
+    { "action": "external_directory", "resource": "*", "effect": "ask" }
   ]
 }

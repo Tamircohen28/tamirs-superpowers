@@ -1,5 +1,6 @@
 ---
 description: 'The user pastes a stack trace, traceback, panic, crash log, or error message with a file:line and wants the root cause.'
+subagent: false
 ---
 
 <!-- GENERATED FILE — DO NOT EDIT.

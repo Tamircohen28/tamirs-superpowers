@@ -1,5 +1,6 @@
 ---
 description: 'The user asks ''find a skill for X'', ''is there a plugin that does Y'', ''what skill should I use for Z'', ''recommend an agent for W'', ''compare skills for ...'', or ''search for a Claude Code skill''.…'
+subagent: false
 ---
 
 <!-- GENERATED FILE — DO NOT EDIT.

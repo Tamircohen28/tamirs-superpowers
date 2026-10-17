@@ -131,12 +131,12 @@ them.
 | `skills` | native | native | native | native | adapter | native |
 | `skill_auto_invocation` | native | native | unknown | partial | unknown | unknown |
 | `subagents` | native | unknown | native | native | adapter | adapter |
-| `parallel_subagents` | native | unknown | unknown | unknown | unknown | unknown |
+| `parallel_subagents` | native | unknown | unknown | partial | unsupported | unknown |
 | `agent_teams` | native (experimental) | unknown | unknown | unknown | unknown | unknown |
-| `hooks` | native | unknown | native | partial | unknown | unsupported |
+| `hooks` | native | unknown | native | partial | unknown | adapter |
 | `mcp` | native | native | native | native | native | native |
-| `statusline` | native | unsupported | unsupported | unsupported | unsupported | unsupported |
-| `mods` | native | native | unsupported | unsupported | unsupported | unsupported |
+| `statusline` | native | unsupported | unsupported | unsupported | unsupported | adapter |
+| `mods` | native | native | unsupported | unsupported | unsupported | adapter |
 | `shell` | native | partial | native | native | native | native |
 | `git` | native | partial | native | native | native | native |
 | `github_cli` | native | unknown | native | native | native | native |
@@ -203,7 +203,7 @@ Vendor documentation:
 ### OpenCode desktop app (`opencode_desktop`) — a surface of OpenCode
 
 OpenCode ships a desktop client alongside the terminal one. Whether it reads the same
-`opencode.json` `skills.paths` this repo installs into has not been checked, so the `skills`
+`opencode.json` `skills` this repo installs into has not been checked, so the `skills`
 row under `opencode` is not carried over here.
 
 Vendor documentation: [OpenCode docs](https://opencode.ai/docs/).
@@ -294,32 +294,44 @@ Installing the extension also emits a harmless load error for the canonical `age
 at the extension root. It is noise, not failure, and it is unfixable from this side — Gemini
 offers no subdirectory flag or manifest field to relocate them.
 
-**`hooks` is `unknown`, and deliberately so.** Gemini accepts the outer `{"hooks": {…}}`
-shape of the Claude schema without complaining, but it has its own event vocabulary, and
-whether Claude's event names ever *fire* was never checked — so no claim is made in either
-direction. Separately, and this is a different fact: **this adapter ships no hooks at all, by
-design.** Guards live in the skills as explicit steps and in CI. If you want to try them
-yourself, `gemini hooks migrate --from-claude` translates them into your personal settings.
+**`hooks` is `unknown`, and deliberately so.** Gemini runs an extension's hooks from
+`hooks/hooks.json` and reads only that file's `hooks` object, with its own event vocabulary,
+its own tool names, millisecond timeouts and an exit-code table that denies on every
+non-zero exit but 1. The Claude file is therefore never shipped to it: the **gemini
+distribution** (`scripts/build-dist.sh --target gemini`) carries a *generated* hooks file,
+built from `hooks/hooks.json` by `scripts/build-gemini-hooks.sh`, that routes every
+canonical hook unmodified through `hooks/gemini-wrap.sh`, plus `policies/*.toml` with
+deny-only rules that hold even with hooks disabled. Measured on 0.64.0: the extension
+validates, installs and lists with that file in place. Whether the hooks *fire* needs an
+authenticated session and was not observed, so the row stays `unknown` rather than
+`native`. A bare git-URL install of the repository gets the Claude file, which Gemini
+would misread; install from the distribution tarball for hooks.
 
-MCP works natively; the bundled `github` server needs `GITHUB_PERSONAL_ACCESS_TOKEN` in its
-environment (on Claude Code the plugin's `github_token` option supplies it; here, export it
-in the shell that starts `gemini`). There is no extension-declared
-statusline (measured, not assumed).
+MCP works natively; the bundled `github` server takes its token from the manifest's
+`settings[]` entry (`sensitive: true`, stored in the OS keychain with `gemini extensions
+config tamirs-superpowers <setting-name>`; on Claude Code the plugin's `github_token`
+option supplies the same value). There is no extension-declared statusline (measured,
+not assumed).
 
 ### OpenCode CLI
 
-Install is by path: point `opencode.json` `skills.paths` at a checkout. There is no
+Install is by path: point `opencode.json` `skills` at a checkout. There is no
 marketplace and no extension install.
 
 **Do not port Gemini's mirror strategy here.** Gemini follows symlinks during skill
 discovery; **OpenCode does not, at any level.** OpenCode reads the canonical two-level tree
-directly through `skills.paths`, which is why it needs no mirror — and why a symlinked one
+directly through `skills`, which is why it needs no mirror — and why a symlinked one
 would silently find nothing. Subagents come from an `adapter` —
-`.opencode/agent/` is generated from `agents/` because the frontmatter genuinely differs,
-and drift fails CI. Hooks do not port at all: OpenCode's only lifecycle mechanism is a JS/TS
-plugin API, and this repo does not ship lifecycle-guard plugins. An optional
-observe-only `usage-capture` module may be added to a user's OpenCode `plugin` list; it
-is not in this repo's `opencode.json` and does not run the `hooks/` guards.
+`.opencode/agents/` is generated from `agents/` because the frontmatter genuinely differs,
+and drift fails CI. Hooks do not port as shell scripts: OpenCode's only lifecycle mechanism
+is a JS/TS plugin API, so the three core guards (worktree edits, protected paths, pushes to
+a branch another agent holds) are carried by an OpenCode 2 server plugin instead —
+`platforms/opencode/plugin/`, registered in this repo's `opencode.json` — with a TUI plugin
+from the same directory drawing the status line and the objective pane that the Claude
+Code mod draws. The plugin loads on 2.0.32 (`opencode plugin list`); whether its denies
+stop an action live is not yet measured. An optional observe-only `usage-capture` module
+(now a V2 plugin) may be added to a user's OpenCode `plugins` list; it is not in this
+repo's `opencode.json`.
 
 ---
 

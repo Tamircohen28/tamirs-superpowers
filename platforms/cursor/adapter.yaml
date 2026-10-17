@@ -21,7 +21,8 @@ generated:
   variables: .cursor-plugin/plugin.json    # `variables` JSON Schema declaring every ${VAR} the MCP file uses
   regenerate: bash scripts/build-manifests.sh .
   check: bash scripts/build-manifests.sh . --check
-hooks: platforms/cursor/hooks.json         # hand-written, Cursor's own 21-event format
+hooks: platforms/cursor/hooks.json         # hand-written, Cursor's own 21-event format; 10 wired
+hooks_readme: platforms/cursor/README.md   # why each event is or is not wired, failClosed, cloud matrix
 
 install:
   type: marketplace
@@ -34,9 +35,14 @@ notes: >-
   hooks is `partial`, not `native`: the Claude-shaped plugin hook bundle does not run
   under a Cursor plugin install, so the manifest points `hooks` at a Cursor-format bundle
   at a deliberately non-default path (Cursor would otherwise bind to hooks/hooks.json,
-  the Claude file it cannot read), wiring three of Cursor's 21 events. Project-level
-  .cursor/hooks.json ships soft contributor guards only, so the same rules are enforced
-  again in CI. MCP comes from the generated platforms/cursor/mcp.json rather than the
+  the Claude file it cannot read), wiring ten of Cursor's 21 events: workspaceOpen,
+  sessionStart, sessionEnd, beforeSubmitPrompt, preToolUse, beforeShellExecution,
+  postToolUse, stop, preCompact — the same scripts as Claude, speaking Cursor's dialect
+  through hooks/lib/hook-output.sh and hooks/lib/cursor-output.sh, with failClosed on the
+  safety tier. Still `partial`: subagentStart/subagentStop are unwired (see
+  platforms/cursor/README.md), cloud agents run no session lifecycle, and the port has
+  not had a live run. Project-level .cursor/hooks.json ships soft contributor guards
+  only, so the same rules are enforced again in CI. MCP comes from the generated platforms/cursor/mcp.json rather than the
   shared .mcp.json because Cursor treats every ${VAR} in a plugin MCP file as a plugin
   variable that must be declared under the manifest's `variables` schema; the Claude
   ${user_config.github_token} form is not a declarable name. GITHUB_TOKEN is the one

@@ -1,0 +1,19 @@
+{
+  "conversation_id": "conv-0123456789abcdef",
+  "generation_id": "gen-0001",
+  "model": "auto",
+  "model_id": "auto",
+  "hook_event_name": "preToolUse",
+  "cursor_version": "3.24.12",
+  "workspace_roots": [
+    "/workspace/project"
+  ],
+  "transcript_path": "/workspace/project/.cursor/transcripts/conv-0123456789abcdef.jsonl",
+  "tool_name": "Read",
+  "tool_use_id": "call-read-0001",
+  "cwd": "/workspace/project",
+  "tool_input": {
+    "file_path": "/workspace/project/README.md"
+  },
+  "agent_message": ""
+}

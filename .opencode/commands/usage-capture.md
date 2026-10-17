@@ -1,5 +1,6 @@
 ---
 description: 'Local Claude Code or OpenCode LLM requests should be recorded or inspected on this machine — daily JSONL usage logs, API body sidecars, latency bottlenecks.'
+subagent: false
 ---
 
 <!-- GENERATED FILE — DO NOT EDIT.

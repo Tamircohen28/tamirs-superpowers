@@ -149,10 +149,11 @@ judge "gemini notes name Gemini CLI"   yes "$(has "$(cat "$GEMINI_DIR/GEMINI.md"
 judge "cursor notes name Cursor"       yes "$(has "$(cat "$MDC")" 'Platform notes — Cursor')"
 judge "opencode notes name OpenCode"   yes "$(has "$(cat "$OPENCODE_DIR/AGENTS.md")" 'Platform notes — OpenCode')"
 
-# OpenCode records hooks as unsupported; that has to reach the rendered file
-# rather than being silently dropped.
-judge "opencode records that hooks are unsupported" yes \
-  "$(has "$(cat "$OPENCODE_DIR/AGENTS.md")" '`hooks` — unsupported')"
+# OpenCode records hooks as `adapter` (no shell hook runs; the three core guards are the
+# OpenCode 2 server plugin under platforms/opencode/plugin/); that has to reach the
+# rendered file rather than being silently dropped or rendered as the old `unsupported`.
+judge "opencode records that hooks run through the plugin adapter" yes \
+  "$(has "$(cat "$OPENCODE_DIR/AGENTS.md")" '`hooks` — adapter')"
 
 # ---------------------------------------------------------------------------
 section "idempotence — a second apply changes nothing"

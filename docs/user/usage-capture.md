@@ -47,9 +47,10 @@ The SessionStart hook starts the collector only when `TAMIRS_USAGE_CAPTURE=1`.
 ## OpenCode CLI
 
 Lifecycle guards still do not run. For metrics, add an **absolute** path to
-`skills/toolkit/usage-capture/opencode-plugin.mjs` in *your* OpenCode `plugin` list — not
-in this repo's `opencode.json`. Start the same collector, then restart OpenCode. This path
-is documented as **partial** until a live 1.18.x fire is recorded.
+`skills/toolkit/usage-capture/opencode-plugin.mjs` in *your* OpenCode 2 `plugins` list — not
+in this repo's `opencode.json`. Start the same collector, then restart OpenCode. The module is
+an OpenCode 2 `Plugin.define` plugin (OpenCode 1 does not run it); this path is documented as
+**partial** until a live fire of its event subscription is recorded.
 
 For LiteLLM metadata in OpenCode, export the same opaque labels before starting it:
 

@@ -11,5 +11,13 @@
       ],
       "cwd": "${extensionPath}"
     }
-  }
+  },
+  "settings": [
+    {
+      "name": "GITHUB_PERSONAL_ACCESS_TOKEN",
+      "description": "GitHub personal access token (repo scope) for the bundled github MCP server. Stored in the system keychain and handed to scripts/github-mcp.sh as GITHUB_PERSONAL_ACCESS_TOKEN; nothing else in the extension reads it. Leave it empty to keep the server off - it refuses to start without one.",
+      "envVar": "GITHUB_PERSONAL_ACCESS_TOKEN",
+      "sensitive": true
+    }
+  ]
 }

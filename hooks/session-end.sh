@@ -2,15 +2,23 @@
 set -euo pipefail
 
 # SessionEnd — archive session files and prune stale worktrees.
+#
+# On Cursor (platforms/cursor/hooks.json, event sessionEnd) the session key falls
+# back to conversation_id, matching session-init.sh, and stdout stays EMPTY:
+# Cursor documents no output for sessionEnd, and {"suppressOutput": true} is a
+# Claude field. The detached work below is identical on both hosts.
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=lib/worktree-common.sh
 source "${SCRIPT_DIR}/lib/worktree-common.sh"
 # shellcheck source=lib/hook-output.sh
 source "${SCRIPT_DIR}/lib/hook-output.sh"
+# shellcheck source=lib/cursor-output.sh
+source "${SCRIPT_DIR}/lib/cursor-output.sh"
 
 input="$(hook_read_stdin)"
-session_id="$(echo "$input" | jq -r '.session_id // empty')"
+hook_detect_platform "$input"
+session_id="$(echo "$input" | jq -r '.session_id // .conversation_id // empty')"
 
 # Archive session files to persistent store
 state="$(load_session_state "$session_id")"
@@ -36,4 +44,5 @@ session_slug="$(echo "$state" | jq -r '.session_slug // empty')"
 ) </dev/null >/dev/null 2>&1 &
 disown 2>/dev/null || true
 
+[[ "${HOOK_PLATFORM:-claude}" == "cursor" ]] && cursor_silent
 echo '{"suppressOutput": true}'

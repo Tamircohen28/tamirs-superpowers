@@ -1,5 +1,6 @@
 ---
 description: 'The user asks what they are spending on Claude or where the tokens went.'
+subagent: false
 ---
 
 <!-- GENERATED FILE — DO NOT EDIT.

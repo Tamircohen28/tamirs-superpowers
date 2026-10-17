@@ -31,7 +31,7 @@ mkobj(){ local d="$1"; mkdir -p "$d/.dev-files/objectives/auth-system/handoffs";
 echo "--- silent outside orchestration ---"
 P="$TMPROOT/plain"; mkdir -p "$P"; git -C "$P" init -q
 out="$(run "$P")"
-printf '%s' "$out" | jq -e '.suppressOutput == true' >/dev/null 2>&1 \
+printf '%s' "$out" | jq -e '. == {} or .suppressOutput == true' >/dev/null 2>&1 \
   && ok "no objective => silent" || bad "no objective => silent" "got: $out"
 
 echo "--- a missing handoff is surfaced ---"
@@ -52,7 +52,7 @@ echo "--- evidence decides, not status alone ---"
 HD="$O/.dev-files/objectives/auth-system/handoffs"
 echo '{"status":"completed","validation":[{"cmd":"npm test","result":"pass"}]}' > "$HD/task-001.json"
 out="$(run "$O")"
-printf '%s' "$out" | jq -e '.suppressOutput == true' >/dev/null 2>&1 \
+printf '%s' "$out" | jq -e '. == {} or .suppressOutput == true' >/dev/null 2>&1 \
   && ok "completed WITH validation => silent" || bad "completed WITH validation => silent" "got: $out"
 
 echo '{"status":"completed","validation":[]}' > "$HD/task-002.json"
@@ -62,7 +62,7 @@ case "$m" in *task-002*) ok "flags completed with empty validation" ;; *) bad "f
 for st in partial failed blocked; do
   echo "{\"status\":\"$st\",\"validation\":[]}" > "$HD/task-002.json"
   out="$(run "$O")"
-  if printf '%s' "$out" | jq -e '.suppressOutput == true' >/dev/null 2>&1; then
+  if printf '%s' "$out" | jq -e '. == {} or .suppressOutput == true' >/dev/null 2>&1; then
     ok "'$st' with no validation is NOT flagged (honest reporting)"
   else
     bad "'$st' with no validation is NOT flagged" "got: $(ctx "$out")"

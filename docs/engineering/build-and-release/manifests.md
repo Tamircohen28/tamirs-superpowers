@@ -5,9 +5,9 @@ Six per-host manifests and one per-host hooks file are **generated**. Nobody edi
 
 | Generated file | Read by | Generator |
 |---|---|---|
-| `plugin.json` | Codex ≥ 0.147, Cursor, GitHub Copilot CLI, Kiro (Agent Plugins 1.0) | `scripts/build-manifests.sh` |
-| `mcp.json` | the same hosts, through `plugin.json` | `scripts/build-manifests.sh` |
-| `.codex-plugin/plugin.json` | Codex < 0.147, and any Codex when `extensions.com.openai` is absent | `scripts/build-manifests.sh` |
+| `platforms/agent-plugins/plugin.json` | Agent Plugins 1.0 clients (Copilot CLI, Kiro, VS Code, Cursor, Codex ≥ 0.147) — placed at the ROOT of the `agent-plugins` release tarball by `build-dist.sh`, never at the repository root (see below) | `scripts/build-manifests.sh` |
+| `platforms/agent-plugins/mcp.json` | the same hosts, through that manifest | `scripts/build-manifests.sh` |
+| `.codex-plugin/plugin.json` | Codex — the one Codex route this repository ships | `scripts/build-manifests.sh` |
 | `.cursor-plugin/plugin.json` | Cursor (preferred over the root manifest when both exist) | `scripts/build-manifests.sh` |
 | `platforms/cursor/mcp.json` | Cursor, through `.cursor-plugin/plugin.json` `mcpServers` | `scripts/build-manifests.sh` |
 | `gemini-extension.json` | Gemini CLI | `scripts/build-manifests.sh` |
@@ -72,7 +72,20 @@ spec's own constraints before writing: the name pattern, `author` limited to
 `name`/`email`/`url` (Codex's parser rejects any other key there), and no top-level key
 outside the spec, since a conformant client *reports and ignores* one.
 
-Skills and MCP are not named in the root manifest at all. The spec discovers skills as
+### Why the Agent Plugins manifest is not at the repository root
+
+Measured on codex-cli 0.163.0 (2026-10-17; the provenance is in
+`tests/hooks/test-codex-contract.sh` and `docs/user/install/codex.md`): when a plugin
+carries a root Agent Plugins `plugin.json`, Codex's loader empties the plugin's hook
+sources before any hooks path is read — the overlay's `hooks`,
+`extensions.com.openai.hooks`, or both — and `codex doctor` reports no MCP servers
+either. A repository with that file at its root therefore ships **zero hooks** to a Codex
+that installs it from the marketplace. So the manifest is generated under
+`platforms/agent-plugins/` and moved to the root of the `agent-plugins` distribution only;
+the repository root carries none, `scripts/check-dist.sh --target codex` refuses one, and
+`tests/test-dist.sh` plants one to prove it.
+
+Skills and MCP are not named in the Agent Plugins manifest at all. The spec discovers skills as
 the immediate children of `skills/` and reads MCP from the root `mcp.json`; Codex's
 Agent Plugins parser hard-codes exactly those two locations and reads no `skills` or
 `mcpServers` key from the root or from the extension. **Open question, recorded rather

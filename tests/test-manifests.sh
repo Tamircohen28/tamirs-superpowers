@@ -12,6 +12,7 @@
 #   and asserts the check or the build names it. Probes are shell functions, not strings,
 #   so nothing here is passed through eval.
 
+# shellcheck disable=SC2015,SC2016  # `test && ok || bad` is the intended shape; the python one-liners are literal
 set -uo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 BM="$ROOT/scripts/build-manifests.sh"
@@ -40,7 +41,7 @@ for s in "$BM" "$BC"; do
 done
 
 echo "--- the root Agent Plugins manifest ---"
-P="$ROOT/plugin.json"
+P="$ROOT/platforms/agent-plugins/plugin.json"
 if jq empty "$P" 2>/dev/null; then ok "plugin.json parses"; else bad "plugin.json parses" "invalid JSON"; fi
 [ "$(jq -r '."$schema" // empty' "$P")" = "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json" ] && ok "plugin.json carries the 1.0.0 \$schema" || bad "plugin.json \$schema" "$(jq -r '."$schema"' "$P")"
 [ "$(jq -r '.name // empty' "$P")" = "$(jq -r .name "$ROOT/.claude-plugin/plugin.json")" ] && ok "plugin.json name matches the Claude manifest" || bad "plugin.json name" "$(jq -r .name "$P")"
@@ -63,7 +64,7 @@ else
   jq -e 'has("extensions") | not' "$P" >/dev/null 2>&1 && ok "emit_codex_extension is off: the root manifest carries no extensions key, so Codex reads .codex-plugin/plugin.json" || bad "emit_codex_extension is off but the root manifest carries extensions" "$(jq -c .extensions "$P")"
   jq -e '.agent_plugins.emit_codex_extension_note | length > 0' "$ROOT/platforms/manifests.source.json" >/dev/null 2>&1 && ok "the overlay says why the switch is off" || bad "the overlay's emit_codex_extension_note is missing" ""
 fi
-grep -q '"$schema"' "$ROOT/plugin.json" && ! grep -q '"$schema"' "$ROOT/.claude-plugin/plugin.json" && ok "the Claude manifest still carries no \$schema (the directory holds one)" || bad "the Claude manifest carries a \$schema" "check-claude-dist rejects it"
+grep -q '"$schema"' "$ROOT/platforms/agent-plugins/plugin.json" && ! grep -q '"$schema"' "$ROOT/.claude-plugin/plugin.json" && ok "the Claude manifest still carries no \$schema (the directory holds one)" || bad "the Claude manifest carries a \$schema" "check-claude-dist rejects it"
 
 echo "--- the Codex overlay (pre-0.147 fallback) ---"
 C="$ROOT/.codex-plugin/plugin.json"
@@ -76,7 +77,7 @@ fi
 [ "$(jq -c '.skills' "$C")" = "$(jq -c '.skills' "$ROOT/.claude-plugin/plugin.json")" ] && ok "overlay skills list is the canonical one" || bad "overlay skills list" "differs from the Claude manifest"
 
 echo "--- the root MCP file ---"
-M="$ROOT/mcp.json"
+M="$ROOT/platforms/agent-plugins/mcp.json"
 if jq empty "$M" 2>/dev/null; then ok "mcp.json parses"; else bad "mcp.json parses" "invalid JSON"; fi
 [ "$(jq -r '."$schema" // empty' "$M")" = "https://agent-plugins.org/schemas/1.0.0/mcp.schema.json" ] && ok "mcp.json carries the 1.0.0 mcp \$schema" || bad "mcp.json \$schema" "$(jq -r '."$schema"' "$M")"
 unknown="$(jq -r 'keys[] | select(. != "$schema" and . != "mcpServers")' "$M")"
@@ -84,7 +85,7 @@ unknown="$(jq -r 'keys[] | select(. != "$schema" and . != "mcpServers")' "$M")"
 [ "$(jq -r '.mcpServers.github.type // empty' "$M")" = "stdio" ] && ok "mcp.json github server is stdio" || bad "mcp.json github server type" "$(jq -r '.mcpServers.github.type' "$M")"
 cmd="$(jq -r '.mcpServers.github.command // empty' "$M")"
 case "$cmd" in
-  ./*) [ -x "$ROOT/${cmd#./}" ] && ok "mcp.json command $cmd is an executable in the tree" || bad "mcp.json command" "$cmd is not executable" ;;
+  ./*) [ -x "$ROOT/${cmd#./}" ] && ok "mcp.json command $cmd is an executable in the tree (resolved from the distribution root, where the file is placed)" || bad "mcp.json command" "$cmd is not executable" ;;
   *) bad "mcp.json command is a ./-relative single token" "$cmd" ;;
 esac
 bad_ph="$(jq -r '.mcpServers[] | [.args[]?, (.env // {} | .[]), (.cwd // "")] | .[]' "$M" | grep -oE '\$\{[^}]*\}' | grep -vE '^\$\{(PLUGIN_ROOT|PLUGIN_DATA)\}$' || true)"
@@ -137,9 +138,10 @@ while IFS= read -r script; do [ -f "$ROOT/$script" ] || missing="$missing $scrip
 # generated files. Skill, rule, command and agent directories only need to exist.
 mkfix() {
   local F="$T/fix-$RANDOM"
-  mkdir -p "$F/.claude-plugin" "$F/.codex-plugin" "$F/.cursor-plugin" "$F/.cursor/rules" "$F/.cursor/commands" "$F/agents" "$F/scripts" "$F/platforms/cursor" "$F/platforms/codex"
+  mkdir -p "$F/.claude-plugin" "$F/.codex-plugin" "$F/.cursor-plugin" "$F/.cursor/rules" "$F/.cursor/commands" "$F/agents" "$F/scripts" "$F/platforms/cursor" "$F/platforms/codex" "$F/platforms/agent-plugins"
   cp "$ROOT/.claude-plugin/plugin.json" "$F/.claude-plugin/"
-  cp "$ROOT/plugin-version.json" "$ROOT/.mcp.json" "$ROOT/plugin.json" "$ROOT/mcp.json" "$ROOT/gemini-extension.json" "$F/"
+  cp "$ROOT/plugin-version.json" "$ROOT/.mcp.json" "$ROOT/gemini-extension.json" "$F/"
+  cp "$ROOT/platforms/agent-plugins/plugin.json" "$ROOT/platforms/agent-plugins/mcp.json" "$F/platforms/agent-plugins/"
   cp "$ROOT/.codex-plugin/plugin.json" "$F/.codex-plugin/"
   cp "$ROOT/.cursor-plugin/plugin.json" "$F/.cursor-plugin/"
   cp "$ROOT/platforms/manifests.source.json" "$F/platforms/"
@@ -187,10 +189,10 @@ probe_source() {
 # JSON edits run through python3 -c with the file as argv, never through eval.
 jedit() { python3 -c "$2" "$1"; }
 
-m_root_description() { jedit plugin.json 'import json,sys; p=sys.argv[1]; d=json.load(open(p)); d["description"]="edited by hand"; json.dump(d,open(p,"w"),indent=2)'; }
+m_root_description() { jedit platforms/agent-plugins/plugin.json 'import json,sys; p=sys.argv[1]; d=json.load(open(p)); d["description"]="edited by hand"; json.dump(d,open(p,"w"),indent=2)'; }
 m_cursor_extra_key() { jedit .cursor-plugin/plugin.json 'import json,sys; p=sys.argv[1]; d=json.load(open(p)); d["displayName"]="x"; json.dump(d,open(p,"w"),indent=2)'; }
 m_codex_old_hooks() { jedit .codex-plugin/plugin.json 'import json,sys; p=sys.argv[1]; d=json.load(open(p)); d["hooks"]="./hooks/hooks.json"; json.dump(d,open(p,"w"),indent=2)'; }
-m_missing_mcp() { rm -f mcp.json; }
+m_missing_mcp() { rm -f platforms/agent-plugins/mcp.json; }
 m_version_bump_unsynced() { jedit plugin-version.json 'import json,sys; p=sys.argv[1]; d=json.load(open(p)); d["version"]="99.0.0"; json.dump(d,open(p,"w"),indent=2)'; }
 m_undeclared_var() { jedit platforms/manifests.source.json 'import json,sys; p=sys.argv[1]; d=json.load(open(p)); d["cursor"]["mcpServers"]["github"]["env"]["EXTRA"]="${UNDECLARED_THING}"; json.dump(d,open(p,"w"),indent=2)'; }
 m_var_with_default() { jedit platforms/manifests.source.json 'import json,sys; p=sys.argv[1]; d=json.load(open(p)); d["cursor"]["manifest"]["variables"]["properties"]["GITHUB_TOKEN"]["default"]="x"; json.dump(d,open(p,"w"),indent=2)'; }
@@ -205,11 +207,11 @@ m_hooks_missing_script() { jedit hooks/hooks.json 'import json,sys; p=sys.argv[1
 m_hooks_unknown_event() { jedit hooks/hooks.json 'import json,sys; p=sys.argv[1]; d=json.load(open(p)); d["hooks"]["PreModelSwitch"]=[{"hooks":[{"type":"command","command":"bash \"${CLAUDE_PLUGIN_ROOT}\"/hooks/notify.sh"}]}]; json.dump(d,open(p,"w"),indent=2)'; }
 
 echo "--- a planted drift makes --check fail and name the regenerate command ---"
-probe_check "root plugin.json edited by hand" "$BM" "DRIFT: plugin.json" m_root_description
+probe_check "root plugin.json edited by hand" "$BM" "DRIFT: platforms/agent-plugins/plugin.json" m_root_description
 probe_check "a key added by hand to .cursor-plugin/plugin.json" "$BM" "DRIFT: .cursor-plugin/plugin.json" m_cursor_extra_key
 probe_check ".codex-plugin/plugin.json pointed back at the Claude hooks file" "$BM" "DRIFT: .codex-plugin/plugin.json" m_codex_old_hooks
-probe_check "root mcp.json deleted" "$BM" "DRIFT: mcp.json is missing" m_missing_mcp
-probe_check "plugin-version.json bumped without regenerating" "$BM" "DRIFT: plugin.json" m_version_bump_unsynced
+probe_check "root mcp.json deleted" "$BM" "DRIFT: platforms/agent-plugins/mcp.json is missing" m_missing_mcp
+probe_check "plugin-version.json bumped without regenerating" "$BM" "DRIFT: platforms/agent-plugins/plugin.json" m_version_bump_unsynced
 probe_check "a modules key planted in the Codex hooks file" "$BC" "DRIFT: platforms/codex/hooks.json" m_hooks_modules
 probe_check "onFailure planted in the Codex hooks file" "$BC" "DRIFT: platforms/codex/hooks.json" m_hooks_onfailure
 probe_check "a Notification event planted in the Codex hooks file" "$BC" "DRIFT: platforms/codex/hooks.json" m_hooks_notification
@@ -234,7 +236,7 @@ else
   bad "regenerate then --check passes on the fixture" "see $F"
 fi
 same=1
-for f in plugin.json mcp.json .codex-plugin/plugin.json .cursor-plugin/plugin.json platforms/cursor/mcp.json gemini-extension.json platforms/codex/hooks.json; do
+for f in platforms/agent-plugins/plugin.json platforms/agent-plugins/mcp.json .codex-plugin/plugin.json .cursor-plugin/plugin.json platforms/cursor/mcp.json gemini-extension.json platforms/codex/hooks.json; do
   cmp -s "$F/$f" "$ROOT/$f" || { bad "fixture regeneration reproduces $f byte for byte" "differs"; same=0; }
 done
 [ "$same" = 1 ] && ok "fixture regeneration reproduces every generated file byte for byte"

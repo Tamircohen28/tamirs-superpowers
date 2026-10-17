@@ -1,0 +1,21 @@
+{
+  "conversation_id": "conv-0123456789abcdef",
+  "generation_id": "gen-0001",
+  "model": "auto",
+  "model_id": "auto",
+  "hook_event_name": "postToolUseFailure",
+  "cursor_version": "3.24.12",
+  "workspace_roots": [
+    "/workspace/project"
+  ],
+  "transcript_path": "/workspace/project/.cursor/transcripts/conv-0123456789abcdef.jsonl",
+  "tool_name": "Shell",
+  "tool_use_id": "call-shell-0002",
+  "cwd": "/workspace/project",
+  "tool_input": {
+    "command": "make test"
+  },
+  "error_message": "exit status 2",
+  "failure_type": "error",
+  "is_interrupt": false
+}

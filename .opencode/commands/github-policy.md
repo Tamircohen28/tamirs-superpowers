@@ -1,5 +1,6 @@
 ---
 description: 'A repository''s branch protection, rulesets, required checks, or PR-run cancellation may not match the canonical policy — never set up, hand-configured, or a merge blocked or allowed unexpectedly.'
+subagent: false
 ---
 
 <!-- GENERATED FILE — DO NOT EDIT.

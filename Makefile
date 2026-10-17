@@ -1,3 +1,4 @@
+.PHONY: gemini-hooks gemini-hooks-check antigravity-plugin antigravity-plugin-check agents-skills agents-skills-check check-skills-ref check-token-budget test-skill-contract-strict
 .PHONY: help setup setup-plan capture install update uninstall validate lint test plugin-validate test-mods typecheck-mods test-repo-contract \
 	check-manifest-versions check-platform-equivalence check-agent-drift \
 	check-feature-equivalence check-platform-targets platform-targets-sync \
@@ -34,8 +35,10 @@ help:
 	@echo "  platform-targets-sync   — refresh latest_known in platform-targets.json (agents)"
 	@echo "  platform-targets-assert — fail if validated_against lags latest_known (agents)"
 	@echo "  platform-targets-cochange — CI: require platform-targets.json when repo skills change"
-	@echo "  opencode-agents         — regenerate .opencode/agent/*.md from agents/*.md"
-	@echo "  opencode-agents-check   — fail if .opencode/agent/ has drifted from agents/"
+	@echo "  opencode-agents         — regenerate .opencode/agents/*.md (OpenCode 2 permissions rules) from agents/*.md"
+	@echo "  opencode-agents-check   — fail if .opencode/agents/ has drifted from agents/ (or a stale .opencode/agent/ remains)"
+	@echo "  opencode-plugin-test    — unit-test the OpenCode 2 guard plugin's pure rules (node, no network)"
+	@echo "  opencode-plugin-check   — type-check the OpenCode 2 plugin against @opencode/plugin (npm, network)"
 	@echo "  opencode-commands       — regenerate .opencode/commands/*.md from skills/"
 	@echo "  opencode-commands-check — fail if .opencode/commands/ has drifted from skills/"
 	@echo "  cursor-commands         — regenerate .cursor/commands/*.md from skills/"
@@ -67,6 +70,12 @@ help:
 	@echo "  validate-roles          — canonical roles, agents, workflow schemas"
 	@echo "  check-gemini-adapter    — Gemini CLI extension adapter"
 	@echo "  gemini-extension        — regenerate the Gemini extension mirror"
+	@echo "  gemini-hooks[-check]    — regenerate (or assert) the Gemini hooks file and deny policies from hooks/hooks.json"
+	@echo "  antigravity-plugin[-check] — regenerate (or assert) the Antigravity plugin.json and mcp_config.json"
+	@echo "  agents-skills[-check]   — regenerate (or assert) the .agents/skills mirror (Antigravity, Agent Skills clients)"
+	@echo "  check-skills-ref        — hold every SKILL.md to the Agent Skills reference validator (npx skills-ref; skips offline)"
+	@echo "  check-token-budget      — measure the plugin's always-on token cost and hold it to evals/budget.json (needs the CLI)"
+	@echo "  test-skill-contract-strict — the skill contract with every warning promoted to a failure"
 	@echo "  bootstrap-dev           — contributor toolchain setup"
 	@echo "  test                    — alias for validate"
 
@@ -132,7 +141,8 @@ validate: lint test-hooks test-contract test-repo-contract check-manifest-versio
 	check-marketplace-schema check-doc-claims check-version-truth check-capability-registry \
 	validate-roles check-gemini-adapter gemini-extension-check check-github-policy check-branch-literals \
 	check-action-pinning check-manifest-declares check-platform-version-pins check-claude-dist check-dists \
-	manifests-check codex-hooks-check cursor-rules-check codex-agents-check
+	manifests-check codex-hooks-check cursor-rules-check codex-agents-check opencode-plugin-test \
+	gemini-hooks-check antigravity-plugin-check agents-skills-check check-skills-ref test-skill-contract-strict
 	@echo "--- Validating JSON files ---"
 	@find . -name '*.json' -not -path '*/.git/*' | while read f; do \
 	  jq empty "$$f" 2>&1 && echo "  OK  $$f" || { echo "  FAIL $$f"; exit 1; }; \
@@ -215,6 +225,33 @@ gemini-extension:
 gemini-extension-check:
 	@bash scripts/build-gemini-extension.sh . --check
 
+gemini-hooks:
+	@bash scripts/build-gemini-hooks.sh .
+
+gemini-hooks-check:
+	@bash scripts/build-gemini-hooks.sh . --check
+
+antigravity-plugin:
+	@bash scripts/build-antigravity-plugin.sh .
+
+antigravity-plugin-check:
+	@bash scripts/build-antigravity-plugin.sh . --check
+
+agents-skills:
+	@bash scripts/build-agents-skills.sh .
+
+agents-skills-check:
+	@bash scripts/build-agents-skills.sh . --check
+
+check-skills-ref:
+	@bash scripts/check-skills-ref.sh .
+
+check-token-budget:
+	@bash scripts/check-token-budget.sh .
+
+test-skill-contract-strict:
+	@bash tests/test-skill-contract.sh --strict
+
 platform-targets-sync:
 	@bash scripts/check-platform-targets.sh . --sync
 
@@ -245,7 +282,13 @@ cursor-commands-check:
 check-opencode-permission-keys:
 	@bash scripts/check-opencode-permission-keys.sh .
 
-agent\:check: check-agent-drift check-feature-equivalence check-platform-targets opencode-agents-check opencode-commands-check cursor-commands-check cursor-rules-check codex-agents-check codex-hooks-check manifests-check check-opencode-permission-keys
+opencode-plugin-test:
+	@node --test platforms/opencode/plugin/rules.test.mjs
+
+opencode-plugin-check:
+	@cd platforms/opencode/plugin && npm install --no-audit --no-fund --no-package-lock && npm run check
+
+agent\:check: check-agent-drift check-feature-equivalence check-platform-targets opencode-agents-check opencode-commands-check cursor-commands-check cursor-rules-check codex-agents-check codex-hooks-check manifests-check check-opencode-permission-keys opencode-plugin-test gemini-hooks-check antigravity-plugin-check agents-skills-check
 
 agent-polish-gate: platform-targets-sync platform-targets-assert agent\:check
 
@@ -345,12 +388,12 @@ check-claude-dist:
 check-dists:
 	@echo "--- Per-host distributions: build + host rules ---"
 	@tmp="$$(mktemp -d)"; trap 'rm -rf "$$tmp"' EXIT; \
-	  for t in codex cursor gemini opencode agent-plugins; do \
+	  for t in codex cursor gemini antigravity opencode agent-plugins; do \
 	    bash scripts/build-dist.sh "$$tmp/$$t" --target "$$t" --quiet && bash scripts/check-dist.sh "$$tmp/$$t" --target "$$t" || exit 1; \
 	  done
 
 build-dist:
-	@[ -n "$(TARGET)" ] || { echo "usage: make build-dist TARGET=<codex|cursor|gemini|opencode|agent-plugins|claude> [DIST=build/<target>]"; exit 2; }
+	@[ -n "$(TARGET)" ] || { echo "usage: make build-dist TARGET=<codex|cursor|gemini|antigravity|opencode|agent-plugins|claude> [DIST=build/<target>]"; exit 2; }
 	@bash scripts/build-dist.sh "$${DIST:-build/$(TARGET)}" --target "$(TARGET)" --force
 
 # The one-source manifests and the generated per-host adapters
