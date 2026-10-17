@@ -2,8 +2,9 @@
 
 Registry id: `cursor`. Validated against Cursor desktop **3.22.7** (feature changelog
 **3.11**, covered through date-only **2026-09-23**); that floor is the version this repo
-actually tested, not a guess. Desktop **3.23.12** (MCP allowlists / service tokens) was
-reviewed from the changelog only; no live run has validated it.
+actually tested, not a guess. Desktop **3.24.12** (hook `tool_use_id` / `parent_tool_call_id`
+correlation, auto-review risky-delete approval) was reviewed from the IDE release notes;
+no live run has validated it yet.
 
 ---
 
@@ -154,16 +155,21 @@ Cursor has neither, so `hooks/cursor-agent-tools-guard.sh` supplies it, wired to
 
 It cannot simply ask which agent is running. A subagent's tool calls carry no agent field, and its
 `conversation_id`, `generation_id` and `session_id` are **identical to the parent's**. What does
-carry the name is the `Task` call that starts it (`tool_input.subagent_type`), so the guard
-reconstructs the association from event **order**: push on `Task`, check against active frames, pop
-on `postToolUse`. With two subagents running it applies the **intersection** of their allowlists —
-stricter than either alone, which is the safe direction, since a refused call is visible and a
-permitted one is not.
+carry the name is the `Task` call that starts it (`tool_input.subagent_type`).
 
-**It is advisory, not a sandbox.** It infers "inside a subagent" from event sequence, raising the
-cost of an unlisted call without making one impossible, and a missed `postToolUse` fails safe
-(over-restrictive rather than unguarded). Treat these agents as **role prompts with a raised
-floor** — meaningfully better than prose alone, and still not an isolation boundary.
+**Desktop ≥ 3.22 / 3.24 (adopted):** Cursor now sends `tool_use_id` on the Task `preToolUse` and
+`parent_tool_call_id` on the subagent's own tool calls (the Task id). The guard keys frames on
+that id, so two concurrent subagents are attributed correctly — a Write allowed for `implementer`
+is no longer denied just because a read-only sibling is also running. Shell/MCP hooks also receive
+the same `tool_use_id` (3.24), and every hook gets `transcript_path` / `CURSOR_TRANSCRIPT_PATH`.
+
+**Fallback (older payloads):** when those ids are absent, the guard still reconstructs from event
+**order** — push on `Task`, check against active frames, pop on `postToolUse` — and under
+concurrency applies the **intersection** of allowlists (safer than guessing).
+
+**It is advisory, not a sandbox.** A missed `postToolUse` fails safe (over-restrictive rather than
+unguarded). Treat these agents as **role prompts with a raised floor** — meaningfully better than
+prose alone, and still not an isolation boundary.
 
 Tracked as [#179](https://github.com/Tamircohen28/tamirs-superpowers/issues/179); guard shipped in
 [#223](https://github.com/Tamircohen28/tamirs-superpowers/pull/223).
@@ -179,8 +185,8 @@ an event is wired because a guard needs it, not to fill in the table.
 | `preToolUse` | ✅ | ✅ | 5 guards: worktree edits, sensitive files, branch concurrency, skill-creator, agent `tools:` allowlist |
 | `beforeShellExecution` | ✅ | ✅ | `guard-sensitive-files.sh` — a shell command is a write path too |
 | `postToolUse` | — | ✅ | pops the agent-allowlist frame |
-| `subagentStart` | ✅ | ▲ | **Best available improvement.** Carries `subagent_type` *and* `subagent_id`, so the allowlist frame could be keyed on a real identifier instead of inferred from event order. Not yet wired: the push would need to de-duplicate against the existing `preToolUse Task` push (`subagentStart.tool_call_id` matches `preToolUse.tool_use_id`), and wiring it half-way risks a double push that never pops. |
-| `subagentStop` | — | ▲ | Fires on complete **, error, or abort** — a more reliable pop than `postToolUse Task`, and would fix the documented stuck-frame case. Blocked on the same de-duplication design: its payload carries `subagent_type` but no id, so popping must match by agent name. |
+| `subagentStart` | ✅ | ▲ | **Still the best remaining improvement.** Carries `subagent_type` *and* `subagent_id`. Id-keyed frames now land via Task `tool_use_id` + child `parent_tool_call_id` (desktop ≥ 3.22/3.24), so the original blocker (no real identifier) is gone for the common path — but wiring `subagentStart` still needs de-duplication against the Task push (`subagentStart.tool_call_id` matches `preToolUse.tool_use_id`) or a double push never pops. |
+| `subagentStop` | — | ▲ | Fires on complete **, error, or abort** — a more reliable pop than `postToolUse Task`, and would fix the documented stuck-frame case. Can now match the Task `tool_use_id` once `subagentStart` is wired; until then pop stays on `postToolUse Task`. |
 | `beforeMCPExecution` | ✅ | ❌ | `preToolUse` already fires for MCP tool calls, so wiring this too would double-judge the same call |
 | `beforeReadFile` · `beforeTabFileRead` | ✅ | ❌ | This plugin makes no guarantee about *reads*. Every read-only agent is supposed to read |
 | `beforeSubmitPrompt` | ✅ | ❌ | Claude's `UserPromptSubmit` peers (`skill-suggest.sh`, goal/scope reminders) inject context into a model turn; the port is real work, not a wiring change |
@@ -293,7 +299,8 @@ never adopt anything silently. `apply` shows a diff and asks per change, default
 | background tasks · structured questions · session transcripts | unknown | Not measured — treated as unavailable, with stated fallbacks |
 | statusline · artifacts · extension install | unsupported | Cosmetic, absent, and not a Cursor mechanism, respectively |
 
-### Working tips (3.11 → 2026-09-23; desktop CLI 3.22.7 validated, 3.23.12 reviewed; CLI 2026-08-26)
+### Working tips (3.11 → 2026-09-23; desktop CLI 3.22.7 validated, 3.24.12 reviewed; CLI 2026-08-26)
+- **Desktop 3.24.12 (2026-10-10/11 stable):** IDE notes add **hook `tool_use_id`** correlation (shell/MCP hooks match `preToolUse`) and always-on **`transcript_path` / `CURSOR_TRANSCRIPT_PATH`** — this plugin's `cursor-agent-tools-guard.sh` now keys subagent allowlists on Task `tool_use_id` + child `parent_tool_call_id`. **Auto-review** asks before risky recursive/force/wildcard/mirror deletes whose targets could resolve differently than written. Cloud agents recognize **OOM kills** (memory limit reported). MCP OAuth can complete via a **Cursor-hosted callback** when local redirect URLs are rejected. Large worktree cleanups can OOM the main process — if heap climbs after launch, set `"cursor.worktreesGlobalMaxSizeGb": 0` and `"cursor.worktreeCleanupIntervalHours": 500` (Cursor staff workaround, forum 2026-10-11).
 - **Desktop 3.23.12 (2026-10-01):** team/org **MCP allowlists** — keep the bundled `github` MCP (and any Team MCP) on the org allowlist after upgrade; Origin MCP endpoint is `api.origin.cursor.com/mcp`. Prefer **service tokens** for Automations that install/update this plugin. **Required** team-marketplace plugins removed — install modes are Default Off / Default On + groups only.
 - **Security Review + Rollouts (2026-09-23):** Teams/Enterprise bots from [Automations](https://cursor.com/automations) ([Security Agents docs](https://cursor.com/docs/security-agents)). Security Review posts exploitable-bug findings on ready PRs (drafts skipped; Bugbot keeps style). Run Cursor's `/review-security` or `/review` before push — complements this plugin's `security-reviewer` agent (in-session role) rather than replacing it. **Rollouts** monitors deploy health per environment after merge; optional for this public plugin (no product deploy). [Changelog](https://cursor.com/changelog/rollouts-and-security-reviewer).
 - **Projects (2026-09-10)** — Cursor **Projects** (left nav) suit multi-week / multi-agent work. A **coordinator** plans and delegates (does not write code); **shared context** files sync across cloud and local agents; **subscriptions** can watch Slack, schedules, or all PRs. Use a Project when validating this plugin across a long refactor or multi-PR initiative; keep ordinary `/diagnose-refusal` / one-shot skill runs in a normal Agent chat. Projects compose with (do not replace) Cloud Agents, Custom Modes, and Self-Hosted Machines ([changelog](https://cursor.com/changelog)).
