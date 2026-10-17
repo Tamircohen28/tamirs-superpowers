@@ -952,7 +952,7 @@
           "display_name": "Antigravity CLI",
           "kind": "cli",
           "support": "unverified",
-          "unverified_reason": "Google retired Gemini CLI for consumer tiers on 2026-06-18 in favour of Antigravity CLI (`agy`), a closed-source successor with its own plugin format: a folder with a required closed-schema plugin.json, optional mcp_config.json, hooks.json, skills/<name>/SKILL.md, agents/<name>.md and rules/<name>.md, installed with `agy plugin install` or imported from a Gemini extension with `agy plugin import gemini`. Google states skills, hooks, subagents and extensions carry over at launch without 1:1 parity, and one third-party source claims hooks load but do not fire; neither was measured here. The gemini_cli surface stays supported for enterprise Code Assist and paid API-key users. No capability is claimed until a live `agy` run records one.",
+          "unverified_reason": "Google retired Gemini CLI for consumer tiers on 2026-06-18 in favour of Antigravity CLI (`agy`), a closed-source successor with its own plugin format: a folder with a required closed-schema plugin.json, optional mcp_config.json, hooks.json, skills/<name>/SKILL.md, agents/<name>.md and rules/<name>.md, installed with `agy plugin install` or imported from a Gemini extension with `agy plugin import gemini`. Google states skills, hooks, subagents and extensions carry over at launch without 1:1 parity, and one third-party source claims hooks load but do not fire; neither was measured here. The gemini_cli surface stays supported for enterprise Code Assist and paid API-key users. No capability is claimed until a live `agy` run records one. The route documented, not measured: `agy plugin import gemini` from an installed Gemini extension, or `agy plugin install` on the folder scripts/build-dist.sh --target antigravity writes (docs/user/install/antigravity.md). The validation command is static only: the generated plugin.json and mcp_config.json are held to the documented closed schema and the antigravity distribution to its layout; every coarse key in platforms/antigravity/adapter.yaml stays unknown until a live agy run records one.",
           "aliases": [
             "agy",
             "antigravity",
@@ -962,14 +962,9 @@
             "https://antigravity.google/docs/plugins/",
             "https://antigravity.google/docs/cli/gcli-migration"
           ],
-          "install": {
-            "type": "path",
-            "command": "agy plugin import gemini (from an installed Gemini extension) or agy plugin install <folder built by scripts/build-dist.sh --target antigravity>",
-            "doc": "docs/user/install/antigravity.md"
-          },
           "validation": {
             "command": "bash scripts/build-antigravity-plugin.sh . --check && bash tests/test-antigravity-adapter.sh",
-            "notes": "Static only: the generated plugin.json and mcp_config.json are held to the documented closed schema and the antigravity distribution to its layout. No live agy run has recorded anything; every coarse key in platforms/antigravity/adapter.yaml is unknown and the surface stays unverified until one does."
+            "requires_cli": false
           }
         }
       }
