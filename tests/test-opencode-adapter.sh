@@ -370,8 +370,15 @@ fi
 
 echo "--- live OpenCode CLI (optional) ---"
 
-if command -v opencode >/dev/null 2>&1; then
-  ver="$(opencode --version 2>/dev/null | head -1)"
+ver=""
+command -v opencode >/dev/null 2>&1 && ver="$(opencode --version 2>/dev/null | head -1)"
+if [ -n "$ver" ] && [ "${ver%%.*}" -lt 2 ] 2>/dev/null; then
+  # The adapter targets OpenCode 2. A 1.x CLI has no `debug agents` (it has
+  # `debug agent <name>` and prints help on stdout's behalf), so the live probe
+  # below would report an empty listing as a failure. That is an unsupported
+  # CLI, not a broken adapter: skip it the way an absent CLI is skipped.
+  printf '  skip opencode %s is pre-2.x — the live probe needs OpenCode 2 (debug agents); upgrade to measure it\n' "$ver"
+elif command -v opencode >/dev/null 2>&1; then
   printf '  ..   opencode %s detected\n' "$ver"
 
   # OpenCode 2 removed `debug skill` and the per-agent `debug agent <name>`; its
