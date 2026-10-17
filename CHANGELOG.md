@@ -198,20 +198,21 @@ setting; the Agent Plugins manifest lives under `platforms/agent-plugins/`, neve
 
 #### Added
 
-- **The mod uses the 2.1.288–2.1.302 API** (`mod/register.tsx`, now 18 hooks, split into
+- **The mod uses the 2.1.288–2.1.302 API** (`mod/register.tsx`, now 17 hooks, split into
   `register.tsx` for every hook and `$` call plus pure `objective.ts`, `usage.ts`, `skills.ts`,
-  `compat.ts`): `prompt.autocomplete` offers the 26 public skills, `/objective` and
-  `/switch-dev handoff` as the person types `/`; `skill.prompt` appends the live objective id,
+  `compat.ts`): `skill.prompt` appends the live objective id,
   worktree and open-task count when a dev-workflow skill of this plugin expands under an active
   objective; an `objective_status` tool (registered upfront, not deferred) answers the model with
-  the objective as JSON; the objective pane shows each task's agent status from `$.agent.list()`
-  with a view button that opens that worker's transcript (`$.ui.view`, 2.1.300+); the rate-limit
+  the objective as JSON; the objective pane shows each task's agent status from `$.agent.list()`; the rate-limit
   band also raises a native notification once per crossing (`$.ui.notify`, 2.1.295+);
   `classic.SessionStart` on clear/resume/fork reloads the pane and the dismissal, which `/clear`
   used to blank; `$.store` keeps the skill-suggest "seen" set and the rate-limit dismissal across
   sessions; every drawing is mounted on terminal, desktop and the VS Code chat panel (2.1.299+),
-  typography gated on `$.session.version()`. 40 mod tests (was 22); every gating hook has
+  typography gated on `$.session.version()`. 38 mod tests (was 22); every gating hook has
   `.catch`; still no process, no network, no prompt submission, no permission answer.
+  Typeahead rows on `prompt.autocomplete` (2.1.292) and a `[ view ]` button on `$.ui.view`
+  (2.1.300) were withdrawn before the directory listing: the plugin directory's list of mod
+  events and calls predates both, and it blocks a mod that hooks an event it does not know.
 - **`tamirs-superpowers-guard`**, a second plugin in the in-repo marketplace
   (`plugins/guard`, `/plugin install tamirs-superpowers-guard --marketplace
   Tamircohen28/tamirs-superpowers`): an in-process hold on destructive shell commands (force

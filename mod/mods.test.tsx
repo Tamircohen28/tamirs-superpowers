@@ -10,9 +10,9 @@ import { expect, mock, test } from 'claude-code/testing'
 import type { Engine } from 'claude-code/testing'
 import type { On } from 'claude-code'
 
-import { atLeast, hasAgentView, hasNotify, hasTypography, strongText } from './compat'
+import { atLeast, hasNotify, hasTypography, strongText } from './compat'
 import { agentsByTask, objectiveSummaryJson, openTaskCount } from './objective'
-import { AUTOCOMPLETE_ROWS, PUBLIC_SKILLS, SKILL_DESCRIPTIONS, autocompleteRows } from './skills'
+import { PUBLIC_SKILLS, SKILL_DESCRIPTIONS } from './skills'
 
 const PLUGIN = 'tamirs-superpowers'
 const SURFACES = ['terminal', 'desktop', 'vscode'] as const
@@ -161,7 +161,6 @@ function stubEngine(on: On, disk: Record<string, string>, world: World = {}): Ca
   })
   on('model.classify', () => ({ value: 'pr-dev' }))
   on('skill.prompt', ($, e) => ({ text: e.text }))
-  on('prompt.autocomplete', () => ({ suggestions: [] }))
   on('classic.SessionStart', () => ({}))
   // The engine's own drawing where the mod passes a site through.
   on('ui.render', ($, e) => {
@@ -297,36 +296,25 @@ test('the objective pane draws every task on the terminal, the desktop and VS Co
     expect(await ui.find({ type: 'Text', text: /Ship the thing/ })).toBeDefined()
     expect(await ui.find({ type: 'Text', text: 'task-002' })).toBeDefined()
     expect(await ui.find({ type: 'Text', text: /1\/2 tasks done/ })).toBeDefined()
-    // No worker is listed: no agent status and no view button on any row.
+    // The pane offers no button on any row.
     expect(await ui.find({ type: 'Button' })).toBeUndefined()
     await ui.unmount()
   }
 })
 
-test('a task its worker agent is on shows the agent status and a view button that opens its transcript', async ($, on) => {
+// The directory's list of calls predates `$.ui.view` (2.1.300), so the pane shows a
+// worker's status and opens nothing: no view button, no `$.ui.view` call.
+test('a task its worker agent is on shows the agent status and offers no view button', async ($, on) => {
   const calls = stubEngine(on, fakeDisk(), { agents: [WORKER] })
   mock.clock(on)
   await start($)
   for (const surface of SURFACES) {
     const ui = await $.ui.mount({ plugin: PLUGIN, surface, ...PANE })
     expect(await ui.find({ type: 'Text', text: /agent running/ })).toBeDefined()
-    const button = await ui.find({ key: 'view:task-002' })
-    expect(button?.type).toBe('Button')
-    expect(await ui.find({ key: 'view:task-001' })).toBeUndefined()
-    await ui.press({ key: 'view:task-002' })
+    expect(await ui.find({ key: 'view:task-002' })).toBeUndefined()
+    expect(await ui.find({ type: 'Button' })).toBeUndefined()
     await ui.unmount()
   }
-  expect(calls.views).toEqual(['agent-1', 'agent-1', 'agent-1'])
-})
-
-test('on a host before 2.1.300 the pane shows the agent status but offers no view button', async ($, on) => {
-  const calls = stubEngine(on, fakeDisk(), { agents: [WORKER], version: '2.1.292' })
-  mock.clock(on)
-  await start($)
-  const ui = await $.ui.mount({ plugin: PLUGIN, surface: 'terminal', ...PANE })
-  expect(await ui.find({ type: 'Text', text: /agent running/ })).toBeDefined()
-  expect(await ui.find({ key: 'view:task-002' })).toBeUndefined()
-  await ui.unmount()
   expect(calls.views).toHaveLength(0)
 })
 
@@ -379,8 +367,6 @@ test('version gates read a release version and treat an unknown one as older', (
   expect(hasTypography('2.1.299')).toBe(true)
   expect(hasNotify('2.1.294')).toBe(false)
   expect(hasNotify('2.1.295')).toBe(true)
-  expect(hasAgentView('2.1.299')).toBe(false)
-  expect(hasAgentView('2.1.300')).toBe(true)
   expect(strongText('nonsense')).toEqual({ bold: true })
 })
 
@@ -657,42 +643,15 @@ test('spawning a worker adds it to the spinner on every surface until its turn c
 
 // ------------------------------------------------------------ 2.1.292+ API
 
-test('typeahead rows cover the 27 public skills, /objective and /switch-dev handoff, each with a short description', () => {
+test('the skill table covers the 27 public skills, each with a short description', () => {
   expect(PUBLIC_SKILLS).toHaveLength(27)
   for (const internal of ['changelog-review', 'docs-review', 'mcp-pagination']) expect(PUBLIC_SKILLS).not.toContain(internal)
-  expect(AUTOCOMPLETE_ROWS).toHaveLength(29)
-  for (const row of AUTOCOMPLETE_ROWS) {
-    expect(row.text.startsWith('/')).toBe(true)
-    expect(row.description.length).toBeGreaterThan(0)
-    expect(row.description.length).toBeLessThan(80)
+  for (const name of PUBLIC_SKILLS) {
+    const description = SKILL_DESCRIPTIONS[name] ?? ''
+    expect(description.length).toBeGreaterThan(0)
+    expect(description.length).toBeLessThan(80)
   }
   expect(Object.keys(SKILL_DESCRIPTIONS)).toContain('switch-dev')
-  // A bare slash offers everything; a prefix narrows; another lead character offers nothing.
-  expect(autocompleteRows('/')).toHaveLength(29)
-  expect(autocompleteRows('/sw').map(r => r.text)).toEqual(['/switch-dev', '/switch-dev handoff'])
-  expect(autocompleteRows('/OBJ').map(r => r.text)).toEqual(['/objective'])
-  expect(autocompleteRows('#12')).toHaveLength(0)
-})
-
-test('prompt.autocomplete answers the public skill rows for a leading slash and nothing otherwise', async ($, on) => {
-  stubEngine(on, fakeDisk())
-  mock.clock(on)
-  await start($)
-  // The 2.1.302 kit's `$.prompt.autocomplete` exists at run time (its `prompt` noun
-  // offers submit, fill, edit, change, autocomplete, suggest, ...) but the typings'
-  // EventCalls leave it out, so the call is made through a cast; a kit without it
-  // would fail here rather than pass by default.
-  const prompt = ($ as unknown as { prompt: Record<string, unknown> }).prompt
-  const raise = prompt.autocomplete as undefined | ((e: { text: string; cursor: number; token: string; start: number }) => Promise<{ suggestions: { text: string; label?: string; description?: string }[] }>)
-  expect(typeof raise).toBe('function')
-  if (typeof raise !== 'function') return
-  const slash = await raise({ text: '/sw', cursor: 3, token: '/sw', start: 0 })
-  expect(slash.suggestions.map(s => s.text)).toEqual(['/switch-dev', '/switch-dev handoff'])
-  expect(slash.suggestions[0]?.description).toMatch(/Hand off/)
-  const later = await raise({ text: 'fix /sw', cursor: 7, token: '/sw', start: 4 })
-  expect(later.suggestions).toHaveLength(0)
-  const hash = await raise({ text: '#12', cursor: 3, token: '#12', start: 0 })
-  expect(hash.suggestions).toHaveLength(0)
 })
 
 test('a dev-workflow skill of this plugin expanding while an objective is active gets the live objective appended', async ($, on) => {

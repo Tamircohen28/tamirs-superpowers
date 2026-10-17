@@ -66,12 +66,28 @@ details: [PRIVACY.md](PRIVACY.md).
   `.git/HEAD` (for the branch name), plus the usage and rate-limit figures Claude Code
   pushes to it. It counts file-writing tool calls; it does not read their contents.
 - **Hooks**: `command.run` answers `/objective` with the objective summary and changes
-  nothing. `agent.spawn` counts workers in flight for the spinner and passes the spawn through
+  nothing; it handles no other command, and every other command passes through untouched.
+  `classic.SessionStart` (on `/clear`, `/resume` and `/branch` only) re-reads the objective
+  files and the band's saved dismissals, and passes the event through unchanged: it changes
+  no setting, instruction or hook output. `skill.prompt` appends the active objective's id,
+  title, worktree and open-task count to the text of this plugin's own dev-workflow skills
+  (`plan-dev`, `orchestrate-dev`, `worker-dev` and the like) and leaves every other skill
+  untouched. `agent.spawn` counts workers in flight for the spinner and passes the spawn through
   unchanged, as does `tool.call` for file-writing calls. `session.start` and `session.measure`
   only read state and rate-limit figures. `ui.render` draws the objective pane, the spinner
   suffix and the rate-limit band. On `attribution.text` it appends the commit trailer your project's `CLAUDE.md`
   declares, if any. On `session.compact` it adds the branch and objective to the
   compaction instructions. It registers one command, `/objective`.
+- **Answers one tool itself**: the mod registers the `objective_status` tool and its
+  `tool.call` hook answers that tool, and only that tool, with the objective summary as JSON
+  read from `.dev-files/objectives/`. That tool exists only through the mod, so there is
+  nothing for it to stand in for; every other tool call goes on to its own tool.
+- **Sends**: nothing of its own. The mod makes no network call and runs no process; every
+  call it makes is on Claude Code's own mod API (files under your checkout, its own state
+  and store, the agent list, drawing, and the session's model). The one thing that leaves
+  the session is opt-in: with `semantic_skill_suggest` on (off by default), the first 2,000
+  characters of a long prompt go to your session's own model through `$.model.classify`, as
+  described under **Submits** below.
 - **Submits**: nothing. The mod makes no `prompt.submit` call; the rate-limit band only
   displays the text "type /switch-dev handoff". With `semantic_skill_suggest` on (off by
   default), a one-line note naming a matching skill is attached as context to your own

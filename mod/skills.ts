@@ -64,26 +64,6 @@ export function isDevWorkflowSkill(name: string): boolean {
   return DEV_WORKFLOW_SKILLS.has(name)
 }
 
-/** One row of the prompt box's typeahead, as `prompt.autocomplete` takes it. */
-export type AutocompleteRow = { text: string; label: string; description: string }
-
-/** Every row the mod can offer: the public skills, `/objective`, `/switch-dev handoff`. */
-export const AUTOCOMPLETE_ROWS: readonly AutocompleteRow[] = [
-  ...PUBLIC_SKILLS.map(name => ({ text: `/${name}`, label: `/${name}`, description: SKILL_DESCRIPTIONS[name] ?? '' })),
-  { text: '/objective', label: '/objective', description: 'Show the active objective and its tasks (no model turn)' },
-  { text: '/switch-dev handoff', label: '/switch-dev handoff', description: 'Write the handoff now — before a rate-limit window closes' },
-]
-
-/**
- * The rows whose `text` starts with `token` (case-insensitively), for a token
- * that opens with `/`; none for any other token.
- */
-export function autocompleteRows(token: string): AutocompleteRow[] {
-  if (!token.startsWith('/')) return []
-  const prefix = token.toLowerCase()
-  return AUTOCOMPLETE_ROWS.filter(row => row.text.toLowerCase().startsWith(prefix))
-}
-
 export function wordCount(text: string): number {
   return text.trim().split(/\s+/).filter(Boolean).length
 }
