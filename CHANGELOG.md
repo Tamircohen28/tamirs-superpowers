@@ -19,7 +19,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   after 5.0.0 shipped the thirtieth; nothing compared it, because it lives outside the
   repository. `scripts/check-repo-description.sh` reads it through `gh api` and holds its
   skill and agent counts to the filesystem, printing the `gh repo edit` command on drift;
-  CI warns on a pull request and fails on a push to master; offline it skips.
+  CI reports drift as a warning on every event (no commit can fix it, so a red check
+  would only hide the next real failure); offline it skips.
   `tests/test-repo-description.sh` (8 checks).
 
 ## [5.0.0] — 2026-10-17

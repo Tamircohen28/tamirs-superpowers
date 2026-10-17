@@ -17,9 +17,10 @@
 #   --description "<text>" checks that text instead of the live one (what the test
 #   uses). On drift the exit is 1 and the fix is printed: this proxy and the GitHub
 #   App token cannot write repository settings, so the edit is the owner's. --warn
-#   reports the drift as a workflow warning and exits 0: CI passes it on pull_request
-#   runs, because a stale description is the owner's to fix, not the PR author's,
-#   and fails on push to master, where it is the record.
+#   reports the drift as a workflow warning and exits 0; CI runs it that way on every
+#   event, because no commit can fix a stale description and a red check nobody can
+#   clear from a branch only hides the next real failure. The plain exit 1 is for a
+#   person running it by hand (make check-repo-description).
 set -euo pipefail
 ROOT="."; DESC=""; WARN=false
 while [[ $# -gt 0 ]]; do
