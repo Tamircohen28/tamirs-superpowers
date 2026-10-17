@@ -3,7 +3,12 @@
 # skill and agent counts the tree ships.
 #
 # Usage:
-#   bash scripts/check-repo-description.sh [repo-root] [--description "<text>"]
+#   bash scripts/check-repo-description.sh [repo-root] [--description "<text>" | --warn | --fix]
+#
+#   --description "<text>"  check that text instead of the live description (exit 1 on drift)
+#   --warn                  report live drift as a ::warning:: and exit 0 (what CI runs)
+#   --fix                   write the corrected description to GitHub (needs a token that
+#                           may change repository settings); takes neither of the above
 #
 # WHY THIS EXISTS
 #   check-doc-claims.sh holds every count in README.md, the manifests and the docs to
@@ -22,9 +27,12 @@
 #   clear from a branch only hides the next real failure. The plain exit 1 is for a
 #   person running it by hand (make check-repo-description). --fix writes the corrected
 #   description through the API (PATCH repos/<slug>, the call `gh repo edit` makes);
-#   it needs a token that may change repository settings, which the Actions
-#   GITHUB_TOKEN never has and this repository's RELEASE_PUSH_TOKEN does, so
-#   .github/workflows/repo-description.yml is where --fix runs.
+#   it needs a token that may change repository settings (a fine-grained PAT with
+#   Administration: write, or a classic PAT with the repo scope), which the Actions
+#   GITHUB_TOKEN never has, so .github/workflows/repo-description.yml is where --fix
+#   runs. In fix mode a missing gh, a missing remote or a failed read is an ERROR, not
+#   a skip: the write is the requested operation, and a green run that wrote nothing
+#   would hide a revoked token.
 set -euo pipefail
 ROOT="."; DESC=""; DESC_GIVEN=false; WARN=false; FIX=false
 while [[ $# -gt 0 ]]; do
@@ -32,7 +40,7 @@ while [[ $# -gt 0 ]]; do
     --description) DESC="$2"; DESC_GIVEN=true; shift 2 ;;
     --warn) WARN=true; shift ;;
     --fix) FIX=true; shift ;;
-    -h|--help) sed -n '2,19p' "$0" | sed 's/^#[[:space:]]\{0,1\}//'; exit 0 ;;
+    -h|--help) sed -n '2,35p' "$0" | sed 's/^#[[:space:]]\{0,1\}//'; exit 0 ;;
     *) ROOT="$1"; shift ;;
   esac
 done
@@ -52,9 +60,15 @@ if [[ "$DESC_GIVEN" != true ]]; then
     slug="$(printf '%s' "$url" | sed -E 's#^(https://github\.com/|git@github\.com:)##; s#\.git$##')"
   fi
   if [[ -z "$slug" ]] || ! command -v gh >/dev/null 2>&1; then
+    if [[ "$FIX" == true ]]; then
+      echo "ERROR: --fix needs a GitHub remote and gh on PATH (nothing was written)" >&2; exit 1
+    fi
     echo "repo-description: SKIP (no GitHub remote or no gh on PATH)"; exit 0
   fi
   if ! json="$(gh api "repos/$slug" 2>/dev/null)"; then
+    if [[ "$FIX" == true ]]; then
+      echo "ERROR: --fix could not read repos/$slug (no token, an expired one, or no network); nothing was written" >&2; exit 1
+    fi
     echo "repo-description: SKIP (gh api repos/$slug failed: no token or no network)"; exit 0
   fi
   DESC="$(printf '%s' "$json" | jq -r '.description // empty')"
@@ -72,10 +86,14 @@ if [[ "$said_agents" != "$agents" ]]; then
   echo "ERROR: the repository description says '${said_agents:-no} agents'; the tree ships $agents" >&2; status=1
 fi
 if [[ "$status" -ne 0 ]]; then
-  if [[ -z "$DESC" ]]; then
-    fixed="A portable agent toolkit — $skills skills, $agents specialist agents, worktree hooks and MCP stubs — shipped from one canonical source to six agent surfaces across five platforms."
-  else
-    fixed="$(printf '%s' "$DESC" | sed -E "s/[0-9]+ skills/$skills skills/; s/[0-9]+ (specialist |role-based )?agents/$agents \\1agents/")"
+  canonical="A portable agent toolkit — $skills skills, $agents specialist agents, worktree hooks and MCP stubs — shipped from one canonical source to six agent surfaces across five platforms."
+  # Substitute the counts the text already names; a text that names neither phrase (or
+  # only one) cannot be patched in place, so it is replaced by the canonical sentence —
+  # a fix that still lacked a count would leave the next check in drift.
+  fixed="$(printf '%s' "$DESC" | sed -E "s/[0-9]+ skills/$skills skills/; s/[0-9]+ (specialist |role-based )?agents/$agents \\1agents/")"
+  if ! printf '%s' "$fixed" | grep -qE "(^|[^0-9])$skills skills" \
+     || ! printf '%s' "$fixed" | grep -qE "(^|[^0-9])$agents (specialist |role-based )?agents"; then
+    fixed="$canonical"
   fi
   if [[ "$FIX" == true ]]; then
     if gh api -X PATCH "repos/$slug" -f description="$fixed" >/dev/null; then

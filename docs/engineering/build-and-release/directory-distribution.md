@@ -150,6 +150,12 @@ them. Two facts shape it:
   reads `secrets.RELEASE_PUSH_TOKEN || github.token`). Add the token's owner, or a GitHub App
   if one is used instead, to the ruleset's bypass list. Until the secret exists the default
   token pushes, which works as long as no ruleset guards the tags.
+- **Contents: write does not reach repository settings.** `repo-description.yml` writes the
+  repository *description* (`PATCH /repos/{owner}/{repo}`), which needs **Administration:
+  write** on a fine-grained token or the classic `repo` scope. Give it a separate secret,
+  `REPO_ADMIN_TOKEN`, scoped to this one repository; the workflow falls back to
+  `RELEASE_PUSH_TOKEN` and fails with a 403 (never a silent pass) when that token is
+  Contents-only. Keep the release token at Contents: write — the tag push does not need more.
 
 Ruleset settings, in the GitHub UI (Settings → Rules → Rulesets → New tag ruleset):
 

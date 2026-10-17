@@ -10,8 +10,11 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - **The repository description writes itself.** `scripts/check-repo-description.sh --fix`
   PATCHes the GitHub description to the tree's skill and agent counts, and
   `.github/workflows/repo-description.yml` runs it on dispatch and after every successful
-  release with `RELEASE_PUSH_TOKEN` (the Actions token cannot change repository settings,
-  which is why CI only warns). `--fix` refuses `--description` and `--warn`.
+  release with `REPO_ADMIN_TOKEN` (Administration: write, the scope the description PATCH
+  needs), falling back to `RELEASE_PUSH_TOKEN`; the Actions token cannot change repository
+  settings, which is why CI only warns. `--fix` refuses `--description` and `--warn`, fails
+  (never skips) when gh, the remote or the read is missing, and replaces a description that
+  names no count with the canonical sentence instead of writing one that still drifts.
 
 ## [5.0.1] — 2026-10-17
 
