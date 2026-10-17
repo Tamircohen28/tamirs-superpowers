@@ -5,6 +5,15 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Fixed
+
+- **`check-manifest-version-alignment.sh` read the Claude distribution tag as a release.**
+  `release.yml` tags the generated Claude-only tree `v<version>-claude`; the check's
+  `vX.Y.Z` glob matched it, it sorted past its own release, and the first post-release
+  commit of 5.0.0 (#287) read as "manifest BEHIND the latest tag", turning master red.
+  The check now considers only `vX.Y.Z` and `vX.Y.Z-<prerelease>` tags, never `-claude`;
+  `tests/test-manifest-version-alignment.sh` (9 checks) pins it in a hermetic repo.
+
 ## [5.0.0] — 2026-10-17
 
 The major version: one source tree built into a distribution per host, the mod on the

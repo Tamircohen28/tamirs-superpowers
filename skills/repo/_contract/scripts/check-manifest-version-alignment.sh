@@ -66,9 +66,14 @@ fi
 
 if [[ "$MANIFESTS_ONLY" != true ]]; then
   # Latest release tag, if any (vX.Y.Z convention). A repo with no tags yet
-  # hasn't cut a first release — nothing to drift from.
+  # hasn't cut a first release — nothing to drift from. Only a plain vX.Y.Z (or a
+  # vX.Y.Z-<prerelease>) counts: release.yml also tags the generated Claude-only
+  # tree v<version>-claude, which the glob matches and which then sorts past the
+  # release it belongs to, so a push at the released version read as "behind"
+  # (master went red on the first post-release commit of 5.0.0).
   LATEST_TAG_VER=$(cd "$ROOT" && git tag -l 'v[0-9]*.[0-9]*.[0-9]*' 2>/dev/null \
-    | sed 's/^v//' | sort -t. -k1,1n -k2,2n -k3,3n | tail -1 || true)
+    | sed 's/^v//' | grep -Ev -- '-claude$' | grep -E '^[0-9]+\.[0-9]+\.[0-9]+(-[A-Za-z0-9.]+)?$' \
+    | sort -t. -k1,1n -k2,2n -k3,3n | tail -1 || true)
 
   if [[ -n "$LATEST_TAG_VER" && "$LATEST_TAG_VER" != "$MANIFEST_VERSION" ]]; then
     # Which way does the drift point? Sorting both and taking the tail gives the
