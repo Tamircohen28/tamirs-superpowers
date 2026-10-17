@@ -320,6 +320,22 @@ test('a turn that wrote files gets a DoD line beneath its answer; a read-only tu
   expect(read.text).toBe('Looked.')
 })
 
+test('a worker turn starting mid-main-turn (2.1.299: turn.start also fires for subagents) does not zero the main turn\'s write count', async ($, on) => {
+  stubEngine(on, fakeDisk())
+  mock.clock(on)
+  on('agent.spawn', () => ({ model: 'sonnet', agentId: 'agent-1' }))
+  await start($)
+  await $.turn.start({ text: 'edit it, then delegate', turnId: 't1' })
+  await $.tool.call({ tool: 'Edit', file_path: '/repo/a.ts', old_string: 'a', new_string: 'b' })
+  await $.agent.spawn({ tool_use_id: 'tu1', prompt: 'do it', description: 'worker', subagentType: 'general-purpose', provider: { plugin: 'engine', tier: 'core' }, parentModel: 'sonnet', background: false, fork: false })
+  // The worker's own turn starts while the main turn is still open — this must not
+  // reset the main turn's counter just because it shares the same hook.
+  await $.turn.start({ text: 'worker task', turnId: 'w1', agentId: 'agent-1' })
+  await $.turn.complete({ answer: 'done', durationMs: 10, isAborted: false, turnId: 'w1', reason: 'answer', agentId: 'agent-1' })
+  const wrote = await $.turn.complete({ answer: 'Edited and delegated.', durationMs: 1000, isAborted: false, turnId: 't1', reason: 'answer' })
+  expect(wrote.text).toMatch(/^DoD: 1 file write this turn/)
+})
+
 test('the commit trailer the repo\'s CLAUDE.md declares is appended when the attribution text lacks it', async ($, on) => {
   stubEngine(on, fakeDisk())
   mock.clock(on)

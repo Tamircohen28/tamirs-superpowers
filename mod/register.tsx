@@ -337,12 +337,18 @@ export const register: Register = (on, options) => {
   })
 
   // Counts a worker in flight for the spinner suffix. Nothing is decided here:
-  // the spawn always goes through unchanged.
+  // the spawn always goes through unchanged. `.catch` makes that explicit for
+  // `claude plugin validate`'s gating-hooks report (2.1.290): a failed state
+  // write here must never hold up a spawn. As of 2.1.299 the engine's own
+  // default on a gating hook's failure flipped from letting the action through
+  // to refusing it, so this `.catch` is no longer a no-op replay of that
+  // default — it is the thing that deliberately keeps a broken state write
+  // from blocking a spawn that was never meant to be deniable.
   on('agent.spawn', async ($, e, next) => {
     await update($, workers, n => (n ?? 0) + 1)
     $.ui.invalidate('ui.render')
     return next(e)
-  })
+  }).catch(($, e, next) => next(e))
 
   on('ui.render', { component: 'Spinner' }, async ($, e, next) => {
     const n = await read($, workers)
@@ -428,6 +434,12 @@ export const register: Register = (on, options) => {
   })
 
   // ----------------------------------------- 5. semantic skill suggestion
+  // `.catch` makes the engine's own default explicit for the 2.1.290
+  // gating-hooks report: a broken suggestion never drops the person's prompt.
+  // Since 2.1.299 that default is to refuse on a gating hook's failure, not
+  // let it through, so this `.catch` now actively overrides the default
+  // rather than restating it — deliberately, since a broken classifier call
+  // is never a reason to swallow what the person typed.
   on('prompt.submit', async ($, e, next) => {
     if (!semanticSuggest || e.origin.kind !== 'composer') return next(e)
     const text = e.text.trim()
@@ -442,18 +454,30 @@ export const register: Register = (on, options) => {
     suggested.add(label)
     const note = `[tamirs-superpowers] The bundled skill \`${label}\` covers what this prompt asks for. Invoke it with the Skill tool (or /${label}) before doing the work by hand.`
     return next({ ...e, context: [...(e.context ?? []), note] })
-  })
+  }).catch(($, e, next) => next(e))
 
   // ------------------------------------------ 6. DoD, compaction, trailer
+  // `turn.start` also fires for a subagent's or teammate's turn, not only the
+  // main loop's, as of 2.1.299 (tell them apart by `e.agentId`, absent on the
+  // main loop). A worker's turn can start while the main turn is still running
+  // (feature 1's spinner counts exactly this), so an unguarded reset here would
+  // zero the main turn's write count out from under it. Only a main-loop start
+  // resets the counter; a worker's own writes were never counted into it
+  // anyway (`tool.call` below filters the same way).
   on('turn.start', ($, e, next) => {
-    writesThisTurn = 0
+    if (!e.agentId) writesThisTurn = 0
     return next(e)
   })
 
+  // `.catch`: explicit per the 2.1.290 gating-hooks report. A broken counter
+  // must never deny a tool call — this hook never denies even on the happy
+  // path. Since 2.1.299 a gating hook that cannot run is refused by default,
+  // not let through, so the fallback below is what keeps a broken counter
+  // from denying a tool call it was never meant to gate.
   on('tool.call', ($, e, next) => {
     if (!e.agentId && WRITE_TOOLS.has(String(e.tool))) writesThisTurn += 1
     return next(e)
-  })
+  }).catch(($, e, next) => next(e))
 
   // The module's one turn.complete hook (the engine refuses a second unmatched
   // registration of an event): a worker's turn frees its spinner slot; a main
@@ -500,7 +524,7 @@ export const register: Register = (on, options) => {
     if (lines.length === 0) return next(e)
     const snapshot = `Working state to preserve verbatim in the summary (tamirs-superpowers):\n${lines.join('\n')}`
     return next({ ...e, instructions: [e.instructions, snapshot].filter(Boolean).join('\n\n') })
-  })
+  }).catch(($, e, next) => next(e)) // 2.1.290 gating-hooks report: a broken snapshot must never block compaction — and since 2.1.299 the engine's own default would otherwise refuse, not let it through.
 
   on('attribution.text', { kind: 'commit' }, async ($, e, next) => {
     const ran = await next(e)

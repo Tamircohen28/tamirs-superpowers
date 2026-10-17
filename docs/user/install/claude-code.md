@@ -12,28 +12,50 @@ measured below was measured on the CLI; see
 
 ## Install
 
-Two sources, same plugin. Pick one.
+Two sources, same plugin. Pick one. Since Claude Code 2.1.275, `/plugin install <plugin>
+--marketplace <source>` installs from either source in one step — shown first below, with
+the older two-step `/plugin marketplace add` + `/plugin install` form kept underneath since
+it still works and is what you will see if you add the marketplace first from `/plugin`'s
+menu instead of typing the command.
 
 **From this repo (standalone):**
+
+```text
+/plugin install tamirs-superpowers --marketplace Tamircohen28/tamirs-superpowers
+```
+
+<details>
+<summary>Two-step form</summary>
 
 ```text
 /plugin marketplace add Tamircohen28/tamirs-superpowers
 /plugin install tamirs-superpowers@tamirs-superpowers
 ```
 
+</details>
+
 **From the catalog:**
+
+```text
+/plugin install tamirs-superpowers --marketplace Tamircohen28/tamirs-marketplace
+```
+
+<details>
+<summary>Two-step form</summary>
 
 ```text
 /plugin marketplace add Tamircohen28/tamirs-marketplace
 /plugin install tamirs-superpowers@tamirs-marketplace
 ```
 
+</details>
+
 **From Anthropic's directory** (claude.ai → Directory → tamirs-superpowers): the listing is
 the Claude-only distribution the repository builds on every release; it reaches your Claude
 Code sessions through account sync and updates on its own.
 
-The `@` suffix names the *marketplace*, so it differs between the two — using the wrong one
-is the most common install error.
+Either form, the marketplace source differs between the two (`--marketplace` above, the `@`
+suffix in the two-step forms) — using the wrong one is the most common install error.
 
 ### Options
 
