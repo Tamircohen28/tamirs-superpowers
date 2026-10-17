@@ -22,10 +22,10 @@
 #   clear from a branch only hides the next real failure. The plain exit 1 is for a
 #   person running it by hand (make check-repo-description).
 set -euo pipefail
-ROOT="."; DESC=""; WARN=false
+ROOT="."; DESC=""; DESC_GIVEN=false; WARN=false
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --description) DESC="$2"; shift 2 ;;
+    --description) DESC="$2"; DESC_GIVEN=true; shift 2 ;;
     --warn) WARN=true; shift ;;
     -h|--help) sed -n '2,19p' "$0" | sed 's/^#[[:space:]]\{0,1\}//'; exit 0 ;;
     *) ROOT="$1"; shift ;;
@@ -37,7 +37,7 @@ skills=$(find "$ROOT/skills" -name SKILL.md 2>/dev/null | grep -v '_contract/fix
 agents=$(find "$ROOT/agents" -maxdepth 1 -name '*.md' 2>/dev/null | wc -l | tr -d ' ')
 
 slug=""
-if [[ -z "$DESC" ]]; then
+if [[ "$DESC_GIVEN" != true ]]; then
   slug="${GITHUB_REPOSITORY:-}"
   if [[ -z "$slug" ]]; then
     url="$(git -C "$ROOT" remote get-url origin 2>/dev/null || true)"
@@ -50,10 +50,9 @@ if [[ -z "$DESC" ]]; then
     echo "repo-description: SKIP (gh api repos/$slug failed: no token or no network)"; exit 0
   fi
   DESC="$(printf '%s' "$json" | jq -r '.description // empty')"
-  if [[ -z "$DESC" ]]; then
-    echo "ERROR: $slug has no GitHub description; set one that names the $skills skills and $agents agents" >&2; exit 1
-  fi
 fi
+# An absent description is drift like any other (it names no count), so it takes the
+# same path below and honours --warn the same way.
 
 said_skills="$(printf '%s' "$DESC" | grep -oE '[0-9]+ skills' | head -1 | grep -oE '^[0-9]+' || true)"
 said_agents="$(printf '%s' "$DESC" | grep -oE '[0-9]+ (specialist |role-based )?agents' | head -1 | grep -oE '^[0-9]+' || true)"
@@ -65,7 +64,11 @@ if [[ "$said_agents" != "$agents" ]]; then
   echo "ERROR: the repository description says '${said_agents:-no} agents'; the tree ships $agents" >&2; status=1
 fi
 if [[ "$status" -ne 0 ]]; then
-  fixed="$(printf '%s' "$DESC" | sed -E "s/[0-9]+ skills/$skills skills/; s/[0-9]+ (specialist |role-based )?agents/$agents \\1agents/")"
+  if [[ -z "$DESC" ]]; then
+    fixed="A portable agent toolkit — $skills skills, $agents specialist agents, worktree hooks and MCP stubs — shipped from one canonical source to six agent surfaces across five platforms."
+  else
+    fixed="$(printf '%s' "$DESC" | sed -E "s/[0-9]+ skills/$skills skills/; s/[0-9]+ (specialist |role-based )?agents/$agents \\1agents/")"
+  fi
   echo "       Fix (repository owner, Settings -> About, or):" >&2
   printf "         gh repo edit %s --description '%s'\n" "${slug:-<owner/repo>}" "$fixed" >&2
   if [[ "$WARN" == true ]]; then
