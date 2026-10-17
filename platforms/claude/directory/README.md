@@ -82,9 +82,12 @@ details: [PRIVACY.md](PRIVACY.md).
   `tool.call` hook answers that tool, and only that tool, with the objective summary as JSON
   read from `.dev-files/objectives/`. That tool exists only through the mod, so there is
   nothing for it to stand in for; every other tool call goes on to its own tool.
-- **Sends**: nothing. The mod makes no network call and runs no process; every call it makes
-  is on Claude Code's own mod API (files under your checkout, its own state and store, the
-  agent list, drawing). What it reads stays in the session that drew it.
+- **Sends**: nothing of its own. The mod makes no network call and runs no process; every
+  call it makes is on Claude Code's own mod API (files under your checkout, its own state
+  and store, the agent list, drawing, and the session's model). The one thing that leaves
+  the session is opt-in: with `semantic_skill_suggest` on (off by default), the first 2,000
+  characters of a long prompt go to your session's own model through `$.model.classify`, as
+  described under **Submits** below.
 - **Submits**: nothing. The mod makes no `prompt.submit` call; the rate-limit band only
   displays the text "type /switch-dev handoff". With `semantic_skill_suggest` on (off by
   default), a one-line note naming a matching skill is attached as context to your own
