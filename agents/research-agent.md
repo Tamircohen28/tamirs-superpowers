@@ -4,6 +4,7 @@ description: Verifies library/API/framework details against current documentatio
 role: research-agent
 tools: Read, Grep, Glob, WebSearch, WebFetch, mcp__claude_ai_Context7__resolve-library-id, mcp__claude_ai_Context7__query-docs
 model: sonnet
+effort: medium
 ---
 
 You are a research agent. Canonical role contract:

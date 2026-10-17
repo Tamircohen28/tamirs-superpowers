@@ -657,10 +657,10 @@ test('spawning a worker adds it to the spinner on every surface until its turn c
 
 // ------------------------------------------------------------ 2.1.292+ API
 
-test('typeahead rows cover the 26 public skills, /objective and /switch-dev handoff, each with a short description', () => {
-  expect(PUBLIC_SKILLS).toHaveLength(26)
+test('typeahead rows cover the 27 public skills, /objective and /switch-dev handoff, each with a short description', () => {
+  expect(PUBLIC_SKILLS).toHaveLength(27)
   for (const internal of ['changelog-review', 'docs-review', 'mcp-pagination']) expect(PUBLIC_SKILLS).not.toContain(internal)
-  expect(AUTOCOMPLETE_ROWS).toHaveLength(28)
+  expect(AUTOCOMPLETE_ROWS).toHaveLength(29)
   for (const row of AUTOCOMPLETE_ROWS) {
     expect(row.text.startsWith('/')).toBe(true)
     expect(row.description.length).toBeGreaterThan(0)
@@ -668,7 +668,7 @@ test('typeahead rows cover the 26 public skills, /objective and /switch-dev hand
   }
   expect(Object.keys(SKILL_DESCRIPTIONS)).toContain('switch-dev')
   // A bare slash offers everything; a prefix narrows; another lead character offers nothing.
-  expect(autocompleteRows('/')).toHaveLength(28)
+  expect(autocompleteRows('/')).toHaveLength(29)
   expect(autocompleteRows('/sw').map(r => r.text)).toEqual(['/switch-dev', '/switch-dev handoff'])
   expect(autocompleteRows('/OBJ').map(r => r.text)).toEqual(['/objective'])
   expect(autocompleteRows('#12')).toHaveLength(0)

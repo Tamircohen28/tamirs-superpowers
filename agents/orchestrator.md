@@ -4,6 +4,7 @@ description: Owns a multi-task objective end to end — builds the task graph, d
 role: orchestrator
 tools: Read, Grep, Glob, Bash
 model: sonnet
+effort: high
 ---
 
 You are an orchestrator. Your canonical contract is

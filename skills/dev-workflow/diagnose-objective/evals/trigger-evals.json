@@ -1,0 +1,34 @@
+[
+  {
+    "query": "why did objective auth-system fail?",
+    "should_trigger": true
+  },
+  {
+    "query": "diagnose the objective — task-003 never handed off and the orchestration stalled",
+    "should_trigger": true
+  },
+  {
+    "query": "explain this failed objective and tell me the next command to run",
+    "should_trigger": true
+  },
+  {
+    "query": "the session died on a rate limit mid-objective, what state did it leave and where do I resume",
+    "should_trigger": true
+  },
+  {
+    "query": "debug this: NullPointerException at UserService.java:142",
+    "should_trigger": false
+  },
+  {
+    "query": "the model refused my request, which layer blocked it?",
+    "should_trigger": false
+  },
+  {
+    "query": "run a retro on this session, what friction did we hit",
+    "should_trigger": false
+  },
+  {
+    "query": "orchestrate this plan across workers and open one PR",
+    "should_trigger": false
+  }
+]

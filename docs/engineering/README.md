@@ -10,12 +10,14 @@ contributors want [CONTRIBUTING](../CONTRIBUTING.md).
 | [V5 upgrade and refactor plan](roadmap/v5-upgrade-plan.md) | Proposal (2026-10-17): mods, per-platform parity, Agent Plugins 1.0, phased V5 plan, risk register; research notes in `roadmap/v5-research/` |
 | [Overview](architecture/overview.md) | Layer map, the five subsystems, data flow |
 | [Per-host distributions](build-and-release/distributions.md) | One generic builder, one subset per host, the per-target checks and where each subset is delivered |
+| [Verifying a release](build-and-release/release-verification.md) | Checksums and build-provenance attestations on every release asset, and how to verify them |
 | [Capability model](architecture/capability-model.md) | The registry, status vocabulary, how degradation works |
 | [Adapter contract](architecture/adapter-contract.md) | What a platform adapter may and may not be |
 | [Adding a platform](architecture/adding-a-platform.md) | The checklist, from registry entry to CI |
 | [Skill schema](architecture/skill-schema.md) | Portable three-tier frontmatter, validation profiles |
 | [Hooks classification](architecture/hooks-classification.md) | Which hooks port to which platform, and what replaces them |
 | [Orchestration state machine](architecture/orchestration-state-machine.md) | Objective / task / handoff states, transitions, resume |
+| [Handoff protocol](architecture/handoff-protocol.md) | The handoff vocabulary and file shape, who writes and reads them, the rate-limit handoff record, agent-teams hooks, cross-platform resume, and a conformance checklist for other plugins |
 | [Branch and worktree model](architecture/branch-worktree-model.md) | Branch layout, worktree layout, legacy migration |
 | [Validation tiers](architecture/validation-tiers.md) | Tiers 0–3: who runs what, and how a tier is declared |
 | [Statusline](statusline.md) | Input schema, rendering, color coding |

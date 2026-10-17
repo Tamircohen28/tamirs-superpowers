@@ -89,6 +89,7 @@ situation per session; never repeat a declined suggestion.
 | A model/session refused or blocked and the user needs which layer did it (harness, LiteLLM, provider, model) | `diagnose-refusal` |
 | "am I up to date", "what new features am I missing", "latest docs" — or a `*-plugin/plugin.json` or `CHANGELOG.md` is being bumped | `platform-sync` |
 | A rate limit is hit, or an objective is still open and the session is ending | `switch-dev` |
+| An objective failed or stalled and the user asks why, which task is stuck, or what to run next | `diagnose-objective` |
 | You are about to hand-write a capability a public skill or plugin plausibly already provides | `find-skill` |
 | A PR is about to open or a security-sensitive diff needs a pass before push | Cursor native `/review-security` (Teams Security Review bot) — complements `security-reviewer` |
 | The session had repeated failures on the same thing, or the user corrected you several times | `retro` |

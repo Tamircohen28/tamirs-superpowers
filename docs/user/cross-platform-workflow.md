@@ -66,6 +66,21 @@ switch-dev handoff / resume (any time)
 > the GitHub-issue Resume blocks below carry work across *platforms and machines*, where a
 > local `.dev-files/` directory cannot follow. Neither requires the other.
 
+## Handoff protocol
+
+Everything above is one protocol, written down once: the status vocabulary
+(`completed | partial | failed | blocked | cancelled`), the handoff file a task
+writes and the integrator reads, where those files live, and the record the
+`StopFailure` hook drops when a rate limit ends a Claude Code turn
+(`.dev-files/handoffs/rate-limit-<ts>.json`, carrying the `/switch-dev` command
+that resumes the work). Agent-teams sessions (`CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1`)
+get the same checks on `TaskCompleted` and `TeammateIdle` that subagents get on
+`SubagentStop`. The full contract, including a conformance checklist another
+plugin can implement, is
+[`docs/engineering/architecture/handoff-protocol.md`](../engineering/architecture/handoff-protocol.md).
+On every platform other than Claude Code the hooks are absent and the files are
+the protocol: write and read them with `switch-dev` and `handoff.sh`.
+
 ## Resume block
 
 Every agent-task issue includes:

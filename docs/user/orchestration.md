@@ -162,6 +162,7 @@ and the same branches.
 | A worker wrote outside scope | `handoff.sh emit` refuses it. The work becomes a followup or a new task. |
 | Two tasks conflicted | The graph was wrong. Fix the graph, then re-integrate. |
 | A worker opened a PR | That is a bug in the dispatch prompt, and gets reported as one. |
+| You cannot tell *why* it stalled | `/diagnose-objective <id>` rebuilds the timeline from the state files, names the first cause (a worker that never handed off, a `completed` with no validation, a `partial` integrated around, a rate-limit death) and gives the one next command. It writes `diagnosis.md` and changes nothing. |
 | No `gh` available | Delivery ends at a pushed integration branch and says exactly that — never a claim that a PR exists. |
 
 ---

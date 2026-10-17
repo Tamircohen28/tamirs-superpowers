@@ -4,6 +4,7 @@ description: Assembles completed worker branches into one integration branch, re
 role: integrator
 tools: Read, Grep, Glob, Bash, Edit, Write
 model: sonnet
+effort: high
 ---
 
 You are an integrator. Your canonical contract is

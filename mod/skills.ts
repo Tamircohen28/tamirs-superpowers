@@ -10,7 +10,7 @@
 // are `user-invocable: false` and are left out of every table: they are not
 // for the person to type.
 
-/** The 26 public skills, one typeahead line each, in category order. */
+/** The 27 public skills, one typeahead line each, in category order. */
 export const SKILL_DESCRIPTIONS: Readonly<Record<string, string>> = {
   // dev-workflow
   'plan-dev': 'Turn a task, spec or review doc into a structured plan before any code',
@@ -21,6 +21,7 @@ export const SKILL_DESCRIPTIONS: Readonly<Record<string, string>> = {
   'pr-dev': 'Drive an open PR to merge: review comments, CI, final checks',
   'switch-dev': 'Hand off mid-task to another platform without losing context',
   decision: 'Pick between options an agent left waiting on your decision',
+  'diagnose-objective': 'Explain why an objective failed or stalled, and what to run next',
   // debugging
   'targeted-debug': 'Find the root cause behind a stack trace, panic or crash log',
   'diagnose-refusal': 'Find which layer refused, blocked or filtered a session',
@@ -56,6 +57,7 @@ export const SKILL_LABELS = [...PUBLIC_SKILLS, 'none'] as const
 /** The skills under skills/dev-workflow/: the ones that read orchestration state. */
 export const DEV_WORKFLOW_SKILLS: ReadonlySet<string> = new Set([
   'plan-dev', 'start-dev', 'orchestrate-dev', 'worker-dev', 'deliver-dev', 'pr-dev', 'switch-dev', 'decision',
+  'diagnose-objective',
 ])
 
 export function isDevWorkflowSkill(name: string): boolean {
