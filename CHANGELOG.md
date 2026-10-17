@@ -33,6 +33,11 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   CI reports drift as a warning on every event (no commit can fix it, so a red check
   would only hide the next real failure); offline it skips.
   `tests/test-repo-description.sh` (8 checks).
+- **The mod no longer rings a native notification at a rate-limit crossing.** The plugin
+  directory held 5.0.0 and 5.0.1 for `$.ui.notify` (2.1.295), a call its list does not know,
+  made by a mod that also reads files and the conversation (`MOD_LOCAL_DATA_LEAVES`,
+  `MOD_SESSION_DATA_LEAVES`). The band and its one toast per crossing carry the warning; the
+  `Notification` hook stays the out-of-band channel. `hasNotify()` goes with it; 37 mod tests.
 
 ## [5.0.0] — 2026-10-17
 
@@ -232,17 +237,16 @@ setting; the Agent Plugins manifest lives under `platforms/agent-plugins/`, neve
   `compat.ts`): `skill.prompt` appends the live objective id,
   worktree and open-task count when a dev-workflow skill of this plugin expands under an active
   objective; an `objective_status` tool (registered upfront, not deferred) answers the model with
-  the objective as JSON; the objective pane shows each task's agent status from `$.agent.list()`;
+  the objective as JSON; the objective pane shows each task's agent status from `$.agent.list()`; the rate-limit
+  band also raises a native notification once per crossing (`$.ui.notify`, 2.1.295+);
   `classic.SessionStart` on clear/resume/fork reloads the pane and the dismissal, which `/clear`
   used to blank; `$.store` keeps the skill-suggest "seen" set and the rate-limit dismissal across
   sessions; every drawing is mounted on terminal, desktop and the VS Code chat panel (2.1.299+),
-  typography gated on `$.session.version()`. 37 mod tests (was 22); every gating hook has
+  typography gated on `$.session.version()`. 38 mod tests (was 22); every gating hook has
   `.catch`; still no process, no network, no prompt submission, no permission answer.
-  Typeahead rows on `prompt.autocomplete` (2.1.292), a `[ view ]` button on `$.ui.view`
-  (2.1.300) and a native rate-limit notification on `$.ui.notify` (2.1.295) were withdrawn
-  before the directory listing: the plugin directory's list of mod events and calls predates
-  all three; it blocks a mod that hooks an event it does not know and holds one that makes a
-  call it does not know beside a file or conversation read.
+  Typeahead rows on `prompt.autocomplete` (2.1.292) and a `[ view ]` button on `$.ui.view`
+  (2.1.300) were withdrawn before the directory listing: the plugin directory's list of mod
+  events and calls predates both, and it blocks a mod that hooks an event it does not know.
 - **`tamirs-superpowers-guard`**, a second plugin in the in-repo marketplace
   (`plugins/guard`, `/plugin install tamirs-superpowers-guard --marketplace
   Tamircohen28/tamirs-superpowers`): an in-process hold on destructive shell commands (force
