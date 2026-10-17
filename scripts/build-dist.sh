@@ -82,7 +82,8 @@ case "$TARGET" in
     # Anthropic's plugin directory: the Claude manifest, the mod, the Claude hooks file, no
     # other host's manifest or docs, and the directory-specific README.
     ROOTS=(.claude-plugin/plugin.json listing/icon.png .mcp.json hooks mod agents output-styles platforms/claude "${COMMON_ROOTS[@]}")
-    PRUNE_PATHS+=(platforms/claude/directory
+    # The Gemini wrapper and its dialect library run only under the Gemini extension.
+    PRUNE_PATHS+=(platforms/claude/directory hooks/gemini-wrap.sh hooks/lib/gemini-output.sh
       docs/user/install/codex.md docs/user/install/cursor.md docs/user/install/gemini.md docs/user/install/opencode.md
       docs/user/platform-setup.md docs/user/platform-differences.md docs/user/cross-platform-workflow.md
       scripts/lib/setup-codex.sh scripts/lib/setup-cursor.sh scripts/lib/setup-gemini.sh scripts/lib/setup-opencode.sh)

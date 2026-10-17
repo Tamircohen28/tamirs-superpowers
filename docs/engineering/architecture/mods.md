@@ -56,13 +56,13 @@ cannot load.
 |---|---|---|---|
 | 1 | **Objective pane + `/objective [id]`** — the orchestration state `orchestrate-dev`/`worker-dev` keep in `.dev-files/objectives/<id>/` (`objective.json`, `tasks/*.json`, `handoffs/*.json`) drawn live, one row per task, re-read every 5 s; `/objective` answers at once (`immediate`), and with an id reads that objective from disk; the spinner counts workers in flight; a task-notification row is drawn compact | `session.start`, `command.run`, `ui.render{Pane}`, `agent.spawn`, `turn.complete`, `ui.render{Spinner}`, `ui.render{UserMessage}` | New capability. `objective-state.sh show` from a shell is the fallback |
 | 1 | **Reload after `/clear`, `/resume`, `/branch`** — those reset `$.state` while `session.start` does not fire again; the classic `SessionStart` event does, with `source`, and the objective is re-read and the stored dismissals restored (the band re-derives from the next `session.measure`) | `classic.SessionStart{source: clear\|resume\|fork}` | Before 5.0.0 the pane went blank until the 5 s re-read and a dismissal was forgotten |
-| 1 | **Worker rows** (2.1.300) — a task whose worker `$.agent.list()` reports (matched by the task id in the agent's description, else by order of running agents) shows the agent's status (`pending`/`running`/`waiting`/`idle`/`completed`/`failed`/`killed`) and a `[ view ]` button whose press calls `$.ui.view({ agentId })` to put that worker's transcript in the main view; drawn only on a host at 2.1.300 or later (`hasAgentView`) | `ui.render{Pane}`, `$.agent.list`, `$.ui.view` | `/tasks` and the agent detail dialogs (host UI) |
+| 1 | **Worker rows** (2.1.300) — a task whose worker `$.agent.list()` reports (matched by the task id in the agent's description, else by order of running agents) shows the agent's status (`pending`/`running`/`waiting`/`idle`/`completed`/`failed`/`killed`). No `[ view ]` button: `$.ui.view` (2.1.300) is not on the plugin directory's list of calls, and an unknown call beside a conversation read holds the listing | `ui.render{Pane}`, `$.agent.list` | `/tasks` and the agent detail dialogs (host UI) |
 | 2 | **Rate-limit band** — at `rate_limit_warn_percent` (default 85) of any window a band tells the user to type `/switch-dev handoff` (the mod submits no prompt; a `prompt.submit` call beside its file reads is a `MOD_DATA_LEAVES_BY_PROMPT` hold) and shows `[ Dismiss ]`; one toast per 5-point crossing. A dismissal is kept per window kind in `$.state` and written through to `$.store` (`rate-limit.dismissed`), so it outlives the session; the window dropping 10 points under the threshold clears both | `session.measure`, `ui.render{AbovePrompt}`, `$.store.get/set/delete` | `hooks/rate-limit-handoff.sh` (`StopFailure`, after the fact). Both stay |
 | 2 | **Native notification** (2.1.295) — the band's first appearance for a window also calls `$.ui.notify`, once per crossing, so the warning reaches the person's own `preferredNotifChannel` (a Desktop with no terminal bell included); host-local, no network; a host before 2.1.295 is left alone (`hasNotify`) | `session.measure`, `$.ui.notify` | `scripts/notify-pushover.sh` (`Notification`) stays the one out-of-band channel |
 | 3 | **Usage line on Desktop and VS Code** — `ctx 12% · 5h 40% (resets 2h10m) · 7d 31% · $1.50`, held to 200 characters, on the two surfaces with no status line | `session.measure`, `ui.render{AbovePrompt}` | `scripts/statusline.sh` on the CLI. The mod never draws it on the terminal |
 | 4 | *(removed in 4.11.1)* A Pushover post on long or failed turns lived here as the mod's one network call. The plugin directory holds a mod that both reads the conversation and sends data out, and the `Notification` bash hook already covers phone alerts, so the mod now makes no network call at all | — | `scripts/notify-pushover.sh` on the `Notification` event is the one Pushover path |
 | 5 | **Semantic skill suggestion** — opt-in `semantic_skill_suggest`: a prompt of 12+ words is classified by the engine's small model against the bundled skill names; a match is attached as context once per skill across sessions (`$.store` `skill-suggest.seen`, the session set as cache) | `prompt.submit`, `$.model.classify`, `$.store.get/set` | `hooks/skill-suggest.sh` keyword matching stays on either way |
-| 7 | **Typeahead rows** (2.1.292) — while the first word of the draft opens with `/`, the 27 public skills, `/objective` and `/switch-dev handoff` join the prompt box's typeahead as `{ text, label, description }`, the description a static line per skill in `mod/skills.ts` (derived from the skill's frontmatter at authoring time, under 80 characters; nothing reads a `SKILL.md` at run time). The three internal companions are left out | `prompt.autocomplete{start: 0, token: /^\//}` | The engine's own command list, without descriptions of the plugin's choosing |
+| 7 | **Typeahead rows — withdrawn.** `prompt.autocomplete` (2.1.292) is not on the plugin directory's list of mod events, and the directory **blocks** a mod that hooks an event it does not know (`MOD_HOOKS_UNKNOWN_EVENT`). Re-add it once that list holds the event | — | The engine's own command list |
 | 8 | **Skill context** (2.1.299 fields) — when a dev-workflow skill of this plugin (`e.pluginName === 'tamirs-superpowers'`) expands while an objective is active, one `[tamirs-superpowers]` line with the objective id, title, status, the session's worktree (`$.session.root()`) and the open-task count is appended to the expanded text, so `worker-dev` and `orchestrate-dev` start with state they otherwise ask a shell for | `skill.prompt{pluginName}` | `objective-state.sh show` inside the skill |
 | 9 | **`objective_status` tool** (2.1.293 `isDeferred`) — registered at `session.start` with `isDeferred: false` (schema in the prompt's tool list from turn one, not behind ToolSearch) and answered by a `tool.call` hook on `mcp__tamirs-superpowers__objective_status`: the objective summary (id, status, open-task count, tasks with status/role/branch/handoff) as JSON text from the same files; one optional argument, `objective`, an id. The hook answers for itself and its `.catch` answers the model with the failure, never leaving the call unanswered | `session.start`, `$.tool.register`, `tool.call{tool}` | `objective-state.sh show` through Bash |
 | 6 | **Definition-of-done line** under an answer whose turn wrote files | `turn.start`, `tool.call`, `turn.complete` | `hooks/check-done.sh` (`Stop`, stderr) |
@@ -144,17 +144,15 @@ Three gates, in `make validate` and CI (`make test-mods`):
    (a second unmatched `on("turn.complete")`, `$` passed to a closure, a `$.state` key the
    contract does not declare). Note `claude plugin validate .` validates the **marketplace**
    manifest only and never reads the mod; CI runs both.
-2. `claude plugin test .` — runs `mod/*.test.tsx` against the engine itself (40 tests).
+2. `claude plugin test .` — runs `mod/*.test.tsx` against the engine itself (38 tests).
    The test's `on` hooks sit beneath the mod and stand for the engine, so each test stubs the
    world the feature touches (`fs.*`, `prompt.submit`, `model.classify`, `agent.list`,
-   `ui.notify`, `ui.view`, `tool.register`, …), `mock.store`/`mock.env`/`mock.clock`/
+   `ui.notify`, `ui.view` (to prove the pane never calls it), `tool.register`, …), `mock.store`/`mock.env`/`mock.clock`/
    `mock.session` answer those nouns from memory, and recorders hold what the mod asked
    for. Every drawing test mounts the band, the pane and the spinner on `terminal`,
    `desktop` and `vscode`, and asserts the `part: { plugin }` stamp on the root that
-   `ui.drawn()` hands back. This is the CI gate. Two things to know about the 2.1.302 kit:
-   its typings' `EventCalls` leave `prompt.autocomplete` off the `prompt` noun although the
-   kit's `$` offers the call at run time, so the autocomplete test reaches it through a cast
-   (and asserts it is there); and `claude plugin test <dir>` runs every `*.test.tsx` **under** `dir` while loading
+   `ui.drawn()` hands back. This is the CI gate. One thing to know about the 2.1.302 kit:
+   `claude plugin test <dir>` runs every `*.test.tsx` **under** `dir` while loading
    only the mod **at** `dir`, so a second plugin kept in a subfolder of this repository
    (`plugins/<name>/`) must be tested from its own folder, and its test file fails when
    the root run discovers it with the root mod loaded in its place.
@@ -178,7 +176,11 @@ release; when the engine's types change, regenerate rather than edit, and re-run
 - Keep every `$` call in `mod/register.tsx`, written in full at its call site; a helper
   that needs `$` is a closure inside the hook that owns it (the objective loader), never an
   import. New pure logic goes in `objective.ts`, `usage.ts`, `skills.ts` or `compat.ts`.
-- Never read a `$` member as a value (`typeof $.ui.view`): the validator refuses it. Gate
+- Hook only events, and call only `$` methods, that the plugin directory's list holds: an
+  event it does not know **blocks** the listing (`MOD_HOOKS_UNKNOWN_EVENT`, which is how
+  `prompt.autocomplete` came out), and an unknown call is held for review. A host release
+  that adds one is not enough on its own.
+- Never read a `$` member as a value (`typeof $.ui.notify`): the validator refuses it. Gate
   a newer method or prop by version through `mod/compat.ts` against `$.session.version()`,
   with the 2.1.287 tree or no call as the fallback.
 - One unmatched `on("<event>")` per event per module; a second registration needs a

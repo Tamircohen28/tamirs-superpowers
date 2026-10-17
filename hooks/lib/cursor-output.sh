@@ -5,7 +5,7 @@
 # hook-output.sh owns the PreToolUse dialect (permission / user_message /
 # agent_message) that every tool guard shares across Claude Code and Cursor.
 # The lifecycle and prompt events Cursor offers speak different shapes, and
-# every one of them is documented at https://cursor.com/docs/agent/hooks:
+# every one of them is documented in Cursor's agent hooks reference (cursor.com/docs):
 #
 #   beforeSubmitPrompt  out  continue (boolean), user_message
 #   sessionStart        out  env (applies to later hooks), additional_context

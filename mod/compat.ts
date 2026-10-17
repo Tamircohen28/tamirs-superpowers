@@ -10,8 +10,6 @@
 export const TYPOGRAPHY_SINCE = '2.1.299'
 /** `$.ui.notify` (a native notification by the person's own channel) arrived here. */
 export const NOTIFY_SINCE = '2.1.295'
-/** `$.ui.view({ agentId })` (an agent's transcript in the main view) arrived here. */
-export const AGENT_VIEW_SINCE = '2.1.300'
 
 /** The three numbers of a release version, or null for anything that is not one. */
 export function parseVersion(version: string | undefined): [number, number, number] | null {
@@ -46,11 +44,6 @@ export function hasTypography(version: string | undefined): boolean {
  */
 export function hasNotify(version: string | undefined): boolean {
   return atLeast(version, NOTIFY_SINCE)
-}
-
-/** Whether `$.ui.view({ agentId })` exists on the host (same rule as `hasNotify`). */
-export function hasAgentView(version: string | undefined): boolean {
-  return atLeast(version, AGENT_VIEW_SINCE)
 }
 
 /**
