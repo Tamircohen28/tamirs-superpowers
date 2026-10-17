@@ -5,6 +5,21 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [5.0.0] — 2026-10-17
+
+The major version: one source tree built into a distribution per host, the mod on the
+2.1.288–2.1.302 API with a guard plugin beside it, every host measured against its own
+parser, and three new gates (provenance, token budget, hook conformance). Read
+[`docs/user/upgrade-to-v5.md`](docs/user/upgrade-to-v5.md) before updating: it lists what
+changes per host and what to do. Nothing in 5.0.0 touches on-disk objective state. The
+work landed in five phases, recorded below in the order they shipped (newest first); the
+plan and the research behind it are in `docs/engineering/roadmap/`.
+
+**Breaking:** Claude Code floor 2.1.287 (was 2.0.0); OpenCode 2 only (1.x stays on 4.12.x);
+Codex hooks now load and need `/hooks` trust; Cursor's GitHub token is a plugin variable;
+Gemini hooks and policies ship in the release tarball with a consent prompt and a keychain
+setting; the Agent Plugins manifest lives under `platforms/agent-plugins/`, never at the root.
+
 ### Phase 5 — new capabilities
 
 #### Added

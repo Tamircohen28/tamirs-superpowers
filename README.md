@@ -6,7 +6,7 @@
   <a href="https://github.com/Tamircohen28"><img src="https://img.shields.io/badge/author-Tamir%20Cohen-181717?logo=github" alt="Author" /></a>
   <a href="https://github.com/Tamircohen28/tamirs-superpowers/actions/workflows/ci.yml"><img src="https://github.com/Tamircohen28/tamirs-superpowers/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="MIT License" /></a>
-  <a href="plugin-version.json"><img src="https://img.shields.io/badge/version-4.12.2-blue" alt="Version" /></a>
+  <a href="plugin-version.json"><img src="https://img.shields.io/badge/version-5.0.0-blue" alt="Version" /></a>
 </p>
 
 <p align="center">
@@ -196,6 +196,7 @@ On Claude Code 2.1.287+ the plugin ships one mod (`mod/register.tsx`). It makes 
 - [Getting started](docs/user/getting-started.md) · [Setup](docs/user/setup.md) · [Platform setup](docs/user/platform-setup.md) · [Capture](docs/user/capture.md) · [Configuration](docs/user/configuration.md) · [Troubleshooting](docs/user/troubleshooting.md)
 - [Concepts](docs/user/concepts.md) · [Skills](docs/user/skills.md) · [Agents](docs/user/agents.md) · [Orchestration](docs/user/orchestration.md) · [Platform differences](docs/user/platform-differences.md)
 - [Engineering docs](docs/engineering/README.md) — architecture, capability model, adapter contract, skill schema, release process
+- [Upgrading to 5.0](docs/user/upgrade-to-v5.md) — what changes per host and what to do about it
 - [Changelog](CHANGELOG.md) · [Contributing](docs/CONTRIBUTING.md) · [Contributor bootstrap](docs/engineering/build-and-release/development-workflow.md) · [License](LICENSE)
 
 ---

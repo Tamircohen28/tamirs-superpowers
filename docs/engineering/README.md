@@ -7,7 +7,7 @@ contributors want [CONTRIBUTING](../CONTRIBUTING.md).
 
 | Doc | What it covers |
 |---|---|
-| [V5 upgrade and refactor plan](roadmap/v5-upgrade-plan.md) | Proposal (2026-10-17): mods, per-platform parity, Agent Plugins 1.0, phased V5 plan, risk register; research notes in `roadmap/v5-research/` |
+| [V5 upgrade and refactor plan](roadmap/v5-upgrade-plan.md) | The plan 5.0.0 shipped from (2026-10-17): mods, per-platform parity, Agent Plugins 1.0, five phases, risk register; research notes in `roadmap/v5-research/`; the user-facing summary is [`docs/user/upgrade-to-v5.md`](../user/upgrade-to-v5.md) |
 | [Overview](architecture/overview.md) | Layer map, the five subsystems, data flow |
 | [Per-host distributions](build-and-release/distributions.md) | One generic builder, one subset per host, the per-target checks and where each subset is delivered |
 | [Verifying a release](build-and-release/release-verification.md) | Checksums and build-provenance attestations on every release asset, and how to verify them |

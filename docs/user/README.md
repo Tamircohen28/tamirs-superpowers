@@ -23,6 +23,7 @@ Start here: **[Getting started](getting-started.md)** → **[Concepts](concepts.
 | [Agents](agents.md) | The ten canonical roles and the agents that play them |
 | [Platform differences](platform-differences.md) | Registry-generated capability matrix, honest about gaps |
 | [Installation](install/README.md) | Per-platform install · verify · update · uninstall |
+| [Upgrading to 5.0](upgrade-to-v5.md) | What 5.0.0 changes per host and what to do about it |
 
 ## Guides
 
