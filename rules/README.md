@@ -68,23 +68,18 @@ Which platform file thins into which canonical source. A change to canonical con
 |---------------|-----------|
 | `AGENTS.md` | Entrypoint for every non-Claude provider → all of `rules/dev/` + `core/policies/` |
 | `CLAUDE.md` | Claude Code / Claude Desktop specifics (marketplace cache, statusline, project memory, subagents) → everything else by reference |
-| `.cursor/rules/dev-files-workspace.mdc` | `rules/dev/dev-files-workspace.md` |
-| `.cursor/rules/git-worktree-agent-workflow.mdc` | `rules/dev/git-worktree-agent-workflow.md` |
-| `.cursor/rules/cross-platform-handoff.mdc` | `rules/dev/cross-platform-handoff.md` |
-| `.cursor/rules/plugin-version-bump.mdc` | `rules/dev/plugin-version-bump.md` |
-| `.cursor/rules/skill-quality-standards.mdc` | `rules/dev/skill-quality-standards.md` |
-| `.cursor/rules/gh-cli-preference.mdc` | `rules/dev/gh-cli-preference.md` |
-| `.cursor/rules/user-facing-script-standards.mdc` | `rules/dev/user-facing-script-standards.md` |
-| `.cursor/rules/skill-frontmatter.mdc` | `core/schemas/skill-frontmatter.json` |
-| `.cursor/rules/commit-conventions.mdc` | `core/policies/git.md` |
-| `.cursor/rules/hooks-guide.mdc` | `rules/dev/user-facing-script-standards.md` §7 |
-| `.cursor/rules/plugin-structure.mdc` | `AGENTS.md` (repo shape) |
-| `.cursor/rules/skills-guide.mdc` | `rules/dev/skill-quality-standards.md` |
+| `.cursor/rules/<rule>.mdc` — **generated** for every `rules/dev/<rule>.md` | `rules/dev/<rule>.md`; Cursor frontmatter and the pointer summary come from `platforms/cursor/rules.map.json` (`scripts/build-cursor-rules.sh`) |
+| `.cursor/rules/commit-conventions.mdc` — manual | `core/policies/git.md` |
+| `.cursor/rules/hooks-guide.mdc` — manual | `rules/dev/user-facing-script-standards.md` §7 |
+| `.cursor/rules/plugin-structure.mdc` — manual | `AGENTS.md` (repo shape) |
+| `.cursor/rules/skills-guide.mdc` — manual | `rules/dev/skill-quality-standards.md` |
+| `.cursor/rules/skill-frontmatter.mdc` — manual | `core/schemas/skill-frontmatter.json` |
 | `.codex/config.toml` | Codex runtime settings only; policy comes from `AGENTS.md` |
+| `.codex/agents/*.toml` | Codex subagent definitions generated from canonical `agents/` (`scripts/build-codex-agents.sh`) |
 | `.gemini/` + `gemini-extension.json` | Gemini CLI extension wiring; policy comes from `AGENTS.md` |
 | `.opencode/` + `opencode.json` | OpenCode wiring; agent definitions generated from canonical `agents/` |
 
-Every rule in `rules/dev/` has exactly one `.cursor/rules/<same-basename>.mdc`; `tests/contract/cursor.sh` enforces that mapping, and `rules/README.md` is excluded as an index. Drift between an adapter and its canonical source is a build failure, not a style issue: `bash scripts/check-agent-drift.sh .` and `bash scripts/check-feature-equivalence.sh .` are wired into `make validate`.
+Every rule in `rules/dev/` has exactly one `.cursor/rules/<same-basename>.mdc`, and those files are **generated output**: `scripts/build-cursor-rules.sh` assembles each one from the rule's entry in [`platforms/cursor/rules.map.json`](../platforms/cursor/rules.map.json) — the Cursor-only frontmatter (`description`, `alwaysApply`, `globs`), the `# title`, an optional tail for the `Canonical rule:` line, and the short pointer `summary` — behind a `GENERATED FILE — DO NOT EDIT` comment. To change a Cursor adapter, edit the map (or the canonical rule it points at), then run `make cursor-rules`; `make cursor-rules-check` (`bash scripts/build-cursor-rules.sh . --check`) fails on drift, on a `rules/dev` rule with no map entry, and on an `.mdc` the map does not name. `rules/README.md` is excluded as an index. The five adapters that thin into something other than a `rules/dev` rule — `commit-conventions`, `hooks-guide`, `plugin-structure`, `skills-guide`, `skill-frontmatter` — are listed in the map as `manual: true` with their canonical source: the generator verifies each exists and opens with frontmatter and never rewrites it. `tests/contract/cursor.sh` runs the same `--check`, and `tests/test-generators.sh` plants drift to prove it fails. Drift between an adapter and its canonical source is a build failure, not a style issue: `bash scripts/check-agent-drift.sh .` and `bash scripts/check-feature-equivalence.sh .` are wired into `make validate`. The full inventory of generated adapter files across every platform, with each one's source, generator and check command, is [`docs/engineering/architecture/generated-adapters.md`](../docs/engineering/architecture/generated-adapters.md).
 
 ---
 

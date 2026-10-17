@@ -1,6 +1,6 @@
 # tamirs-superpowers
 
-A portable agent toolkit for Claude Code and Claude Desktop: **29 skills**, 10 role-based
+A portable agent toolkit for Claude Code and Claude Desktop: **30 skills**, 10 role-based
 specialist agents, worktree-isolation hooks, a statusline, an in-process mod, and a bundled
 GitHub MCP server, from one plugin.
 

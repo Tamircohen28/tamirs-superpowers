@@ -62,11 +62,25 @@
 #   `/goal force: <condition>` arms verbatim. The user overrides; the hook never
 #   gets a second opinion. Documented in the block message itself so it is
 #   discoverable at exactly the moment it is wanted.
+#
+# ON CURSOR (platforms/cursor/hooks.json, event beforeSubmitPrompt)
+#   The same two patterns are refused, through Cursor's documented route for that
+#   event: `{"continue": false, "user_message": <the menu>}` on exit 0. The
+#   stderr + exit 2 path below is Claude's; on Cursor exit 2 is documented only
+#   for the permission hooks, and how a reason reaches the user from a
+#   beforeSubmitPrompt exit 2 is not, so the JSON form is the one with a quote
+#   behind it there. Every pass is an explicit `{"continue": true}` rather than
+#   empty stdout, so a hook that said nothing can never be mistaken for one that
+#   failed. Platform detection comes from the payload (conversation_id /
+#   cursor_version / workspace_roots); a Claude payload takes the path it always
+#   took, byte for byte.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=lib/hook-output.sh
 source "${SCRIPT_DIR}/lib/hook-output.sh"
+# shellcheck source=lib/cursor-output.sh
+source "${SCRIPT_DIR}/lib/cursor-output.sh"
 
 # A guard that cannot run must SAY SO. Exiting 0 in silence is the failure this
 # hook exists to prevent, one level up: the check appears installed, blocks
@@ -89,6 +103,16 @@ command -v jq >/dev/null 2>&1 || cannot_run "jq is not installed, so the hook pa
 printf '%s' "$input" | jq -e . >/dev/null 2>&1 \
   || cannot_run "the hook payload on stdin is not valid JSON"
 
+hook_detect_platform "$input"
+
+# pass_silently — the prompt goes through untouched. Nothing on stdout for
+# Claude (its UserPromptSubmit reads empty stdout as "no opinion"); Cursor's
+# beforeSubmitPrompt gets its explicit `{"continue": true}`.
+pass_silently() {
+  [ "${HOOK_PLATFORM:-claude}" = "cursor" ] && cursor_prompt_pass
+  exit 0
+}
+
 # Read every field name the prompt has been carried under. `.prompt` is what
 # every hook in this repo reads and what the harness sends today; `.user_input`
 # and `.user_message` appear in published schema descriptions. Reading only one
@@ -101,13 +125,13 @@ if [ -z "$prompt" ]; then
   # Valid JSON but no prompt. Distinguish "the user submitted nothing" (boring)
   # from "the field this hook depends on is gone" (a defect that disables it).
   if printf '%s' "$input" | jq -e 'has("prompt") or has("user_input") or has("user_message")' >/dev/null 2>&1; then
-    exit 0
+    pass_silently
   fi
   cannot_run "the payload has none of .prompt / .user_input / .user_message — the field this hook reads may have been renamed"
 fi
 
 # Not a /goal invocation at all -> silent pass.
-printf '%s' "$prompt" | grep -qiE '^[[:space:]]*/goal([[:space:]]|$)' || exit 0
+printf '%s' "$prompt" | grep -qiE '^[[:space:]]*/goal([[:space:]]|$)' || pass_silently
 
 # Everything after the command word, trimmed.
 #
@@ -123,11 +147,11 @@ condition="$(printf '%s' "$prompt" \
 
 # Bare `/goal`, and the management subcommands, carry no condition to lint.
 case "$(printf '%s' "$condition" | tr '[:upper:]' '[:lower:]')" in
-  ""|clear|status|show|list) exit 0 ;;
+  ""|clear|status|show|list) pass_silently ;;
 esac
 
 # Explicit override: user has seen the objection and wants it anyway.
-if printf '%s' "$condition" | grep -qiE '^force:'; then exit 0; fi
+if printf '%s' "$condition" | grep -qiE '^force:'; then pass_silently; fi
 
 lower="$(printf '%s' "$condition" | tr '[:upper:]' '[:lower:]')"
 
@@ -155,7 +179,7 @@ if [ -n "$UNBOUNDED" ] && printf '%s' "$lower" | grep -qE "exclud|except|other t
   UNBOUNDED=''
 fi
 
-[ -z "$NEVER_STOP" ] && [ -z "$UNBOUNDED" ] && exit 0
+[ -z "$NEVER_STOP" ] && [ -z "$UNBOUNDED" ] && pass_silently
 
 # ---------------------------------------------------------------------------
 # Build the menu. Two rewrites, both derived from the user's own words so they
@@ -180,6 +204,11 @@ reason="$(jq -rn \
   --arg a "$fix_a" \
   --arg b "$fix_b" \
   '"⛔ /goal not armed — this condition cannot terminate.\n\nYou asked for:\n  \($cond)\n\nProblem: \($why)\nA goal like this blocks every turn-end until the harness cap trips or you run /goal clear. It has happened twice: 2026-08-17 (21 blocks) and 2026-08-31 (~15).\n\nPick one — paste a line:\n\n  1) /goal \($a)\n     (recommended — same intent, but a real blocker ENDS it instead of extending it)\n\n  2) /goal \($b)\n     (a predicate a command can answer yes/no)\n\n  3) /goal force: \($cond)\n     (keep it exactly as written — arms verbatim, no further checks)\n\n  4) /goal <your own wording>\n\nIf the condition armed anyway (the harness may run a slash command before this\nhook blocks), run /goal clear first — then paste your choice.\n\nRule of thumb: a goal terminates when a command can answer it yes/no, and when \"blocked on someone else\" counts as done rather than outstanding."')"
+
+# Cursor: the documented block for beforeSubmitPrompt is JSON on exit 0.
+if [ "${HOOK_PLATFORM:-claude}" = "cursor" ]; then
+  cursor_prompt_block "$reason"
+fi
 
 # BLOCK VIA stderr + EXIT 2 -- deliberately, not via a JSON decision field.
 #

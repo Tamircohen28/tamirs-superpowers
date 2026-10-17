@@ -4,6 +4,13 @@
 # No-op (silent exit 0) if either variable is unset — safe to ship without configuration.
 set -uo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=lib/hook-output.sh
+source "${SCRIPT_DIR}/lib/hook-output.sh"
+# Notification tier (plugin option notification_hooks, default on). The
+# CLAUDE_EXIT_* opt-in below still applies when the tier is on.
+hook_tier_gate notification
+
 PROXY="${CLAUDE_EXIT_PROXY:-}"
 PUBLIC_IP="${CLAUDE_EXIT_PUBLIC_IP:-}"
 

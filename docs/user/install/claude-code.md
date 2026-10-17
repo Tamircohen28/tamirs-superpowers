@@ -12,28 +12,50 @@ measured below was measured on the CLI; see
 
 ## Install
 
-Two sources, same plugin. Pick one.
+Two sources, same plugin. Pick one. Since Claude Code 2.1.275, `/plugin install <plugin>
+--marketplace <source>` installs from either source in one step — shown first below, with
+the older two-step `/plugin marketplace add` + `/plugin install` form kept underneath since
+it still works and is what you will see if you add the marketplace first from `/plugin`'s
+menu instead of typing the command.
 
 **From this repo (standalone):**
+
+```text
+/plugin install tamirs-superpowers --marketplace Tamircohen28/tamirs-superpowers
+```
+
+<details>
+<summary>Two-step form</summary>
 
 ```text
 /plugin marketplace add Tamircohen28/tamirs-superpowers
 /plugin install tamirs-superpowers@tamirs-superpowers
 ```
 
+</details>
+
 **From the catalog:**
+
+```text
+/plugin install tamirs-superpowers --marketplace Tamircohen28/tamirs-marketplace
+```
+
+<details>
+<summary>Two-step form</summary>
 
 ```text
 /plugin marketplace add Tamircohen28/tamirs-marketplace
 /plugin install tamirs-superpowers@tamirs-marketplace
 ```
 
+</details>
+
 **From Anthropic's directory** (claude.ai → Directory → tamirs-superpowers): the listing is
 the Claude-only distribution the repository builds on every release; it reaches your Claude
 Code sessions through account sync and updates on its own.
 
-The `@` suffix names the *marketplace*, so it differs between the two — using the wrong one
-is the most common install error.
+Either form, the marketplace source differs between the two (`--marketplace` above, the `@`
+suffix in the two-step forms) — using the wrong one is the most common install error.
 
 ### Options
 
@@ -47,6 +69,8 @@ environment or a file:
 | `github_token` | The bundled `github` MCP server (the gh CLI can print its own token if you want to reuse it) |
 | `pushover_token` + `pushover_user` | Phone notifications, see [phone-notifications.md](../phone-notifications.md) |
 | `semantic_skill_suggest` | A small-model skill match on long prompts (no credential; off by default) |
+| `notification_hooks` | Desktop and phone notifications, the VPN exit check and the usage-capture collector start (on by default) |
+| `contributor_hooks` | The plugin-author hooks: reload reminder, report-link validation, the hand-written `SKILL.md` guard (off by default; see [configuration.md](../configuration.md)) |
 
 What each sends, and where: [`PRIVACY.md`](../../../PRIVACY.md).
 
@@ -164,6 +188,39 @@ never adopt anything silently. `apply` shows a diff and asks per change, default
 Opt in with [`/usage-capture`](../usage-capture.md) (`bash scripts/usage-capture/enable.sh`).
 Claude Code's native OpenTelemetry export is pointed at a loopback collector; logs stay
 on this machine as one JSONL file per Israel calendar day. Restart Claude Code after enabling.
+
+## The guard plugin
+
+A second, optional plugin in the same repository: `tamirs-superpowers-guard`. It runs
+in-process (Claude Code 2.1.287+, Claude Code and the Claude Desktop Code tab only) and does
+two things the core plugin's bash hooks cannot:
+
+- **Holds a destructive shell command until you answer.** A `Bash` call that force-pushes,
+  deletes a branch with `-D`, removes a worktree with `--force`, resets `--hard`, cleans with
+  `-f`, runs `rm -rf` outside a temp directory, or discards the working tree
+  (`git checkout -- .`, `git restore .`) pauses in Claude Code's question dialog with
+  **Proceed** and **Cancel**. Cancel refuses it with the guard's reason. Under `claude -p`
+  or the SDK, where nothing draws the dialog, the call goes through unheld.
+- **Refuses a main-checkout write while an objective is active.** The same rule as the core
+  plugin's `enforce-worktree-edits.sh` (which keeps running), applied in-process: with an
+  orchestration objective active and the session in the main checkout rather than a
+  worktree, an `Edit`/`Write`/`MultiEdit`/`NotebookEdit` inside the repository is refused
+  and the objective's worktrees are named.
+
+It is separate because a hook that can refuse a tool call is one Anthropic's plugin directory
+holds for review; the core plugin keeps its listing clean and the guard installs from this
+repository's own marketplace instead. Install it with the core plugin already in place:
+
+```text
+/plugin install tamirs-superpowers-guard --marketplace Tamircohen28/tamirs-superpowers
+```
+
+Both behaviours are options, on by default, under `/config` or
+`claude plugin configure tamirs-superpowers-guard`: `hold_destructive_commands` and
+`deny_main_checkout_writes`. `/guard` shows their current values and what the guard has held
+or refused this session. It is not in the catalog marketplace or Anthropic's directory. Design
+and the full vocabulary: [guard plugin](../../engineering/architecture/guard-plugin.md); the
+plugin's own README: [`plugins/guard/README.md`](../../../plugins/guard/README.md).
 
 ## Capabilities and limitations
 

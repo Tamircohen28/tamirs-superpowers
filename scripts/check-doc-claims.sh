@@ -87,12 +87,17 @@ number_word() {
 }
 
 # Emit "file:line:text" for prose lines only — fenced blocks, indented code blocks and
-# inline code spans stripped. $1 is the root, $2 the find -name pattern.
+# inline code spans stripped. $1 is the root, $2 the find -name pattern. Research notes
+# under docs/engineering/roadmap/*-research/ quote other projects' counts and versions
+# verbatim ("3,984 skills", a host's own version table), so they are not claims about this
+# tree and are left out; the same holds for docs/engineering/host-notes/, which records
+# what each host's releases changed ("32 entries in its skills frontmatter").
 prose_lines() {
   local root="$1" pattern="$2"
   find "$root" -name "$pattern" -type f \
     -not -path '*/.git/*' -not -path '*/node_modules/*' \
-    -not -path '*_contract/fixtures/*' -not -path '*/session-files/*' 2>/dev/null \
+    -not -path '*_contract/fixtures/*' -not -path '*/session-files/*' \
+    -not -path '*/docs/engineering/roadmap/*-research/*' -not -path '*/docs/engineering/host-notes/*' 2>/dev/null \
   | while IFS= read -r f; do
       awk -v fname="${f#"$root"/}" '
         # A fence line toggles the state and is itself never a claim. Matches ``` and ~~~

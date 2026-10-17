@@ -24,17 +24,28 @@
 #   2. the active task's .validation_tier in the objective state
 #   3. inferred from the branch: worker/* -> 1, objective/* -> 2
 #   4. no tier context at all -> today's behavior, unchanged
+#
+# STDOUT CONTRACT
+#   The reminder goes to stderr; stdout carries exactly one JSON object, `{}`,
+#   on every exit-0 path (hook_stop_ok). Claude Code reads `{}` as "no
+#   decision", which is what a bare exit 0 meant before. Codex requires it: a
+#   Stop hook that exits 0 must print JSON, and a bare exit 0 after stderr text
+#   is only safe there because its parser happens to tolerate empty stdout —
+#   the documented contract does not promise that, so this hook does not rely
+#   on it. tests/hooks/test-codex-contract.sh pins it.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=lib/objective-common.sh
 source "${SCRIPT_DIR}/lib/objective-common.sh"
+# shellcheck source=lib/hook-output.sh
+source "${SCRIPT_DIR}/lib/hook-output.sh"
 
-root=$(git rev-parse --show-toplevel 2>/dev/null) || exit 0
+root=$(git rev-parse --show-toplevel 2>/dev/null) || hook_stop_ok
 changed=$(git -C "$root" status --porcelain 2>/dev/null \
   | grep -cE '\.(ts|tsx|js|jsx|mjs|cjs|py|go|rs|sh)$' || true)
 
-[ "${changed:-0}" -gt 0 ] || exit 0
+[ "${changed:-0}" -gt 0 ] || hook_stop_ok
 
 # --- resolve the tier -------------------------------------------------------
 
@@ -122,4 +133,4 @@ case "$tier" in
     ;;
 esac
 
-exit 0
+hook_stop_ok

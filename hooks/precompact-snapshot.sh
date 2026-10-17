@@ -27,15 +27,25 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${SCRIPT_DIR}/lib/hook-output.sh"
 
 input="$(hook_read_stdin)"
-cwd="$(printf '%s' "$input" | jq -r '.cwd // empty' 2>/dev/null || true)"
+hook_detect_platform "$input"
+# shellcheck source=lib/cursor-output.sh
+source "${SCRIPT_DIR}/lib/cursor-output.sh"
+# Cursor's preCompact carries workspace_roots rather than cwd; suppressOutput and
+# systemMessage are Claude keys, so on Cursor the quiet paths print nothing and the
+# informative path answers with user_message (preCompact's documented output).
+quiet() {
+  [ "${HOOK_PLATFORM:-claude}" = cursor ] && cursor_silent
+  echo '{"suppressOutput": true}'
+  exit 0
+}
+cwd="$(printf '%s' "$input" | jq -r '.cwd // .workspace_roots[0] // empty' 2>/dev/null || true)"
 [ -n "$cwd" ] || cwd="$PWD"
 trigger="$(printf '%s' "$input" | jq -r '.trigger // .matcher // empty' 2>/dev/null || true)"
 [ -n "$trigger" ] || trigger="unknown"
 
 # Outside a git repo there is no working state worth snapshotting.
 if ! git -C "$cwd" rev-parse --git-dir >/dev/null 2>&1; then
-  echo '{"suppressOutput": true}'
-  exit 0
+  quiet
 fi
 
 repo_root="$(git -C "$cwd" rev-parse --show-toplevel 2>/dev/null || printf '%s' "$cwd")"
@@ -52,12 +62,11 @@ fi
 
 # Nothing in flight — a compaction mid-browse needs no snapshot.
 if [ "$dirty" -eq 0 ] && [ -z "$objective" ]; then
-  echo '{"suppressOutput": true}'
-  exit 0
+  quiet
 fi
 
 out_dir="${repo_root}/.dev-files/compaction"
-mkdir -p "$out_dir" 2>/dev/null || { echo '{"suppressOutput": true}'; exit 0; }
+mkdir -p "$out_dir" 2>/dev/null || quiet
 out="${out_dir}/latest.md"
 
 {
@@ -75,7 +84,7 @@ out="${out_dir}/latest.md"
   fi
   printf '\n## Recent commits on this branch\n\n'
   git -C "$cwd" log -8 --pretty='    %h %s' 2>/dev/null || printf '    (none)\n'
-} > "$out" 2>/dev/null || { echo '{"suppressOutput": true}'; exit 0; }
+} > "$out" 2>/dev/null || quiet
 
 rel="${out#"${repo_root}"/}"
 detail="${dirty} uncommitted file(s) on ${branch}"
@@ -83,4 +92,5 @@ detail="${dirty} uncommitted file(s) on ${branch}"
 
 msg="Context compaction (${trigger}) — working state saved to ${rel}: ${detail}. Read that file rather than re-deriving it if the thread is lost."
 
+[ "${HOOK_PLATFORM:-claude}" = cursor ] && cursor_stop_note "$msg"
 jq -n --arg msg "$msg" '{systemMessage: $msg}'

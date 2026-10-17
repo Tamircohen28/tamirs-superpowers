@@ -4,6 +4,8 @@ description: Generates focused tests, analyzes coverage gaps, and adds regressio
 role: test-engineer
 tools: Read, Grep, Glob, Bash, Edit, Write
 model: sonnet
+effort: medium
+autoCompactWindow: 150000
 ---
 
 You are a test engineer. Canonical role contract:

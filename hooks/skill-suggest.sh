@@ -31,15 +31,30 @@
 #   - Silent when it has nothing to say. Never blocks. Always exits 0.
 #   - Bounded stdin read via hook_read_stdin (bash `read -t`; `timeout(1)` is
 #     GNU coreutils and absent on stock macOS).
+#   - On Cursor (beforeSubmitPrompt, via platforms/cursor/hooks.json) the same
+#     suggestion goes out as `{"continue": true, "user_message": ...}`. That
+#     event has no model-visible channel — user_message reaches the USER — so
+#     the Cursor wording asks them to name the skill, where the Claude wording
+#     tells the model to invoke it. Nothing to say is an explicit
+#     `{"continue": true}` there, never empty stdout.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=lib/hook-output.sh
 source "${SCRIPT_DIR}/lib/hook-output.sh"
+# shellcheck source=lib/cursor-output.sh
+source "${SCRIPT_DIR}/lib/cursor-output.sh"
 # shellcheck source=lib/plugin-state.sh
 source "${SCRIPT_DIR}/lib/plugin-state.sh"
 
 input="$(hook_read_stdin)"
+hook_detect_platform "$input"
+
+# quiet — nothing to suggest. Silent on Claude; explicit continue on Cursor.
+quiet() {
+  [ "${HOOK_PLATFORM:-claude}" = "cursor" ] && cursor_prompt_pass
+  exit 0
+}
 prompt="$(printf '%s' "$input" | jq -r '.prompt // empty' 2>/dev/null || true)"
 session_id="$(printf '%s' "$input" | jq -r '.session_id // .conversation_id // empty' 2>/dev/null || true)"
 cwd="$(printf '%s' "$input" | jq -r '.cwd // empty' 2>/dev/null || true)"
@@ -47,7 +62,7 @@ cwd="$(printf '%s' "$input" | jq -r '.cwd // empty' 2>/dev/null || true)"
 [ -n "$session_id" ] || session_id="nosession"
 
 # Nothing to match against — say nothing.
-[ -n "$prompt" ] || exit 0
+[ -n "$prompt" ] || quiet
 
 # Repo root, so two worktrees of one repo share a marker but two repos do not.
 repo_root="$(cd "$cwd" 2>/dev/null && git rev-parse --show-toplevel 2>/dev/null || printf '%s' "$cwd")"
@@ -156,12 +171,20 @@ if [ "$switch_signal" = 1 ]; then
   add switch-dev "switch-dev — writes objective/task/handoff state so the work can be resumed on another platform (Cursor, Codex, Gemini CLI, OpenCode) without losing context. Use it before the session ends, not after."
 fi
 
-[ "${#suggestions[@]}" -gt 0 ] || exit 0
+[ "${#suggestions[@]}" -gt 0 ] || quiet
 
-body="Bundled skills that cover what was just described — invoke the skill, or tell the user in one line that it exists. Do not silently hand-roll the work."
+if [ "${HOOK_PLATFORM:-claude}" = "cursor" ]; then
+  body="Bundled skills that cover what you just described — name one in your prompt (e.g. \"use the session-report skill\") so the agent runs it instead of hand-rolling the work."
+else
+  body="Bundled skills that cover what was just described — invoke the skill, or tell the user in one line that it exists. Do not silently hand-roll the work."
+fi
 for s in "${suggestions[@]}"; do
   body="${body}"$'\n'"• ${s}"
 done
+
+if [ "${HOOK_PLATFORM:-claude}" = "cursor" ]; then
+  cursor_prompt_pass "$body"
+fi
 
 jq -n --arg ctx "$body" \
   '{hookSpecificOutput:{hookEventName:"UserPromptSubmit",additionalContext:$ctx}}'

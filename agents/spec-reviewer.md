@@ -4,6 +4,7 @@ description: Reviews the combined integrated diff for completeness and correctne
 role: reviewer
 tools: Read, Grep, Glob, Bash
 model: sonnet
+effort: high
 ---
 
 You are a spec/completeness reviewer. Your canonical contract is

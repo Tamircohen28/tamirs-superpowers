@@ -16,7 +16,7 @@ This file is the `privacyPolicyUrl` in [`.claude-plugin/plugin.json`](.claude-pl
 
 ### Pushover phone notifications (off by default)
 
-Enabled only when both `pushover_token` and `pushover_user` are set as the plugin's sensitive options. Then one hook, `scripts/notify-pushover.sh`, posts to `https://api.pushover.net/1/messages.json` on Claude Code's `Notification` event (the session needs your input). Nothing else in the plugin sends to Pushover.
+Enabled only when both `pushover_token` and `pushover_user` are set as the plugin's sensitive options. Then one hook, `scripts/notify-pushover.sh`, posts to `https://api.pushover.net/1/messages.json` on Claude Code's `Notification` event (the session needs your input). Nothing else in the plugin sends to Pushover. Setting the `notification_hooks` option to false keeps that hook silent even with both credentials set.
 
 Each message carries: a title made of `Claude Code —` and the name of your working directory, a priority, and a body of up to 1,024 characters. The body includes up to 300 characters of Claude's last message, converted to plain text. Set `PUSHOVER_INCLUDE_SNIPPET=0` in the shell that starts Claude Code to drop that excerpt from the hook's messages. Pushover's own handling of what it receives is governed by [Pushover's privacy policy](https://pushover.net/privacy).
 

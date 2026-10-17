@@ -86,7 +86,7 @@ Claude Code / Claude Desktop fields — all optional, all validated when present
 | `user-invocable`, `disable-model-invocation` | Invocation tier — see below |
 | `allowed-tools`, `disallowed-tools` | Tool names; shell, skill and fetch entries scoped (`Bash(git status:*)`, `Skill(tamirs-superpowers:pr-dev)`, `WebFetch(domain:…)`), never bare `Bash`/`Skill`/`Write`/`Edit`/`WebFetch`/`WebSearch` |
 | `model`, `effort` | `effort`: `low`\|`medium`\|`high`\|`xhigh`\|`max` |
-| `context`, `agent` | `context: fork` requires a non-empty `agent`; otherwise `agent` must be `''` |
+| `context`, `agent` | `context: fork` requires a non-empty `agent`; otherwise `agent` must be `''`. Decision rule: [When to fork](#when-to-fork-context-fork--agent) |
 | `hooks`, `paths`, `shell` | `shell`: `bash` \| `powershell` |
 
 Two pairings the validator enforces:
@@ -97,6 +97,56 @@ Two pairings the validator enforces:
 
 **Do not set `model` without a reason.** A pinned model id is a claim that ages; leave it out
 and the user's configured model is used.
+
+## When to fork: `context: fork` + `agent:`
+
+`context: ''` (the default) runs the skill inline: every file it reads and every search it
+runs lands in the user's conversation. `context: fork` runs it in a subagent of the named
+`agent` type, and only the subagent's final report comes back.
+
+**Fork when the skill's work is research-shaped.** Any of these is enough:
+
+- it **digs, scans or traces** across a codebase — finds every reader of a variable, every
+  caller of a function, every place a pattern occurs — and the conversation needs the
+  *findings*, not the search transcript;
+- it **reads broadly** (many files, long logs, a documentation tree) to answer one question;
+- the user asks for the work to happen **"off to the side"**, "in the background", "without
+  cluttering the conversation", or "just give me the result";
+- the result is a **report with file and line references** rather than an edit.
+
+**Stay inline** when the skill edits files the user is looking at, needs the conversation's
+history as input, asks the user questions mid-way, or is a short, deterministic step: a fork
+would hide exactly the context the skill depends on.
+
+Name the agent type explicitly; `context: fork` with an empty `agent` fails validation.
+Pick the narrowest one that can do the job:
+
+| `agent:` | Use for | Can write? |
+|---|---|---|
+| `Explore` | Read-only search and tracing; the default for research-shaped skills | No |
+| `Plan` | Read-only investigation that ends in a proposed approach | No |
+| `general-purpose` | Research that must also produce files (a generated report, fixtures) | Yes |
+| `<plugin>:<agent>` or a project `.claude/agents/<name>` | A custom agent with its own tool set and contract | Per its definition |
+
+Pair a fork with a read-only `allowed-tools` (`Read`, `Grep`, `Glob`) unless the skill must
+write. A forked research skill that grants `Write` or `Edit` is a skill that can silently
+change files the user never sees it touch.
+
+```yaml
+---
+name: env-var-trace
+description: >-
+  Use when finding every place an environment variable is read, including indirect
+  access through a config object or getenv wrapper. Triggers: 'where is X read',
+  'trace env var', 'who reads this setting'.
+context: fork
+agent: Explore
+allowed-tools: [Read, Grep, Glob]
+---
+```
+
+`context` and `agent` are Claude Code fields; other harnesses ignore them and run the skill
+inline, so the body must still make sense when read in the main conversation.
 
 ## Invocation tiers (Claude)
 

@@ -37,7 +37,7 @@ Summary: 1 drifted, 0 unreachable
 
 `pinned` is the version this repo's docs currently claim — the same value `registry.md`'s
 per-target "Version detection" rule would derive from local config (`.claude-code-version`,
-`platform-targets.json`, or a `SKILL.md`/`CLAUDE.md` narrative reference). `current` is one of
+`platform-targets.json`, or a `SKILL.md`/`docs/engineering/host-notes/` narrative reference). `current` is one of
 three things, and they are NOT the same case:
 
 - **an actual version** — the probe reached the endpoint and got a real answer. Compare

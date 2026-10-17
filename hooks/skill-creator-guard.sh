@@ -9,6 +9,10 @@ source "${SCRIPT_DIR}/lib/platform-tools.sh"
 
 INPUT="$(hook_read_stdin)"
 hook_detect_platform "$INPUT"
+# Contributor tier (plugin option contributor_hooks, default off). This guard
+# is also wired in platforms/cursor/hooks.json, and Cursor fail-closes on empty
+# stdout — so "off" must still answer with the platform's allow, not silence.
+hook_tier_gate contributor allow
 
 # Both extraction routes below only make sense for a tool that actually
 # writes/edits a file. Previously the flat file_path/path read ran

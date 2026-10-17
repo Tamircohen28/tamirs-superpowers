@@ -57,7 +57,31 @@ in CI — never assumed. Classification per platform:
 [engineering/architecture/hooks-classification.md](../engineering/architecture/hooks-classification.md).
 
 To disable a hook, remove its entry from the hook manifest in your install and restart the
-session.
+session — except for the two groups below, which are switched by a plugin option instead.
+
+### Hook tiers (`notification_hooks`, `contributor_hooks`)
+
+Two plugin options switch whole groups of hooks on or off without editing the manifest.
+Set them in `/plugin` > **tamirs-superpowers** > **Configure**, in `/config`, or from the
+shell with `claude plugin configure tamirs-superpowers`:
+
+| Option | Default | Hooks it switches |
+|---|---|---|
+| `notification_hooks` | on | the desktop notification (`notify.sh`), the Pushover phone notification (`notify-pushover.sh`), the VPN exit-node check (`ensure-exit.sh`) and the usage-capture collector start (`usage-capture-ensure.sh`) |
+| `contributor_hooks` | off | the `/reload-plugins` reminder after a plugin-file edit (`plugin-reload-reminder.sh`), `report.md` link validation (`validate-report-links.sh`) and the hand-written `SKILL.md` guard (`skill-creator-guard.sh`) |
+
+Turn `contributor_hooks` on when you work on this plugin or on agent configuration; for
+everyone else those three are noise and stay off. Turn `notification_hooks` off for a
+session that must not ping you — the safety, worktree and convenience hooks are not
+affected either way. A hook's own opt-in still applies when its tier is on: the exit-node
+check needs `CLAUDE_EXIT_PROXY`/`CLAUDE_EXIT_PUBLIC_IP`, the collector start needs
+`TAMIRS_USAGE_CAPTURE`, and the phone notification needs both Pushover credentials.
+
+Claude Code hands each option to the hooks as `CLAUDE_PLUGIN_OPTION_NOTIFICATION_HOOKS` /
+`CLAUDE_PLUGIN_OPTION_CONTRIBUTOR_HOOKS` (`true`/`false`, `1`/`0`, `yes`/`no`, `on`/`off`).
+Codex and Cursor have no plugin options, so there the defaults apply; a contributor on
+either can export the variable by hand. Why these are options and not separate plugins:
+[ADR 003](../engineering/decisions/003-hook-tiers-as-options.md).
 
 ## Worktree behavior
 
@@ -97,8 +121,8 @@ Without `gh`, delivery ends at a pushed integration branch and reports exactly t
 `/notify-setup` sets up [Pushover](https://pushover.net) so an agent can reach you away from
 the desk. The hook ships in the hook manifest; the credentials are the plugin's sensitive
 `pushover_token` / `pushover_user` options and nothing else — no environment variable, no
-dotfile. The hook is inert until both are set. Details:
-[phone-notifications.md](phone-notifications.md).
+dotfile. The hook is inert until both are set, and silent whenever the `notification_hooks`
+option above is off. Details: [phone-notifications.md](phone-notifications.md).
 
 ## Statusline
 

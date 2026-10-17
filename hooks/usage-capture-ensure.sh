@@ -6,11 +6,17 @@
 # blocks the session. No stdout (SessionStart parses hook JSON).
 set -uo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=lib/hook-output.sh
+source "${SCRIPT_DIR}/lib/hook-output.sh"
+# Notification tier (plugin option notification_hooks, default on). The
+# TAMIRS_USAGE_CAPTURE opt-in below still applies when the tier is on.
+hook_tier_gate notification
+
 if [[ -z "${TAMIRS_USAGE_CAPTURE:-}" ]]; then
   exit 0
 fi
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 COLLECTOR="$SCRIPT_DIR/../scripts/usage-capture/collector.py"
 if [[ ! -f "$COLLECTOR" ]]; then
   COLLECTOR="$SCRIPT_DIR/../scripts/usage-capture/collector.py"
