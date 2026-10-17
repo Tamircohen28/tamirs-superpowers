@@ -4,6 +4,11 @@ alwaysApply: false
 globs: [".dev-files/objectives/**/*", ".agent-worktrees/**/*", ".cursor/.worktrees/**/*"]
 ---
 
+<!-- GENERATED FILE — DO NOT EDIT.
+     Source:    rules/dev/cross-platform-handoff.md (frontmatter + summary: platforms/cursor/rules.map.json)
+     Generator: scripts/build-cursor-rules.sh
+     Regenerate: make cursor-rules -->
+
 # Cross-Provider Handoff
 
 Canonical rule: `rules/dev/cross-platform-handoff.md`.

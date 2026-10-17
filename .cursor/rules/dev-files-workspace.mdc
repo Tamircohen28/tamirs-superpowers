@@ -3,6 +3,11 @@ description: "Session-local plans, reviews, scratch, and objective state belong 
 alwaysApply: true
 ---
 
+<!-- GENERATED FILE — DO NOT EDIT.
+     Source:    rules/dev/dev-files-workspace.md (frontmatter + summary: platforms/cursor/rules.map.json)
+     Generator: scripts/build-cursor-rules.sh
+     Regenerate: make cursor-rules -->
+
 # Dev-Files Workspace
 
 Canonical rule: `rules/dev/dev-files-workspace.md`.

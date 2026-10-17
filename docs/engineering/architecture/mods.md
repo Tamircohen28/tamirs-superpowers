@@ -58,13 +58,21 @@ already approximates.
 
 ## Options
 
-Two non-sensitive `userConfig` fields, shown as rows in `/config` and editable with
+Four non-sensitive `userConfig` fields, shown as rows in `/config` and editable with
 `claude plugin configure tamirs-superpowers`:
 
 | Field | Default | Effect |
 |---|---|---|
 | `rate_limit_warn_percent` | 85 | Band threshold (50–100) |
 | `semantic_skill_suggest` | false | One small-model call per long prompt when on |
+| `notification_hooks` | true | Notification-tier bash hooks run (desktop and phone notifications, VPN exit check, usage-capture collector start) |
+| `contributor_hooks` | false | Contributor-tier bash hooks run (reload reminder, `report.md` link validation, hand-written `SKILL.md` guard) |
+
+The first two are the mod's. The two hook-tier options are **read by the bash hooks, not by
+the mod**: Claude Code exports them to each hook process as `CLAUDE_PLUGIN_OPTION_*`, and
+`hooks/lib/hook-output.sh`'s `hook_tier_gate` applies them (see
+[hooks-classification.md § Tiers](hooks-classification.md#tiers)). The mod neither reads
+them nor needs to — nothing it draws belongs to either tier.
 
 `pushover_token`/`pushover_user` are the existing sensitive fields; since 4.11.1 the mod does not
 read them at all (only `scripts/notify-pushover.sh` does). A test in `mod/mods.test.tsx` holds the

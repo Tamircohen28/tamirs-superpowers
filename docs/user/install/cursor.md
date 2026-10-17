@@ -19,8 +19,30 @@ Cursor imports a plugin marketplace straight from a repo:
 
 Cursor reads [`.cursor-plugin/plugin.json`](../../../.cursor-plugin/plugin.json), the
 canonical `skills/` tree, [`.cursor/rules/`](../../../.cursor/rules) — declared explicitly,
-see below — `agents/`, and the MCP stubs. Enable **Auto Refresh** on the marketplace and pushes propagate without a version
-bump.
+see below — `agents/`, and the github MCP server from
+[`platforms/cursor/mcp.json`](../../../platforms/cursor/mcp.json), a Cursor-specific file
+generated with the manifest from one source
+([manifests](../../engineering/build-and-release/manifests.md)). Enable **Auto Refresh**
+on the marketplace and pushes propagate without a version bump.
+
+## Set the `GITHUB_TOKEN` plugin variable
+
+The bundled github MCP server needs a GitHub personal access token, and in a Cursor plugin
+a token is a **plugin variable**: the MCP file says `${GITHUB_TOKEN}`, the manifest
+declares `GITHUB_TOKEN` under `variables`, and the value is set by you — never in the repo.
+
+1. Dashboard → **Plugins** → **tamirs-superpowers** → **Configure**.
+2. Set **GitHub token for the bundled github MCP server** to a token with `repo` scope.
+
+Cursor hands it to the server as `GITHUB_PERSONAL_ACCESS_TOKEN`; nothing else in the
+plugin reads it. Leave it unset to keep the server off — it refuses to start without one,
+and no skill depends on it.
+
+Why a separate MCP file: Cursor treats every `${VAR}` in a plugin's MCP config as a
+plugin variable that must be declared under `variables`, and the Claude file's
+`${user_config.github_token}` is not a declarable name. The generator refuses to write a
+Cursor MCP file that uses a variable the manifest does not declare, and
+`tests/test-manifests.sh` plants one to prove it.
 
 ## Hooks do not come with the install
 
@@ -225,6 +247,9 @@ and is tracked as [#179 E1](https://github.com/Tamircohen28/tamirs-superpowers/i
 
 ```bash
 jq empty .cursor-plugin/plugin.json
+jq -e '.variables.properties.GITHUB_TOKEN' .cursor-plugin/plugin.json   # the plugin variable is declared
+jq -e '.mcpServers.github' platforms/cursor/mcp.json                     # the Cursor MCP file
+bash scripts/build-manifests.sh . --check                               # manifest and MCP file match their sources
 bash scripts/doctor.sh .
 ```
 
@@ -290,7 +315,7 @@ never adopt anything silently. `apply` shows a diff and asks per change, default
 | skills | native | since desktop 3.22.7 pin; pin as **Custom Mode** (2026-08-19) via ⌥⏎ / Alt+Enter from `/` |
 | subagents | native | declared capability; cloud subagents can use **isolated VMs** (2026-08-19) |
 | slash commands | partial | 26 generated into `.cursor/commands/`, one per user-invocable skill; declared in the manifest. `partial` because no live Cursor run has confirmed they appear under `/` |
-| MCP | native | `.mcp.json` |
+| MCP | native | generated `platforms/cursor/mcp.json`, declared in the manifest; the github token is the `GITHUB_TOKEN` plugin variable set under Plugins → Configure |
 | git · shell · GitHub CLI | native | `gh` is an optional host dependency everywhere |
 | auto-invocation | partial | CLI sticky skills + Custom Modes; description-based selection across all surfaces is unverified — **name the skill** or pin a mode |
 | hooks | partial | **Cursor-format plugin hooks DO run**, from `platforms/cursor/hooks.json`, declared in the manifest. Claude-shaped hooks (`hooks/hooks.json`) still do not — Cursor never reads a plugin's own `hooks.json`, which is why the bundle sits at a declared non-default path. `partial` because 3 of Cursor's 21 events are wired (`preToolUse`, `beforeShellExecution`, `postToolUse`) |

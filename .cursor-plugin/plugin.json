@@ -30,5 +30,15 @@
   "commands": "./.cursor/commands/",
   "agents": "./agents/",
   "hooks": "./platforms/cursor/hooks.json",
-  "mcpServers": "./.mcp.json"
+  "mcpServers": "./platforms/cursor/mcp.json",
+  "variables": {
+    "type": "object",
+    "properties": {
+      "GITHUB_TOKEN": {
+        "type": "string",
+        "title": "GitHub token for the bundled github MCP server",
+        "description": "Optional. A GitHub personal access token with repo scope. Set it under Plugins > Configure; it is handed to the github MCP server as GITHUB_PERSONAL_ACCESS_TOKEN and nothing else reads it. Leave it unset to keep the server off - it refuses to start without one."
+      }
+    }
+  }
 }

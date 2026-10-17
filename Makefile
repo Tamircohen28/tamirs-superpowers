@@ -49,6 +49,12 @@ help:
 	@echo "  typecheck-mods          — tsc over the mod against the build's claude-code.d.ts (skips when none is laid)"
 	@echo "  build-claude-dist       — write the Claude-only distribution to DIST (default build/claude-dist)"
 	@echo "  check-claude-dist       — build it to a temp dir and hold it to the plugin directory's rules"
+	@echo "  check-dists             — build every other host's subset and hold each to its host's rules"
+	@echo "  build-dist TARGET=<t>   — write one host's subset to DIST (default build/<target>)"
+	@echo "  manifests[-check]       — regenerate (or assert) the one-source manifests: root plugin.json, mcp.json, .codex-plugin, .cursor-plugin, gemini-extension.json"
+	@echo "  codex-hooks[-check]     — regenerate (or assert) platforms/codex/hooks.json"
+	@echo "  codex-agents[-check]    — regenerate (or assert) .codex/agents/*.toml"
+	@echo "  cursor-rules[-check]    — regenerate (or assert) .cursor/rules/*.mdc"
 	@echo "  check-manifest-versions — plugin manifests agree with each other"
 	@echo "  check-marketplace-schema — extraKnownMarketplaces is a record, not an array"
 	@echo "  check-doc-claims        — skill counts and target coverage match reality"
@@ -125,7 +131,8 @@ test-contract:
 validate: lint test-hooks test-contract test-repo-contract check-manifest-versions check-platform-equivalence \
 	check-marketplace-schema check-doc-claims check-version-truth check-capability-registry \
 	validate-roles check-gemini-adapter gemini-extension-check check-github-policy check-branch-literals \
-	check-action-pinning check-manifest-declares check-platform-version-pins check-claude-dist
+	check-action-pinning check-manifest-declares check-platform-version-pins check-claude-dist check-dists \
+	manifests-check codex-hooks-check cursor-rules-check codex-agents-check
 	@echo "--- Validating JSON files ---"
 	@find . -name '*.json' -not -path '*/.git/*' | while read f; do \
 	  jq empty "$$f" 2>&1 && echo "  OK  $$f" || { echo "  FAIL $$f"; exit 1; }; \
@@ -238,7 +245,7 @@ cursor-commands-check:
 check-opencode-permission-keys:
 	@bash scripts/check-opencode-permission-keys.sh .
 
-agent\:check: check-agent-drift check-feature-equivalence check-platform-targets opencode-agents-check opencode-commands-check cursor-commands-check check-opencode-permission-keys
+agent\:check: check-agent-drift check-feature-equivalence check-platform-targets opencode-agents-check opencode-commands-check cursor-commands-check cursor-rules-check codex-agents-check codex-hooks-check manifests-check check-opencode-permission-keys
 
 agent-polish-gate: platform-targets-sync platform-targets-assert agent\:check
 
@@ -321,5 +328,45 @@ check-claude-dist:
 	@echo "--- Claude-only distribution: build + directory rules ---"
 	@tmp="$$(mktemp -d)"; trap 'rm -rf "$$tmp"' EXIT; \
 	  bash scripts/build-claude-dist.sh "$$tmp" --quiet && bash scripts/check-claude-dist.sh "$$tmp"
+
+# Every other host's subset, built by the same generator and held to its own rules
+# (docs/engineering/build-and-release/distributions.md). release.yml attaches these to
+# the GitHub Release as tarballs.
+check-dists:
+	@echo "--- Per-host distributions: build + host rules ---"
+	@tmp="$$(mktemp -d)"; trap 'rm -rf "$$tmp"' EXIT; \
+	  for t in codex cursor gemini opencode agent-plugins; do \
+	    bash scripts/build-dist.sh "$$tmp/$$t" --target "$$t" --quiet && bash scripts/check-dist.sh "$$tmp/$$t" --target "$$t" || exit 1; \
+	  done
+
+build-dist:
+	@[ -n "$(TARGET)" ] || { echo "usage: make build-dist TARGET=<codex|cursor|gemini|opencode|agent-plugins|claude> [DIST=build/<target>]"; exit 2; }
+	@bash scripts/build-dist.sh "$${DIST:-build/$(TARGET)}" --target "$(TARGET)" --force
+
+# The one-source manifests and the generated per-host adapters
+# (docs/engineering/build-and-release/manifests.md, docs/engineering/architecture/generated-adapters.md).
+manifests:
+	@bash scripts/build-manifests.sh .
+
+manifests-check:
+	@bash scripts/build-manifests.sh . --check
+
+codex-hooks:
+	@bash scripts/build-codex-hooks.sh .
+
+codex-hooks-check:
+	@bash scripts/build-codex-hooks.sh . --check
+
+codex-agents:
+	@bash scripts/build-codex-agents.sh .
+
+codex-agents-check:
+	@bash scripts/build-codex-agents.sh . --check
+
+cursor-rules:
+	@bash scripts/build-cursor-rules.sh .
+
+cursor-rules-check:
+	@bash scripts/build-cursor-rules.sh . --check
 
 test: validate

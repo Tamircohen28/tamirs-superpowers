@@ -11,16 +11,34 @@ capabilities:
   hooks: partial
   mcp: native
 
+# Cursor prefers .cursor-plugin/plugin.json over the root Agent Plugins plugin.json when
+# both exist. The manifest and the Cursor MCP file are generated from one source by
+# scripts/build-manifests.sh — see docs/engineering/build-and-release/manifests.md.
 manifest: .cursor-plugin/plugin.json
+
+generated:
+  mcp: platforms/cursor/mcp.json           # ${CURSOR_PLUGIN_ROOT}; token via the GITHUB_TOKEN plugin variable
+  variables: .cursor-plugin/plugin.json    # `variables` JSON Schema declaring every ${VAR} the MCP file uses
+  regenerate: bash scripts/build-manifests.sh .
+  check: bash scripts/build-manifests.sh . --check
+hooks: platforms/cursor/hooks.json         # hand-written, Cursor's own 21-event format
 
 install:
   type: marketplace
   doc: docs/user/install/cursor.md
 
 validation:
-  command: bash scripts/check-manifest-declares.sh .cursor-plugin/plugin.json skills mcpServers
+  command: bash scripts/check-manifest-declares.sh .cursor-plugin/plugin.json skills mcpServers rules hooks commands agents
 
 notes: >-
-  hooks is `partial`, not `native`: the Claude-shaped plugin hook bundle does not
-  run under a Cursor plugin install. Project-level .cursor/hooks.json ships soft
-  contributor guards only, so the same rules are enforced again in CI.
+  hooks is `partial`, not `native`: the Claude-shaped plugin hook bundle does not run
+  under a Cursor plugin install, so the manifest points `hooks` at a Cursor-format bundle
+  at a deliberately non-default path (Cursor would otherwise bind to hooks/hooks.json,
+  the Claude file it cannot read), wiring three of Cursor's 21 events. Project-level
+  .cursor/hooks.json ships soft contributor guards only, so the same rules are enforced
+  again in CI. MCP comes from the generated platforms/cursor/mcp.json rather than the
+  shared .mcp.json because Cursor treats every ${VAR} in a plugin MCP file as a plugin
+  variable that must be declared under the manifest's `variables` schema; the Claude
+  ${user_config.github_token} form is not a declarable name. GITHUB_TOKEN is the one
+  variable, set by the user under Plugins > Configure, never in the repo; the generator
+  refuses an undeclared variable or a declared one with a default.

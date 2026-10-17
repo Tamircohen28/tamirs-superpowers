@@ -6,7 +6,9 @@
   "mcpServers": {
     "github": {
       "command": "bash",
-      "args": ["${extensionPath}/scripts/github-mcp.sh"],
+      "args": [
+        "${extensionPath}/scripts/github-mcp.sh"
+      ],
       "cwd": "${extensionPath}"
     }
   }

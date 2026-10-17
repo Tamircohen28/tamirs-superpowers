@@ -179,6 +179,28 @@ jobs:
           bash scripts/build-claude-dist.sh "$RUNNER_TEMP/claude-dist" --quiet
           bash scripts/check-claude-dist.sh "$RUNNER_TEMP/claude-dist"
 
+  host-dists:
+    # Every other host's subset (docs/engineering/build-and-release/distributions.md):
+    # built by the same generator, held to each host's own parser rules, so a change
+    # that Codex, Cursor, Gemini, OpenCode or an Agent Plugins client would reject
+    # fails on the pull request. The release workflow attaches these as assets.
+    name: Per-host distributions
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - name: Install PyYAML
+        run: python3 -m pip install -q -r scripts/requirements-validate.txt
+      - name: Generated files are current (manifests, Codex hooks and agents, Cursor rules)
+        run: |
+          bash scripts/build-manifests.sh . --check
+          bash scripts/build-codex-hooks.sh . --check
+          bash scripts/build-codex-agents.sh . --check
+          bash scripts/build-cursor-rules.sh . --check
+      - name: Build and check every target
+        run: make check-dists
+      - name: Planted-finding probes
+        run: bash tests/test-dist.sh
+
   contract-test:
     name: Repo contract (scaffold-gold)
     runs-on: ubuntu-latest

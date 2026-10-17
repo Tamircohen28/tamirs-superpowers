@@ -4,6 +4,11 @@ alwaysApply: false
 globs: ["scripts/**/*", "skills/**/scripts/**/*", "hooks/**/*"]
 ---
 
+<!-- GENERATED FILE — DO NOT EDIT.
+     Source:    rules/dev/user-facing-script-standards.md (frontmatter + summary: platforms/cursor/rules.map.json)
+     Generator: scripts/build-cursor-rules.sh
+     Regenerate: make cursor-rules -->
+
 # User-facing script standards
 
 Canonical rule: `rules/dev/user-facing-script-standards.md` — read it before writing a script; the summary below is orientation only.

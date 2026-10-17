@@ -23,8 +23,14 @@ contract_skill_coverage "cursor" ${cursor_skill_paths[@]+"${cursor_skill_paths[@
 judge "cursor manifest version matches the Claude manifest" \
   "$(jq -r .version "$REPO_ROOT/.claude-plugin/plugin.json")" "$(jq -r .version "$M")"
 
-# Rules: .mdc files with frontmatter, generated from the canonical rules/ tree.
+# Rules: .mdc files with frontmatter. Eight are generated from rules/dev/*.md plus
+# platforms/cursor/rules.map.json by scripts/build-cursor-rules.sh; five are listed
+# there as `manual: true`. The generator's --check is the authority on both halves
+# (drift in a generated file, a missing or frontmatter-less manual one, an .mdc the
+# map does not name), so it is run here rather than re-implemented.
 judge ".cursor/rules exists" yes "$(exists "$REPO_ROOT/.cursor/rules")"
+judge "generated .cursor/rules/*.mdc are in sync with platforms/cursor/rules.map.json" 0 \
+  "$(bash "$REPO_ROOT/scripts/build-cursor-rules.sh" "$REPO_ROOT" --check >/dev/null 2>&1; echo $?)"
 nrules="$(find "$REPO_ROOT/.cursor/rules" -maxdepth 1 -name '*.mdc' 2>/dev/null | wc -l | tr -d ' ')"
 judge ".cursor/rules ships at least one .mdc rule" yes \
   "$(if [ "$nrules" -gt 0 ]; then echo yes; else echo no; fi)"

@@ -1,0 +1,132 @@
+{
+  "schema_version": 1,
+  "description": "Per-target overlay read by scripts/build-manifests.sh. Identity (name, description, author, homepage, repository, license, keywords, skills) comes from .claude-plugin/plugin.json and the version from plugin-version.json; this file carries only what one target adds or overrides. A target's `description` replaces the canonical one; `keywords_exclude` removes canonical keywords that name another host; a `skills` key set to null is filled with the canonical skills list at that position. Regenerate every manifest with `bash scripts/build-manifests.sh .`; CI runs `--check`.",
+  "agent_plugins": {
+    "plugin_schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+    "mcp_schema": "https://agent-plugins.org/schemas/1.0.0/mcp.schema.json",
+    "keywords_exclude": [
+      "claude-code"
+    ],
+    "emit_codex_extension": false,
+    "emit_codex_extension_note": "false until a live Codex run proves the root-manifest route finds the skills: with extensions.com.openai present, Codex >= 0.147 ignores .codex-plugin/plugin.json entirely and hard-codes ./skills as the one skills root, and the Agent Plugins spec scans only immediate children of skills/ while this repo nests them two levels deep. With the switch off, Codex falls back to .codex-plugin/plugin.json and its seven explicit skill roots, which is the route that is known to load; the generated Codex hooks file reaches Codex either way. Flip to true, regenerate, and record the live run in platform-targets.json.",
+    "extensions": {
+      "com.openai": {
+        "hooks": "./platforms/codex/hooks.json",
+        "interface": {
+          "displayName": "Tamir's Superpowers",
+          "shortDescription": "Plan, implement, review and ship code across five agent platforms",
+          "longDescription": "A portable agent toolkit: 29 skills, 10 role-based agents, worktree hooks and MCP stubs, shipped from one canonical source to every supported surface. Covers the full development lifecycle - decompose a request into a task graph, run each task under a role, integrate onto one branch, review the combined diff, and deliver a single pull request - plus repository scaffolding, standards audits, multi-agent setup, debugging and documentation review.",
+          "developerName": "Tamir Cohen",
+          "category": "Developer Tools",
+          "capabilities": [
+            "Read",
+            "Write",
+            "Interactive"
+          ],
+          "websiteURL": "https://github.com/Tamircohen28/tamirs-superpowers",
+          "logo": "./assets/banner.png",
+          "brandColor": "#412991",
+          "defaultPrompt": [
+            "Plan this feature and break it into phases",
+            "Implement issue #42 and open a pull request",
+            "Drive this PR to merge - address the review comments and fix CI",
+            "Audit this repo against multi-agent standards",
+            "Scaffold a new repo for a CLI that tracks job applications",
+            "Turn this workflow into a reusable skill"
+          ]
+        }
+      }
+    },
+    "mcpServers": {
+      "github": {
+        "type": "stdio",
+        "command": "./scripts/github-mcp.sh",
+        "args": [],
+        "cwd": "${PLUGIN_ROOT}"
+      }
+    }
+  },
+  "codex": {
+    "description": "29 bundled skills, smart worktree hooks, statusline, and MCP server stubs — plan, implement, review, debug, multi-agent setup, and audit code from one plugin.",
+    "keywords_exclude": [
+      "claude-code"
+    ],
+    "manifest": {
+      "interface": {
+        "displayName": "Tamir's Superpowers",
+        "shortDescription": "Plan, implement, review and ship code across five agent platforms",
+        "longDescription": "A portable agent toolkit: 29 skills, 10 role-based agents, worktree hooks and MCP stubs, shipped from one canonical source to every supported surface. Covers the full development lifecycle - decompose a request into a task graph, run each task under a role, integrate onto one branch, review the combined diff, and deliver a single pull request - plus repository scaffolding, standards audits, multi-agent setup, debugging and documentation review.",
+        "developerName": "Tamir Cohen",
+        "category": "Developer Tools",
+        "capabilities": [
+          "Read",
+          "Write",
+          "Interactive"
+        ],
+        "websiteURL": "https://github.com/Tamircohen28/tamirs-superpowers",
+        "logo": "./assets/banner.png",
+        "brandColor": "#412991",
+        "defaultPrompt": [
+          "Plan this feature and break it into phases",
+          "Implement issue #42 and open a pull request",
+          "Drive this PR to merge - address the review comments and fix CI",
+          "Audit this repo against multi-agent standards",
+          "Scaffold a new repo for a CLI that tracks job applications",
+          "Turn this workflow into a reusable skill"
+        ]
+      },
+      "skills": null,
+      "mcpServers": "./.mcp.json",
+      "hooks": "./platforms/codex/hooks.json"
+    }
+  },
+  "cursor": {
+    "description": "29 bundled skills, 10 specialist agents, 26 slash commands, smart worktree hooks, and MCP server stubs — plan, implement, review, debug, multi-agent setup, and audit code from one plugin.",
+    "keywords_exclude": [
+      "claude-code"
+    ],
+    "manifest": {
+      "skills": null,
+      "rules": "./.cursor/rules/",
+      "commands": "./.cursor/commands/",
+      "agents": "./agents/",
+      "hooks": "./platforms/cursor/hooks.json",
+      "mcpServers": "./platforms/cursor/mcp.json",
+      "variables": {
+        "type": "object",
+        "properties": {
+          "GITHUB_TOKEN": {
+            "type": "string",
+            "title": "GitHub token for the bundled github MCP server",
+            "description": "Optional. A GitHub personal access token with repo scope. Set it under Plugins > Configure; it is handed to the github MCP server as GITHUB_PERSONAL_ACCESS_TOKEN and nothing else reads it. Leave it unset to keep the server off - it refuses to start without one."
+          }
+        }
+      }
+    },
+    "mcpServers": {
+      "github": {
+        "type": "stdio",
+        "command": "${CURSOR_PLUGIN_ROOT}/scripts/github-mcp.sh",
+        "args": [],
+        "env": {
+          "GITHUB_PERSONAL_ACCESS_TOKEN": "${GITHUB_TOKEN}"
+        }
+      }
+    }
+  },
+  "gemini": {
+    "description": "Multi-platform agent plugin: worktree-based dev workflow, repo standards, and MCP tooling. Skills install separately (see docs/user/install/gemini.md).",
+    "manifest": {
+      "contextFileName": ".gemini/GEMINI.md",
+      "mcpServers": {
+        "github": {
+          "command": "bash",
+          "args": [
+            "${extensionPath}/scripts/github-mcp.sh"
+          ],
+          "cwd": "${extensionPath}"
+        }
+      }
+    }
+  }
+}

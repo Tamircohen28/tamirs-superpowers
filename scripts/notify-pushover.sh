@@ -29,6 +29,13 @@ set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 FORMATTER="${PUSHOVER_FORMATTER:-${SCRIPT_DIR}/pushover_format.py}"
 
+# shellcheck source=../hooks/lib/hook-output.sh
+source "${SCRIPT_DIR}/../hooks/lib/hook-output.sh"
+# Notification tier (plugin option notification_hooks, default on): off means
+# no post even with both credentials set. Checked before anything else so a
+# switched-off tier never reads the credentials at all.
+hook_tier_gate notification
+
 # Host-managed userConfig values are the only credential source (see above).
 TOKEN="${CLAUDE_PLUGIN_OPTION_PUSHOVER_TOKEN:-}"
 USER_KEY="${CLAUDE_PLUGIN_OPTION_PUSHOVER_USER:-}"

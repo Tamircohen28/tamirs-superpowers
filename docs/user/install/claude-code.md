@@ -69,6 +69,8 @@ environment or a file:
 | `github_token` | The bundled `github` MCP server (the gh CLI can print its own token if you want to reuse it) |
 | `pushover_token` + `pushover_user` | Phone notifications, see [phone-notifications.md](../phone-notifications.md) |
 | `semantic_skill_suggest` | A small-model skill match on long prompts (no credential; off by default) |
+| `notification_hooks` | Desktop and phone notifications, the VPN exit check and the usage-capture collector start (on by default) |
+| `contributor_hooks` | The plugin-author hooks: reload reminder, report-link validation, the hand-written `SKILL.md` guard (off by default; see [configuration.md](../configuration.md)) |
 
 What each sends, and where: [`PRIVACY.md`](../../../PRIVACY.md).
 

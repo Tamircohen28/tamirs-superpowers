@@ -5,6 +5,65 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Phase 1 — packaging: one source, one subset per host
+
+#### Added
+
+- **Agent Plugins 1.0 root manifest.** `plugin.json` (`$schema` 1.0.0, identity fields) and
+  `mcp.json` (the `github` server as a `stdio` entry rooted at `${PLUGIN_ROOT}`) at the
+  repository root, the package format Codex, Cursor, Copilot CLI, Kiro and VS Code read. The
+  Codex settings can also ride in it as `extensions.com.openai`; that switch
+  (`emit_codex_extension` in `platforms/manifests.source.json`) ships **off** until a live Codex
+  run proves the root-manifest route finds skills nested two levels deep, so Codex keeps reading
+  `.codex-plugin/plugin.json` and its seven explicit skill roots.
+- **One source for every per-host manifest.** `scripts/build-manifests.sh` writes the root
+  manifest, `mcp.json`, `.codex-plugin/plugin.json`, `.cursor-plugin/plugin.json`,
+  `platforms/cursor/mcp.json` and `gemini-extension.json` from `.claude-plugin/plugin.json`
+  (identity), `plugin-version.json` (version) and `platforms/manifests.source.json` (per-host
+  overlay); `--check` is a CI gate (`make manifests-check`). The Cursor manifest now declares the
+  `GITHUB_TOKEN` plugin variable its `mcp.json` uses, as Cursor requires.
+- **A Codex hooks file Codex can parse.** `scripts/build-codex-hooks.sh` generates
+  `platforms/codex/hooks.json` from `hooks/hooks.json` without the `modules` key, without the
+  five events Codex lacks and without `onFailure`; both Codex manifests point at it. Until now
+  Codex loaded the Claude file, whose `modules` key its strict parser rejects, so no plugin hook
+  can have run there since 4.10.0 (source-read, not run live; recorded in the registry).
+- **Generated adapters, with drift checks.** `scripts/build-cursor-rules.sh` writes
+  `.cursor/rules/*.mdc` from `platforms/cursor/rules.map.json` (five hand-kept adapters stay
+  manual and are checked, not rewritten); `scripts/build-codex-agents.sh` writes
+  `.codex/agents/*.toml` (name, description, `developer_instructions`, `features.shell_tool`
+  where the allowlist has no shell; never a model) from `agents/*.md`, a repo-level route to the
+  ten specialist agents on Codex. Inventory of every generated file:
+  `docs/engineering/architecture/generated-adapters.md`.
+- **One builder, one subset per host.** `scripts/build-dist.sh --target {claude, codex, cursor,
+  gemini, opencode, agent-plugins}` replaces the Claude-only builder (kept as a wrapper);
+  `scripts/check-dist.sh` holds each subset to its host's parser rules and
+  `tests/test-dist.sh` plants each rule's failure shape (Codex `modules`/events/`onFailure`,
+  Cursor `version: 1` and undeclared variables, the Agent Plugins `$schema` and transport
+  names, no secrets, one version everywhere). CI job `host-dists`; `make check-dists` in
+  `make validate`. `release.yml` attaches the non-Claude subsets to the GitHub Release as
+  tarballs with a `SHA256SUMS` file and the capability registry as a further asset.
+  Design: `docs/engineering/build-and-release/distributions.md`.
+- **Hook tiers as plugin options.** `notification_hooks` (default on: desktop and phone
+  notifications, the VPN exit check, the usage-capture collector start) and
+  `contributor_hooks` (default off: the reload reminder, report-link validation and the
+  hand-written `SKILL.md` guard, which answers with the platform allow when off so Cursor is
+  never fail-closed). Core-safety, worktree-lifecycle and user-facing convenience hooks are
+  never gated; Codex and Cursor get the defaults. Chosen over a core/notify/contrib plugin
+  split: `docs/engineering/decisions/003-hook-tiers-as-options.md`.
+- Capability registry: `claude_vscode` and `antigravity_cli` recorded as unverified surfaces
+  (the VS Code extension draws mods since 2.1.299; Antigravity CLI is Google's successor to
+  the consumer Gemini CLI with its own plugin format).
+
+#### Changed
+
+- `release.yml` bumps the version in `plugin-version.json` and propagates it with
+  `check-version-truth.sh --sync` plus the manifest generator, instead of editing three
+  manifests by hand; the release now also publishes the per-host tarballs.
+- `CLAUDE.md` is a 13 KB current-only contributor page; the per-release host notes
+  (2.1.234–2.1.287) moved to `docs/engineering/host-notes/claude-code.md`, extended through
+  2.1.302 with each item marked adopted, reviewed-not-applicable or open. The nightly
+  `platform-sync` skill appends there now.
+
 ### Phase 0 — baselines (merged nightly branches, fail-closed guards, pins)
 
 #### Changed

@@ -9,6 +9,7 @@ contributors want [CONTRIBUTING](../CONTRIBUTING.md).
 |---|---|
 | [V5 upgrade and refactor plan](roadmap/v5-upgrade-plan.md) | Proposal (2026-10-17): mods, per-platform parity, Agent Plugins 1.0, phased V5 plan, risk register; research notes in `roadmap/v5-research/` |
 | [Overview](architecture/overview.md) | Layer map, the five subsystems, data flow |
+| [Per-host distributions](build-and-release/distributions.md) | One generic builder, one subset per host, the per-target checks and where each subset is delivered |
 | [Capability model](architecture/capability-model.md) | The registry, status vocabulary, how degradation works |
 | [Adapter contract](architecture/adapter-contract.md) | What a platform adapter may and may not be |
 | [Adding a platform](architecture/adding-a-platform.md) | The checklist, from registry entry to CI |
@@ -28,6 +29,7 @@ contributors want [CONTRIBUTING](../CONTRIBUTING.md).
 | [CI workflow](build-and-release/ci-workflow.md) | The CI jobs, explained |
 | [Development workflow](build-and-release/development-workflow.md) | How to contribute code |
 | [Platform targets](build-and-release/platform-targets.md) | Version floors and the co-change rule |
+| [Host notes](host-notes/README.md) | Per-host release notes the maintainers reviewed (Claude Code 2.1.234–2.1.302): what was adopted, what was reviewed and declined, what is open |
 
 ## Decisions and history
 

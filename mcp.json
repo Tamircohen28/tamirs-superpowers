@@ -1,0 +1,11 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/mcp.schema.json",
+  "mcpServers": {
+    "github": {
+      "type": "stdio",
+      "command": "./scripts/github-mcp.sh",
+      "args": [],
+      "cwd": "${PLUGIN_ROOT}"
+    }
+  }
+}

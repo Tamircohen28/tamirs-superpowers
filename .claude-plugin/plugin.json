@@ -73,6 +73,18 @@
       "title": "Semantic skill suggestions (one small-model call per long prompt)",
       "description": "Off by default. When on, prompts of 12+ words are classified by a small model against the bundled skill names and a matching skill is named to Claude as context. hooks/skill-suggest.sh's keyword matching stays on either way.",
       "default": false
+    },
+    "notification_hooks": {
+      "type": "boolean",
+      "title": "Notification hooks (desktop and phone notifications, VPN exit check, usage-capture collector start)",
+      "description": "On by default. When off, the desktop notification, the Pushover phone notification, the VPN exit-node check and the usage-capture collector start stay silent, whatever else is configured. Safety, worktree and convenience hooks are unaffected. Read by the bash hooks only; hosts without plugin options use the default.",
+      "default": true
+    },
+    "contributor_hooks": {
+      "type": "boolean",
+      "title": "Contributor hooks (plugin-author reminders and checks)",
+      "description": "Off by default. When on, the /reload-plugins reminder after a plugin-file edit, report.md link validation and the hand-written SKILL.md guard run. For people working on this plugin or on agent configuration; noise for everyone else. Read by the bash hooks only; hosts without plugin options use the default.",
+      "default": false
     }
   }
 }

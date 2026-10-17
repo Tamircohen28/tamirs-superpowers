@@ -1,0 +1,202 @@
+{
+  "$comment": "Cursor rule adapters. Every non-manual entry generates .cursor/rules/<key>.mdc from its rules/dev source via scripts/build-cursor-rules.sh (regenerate: make cursor-rules; drift: make cursor-rules-check). `manual: true` entries are hand-maintained adapters with no rules/dev counterpart: the generator only verifies they exist and open with frontmatter, never rewrites them. Fields: source (canonical file the adapter points at), title (the # heading), description/alwaysApply/globs (Cursor frontmatter; globs is a string or an array, emitted as written), canonical_note (optional: the verbatim tail appended after the backticked path on the Canonical rule line, default \".\"), summary (Markdown body as an array of lines, or one string). Keep summaries short pointers: the canonical rule is the source of truth and a restated rule drifts.",
+  "generator": "scripts/build-cursor-rules.sh",
+  "output_dir": ".cursor/rules",
+  "rules": {
+    "commit-conventions": {
+      "manual": true,
+      "source": "core/policies/git.md"
+    },
+    "cross-platform-handoff": {
+      "source": "rules/dev/cross-platform-handoff.md",
+      "title": "Cross-Provider Handoff",
+      "description": "Handing work to or from another provider — task state lives in .dev-files/objectives/. Canonical: rules/dev/cross-platform-handoff.md",
+      "alwaysApply": false,
+      "globs": [
+        ".dev-files/objectives/**/*",
+        ".agent-worktrees/**/*",
+        ".cursor/.worktrees/**/*"
+      ],
+      "summary": [
+        "Local state under `.dev-files/objectives/<id>/` is primary; a GitHub issue Resume block is an optional mirror generated from it. Never require `gh` to hand off.",
+        "",
+        "**Before ending a Cursor session mid-task:** commit, then write `handoffs/task-NNN.json` (schema: `core/workflow/handoff-schema.json`) recording commits, decisions, risks, and followups. `/switch-dev handoff` does this for you.",
+        "",
+        "**Resuming work started elsewhere:** `/switch-dev resume`, then read every existing handoff for the objective before touching code — recorded decisions are binding.",
+        "",
+        "## Cursor-specific",
+        "",
+        "Cursor has no subagents and does not load `hooks/hooks.json`. If an incoming handoff assumed either, degrade explicitly and say so in your own handoff — check `core/capabilities/platforms.json` rather than guessing."
+      ]
+    },
+    "dev-files-workspace": {
+      "source": "rules/dev/dev-files-workspace.md",
+      "title": "Dev-Files Workspace",
+      "description": "Session-local plans, reviews, scratch, and objective state belong in .dev-files/ — canonical rules/dev/dev-files-workspace.md",
+      "alwaysApply": true,
+      "summary": [
+        "Session-local artifacts **must** live under **`.dev-files/`** at the repo root (git-ignored except `.dev-files/README.md`).",
+        "",
+        "- **Goes there:** plans, reviews, investigation notes, scratch, and objective/task/handoff state under `.dev-files/objectives/<id>/`.",
+        "- **Does not:** shipped content (`skills/`, `hooks/`, `core/`, manifests), canonical docs (`docs/`), canonical rules (`rules/`), or anything the user asked to commit.",
+        "",
+        "Objective state is gitignored by default; checking it in is a deliberate per-repo opt-in that an agent must not flip on its own."
+      ]
+    },
+    "gh-cli-preference": {
+      "source": "rules/dev/gh-cli-preference.md",
+      "title": "GitHub transport policy",
+      "description": "GitHub transport policy — gh is an optional feature dependency; degrade explicitly when it is absent. Canonical: rules/dev/gh-cli-preference.md",
+      "alwaysApply": false,
+      "globs": [
+        "skills/dev-workflow/**/*",
+        "scripts/**/*",
+        ".github/**/*",
+        "hooks/**/*"
+      ],
+      "summary": [
+        "`gh` is an **optional feature dependency**, not a requirement. Objectives, worktrees, handoffs, and Tier 0–2 validation must all work with no GitHub account, no network, and no `gh` installed.",
+        "",
+        "When a script or skill touches GitHub, detect `gh` and degrade explicitly — skip the optional step and say so, fall back to plain git where git can do the job, or stop with a clear message naming the missing dependency. Never silently pretend a GitHub step succeeded.",
+        "",
+        "**The one exception:** when a GitHub action *is* the request (\"open a PR\", \"merge #12\"), a missing `gh` is a hard, reportable failure — do not invent a local substitute.",
+        "",
+        "Never resolve the default branch through `gh`; use `git symbolic-ref --quiet --short refs/remotes/origin/HEAD` with a `main` fallback.",
+        "",
+        "## In dev context, use `gh` — not GitHub MCP",
+        "",
+        "Contributor tooling, CI scripts, hooks, and skill scripts use the `gh` CLI. GitHub MCP tools are runtime-only: they authenticate through a session credential and make dev scripts brittle. Derive tokens with `gh auth token`; never prompt for a pasted one."
+      ]
+    },
+    "git-worktree-agent-workflow": {
+      "source": "rules/dev/git-worktree-agent-workflow.md",
+      "title": "Git Worktree Agent Workflow",
+      "description": "Objective/worker/integration worktrees — provider is metadata, not path identity. Canonical: rules/dev/git-worktree-agent-workflow.md",
+      "alwaysApply": false,
+      "globs": ".agent-worktrees/**/*,.claude/.worktrees/**/*,.cursor/.worktrees/**/*,.codex/.worktrees/**/*",
+      "canonical_note": ". Read it before creating any worktree — the summary below is orientation only.",
+      "summary": [
+        "One objective → zero or more worker worktrees → one integration worktree. The path and branch encode the **objective and task**, never the provider.",
+        "",
+        "```text",
+        ".agent-worktrees/<objective>/{integration,task-001,task-002}",
+        "main → objective/<slug> → worker/<slug>/NNN",
+        "```",
+        "",
+        "A worker ends at **commit + handoff**, never at a PR. Delivery happens once, from the integration worktree.",
+        "",
+        "## Cursor-specific",
+        "",
+        "Cursor has no built-in worktree tool and no `EnterWorktree` equivalent — create worktrees explicitly before editing tracked files from an agent session:",
+        "",
+        "```bash",
+        "skills/dev-workflow/_shared/scripts/resolve-worktree.sh --objective <slug> --task 001",
+        "```",
+        "",
+        "Legacy `.cursor/.worktrees/<name>` worktrees remain valid and are never orphaned; `resolve-worktree.sh --list` shows them and `--migrate` moves one opt-in."
+      ]
+    },
+    "github-repository-policy": {
+      "source": "rules/dev/github-repository-policy.md",
+      "title": "GitHub repository policy",
+      "description": "GitHub repository policy — rulesets on ~DEFAULT_BRANCH, strict status checks deliberately off, per-repo required contexts, Actions concurrency classification. Canonical: rules/dev/github-repository-policy.md",
+      "alwaysApply": false,
+      "globs": [
+        "config/github/**/*",
+        "core/schemas/repository-policy.json",
+        "scripts/github-policy.sh",
+        "scripts/lib/github-common.sh",
+        "scripts/check-github-policy.sh",
+        ".github/workflows/**/*",
+        "skills/repo/**/*"
+      ],
+      "canonical_note": ". The policy itself is data in `config/github/repository-policy.json`, constrained by `core/schemas/repository-policy.json` — never restate a rule, a status-check context, or a concurrency group anywhere else.",
+      "summary": [
+        "Governance is expressed as **repository rulesets**, not classic branch protection. Classic `branches/*/protection` 404s on a correctly governed repo, so reading it reports a protected repository as unprotected.",
+        "",
+        "Target the default branch with GitHub's **`~DEFAULT_BRANCH`** magic ref. Never write a literal branch name: the governed repos mix both spellings, and a literal stops matching the day a branch is renamed.",
+        "",
+        "**`strict_required_status_checks_policy` is `false` deliberately — do not \"fix\" it.** With it on, every merge un-greens every other open PR under the parallel-worker / one-PR architecture, turning N merges into O(N²) CI runs. Linear history plus a full CI run on the integration branch protects correctness instead.",
+        "",
+        "Required status-check **contexts are per repository, never global** — a context is a CI job name, and a name that no workflow produces blocks every PR forever. Adding a CI job does not make it blocking.",
+        "",
+        "Reviews: **0 required approvals with mandatory review-thread resolution**. On a single-author account an approval requirement is only satisfiable by `--admin`, and a routinely bypassed rule is worse than none. `bypass_actors` stays empty.",
+        "",
+        "Actions concurrency: cancel superseded runs on **tests, lint, typecheck, build, validation, and read-only scans**. **Never** cancel deployments, releases, publishing, migrations, or provisioning — a cancelled run leaves external state half-written. On a tie, never-cancel wins; unclassified workflows are reported, not guessed at.",
+        "",
+        "All GitHub access goes through `gh` (never MCP) via `scripts/lib/github-common.sh`. Here `gh` is not optional: repository policy *is* a GitHub action, so a missing or unauthenticated `gh` is a hard, reportable failure."
+      ]
+    },
+    "hooks-guide": {
+      "manual": true,
+      "source": "rules/dev/user-facing-script-standards.md#7-hook-scripts"
+    },
+    "plugin-structure": {
+      "manual": true,
+      "source": "AGENTS.md"
+    },
+    "plugin-version-bump": {
+      "source": "rules/dev/plugin-version-bump.md",
+      "title": "Plugin version bump",
+      "description": "Bump the version in plugin-version.json then run check-version-truth.sh --sync — never hand-edit a manifest. Canonical: rules/dev/plugin-version-bump.md",
+      "alwaysApply": false,
+      "summary": [
+        "After changing shipped content (`skills/`, `hooks/`, `agents/`, `core/`, manifests, `scripts/`):",
+        "",
+        "1. Edit the version in **`plugin-version.json` only** — a targeted string replace on the version line, never a `jq`/`json.dump` rewrite.",
+        "2. `bash scripts/check-version-truth.sh --sync` propagates it to every consumer (all platform manifests, README badge, `platform-targets.json`).",
+        "3. Promote the `CHANGELOG.md` entry and update anything else the change falsified (skill counts, install docs).",
+        "4. `make validate`, open a PR, and after merge run the Release workflow to cut `vX.Y.Z` — then verify the tag contains the change.",
+        "",
+        "Never hand-edit `.cursor-plugin/plugin.json`'s version. Never move a version backwards past a cut release."
+      ]
+    },
+    "skill-frontmatter": {
+      "manual": true,
+      "source": "core/schemas/skill-frontmatter.json"
+    },
+    "skill-quality-standards": {
+      "source": "rules/dev/skill-quality-standards.md",
+      "title": "Skill Quality Standards",
+      "description": "Skill authoring standards for skills/ — portable across every target. Canonical: rules/dev/skill-quality-standards.md",
+      "alwaysApply": false,
+      "globs": "skills/**/SKILL.md",
+      "canonical_note": ". Portable schema: `core/schemas/skill-frontmatter.json`.",
+      "summary": [
+        "Skills in `skills/<domain>/<name>/` ship to every supported target from one tree. Keep bodies portable — never assume Claude Code.",
+        "",
+        "- Frontmatter must satisfy the **portable** schema; platform-specific fields are documented extensions, validated when present, not universally required.",
+        "- Directory name = slash-command name = frontmatter `name`.",
+        "- Cursor resolves the skill directory containing `SKILL.md`; do not hardcode a Claude-only path variable as the only option.",
+        "- Never hand-write a new skill — use `skill-creator`.",
+        "- `make validate` after every `SKILL.md` change."
+      ]
+    },
+    "skills-guide": {
+      "manual": true,
+      "source": "rules/dev/skill-quality-standards.md"
+    },
+    "user-facing-script-standards": {
+      "source": "rules/dev/user-facing-script-standards.md",
+      "title": "User-facing script standards",
+      "description": "Script standards — CLI contract, macOS/Linux portability, non-blocking stdin, dependency tiers. Canonical: rules/dev/user-facing-script-standards.md",
+      "alwaysApply": false,
+      "globs": [
+        "scripts/**/*",
+        "skills/**/scripts/**/*",
+        "hooks/**/*"
+      ],
+      "canonical_note": " — read it before writing a script; the summary below is orientation only.",
+      "summary": [
+        "- `#!/usr/bin/env bash`, `set -euo pipefail`, shellcheck-clean at `-S warning`. Never place a user-facing `.sh` at the repo root — use `scripts/` plus a `Makefile` target.",
+        "- User-facing scripts support `--help`/`-h` and `--verbose`/`-v`, carry a top-of-file usage block, and fail fast on unknown flags.",
+        "- **macOS and Linux are both first-class.** Assume bash 3.2 (no `declare -A`, no `mapfile`) and avoid GNU-only spellings: `sed -i` without a suffix, `sed '/pat/i'`, `readlink -f`, `date -d`, `grep -P`, `stat -c`.",
+        "- **Windows PowerShell and `cmd.exe` are explicitly unsupported** — Windows users run under WSL2 or Git Bash. Do not add PowerShell variants.",
+        "- **Never block.** Scripts must complete with no TTY, no prompts, and no stdin. A script reading stdin must guard with `[[ ! -t 0 ]]` and bound the read; empty stdin degrades to a default and exits 0.",
+        "- Classify every external tool: required runtime (fail fast), optional feature (degrade explicitly), or contributor/validation (make targets and CI only).",
+        "- Anything an agent parses needs a stable machine-readable mode — JSON on stdout alone, diagnostics on stderr, documented exit codes.",
+        "- **Never use `echo` in a hook script** — stray stdout corrupts hook response parsing. Use `printf` or the `hooks/lib/` helpers."
+      ]
+    }
+  }
+}

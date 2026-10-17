@@ -8,6 +8,7 @@ This directory tracks significant design decisions. Each ADR documents what was 
 |-----|-------|--------|
 | [001](001-plugin-over-dotfiles.md) | Plugin over dotfiles for Claude config distribution | Accepted |
 | [002](002-marketplace-and-plugin-in-one-repo.md) | Marketplace and plugin colocated in one repo | Accepted |
+| [003](003-hook-tiers-as-options.md) | Hook tiers as plugin options, not separate plugins | Accepted |
 
 ## Format
 

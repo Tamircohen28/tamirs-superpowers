@@ -12,6 +12,8 @@ source "${SCRIPT_DIR}/lib/worktree-common.sh"
 source "${SCRIPT_DIR}/lib/hook-output.sh"
 
 input="$(hook_read_stdin)"
+# Notification tier: off → nothing on stdout, exit 0 (plugin option notification_hooks).
+hook_tier_gate notification
 title="$(echo "$input" | jq -r '.title // "Claude Code"')"
 message="$(echo "$input" | jq -r '.message // "Claude needs your attention"')"
 session_id="$(echo "$input" | jq -r '.session_id // empty')"

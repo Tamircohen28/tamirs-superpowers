@@ -4,6 +4,11 @@ alwaysApply: false
 globs: ["skills/dev-workflow/**/*", "scripts/**/*", ".github/**/*", "hooks/**/*"]
 ---
 
+<!-- GENERATED FILE — DO NOT EDIT.
+     Source:    rules/dev/gh-cli-preference.md (frontmatter + summary: platforms/cursor/rules.map.json)
+     Generator: scripts/build-cursor-rules.sh
+     Regenerate: make cursor-rules -->
+
 # GitHub transport policy
 
 Canonical rule: `rules/dev/gh-cli-preference.md`.

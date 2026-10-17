@@ -50,5 +50,5 @@
     "./skills/repo"
   ],
   "mcpServers": "./.mcp.json",
-  "hooks": "./hooks/hooks.json"
+  "hooks": "./platforms/codex/hooks.json"
 }

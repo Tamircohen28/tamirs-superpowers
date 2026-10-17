@@ -22,11 +22,35 @@ codex plugin add tamirs-superpowers@tamirs-superpowers
 ```
 
 Codex resolves [`.agents/plugins/marketplace.json`](../../../.agents/plugins/marketplace.json)
-and [`.codex-plugin/plugin.json`](../../../.codex-plugin/plugin.json), and loads the
-canonical `skills/` tree. MCP servers are declared by the plugin manifest's `mcpServers`
-field, which points at [`.mcp.json`](../../../.mcp.json) — not
+and then one of two manifests. Codex **0.147+** reads the root Agent Plugins manifest
+[`plugin.json`](../../../plugin.json) and takes its Codex settings from
+`extensions.com.openai`; when that object is present it **replaces**
+[`.codex-plugin/plugin.json`](../../../.codex-plugin/plugin.json) entirely, so the overlay
+is the fallback for older hosts only. Both are generated from one source by
+`scripts/build-manifests.sh` and cannot disagree ([manifests](../../engineering/build-and-release/manifests.md)).
+Skills come from the canonical `skills/` tree (listed as seven roots in the overlay; the
+root manifest relies on Codex scanning `skills/`). Hooks come from the **generated**
+[`platforms/codex/hooks.json`](../../../platforms/codex/hooks.json), not from
+`hooks/hooks.json` — see [Hooks on Codex](#hooks-on-codex). MCP servers are declared by
+the manifest: the root [`mcp.json`](../../../mcp.json) on the Agent Plugins route,
+[`.mcp.json`](../../../.mcp.json) on the overlay route — never
 [`.codex/config.toml`](../../../.codex/config.toml), which holds Codex runtime settings
 only and says so itself at its line 11.
+
+**This is the only install route.** The public OpenAI plugin directory refuses packages
+with lifecycle hooks and limits local stdio MCP to approved partners; this plugin ships
+both, so it is distributed through this self-hosted marketplace and nothing else.
+
+### The github MCP server on Codex
+
+Neither Codex manifest can carry a credential. The root `mcp.json` follows Agent Plugins
+1.0, which expands only `${PLUGIN_ROOT}`/`${PLUGIN_DATA}` and defines no credential
+mechanism, so it passes no `env` at all; the overlay's `.mcp.json` uses Claude's
+`${user_config.github_token}`, which Codex is not documented to expand. Either way the
+server starts only if `GITHUB_PERSONAL_ACCESS_TOKEN` reaches `scripts/github-mcp.sh`
+from the host's environment, and it refuses to start, with a clear message, when it does
+not. How to hand a plugin server an environment variable on Codex is not documented and
+has not been verified here; the rest of the plugin does not need the server.
 
 Codex also reads the repo's root [`AGENTS.md`](../../../AGENTS.md) as project instructions.
 That file is a **thin entrypoint** into the canonical rules under
@@ -121,10 +145,13 @@ at the top of this page — so direct CLI validation is no longer 0.146.0.
 ## Verify
 
 ```bash
-jq empty .codex-plugin/plugin.json
-jq -e '.hooks' .codex-plugin/plugin.json     # manifest hooks field present
+jq -e '.extensions["com.openai"].hooks' plugin.json   # root manifest: hooks -> ./platforms/codex/hooks.json
+jq -e '.hooks' .codex-plugin/plugin.json               # fallback overlay: same pointer
+jq -e 'has("modules") | not' platforms/codex/hooks.json  # the generated file has no modules key
 jq empty .agents/plugins/marketplace.json
-jq -e '.mcpServers' .codex-plugin/plugin.json  # MCP declared by the manifest, -> ./.mcp.json
+jq -e '.mcpServers.github' mcp.json                     # MCP on the Agent Plugins route
+bash scripts/build-manifests.sh . --check               # every manifest matches its sources
+bash scripts/build-codex-hooks.sh . --check             # the Codex hooks file matches hooks/hooks.json
 bash scripts/doctor.sh .
 ```
 
@@ -147,12 +174,45 @@ Do not treat a clean `bash scripts/doctor.sh .` run above as proof hooks are liv
 validates the manifest, not hook trust state. (Not verified against a live `codex` run —
 based on Codex's docs and source.)
 
+## Hooks on Codex
+
+**Codex loads hooks from the generated `platforms/codex/hooks.json`, not from
+`hooks/hooks.json`.** Codex's hooks-file parser accepts exactly two top-level keys,
+`description` and `hooks`, and rejects a file with any other — and the Claude file has
+carried a top-level `modules` key (the mod loader) since plugin 4.10.0. That is a
+source-read finding, not a live run, but either way a Codex manifest pointing at the
+Claude file loads **no** hooks. So both Codex manifests point `hooks` at a copy that
+`scripts/build-codex-hooks.sh` generates from the Claude file, which **replaces** Codex's
+default discovery rather than adding to it. Three things are removed on the way:
+
+| Removed | Why |
+|---|---|
+| the `modules` key | Codex rejects it and runs no mod |
+| `Notification`, `DirectoryAdded`, `WorktreeCreate`, `WorktreeRemove`, `StopFailure` | no Codex equivalent — the file declares only hooks that can fire, so a `/hooks` review shows only real ones |
+| `onFailure` on every hook | Claude's key; Codex's command hook has no such field |
+
+**The guards are fail-open on Codex.** On Claude Code, `onFailure: "block"` makes
+`enforce-worktree-edits.sh`, `guard-sensitive-files.sh`, `protect-other-branches.sh`
+and `docker-guard.py` deny the action when the guard itself crashes or times out. Codex
+cannot express that, so on Codex a guard that fails lets the action through. A guard
+that *runs* still blocks with exit 2 exactly as on Claude; what you lose is the
+failure-of-the-guard case. The same rules are enforced again in CI.
+
+**Re-trust after every update.** Codex records hook trust against each hook's content
+hash and skips any hook whose definition changed until a human trusts it again. Every
+plugin update that touches a hook — or the generated file — therefore silently disables
+that hook on Codex until you open `/hooks` and trust it. Make `/hooks` part of the update
+step below, not something you remember after a guard fails to fire.
+
 ## Update
 
 ```bash
 codex plugin marketplace update tamirs-superpowers
 codex plugin add tamirs-superpowers@tamirs-superpowers
 ```
+
+Then, in a Codex session, run `/hooks` and re-trust any hook the update changed — see
+[Hooks on Codex](#hooks-on-codex). Until you do, that hook does not run.
 
 Check what you have:
 
@@ -209,8 +269,8 @@ never adopt anything silently. `apply` shows a diff and asks per change, default
 |---|---|---|
 | skills | native | since 0.40.0 |
 | subagents | unknown | Codex has a native subagents feature, but it is standalone `.toml` files under `$CODEX_HOME/agents/` or `.codex/agents/`, deliberately outside the plugin manifest (bundling one is an open upstream feature request); this repo ships no Codex agent mirror. Demoted from "native" 2026-09-08 — see registry |
-| hooks | native | via the **manifest `hooks` field**, which points at this repo's own `hooks/hooks.json` — the same file, not a different shape (see note below) |
-| MCP | native | via the plugin manifest's `mcpServers` field, which points at `./.mcp.json` — not `.codex/config.toml`, which is Codex runtime settings only |
+| hooks | native | via the **manifest `hooks` field** — root `plugin.json` `extensions.com.openai.hooks` and `.codex-plugin/plugin.json` `hooks` both point at the generated `platforms/codex/hooks.json`: the Claude file minus its `modules` key, five events and `onFailure` (see note below). Guards fail-open; re-trust in `/hooks` after every update |
+| MCP | native | via the manifest: root `mcp.json` on the Agent Plugins route, `./.mcp.json` on the overlay route — not `.codex/config.toml`, which is Codex runtime settings only. Neither file can carry the github token; see [the github MCP server on Codex](#the-github-mcp-server-on-codex) |
 | plugin marketplace | native | |
 | shell · git · GitHub CLI | native | |
 | worktree isolation | emulated | The skill runs `git worktree` itself |
@@ -221,14 +281,16 @@ never adopt anything silently. `apply` shows a diff and asks per change, default
 With `parallel_subagents` unmeasured, orchestration here runs **serialized or sequential** —
 same task graph, same single PR.
 
-**Hooks do port, with partial coverage.** `.codex-plugin/plugin.json` points its `hooks`
-field directly at `./hooks/hooks.json`; Codex's manifest schema accepts that file through the
-same `HooksFile` type its own engine consumes (internally named `ClaudeHooksEngine`, which
-sets `CLAUDE_PLUGIN_ROOT` and ships Claude tool-name matcher aliases on purpose), and exit-2
-blocking semantics match — it is the same file shape, not a different one that fails to
-port. Coverage is partial: `WorktreeCreate`, `WorktreeRemove`, `DirectoryAdded`, and
-`Notification` — four of this repo's wired events — have no Codex equivalent and never fire
-there. (Source-derived from `openai/codex` main — not verified against a live `codex` run.)
+**Hooks do port, through a generated copy, with partial coverage.** Codex consumes a
+hooks file of the same shape as Claude's (its engine sets `CLAUDE_PLUGIN_ROOT` and ships
+Claude tool-name matcher aliases on purpose, and exit-2 blocking semantics match), but its
+top-level parser is strict and the Claude file's `modules` key fails it. So both Codex
+manifests point `hooks` at `platforms/codex/hooks.json`, generated by
+`scripts/build-codex-hooks.sh` with that key removed. Coverage is partial: `WorktreeCreate`,
+`WorktreeRemove`, `DirectoryAdded`, `Notification` and `StopFailure` — five of this repo's
+wired events — have no Codex equivalent and are left out of the generated file; and with
+`onFailure` gone, the guards are fail-open. (Source-derived from `openai/codex` main — not
+verified against a live `codex` run.)
 
 Source of truth: [`core/capabilities/platforms.json`](../../../core/capabilities/platforms.json).
 Comparison: [platform differences](../platform-differences.md).
