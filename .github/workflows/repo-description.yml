@@ -1,0 +1,36 @@
+name: Repository description
+
+# Writes the GitHub repository description so it names the skill and agent counts the
+# tree ships (scripts/check-repo-description.sh --fix). CI's static-and-docs job only
+# WARNS on drift, because the Actions GITHUB_TOKEN cannot change repository settings;
+# this workflow runs with RELEASE_PUSH_TOKEN, the token release.yml already holds to
+# move tags, which can. Dispatched by hand, and after every release so the description
+# follows the tree without anyone remembering it.
+
+on:
+  workflow_dispatch:
+  workflow_run:
+    workflows: ["Release"]
+    types: [completed]
+
+permissions:
+  contents: read
+
+jobs:
+  sync:
+    name: Description names the shipped counts
+    runs-on: ubuntu-latest
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: master
+      - name: Write the description from the tree
+        env:
+          GH_TOKEN: ${{ secrets.RELEASE_PUSH_TOKEN }}
+        run: |
+          if [ -z "${GH_TOKEN:-}" ]; then
+            echo "::error::RELEASE_PUSH_TOKEN is not set; the Actions token cannot change repository settings."
+            exit 1
+          fi
+          bash scripts/check-repo-description.sh . --fix

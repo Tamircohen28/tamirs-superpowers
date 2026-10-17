@@ -20,18 +20,26 @@
 #   reports the drift as a workflow warning and exits 0; CI runs it that way on every
 #   event, because no commit can fix a stale description and a red check nobody can
 #   clear from a branch only hides the next real failure. The plain exit 1 is for a
-#   person running it by hand (make check-repo-description).
+#   person running it by hand (make check-repo-description). --fix writes the corrected
+#   description through the API (PATCH repos/<slug>, the call `gh repo edit` makes);
+#   it needs a token that may change repository settings, which the Actions
+#   GITHUB_TOKEN never has and this repository's RELEASE_PUSH_TOKEN does, so
+#   .github/workflows/repo-description.yml is where --fix runs.
 set -euo pipefail
-ROOT="."; DESC=""; DESC_GIVEN=false; WARN=false
+ROOT="."; DESC=""; DESC_GIVEN=false; WARN=false; FIX=false
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --description) DESC="$2"; DESC_GIVEN=true; shift 2 ;;
     --warn) WARN=true; shift ;;
+    --fix) FIX=true; shift ;;
     -h|--help) sed -n '2,19p' "$0" | sed 's/^#[[:space:]]\{0,1\}//'; exit 0 ;;
     *) ROOT="$1"; shift ;;
   esac
 done
 ROOT="$(cd "$ROOT" && pwd)"
+if [[ "$FIX" == true && ( "$DESC_GIVEN" == true || "$WARN" == true ) ]]; then
+  echo "ERROR: --fix writes the live description; it takes neither --description nor --warn" >&2; exit 2
+fi
 
 skills=$(find "$ROOT/skills" -name SKILL.md 2>/dev/null | grep -v '_contract/fixtures' | wc -l | tr -d ' ')
 agents=$(find "$ROOT/agents" -maxdepth 1 -name '*.md' 2>/dev/null | wc -l | tr -d ' ')
@@ -68,6 +76,13 @@ if [[ "$status" -ne 0 ]]; then
     fixed="A portable agent toolkit — $skills skills, $agents specialist agents, worktree hooks and MCP stubs — shipped from one canonical source to six agent surfaces across five platforms."
   else
     fixed="$(printf '%s' "$DESC" | sed -E "s/[0-9]+ skills/$skills skills/; s/[0-9]+ (specialist |role-based )?agents/$agents \\1agents/")"
+  fi
+  if [[ "$FIX" == true ]]; then
+    if gh api -X PATCH "repos/$slug" -f description="$fixed" >/dev/null; then
+      echo "repo-description: fixed — $slug now says $skills skills, $agents agents"; exit 0
+    fi
+    echo "ERROR: could not write the description (the token must be allowed to change repository settings)" >&2
+    exit 1
   fi
   echo "       Fix (repository owner, Settings -> About, or):" >&2
   printf "         gh repo edit %s --description '%s'\n" "${slug:-<owner/repo>}" "$fixed" >&2

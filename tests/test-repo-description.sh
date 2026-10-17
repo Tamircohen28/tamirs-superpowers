@@ -26,6 +26,10 @@ out="$(bash "$CHECK" "$ROOT" --description "$((skills - 1)) skills, $agents spec
 judge "the failure prints the corrected description" yes "$(has "$out" "$skills skills, $agents specialist agents")"
 judge "and the gh repo edit command" yes "$(has "$out" "gh repo edit")"
 
+section "--fix is a live write, never a dry one"
+judge "--fix with --description is refused" 2 "$(bash "$CHECK" "$ROOT" --fix --description "x" >/dev/null 2>&1; echo $?)"
+judge "--fix with --warn is refused" 2 "$(bash "$CHECK" "$ROOT" --fix --warn >/dev/null 2>&1; echo $?)"
+
 section "live read"
 if command -v gh >/dev/null 2>&1 && gh api repos/Tamircohen28/tamirs-superpowers >/dev/null 2>&1; then
   out="$(bash "$CHECK" "$ROOT" 2>&1)"; rc=$?
