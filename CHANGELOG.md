@@ -232,16 +232,17 @@ setting; the Agent Plugins manifest lives under `platforms/agent-plugins/`, neve
   `compat.ts`): `skill.prompt` appends the live objective id,
   worktree and open-task count when a dev-workflow skill of this plugin expands under an active
   objective; an `objective_status` tool (registered upfront, not deferred) answers the model with
-  the objective as JSON; the objective pane shows each task's agent status from `$.agent.list()`; the rate-limit
-  band also raises a native notification once per crossing (`$.ui.notify`, 2.1.295+);
+  the objective as JSON; the objective pane shows each task's agent status from `$.agent.list()`;
   `classic.SessionStart` on clear/resume/fork reloads the pane and the dismissal, which `/clear`
   used to blank; `$.store` keeps the skill-suggest "seen" set and the rate-limit dismissal across
   sessions; every drawing is mounted on terminal, desktop and the VS Code chat panel (2.1.299+),
-  typography gated on `$.session.version()`. 38 mod tests (was 22); every gating hook has
+  typography gated on `$.session.version()`. 37 mod tests (was 22); every gating hook has
   `.catch`; still no process, no network, no prompt submission, no permission answer.
-  Typeahead rows on `prompt.autocomplete` (2.1.292) and a `[ view ]` button on `$.ui.view`
-  (2.1.300) were withdrawn before the directory listing: the plugin directory's list of mod
-  events and calls predates both, and it blocks a mod that hooks an event it does not know.
+  Typeahead rows on `prompt.autocomplete` (2.1.292), a `[ view ]` button on `$.ui.view`
+  (2.1.300) and a native rate-limit notification on `$.ui.notify` (2.1.295) were withdrawn
+  before the directory listing: the plugin directory's list of mod events and calls predates
+  all three; it blocks a mod that hooks an event it does not know and holds one that makes a
+  call it does not know beside a file or conversation read.
 - **`tamirs-superpowers-guard`**, a second plugin in the in-repo marketplace
   (`plugins/guard`, `/plugin install tamirs-superpowers-guard --marketplace
   Tamircohen28/tamirs-superpowers`): an in-process hold on destructive shell commands (force

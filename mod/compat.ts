@@ -8,8 +8,6 @@
 
 /** `Text` `weight` (and `size`/`mono`/`tabular`) replaced `bold` here. */
 export const TYPOGRAPHY_SINCE = '2.1.299'
-/** `$.ui.notify` (a native notification by the person's own channel) arrived here. */
-export const NOTIFY_SINCE = '2.1.295'
 
 /** The three numbers of a release version, or null for anything that is not one. */
 export function parseVersion(version: string | undefined): [number, number, number] | null {
@@ -35,15 +33,6 @@ export function atLeast(version: string | undefined, min: string): boolean {
 /** Whether the host reads `Text` `weight` rather than the deprecated `bold`. */
 export function hasTypography(version: string | undefined): boolean {
   return atLeast(version, TYPOGRAPHY_SINCE)
-}
-
-/**
- * Whether `$.ui.notify` exists on the host. Feature presence is gated by
- * version, not by reading `$.ui.notify` as a value: `claude plugin validate`
- * refuses a `$` member that is read rather than called.
- */
-export function hasNotify(version: string | undefined): boolean {
-  return atLeast(version, NOTIFY_SINCE)
 }
 
 /**
