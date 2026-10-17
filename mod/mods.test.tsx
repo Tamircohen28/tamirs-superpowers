@@ -10,7 +10,7 @@ import { expect, mock, test } from 'claude-code/testing'
 import type { Engine } from 'claude-code/testing'
 import type { On } from 'claude-code'
 
-import { atLeast, hasNotify, hasTypography, strongText } from './compat'
+import { atLeast, hasTypography, strongText } from './compat'
 import { agentsByTask, objectiveSummaryJson, openTaskCount } from './objective'
 import { PUBLIC_SKILLS, SKILL_DESCRIPTIONS } from './skills'
 
@@ -365,8 +365,6 @@ test('version gates read a release version and treat an unknown one as older', (
   expect(atLeast('', '2.1.299')).toBe(false)
   expect(atLeast(undefined, '2.1.299')).toBe(false)
   expect(hasTypography('2.1.299')).toBe(true)
-  expect(hasNotify('2.1.294')).toBe(false)
-  expect(hasNotify('2.1.295')).toBe(true)
   expect(strongText('nonsense')).toEqual({ bold: true })
 })
 
@@ -407,35 +405,22 @@ test('crossing the threshold toasts once, draws a band that names /switch-dev ha
   expect(calls.prompts).toHaveLength(0)
 })
 
-test('the band\'s first appearance for a window rings the native notification once per crossing', async ($, on) => {
+// The plugin directory does not know `$.ui.notify` (2.1.295), and an unknown call in a
+// mod that also reads files and the conversation is held as a way out: the band and
+// its one toast per crossing carry the warning, and no native notification is rung.
+test('a rate-limit crossing shows the band and one toast, and rings no native notification', async ($, on) => {
   const calls = stubEngine(on, fakeDisk())
   mock.clock(on)
   await start($)
   await measure($, 91)
   await measure($, 93)
-  await measure($, 97)
-  expect(calls.notifies).toHaveLength(1)
-  expect(calls.notifies[0]?.text).toMatch(/5h limit at 91%/)
-  expect(calls.notifies[0]?.title).toMatch(/hand off/i)
-  // A second window crossing is its own crossing.
+  expect(calls.toasts).toHaveLength(1)
   await measure($, 90, 'seven_day')
-  expect(calls.notifies).toHaveLength(2)
-  expect(calls.notifies[1]?.text).toMatch(/7d limit at 90%/)
-  // The window drops away and climbs again: a new crossing.
   await measure($, 30)
   await measure($, 95)
-  expect(calls.notifies).toHaveLength(3)
-})
-
-test('on a host before 2.1.295 the band shows but no native notification is attempted', async ($, on) => {
-  const calls = stubEngine(on, fakeDisk(), { version: '2.1.292' })
-  mock.clock(on)
-  await start($)
-  await measure($, 91)
-  expect(calls.toasts).toHaveLength(1)
   expect(calls.notifies).toHaveLength(0)
   const ui = await $.ui.mount({ plugin: PLUGIN, surface: 'terminal', ...BAND })
-  expect(await ui.find({ type: 'Text', text: /5h limit 91%/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /5h limit 95%/ })).toBeDefined()
   await ui.unmount()
 })
 
