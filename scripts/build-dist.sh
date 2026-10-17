@@ -75,6 +75,7 @@ COMMON_PRUNE=(
   scripts/typecheck-mods.sh scripts/check-platform-version-pins.sh scripts/check-gemini-adapter.sh
   scripts/check-opencode-permission-keys.sh scripts/build-gemini-hooks.sh scripts/build-antigravity-plugin.sh
   scripts/build-agents-skills.sh scripts/check-skills-ref.sh scripts/check-token-budget.sh
+  scripts/check-repo-description.sh
 )
 ROOTS=(); PRUNE_PATHS=("${COMMON_PRUNE[@]}"); README_SRC="README.md"; CLOSURE_EXTRA="docs/user"
 case "$TARGET" in

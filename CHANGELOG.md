@@ -5,6 +5,23 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [5.0.1] — 2026-10-17
+
+### Fixed
+
+- **`check-manifest-version-alignment.sh` read the Claude distribution tag as a release.**
+  `release.yml` tags the generated Claude-only tree `v<version>-claude`; the check's
+  `vX.Y.Z` glob matched it, it sorted past its own release, and the first post-release
+  commit of 5.0.0 (#287) read as "manifest BEHIND the latest tag", turning master red.
+  The check now considers only `vX.Y.Z` and `vX.Y.Z-<prerelease>` tags, never `-claude`;
+  `tests/test-manifest-version-alignment.sh` (9 checks) pins it in a hermetic repo.
+- **The GitHub repository description is checked against the tree.** It said "29 skills"
+  after 5.0.0 shipped the thirtieth; nothing compared it, because it lives outside the
+  repository. `scripts/check-repo-description.sh` reads it through `gh api` and holds its
+  skill and agent counts to the filesystem, printing the `gh repo edit` command on drift;
+  CI warns on a pull request and fails on a push to master; offline it skips.
+  `tests/test-repo-description.sh` (8 checks).
+
 ## [5.0.0] — 2026-10-17
 
 The major version: one source tree built into a distribution per host, the mod on the
