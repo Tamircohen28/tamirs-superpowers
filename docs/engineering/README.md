@@ -7,6 +7,7 @@ contributors want [CONTRIBUTING](../CONTRIBUTING.md).
 
 | Doc | What it covers |
 |---|---|
+| [V5 upgrade and refactor plan](roadmap/v5-upgrade-plan.md) | Proposal (2026-10-17): mods, per-platform parity, Agent Plugins 1.0, phased V5 plan, risk register; research notes in `roadmap/v5-research/` |
 | [Overview](architecture/overview.md) | Layer map, the five subsystems, data flow |
 | [Capability model](architecture/capability-model.md) | The registry, status vocabulary, how degradation works |
 | [Adapter contract](architecture/adapter-contract.md) | What a platform adapter may and may not be |
