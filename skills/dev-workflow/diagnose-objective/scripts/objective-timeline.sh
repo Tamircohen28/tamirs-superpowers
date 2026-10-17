@@ -265,12 +265,16 @@ JQ_PROGRAM="$(cat <<'JQ'
         | {class: "task-completed-without-handoff", severity: "critical", task: .id, at: .file_mtime,
            detail: "\(.id) is marked completed but handoffs/\(.id).json does not exist. A task with no handoff is failed, never completed; something advanced the state without the worker's output.",
            evidence: [.file]}),
-      ($T[] | select(.status == "running" and (.handoff.present | not)) | .id as $id
+      ($T[] | select(.status == "running" and (.handoff.present | not)) | .id as $id | .branch as $tb
         | (if (($git.dirty_worktrees // []) | index($id)) != null then " Its worktree \(.worktree) has uncommitted changes: the work exists, the record does not." else "" end) as $dirty_note
-        | if ($RL | length) > 0 then
+        # Only a record that names THIS task's branch (or names no branch at all, which
+        # cannot be attributed) explains this task; one worker's rate-limit death is not
+        # every running worker's.
+        | ($RL | map(select(.branch == null or ($tb != null and .branch == $tb)))) as $rl
+        | if ($rl | length) > 0 then
             {class: "rate-limit-death", severity: "high", task: $id, at: .file_mtime,
-             detail: "\($id) is still running and has no handoff, and rate-limit-handoff.sh recorded a rate-limit death for this objective at \($RL | map(.at) | join(", ")) (branch \($RL[0].branch // "?")). The session ended before the worker could write its handoff; the work on disk is whatever was committed or left in the worktree.\($dirty_note)",
-             evidence: ([.file] + ($RL | map(.path)) + (if .worktree then [.worktree] else [] end))}
+             detail: "\($id) is still running and has no handoff, and rate-limit-handoff.sh recorded a rate-limit death for this objective at \($rl | map(.at) | join(", ")) (branch \($rl[0].branch // "?")). The session ended before the worker could write its handoff; the work on disk is whatever was committed or left in the worktree.\($dirty_note)",
+             evidence: ([.file] + ($rl | map(.path)) + (if .worktree then [.worktree] else [] end))}
           else
             {class: "worker-stopped-without-handoff", severity: "high", task: $id, at: .file_mtime,
              detail: "\($id) is still running and has no handoff. Either the worker returned without writing one, or the session died mid-task with no rate-limit record under .dev-files/handoffs/, so the missing final handoff is the only signal.\($dirty_note)",

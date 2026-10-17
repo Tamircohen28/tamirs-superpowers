@@ -109,7 +109,10 @@ judge "a figure within tolerance_percent of the baseline passes" 0 "$rc"
 # --update into a temp copy rewrites the three measurement fields and nothing else.
 UPD="$TMP/upd.json"
 jq '.always_on_tokens = 1 | .measured_on = "0.0.0" | .measured_at = "1970-01-01" | .ceiling = 1000000' "$BUDGET" > "$UPD"
-bash "$BUDGET_SH" "$REPO_ROOT" --from "$DETAILS" --budget "$UPD" --update >/dev/null 2>&1
+rc="$(bash "$BUDGET_SH" "$REPO_ROOT" --from "$DETAILS" --budget "$UPD" --update >/dev/null 2>&1; echo $?)"
+judge "--update accepting a figure far above the old baseline exits 0 (the tolerance is recomputed from the new baseline)" 0 "$rc"
+rc="$(bash "$BUDGET_SH" "$REPO_ROOT" --from "$DETAILS" --budget "$UPD" >/dev/null 2>&1; echo $?)"
+judge "the updated budget passes a plain run" 0 "$rc"
 judge "--update rewrites always_on_tokens to the measured figure" "$baseline" "$(jq -r '.always_on_tokens' "$UPD")"
 judge "--update stamps measured_at with today's UTC date" "$(date -u +%Y-%m-%d)" "$(jq -r '.measured_at' "$UPD")"
 judge "--update replaces the placeholder measured_on" no "$(has "$(jq -r '.measured_on' "$UPD")" "0.0.0")"

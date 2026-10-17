@@ -156,6 +156,10 @@ if [[ "$UPDATE" -eq 1 ]]; then
      '.always_on_tokens = $n | .measured_on = $v | .measured_at = $d' "$BUDGET" > "$tmp"
   mv "$tmp" "$BUDGET"
   echo "token-budget: updated ${BUDGET}: always_on_tokens=$measured measured_on=$claude_version measured_at=$today (ceiling and tolerance untouched)"
+  # The baseline is now the measurement; the tolerance check below compares against
+  # what was just written, not the figure it replaced (the ceiling check still holds).
+  baseline="$measured"
+  max_allowed=$(( baseline + (baseline * tolerance + 99) / 100 ))
 fi
 
 status=0

@@ -306,6 +306,7 @@ section "events deliberately left unwired stay unwired while their Claude peers 
 # field that Cursor drops. If that changes, this case flips to a warning
 # saying it can now be wired.
 mkdir -p "$WS/.dev-files/objectives/obj-probe"
+printf '{"id":"obj-probe","status":"active"}\n' > "$WS/.dev-files/objectives/obj-probe/objective.json"
 errf="$TMP/err"
 OUT="$(cd "$WS" && payload subagentStop | bash "$ROOT/hooks/subagent-handoff-check.sh" 2>"$errf")"; RC=$?
 rm -rf "$WS/.dev-files/objectives/obj-probe"

@@ -55,7 +55,7 @@ run_off(){ printf '%s' "$2" | env -u CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS bash "
 ctx(){ printf '%s' "$1" | jq -r '.hookSpecificOutput.additionalContext // empty' 2>/dev/null; }
 is_silent(){ printf '%s' "$1" | jq -e '. == {}' >/dev/null 2>&1; }
 one_object(){ printf '%s' "$1" | jq -s 'length == 1 and (.[0] | type) == "object"' 2>/dev/null | grep -q true; }
-mkobj(){ local d="$1"; mkdir -p "$d/.dev-files/objectives/auth-system/handoffs" "$d/.dev-files/objectives/auth-system/tasks"; git -C "$d" init -q; }
+mkobj(){ local d="$1"; mkdir -p "$d/.dev-files/objectives/auth-system/handoffs" "$d/.dev-files/objectives/auth-system/tasks"; git -C "$d" init -q; git -C "$d" config user.email t@example.invalid; git -C "$d" config user.name t; git -C "$d" commit -q --allow-empty -m init; printf '{"id":"auth-system","status":"active"}\n' > "$d/.dev-files/objectives/auth-system/objective.json"; }
 mktask(){ # <objdir> <id> <status>
   jq -n --arg id "$2" --arg st "$3" '{schema_version:1,id:$id,objective_id:"auth-system",role:"implementer",depends_on:[],scope:["src/**"],validation_tier:"worker",status:$st}' \
     > "$1/.dev-files/objectives/auth-system/tasks/$2.json"
@@ -94,6 +94,19 @@ one_object "$out" && ok "exactly one JSON object on stdout" || bad "exactly one 
 if printf '%s' "$out" | jq -e '.continue == false or .decision == "block"' >/dev/null 2>&1; then
   bad "never blocks via JSON" "emitted continue:false or decision:block"
 else ok "never blocks via JSON"; fi
+
+echo "--- the objective is resolved from the main checkout, by status ---"
+# Fired from inside a linked worker worktree: .dev-files/objectives lives only in the
+# main checkout, so a hook that looked beside its own cwd would fall silent.
+git -C "$O" worktree add -q -B agent/auth-system/task-001 "$O/.agent-worktrees/auth-system/task-001" HEAD 2>/dev/null
+m="$(ctx "$(run_on "$TASK_H" "$(task_payload "$O/.agent-worktrees/auth-system/task-001" task-001)")")"
+case "$m" in *"auth-system"*) ok "fired from a worker worktree, the main checkout's objective is found" ;; *) bad "fired from a worker worktree, the main checkout's objective is found" "got: '$m'" ;; esac
+# A finished objective that sorts first on disk must not shadow the active one.
+mkdir -p "$O/.dev-files/objectives/aaa-done/handoffs" "$O/.dev-files/objectives/aaa-done/tasks"
+printf '{"id":"aaa-done","status":"completed"}\n' > "$O/.dev-files/objectives/aaa-done/objective.json"
+m="$(ctx "$(run_on "$TASK_H" "$(task_payload "$O" task-001)")")"
+case "$m" in *"auth-system"*) ok "a completed objective listed first does not shadow the active one" ;; *) bad "a completed objective listed first does not shadow the active one" "got: '$m'" ;; esac
+rm -rf "$O/.dev-files/objectives/aaa-done"
 
 echo "--- host task ids map onto task-NNN handoffs ---"
 m="$(ctx "$(run_on "$TASK_H" "$(task_payload "$O" 1)")")"

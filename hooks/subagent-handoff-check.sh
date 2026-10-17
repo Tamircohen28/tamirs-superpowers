@@ -32,6 +32,10 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=lib/hook-output.sh
 source "${SCRIPT_DIR}/lib/hook-output.sh"
+# shellcheck source=lib/worktree-common.sh
+source "${SCRIPT_DIR}/lib/worktree-common.sh"
+# shellcheck source=lib/objective-common.sh
+source "${SCRIPT_DIR}/lib/objective-common.sh"
 
 input="$(hook_read_stdin)"
 hook_detect_platform "$input"
@@ -41,14 +45,11 @@ source "${SCRIPT_DIR}/lib/cursor-output.sh"
 cwd="$(printf '%s' "$input" | jq -r '.cwd // .workspace_roots[0] // empty' 2>/dev/null || true)"
 [ -n "$cwd" ] || cwd="$PWD"
 
-repo_root="$(git -C "$cwd" rev-parse --show-toplevel 2>/dev/null || printf '%s' "$cwd")"
-obj_dir="${repo_root}/.dev-files/objectives"
-
-# No orchestrated work in play: a subagent here owes no handoff. Say nothing.
-[ -d "$obj_dir" ] || hook_stop_ok
-
-objective="$(find "$obj_dir" -mindepth 1 -maxdepth 1 -type d -print 2>/dev/null | head -1 || true)"
-[ -n "$objective" ] || hook_stop_ok
+# No orchestrated work in play: a subagent here owes no handoff. Say nothing. The
+# active objective is resolved from the main checkout (a worker worktree has no
+# .dev-files/objectives of its own) and by its status, never by directory order.
+objective="$(active_objective_dir "$cwd" 2>/dev/null || true)"
+[ -n "$objective" ] && [ -d "$objective" ] || hook_stop_ok
 
 obj_id="$(basename "$objective")"
 handoff_dir="${objective}/handoffs"

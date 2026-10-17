@@ -135,6 +135,18 @@ judge "evidence names the rate-limit record" yes "$(has "$(jq -r '.first_cause.e
 judge "next command is switch-dev handoff for the task" yes "$(has "$(jq -r .next_command <<<"$out")" '/switch-dev handoff objective=nohandoff task-002')"
 judge "timeline carries the rate-limit event" 1 "$(jq '[.timeline[] | select(.event == "rate-limit")] | length' <<<"$out")"
 
+# A record names one worker's branch: a second running worker without a handoff on
+# another branch is still worker-stopped, never a rate-limit death by association.
+bash "$S" task-add nohandoff --role implementer --scope 'tests/**' >/dev/null
+bash "$S" task-set nohandoff task-003 --status running --branch worker/nohandoff/003 >/dev/null 2>&1
+pin_times "$OBJECTIVES_ROOT/nohandoff"
+out="$(run "$OBJECTIVES_ROOT/nohandoff" "$R2")"
+judge "the record's branch keeps task-002 a rate-limit death" rate-limit-death "$(jq -r '.findings[] | select(.task == "task-002" and (.class | test("handoff|rate-limit"))) | .class' <<<"$out")"
+judge "task-003 on another branch stays worker-stopped-without-handoff" worker-stopped-without-handoff "$(jq -r '.findings[] | select(.task == "task-003" and (.class | test("handoff|rate-limit"))) | .class' <<<"$out")"
+bash "$S" task-set nohandoff task-003 --status completed >/dev/null 2>&1
+bash "$H" emit nohandoff task-003 --status completed --validation 'make test|worker|pass' >/dev/null
+pin_times "$OBJECTIVES_ROOT/nohandoff"
+
 # A record for some other objective must not match.
 jq '.objective = "other" | .branch = "worker/other/001"' "$R2/.dev-files/handoffs/rate-limit-20261017T010500Z.json" \
   > "$R2/.dev-files/handoffs/x.tmp" && mv "$R2/.dev-files/handoffs/x.tmp" "$R2/.dev-files/handoffs/rate-limit-20261017T010500Z.json"

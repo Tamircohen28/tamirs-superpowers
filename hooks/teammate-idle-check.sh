@@ -36,6 +36,10 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=lib/hook-output.sh
 source "${SCRIPT_DIR}/lib/hook-output.sh"
+# shellcheck source=lib/worktree-common.sh
+source "${SCRIPT_DIR}/lib/worktree-common.sh"
+# shellcheck source=lib/objective-common.sh
+source "${SCRIPT_DIR}/lib/objective-common.sh"
 
 teams="$(printf '%s' "${CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS:-}" | tr '[:upper:]' '[:lower:]')"
 case "$teams" in
@@ -49,11 +53,12 @@ cwd="$(printf '%s' "$input" | jq -r '.cwd // empty' 2>/dev/null || true)"
 teammate="$(printf '%s' "$input" | jq -r '.teammate_name // empty' 2>/dev/null || true)"
 agent_id="$(printf '%s' "$input" | jq -r '.agent_id // empty' 2>/dev/null || true)"
 
-repo_root="$(git -C "$cwd" rev-parse --show-toplevel 2>/dev/null || printf '%s' "$cwd")"
-obj_dir="${repo_root}/.dev-files/objectives"
-[ -d "$obj_dir" ] || hook_stop_ok
-objective="$(find "$obj_dir" -mindepth 1 -maxdepth 1 -type d -print 2>/dev/null | head -1 || true)"
-[ -n "$objective" ] || hook_stop_ok
+# The ACTIVE objective, resolved from the main checkout (a hook fired inside a linked
+# worker worktree would otherwise look for .dev-files/objectives where it does not
+# exist and fall silent), honouring SUPERPOWERS_OBJECTIVE_ID, never "the first
+# directory on disk", which may be a finished objective beside the live one.
+objective="$(active_objective_dir "$cwd" 2>/dev/null || true)"
+[ -n "$objective" ] && [ -d "$objective" ] || hook_stop_ok
 obj_id="$(basename "$objective")"
 
 # Tasks still `running` (this repo's in-progress state) with no handoff file.

@@ -26,7 +26,7 @@ ok(){ PASS=$((PASS+1)); echo "  ok   $1"; }
 bad(){ FAIL=$((FAIL+1)); FAILED+=("$1"); echo "  FAIL $1 — $2"; }
 run(){ printf '{"cwd":"%s"}' "$1" | bash "$H" 2>&1; }
 ctx(){ printf '%s' "$1" | jq -r '.hookSpecificOutput.additionalContext // empty' 2>/dev/null; }
-mkobj(){ local d="$1"; mkdir -p "$d/.dev-files/objectives/auth-system/handoffs"; git -C "$d" init -q; }
+mkobj(){ local d="$1"; mkdir -p "$d/.dev-files/objectives/auth-system/handoffs"; git -C "$d" init -q; git -C "$d" config user.email t@example.invalid; git -C "$d" config user.name t; git -C "$d" commit -q --allow-empty -m init; printf '{"id":"auth-system","status":"active"}\n' > "$d/.dev-files/objectives/auth-system/objective.json"; }
 
 echo "--- silent outside orchestration ---"
 P="$TMPROOT/plain"; mkdir -p "$P"; git -C "$P" init -q

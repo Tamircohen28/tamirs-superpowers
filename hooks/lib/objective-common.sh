@@ -210,6 +210,23 @@ active_objective_id() {
   return 1
 }
 
+# active_objective_dir <cwd> — the state directory of the active objective, resolved
+# the way active_objective_id resolves it: from the MAIN checkout even when <cwd> is a
+# linked worker worktree (where .dev-files/objectives does not exist), honouring
+# SUPERPOWERS_OBJECTIVE_ID, and never "the first directory find happens to list".
+# Prints nothing and returns 1 when no objective is active.
+active_objective_dir() {
+  local cwd="${1:-$PWD}" id repo_root common_root
+  id="$(active_objective_id "$cwd")" || return 1
+  repo_root="$(git -C "$cwd" rev-parse --show-toplevel 2>/dev/null)" || repo_root="$cwd"
+  common_root="$(git -C "$cwd" rev-parse --path-format=absolute --git-common-dir 2>/dev/null || true)"
+  if [[ -n "$common_root" ]]; then
+    common_root="$(dirname "$common_root")"
+    [[ -d "$common_root" ]] && repo_root="$common_root"
+  fi
+  objective_state_dir "$repo_root" "$id"
+}
+
 objective_is_active() {
   active_objective_id "${1:-$PWD}" >/dev/null 2>&1
 }
