@@ -1,4 +1,4 @@
-.PHONY: gemini-hooks gemini-hooks-check antigravity-plugin antigravity-plugin-check agents-skills agents-skills-check check-skills-ref check-token-budget test-skill-contract-strict
+.PHONY: check-repo-description gemini-hooks gemini-hooks-check antigravity-plugin antigravity-plugin-check agents-skills agents-skills-check check-skills-ref check-token-budget test-skill-contract-strict
 .PHONY: help setup setup-plan capture install update uninstall validate lint test plugin-validate test-mods typecheck-mods test-repo-contract \
 	check-manifest-versions check-platform-equivalence check-agent-drift \
 	check-feature-equivalence check-platform-targets platform-targets-sync \
@@ -75,6 +75,7 @@ help:
 	@echo "  agents-skills[-check]   — regenerate (or assert) the .agents/skills mirror (Antigravity, Agent Skills clients)"
 	@echo "  check-skills-ref        — hold every SKILL.md to the Agent Skills reference validator (npx skills-ref; skips offline)"
 	@echo "  check-token-budget      — measure the plugin's always-on token cost and hold it to evals/budget.json (needs the CLI)"
+	@echo "  check-repo-description  — the GitHub repository description names the shipped skill and agent counts (gh + token; skips offline)"
 	@echo "  test-skill-contract-strict — the skill contract with every warning promoted to a failure"
 	@echo "  bootstrap-dev           — contributor toolchain setup"
 	@echo "  test                    — alias for validate"
@@ -248,6 +249,9 @@ check-skills-ref:
 
 check-token-budget:
 	@bash scripts/check-token-budget.sh .
+
+check-repo-description:
+	@bash scripts/check-repo-description.sh .
 
 test-skill-contract-strict:
 	@bash tests/test-skill-contract.sh --strict

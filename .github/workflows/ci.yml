@@ -87,6 +87,18 @@ jobs:
         run: bash tests/test-static.sh
       - name: Documentation tests
         run: bash tests/test-docs.sh
+      # The GitHub repository description lives outside the tree and is set by hand; it
+      # must name the skill and agent counts the tree ships. A pull request only warns
+      # (the description is the owner's to fix, not the author's); a push to master fails.
+      - name: Repository description names the shipped counts
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            bash scripts/check-repo-description.sh . --warn
+          else
+            bash scripts/check-repo-description.sh .
+          fi
 
   platform-contract:
     name: Platform contract (${{ matrix.platform }})
