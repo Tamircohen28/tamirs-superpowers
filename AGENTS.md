@@ -92,6 +92,7 @@ situation per session; never repeat a declined suggestion.
 | An objective failed or stalled and the user asks why, which task is stuck, or what to run next | `diagnose-objective` |
 | You are about to hand-write a capability a public skill or plugin plausibly already provides | `find-skill` |
 | A PR is about to open or a security-sensitive diff needs a pass before push | Cursor native `/review-security` (Teams Security Review bot) — complements `security-reviewer` |
+| A Cloud Agent (or this session) needs a durable interactive report, dashboard, or shareable artifact | Prefer Cursor **canvases** (`WriteCanvas`) over dumping large markdown tables into chat (host capability since 2026-10-16) |
 | The session had repeated failures on the same thing, or the user corrected you several times | `retro` |
 
 **Why the rule and not just good trigger descriptions:** `skill_auto_invocation` in

@@ -5,6 +5,10 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Changed
+
+- **Cursor 3.11 (+2026-10-16 / desktop 3.25.9):** advance `changelog_date` **2026-09-23 → 2026-10-16**; desktop pin **3.24.12 → 3.25.9**. Cover Remote Control (2026-10-06), Origin App Marketplace (2026-10-13), Cloud Agent canvases + Environments API + 300-repo envs (2026-10-16). Feature pin remains **3.11**. Cursor-only; other platform nightlies untouched.
+
 ### Added
 
 - **The repository description writes itself.** `scripts/check-repo-description.sh --fix`

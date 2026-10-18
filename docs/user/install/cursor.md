@@ -2,7 +2,7 @@
 
 Registry id: `cursor`. Validated against Cursor desktop **3.22.7** (feature changelog
 **3.11**, covered through date-only **2026-09-23**); that floor is the version this repo
-actually tested, not a guess. Desktop **3.24.12** (hook `tool_use_id` / `parent_tool_call_id`
+actually tested, not a guess. Desktop **3.25.9** (hook `tool_use_id` / `parent_tool_call_id`
 correlation, auto-review risky-delete approval) was reviewed from the IDE release notes;
 no live run has validated it yet.
 
@@ -361,8 +361,8 @@ never adopt anything silently. `apply` shows a diff and asks per change, default
 | background tasks · structured questions · session transcripts | unknown | Not measured — treated as unavailable, with stated fallbacks |
 | statusline · artifacts · extension install | unsupported | Cosmetic, absent, and not a Cursor mechanism, respectively |
 
-### Working tips (3.11 → 2026-09-23; desktop CLI 3.22.7 validated, 3.24.12 reviewed; CLI 2026-08-26)
-- **Desktop 3.24.12 (2026-10-10/11 stable):** IDE notes add **hook `tool_use_id`** correlation (shell/MCP hooks match `preToolUse`) and always-on **`transcript_path` / `CURSOR_TRANSCRIPT_PATH`** — this plugin's `cursor-agent-tools-guard.sh` now keys subagent allowlists on Task `tool_use_id` + child `parent_tool_call_id`. **Auto-review** asks before risky recursive/force/wildcard/mirror deletes whose targets could resolve differently than written. Cloud agents recognize **OOM kills** (memory limit reported). MCP OAuth can complete via a **Cursor-hosted callback** when local redirect URLs are rejected. Large worktree cleanups can OOM the main process — if heap climbs after launch, set `"cursor.worktreesGlobalMaxSizeGb": 0` and `"cursor.worktreeCleanupIntervalHours": 500` (Cursor staff workaround, forum 2026-10-11).
+### Working tips (3.11 → 2026-09-23; desktop CLI 3.22.7 validated, 3.25.9 reviewed; CLI 2026-08-26)
+- **Desktop 3.25.9 (2026-10-10/11 stable):** IDE notes add **hook `tool_use_id`** correlation (shell/MCP hooks match `preToolUse`) and always-on **`transcript_path` / `CURSOR_TRANSCRIPT_PATH`** — this plugin's `cursor-agent-tools-guard.sh` now keys subagent allowlists on Task `tool_use_id` + child `parent_tool_call_id`. **Auto-review** asks before risky recursive/force/wildcard/mirror deletes whose targets could resolve differently than written. Cloud agents recognize **OOM kills** (memory limit reported). MCP OAuth can complete via a **Cursor-hosted callback** when local redirect URLs are rejected. Large worktree cleanups can OOM the main process — if heap climbs after launch, set `"cursor.worktreesGlobalMaxSizeGb": 0` and `"cursor.worktreeCleanupIntervalHours": 500` (Cursor staff workaround, forum 2026-10-11).
 - **Desktop 3.23.12 (2026-10-01):** team/org **MCP allowlists** — keep the bundled `github` MCP (and any Team MCP) on the org allowlist after upgrade; Origin MCP endpoint is `api.origin.cursor.com/mcp`. Prefer **service tokens** for Automations that install/update this plugin. **Required** team-marketplace plugins removed — install modes are Default Off / Default On + groups only.
 - **Security Review + Rollouts (2026-09-23):** Teams/Enterprise bots from [Automations](https://cursor.com/automations) ([Security Agents docs](https://cursor.com/docs/security-agents)). Security Review posts exploitable-bug findings on ready PRs (drafts skipped; Bugbot keeps style). Run Cursor's `/review-security` or `/review` before push — complements this plugin's `security-reviewer` agent (in-session role) rather than replacing it. **Rollouts** monitors deploy health per environment after merge; optional for this public plugin (no product deploy). [Changelog](https://cursor.com/changelog/rollouts-and-security-reviewer).
 - **Projects (2026-09-10)** — Cursor **Projects** (left nav) suit multi-week / multi-agent work. A **coordinator** plans and delegates (does not write code); **shared context** files sync across cloud and local agents; **subscriptions** can watch Slack, schedules, or all PRs. Use a Project when validating this plugin across a long refactor or multi-PR initiative; keep ordinary `/diagnose-refusal` / one-shot skill runs in a normal Agent chat. Projects compose with (do not replace) Cloud Agents, Custom Modes, and Self-Hosted Machines ([changelog](https://cursor.com/changelog)).
@@ -382,3 +382,15 @@ sandbox — the same rules are enforced in CI, which is where they actually bind
 
 Source of truth: [`core/capabilities/platforms.json`](../../../core/capabilities/platforms.json).
 Comparison: [platform differences](../platform-differences.md).
+
+
+## Host currency notes (2026-10-16 / desktop 3.25.9)
+
+Documentary review only (no live Cursor IDE run this cycle). Feature pin stays **3.11**.
+
+| Date | Capability | Plugin impact |
+|------|------------|---------------|
+| 2026-10-16 | Cloud Agent **canvases**, **Environments API** (beta), **300-repo** / ~5× faster envs | Prefer canvases for durable multi-section reports from Cloud Agents; Environments API is host/dashboard — no plugin manifest change. |
+| 2026-10-13 | **Origin App Marketplace** | Distinct from `tamirs-marketplace` plugin catalog installs. |
+| 2026-10-06 | **Remote Control** (iOS ↔ local agents) | Operator convenience when a local Cursor session runs this plugin; Cloud Automations remain the unattended path. |
+| desktop 3.25.9 | Stable download pin | Hooks/skills/MCP wiring unchanged; keep `platforms/cursor/hooks.json` as the Cursor hook bundle. |
