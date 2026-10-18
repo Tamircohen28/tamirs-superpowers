@@ -35,7 +35,7 @@ Reviewed **2026-10-06** (changelog/schema only, no live binary; `validated_again
 | Surface | Min supported | Validated against | Reviewed through | Latest known | Install guide |
 |----------|---------------|-------------------|------------------|--------------|---------------|
 | Claude Code | 2.0.0 | 2.1.287 | 2.1.287 | 2.1.287 | [claude-code.md](../../user/install/claude-code.md) |
-| Cursor | 3.22.7 | 3.22.7 | 3.24.12 | 3.24.12 | [cursor.md](../../user/install/cursor.md) |
+| Cursor | 3.22.7 | 3.22.7 | 3.25.9 | 3.25.9 | [cursor.md](../../user/install/cursor.md) |
 | Codex | 0.40.0 | 0.163.0 | 0.163.0 | 0.163.0 | [codex.md](../../user/install/codex.md) |
 | Gemini CLI | 0.55.1 | 0.64.0 | 0.64.0 | 0.64.0 | [gemini.md](../../user/install/gemini.md) |
 | OpenCode | unknown | 2.0.14 | 2.0.24 | 2.0.24 | [opencode.md](../../user/install/opencode.md) |
@@ -123,7 +123,7 @@ feature-level, which is why this repo tracks `changelog_feature`/`changelog_date
 separately from the app version. Advancing `latest_known` without a readable changelog would put
 `reviewed_through < latest_known`, which the repo's own contract rejects as V1-04 ("upstream
 releases nobody has read yet"), and claiming a review that did not happen is exactly what these
-three fields exist to prevent. Cursor `validated_against` and `supported_min` therefore stay at **3.22.7**, the last build a live run confirmed; `reviewed_through` and `latest_known` advance to **3.24.12** on the 2026-10-11 IDE release-notes review alone (no live Cursor run). Desktop **3.24** adopts id-keyed subagent attribution in `cursor-agent-tools-guard.sh`. The nightly probe no longer reports this as drift at all: comparing Cursor's desktop
+three fields exist to prevent. Cursor `validated_against` and `supported_min` therefore stay at **3.22.7**, the last build a live run confirmed; `reviewed_through` and `latest_known` advance to **3.25.9** on the 2026-10-11 IDE release-notes review alone (no live Cursor run). Desktop **3.24** adopts id-keyed subagent attribution in `cursor-agent-tools-guard.sh`. The nightly probe no longer reports this as drift at all: comparing Cursor's desktop
 build against a `latest_known` that can only advance by feature-changelog review produced a
 permanently un-closeable DRIFT line, so `scripts/probe-platform-versions.sh` now reports Cursor
 the way it already reports Claude Code — no automated upstream source, advance via changelog
