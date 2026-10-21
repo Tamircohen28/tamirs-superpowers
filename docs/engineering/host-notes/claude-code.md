@@ -1,6 +1,6 @@
 # Claude Code host notes
 
-Per-release notes on the Claude Code host, 2.1.234 through 2.1.302, as the maintainers reviewed them against this plugin. Source for every release: the official changelog, <https://github.com/anthropics/claude-code/blob/main/CHANGELOG.md> (cited once here; every note below is drawn from it, plus the live runs recorded in `platform-targets.json`).
+Per-release notes on the Claude Code host, 2.1.234 through 2.1.306, as the maintainers reviewed them against this plugin. Source for every release: the official changelog, <https://github.com/anthropics/claude-code/blob/main/CHANGELOG.md> (cited once here; every note below is drawn from it, plus the live runs recorded in `platform-targets.json`).
 
 This file is the narrative. The **evidence-bearing record** is [`platform-targets.json`](../build-and-release/platform-targets.json) (`targets.claude_code`: `validated_against`, `reviewed_through`, `latest_known`, `verified_on`, and the per-cycle `verification_method` text), mirrored by the root [`.claude-code-version`](../../../.claude-code-version) pin, which `scripts/check-platform-version-pins.sh` holds to the JSON. When this file and that record disagree, the record wins. The nightly review appends to this file, never to `CLAUDE.md` (a `CLAUDE.md` at a plugin root is never loaded by Claude Code, `claude plugin validate` warns about it, and the plugin directory's scanner reads prose about what the plugin *used* to do as what it does).
 
@@ -291,3 +291,27 @@ Regression fixes only (cloud sessions dropping permission answers; last messages
 - **Marketplace — reliability.** `claude plugin` subcommands no longer exit before a queued settings write finishes (which could lose the change or leave a `.tmp` file); marketplaces no longer re-clone on every refresh, and freshly installed git plugins no longer show version "unknown", when git defaults to reftable; startup with many plugins takes far fewer file-system calls. *Reviewed, nothing to change:* all three land on this plugin's install path (`scripts/update.sh`, a GitHub-source marketplace); host-side.
 - **Worktrees.** Worktree isolation no longer refuses to create or resume worktrees under git 2.56+ with a stray `.git` file. *Reviewed, nothing to change.*
 - **CLI — `CLAUDE_CODE_AUTO_MODE_MODEL`.** Model for the client-side auto-mode classifier; `/config` gained an `Idle compaction` row. *Reviewed, not applicable:* no doc here recommends auto mode.
+
+### 2.1.303
+
+Bug fixes and reliability improvements only — no itemized changelog entries. *Reviewed, nothing to change.*
+
+### 2.1.304
+
+- **CLI — `/auto-mode-setup`.** A guided setup that teaches auto mode about the local environment. *Reviewed, not applicable:* no doc here recommends auto mode (same reviewed-not-applicable reason as `CLAUDE_CODE_AUTO_MODE_MODEL` in 2.1.302).
+- **Mods — `decider: "person"` and `e.isReadOnly` on `tool.check`.** A mod's `tool.check` answer can now force a human permission dialog or host callback instead of its own verdict (`decider: "person"`), and the event payload carries whether the tool call is read-only. *Reviewed, not applicable:* `mod/register.tsx` registers no `tool.check` hook today — open for Tamir's judgment under Future opportunities, since a read-only-aware `tool.check` gate is a plausible future use for the four existing gating hooks' risk model.
+- **CLI — `/claude-api managed-agents-secure`.** Compares a Managed Agents agent's settings against Anthropic's security guide. *Reviewed, not applicable:* this repo ships no Managed Agents configuration.
+- **Tool search — on by default behind a custom `ANTHROPIC_BASE_URL`.** A 400 or 422 from the gateway now retries without tool search. *Reviewed, not applicable:* no doc here sets `ANTHROPIC_BASE_URL`.
+- **Skills — hook/matcher cap per source.** Skills from one source register at most 1,024 hooks and 16,384 matcher characters per session. *Reviewed, nothing to change:* `hooks/hooks.json` plus the mod's registered hooks together total well under two dozen across a dozen distinct events — nowhere near either cap.
+
+### 2.1.305
+
+- **Sandbox — `sandbox.allowNestedUserNamespaces`.** Lets a sandboxed Linux command create user namespaces (for Chromium or rootless podman); the changelog notes this lets the command get around the sandbox's own file protections. *Reviewed, not applicable:* no setting here sets it, and `platforms/claude/settings.d/` carries no sandbox policy that would need to.
+- **Rate limits — `CLAUDE_CODE_RETRY_WATCHDOG_USAGE_LIMIT_RECHECK_MS`.** Tunable recheck interval for unattended retry mode. *Reviewed, not applicable:* same reasoning as the 2.1.301 retry-watchdog note — `hooks/rate-limit-handoff.sh` acts on the limit being hit, not on retry timing, and sets no watchdog default.
+- **MCP — `allowedMcpServers` scope narrowed back.** No longer filters a `managed-mcp.json` stdio server that uses `${VAR}` only in `env`. *Reviewed, not applicable:* the `github` server is a plain project-level `.mcp.json` entry, never a `managedMcpServers`/`managed-mcp.json` one.
+- **CLI — `/artifacts` delete confirmation keys.** Changed from `y`/`n` to `1`/Enter (keep) and `2` (delete); `Esc` cancels. *Reviewed, not applicable:* terminal-UI only, no doc here walks through that confirmation.
+
+### 2.1.306
+
+- **CLI — cloud-session `-p` login fix.** `claude -p` in cloud sessions no longer reports "Not logged in" when started without the session's environment variables. *Reviewed, nothing to change:* host-side reliability fix; this repo's nightly automation runs do benefit passively.
+- **CLI — many-MCP-tools error fix.** An API error is no longer replaced by "prompt is too long" in sessions with many MCP tools. *Reviewed, not applicable:* this repo declares one MCP server (`github`), far short of whatever count triggered the bug.
