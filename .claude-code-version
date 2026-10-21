@@ -1,6 +1,6 @@
-2.1.306
-validated_against: 2.1.306
-reviewed_through: 2.1.306
-latest_known: 2.1.306
+2.1.307
+validated_against: 2.1.307
+reviewed_through: 2.1.307
+latest_known: 2.1.307
 last_reviewed: 2026-10-21
 source_of_truth: docs/engineering/build-and-release/platform-targets.json (targets.claude_code)
