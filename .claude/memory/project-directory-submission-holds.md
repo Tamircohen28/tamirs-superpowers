@@ -5,7 +5,7 @@ metadata:
   node_type: memory
   type: project
   originSessionId: 03613cd1-02ee-4604-ab0f-03bd4306a67a
-  modified: 2026-10-24T10:54:55.191Z
+  modified: 2026-10-24T11:35:52.273Z
 ---
 
 The plugin was submitted to Anthropic's plugin directory on 2026-10-05, tracking the `claude` tag
@@ -50,7 +50,10 @@ to a generated copy and overwritten by the sync (see [[feedback-contract-script-
 5.0.4: Codex is detected by `CODEX_HOME` (no root variable named at all in hook-output.sh), and
 the parser strips any `${...ROOT}/` prefix generically with the fixture pointing at a shipped
 file. Lesson: the scanner keys on the *name* of the root variable anywhere in a file, not only
-on `${...}` expansions — remove the name, not just the modifier.
+on `${...}` expansions — remove the name, not just the modifier. **Confirmed by the 5.0.4 scan
+(2026-10-24, 3e79f6e): `COMMAND_NAMES_MOD_FILE` is gone; the only policy hold left is
+`MOD_PRESENT`, the structural one.** Three releases in one day (5.0.2 → 5.0.4), each round
+taking ~25 min end to end (PR CI 9 min, release 3 min, portal detection ~10 min).
 
 **Learned 2026-10-17 (v5.0.0):** the directory's list of mod events/`$` calls lags Claude Code.
 A hook on an event it doesn't know is **blocking** (`MOD_HOOKS_UNKNOWN_EVENT` — `prompt.autocomplete`,
