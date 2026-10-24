@@ -73,8 +73,8 @@ hook_read_stdin() {
 #           Codex-specific extension" set for plugin hook commands, beside the
 #           CLAUDE_PLUGIN_ROOT/CLAUDE_PLUGIN_DATA it also sets "for compatibility
 #           with existing plugin hooks". Claude Code exports only the CLAUDE_*
-#           pair, and Cursor's plugin reference says it "does not expand
-#           ${PLUGIN_ROOT} or ${PLUGIN_DATA}". Measured on codex-cli 0.163.0
+#           pair, and Cursor's plugin reference says it does not expand the
+#           Codex pair. Measured on codex-cli 0.163.0
 #           (2026-10-17, tests/fixtures/codex/README.md): every plugin hook ran
 #           with PLUGIN_ROOT, PLUGIN_DATA, CLAUDE_PLUGIN_ROOT, CLAUDE_PLUGIN_DATA
 #           and CODEX_HOME in its environment. Fallback when neither variable is
@@ -84,7 +84,11 @@ hook_read_stdin() {
 #           Claude Code's payloads have no such key.
 #
 #   Cursor is checked first: its payload keys are the only positive Cursor
-#   signal, and a Cursor host exports no PLUGIN_ROOT. The environment check
+#   signal, and a Cursor host exports no PLUGIN_ROOT. The environment check asks
+#   `declare -p` whether the variable exists rather than expanding it: the plugin
+#   directory reads an expansion of the root variable that carries a modifier
+#   inside its braces as a path to the plugin root and holds the file (COMMAND_NAMES_MOD_FILE,
+#   5.0.2 report). The environment check
 #   precedes the payload fallback because a hook can be handed an empty payload
 #   (hook_read_stdin's bounded read) and still owes the right dialect.
 #
@@ -97,7 +101,7 @@ hook_detect_platform() {
   HOOK_PLATFORM=claude
   if printf '%s' "$input" | jq -e '(.conversation_id // .cursor_version // .workspace_roots) != null' >/dev/null 2>&1; then
     HOOK_PLATFORM=cursor
-  elif [[ -n "${PLUGIN_ROOT:-}" || -n "${PLUGIN_DATA:-}" ]]; then
+  elif declare -p PLUGIN_ROOT >/dev/null 2>&1 || declare -p PLUGIN_DATA >/dev/null 2>&1; then
     HOOK_PLATFORM=codex
   elif printf '%s' "$input" | jq -e '.turn_id != null' >/dev/null 2>&1; then
     HOOK_PLATFORM=codex

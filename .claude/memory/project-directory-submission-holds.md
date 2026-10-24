@@ -5,7 +5,7 @@ metadata:
   node_type: memory
   type: project
   originSessionId: 03613cd1-02ee-4604-ab0f-03bd4306a67a
-  modified: 2026-10-24T08:24:41.788Z
+  modified: 2026-10-24T09:57:39.061Z
 ---
 
 The plugin was submitted to Anthropic's plugin directory on 2026-10-05, tracking the `claude` tag
@@ -38,7 +38,13 @@ Fix: `mod/modules.json` (`{"modules": ["./register.tsx"]}`) loaded through `plug
 "./mod/modules.json"`; Claude Code merges it with `hooks/hooks.json` and `claude plugin validate`
 lists the same 17 hooks from it. `check-claude-dist.sh` now refuses `modules` in `hooks/hooks.json`
 and any shipped file outside `mod/` that names the folder. Do not name the new file `hooks.json`:
-the check compares bare names too.
+the check compares bare names too. **Confirmed by the 5.0.2 scan** (same day): every `hooks/`
+finding was gone. The hold then re-keyed on the plugin root itself (it holds `mod/`): the root
+variable written **by itself** or **with a modifier in its braces** — `${PLUGIN_ROOT:-}` in
+`hook-output.sh`, bare `${CLAUDE_PLUGIN_ROOT}` in a comment and a self-test label of
+`check-manifest-declares.sh`. 5.0.3: `declare -p PLUGIN_ROOT` instead of expanding it, reworded
+prose, statusline `${CLAUDE_PLUGIN_ROOT}` without `:-`; guarded in `check-claude-dist.sh`.
+`check-manifest-declares.sh`'s parser lines keep the token as data and may stay held — accept that.
 
 **Learned 2026-10-17 (v5.0.0):** the directory's list of mod events/`$` calls lags Claude Code.
 A hook on an event it doesn't know is **blocking** (`MOD_HOOKS_UNKNOWN_EVENT` — `prompt.autocomplete`,

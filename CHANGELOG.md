@@ -5,6 +5,26 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [5.0.3] — 2026-10-24
+
+### Fixed
+
+- **The plugin-root variable is never written alone or with a modifier.** The directory's
+  5.0.2 scan confirmed that moving `modules` out of `hooks/hooks.json` cleared every
+  `hooks/`-folder finding; the `COMMAND_NAMES_MOD_FILE` hold then named two files for a
+  different shape, "the plugin root by itself" or a root variable with something other
+  than its name inside its braces (the root contains `mod/`): `hooks/lib/hook-output.sh`
+  tested `${PLUGIN_ROOT:-}` to detect a Codex host, and
+  `skills/repo/_contract/scripts/check-manifest-declares.sh` wrote the variable bare in a
+  comment and a self-test label. The Codex check now asks `declare -p` whether the
+  variable exists, the comment and label are reworded, and the manifest's statusline
+  command drops its `:-` modifier (it runs without `set -u`, so nothing changes at run
+  time). `scripts/check-claude-dist.sh` refuses the modifier form in any shipped file and
+  a bare root variable in anything the plugin runs; `tests/test-claude-dist.sh` plants
+  both. The parser lines in `check-manifest-declares.sh` that strip the prefix from an
+  audited manifest's paths keep the token, since it is data there, so that file may stay
+  with a reviewer.
+
 ## [5.0.2] — 2026-10-24
 
 ### Fixed

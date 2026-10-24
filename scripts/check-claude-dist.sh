@@ -190,6 +190,24 @@ if [[ -f "$DIST/mod/register.tsx" ]]; then
   fi
   modref="$(grep -rnIE '(^|[^A-Za-z0-9_-])mod/' "$DIST" --exclude-dir=mod 2>/dev/null | grep -vE '^[^:]*/\.claude-plugin/plugin\.json:[0-9]+:\s*"(types|hooks)": "\./mod/[A-Za-z0-9_./-]+",?$' | head -3)"
   [[ -z "$modref" ]] && ok "no shipped file outside mod/ names the mod's folder (COMMAND_NAMES_MOD_FILE)" || bad "shipped file names the mod's folder" "$modref"
+  # The plugin root holds mod/, so the directory reads the root variable written by
+  # itself, or with anything but its name inside its braces (`${CLAUDE_PLUGIN_ROOT:-}`),
+  # as a path to a folder holding mod files (5.0.2 report: hook-output.sh's
+  # `${PLUGIN_ROOT:-}` and a bare `${CLAUDE_PLUGIN_ROOT}` in a comment and a label). The
+  # Codex alias PLUGIN_ROOT counts the same way. Prose that lists the variable's name is
+  # left to the reviewer; what the plugin runs (hooks/, scripts/, the manifest) may only
+  # write it followed by `}/<path>` or `}"/<path>`.
+  modif="$(grep -rnIE '\$\{(CLAUDE_)?PLUGIN_ROOT[:+#%/-]' "$DIST" 2>/dev/null | head -3)"
+  [[ -z "$modif" ]] && ok "no shipped file writes the plugin-root variable with a modifier inside its braces" || bad "plugin-root variable with a modifier inside its braces" "$modif"
+  # Judged per occurrence, not per line: a line that mixes a bare root with an allowed
+  # `${CLAUDE_PLUGIN_ROOT}/<file>` must still fail on the bare one.
+  bare="$(grep -rnIE '\$\{?(CLAUDE_)?PLUGIN_ROOT' "$DIST/hooks" "$DIST/scripts" "$DIST/.claude-plugin" --include='*.sh' --include='*.py' --include='*.json' 2>/dev/null \
+    | grep -vE '^[^:]+:[0-9]+:\s*#' \
+    | while IFS= read -r l; do
+        loc="${l%%:*}"; rest="${l#*:}"; loc="$loc:${rest%%:*}"; text="${rest#*:}"
+        printf '%s\n' "$text" | grep -oE '\$\{?(CLAUDE_)?PLUGIN_ROOT\}?(\\?")?.{0,2}' | grep -vE '^\$\{?(CLAUDE_)?PLUGIN_ROOT\}?(\\?")?/[A-Za-z0-9_.-]' | head -1 | sed "s#^#${loc#"$DIST"/}: #"
+      done | head -3)"
+  [[ -z "$bare" ]] && ok "nothing the plugin runs writes the plugin-root variable by itself" || bad "plugin-root variable written by itself in something the plugin runs" "$bare"
   # A call `name($ ...)`: an identifier right before the parenthesis. A hook's own
   # parameter list `async ($, e, next)` has no identifier there and is not a call.
   aliased="$(grep -noE '\b[A-Za-z_][A-Za-z0-9_]*\(\s*\$\s*[,)]' "$DIST/mod/register.tsx" | grep -vE ':(atom|read|update|derive|memberOf)\(' | head -3)"
