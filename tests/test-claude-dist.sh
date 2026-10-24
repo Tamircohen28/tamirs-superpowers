@@ -59,6 +59,8 @@ probe "the plugin-root variable with a modifier in its braces (COMMAND_NAMES_MOD
   'printf "#!/usr/bin/env bash\n[[ -n \"\${CLAUDE_PLUGIN_ROOT:-}\" ]] && echo set\n" > scripts/probe.sh'
 probe "the plugin-root variable by itself in a hook (COMMAND_NAMES_MOD_FILE: the root holds mod/)" "written by itself" \
   'printf "#!/usr/bin/env bash\ncd \"\${CLAUDE_PLUGIN_ROOT}\" && ls\n" > hooks/probe.sh'
+probe "a bare root beside an allowed root path on one line (judged per occurrence, not per line)" "written by itself" \
+  'printf "#!/usr/bin/env bash\ncd \"\${CLAUDE_PLUGIN_ROOT}\" && bash \"\${CLAUDE_PLUGIN_ROOT}/scripts/statusline.sh\"\n" > hooks/probe.sh'
 probe "a script that reads a credential off the machine (MCP_FORWARDS_CREDENTIAL_ENV)" "credential read off the machine" \
   'printf "#!/usr/bin/env bash\nTOKEN=\$(gh auth token)\n" > scripts/probe.sh'
 probe "a URL host beside a credential-looking identifier (held pair)" "credential-looking identifier" \
