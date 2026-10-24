@@ -120,9 +120,13 @@ echo "--- hooks, mod and MCP ---"
 H="$DIST/hooks/hooks.json"
 if [[ -f "$H" ]] && jq -e . "$H" >/dev/null 2>&1; then
   ok "hooks/hooks.json parses"
-  while IFS= read -r m; do
-    [[ -f "$DIST/hooks/$m" ]] && ok "modules entry $m exists" || bad "modules entry $m missing"
-  done < <(jq -r '.modules[]? // empty' "$H")
+  # The directory holds every command, script or configuration value that names a folder
+  # holding a mod file, and the hooks file that names the mod counts as one
+  # (COMMAND_NAMES_MOD_FILE). With `modules` in hooks/hooks.json, hooks/ was such a folder
+  # and every hook that sources hooks/lib/ through a variable was held (5.0.1: three named,
+  # "more than it lists"). The file that names the mod lives in mod/ instead, reached from
+  # the manifest's `hooks` field.
+  jq -e 'has("modules") | not' "$H" >/dev/null 2>&1 && ok "hooks/hooks.json carries no modules key (the file that names the mod lives in mod/)" || bad "hooks/hooks.json names the mod" "every script reaching hooks/lib/ through a variable is then held (COMMAND_NAMES_MOD_FILE)"
   # Every shell-form command spells its path from CLAUDE_PLUGIN_ROOT, quoted, no other variable.
   badcmd="$(jq -r '.. | .command? // empty' "$H" | grep -vE '^(bash|python3) ("\$\{CLAUDE_PLUGIN_ROOT\}"/[A-Za-z0-9_./-]+|"\$\{CLAUDE_PLUGIN_ROOT\}/[A-Za-z0-9_./-]+")( [^$`]*)?$' | head -3)"
   [[ -z "$badcmd" ]] && ok "every hook command is <interp> \"\${CLAUDE_PLUGIN_ROOT}\"/<path>, quoted, no other variable" || bad "hook command not in the plain CLAUDE_PLUGIN_ROOT form" "$badcmd"
@@ -174,6 +178,18 @@ pairs="$(grep -rlE 'https?://[A-Za-z0-9.-]+' "$DIST" --include='*.sh' --include=
 [[ -z "$pairs" ]] && ok "no shipped file pairs a URL host with a credential-looking identifier, \$PWD, a key/pat variable or the credential-store path" || bad "URL host beside a credential-looking identifier (the scanner holds the pair)" "$pairs"
 # The mod hands $ to no helper (the directory's MOD_CAPABILITY_USE_NOT_PLAIN).
 if [[ -f "$DIST/mod/register.tsx" ]]; then
+  # The mod is named by a hooks file inside its own folder, reached from the manifest's
+  # `hooks` field, and nothing shipped outside mod/ names the folder: the manifest's `types`
+  # and `hooks` lines are the two allowed, each spelled out to one file. A web address or a
+  # prose path that merely contains `mod/` counts to the scanner too, so it counts here.
+  modh="$(jq -r '.hooks // empty | if type == "string" then . else empty end' "$M" 2>/dev/null)"
+  if [[ "$modh" == ./mod/* && -f "$DIST/${modh#./}" ]] && jq -e '.modules | length == 1' "$DIST/${modh#./}" >/dev/null 2>&1; then
+    ok "the mod is named by $modh, a hooks file inside mod/ that the manifest's hooks field points at"
+  else
+    bad "the mod must be named by a hooks file inside mod/ that the manifest's hooks field points at" "hooks=${modh:-none}"
+  fi
+  modref="$(grep -rnIE '(^|[^A-Za-z0-9_-])mod/' "$DIST" --exclude-dir=mod 2>/dev/null | grep -vE '^[^:]*/\.claude-plugin/plugin\.json:[0-9]+:\s*"(types|hooks)": "\./mod/[A-Za-z0-9_./-]+",?$' | head -3)"
+  [[ -z "$modref" ]] && ok "no shipped file outside mod/ names the mod's folder (COMMAND_NAMES_MOD_FILE)" || bad "shipped file names the mod's folder" "$modref"
   # A call `name($ ...)`: an identifier right before the parenthesis. A hook's own
   # parameter list `async ($, e, next)` has no identifier there and is not a call.
   aliased="$(grep -noE '\b[A-Za-z_][A-Za-z0-9_]*\(\s*\$\s*[,)]' "$DIST/mod/register.tsx" | grep -vE ':(atom|read|update|derive|memberOf)\(' | head -3)"

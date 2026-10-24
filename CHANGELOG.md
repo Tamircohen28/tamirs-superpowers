@@ -5,6 +5,35 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [5.0.2] — 2026-10-24
+
+### Fixed
+
+- **The mod is named from its own folder.** The `modules` entry that loads
+  `mod/register.tsx` moved from `hooks/hooks.json` to `mod/modules.json`, which
+  `.claude-plugin/plugin.json` loads through its `hooks` field (Claude Code merges it with
+  `hooks/hooks.json`; `claude plugin validate` lists the same 17 hooks from the new file).
+  The plugin directory's `COMMAND_NAMES_MOD_FILE` check treats every folder that holds the
+  file naming the mod as the mod's, so with the entry in `hooks/hooks.json` every hook script
+  that sources `hooks/lib/` through `$(dirname "$0")` or `${SCRIPT_DIR}/../hooks/lib/` was
+  held for a reviewer: the 5.0.1 report named `hooks/lib/hook-output.sh`,
+  `hooks/lib/platform-tools.sh` and `scripts/notify-pushover.sh` and said there were more.
+  Nothing shipped names `mod/` now except the manifest's `types` and `hooks` fields, each
+  spelled out to one file. `scripts/check-claude-dist.sh` refuses a `modules` key in
+  `hooks/hooks.json` and any shipped file outside `mod/` that names the folder, and
+  `tests/test-claude-dist.sh` plants both shapes.
+- **`github_token`'s description no longer mentions the gh CLI.** "The gh CLI can print its
+  own" was the one credential-shaped phrase in the manifest and the likeliest trigger of the
+  5.0.1 report's `MCP_FORWARDS_CREDENTIAL_ENV` finding on `.claude-plugin/plugin.json`; the
+  option is still the only place the token comes from.
+
+### Changed
+
+- **`mcp-builder` pins the launcher it teaches.** `npx @modelcontextprotocol/inspector` is
+  pinned to `2.12.0` in the skill, its scaffold script and its quick reference, and the
+  TypeScript init step runs the project's own `./node_modules/.bin/tsc`, so neither line
+  downloads unpinned code when Claude runs it (`RUNTIME_FETCH_EXEC`).
+
 ### Added
 
 - **The repository description writes itself.** `scripts/check-repo-description.sh --fix`
