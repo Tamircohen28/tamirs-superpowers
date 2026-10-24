@@ -195,13 +195,13 @@ if [[ -f "$DIST/mod/register.tsx" ]]; then
   # as a path to a folder holding mod files (5.0.2 report: hook-output.sh's
   # `${PLUGIN_ROOT:-}` and a bare `${CLAUDE_PLUGIN_ROOT}` in a comment and a label). The
   # Codex alias PLUGIN_ROOT counts the same way. Prose that lists the variable's name is
-  # left to the reviewer; what the plugin runs (hooks/, scripts/, the manifest) may only
+  # left to the reviewer; what the plugin runs (hooks/, scripts/, skill scripts, the manifest) may only
   # write it followed by `}/<path>` or `}"/<path>`.
   modif="$(grep -rnIE '\$\{(CLAUDE_)?PLUGIN_ROOT[:+#%/-]' "$DIST" 2>/dev/null | head -3)"
   [[ -z "$modif" ]] && ok "no shipped file writes the plugin-root variable with a modifier inside its braces" || bad "plugin-root variable with a modifier inside its braces" "$modif"
   # Judged per occurrence, not per line: a line that mixes a bare root with an allowed
   # `${CLAUDE_PLUGIN_ROOT}/<file>` must still fail on the bare one.
-  bare="$(grep -rnIE '\$\{?(CLAUDE_)?PLUGIN_ROOT' "$DIST/hooks" "$DIST/scripts" "$DIST/.claude-plugin" --include='*.sh' --include='*.py' --include='*.json' 2>/dev/null \
+  bare="$(grep -rnIE '\$\{?(CLAUDE_)?PLUGIN_ROOT' "$DIST/hooks" "$DIST/scripts" "$DIST/.claude-plugin" "$DIST/skills" --include='*.sh' --include='*.py' --include='*.json' 2>/dev/null \
     | grep -vE '^[^:]+:[0-9]+:\s*#' \
     | while IFS= read -r l; do
         loc="${l%%:*}"; rest="${l#*:}"; loc="$loc:${rest%%:*}"; text="${rest#*:}"

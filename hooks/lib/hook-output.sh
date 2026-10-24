@@ -68,28 +68,25 @@ hook_read_stdin() {
 #
 #   cursor  payload keys only Cursor sends: conversation_id, cursor_version,
 #           workspace_roots.
-#   codex   PLUGIN_ROOT or PLUGIN_DATA exported in the hook's environment.
-#           Codex's hooks doc (learn.chatgpt.com/docs/hooks) names them "a
-#           Codex-specific extension" set for plugin hook commands, beside the
-#           CLAUDE_PLUGIN_ROOT/CLAUDE_PLUGIN_DATA it also sets "for compatibility
-#           with existing plugin hooks". Claude Code exports only the CLAUDE_*
-#           pair, and Cursor's plugin reference says it does not expand the
-#           Codex pair. Measured on codex-cli 0.163.0
-#           (2026-10-17, tests/fixtures/codex/README.md): every plugin hook ran
-#           with PLUGIN_ROOT, PLUGIN_DATA, CLAUDE_PLUGIN_ROOT, CLAUDE_PLUGIN_DATA
-#           and CODEX_HOME in its environment. Fallback when neither variable is
-#           exported (a hook run by hand with a captured payload): a `turn_id`
-#           key in the payload, which the same doc lists as a Codex-specific
-#           extension and which every measured turn-scoped payload carried;
-#           Claude Code's payloads have no such key.
+#   codex   CODEX_HOME exported in the hook's environment. Codex's hooks doc
+#           (learn.chatgpt.com/docs/hooks) sets it for every hook command, beside
+#           the Codex-specific plugin variables and the Claude-compatible pair it
+#           also exports; Claude Code and Cursor export none of them. Measured on
+#           codex-cli 0.163.0 (2026-10-17, tests/fixtures/codex/README.md): every
+#           plugin hook ran with CODEX_HOME in its environment. agent-claim.sh and
+#           doctor.sh read the same variable as the Codex signal. Fallback when it
+#           is not exported (a hook run by hand with a captured payload): a
+#           `turn_id` key in the payload, which the same doc lists as a
+#           Codex-specific extension and which every measured turn-scoped payload
+#           carried; Claude Code's payloads have no such key.
 #
 #   Cursor is checked first: its payload keys are the only positive Cursor
-#   signal, and a Cursor host exports no PLUGIN_ROOT. The environment check asks
-#   `declare -p` whether the variable exists rather than expanding it: the plugin
-#   directory reads an expansion of the root variable that carries a modifier
-#   inside its braces as a path to the plugin root and holds the file (COMMAND_NAMES_MOD_FILE,
-#   5.0.2 report). The environment check
-#   precedes the payload fallback because a hook can be handed an empty payload
+#   signal, and a Cursor host exports no CODEX_HOME. Earlier versions tested the
+#   Codex plugin-root variable instead; the plugin directory reads any mention of a
+#   plugin-root variable that is not a full path to one file as a path to the root
+#   folder, which holds the mod, and held this file for it (COMMAND_NAMES_MOD_FILE,
+#   5.0.2 and 5.0.3 reports), so this file names no plugin-root variable at all.
+#   The environment check precedes the payload fallback because a hook can be handed an empty payload
 #   (hook_read_stdin's bounded read) and still owes the right dialect.
 #
 #   The codex dialect today answers exactly like claude: Codex accepts the same
@@ -101,7 +98,7 @@ hook_detect_platform() {
   HOOK_PLATFORM=claude
   if printf '%s' "$input" | jq -e '(.conversation_id // .cursor_version // .workspace_roots) != null' >/dev/null 2>&1; then
     HOOK_PLATFORM=cursor
-  elif declare -p PLUGIN_ROOT >/dev/null 2>&1 || declare -p PLUGIN_DATA >/dev/null 2>&1; then
+  elif [[ -n "${CODEX_HOME:-}" ]]; then
     HOOK_PLATFORM=codex
   elif printf '%s' "$input" | jq -e '.turn_id != null' >/dev/null 2>&1; then
     HOOK_PLATFORM=codex

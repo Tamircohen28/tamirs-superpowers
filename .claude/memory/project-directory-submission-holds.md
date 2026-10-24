@@ -5,7 +5,7 @@ metadata:
   node_type: memory
   type: project
   originSessionId: 03613cd1-02ee-4604-ab0f-03bd4306a67a
-  modified: 2026-10-24T09:57:39.061Z
+  modified: 2026-10-24T10:54:55.191Z
 ---
 
 The plugin was submitted to Anthropic's plugin directory on 2026-10-05, tracking the `claude` tag
@@ -44,7 +44,13 @@ variable written **by itself** or **with a modifier in its braces** — `${PLUGI
 `hook-output.sh`, bare `${CLAUDE_PLUGIN_ROOT}` in a comment and a self-test label of
 `check-manifest-declares.sh`. 5.0.3: `declare -p PLUGIN_ROOT` instead of expanding it, reworded
 prose, statusline `${CLAUDE_PLUGIN_ROOT}` without `:-`; guarded in `check-claude-dist.sh`.
-`check-manifest-declares.sh`'s parser lines keep the token as data and may stay held — accept that.
+The 5.0.3 scan still named both files: `hook-output.sh` because `declare -p PLUGIN_ROOT` still
+*mentions* the root variable, and `check-manifest-declares.sh` because its edits had been applied
+to a generated copy and overwritten by the sync (see [[feedback-contract-script-canonical]]).
+5.0.4: Codex is detected by `CODEX_HOME` (no root variable named at all in hook-output.sh), and
+the parser strips any `${...ROOT}/` prefix generically with the fixture pointing at a shipped
+file. Lesson: the scanner keys on the *name* of the root variable anywhere in a file, not only
+on `${...}` expansions — remove the name, not just the modifier.
 
 **Learned 2026-10-17 (v5.0.0):** the directory's list of mod events/`$` calls lags Claude Code.
 A hook on an event it doesn't know is **blocking** (`MOD_HOOKS_UNKNOWN_EVENT` — `prompt.autocomplete`,

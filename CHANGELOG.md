@@ -5,6 +5,22 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [5.0.4] — 2026-10-24
+
+### Fixed
+
+- **The two files the directory still named carry no plugin-root variable at all.** The
+  5.0.3 scan kept `hooks/lib/hook-output.sh` and
+  `skills/repo/_contract/scripts/check-manifest-declares.sh` under `COMMAND_NAMES_MOD_FILE`
+  after 5.0.3 had removed the modifier form, so the remaining mentions go too.
+  `hook_detect_platform` names a Codex host by `CODEX_HOME`, the variable `agent-claim.sh`
+  and `doctor.sh` already read as the Codex signal (measured exported on codex-cli
+  0.163.0), instead of the Codex plugin-root pair; `tests/hooks/test-codex-contract.sh`
+  follows. `check-manifest-declares.sh` strips any `${...ROOT}/` prefix from an audited
+  manifest's paths, which is also what a Codex manifest needs, and its self-test fixture
+  points the root-prefixed case at a file the plugin ships and spells the missing-path
+  case with `./`. `check-claude-dist.sh`'s bare-root scan now covers skill scripts.
+
 ## [5.0.3] — 2026-10-24
 
 ### Fixed
