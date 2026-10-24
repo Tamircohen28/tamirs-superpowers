@@ -1,8 +1,10 @@
 # Mods — the in-process layer (Claude Code ≥ 2.1.287)
 
 `mod/register.tsx` is this plugin's **mod**: a module of function hooks that Claude
-Code runs inside its own process. It is named by the `modules` key of `hooks/hooks.json`,
-beside the settings hooks the same file has always declared, and its `$.state` contract is
+Code runs inside its own process. It is named by the `modules` key of `mod/modules.json`, the mod's own hooks file, which
+`.claude-plugin/plugin.json` loads through its `hooks` field beside `hooks/hooks.json` (Claude
+Code merges the two; the `COMMAND_NAMES_MOD_FILE` row below says why the key left
+`hooks/hooks.json` in 5.0.2), and its `$.state` contract is
 `mod/types/index.d.ts`, named by `types` in `.claude-plugin/plugin.json`. Claude Code's own validator requires that field for a mod (the `$.state` contract must be named); the directory lists it as an unknown key, which is expected and stays.
 
 The module is five files, split so that every hook and every `$` call sits in one of them:
@@ -110,7 +112,7 @@ them on `master`, and `scripts/check-claude-dist.sh` holds the line:
 | `MOD_CAPABILITY_USE_NOT_PLAIN` (blocks) — every `$.noun.method` call written at its call site, `$` handed to no helper | every `$` call is in `mod/register.tsx`; the four imported files are pure (text or data in, text or data out) and none receives `$`; the objective loader is a closure inside `session.start` where its `$.fs` calls are spelled out, reused by the 5 s timer, the `SessionStart` reload, `/objective <id>` and the tool; only the `claude-code` state helpers (`read`, `update`) take `$`. Feature presence is gated by version (`mod/compat.ts`), never by reading a `$` member as a value: `claude plugin validate` refuses `typeof $.ui.view` outright |
 | `MOD_FORWARDS_CREDENTIAL_ENV` (blocks) / `MOD_READS_CREDENTIAL_ENV` — no credential read from the environment or a file and sent | the mod reads no credential and makes no network call (4.11.1 removed its Pushover post) |
 | `MOD_RUNS_PROCESS` / `MOD_PROCESS_COMMAND_COMPUTED` / `MOD_CAN_FETCH_AND_RUN` (held) | no `$.process` at all: the main working tree from `$.session.repo()`, the branch from reading `.git/HEAD` |
-| `COMMAND_NAMES_MOD_FILE` (held) — no shipped command, script or configuration names the mod's files or folders | the mod lives in its own top-level `mod/`, named only by the `modules` entry of `hooks/hooks.json` (which does not count); `scripts/typecheck-mods.sh` and the `Makefile`, which do name it, are not shipped |
+| `COMMAND_NAMES_MOD_FILE` (held) — no shipped command, script or configuration names the mod's files or folders | the mod lives in its own top-level `mod/`, and so does the hooks file that names it, `mod/modules.json`, loaded through the manifest's `hooks` field (its own `modules` entry does not count). Until 5.0.1 that entry sat in `hooks/hooks.json`, which made `hooks/` a folder holding a mod file, and every hook script that sources `hooks/lib/` through `$(dirname "$0")` or `${SCRIPT_DIR}/../hooks/lib/` was held: the 5.0.1 report named `hooks/lib/hook-output.sh`, `hooks/lib/platform-tools.sh` and `scripts/notify-pushover.sh` and said there were more. Nothing shipped names `mod/` now except the manifest's `types` and `hooks` fields, each spelled out to one file; `scripts/typecheck-mods.sh` and the `Makefile`, which do name it, are not shipped; `scripts/check-claude-dist.sh` refuses a `modules` key in `hooks/hooks.json` and any shipped file outside `mod/` that names the folder |
 | `MOD_LOCAL_DATA_LEAVES` / `MOD_SESSION_DATA_LEAVES` (held in 4.11.0) | gone with the network call in 4.11.1 |
 | `MOD_DATA_LEAVES_BY_PROMPT` (held) | the mod submits no prompt at all (the handoff button went in 4.11.6); the band tells the person what to type. The portal still names the pair `fs.read` + `prompt.submit` because a `prompt.submit` *hook* is registered for the opt-in suggestion, so the hold stays and the directory README says so |
 | `MOD_ANSWERS_PERMISSION` / `MOD_HOOKS_POLICY_EVENT` (held) — the `agent.spawn` hook can deny a spawn | it only counts a worker and calls `next(e)`; the comment says so. The mod answers no `tool.check`, returns no `{ deny }` anywhere, and the one `tool.call` hook that answers for itself serves the plugin's own `objective_status` tool |
@@ -126,14 +128,13 @@ them on `master`, and `scripts/check-claude-dist.sh` holds the line:
 | `claude -p`, Agent SDK, cloud sessions | yes | no — `/objective` and `objective_status` still answer in text |
 | Codex, Cursor, Gemini CLI, OpenCode | no | no |
 
-The `modules` key sits in the Claude `hooks/hooks.json`. Codex's hooks-file parser is strict
-at the top level (exactly `description` and `hooks`; source-read, not run live), so a file
-carrying `modules` would load no hook there at all. Since 5.0.0 the question is closed by
-construction: `.codex-plugin/plugin.json` points `hooks` at `platforms/codex/hooks.json`, a
-copy `scripts/build-codex-hooks.sh` generates from the canonical file **without** `modules`
-(and without the events Codex lacks), so Codex never sees the key and the mod never loads
-there. The Claude file keeps the key because Claude Code reads the mod from it. `make
-validate` regenerates the copy and fails on drift.
+The `modules` key sits in `mod/modules.json`, which only the Claude manifest's `hooks` field
+names (until 5.0.1 it sat in `hooks/hooks.json`). Codex's hooks-file parser is strict at the
+top level (exactly `description` and `hooks`; measured on codex-cli 0.163.0, a file carrying
+`modules` loads no hook), and since 5.0.0 `.codex-plugin/plugin.json` points `hooks` at
+`platforms/codex/hooks.json`, a copy `scripts/build-codex-hooks.sh` generates from the
+canonical file without the events Codex lacks, so Codex never sees the key and the mod never
+loads there. `make validate` regenerates the copy and fails on drift.
 
 ## Validation
 
