@@ -12,7 +12,7 @@ local marketplace, fired every hook in the generated `platforms/codex/hooks.json
 and captured the payloads into `tests/fixtures/codex/` (see [Hooks on Codex](#hooks-on-codex)).
 An earlier live run on 0.156.0 (2026-09-23) confirmed the install preserves the plugin's
 executable `.sh` files, hooks file, agent definitions and every `SKILL.md`. The official
-release delta is reviewed through the same **0.163.0**, which is the version tracked by
+release delta is reviewed through **0.164.0** (2026-10-23; changelog only), which is the version tracked by
 `.codex-version`.
 
 ---
@@ -59,6 +59,10 @@ has not been verified here; the rest of the plugin does not need the server.
 Codex also reads the repo's root [`AGENTS.md`](../../../AGENTS.md) as project instructions.
 That file is a **thin entrypoint** into the canonical rules under
 [`rules/`](../../../rules/README.md) — it is deliberately not the whole policy source.
+
+### Codex 0.164.0 notes (reviewed, not directly validated)
+
+Codex 0.164.0 adds reusable `/presets`, inline `/model` and `/permissions` arguments, enterprise MCP OAuth/account-grant sign-in and credential masking for remote commands. It also improves compaction/resume recovery, Windows proxy authentication, macOS sandbox path checks and daemon cleanup. This plugin's generated Codex hook overlay and local stdio MCP server do not need a migration. Prefer Codex-native authentication, permission profiles and recovery over plugin-side wrappers where applicable; no untested configuration is added. The latest direct hook/installation test remains 0.163.0 (2026-10-17).
 
 ### Codex 0.148–0.152 notes
 
