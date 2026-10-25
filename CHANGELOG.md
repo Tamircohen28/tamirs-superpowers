@@ -7,7 +7,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Changed
 
-- **Cursor 3.11 (+2026-10-16 / desktop 3.25.9):** advance `changelog_date` **2026-09-23 → 2026-10-16**; desktop pin **3.24.12 → 3.25.9**. Cover Remote Control (2026-10-06), Origin App Marketplace (2026-10-13), Cloud Agent canvases + Environments API + 300-repo envs (2026-10-16). Feature pin remains **3.11**. Cursor-only; other platform nightlies untouched.
+- **Cursor 3.11 (+2026-10-16 / desktop 3.27.12):** bump desktop pin **3.24.12 → 3.25.9 → 3.27.12** (stable download API 2026-10-23). Advance `reviewed_through`/`latest_known` to **3.27.12**; `validated_against` stays **3.22.7** (no live Cursor run). Cover date-only changelog through **2026-10-16** (Remote Control, Origin App Marketplace, canvases + Environments API) plus [IDE 3.26/3.27](https://cursor.com/docs/release-notes/ide): Resume after extension-host crash; sticky Always Run with `permissions.json`; document **`parent_agent_id`** on `subagentStart`/`subagentStop` for a future wire (still not wired — spawn-time deny risk). Feature pin remains **3.11**. Cursor-only; other platform nightlies untouched.
 
 ## [5.0.4] — 2026-10-24
 

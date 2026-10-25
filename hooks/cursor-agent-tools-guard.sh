@@ -26,6 +26,12 @@
 #     preToolUse  other -> deny if an allowlist is active and the tool is not in it
 #     postToolUse Task  -> pop
 #   Under that fallback, concurrency still uses INTERSECTION (safer than guessing).
+
+# Desktop ≥ 3.27 also sends `parent_agent_id` on subagentStart/subagentStop (the
+# conversation id of the agent that spawned the subagent). That unlocks a safe
+# spawn-time wire de-duplicated against the Task preToolUse frame push — this
+# guard is NOT yet registered on those events (a naive wire would deny every
+# spawn). Documented in docs/user/install/cursor.md.
 #
 # FAILS SAFE, NOT OPEN
 #   If a `postToolUse` is missed the allowlist stays active and the session becomes

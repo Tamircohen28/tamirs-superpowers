@@ -2,7 +2,7 @@
 
 Registry id: `cursor`. Validated against Cursor desktop **3.22.7** (feature changelog
 **3.11**, covered through date-only **2026-09-23**); that floor is the version this repo
-actually tested, not a guess. Desktop **3.25.9** (hook `tool_use_id` / `parent_tool_call_id`
+actually tested, not a guess. Desktop **3.27.12** (hook `tool_use_id` / `parent_tool_call_id`
 correlation, auto-review risky-delete approval) was reviewed from the IDE release notes;
 no live run has validated it yet.
 
@@ -233,7 +233,7 @@ the event fires at all inside a [cloud agent](#what-runs-where-cloud-agents).
 | `preCompact` | — | ✅ | ✅ | `precompact-snapshot.sh` writes `.dev-files/compaction/latest.md` before context is lost |
 | `workspaceOpen` | — | ❌ | ✅ | `cursor-workspace-open.sh` → `{"pluginPaths": […]}` from `SUPERPOWERS_CURSOR_PLUGIN_PATH` (colon-separated absolute plugin checkouts); `[]` otherwise. The route to auto-load a checkout of this plugin without a marketplace install |
 | `subagentStop` | — | ✅ | ❌ | Its peer `subagent-handoff-check.sh` still answers its warning in Claude's dialect (`hookSpecificOutput`), which Cursor drops; wired the day it speaks Cursor — `tests/test-cursor-lifecycle.sh` re-checks that path each run. Its only documented output is `followup_message`, which this plugin never emits |
-| `subagentStart` | ✅ | ✅ | ❌ | `cursor-agent-tools-guard.sh` would **deny every spawn** under an active frame as written (no `tool_name` on this payload); a spawn-time deny needs its own branch keyed on `subagent_type` + `tool_call_id`, de-duplicated against the `preToolUse` Task push |
+| `subagentStart` | ✅ | ✅ | ❌ | `cursor-agent-tools-guard.sh` would **deny every spawn** under an active frame as written (no `tool_name` on this payload); a spawn-time deny needs its own branch keyed on `subagent_type` + `tool_call_id`, de-duplicated against the `preToolUse` Task push. Desktop **3.27** adds `parent_agent_id` on this event — the missing correlation key for that design; still not wired until a dedicated branch lands |
 | `postToolUseFailure` | — | ✅ | ❌ | Observation point (`error_message`, `failure_type`, `is_interrupt` → `additional_context`); available, nothing needs it yet |
 | `beforeMCPExecution` · `afterMCPExecution` | ✅ / — | ❌ | ❌ | `preToolUse` already fires for MCP tool calls; wiring this too would double-judge the same call |
 | `beforeReadFile` · `beforeTabFileRead` | ✅ | ✅ / ❌ | ❌ | This plugin makes no guarantee about *reads*. Every read-only agent is supposed to read |
@@ -361,7 +361,8 @@ never adopt anything silently. `apply` shows a diff and asks per change, default
 | background tasks · structured questions · session transcripts | unknown | Not measured — treated as unavailable, with stated fallbacks |
 | statusline · artifacts · extension install | unsupported | Cosmetic, absent, and not a Cursor mechanism, respectively |
 
-### Working tips (3.11 → 2026-09-23; desktop CLI 3.22.7 validated, 3.25.9 reviewed; CLI 2026-08-26)
+### Working tips (3.11 → 2026-10-16; desktop CLI 3.22.7 validated, 3.27.12 reviewed; CLI 2026-08-26)
+- **Desktop 3.27.12 (2026-10-23 stable):** [IDE notes](https://cursor.com/docs/release-notes/ide) **3.26** — agents stopped by an extension-host crash show **Resume** (use on long `orchestrate-dev` / `worker-dev` sessions); skill/command picker works when editing an earlier message; **Always Run** on terminal approvals sticks when `~/.cursor/permissions.json` owns the allowlist. **3.27** — hook payloads gain **`parent_agent_id`** on `subagentStart`/`subagentStop` (the missing key for a safe spawn-time wire that de-duplicates against the Task `preToolUse` frame push — still **not wired**: a naive guard would deny every spawn); Mermaid expand/zoom/copy in markdown preview; Reduce Motion for Cursor UI; faster first-window startup; non-UTF-8 agent I/O and encoding-aware codebase indexing. No live Cursor validation this run — `validated_against` stays **3.22.7**.
 - **Desktop 3.25.9 (2026-10-10/11 stable):** IDE notes add **hook `tool_use_id`** correlation (shell/MCP hooks match `preToolUse`) and always-on **`transcript_path` / `CURSOR_TRANSCRIPT_PATH`** — this plugin's `cursor-agent-tools-guard.sh` now keys subagent allowlists on Task `tool_use_id` + child `parent_tool_call_id`. **Auto-review** asks before risky recursive/force/wildcard/mirror deletes whose targets could resolve differently than written. Cloud agents recognize **OOM kills** (memory limit reported). MCP OAuth can complete via a **Cursor-hosted callback** when local redirect URLs are rejected. Large worktree cleanups can OOM the main process — if heap climbs after launch, set `"cursor.worktreesGlobalMaxSizeGb": 0` and `"cursor.worktreeCleanupIntervalHours": 500` (Cursor staff workaround, forum 2026-10-11).
 - **Desktop 3.23.12 (2026-10-01):** team/org **MCP allowlists** — keep the bundled `github` MCP (and any Team MCP) on the org allowlist after upgrade; Origin MCP endpoint is `api.origin.cursor.com/mcp`. Prefer **service tokens** for Automations that install/update this plugin. **Required** team-marketplace plugins removed — install modes are Default Off / Default On + groups only.
 - **Security Review + Rollouts (2026-09-23):** Teams/Enterprise bots from [Automations](https://cursor.com/automations) ([Security Agents docs](https://cursor.com/docs/security-agents)). Security Review posts exploitable-bug findings on ready PRs (drafts skipped; Bugbot keeps style). Run Cursor's `/review-security` or `/review` before push — complements this plugin's `security-reviewer` agent (in-session role) rather than replacing it. **Rollouts** monitors deploy health per environment after merge; optional for this public plugin (no product deploy). [Changelog](https://cursor.com/changelog/rollouts-and-security-reviewer).
@@ -384,7 +385,7 @@ Source of truth: [`core/capabilities/platforms.json`](../../../core/capabilities
 Comparison: [platform differences](../platform-differences.md).
 
 
-## Host currency notes (2026-10-16 / desktop 3.25.9)
+## Host currency notes (2026-10-16 / desktop 3.27.12)
 
 Documentary review only (no live Cursor IDE run this cycle). Feature pin stays **3.11**.
 
@@ -393,4 +394,4 @@ Documentary review only (no live Cursor IDE run this cycle). Feature pin stays *
 | 2026-10-16 | Cloud Agent **canvases**, **Environments API** (beta), **300-repo** / ~5× faster envs | Prefer canvases for durable multi-section reports from Cloud Agents; Environments API is host/dashboard — no plugin manifest change. |
 | 2026-10-13 | **Origin App Marketplace** | Distinct from `tamirs-marketplace` plugin catalog installs. |
 | 2026-10-06 | **Remote Control** (iOS ↔ local agents) | Operator convenience when a local Cursor session runs this plugin; Cloud Automations remain the unattended path. |
-| desktop 3.25.9 | Stable download pin | Hooks/skills/MCP wiring unchanged; keep `platforms/cursor/hooks.json` as the Cursor hook bundle. |
+| desktop 3.27.12 | Stable download pin + IDE 3.26/3.27 | Document Resume-after-crash + `permissions.json` sticky Always Run + `parent_agent_id` for future `subagentStart` wire; hooks/skills/MCP wiring unchanged; keep `platforms/cursor/hooks.json` as the Cursor hook bundle. |

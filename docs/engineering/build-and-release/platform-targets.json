@@ -165,12 +165,12 @@
       "supported_min": "3.22.7",
       "supported_min_source": "Cursor documents no minimum version for plugins; the floor is set to the version actually validated rather than guessed",
       "validated_against": "3.22.7",
-      "reviewed_through": "3.25.9",
-      "latest_known": "3.25.9",
+      "reviewed_through": "3.27.12",
+      "latest_known": "3.27.12",
       "changelog_feature": "3.11",
       "changelog_date": "2026-10-16",
-      "verified_on": "2026-10-18",
-      "verification_method": "Documentary review 2026-10-18: official Cursor download API stable desktop **3.25.9**; cursor.com/changelog through date-only **2026-10-16** (Cloud Agent canvases + Environments API beta + 300-repo/5\u00d7 faster envs; Origin App Marketplace 2026-10-13; Remote Control for local agents 2026-10-06). Feature changelog still 3.11. NO live Cursor run \u2014 validated_against stays 3.22.7. Prior: Documentary review 2026-10-11: official Cursor download API stable desktop **3.24.12**; IDE notes cover 3.24 hook `tool_use_id` / `parent_tool_call_id` (adopted in cursor-agent-tools-guard.sh) + auto-review risky-delete / cloud OOM / MCP OAuth hosted callback docs. Feature changelog still 3.11 / 2026-09-23. NO live Cursor run \u2014 validated_against stays 3.22.7. Prior 2026-10-04: desktop **3.23.12**; cursor.com/changelog still through date-only **2026-09-23** Rollouts + Security Review; desktop **3.23.x** adds team/org MCP allowlists (import/export + builtin tool listing; Origin MCP at api.origin.cursor.com/mcp), service tokens (create/list/rotate/revoke), xAI account linking + Grok admin controls, and removes applying team marketplace **Required** plugins. CLI changelog still through 2026-08",
+      "verified_on": "2026-10-25",
+      "verification_method": "Documentary review 2026-10-25: official Cursor download API stable desktop **3.27.12** (seen 2026-10-23); [IDE release notes](https://cursor.com/docs/release-notes/ide) cover **3.26** (resumable agents after extension-host crash; sticky Always Run when `~/.cursor/permissions.json` manages the terminal allowlist; skill picker when editing earlier messages) and **3.27** (`parent_agent_id` on `subagentStart`/`subagentStop`; Mermaid expand/zoom/copy in markdown preview; Reduce Motion for Cursor UI; faster first-window startup; non-UTF-8 agent I/O). cursor.com/changelog still through date-only **2026-10-16** (canvases + Environments API). Feature changelog still 3.11. NO live Cursor run \u2014 validated_against stays 3.22.7. Prior: Documentary review 2026-10-18: desktop **3.25.9**; changelog through **2026-10-16**.",
       "install_doc": "docs/user/install/cursor.md",
       "doc_urls": [
         "https://cursor.com/docs/plugins",
@@ -261,7 +261,11 @@
         "origin-app-marketplace-docs-2026-10-13",
         "cloud-agent-canvases-docs-2026-10-16",
         "environments-api-docs-2026-10-16",
-        "cloud-agent-env-300-repos-docs-2026-10-16"
+        "cloud-agent-env-300-repos-docs-2026-10-16",
+        "desktop-cli-observed-3.27.12",
+        "ide-resumable-agents-3.26-docs",
+        "ide-permissions-json-always-run-sticky-3.26-docs",
+        "ide-parent-agent-id-subagent-hooks-3.27-docs"
       ],
       "capabilities": [
         "git",
