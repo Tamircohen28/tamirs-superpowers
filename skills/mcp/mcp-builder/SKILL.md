@@ -179,7 +179,7 @@ mkdir my-mcp-server && cd my-mcp-server
 npm init -y
 npm install @modelcontextprotocol/sdk zod
 npm install -D typescript @types/node ts-node
-npx tsc --init --target ES2022 --module NodeNext --moduleResolution NodeNext --outDir dist --rootDir src --strict
+./node_modules/.bin/tsc --init --target ES2022 --module NodeNext --moduleResolution NodeNext --outDir dist --rootDir src --strict
 mkdir src
 ```
 
@@ -292,7 +292,7 @@ async def myservice_list_items(params: ListItemsInput) -> dict:
 ```bash
 # TypeScript
 npm run build          # must pass with zero errors
-npx @modelcontextprotocol/inspector dist/index.js
+npx @modelcontextprotocol/inspector@2.12.0 dist/index.js
 
 # Python
 python -m py_compile my_server.py

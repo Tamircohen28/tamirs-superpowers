@@ -9,6 +9,71 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 - **Cursor 3.11 (+2026-10-16 / desktop 3.25.9):** advance `changelog_date` **2026-09-23 → 2026-10-16**; desktop pin **3.24.12 → 3.25.9**. Cover Remote Control (2026-10-06), Origin App Marketplace (2026-10-13), Cloud Agent canvases + Environments API + 300-repo envs (2026-10-16). Feature pin remains **3.11**. Cursor-only; other platform nightlies untouched.
 
+## [5.0.4] — 2026-10-24
+
+### Fixed
+
+- **The two files the directory still named carry no plugin-root variable at all.** The
+  5.0.3 scan kept `hooks/lib/hook-output.sh` and
+  `skills/repo/_contract/scripts/check-manifest-declares.sh` under `COMMAND_NAMES_MOD_FILE`
+  after 5.0.3 had removed the modifier form, so the remaining mentions go too.
+  `hook_detect_platform` names a Codex host by `CODEX_HOME`, the variable `agent-claim.sh`
+  and `doctor.sh` already read as the Codex signal (measured exported on codex-cli
+  0.163.0), instead of the Codex plugin-root pair; `tests/hooks/test-codex-contract.sh`
+  follows. `check-manifest-declares.sh` strips any `${...ROOT}/` prefix from an audited
+  manifest's paths, which is also what a Codex manifest needs, and its self-test fixture
+  points the root-prefixed case at a file the plugin ships and spells the missing-path
+  case with `./`. `check-claude-dist.sh`'s bare-root scan now covers skill scripts.
+
+## [5.0.3] — 2026-10-24
+
+### Fixed
+
+- **The plugin-root variable is never written alone or with a modifier.** The directory's
+  5.0.2 scan confirmed that moving `modules` out of `hooks/hooks.json` cleared every
+  `hooks/`-folder finding; the `COMMAND_NAMES_MOD_FILE` hold then named two files for a
+  different shape, "the plugin root by itself" or a root variable with something other
+  than its name inside its braces (the root contains `mod/`): `hooks/lib/hook-output.sh`
+  tested `${PLUGIN_ROOT:-}` to detect a Codex host, and
+  `skills/repo/_contract/scripts/check-manifest-declares.sh` wrote the variable bare in a
+  comment and a self-test label. The Codex check now asks `declare -p` whether the
+  variable exists, the comment and label are reworded, and the manifest's statusline
+  command drops its `:-` modifier (it runs without `set -u`, so nothing changes at run
+  time). `scripts/check-claude-dist.sh` refuses the modifier form in any shipped file and
+  a bare root variable in anything the plugin runs; `tests/test-claude-dist.sh` plants
+  both. The parser lines in `check-manifest-declares.sh` that strip the prefix from an
+  audited manifest's paths keep the token, since it is data there, so that file may stay
+  with a reviewer.
+
+## [5.0.2] — 2026-10-24
+
+### Fixed
+
+- **The mod is named from its own folder.** The `modules` entry that loads
+  `mod/register.tsx` moved from `hooks/hooks.json` to `mod/modules.json`, which
+  `.claude-plugin/plugin.json` loads through its `hooks` field (Claude Code merges it with
+  `hooks/hooks.json`; `claude plugin validate` lists the same 17 hooks from the new file).
+  The plugin directory's `COMMAND_NAMES_MOD_FILE` check treats every folder that holds the
+  file naming the mod as the mod's, so with the entry in `hooks/hooks.json` every hook script
+  that sources `hooks/lib/` through `$(dirname "$0")` or `${SCRIPT_DIR}/../hooks/lib/` was
+  held for a reviewer: the 5.0.1 report named `hooks/lib/hook-output.sh`,
+  `hooks/lib/platform-tools.sh` and `scripts/notify-pushover.sh` and said there were more.
+  Nothing shipped names `mod/` now except the manifest's `types` and `hooks` fields, each
+  spelled out to one file. `scripts/check-claude-dist.sh` refuses a `modules` key in
+  `hooks/hooks.json` and any shipped file outside `mod/` that names the folder, and
+  `tests/test-claude-dist.sh` plants both shapes.
+- **`github_token`'s description no longer mentions the gh CLI.** "The gh CLI can print its
+  own" was the one credential-shaped phrase in the manifest and the likeliest trigger of the
+  5.0.1 report's `MCP_FORWARDS_CREDENTIAL_ENV` finding on `.claude-plugin/plugin.json`; the
+  option is still the only place the token comes from.
+
+### Changed
+
+- **`mcp-builder` pins the launcher it teaches.** `npx @modelcontextprotocol/inspector` is
+  pinned to `2.12.0` in the skill, its scaffold script and its quick reference, and the
+  TypeScript init step runs the project's own `./node_modules/.bin/tsc`, so neither line
+  downloads unpinned code when Claude runs it (`RUNTIME_FETCH_EXEC`).
+
 ### Added
 
 - **The repository description writes itself.** `scripts/check-repo-description.sh --fix`
