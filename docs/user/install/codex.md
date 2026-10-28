@@ -12,7 +12,7 @@ local marketplace, fired every hook in the generated `platforms/codex/hooks.json
 and captured the payloads into `tests/fixtures/codex/` (see [Hooks on Codex](#hooks-on-codex)).
 An earlier live run on 0.156.0 (2026-09-23) confirmed the install preserves the plugin's
 executable `.sh` files, hooks file, agent definitions and every `SKILL.md`. The official
-release delta is reviewed through **0.164.0** (2026-10-23; changelog only), which is the version tracked by
+release delta is reviewed through **0.165.0** (2026-10-27; changelog only), which is the version tracked by
 `.codex-version`.
 
 ---
@@ -59,6 +59,10 @@ has not been verified here; the rest of the plugin does not need the server.
 Codex also reads the repo's root [`AGENTS.md`](../../../AGENTS.md) as project instructions.
 That file is a **thin entrypoint** into the canonical rules under
 [`rules/`](../../../rules/README.md) — it is deliberately not the whole policy source.
+
+### Codex 0.165.0 notes (reviewed, not directly validated)
+
+Codex adds a native Google Cloud Vertex AI provider, GPT-6.1 Terra to the model catalog, repository filtering in the session picker, directory grouping for agents, in-conversation reasoning-effort changes, and memory v2 defaults for new profiles. Experimental attached app-server thread forks are not used by this CLI plugin. MCP requests now cancel when their callers disappear; queued messages cannot restart work after an interrupt or Plan-mode switch; approval reviewer defaults and Git marketplace URL validation are hardened. No change is needed to the generated Codex hooks, local stdio MCP server, marketplace URL or manifest. Prefer native Codex features over custom equivalents. This was a release-note review, not a new live plugin test; validated against **0.163.0**.
 
 ### Codex 0.164.0 notes (reviewed, not directly validated)
 
