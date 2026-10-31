@@ -144,7 +144,8 @@ hooks run at only some events. Its README ([source](https://github.com/anthropic
 lists the events it holds "past the user tier"; for those, the engine never calls our hook and
 reports `tamirs-superpowers: its <event> hook was skipped. "cc-plugin-sec-default" runs first
 and sent the event on past it.` The prefix names the plugin whose hook was skipped, not the
-sender; the plugin emits nothing, and the user cannot turn `sec-default` off.
+sender; the plugin emits nothing, and the user cannot turn `sec-default` off. The host added
+this transcript line in Claude Code 2.1.304.
 
 This is the organization's policy layer working as designed, not a defect here. What it costs:
 
