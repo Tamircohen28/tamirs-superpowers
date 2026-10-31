@@ -138,7 +138,7 @@ Severity guide:
 
 | ID | Check | P |
 |----|-------|---|
-| L8c-01 | `opencode.json` points `skills.paths` at the canonical tree | P1 |
+| L8c-01 | `opencode.json` points the OpenCode 2 `skills` array (a flat array of paths, not the OpenCode 1 `skills.paths` object) at the canonical tree | P1 |
 | L8c-02 | `.opencode/agents/` is generated and drift-checked, never hand-copied | P1 |
 | L8c-03 | Guards are carried by in-skill steps + CI, not by a ported `hooks.json` (OpenCode has no hook config file) | P1 |
 | L8c-04 | No capability is assumed for the OpenCode CLI surface without reading its registry row first | P1 |

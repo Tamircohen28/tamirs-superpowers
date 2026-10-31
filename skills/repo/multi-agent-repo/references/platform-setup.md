@@ -77,7 +77,7 @@ was unavailable — an unrun validation is `"validated_against": "unknown"`, not
 
 ## Phase 1d — OpenCode config (when the `opencode` surface is a declared target)
 
-Write `opencode.json` with `skills.paths` pointing at the canonical tree, plus `mcp` when
+Write `opencode.json` with the OpenCode 2 `skills` array (a flat array of paths) pointing at the canonical tree, plus `mcp` when
 MCP ships. Generate `.opencode/agents/` from the canonical agent definitions and add the
 drift check — never hand-copy an agent file. Do not expect `hooks.json`, a marketplace, or
 a statusline; the registry records all three as unavailable, and guards move into the
