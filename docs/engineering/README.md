@@ -31,7 +31,7 @@ contributors want [CONTRIBUTING](../CONTRIBUTING.md).
 | [CI workflow](build-and-release/ci-workflow.md) | The CI jobs, explained |
 | [Development workflow](build-and-release/development-workflow.md) | How to contribute code |
 | [Platform targets](build-and-release/platform-targets.md) | Version floors and the co-change rule |
-| [Host notes](host-notes/README.md) | Per-host release notes the maintainers reviewed (Claude Code 2.1.234–2.1.302): what was adopted, what was reviewed and declined, what is open |
+| [Host notes](host-notes/README.md) | Per-host release notes the maintainers reviewed (Claude Code 2.1.234–2.1.316): what was adopted, what was reviewed and declined, what is open |
 
 ## Decisions and history
 

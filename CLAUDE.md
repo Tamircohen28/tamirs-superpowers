@@ -18,7 +18,7 @@ See [`AGENTS.md`](AGENTS.md#commands) for the full list. `make validate` before 
 
 Do not assume these exist on other providers — check [`core/capabilities/platforms.json`](core/capabilities/platforms.json) first, and degrade explicitly per [`core/policies/safety.md`](core/policies/safety.md).
 
-Per-release host notes, 2.1.234 through 2.1.302, with what was adopted and what was reviewed and declined: [`docs/engineering/host-notes/claude-code.md`](docs/engineering/host-notes/claude-code.md).
+Per-release host notes, 2.1.234 through 2.1.316, with what was adopted and what was reviewed and declined: [`docs/engineering/host-notes/claude-code.md`](docs/engineering/host-notes/claude-code.md).
 
 - **Subagents** (`Agent` tool) — parallel worker execution, measured on Claude Code; not exercised on Desktop. Every `agents/*.md` pins its model alias in `model:`. A worker that stops on its own `maxTurns` comes back marked `partial`, which the handoff vocabulary in [`worker-dev`](skills/dev-workflow/worker-dev/SKILL.md) already treats as "decide, never quietly integrate around it."
 - **Project instructions** — Claude Code loads a project's `CLAUDE.md` (falling back to `AGENTS.md`); Desktop, Cursor, Codex and OpenCode read `AGENTS.md`. This repo ships both. A `CLAUDE.md` at a *plugin* root is never loaded as plugin context, which is why this file is a contributor page, not an instruction file.
