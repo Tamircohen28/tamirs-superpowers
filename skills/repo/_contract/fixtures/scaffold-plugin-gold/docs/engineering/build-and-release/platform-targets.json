@@ -162,9 +162,9 @@
     },
     "opencode": {
       "platform": "opencode",
-      "supported_min": "1.16.2",
-      "validated_against": "1.18.11",
-      "latest_known": "1.18.11",
+      "supported_min": "2.2.5",
+      "validated_against": "2.2.5",
+      "latest_known": "2.2.5",
       "doc_urls": [
         "https://opencode.ai/docs/skills/"
       ],

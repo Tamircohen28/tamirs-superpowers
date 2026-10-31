@@ -785,7 +785,7 @@
           ],
           "install": {
             "type": "path",
-            "command": "Point the opencode.json `skills` array at absolute paths in this checkout. Symlinks are not followed for skill discovery at any level (verified 1.18.11), so a symlinked install silently discovers nothing.",
+            "command": "Point the opencode.json `skills` array at absolute paths in this checkout. Use absolute paths, not symlinks: symlink following for skill discovery has not been measured on OpenCode 2, so a symlinked install may silently discover nothing.",
             "doc": "docs/user/install/opencode.md"
           },
           "validation": {
@@ -794,9 +794,10 @@
           "capabilities": {
             "skills": {
               "status": "native",
-              "since": "1.16.2",
+              "since": "2.0.0",
               "validation": "opencode debug config",
-              "notes": "Recursive (domain-nested) discovery is documented for OpenCode 2; per-skill discovery is not verifiable from the CLI (2.2.5: `api skill.list` returns only the three built-ins). OpenCode recognises a smaller frontmatter set and ignores unknown fields. Symlinks are NOT followed for skill discovery at any level (verified 1.18.11) \u2014 the skills dir, a domain dir, and an individual skill dir all yield zero. Install with absolute skills.paths, never a symlink."
+              "notes": "Recursive (domain-nested) discovery is documented for OpenCode 2; per-skill discovery is not verifiable from the CLI (2.2.5: `api skill.list` returns only the three built-ins). OpenCode recognises a smaller frontmatter set and ignores unknown fields. Symlink following for skill discovery is unmeasured on OpenCode 2; install with absolute paths in the `skills` array, never a symlink.",
+              "last_verified": "2026-10-31"
             },
             "skill_auto_invocation": {
               "status": "unknown",

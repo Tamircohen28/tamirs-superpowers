@@ -995,7 +995,7 @@
           ],
           "install": {
             "type": "path",
-            "command": "Point the opencode.json `skills` array at absolute paths in this checkout. Use absolute paths, not symlinks: symlink following for skill discovery has never been confirmed on OpenCode 2, so a symlinked install may silently discover nothing.",
+            "command": "Point the opencode.json `skills` array at absolute paths in this checkout. Use absolute paths, not symlinks: symlink following for skill discovery has not been measured on OpenCode 2, so a symlinked install may silently discover nothing.",
             "doc": "docs/user/install/opencode.md"
           },
           "validation": {
@@ -1005,9 +1005,9 @@
             "skills": {
               "last_verified": "2026-10-31",
               "status": "native",
-              "since": "1.16.2",
+              "since": "2.0.0",
               "validation": "opencode debug config",
-              "notes": "Documented OpenCode 2 feature (opencode.ai/docs/skills). 2.2.5 (2026-10-31): `opencode --standalone debug config` loads this repo's opencode.json skills key and .opencode/, but per-skill discovery is NOT verifiable from the CLI: `api skill.list` returns only the three built-ins even for a control project with a skills path, warm or cold. OpenCode recognises a smaller frontmatter set and ignores unknown fields. Symlink following is unconfirmed on OpenCode 2; install with absolute skills.paths, never a symlink."
+              "notes": "Documented OpenCode 2 feature (opencode.ai/docs/skills). 2.2.5 (2026-10-31): `opencode --standalone debug config` loads this repo's opencode.json skills key and .opencode/, but per-skill discovery is NOT verifiable from the CLI: `api skill.list` returns only the three built-ins even for a control project with a skills path, warm or cold. OpenCode recognises a smaller frontmatter set and ignores unknown fields. Symlink following is unconfirmed on OpenCode 2; install with absolute paths in the `skills` array, never a symlink."
             },
             "skill_auto_invocation": {
               "last_verified": "2026-09-17",
