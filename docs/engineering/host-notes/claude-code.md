@@ -1,6 +1,6 @@
 # Claude Code host notes
 
-Per-release notes on the Claude Code host, 2.1.234 through 2.1.307, as the maintainers reviewed them against this plugin. Source for every release: the official changelog, <https://github.com/anthropics/claude-code/blob/main/CHANGELOG.md> (cited once here; every note below is drawn from it, plus the live runs recorded in `platform-targets.json`).
+Per-release notes on the Claude Code host, 2.1.234 through 2.1.312, as the maintainers reviewed them against this plugin. Source for every release: the official changelog, <https://github.com/anthropics/claude-code/blob/main/CHANGELOG.md> (cited once here; every note below is drawn from it, plus the live runs recorded in `platform-targets.json`).
 
 This file is the narrative. The **evidence-bearing record** is [`platform-targets.json`](../build-and-release/platform-targets.json) (`targets.claude_code`: `validated_against`, `reviewed_through`, `latest_known`, `verified_on`, and the per-cycle `verification_method` text), mirrored by the root [`.claude-code-version`](../../../.claude-code-version) pin, which `scripts/check-platform-version-pins.sh` holds to the JSON. When this file and that record disagree, the record wins. The nightly review appends to this file, never to `CLAUDE.md` (a `CLAUDE.md` at a plugin root is never loaded by Claude Code, `claude plugin validate` warns about it, and the plugin directory's scanner reads prose about what the plugin *used* to do as what it does).
 
@@ -324,3 +324,35 @@ Bug fixes and reliability improvements only — no itemized changelog entries. *
 - **CLI — three more reliability fixes.** Unparseable tool calls now retry up to twice before the turn ends in error; browser sign-in shows its success page as soon as sign-in completes rather than waiting on the account profile; web-search errors in cloud/self-hosted-runner sessions show the real 403 reason instead of a generic "Authentication error". *Reviewed, nothing to change:* all host-side reliability this repo's own cloud/CI runs benefit from passively.
 - **Cloud sessions — faster first reply behind a stuck desktop MCP server; faster Remote Control connect with large pasted images/PDFs.** *Reviewed, not applicable:* this repo's own automation doesn't run through the desktop app's MCP bridge or Remote Control.
 - **VSCode, Code Review, self-hosted runner — voice-dictation/cert/checkout-hook changes, `@claude review stop`/`off`/`pause`, `/claude-api api-version`, `axScreenReader` settings-tier restriction.** *Reviewed, not applicable:* no VSCode extension, Code Review subscription, self-hosted runner, `axScreenReader` setting, or `/claude-api` usage in this repo.
+
+### 2.1.308
+
+Bug fixes and reliability improvements only — no itemized changelog entries. *Reviewed, nothing to change.*
+
+### 2.1.309
+
+- **Worktrees — fewer on-demand fetches.** Worktree creation and reuse no longer fetch objects on demand in ordinary clones; a partial clone with a Bash sandbox configured now fetches them up front instead. *Adopted passively:* `hooks/worktree-create.sh` (the `WorktreeCreate` hook) creates a worker worktree on every `orchestrate-dev` fan-out — a direct speed/reliability win for that path, no doc or code change needed.
+- **CLI — dangerous `rm`/`rmdir` denied instantly in bypass-permissions unattended sessions.** In the Desktop app and VS Code, bypass-permissions mode now denies a dangerous `rm`/`rmdir` at once with a rewrite hint instead of blocking on a prompt, so unattended sessions keep going. *Reviewed, not applicable:* `docker-guard.py` and `guard-sensitive-files.sh` are this repo's actual gate on destructive commands regardless of surface.
+- **CLI — `sed -i` runs as a real Bash edit, not a simulated preview; no longer restored by `/rewind`.** *Reviewed, not applicable:* this changes how Claude Code itself executes `sed -i` as an agent action, not how this repo's own scripts (`hooks/guard-sensitive-files.sh`, `hooks/lib/write-targets.py`, `scripts/lib/github-common.sh`, `scripts/lib/setup-common.sh`) use it internally.
+- **Sandbox — write-list ask when sandboxing can't run.** Commands the settings exclude from the sandbox now ask before writing to its write-list paths while sandboxing is enabled but unavailable, instead of silently falling back unsandboxed. *Reviewed, not applicable:* no sandbox policy is configured anywhere in `platforms/claude/settings.d/`.
+- **CLI — `claude ultrareview` requires workspace trust.** *Reviewed, not applicable:* no script or doc here invokes `ultrareview`.
+- **Anthropic's own bundled `/claude-api` and `dataviz` skill updates** (APCA contrast measure, Managed Agents `multiagent_20261001`, OTel destination management via service-account/WIF credentials). *Reviewed, not applicable:* those are Anthropic's own bundled skills, not anything this plugin ships or depends on.
+
+### 2.1.310
+
+- **CLI — `Monitor` tool extended to Bedrock/Vertex/Foundry; long foreground sleeps now blocked there too.** *Reviewed, nothing to change:* `pr-dev`'s [CI-rollup wrapper](../../../skills/dev-workflow/pr-dev/references/ci-monitor-loop.md) already documents the Monitor-loop pattern as the preferred way to watch long CI runs — that adoption predates this release. 2.1.310 only widens which providers carry the tool and the foreground-sleep guard; this repo doesn't target Bedrock/Vertex/Foundry.
+- **Cloud sessions — custom-role gating for Cloud sessions/Remote Control; setup-script "Choose file" button.** *Reviewed, not applicable:* enterprise admin-console and cloud-environment-setup UI this repo doesn't configure.
+- **MCP — clearer timeout error when an elicitation goes unanswered in a non-interactive session.** *Reviewed, not applicable:* the `github` MCP server here declares no elicitation.
+
+### 2.1.311
+
+- **Mods — `DISABLE_COMPACT` can now only turn compaction off, not back on, whether set in settings or via a mod's `$.env.set`.** *Reviewed, not applicable:* `mod/register.tsx` never calls `$.env.set`, and no settings file here sets `DISABLE_COMPACT`.
+- **CLI — model names drop the `[1m]` suffix label where it has no effect; the suffix is still accepted as input.** *Reviewed, nothing to change:* `platforms/claude/settings.d/defaults.json` pins `"model": "opus[1m]"` — still valid under this change, and no doc wording here depends on the suffix being echoed back.
+- **CLI — `--output-format json`/`stream-json` now escapes DEL/C1/Unicode-format characters inside strings; parsed values are unchanged.** *Reviewed, not applicable:* `skills/toolkit/skill-creator/scripts/run_eval.py` consumes `stream-json` through a JSON parser, which this change doesn't affect.
+- **Other 2.1.311 items** (ultrathink effort/rainbow scoping, Ctrl+D-to-exit, permission-rule-warning dedup, `/code-review` effort ordering, Bedrock/Vertex/Foundry/Mantle signed model catalog, `CLAUDE_CODE_SYNC_SKILLS` cache reuse, scrollbar-click timing, `claude purge` wording, VSCode/Claude Tag items). *Reviewed, not applicable:* terminal/VSCode/Claude-Tag/gateway UX this repo's docs and hooks don't touch.
+
+### 2.1.312
+
+- **Subagents — `autoCompactWindow` now actually lowers a session-level `CLAUDE_CODE_AUTO_COMPACT_WINDOW`; it still never raises it.** Previously a subagent's `autoCompactWindow` had no effect when the session already set `CLAUDE_CODE_AUTO_COMPACT_WINDOW`. *Adopted passively, worth flagging:* `implementer` and `test-engineer` both set `autoCompactWindow: 150000` specifically so long-running workers compact before running out of context — that per-worker safety margin could previously be silently overridden by a larger session-level window; it is now honored.
+- **Hooks — prompt/agent hook concurrency cap raised 12 → 24, plus a longest-waited exception.** *Reviewed, not applicable:* every hook this plugin registers is a command hook, not a prompt/agent hook.
+- **Other 2.1.312 items** (gateway `oidc.user_id_claim`, click-to-send, cloud-session routine effort picker and setup-script editor, Bedrock/Vertex/Foundry/Mantle short system prompt and refusal-fallback for unrecognized model names, "5-hour limit" wording, cloud-session naming from the server, OTel `mcp_server.name` naming and `claude_code.safety_event` removal). *Reviewed, not applicable:* enterprise gateway, cloud-console and OTel surface this repo doesn't configure.
