@@ -39,9 +39,9 @@ specifically reading one adapter and assuming the next one behaves the same way.
 
 | Behaviour | OpenCode | Gemini CLI |
 |---|---|---|
-| **Symlinks in a skill tree** | **Not followed, at any level** (verified 1.18.11). A symlinked `skills` dir, a symlinked domain dir, and a symlinked individual skill dir each discover **zero** skills. | **Followed.** Measured at the workspace tier (`.gemini/skills/<name> -> ../../skills/<domain>/<name>`) and through `gemini skills install --path`. |
-| **Nested skill discovery** | **Recurses.** One `skills.paths` entry finds `SKILL.md` arbitrarily deep beneath it, so the canonical `skills/<domain>/<name>/` layout works unchanged. | **One level only.** `<root>/skills/<name>/SKILL.md` and nothing deeper, so the canonical two-level tree resolves to zero skills. |
-| **Consequence for the adapter** | No skill adapter at all — `opencode.json` `skills.paths` points at the canonical tree in place. | A **generated flat mirror** at `.gemini/skills/`, built as a symlink farm precisely *because* symlinks are followed there. |
+| **Symlinks in a skill tree** | **Unmeasured on OpenCode 2.** OpenCode 1 did not follow them at any level (verified 1.18.11); nothing has re-measured it on 2.x, so install by absolute path, never by symlink. | **Followed.** Measured at the workspace tier (`.gemini/skills/<name> -> ../../skills/<domain>/<name>`) and through `gemini skills install --path`. |
+| **Nested skill discovery** | **Recurses, per the OpenCode 2 docs** (not measurable from the CLI: `api skill.list` returns only the built-ins on 2.2.5). One `skills` array entry is documented to find `SKILL.md` arbitrarily deep beneath it, so the canonical `skills/<domain>/<name>/` layout is expected to work unchanged. | **One level only.** `<root>/skills/<name>/SKILL.md` and nothing deeper, so the canonical two-level tree resolves to zero skills. |
+| **Consequence for the adapter** | No skill adapter at all — `opencode.json` `skills` array points at the canonical tree in place. | A **generated flat mirror** at `.gemini/skills/`, built as a symlink farm precisely *because* symlinks are followed there. |
 
 The practical rule: **the install mechanism is a measured property of the platform, not
 a house style.** Neither adapter's approach is portable to the other, and copying one
@@ -70,11 +70,12 @@ at instead.
 
 The subtle failure is a translation that parses, loads, and is wrong. The canonical
 agent `tools:` field is an **allowlist** — `tools: Read, Grep, Glob` means read-only.
-Emitting only the granted tools into OpenCode's `tools` object satisfies the schema and
-loads without error, but leaves every unlisted tool **enabled**: verified on 1.18.11,
-that shape resolves to `bash: true, edit: true, write: true, task: true`, silently
-handing a read-only reviewer write access. The generator therefore emits explicit
-`deny` for every non-granted tool. When translating a permission or capability field,
+Emitting only the granted tools into an OpenCode agent's allow list satisfies the schema
+and loads without error, but leaves every unlisted tool **enabled** (observed on OpenCode
+1.18.11, where the `tools` object resolved to `bash: true, edit: true, write: true,
+task: true` and silently handed a read-only reviewer write access). OpenCode 2 replaced
+that object with an ordered `permissions` ruleset; the generator emits explicit `deny`
+rules for every non-granted tool there too. When translating a permission or capability field,
 check what the *absence* of an entry means on the target — it is rarely "denied".
 
 ### Re-base relative links for the new depth

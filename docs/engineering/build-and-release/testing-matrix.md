@@ -80,7 +80,7 @@ where the CLI exists.
 | Codex | `jq empty .codex-plugin/plugin.json`, `jq -e '.hooks'`, `jq empty .agents/plugins/marketplace.json`, `test -f .codex/config.toml` | Codex plugin install smoke test |
 | Cursor | `jq empty .cursor-plugin/plugin.json`, `.cursor/rules/` presence via `make check-platform-targets` | marketplace import, by hand |
 | Gemini CLI | `jq empty gemini-extension.json`, version consumer alignment, `tests/test-gemini-adapter.sh`, `make check-gemini-adapter`, `make gemini-extension-check` | `gemini extensions link .` and a real session. **`gemini extensions validate` is not sufficient evidence** — it only parses the manifest and reports success even when the context file is absent |
-| OpenCode | `jq empty opencode.json`, `make opencode-agents-check`, `tests/test-opencode-adapter.sh` | `opencode debug skill` |
+| OpenCode | `jq empty opencode.json`, `make opencode-agents-check`, `tests/test-opencode-adapter.sh` | `opencode debug config` (per-skill discovery is not verifiable from the CLI on 2.x) |
 | Claude Desktop | (none — GUI) | manual: install, confirm a skill loads |
 
 Desktop is the honest gap: CI cannot exercise a GUI, so its verification is a documented

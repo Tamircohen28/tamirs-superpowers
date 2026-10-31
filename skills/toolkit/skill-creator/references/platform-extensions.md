@@ -15,7 +15,7 @@ skill claims in `compatibility`:
 | Target | What to check |
 |---|---|
 | **Claude Code / Desktop** | Field pairings (`context`/`agent`, invocation tier); `allowed-tools` names are real; referenced `references/` and `scripts/` paths exist; `description` + `when_to_use` within the 1536-char listing cap |
-| **OpenCode** | Recognises a smaller frontmatter set and ignores the rest — so the skill must be usable from `description` alone. Its domain directory must appear in `opencode.json` → `skills.paths`, or the skill is undiscoverable no matter how correct the file is |
+| **OpenCode** | Recognises a smaller frontmatter set and ignores the rest — so the skill must be usable from `description` alone. Its domain directory must appear in the `opencode.json` `skills` array, or the skill is undiscoverable no matter how correct the file is |
 | **Gemini CLI** | Follows the Agent Skills model; verify against the live docs (`skills/documentation/platform-sync/references/platforms/gemini.md`) rather than from memory, and do not claim skill discovery the fetched docs do not describe |
 | **Cursor** | Consumes rules and skills; a skill that duplicates canonical `AGENTS.md` policy rather than pointing at it is drift |
 | **Codex CLI** | Reads `AGENTS.md` plus the manifest's declared skill paths; confirm the new skill's path is declared |
