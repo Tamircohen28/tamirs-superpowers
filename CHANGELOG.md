@@ -10,8 +10,11 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ### Changed
 
 - **OpenCode 1 is no longer supported; OpenCode 2 is validated against 2.2.5.** The
-  `targets.opencode` pin moves from 2.0.32 to 2.2.5 with a support floor of 2.2.3 (the
-  first release whose OpenTUI 0.8 requirement the TUI plugin targets). The registry,
+  `targets.opencode` pin moves from 2.0.32 to 2.2.5 with a support floor of 2.2.5: it is
+  the only release ever exercised live, and the `bash`-to-`shell` alias the guard relies
+  on was observed only there. 2.2.3 (the first release with the OpenTUI 0.8 peers the TUI
+  plugin targets) and 2.2.4 are not validated; the floor can be lowered by validating
+  them. The registry,
   probe, generators, scaffold registry, install docs, platform-sync references and tests
   now describe OpenCode 2 only; the probe watches `@opencode/cli` alone. A stale
   `.opencode/agent/` (singular) tree is still cleaned up by `build-opencode-agents.sh` as
@@ -30,8 +33,24 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   `docs/user/install/opencode.md` now verifies in service mode and calls each twice. The
   live findings are in `docs/engineering/roadmap/v5-research/opencode-2.2.5.md`.
 - **App-gold scaffolds no longer inherit OpenCode 1 evidence.** `platforms.app.json` (and
-  the template and fixtures generated from it) dropped the `1.16.2`/`1.18.x` evidence, the
-  removed `debug skill` command and v1's `skills.paths` key.
+  the template and fixture generated from it) dropped the `1.16.2` skills-row `since`
+  (now `2.0.0`), the `verified 1.18.11` symlink claim (symlink following is unmeasured on
+  OpenCode 2, so the install text only advises absolute paths) and v1's `skills.paths`
+  key. `platforms.json` and its template got the same `since` and symlink wording. The
+  three gold fixtures' OpenCode pin and badge moved from 1.18.11 to 2.2.5, and the
+  v1-only `platform-targets.json` feature ids (`recursive-skill-discovery-1.16.2`,
+  `zero-level-skill-paths`, the two 2.0.x schema-diff windows) are gone from this repo's
+  own target record. Skill guidance in `multi-agent-repo`, `skill-creator`, `switch-dev`
+  and the platform docs now names the V2 `skills` array rather than `skills.paths`.
+- **The upgrade guide no longer tells users to run `opencode upgrade --major`.** The flag
+  does not exist on 2.2.5 (`opencode upgrade --help` takes an optional version and
+  `--method`); `docs/user/upgrade-to-v5.md` points at the official migration guide, which
+  `docs/user/install/opencode.md` now quotes for the V1/V2 installer behaviour.
+- **The live OpenCode test is hermetic and warm.** `tests/test-opencode-v2.sh` runs the
+  live section against a throwaway HOME and its own service port, calls
+  `opencode plugin list` twice (the first call on a fresh 2.2.5 service is empty), kills
+  only the process on its own port, and skips on a non-2.x binary.
+  `tests/contract/opencode.sh` asserts `opencode.json` `skills` is an array.
 
 ### Added
 
