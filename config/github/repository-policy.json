@@ -130,7 +130,7 @@
       }
     },
     "Tamircohen28/tamirs-superpowers": {
-      "_comment": "9 of this repo's CI jobs are required. Adding a CI job does NOT make it blocking; its `name:` must be added to this list and applied.",
+      "_comment": "11 of this repo's CI jobs are required. Adding a CI job does NOT make it blocking; its `name:` must be added to this list and applied.",
       "required_checks": {
         "contexts": [
           "shellcheck",
@@ -141,7 +141,9 @@
           "Repo contract (scaffold-gold)",
           "Manifest/tag version alignment",
           "Platform targets co-change",
-          "HOL Plugin Scanner"
+          "HOL Plugin Scanner",
+          "Repo contract (this repo)",
+          "make validate (full local-parity gate)"
         ]
       },
       "rules": {
@@ -228,7 +230,8 @@
             "backup",
             "seed",
             "tag",
-            "changeset"
+            "changeset",
+            "eval"
           ],
           "content_signals": [
             { "pattern": "^\\s*release:", "description": "triggered by a GitHub release event" },
