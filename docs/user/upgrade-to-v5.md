@@ -54,7 +54,7 @@ The full record is the `[5.0.0]` section of [`CHANGELOG.md`](../../CHANGELOG.md)
 
 | Change | What it means | What to do |
 |---|---|---|
-| **OpenCode 2 only** (2.0.30+; validated on 2.0.32) | `opencode.json` uses the V2 vocabulary: `permissions` rules, `.opencode/agents/` (plural), `mcp.servers.github`, `plugins[]`; V1 plugins do not run on V2 and V2 shapes do not load on V1 | `opencode upgrade --major`. OpenCode 1.x users stay on 4.12.x |
+| **OpenCode 2 only** (2.2.3+; validated on 2.2.5) | `opencode.json` uses the V2 vocabulary: `permissions` rules, `.opencode/agents/` (plural), `mcp.servers.github`, `plugins[]`; V1 plugins do not run on V2 and V2 shapes do not load on V1 | `opencode upgrade --major`. OpenCode 1.x users stay on 4.12.x |
 | The three core guards are a server plugin | `platforms/opencode/plugin/` (`permission.hook('evaluate')`, `shell.hook`) registered in `plugins[]`; a TUI plugin draws the status line and objective pane | Nothing; it loads with the config. Whether a deny stops an action live is not yet measured |
 | `usage-capture` is a V2 plugin | `opencode-plugin.mjs` uses `Plugin.define` | If you listed it in your own `plugins`, keep it; on OpenCode 1 it no longer runs |
 

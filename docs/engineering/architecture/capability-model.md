@@ -451,7 +451,7 @@ courtesy: it is what corrected `gemini_cli` from nine `native` rows to five.
 | Surface | Provenance |
 |---|---|
 | `gemini_cli` | **Measured.** Gemini CLI 0.55.1 against a probe extension, 2026-08-19. Error text recorded in `docs/user/install/gemini.md`. |
-| `opencode` | **Measured.** OpenCode 1.18.11 on the maintainer machine, including the `hooks` and symlink-discovery findings. |
+| `opencode` | **Measured.** OpenCode 2.2.5 live on the maintainer machine (fresh HOME, no provider key), including the `hooks` and plugin-listing findings; see `docs/user/install/opencode.md`. |
 | `claude_code` | Mostly verified through this repo's own validators, which run against it on every change. |
 | `codex`, `cursor` | Declaration-backed: derived from `platform-targets.json`, which records its own `verification_method` per target. |
 | `claude_desktop` | Largely unmeasured — nine `unknown` rows, and honestly so. Supported all the same: it installs from the Claude Code listing and the rows that are known are known. |
