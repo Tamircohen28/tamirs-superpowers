@@ -155,7 +155,7 @@ This is the organization's policy layer working as designed, not a defect here. 
 | `skill.prompt` | Skill context (#8 above) | `UserPromptSubmit` still sees the typed line; the live objective is just not appended on expansion |
 | `classic.SessionStart` | Reload after `/clear`, `/resume`, `/branch` (#1 above) | The 5 s objective re-read; the pane catches up on its next tick |
 
-All four were seen as `its <event> hook was skipped` notices on a Team session. Every other
+The first, third and fourth were seen as `its <event> hook was skipped` notices on a Team session; the `session.compact` row is derived from the sec-default README and was not observed. Every other
 hook the mod registers (`session.start`, `command.run`, the `ui.render` drawings,
 `agent.spawn`, `session.measure`, `turn.start`, `turn.complete`, `tool.call`, `prompt.submit`)
 is not on the held list, and the skills, agents, bash hooks, statusline and MCP server never go
