@@ -239,12 +239,7 @@ judge "the plugin still imports nothing at module scope" "" "$(grep -nE '^import
 section "live OpenCode CLI (optional)"
 ver=""
 harness_have opencode && ver="$(opencode --version 2>/dev/null | head -1)"
-if [ -n "$ver" ] && [ "${ver%%.*}" -lt 2 ] 2>/dev/null; then
-  # `plugin list` and `debug agents` are OpenCode 2 commands; a 1.x CLI answers
-  # both with help text, which would read as three failures. An unsupported CLI
-  # is skipped like an absent one (same rule as tests/test-opencode-adapter.sh).
-  skip "live OpenCode CLI" "opencode $ver is pre-2.x — these probes need OpenCode 2; upgrade to measure them"
-elif harness_have opencode; then
+if harness_have opencode; then
   printf '  ..   %s detected\n' "$ver"
   plist="$(cd "$ROOT" && opencode plugin list 2>/dev/null)"
   judge "opencode plugin list shows the guard plugin" yes "$(has "$plist" 'tamirs-superpowers.guard')"
