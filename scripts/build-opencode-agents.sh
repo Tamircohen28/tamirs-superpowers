@@ -7,44 +7,42 @@
 #
 # --check regenerates into a temp dir and diffs, so CI can fail on drift without
 # writing to the working tree. Drift includes adapters whose canonical source was
-# deleted, and a stale OpenCode 1 `.opencode/agent/` (singular) tree; a normal run
-# prunes both.
+# deleted, and a stale `.opencode/agent/` (singular) tree left by an older release; a
+# normal run prunes both.
 #
 # WHY THIS EXISTS
 #   OpenCode validates config strictly and refuses to start on a bad field, and its
 #   agent frontmatter genuinely differs from the canonical Claude-shaped one:
 #     - canonical `tools: Read, Grep, Bash` is a comma string; OpenCode 2 has no such
-#       field at all (`tools` is a deprecated V1 key the published schema lists only
-#       under the legacy `AgentConfig`, not under `Config.AgentEncoded`).
+#       field at all (`tools` is a deprecated legacy key the published schema lists
+#       only under `AgentConfig`, not under `Config.AgentEncoded`).
 #     - canonical `model: sonnet` is an alias; OpenCode wants a provider-prefixed id.
 #     - canonical `name:` is not an agent property at all — OpenCode derives the
 #       agent id from the FILENAME.
 #   So the canonical files cannot be copied, they are translated. The translation is
 #   committed so a user installing from a clone needs no build step.
 #
-# OPENCODE 2 ONLY
-#   The output is the V2 shape (https://opencode.ai/config.json, $defs.Config.AgentEncoded,
+# OUTPUT SHAPE
+#   The output is the OpenCode 2 shape (https://opencode.ai/config.json, $defs.Config.AgentEncoded,
 #   read 2026-10-17 against @opencode/cli 2.0.32):
-#     - directory `.opencode/agents/` (plural). V2 still reads the legacy singular
-#       `agent/`, so a stale copy there would load a SECOND set of the same ids —
+#     - directory `.opencode/agents/` (plural). OpenCode 2 also reads a singular
+#       `agent/` dir, so a stale copy there would load a SECOND set of the same ids —
 #       the generator prunes it and --check fails while it exists.
-#     - `mode: subagent` always explicit. V2 changed the default mode for a custom
-#       agent from `all` to `primary`; an adapter that omitted it would become a
+#     - `mode: subagent` always explicit. The default mode for a custom agent
+#       is `primary`; an adapter that omitted it would become a
 #       primary agent the user can select, which none of these roles is.
 #     - `permissions:` — an ORDERED RULE LIST of {action, resource, effect}, where
-#       "the last matching rule wins". The V1 `permission:` map (bash/task/doom_loop/
-#       lsp/list/todowrite keys) is deprecated; V2 auto-translates it, but this
-#       generator no longer emits it and scripts/check-opencode-permission-keys.sh
-#       fails if any V1-only action ever reappears.
+#       "the last matching rule wins". A `permission:` map (the deprecated legacy
+#       form) is never emitted, and scripts/check-opencode-permission-keys.sh
+#       fails if one, or any non-Core action name, ever appears.
 #
 # WHY `permissions:` RULES AND NOT A BARE ALLOWLIST
 #   The canonical `tools:` list is an ALLOWLIST — an agent declaring `Read, Grep, Glob`
 #   is read-only. OpenCode's base policy for every agent starts with
 #   `{action: "*", resource: "*", effect: allow}` (https://opencode.ai/v2/docs/permissions/
 #   "Defaults"), so emitting only the granted actions does NOT say that: every
-#   unlisted action stays ALLOWED. Measured on OpenCode 1.18.11 with the V1 map —
-#   an agent granting only read/grep/glob resolved to bash/edit/task all true — and
-#   the V2 default policy makes the same silent widening the documented behaviour.
+#   unlisted action stays ALLOWED. That silent widening is the documented
+#   default policy behaviour.
 #   This generator therefore emits a `deny` rule for every action in OPENCODE_ACTIONS
 #   the canonical file does NOT grant, plus an explicit `external_directory: ask`
 #   rule for every agent.
@@ -62,7 +60,7 @@
 #   allowlist is expressed purely as denies, which can only narrow.
 #
 # WHY `external_directory` IS ALWAYS `ask`
-#   V1 asked before touching a path outside the project; V2 ALLOWS it by default
+#   OpenCode 2 ALLOWS a path outside the project by default
 #   ("The default policy allows external_directory, so external paths are not
 #   prompted unless you add a rule"). This repo's worktree invariant — a worker
 #   edits inside its own worktree, nothing else — depends on that prompt, so the
@@ -110,8 +108,9 @@ mkdir -p "$DEST"
 # Deliberately absent: `external_directory` (emitted separately, always `ask`),
 # `execute` (Code Mode; "nested tools enforce their rules", so the per-action
 # rules above already govern what it can reach), the MCP `<server>_<tool>` family
-# (no canonical equivalent — see map_tool), and every V1-only key: `bash` (now
-# `shell`), `task` (now `subagent`), `doom_loop`, `lsp`, `list`, `todowrite`, `write`.
+# (no canonical equivalent — see map_tool), and every name that is NOT a Core action: `bash`
+# (the tool alias runs as `shell`), `task` (`subagent`), `doom_loop`, `lsp`, `list`,
+# `todowrite`, `write`.
 OPENCODE_ACTIONS=(read edit glob grep shell subagent skill question webfetch websearch)
 
 # Canonical Claude tool name -> OpenCode 2 permission action. Unlisted canonical
@@ -221,7 +220,7 @@ for f in "$SRC"/*.md; do
       # nothing granted gets an allow rule (see the header: an allow placed after
       # the base policy would override the host's own `.env` asks). One rule per
       # denied action, so order among them is irrelevant; external_directory
-      # last, as the documented place for the rule that restores the V1 prompt.
+      # last, as the documented place for the rule that restores the outside-project prompt.
       echo "permissions:"
       for oc in "${OPENCODE_ACTIONS[@]}"; do
         [[ "$granted" == *" $oc "* ]] || emit_rule "$oc" deny
@@ -272,9 +271,11 @@ for existing in "$DEST"/*.md; do
   fi
 done
 
-# The OpenCode 1 output directory. V2 reads `agent/` AND `agents/`, so a stale
-# singular tree is not harmless: the same ten ids would load twice, the older copy
-# carrying the deprecated V1 `permission:` map. Only files that carry this
+# Upgrade helper: the singular `agent/` dir an older release wrote into. OpenCode 2
+# reads `agent/` AND `agents/`, so a stale tree is not harmless: the same ids would
+# load twice, the older copy carrying the deprecated `permission:` map. Remove this
+# block (and LEGACY_DEST) after the next release.
+# Only files that carry this
 # generator's own header are touched — anything else there is the user's.
 legacy_stale=()
 if [[ -d "$LEGACY_DEST" ]]; then
@@ -302,7 +303,7 @@ if [[ "$CHECK" == true ]]; then
   fi
   if ((${#legacy_stale[@]})); then
     {
-      echo "ERROR: stale OpenCode 1 adapters remain in .opencode/agent/ (singular):"
+      echo "ERROR: stale adapters from an older release remain in .opencode/agent/ (singular):"
       printf '         %s\n' "${legacy_stale[@]}"
       echo "       OpenCode 2 reads both directories, so these would load a second copy of every"
       echo "       agent. Run: make opencode-agents (it removes them)."
@@ -317,7 +318,7 @@ fi
 if ((${#legacy_stale[@]})); then
   rm -f "${legacy_stale[@]}"
   rmdir "$LEGACY_DEST" 2>/dev/null || true
-  echo "Removed ${#legacy_stale[@]} stale OpenCode 1 adapter(s) from .opencode/agent/ (V2 reads .opencode/agents/)"
+  echo "Removed ${#legacy_stale[@]} stale adapter(s) from .opencode/agent/ (upgrade helper; OpenCode 2 reads .opencode/agents/)"
 fi
 
 echo "Generated $count OpenCode agent adapter(s) in .opencode/agents/${pruned:+ (pruned $pruned stale)}"

@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 # check-opencode-permission-keys.sh — every permission ACTION the OpenCode agent
-# generator emits must be a real OpenCode 2 Core action, and no V1-only key may ever
-# come back.
+# generator emits must be a real OpenCode 2 Core action; anything else is rejected.
 #
 # Usage:
 #   bash scripts/check-opencode-permission-keys.sh [repo-root] [--refresh]
@@ -16,10 +15,9 @@
 #
 #   That is not hypothetical. `write` was emitted for every agent until 2026-09-23
 #   and was never a permission key (file modification is governed by `edit`). And
-#   OpenCode 2 renamed two more out from under the V1 map this script used to pin:
-#   `bash` became `shell`, `task` became `subagent`, and `doom_loop`/`lsp` are "not
-#   current V2 Core permission actions". V2 auto-translates the legacy map, so
-#   nothing broke visibly — which is precisely the failure shape this guards.
+#   `bash`/`task`/`doom_loop`/`lsp` are not OpenCode 2 Core actions (`shell` and
+#   `subagent` are the names). OpenCode auto-translates the legacy map, so a wrong
+#   name breaks nothing visibly — which is precisely the failure shape this guards.
 #
 # WHY THE ACTION LIST IS PINNED RATHER THAN FETCHED
 #   The published schema (https://opencode.ai/config.json) does NOT enumerate
@@ -52,8 +50,8 @@ DEST="$ROOT/.opencode/agents"
 # is excluded: those are per-server names, not a fixed vocabulary.
 V2_ACTIONS="read edit glob grep shell subagent skill question webfetch websearch external_directory execute"
 
-# Keys that existed only in the deprecated V1 `permission` map (or never existed).
-# Any of these in generator output means the V2 migration regressed.
+# Names that are not Core actions (legacy `permission` map keys, or never real).
+# Any of these in generator output is a regression.
 FORBIDDEN="bash task doom_loop lsp list todowrite write"
 
 [[ -f "$GEN" ]] || { echo "ERROR: generator not found at $GEN" >&2; exit 2; }
@@ -66,7 +64,7 @@ in_list() { case " $2 " in *" $1 "*) return 0 ;; *) return 1 ;; esac; }
 fail=0
 for k in $emitted; do
   if in_list "$k" "$FORBIDDEN"; then
-    echo "ERROR: OPENCODE_ACTIONS emits '$k', a V1-only key. V2 names are shell/subagent; doom_loop, lsp, list, todowrite and write do not exist." >&2
+    echo "ERROR: OPENCODE_ACTIONS emits '$k', not a Core action. The names are shell/subagent; doom_loop, lsp, list, todowrite and write do not exist." >&2
     fail=1
   elif ! in_list "$k" "$V2_ACTIONS"; then
     echo "ERROR: OPENCODE_ACTIONS emits '$k', which is not an OpenCode 2 Core permission action." >&2
@@ -83,13 +81,13 @@ if [[ -d "$DEST" ]]; then
     [[ -e "$f" ]] || continue
     gen_count=$((gen_count + 1))
     if awk 'NR==1&&/^---/{fm=1;next} fm&&/^---/{exit} fm&&/^permission:/{found=1} END{exit !found}' "$f"; then
-      echo "ERROR: $(basename "$f") carries the deprecated V1 'permission:' map; V2 output is a 'permissions:' ruleset." >&2
+      echo "ERROR: $(basename "$f") carries the deprecated 'permission:' map; output must be a 'permissions:' ruleset." >&2
       fail=1
     fi
     while IFS= read -r act; do
       [[ -n "$act" ]] || continue
       if in_list "$act" "$FORBIDDEN"; then
-        echo "ERROR: $(basename "$f") has a rule for '$act', a V1-only key." >&2; fail=1
+        echo "ERROR: $(basename "$f") has a rule for '$act', a non-Core action." >&2; fail=1
       elif ! in_list "$act" "$V2_ACTIONS"; then
         echo "ERROR: $(basename "$f") has a rule for '$act', which is not an OpenCode 2 Core action." >&2; fail=1
       fi
@@ -97,7 +95,7 @@ if [[ -d "$DEST" ]]; then
   done
 fi
 if [[ -d "$ROOT/.opencode/agent" ]] && compgen -G "$ROOT/.opencode/agent/*.md" >/dev/null; then
-  echo "ERROR: .opencode/agent/ (singular, the OpenCode 1 output dir) still holds agents; V2 reads both dirs and would load them twice." >&2
+  echo "ERROR: .opencode/agent/ (singular, an older release's output dir) still holds agents; OpenCode 2 reads both dirs and would load them twice." >&2
   fail=1
 fi
 
@@ -119,7 +117,7 @@ eff=defs.get("Permission.Effect",{}).get("enum")
 if sorted(eff or [])!=["allow","ask","deny"]:
     print("DRIFT: Permission.Effect enum is now %s" % eff)
 if not d["properties"].get("permission",{}).get("deprecated"):
-    print("NOTE: top-level V1 `permission` is no longer marked deprecated")
+    print("NOTE: top-level legacy `permission` is no longer marked deprecated")
 ')"
     if [[ -z "$schema_note" ]]; then
       echo "published schema still defines Permission.Rule {action: string, resource, effect: allow|deny|ask} — action stays unenumerated, pin remains the authority"
@@ -167,4 +165,4 @@ fi
 
 if [[ "$fail" -eq 1 ]]; then exit 1; fi
 n=$(printf '%s\n' $emitted | grep -c .)
-echo "OpenCode permission actions OK ($n emitted by the generator, $gen_count generated agent(s) scanned, all OpenCode 2 Core actions, no V1 keys)"
+echo "OpenCode permission actions OK ($n emitted by the generator, $gen_count generated agent(s) scanned, all OpenCode 2 Core actions)"
