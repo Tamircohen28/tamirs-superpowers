@@ -5,6 +5,21 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [5.0.5] — 2026-10-31
+
+### Fixed
+
+- **`/repo-standards review` no longer reports a false S10-05 on a correctly tagged release.**
+  `standards-inventory.sh` took the highest `v*.*.*` tag, which also matches the generated
+  `v<version>-claude` distribution tag; that sorted past the release it mirrors and read as a
+  manifest/tag mismatch. It now skips `-claude` tags, as `check-manifest-version-alignment.sh`
+  already did.
+- **The GitHub repository policy matches the live ruleset.** `Repo contract (this repo)` and
+  `make validate (full local-parity gate)` are required on `master` and are now listed in
+  `config/github/repository-policy.json`, so `github-policy.sh audit` no longer reports a
+  conflict that would drop them. An `eval` workflow is classified never-cancel, so the nightly
+  paid `evals.yml` is no longer flagged for missing cancel-in-progress.
+
 ## [5.0.4] — 2026-10-24
 
 ### Fixed

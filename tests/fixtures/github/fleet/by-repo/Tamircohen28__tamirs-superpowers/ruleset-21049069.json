@@ -70,11 +70,11 @@
             "integration_id": 15368
           },
           {
-            "context": "Repo contract (this repo)",
+            "context": "make validate (full local-parity gate)",
             "integration_id": 15368
           },
           {
-            "context": "make validate (full local-parity gate)",
+            "context": "Repo contract (this repo)",
             "integration_id": 15368
           }
         ],

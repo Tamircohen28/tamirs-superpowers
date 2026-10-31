@@ -142,8 +142,8 @@
           "Manifest/tag version alignment",
           "Platform targets co-change",
           "HOL Plugin Scanner",
-          "Repo contract (this repo)",
-          "make validate (full local-parity gate)"
+          "make validate (full local-parity gate)",
+          "Repo contract (this repo)"
         ]
       },
       "rules": {
