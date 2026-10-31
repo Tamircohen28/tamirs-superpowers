@@ -5,6 +5,21 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [5.0.6] — 2026-10-31
+
+### Added
+
+- **A deliberate self-hosted runner can be waived per line.** S6-04 and `ip-scan.sh`
+  flagged every self-hosted runner, so a repo that chose one on purpose (private,
+  hosted minutes billing-blocked, trust gate in front) could never reach P1 = 0, and a
+  permanently red gate hides the next real P1. `# self-hosted-ok: <reason>` in the
+  comment part of a `runs-on` line now waives that line: `check-repo-hygiene.sh` reports
+  it in `self_hosted_waived` instead of setting `self_hosted_ci`, and `ip-scan.sh` drops
+  it from the self-hosted pattern only and prints a `Waived:` count. A waiver needs a
+  reason, counts only in a real YAML comment (a `#` after whitespace, outside quotes, so a
+  quoted runner label cannot waive itself), and never reaches the credential pattern.
+  `tests/test-self-hosted-waiver.sh` asserts each case in both directions.
+
 ## [5.0.5] — 2026-10-31
 
 ### Fixed

@@ -125,8 +125,21 @@ Manual: git tag matches declared version; release workflow; semver bump discipli
 | S6-01 | No stray docs/*.md at docs root | P1 |
 | S6-02 | No ticket-named md outside engineering | P2 |
 | S6-03 | Excessive empty directories | P3 |
-| S6-04 | Self-hosted CI | P1 |
+| S6-04 | Self-hosted CI (a deliberate runner is waived per line with `# self-hosted-ok: <reason>`; see below) | P1 |
 | S6-05 | No `.sh` files at repo root (use `scripts/`) | P2 |
+
+**S6-04 waiver.** Generated CI never uses a self-hosted runner. A repo that runs one
+on purpose (for example a private repo whose hosted minutes are blocked, with a
+trust gate in front of the runner) marks each such line:
+
+```yaml
+runs-on: [self-hosted, macOS, ARM64, my-repo]  # self-hosted-ok: <why>
+```
+
+The token counts only in a YAML comment on the line (a `#` at the start or after
+whitespace, outside quotes), and the reason after the colon is required. `check-repo-hygiene.sh` then leaves `self_hosted_ci` false and
+reports the line in `self_hosted_waived`. `ip-scan.sh` drops it from the self-hosted
+pattern only and prints a `Waived:` count. Any unwaived runner line still fires.
 
 ## S7 Employer IP
 
