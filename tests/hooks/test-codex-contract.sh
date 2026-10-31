@@ -309,17 +309,18 @@ section "hook_detect_platform names the host"
 # ===========================================================================
 detect() {
   local kv
-  ( unset PLUGIN_ROOT PLUGIN_DATA
+  ( unset PLUGIN_ROOT PLUGIN_DATA CODEX_HOME
     for kv in "$@"; do export "${kv?}"; done
     . "$ROOT/hooks/lib/hook-output.sh"
     hook_detect_platform "$PAYLOAD"
     printf '%s' "$HOOK_PLATFORM" )
 }
 PAYLOAD="$(cat "$FIXTURES/pre-tool-use-apply-patch-ordinary.json")"
-judge "PLUGIN_ROOT exported -> codex" codex "$(detect PLUGIN_ROOT="$ROOT" PAYLOAD="$PAYLOAD")"
-judge "no PLUGIN_* but a turn_id in the payload -> codex" codex "$(detect PAYLOAD="$PAYLOAD")"
-judge "no PLUGIN_*, no turn_id -> claude" claude "$(detect PAYLOAD="$(jq -c 'del(.turn_id)' "$FIXTURES/pre-tool-use-apply-patch-ordinary.json")")"
-judge "Cursor payload keys win over PLUGIN_ROOT" cursor "$(detect PLUGIN_ROOT="$ROOT" PAYLOAD='{"conversation_id":"c1","tool_name":"Write"}')"
-judge "empty payload, PLUGIN_ROOT exported -> codex" codex "$(detect PLUGIN_ROOT="$ROOT" PAYLOAD="")"
+judge "CODEX_HOME exported -> codex" codex "$(detect CODEX_HOME="$TMP/codex-home" PAYLOAD="$PAYLOAD")"
+judge "PLUGIN_ROOT alone is not the signal; the turn_id fallback still names codex" codex "$(detect PLUGIN_ROOT="$ROOT" PAYLOAD="$PAYLOAD")"
+judge "no CODEX_HOME but a turn_id in the payload -> codex" codex "$(detect PAYLOAD="$PAYLOAD")"
+judge "no CODEX_HOME, no turn_id -> claude" claude "$(detect PAYLOAD="$(jq -c 'del(.turn_id)' "$FIXTURES/pre-tool-use-apply-patch-ordinary.json")")"
+judge "Cursor payload keys win over CODEX_HOME" cursor "$(detect CODEX_HOME="$TMP/codex-home" PAYLOAD='{"conversation_id":"c1","tool_name":"Write"}')"
+judge "empty payload, CODEX_HOME exported -> codex" codex "$(detect CODEX_HOME="$TMP/codex-home" PAYLOAD="")"
 
 harness_summary

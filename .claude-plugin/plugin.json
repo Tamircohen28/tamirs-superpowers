@@ -1,7 +1,7 @@
 {
   "name": "tamirs-superpowers",
   "displayName": "Tamir's Superpowers",
-  "version": "5.0.1",
+  "version": "5.0.4",
   "description": "30 bundled skills, 10 specialist agents, smart worktree hooks, statusline, and MCP server stubs — plan, implement, review, debug, multi-agent setup, and audit code from one plugin.",
   "homepage": "https://github.com/Tamircohen28/tamirs-superpowers",
   "repository": "https://github.com/Tamircohen28/tamirs-superpowers",
@@ -26,6 +26,7 @@
   "types": "./mod/types/index.d.ts",
   "defaultEnabled": true,
   "mcpServers": "./.mcp.json",
+  "hooks": "./mod/modules.json",
   "skills": [
     "./skills/creative",
     "./skills/debugging",
@@ -38,14 +39,14 @@
   "settings": {
     "statusLine": {
       "type": "command",
-      "command": "s=\"${CLAUDE_PLUGIN_ROOT:-}/scripts/statusline.sh\"; [ -f \"$s\" ] || s=$(ls $HOME/.claude/plugins/cache/tamirs-marketplace/tamirs-superpowers/*/scripts/statusline.sh 2>/dev/null | sort -rV | head -1); [ -n \"$s\" ] && [ -f \"$s\" ] && bash \"$s\""
+      "command": "s=\"${CLAUDE_PLUGIN_ROOT}/scripts/statusline.sh\"; [ -f \"$s\" ] || s=$(ls $HOME/.claude/plugins/cache/tamirs-marketplace/tamirs-superpowers/*/scripts/statusline.sh 2>/dev/null | sort -rV | head -1); [ -n \"$s\" ] && [ -f \"$s\" ] && bash \"$s\""
     }
   },
   "userConfig": {
     "github_token": {
       "type": "string",
       "title": "GitHub token for the bundled github MCP server",
-      "description": "Optional. A GitHub personal access token with repo scope (the gh CLI can print its own). Leave blank to keep the github MCP server off - it refuses to start without one and nothing else needs it.",
+      "description": "Optional. A GitHub personal access token with repo scope. Leave blank to keep the github MCP server off - it refuses to start without one and nothing else needs it.",
       "sensitive": true
     },
     "pushover_token": {

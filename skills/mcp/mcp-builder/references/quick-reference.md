@@ -10,7 +10,7 @@ Loaded on demand during Phase 1 and Phase 3. This is a condensed cheatsheet — 
 | TS SDK README | https://raw.githubusercontent.com/modelcontextprotocol/typescript-sdk/main/README.md |
 | Python SDK README | https://raw.githubusercontent.com/modelcontextprotocol/python-sdk/main/README.md |
 | FastMCP docs | https://gofastmcp.com/getting-started/welcome |
-| MCP Inspector | npx @modelcontextprotocol/inspector |
+| MCP Inspector | npx @modelcontextprotocol/inspector@2.12.0 |
 
 ---
 

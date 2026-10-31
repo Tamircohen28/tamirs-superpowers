@@ -95,7 +95,7 @@ $ACCESS_VAR=your-token node dist/index.js
 ## Test with MCP Inspector
 
 \`\`\`bash
-npx @modelcontextprotocol/inspector dist/index.js
+npx @modelcontextprotocol/inspector@2.12.0 dist/index.js
 \`\`\`
 README
 
@@ -223,7 +223,7 @@ TSEOF
   echo "Next steps:"
   echo "  1. Replace API_BASE and implement real tools in src/index.ts"
   echo "  2. Run: cd $PROJECT && npm install && npm run build"
-  echo "  3. Test: npx @modelcontextprotocol/inspector dist/index.js"
+  echo "  3. Test: npx @modelcontextprotocol/inspector@2.12.0 dist/index.js"
 
 elif [[ "$LANG" == "py" ]]; then
   # --- Python skeleton ---

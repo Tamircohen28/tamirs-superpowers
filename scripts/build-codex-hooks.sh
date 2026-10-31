@@ -18,8 +18,10 @@
 #   Codex's hooks-file parser is strict at the top level: it accepts exactly
 #   `description` and `hooks` and rejects a file with any other key. Source-read, not
 #   run live, but either way no plugin hook runs on Codex from a file that carries
-#   `modules`. The Claude file cannot lose the key (Claude Code reads the mod from it),
-#   so Codex gets a generated copy without it, and the Codex manifests point there.
+#   `modules`. Codex therefore gets a generated copy without it, and the Codex manifests
+#   point there. Since 5.0.2 the key lives in mod/modules.json (the plugin directory holds
+#   every script that reaches a folder holding the file that names the mod), so the
+#   canonical file normally carries no `modules` at all; the generator still drops one.
 #
 # WHAT IS DROPPED, AND WHY
 #   - `modules`: the Claude Code mod loader; Codex runs no mod and its parser rejects

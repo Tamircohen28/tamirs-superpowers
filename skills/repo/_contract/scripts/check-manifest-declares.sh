@@ -29,8 +29,9 @@
 #   4. every repo path the value names exists. Manifest paths are plugin-root relative and
 #      this repo's plugin root is the repo root, so they resolve against --root (default
 #      $(pwd), where the registry's other validation commands already run).
-#      `${CLAUDE_PLUGIN_ROOT}/x` is that same path spelled for a runtime that has already
-#      installed the plugin, so the prefix is stripped before resolving.
+#      A path spelled from a host's plugin-root variable (any `${...ROOT}/` prefix: Claude
+#      Code's and Codex's differ in name only) is that same path for a runtime that has
+#      already installed the plugin, so the prefix is stripped before resolving.
 #
 # --or-discovers <dir>
 #   Some hosts fall back to a conventional folder when the manifest stays silent about a
@@ -127,14 +128,14 @@ declares() {
       [ -n "$p" ] || continue
       found=$(( found + 1 ))
       paths_examined=$(( paths_examined + 1 ))
-      resolved="${p#\$\{CLAUDE_PLUGIN_ROOT\}/}"
+      resolved="${p#\$\{*ROOT\}/}"
       resolved="${resolved#./}"
       if [ ! -e "$root/$resolved" ]; then
         echo "FAIL $manifest: '$field' names '$p', which does not exist in this tree" >&2
         rc=1
       fi
     done < <(jq -r --arg k "$field" '
-      [ .[$k] | .. | strings | select(test("^(\\./|\\$\\{CLAUDE_PLUGIN_ROOT\\}/)")) ] | .[]' "$file")
+      [ .[$k] | .. | strings | select(test("^(\\./|\\$\\{[A-Z_]*ROOT\\}/)")) ] | .[]' "$file")
 
     # `len` is an element count for a container and a character count for a string;
     # reporting "11 entries" for the 11-character path "./.mcp.json" would be a number
@@ -207,15 +208,15 @@ self_test() {
   trap 'rm -rf "$tmp"' RETURN
 
   mkdir -p "$tmp/skills/a" "$tmp/skills/b" "$tmp/scripts"
-  : > "$tmp/scripts/srv.sh"
+  : > "$tmp/scripts/github-mcp.sh"
   : > "$tmp/.mcp.json"
 
   cat > "$tmp/good.json" <<'JSON'
 { "skills": ["./skills/a", "./skills/b"], "mcpServers": "./.mcp.json",
   "license": "MIT", "empty_arr": [], "empty_obj": {}, "empty_str": "",
   "nulled": null, "missing_path": ["./skills/a", "./skills/nope"],
-  "nested": { "github": { "args": ["${CLAUDE_PLUGIN_ROOT}/scripts/srv.sh"] } },
-  "nested_bad": { "github": { "args": ["${CLAUDE_PLUGIN_ROOT}/scripts/gone.sh"] } } }
+  "nested": { "github": { "args": ["${CLAUDE_PLUGIN_ROOT}/scripts/github-mcp.sh"] } },
+  "nested_bad": { "github": { "args": ["./scripts/gone.sh"] } } }
 JSON
   printf 'not json' > "$tmp/broken.json"
 
@@ -235,7 +236,7 @@ JSON
   expect 0 "two existing skill dirs pass"        -- declares "$tmp" good.json skills
   expect 0 "a string path that exists passes"    -- declares "$tmp" good.json mcpServers
   expect 0 "a non-path string value passes"      -- declares "$tmp" good.json license
-  expect 0 "nested \${CLAUDE_PLUGIN_ROOT} path"  -- declares "$tmp" good.json nested
+  expect 0 "nested plugin-root path"             -- declares "$tmp" good.json nested
   expect 1 "an absent key fails"                 -- declares "$tmp" good.json subagents
   expect 1 "a null value fails"                  -- declares "$tmp" good.json nulled
   expect 1 "an empty array fails"                -- declares "$tmp" good.json empty_arr

@@ -154,7 +154,7 @@ Bug-fixes-and-reliability-only, per the official changelog — nothing to record
 
 ### 2.1.287
 
-**Mods —** Mods arrive: `mod/register.tsx` is a module of *function* hooks the engine runs in-process, named by the `modules` key of the same `hooks/hooks.json` the settings hooks live in, with its `$.state` contract at `mod/types/index.d.ts` (manifest `types`). Adopted in plugin 4.11.0; design, the per-feature fallback table and the validator's rules are in [`mods.md`](../architecture/mods.md). The same release added the opt-in built-in `cc-plugin-you-should-know` side-agent mod and made `/diff` and `AGENTS.md` loading built-in mods — reviewed, nothing here to change.
+**Mods —** Mods arrive: `mod/register.tsx` is a module of *function* hooks the engine runs in-process, named by the `modules` key of `mod/modules.json`, the mod's own hooks file, which the manifest's `hooks` field loads beside the settings hooks file (it sat in `hooks/hooks.json` until 5.0.1), with its `$.state` contract at `mod/types/index.d.ts` (manifest `types`). Adopted in plugin 4.11.0; design, the per-feature fallback table and the validator's rules are in [`mods.md`](../architecture/mods.md). The same release added the opt-in built-in `cc-plugin-you-should-know` side-agent mod and made `/diff` and `AGENTS.md` loading built-in mods — reviewed, nothing here to change.
 
 ---
 
