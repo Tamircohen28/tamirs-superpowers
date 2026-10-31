@@ -334,8 +334,8 @@
     },
     "opencode": {
       "platform": "opencode",
-      "supported_min": "2.2.3",
-      "supported_min_source": "The first release matching the OpenTUI 0.8 floor the TUI plugin targets: @opencode/plugin peers @opentui/core and @opentui/solid >=0.8.0 from 2.2.3. Earlier 2.x releases are not claimed; only 2.2.5 has been exercised live.",
+      "supported_min": "2.2.5",
+      "supported_min_source": "2.2.5 is the only release ever exercised live, and the bash-to-shell tool alias the guard relies on was observed only there. 2.2.3 is the first release whose @opencode/plugin peers @opentui/core and @opentui/solid >=0.8.0, but 2.2.3 and 2.2.4 are not validated; the floor can be lowered by validating them.",
       "validated_against": "2.2.5",
       "reviewed_through": "2.2.5",
       "latest_known": "2.2.5",
@@ -349,18 +349,15 @@
         "https://opencode.ai/config.json"
       ],
       "features_adopted": [
-        "skills-paths-config",
-        "recursive-skill-discovery-1.16.2",
-        "zero-level-skill-paths",
+        "skills-array-config",
         "generated-agent-adapters",
         "agent-permission-field",
         "no-plugin-runtime-dependency",
         "generated-custom-commands",
         "permission-key-schema-conformance",
-        "schema-unchanged-2.0.14-to-2.0.22",
-        "schema-unchanged-2.0.22-to-2.0.24",
         "skill-disable-model-invocation-reviewed-2.0.23",
-        "permission-keys-repinned-2026-10-02"
+        "permission-keys-repinned-2026-10-02",
+        "permission-keys-rechecked-2.2.5"
       ],
       "capabilities": [
         "git",
@@ -378,7 +375,7 @@
         "artifacts": "No artifact publishing surface.",
         "dynamic_workflows": "The Workflow tool is Claude-specific; no declared OpenCode equivalent.",
         "extension_install": "No git-URL extension install.",
-        "plugin_marketplace": "No plugin marketplace — install is by absolute skills.paths. Not by symlink: OpenCode does not follow them for skill discovery (see the skills row)."
+        "plugin_marketplace": "No plugin marketplace — install is by absolute paths in the `skills` array. Not by symlink: OpenCode does not follow them for skill discovery (see the skills row)."
       }
     },
     "gemini_cli": {

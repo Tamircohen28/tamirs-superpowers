@@ -3,7 +3,7 @@
 > ## OpenCode 2 only
 >
 > This adapter targets **OpenCode 2** (`@opencode/cli`, the `opencode.ai/v2/docs` line),
-> **2.2.3 or newer**. OpenCode 1 is not supported: V2 does not run V1 plugins, replaced the
+> **2.2.5 or newer**. OpenCode 1 is not supported: V2 does not run V1 plugins, replaced the
 > `permission` map with `permissions` rules, and reads `skills` paths from the working
 > directory. Every file this repo ships for OpenCode is written to the V2 shape. See
 > [Upgrading from OpenCode 1](#upgrading-from-opencode-1).
@@ -14,7 +14,10 @@
 > curl -fsSL https://opencode.ai/v2/install | bash
 > ```
 >
-> The V2 installer replaces the V1 binary; both are invoked as `opencode`.
+> Per the official [migration guide](https://opencode.ai/v2/docs/migrate-v1/), OpenCode 1 and
+> OpenCode 2 both use the `opencode` command and are no longer installed side by side by
+> default; remove a package-managed V1 installation before installing V2, because the V2
+> curl installer replaces the V1 binary.
 
 **Platform:** OpenCode. **Surface:** OpenCode CLI, the terminal client — registry id
 `opencode`. Every measurement below was taken there. OpenCode also ships a desktop/web
@@ -24,7 +27,7 @@ guide. See [platform differences](../platform-differences.md#unverified-surfaces
 | | |
 |---|---|
 | **Validated against** | `@opencode/cli` **2.2.5** (npm `latest`), live, without a provider key (see [Verify](#verify)): config loads, all 10 agent adapters resolve with their rules, the guard plugin loads, the `github` MCP server is declared and attempted |
-| **Minimum supported** | **2.2.3** — the first release whose `@opencode/plugin` peers `@opentui/core` / `@opentui/solid` `>=0.8.0`, which the TUI plugin targets (`platform-targets.json` `supported_min`); only 2.2.5 has been run |
+| **Minimum supported** | **2.2.5** — the only release ever run, and the only one where the `bash`-to-`shell` tool alias the guard relies on was observed (`platform-targets.json` `supported_min`). 2.2.3 and 2.2.4 are not validated; the floor can be lowered by validating them |
 | **Manifest** | none — OpenCode has no plugin-manifest bundle; `opencode.json` is the project config |
 | **Config** | `opencode.json` (`skills`, `plugins`, `mcp.servers`, `permissions`) + `.opencode/agents/` + `.opencode/commands/` + `platforms/opencode/plugin/` |
 | **Official docs** | [Skills](https://opencode.ai/v2/docs/skills/) · [Config](https://opencode.ai/v2/docs/config/) · [Agents](https://opencode.ai/v2/docs/agents/) · [Permissions](https://opencode.ai/v2/docs/permissions/) · [Plugins](https://opencode.ai/v2/docs/plugins/) · [Building plugins](https://opencode.ai/v2/docs/build/plugins) · [CLI plugins](https://opencode.ai/v2/docs/build/plugins/cli) · [MCP servers](https://opencode.ai/v2/docs/mcp-servers) · [JSON Schema](https://opencode.ai/config.json) |
@@ -199,7 +202,7 @@ the host and caught only by the check.
 
 ### Commands — every user-invocable skill as `/name`
 
-`.opencode/commands/` holds **26 generated commands**, one per user-invocable skill,
+`.opencode/commands/` holds **27 generated commands**, one per user-invocable skill,
 listed in the TUI and invoked as `/plan-dev`, `/pr-dev`, `/retro` and so on. Arguments
 pass through as `$ARGUMENTS`:
 
@@ -389,7 +392,7 @@ bash tests/test-opencode-adapter.sh     # platform contract shared with tests/co
 
 ## Upgrading from OpenCode 1
 
-This repo supports OpenCode **2.2.3 and newer** only. On OpenCode 1, upgrade with the
+This repo supports OpenCode **2.2.5 and newer** only. On OpenCode 1, upgrade with the
 official guide, <https://opencode.ai/v2/docs/migrate-v1/>, then re-check with
 [Verify](#verify). A leftover `.opencode/agent/` (singular) tree from an older checkout
 would load every agent twice; `bash scripts/build-opencode-agents.sh` removes it (that
