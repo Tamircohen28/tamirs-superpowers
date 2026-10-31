@@ -4,7 +4,7 @@ Per-host release notes the maintainers reviewed against this plugin: what each h
 
 | Host | File | Status |
 |---|---|---|
-| Claude Code (and Claude Desktop, the same distribution) | [`claude-code.md`](claude-code.md) | 2.1.234 through 2.1.307 |
+| Claude Code (and Claude Desktop, the same distribution) | [`claude-code.md`](claude-code.md) | 2.1.234 through 2.1.312 |
 | Codex CLI, Cursor, Gemini CLI, OpenCode | — | not yet split out; their per-cycle review text still lives in `platform-targets.json`'s `verification_method` fields |
 
 **What is and is not authoritative.** These files are narrative. The **evidence-bearing record** stays [`platform-targets.json`](../build-and-release/platform-targets.json): per target, `validated_against` (last live run), `reviewed_through` / `latest_known` (changelog read), `verified_on`, and the dated `verification_method` text; the root `.claude-code-version`, `.codex-version` and `.cursor-version` pins mirror it and `scripts/check-platform-version-pins.sh` holds them to it. When a note here and that record disagree, the record wins and the note is corrected. Capability facts belong in [`core/capabilities/platforms.json`](../../../core/capabilities/platforms.json), not here.
