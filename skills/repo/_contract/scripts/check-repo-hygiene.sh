@@ -40,9 +40,30 @@ find "$ROOT" \
 done > "$TMPDIRS"
 empty_dirs=$(wc -l < "$TMPDIRS" | tr -d ' ')
 
-if grep -rq 'runs-on:\s*\[self-hosted' "$ROOT/.github" 2>/dev/null; then
-  self_hosted_ci=1
-fi
+# A self-hosted runner a repo chose on purpose is waived on its own line, in the
+# comment part only: `runs-on: [self-hosted, …]  # self-hosted-ok: <reason>`.
+# The reason is required, so a waiver says why. Same rule as `action-pin-ok:` in
+# check-action-pinning.sh, and ip-scan.sh honours the identical form; waived lines
+# are counted, not hidden.
+#
+# "Comment" means a YAML comment: a `#` at the start or after whitespace, outside
+# quotes. Splitting at the first `#` would let a quoted runner label such as
+# `"# self-hosted-ok: x"` waive its own line.
+self_hosted_ok() {
+  local s waiver='(^|[[:space:]])#.*self-hosted-ok:[[:space:]]*[^[:space:]]'
+  s="$(printf '%s' "$1" | sed -E "s/\"[^\"]*\"//g; s/'[^']*'//g")"
+  [[ "$s" =~ $waiver ]]
+}
+self_hosted_waived=0
+while IFS= read -r hit; do
+  [[ -z "$hit" ]] && continue
+  content="${hit#*:}"; content="${content#*:}"          # drop "path:line:"
+  if self_hosted_ok "$content"; then
+    self_hosted_waived=$((self_hosted_waived + 1))
+  else
+    self_hosted_ci=1
+  fi
+done < <(grep -rnE 'runs-on:[[:space:]]*\[self-hosted' "$ROOT/.github" 2>/dev/null || true)
 
 jq -nc \
   --arg root "$ROOT" \
@@ -50,5 +71,6 @@ jq -nc \
   --argjson ticket_named "$ticket_named" \
   --argjson empty_dirs "$empty_dirs" \
   --argjson self_hosted_ci "$self_hosted_ci" \
+  --argjson self_hosted_waived "$self_hosted_waived" \
   --argjson root_shell_scripts "$root_shell_scripts" \
-  '{root: $root, hygiene: {misplaced_top_level_docs: $misplaced_docs, ticket_named_outside_engineering: $ticket_named, empty_dirs: $empty_dirs, self_hosted_ci: ($self_hosted_ci == 1), root_shell_scripts: $root_shell_scripts}}'
+  '{root: $root, hygiene: {misplaced_top_level_docs: $misplaced_docs, ticket_named_outside_engineering: $ticket_named, empty_dirs: $empty_dirs, self_hosted_ci: ($self_hosted_ci == 1), self_hosted_waived: $self_hosted_waived, root_shell_scripts: $root_shell_scripts}}'
