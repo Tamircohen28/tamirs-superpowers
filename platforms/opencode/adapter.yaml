@@ -22,7 +22,7 @@ validation:
   command: bash tests/test-opencode-v2.sh
 
 notes: >-
-  OpenCode 2 only (@opencode/cli; 1.x is not supported — `opencode upgrade --major`).
+  OpenCode 2 only (@opencode/cli; 1.x is not supported; migrate with https://opencode.ai/v2/docs/migrate-v1/).
   skills is `native` — the canonical skills/ tree is read in place via the
   opencode.json `skills` array (paths resolve from the working directory, so
   start OpenCode at the repo root or use an absolute path in your global

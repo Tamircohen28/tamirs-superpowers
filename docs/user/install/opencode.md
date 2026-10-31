@@ -1,25 +1,23 @@
 # Install on OpenCode CLI
 
-> ## ⚠️ OpenCode 2 only
+> ## OpenCode 2 only
 >
-> This adapter targets **OpenCode 2** (`@opencode/cli`, the `opencode.ai/v2/docs` line).
-> **OpenCode 1.x is no longer supported** by this repo: V2 does not run V1 plugins
-> ("V1 plugin implementations do not run in V2"), deprecated the 15-key `permission`
-> map, changed the default agent mode to `primary`, allows access outside the project by
-> default where 1.x asked, and reads `skills` paths from the working directory. Every
-> file this repo ships for OpenCode is now written to the V2 shape and is not checked
-> against 1.x at all.
->
-> Upgrade an existing 1.x install, or install V2 fresh:
+> This adapter targets **OpenCode 2** (`@opencode/cli`, the `opencode.ai/v2/docs` line),
+> **2.2.5 or newer**. OpenCode 1 is not supported: V2 does not run V1 plugins, replaced the
+> `permission` map with `permissions` rules, and reads `skills` paths from the working
+> directory. Every file this repo ships for OpenCode is written to the V2 shape. See
+> [Upgrading from OpenCode 1](#upgrading-from-opencode-1).
 >
 > ```bash
-> opencode upgrade --major                 # from any 1.19.x
 > npm install -g @opencode/cli             # or: bun install -g --trust @opencode/cli
 > brew install anomalyco/tap/opencode-v2
 > curl -fsSL https://opencode.ai/v2/install | bash
 > ```
 >
-> `opencode-ai` on npm is still the **1.x** package, and `opencode.ai/install` still pulls 1.x.
+> Per the official [migration guide](https://opencode.ai/v2/docs/migrate-v1/), OpenCode 1 and
+> OpenCode 2 both use the `opencode` command and are no longer installed side by side by
+> default; remove a package-managed V1 installation before installing V2, because the V2
+> curl installer replaces the V1 binary.
 
 **Platform:** OpenCode. **Surface:** OpenCode CLI, the terminal client — registry id
 `opencode`. Every measurement below was taken there. OpenCode also ships a desktop/web
@@ -28,8 +26,8 @@ guide. See [platform differences](../platform-differences.md#unverified-surfaces
 
 | | |
 |---|---|
-| **Validated against** | `@opencode/cli` **2.0.32**, live, without a provider key (see [Verify](#verify)): config loads, all 10 agent adapters resolve with their rules, the guard plugin loads, the `github` MCP server is declared and attempted |
-| **Minimum supported** | **2.0.30** — the first release whose published schema accepts the V2 shapes this repo writes (`permissions`, `plugins`, `mcp.servers`); only 2.0.32 was run |
+| **Validated against** | `@opencode/cli` **2.2.5** (npm `latest`), live, without a provider key (see [Verify](#verify)): config loads, all 10 agent adapters resolve with their rules, the guard plugin loads, the `github` MCP server is declared and attempted |
+| **Minimum supported** | **2.2.5** — the only release ever run, and the only one where the `bash`-to-`shell` tool alias the guard relies on was observed (`platform-targets.json` `supported_min`). 2.2.3 and 2.2.4 are not validated; the floor can be lowered by validating them |
 | **Manifest** | none — OpenCode has no plugin-manifest bundle; `opencode.json` is the project config |
 | **Config** | `opencode.json` (`skills`, `plugins`, `mcp.servers`, `permissions`) + `.opencode/agents/` + `.opencode/commands/` + `platforms/opencode/plugin/` |
 | **Official docs** | [Skills](https://opencode.ai/v2/docs/skills/) · [Config](https://opencode.ai/v2/docs/config/) · [Agents](https://opencode.ai/v2/docs/agents/) · [Permissions](https://opencode.ai/v2/docs/permissions/) · [Plugins](https://opencode.ai/v2/docs/plugins/) · [Building plugins](https://opencode.ai/v2/docs/build/plugins) · [CLI plugins](https://opencode.ai/v2/docs/build/plugins/cli) · [MCP servers](https://opencode.ai/v2/docs/mcp-servers) · [JSON Schema](https://opencode.ai/config.json) |
@@ -37,7 +35,7 @@ guide. See [platform differences](../platform-differences.md#unverified-surfaces
 Check your version:
 
 ```bash
-opencode --version      # opencode v2.0.32
+opencode --version      # opencode v2.2.5
 ```
 
 ## Where everything lives
@@ -45,7 +43,7 @@ opencode --version      # opencode v2.0.32
 | What | Where | How it reaches OpenCode |
 |---|---|---|
 | The 30 skills | `skills/<domain>/<name>/SKILL.md`, canonical, read in place | `opencode.json` `skills` array (11 entries: six domains plus the four `repo` skills listed one by one) |
-| 10 specialist agents | `.opencode/agents/*.md`, **generated** from `agents/*.md` | OpenCode 2's own agent directory (plural; the 1.x `agent/` singular dir is gone) |
+| 10 specialist agents | `.opencode/agents/*.md`, **generated** from `agents/*.md` | OpenCode 2's own agent directory (plural) |
 | 27 slash commands | `.opencode/commands/*.md`, **generated** from the user-invocable skills | OpenCode 2's command directory |
 | The three core guards | `platforms/opencode/plugin/index.ts` → `guard.ts` (server plugin) | `opencode.json` `plugins: ["./platforms/opencode/plugin"]` |
 | Status line + objective pane | `platforms/opencode/plugin/tui.ts` → `tui.tsx` (TUI plugin) | same directory; the terminal client loads `tui` from every configured plugin |
@@ -129,8 +127,7 @@ entry" — so the plugin keeps loading from a subdirectory even when the skills 
 V2 also discovers `.agents/skills/` and `.claude/skills/` natively, "from the current
 directory up to the project root", with no config entry at all. This repo may ship an
 `.agents/skills/` mirror for other hosts; whether OpenCode 2 follows **symlinks** there is
-unverified (1.18.11 did not follow them at any level, and that was never re-measured on
-V2), so do not rely on it for OpenCode until it is.
+unverified, so do not rely on it for OpenCode until it is.
 
 For a project *next to* the clone, a per-project `opencode.json` with
 `"skills": ["../tamirs-superpowers/skills/toolkit"]` works only when OpenCode is started
@@ -154,7 +151,7 @@ Canonical `agents/*.md` do **not** load on OpenCode as-is: the canonical `tools:
 string is not a V2 field at all, `model: sonnet` is an alias, `name:` is not an agent
 property (the id comes from the filename), and a V2 custom agent that omits `mode`
 becomes a **primary** agent the user can select. So this repo ships pre-translated
-adapters in **`.opencode/agents/`** (plural — V2's directory; the 1.x `agent/` singular is
+adapters in **`.opencode/agents/`** (plural — V2's directory; a stale `agent/` singular tree is
 removed by the generator because V2 reads both and would load every agent twice):
 
 ```yaml
@@ -179,7 +176,7 @@ field is an allowlist, and OpenCode 2 starts every agent from a base policy of
 tools would leave everything else enabled — a read-only reviewer would gain `shell`,
 `edit` and `subagent`. The generator therefore emits a `deny` rule for every Core action
 (`read edit glob grep shell subagent skill question webfetch websearch`) the canonical file
-does not grant. It emits **no `allow` rules**: measured on 2.0.32, an agent's rules are
+does not grant. It emits **no `allow` rules**: measured on 2.2.5, an agent's rules are
 appended after the base policy and "the last matching rule wins", so a `read * allow`
 would land after the host's own `read *.env → ask` and silently disable it, and a
 `shell * allow` would override a `shell * ask` from your global config. A granted action
@@ -187,9 +184,9 @@ needs no rule — it is already allowed — so the allowlist is expressed purely
 which can only narrow.
 
 `external_directory: ask` is emitted for every agent because V2 **allows** access outside
-the project by default where 1.x asked; this repo's worktree invariant needs that prompt.
+the project by default; this repo's worktree invariant needs that prompt.
 
-`bash`, `task`, `doom_loop`, `lsp`, `list`, `todowrite` — the 1.x keys — never appear;
+`bash`, `task`, `doom_loop`, `lsp`, `list`, `todowrite` — the retired V1 `permission` keys — never appear;
 `scripts/check-opencode-permission-keys.sh` fails if they do, and `tests/test-opencode-v2.sh`
 checks the generated files themselves.
 
@@ -199,13 +196,13 @@ make opencode-agents-check    # fail if it has drifted, or the stale dir exists
 ```
 
 **Never hand-edit `.opencode/agents/*.md`.** Every file carries a generated-file header
-naming its source. Note that 2.0.32 **ignores** an unknown frontmatter key rather than
+naming its source. Note that V2 **ignores** an unknown frontmatter key rather than
 rejecting the file (measured with a bogus key), so a hand edit that drifts is silent on
 the host and caught only by the check.
 
 ### Commands — every user-invocable skill as `/name`
 
-`.opencode/commands/` holds **26 generated commands**, one per user-invocable skill,
+`.opencode/commands/` holds **27 generated commands**, one per user-invocable skill,
 listed in the TUI and invoked as `/plan-dev`, `/pr-dev`, `/retro` and so on. Arguments
 pass through as `$ARGUMENTS`:
 
@@ -263,17 +260,17 @@ objective's task rows, opened with **`/objective`** or from the command palette.
 `.dev-files/objectives/<id>/` from the **local** checkout — against a remote server it
 shows the local clone's objective. **Rate-limit windows are not shown**: OpenCode
 documents no rate-limit payload anywhere a TUI plugin can read (not on the session, not in
-any `session.*` event, checked against `@opencode/client` 2.0.32), so the `switch-dev`
+any `session.*` event, checked against `@opencode/client`), so the `switch-dev`
 handoff band the Claude mod raises from them has no OpenCode source yet; the plugin
 shows what the host exposes and says so in its header rather than inventing a figure.
 
 The plugin needs **no install step**: OpenCode resolves `@opencode/plugin` itself at
 runtime. `platforms/opencode/plugin/package.json` exists for the type-check only
-(`npm install && npm run check` runs `tsc --noEmit` against `@opencode/plugin` 2.0.32;
+(`npm install && npm run check` runs `tsc --noEmit` against `@opencode/plugin` 2.2.5;
 `tests/test-opencode-v2.sh` does it in a temp dir when the network allows). The decision
 functions are pure (`rules.ts`) and unit-tested with plain Node, no install.
 
-**What is verified and what is not.** On 2.0.32, `opencode plugin list` shows
+**What is verified and what is not.** On 2.2.5, `opencode plugin list` (warm service, see [Verify](#verify)) shows
 `tamirs-superpowers.guard` loaded from `platforms/opencode/plugin/index.ts` — the server
 imported the module, resolved `@opencode/plugin`, and ran `Plugin.define`. Whether a
 `deny` set in `permission.hook("evaluate")` stops the edit with the message shown, and
@@ -288,7 +285,7 @@ registry records `hooks` as `adapter` on that basis, with that caveat.
 `session.skill.activated`, `session.step.ended` / `session.step.failed` and
 `session.usage.recorded` as the same JSONL the collector writes for Claude Code. Add its
 absolute path to *your* `plugins` list; it is deliberately not in this repo's
-`opencode.json`. Request bodies cannot be captured on V2 (that was a 1.x transform hook).
+`opencode.json`. Request bodies cannot be captured on V2.
 
 ## MCP servers
 
@@ -315,7 +312,7 @@ export GITHUB_PERSONAL_ACCESS_TOKEN=github_pat_…
 ```
 
 Without it the script exits with a JSON-RPC error and `opencode mcp list` shows
-`✗ github failed: … github_token is not set` (measured on 2.0.32; the message names the
+`✗ github failed: … github_token is not set` (measured on 2.2.5; the message names the
 Claude Code configure command because the script is shared, the fix here is the export).
 To switch the server off in your own config instead: `"mcp": { "servers": { "github": {
 "disabled": true } } }`. The `command` path is relative; it resolves when OpenCode runs
@@ -333,44 +330,58 @@ and cannot be bypassed with `PM_ALLOW_PROTECTED` — edit the config for an inte
 
 ## Verify
 
-Everything below was run on `@opencode/cli` 2.0.32 (`npm install -g @opencode/cli`),
-with a fresh `HOME`, **without a provider key and without logging in**, from this repo's
-root. These are the commands and what they printed.
+Run on `@opencode/cli` 2.2.5 (`npm install -g @opencode/cli`) with a fresh `HOME` and
+XDG directories, a private service port (`opencode service set port <unused port>`),
+**no provider key and no login**, from this repo's root. Use **service mode** for the
+`list` commands: the service loads a directory lazily, so the **first** `plugin list` /
+`mcp list` on a fresh service prints nothing. Call each **twice, about 5 seconds
+apart**, and read the second. `--standalone` never lists plugins or MCP servers
+(`No plugins found` / `No MCP servers configured`), so do not use it for those two;
+`debug config` and `debug agents` work either way.
 
 ```bash
 opencode --version
-# opencode v2.0.32
+# opencode v2.2.5
 
-opencode debug config      # configuration SOURCES, not a resolved config
-# [ { "type": "directory", "path": "~/.config/opencode" },
-#   { "type": "document",  "path": "<clone>/opencode.json", "info": { "$schema", "mcp", "permissions", "plugins", "skills" } },
-#   { "type": "directory", "path": "<clone>/.opencode" } ]
-
-opencode debug agents      # every resolved agent, JSON
-# built-ins (build, plan, general, explore, …) plus the ten adapters, each with
-# "mode": "subagent", the base policy, then this repo's deny rules and
-# { "action": "external_directory", "resource": "*", "effect": "ask" } last
-
-opencode plugin list
+opencode service start
+opencode plugin list; opencode mcp list     # first call: cold service
+# No plugins found
+# No MCP servers configured
+sleep 5
+opencode plugin list                        # second call
 # ID                        VERSION  SOURCE
-# tamirs-superpowers.guard  local    <clone>/platforms/opencode/plugin/index.ts
-
+# tamirs-superpowers.guard  local    <clone>/platforms/opencode/plugin
 opencode mcp list
 # ✗ github  failed: Connection closed: MCP server process exited with code 1: {"jsonrpc":"2.0","error":{"code":-32000,"message":"github_token is not set. …"}}
+
+opencode debug config      # configuration SOURCES, not a resolved config
+# [ { "type": "directory", "path": "<config dir>/opencode" },
+#   { "type": "document",  "path": "<clone>/opencode.json", "info": { "$schema", "permissions", … } }, … ]
+# the document's keys include mcp, permissions, plugins and skills
+
+opencode debug agents      # every resolved agent, JSON
+# built-ins plus the ten adapters, each with "mode": "subagent", the base policy,
+# then this repo's deny rules and { "action": "external_directory", "resource": "*", "effect": "ask" } last
 ```
 
-Three things the V2 CLI **cannot** show, recorded so nobody looks for them:
+In a linked git worktree, `plugin list` shows the guard from both the worktree path and
+the main checkout (same id). Whether the guard then runs twice is not verified.
 
-- **Skill discovery cannot be enumerated.** `debug skill` was removed in V2 and
-  `debug agent <name>` became `debug agents`. The API has a `skill.list` operation, but
-  `opencode api --standalone skill.list` returned `"data": []` on 2.0.32 even while
-  `debug agents` listed every adapter (so did `agent.list`); the standalone route does not
-  appear to load the location's catalog before answering. Per-skill discovery therefore
-  stays **unverified** on V2, as `platform-targets.json` records.
-- **`debug agents` returned `[]` on its first invocation in a fresh `HOME`** and the full
-  list on the next; the background service was still starting. Run it twice.
+Things the V2 CLI **cannot** show, recorded so nobody looks for them:
+
+- **Skill discovery cannot be verified from the CLI.** V2 has no skill-listing debug command
+  and `opencode api skill.list` returns only the three built-in skills, even for a
+  control project with a configured skills path. Per-skill discovery stays **unverified**,
+  as `platform-targets.json` records.
+- **`debug agents` can print `[]` on the first call** against a service that is still
+  starting. Run it again.
 - The TUI plugin is loaded by the terminal client, not the server, so it does not appear
   in `opencode plugin list`; `/objective` in a running TUI is the check.
+- Whether a permission `deny` or a thrown shell hook actually stops an action needs a
+  provider key and was not exercised.
+
+V2 reads `AGENTS.md` and does **not** read `CLAUDE.md`. Terminal-client settings live in
+`~/.config/opencode/cli.json`, separate from `opencode.json`.
 
 From a clone of this repo, the full V2 contract runs as:
 
@@ -378,6 +389,14 @@ From a clone of this repo, the full V2 contract runs as:
 bash tests/test-opencode-v2.sh          # V2 shapes, plugin unit tests + type-check, config, usage-capture
 bash tests/test-opencode-adapter.sh     # platform contract shared with tests/contract/run.sh
 ```
+
+## Upgrading from OpenCode 1
+
+This repo supports OpenCode **2.2.5 and newer** only. On OpenCode 1, upgrade with the
+official guide, <https://opencode.ai/v2/docs/migrate-v1/>, then re-check with
+[Verify](#verify). A leftover `.opencode/agent/` (singular) tree from an older checkout
+would load every agent twice; `bash scripts/build-opencode-agents.sh` removes it (that
+cleanup stays for one more release).
 
 ## Update
 
@@ -441,14 +460,14 @@ which is the authoritative registry; `platforms/opencode/adapter.yaml` is the th
 | Skills | ✅ native | Canonical `skills/` read in place via the `skills` array. Paths resolve from the working directory. |
 | Skill auto-invocation | ❓ unknown | Discovery is configured; automatic selection is not measured. Use `/<skill-name>`, `@skill-id`, or name the skill. |
 | Custom commands | ⚙️ adapter | Generated `.opencode/commands/` — 27 user-invocable skills as `/name`, `subagent: false`; drift enforced by `make opencode-commands-check`. |
-| Subagents | ⚙️ adapter | Generated `.opencode/agents/` with V2 `permissions` rulesets; all ten resolve on 2.0.32 (`debug agents`); drift enforced by `make opencode-agents-check`. |
+| Subagents | ⚙️ adapter | Generated `.opencode/agents/` with V2 `permissions` rulesets; all ten resolve on 2.2.5 (`debug agents`); drift enforced by `make opencode-agents-check`. |
 | Parallel subagents | ❓ unknown | V2's `subagent` tool takes `background: true` ("returns immediately and notifies the parent when the child finishes") and `experimental.subagent_depth` defaults to 1, so an orchestrator must be the primary agent and fan-out is one background child per worker; whether several foreground calls in one turn run concurrently is undocumented and was not run live. Assume sequential. |
 | MCP | ✅ native | `mcp.servers.github` declared in `opencode.json`; token via `GITHUB_PERSONAL_ACCESS_TOKEN`. |
-| Hooks | ⚙️ adapter | No shell hooks. The three core guards are the V2 server plugin in `platforms/opencode/plugin/`; it loads on 2.0.32, its denies are unverified live. |
+| Hooks | ⚙️ adapter | No shell hooks. The three core guards are the V2 server plugin in `platforms/opencode/plugin/`; it loads on 2.2.5, its denies are unverified live. |
 | Statusline | ⚙️ adapter | The TUI plugin's `prompt.footer.status` line (context fill, cost, objective) and `session.panel` objective pane; no rate-limit figures, none exist on OpenCode. |
 | Marketplace install | ❌ unsupported | No plugin marketplace. Install is by path. |
 | `.mcp.json` auto-wiring | ❌ unsupported | Declared by hand in `opencode.json` instead. |
-| Symlinked skill trees | ❓ unknown on V2 | Not followed at any level on 1.18.11; not re-measured on V2. Use real paths. |
+| Symlinked skill trees | ❓ unknown | Not measured on V2. Use real paths. |
 | Worktree isolation | ⚙️ emulated | The skill drives `git worktree` through the shell; the guard plugin enforces the invariant under an objective. |
 | Session transcripts | ❓ unknown | `session-report` targets the Claude JSONL format only and should refuse rather than guess. |
 

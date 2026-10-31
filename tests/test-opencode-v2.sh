@@ -239,20 +239,45 @@ judge "the plugin still imports nothing at module scope" "" "$(grep -nE '^import
 section "live OpenCode CLI (optional)"
 ver=""
 harness_have opencode && ver="$(opencode --version 2>/dev/null | head -1)"
-if [ -n "$ver" ] && [ "${ver%%.*}" -lt 2 ] 2>/dev/null; then
-  # `plugin list` and `debug agents` are OpenCode 2 commands; a 1.x CLI answers
-  # both with help text, which would read as three failures. An unsupported CLI
-  # is skipped like an absent one (same rule as tests/test-opencode-adapter.sh).
-  skip "live OpenCode CLI" "opencode $ver is pre-2.x — these probes need OpenCode 2; upgrade to measure them"
-elif harness_have opencode; then
+# `opencode --version` prints "opencode v2.2.5" (or a bare "v2.2.5" on older builds).
+oc_major="$(printf '%s' "$ver" | sed -n 's/^[^0-9]*\([0-9][0-9]*\)\..*/\1/p')"
+if [ "$oc_major" = 2 ]; then
   printf '  ..   %s detected\n' "$ver"
-  plist="$(cd "$ROOT" && opencode plugin list 2>/dev/null)"
-  judge "opencode plugin list shows the guard plugin" yes "$(has "$plist" 'tamirs-superpowers.guard')"
-  agents_json="$(cd "$ROOT" && opencode debug agents 2>/dev/null)"
+  # Hermetic: a throwaway HOME and XDG tree, and a service port of our own, so this never
+  # reads, configures or stops the maintainer's real OpenCode service. Only the process
+  # listening on OUR port is ever killed.
+  live_home="$(harness_tmpdir)"
+  live_port="$(python3 -c 'import socket; s=socket.socket(); s.bind(("127.0.0.1",0)); print(s.getsockname()[1]); s.close()')"
+  oc() {
+    HOME="$live_home" XDG_CONFIG_HOME="$live_home/.config" XDG_DATA_HOME="$live_home/.local/share" \
+      XDG_CACHE_HOME="$live_home/.cache" XDG_STATE_HOME="$live_home/.local/state" \
+      opencode "$@"
+  }
+  live_cleanup() {
+    oc service stop >/dev/null 2>&1 || true
+    local pid
+    pid="$(lsof -ti "tcp:$live_port" -sTCP:LISTEN 2>/dev/null | head -1)"
+    if [ -n "$pid" ]; then kill "$pid" 2>/dev/null; fi
+    return 0
+  }
+  trap 'live_cleanup; _harness_cleanup' EXIT
+  oc service set port "$live_port" >/dev/null 2>&1
+  # On 2.2.5 the first list call against a fresh service is empty: the directory loads
+  # lazily and that call is what triggers the load. Warm it, wait, then assert on the second
+  # call (docs/engineering/roadmap/v5-research/opencode-2.2.5.md section 1).
+  (cd "$ROOT" && oc plugin list >/dev/null 2>&1)
+  sleep 5
+  plist="$(cd "$ROOT" && oc plugin list 2>/dev/null)"
+  judge "opencode plugin list (warm service) shows the guard plugin" yes "$(has "$plist" 'tamirs-superpowers.guard')"
+  agents_json="$(cd "$ROOT" && oc debug agents 2>/dev/null)"
   judge "opencode debug agents lists every generated adapter" "$n_src" \
     "$(printf '%s' "$agents_json" | jq '[.[] | select(.system // "" | contains("GENERATED FILE"))] | length' 2>/dev/null)"
   judge "a generated adapter resolves with external_directory ask after the base policy" ask \
     "$(printf '%s' "$agents_json" | jq -r '[.[] | select(.id=="implementer")][0].permissions | map(select(.action=="external_directory"))[-1].effect // "missing"' 2>/dev/null)"
+  live_cleanup
+  trap _harness_cleanup EXIT
+elif harness_have opencode; then
+  skip "live OpenCode CLI" "opencode ${ver:-unknown version} is not a 2.x binary"
 else
   skip "live OpenCode CLI" "opencode not on PATH"
 fi

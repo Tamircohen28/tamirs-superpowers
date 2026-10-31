@@ -65,7 +65,7 @@ gemini extensions link .              # Gemini CLI
 ```
 
 For Cursor, import the repo as a team marketplace with Auto Refresh. For OpenCode, point
-`opencode.json` `skills.paths` at your checkout.
+the `opencode.json` `skills` array at your checkout.
 
 ## Branching
 

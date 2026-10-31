@@ -328,7 +328,7 @@ is a JS/TS plugin API, so the three core guards (worktree edits, protected paths
 a branch another agent holds) are carried by an OpenCode 2 server plugin instead —
 `platforms/opencode/plugin/`, registered in this repo's `opencode.json` — with a TUI plugin
 from the same directory drawing the status line and the objective pane that the Claude
-Code mod draws. The plugin loads on 2.0.32 (`opencode plugin list`); whether its denies
+Code mod draws. The plugin loads on 2.2.5 (`opencode plugin list`, on a warm service); whether its denies
 stop an action live is not yet measured. An optional observe-only `usage-capture` module
 (now a V2 plugin) may be added to a user's OpenCode `plugins` list; it is not in this
 repo's `opencode.json`.

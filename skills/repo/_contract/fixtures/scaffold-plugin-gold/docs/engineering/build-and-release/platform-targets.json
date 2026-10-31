@@ -162,9 +162,9 @@
     },
     "opencode": {
       "platform": "opencode",
-      "supported_min": "1.16.2",
-      "validated_against": "1.18.11",
-      "latest_known": "1.18.11",
+      "supported_min": "2.2.5",
+      "validated_against": "2.2.5",
+      "latest_known": "2.2.5",
       "doc_urls": [
         "https://opencode.ai/docs/skills/"
       ],
@@ -188,7 +188,7 @@
         "artifacts": "No artifact publishing surface.",
         "dynamic_workflows": "The Workflow tool is Claude-specific; no declared OpenCode equivalent.",
         "extension_install": "No git-URL extension install.",
-        "plugin_marketplace": "No plugin marketplace — install is by absolute skills.paths. Not by symlink: OpenCode does not follow them for skill discovery (see the skills row)."
+        "plugin_marketplace": "No plugin marketplace — install is by absolute paths in the `skills` array. Not by symlink: OpenCode does not follow them for skill discovery (see the skills row)."
       }
     }
   }

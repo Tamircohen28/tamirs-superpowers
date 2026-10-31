@@ -38,7 +38,7 @@ Reviewed **2026-10-06** (changelog/schema only, no live binary; `validated_again
 | Cursor | 3.22.7 | 3.22.7 | 3.24.12 | 3.24.12 | [cursor.md](../../user/install/cursor.md) |
 | Codex | 0.40.0 | 0.163.0 | 0.163.0 | 0.163.0 | [codex.md](../../user/install/codex.md) |
 | Gemini CLI | 0.55.1 | 0.64.0 | 0.64.0 | 0.64.0 | [gemini.md](../../user/install/gemini.md) |
-| OpenCode | unknown | 2.0.14 | 2.0.24 | 2.0.24 | [opencode.md](../../user/install/opencode.md) |
+| OpenCode | 2.2.5 | 2.2.5 | 2.2.5 | 2.2.5 | [opencode.md](../../user/install/opencode.md) |
 
 
 Two different claims, deliberately kept apart. **Validated against** is the version this repo
@@ -52,18 +52,7 @@ rule compared `validated_against` against `latest_known`, so it reported a gap f
 prose on this page had already closed, and it could only ever be silenced by a live run or by
 inventing a version.
 
-OpenCode is now reviewed through **1.18.29**: every release from 1.18.12 to 1.18.29 was retrieved
-individually (18 of 18 tags, none unverified) and read against this repo's five points of contact —
-`opencode.json`'s `$schema` and skill paths, `.opencode/agents/` frontmatter, the `mcp` block this
-repo deliberately does not ship, `.opencode/.gitignore`, and `opencode debug skill`. No breaking
-change, no schema-URL change, no change to skill discovery or nesting, no change to agent
-frontmatter, no change to MCP declaration; for skills and MCP that rests on zero commits to
-`src/skill` and `src/mcp` in the window rather than on absence from the release notes. Two watch
-items came out of it: 1.18.16 made the config parser ignore unknown top-level fields at runtime
-while the published schema still sets `additionalProperties: false`, and 1.18.24 added read-compat
-for v2 config, whose `skills` is a flat array rather than v1's `{paths, urls}` object — so an
-eventual v2 adoption is a real `opencode.json` shape change even though v1 remains native. The
-review is documentary, so `validated_against` stays at 1.18.11.
+**OpenCode, 2026-10-31:** the target is OpenCode 2 only and moved to **2.2.5** (validated, reviewed and latest known; the support floor is 2.2.5 because it is the only release ever exercised, and 2.2.3/2.2.4 are not validated). The OpenCode 1 review history below (reviewed through 1.18.29, then 1.18.32; `validated_against` 1.18.11) is kept as a dated record only and is no longer a claim about any supported version. Live findings: [`opencode-2.2.5.md`](../roadmap/v5-research/opencode-2.2.5.md).
 
 **Codex reviewed through 0.156.0 on 2026-09-23** (from 0.155.1), against the official
 `openai/codex` release notes for `rust-v0.156.0` (published 2026-09-22). `validated_against`
@@ -171,7 +160,7 @@ generated symlink mirror and `.gemini/skills/` output, neither re-exercised this
 | Cursor | Cursor's plugin docs state **no** minimum version. Rather than invent one, the floor equals the validated version. Older Cursor releases may work; they are simply untested. |
 | Codex | Earliest release this repo has claimed `AGENTS.md` + `.codex-plugin` support for |
 | Gemini CLI | Gemini CLI documents no minimum for extensions; the floor is the version the adapter was actually exercised on (0.55.1) rather than guessed |
-| OpenCode | Oldest version on which recursive (domain-nested) `SKILL.md` discovery was verified with `opencode debug skill` |
+| OpenCode | The only release exercised live (2.2.5), and the only one where the `bash`-to-`shell` tool alias the guard relies on was observed. 2.2.3 is the first whose `@opencode/plugin` peers OpenTUI 0.8, but 2.2.3 and 2.2.4 are not validated; the floor can be lowered by validating them |
 
 ## Capability coverage
 

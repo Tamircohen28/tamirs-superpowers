@@ -43,11 +43,13 @@
 //   PM_ALLOW_PROTECTED=1    skip the sensitive-path rules for an intended edit
 //   TAMIRS_OPENCODE_GUARD=0 disable this plugin entirely (the TUI plugin is separate)
 //
-// Observed on @opencode/cli 2.0.32: `opencode plugin list` and `opencode debug
+// Observed on @opencode/cli 2.2.5: `opencode plugin list` and `opencode debug
 // agents` run without a provider key, so the plugin's LOADING can be checked
-// offline; whether `effect = "deny"` and a thrown shell hook actually stop the
-// action is recorded as unverified live in core/capabilities/platforms.json until
-// a session with a provider runs it.
+// offline (service mode; the first `plugin list` on a fresh service prints nothing,
+// the second lists it — see docs/engineering/roadmap/v5-research/opencode-2.2.5.md).
+// Whether `effect = "deny"` and a thrown shell hook actually stop the action is
+// recorded as unverified live in core/capabilities/platforms.json until a session
+// with a provider runs it.
 
 import { Plugin } from "@opencode/plugin"
 import { execFileSync } from "node:child_process"

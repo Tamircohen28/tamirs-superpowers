@@ -1,6 +1,6 @@
 {
   "name": "tamirs-superpowers",
-  "version": "5.0.5",
+  "version": "5.1.0",
   "description": "30 bundled skills, smart worktree hooks, statusline, and MCP server stubs — plan, implement, review, debug, multi-agent setup, and audit code from one plugin.",
   "author": {
     "name": "Tamir Cohen",

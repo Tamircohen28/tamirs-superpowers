@@ -206,7 +206,7 @@ Two kinds, and they must stay separate:
 
 - **Always-run static checks** — the manifest parses, the adapter and registry agree, any
   generated artifact is current. These belong in `make validate` and CI.
-- **Live CLI validation** — `gemini extensions validate .`, `opencode debug skill`,
+- **Live CLI validation** — `gemini extensions validate .`, `opencode debug agents`,
   `claude plugin validate .`. These run only where the CLI exists and must degrade to a skip,
   never a failure, when it is absent.
 
