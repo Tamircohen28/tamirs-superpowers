@@ -785,18 +785,18 @@
           ],
           "install": {
             "type": "path",
-            "command": "Point opencode.json skills.paths at absolute paths in this checkout. Symlinks are not followed for skill discovery at any level (verified 1.18.11), so a symlinked install silently discovers nothing.",
+            "command": "Point the opencode.json `skills` array at absolute paths in this checkout. Symlinks are not followed for skill discovery at any level (verified 1.18.11), so a symlinked install silently discovers nothing.",
             "doc": "docs/user/install/opencode.md"
           },
           "validation": {
-            "command": "opencode debug skill"
+            "command": "opencode debug config"
           },
           "capabilities": {
             "skills": {
               "status": "native",
               "since": "1.16.2",
-              "validation": "opencode debug skill",
-              "notes": "Recursive (domain-nested) discovery verified from 1.16.2; validated against 1.18.11. OpenCode recognises a smaller frontmatter set and ignores unknown fields. Symlinks are NOT followed for skill discovery at any level (verified 1.18.11) \u2014 the skills dir, a domain dir, and an individual skill dir all yield zero. Install with absolute skills.paths, never a symlink."
+              "validation": "opencode debug config",
+              "notes": "Recursive (domain-nested) discovery is documented for OpenCode 2; per-skill discovery is not verifiable from the CLI (2.2.5: `api skill.list` returns only the three built-ins). OpenCode recognises a smaller frontmatter set and ignores unknown fields. Symlinks are NOT followed for skill discovery at any level (verified 1.18.11) \u2014 the skills dir, a domain dir, and an individual skill dir all yield zero. Install with absolute skills.paths, never a symlink."
             },
             "skill_auto_invocation": {
               "status": "unknown",
@@ -810,7 +810,7 @@
             },
             "parallel_subagents": {
               "status": "unknown",
-              "notes": "Unmeasured: the evidence conflicts and no live v2 run has settled it. Against: foreground task calls issued in one turn ran serially on v1 (sst/opencode#29638, re-reporting #14195; closed not planned), and subagent_depth defaults to 1 (since v1.18.2, opencode.ai/docs/config), so subagents cannot nest. For: the v2 tools docs (dev.opencode.ai/v2/docs/tools) document background: true, which returns immediately and notifies the parent. Docs and issues rechecked 2026-10-16. Until a v2 run exercises the background path, treat parallel fan-out as unavailable.",
+              "notes": "Unmeasured: the evidence conflicts and no live v2 run has settled it. Against: foreground task calls issued in one turn ran serially on v1 (sst/opencode#29638, re-reporting #14195; closed not planned), and subagent_depth defaults to 1 (opencode.ai/docs/config; `experimental.subagent_depth` in OpenCode 2), so subagents cannot nest. For: the v2 tools docs (dev.opencode.ai/v2/docs/tools) document background: true, which returns immediately and notifies the parent. Docs and issues rechecked 2026-10-16. Until a v2 run exercises the background path, treat parallel fan-out as unavailable.",
               "fallback": "Fan out sequentially."
             },
             "agent_teams": {
@@ -858,8 +858,8 @@
             },
             "plugin_marketplace": {
               "status": "unsupported",
-              "notes": "No plugin marketplace \u2014 install is by absolute skills.paths. Not by symlink: OpenCode does not follow them for skill discovery (see the skills row).",
-              "fallback": "Document the absolute skills.paths install in docs/user/install/opencode.md."
+              "notes": "No plugin marketplace \u2014 install is by absolute paths in the `skills` array. Not by symlink: OpenCode does not follow them for skill discovery (see the skills row).",
+              "fallback": "Document the absolute `skills` array install in docs/user/install/opencode.md."
             },
             "extension_install": {
               "status": "unsupported",
@@ -892,7 +892,7 @@
           "display_name": "OpenCode desktop app",
           "kind": "desktop",
           "support": "unverified",
-          "unverified_reason": "OpenCode ships a desktop client alongside the terminal one. Whether it reads the same opencode.json skills.paths this repo installs into has not been checked, so the skills row under opencode is not carried over here.",
+          "unverified_reason": "OpenCode ships a desktop client alongside the terminal one. Whether it reads the same opencode.json `skills` array this repo installs into has not been checked, so the skills row under opencode is not carried over here.",
           "aliases": [
             "opencode-desktop"
           ],

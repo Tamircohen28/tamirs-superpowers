@@ -995,7 +995,7 @@
           ],
           "install": {
             "type": "path",
-            "command": "Point opencode.json skills.paths at absolute paths in this checkout. Use absolute paths, not symlinks: symlink following for skill discovery has never been confirmed on OpenCode 2, so a symlinked install may silently discover nothing.",
+            "command": "Point the opencode.json `skills` array at absolute paths in this checkout. Use absolute paths, not symlinks: symlink following for skill discovery has never been confirmed on OpenCode 2, so a symlinked install may silently discover nothing.",
             "doc": "docs/user/install/opencode.md"
           },
           "validation": {
@@ -1082,8 +1082,8 @@
             "plugin_marketplace": {
               "last_verified": "2026-09-17",
               "status": "unsupported",
-              "notes": "No plugin marketplace — install is by absolute skills.paths. Not by symlink: OpenCode does not follow them for skill discovery (see the skills row).",
-              "fallback": "Document the absolute skills.paths install in docs/user/install/opencode.md."
+              "notes": "No plugin marketplace — install is by absolute paths in the `skills` array. Not by symlink: OpenCode does not follow them for skill discovery (see the skills row).",
+              "fallback": "Document the absolute `skills` array install in docs/user/install/opencode.md."
             },
             "extension_install": {
               "last_verified": "2026-09-17",
@@ -1133,7 +1133,7 @@
           "display_name": "OpenCode desktop app",
           "kind": "desktop",
           "support": "unverified",
-          "unverified_reason": "OpenCode ships a desktop client alongside the terminal one. Whether it reads the same opencode.json skills.paths this repo installs into has not been checked, so the skills row under opencode is not carried over here.",
+          "unverified_reason": "OpenCode ships a desktop client alongside the terminal one. Whether it reads the same opencode.json `skills` array this repo installs into has not been checked, so the skills row under opencode is not carried over here.",
           "aliases": [
             "opencode-desktop"
           ],

@@ -995,19 +995,19 @@
           ],
           "install": {
             "type": "path",
-            "command": "Point opencode.json skills.paths at absolute paths in this checkout. Symlinks are not followed for skill discovery at any level (verified 1.18.11), so a symlinked install silently discovers nothing.",
+            "command": "Point the opencode.json `skills` array at absolute paths in this checkout. Use absolute paths, not symlinks: symlink following for skill discovery has never been confirmed on OpenCode 2, so a symlinked install may silently discover nothing.",
             "doc": "docs/user/install/opencode.md"
           },
           "validation": {
-            "command": "opencode debug skill"
+            "command": "opencode debug config"
           },
           "capabilities": {
             "skills": {
-              "last_verified": "2026-09-17",
+              "last_verified": "2026-10-31",
               "status": "native",
               "since": "1.16.2",
-              "validation": "opencode debug skill",
-              "notes": "Recursive (domain-nested) discovery verified from 1.16.2; validated against 1.18.11. OpenCode recognises a smaller frontmatter set and ignores unknown fields. Symlinks are NOT followed for skill discovery at any level (verified 1.18.11) — the skills dir, a domain dir, and an individual skill dir all yield zero. Install with absolute skills.paths, never a symlink."
+              "validation": "opencode debug config",
+              "notes": "Documented OpenCode 2 feature (opencode.ai/docs/skills). 2.2.5 (2026-10-31): `opencode --standalone debug config` loads this repo's opencode.json skills key and .opencode/, but per-skill discovery is NOT verifiable from the CLI: `api skill.list` returns only the three built-ins even for a control project with a skills path, warm or cold. OpenCode recognises a smaller frontmatter set and ignores unknown fields. Symlink following is unconfirmed on OpenCode 2; install with absolute skills.paths, never a symlink."
             },
             "skill_auto_invocation": {
               "last_verified": "2026-09-17",
@@ -1016,15 +1016,15 @@
               "fallback": "Name the skill explicitly."
             },
             "subagents": {
-              "last_verified": "2026-10-17",
+              "last_verified": "2026-10-31",
               "status": "adapter",
-              "notes": "Canonical agents/ are translated into .opencode/agent/ by scripts/build-opencode-agents.sh because the frontmatter genuinely differs; drift is enforced by make opencode-agents-check. 2026-10-17 (5.0.0): .opencode/agents/ (plural, OpenCode 2): mode: subagent explicit, deny-only permissions ruleset (an allow would override the host's own .env prompts under last-match-wins) plus external_directory ask; all 10 resolve on 2.0.32 via `opencode debug agents`; unknown frontmatter keys are ignored, not rejected; the singular .opencode/agent/ is still read, so a stale copy would load every id twice (the generator prunes it).",
-              "fallback": "Regenerate the adapter rather than hand-editing .opencode/agent/."
+              "notes": "Canonical agents/ are translated into .opencode/agents/ by scripts/build-opencode-agents.sh because the frontmatter genuinely differs; drift is enforced by make opencode-agents-check. 2026-10-17 (5.0.0): .opencode/agents/ (plural, OpenCode 2): mode: subagent explicit, deny-only permissions ruleset (an allow would override the host's own .env prompts under last-match-wins) plus external_directory ask; all 10 resolve on 2.0.32 and again on 2.2.5 (2026-10-31) via `opencode debug agents`; unknown frontmatter keys are ignored, not rejected; the singular .opencode/agent/ is still read, so a stale copy would load every id twice (the generator prunes it).",
+              "fallback": "Regenerate the adapter rather than hand-editing .opencode/agents/."
             },
             "parallel_subagents": {
               "last_verified": "2026-10-16",
               "status": "unknown",
-              "notes": "Unmeasured: the evidence conflicts and no live v2 run has settled it. Against: foreground task calls issued in one turn ran serially on v1 (sst/opencode#29638, re-reporting #14195; closed not planned), and subagent_depth defaults to 1 (since v1.18.2, opencode.ai/docs/config), so subagents cannot nest. For: the v2 tools docs (dev.opencode.ai/v2/docs/tools) document background: true, which returns immediately and notifies the parent. Docs and issues rechecked 2026-10-16. Until a v2 run exercises the background path, treat parallel fan-out as unavailable. 2026-10-17: OpenCode 2 docs: the subagent tool takes background: true (returns immediately, notifies the parent on finish); experimental.subagent_depth defaults to 1, so the orchestrator must be the primary agent (the canonical orchestrator grants no Task, so its adapter denies subagent — reviewed, kept: on OpenCode the person's primary agent orchestrates); whether several foreground calls in one turn run concurrently is undocumented; no live run.",
+              "notes": "Unmeasured: the evidence conflicts and no live v2 run has settled it. Against: foreground task calls issued in one turn were reported to run serially (sst/opencode#29638, re-reporting #14195; closed not planned), and subagent_depth defaults to 1 (opencode.ai/docs/config), so subagents cannot nest. For: the v2 tools docs (dev.opencode.ai/v2/docs/tools) document background: true, which returns immediately and notifies the parent. Docs and issues rechecked 2026-10-16. Until a v2 run exercises the background path, treat parallel fan-out as unavailable. 2026-10-17: OpenCode 2 docs: the subagent tool takes background: true (returns immediately, notifies the parent on finish); experimental.subagent_depth defaults to 1, so the orchestrator must be the primary agent (the canonical orchestrator grants no Task, so its adapter denies subagent — reviewed, kept: on OpenCode the person's primary agent orchestrates); whether several foreground calls in one turn run concurrently is undocumented; no live run.",
               "fallback": "Fan out sequentially."
             },
             "agent_teams": {
@@ -1034,21 +1034,21 @@
               "fallback": "Use session-files/ as the message bus."
             },
             "hooks": {
-              "last_verified": "2026-10-17",
+              "last_verified": "2026-10-31",
               "status": "adapter",
-              "notes": "OpenCode has no hooks.json; its only lifecycle mechanism is the JS/TS plugin API. Lifecycle guards from hooks/ still do not run. A narrow opt-in exception is skills/toolkit/usage-capture/opencode-plugin.mjs (zero npm imports, observe-only, not listed in this repo's opencode.json) for local usage JSONL. That plugin is not a hook-guard adapter — 'adapter' would imply generated worktree/safety artifacts, and none exist. 2026-10-17 (5.0.0): OpenCode runs no shell hook; the three core guards (enforce-worktree-edits under an active objective, guard-sensitive-files, protect-other-branches incl. force-push refusal and the shared ~/.agent-work-claims store) are an OpenCode 2 server plugin, platforms/opencode/plugin/ (index.ts -> guard.ts: ctx.permission.hook('evaluate') on edit/shell, ctx.shell.hook('create.before') backstop), registered in opencode.json plugins[]. Loads on 2.0.32 (`opencode plugin list` names scaffold-plugin-gold.guard); that a deny/throw stops the action is the documented contract but unverified live (no provider session run). The no-objective half of the worktree hook is deliberately not mirrored (no session slug on OpenCode).",
+              "notes": "OpenCode has no hooks.json; its only lifecycle mechanism is the JS/TS plugin API. Lifecycle guards from hooks/ still do not run. A narrow opt-in exception is skills/toolkit/usage-capture/opencode-plugin.mjs (zero npm imports, observe-only, not listed in this repo's opencode.json) for local usage JSONL. That plugin is not a hook-guard adapter — 'adapter' would imply generated worktree/safety artifacts, and none exist. 2026-10-17 (5.0.0): OpenCode runs no shell hook; the three core guards (enforce-worktree-edits under an active objective, guard-sensitive-files, protect-other-branches incl. force-push refusal and the shared ~/.agent-work-claims store) are an OpenCode 2 server plugin, platforms/opencode/plugin/ (index.ts -> guard.ts: ctx.permission.hook('evaluate') on edit/shell, ctx.shell.hook('create.before') backstop), registered in opencode.json plugins[]. Loads on 2.2.5 (`opencode plugin list` names scaffold-plugin-gold.guard, but only from the second call on a warm service; the first call after a cold start lists nothing). 2.2.5 runs a `bash` tool call as `shell`, which the guard's permission hook already keys on. That a deny/throw stops the action is the documented contract but unverified live (no provider session run); whether the guard double-runs when a linked worktree lists the plugin from both paths is also unchecked. The no-objective half of the worktree hook is deliberately not mirrored (no session slug on OpenCode).",
               "fallback": "Guards become explicit in-skill steps plus CI checks."
             },
             "mcp": {
-              "last_verified": "2026-10-17",
+              "last_verified": "2026-10-31",
               "status": "native",
               "validation": "grep -q 'opencode.ai/docs/mcp-servers' docs/user/install/opencode.md",
-              "notes": "OpenCode reads MCP servers from the 'mcp' block of opencode.json, not from .mcp.json. This repo deliberately ships no 'mcp' block -- docs/user/install/opencode.md tells the user to port the entries they want -- so the validation asserts that documented path, not a key we do not ship. It previously read jq -e '.mcp // {}' opencode.json, which names a key that has never been present AND could not fail: the // {} fallback substitutes an empty object, and jq -e only exits non-zero on false or null. It reported success on every input, including this one. 2026-10-17 (5.0.0): opencode.json declares mcp.servers.github = local scripts/github-mcp.sh with the token variable the official server reads via {env:}; measured on 2.0.32: `opencode mcp list` shows the server failing with the script's own 'github_token is not set' message until the variable is exported."
+              "notes": "OpenCode reads MCP servers from the 'mcp' block of opencode.json, not from .mcp.json. This repo deliberately ships no 'mcp' block -- docs/user/install/opencode.md tells the user to port the entries they want -- so the validation asserts that documented path, not a key we do not ship. It previously read jq -e '.mcp // {}' opencode.json, which names a key that has never been present AND could not fail: the // {} fallback substitutes an empty object, and jq -e only exits non-zero on false or null. It reported success on every input, including this one. 2026-10-17 (5.0.0): opencode.json declares mcp.servers.github = local scripts/github-mcp.sh with the token variable the official server reads via {env:}; measured on 2.2.5 (2026-10-31): `opencode mcp list` on a warm service shows the server failing with the script's own 'github_token is not set' message until the variable is exported (the first call after a cold start lists nothing)."
             },
             "statusline": {
               "last_verified": "2026-10-17",
               "status": "adapter",
-              "notes": "No plugin-declared statusline. 2026-10-17 (5.0.0): platforms/opencode/plugin/tui.tsx (@opencode/plugin/tui) appends context fill (last session.step.ended prompt tokens vs ModelInfo.limit.context), session cost and objective progress to prompt.footer.status; no rate-limit figures because OpenCode exposes no rate-limit payload (checked against @opencode/client 2.0.32 types). Not run in a live TUI.",
+              "notes": "No plugin-declared statusline. 2026-10-17 (5.0.0): platforms/opencode/plugin/tui.tsx (@opencode/plugin/tui) appends context fill (last session.step.ended prompt tokens vs ModelInfo.limit.context), session cost and objective progress to prompt.footer.status; no rate-limit figures because OpenCode exposes no rate-limit payload (checked against @opencode/client 2.0.32 types; not re-checked on 2.2.5). Not run in a live TUI.",
               "fallback": "Cosmetic only; omit."
             },
             "shell": {
@@ -1082,8 +1082,8 @@
             "plugin_marketplace": {
               "last_verified": "2026-09-17",
               "status": "unsupported",
-              "notes": "No plugin marketplace — install is by absolute skills.paths. Not by symlink: OpenCode does not follow them for skill discovery (see the skills row).",
-              "fallback": "Document the absolute skills.paths install in docs/user/install/opencode.md."
+              "notes": "No plugin marketplace — install is by absolute paths in the `skills` array. Not by symlink: OpenCode does not follow them for skill discovery (see the skills row).",
+              "fallback": "Document the absolute `skills` array install in docs/user/install/opencode.md."
             },
             "extension_install": {
               "last_verified": "2026-09-17",
@@ -1133,7 +1133,7 @@
           "display_name": "OpenCode desktop app",
           "kind": "desktop",
           "support": "unverified",
-          "unverified_reason": "OpenCode ships a desktop client alongside the terminal one. Whether it reads the same opencode.json skills.paths this repo installs into has not been checked, so the skills row under opencode is not carried over here.",
+          "unverified_reason": "OpenCode ships a desktop client alongside the terminal one. Whether it reads the same opencode.json `skills` array this repo installs into has not been checked, so the skills row under opencode is not carried over here.",
           "aliases": [
             "opencode-desktop"
           ],
