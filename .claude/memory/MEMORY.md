@@ -5,7 +5,7 @@
 - [ci.yml is guard-hooked — use GitHub MCP](feedback-ci-yml-guard-hook.md) — Edit/Write blocked on `.github/workflows/*.yml`; always use `create_or_update_file`
 - [Check file exists before create_or_update_file](feedback-github-mcp-check-exists.md) — API errors if file exists and SHA is missing; check first
 - [--admin required for all PRs in this repo](project-admin-merge-personal-repo.md) — solo contributor, branch protection on; --admin is the standard merge path
-- [Cut a release after every manifest bump](reference-release-tag-alignment.md) — the alignment job no longer reds on a pending release; it warns. Still cut the release, or installed users stay on the cached copy
+- [Cut a release after every manifest bump](reference-release-tag-alignment.md) — the alignment job no longer reds on a pending release; it warns. Still cut the release, or installed users stay on the cached copy; backfilling an older version needs a temp branch (release.yml tags the dispatched ref's HEAD)
 - [Bump plugin.json with a string replace](feedback-json-manifest-edits.md) — json.dump/jq round-trip escapes unicode (— → \u2014) and reformats; edit the one version line
 - [Partition sub-agent fan-outs by file ownership](feedback-multi-agent-file-ownership.md) — agents share one filesystem; overlap is silent data loss, not a git conflict
 - [GitHub description/topics live outside git](project-github-description-outside-git.md) — no in-repo check sees them; audit with `gh repo view`
@@ -16,3 +16,4 @@
 - [Fix the class, not the named example](feedback-fix-the-class-not-the-example.md) — a scanner naming a new example after each fix means sweep the shape + add a guard
 - [Wait for Codex before merging](feedback-wait-for-codex-before-merge.md) — 👀 reaction = still reviewing; it caught real bugs on 3 of 4 PRs
 - [Directory submission holds](project-directory-submission-holds.md) — submitted 2026-10-05; which portal holds are structural and must not be re-chased
+- [zsh does not word-split unquoted vars](feedback-zsh-unquoted-var-no-split.md) — `for x in $LIST` / `bash $cmd` silently misbehave; use `bash -c` or arrays
