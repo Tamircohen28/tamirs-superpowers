@@ -5,6 +5,39 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [5.1.0] — 2026-10-31
+
+### Changed
+
+- **OpenCode 1 is no longer supported; OpenCode 2 is validated against 2.2.5.** The
+  `targets.opencode` pin moves from 2.0.32 to 2.2.5 with a support floor of 2.2.3 (the
+  first release whose OpenTUI 0.8 requirement the TUI plugin targets). The registry,
+  probe, generators, scaffold registry, install docs, platform-sync references and tests
+  now describe OpenCode 2 only; the probe watches `@opencode/cli` alone. A stale
+  `.opencode/agent/` (singular) tree is still cleaned up by `build-opencode-agents.sh` as
+  an upgrade helper, for one more release.
+- **The OpenCode plugin targets `@opencode/plugin` 2.2.5.** Its peers are now
+  `@opencode/plugin >=2.2.5`, `@opentui/core` and `@opentui/solid` `>=0.8.0` and
+  `solid-js >=1.9.0`; it typechecks and its tests pass against the published 2.2.5 types
+  with no source change. The guard keys on the `shell` permission action, so 2.2.5 running
+  a `bash` tool call as `shell` cannot bypass it.
+
+### Fixed
+
+- **The OpenCode verify steps no longer report "No plugins found" on a good install.**
+  On 2.2.5 the first `opencode plugin list` / `mcp list` against a fresh service is empty
+  because the directory loads lazily, and `--standalone` never lists them at all.
+  `docs/user/install/opencode.md` now verifies in service mode and calls each twice. The
+  live findings are in `docs/engineering/roadmap/v5-research/opencode-2.2.5.md`.
+- **App-gold scaffolds no longer inherit OpenCode 1 evidence.** `platforms.app.json` (and
+  the template and fixtures generated from it) dropped the `1.16.2`/`1.18.x` evidence, the
+  removed `debug skill` command and v1's `skills.paths` key.
+
+### Added
+
+- `tests/test-opencode-pins.sh` pins the OpenCode version fields, README badge, plugin peer
+  floors, the guard's `shell`/`edit` actions and the v2-only shape of `opencode.json`.
+
 ## [5.0.5] — 2026-10-31
 
 ### Fixed

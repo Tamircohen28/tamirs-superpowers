@@ -1,7 +1,7 @@
 {
   "name": "tamirs-superpowers-guard",
   "displayName": "Tamir's Superpowers Guard",
-  "version": "5.0.5",
+  "version": "5.1.0",
   "description": "In-process guard for tamirs-superpowers: holds a destructive shell command (force push, rm -rf, git reset --hard, ...) until you answer Proceed or Cancel, and refuses a file write in the main checkout while an orchestration objective is active. Companion to the core plugin; Claude Code and Claude Desktop only.",
   "homepage": "https://github.com/Tamircohen28/tamirs-superpowers",
   "repository": "https://github.com/Tamircohen28/tamirs-superpowers",
