@@ -18,6 +18,11 @@ M="$REPO_ROOT/opencode.json"
 judge "opencode.json declares a \$schema" yes \
   "$(if [ -n "$(jq -r '."$schema" // ""' "$M")" ]; then echo yes; else echo no; fi)"
 
+# A regression to the OpenCode 1 `{ "paths": [...], "urls": [...] }` object would make the
+# `.skills[]?` read below iterate the object's values and look like a populated config.
+judge "opencode.json skills is a flat array (OpenCode 2), not the v1 {paths} object" array \
+  "$(jq -r '.skills | type' "$M")"
+
 oc_paths=()
 # v2 defines `skills` as a flat array of strings (Schema.String.pipe(Schema.Array)).
 # URL entries are skipped: the array accepts "paths OR URLs", and the path/coverage
