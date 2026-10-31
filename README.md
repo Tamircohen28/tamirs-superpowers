@@ -14,7 +14,7 @@
   <a href="docs/engineering/build-and-release/platform-targets.json"><img src="https://img.shields.io/badge/Cursor-3.22.7-000000" alt="Cursor" /></a>
   <a href="docs/engineering/build-and-release/platform-targets.json"><img src="https://img.shields.io/badge/Codex-0.163.0-412991" alt="Codex" /></a>
   <a href="docs/engineering/build-and-release/platform-targets.json"><img src="https://img.shields.io/badge/Gemini%20CLI-0.64.0-4285F4" alt="Gemini CLI" /></a>
-  <a href="docs/engineering/build-and-release/platform-targets.json"><img src="https://img.shields.io/badge/OpenCode-2.0.32-fab283" alt="OpenCode" /></a>
+  <a href="docs/engineering/build-and-release/platform-targets.json"><img src="https://img.shields.io/badge/OpenCode-2.2.5-fab283" alt="OpenCode" /></a>
 </p>
 
 # tamirs-superpowers
@@ -85,12 +85,12 @@ Two commands: the extension carries context and MCP, skills install separately.
 
 ### OpenCode
 
-Installed by path — `opencode.json`'s `skills` array pointed at this checkout (v2 shape; v1 used `skills.paths`).
+Installed by path — `opencode.json`'s `skills` array pointed at this checkout (OpenCode 2 shape).
 
 | Surface | Registry id | Kind | Status | Install |
 |---|---|---|---|---|
-| OpenCode CLI | `opencode` | CLI | ✅ supported — validated 2.0.32 (v2; `@opencode/cli`). Config and all 10 agent adapters confirmed live; per-skill discovery unverified — v2 removed `debug skill` | [guide](docs/user/install/opencode.md) | [guide](docs/user/install/opencode.md) |
-| OpenCode desktop app | `opencode_desktop` | desktop | ⚠️ unverified — whether it reads the same `skills.paths` this repo installs into has not been checked | — |
+| OpenCode CLI | `opencode` | CLI | ✅ supported — validated 2.2.5 (v2; `@opencode/cli`). Config and all 10 agent adapters confirmed live; per-skill discovery unverified — V2 has no CLI skill listing | [guide](docs/user/install/opencode.md) | [guide](docs/user/install/opencode.md) |
+| OpenCode desktop app | `opencode_desktop` | desktop | ⚠️ unverified — whether it reads the same `skills` array this repo installs into has not been checked | — |
 
 `⚠️ unverified` is not a negative result. Those surfaces carry no capability claims at all;
 [`core/capabilities/platforms.json`](core/capabilities/platforms.json) records why each one
