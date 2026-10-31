@@ -368,7 +368,7 @@ judge "compliant and drifted differ only in that boolean" "" \
   "$(diff <(jq -S '.rules |= map(if .type=="required_status_checks" then .parameters.strict_required_status_checks_policy = "X" else . end)' "$FIX/compliant/ruleset-21049069.json") \
           <(jq -S '.rules |= map(if .type=="required_status_checks" then .parameters.strict_required_status_checks_policy = "X" else . end) | .source = "Tamircohen28/tamirs-superpowers" | ._links.self.href = "https://api.github.com/repos/Tamircohen28/tamirs-superpowers/rulesets/21049069" | ._links.html.href = "https://github.com/Tamircohen28/tamirs-superpowers/rules/21049069"' "$FIX/drifted/ruleset-21049069.json"))"
 
-judge "compliant: 9 required contexts, per ground truth" 9 \
+judge "compliant: 11 required contexts, per ground truth" 11 \
   "$(jq '[.rules[] | select(.type=="required_status_checks") | .parameters.required_status_checks[]] | length' \
       "$FIX/compliant/ruleset-21049069.json")"
 # 1, not 0. The owner's posture is that an approval binds COLLABORATORS while the

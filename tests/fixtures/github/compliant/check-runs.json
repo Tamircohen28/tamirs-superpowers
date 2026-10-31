@@ -1,5 +1,5 @@
 {
-  "total_count": 9,
+  "total_count": 11,
   "check_runs": [
     {
       "name": "shellcheck",
@@ -43,6 +43,16 @@
     },
     {
       "name": "HOL Plugin Scanner",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "name": "Repo contract (this repo)",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "name": "make validate (full local-parity gate)",
       "status": "completed",
       "conclusion": "success"
     }
