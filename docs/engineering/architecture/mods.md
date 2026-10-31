@@ -136,6 +136,36 @@ top level (exactly `description` and `hooks`; measured on codex-cli 0.163.0, a f
 canonical file without the events Codex lacks, so Codex never sees the key and the mod never
 loads there. `make validate` regenerates the copy and fails on drift.
 
+## Managed and Team/Enterprise sessions
+
+On a machine with managed settings or a `managed-mcp.json`, or on a Team or Enterprise sign-in,
+the built-in `cc-plugin-sec-default` mod is seated outermost and lets a user-installed mod's
+hooks run at only some events. Its README ([source](https://github.com/anthropics/claude-code/tree/main/mods/sec-default))
+lists the events it holds "past the user tier"; for those, the engine never calls our hook and
+reports `tamirs-superpowers: its <event> hook was skipped. "cc-plugin-sec-default" runs first
+and sent the event on past it.` The prefix names the plugin whose hook was skipped, not the
+sender; the plugin emits nothing, and the user cannot turn `sec-default` off.
+
+This is the organization's policy layer working as designed, not a defect here. What it costs:
+
+| Skipped on a managed/Team session | Feature | What still holds |
+|---|---|---|
+| `attribution.text` | Commit trailer policy (#6 above) | The host's own attribution reminder and the `CLAUDE.md` prose |
+| `session.compact` | Compaction snapshot (#6 above) | `hooks/precompact-snapshot.sh` writes the file |
+| `skill.prompt` | Skill context (#8 above) | `UserPromptSubmit` still sees the typed line; the live objective is just not appended on expansion |
+| `classic.SessionStart` | Reload after `/clear`, `/resume`, `/branch` (#1 above) | The 5 s objective re-read; the pane catches up on its next tick |
+
+All four were seen as `its <event> hook was skipped` notices on a Team session. Every other
+hook the mod registers (`session.start`, `command.run`, the `ui.render` drawings,
+`agent.spawn`, `session.measure`, `turn.start`, `turn.complete`, `tool.call`, `prompt.submit`)
+is not on the held list, and the skills, agents, bash hooks, statusline and MCP server never go
+through the mod chain at all.
+
+Rule for new mod features: anything that must hold on a managed or Team session cannot rely on
+`attribution.text`, `classic.*`, `prompt.section`/`context`/`attachment`, `skill.prompt`,
+`prompt.compose`, `settings.read` or `session.compact`. Put it in a bash hook, which is
+canonical anyway.
+
 ## Validation
 
 Three gates, in `make validate` and CI (`make test-mods`):
