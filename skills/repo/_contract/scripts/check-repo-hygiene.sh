@@ -48,11 +48,31 @@ empty_dirs=$(wc -l < "$TMPDIRS" | tr -d ' ')
 #
 # "Comment" means a YAML comment: a `#` at the start or after whitespace, outside
 # quotes. Splitting at the first `#` would let a quoted runner label such as
-# `"# self-hosted-ok: x"` waive its own line.
+# `"# self-hosted-ok: x"` waive its own line. Quotes are tracked only up to that
+# boundary; past it everything is comment, so a quoted reason still counts.
 self_hosted_ok() {
-  local s waiver='(^|[[:space:]])#.*self-hosted-ok:[[:space:]]*[^[:space:]]'
-  s="$(printf '%s' "$1" | sed -E "s/\"[^\"]*\"//g; s/'[^']*'//g")"
-  [[ "$s" =~ $waiver ]]
+  local line="$1" ch q="" prev=" " i
+  for (( i = 0; i < ${#line}; i++ )); do
+    ch="${line:i:1}"
+    if [[ -n "$q" ]]; then
+      if [[ "$q" == '"' && "$ch" == '\' ]]; then   # \" does not close a double-quoted string
+        i=$((i + 1)); prev="x"; continue
+      fi
+      if [[ "$q" == "'" && "$ch" == "'" && "${line:i+1:1}" == "'" ]]; then   # '' is an escaped quote
+        i=$((i + 1)); prev="'"; continue
+      fi
+      [[ "$ch" == "$q" ]] && q=""
+    elif [[ "$ch" == '"' || "$ch" == "'" ]]; then
+      # A quote opens a scalar only where one can start; an apostrophe inside a plain
+      # label (`owner's-runner`) is just a character.
+      case "$prev" in [[:space:]] | "[" | "{" | "," | ":") q="$ch" ;; esac
+    elif [[ "$ch" == "#" && "$prev" == [[:space:]] ]]; then
+      [[ "${line:i}" =~ self-hosted-ok:[[:space:]]*[^[:space:]] ]]
+      return
+    fi
+    prev="$ch"
+  done
+  return 1
 }
 self_hosted_waived=0
 while IFS= read -r hit; do

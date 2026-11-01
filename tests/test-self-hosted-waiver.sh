@@ -81,6 +81,22 @@ d="$(repo quoted-single "runs-on: [self""-hosted, '# self-hosted-ok: label']")"
 judge "same with single quotes" true "$(hyg "$d" '.hygiene.self_hosted_ci')"
 d="$(repo quoted-then-real "runs-on: [self""-hosted, \"a#b\"]  # self-hosted-ok: billing")"
 judge "a real comment after a quoted hash still waives" false "$(hyg "$d" '.hygiene.self_hosted_ci')"
+d="$(repo quoted-reason "$RUNNER  # self-hosted-ok: \"hosted minutes are blocked\"")"
+judge "a double-quoted reason still waives" false "$(hyg "$d" '.hygiene.self_hosted_ci')"
+d="$(repo quoted-reason-single "$RUNNER  # self-hosted-ok: 'hosted minutes are blocked'")"
+judge "a single-quoted reason still waives" false "$(hyg "$d" '.hygiene.self_hosted_ci')"
+d="$(repo apostrophe "runs-on: [self""-hosted, owner's-runner]  # self-hosted-ok: billing")"
+judge "an apostrophe inside a plain label does not hide the waiver" false "$(hyg "$d" '.hygiene.self_hosted_ci')"
+d="$(repo apostrophe-unwaived "runs-on: [self""-hosted, owner's-runner]")"
+judge "and without a waiver that label is still flagged" true "$(hyg "$d" '.hygiene.self_hosted_ci')"
+d="$(repo escaped-quote "runs-on: [self""-hosted, \"a\\\" # self-hosted-ok: x\"]")"
+judge "an escaped quote does not end a double-quoted label" true "$(hyg "$d" '.hygiene.self_hosted_ci')"
+d="$(repo doubled-apostrophe "runs-on: [self""-hosted, 'owner''s # self-hosted-ok: label']")"
+judge "a doubled apostrophe stays inside a single-quoted label" true "$(hyg "$d" '.hygiene.self_hosted_ci')"
+d="$(repo doubled-then-real "runs-on: [self""-hosted, 'owner''s']  # self-hosted-ok: billing")"
+judge "a real comment after a doubled apostrophe still waives" false "$(hyg "$d" '.hygiene.self_hosted_ci')"
+d="$(repo glued "runs-on: [self""-hosted]#self-hosted-ok: billing")"
+judge "a hash glued to a token is not a comment" true "$(hyg "$d" '.hygiene.self_hosted_ci')"
 
 d="$(repo hosted "runs-on: ubuntu-latest")"
 judge "a hosted runner is not flagged" false "$(hyg "$d" '.hygiene.self_hosted_ci')"
@@ -93,6 +109,16 @@ judge "waived runner is clean" yes "$(scan_clean "$(repo s-waived "$RUNNER  # se
 judge "a waiver with no reason is still a hit" no "$(scan_clean "$(repo s-noreason "$RUNNER  # self-hosted-ok:")")"
 judge "a quoted label holding the token is still a hit" no \
   "$(scan_clean "$(repo s-quoted "runs-on: [self""-hosted, \"# self-hosted-ok: label\"]")")"
+judge "a quoted reason is clean" yes \
+  "$(scan_clean "$(repo s-quoted-reason "$RUNNER  # self-hosted-ok: \"hosted minutes are blocked\"")")"
+judge "an apostrophe inside a plain label does not hide the waiver" yes \
+  "$(scan_clean "$(repo s-apostrophe "runs-on: [self""-hosted, owner's-runner]  # self-hosted-ok: billing")")"
+judge "an escaped quote does not end a double-quoted label" no \
+  "$(scan_clean "$(repo s-escaped "runs-on: [self""-hosted, \"a\\\" # self-hosted-ok: x\"]")")"
+judge "a doubled apostrophe stays inside a single-quoted label" no \
+  "$(scan_clean "$(repo s-doubled "runs-on: [self""-hosted, 'owner''s # self-hosted-ok: label']")")"
+judge "a real comment after a doubled apostrophe still waives" yes \
+  "$(scan_clean "$(repo s-doubled-real "runs-on: [self""-hosted, 'owner''s']  # self-hosted-ok: billing")")"
 out="$(bash "$IPSCAN" "$(repo s-count "$RUNNER  # self-hosted-ok: billing")" 2>&1)"
 judge "the scan reports what it waived" yes "$(has "$out" "Waived: 1 self-hosted")"
 
