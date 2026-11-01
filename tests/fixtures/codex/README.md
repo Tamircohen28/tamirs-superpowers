@@ -8,6 +8,8 @@ model name down.
 
 ## Provenance
 
+**Re-checked on codex-cli 0.166.0, 2026-11-01:** a recording probe received `SessionStart` and `UserPromptSubmit`; the key sets equal `session-start.json` and `user-prompt-submit.json`, so the fixtures below are unchanged. The values shown are from the 0.163.0 run.
+
 **Measured on codex-cli 0.163.0, 2026-10-17** (npm `@openai/codex` installed into a
 throwaway prefix; a probe plugin with a recording hook, installed from a local
 marketplace; one `codex exec --dangerously-bypass-hook-trust --json` session against

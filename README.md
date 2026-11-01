@@ -11,8 +11,8 @@
 
 <p align="center">
   <a href="docs/engineering/build-and-release/platform-targets.json"><img src="https://img.shields.io/badge/Claude%20Code-2.1.316-blueviolet" alt="Claude Code" /></a>
-  <a href="docs/engineering/build-and-release/platform-targets.json"><img src="https://img.shields.io/badge/Cursor-3.22.7-000000" alt="Cursor" /></a>
-  <a href="docs/engineering/build-and-release/platform-targets.json"><img src="https://img.shields.io/badge/Codex-0.163.0-412991" alt="Codex" /></a>
+  <a href="docs/engineering/build-and-release/platform-targets.json"><img src="https://img.shields.io/badge/Cursor-3.27.22-000000" alt="Cursor" /></a>
+  <a href="docs/engineering/build-and-release/platform-targets.json"><img src="https://img.shields.io/badge/Codex-0.166.0-412991" alt="Codex" /></a>
   <a href="docs/engineering/build-and-release/platform-targets.json"><img src="https://img.shields.io/badge/Gemini%20CLI-0.66.0-4285F4" alt="Gemini CLI" /></a>
   <a href="docs/engineering/build-and-release/platform-targets.json"><img src="https://img.shields.io/badge/OpenCode-2.2.5-fab283" alt="OpenCode" /></a>
 </p>
@@ -62,7 +62,7 @@ Installed from the plugin marketplace; the CLI is the measured surface.
 
 | Surface | Registry id | Kind | Status | Install |
 |---|---|---|---|---|
-| Codex CLI | `codex` | CLI | ✅ supported — validated 0.163.0 | [guide](docs/user/install/codex.md) |
+| Codex CLI | `codex` | CLI | ✅ supported — validated 0.166.0 | [guide](docs/user/install/codex.md) |
 | Codex IDE extension | `codex_ide` | IDE | ⚠️ unverified — reads the same `AGENTS.md` and manifest, but the plugin has never been installed or a skill invoked there | — |
 
 ### Cursor
@@ -71,7 +71,7 @@ Added as a plugin source in Cursor, then installed from it.
 
 | Surface | Registry id | Kind | Status | Install |
 |---|---|---|---|---|
-| Cursor IDE | `cursor` | IDE | ✅ supported — validated 3.22.7 | [guide](docs/user/install/cursor.md) |
+| Cursor IDE | `cursor` | IDE | ✅ supported — validated 3.27.22 | [guide](docs/user/install/cursor.md) |
 | Cursor CLI | `cursor_cli` | CLI | ⚠️ unverified — shares the plugin manifest with the IDE, but no CLI run has been recorded here | — |
 
 ### Gemini
