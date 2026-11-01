@@ -68,8 +68,11 @@ LOGDIR="$TMPROOT/usage"
 python3 "$COLLECTOR" --dir "$LOGDIR" --port "$PORT" >/dev/null 2>&1 &
 COLLECTOR_PID=$!
 
+# Up to ~10s: a loaded CI runner has been seen to miss a ~1s budget. Stop early, and say so,
+# when the collector process itself has exited, so "died at startup" is not read as "slow".
 ready=0
-for _ in 1 2 3 4 5 6 7 8 9 10; do
+for _ in $(seq 1 100); do
+  kill -0 "$COLLECTOR_PID" 2>/dev/null || break
   if python3 - "$PORT" <<'PY' 2>/dev/null
 import socket, sys
 port = int(sys.argv[1])
@@ -86,8 +89,10 @@ PY
 done
 if [[ "$ready" == 1 ]]; then
   ok "collector listens on loopback"
+elif ! kill -0 "$COLLECTOR_PID" 2>/dev/null; then
+  bad "collector listens on loopback" "collector exited before becoming healthy on $PORT"
 else
-  bad "collector listens on loopback" "never became healthy on $PORT"
+  bad "collector listens on loopback" "never became healthy on $PORT within ~10s"
 fi
 
 post() {
