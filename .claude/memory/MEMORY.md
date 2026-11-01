@@ -13,7 +13,17 @@
 - [make validate must be backgrounded](feedback-background-task-exit-codes.md) — >2min; read the log's `EXIT=` line, never the task notification's exit code
 - [Fetch before auditing](feedback-fetch-before-audit.md) — audit `origin/<default>`; a stale checkout put the wrong version in a review report
 - [Statusline tmpdir CI flake is unexplained](project-statusline-tmpdir-ci-flake.md) — not diagnosed; five hypotheses ruled out, incl. the v3.6.0 "fix" that was falsified
+- [Tag after the squash merge, not before](feedback-tag-after-squash-merge.md) — squash makes a new SHA; a tag on the branch commit is orphaned
+- [Sweep for every instance before a full validate](feedback-sweep-before-full-validate.md) — grep the whole file first; do not fix findings one at a time under a running expensive gate
+- [`grep` here is a ugrep wrapper](feedback-grep-is-ugrep-wrapper.md) — it honors .gitignore; make/CI use real grep, so test shell logic via `/bin/sh -c`
+- [Probe the narrow check before the full gate](feedback-probe-narrow-before-full-gate.md) — make validate is 2min; re-run the one script the failure names, then gate once
+- [Try gh/npm before a research agent](feedback-gh-before-research-agent.md) — for "what changed in version X" the raw API *is* the primary source; summarizing fetchers are worse
+- [platforms.json anchors are ambiguous](feedback-registry-anchor-ambiguity.md) — a platform name and a validation string each appear many times; a bad anchor is a silent no-op
 - [Fix the class, not the named example](feedback-fix-the-class-not-the-example.md) — a scanner naming a new example after each fix means sweep the shape + add a guard
 - [Wait for Codex before merging](feedback-wait-for-codex-before-merge.md) — 👀 reaction = still reviewing; it caught real bugs on 3 of 4 PRs
-- [Directory submission holds](project-directory-submission-holds.md) — submitted 2026-10-05; which portal holds are structural and must not be re-chased
+- [Contract scripts: edit the canonical in scripts/](feedback-contract-script-canonical.md) — `skills/repo/_contract/scripts/` are copies; the sync's `updated:` line means your edit was discarded
+- [Directory submission holds](project-directory-submission-holds.md) — submitted 2026-10-05; which portal holds are structural and must not be re-chased; COMMAND_NAMES_MOD_FILE fixed in 5.0.2 by moving `modules` to `mod/modules.json`
 - [zsh does not word-split unquoted vars](feedback-zsh-unquoted-var-no-split.md) — `for x in $LIST` / `bash $cmd` silently misbehave; use `bash -c` or arrays
+- [Signed binary killed on launch (137) = stale inode signature](reference-macos-binary-killed-stale-signature.md) — same bytes run elsewhere; re-copy to a fresh inode, don't reinstall
+- [Cursor local plugin: real copy, not a symlink](reference-cursor-local-plugin-install.md) — 3.27 rejects symlinks; marketplace copy stays pinned old; diff with/without plugin to prove hooks
+- [Test the commit, not the working copy](feedback-test-the-commit-not-the-working-copy.md) — a shared worktree held another session's uncommitted fix; I called a finding fixed on that basis

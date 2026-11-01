@@ -39,4 +39,13 @@ grep -nE 'FAILED|failed: [1-9]|make: \*\*\*' "$SCRATCH/validate.log" | head
 `grep -c fail` can hit `ok` lines whose text contains the word — match on the count patterns
 above, not on bare "fail".
 
+**Recurrence, 2026-09-23.** This fired three more times in a single session, same shape every
+time: notifications reading `completed (exit code 0)` while the log said `EXIT=2`. Once the
+failure was a forked contract template (`sync-contract-scripts.sh` regenerates 36 copies; any
+edit to `core/capabilities/platforms.json` is really a 4-file edit), once a stale root
+`.codex-version` pin, once a shellcheck SC2155. All three would have been committed as "gate
+green" on the notification alone. The rule is not aging out — read the `EXIT=` line every time.
+
 Related: [[feedback-verify-mechanism-claims]] — this is the mechanical instance of that pattern.
+See also [[feedback-probe-narrow-before-full-gate]] for not paying the 2-minute cost repeatedly
+while iterating on a localized fix.

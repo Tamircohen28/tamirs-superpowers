@@ -26,3 +26,11 @@ still pending.
 `@codex review` comment. After pushing fixes, comment `@codex review` and wait for its summary
 comment ("Codex Review Summary") to list a completed review for the new head; "no 👀" alone would
 pass with the fix unreviewed. Related: [[project-admin-merge-personal-repo]].
+
+**Where its answer lands (2026-10-17, PR #289):** after `@codex review` on a new head, Codex may
+answer with an **issue comment** carrying `<!-- codex-review-receipt:v1 -->` ("Didn't find any
+major issues", with the reviewed commit) instead of a formal PR review. A wait that only polls
+`pulls/N/reviews` for that `commit_id` never fires; also poll `issues/N/comments` for the receipt
+naming the head SHA. Match `codex-review-receipt`, not just the SHA: the
+`codex-pull-request-review-summary` comment names the same SHA while its state says
+`"status":"running"` (PR #292 false positive).
