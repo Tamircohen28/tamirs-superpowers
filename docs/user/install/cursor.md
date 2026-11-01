@@ -1,10 +1,12 @@
 # Install — Cursor
 
-Registry id: `cursor`. Validated against Cursor desktop **3.22.7** (feature changelog
-**3.11**, covered through date-only **2026-09-23**); that floor is the version this repo
-actually tested, not a guess. Desktop **3.24.12** (hook `tool_use_id` / `parent_tool_call_id`
-correlation, auto-review risky-delete approval) was reviewed from the IDE release notes;
-no live run has validated it yet.
+Registry id: `cursor`. Validated against Cursor desktop **3.27.22** on 2026-11-01: the plugin
+loaded as a local plugin with no failures, and its commands, skills and worktree hook ran on
+`cursor-agent` 2026.09.18. Not exercised: invoking a skill from the desktop UI, and the plugin's
+hooks inside the desktop app. The support floor stays **3.22.7**, the last build a live run confirmed
+on its own, not a guess. The IDE release notes are read through 3.27
+([cursor.com/docs/release-notes/ide](https://cursor.com/docs/release-notes/ide)); the feature
+changelog is date-only through **2026-10-20**.
 
 ---
 
@@ -24,6 +26,22 @@ see below — `agents/`, and the github MCP server from
 generated with the manifest from one source
 ([manifests](../../engineering/build-and-release/manifests.md)). Enable **Auto Refresh**
 on the marketplace and pushes propagate without a version bump.
+
+### Trying a checkout without the marketplace
+
+To run a checkout or an unreleased commit, put a **real copy** in Cursor's local plugin directory:
+
+```bash
+mkdir -p ~/.cursor/plugins/local/tamirs-superpowers
+git -C ~/src/tamirs-superpowers archive HEAD | tar -x -C ~/.cursor/plugins/local/tamirs-superpowers
+```
+
+Then restart Cursor; the plugin log reads `loadUserLocalPlugin tamirs-superpowers loaded`.
+**Do not symlink it.** Desktop 3.27.22 refuses one (`symlink target ... is outside
+~/.cursor/plugins/local`) and loads nothing. A marketplace-imported copy is pinned to the commit
+the import recorded and does not follow `master` until the marketplace is refreshed in the
+Dashboard, so the two can sit side by side at different versions. For a headless run,
+`cursor-agent --plugin-dir <checkout>` loads a checkout directly.
 
 ## Set the `GITHUB_TOKEN` plugin variable
 
@@ -361,7 +379,8 @@ never adopt anything silently. `apply` shows a diff and asks per change, default
 | background tasks · structured questions · session transcripts | unknown | Not measured — treated as unavailable, with stated fallbacks |
 | statusline · artifacts · extension install | unsupported | Cosmetic, absent, and not a Cursor mechanism, respectively |
 
-### Working tips (3.11 → 2026-09-23; desktop CLI 3.22.7 validated, 3.24.12 reviewed; CLI 2026-08-26)
+### Working tips (3.11 → 2026-10-20; desktop 3.27.22 validated and reviewed; CLI 2026-08-26)
+- **Desktop 3.25 – 3.27 (IDE release notes):** 3.25 flags a skill that goes past the Agent Skills limits in **Customize > Skills** (this plugin's longest description is 738 of 1024 characters and its longest body 452 lines, so none trips it); 3.26 makes `/` open the skill and command picker and treats a `CLAUDE.md` that mirrors `AGENTS.md` as one file (this repo's two differ); 3.27 hands hook scripts a `parent_agent_id` for subagents, which is not adopted because `tool_use_id` / `parent_tool_call_id` correlation already attributes them and the payload was not captured live.
 - **Desktop 3.24.12 (2026-10-10/11 stable):** IDE notes add **hook `tool_use_id`** correlation (shell/MCP hooks match `preToolUse`) and always-on **`transcript_path` / `CURSOR_TRANSCRIPT_PATH`** — this plugin's `cursor-agent-tools-guard.sh` now keys subagent allowlists on Task `tool_use_id` + child `parent_tool_call_id`. **Auto-review** asks before risky recursive/force/wildcard/mirror deletes whose targets could resolve differently than written. Cloud agents recognize **OOM kills** (memory limit reported). MCP OAuth can complete via a **Cursor-hosted callback** when local redirect URLs are rejected. Large worktree cleanups can OOM the main process — if heap climbs after launch, set `"cursor.worktreesGlobalMaxSizeGb": 0` and `"cursor.worktreeCleanupIntervalHours": 500` (Cursor staff workaround, forum 2026-10-11).
 - **Desktop 3.23.12 (2026-10-01):** team/org **MCP allowlists** — keep the bundled `github` MCP (and any Team MCP) on the org allowlist after upgrade; Origin MCP endpoint is `api.origin.cursor.com/mcp`. Prefer **service tokens** for Automations that install/update this plugin. **Required** team-marketplace plugins removed — install modes are Default Off / Default On + groups only.
 - **Security Review + Rollouts (2026-09-23):** Teams/Enterprise bots from [Automations](https://cursor.com/automations) ([Security Agents docs](https://cursor.com/docs/security-agents)). Security Review posts exploitable-bug findings on ready PRs (drafts skipped; Bugbot keeps style). Run Cursor's `/review-security` or `/review` before push — complements this plugin's `security-reviewer` agent (in-session role) rather than replacing it. **Rollouts** monitors deploy health per environment after merge; optional for this public plugin (no product deploy). [Changelog](https://cursor.com/changelog/rollouts-and-security-reviewer).
