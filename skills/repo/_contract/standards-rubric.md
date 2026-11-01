@@ -137,7 +137,7 @@ runs-on: [self-hosted, macOS, ARM64, my-repo]  # self-hosted-ok: <why>
 ```
 
 The token counts only in a YAML comment on the line (a `#` at the start or after
-whitespace, outside quotes), and the reason after the colon is required. `check-repo-hygiene.sh` then leaves `self_hosted_ci` false and
+whitespace, outside quotes; the reason itself may be quoted), and the reason after the colon is required. `check-repo-hygiene.sh` then leaves `self_hosted_ci` false and
 reports the line in `self_hosted_waived`. `ip-scan.sh` drops it from the self-hosted
 pattern only and prints a `Waived:` count. Any unwaived runner line still fires.
 
