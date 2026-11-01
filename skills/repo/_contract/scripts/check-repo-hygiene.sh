@@ -55,9 +55,14 @@ self_hosted_ok() {
   for (( i = 0; i < ${#line}; i++ )); do
     ch="${line:i:1}"
     if [[ -n "$q" ]]; then
+      if [[ "$q" == '"' && "$ch" == '\' ]]; then   # \" does not close a double-quoted string
+        i=$((i + 1)); prev="x"; continue
+      fi
       [[ "$ch" == "$q" ]] && q=""
     elif [[ "$ch" == '"' || "$ch" == "'" ]]; then
-      q="$ch"
+      # A quote opens a scalar only where one can start; an apostrophe inside a plain
+      # label (`owner's-runner`) is just a character.
+      case "$prev" in [[:space:]] | "[" | "{" | "," | ":") q="$ch" ;; esac
     elif [[ "$ch" == "#" && "$prev" == [[:space:]] ]]; then
       [[ "${line:i}" =~ self-hosted-ok:[[:space:]]*[^[:space:]] ]]
       return

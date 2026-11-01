@@ -14,8 +14,11 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   `runs-on: [self-hosted]  # self-hosted-ok: "hosted minutes are blocked"` lost its reason and the
   line stayed flagged (fail-closed, never a bypass). Both now track quotes only up to the first
   `#` that starts a real YAML comment and treat everything after it as comment; a quoted runner
-  label still cannot waive itself. `tests/test-self-hosted-waiver.sh` gained the single- and
-  double-quoted reason cases for both scripts and a case for a `#` glued to a token.
+  label still cannot waive itself. A quote opens a string only where a YAML scalar can start
+  (after whitespace, `[`, `{`, `,` or `:`), so an apostrophe inside a plain label such as
+  `owner's-runner` no longer hides the waiver, and `\"` does not end a double-quoted string.
+  `tests/test-self-hosted-waiver.sh` gained the single- and double-quoted reason cases, the
+  apostrophe and escaped-quote cases for both scripts, and a case for a `#` glued to a token.
 
 ## [5.1.1] — 2026-11-01
 
