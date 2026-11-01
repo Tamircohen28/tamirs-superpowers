@@ -125,8 +125,11 @@ manifest_version_tag_match=true
 release_tags_exist=false
 if (( manifest_count > 0 )) && [[ -n "$manifest_version" ]] && command -v git &>/dev/null \
   && [[ "$ROOT" != *"/_contract/fixtures/"* ]]; then
+  # The glob also matches v<ver>-claude, the generated distribution tag, which
+  # sorts past the release tag it mirrors; check-manifest-version-alignment.sh
+  # strips it for the same reason.
   latest_tag_ver=$(cd "$ROOT" && git tag -l 'v[0-9]*.[0-9]*.[0-9]*' 2>/dev/null \
-    | sed 's/^v//' | sort -t. -k1,1n -k2,2n -k3,3n | tail -1 || true)
+    | sed 's/^v//' | grep -Ev -- '-claude$' | sort -t. -k1,1n -k2,2n -k3,3n | tail -1 || true)
   if [[ -n "$latest_tag_ver" ]]; then
     release_tags_exist=true
     [[ "$latest_tag_ver" != "$manifest_version" ]] && manifest_version_tag_match=false

@@ -34,7 +34,7 @@ windows: OpenCode documents no such payload) is in the header of `tui.tsx`.
 
 ```bash
 node --test platforms/opencode/plugin/rules.test.mjs          # pure rules, no install
-cd platforms/opencode/plugin && npm install && npm run check   # tsc --noEmit against @opencode/plugin 2.0.32
+cd platforms/opencode/plugin && npm install && npm run check   # tsc --noEmit against @opencode/plugin 2.2.5
 bash tests/test-opencode-v2.sh                                  # both, plus the generated adapters
 ```
 

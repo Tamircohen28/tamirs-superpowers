@@ -25,7 +25,7 @@
  * messages.transform hook), so TAMIRS_USAGE_CAPTURE_BODIES is accepted but
  * records nothing on OpenCode 2 — stated here rather than silently.
  *
- * Event -> record mapping (names from @opencode/client 2.0.32's event union):
+ * Event -> record mapping (names re-checked against @opencode/client 2.2.5's event union):
  *   session.created          -> session_start
  *   session.skill.activated  -> skill_activated  (skill_name = data.name)
  *   session.model.selected   -> remembered; stamps `model` on later requests

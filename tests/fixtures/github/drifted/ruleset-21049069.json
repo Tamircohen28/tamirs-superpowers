@@ -68,6 +68,14 @@
           {
             "context": "HOL Plugin Scanner",
             "integration_id": 15368
+          },
+          {
+            "context": "make validate (full local-parity gate)",
+            "integration_id": 15368
+          },
+          {
+            "context": "Repo contract (this repo)",
+            "integration_id": 15368
           }
         ],
         "strict_required_status_checks_policy": true

@@ -39,8 +39,8 @@ Verify yours parses: `jq empty .mcp.json`.
 
 ## Skill discovery (OpenCode)
 
-[`opencode.json`](../../opencode.json) lists the skill directories OpenCode scans under
-`skills.paths`. Add or remove domains there to change what OpenCode loads. Other platforms
+[`opencode.json`](../../opencode.json) lists the skill directories OpenCode scans in its
+`skills` array. Add or remove domains there to change what OpenCode loads. Other platforms
 discover `skills/` without configuration.
 
 ## Hooks

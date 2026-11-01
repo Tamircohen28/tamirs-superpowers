@@ -24,7 +24,7 @@
 #   the skill itself stays canonical and is not duplicated.
 #
 # OPENCODE 2 FRONTMATTER
-#   `subagent: false` is emitted explicitly. V2 renamed V1's `subtask` to `subagent`
+#   `subagent: false` is emitted explicitly. The field is `subagent`
 #   (`subtask` is a deprecated alias; `subagent` wins when both are present) and
 #   made the OMITTED value depend on the selected agent's mode — "Use a child only
 #   when the selected agent has mode: subagent". These launchers must run in the

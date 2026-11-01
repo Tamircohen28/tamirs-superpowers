@@ -28,12 +28,12 @@ If this table and the registry disagree, the registry is right and this page is 
 
 **Claude Desktop is a runtime surface of the Claude Code plugin, not a second adapter.** It consumes the Claude Code plugin format and needs no manifest, no build step and no separate install artifact — which is exactly why it is a *surface* of the `claude` platform rather than a platform in its own right. What it is not is a duplicate of Claude Code's capability rows: several of them are `unknown` there, because a Desktop run has never been recorded. Where that matters, the row below says so.
 
-OpenCode scans `.opencode/skills/`, `.claude/skills/`, and `.agents/skills/` (project and global) natively, and the scan **is** recursive — the domain-nested `skills/<domain>/<name>/SKILL.md` layout is discovered as-is. OpenCode's published docs claim otherwise; verified against 1.16.2 and 1.18.11 with `opencode debug skill`.
+OpenCode scans `.opencode/skills/`, `.claude/skills/`, and `.agents/skills/` (project and global) natively, and its docs describe the scan as recursive, so the domain-nested `skills/<domain>/<name>/SKILL.md` layout is expected to be discovered as-is. That is a documented claim, not a measured one on OpenCode 2: `opencode debug skill` no longer exists, and on 2.2.5 `api skill.list` returns only the three built-in skills, so per-skill discovery cannot be confirmed from the CLI.
 
-**OpenCode does not follow symlinks for skill discovery, at any level** — a symlinked
-`skills` directory, a symlinked domain directory, and a symlinked individual skill
-directory all yield zero discovered skills (verified 1.18.11). Use absolute
-`skills`; do not recommend a symlink install.
+**Symlink following for OpenCode skill discovery is unmeasured on OpenCode 2.** OpenCode 1
+did not follow symlinks at any level (verified 1.18.11), and nothing has re-measured it on
+2.x. Use absolute paths in the `opencode.json` `skills` array; do not recommend a symlink
+install.
 
 **Gemini CLI reads a skills root exactly one level deep** (verified 0.55.1):
 `skills/<name>/SKILL.md` is discovered, `skills/<domain>/<name>/SKILL.md` is not — so the
