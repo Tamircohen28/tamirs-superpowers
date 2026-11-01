@@ -70,12 +70,24 @@ filter_allowlisted() {
 # self-hosted pattern alone: the same comment on a credential line waives nothing.
 # Runs in a command substitution, so the caller counts what it dropped.
 # "Comment" means a `#` at the start or after whitespace, outside quotes, so a
-# quoted runner label such as `"# self-hosted-ok: x"` waives nothing.
+# quoted runner label such as `"# self-hosted-ok: x"` waives nothing, while a
+# quoted reason inside the comment still counts.
 WAIVED=0
 self_hosted_ok() {
-  local s waiver='(^|[[:space:]])#.*self-hosted-ok:[[:space:]]*[^[:space:]]'
-  s="$(printf '%s' "$1" | sed -E "s/\"[^\"]*\"//g; s/'[^']*'//g")"
-  [[ "$s" =~ $waiver ]]
+  local line="$1" ch q="" prev=" " i
+  for (( i = 0; i < ${#line}; i++ )); do
+    ch="${line:i:1}"
+    if [[ -n "$q" ]]; then
+      [[ "$ch" == "$q" ]] && q=""
+    elif [[ "$ch" == '"' || "$ch" == "'" ]]; then
+      q="$ch"
+    elif [[ "$ch" == "#" && "$prev" == [[:space:]] ]]; then
+      [[ "${line:i}" =~ self-hosted-ok:[[:space:]]*[^[:space:]] ]]
+      return
+    fi
+    prev="$ch"
+  done
+  return 1
 }
 drop_self_hosted_waived() {
   local input="${1:-}" line content
