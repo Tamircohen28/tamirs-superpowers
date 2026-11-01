@@ -7,12 +7,14 @@ invoked a skill there, so it has no install guide and no capability claims in ei
 direction. See [platform differences](../platform-differences.md#unverified-surfaces).
 
 Skills require Codex **0.40+**; the manifest `hooks` field requires **0.147.0+**. Direct CLI
-validation is **0.163.0** — a live `codex` run on 2026-10-17 installed this plugin through a
+validation is **0.166.0** — a live `codex` run on 2026-11-01 installed this plugin through a local
+marketplace and received `SessionStart` and `UserPromptSubmit` with the fixtures' payload keys
+(see [Measurement status](#measurement-status)); the 0.163.0 run of 2026-10-17 installed this plugin through a
 local marketplace, fired every hook in the generated `platforms/codex/hooks.json` on its event
 and captured the payloads into `tests/fixtures/codex/` (see [Hooks on Codex](#hooks-on-codex)).
 An earlier live run on 0.156.0 (2026-09-23) confirmed the install preserves the plugin's
 executable `.sh` files, hooks file, agent definitions and every `SKILL.md`. The official
-release delta is reviewed through the same **0.163.0**, which is the version tracked by
+release delta is reviewed through the same **0.166.0**, which is the version tracked by
 `.codex-version`.
 
 ---
@@ -270,6 +272,8 @@ get 3 s (the test warns about it; the generator is deliberately left as is until
 is decided).
 
 ### Measurement status
+
+**Re-measured on codex-cli 0.166.0, 2026-11-01** (npm `@openai/codex` into a throwaway prefix, scratch `CODEX_HOME`, no credential, no login), against master 7834b92 (plugin 5.1.0). `codex plugin marketplace add ./`, `codex plugin list --available --json` and `codex plugin add tamirs-superpowers@tamirs-superpowers` work offline. A probe plugin with a recording hook, installed from a local marketplace, received `SessionStart` and `UserPromptSubmit` under `codex exec --skip-git-repo-check --ephemeral --dangerously-bypass-hook-trust --json` against a dead local provider; **stdin must be closed (`< /dev/null`) or `exec` waits on it**. The payload key sets equal `tests/fixtures/codex/session-start.json` and `user-prompt-submit.json`, and the hook environment is unchanged. Still not measurable offline: tool-call and `Stop` hooks, which need a completed model turn. Release notes 0.164.0–0.166.0 change nothing this plugin ships: hook approval is bound to plugin contents (it was already hash-bound), and `PreToolUse` hooks now report the local command cwd. The measurements below are the 0.163.0 record.
 
 **Measured on codex-cli 0.163.0, 2026-10-17**, from `npm install -g @openai/codex` into a
 throwaway prefix, `CODEX_HOME` pointed at a scratch directory, no credential stored and no login:
