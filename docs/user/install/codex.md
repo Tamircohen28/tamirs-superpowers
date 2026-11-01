@@ -12,7 +12,7 @@ local marketplace, fired every hook in the generated `platforms/codex/hooks.json
 and captured the payloads into `tests/fixtures/codex/` (see [Hooks on Codex](#hooks-on-codex)).
 An earlier live run on 0.156.0 (2026-09-23) confirmed the install preserves the plugin's
 executable `.sh` files, hooks file, agent definitions and every `SKILL.md`. The official
-release delta is reviewed through **0.165.0** (2026-10-27; changelog only), which is the version tracked by
+release delta is reviewed through **0.166.0** (2026-10-29; changelog only), which is the version tracked by
 `.codex-version`.
 
 ---
@@ -59,6 +59,10 @@ has not been verified here; the rest of the plugin does not need the server.
 Codex also reads the repo's root [`AGENTS.md`](../../../AGENTS.md) as project instructions.
 That file is a **thin entrypoint** into the canonical rules under
 [`rules/`](../../../rules/README.md) — it is deliberately not the whole policy source.
+
+### Codex 0.166.0 notes (reviewed, not directly validated)
+
+Use native `codex doctor --network-only` for connectivity and WebSocket troubleshooting, and `codex queue --resume` for unloaded-thread recovery. Keyboard transcript selection, Markdown in async questions, expanded Terra catalogs, safer follow-up prompts, and permission/reasoning state preservation across resume/fork are native host features. The Codex plugin manifest, generated hook overlay and local stdio MCP registration require no change. Direct validation remains 0.163.0.
 
 ### Codex 0.165.0 notes (reviewed, not directly validated)
 
