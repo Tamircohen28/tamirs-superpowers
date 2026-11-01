@@ -52,7 +52,7 @@
               "generated flat skill mirror at .gemini/skills/ (built from the canonical tree, one symlink per skill)"
             ],
             "opencode": [
-              ".agents/skills/ via opencode.json skills.paths"
+              ".agents/skills/ via the opencode.json skills array"
             ]
           },
           "bridge_required_when": [
@@ -141,7 +141,7 @@
             ".codex-plugin/plugin.json"
           ],
           "paths_must_match": true,
-          "note": "Only the three plugin.json manifests carry a skills path array that can disagree. Gemini installs the canonical skills/ tree through its extension manifest and OpenCode through opencode.json skills.paths, so neither can drift from a list it does not keep.",
+          "note": "Only the three plugin.json manifests carry a skills path array that can disagree. Gemini installs the canonical skills/ tree through its extension manifest and OpenCode through the opencode.json skills array, so neither can drift from a list it does not keep.",
           "platforms": {
             "gemini_cli": [
               "generated flat skill mirror at .gemini/skills/ (built from the canonical tree, one symlink per skill)"

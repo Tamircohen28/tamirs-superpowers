@@ -73,24 +73,15 @@ else
   bad "declares the published \$schema" "got '$schema'"
 fi
 
-# `skills` is the mechanism the whole skills story rests on. Verified on OpenCode
-# 1.18.11 (as `skills.paths`): WITHOUT it, a skills/ tree at the repo root is not
-# discovered at all (it is not one of the scanned locations). It is not decoration.
-#
-# SHAPE CHANGED IN v2. v1 took an object, `skills: { paths: [...] }`; v2 takes a
-# FLAT ARRAY of strings — packages/schema/src/config.ts:84 at tag v2.0.14,
-# `Schema.String.pipe(Schema.Array)`, "Additional paths or URLs to discover skills
-# from". This repo tracks v2, so the array form is what is asserted here.
-# ASSERT THE TYPE, NOT JUST A LENGTH.
-#
-# `.skills | length` is 1 for the v1 OBJECT form `{ "paths": [...] }` — an object's
-# length is its key count — so a regression to v1 would sail through a `> 0` check,
-# and the jq errors raised further down run inside process substitutions whose exit
-# status this script does not propagate. The guard has to fail on the wrong TYPE.
+# `skills` is the mechanism the whole skills story rests on: WITHOUT it, a skills/
+# tree at the repo root is not discovered at all (it is not one of the scanned
+# locations). v2 takes a FLAT ARRAY of strings ("Additional paths or URLs to
+# discover skills from"). ASSERT THE TYPE, NOT JUST A LENGTH: an object's
+# `length` is its key count, so a `> 0` check alone would accept `{ "paths": [...] }`.
 if jq -e '(.skills | type) == "array"' "$CONFIG" >/dev/null 2>&1; then
   ok "skills is a flat array (v2 contract)"
 else
-  bad "skills is a flat array (v2 contract)" "got type '$(jq -r '.skills | type // "missing"' "$CONFIG" 2>/dev/null)' — v1's { paths: [...] } object no longer matches what this repo ships"
+  bad "skills is a flat array (v2 contract)" "got type '$(jq -r '.skills | type // "missing"' "$CONFIG" 2>/dev/null)' — OpenCode 2 expects a flat array of strings"
 fi
 if jq -e '(.skills | length) > 0 and all(.skills[]; type == "string")' "$CONFIG" >/dev/null 2>&1; then
   ok "skills is non-empty and all entries are strings ($(jq -r '.skills | length' "$CONFIG") entries)"
@@ -109,7 +100,7 @@ while IFS= read -r p; do
     missing=$((missing + 1))
     continue
   fi
-  # skills entries recurse (verified 1.18.11), so a domain dir or a zero-level
+  # skills entries recurse, so a domain dir or a zero-level
   # skill dir are both valid — either way it must yield at least one SKILL.md.
   if [ -z "$(find "$ROOT/$p" -name SKILL.md -print -quit)" ]; then
     bad "skills entry yields a skill: $p" "directory contains no SKILL.md"
@@ -184,8 +175,7 @@ echo "--- .opencode/agents: allowlist semantics survive translation ---"
 # The defect this pins: canonical `tools: Read, Grep, Glob` is read-only, but an
 # OpenCode agent listing only its granted tools leaves the rest ENABLED — the V2
 # base policy starts with `{action: "*", resource: "*", effect: allow}` (measured
-# on 2.0.32 with `opencode debug agents`; the same widening was measured on
-# 1.18.11 with the V1 map). Every adapter that came from a canonical file with a
+# with `opencode debug agents`). Every adapter that came from a canonical file with a
 # `tools:` allowlist must therefore deny explicitly, or the role's read/write
 # boundary is silently gone.
 noperm=()
@@ -372,13 +362,7 @@ echo "--- live OpenCode CLI (optional) ---"
 
 ver=""
 command -v opencode >/dev/null 2>&1 && ver="$(opencode --version 2>/dev/null | head -1)"
-if [ -n "$ver" ] && [ "${ver%%.*}" -lt 2 ] 2>/dev/null; then
-  # The adapter targets OpenCode 2. A 1.x CLI has no `debug agents` (it has
-  # `debug agent <name>` and prints help on stdout's behalf), so the live probe
-  # below would report an empty listing as a failure. That is an unsupported
-  # CLI, not a broken adapter: skip it the way an absent CLI is skipped.
-  printf '  skip opencode %s is pre-2.x — the live probe needs OpenCode 2 (debug agents); upgrade to measure it\n' "$ver"
-elif command -v opencode >/dev/null 2>&1; then
+if command -v opencode >/dev/null 2>&1; then
   printf '  ..   opencode %s detected\n' "$ver"
 
   # OpenCode 2 removed `debug skill` and the per-agent `debug agent <name>`; its

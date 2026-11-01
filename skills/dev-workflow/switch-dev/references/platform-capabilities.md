@@ -55,7 +55,7 @@ install path there. Do not hand work to it.
 ## OpenCode
 
 Supported surface: **OpenCode CLI**. The **OpenCode desktop app** is unverified — whether
-it reads the same `opencode.json` `skills.paths` this repo installs into has not been
+it reads the same `opencode.json` `skills` array this repo installs into has not been
 checked. Do not hand work to it.
 
 - **Agents** — configured in `opencode.json`; primary and subagent modes

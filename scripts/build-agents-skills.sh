@@ -37,9 +37,9 @@
 #   skills/repo/_contract/fixtures/ sit deeper than the glob and are never mirrored.
 #
 # KNOWN LIMIT
-#   OpenCode does not follow symlinks for skill discovery at any level (verified
-#   1.18.11, see platforms/README.md), so this mirror is invisible to OpenCode
-#   in place; opencode.json keeps pointing at the canonical tree. The tarball a
+#   OpenCode 1 did not follow symlinks for skill discovery at any level (verified
+#   1.18.11, see platforms/README.md) and symlink following is unmeasured on
+#   OpenCode 2, so this mirror is treated as invisible to OpenCode in place; opencode.json keeps pointing at the canonical tree. The tarball a
 #   host installs from (scripts/build-dist.sh) dereferences symlinks, so a
 #   shipped .agents/skills/ is plain directories.
 #

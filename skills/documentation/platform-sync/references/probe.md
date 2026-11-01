@@ -30,7 +30,7 @@ claude_code: pinned=2.1.278 current=n/a — no automated upstream source; advanc
 cursor: pinned=3.11 current=n/a — no automated feature-changelog source; advance changelog_feature via changelog review
 codex: pinned=0.155.1 current=0.156.0 — DRIFT
 gemini_cli: pinned=0.60.0 current=0.60.0 — no drift
-opencode: pinned=1.18.32 current=1.18.32 — no drift
+opencode: pinned=2.2.5 current=2.2.5 — no drift
 
 Summary: 1 drifted, 0 unreachable
 ```

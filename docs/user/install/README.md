@@ -12,7 +12,7 @@ covers **install · verify · update · uninstall**, plus an honest capability t
 | Codex | Codex CLI | `codex` | CLI | plugin marketplace | [codex.md](codex.md) |
 | Cursor | Cursor IDE | `cursor` | IDE | team marketplace, import from repo | [cursor.md](cursor.md) |
 | Gemini | Gemini CLI | `gemini_cli` | CLI | git-URL extension **+ a separate skills install** | [gemini.md](gemini.md) |
-| OpenCode | OpenCode CLI | `opencode` | CLI | path (`skills.paths` or symlink) | [opencode.md](opencode.md) |
+| OpenCode | OpenCode CLI | `opencode` | CLI | path (`skills` array in `opencode.json`) | [opencode.md](opencode.md) |
 
 Each of those five platforms has a second surface — the Codex IDE extension, the Cursor CLI,
 Gemini Code Assist, the OpenCode desktop app — that this repo has never installed into or

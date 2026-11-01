@@ -44,7 +44,7 @@ A **surface** with `runtime_surface_of` set (Claude Desktop → Claude Code) con
 | `codex` | `codex` | Codex CLI | `.codex-plugin/plugin.json` + `AGENTS.md` |
 | `cursor` | `cursor` | Cursor IDE | `.cursor-plugin/plugin.json` + `.mdc` rules |
 | `gemini` | `gemini_cli` | Gemini CLI | `gemini-extension.json`, installed from a git URL |
-| `opencode` | `opencode` | OpenCode CLI | `opencode.json` `skills.paths`; agents via generated adapter |
+| `opencode` | `opencode` | OpenCode CLI | `opencode.json` `skills` array; agents via generated adapter |
 
 ## Repo types
 

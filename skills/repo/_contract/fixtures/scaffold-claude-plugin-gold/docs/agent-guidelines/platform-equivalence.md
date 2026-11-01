@@ -7,7 +7,7 @@ the one capability that genuinely has no portable artifact.
 | Feature | Claude Code / Desktop | Cursor | Codex CLI | Gemini CLI | OpenCode |
 |---------|----------------------|--------|-----------|------------|----------|
 | Hooks | `hooks/hooks.json` | partial — scoped `.mdc` rules as substitute | `.codex-plugin/plugin.json` `hooks` field | unknown — manifest field loads but firing is unverified; claim nothing | unsupported — no `hooks.json`; guards move to skills + CI |
-| Skills | `skills/` via manifest | `skills/` via manifest | `skills/` via manifest | `gemini-extension.json` | `opencode.json` `skills.paths` |
+| Skills | `skills/` via manifest | `skills/` via manifest | `skills/` via manifest | `gemini-extension.json` | `opencode.json` `skills` array |
 | MCP | `.mcp.json` via manifest | `.mcp.json` via manifest | `.mcp.json` via manifest | `gemini-extension.json` `mcpServers` | `opencode.json` `mcp` |
 
 Cursor has no `hooks.json` — use rules as substitute. Claude Desktop is a runtime surface
