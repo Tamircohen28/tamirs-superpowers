@@ -28,6 +28,8 @@ The README's platform badge row shows **platform tool versions** directly valida
 
 ## Versions
 
+**Codex 0.166.0 review (2026-11-01; changelog only).** Native `codex doctor --network-only` is the preferred Codex connectivity/WebSocket diagnostic; `codex queue --resume` resumes unloaded threads after queueing a message. Transcript selection, async Markdown, Terra catalog expansion, safer follow-up prompts, resume/fork permission persistence, reasoning accounting, app-server lifecycle and TUI reconnect fixes are host-side. The generated Codex hooks, plugin manifest and local stdio MCP server need no migration. Do not add custom wrappers. Live validation stays **0.163.0** from 2026-10-17.
+
 **Codex 0.165.0 review (2026-10-28; changelog only).** New native Vertex AI provider, GPT-6.1 Terra catalog, session repository filtering, in-conversation reasoning-effort changes and memory v2 defaults are host-level capabilities; experimental attached app-server forks do not change this plugin. The host now cancels abandoned remote MCP requests, avoids restarting queued work after interruption/Plan mode, respects default approval reviewers, and validates marketplace URLs more strictly. This repository's plain Git marketplace URL, generated Codex hooks, manifest and local stdio MCP server require no migration. No custom wrappers or cross-target changes were introduced. Direct hook/install validation remains **0.163.0**.
 
 **Codex 0.164.0 review (2026-10-25; changelog only).** Native `/presets`, inline `/model` and `/permissions` arguments, enterprise MCP sign-in/account grants and remote command credential masking are host capabilities. Compaction/recovery, proxy and sandbox hardening are consumed upstream. The Codex-only generated hook overlay, plugin manifest and local stdio MCP configuration require no migration; no new flags or wrappers are introduced. Live validation remains **0.163.0** from 2026-10-17.
@@ -40,7 +42,7 @@ Reviewed **2026-10-06** (changelog/schema only, no live binary; `validated_again
 |----------|---------------|-------------------|------------------|--------------|---------------|
 | Claude Code | 2.0.0 | 2.1.287 | 2.1.287 | 2.1.287 | [claude-code.md](../../user/install/claude-code.md) |
 | Cursor | 3.22.7 | 3.22.7 | 3.24.12 | 3.24.12 | [cursor.md](../../user/install/cursor.md) |
-| Codex | 0.40.0 | 0.163.0 | 0.165.0 | 0.165.0 | [codex.md](../../user/install/codex.md) |
+| Codex | 0.40.0 | 0.163.0 | 0.166.0 | 0.166.0 | [codex.md](../../user/install/codex.md) |
 | Gemini CLI | 0.55.1 | 0.64.0 | 0.64.0 | 0.64.0 | [gemini.md](../../user/install/gemini.md) |
 | OpenCode | 2.2.5 | 2.2.5 | 2.2.5 | 2.2.5 | [opencode.md](../../user/install/opencode.md) |
 
