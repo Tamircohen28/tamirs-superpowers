@@ -17,7 +17,7 @@ it. It has no install guide and no capability claims in either direction — see
 
 | | |
 |---|---|
-| **Validated against** | Gemini CLI **0.64.0** — `gemini --version` → `0.64.0`; `gemini extensions validate .` → `Extension . has been successfully validated.`; a distribution carrying the generated `hooks/hooks.json` and `policies/` installs with `gemini extensions install <path> --consent --skip-settings` and lists its MCP server and keychain setting; every `.gemini/skills/` and `.agents/skills/` symlink resolves (0 broken). Hook **firing** is not yet observed — see [Hooks and policies](#hooks-and-policies) |
+| **Validated against** | Gemini CLI **0.66.0** — `gemini --version` → `0.66.0`; `gemini extensions validate .` → `Extension . has been successfully validated.`; a distribution carrying the generated `hooks/hooks.json` and `policies/` installs with `gemini extensions install <path> --consent --skip-settings` and lists its MCP server and keychain setting; every `.gemini/skills/` and `.agents/skills/` symlink resolves (0 broken). Hook **firing** is not yet observed — see [Hooks and policies](#hooks-and-policies) |
 | **Minimum supported** | **0.55.1** — the oldest version this adapter was actually exercised on |
 | **Extension manifest** | `gemini-extension.json` (repo root) |
 | **Context file** | `.gemini/GEMINI.md` |
@@ -55,9 +55,10 @@ gemini skills install   https://github.com/Tamircohen28/tamirs-superpowers --pat
 
 The first command gives you the context file, the `github` MCP server and the token setting. The second gives you every skill — `--path .gemini/skills` points at the flat mirror, which is the one shape Gemini's one-level scan can read (`--path .agents/skills` is the same tree under the name Gemini's `.agents` alias and Antigravity read).
 
-Two prompts appear on the first command, both new since this guide was last written:
+Three prompts can appear on the first command; the first two are new since this guide was last written, the third since 0.66.0:
 
 - The **extension consent** prompt (0.60.0+) lists what the extension brings: the context file, the MCP server, and — because the shipped tree carries a hooks file — the line `⚠️  This extension contains Hooks which can automatically execute commands.` `--consent` acknowledges it non-interactively.
+- The **trust** prompt (0.66.0, observed installing a local path): after `--consent`, `Do you want to trust this folder and continue with the installation? [y/N]`. No flag skips it, so an install run with no terminal (CI, a script with stdin closed) waits forever; answer `y` on stdin when you must script it.
 - The **settings** prompt asks for `GITHUB_PERSONAL_ACCESS_TOKEN` and stores it in the OS keychain. Answer it, or pass `--skip-settings` and set it later:
 
   ```bash

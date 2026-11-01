@@ -240,8 +240,11 @@ section "live OpenCode CLI (optional)"
 ver=""
 harness_have opencode && ver="$(opencode --version 2>/dev/null | head -1)"
 # `opencode --version` prints "opencode v2.2.5" (or a bare "v2.2.5" on older builds).
-oc_major="$(printf '%s' "$ver" | sed -n 's/^[^0-9]*\([0-9][0-9]*\)\..*/\1/p')"
-if [ "$oc_major" = 2 ]; then
+oc_ver="$(printf '%s' "$ver" | sed -n 's/^[^0-9]*\([0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*\).*/\1/p')"
+# The live checks assert behaviour measured on the supported floor (the lazy directory load
+# included), so a build below targets.opencode.supported_min is skipped, not failed.
+oc_floor="$(jq -r '.targets.opencode.supported_min // empty' "$ROOT/docs/engineering/build-and-release/platform-targets.json")"
+if [ -n "$oc_ver" ] && [ -n "$oc_floor" ] && [ "$(printf '%s\n%s\n' "$oc_floor" "$oc_ver" | sort -V | head -1)" = "$oc_floor" ]; then
   printf '  ..   %s detected\n' "$ver"
   # Hermetic: a throwaway HOME and XDG tree, and a service port of our own, so this never
   # reads, configures or stops the maintainer's real OpenCode service. Only the process
@@ -277,7 +280,7 @@ if [ "$oc_major" = 2 ]; then
   live_cleanup
   trap _harness_cleanup EXIT
 elif harness_have opencode; then
-  skip "live OpenCode CLI" "opencode ${ver:-unknown version} is not a 2.x binary"
+  skip "live OpenCode CLI" "opencode ${ver:-unknown version} is below the supported floor ${oc_floor:-unknown}"
 else
   skip "live OpenCode CLI" "opencode not on PATH"
 fi

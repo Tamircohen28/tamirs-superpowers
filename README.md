@@ -10,10 +10,10 @@
 </p>
 
 <p align="center">
-  <a href="docs/engineering/build-and-release/platform-targets.json"><img src="https://img.shields.io/badge/Claude%20Code-2.1.302-blueviolet" alt="Claude Code" /></a>
+  <a href="docs/engineering/build-and-release/platform-targets.json"><img src="https://img.shields.io/badge/Claude%20Code-2.1.316-blueviolet" alt="Claude Code" /></a>
   <a href="docs/engineering/build-and-release/platform-targets.json"><img src="https://img.shields.io/badge/Cursor-3.22.7-000000" alt="Cursor" /></a>
   <a href="docs/engineering/build-and-release/platform-targets.json"><img src="https://img.shields.io/badge/Codex-0.163.0-412991" alt="Codex" /></a>
-  <a href="docs/engineering/build-and-release/platform-targets.json"><img src="https://img.shields.io/badge/Gemini%20CLI-0.64.0-4285F4" alt="Gemini CLI" /></a>
+  <a href="docs/engineering/build-and-release/platform-targets.json"><img src="https://img.shields.io/badge/Gemini%20CLI-0.66.0-4285F4" alt="Gemini CLI" /></a>
   <a href="docs/engineering/build-and-release/platform-targets.json"><img src="https://img.shields.io/badge/OpenCode-2.2.5-fab283" alt="OpenCode" /></a>
 </p>
 
@@ -53,7 +53,7 @@ One plugin, one marketplace listing, both surfaces.
 
 | Surface | Registry id | Kind | Status | Install |
 |---|---|---|---|---|
-| Claude Code | `claude_code` | CLI | ✅ supported — validated 2.1.302 | [guide](docs/user/install/claude-code.md) |
+| Claude Code | `claude_code` | CLI | ✅ supported — validated 2.1.316 | [guide](docs/user/install/claude-code.md) |
 | Claude Desktop | `claude_desktop` | desktop | ✅ supported — same plugin, different runtime surface | [guide](docs/user/install/claude-desktop.md) |
 
 ### Codex
@@ -80,7 +80,7 @@ Two commands: the extension carries context and MCP, skills install separately.
 
 | Surface | Registry id | Kind | Status | Install |
 |---|---|---|---|---|
-| Gemini CLI | `gemini_cli` | CLI | ✅ supported — validated 0.64.0 | [guide](docs/user/install/gemini.md) |
+| Gemini CLI | `gemini_cli` | CLI | ✅ supported — validated 0.66.0 | [guide](docs/user/install/gemini.md) |
 | Gemini Code Assist | `gemini_code_assist` | IDE | ⚠️ unverified — a different host that does not install CLI extensions, so the `.gemini/` mirror has no established install path there | — |
 
 ### OpenCode

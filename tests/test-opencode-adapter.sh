@@ -362,7 +362,10 @@ echo "--- live OpenCode CLI (optional) ---"
 
 ver=""
 command -v opencode >/dev/null 2>&1 && ver="$(opencode --version 2>/dev/null | head -1)"
-if command -v opencode >/dev/null 2>&1; then
+oc_ver="$(printf '%s' "$ver" | sed -n 's/^[^0-9]*\([0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*\).*/\1/p')"
+# A build below targets.opencode.supported_min is skipped, not failed (see test-opencode-v2.sh).
+oc_floor="$(jq -r '.targets.opencode.supported_min // empty' "$ROOT/docs/engineering/build-and-release/platform-targets.json")"
+if [ -n "$oc_ver" ] && [ -n "$oc_floor" ] && [ "$(printf '%s\n%s\n' "$oc_floor" "$oc_ver" | sort -V | head -1)" = "$oc_floor" ]; then
   printf '  ..   opencode %s detected\n' "$ver"
 
   # OpenCode 2 removed `debug skill` and the per-agent `debug agent <name>`; its
@@ -389,7 +392,7 @@ if command -v opencode >/dev/null 2>&1; then
   fi
   printf '  skip per-skill discovery — OpenCode 2 has no CLI enumeration (see header)\n'
 else
-  printf '  skip opencode CLI not on PATH — schema/contract tests only\n'
+  printf '  skip opencode CLI %s — schema/contract tests only\n' "$([ -n "$ver" ] && echo "$ver is below the supported floor ${oc_floor:-unknown}" || echo 'not on PATH')"
 fi
 
 echo
