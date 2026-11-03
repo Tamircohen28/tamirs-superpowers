@@ -22,7 +22,7 @@ hooks: {}
 paths: []
 shell: bash
 metadata:
-  updated-date: '2026-08-19'
+  updated-date: '2026-11-04'
   tamirs:
     visibility: public
     category: dev-workflow
@@ -34,7 +34,7 @@ metadata:
       - git
       - github_cli
     validation-tier: 2
-    updated-date: '2026-08-19'
+    updated-date: '2026-11-04'
     tags:
     - delivery
     - pr
@@ -159,18 +159,16 @@ bash $S set-delivery <objective-id> --strategy multi-pr --reason '<enumerated ex
 
 ## Step 6 — apply the merge policy (do not assume auto-merge)
 
-Auto-merge is a **policy**, not an invariant. Resolve it in this order and state which rule won:
-
-1. explicit user instruction in this session;
-2. `delivery.auto_merge` on the objective;
-3. repository/user configuration (project rules, `CLAUDE.md`/`AGENTS.md`, branch protection requiring human review);
-4. otherwise: enable auto-merge, which is this framework's default for a repo that permits it.
+Auto-merge is the permission `pr.merge.auto`, and **`scripts/resolve-permission.sh` is the single source of truth** for it ([ADR 004](../../../docs/engineering/decisions/004-permission-levels.md) D4) — do not keep a list of your own. The default is **off unless configured**: it turns on only when the resolver allows it (for example `/plugin-config pr.merge.auto allow`) and the repository allows auto-merge. A session instruction such as "auto-merge it" or the objective's `delivery.auto_merge: true` grants nothing. Ask through pr-dev's resolver wrapper and report its `auto_merge_source` verbatim:
 
 ```bash
+POLICY="$(bash skills/dev-workflow/pr-dev/scripts/resolve-merge-policy.sh "$PR_NUMBER" <objective-id>)"
+jq -r '.auto_merge, .auto_merge_source' <<<"$POLICY"
+# record the RESOLVED decision; the flag records, it never grants
 bash $S set-delivery <objective-id> --pr-url "$PR_URL" --auto-merge true|false
 ```
 
-If the repository requires human approval, enabling auto-merge is still correct — it merges *after* approval — but say that a human review is the remaining gate. If auto-merge is disabled at the repo level, say it is unsupported here rather than pretending it was enabled.
+If the resolver allowed it and the repository requires human approval, enabling auto-merge is still correct — it merges *after* approval — but say that a human review is the remaining gate. If auto-merge is disabled at the repo level, say it is unsupported here rather than pretending it was enabled.
 
 ## Step 7 — hand off to pr-dev
 
@@ -216,7 +214,7 @@ Integration branch: objective/<id> (all N worker branches merged)
 Combined-diff review: <fixes applied / clean>
 Tier 2 gates: <commands + results>
 PR: <url>
-Merge policy: auto-merge enabled | disabled (<which rule decided>)
+Merge policy: auto-merge enabled | disabled (<auto_merge_source from the resolver>)
 Handed to: pr-dev #<N>
 Deferred: <followups carried out of this delivery>
 ```

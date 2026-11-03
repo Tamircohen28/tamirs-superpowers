@@ -28,7 +28,7 @@ metadata:
     visibility: public
     category: dev-workflow
     role: integrator
-    updated-date: '2026-08-19'
+    updated-date: '2026-11-04'
     validation-tier: 3
     capabilities:
       required:
@@ -65,7 +65,7 @@ After a PR opens, the real work is staying on top of CI failures, reviewer threa
 Two things changed from the earlier version, and they matter:
 
 1. **It is not called once per worker.** A worker task ends at commit + handoff. `pr-dev` runs **once per objective**, on the PR that `deliver-dev` opened from the integration branch. Driving five PRs for one objective was the defect, not the workflow.
-2. **Auto-merge is a resolved policy, not an invariant.** The old rule ("always enable auto-merge") is right for most repositories and wrong for any repository or user that says otherwise. Policy is now resolved once, from a documented precedence, and reported.
+2. **Auto-merge is a permission, off unless configured.** It is the action `pr.merge.auto`, decided by the permission resolver, resolved once at startup and reported.
 
 ## Validation tier
 
@@ -121,7 +121,7 @@ When an objective resolves, read `.dev-files/objectives/$OBJECTIVE_ID/objective.
 
 - `integration_branch` — this is the PR head. **Never** push to a `worker/*` branch from here; worker branches are already merged into it.
 - `delivery.strategy` — `single-pr` means this PR is the whole objective. If you find yourself about to open a second PR for the same objective, stop: that is the defect this design removes.
-- `delivery.auto_merge` — feeds the policy resolution below.
+- `delivery.auto_merge` — `false` turns auto-merge off; `true` grants nothing (the resolver warns).
 - `tasks` — useful context when writing review replies ("that path belongs to task-003").
 
 No objective is a perfectly normal case (a one-off PR). Continue without one.
@@ -129,35 +129,31 @@ No objective is a perfectly normal case (a one-off PR). Continue without one.
 ### 2. Merge policy
 
 ```bash
-POLICY="$(bash "$SKILL_DIR/scripts/resolve-merge-policy.sh" ${REPO:+--repo "$REPO"} "$PR" "${OBJECTIVE_ID:-}")"
+# HOST: claude | codex | cursor | gemini | opencode — the host you are running on
+POLICY="$(bash "$SKILL_DIR/scripts/resolve-merge-policy.sh" ${REPO:+--repo "$REPO"} ${HOST:+--host "$HOST"} "$PR" "${OBJECTIVE_ID:-}")"
 echo "$POLICY" | jq .
 AUTO_MERGE="$(jq -r .auto_merge <<<"$POLICY")"            # enable | skip
+AUTO_SRC="$(jq -r .auto_merge_source <<<"$POLICY")"       # the rule that decided — quote it
 MERGE_METHOD="$(jq -r .merge_method <<<"$POLICY")"        # squash | merge | rebase
 MERGE_QUEUE="$(jq -r .merge_queue <<<"$POLICY")"          # true | false | null
 STRICT="$(jq -r .strict_branch_update <<<"$POLICY")"      # true | false | null
 PROT_SRC="$(jq -r .protection_source <<<"$POLICY")"       # classic | rulesets | classic+rulesets | none
 ```
 
-Precedence, highest first (documented in the script's header):
-
-1. `TAMIRS_AUTO_MERGE=always|never` — explicit user/session override
-2. the objective's `delivery.auto_merge`
-3. `.dev-files/policy.json` → `delivery.auto_merge`
-4. repository capability — a repo with auto-merge disabled overrules any request to enable it
-5. **documented default: enable auto-merge when the repository allows it**
+**The single source of truth is `scripts/resolve-permission.sh`** (the D4 precedence chain in [ADR 004](../../../docs/engineering/decisions/004-permission-levels.md)); do not restate or re-derive it. `auto_merge` is `enable` only when the resolver allows `pr.merge.auto` **and** the repository allows auto-merge. **The default is off**: with nothing configured the resolver asks, and pr-dev asks you before merging. It turns on through `/plugin-config pr.merge.auto allow` (or a trusted project file, or the unattended level when its precondition holds). `TAMIRS_AUTO_MERGE=always` and an objective's `delivery.auto_merge: true` grant nothing; `=never`, `false` and legacy `.dev-files/policy.json` `false` turn it off. A resolver that is missing or fails means skip. Report `auto_merge_source`, and any `warnings`, verbatim.
 
 State the resolution in one line before looping:
 
 ```
-Merge policy: auto-merge ENABLED (default: repository allows auto-merge), squash + delete branch.
+Merge policy: auto-merge SKIPPED (resolve-permission pr.merge.auto: ask (level supervised ceiling for R3) — auto-merge is off unless configured; to turn it on: /plugin-config pr.merge.auto allow).
+I will drive to green and ask you before merging.
 Base master: strict branch updates required, 9 required checks, review required. Merge queue: none.
 ```
 
 or
 
 ```
-Merge policy: auto-merge SKIPPED (objective auth-system delivery.auto_merge=false).
-I will drive to green and ask you before merging.
+Merge policy: auto-merge ENABLED (resolve-permission pr.merge.auto: allow (user file actions["pr.merge.auto"])), squash + delete branch.
 ```
 
 Then enable it, if and only if policy says so:
@@ -355,7 +351,19 @@ collaborators=$(gh api "repos/$REPO/collaborators" --jq 'length' 2>/dev/null || 
 # (from `resolve-merge-policy.sh`'s admin_bypass_available field, not re-derived here)
 ```
 
-`--admin` still requires the user's merge intent. It bypasses protection; it does not bypass policy.
+**Gate `--admin` on `pr.merge.admin` before every use.** It is R4: never automatic at any level, and no file, env or ticket makes it so ([`safety.md`](../../../core/policies/safety.md)). Ask the resolver, telling it whether a required check is failing or pending (it denies while one is, and while that is unknown):
+
+```bash
+PERM="$SKILL_DIR/../../../scripts/resolve-permission.sh"
+ADMIN_GATE="$(bash "$PERM" --action pr.merge.admin --skill pr-dev --target "$REPO#$PR" ${HOST:+--host "$HOST"} \
+  --cond required_check_failing_or_pending=<true|false, from the state you just fetched> --json)" || ADMIN_GATE='{"verdict":"deny"}'
+jq -r '.verdict, .decided_by' <<<"$ADMIN_GATE"
+```
+
+- `deny` (or the resolver failed) → do not run `--admin`. Stop and report `decided_by` and `reason`.
+- `ask` — the only answer R4 ever gets → stop. Show the user the exact command, the PR and `decided_by`, and run it only when the user approves that very call. A general "merge it" earlier in the session is not that approval.
+
+It bypasses protection; it does not bypass policy.
 
 ## Readiness gate
 
@@ -476,7 +484,7 @@ Never silently stop, guess, or take a destructive action without confirmation. W
 | Idle until a notification arrives | Poll CI and threads with a deadline; report overruns |
 | Post a reply without stating it first | State it, then post |
 | Patch CI config to silence a flaky test | Retry; escalate if it persists |
-| `--admin` to skip a review you just did not want | `--admin` only for billing/solo-maintainer protection cases, with user intent |
+| `--admin` to skip a review you just did not want | `--admin` only for billing/solo-maintainer protection cases, after the `pr.merge.admin` gate and the user's approval of that call |
 
 ## Supporting files
 
