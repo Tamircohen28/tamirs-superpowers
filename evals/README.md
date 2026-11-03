@@ -56,9 +56,9 @@ claude plugin eval . --tag dev-workflow --allow-tools Write --threshold 0.8
 claude plugin eval . --tag canary --tag negative \
   --allow-tools Write --judge-model sonnet --threshold 0.8
 
-# CI — pin both models so a model rollout isn't mistaken for a regression.
+# CI — pin the model under test so a default-model change isn't mistaken for a regression.
 claude plugin eval . --trust-plugin --json results.json \
-  --model claude-sonnet-5 --judge-model claude-haiku-4-5 \
+  --model claude-sonnet-5-5 --judge-model sonnet \
   --allow-tools Write --threshold 0.8 --no-publish --max-cost-usd 30
 ```
 
@@ -163,15 +163,23 @@ within a week. `.github/workflows/evals.yml` is that workflow; its shape:
 
   ```bash
   claude plugin eval . --trust-plugin --json results.json \
-    --model claude-sonnet-5 --judge-model claude-haiku-4-5 \
+    --model "$MODEL" --judge-model sonnet \
     --allow-tools Write --threshold 0.8 --no-publish --max-cost-usd 30 --runs 1
   ```
 
-  `--trust-plugin` answers the first-run trust prompt a non-interactive job cannot. Both
-  models are pinned so a model rollout is not mistaken for a plugin regression. Exit `1` (a
+  `--trust-plugin` answers the first-run trust prompt a non-interactive job cannot. The model
+  under test is pinned (`$MODEL`, `claude-sonnet-5-5` unless a manual run picks another) so a
+  change in Claude Code's default model is not mistaken for a plugin regression, and so costs
+  from different runs compare. The judge is the `sonnet` alias (the default Haiku judge
+  misgrades; see above). Effort is the session default: the harness has no effort setting, and
+  a case's `env` accepts only `EVAL_*` keys. Exit `1` (a
   case below threshold, a load error, or a run that ended on an API error) fails the job;
   exit `2` (the cost ceiling was hit — `results.json` carries `partial: true`) fails it too,
   and the step summary says which.
+- **Manual run:** `gh workflow run evals.yml -f credential=<auto|token|api-key> -f model=<id>`.
+  `credential=api-key` forces the billed path even when the subscription token is set, which
+  is how to measure what a run really costs; the job summary names the model, judge, effort
+  and credential above the cost. A scheduled run has no inputs: `auto`, `claude-sonnet-5-5`.
 - **Artifact:** `results.json` is uploaded with `if: always()` so a failed or partial run
   still leaves its evidence; `evals/results/<timestamp>/report.html` goes with it.
 - **Job summary:** the per-case `WITH`, `W/OUT` and `Δ` are read out of `results.json`
