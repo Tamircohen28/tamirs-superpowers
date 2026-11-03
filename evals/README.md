@@ -89,9 +89,10 @@ Each "run" is a full `claude -p` child session, so the suite multiplies:
 mocks.
 
 On a **subscription login** nothing is billed — runs draw down your plan's usage limits, and
-the figure the CLI prints is a list-price *estimate*, not an invoice. With an
-`ANTHROPIC_API_KEY`, including in CI, the same runs bill for real; that is the one command
-above worth a `--max-cost-usd` ceiling.
+the figure the CLI prints is a list-price *estimate*, not an invoice. That includes CI when
+the job authenticates with a subscription token (`CLAUDE_CODE_OAUTH_TOKEN`, see
+[Running in CI](#running-in-ci)). With an `ANTHROPIC_API_KEY` the same runs bill for real;
+that is the case the `--max-cost-usd` ceiling is for.
 
 Measured: a 16-run pass (8 cases × 1 run × 2 arms) came to roughly $8 of estimated list price,
 about **$0.50 per run**, so the full `--runs 3` suite of the first eight cases is ≈ **$24**.
@@ -147,8 +148,16 @@ within a week. `.github/workflows/evals.yml` is that workflow; its shape:
   docs are written against) via npm on `ubuntu-latest`. No `bubblewrap`/`socat` is needed
   because the run grants only `Write`; the moment a case needs `Bash`, the sandbox backend
   must be installed on the runner or every run is refused.
-- **Credential:** the `ANTHROPIC_API_KEY` repository secret. Nothing else from the
-  environment reaches a run (the harness allowlists `PATH`, locale, proxy and `ANTHROPIC_*`/
+- **Credential:** one of two repository secrets, checked in this order:
+  1. `CLAUDE_CODE_OAUTH_TOKEN` — a claude.ai subscription token. Runs draw down the plan's
+     usage limits and nothing is billed. Create it with `claude setup-token` (it opens the
+     browser login and prints a token valid for one year; nothing is saved), then
+     `gh secret set CLAUDE_CODE_OAUTH_TOKEN`. Renew it before it expires.
+  2. `ANTHROPIC_API_KEY` — bills the API account. When the subscription token is set, the
+     key is unset for the run, so setting both never bills by accident.
+
+  With neither set, the first step fails and says so. Nothing else from the environment
+  reaches a run (the harness allowlists `PATH`, locale, proxy and `ANTHROPIC_*`/
   `CLAUDE_CODE_*`/`EVAL_*` variables only).
 - **Command:** exactly the CI line in [Running it](#running-it), plus `--runs 1`:
 
