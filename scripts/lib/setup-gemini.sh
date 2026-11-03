@@ -58,3 +58,15 @@ gemini_settings_render()   { rules_json_render "$1" "$GEMINI_SETTINGS_FRAGMENT";
 gemini_settings_unrender() { rules_json_unrender "$1" "$GEMINI_SETTINGS_FRAGMENT"; }
 gemini_settings_destructive() { printf 'no'; }
 gemini_settings_summary()  { rules_json_summary "$1" "$GEMINI_SETTINGS_FRAGMENT" "$2"; }
+
+# ---------------------------------------------------------------------------
+# permission level route (ADR 004 D7)
+# ---------------------------------------------------------------------------
+# Gemini CLI asks for the extension setting TS_PERMISSION_LEVEL at install, so
+# setup does not ask again for Gemini alone; it prints the route. The user file
+# setup writes for another host still applies here: the effective level is the
+# lower of the two (D3).
+# shellcheck disable=SC2016  # the backticks are literal Markdown-style quoting
+gemini_permission_level_route() {
+  printf 'note:Gemini CLI: the level is the extension setting TS_PERMISSION_LEVEL, asked at install; change it with `gemini extensions config tamirs-superpowers TS_PERMISSION_LEVEL`.'
+}
