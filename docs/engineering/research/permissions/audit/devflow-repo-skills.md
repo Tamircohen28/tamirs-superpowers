@@ -5,7 +5,7 @@ Read-only static audit of `skills/dev-workflow/**` and `skills/repo/**` (fixture
 ## A) Method and assumptions
 
 - Read each `SKILL.md` frontmatter and body, then followed every script/reference call (`gh`, `git push/branch/worktree`, `rm`, `curl`, writes outside the repo). R-levels follow the task rubric exactly (R0 observe, R1 local reversible, R2 shared-additive, R3 shared-mutating, R4 irreversible/privileged; unclear = R4).
-- **All 14 skills are `disable-model-invocation: false`, so all are model-invocable and subagent-reachable** (the flag columns below only list deviations: network, secrets). Only `diagnose-objective` scopes `Bash(...)` in `allowed-tools`; the other 13 omit Bash, so every `gh`/`git` call rides the ambient Bash permission, not a skill-scoped one.
+- **All 14 audited dev-workflow and repo skills are `disable-model-invocation: false`, so all are model-invocable and subagent-reachable** (the flag columns below only list deviations: network, secrets). Only `diagnose-objective` scopes `Bash(...)` in `allowed-tools`; the other 13 omit Bash, so every `gh`/`git` call rides the ambient Bash permission, not a skill-scoped one.
 - Secrets: no skill in scope reads or writes a credential file. `gh`/`git` use ambient auth (`gh auth status` only). `network` = any `gh`/`curl` call.
 - Assumption A1: `git branch -D`, `git commit`, local merge/rebase are R1 (reflog undoes them); a force-removed dirty worktree or `rm -rf` of non-git content is **not** git-undoable and is scored R3 (local destructive, no rubric slot; conservative).
 - Assumption A2: resolving/replying to a PR review thread is R2 (reversible, own PR), but flagged as a merge-gate input (see D-9).
