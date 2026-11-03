@@ -183,7 +183,8 @@
         "https://cursor.com/docs/origin",
         "https://cursor.com/codebase",
         "https://cursor.com/changelog",
-        "https://cursor.com/docs/cloud-agent/self-hosted"
+        "https://cursor.com/docs/cloud-agent/self-hosted",
+        "https://cursor.com/docs/agent-sdk"
       ],
       "features_adopted": [
         "cursor-plugin-manifest",
