@@ -1,0 +1,1739 @@
+{
+  "$schema": "./actions.schema.json",
+  "_comment": "The one action catalog of ADR 004 D1. Plugin-owned and not user-editable: users set levels and per-action verdicts in permissions.json (core/schemas/permissions.schema.json), never here. Every id the D1 table names is here once; audit aliases fold into the canonical id. tests/test-permission-catalog.sh holds this file to the ADR (ids, R levels, machine tags, the unattended list, the D2 ceilings) and to every gh / git push / GraphQL / MCP call the skills and scripts make.",
+  "schema_version": 1,
+  "spec": "docs/engineering/decisions/004-permission-levels.md",
+  "source_docs": {
+    "ADR": "docs/engineering/decisions/004-permission-levels.md",
+    "A1": "docs/engineering/research/permissions/audit/devflow-repo-skills.md",
+    "A2": "docs/engineering/research/permissions/audit/other-skills.md",
+    "A3": "docs/engineering/research/permissions/audit/non-skill-surfaces.md",
+    "SR": "docs/engineering/research/permissions/design-security-review.md",
+    "P": "docs/engineering/research/permissions/platforms/prior-art.md",
+    "safety": "core/policies/safety.md"
+  },
+  "rubric": {
+    "R0": "Observe: read-only, any scope.",
+    "R1": "Local: writes undone with git; nothing leaves the machine.",
+    "R2": "Shared-additive: visible to others, additive or trivially revertible.",
+    "R3": "Shared-mutating: changes shared state; undo is possible but costly or socially visible.",
+    "R4": "Irreversible or privileged: cannot be undone, crosses a trust boundary, or changes permissions.",
+    "rules": [
+      "UNCLASSIFIED => R4 (see unclassified).",
+      "R4 is never automatic.",
+      "Context may raise a level, never lower it (raises, denies)."
+    ]
+  },
+  "tags": {
+    "machine": "D1 rubric gap: a local non-config effect outside the worktree. A mapping, not a sixth class: plugin-owned and session-scoped => R1; outside the worktree but owned and undoable by the plugin => R2; not owned, or code the user never chose => R3; persists into host config or trust, or forges a human signal => R4."
+  },
+  "levels": {
+    "_comment": "ADR 004 D2. A level is a ceiling over the plugin's own gates, never over the host.",
+    "order": ["supervised", "standard", "unattended"],
+    "default": "supervised",
+    "ceilings": {
+      "supervised": { "R0": "allow", "R1": "allow", "R2": "ask", "R3": "ask", "R4": "ask" },
+      "standard": { "R0": "allow", "R1": "allow", "R2": "allow", "R3": "ask", "R4": "ask" },
+      "unattended": { "R0": "allow", "R1": "allow", "R2": "allow", "R3": "allow_if_precondition", "R4": "ask" }
+    },
+    "verdicts": {
+      "allow": "Runs without asking.",
+      "ask": "Asks the human. No human present => deny, naming the setting that would allow it: the once-only --perms= route where D5 lists a host prompt, and the durable one (D6); for R4, that no setting allows it automatically.",
+      "allow_if_precondition": "allow iff the action has never_auto false and its unattended_precondition holds; otherwise ask. A precondition that cannot be established never holds.",
+      "deny": "Explicit deny from any layer, or a safety invariant (denies). Final at every level."
+    },
+    "r4": "Ask on a host prompt (D5), per call, naming the id, the target and the effect, at every level. No ticket, file or env passes R4.",
+    "overrides": {
+      "pr.merge.auto": {
+        "supervised": "ask",
+        "standard": "ask",
+        "unattended": "allow_if_precondition",
+        "widen": "At standard, allow when actions[\"pr.merge.auto\"] is \"allow\" in the user file or in a project file trusted per D3; otherwise ask (= auto-merge off)."
+      }
+    }
+  },
+  "conditions": {
+    "_comment": "Named checks the resolver (D4) and the guard (PG) evaluate. A precondition holds only when established. A raise or deny applies when its condition holds OR cannot be established (D4: unknown never holds a precondition; SR S-12).",
+    "pinned_check_or_review_and_no_protected_paths": "The base branch requires >= 1 status check with a pinned source (ruleset integration_id or classic app_id) or >= 1 approving review, and the PR diff touches nothing under .github/workflows/**, CODEOWNERS, .github/CODEOWNERS, docs/CODEOWNERS or .tamirs-superpowers/** (SR S-13).",
+    "pr_merged_not_default_not_cross_repo": "The branch's PR is MERGED, the branch is neither the PR base nor the default branch, and the PR is not cross-repository.",
+    "own_pr_or_closes_ref_of_merged_pr": "The PR was opened by this session's objective or task, or the issue is named by a Closes #N of a merged PR.",
+    "force_with_lease_and_own_claim": "The push uses --force-with-lease (with an expected value) and the branch is claimed by this task (git.md: no force-push to base or to a branch another task works on).",
+    "pinned_lockfile": "The install or exec resolves every package from a committed lockfile or an exact pinned version.",
+    "unmerged_no_remote_copy": "The local branch holds commits that no remote ref and no merged PR contains.",
+    "unmerged_commits": "The remote branch holds commits that the default branch does not contain and no merged PR carried.",
+    "drops_unpushed_commits": "The operation makes commits unreachable that no remote ref contains.",
+    "discards_work": "The operation discards uncommitted changes (tracked or untracked, not ignored) or commits that no remote ref contains.",
+    "uncommitted_changes": "The working tree holds changes this task did not commit (safety invariant 4).",
+    "default_branch": "The target branch is the repository's default branch (or cannot be shown not to be).",
+    "tag_ref": "The ref is a tag (refs/tags/*, or a name that resolves to a tag with git show-ref --verify refs/tags/<name>).",
+    "workflow_hook_or_policy_path": "A target path is under .github/workflows/**, .github/actions/**, CODEOWNERS, .github/CODEOWNERS, .tamirs-superpowers/**, .husky/** or .githooks/**, or, in this plugin's own repository, hooks/** or core/permissions/**.",
+    "others_thread": "The review thread was started by someone else, or the agent has not replied to it.",
+    "protected_default_branch": "The default branch is protected by a classic rule or a ruleset (safety invariant 5).",
+    "required_check_failing_or_pending": "A required status check on the PR head is failing or pending (safety invariant 2)."
+  },
+  "target_kinds": {
+    "_comment": "D5: a ticket binds one target. Two targets are equal iff every listed field resolves on both sides and is equal; an unresolvable field never matches. Kind none has no target, so no ticket ever matches it: only the level ceiling can allow it.",
+    "none": [],
+    "path": ["realpath"],
+    "url": ["scheme", "host", "path"],
+    "command": ["argv"],
+    "repo": ["host", "owner", "name"],
+    "org": ["host", "org"],
+    "pr": ["host", "owner", "name", "number"],
+    "issue": ["host", "owner", "name", "number"],
+    "branch": ["host", "owner", "name", "branch"],
+    "tag": ["host", "owner", "name", "tag"],
+    "process": ["pid", "start_time"],
+    "package": ["manager", "name", "version"]
+  },
+  "matching": {
+    "_comment": "How an equivalents entry matches a call (D1 Equivalents, SR S-07). PG implements exactly this; tests/test-permission-catalog.sh carries the reference matcher and its fixture table.",
+    "result": "A call maps to EVERY id with a matching entry. Its decision is the strictest of theirs (deny > ask > allow) and its reported id is the one with the highest r. A call with a mutation marker that maps to no id is UNCLASSIFIED.",
+    "simple_commands": "Split at ; && || | & and newlines, drop redirections, and match each simple command alone. $(...), backticks, eval, xargs, make and interpreters are the residual D1 names: the commands inside them are not seen.",
+    "prefix_commands": ["env", "command", "exec", "nohup", "time", "nice", "sudo", "timeout"],
+    "env": "Leading NAME=value words are env assignments. env_any globs match them; target_env names change the target, never the id.",
+    "global_options": {
+      "git": { "value": ["-C", "-c", "--git-dir", "--work-tree", "--namespace", "--exec-path", "--config-env"], "flag": ["--no-pager", "-P", "--bare", "--no-replace-objects", "--literal-pathspecs", "--no-optional-locks"] },
+      "gh": { "value": ["-R", "--repo", "--hostname"], "flag": [] }
+    },
+    "value_options": {
+      "gh api": ["-X", "--method", "-f", "-F", "--field", "--raw-field", "-H", "--header", "-q", "--jq", "-t", "--template", "--input", "-p", "--preview", "--cache", "--hostname"],
+      "gh workflow run": ["-f", "--raw-field", "-F", "--field", "-r", "--ref", "--json"],
+      "git push": ["-o", "--push-option", "--repo", "--receive-pack", "--exec"],
+      "git tag": ["-m", "--message", "-F", "--file", "-u", "--local-user", "--contains", "--no-contains", "--points-at", "--merged", "--no-merged", "--sort", "--format", "--cleanup"],
+      "git branch": ["-u", "--set-upstream-to", "--contains", "--no-contains", "--merged", "--no-merged", "--points-at", "--sort", "--format"],
+      "git commit": ["-m", "--message", "-F", "--file", "-C", "--reuse-message", "-c", "--reedit-message", "--author", "--date", "-t", "--template", "--fixup", "--squash", "--cleanup", "--trailer"],
+      "npm": ["--prefix", "--registry", "--omit", "--include", "--workspace", "-w"],
+      "curl": ["-X", "--request", "-H", "--header", "-d", "--data", "--data-raw", "--data-binary", "--data-urlencode", "-F", "--form", "--json", "-o", "--output", "-u", "--user", "-T", "--upload-file", "-A", "--user-agent", "-e", "--referer", "-b", "--cookie", "-c", "--cookie-jar", "-w", "--write-out", "-m", "--max-time", "--connect-timeout", "--retry"],
+      "wget": ["-O", "--output-document", "--header", "--post-data", "--post-file", "--method", "--body-data", "-o", "--output-file", "-P", "--directory-prefix"]
+    },
+    "argv": "cmd: the argv prefix after prefix commands, env assignments and the tool's global options; '*' matches one token. any / all / none: fnmatch globs over every token after argv[0] (after the script, for a script entry), global options and option values included; a glob that is a long option '--x' also matches '--x=<value>'. args / args_none: globs over the positional tokens after the cmd prefix (tokens not starting with '-' that are not the value of a value option); args_none ['*'] means no positional. env_any: globs over the leading assignments. gh's -R/--repo/--hostname may stand anywhere and never count as cmd or positional tokens. script: matches when argv[0], or the first positional of bash, sh, zsh, source, ., python, python3 or node, equals the script path or ends with '/<script>'.",
+    "rest": "method: an HTTP method or a list of them. gh api: -X/--method, else POST when -f/-F/--field/--raw-field/--input is given, else GET; the path is its first positional. An HTTP client (http_clients) aimed at a github_api_hosts URL: curl -X/--request, else POST with -d/--data*/-F/--form/--json, PUT with -T/--upload-file, else GET; wget --method, else POST with --post-data/--post-file, else GET. A path drops scheme and host (and /api/v3 on GHE), a leading '/' and the query string. In a pattern '{owner}/{repo}' matches two segments or one segment holding a shell expansion (a slug variable carries both); any other '{name}', and '*', match one segment; '**' matches the rest, including nothing; '{default}' is the target repository's default branch. fields_all / fields_none: globs over the key=value pairs of -f/-F/--field/--raw-field, or of a JSON body's top-level keys.",
+    "graphql": "gh api graphql, or a POST to a github_api_hosts /graphql: every mutation field the document names maps to the ids listing it. A document with no mutation is repo.read. A file-sourced document (-F query=@file, --field query=@file, --input) is UNCLASSIFIED.",
+    "mcp": "tool: the Claude-form tool name (see mcp). args_all / args_none: argument name to a glob over the argument's JSON value rendered as a string; args_all needs every listed argument to match, args_none needs none to.",
+    "paths": "Write-path rules (GSF, enforce-worktree-edits) are realpath globs: '{repo}' is the checkout root, '{home}' the passwd home (D3), '{plugin_root}' the running plugin root, '{worktree}' the task worktree.",
+    "default_branch": "'{default}' resolves to the target repository's default branch; when it cannot be resolved a pattern holding it matches (context may raise, never lower).",
+    "http_clients": ["curl", "wget", "http", "https", "xh"],
+    "github_api_hosts": ["api.github.com", "uploads.github.com", "{GH_HOST}/api/v3", "{GH_HOST}/api/uploads", "{GH_HOST}/api/graphql"],
+    "target_env": ["GH_REPO", "GH_HOST", "GH_ENTERPRISE_TOKEN", "GIT_DIR", "GIT_WORK_TREE", "GIT_CONFIG_*", "GIT_CONFIG_PARAMETERS"],
+    "target_flags": { "gh": ["-R", "--repo", "--hostname"], "git": ["-C", "--git-dir", "--work-tree"] },
+    "target_remote": "A git push whose remote is a URL or a path names its target directly; it is not origin."
+  },
+  "unclassified": {
+    "r": 4,
+    "rule": "A command that maps to no id but carries a mutation marker, or a file-sourced GraphQL query, is UNCLASSIFIED and treated as R4 (never automatic). An unknown action id given to the resolver is UNCLASSIFIED too.",
+    "mutation_markers": ["gh ", "git push", "api.github.com", "uploads.github.com", "graphql", "gh auth token", "GH_TOKEN", "GITHUB_TOKEN"],
+    "protected_path_marker": "Any path a paths rule of policy.edit, workflow.edit or config.global.write names.",
+    "file_sourced_graphql": ["-F query=@*", "--field query=@*", "--input"],
+    "residual": "Wrappers (make, eval, $(...), xargs, a script the catalog does not name) and interpreters (python3 -c, node -e) are not seen through (ADR Open risks)."
+  },
+  "mcp": {
+    "server": "github",
+    "claude_prefix": "mcp__plugin_tamirs-superpowers_github__",
+    "_comment": "Equivalents name tools in their Claude form. Strip claude_prefix for the bare tool name; OpenCode names the same tool github_<tool> (doc-cited); the Codex, Cursor and Gemini forms are unverified (D8). A tool of this server with no entry is UNCLASSIFIED."
+  },
+  "actions": [
+    {
+      "id": "repo.read",
+      "r": 0,
+      "tags": [],
+      "aliases": ["mcp.read"],
+      "never_auto": false,
+      "unattended_precondition": null,
+      "l2": [],
+      "target": "repo",
+      "equivalents": {
+        "argv": [
+          { "cmd": ["gh", "*", "view"] },
+          { "cmd": ["gh", "*", "list"] },
+          { "cmd": ["gh", "*", "status"] },
+          { "cmd": ["gh", "status"] },
+          { "cmd": ["gh", "pr", "checks"] },
+          { "cmd": ["gh", "pr", "diff"] },
+          { "cmd": ["gh", "run", "watch"] },
+          { "cmd": ["gh", "run", "download"] },
+          { "cmd": ["gh", "release", "download"] },
+          { "cmd": ["gh", "repo", "clone"] },
+          { "cmd": ["gh", "search"] },
+          { "cmd": ["gh", "ruleset", "check"] },
+          { "cmd": ["git", "status"] },
+          { "cmd": ["git", "log"] },
+          { "cmd": ["git", "diff"] },
+          { "cmd": ["git", "show"] },
+          { "cmd": ["git", "fetch"] },
+          { "cmd": ["git", "ls-remote"] },
+          { "cmd": ["git", "rev-parse"] },
+          { "cmd": ["git", "rev-list"] },
+          { "cmd": ["git", "merge-base"] },
+          { "cmd": ["git", "show-ref"] },
+          { "cmd": ["git", "for-each-ref"] },
+          { "cmd": ["git", "ls-files"] },
+          { "cmd": ["git", "worktree", "list"] }
+        ],
+        "rest": [{ "method": "GET", "path": "**" }],
+        "graphql_operation": "query",
+        "mcp": [
+          { "tool": "mcp__plugin_tamirs-superpowers_github__get_commit" },
+          { "tool": "mcp__plugin_tamirs-superpowers_github__get_file_contents" },
+          { "tool": "mcp__plugin_tamirs-superpowers_github__get_label" },
+          { "tool": "mcp__plugin_tamirs-superpowers_github__get_latest_release" },
+          { "tool": "mcp__plugin_tamirs-superpowers_github__get_me" },
+          { "tool": "mcp__plugin_tamirs-superpowers_github__get_release_by_tag" },
+          { "tool": "mcp__plugin_tamirs-superpowers_github__get_tag" },
+          { "tool": "mcp__plugin_tamirs-superpowers_github__get_team_members" },
+          { "tool": "mcp__plugin_tamirs-superpowers_github__get_teams" },
+          { "tool": "mcp__plugin_tamirs-superpowers_github__issue_read" },
+          { "tool": "mcp__plugin_tamirs-superpowers_github__list_branches" },
+          { "tool": "mcp__plugin_tamirs-superpowers_github__list_commits" },
+          { "tool": "mcp__plugin_tamirs-superpowers_github__list_issue_fields" },
+          { "tool": "mcp__plugin_tamirs-superpowers_github__list_issue_types" },
+          { "tool": "mcp__plugin_tamirs-superpowers_github__list_issues" },
+          { "tool": "mcp__plugin_tamirs-superpowers_github__list_pull_requests" },
+          { "tool": "mcp__plugin_tamirs-superpowers_github__list_releases" },
+          { "tool": "mcp__plugin_tamirs-superpowers_github__list_repository_collaborators" },
+          { "tool": "mcp__plugin_tamirs-superpowers_github__list_tags" },
+          { "tool": "mcp__plugin_tamirs-superpowers_github__pull_request_read" },
+          { "tool": "mcp__plugin_tamirs-superpowers_github__search_code" },
+          { "tool": "mcp__plugin_tamirs-superpowers_github__search_commits" },
+          { "tool": "mcp__plugin_tamirs-superpowers_github__search_issues" },
+          { "tool": "mcp__plugin_tamirs-superpowers_github__search_pull_requests" },
+          { "tool": "mcp__plugin_tamirs-superpowers_github__search_repositories" },
+          { "tool": "mcp__plugin_tamirs-superpowers_github__search_users" }
+        ]
+      },
+      "sources": ["ADR#D1", "A1#C", "A2#C", "A3#C"],
+      "note": "gh view/list and gh api GET. gh auth token is not a read here: it is a D1 mutation marker."
+    },
+    {
+      "id": "net.get",
+      "r": 0,
+      "tags": [],
+      "aliases": ["net.get.docs"],
+      "never_auto": false,
+      "unattended_precondition": null,
+      "l2": [],
+      "target": "url",
+      "equivalents": {
+        "argv": [
+          { "cmd": ["curl"], "none": ["-X", "--request", "-d", "--data*", "-F", "--form", "--json", "-T", "--upload-file", "*api.github.com*", "*uploads.github.com*"] },
+          { "cmd": ["wget"], "none": ["--method", "--post-data", "--post-file", "--body-data", "*api.github.com*", "*uploads.github.com*"] }
+        ]
+      },
+      "sources": ["ADR#D1", "A2#C"]
+    },
+    {
+      "id": "secrets.read.config",
+      "r": 0,
+      "tags": [],
+      "aliases": [],
+      "never_auto": false,
+      "unattended_precondition": null,
+      "l2": [],
+      "target": "path",
+      "equivalents": {},
+      "sources": ["ADR#D1", "A2#C"],
+      "note": "Reading a secret-bearing config (capture-config, diagnose-refusal, session-report). Gated at L1 only."
+    },
+    {
+      "id": "env.read.names",
+      "r": 0,
+      "tags": [],
+      "aliases": [],
+      "never_auto": false,
+      "unattended_precondition": null,
+      "l2": [],
+      "target": "none",
+      "equivalents": {},
+      "sources": ["ADR#D1", "A2#C"],
+      "note": "Environment variable names, never values (diagnose-refusal)."
+    },
+    {
+      "id": "file.write.repo",
+      "r": 1,
+      "tags": [],
+      "aliases": ["fs.state.write", "scaffold.local.write", "file.overwrite.nocheck", "objective.set_delivery"],
+      "never_auto": false,
+      "unattended_precondition": null,
+      "l2": ["enforce-worktree-edits"],
+      "target": "path",
+      "equivalents": {
+        "paths": ["{worktree}/**"],
+        "argv": [{ "cmd": ["gh", "repo", "set-default"] }]
+      },
+      "sources": ["ADR#D1"],
+      "note": "Edits inside the task worktree. A path a stricter id names (workflow.edit, policy.edit, config.global.write) takes that id."
+    },
+    {
+      "id": "git.commit",
+      "r": 1,
+      "tags": [],
+      "aliases": ["git.commit.local"],
+      "never_auto": false,
+      "unattended_precondition": null,
+      "l2": [],
+      "target": "none",
+      "equivalents": {
+        "argv": [{ "cmd": ["git", "commit"] }, { "cmd": ["git", "add"] }]
+      },
+      "sources": ["ADR#D1", "A3#B3"],
+      "note": "git commit with --no-verify, -n or a hooks override is also git.verify.skip (R4)."
+    },
+    {
+      "id": "git.branch.create",
+      "r": 1,
+      "tags": [],
+      "aliases": [],
+      "never_auto": false,
+      "unattended_precondition": null,
+      "l2": [],
+      "target": "none",
+      "equivalents": {
+        "argv": [
+          { "cmd": ["git", "branch"], "args": ["*"], "none": ["-d", "-D", "--delete", "-m", "-M", "--move", "-c", "-C", "--copy", "-u", "--set-upstream-to", "--unset-upstream", "--edit-description", "-l", "--list", "-a", "--all", "-r", "--remotes", "--contains", "--no-contains", "--merged", "--no-merged", "--points-at", "--show-current", "-v", "-vv", "--verbose"] },
+          { "cmd": ["git", "checkout"], "any": ["-b", "-B"] },
+          { "cmd": ["git", "switch"], "any": ["-c", "-C", "--create", "--force-create"] },
+          { "cmd": ["gh", "pr", "checkout"] }
+        ]
+      },
+      "sources": ["ADR#D1"]
+    },
+    {
+      "id": "git.index.untrack",
+      "r": 1,
+      "tags": [],
+      "aliases": [],
+      "never_auto": false,
+      "unattended_precondition": null,
+      "l2": [],
+      "target": "none",
+      "equivalents": {
+        "argv": [{ "cmd": ["git", "rm"], "any": ["--cached"] }]
+      },
+      "sources": ["ADR#D1"]
+    },
+    {
+      "id": "git.merge.local",
+      "r": 1,
+      "tags": [],
+      "aliases": [],
+      "never_auto": false,
+      "unattended_precondition": null,
+      "l2": [],
+      "target": "none",
+      "equivalents": {
+        "argv": [
+          { "cmd": ["git", "merge"], "none": ["--ff-only"] },
+          { "cmd": ["git", "pull"], "none": ["--ff-only", "--rebase", "-r"] },
+          { "cmd": ["git", "cherry-pick"] }
+        ]
+      },
+      "sources": ["ADR#D1"]
+    },
+    {
+      "id": "git.rebase.own",
+      "r": 1,
+      "tags": [],
+      "aliases": [],
+      "never_auto": false,
+      "unattended_precondition": null,
+      "l2": [],
+      "target": "none",
+      "equivalents": {
+        "argv": [{ "cmd": ["git", "rebase"] }, { "cmd": ["git", "pull"], "any": ["--rebase", "-r"] }]
+      },
+      "sources": ["ADR#D1"],
+      "note": "A rebase of an already-pushed branch needs git.push.force to publish."
+    },
+    {
+      "id": "git.sync.ff",
+      "r": 1,
+      "tags": [],
+      "aliases": [],
+      "never_auto": false,
+      "unattended_precondition": null,
+      "raises": [{ "when": "discards_work", "becomes": "git.reset_to_remote" }],
+      "l2": [],
+      "target": "none",
+      "equivalents": {
+        "argv": [
+          { "cmd": ["git", "pull"], "any": ["--ff-only"] },
+          { "cmd": ["git", "merge"], "any": ["--ff-only"] },
+          { "cmd": ["git", "reset"], "any": ["--hard"], "args": ["origin/*", "upstream/*", "refs/remotes/*", "@{u}", "@{upstream}", "*@{u}", "*@{upstream}", "FETCH_HEAD"] }
+        ]
+      },
+      "sources": ["ADR#D1"],
+      "note": "A reset to a remote ref that discards nothing is a sync; one that discards work becomes git.reset_to_remote (R4)."
+    },
+    {
+      "id": "git.worktree.add",
+      "r": 1,
+      "tags": [],
+      "aliases": ["git.worktree.move"],
+      "never_auto": false,
+      "unattended_precondition": null,
+      "l2": [],
+      "target": "none",
+      "equivalents": {
+        "argv": [{ "cmd": ["git", "worktree", "add"] }, { "cmd": ["git", "worktree", "move"] }]
+      },
+      "sources": ["ADR#D1", "A3#B3"]
+    },
+    {
+      "id": "worktree.remove",
+      "r": 1,
+      "tags": [],
+      "aliases": [],
+      "never_auto": false,
+      "unattended_precondition": null,
+      "raises": [{ "when": "discards_work", "becomes": "worktree.remove.force" }],
+      "l2": [],
+      "target": "path",
+      "equivalents": {
+        "argv": [
+          { "cmd": ["git", "worktree", "remove"] },
+          { "script": "cleanup-after-merge.sh" },
+          { "script": "cleanup/scripts/cleanup.sh", "any": ["--yes", "-y"] }
+        ]
+      },
+      "sources": ["ADR#D1", "A1#D-1", "A1#D-6"],
+      "note": "Clean and pushed. --force on a clean, pushed worktree discards nothing; one that discards work becomes worktree.remove.force (R4)."
+    },
+    {
+      "id": "worktree.cleanup",
+      "r": 1,
+      "tags": [],
+      "aliases": [],
+      "never_auto": false,
+      "unattended_precondition": null,
+      "l2": [],
+      "target": "none",
+      "equivalents": {
+        "argv": [{ "cmd": ["git", "worktree", "prune"] }]
+      },
+      "sources": ["ADR#D1", "A3#B3"]
+    },
+    {
+      "id": "branch.delete.local",
+      "r": 1,
+      "tags": [],
+      "aliases": ["git.branch.delete.local"],
+      "never_auto": false,
+      "unattended_precondition": null,
+      "raises": [{ "when": "unmerged_no_remote_copy", "r": 3 }],
+      "l2": ["PG"],
+      "target": "branch",
+      "equivalents": {
+        "argv": [
+          { "cmd": ["git", "branch"], "any": ["-d", "-D", "--delete"] },
+          { "script": "cleanup-after-merge.sh" }
+        ]
+      },
+      "sources": ["ADR#D1", "A1#D-1"]
+    },
+    {
+      "id": "fs.build_dirs.delete",
+      "r": 1,
+      "tags": [],
+      "aliases": [],
+      "never_auto": false,
+      "unattended_precondition": null,
+      "l2": ["cleanup.sh"],
+      "target": "path",
+      "equivalents": {
+        "argv": [{ "script": "cleanup/scripts/cleanup.sh" }]
+      },
+      "sources": ["ADR#D1", "A1#C"],
+      "note": "Gitignored, regenerable directories only, behind cleanup.sh's check-ignore guard."
+    },
+    {
+      "id": "work.discard",
+      "r": 1,
+      "tags": [],
+      "aliases": [],
+      "never_auto": false,
+      "unattended_precondition": null,
+      "raises": [{ "when": "drops_unpushed_commits", "r": 4 }],
+      "denies": [{ "when": "uncommitted_changes", "source": "safety#4" }],
+      "l2": ["PG"],
+      "target": "path",
+      "equivalents": {
+        "argv": [
+          { "cmd": ["git", "clean"], "none": ["-n", "--dry-run"] },
+          { "cmd": ["git", "checkout"], "any": ["--", ".", "-f", "--force"] },
+          { "cmd": ["git", "restore"], "none": ["--staged", "-S"] },
+          { "cmd": ["git", "restore"], "all": ["--staged", "--worktree"] },
+          { "cmd": ["git", "switch"], "any": ["--discard-changes", "-f", "--force"] },
+          { "cmd": ["git", "stash", "drop"] },
+          { "cmd": ["git", "stash", "clear"] },
+          { "cmd": ["git", "reset"], "any": ["--hard", "--merge"], "args_none": ["origin/*", "upstream/*", "refs/remotes/*", "@{u}", "@{upstream}", "*@{u}", "*@{upstream}", "FETCH_HEAD"] }
+        ]
+      },
+      "sources": ["ADR#D1", "SR#S-14", "safety#4"]
+    },
+    {
+      "id": "agent.spawn",
+      "r": 1,
+      "tags": [],
+      "aliases": ["subagent.spawn"],
+      "never_auto": false,
+      "unattended_precondition": null,
+      "l2": [],
+      "target": "none",
+      "equivalents": {
+        "tools": ["Agent", "Task"]
+      },
+      "sources": ["ADR#D1", "A2#C"],
+      "note": "The host's own subagent tool. The child runs at the caller's ceiling, never higher. A nested agent-host process is process.spawn.agent_host (R4)."
+    },
+    {
+      "id": "server.local.start",
+      "r": 1,
+      "tags": ["machine"],
+      "aliases": [],
+      "never_auto": false,
+      "unattended_precondition": null,
+      "l2": [],
+      "target": "none",
+      "equivalents": {},
+      "sources": ["ADR#D1", "A2#C"],
+      "note": "Plugin-owned, loopback, session-scoped (skill-creator eval viewer). L1 only."
+    },
+    {
+      "id": "browser.open",
+      "r": 1,
+      "tags": ["machine"],
+      "aliases": [],
+      "never_auto": false,
+      "unattended_precondition": null,
+      "l2": [],
+      "target": "url",
+      "equivalents": {
+        "argv": [{ "cmd": ["open"] }, { "cmd": ["xdg-open"] }, { "cmd": ["gh", "browse"] }]
+      },
+      "sources": ["ADR#D1", "A2#C"]
+    },
+    {
+      "id": "code.exec.repo_script",
+      "r": 1,
+      "tags": ["machine"],
+      "aliases": [],
+      "never_auto": false,
+      "unattended_precondition": null,
+      "l2": [],
+      "target": "path",
+      "equivalents": {},
+      "sources": ["ADR#D1", "A2#C"],
+      "note": "A script of this worktree. A script from another repository is code.exec.foreign_repo (R3)."
+    },
+    {
+      "id": "git.push.branch",
+      "r": 2,
+      "tags": [],
+      "aliases": [],
+      "never_auto": false,
+      "unattended_precondition": null,
+      "raises": [
+        { "when": "default_branch", "becomes": "git.push.default" },
+        { "when": "tag_ref", "becomes": "tag.push" }
+      ],
+      "l2": ["PG"],
+      "target": "branch",
+      "equivalents": {
+        "argv": [{ "cmd": ["git", "push"] }],
+        "rest": [
+          { "method": "POST", "path": "repos/{owner}/{repo}/git/refs", "fields_none": ["ref=refs/tags/*"] },
+          { "method": "PATCH", "path": "repos/{owner}/{repo}/git/refs/heads/**" }
+        ],
+        "graphql": ["createRef"],
+        "mcp": [{ "tool": "mcp__plugin_tamirs-superpowers_github__create_branch" }]
+      },
+      "sources": ["ADR#D1", "A1#C"],
+      "note": "Own, non-default branch. Every git push matches this id; the stricter push ids add to it."
+    },
+    {
+      "id": "pr.create",
+      "r": 2,
+      "tags": [],
+      "aliases": [],
+      "never_auto": false,
+      "unattended_precondition": null,
+      "l2": ["PG", "MCP"],
+      "target": "pr",
+      "equivalents": {
+        "argv": [
+          { "cmd": ["gh", "pr", "create"] },
+          { "cmd": ["gh", "pr", "edit"], "none": ["--base", "-B"] },
+          { "cmd": ["gh", "pr", "ready"] },
+          { "cmd": ["gh", "pr", "reopen"] }
+        ],
+        "rest": [
+          { "method": "POST", "path": "repos/{owner}/{repo}/pulls" },
+          { "method": "PATCH", "path": "repos/{owner}/{repo}/pulls/{n}", "fields_none": ["state=closed", "base=*"] }
+        ],
+        "graphql": ["createPullRequest", "markPullRequestReadyForReview", "reopenPullRequest"],
+        "mcp": [
+          { "tool": "mcp__plugin_tamirs-superpowers_github__create_pull_request" },
+          { "tool": "mcp__plugin_tamirs-superpowers_github__update_pull_request", "args_none": { "state": "closed", "base": "*" } }
+        ]
+      },
+      "sources": ["ADR#D1", "A1#C"],
+      "note": "Opening the PR and editing its text. Changing a PR's base is in no id: UNCLASSIFIED."
+    },
+    {
+      "id": "pr.comment",
+      "r": 2,
+      "tags": [],
+      "aliases": [],
+      "never_auto": false,
+      "unattended_precondition": null,
+      "l2": ["PG", "MCP"],
+      "target": "pr",
+      "equivalents": {
+        "argv": [
+          { "cmd": ["gh", "pr", "comment"] },
+          { "cmd": ["gh", "pr", "review"], "none": ["--approve", "-a"] }
+        ],
+        "rest": [
+          { "method": "POST", "path": "repos/{owner}/{repo}/pulls/{n}/comments" },
+          { "method": "POST", "path": "repos/{owner}/{repo}/pulls/{n}/comments/{id}/replies" },
+          { "method": "PATCH", "path": "repos/{owner}/{repo}/pulls/comments/{id}" },
+          { "method": "POST", "path": "repos/{owner}/{repo}/pulls/{n}/reviews", "fields_none": ["event=APPROVE"] },
+          { "method": "POST", "path": "repos/{owner}/{repo}/pulls/{n}/reviews/{id}/events", "fields_none": ["event=APPROVE"] }
+        ],
+        "graphql": ["addPullRequestReviewComment", "addPullRequestReviewThread", "addPullRequestReviewThreadReply", "updatePullRequestReviewComment"],
+        "mcp": [
+          { "tool": "mcp__plugin_tamirs-superpowers_github__add_comment_to_pending_review" },
+          { "tool": "mcp__plugin_tamirs-superpowers_github__add_reply_to_pull_request_comment" },
+          { "tool": "mcp__plugin_tamirs-superpowers_github__pull_request_review_write", "args_none": { "event": "APPROVE" } }
+        ]
+      },
+      "sources": ["ADR#D1", "A1#C"]
+    },
+    {
+      "id": "pr.review_request",
+      "r": 2,
+      "tags": [],
+      "aliases": [],
+      "never_auto": false,
+      "unattended_precondition": null,
+      "l2": ["PG", "MCP"],
+      "target": "pr",
+      "equivalents": {
+        "argv": [{ "cmd": ["gh", "pr", "edit"], "any": ["--add-reviewer"] }],
+        "rest": [{ "method": "POST", "path": "repos/{owner}/{repo}/pulls/{n}/requested_reviewers" }],
+        "graphql": ["requestReviews"],
+        "mcp": [{ "tool": "mcp__plugin_tamirs-superpowers_github__request_copilot_review" }]
+      },
+      "sources": ["ADR#D1", "A1#C"]
+    },
+    {
+      "id": "ci.rerun",
+      "r": 2,
+      "tags": [],
+      "aliases": [],
+      "never_auto": false,
+      "unattended_precondition": null,
+      "l2": ["PG", "MCP"],
+      "target": "repo",
+      "equivalents": {
+        "argv": [{ "cmd": ["gh", "run", "rerun"] }],
+        "rest": [
+          { "method": "POST", "path": "repos/{owner}/{repo}/actions/runs/{id}/rerun" },
+          { "method": "POST", "path": "repos/{owner}/{repo}/actions/runs/{id}/rerun-failed-jobs" },
+          { "method": "POST", "path": "repos/{owner}/{repo}/actions/jobs/{id}/rerun" },
+          { "method": "POST", "path": "repos/{owner}/{repo}/check-suites/{id}/rerequest" },
+          { "method": "POST", "path": "repos/{owner}/{repo}/check-runs/{id}/rerequest" }
+        ],
+        "graphql": ["rerequestCheckSuite"]
+      },
+      "sources": ["ADR#D1", "A1#C"],
+      "note": "Re-runs an existing run. Dispatching a workflow (gh workflow run) is not a re-run: release.yml is release.create, anything else UNCLASSIFIED."
+    },
+    {
+      "id": "pr.update_branch",
+      "r": 2,
+      "tags": [],
+      "aliases": [],
+      "never_auto": false,
+      "unattended_precondition": null,
+      "l2": ["PG", "MCP"],
+      "target": "pr",
+      "equivalents": {
+        "argv": [{ "cmd": ["gh", "pr", "update-branch"] }],
+        "rest": [{ "method": "PUT", "path": "repos/{owner}/{repo}/pulls/{n}/update-branch" }],
+        "graphql": ["updatePullRequestBranch"],
+        "mcp": [{ "tool": "mcp__plugin_tamirs-superpowers_github__update_pull_request_branch" }]
+      },
+      "sources": ["ADR#D1", "A1#C"]
+    },
+    {
+      "id": "pr.thread.resolve",
+      "r": 2,
+      "tags": [],
+      "aliases": [],
+      "never_auto": false,
+      "unattended_precondition": null,
+      "raises": [{ "when": "others_thread", "r": 3 }],
+      "l2": ["PG", "MCP"],
+      "target": "pr",
+      "equivalents": {
+        "argv": [{ "script": "resolve-thread.sh" }],
+        "graphql": ["resolveReviewThread", "unresolveReviewThread"]
+      },
+      "sources": ["ADR#D1", "A1#C", "A1#D-7"],
+      "note": "Threads the agent answered. Another person's thread is R3, never automatic (D1 R3 row)."
+    },
+    {
+      "id": "issue.create",
+      "r": 2,
+      "tags": [],
+      "aliases": [],
+      "never_auto": false,
+      "unattended_precondition": null,
+      "l2": ["PG", "MCP"],
+      "target": "repo",
+      "equivalents": {
+        "argv": [{ "cmd": ["gh", "issue", "create"] }],
+        "rest": [{ "method": "POST", "path": "repos/{owner}/{repo}/issues" }],
+        "graphql": ["createIssue"],
+        "mcp": [{ "tool": "mcp__plugin_tamirs-superpowers_github__issue_write", "args_all": { "method": "create" } }]
+      },
+      "sources": ["ADR#D1", "A1#C", "A3#B5"]
+    },
+    {
+      "id": "issue.comment",
+      "r": 2,
+      "tags": [],
+      "aliases": [],
+      "never_auto": false,
+      "unattended_precondition": null,
+      "l2": ["PG", "MCP"],
+      "target": "issue",
+      "equivalents": {
+        "argv": [{ "cmd": ["gh", "issue", "comment"] }],
+        "rest": [
+          { "method": "POST", "path": "repos/{owner}/{repo}/issues/{n}/comments" },
+          { "method": "PATCH", "path": "repos/{owner}/{repo}/issues/comments/{id}" }
+        ],
+        "graphql": ["addComment", "updateIssueComment"],
+        "mcp": [
+          { "tool": "mcp__plugin_tamirs-superpowers_github__add_issue_comment" },
+          { "tool": "mcp__plugin_tamirs-superpowers_github__update_issue_comment" }
+        ]
+      },
+      "sources": ["ADR#D1", "A1#C"],
+      "note": "A PR conversation comment is an issue comment on GitHub's API."
+    },
+    {
+      "id": "issue.edit",
+      "r": 2,
+      "tags": [],
+      "aliases": ["issue.edit.resume"],
+      "never_auto": false,
+      "unattended_precondition": null,
+      "l2": ["PG", "MCP"],
+      "target": "issue",
+      "equivalents": {
+        "argv": [
+          { "cmd": ["gh", "issue", "edit"] },
+          { "cmd": ["gh", "issue", "reopen"] },
+          { "script": "update-issue-resume.sh" }
+        ],
+        "rest": [
+          { "method": "PATCH", "path": "repos/{owner}/{repo}/issues/{n}", "fields_none": ["state=closed"] },
+          { "method": ["POST", "PUT", "DELETE"], "path": "repos/{owner}/{repo}/issues/{n}/labels" },
+          { "method": "DELETE", "path": "repos/{owner}/{repo}/issues/{n}/labels/{name}" },
+          { "method": ["POST", "DELETE"], "path": "repos/{owner}/{repo}/issues/{n}/assignees" },
+          { "method": "POST", "path": "repos/{owner}/{repo}/issues/{n}/sub_issues" },
+          { "method": "DELETE", "path": "repos/{owner}/{repo}/issues/{n}/sub_issue" }
+        ],
+        "graphql": ["reopenIssue", "addLabelsToLabelable", "removeLabelsFromLabelable", "addAssigneesToAssignable", "removeAssigneesFromAssignable", "addSubIssue", "removeSubIssue"],
+        "mcp": [
+          { "tool": "mcp__plugin_tamirs-superpowers_github__issue_write", "args_all": { "method": "update" }, "args_none": { "state": "closed" } },
+          { "tool": "mcp__plugin_tamirs-superpowers_github__sub_issue_write" }
+        ]
+      },
+      "sources": ["ADR#D1", "A1#C", "A1#D-12"]
+    },
+    {
+      "id": "label.create",
+      "r": 2,
+      "tags": [],
+      "aliases": [],
+      "never_auto": false,
+      "unattended_precondition": null,
+      "l2": ["PG", "MCP"],
+      "target": "repo",
+      "equivalents": {
+        "argv": [{ "cmd": ["gh", "label", "create"] }],
+        "rest": [{ "method": "POST", "path": "repos/{owner}/{repo}/labels" }],
+        "graphql": ["createLabel"]
+      },
+      "sources": ["ADR#D1", "A1#C"]
+    },
+    {
+      "id": "label.edit",
+      "r": 2,
+      "tags": [],
+      "aliases": [],
+      "never_auto": false,
+      "unattended_precondition": null,
+      "l2": ["PG", "MCP"],
+      "target": "repo",
+      "equivalents": {
+        "argv": [{ "cmd": ["gh", "label", "edit"] }],
+        "rest": [{ "method": "PATCH", "path": "repos/{owner}/{repo}/labels/{name}" }],
+        "graphql": ["updateLabel"]
+      },
+      "sources": ["ADR#D1", "A1#C"]
+    },
+    {
+      "id": "copilot.assign",
+      "r": 2,
+      "tags": [],
+      "aliases": [],
+      "never_auto": false,
+      "unattended_precondition": null,
+      "l2": ["PG", "MCP"],
+      "target": "issue",
+      "equivalents": {
+        "mcp": [{ "tool": "mcp__plugin_tamirs-superpowers_github__assign_copilot_to_issue" }]
+      },
+      "sources": ["ADR#D1", "A3#B5", "SR#S-20"],
+      "note": "Hands work to an agent with its own write access, which no level governs (ADR Open risks)."
+    },
+    {
+      "id": "file.write.remote",
+      "r": 2,
+      "tags": [],
+      "aliases": [],
+      "never_auto": false,
+      "unattended_precondition": null,
+      "raises": [
+        { "when": "default_branch", "r": 3 },
+        { "when": "workflow_hook_or_policy_path", "r": 4 }
+      ],
+      "l2": ["MCP"],
+      "target": "branch",
+      "equivalents": {
+        "rest": [
+          { "method": ["PUT", "DELETE"], "path": "repos/{owner}/{repo}/contents/**" },
+          { "method": "POST", "path": "repos/{owner}/{repo}/git/blobs" },
+          { "method": "POST", "path": "repos/{owner}/{repo}/git/trees" },
+          { "method": "POST", "path": "repos/{owner}/{repo}/git/commits" }
+        ],
+        "graphql": ["createCommitOnBranch"],
+        "mcp": [
+          { "tool": "mcp__plugin_tamirs-superpowers_github__create_or_update_file" },
+          { "tool": "mcp__plugin_tamirs-superpowers_github__push_files" },
+          { "tool": "mcp__plugin_tamirs-superpowers_github__delete_file" }
+        ]
+      },
+      "sources": ["ADR#D1", "A3#B5", "A3#D3"],
+      "note": "Non-default branch at R2; the default branch is R3, never automatic; workflows, hooks or policy are R4 (D1 R3 and R4 rows)."
+    },
+    {
+      "id": "notify.send",
+      "r": 2,
+      "tags": [],
+      "aliases": [],
+      "never_auto": false,
+      "unattended_precondition": null,
+      "l2": ["L1"],
+      "target": "url",
+      "equivalents": {
+        "argv": [{ "script": "notify-pushover.sh" }, { "cmd": ["curl"], "any": ["*api.pushover.net*"] }]
+      },
+      "sources": ["ADR#D1", "A2#F7"]
+    },
+    {
+      "id": "net.post.external",
+      "r": 2,
+      "tags": [],
+      "aliases": [],
+      "never_auto": false,
+      "unattended_precondition": null,
+      "l2": ["L1"],
+      "target": "url",
+      "equivalents": {
+        "argv": [
+          { "cmd": ["curl"], "any": ["-X", "--request", "-d", "--data*", "-F", "--form", "--json", "-T", "--upload-file"], "none": ["*api.github.com*", "*uploads.github.com*"] },
+          { "cmd": ["wget"], "any": ["--method", "--post-data", "--post-file", "--body-data"], "none": ["*api.github.com*", "*uploads.github.com*"] }
+        ]
+      },
+      "sources": ["ADR#D1", "A2#F7"],
+      "note": "A write to a non-GitHub host. The same client aimed at a GitHub API host is matched by the rest entries of the GitHub ids."
+    },
+    {
+      "id": "secrets.collect.chat",
+      "r": 2,
+      "tags": [],
+      "aliases": [],
+      "never_auto": false,
+      "unattended_precondition": null,
+      "l2": ["L1"],
+      "target": "none",
+      "equivalents": {},
+      "sources": ["ADR#D1", "A2#F7"],
+      "note": "A credential pasted into chat enters the transcript and the provider (notify-setup)."
+    },
+    {
+      "id": "daemon.start",
+      "r": 2,
+      "tags": ["machine"],
+      "aliases": [],
+      "never_auto": false,
+      "unattended_precondition": null,
+      "l2": ["L1"],
+      "target": "process",
+      "equivalents": {
+        "argv": [{ "script": "usage-capture/collector.py", "any": ["--daemon"] }]
+      },
+      "sources": ["ADR#D1", "A2#F1", "A3#D9"],
+      "note": "Plugin-owned daemon, PID verified."
+    },
+    {
+      "id": "daemon.stop",
+      "r": 2,
+      "tags": ["machine"],
+      "aliases": [],
+      "never_auto": false,
+      "unattended_precondition": null,
+      "l2": ["L1"],
+      "target": "process",
+      "equivalents": {
+        "argv": [{ "script": "usage-capture/collector.py", "any": ["--stop"] }]
+      },
+      "sources": ["ADR#D1", "A2#F1"],
+      "note": "Plugin-owned daemon, PID verified. Any other PID is process.kill (R3)."
+    },
+    {
+      "id": "deps.install",
+      "r": 2,
+      "tags": ["machine"],
+      "aliases": [],
+      "never_auto": false,
+      "unattended_precondition": null,
+      "l2": ["L1"],
+      "target": "path",
+      "equivalents": {
+        "argv": [
+          { "cmd": ["npm", "ci"], "all": ["--ignore-scripts"] },
+          { "cmd": ["npm", "install"], "all": ["--ignore-scripts"], "args_none": ["*"] },
+          { "cmd": ["npm", "i"], "all": ["--ignore-scripts"], "args_none": ["*"] },
+          { "cmd": ["pnpm", "install"], "all": ["--ignore-scripts"] },
+          { "cmd": ["pnpm", "i"], "all": ["--ignore-scripts"] },
+          { "cmd": ["yarn", "install"], "all": ["--ignore-scripts"] },
+          { "cmd": ["bun", "install"], "all": ["--ignore-scripts"] },
+          { "cmd": ["cargo", "fetch"] }
+        ]
+      },
+      "sources": ["ADR#D1", "A3#D9", "SR#S-08"],
+      "note": "From the lockfile, in the own worktree, lifecycle scripts off. A hook never installs: it prints the command (SR S-08)."
+    },
+    {
+      "id": "pr.merge.auto",
+      "r": 3,
+      "tags": [],
+      "aliases": ["pr.auto_merge.enable"],
+      "never_auto": false,
+      "unattended_precondition": "pinned_check_or_review_and_no_protected_paths",
+      "l2": ["PG"],
+      "target": "pr",
+      "equivalents": {
+        "argv": [{ "cmd": ["gh", "pr", "merge"], "any": ["--auto"], "none": ["--admin"] }],
+        "graphql": ["enablePullRequestAutoMerge", "enqueuePullRequest"]
+      },
+      "sources": ["ADR#D1", "ADR#D2", "A1#D-5", "SR#S-13"],
+      "note": "gh pr merge --auto only, so GitHub protection decides (D2). --delete-branch with --auto belongs to this id: GitHub deletes the head only once the merge lands."
+    },
+    {
+      "id": "pr.merge",
+      "r": 3,
+      "tags": [],
+      "aliases": [],
+      "never_auto": true,
+      "unattended_precondition": null,
+      "l2": ["PG", "MCP"],
+      "target": "pr",
+      "equivalents": {
+        "argv": [{ "cmd": ["gh", "pr", "merge"], "none": ["--auto", "--admin"] }],
+        "rest": [
+          { "method": "PUT", "path": "repos/{owner}/{repo}/pulls/{n}/merge" },
+          { "method": "POST", "path": "repos/{owner}/{repo}/merges" }
+        ],
+        "graphql": ["mergePullRequest", "mergeBranch"],
+        "mcp": [{ "tool": "mcp__plugin_tamirs-superpowers_github__merge_pull_request" }]
+      },
+      "sources": ["ADR#D1", "ADR#D2", "A3#D3", "SR#S-07"],
+      "note": "A direct merge. The plugin never performs one automatically (D2)."
+    },
+    {
+      "id": "branch.delete.remote",
+      "r": 3,
+      "tags": [],
+      "aliases": [],
+      "never_auto": false,
+      "unattended_precondition": "pr_merged_not_default_not_cross_repo",
+      "raises": [
+        { "when": "unmerged_commits", "r": 4 },
+        { "when": "tag_ref", "becomes": "tag.push" }
+      ],
+      "l2": ["PG"],
+      "target": "branch",
+      "equivalents": {
+        "argv": [
+          { "cmd": ["git", "push"], "any": ["--delete", "-d"] },
+          { "cmd": ["git", "push"], "args": [":*"] },
+          { "cmd": ["gh", "pr", "close"], "any": ["--delete-branch", "-d"] },
+          { "script": "cleanup-after-merge.sh" },
+          { "script": "cleanup/scripts/cleanup.sh", "any": ["--yes", "-y"] }
+        ],
+        "rest": [{ "method": "DELETE", "path": "repos/{owner}/{repo}/git/refs/heads/**" }],
+        "graphql": ["deleteRef"]
+      },
+      "sources": ["ADR#D1", "A1#D-1", "A1#D-6", "SR#S-07"]
+    },
+    {
+      "id": "pr.close",
+      "r": 3,
+      "tags": [],
+      "aliases": [],
+      "never_auto": false,
+      "unattended_precondition": "own_pr_or_closes_ref_of_merged_pr",
+      "l2": ["PG", "MCP"],
+      "target": "pr",
+      "equivalents": {
+        "argv": [{ "cmd": ["gh", "pr", "close"] }],
+        "rest": [{ "method": "PATCH", "path": "repos/{owner}/{repo}/pulls/{n}", "fields_all": ["state=closed"] }],
+        "graphql": ["closePullRequest", "updatePullRequest"],
+        "mcp": [{ "tool": "mcp__plugin_tamirs-superpowers_github__update_pull_request", "args_all": { "state": "closed" } }]
+      },
+      "sources": ["ADR#D1", "A1#D-10", "SR#S-07"],
+      "note": "GraphQL updatePullRequest can set state, so it maps here (context may raise, never lower)."
+    },
+    {
+      "id": "issue.close",
+      "r": 3,
+      "tags": [],
+      "aliases": [],
+      "never_auto": false,
+      "unattended_precondition": "own_pr_or_closes_ref_of_merged_pr",
+      "l2": ["PG", "MCP"],
+      "target": "issue",
+      "equivalents": {
+        "argv": [{ "cmd": ["gh", "issue", "close"] }],
+        "rest": [{ "method": "PATCH", "path": "repos/{owner}/{repo}/issues/{n}", "fields_all": ["state=closed"] }],
+        "graphql": ["closeIssue", "updateIssue"],
+        "mcp": [{ "tool": "mcp__plugin_tamirs-superpowers_github__issue_write", "args_all": { "state": "closed" } }]
+      },
+      "sources": ["ADR#D1", "A1#D-10", "SR#S-07"],
+      "note": "GraphQL updateIssue can set state, so it maps here."
+    },
+    {
+      "id": "git.push.default",
+      "r": 3,
+      "tags": [],
+      "aliases": ["git.push.default_branch"],
+      "never_auto": true,
+      "unattended_precondition": null,
+      "denies": [{ "when": "protected_default_branch", "source": "safety#5" }],
+      "l2": ["PG"],
+      "target": "branch",
+      "equivalents": {
+        "argv": [
+          { "cmd": ["git", "push"], "args": ["{default}", "*:{default}", "refs/heads/{default}", "*:refs/heads/{default}"] },
+          { "cmd": ["git", "push"], "any": ["--all", "--branches"] }
+        ],
+        "rest": [{ "method": "PATCH", "path": "repos/{owner}/{repo}/git/refs/heads/{default}" }]
+      },
+      "sources": ["ADR#D1", "A1#D-11", "safety#5"]
+    },
+    {
+      "id": "git.push.force",
+      "r": 3,
+      "tags": [],
+      "aliases": ["git.force_push"],
+      "never_auto": false,
+      "unattended_precondition": "force_with_lease_and_own_claim",
+      "raises": [{ "when": "default_branch", "becomes": "git.push.force.default" }],
+      "l2": ["PG"],
+      "target": "branch",
+      "equivalents": {
+        "argv": [
+          { "cmd": ["git", "push"], "any": ["--force", "-f", "--force-with-lease", "--force-if-includes"] },
+          { "cmd": ["git", "push"], "args": ["+*"] }
+        ],
+        "rest": [{ "method": "PATCH", "path": "repos/{owner}/{repo}/git/refs/heads/**", "fields_all": ["force=true"] }],
+        "graphql": ["updateRef", "updateRefs"]
+      },
+      "sources": ["ADR#D1", "A1#D-11", "A3#D2", "SR#S-07"],
+      "note": "Own, non-default branch. GraphQL updateRef/updateRefs can force, so they map here."
+    },
+    {
+      "id": "pr.review.approve",
+      "r": 3,
+      "tags": [],
+      "aliases": [],
+      "never_auto": true,
+      "unattended_precondition": null,
+      "l2": ["PG", "MCP"],
+      "target": "pr",
+      "equivalents": {
+        "argv": [{ "cmd": ["gh", "pr", "review"], "any": ["--approve", "-a"] }],
+        "rest": [
+          { "method": "POST", "path": "repos/{owner}/{repo}/pulls/{n}/reviews", "fields_all": ["event=APPROVE"] },
+          { "method": "POST", "path": "repos/{owner}/{repo}/pulls/{n}/reviews/{id}/events", "fields_all": ["event=APPROVE"] }
+        ],
+        "graphql": ["addPullRequestReview", "submitPullRequestReview"],
+        "mcp": [{ "tool": "mcp__plugin_tamirs-superpowers_github__pull_request_review_write", "args_all": { "event": "APPROVE" } }]
+      },
+      "sources": ["ADR#D1", "SR#S-06", "SR#S-07"],
+      "note": "The user's token can supply the required review. GraphQL review mutations can approve, so they map here."
+    },
+    {
+      "id": "repo.settings.merge",
+      "r": 3,
+      "tags": [],
+      "aliases": [],
+      "never_auto": true,
+      "unattended_precondition": null,
+      "l2": ["PG"],
+      "target": "repo",
+      "equivalents": {
+        "argv": [{ "cmd": ["gh", "repo", "edit"] }, { "script": "enable-repo-merge-settings.sh" }],
+        "rest": [{ "method": "PATCH", "path": "repos/{owner}/{repo}" }],
+        "graphql": ["updateRepository"]
+      },
+      "sources": ["ADR#D1", "A1#D-4"],
+      "note": "Every repository-settings PATCH folds here, not only the merge settings the ADR names."
+    },
+    {
+      "id": "file.write.outside_repo",
+      "r": 3,
+      "tags": [],
+      "aliases": [],
+      "never_auto": true,
+      "unattended_precondition": null,
+      "l2": ["PG", "MCP"],
+      "target": "path",
+      "equivalents": {},
+      "sources": ["ADR#D1", "A2#F3"],
+      "note": "A write whose realpath is outside the worktree and that no stricter id (policy.edit, config.global.write) names. Path rule; no argv form."
+    },
+    {
+      "id": "handoff.force",
+      "r": 3,
+      "tags": [],
+      "aliases": [],
+      "never_auto": true,
+      "unattended_precondition": null,
+      "l2": ["PG"],
+      "target": "path",
+      "equivalents": {
+        "argv": [{ "script": "handoff.sh", "any": ["--force"] }]
+      },
+      "sources": ["ADR#D1", "A1#D-13"]
+    },
+    {
+      "id": "commit.status.write",
+      "r": 3,
+      "tags": [],
+      "aliases": [],
+      "never_auto": true,
+      "unattended_precondition": null,
+      "l2": ["PG", "MCP"],
+      "target": "repo",
+      "equivalents": {
+        "rest": [{ "method": "POST", "path": "repos/{owner}/{repo}/statuses/{sha}" }]
+      },
+      "sources": ["ADR#D1", "SR#S-13"],
+      "note": "A success status for a required context no app is pinned to satisfies the check (SR S-13)."
+    },
+    {
+      "id": "check_run.write",
+      "r": 3,
+      "tags": [],
+      "aliases": [],
+      "never_auto": true,
+      "unattended_precondition": null,
+      "l2": ["PG", "MCP"],
+      "target": "repo",
+      "equivalents": {
+        "rest": [
+          { "method": "POST", "path": "repos/{owner}/{repo}/check-runs" },
+          { "method": "PATCH", "path": "repos/{owner}/{repo}/check-runs/{id}" },
+          { "method": "POST", "path": "repos/{owner}/{repo}/check-suites" }
+        ],
+        "graphql": ["createCheckRun", "updateCheckRun", "createCheckSuite"]
+      },
+      "sources": ["ADR#D1", "SR#S-13"]
+    },
+    {
+      "id": "process.kill",
+      "r": 3,
+      "tags": ["machine"],
+      "aliases": ["process.kill.port"],
+      "never_auto": true,
+      "unattended_precondition": null,
+      "l2": ["PG"],
+      "target": "process",
+      "equivalents": {
+        "argv": [{ "cmd": ["kill"] }, { "cmd": ["pkill"] }, { "cmd": ["killall"] }]
+      },
+      "sources": ["ADR#D1", "A2#F5"],
+      "note": "An unverified or foreign PID. The plugin's own daemon by verified PID is daemon.stop (R2)."
+    },
+    {
+      "id": "pkg.install.network",
+      "r": 3,
+      "tags": ["machine"],
+      "aliases": [],
+      "never_auto": false,
+      "unattended_precondition": "pinned_lockfile",
+      "l2": ["PG"],
+      "target": "package",
+      "equivalents": {
+        "argv": [
+          { "cmd": ["npm", "install"], "args": ["*"] },
+          { "cmd": ["npm", "i"], "args": ["*"] },
+          { "cmd": ["npm", "add"] },
+          { "cmd": ["pnpm", "add"] },
+          { "cmd": ["yarn", "add"] },
+          { "cmd": ["bun", "add"] },
+          { "cmd": ["pip", "install"] },
+          { "cmd": ["pip3", "install"] },
+          { "cmd": ["python3", "-m", "pip", "install"] },
+          { "cmd": ["python", "-m", "pip", "install"] },
+          { "cmd": ["uv", "pip", "install"] },
+          { "cmd": ["uv", "add"] },
+          { "cmd": ["cargo", "install"] },
+          { "cmd": ["go", "install"] },
+          { "cmd": ["gem", "install"] },
+          { "cmd": ["brew", "install"] }
+        ]
+      },
+      "sources": ["ADR#D1", "A2#F6"],
+      "note": "A model-named package from the network. With lifecycle scripts on it is also code.exec.foreign_repo."
+    },
+    {
+      "id": "pkg.exec.network",
+      "r": 3,
+      "tags": ["machine"],
+      "aliases": [],
+      "never_auto": false,
+      "unattended_precondition": "pinned_lockfile",
+      "l2": ["PG"],
+      "target": "package",
+      "equivalents": {
+        "argv": [
+          { "cmd": ["npx"] },
+          { "cmd": ["npm", "exec"] },
+          { "cmd": ["bunx"] },
+          { "cmd": ["pnpm", "dlx"] },
+          { "cmd": ["yarn", "dlx"] },
+          { "cmd": ["uvx"] },
+          { "cmd": ["pipx", "run"] }
+        ]
+      },
+      "sources": ["ADR#D1", "A2#F6"],
+      "note": "Running a package fetched for the call (mcp-builder's inspector)."
+    },
+    {
+      "id": "docker.state",
+      "r": 3,
+      "tags": ["machine"],
+      "aliases": [],
+      "never_auto": true,
+      "unattended_precondition": null,
+      "l2": ["PG"],
+      "target": "package",
+      "equivalents": {
+        "argv": [
+          { "cmd": ["docker", "run"] },
+          { "cmd": ["docker", "build"] },
+          { "cmd": ["docker", "pull"] },
+          { "cmd": ["docker", "push"] },
+          { "cmd": ["docker", "create"] },
+          { "cmd": ["docker", "start"] },
+          { "cmd": ["docker", "restart"] },
+          { "cmd": ["docker", "exec"] },
+          { "cmd": ["docker", "rm"] },
+          { "cmd": ["docker", "rmi"] },
+          { "cmd": ["docker", "kill"] },
+          { "cmd": ["docker", "stop"] },
+          { "cmd": ["docker", "*"], "any": ["prune"] },
+          { "cmd": ["docker", "compose"], "any": ["up", "run", "build", "pull", "push", "down", "rm", "start", "restart", "exec", "create"] },
+          { "cmd": ["docker-compose"], "any": ["up", "run", "build", "pull", "push", "down", "rm", "start", "restart", "exec", "create"] },
+          { "cmd": ["podman", "run"] },
+          { "cmd": ["podman", "build"] },
+          { "cmd": ["podman", "pull"] }
+        ]
+      },
+      "sources": ["ADR#D1", "A2#F8", "A3#D5"],
+      "note": "run, build, pull, up, prune. Replaces docker-guard.py's agent-typeable token with tickets (D5)."
+    },
+    {
+      "id": "code.exec.foreign_repo",
+      "r": 3,
+      "tags": ["machine"],
+      "aliases": [],
+      "never_auto": true,
+      "unattended_precondition": null,
+      "l2": ["PG"],
+      "target": "path",
+      "equivalents": {
+        "argv": [
+          { "cmd": ["npm", "ci"], "none": ["--ignore-scripts"] },
+          { "cmd": ["npm", "install"], "none": ["--ignore-scripts"] },
+          { "cmd": ["npm", "i"], "none": ["--ignore-scripts"] },
+          { "cmd": ["npm", "add"], "none": ["--ignore-scripts"] },
+          { "cmd": ["pnpm", "install"], "none": ["--ignore-scripts"] },
+          { "cmd": ["pnpm", "i"], "none": ["--ignore-scripts"] },
+          { "cmd": ["pnpm", "add"], "none": ["--ignore-scripts"] },
+          { "cmd": ["yarn"], "args_none": ["*"], "none": ["--ignore-scripts", "--version", "-v", "--help", "-h"] },
+          { "cmd": ["yarn", "install"], "none": ["--ignore-scripts"] },
+          { "cmd": ["yarn", "add"], "none": ["--ignore-scripts"] },
+          { "cmd": ["bun", "install"], "none": ["--ignore-scripts"] },
+          { "cmd": ["bun", "i"], "none": ["--ignore-scripts"] },
+          { "cmd": ["bun", "add"], "none": ["--ignore-scripts"] },
+          { "cmd": ["uv", "sync"] },
+          { "cmd": ["bundle", "install"] },
+          { "cmd": ["bundle"], "args_none": ["*"], "none": ["--version", "-v", "--help", "-h"] }
+        ]
+      },
+      "sources": ["ADR#D1", "A2#F5", "A3#B3", "SR#S-08"],
+      "note": "Code the user never chose: a foreign repository's script, and every install with lifecycle scripts on (incl. uv sync, bundle install). Never run by a hook."
+    },
+    {
+      "id": "git.verify.skip",
+      "r": 4,
+      "tags": [],
+      "aliases": [],
+      "never_auto": true,
+      "unattended_precondition": null,
+      "l2": ["PG"],
+      "target": "path",
+      "equivalents": {
+        "argv": [
+          { "cmd": ["git", "commit"], "any": ["--no-verify", "-n*", "-[!-]*n*"] },
+          { "cmd": ["git", "push"], "any": ["--no-verify"] },
+          { "cmd": ["git", "merge"], "any": ["--no-verify"] },
+          { "cmd": ["git", "rebase"], "any": ["--no-verify"] },
+          { "cmd": ["git", "am"], "any": ["--no-verify"] },
+          { "cmd": ["git", "*"], "any": ["core.hooksPath=*", "core.hookspath=*"] },
+          { "cmd": ["git", "*"], "env_any": ["HUSKY=0", "SKIP=*", "GIT_CONFIG_KEY_*=core.hooksPath", "GIT_CONFIG_KEY_*=core.hookspath", "GIT_CONFIG_PARAMETERS=*hooksPath*", "GIT_CONFIG_PARAMETERS=*hookspath*"] }
+        ]
+      },
+      "sources": ["ADR#D1", "SR#S-14", "safety#6"],
+      "note": "Safety invariant 6: only the D5 host prompt grants the deliberate one-off."
+    },
+    {
+      "id": "pr.merge.admin",
+      "r": 4,
+      "tags": [],
+      "aliases": [],
+      "never_auto": true,
+      "unattended_precondition": null,
+      "denies": [{ "when": "required_check_failing_or_pending", "source": "safety#2" }],
+      "l2": ["PG"],
+      "target": "pr",
+      "equivalents": {
+        "argv": [{ "cmd": ["gh", "pr", "merge"], "any": ["--admin"] }]
+      },
+      "sources": ["ADR#D1", "A1#D-2", "SR#S-05", "safety#2"]
+    },
+    {
+      "id": "git.push.force.default",
+      "r": 4,
+      "tags": [],
+      "aliases": ["git.force_push.default"],
+      "never_auto": true,
+      "unattended_precondition": null,
+      "l2": ["PG"],
+      "target": "branch",
+      "equivalents": {
+        "argv": [
+          { "cmd": ["git", "push"], "any": ["--force", "-f", "--force-with-lease", "--force-if-includes"], "args": ["{default}", "*:{default}", "refs/heads/{default}", "*:refs/heads/{default}"] },
+          { "cmd": ["git", "push"], "args": ["+{default}", "+*:{default}", "+refs/heads/{default}", "+*:refs/heads/{default}"] },
+          { "cmd": ["git", "push"], "any": ["--mirror"] }
+        ],
+        "rest": [{ "method": "PATCH", "path": "repos/{owner}/{repo}/git/refs/heads/{default}", "fields_all": ["force=true"] }]
+      },
+      "sources": ["ADR#D1", "A3#D1", "SR#S-07"],
+      "note": "--mirror can force-update and delete every ref, the default branch included."
+    },
+    {
+      "id": "release.create",
+      "r": 4,
+      "tags": [],
+      "aliases": [],
+      "never_auto": true,
+      "unattended_precondition": null,
+      "l2": ["PG"],
+      "target": "tag",
+      "equivalents": {
+        "argv": [
+          { "cmd": ["gh", "release", "create"] },
+          { "cmd": ["gh", "release", "edit"] },
+          { "cmd": ["gh", "release", "delete"] },
+          { "cmd": ["gh", "release", "upload"] },
+          { "cmd": ["gh", "workflow", "run"], "args": ["release", "release.yml", "release.yaml"] }
+        ],
+        "rest": [
+          { "method": "POST", "path": "repos/{owner}/{repo}/releases" },
+          { "method": ["PATCH", "DELETE"], "path": "repos/{owner}/{repo}/releases/{id}" },
+          { "method": "POST", "path": "repos/{owner}/{repo}/releases/{id}/assets" },
+          { "method": ["PATCH", "DELETE"], "path": "repos/{owner}/{repo}/releases/assets/{id}" }
+        ]
+      },
+      "sources": ["ADR#D1", "A3#C", "P#4"],
+      "note": "Dispatching the release workflow publishes a release and a tag."
+    },
+    {
+      "id": "tag.push",
+      "r": 4,
+      "tags": [],
+      "aliases": ["git.tag.create"],
+      "never_auto": true,
+      "unattended_precondition": null,
+      "l2": ["PG"],
+      "target": "tag",
+      "equivalents": {
+        "argv": [
+          { "cmd": ["git", "push"], "any": ["--tags", "--follow-tags"] },
+          { "cmd": ["git", "push"], "args": ["refs/tags/*", "*:refs/tags/*", "+refs/tags/*"] },
+          { "cmd": ["git", "tag"], "args": ["*"], "none": ["-l", "--list", "-v", "--verify", "-d", "--delete"] }
+        ],
+        "rest": [
+          { "method": "POST", "path": "repos/{owner}/{repo}/git/refs", "fields_all": ["ref=refs/tags/*"] },
+          { "method": ["PATCH", "DELETE"], "path": "repos/{owner}/{repo}/git/refs/tags/**" },
+          { "method": "POST", "path": "repos/{owner}/{repo}/git/tags" }
+        ]
+      },
+      "sources": ["ADR#D1", "A3#D1"],
+      "note": "A bare refspec that names an existing tag is this id too (condition tag_ref)."
+    },
+    {
+      "id": "process.spawn.agent_host",
+      "r": 4,
+      "tags": ["machine"],
+      "aliases": ["process.spawn.claude_cli"],
+      "never_auto": true,
+      "unattended_precondition": null,
+      "l2": ["PG"],
+      "target": "command",
+      "equivalents": {
+        "argv": [
+          { "cmd": ["claude"] },
+          { "cmd": ["codex"] },
+          { "cmd": ["gemini"] },
+          { "cmd": ["opencode"] },
+          { "cmd": ["cursor-agent"] },
+          { "cmd": ["agy"] },
+          { "cmd": ["npx"], "any": ["claude", "codex", "gemini", "opencode", "cursor-agent", "agy", "@anthropic-ai/claude-code*", "@openai/codex*", "@google/gemini-cli*", "opencode-ai*"] },
+          { "cmd": ["bunx"], "any": ["claude", "codex", "gemini", "opencode", "cursor-agent", "agy", "@anthropic-ai/claude-code*", "@openai/codex*", "@google/gemini-cli*", "opencode-ai*"] },
+          { "cmd": ["pnpm", "dlx"], "any": ["claude", "codex", "gemini", "opencode", "cursor-agent", "agy", "@anthropic-ai/claude-code*", "@openai/codex*", "@google/gemini-cli*", "opencode-ai*"] },
+          { "cmd": ["npm", "exec"], "any": ["claude", "codex", "gemini", "opencode", "cursor-agent", "agy", "@anthropic-ai/claude-code*", "@openai/codex*", "@google/gemini-cli*", "opencode-ai*"] },
+          { "cmd": ["node"], "any": ["*claude-code*/cli.js", "*@openai/codex*", "*gemini-cli*", "*opencode-ai*"] }
+        ]
+      },
+      "sources": ["ADR#D1", "ADR#D5", "A2#F5", "SR#S-02"],
+      "note": "Headless or not: a nested agent host delivers model text as a typed prompt and can answer a host prompt (D5)."
+    },
+    {
+      "id": "tty.drive",
+      "r": 4,
+      "tags": ["machine"],
+      "aliases": [],
+      "never_auto": true,
+      "unattended_precondition": null,
+      "l2": ["PG"],
+      "target": "command",
+      "equivalents": {
+        "argv": [
+          { "cmd": ["script"] },
+          { "cmd": ["expect"] },
+          { "cmd": ["unbuffer"] },
+          { "cmd": ["tmux", "send-keys"] },
+          { "cmd": ["tmux", "send"] },
+          { "cmd": ["screen"], "all": ["-X", "stuff"] },
+          { "cmd": ["osascript"], "any": ["*keystroke*", "*key code*", "*do script*"] },
+          { "cmd": ["xdotool"] },
+          { "cmd": ["python3"], "any": ["*import pty*", "*pty.fork*", "*pty.spawn*", "*openpty*"] },
+          { "cmd": ["python"], "any": ["*import pty*", "*pty.fork*", "*pty.spawn*", "*openpty*"] },
+          { "cmd": ["node"], "any": ["*node-pty*"] }
+        ]
+      },
+      "sources": ["ADR#D1", "ADR#D5", "SR#S-01"],
+      "note": "Drives a terminal: can forge a typed prompt or answer a TTY or host prompt (D5)."
+    },
+    {
+      "id": "repo.create",
+      "r": 4,
+      "tags": [],
+      "aliases": [],
+      "never_auto": true,
+      "unattended_precondition": null,
+      "l2": ["PG", "MCP"],
+      "target": "repo",
+      "equivalents": {
+        "argv": [{ "cmd": ["gh", "repo", "create"] }, { "cmd": ["gh", "repo", "fork"] }],
+        "rest": [
+          { "method": "POST", "path": "user/repos" },
+          { "method": "POST", "path": "orgs/{org}/repos" },
+          { "method": "POST", "path": "repos/{owner}/{repo}/forks" },
+          { "method": "POST", "path": "repos/{owner}/{repo}/generate" }
+        ],
+        "graphql": ["createRepository", "cloneTemplateRepository"],
+        "mcp": [
+          { "tool": "mcp__plugin_tamirs-superpowers_github__create_repository" },
+          { "tool": "mcp__plugin_tamirs-superpowers_github__fork_repository" }
+        ]
+      },
+      "sources": ["ADR#D1", "ADR#D8", "A1#D-3", "A3#B5"],
+      "note": "Includes forks. Excluded from the GitHub MCP server at every level (D8)."
+    },
+    {
+      "id": "repo.delete",
+      "r": 4,
+      "tags": [],
+      "aliases": [],
+      "never_auto": true,
+      "unattended_precondition": null,
+      "l2": ["PG", "MCP"],
+      "target": "repo",
+      "equivalents": {
+        "argv": [{ "cmd": ["gh", "repo", "delete"] }],
+        "rest": [{ "method": "DELETE", "path": "repos/{owner}/{repo}" }],
+        "mcp": [{ "tool": "mcp__plugin_tamirs-superpowers_github__delete_repository" }]
+      },
+      "sources": ["ADR#D1", "ADR#D8", "A3#B5"]
+    },
+    {
+      "id": "ruleset.apply",
+      "r": 4,
+      "tags": [],
+      "aliases": [],
+      "never_auto": true,
+      "unattended_precondition": null,
+      "l2": ["PG"],
+      "target": "repo",
+      "equivalents": {
+        "argv": [
+          { "script": "github-policy.sh", "any": ["apply"] },
+          { "script": "ensure-branch-protection.sh", "none": ["--verify-only"] }
+        ],
+        "rest": [
+          { "method": ["POST", "PUT", "PATCH", "DELETE"], "path": "repos/{owner}/{repo}/rulesets" },
+          { "method": ["POST", "PUT", "PATCH", "DELETE"], "path": "repos/{owner}/{repo}/rulesets/**" }
+        ],
+        "graphql": ["createRepositoryRuleset", "updateRepositoryRuleset", "deleteRepositoryRuleset"]
+      },
+      "sources": ["ADR#D1", "A1#D-8", "A1#D-9"]
+    },
+    {
+      "id": "ruleset.apply.org",
+      "r": 4,
+      "tags": [],
+      "aliases": [],
+      "never_auto": true,
+      "unattended_precondition": null,
+      "l2": ["PG"],
+      "target": "org",
+      "equivalents": {
+        "argv": [{ "script": "github-policy.sh", "all": ["apply", "--org"] }],
+        "rest": [
+          { "method": ["POST", "PUT", "PATCH", "DELETE"], "path": "orgs/{org}/rulesets" },
+          { "method": ["POST", "PUT", "PATCH", "DELETE"], "path": "orgs/{org}/rulesets/**" }
+        ]
+      },
+      "sources": ["ADR#D1", "A1#D-8"]
+    },
+    {
+      "id": "branch_protection.write",
+      "r": 4,
+      "tags": [],
+      "aliases": [],
+      "never_auto": true,
+      "unattended_precondition": null,
+      "l2": ["PG"],
+      "target": "branch",
+      "equivalents": {
+        "argv": [{ "script": "ensure-branch-protection.sh", "none": ["--verify-only"] }],
+        "rest": [
+          { "method": ["POST", "PUT", "PATCH", "DELETE"], "path": "repos/{owner}/{repo}/branches/{branch}/protection" },
+          { "method": ["POST", "PUT", "PATCH", "DELETE"], "path": "repos/{owner}/{repo}/branches/{branch}/protection/**" }
+        ],
+        "graphql": ["createBranchProtectionRule", "updateBranchProtectionRule", "deleteBranchProtectionRule"]
+      },
+      "sources": ["ADR#D1", "A1#D-8", "A3#D1", "SR#S-07"],
+      "note": "Apply, remove, and the legacy ensure-branch-protection.sh shim."
+    },
+    {
+      "id": "workflow.edit",
+      "r": 4,
+      "tags": [],
+      "aliases": [],
+      "never_auto": true,
+      "unattended_precondition": null,
+      "l2": ["GSF", "MCP"],
+      "target": "path",
+      "equivalents": {
+        "paths": ["{repo}/.github/workflows/**"],
+        "argv": [{ "cmd": ["gh", "workflow", "enable"] }, { "cmd": ["gh", "workflow", "disable"] }],
+        "rest": [{ "method": ["PUT", "DELETE"], "path": "repos/{owner}/{repo}/contents/.github/workflows/**" }],
+        "mcp": [
+          { "tool": "mcp__plugin_tamirs-superpowers_github__create_or_update_file", "args_all": { "path": "*.github/workflows/*" } },
+          { "tool": "mcp__plugin_tamirs-superpowers_github__delete_file", "args_all": { "path": "*.github/workflows/*" } },
+          { "tool": "mcp__plugin_tamirs-superpowers_github__push_files", "args_all": { "files": "*.github/workflows/*" } }
+        ]
+      },
+      "sources": ["ADR#D1", "ADR#D10", "A3#D3"],
+      "note": "Local or remote. GSF denies locally and no deny text points at the MCP path any more (D10.5)."
+    },
+    {
+      "id": "config.global.write",
+      "r": 4,
+      "tags": [],
+      "aliases": [],
+      "never_auto": true,
+      "unattended_precondition": null,
+      "l2": ["PG", "GSF"],
+      "target": "path",
+      "equivalents": {
+        "paths": ["{repo}/.git/hooks/**", "{repo}/.git/config"],
+        "argv": [
+          { "cmd": ["git", "config"], "any": ["--global", "--system"], "none": ["--get", "--get-all", "--get-regexp", "--get-urlmatch", "-l", "--list"] },
+          { "cmd": ["git", "config"], "any": ["alias.*", "core.hooksPath", "core.hookspath", "core.fsmonitor", "core.sshCommand", "include.path", "includeIf.*", "credential.helper"], "none": ["--get", "--get-all", "--get-regexp", "--get-urlmatch", "-l", "--list"] },
+          { "cmd": ["git", "*"], "any": ["alias.*=*"] },
+          { "cmd": ["gh", "alias"], "any": ["set", "import", "delete"] },
+          { "cmd": ["gh", "config", "set"] },
+          { "cmd": ["gh", "auth", "setup-git"] },
+          { "script": "scripts/setup.sh" },
+          { "script": "scripts/install.sh" },
+          { "script": "usage-capture/enable.sh" }
+        ]
+      },
+      "sources": ["ADR#D1", "A2#F1", "A3#D11", "SR#S-07"],
+      "note": "Global config, and any git config that runs code (alias.*, core.hooksPath and friends)."
+    },
+    {
+      "id": "config.policy.stage",
+      "r": 4,
+      "tags": [],
+      "aliases": [],
+      "never_auto": true,
+      "unattended_precondition": null,
+      "l2": ["PG", "GSF"],
+      "target": "path",
+      "equivalents": {
+        "argv": [{ "script": "capture-config.sh", "any": ["--adopt"] }]
+      },
+      "sources": ["ADR#D1", "A2#C", "A2#F4"],
+      "note": "Adopted capture-config hunks land in platforms/*/settings.d and core/global-rules.md and may carry permission rules."
+    },
+    {
+      "id": "secrets.capture.bodies",
+      "r": 4,
+      "tags": [],
+      "aliases": [],
+      "never_auto": true,
+      "unattended_precondition": null,
+      "l2": ["PG", "GSF"],
+      "target": "path",
+      "equivalents": {
+        "argv": [{ "script": "usage-capture/enable.sh", "any": ["--bodies"] }]
+      },
+      "sources": ["ADR#D1", "A2#C", "A2#F1"]
+    },
+    {
+      "id": "policy.edit",
+      "r": 4,
+      "tags": [],
+      "aliases": ["plugin.permission_policy.edit"],
+      "never_auto": true,
+      "unattended_precondition": null,
+      "l2": ["GSF", "PG"],
+      "target": "path",
+      "equivalents": {
+        "paths": [
+          "{home}/.config/tamirs-superpowers/**",
+          "{home}/.local/state/tamirs-superpowers/**",
+          "{repo}/.tamirs-superpowers/**",
+          "{plugin_root}/hooks/**",
+          "{plugin_root}/core/permissions/**",
+          "{plugin_root}/scripts/resolve-permission.sh",
+          "{plugin_root}/scripts/plugin-config.sh",
+          "{plugin_root}/scripts/lib/permission-common.sh",
+          "{home}/.claude/plugins/cache/**",
+          "{home}/.claude/settings*.json",
+          "{repo}/.claude/settings*.json",
+          "{home}/.gemini/settings.json",
+          "{home}/.gemini/policies/**",
+          "{home}/.gemini/extensions/tamirs-superpowers/**",
+          "{repo}/.gemini/**",
+          "{home}/.codex/config.toml",
+          "{home}/.codex/hooks*",
+          "{home}/.codex/rules/**",
+          "{home}/.codex/plugins/**",
+          "{home}/.cursor/hooks.json",
+          "{home}/.cursor/cli-config.json",
+          "{home}/.cursor/permissions.json",
+          "{repo}/.cursor/hooks.json",
+          "{home}/.config/opencode/**",
+          "{repo}/opencode.json",
+          "{repo}/.opencode/**",
+          "{home}/.config/gh/**",
+          "{home}/.gitconfig"
+        ],
+        "argv": [
+          { "cmd": ["claude", "plugin", "configure"] },
+          { "cmd": ["gemini", "extensions", "config"] },
+          { "script": "plugin-config.sh", "any": ["confirm", "provision"] }
+        ]
+      },
+      "sources": ["ADR#D1", "ADR#D6", "ADR#D10", "A3#D7", "A3#E", "SR#S-03"],
+      "note": "Permission files, lock, tickets, guard scripts, installed caches, host settings and option stores. Only the D6 writer writes them, through D5. Guard files in a source checkout are an R4 ask, not a deny (D10.1)."
+    },
+    {
+      "id": "worktree.remove.force",
+      "r": 4,
+      "tags": [],
+      "aliases": [],
+      "never_auto": true,
+      "unattended_precondition": null,
+      "l2": ["PG"],
+      "target": "path",
+      "equivalents": {},
+      "sources": ["ADR#D1", "A1#D-1", "A1#D-6", "safety#4"],
+      "note": "A worktree removal that discards uncommitted or unpushed work. Reached from worktree.remove (condition discards_work)."
+    },
+    {
+      "id": "worktree.drop",
+      "r": 4,
+      "tags": [],
+      "aliases": [],
+      "never_auto": true,
+      "unattended_precondition": null,
+      "l2": ["PG"],
+      "target": "path",
+      "equivalents": {},
+      "sources": ["ADR#D1", "A1#C", "safety#4"],
+      "note": "cleanup's explicit per-worktree drop, gitignored content included. L1 choice; the removal itself is worktree.remove raised by discards_work."
+    },
+    {
+      "id": "git.reset_to_remote",
+      "r": 4,
+      "tags": [],
+      "aliases": [],
+      "never_auto": true,
+      "unattended_precondition": null,
+      "l2": ["PG"],
+      "target": "branch",
+      "equivalents": {},
+      "sources": ["ADR#D1", "A1#D-6", "safety#4"],
+      "note": "A reset to a remote ref that discards uncommitted or unpushed work. Reached from git.sync.ff (condition discards_work)."
+    }
+  ]
+}
