@@ -94,12 +94,17 @@ the job authenticates with a subscription token (`CLAUDE_CODE_OAUTH_TOKEN`, see
 [Running in CI](#running-in-ci)). With an `ANTHROPIC_API_KEY` the same runs bill for real;
 that is the case the `--max-cost-usd` ceiling is for.
 
-Measured: a 16-run pass (8 cases × 1 run × 2 arms) came to roughly $8 of estimated list price,
-about **$0.50 per run**, so the full `--runs 3` suite of the first eight cases is ≈ **$24**.
-Authoring cases dominate — they read, write and reason; the negatives and the canary are
-cheap. The four dev-workflow cases are unmeasured; at the same per-run figure a 24-run
-`--runs 1` pass of all twelve cases is ≈ **$12**, which is why the nightly runs `--runs 1`
-under a `--max-cost-usd 30` ceiling.
+Measured on 2026-11-03 (CI run 41668594165, `--model claude-sonnet-5-5 --judge-model sonnet`,
+`ANTHROPIC_API_KEY`, Claude Code 2.1.317): the nightly's 24-run pass (12 cases × 1 run × 2
+arms) came to **$1.63** of estimated list price, about **$0.07 per run**, with no run ending on
+an error. It took 9 minutes. The CLI lists judging separately at $0.19 without saying whether
+that is inside the $1.63, so the most it could be is $1.82. Per case, a with-plugin run cost
+$0.06–$0.13 and a no-plugin run $0.02–$0.07. The plugin arm costs more because it loads and
+follows a skill. A full `--runs 3` pass of all twelve cases is ≈ **$5**.
+
+An older figure, about $0.50 per run (2026-09-22, model not pinned, so Claude Code's default),
+was the source of a ≈ $12-per-night estimate. The model is now pinned, and that figure no
+longer applies. The `--max-cost-usd 30` ceiling stays as a guard against a runaway case.
 
 ## GitHub-dependent cases and mocks
 
@@ -212,9 +217,12 @@ the plugin, and two have since been fixed at the source (below).
 | `neg-find-not-create` | 1.00 | 1.00 | 0.00 |
 | `neg-explain-only` | 0.67 | 1.00 | −0.33 → rubric fixed since |
 
-`10`–`13` have **no measurement yet**: they were written on 2026-10-17 without an API key and
-have not executed. Their first nightly run is a calibration pass; expect to tighten a rubric
-or two, and do not read their first `Δ` as a finding about the plugin.
+`10`–`13` first ran on 2026-11-03 (one run per arm, `claude-sonnet-5-5`, judge `sonnet`). All
+four pass with the plugin: `start-dev-from-issue` 1.00 vs 0.67 without (Δ +0.33),
+`worker-dev-handoff` 1.00 vs 0.60 (+0.40), `pr-dev-drive-to-green` 1.00 vs 0.50 (+0.50), and
+the negative `neg-plain-question` 1.00 in both arms. One run per arm is a single sample, so
+treat these as a first reading, not a trend. Across all twelve cases the mean Δ was +0.13, and
+no case scored lower with the plugin than without.
 
 Three findings from the calibration pass, and what was done about them:
 
