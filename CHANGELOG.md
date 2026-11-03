@@ -5,6 +5,19 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [5.1.3] — 2026-11-03
+
+### Fixed
+
+- **A plugin `${user_config.<name>}` placeholder no longer reads as a hard-coded secret.**
+  A `.mcp.json` that passes a secret through userConfig, such as
+  `"SOME_TOKEN": "${user_config.some_token}"`, holds no value: Claude Code fills it in at
+  install time. `ip-scan.sh` still reported it, so a plugin wiring a secret this way could
+  never scan CLEAN. `scan-allowlist.txt` now drops a line only when it is exactly one key
+  whose entire value is that placeholder; a literal secret on the same line, extra text
+  inside the quotes, or any other `${…}` substitution is still a hit.
+  `tests/test-ip-scan-placeholder.sh` asserts each case in both directions.
+
 ## [5.1.2] — 2026-11-01
 
 ### Fixed

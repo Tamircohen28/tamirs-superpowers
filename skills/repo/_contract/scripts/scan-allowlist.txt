@@ -8,3 +8,8 @@ your-token-here
 Never add.*self-hosted
 Never `runs-on
 No `runs-on
+
+# Plugin userConfig substitution — the whole value of one key is a
+# `${user_config.<name>}` placeholder that Claude Code fills in at install time.
+# Anchored to the full line so a literal secret beside it is still a hit.
+^[^:]+:[0-9]+:[[:space:]]*["']?[A-Za-z0-9_]+["']?[[:space:]]*[:=][[:space:]]*["']\$\{user_config\.[A-Za-z0-9_]+\}["'][[:space:]]*,?[[:space:]]*$
