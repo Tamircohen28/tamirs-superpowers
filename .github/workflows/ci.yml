@@ -297,7 +297,14 @@ jobs:
       - name: Lint plugin structure
         run: pipx run plugin-scanner lint .
       - name: Verify plugin publish-readiness
-        # MCP stdio execution is intentionally skipped by the scanner in CI for
-        # safety — this warning is unavoidable for plugins that ship MCP servers.
-        continue-on-error: true
-        run: pipx run plugin-scanner verify .
+        # `verify` reports FAIL whenever it skips executing an MCP stdio server, which it
+        # always does in CI for safety (classification "safety-skip"), and this plugin ships
+        # one (`github`). Gate on every other check rather than ignoring the step: a
+        # continue-on-error here left a permanent red annotation and could never fail.
+        run: |
+          pipx run plugin-scanner verify . --format json > verify.json || true
+          jq -e '.cases | length > 0' verify.json >/dev/null \
+            || { echo "::error::plugin-scanner verify wrote no cases"; cat verify.json; exit 1; }
+          jq -r '.cases[] | "\(if .passed then "ok  " elif .classification == "safety-skip" then "skip" else "FAIL" end) \(.component): \(.name) - \(.message)"' verify.json
+          bad=$(jq '[.cases[] | select(.passed != true and .classification != "safety-skip")] | length' verify.json)
+          [ "$bad" -eq 0 ] || { echo "::error::plugin-scanner verify: $bad check(s) failed"; exit 1; }
