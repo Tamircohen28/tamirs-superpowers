@@ -221,7 +221,7 @@ Custom action raised from the plugin with `ctx.permission.assert({action:"probe.
 `plugin:00700072006f00620065002e007000650072006d:probe-key|{"v":1}`.
 - **source-cited:** `core/src/plugin/host.ts` L688-706: namespace `plugin:` + the plugin id as 4-hex-digit code units + `:`; backed by the global `kv`
   table (`kv/sql.ts`, `kv.ts`), not per project.
-- Default path on this machine (unredirected `opencode debug paths db`): `/Users/tamircohen/.local/share/opencode/opencode.db`. With
+- Default path on this machine (unredirected `opencode debug paths db`): `~/.local/share/opencode/opencode.db`. With
   `XDG_DATA_HOME` it moves. Survival across `opencode uninstall`: **unverified** (help text says it keeps "session data, configuration, and state").
 - Not shared with any other platform and not human-editable: use it only as a cache, not as the policy source.
 
