@@ -28,6 +28,8 @@ The README's platform badge row shows **platform tool versions** directly valida
 
 ## Versions
 
+Validated **2026-11-03** (live run) — **Claude Code** `validated_against`/`reviewed_through`/`latest_known` 2.1.316 → **2.1.317**. The `claude` CLI already installed on the maintainer machine (2.1.317; nothing was installed or upgraded) ran `claude plugin validate` on the manifest and on the root (both pass; the one warning is the documented root-CLAUDE.md note) and `make test-mods` (`claude plugin test` 37/37 on the mod, 19/19 on the guard). Changelog 2.1.317 read, nothing breaking, nothing adopted.
+
 Validated **2026-11-01** (live run, throwaway prefix) — **Codex** `validated_against`/`reviewed_through`/`latest_known` 0.163.0 → **0.166.0**. The plugin installs from a local marketplace offline; a recording probe plugin received `SessionStart` and `UserPromptSubmit` on `codex exec` with payload keys identical to the committed fixtures, and the hook contract test passes (94/0). Release notes 0.164.0–0.166.0 read: hook approval is now bound to plugin contents (trust was already hash-bound), and `PreToolUse` hooks report the local command cwd (not measurable without a model turn); nothing needed a change.
 
 Validated **2026-11-01** (live run) — **Cursor** `validated_against` 3.22.7 → **3.27.22**, `reviewed_through`/`latest_known` 3.24.12 → **3.27.22**. A byte-exact copy of master 7834b92 (plugin 5.1.0), installed as a real directory under `~/.cursor/plugins/local/`, loaded in the desktop app with 0 plugin failures and registered its github MCP server; commands, skills and the worktree hook were exercised on `cursor-agent` 2026.09.18 (the same write is blocked with the plugin and succeeds without it). Not exercised: skill invocation from the desktop UI and the plugin's hooks inside the desktop app. IDE release notes read through 3.27 (the page the earlier 3.24 review used; `cursor.com/changelog` stays date-only through 2026-10-20) — nothing needed a change. Cursor 3.27 rejects a *symlinked* local plugin, so `supported_min` stays 3.22.7, the last build a live run confirmed on its own.
@@ -40,7 +42,7 @@ Reviewed **2026-10-06** (changelog/schema only, no live binary; `validated_again
 
 | Surface | Min supported | Validated against | Reviewed through | Latest known | Install guide |
 |----------|---------------|-------------------|------------------|--------------|---------------|
-| Claude Code | 2.0.0 | 2.1.316 | 2.1.316 | 2.1.316 | [claude-code.md](../../user/install/claude-code.md) |
+| Claude Code | 2.0.0 | 2.1.317 | 2.1.317 | 2.1.317 | [claude-code.md](../../user/install/claude-code.md) |
 | Cursor | 3.22.7 | 3.27.22 | 3.27.22 | 3.27.22 | [cursor.md](../../user/install/cursor.md) |
 | Codex | 0.40.0 | 0.166.0 | 0.166.0 | 0.166.0 | [codex.md](../../user/install/codex.md) |
 | Gemini CLI | 0.55.1 | 0.66.0 | 0.66.0 | 0.66.0 | [gemini.md](../../user/install/gemini.md) |

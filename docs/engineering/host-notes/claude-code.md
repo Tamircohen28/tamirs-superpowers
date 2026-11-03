@@ -1,6 +1,6 @@
 # Claude Code host notes
 
-Per-release notes on the Claude Code host, 2.1.234 through 2.1.316, as the maintainers reviewed them against this plugin. Source for every release: the official changelog, <https://github.com/anthropics/claude-code/blob/main/CHANGELOG.md> (cited once here; every note below is drawn from it, plus the live runs recorded in `platform-targets.json`).
+Per-release notes on the Claude Code host, 2.1.234 through 2.1.317, as the maintainers reviewed them against this plugin. Source for every release: the official changelog, <https://github.com/anthropics/claude-code/blob/main/CHANGELOG.md> (cited once here; every note below is drawn from it, plus the live runs recorded in `platform-targets.json`).
 
 This file is the narrative. The **evidence-bearing record** is [`platform-targets.json`](../build-and-release/platform-targets.json) (`targets.claude_code`: `validated_against`, `reviewed_through`, `latest_known`, `verified_on`, and the per-cycle `verification_method` text), mirrored by the root [`.claude-code-version`](../../../.claude-code-version) pin, which `scripts/check-platform-version-pins.sh` holds to the JSON. When this file and that record disagree, the record wins. The nightly review appends to this file, never to `CLAUDE.md` (a `CLAUDE.md` at a plugin root is never loaded by Claude Code, `claude plugin validate` warns about it, and the plugin directory's scanner reads prose about what the plugin *used* to do as what it does).
 
@@ -305,3 +305,12 @@ Reviewed 2026-10-31 from the changelog and a live run of `claude` CLI 2.1.316 (`
 - **Permissions — `blockWritesOutsideWorkingDirectories` (2.1.314).** Write, Edit and NotebookEdit refuse paths outside the working directories in every permission mode. *Reviewed, not applicable:* a user setting; the plugin's own worktree guard is unchanged.
 - **MCP — plugin `headersHelper` (2.1.316).** A script no longer receives a corrupted `CLAUDE_PLUGIN_ROOT` and server URL when a credential-named variable is set to a switch value. *Reviewed, not applicable:* the `github` server declares no `headersHelper`.
 - **Subagents — `CLAUDE_CODE_SUBAGENT_EFFORT` (2.1.316).** Sets the effort subagents run at when nothing else names one. *Reviewed, not adopted:* every `agents/*.md` already pins its own model; effort is left to the session.
+
+## 2.1.317
+
+Reviewed 2026-11-03 from the changelog and a live run of `claude` CLI 2.1.317 (`platform-targets.json` `verification_method`): both manifests validate, `claude plugin test` passes 37/37 on the mod and 19/19 on the guard. Nothing here is breaking and nothing was adopted.
+
+- **Hooks — `onFailure: "block"` for Agent SDK hook callbacks (2.1.317).** A callback that fails now blocks the action instead of letting it run. *Reviewed, not applicable:* this plugin ships command hooks, and its four core-safety guards already carry `onFailure: "block"` in `hooks/hooks.json` (2.1.295+).
+- **Mods — "don't ask again" (2.1.317).** Remote Control and SDK hosts no longer offer it on a mod's tool calls. *Reviewed, nothing to change:* it only tightens the prompt for the mod's one registered tool, `objective_status`, on those hosts.
+- **Sessions — `CLAUDE_CODE_DISABLE_NESTED_SESSION_ID` (2.1.317).** A `claude -p` run inside a session now gets its own session ID and transcript; setting this to `1` on a self-hosted runner restores the old sharing. *Reviewed, not adopted:* the only nested `claude -p` calls here are `skill-creator`'s `run_eval.py` and `improve_description.py`, which read the subprocess's stdout and never the parent's transcript.
+- **Plugins — headless start-up (2.1.317).** High memory use and slow start-up in headless sessions with many plugins that register commands is fixed. *Reviewed, nothing to change:* it speeds up `claude -p` runs; no behaviour here depends on it.
