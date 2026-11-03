@@ -127,8 +127,11 @@ X2); Cursor/Gemini plugin dirs (replaced on update, [cursor] C, [gemini] C); Ope
 from either is read from the user-scope file that stores it (`<home>/.claude/settings.json` `pluginConfigs`, the
 extension dir's `.env`), never from env (a workspace `.env` can hold it too, [gemini] C). Codex, Cursor and OpenCode
 have none; OpenCode `ctx.options` is ignored because a project `opencode.json` could set it ([opencode] C).
-**Effective level = the lower of the option store and the user file `level`; neither ⇒ `supervised`.** A Claude
-project-scope install carries no preset (`pluginConfigs` is user/managed scope, doc-cited [claude] C).
+**Effective level = the lower of the option store and the user file `level`; neither ⇒ `supervised`.** A source
+that is absent (no option store on that host, or a user file with no `level` key) is *skipped*, not read as
+`supervised` — so a Claude install-picker choice of `unattended` with no user file yields `unattended`, while store
+`unattended` + file `standard` yields `standard`. A Claude project-scope install carries no preset (`pluginConfigs`
+is user/managed scope, doc-cited [claude] C).
 
 **Project file:** `<repo>/.tamirs-superpowers/permissions.json` (committable; `.dev-files/` is gitignored). It may
 always tighten. **It may widen only `actions["pr.merge.auto"]`**, only once `/plugin-config trust` records its sha256
@@ -165,7 +168,7 @@ Step 6 drops its own list and reports the resolver's source.
 | 1 | `--perms=` ticket (D5) | lower always; raise only through a D5 host prompt | new |
 | 2 | `TAMIRS_AUTO_MERGE` | `never` tightens; `always` is ignored with a warning naming `/plugin-config pr.merge.auto allow` (an agent can type an env prefix, [A3] D5) | rule 1 demoted |
 | 3 | objective `delivery.auto_merge` | `false` tightens; `true` records the resolved decision, never grants (state is agent-written) | rule 2 demoted |
-| 4 | project file | tighten always; widen `pr.merge.auto` only if trusted (D3) | `.dev-files/policy.json` `delivery.auto_merge` is read as `actions["pr.merge.auto"]` under the same trust rule for one minor release, then removed |
+| 4 | project file | tighten always; widen `pr.merge.auto` only if trusted (D3) | `.dev-files/policy.json` `delivery.auto_merge` is read **tighten-only** (`false` ⇒ `actions["pr.merge.auto"]: "deny"`; `true` is ignored with a warning naming the trusted-file route) for one minor release, then removed — it is gitignored and agent-written, so it can never carry a trust entry |
 | 5 | user file: `skill_actions` > `actions` > `skills` > `groups` | yes (user-authored, hash-locked) | — |
 | 6 | level = lower of option store and user file `level` | — | — |
 | 7 | default `supervised` | — | rule 5 ("enable when the repository allows") deleted |
@@ -330,6 +333,7 @@ way to a human-approved local edit. Option names (`permission_level`, `TS_PERMIS
 | Until hook input is shown to carry an agent id, a main-thread ticket reaches subagents on its target; the active-skill context persists across turns until the next session or compaction | Medium |
 | Channels outside the plugin — browser and computer-use MCP servers acting on github.com, another GitHub MCP server or `gh` from another tool, `copilot.assign` handing work to an agent with its own write access — are governed by no level ([SR] S-20) | Medium |
 | MCP flags are fixed for the server's lifetime; a mid-session level change applies at L1/L2 only | Low |
+| The adversarial review ([SR]) ran against the pre-disposition draft; design added while folding it in — the call stamp, the `provision` writer, the GitHub MCP flags table — has had no second adversarial pass. The implementation objective runs one before code lands | Medium |
 | Codex plugin hooks run only after `/hooks` trust, re-required on every update ([codex] B2); until then only L1 (at `supervised`: no call stamp) and server flags apply | Medium |
 
 ## Implementation objective must…
@@ -364,7 +368,8 @@ way to a human-approved local edit. Option names (`permission_level`, `TS_PERMIS
 12. Extend `tests/test-manifest-invariants.sh` (fail-closed wiring; no `tool.check`, `session.update` allow or
     `PermissionRequest` hook); add `tests/test-permission-guard.sh` with crafted stdin per host dialect: the Codex
     fail-open cases, the equivalents, the `tty.drive` and `process.spawn.agent_host` forms.
-13. Measure. Claude: U1, U2, U3 steps 3–4 (dialog rendering), U4 ([S1]); `UserPromptSubmit.source` under `claude
+13. Measure. **Gate:** U3 steps 3–4 run before any task builds on D5's Claude R4 route, which rests on them (only
+    headless is measured). Claude: U1, U2, U3 steps 3–4 (dialog rendering), U4 ([S1]); `UserPromptSubmit.source` under `claude
     -p`/SDK; an agent id in subagent hook input; project `env` reaching hooks or overriding `CLAUDE_PLUGIN_OPTION_*`;
     `disableAllHooks` vs plugin hooks; `pluginConfigs` in project settings; the Claude and Codex MCP matchers. Codex:
     U5, `codex exec` with a tty plus `write_stdin`. Cursor: S1–S4 ([S2]), `beforeShellExecution` `ask` interactive
@@ -382,6 +387,11 @@ way to a human-approved local edit. Option names (`permission_level`, `TS_PERMIS
 - **A TTY `confirm`, with or without a PIN, as the human proof** ([SR] S-01) — the model drives a pty; a PIN is not
   host attestation, its hash sits in a same-UID file the model can read and guess offline, and a credential-shaped
   file clashes with the directory rules ([SR] S-19). **Chat-confirm on Codex and Cursor** — see D5 ([SR] S-10).
+- **Claude-style allow/ask/deny lists of skill and command names** — the user asked whether skills and commands
+  should sit on those lists. They do not: a skill bundles steps at different R-levels (pr-dev reads at R0 and merges
+  at R3, [A1]), so a skill-name verdict is either too broad or too narrow. Skills and groups carry a *level*
+  (`skills.<id>`, `groups.<id>`); only *actions* carry `allow / ask / deny` (`actions.<id>`), and a deny on an action
+  holds whichever skill reaches it (D3).
 - **Per-skill levels in `userConfig` or `.dev-files/policy.json`** — `userConfig` is flat and per-user ([claude]
   C); `.dev-files/` is gitignored and agent-written. **A project file that widens silently** — the clone attack
   ([P] Steal: repo scope may only narrow). **A sixth rubric class** — see D1.

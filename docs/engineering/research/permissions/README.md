@@ -2,6 +2,13 @@
 
 Research input to ADR 004 (permission levels). Date 2026-11-03. Evidence tags: doc-cited / source-cited / measured / unverified.
 
+> **Pre-spike synthesis.** Written before the live checks in [`spikes/`](spikes/) and before
+> [ADR 004](../../decisions/004-permission-levels.md). Where they differ, the spikes and the ADR win. Known
+> superseded rows: Gemini headless hook `ask` **hangs** rather than becoming deny (spike G1); OpenCode `--auto`
+> auto-approves a plugin `ask`, so OpenCode has no host-enforced ask (spike O1); the "in-chat confirmation" route for
+> Codex and Cursor was removed (ADR D5); the open questions on Gemini hang-or-deny and OpenCode hook-vs-`--auto` are
+> answered in the spikes.
+
 Date: 2026-11-03. Sources: the six reports under [`platforms/`](platforms/). Every row below
 is traced to one of them; tags (`doc-cited` / `source-cited` / `measured` / `unverified`) live there.
 
