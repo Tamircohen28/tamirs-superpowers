@@ -1,6 +1,6 @@
 # ADR 004 — Permission levels: presets, config, overrides and enforcement per platform
 
-**Status:** Proposed — 2026-11-03
+**Status:** Accepted — 2026-11-03
 
 ## Context
 

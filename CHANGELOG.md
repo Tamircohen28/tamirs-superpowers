@@ -7,7 +7,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Added
 
-- **ADR 004 (proposed): configurable permission levels.** Design for letting users choose how
+- **ADR 004 (accepted): configurable permission levels.** Design for letting users choose how
   autonomous the plugin is — `supervised` (default), `standard`, `unattended` — over an R0–R4
   danger rubric, with per-platform enforcement grounded in live checks of Claude Code 2.1.317,
   Codex 0.166.0, Cursor, Gemini CLI 0.66.0 and OpenCode 2.2.5. Docs only; nothing changes
