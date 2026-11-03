@@ -5,12 +5,12 @@
     {
       "id": 1,
       "prompt": "Finish PR #42. Address any review comments and get it merged.",
-      "expected_output": "Resolves objective context and merge policy at startup, reports both in one or two lines, enables auto-merge because the repository allows it, then runs the persistent loop: fetch state, address threads, fix CI, re-apply policy after each push, poll until merged, run cleanup.",
+      "expected_output": "Resolves objective context and merge policy at startup, reports both in one or two lines, enables auto-merge only if the resolver allows pr.merge.auto (with nothing configured it is off, so it asks before merging), then runs the persistent loop: fetch state, address threads, fix CI, re-apply policy after each push, poll until merged, run cleanup.",
       "files": [],
       "expectations": [
         "resolve-merge-policy.sh is run before the first loop pass",
         "The resolved policy and its source are stated to the user",
-        "Auto-merge is enabled because the resolved policy says enable — not because it is hardcoded",
+        "Auto-merge is enabled only when resolve-merge-policy.sh says enable (the resolver allowed pr.merge.auto) — never by default and never hardcoded",
         "Review threads are stated in conversation before replies are posted",
         "The loop restarts immediately after any push rather than stopping",
         "State is re-fetched before every merge-readiness decision",
@@ -46,7 +46,7 @@
     {
       "id": 3,
       "prompt": "Address the review on my PR and merge it when done.",
-      "expected_output": "Resolves the PR from the current branch, works through every unresolved thread (assess, state the reply, post, fix, resolve), reaches the readiness gate, and merges under the resolved policy. Does not require the user to type 'approved' when policy is auto-merge.",
+      "expected_output": "Resolves the PR from the current branch, works through every unresolved thread (assess, state the reply, post, fix, resolve), reaches the readiness gate, and merges under the resolved policy. Does not require the user to type 'approved' when the resolved policy is auto-merge; when it is skip (the default), asks before merging.",
       "files": [],
       "expectations": [
         "The PR number is inferred from the current branch",
