@@ -3,7 +3,7 @@
 #
 # WHY STATIC ONLY
 #   The suite itself needs a model (cases × runs × 2 arms, plus judge votes), so it runs
-#   nightly from .github/workflows/evals.yml with an API key, not on every push. What CAN
+#   nightly from .github/workflows/evals.yml with a real credential, not on every push. What CAN
 #   run on every push, for free, is the set of mistakes that make a nightly run fail for
 #   a reason that has nothing to do with the plugin: a case with no grader (the loader
 #   rejects it), an `llm` grader with no rubric (the judge has nothing to vote on), a case

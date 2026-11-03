@@ -1,16 +1,29 @@
 name: Plugin evals (nightly)
 
-# Runs the `claude plugin eval` suite under evals/ against this plugin with a real API
-# key, nightly and on demand — never on pull requests: a keyed run bills for real, the
-# result is noisy at --runs 1, and a flaky $12-per-push gate would be disabled within a
-# week. The static shape of the suite is checked on every push by
-# tests/test-evals-suite.sh (part of `make validate`); this workflow is the only place
-# the cases execute. See evals/README.md → "Running in CI".
+# Runs the `claude plugin eval` suite under evals/ against this plugin with a real
+# credential, nightly and on demand — never on pull requests: every run is a real model
+# call, the result is noisy at --runs 1, and a flaky gate on every push would be disabled
+# within a week. The credential is a claude.ai subscription token when one is set
+# (CLAUDE_CODE_OAUTH_TOKEN, from `claude setup-token`: runs draw down the plan's usage
+# limits, nothing is billed), else ANTHROPIC_API_KEY (billed). The static shape of the
+# suite is checked on every push by tests/test-evals-suite.sh (part of `make validate`);
+# this workflow is the only place the cases execute. See evals/README.md → "Running in CI".
 
 on:
   schedule:
     - cron: '23 3 * * *'   # 03:23 UTC nightly
   workflow_dispatch:
+    inputs:
+      credential:
+        description: "auto = subscription token, else API key. Pick api-key to measure the billed cost."
+        type: choice
+        options: [auto, token, api-key]
+        default: auto
+      model:
+        description: "Model for the agent under test. Pinned so a default-model change is never read as a plugin regression, and so costs compare."
+        type: choice
+        options: [claude-sonnet-5-5, claude-opus-5-5, claude-haiku-5-5]
+        default: claude-sonnet-5-5
 
 permissions:
   contents: read
@@ -25,16 +38,38 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 120
     env:
+      CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
       ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
-      - name: Require the API key
+      - name: Choose the credential
+        # A scheduled run has no inputs, so it is always `auto`: the subscription token
+        # when set, else the API key. A manual run can force either one.
+        env:
+          REQUESTED: ${{ inputs.credential || 'auto' }}
         run: |
-          if [ -z "${ANTHROPIC_API_KEY:-}" ]; then
-            echo "::error::ANTHROPIC_API_KEY secret is not set; the eval suite cannot run."
-            exit 1
-          fi
+          case "$REQUESTED" in
+            auto)
+              if [ -n "${CLAUDE_CODE_OAUTH_TOKEN:-}" ]; then chosen=token
+              elif [ -n "${ANTHROPIC_API_KEY:-}" ]; then chosen=api-key
+              else
+                echo "::error::Neither CLAUDE_CODE_OAUTH_TOKEN (claude setup-token) nor ANTHROPIC_API_KEY is set; the eval suite cannot run."
+                exit 1
+              fi ;;
+            token)
+              [ -n "${CLAUDE_CODE_OAUTH_TOKEN:-}" ] || { echo "::error::credential=token, but the CLAUDE_CODE_OAUTH_TOKEN secret is not set."; exit 1; }
+              chosen=token ;;
+            api-key)
+              [ -n "${ANTHROPIC_API_KEY:-}" ] || { echo "::error::credential=api-key, but the ANTHROPIC_API_KEY secret is not set."; exit 1; }
+              chosen=api-key ;;
+            *) echo "::error::unknown credential '$REQUESTED'"; exit 1 ;;
+          esac
+          case "$chosen" in
+            token)   echo "Credential: claude.ai subscription token — runs draw down the plan's usage limits; nothing is billed." ;;
+            api-key) echo "Credential: ANTHROPIC_API_KEY — runs bill the API account." ;;
+          esac
+          echo "SELECTED_CREDENTIAL=$chosen" >> "$GITHUB_ENV"
 
       - name: Install Claude Code (pinned to .claude-code-version)
         run: |
@@ -47,10 +82,20 @@ jobs:
         # Exit 1 = a case below --threshold, a load error, or a run that ended on an API
         # error; exit 2 = the --max-cost-usd ceiling was hit (results.json carries
         # partial: true). Both fail the job; the summary step below says which.
+        env:
+          MODEL: ${{ inputs.model || 'claude-sonnet-5-5' }}
         run: |
           set +e
+          # Leave only the chosen credential in the environment. Claude Code takes
+          # ANTHROPIC_API_KEY ahead of CLAUDE_CODE_OAUTH_TOKEN, so a token run must drop
+          # the key or it would bill; an api-key run drops the token only so exactly one
+          # credential is present.
+          case "$SELECTED_CREDENTIAL" in
+            token)   unset ANTHROPIC_API_KEY ;;
+            api-key) unset CLAUDE_CODE_OAUTH_TOKEN ;;
+          esac
           claude plugin eval . --trust-plugin --json results.json \
-            --judge-model sonnet \
+            --model "$MODEL" --judge-model sonnet \
             --allow-tools Write --threshold 0.8 --no-publish --max-cost-usd 30 --runs 1
           rc=$?
           echo "exit_code=$rc" >> "$GITHUB_OUTPUT"
@@ -62,6 +107,10 @@ jobs:
           rc="${{ steps.evals.outputs.exit_code }}"
           {
             echo "## Plugin evals — nightly"
+            echo
+            echo "Model under test: \`${{ inputs.model || 'claude-sonnet-5-5' }}\` · judge: \`sonnet\` · effort: session default (the harness has no effort setting)"
+            echo
+            echo "Credential: \`${SELECTED_CREDENTIAL:-none}\` (\`api-key\` = billed; \`token\` = plan usage, the cost below is a list-price estimate)"
             echo
             if [ ! -s results.json ]; then
               echo "**No results.json was written** (exit ${rc:-unknown}). See the run log."

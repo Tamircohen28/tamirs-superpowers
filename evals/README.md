@@ -56,9 +56,9 @@ claude plugin eval . --tag dev-workflow --allow-tools Write --threshold 0.8
 claude plugin eval . --tag canary --tag negative \
   --allow-tools Write --judge-model sonnet --threshold 0.8
 
-# CI — pin both models so a model rollout isn't mistaken for a regression.
+# CI — pin the model under test so a default-model change isn't mistaken for a regression.
 claude plugin eval . --trust-plugin --json results.json \
-  --model claude-sonnet-5 --judge-model claude-haiku-4-5 \
+  --model claude-sonnet-5-5 --judge-model sonnet \
   --allow-tools Write --threshold 0.8 --no-publish --max-cost-usd 30
 ```
 
@@ -89,16 +89,22 @@ Each "run" is a full `claude -p` child session, so the suite multiplies:
 mocks.
 
 On a **subscription login** nothing is billed — runs draw down your plan's usage limits, and
-the figure the CLI prints is a list-price *estimate*, not an invoice. With an
-`ANTHROPIC_API_KEY`, including in CI, the same runs bill for real; that is the one command
-above worth a `--max-cost-usd` ceiling.
+the figure the CLI prints is a list-price *estimate*, not an invoice. That includes CI when
+the job authenticates with a subscription token (`CLAUDE_CODE_OAUTH_TOKEN`, see
+[Running in CI](#running-in-ci)). With an `ANTHROPIC_API_KEY` the same runs bill for real;
+that is the case the `--max-cost-usd` ceiling is for.
 
-Measured: a 16-run pass (8 cases × 1 run × 2 arms) came to roughly $8 of estimated list price,
-about **$0.50 per run**, so the full `--runs 3` suite of the first eight cases is ≈ **$24**.
-Authoring cases dominate — they read, write and reason; the negatives and the canary are
-cheap. The four dev-workflow cases are unmeasured; at the same per-run figure a 24-run
-`--runs 1` pass of all twelve cases is ≈ **$12**, which is why the nightly runs `--runs 1`
-under a `--max-cost-usd 30` ceiling.
+Measured on 2026-11-03 (CI run 41668594165, `--model claude-sonnet-5-5 --judge-model sonnet`,
+`ANTHROPIC_API_KEY`, Claude Code 2.1.317): the nightly's 24-run pass (12 cases × 1 run × 2
+arms) came to **$1.63** of estimated list price, about **$0.07 per run**, with no run ending on
+an error. It took 9 minutes. The CLI lists judging separately at $0.19 without saying whether
+that is inside the $1.63, so the most it could be is $1.82. Per case, a with-plugin run cost
+$0.06–$0.13 and a no-plugin run $0.02–$0.07. The plugin arm costs more because it loads and
+follows a skill. A full `--runs 3` pass of all twelve cases is ≈ **$5**.
+
+An older figure, about $0.50 per run (2026-09-22, model not pinned, so Claude Code's default),
+was the source of a ≈ $12-per-night estimate. The model is now pinned, and that figure no
+longer applies. The `--max-cost-usd 30` ceiling stays as a guard against a runaway case.
 
 ## GitHub-dependent cases and mocks
 
@@ -147,22 +153,38 @@ within a week. `.github/workflows/evals.yml` is that workflow; its shape:
   docs are written against) via npm on `ubuntu-latest`. No `bubblewrap`/`socat` is needed
   because the run grants only `Write`; the moment a case needs `Bash`, the sandbox backend
   must be installed on the runner or every run is refused.
-- **Credential:** the `ANTHROPIC_API_KEY` repository secret. Nothing else from the
-  environment reaches a run (the harness allowlists `PATH`, locale, proxy and `ANTHROPIC_*`/
+- **Credential:** one of two repository secrets, checked in this order:
+  1. `CLAUDE_CODE_OAUTH_TOKEN` — a claude.ai subscription token. Runs draw down the plan's
+     usage limits and nothing is billed. Create it with `claude setup-token` (it opens the
+     browser login and prints a token valid for one year; nothing is saved), then
+     `gh secret set CLAUDE_CODE_OAUTH_TOKEN`. Renew it before it expires.
+  2. `ANTHROPIC_API_KEY` — bills the API account. When the subscription token is set, the
+     key is unset for the run, so setting both never bills by accident.
+
+  With neither set, the first step fails and says so. Nothing else from the environment
+  reaches a run (the harness allowlists `PATH`, locale, proxy and `ANTHROPIC_*`/
   `CLAUDE_CODE_*`/`EVAL_*` variables only).
 - **Command:** exactly the CI line in [Running it](#running-it), plus `--runs 1`:
 
   ```bash
   claude plugin eval . --trust-plugin --json results.json \
-    --model claude-sonnet-5 --judge-model claude-haiku-4-5 \
+    --model "$MODEL" --judge-model sonnet \
     --allow-tools Write --threshold 0.8 --no-publish --max-cost-usd 30 --runs 1
   ```
 
-  `--trust-plugin` answers the first-run trust prompt a non-interactive job cannot. Both
-  models are pinned so a model rollout is not mistaken for a plugin regression. Exit `1` (a
+  `--trust-plugin` answers the first-run trust prompt a non-interactive job cannot. The model
+  under test is pinned (`$MODEL`, `claude-sonnet-5-5` unless a manual run picks another) so a
+  change in Claude Code's default model is not mistaken for a plugin regression, and so costs
+  from different runs compare. The judge is the `sonnet` alias (the default Haiku judge
+  misgrades; see above). Effort is the session default: the harness has no effort setting, and
+  a case's `env` accepts only `EVAL_*` keys. Exit `1` (a
   case below threshold, a load error, or a run that ended on an API error) fails the job;
   exit `2` (the cost ceiling was hit — `results.json` carries `partial: true`) fails it too,
   and the step summary says which.
+- **Manual run:** `gh workflow run evals.yml -f credential=<auto|token|api-key> -f model=<id>`.
+  `credential=api-key` forces the billed path even when the subscription token is set, which
+  is how to measure what a run really costs; the job summary names the model, judge, effort
+  and credential above the cost. A scheduled run has no inputs: `auto`, `claude-sonnet-5-5`.
 - **Artifact:** `results.json` is uploaded with `if: always()` so a failed or partial run
   still leaves its evidence; `evals/results/<timestamp>/report.html` goes with it.
 - **Job summary:** the per-case `WITH`, `W/OUT` and `Δ` are read out of `results.json`
@@ -195,9 +217,12 @@ the plugin, and two have since been fixed at the source (below).
 | `neg-find-not-create` | 1.00 | 1.00 | 0.00 |
 | `neg-explain-only` | 0.67 | 1.00 | −0.33 → rubric fixed since |
 
-`10`–`13` have **no measurement yet**: they were written on 2026-10-17 without an API key and
-have not executed. Their first nightly run is a calibration pass; expect to tighten a rubric
-or two, and do not read their first `Δ` as a finding about the plugin.
+`10`–`13` first ran on 2026-11-03 (one run per arm, `claude-sonnet-5-5`, judge `sonnet`). All
+four pass with the plugin: `start-dev-from-issue` 1.00 vs 0.67 without (Δ +0.33),
+`worker-dev-handoff` 1.00 vs 0.60 (+0.40), `pr-dev-drive-to-green` 1.00 vs 0.50 (+0.50), and
+the negative `neg-plain-question` 1.00 in both arms. One run per arm is a single sample, so
+treat these as a first reading, not a trend. Across all twelve cases the mean Δ was +0.13, and
+no case scored lower with the plugin than without.
 
 Three findings from the calibration pass, and what was done about them:
 
