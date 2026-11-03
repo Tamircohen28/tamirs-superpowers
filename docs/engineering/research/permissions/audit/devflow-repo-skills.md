@@ -10,7 +10,7 @@ Read-only static audit of `skills/dev-workflow/**` and `skills/repo/**` (fixture
 - Assumption A1: `git branch -D`, `git commit`, local merge/rebase are R1 (reflog undoes them); a force-removed dirty worktree or `rm -rf` of non-git content is **not** git-undoable and is scored R3 (local destructive, no rubric slot; conservative).
 - Assumption A2: resolving/replying to a PR review thread is R2 (reversible, own PR), but flagged as a merge-gate input (see D-9).
 - `scripts/github-policy.sh` (repo root, outside the scoped dirs) was read only for its gate (lines 14-76) because three in-scope skills call it.
-- Not audited: `hooks/` (all deleted in this worktree's status snapshot) and the `_contract/templates` payloads (they are templates for generated repos, not steps this plugin runs).
+- Not audited: `hooks/` (out of this audit's scope; covered by [`non-skill-surfaces.md`](non-skill-surfaces.md)) and the `_contract/templates` payloads (they are templates for generated repos, not steps this plugin runs).
 
 ## B) Per-skill table
 

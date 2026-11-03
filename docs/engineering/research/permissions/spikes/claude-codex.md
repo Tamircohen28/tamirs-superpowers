@@ -11,7 +11,7 @@ Tags: **measured** = a command was run and its output is quoted; **source-cited*
 | C1 | Is a `userConfig` option with a `default` still prompted / counted as set? | measured + source-cited; interactive dialog **blocked** | The CLI counts it as **not yet set** and the configure view pre-fills the default; at runtime an unset option resolves to the default. |
 | C2 | Does `string` + `options` validate on 2.1.317; what happens on an older host? | measured (2.1.317); older host **source-cited**, not run | Validates, but `options` must be an array of **plain strings**, and `default` must be one of them. A pre-2.1.271 host has a strict schema and would reject the unknown key. |
 | C3 | Do `UserPromptSubmit` / `UserPromptExpansion` inputs carry skill arguments? | source-cited (binary schema); live run **blocked** | `UserPromptExpansion` carries `command_args` (required string) and `prompt`; `UserPromptSubmit` carries only `prompt`, plus a provenance field `source`. |
-| C4 | Does a PreToolUse `ask` on `gh pr merge` prompt under `auto` / `bypassPermissions`? | **blocked** (partly source-cited) | The code keeps a hook `ask` alive and re-surfaces it over a classifier allow (`auto`); the bypass outcome could not be settled statically. |
+| C4 | Does a PreToolUse `ask` on `gh pr merge` prompt under `auto` / `bypassPermissions`? | **measured** (headless) | A hook `ask` is honoured in `default`, `auto` **and** `bypassPermissions`; headless it resolves to a denial. Control runs without the hook execute in all three. Interactive prompt rendering not observed. See "Orchestrator measurement — C4/U3". |
 | C5 | Desktop Code tab: userConfig dialog and hooks | **blocked** | Needs the Desktop app. |
 | X1 | Codex PreToolUse `ask` (and bare `allow`) rejected, and the call proceeds? | source-cited (two upstream unit tests name it); not run | Yes: both are `Failed` hook runs with `should_block: false`; the tool runs. So is a crash, a timeout or any exit code other than 0/2. |
 | X2 | `PLUGIN_DATA` exported to hooks only? | source-cited | Exported to hooks and to agent-plugin MCP stdio servers; no code path puts it in skill text or the shell tool environment. |
@@ -88,6 +88,18 @@ Event description in the binary: "When a user-typed slash command expands into a
 - `bypassPermissions` has its own branch that converts some non-hook asks to allow (`permission_bypass_removal_prompt_waived`); whether a hook-originated ask is exempt could not be settled from minified code, so it stays **unverified**.
 
 **Design stance until measured.** Treat the hook `ask` as a belt, never the only layer, and keep a hard `deny` for R3/R4 above the ceiling. User step U3 gives the exact test.
+
+### Orchestrator measurement — C4/U3
+
+**Measured** 2026-11-03, Claude Code 2.1.317, headless, step 5 of U3. The hook settings file was passed with `--settings` (session-only; no global config changed). Probe: `claude -p --settings s.json --permission-mode <mode> --max-turns 3 --output-format json "Use the Bash tool to run exactly: echo U3-PROBE-<mode> ..."`, where `s.json` registers a `PreToolUse` hook on `Bash` that always prints `{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"ask","permissionDecisionReason":"u3-spike"}}`.
+
+| Mode | With the `ask` hook | Control, no hook |
+|---|---|---|
+| `default` | denied — `permission_denials: [Bash "echo U3-PROBE-default"]` | ran — result `U3-CONTROL-default` |
+| `auto` | denied — `permission_denials: [Bash "echo U3-PROBE-auto"]` | ran — result `U3-CONTROL-auto` |
+| `bypassPermissions` | denied — `permission_denials: [Bash "echo U3-PROBE-bypassPermissions"]` | ran — result `U3-CONTROL-bypassPermissions` |
+
+So the `bypassPermissions` branch does **not** waive a hook-originated `ask`: on Claude Code a plugin hook `ask` is a real backstop in every mode, and with no human present it becomes a denial — the behaviour the design wants for "no human present ⇒ ask becomes deny". Still unobserved: how the prompt renders interactively (U3 steps 3–4) and the Desktop Code tab (U4). Neither changes the enforcement conclusion.
 
 ## C5. Desktop Code tab
 
