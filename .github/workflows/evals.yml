@@ -1,11 +1,13 @@
 name: Plugin evals (nightly)
 
-# Runs the `claude plugin eval` suite under evals/ against this plugin with a real API
-# key, nightly and on demand — never on pull requests: a keyed run bills for real, the
-# result is noisy at --runs 1, and a flaky $12-per-push gate would be disabled within a
-# week. The static shape of the suite is checked on every push by
-# tests/test-evals-suite.sh (part of `make validate`); this workflow is the only place
-# the cases execute. See evals/README.md → "Running in CI".
+# Runs the `claude plugin eval` suite under evals/ against this plugin with a real
+# credential, nightly and on demand — never on pull requests: every run is a real model
+# call, the result is noisy at --runs 1, and a flaky gate on every push would be disabled
+# within a week. The credential is a claude.ai subscription token when one is set
+# (CLAUDE_CODE_OAUTH_TOKEN, from `claude setup-token`: runs draw down the plan's usage
+# limits, nothing is billed), else ANTHROPIC_API_KEY (billed). The static shape of the
+# suite is checked on every push by tests/test-evals-suite.sh (part of `make validate`);
+# this workflow is the only place the cases execute. See evals/README.md → "Running in CI".
 
 on:
   schedule:
@@ -25,14 +27,19 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 120
     env:
+      CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
       ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
-      - name: Require the API key
+      - name: Require a credential
         run: |
-          if [ -z "${ANTHROPIC_API_KEY:-}" ]; then
-            echo "::error::ANTHROPIC_API_KEY secret is not set; the eval suite cannot run."
+          if [ -n "${CLAUDE_CODE_OAUTH_TOKEN:-}" ]; then
+            echo "Credential: claude.ai subscription token — runs draw down the plan's usage limits; nothing is billed."
+          elif [ -n "${ANTHROPIC_API_KEY:-}" ]; then
+            echo "Credential: ANTHROPIC_API_KEY — runs bill the API account."
+          else
+            echo "::error::Neither CLAUDE_CODE_OAUTH_TOKEN (claude setup-token) nor ANTHROPIC_API_KEY is set; the eval suite cannot run."
             exit 1
           fi
 
@@ -49,6 +56,10 @@ jobs:
         # partial: true). Both fail the job; the summary step below says which.
         run: |
           set +e
+          # An API key outranks the subscription token in Claude Code's credential order, so
+          # drop it when a token is set: having both secrets must never turn a free run into
+          # a billed one.
+          if [ -n "${CLAUDE_CODE_OAUTH_TOKEN:-}" ]; then unset ANTHROPIC_API_KEY; fi
           claude plugin eval . --trust-plugin --json results.json \
             --judge-model sonnet \
             --allow-tools Write --threshold 0.8 --no-publish --max-cost-usd 30 --runs 1
