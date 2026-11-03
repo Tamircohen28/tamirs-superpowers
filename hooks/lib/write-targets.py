@@ -9,6 +9,12 @@ user's tool call down with it — but see UNSURE, it does not go quiet either):
     DELETE <tab> <absolute path>  <tab> <the command fragment it came from>
     UNSURE <tab> <why not>        <tab> <the command fragment it came from>
 
+With `--protected` (guard-sensitive-files.sh only) the records above are
+preceded by one line per protected subject, and every TARGET/DELETE whose
+realpath differs is repeated under its realpath — see "Protected paths" below:
+
+    PROTECTED <tab> deny|ask <tab> <why, naming the path and the matched rule>
+
 DELETE is separated from TARGET because the two are not the same act. Removing
 generated build output is a legitimate clean; authoring content into it is the
 thing the build-output rule exists to stop. Removing a workflow or a lockfile is
@@ -55,10 +61,12 @@ WHAT IT CANNOT DECIDE, AND SAYS SO
 
 Usage:
     printf '%s' "$payload" | python3 write-targets.py
+    printf '%s' "$payload" | python3 write-targets.py --protected
     python3 write-targets.py --help
 """
 import json
 import os
+import re
 import sys
 
 # --------------------------------------------------------------------------
@@ -820,6 +828,8 @@ def _segment_records(seg, piped_in, terminator, cwd, records, heredoc_iter):
     cmd_targets, kind, unsure = segment_targets(argv0, rest, fed_code)
     if unsure:
         records.append(("UNSURE", unsure, fragment))
+    if PROTECTED_MODE and not unsure:
+        records.extend(_source_records(argv0, rest, cwd, fragment))
     # A redirection always creates content; only the command's own operands
     # can be a deletion.
     targets = [(t, "TARGET") for t in targets] + [(t, kind) for t in cmd_targets]
@@ -957,10 +967,350 @@ def records_for(payload):
     return []
 
 
+# --------------------------------------------------------------------------
+# Protected paths (`--protected`): ADR 004 D10.1, security review S-03
+# --------------------------------------------------------------------------
+# The plugin's own permission policy, its guard files and every host settings
+# store that could widen what an agent may do are R4 `policy.edit`: the agent
+# never writes them, and no environment switch unlocks them (D10.1, D10.3).
+# Only guard-sensitive-files.sh passes `--protected`; every other consumer of
+# this parser sees the output it always saw.
+#
+# Three things differ from the other protected categories:
+#   - Both the lexical path and its realpath are judged. A symlink that points
+#     into a protected directory, or a parent directory that is one, otherwise
+#     carries an ordinary-looking target onto a protected file (S-03).
+#   - `ln` sources (the file a new link points at) and `mv` sources (a file
+#     moved away is a file deleted) are judged too, and deleting a directory
+#     that CONTAINS a protected home or plugin-root path counts as deleting it.
+#   - An UNSURE write whose command text names a protected path is a deny, not
+#     an advisory: the parser cannot prove which file an interpreter writes, so
+#     a mention is the only evidence there is, and for R4 it is enough.
+#
+# The table comes from core/permissions/actions.json (`equivalents.paths` of
+# the ids below); FALLBACK_PROTECTED is used only when that file cannot be
+# read, and tests/test-sensitive-protected-paths.sh holds the two equal.
+PROTECTED_MODE = False
+PROTECTED_IDS = ("policy.edit", "config.global.write")
+FALLBACK_PROTECTED = {
+    "policy.edit": [
+        "{home}/.config/tamirs-superpowers/**",
+        "{home}/.local/state/tamirs-superpowers/**",
+        "{repo}/.tamirs-superpowers/**",
+        "{plugin_root}/hooks/**",
+        "{plugin_root}/core/permissions/**",
+        "{plugin_root}/scripts/resolve-permission.sh",
+        "{plugin_root}/scripts/plugin-config.sh",
+        "{plugin_root}/scripts/lib/permission-common.sh",
+        "{home}/.claude/plugins/cache/**",
+        "{home}/.claude/settings*.json",
+        "{repo}/.claude/settings*.json",
+        "{home}/.gemini/settings.json",
+        "{home}/.gemini/policies/**",
+        "{home}/.gemini/extensions/tamirs-superpowers/**",
+        "{repo}/.gemini/**",
+        "{home}/.codex/config.toml",
+        "{home}/.codex/hooks*",
+        "{home}/.codex/rules/**",
+        "{home}/.codex/plugins/**",
+        "{home}/.cursor/hooks.json",
+        "{home}/.cursor/cli-config.json",
+        "{home}/.cursor/permissions.json",
+        "{repo}/.cursor/hooks.json",
+        "{home}/.config/opencode/**",
+        "{repo}/opencode.json",
+        "{repo}/.opencode/**",
+        "{home}/.config/gh/**",
+        "{home}/.gitconfig",
+    ],
+    "config.global.write": [
+        "{repo}/.git/hooks/**",
+        "{repo}/.git/config",
+    ],
+}
+GLOB_CHARS = "*?["
+
+
+def _this_plugin_root():
+    return os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+
+def protected_table(root=None):
+    """[(action id, pattern)] from actions.json, else the fallback table."""
+    root = root or _this_plugin_root()
+    try:
+        with open(os.path.join(root, "core", "permissions", "actions.json")) as fh:
+            data = json.load(fh)
+        actions = data["actions"]
+        by_id = actions if isinstance(actions, dict) else dict((a["id"], a) for a in actions)
+        out = []
+        for aid in PROTECTED_IDS:
+            paths = by_id[aid]["equivalents"]["paths"]
+            if not paths or not all(isinstance(p, str) for p in paths):
+                raise ValueError(aid)
+            out.extend((aid, p) for p in paths)
+        return out
+    except Exception:  # noqa: BLE001 - an unreadable catalog must not unprotect
+        return [(aid, p) for aid in PROTECTED_IDS for p in FALLBACK_PROTECTED[aid]]
+
+
+def _forms(path):
+    """The lexical and resolved spellings of an absolute path."""
+    out = []
+    for p in (os.path.normpath(path), os.path.realpath(path)):
+        if p not in out:
+            out.append(p)
+    return out
+
+
+def passwd_home():
+    """The real uid's home from the passwd entry, as scripts/lib/permission-common.sh reads it (D3)."""
+    try:
+        import pwd
+        return pwd.getpwuid(os.getuid()).pw_dir
+    except Exception:  # noqa: BLE001
+        return None
+
+
+def protected_roots():
+    """{placeholder: [(root, mode)]} — mode is deny, or ask for a source checkout's guard files."""
+    homes = []
+    # The passwd home decides (S-04); a session HOME is added, never trusted
+    # instead — protecting one more directory can only tighten.
+    for h in (passwd_home(), os.environ.get("HOME")):
+        if h and os.path.isabs(h):
+            for f in _forms(h):
+                if f not in homes and f != "/":
+                    homes.append(f)
+    plugin = []
+    for r in (_this_plugin_root(), os.environ.get("CLAUDE_PLUGIN_ROOT")):
+        if r and os.path.isabs(r) and os.path.isdir(r):
+            # A source checkout carries its own `.git` at the root; an installed
+            # copy never does, even when an ancestor (a dotfiles home) is a repo.
+            mode = "ask" if os.path.lexists(os.path.join(os.path.realpath(r), ".git")) else "deny"
+            for f in _forms(r):
+                if f not in [p for p, _ in plugin]:
+                    plugin.append((f, mode))
+    return {"home": [(h, "deny") for h in homes], "plugin_root": plugin}
+
+
+def _tail_regex(tail):
+    """A path glob tail as a regex: `**` crosses directories, `*` does not."""
+    dir_glob = tail.endswith("/**")
+    if dir_glob:
+        tail = tail[:-3]
+    out = []
+    i = 0
+    while i < len(tail):
+        if tail.startswith("**", i):
+            out.append(".*")
+            i += 2
+        elif tail[i] == "*":
+            out.append("[^/]*")
+            i += 1
+        elif tail[i] == "?":
+            out.append("[^/]")
+            i += 1
+        else:
+            out.append(re.escape(tail[i]))
+            i += 1
+    return "".join(out) + ("(?:/.*)?" if dir_glob else "")
+
+
+def _fixed(tail):
+    """The literal part of a tail, before its first glob character."""
+    for i, ch in enumerate(tail):
+        if ch in GLOB_CHARS:
+            return tail[:i]
+    return tail
+
+
+class Protection(object):
+    def __init__(self, cwd):
+        self.table = protected_table()
+        self.roots = protected_roots()
+        self.cwd_forms = _forms(cwd) if cwd and os.path.isabs(cwd) else []
+        self.rules = []     # (regex, id, pattern, mode, placeholder, fixed-abs or None)
+        for aid, pattern in self.table:
+            m = re.match(r"^\{(home|repo|plugin_root|worktree)\}/(.+)$", pattern)
+            if not m:
+                continue
+            ph, tail = m.group(1), m.group(2)
+            tre = _tail_regex(tail)
+            if ph == "repo":
+                # Matched against the path below each ancestor that is a repo root.
+                self.rules.append((re.compile("^" + tre + "$"), aid, pattern, "deny", ph, None))
+                continue
+            for root, mode in self.roots.get(ph, []):
+                base = "" if root == "/" else root
+                self.rules.append((re.compile("^" + re.escape(base) + "/" + tre + "$"), aid,
+                                   pattern, mode, ph, base + "/" + _fixed(tail)))
+
+    def _repo_root(self, root):
+        return os.path.lexists(os.path.join(root, ".git")) or root in self.cwd_forms
+
+    def match(self, path, containing=False):
+        """[(mode, id, pattern, form)] for a path; `containing` also matches its ancestors."""
+        hits = []
+        for form in _forms(path):
+            for rx, aid, pattern, mode, ph, fixed in self.rules:
+                if ph == "repo":
+                    hit = any(rx.match(form[len(r) + 1:]) and self._repo_root(r)
+                              for r in _ancestors(form))
+                else:
+                    hit = bool(rx.match(form)) or (
+                        containing and fixed is not None
+                        and fixed.startswith(form.rstrip("/") + "/"))
+                if hit:
+                    hits.append((mode, aid, pattern, form))
+        return hits
+
+    def needles(self):
+        """(regex, mode, pattern) — how a protected path can be NAMED in command text."""
+        out = []
+        seen = set()
+        for aid, pattern in self.table:
+            m = re.match(r"^\{(home|repo|plugin_root|worktree)\}/(.+)$", pattern)
+            if not m:
+                continue
+            ph, tail = m.group(1), m.group(2)
+            fixed = _fixed(tail).rstrip("/")
+            if not fixed:
+                continue
+            if ph in ("home", "repo"):
+                # `~/.claude/settings.json`, `$HOME/.gitconfig`, `/abs/home/.codex/config.toml`
+                # and a repo-relative `.claude/settings.local.json` all carry the tail.
+                key = (fixed, "deny")
+                if key not in seen:
+                    seen.add(key)
+                    out.append((re.compile(r"(?<![A-Za-z0-9_.-])" + re.escape(fixed)), "deny", pattern))
+            elif ph == "plugin_root":
+                for root, mode in self.roots.get("plugin_root", []):
+                    rx = re.compile(re.escape(root.rstrip("/") + "/" + fixed))
+                    out.append((rx, mode, pattern))
+                    # Relative to a cwd inside the plugin root: `hooks/lib/x`.
+                    if any(c == root or c.startswith(root.rstrip("/") + "/") for c in self.cwd_forms):
+                        suffix = "/" if tail.endswith("/**") else ""
+                        out.append((re.compile(r"(?<![A-Za-z0-9_.-])" + re.escape(fixed + suffix)),
+                                    mode, pattern))
+        return out
+
+
+def _ancestors(form):
+    """Every proper ancestor directory of an absolute path, `/` excluded."""
+    parts = form.split("/")
+    return ["/".join(parts[:i]) for i in range(2, len(parts))]
+
+
+def _ln_symbolic(words):
+    for w in words:
+        v = w.value
+        if v in ("--symbolic",):
+            return True
+        if v.startswith("-") and not v.startswith("--") and "s" in v[1:]:
+            return True
+    return False
+
+
+def _source_records(argv0, words, cwd, fragment):
+    """SOURCE records for `ln` (the file linked to) and `mv` (the file moved away)."""
+    base = os.path.basename(argv0)
+    if base not in ("ln", "mv"):
+        return []
+    explicit_dir = _flag_value(words, ("-t", "--target-directory"))
+    ops, unsure = _split_operands(words, base)
+    if unsure or not ops:
+        return []
+    if explicit_dir is not None:
+        sources, dest = ops, explicit_dir.value
+    elif len(ops) >= 2:
+        sources, dest = ops[:-1], ops[-1].value
+    else:
+        sources, dest = ops, "."
+    out = []
+    for s in sources:
+        if s.expands or "$" in s.value or "`" in s.value:
+            out.append(("UNSURE", "%s of a source built by shell expansion (%s)" % (base, s.value), fragment))
+            continue
+        p = os.path.expanduser(s.value)
+        bases = [cwd] if cwd else []
+        if base == "ln" and _ln_symbolic(words) and not os.path.isabs(p):
+            # A relative symlink target resolves against the LINK's directory.
+            d = os.path.expanduser(dest)
+            if not os.path.isabs(d) and cwd:
+                d = os.path.join(cwd, d)
+            if os.path.isabs(d):
+                bases.append(d if (len(sources) > 1 or os.path.isdir(d) or dest.endswith("/"))
+                             else os.path.dirname(d))
+        for b in ([None] if os.path.isabs(p) else bases):
+            full = os.path.normpath(p if b is None else os.path.join(b, p))
+            out.append(("SOURCE", full, "%s:%s" % (base, fragment)))
+    return out
+
+
+def protect(records, payload):
+    """The parse with PROTECTED <tab> deny|ask <tab> <why> records in front.
+
+    One record per subject (a path, or a name found in unresolved command
+    text): its deny if any rule denies it, else its ask. SOURCE records are
+    consumed here; every TARGET/DELETE whose realpath differs is repeated under
+    the realpath, so the other rules judge the file actually written too.
+    """
+    cwd = payload.get("cwd") or os.getcwd()
+    prot = Protection(cwd)
+    tool_input = payload.get("tool_input") or {}
+    text = tool_input.get("command") if isinstance(tool_input.get("command"), str) else ""
+    out = []
+    verdicts = {}       # subject -> (mode, message), first deny wins over any ask
+    order = []
+
+    def flag(subject, mode, message):
+        if subject not in verdicts:
+            order.append(subject)
+        elif verdicts[subject][0] == "deny" or mode != "deny":
+            return
+        verdicts[subject] = (mode, message)
+
+    def flag_path(mode, aid, pattern, path, form, why, fragment):
+        resolved = "" if form == path else " (resolves to '%s')" % form
+        via = " (via: %s)" % fragment if fragment else ""
+        flag(path, mode, "'%s'%s %s, and it is protected as %s (R4; matches %s).%s"
+             % (path, resolved, why, aid, pattern, via))
+
+    for kind, detail, fragment in records:
+        if kind == "SOURCE":
+            tool, _, via = fragment.partition(":")
+            for mode, aid, pattern, form in prot.match(detail, containing=True):
+                flag_path(mode, aid, pattern, detail, form,
+                          "would become reachable through a new link" if tool == "ln"
+                          else "would be moved away", via)
+            continue
+        out.append((kind, detail, fragment))
+        if kind in ("TARGET", "DELETE"):
+            for mode, aid, pattern, form in prot.match(detail, containing=(kind == "DELETE")):
+                flag_path(mode, aid, pattern, detail, form,
+                          "would be deleted" if kind == "DELETE" else "would be written", fragment)
+            real = os.path.realpath(detail)
+            if real != detail:
+                out.append((kind, real, fragment))
+    if text and any(k == "UNSURE" for k, _, _ in records):
+        for rx, mode, pattern in prot.needles():
+            m = rx.search(text)
+            if m:
+                flag("name:" + m.group(0), mode,
+                     "a write this parse could not resolve names '%s', which matches %s; an "
+                     "unresolved write that names a protected path is treated as a write to it."
+                     % (m.group(0), pattern))
+    return [("PROTECTED",) + verdicts[s] for s in order] + out
+
+
 def main():
-    if len(sys.argv) > 1 and sys.argv[1] in ("-h", "--help"):
+    global PROTECTED_MODE
+    args = sys.argv[1:]
+    if args and args[0] in ("-h", "--help"):
         sys.stdout.write(__doc__)
         return 0
+    PROTECTED_MODE = "--protected" in args
     try:
         payload = json.loads(sys.stdin.read() or "{}")
     except Exception:
@@ -971,6 +1321,12 @@ def main():
         records = records_for(payload)
     except Exception as exc:  # noqa: BLE001 - a parse failure must not go quiet
         records = [("UNSURE", "the write-target parser failed (%s: %s)" % (type(exc).__name__, exc), "")]
+    if PROTECTED_MODE:
+        try:
+            records = protect(records, payload)
+        except Exception as exc:  # noqa: BLE001 - fail closed: R4 paths cannot be cleared
+            records = [("PROTECTED", "deny", "the protected-path check failed (%s: %s), so this "
+                        "write cannot be cleared." % (type(exc).__name__, exc))] + records
     for kind, detail, fragment in records:
         sys.stdout.write("%s\t%s\t%s\n" % (kind, detail.replace("\t", " "), fragment.replace("\t", " ")))
     return 0
