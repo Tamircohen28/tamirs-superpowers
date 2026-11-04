@@ -11,8 +11,17 @@
 #     stamp asked/<nonce>.json, written by the real hooks/permission-guard.sh, for
 #     these bytes, this nonce, session and host, and fresh); R4 allow is never
 #     stored; trust widens pr.merge.auto for its own remote only; provision is
-#     refused inside a session and marks its lock by: provision; nothing is
-#     written when the test root is refused.
+#     refused inside a session and over a file it did not write, and marks its
+#     lock by: provision; nothing is written when the test root is refused.
+#   * the second adversarial pass (F1): the immediate path is only the user's
+#     own interactive terminal -- the session rules (reparented, no TTY, a
+#     cleared environment, a pty driver above it, an unreadable ancestry) are
+#     pinned on crafted process facts, and `env -i`, no-TTY and reparented runs
+#     of the real writer write nothing; there it asks y/N (a no writes nothing).
+#     On Claude Code confirm is TWO-PHASE: it only STAGES, bound to the stamp's
+#     tool_use_id, and hooks/permission-approved.sh on the PostToolUse of that
+#     very, plain confirm call promotes it; another call's PostToolUse, a wrapper
+#     form, another session or a stamp left by a declined dialog never does.
 #   * hooks/permission-intent.sh, from crafted Claude payloads: a user-typed
 #     slash command with a raising --perms= records a PENDING request (never a
 #     ticket); a non-user or missing `source` records none, and a missing one (all
@@ -28,7 +37,9 @@
 #     run prunes expired tickets, and confirming a raise says an active lowering
 #     of the session still wins.
 #   * scripts/github-mcp.sh --print-flags: the D8 flags per level (the server is
-#     never started).
+#     never started), and L1: the binary that gets the token comes from a fixed
+#     list of trusted locations (the test root's .local/bin here), never PATH,
+#     group/world-writable ones refused, and no PATH helper sees the token.
 #
 # NOTHING TOUCHES THE REAL HOME
 #   Every run points TAMIRS_PERMISSION_TEST_ROOT at a temp root. The permission
@@ -37,7 +48,11 @@
 #   must include this file's name; the suite aborts before any write otherwise.
 #   The writer finds the agent session from its process ancestry, so the suite
 #   pins TAMIRS_PERMISSION_TEST_SESSION, which the writer honours only under the
-#   test root. A witness on the real config and state dirs is compared at the end.
+#   test root (and there TAMIRS_PERMISSION_TEST_TTY_ANSWER is the y/N answer,
+#   default y). The cases that run the real detection unset it. Until the guard
+#   writes tool_use_id into its stamp (the task-017 contract), ask_pg adds the
+#   payload's id to a stamp that lacks it. A witness on the real config and state
+#   dirs is compared at the end.
 #
 # Usage: bash tests/test-plugin-config.sh
 
@@ -54,7 +69,8 @@ HOOK="$REPO_ROOT/hooks/permission-intent.sh"
 MCP="$REPO_ROOT/scripts/github-mcp.sh"
 
 unset CODEX_HOME GEMINI_SESSION_ID GEMINI_PROJECT_DIR TS_PERMISSION_LEVEL CLAUDE_PLUGIN_OPTION_PERMISSION_LEVEL \
-  TAMIRS_AUTO_MERGE GH_REPO GH_HOST CLAUDE_PLUGIN_DATA SUPERPOWERS_OBJECTIVE_ID OBJECTIVES_ROOT
+  TAMIRS_AUTO_MERGE GH_REPO GH_HOST CLAUDE_PLUGIN_DATA SUPERPOWERS_OBJECTIVE_ID OBJECTIVES_ROOT \
+  TAMIRS_PERMISSION_TEST_TTY_ANSWER TAMIRS_PERMISSION_TEST_DETECTED_HOST
 export NO_COLOR=1 TAMIRS_PERMISSION_TEST_SESSION=none
 
 REAL_HOME="$(python3 -I -S -c 'import os, pwd; print(pwd.getpwuid(os.getuid()).pw_dir)')"
@@ -75,16 +91,34 @@ level_of() { (cd "${3:-$NOWHERE}" && TAMIRS_PERMISSION_TEST_ROOT="$1" bash "$RES
 verdict_of() { local root="$1"; shift; (cd "$NOWHERE" && TAMIRS_PERMISSION_TEST_ROOT="$root" bash "$RESOLVE" "$@" 2>/dev/null | jq -r .verdict); }
 ufstate() { level_of "$1" | jq -r '.level_sources[] | select(.source == "user_file") | .state'; }
 GUARD="$REPO_ROOT/hooks/permission-guard.sh"
-# ask_pg <root> <nonce> [session] — run the real permission guard on the Claude Bash call
-# `bash plugin-config.sh confirm <nonce>`; it writes the confirm stamp asked/<nonce>.json
-# before it returns ask (the D5 dialog). Prints the guard's decision.
+# ask_pg <root> <nonce> [session] [tool_use_id] — run the real permission guard on the Claude
+# Bash call `bash plugin-config.sh confirm <nonce>`; it writes the confirm stamp
+# asked/<nonce>.json before it returns ask (the D5 dialog). Prints the guard's decision.
+# The stamp carries the payload's tool_use_id (the task-017 contract); a guard that does
+# not write it yet gets it added here, so the suite pins the writer on either side.
 ask_pg() {
-  jq -nc --arg c "bash $PC confirm $2" --arg d "$NOWHERE" --arg s "${3:-pg-s}" \
-    '{session_id:$s,transcript_path:"/t",cwd:$d,hook_event_name:"PreToolUse",permission_mode:"default",tool_name:"Bash",tool_use_id:"call-1",tool_input:{command:$c,description:"confirm"}}' |
+  local tid="${4:-call-1}" dec st
+  dec="$(jq -nc --arg c "bash $PC confirm $2" --arg d "$NOWHERE" --arg s "${3:-pg-s}" --arg t "$tid" \
+    '{session_id:$s,transcript_path:"/t",cwd:$d,hook_event_name:"PreToolUse",permission_mode:"default",tool_name:"Bash",tool_use_id:$t,tool_input:{command:$c,description:"confirm"}}' |
     (cd "$NOWHERE" && TAMIRS_PERMISSION_TEST_ROOT="$1" bash "$GUARD" 2>/dev/null) |
-    jq -r '.hookSpecificOutput.permissionDecision // "allow"' 2>/dev/null
+    jq -r '.hookSpecificOutput.permissionDecision // "allow"' 2>/dev/null)"
+  st="$(stampf "$1" "$2")"
+  if [ -f "$st" ] && [ "$(jq -r 'has("tool_use_id")' "$st" 2>/dev/null)" = false ]; then
+    jq -c --arg t "$tid" '. + {tool_use_id: $t}' "$st" > "$st.tmp" && chmod 600 "$st.tmp" && mv "$st.tmp" "$st"
+  fi
+  printf '%s' "$dec"
 }
 stampf() { printf '%s/asked/%s.json' "$(sdir "$1")" "$2"; }
+stagedf() { printf '%s/staged/%s.json' "$(sdir "$1")" "$2"; }
+APPROVED="$REPO_ROOT/hooks/permission-approved.sh"
+# post_pg <root> <nonce> [session] [tool_use_id] [command] — Claude Code's PostToolUse for that
+# Bash call (it fires only after the call ran, i.e. after the dialog was approved), through
+# the real hooks/permission-approved.sh. Prints the hook's output.
+post_pg() {
+  jq -nc --arg c "${5:-bash $PC confirm $2}" --arg d "$NOWHERE" --arg s "${3:-pg-s}" --arg t "${4:-call-1}" \
+    '{session_id:$s,transcript_path:"/t",cwd:$d,hook_event_name:"PostToolUse",permission_mode:"default",tool_name:"Bash",tool_use_id:$t,tool_input:{command:$c,description:"confirm"},tool_response:{stdout:"",stderr:"",interrupted:false}}' |
+    (cd "$NOWHERE" && TAMIRS_PERMISSION_TEST_ROOT="$1" TAMIRS_PERMISSION_TEST_SESSION=claude bash "$APPROVED" 2>/dev/null)
+}
 
 # ---------------------------------------------------------------------------
 section "the test root is honoured (precondition for every write below)"
@@ -207,11 +241,27 @@ judge "the request is kept (the terminal route still works)" yes "$(exists "$PEN
 judge "the guard asks on this confirm (the D5 dialog)" ask "$(ask_pg "$R2" "$NONCE")"
 judge "and stamps asked/<nonce>.json" yes "$(exists "$(stampf "$R2" "$NONCE")")"
 cp "$PEND" "$R2/pend.saved"
-out="$(pc "$R2" claude confirm "$NONCE")"; rc=$?
+js="$(pcj "$R2" claude confirm "$NONCE")"; rc="$(printf '%s' "$js" | jq -r .exit)"
 judge "confirm with the guard's stamp exits 0" 0 "$rc"
-judge "it applied the raise" unattended "$(jq -r .level "$(pfile "$R2")")"
-judge "the resolver reads it verified" "unattended verified" "$(level_of "$R2" | jq -r '[.level, (.level_sources[] | select(.source == "user_file") | .state)] | join(" ")')"
+judge "  ... and only STAGES the change (phase 1 of the two-phase confirm, F1)" staged "$(printf '%s' "$js" | jq -r .result)"
+judge "  ... bound to the stamp's tool_use_id" call-1 "$(jq -r .tool_use_id "$(stagedf "$R2" "$NONCE")" 2>/dev/null)"
+judge "  ... the staged record is 0600" 600 "$(mode_of "$(stagedf "$R2" "$NONCE")")"
+judge "  ... the file is unchanged until the call's PostToolUse" "$before" "$(sum "$(pfile "$R2")")"
+judge "  ... and the resolver still reads standard" standard "$(level_of "$R2" | jq -r .level)"
 judge "the stamp is consumed" no "$(exists "$(stampf "$R2" "$NONCE")")"
+out="$(post_pg "$R2" "$NONCE" pg-s call-2)"
+judge "another call's PostToolUse promotes nothing" "$before yes" "$(sum "$(pfile "$R2")") $(has "$out" 'bound to another call')"
+judge "  ... and leaves the staged record for its own call" yes "$(exists "$(stagedf "$R2" "$NONCE")")"
+out="$(post_pg "$R2" "$NONCE" other-session call-1)"
+judge "the same tool_use_id from another session promotes nothing" "$before yes" "$(sum "$(pfile "$R2")") $(has "$out" 'another session')"
+out="$(post_pg "$R2" "$NONCE")"
+judge "the PostToolUse of the approved call promotes it (phase 2)" unattended "$(jq -r .level "$(pfile "$R2")")"
+judge "  ... and says the change is now active" yes "$(has "$(printf '%s' "$out" | jq -r .hookSpecificOutput.additionalContext)" 'now active')"
+judge "  ... on the PostToolUse dialect" PostToolUse "$(printf '%s' "$out" | jq -r .hookSpecificOutput.hookEventName)"
+judge "the resolver reads it verified" "unattended verified" "$(level_of "$R2" | jq -r '[.level, (.level_sources[] | select(.source == "user_file") | .state)] | join(" ")')"
+judge "the staged record is consumed" no "$(exists "$(stagedf "$R2" "$NONCE")")"
+out="$(post_pg "$R2" "$NONCE")"
+judge "a second PostToolUse for the same call has nothing left to promote (silent)" "" "$out"
 out="$(pc "$R2" claude confirm "$NONCE")"; rc=$?
 judge "a nonce is single-use" 1 "$rc"
 cp "$R2/pend.saved" "$PEND"; chmod 600 "$PEND"
@@ -258,8 +308,9 @@ judge "a stale stamp (asked over 15 minutes ago) is refused" "3 yes" "$(
 judge "a stamp the user's other processes could rewrite (0644) is refused" "3 yes" "$(
   ask_pg "$R2" "$NA" >/dev/null; chmod 644 "$(stampf "$R2" "$NA")"
   out="$(pc "$R2" claude confirm "$NA")"; printf '%s %s' "$?" "$(has "$out" 'the confirm stamp is unsafe')")"
-judge "after all of that, A still applies with a fresh stamp" "ask 0 standard" "$(
-  a="$(ask_pg "$R2" "$NA")"; pc "$R2" claude confirm "$NA" >/dev/null; printf '%s %s %s' "$a" "$?" "$(jq -r .level "$(pfile "$R2")")")"
+judge "after all of that, A still applies with a fresh stamp and its PostToolUse" "ask 0 standard" "$(
+  a="$(ask_pg "$R2" "$NA")"; pc "$R2" claude confirm "$NA" >/dev/null; r=$?; post_pg "$R2" "$NA" >/dev/null
+  printf '%s %s %s' "$a" "$r" "$(jq -r .level "$(pfile "$R2")")")"
 
 out="$(pc "$R2" codex supervised)"; rc=$?
 judge "a lowering is written at once, even with no channel" "0 supervised" "$rc $(jq -r .level "$(pfile "$R2")")"
@@ -274,6 +325,162 @@ python3 -I -S -c 'import json,sys; p=sys.argv[1]; d=json.load(open(p)); d["level
 judge "a hand edit reads tighten-only" tighten-only "$(ufstate "$R2")"
 js="$(pcj "$R2" claude pr.create ask)"
 judge "re-locking it inside a session counts as widening (D10.2)" pending "$(printf '%s' "$js" | jq -r .result)"
+
+# ---------------------------------------------------------------------------
+section "F1: only your own interactive terminal widens at once, and only after y (D5, D6)"
+
+R9="$(new_root)"
+pc "$R9" none supervised >/dev/null
+out="$(TAMIRS_PERMISSION_TEST_TTY_ANSWER=n pc "$R9" none standard)"; rc=$?
+judge "a widening answered n on your terminal is not written (3)" "3 supervised" "$rc $(jq -r .level "$(pfile "$R9")")"
+judge "  ... it says it waits for y" yes "$(has "$out" 'written only after `y`')"
+judge "  ... and leaves no pending request" 0 "$(find "$(sdir "$R9")/pending" -name '*.json' 2>/dev/null | wc -l | tr -d ' ')"
+out="$(TAMIRS_PERMISSION_TEST_TTY_ANSWER=y pc "$R9" none standard)"; rc=$?
+judge "answered y it is written" "0 standard" "$rc $(jq -r .level "$(pfile "$R9")")"
+out="$(TAMIRS_PERMISSION_TEST_TTY_ANSWER=n pc "$R9" none supervised)"; rc=$?
+judge "a lowering asks nothing: written even when the answer would be n" "0 supervised" "$rc $(jq -r .level "$(pfile "$R9")")"
+N9="$(pcj "$R9" codex standard | jq -r .nonce)"
+out="$(TAMIRS_PERMISSION_TEST_TTY_ANSWER=n pc "$R9" none confirm "$N9")"; rc=$?
+judge "confirm in your own terminal answered n: refused (3), request kept" "3 supervised yes" \
+  "$rc $(jq -r .level "$(pfile "$R9")") $(exists "$(sdir "$R9")/pending/$N9.json")"
+out="$(TAMIRS_PERMISSION_TEST_TTY_ANSWER=y pc "$R9" none confirm "$N9")"; rc=$?
+judge "  ... answered y it applies" "0 standard" "$rc $(jq -r .level "$(pfile "$R9")")"
+
+# The session rules themselves, on crafted process facts: the writer's own terminal_problems, loaded from
+# scripts/plugin-config.sh as the writer runs it (the engine on fd 3).
+RULES_PY="$(cat <<'PY'
+import json, sys
+src = open(sys.argv[1]).read()
+body = src.split("_PC_PY <<'PY' || true\n", 1)[1].split("\nPY\n", 1)[0]
+cut = body.rfind("\ntry:\n    code = main()")
+purpose, facts = sys.argv[3], json.loads(sys.argv[4])
+sys.argv = ["plugin-config", sys.argv[2]]
+ns = {"__name__": "plugin_config"}
+exec(compile(body[:cut], "plugin-config.sh", "exec"), ns)
+facts["chain"] = [tuple(x) for x in facts["chain"]]
+print(" | ".join(ns["terminal_problems"](facts, purpose)) or "none")
+PY
+)"
+rules() { (. "$REPO_ROOT/scripts/lib/permission-common.sh"; python3 -I -S -c "$RULES_PY" "$PC" "$REPO_ROOT" "$1" "$2" 3<<<"$_PERM_ENGINE" 2>&1); }
+# facts <chain json> [sid] [tty] [devtty] [env json] [complete]
+DEFENV='{"HOME":"/Users/you","PATH":"/usr/bin:/bin","TERM":"xterm-256color"}'
+facts() { jq -nc --argjson c "$1" --argjson sid "${2:-98}" --argjson t "${3:-true}" --argjson d "${4:-true}" \
+  --argjson e "${5:-$DEFENV}" --argjson k "${6:-true}" \
+  '{chain:$c, complete:$k, pid:200, ppid:100, sid:$sid, tty:$t, devtty:$d, env:$e}'; }
+TERMC='[[100,99,"bash /Users/you/p/scripts/plugin-config.sh standard"],[99,98,"-zsh"],[98,50,"/usr/bin/login -pf you"],[50,1,"/Applications/Utilities/Terminal.app/Contents/MacOS/Terminal"]]'
+judge "a login shell in a terminal app: your own terminal" none "$(rules widen "$(facts "$TERMC")")"
+judge "a tmux pane: your own terminal" none "$(rules widen "$(facts '[[100,99,"bash pc"],[99,60,"-zsh"],[60,1,"tmux new-session -s w"]]' 99)")"
+judge "a container whose shell is pid 1: your own terminal" none "$(rules widen "$(facts '[[100,1,"bash pc"]]' 1)")"
+judge "reparented by a double fork, ( cmd & ): refused" yes "$(has "$(rules widen "$(facts '[[100,1,"bash pc standard"]]' 77)")" 'reparented away from its own session')"
+judge "reparented to a subreaper (systemd --user): refused" yes "$(has "$(rules widen "$(facts '[[100,40,"bash pc"],[40,1,"/usr/lib/systemd/systemd --user"]]' 77)")" 'reparented away')"
+judge "setsid after a double fork, on a pty: refused" yes "$(has "$(rules widen "$(facts '[[100,1,"bash pc"]]' 100)")" 'reparented to pid 1')"
+judge "no TTY on stdin: refused" yes "$(has "$(rules widen "$(facts "$TERMC" 98 false false)")" 'standard input is not a terminal')"
+judge "a TTY but no controlling terminal: refused" yes "$(has "$(rules widen "$(facts "$TERMC" 98 true false)")" 'no controlling terminal')"
+judge "env -i: refused" yes "$(has "$(rules widen "$(facts "$TERMC" 98 true true '{}')")" 'environment was cleared (no HOME, PATH, TERM')"
+judge "TERM alone missing: refused" yes "$(has "$(rules widen "$(facts "$TERMC" 98 true true '{"HOME":"/h","PATH":"/bin"}')")" 'no TERM')"
+judge "script(1) holding the pty above it: refused" yes "$(has "$(rules widen "$(facts '[[100,99,"bash pc"],[99,98,"script -q /dev/null bash pc"],[98,97,"-zsh"],[97,50,"login"],[50,1,"Terminal"]]' 100)")" 'terminal driver or interpreter runs above it (script)')"
+judge "python pty.spawn above it: refused" yes "$(has "$(rules widen "$(facts '[[100,99,"bash pc"],[99,98,"/usr/bin/python3.12 -c import pty"],[98,97,"-zsh"],[97,50,"login"],[50,1,"Terminal"]]' 100)")" '(python3.12)')"
+judge "an ancestry that cannot be read to pid 1: refused" yes "$(has "$(rules widen "$(facts '[[100,99,"bash pc"]]' 98 true true '{"HOME":"/h","PATH":"/bin","TERM":"x"}' false)")" 'could not be read to its end')"
+CIC='[[100,99,"bash pc provision --level standard"],[99,98,"/usr/bin/bash -e /home/runner/work/_temp/step.sh"],[98,97,"/home/runner/actions-runner/bin/Runner.Worker spawnclient 1 2"],[97,96,"/home/runner/actions-runner/bin/Runner.Listener run"],[96,1,"/bin/bash /home/runner/actions-runner/runsvc.sh"]]'
+CIENV='{"HOME":"/home/runner","PATH":"/usr/bin:/bin","CI":"true"}'
+judge "provision in a CI step (no TTY, a service session leader under pid 1): allowed" none "$(rules provision "$(facts "$CIC" 96 false false "$CIENV")")"
+judge "  ... the same CI step cannot widen at once (no TTY): it uses provision" yes "$(has "$(rules widen "$(facts "$CIC" 96 false false "$CIENV")")" 'not a terminal')"
+judge "provision with no CI marker: refused" yes "$(has "$(rules provision "$(facts "$CIC" 96 false false '{"HOME":"/h","PATH":"/bin","CI":"false"}')")" 'no CI environment')"
+judge "provision reparented away from its session: refused" yes "$(has "$(rules provision "$(facts '[[100,1,"bash pc provision"]]' 96 false false "$CIENV")")" 'reparented away')"
+judge "provision with a cleared environment: refused" yes "$(has "$(rules provision "$(facts "$CIC" 96 false false '{"CI":"true"}')")" 'no HOME, PATH')"
+
+# The real writer, with the real detection (no session override): none of these is your own terminal.
+R10="$(new_root)"
+real() { (cd "$NOWHERE" && env -u TAMIRS_PERMISSION_TEST_SESSION TAMIRS_PERMISSION_TEST_ROOT="$R10" "$@" 2>&1); }
+js="$(real env -i PATH="$PATH" TAMIRS_PERMISSION_TEST_ROOT="$R10" bash "$PC" standard --json </dev/null)"
+judge "env -i (no TTY either): the widening is only recorded pending, never written" "4 pending no" \
+  "$(printf '%s' "$js" | jq -r '"\(.exit) \(.result)"') $(exists "$(pfile "$R10")")"
+judge "  ... in a session that is not your own terminal" yes "$(printf '%s' "$js" | jq -r 'if .session != "none" then "yes" else "no" end')"
+js="$(real bash "$PC" standard --json </dev/null)"
+judge "no TTY: recorded pending, never written" "4 pending no" "$(printf '%s' "$js" | jq -r '"\(.exit) \(.result)"') $(exists "$(pfile "$R10")")"
+BG="$R10/bg.out"
+( cd "$NOWHERE" && env -u TAMIRS_PERMISSION_TEST_SESSION TAMIRS_PERMISSION_TEST_ROOT="$R10" bash "$PC" standard --json > "$BG" 2>&1 & )
+n=0; while [ "$n" -lt 100 ] && ! jq -e .exit "$BG" >/dev/null 2>&1; do n=$((n + 1)); sleep 0.1; done
+judge "reparented by ( cmd & ): it answered, and wrote nothing" "yes no" \
+  "$(jq -e .exit "$BG" >/dev/null 2>&1 && echo yes || echo no) $(exists "$(pfile "$R10")")"
+judge "  ... it did not exit 0" yes "$(jq -r 'if .exit != 0 then "yes" else "no" end' "$BG" 2>/dev/null)"
+
+# ---------------------------------------------------------------------------
+section "two-phase confirm on Claude Code: approval is the call's PostToolUse, not the stamp (D5, F1)"
+
+R11="$(new_root)"
+pc "$R11" none supervised >/dev/null
+before="$(sum "$(pfile "$R11")")"
+N="$(pcj "$R11" claude standard | jq -r .nonce)"
+judge "the guard asks on the plain confirm, call toolu_A" ask "$(ask_pg "$R11" "$N" pg-s toolu_A)"
+judge "  ... its stamp names that call" toolu_A "$(jq -r .tool_use_id "$(stampf "$R11" "$N")")"
+# The user DECLINES: Claude Code never runs toolu_A, so no PostToolUse for it ever fires. The agent then runs
+# the confirm through a form the guard does not see (call toolu_B), which reaches the writer with the stamp.
+WRAP="python3 -c 'import subprocess; subprocess.run([\"bash\", \"$PC\", \"confirm\", \"$N\"])'"
+out="$(pc "$R11" claude confirm "$N")"; rc=$?
+judge "the writer reached that way only stages it" "0 yes" "$rc $(exists "$(stagedf "$R11" "$N")")"
+judge "  ... bound to the declined call, not the one that ran" toolu_A "$(jq -r .tool_use_id "$(stagedf "$R11" "$N")")"
+judge "  ... and nothing the resolver reads changed" "$before supervised" "$(sum "$(pfile "$R11")") $(level_of "$R11" | jq -r .level)"
+out="$(post_pg "$R11" "$N" pg-s toolu_B "$WRAP")"
+judge "the wrapper call's own PostToolUse promotes nothing (silent)" "$before ''" "$(sum "$(pfile "$R11")") '$out'"
+out="$(post_pg "$R11" "$N" pg-s toolu_A "$WRAP")"
+judge "naming the declined call's id with a wrapper command promotes nothing" "$before" "$(sum "$(pfile "$R11")")"
+out="$(post_pg "$R11" "$N" pg-s toolu_B)"
+judge "a plain confirm PostToolUse of another call promotes nothing" "$before yes" "$(sum "$(pfile "$R11")") $(has "$out" 'bound to another call')"
+for cmd in "bash $PC confirm $N; true" "bash $PC confirm $N | cat" "X=1 bash $PC confirm $N" "bash \$(echo $PC) confirm $N" "bash $PC confirm $N --level unattended"; do
+  post_pg "$R11" "$N" pg-s toolu_A "$cmd" >/dev/null
+done
+judge "nor does any non-plain command under the declined call's id (; | env prefix \$() extra words)" "$before yes" \
+  "$(sum "$(pfile "$R11")") $(exists "$(stagedf "$R11" "$N")")"
+judge "the resolver never saw any of it: still supervised" supervised "$(level_of "$R11" | jq -r .level)"
+out="$(post_pg "$R11" "$N" pg-s toolu_A "bash \"\${CLAUDE_PLUGIN_ROOT}\"/scripts/plugin-config.sh confirm --json $N")"
+judge "the plain form with \${CLAUDE_PLUGIN_ROOT} and --json is the confirm (it would promote)" standard "$(jq -r .level "$(pfile "$R11")")"
+pc "$R11" none supervised >/dev/null
+before="$(sum "$(pfile "$R11")")"
+# A staged record lapses with the stamp: expired, its own call's PostToolUse is refused and the record removed.
+N2="$(pcj "$R11" claude standard | jq -r .nonce)"
+ask_pg "$R11" "$N2" pg-s toolu_C >/dev/null; pc "$R11" claude confirm "$N2" >/dev/null
+python3 -I -S - "$(stagedf "$R11" "$N2")" <<'PY2'
+import hashlib, json, sys
+p = sys.argv[1]
+def render(d): return (json.dumps(d, indent=2, sort_keys=True, ensure_ascii=True) + "\n").encode("ascii")
+d = json.load(open(p)); d.pop("body_sha256"); d["expires"] = "2026-01-01T00:00:00Z"
+d["body_sha256"] = hashlib.sha256(render(d)).hexdigest()
+open(p, "wb").write(render(d))
+PY2
+post_pg "$R11" "$N2" pg-s toolu_C >/dev/null
+judge "an expired staged record is not promoted, even by its own call, and is swept" "$before no" \
+  "$(sum "$(pfile "$R11")") $(exists "$(stagedf "$R11" "$N2")")"
+# A stamp with no tool_use_id cannot be bound to an approval: refused, the request kept.
+N3="$(pcj "$R11" claude standard | jq -r .nonce)"
+ask_pg "$R11" "$N3" >/dev/null
+st="$(stampf "$R11" "$N3")"; jq -c 'del(.tool_use_id)' "$st" > "$st.tmp" && chmod 600 "$st.tmp" && mv "$st.tmp" "$st"
+out="$(pc "$R11" claude confirm "$N3")"; rc=$?
+judge "a stamp naming no tool_use_id is refused (3), the request kept" "3 yes yes no" \
+  "$rc $(has "$out" 'names no tool_use_id') $(exists "$(sdir "$R11")/pending/$N3.json") $(exists "$(stagedf "$R11" "$N3")")"
+# promote is the Claude Code PostToolUse only.
+ask_pg "$R11" "$N3" pg-s toolu_D >/dev/null; pc "$R11" claude confirm "$N3" >/dev/null
+js="$(jq -nc --arg c "bash $PC confirm $N3" '{session_id:"pg-s",hook_event_name:"PostToolUse",tool_name:"Bash",tool_use_id:"toolu_D",tool_input:{command:$c}}' |
+  (cd "$NOWHERE" && TAMIRS_PERMISSION_TEST_ROOT="$R11" TAMIRS_PERMISSION_TEST_SESSION=codex bash "$PC" promote --json 2>&1))"
+judge "promote outside a Claude Code session promotes nothing" "nothing $before" "$(printf '%s' "$js" | jq -r .result) $(sum "$(pfile "$R11")")"
+out="$(jq -nc --arg c "bash $PC confirm $N3" '{session_id:"pg-s",turn_id:"t-1",hook_event_name:"PostToolUse",tool_name:"Bash",tool_use_id:"toolu_D",tool_input:{command:$c}}' |
+  (cd "$NOWHERE" && TAMIRS_PERMISSION_TEST_ROOT="$R11" TAMIRS_PERMISSION_TEST_SESSION=claude bash "$APPROVED" 2>&1))"
+judge "the hook leaves a Codex payload alone" "'' $before" "'$out' $(sum "$(pfile "$R11")")"
+out="$(jq -nc '{session_id:"pg-s",hook_event_name:"PostToolUse",tool_name:"Bash",tool_use_id:"toolu_E",tool_input:{command:"ls -la"}}' |
+  (cd "$NOWHERE" && TAMIRS_PERMISSION_TEST_ROOT="$R11" TAMIRS_PERMISSION_TEST_SESSION=claude bash "$APPROVED" 2>&1))"
+judge "an unrelated Bash call: silent" "" "$out"
+judge "show lists the staged record and that it is not active" yes "$(has "$(pc "$R11" none show)" "staged $N3 (config")"
+out="$(post_pg "$R11" "$N3" pg-s toolu_D)"
+judge "  ... until its own call's PostToolUse" standard "$(jq -r .level "$(pfile "$R11")")"
+
+# ---------------------------------------------------------------------------
+section "F10: an env or option-store lowering also tightens a skill with its own level"
+
+R12="$(new_root)"
+pc "$R12" none standard >/dev/null; pc "$R12" none pr-dev unattended >/dev/null
+judge "pr-dev has its own level" unattended "$(level_of "$R12" pr-dev | jq -r .level)"
+judge "TS_PERMISSION_LEVEL=supervised lowers it too (lowering always wins)" supervised "$(TS_PERMISSION_LEVEL=supervised level_of "$R12" pr-dev | jq -r .level)"
+judge "CLAUDE_PLUGIN_OPTION_PERMISSION_LEVEL=standard lowers it to standard" standard "$(CLAUDE_PLUGIN_OPTION_PERMISSION_LEVEL=standard level_of "$R12" pr-dev | jq -r .level)"
 
 # ---------------------------------------------------------------------------
 section "R4 allow is never stored; deny always is"
@@ -331,6 +538,10 @@ judge "show marks a provisioned lock" yes "$(has "$(pc "$R5" none show)" 'writte
 printf '{"version": 1, "level": "standard", "actions": {"pr.merge.auto": "deny"}}\n' > "$R5/spec.json"
 pc "$R5" none provision --file "$R5/spec.json" >/dev/null
 judge "provision --file writes the given document" deny "$(jq -r '.actions["pr.merge.auto"]' "$(pfile "$R5")")"
+R5b="$(new_root)"; pc "$R5b" none standard >/dev/null
+out="$(pc "$R5b" none provision --level unattended)"; rc=$?
+judge "provision never replaces a file it did not write (3)" "3 yes standard" \
+  "$rc $(has "$out" 'never replaces one it did not write') $(jq -r .level "$(pfile "$R5b")")"
 printf '{"version": 1, "actions": {"policy.edit": "allow"}}\n' > "$R5/bad.json"
 out="$(pc "$R5" none provision --file "$R5/bad.json")"; rc=$?
 judge "a document the schema rejects is never written" "1 deny" "$rc $(jq -r '.actions["pr.merge.auto"]' "$(pfile "$R5")")"
@@ -471,11 +682,15 @@ NONCE="$(jq -r .nonce "$REC")"
 judge "the guard asks on the confirm made from another session" ask "$(ask_pg "$R6" "$NONCE" s-other)"
 out="$(pc "$R6" claude confirm "$NONCE")"; rc=$?
 judge "a stamp from another session than the request is refused (3)" "3 yes" "$rc $(has "$out" 'from another session')"
-judge "the guard asks on the confirm, naming the request" ask "$(ask_pg "$R6" "$NONCE" s1)"
+judge "the guard asks on the confirm, naming the request" ask "$(ask_pg "$R6" "$NONCE" s1 toolu_s1)"
 out="$(pc "$R6" claude confirm "$NONCE")"; rc=$?
-judge "confirm turns the request into a ticket" 0 "$rc"
-judge "a raise ticket for pr-dev at unattended, bound to its session" "raise pr-dev unattended s1 main" \
-  "$(jq -r 'select(.kind == "raise") | "\(.kind) \(.skill) \(.level) \(.session_id) \(.agent)"' "$(sdir "$R6")"/tickets/*.json)"
+judge "confirm stages the request" "0 yes" "$rc $(exists "$(stagedf "$R6" "$NONCE")")"
+judge "  ... and writes no ticket before the call's PostToolUse" 0 \
+  "$(jq -r 'select(.kind == "raise") | .id' "$(sdir "$R6")"/tickets/*.json 2>/dev/null | wc -l | tr -d ' ')"
+post_pg "$R6" "$NONCE" s1 toolu_s1 >/dev/null
+judge "the PostToolUse of that call turns it into a raise ticket for pr-dev at unattended, bound to its session, active" \
+  "raise pr-dev unattended s1 main active" \
+  "$(jq -r 'select(.kind == "raise") | "\(.kind) \(.skill) \(.level) \(.session_id) \(.agent) \(.state)"' "$(sdir "$R6")"/tickets/*.json)"
 judge "it expires 15 minutes after it was made" 900 \
   "$(jq -r 'select(.kind == "raise") | [.created, .expires] | map(strptime("%Y-%m-%dT%H:%M:%SZ") | mktime) | .[1] - .[0]' "$(sdir "$R6")"/tickets/*.json)"
 judge "the request is consumed" no "$(exists "$REC")"
@@ -507,9 +722,10 @@ judge "the active one is kept" yes "$(exists "$LOWF")"
 subm '/tamirs-superpowers:pr-dev 42 --perms=unattended' user h1 | hook8 >/dev/null
 expn '42 --perms=unattended' h1 | hook8 >/dev/null
 N8="$(jq -r .nonce "$(find "$(sdir "$R8")/pending" -name '*.json' | head -1)" 2>/dev/null)"
-judge "the guard asks on the confirm" ask "$(ask_pg "$R8" "$N8" h1)"
-out="$(pc "$R8" claude confirm "$N8")"; rc=$?
-judge "confirm writes the raise ticket" 0 "$rc"
+judge "the guard asks on the confirm" ask "$(ask_pg "$R8" "$N8" h1 toolu_h1)"
+pc "$R8" claude confirm "$N8" >/dev/null; rc=$?
+out="$(post_pg "$R8" "$N8" h1 toolu_h1)"
+judge "confirm stages and its PostToolUse writes the raise ticket" "0 yes" "$rc $(has "$out" 'now active')"
 judge "  ... and says the session's lowering still wins" yes "$(has "$out" "lowering ticket $LOW (pr-dev at supervised")"
 judge "  ... which it does not retire" yes "$(exists "$LOWF")"
 judge "the resolver agrees: pr-dev runs at supervised in that session" supervised \
@@ -530,6 +746,39 @@ judge "merge_pull_request is excluded at every level above supervised" yes "$(ha
 judge "an env level only lowers" "supervised --read-only" "$(TS_PERMISSION_LEVEL=supervised flags)"
 judge "a bad --host is a usage error" 2 "$(bash "$MCP" --print-flags --host nope >/dev/null 2>&1; echo $?)"
 judge "without a token it refuses to start" 1 "$(cd "$NOWHERE" && TAMIRS_PERMISSION_TEST_ROOT="$R7" env -u GITHUB_PERSONAL_ACCESS_TOKEN bash "$MCP" >/dev/null 2>&1; echo $?)"
+
+# L1: the binary that receives the token is never looked up on PATH. Under the test root the only trusted
+# location is the root's .local/bin, so no real server or docker can ever run here.
+R13="$(new_root)"; LB="$R13/.local/bin"; mkdir -p "$LB"; chmod 700 "$R13/.local"; chmod 755 "$LB"
+FAKEPATH="$(harness_tmpdir)"; MARK="$(harness_tmpdir)"; REALPY="$(command -v python3)"
+printf '#!/bin/sh\necho "path-binary $* ${GITHUB_PERSONAL_ACCESS_TOKEN:+token}" > "%s/ran"\n' "$MARK" > "$FAKEPATH/github-mcp-server"
+printf '#!/bin/sh\necho used >> "%s/py"\n[ -n "${GITHUB_PERSONAL_ACCESS_TOKEN:-}" ] && echo leaked >> "%s/py"\nexec "%s" "$@"\n' "$MARK" "$MARK" "$REALPY" > "$FAKEPATH/python3"
+chmod 755 "$FAKEPATH/github-mcp-server" "$FAKEPATH/python3"
+mcp13() { (cd "$NOWHERE" && TAMIRS_PERMISSION_TEST_ROOT="$R13" PATH="$FAKEPATH:$PATH" "$@"); }
+srv() { mcp13 bash "$MCP" --print-flags 2>/dev/null | jq -r "${1:-.server}"; }
+judge "a github-mcp-server first on PATH is never chosen" null "$(srv)"
+out="$(mcp13 env GITHUB_PERSONAL_ACCESS_TOKEN=t bash "$MCP" </dev/null 2>&1)"; rc=$?
+judge "with no trusted binary it refuses to start (1), and the PATH one never runs" "1 no" "$rc $(exists "$MARK/ran")"
+judge "  ... saying PATH is not searched" yes "$(has "$out" 'PATH is not searched')"
+printf '#!/bin/sh\necho "trusted $* ${GITHUB_PERSONAL_ACCESS_TOKEN:+token}" > "%s/ran"\n' "$MARK" > "$LB/github-mcp-server"
+chmod 755 "$LB/github-mcp-server"
+judge "the passwd home's ~/.local/bin binary is chosen" "$(canon "$LB")/github-mcp-server" "$(srv)"
+rm -f "$MARK/py"
+mcp13 env GITHUB_PERSONAL_ACCESS_TOKEN=t bash "$MCP" </dev/null >/dev/null 2>&1
+judge "it is exec'd with the level's flags, and only it receives the token" "trusted stdio --read-only token" "$(cat "$MARK/ran" 2>/dev/null)"
+judge "  ... a helper run on PATH (python3) never saw the token" "yes no" \
+  "$(grep -q used "$MARK/py" 2>/dev/null && echo yes || echo no) $(grep -q leaked "$MARK/py" 2>/dev/null && echo yes || echo no)"
+chmod 775 "$LB/github-mcp-server"
+judge "a group-writable binary is refused" "null yes" "$(srv) $(has "$(srv '.refused | join(" ")')" 'group- or world-writable')"
+chmod 757 "$LB/github-mcp-server"
+judge "a world-writable binary is refused" null "$(srv)"
+chmod 755 "$LB/github-mcp-server"; chmod 777 "$LB"
+judge "a binary in a world-writable directory is refused" "null yes" "$(srv) $(has "$(srv '.refused | join(" ")')" 'world-writable or owned by another user')"
+chmod 755 "$LB"
+mkdir -p "$R13/opt"; chmod 755 "$R13/opt"; mv "$LB/github-mcp-server" "$R13/opt/"; ln -s "$R13/opt/github-mcp-server" "$LB/github-mcp-server"
+judge "a symlink is followed to its file, which is judged" "$(canon "$R13/opt")/github-mcp-server" "$(srv)"
+chmod 775 "$R13/opt/github-mcp-server"
+judge "  ... a group-writable symlink target is refused" null "$(srv)"
 
 # ---------------------------------------------------------------------------
 section "the real config and state dirs were never touched"

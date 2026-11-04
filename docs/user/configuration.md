@@ -175,9 +175,13 @@ for you to run yourself.
 | Gemini CLI | the `TS_PERMISSION_LEVEL` setting, prompted at `gemini extensions install` unless you pass `--skip-settings` (empty = `supervised`; anything else unknown = `supervised` with a warning) | `gemini extensions config tamirs-superpowers TS_PERMISSION_LEVEL` in your own terminal |
 | Codex CLI, Cursor, OpenCode | no install-time option exists; `bash scripts/setup.sh apply --permission-level <level>` (or `SETUP_PERMISSION_LEVEL=<level>`), or answer the level prompt `setup.sh apply` shows on a terminal when one of them is in scope | `/plugin-config` to tighten in a session; to widen, `scripts/plugin-config.sh` in your own terminal or `setup.sh` again |
 
-`setup.sh --permission-level` writes the user file below (0600, plus its lock). A run with
-no terminal never prompts: without the flag it writes nothing, with it it writes a new file
-only — an existing file changes only after you confirm its diff on a terminal.
+`setup.sh --permission-level` writes the user file below (0600, plus its lock) through the
+one writer. A run with no terminal never prompts: without the flag it writes nothing; with
+it, a level that widens nothing is written, while a raise is written only on your own
+terminal after the writer shows it and you answer `y` — anywhere else (CI, a pipe, an
+agent) it is recorded pending with the `confirm` command to run in your terminal (for CI
+use `provision`, below). An existing file changes only after you confirm its diff on a
+terminal.
 `--only permission-level` runs that step alone, and `remove` leaves the file in place, since
 it is your policy. For Claude Code and Gemini CLI, setup prints the host's own route instead
 of asking twice. On Codex, `setup.sh apply --codex-rules` (or `SETUP_CODEX_RULES=1`) also
@@ -190,7 +194,11 @@ leaves an existing file alone.
 `TS_PERMISSION_LEVEL`) and the user file's `level`. A source that is absent is skipped, so a
 Claude install that chose `unattended` with no user file runs `unattended`, while
 `unattended` in the option and `standard` in the file runs `standard`. Neither ⇒
-`supervised`. A host below its permission floor (see [What is enforced
+`supervised`. A per-skill or per-group level (below) replaces the file's `level` for that
+skill, but never escapes a lowering: a lower host option or environment switch caps it
+too. The host is the one the plugin actually runs under: a hook that names another host
+(say Gemini, because a repository's environment set `GEMINI_SESSION_ID`) gets the
+stricter of the two answers, so Claude's option still caps it. A host below its permission floor (see [What is enforced
 where](#what-is-enforced-where)) runs every level as `supervised`: the resolver clamps it and
 says so in the answer, and `make doctor` warns about it.
 
@@ -200,7 +208,7 @@ says so in the answer, and `make doctor` warns about it.
 |---|---|---|
 | `~/.config/tamirs-superpowers/permissions.json` (0600, dir 0700) | your level, per-skill and per-group levels, per-action `allow`/`ask`/`deny`, repo trust entries | `/plugin-config`, `scripts/plugin-config.sh`, `setup.sh` |
 | `~/.config/tamirs-superpowers/permissions.lock` | `{sha256, by, at}` of the file above | the same writer |
-| `~/.local/state/tamirs-superpowers/` | short-lived pending records, tickets, call stamps, the active-skill contexts (`intent/`) and the cached host-version probe (`hostver/`) | the writer, the prompt hook, the guard and the resolver |
+| `~/.local/state/tamirs-superpowers/` | short-lived pending records, staged confirms (`staged/`), tickets, call and confirm stamps, the active-skill contexts (`intent/`) and the cached host-version probe (`hostver/`) | the writer, the prompt hook, the guard, `permission-approved.sh` and the resolver |
 | `<repo>/.tamirs-superpowers/permissions.json` | a committable project file: tightens, and may widen only auto-merge once trusted | you, by hand |
 
 `~` here is your account's home from the passwd entry, never the session's `HOME` or
@@ -220,7 +228,7 @@ whose hash no longer matches its lock is read tighten-only — its denies hold, 
 raises are dropped — until you re-confirm it through `/plugin-config`. An invalid file runs
 as `supervised` with a warning.
 
-Environment switches only ever tighten: `TS_PERMISSION_LEVEL`,
+Environment switches only ever tighten — per-skill levels included: `TS_PERMISSION_LEVEL`,
 `CLAUDE_PLUGIN_OPTION_PERMISSION_LEVEL`, `TAMIRS_AUTO_MERGE=never`; `TAMIRS_AUTO_MERGE=always`
 is ignored with a warning naming the durable setting.
 
@@ -239,9 +247,10 @@ is ignored with a warning naming the durable setting.
 The command runs only when you type it — never on the model's own initiative. Every change
 goes through one writer, [`scripts/plugin-config.sh`](../../scripts/plugin-config.sh), which
 validates, writes atomically and re-locks. `show` prints each value with its source and
-whether the file still matches its lock, the pending requests, and the active lowering
-tickets of every session. Every run of the writer also deletes expired tickets (the resolver
-ignores an expired ticket either way).
+whether the file still matches its lock, the pending requests, the staged confirms that
+are not active yet, and the active lowering tickets of every session. Every run of the
+writer also deletes expired tickets and staged confirms (the resolver ignores an expired
+ticket either way).
 
 The writer compares every action's decision before and after the change:
 
@@ -253,7 +262,7 @@ The writer compares every action's decision before and after the change:
   you: on Claude Code the permission dialog on that very call, on Gemini CLI the extension's
   `ask_user` rule. Codex, Cursor, OpenCode and Claude Desktop have no such prompt, so there
   `confirm` is refused (exit 3) and the message names the command to run **in your own
-  terminal**, outside any agent session, where the writer applies the change at once:
+  terminal**, outside any agent session:
 
   ```bash
   bash <plugin root>/scripts/plugin-config.sh standard
@@ -262,10 +271,50 @@ The writer compares every action's decision before and after the change:
 - It never writes an R4 `allow`, and never writes a host's option store: a Claude or Gemini
   level raise also prints the host route above, since the lower of the two applies.
 
-Exit codes: 0 done, 1 failed, 2 usage error, 3 refused, 4 recorded pending. Every
-subcommand takes `--json`. For CI, `plugin-config.sh provision --level <level>` (or
-`--file <path>`) writes the file and lock in a workflow step **before** the agent starts;
-it refuses inside an agent session, and `show` marks such a lock `by: provision`.
+**On Claude Code, `confirm` takes effect in two steps.** The dialog appearing proves only
+that you were asked, not that you said yes, so the call you approve merely *stages* the
+change (in `~/.local/state/tamirs-superpowers/staged/`, bound to that tool call's id), and
+the plugin's PostToolUse hook ([`hooks/permission-approved.sh`](../../hooks/permission-approved.sh))
+makes it active when that same call completes — Claude Code runs PostToolUse only for a
+call that actually ran. You see *"the permission change you approved is now active"* right
+after the call. If you press **No** (or Esc), the call never runs and nothing is staged or
+applied. A staged change also never becomes active through any other call: the hook
+promotes only the PostToolUse of the call the dialog was raised on, and only when that call
+is the plain `plugin-config.sh confirm <nonce>` — not a wrapper around it, not another
+command chained to it. A staged change that is never promoted lapses after 15 minutes;
+`show` lists it meanwhile. On Gemini CLI `confirm` is still one step (the `ask_user` rule
+is the prompt, and nothing ties a post-call hook to it yet).
+
+**"Your own terminal" is checked, not assumed.** The writer applies a widening at once only
+when nothing it can see says an agent is involved, and only after showing you the rows and
+reading `y` on the terminal (`Apply it? [y/N]`; anything else, or no answer within five
+minutes, writes nothing and exits 3). It refuses the direct route — recording the change
+pending instead, with the `confirm` to run — when any of these holds:
+
+- an agent host (Claude Code, Codex, Gemini CLI, Cursor, OpenCode, the Claude desktop app)
+  is among its parent processes, or its environment carries an agent's marker;
+- it was cut off from its own terminal session: started in the background by a double fork
+  (`( … & )`, `nohup`, a daemon) or re-parented to the system's init process;
+- it has no terminal: standard input is not a TTY, or `/dev/tty` cannot be opened (CI,
+  `… </dev/null`, an agent's shell tool);
+- its environment was cleared (`env -i`: no `HOME`, `PATH` or `TERM`);
+- a program that can type into a terminal runs above it: `script`, `expect`, `unbuffer`,
+  `socat`, `osascript`, or an interpreter such as `python`, `perl`, `ruby` or `node` (so
+  run it from your shell, not from `poetry shell` or a Python wrapper);
+- its parent chain cannot be read.
+
+`make setup` and `setup.sh` go through the same writer, so a raise there shows the rows and
+asks `y` once more on the terminal. None of this is proof that a person typed `y` — a
+process running as you can still drive your terminal (the ADR's open risks) — but no
+agent route reaches the immediate path without one of the signs above.
+
+Exit codes: 0 done (or staged, on Claude Code), 1 failed, 2 usage error, 3 refused, 4
+recorded pending. Every subcommand takes `--json`. For CI, `plugin-config.sh provision
+--level <level>` (or `--file <path>`) writes the file and lock in a workflow step
+**before** the agent starts, with no prompt. It refuses inside an agent session, in a run
+cut off from its session or with a cleared environment, without a CI marker (`CI`,
+`GITHUB_ACTIONS`, `GITLAB_CI`, `BUILDKITE`, `TF_BUILD` or `JENKINS_URL`), and over a user
+file it did not write itself; `show` marks such a lock `by: provision`.
 
 ### One run: `--perms=<level>`
 
@@ -290,7 +339,8 @@ permission guard applies the resulting ticket on every call it judges
   every run of that skill (see [Per-skill levels](#per-skill-levels)). The fail-closed path
   stays in place, so the raise comes back unchanged once the host sends the field: then the
   request becomes a ticket only after `/plugin-config confirm <nonce>` passes the host
-  dialog, which shows the skill, level, target and expiry, and the ticket lets that skill's
+  dialog, which shows the skill, level, target and expiry (and, as above, only once that
+  approved call completes), and the ticket lets that skill's
   actions on that target run at the requested level for **15 minutes**: R2 at `standard`,
   and at `unattended` also the listed R3 actions whose precondition holds. A ticket never
   covers R4, never lifts a `deny` from any file or the environment, and binds to the
@@ -314,7 +364,9 @@ Use `/plugin-config` for a durable change.
 
 `skills.<id>` and `groups.<g>` in your user file (`/plugin-config pr-dev standard`) set a
 level for one skill or one category. Such a level **lowers** whenever that skill is running.
-It **raises** the guard's answers only when all of these hold:
+It never rises above a lower host option (Claude `permission_level`, Gemini
+`TS_PERMISSION_LEVEL`) or a lowering environment switch. It **raises** the guard's answers
+only when all of these hold:
 
 - the user file is your own, verified against its lock (a hand-edited file is read
   tighten-only, so its raises are dropped);
@@ -400,7 +452,13 @@ prints what it would pass and why, starting nothing): `supervised` ⇒ `--read-o
 tools whose arguments can reach R3/R4 (file writes, `issue_write`, `update_pull_request`,
 `pull_request_review_write`). Merging through MCP is excluded at every level. The flags are
 fixed for the server's lifetime, so a level change mid-session reaches the MCP tool set at
-the next session.
+the next session. The server binary, which receives your token, is never looked up on
+`PATH` (a repository's environment can change it): it is the first acceptable
+`github-mcp-server` in `/opt/homebrew/bin`, `/usr/local/bin`, Linuxbrew's `bin` (its
+default prefix), `~/.local/bin` or `/usr/bin` — then `docker` from the
+same places or Docker Desktop's — and a binary owned by another user, writable by group or
+others, or in a world-writable directory is refused (`--print-flags` shows the choice and
+what it refused).
 
 Channels outside the plugin — another GitHub MCP server, `gh` run by another tool, browser
 automation on github.com — are governed by no level.
