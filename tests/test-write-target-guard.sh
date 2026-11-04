@@ -56,17 +56,34 @@ printf 'x\n'              > "$REPO/dist/bundle.js"
 printf 'x\n'              > "$REPO/build/keep.js"
 git -C "$REPO" remote add origin https://github.com/example/x.git 2>/dev/null || true
 
+# The once-per-session notice markers (#336) live under CLAUDE_PLUGIN_DATA or
+# TMPDIR; both are pointed into the fixture so no test touches the real ones.
+unset CLAUDE_PLUGIN_DATA 2>/dev/null || true
+export TMPDIR="$TMP/tmpdir"
+mkdir -p "$TMPDIR"
+
 # verdict <tool> <command-or-path> -> deny | warn | allow
+# SESSION, when set, is the payload's session_id (no session id => no notice marker).
+SESSION=""
 verdict() {
-  jq -n --arg t "$1" --arg c "$2" --arg cwd "$REPO" \
+  jq -n --arg t "$1" --arg c "$2" --arg cwd "$REPO" --arg s "$SESSION" \
      '{tool_name:$t, cwd:$cwd,
-       tool_input:(if $t=="Bash" or $t=="Shell" then {command:$c} else {file_path:$c} end)}' \
+       tool_input:(if $t=="Bash" or $t=="Shell" then {command:$c} else {file_path:$c} end)}
+      + (if $s != "" then {session_id:$s} else {} end)' \
   | bash "$GUARD" 2>/dev/null \
   | jq -r 'if .hookSpecificOutput.permissionDecision=="deny" then "deny"
            elif .hookSpecificOutput.additionalContext then "warn"
            else "allow" end' 2>/dev/null
 }
 bash_verdict() { verdict Bash "$1"; }
+# notice <command> -> the additionalContext text of a Bash call, "" when none.
+notice() {
+  jq -n --arg c "$1" --arg cwd "$REPO" --arg s "$SESSION" \
+     '{tool_name:"Bash", cwd:$cwd, tool_input:{command:$c}}
+      + (if $s != "" then {session_id:$s} else {} end)' \
+  | bash "$GUARD" 2>/dev/null \
+  | jq -r '.hookSpecificOutput.additionalContext // ""' 2>/dev/null
+}
 
 # ===========================================================================
 section "Bash-mediated writes to a protected path are BLOCKED"
@@ -116,7 +133,7 @@ section "what it cannot decide, it SAYS — never a silent allow"
 # The failure being defended against: returning a value indistinguishable from
 # "no protected file was touched" when the real answer is "could not determine".
 
-judge "a target built by a variable"      warn "$(bash_verdict "OUT=.github/workflows/ci.yml; echo x > \$OUT")"
+judge "a target from a variable the command never assigns" warn "$(bash_verdict "echo x > \$OUT")"
 judge "a target from a substitution"      warn "$(bash_verdict "echo x > \$(mktemp)")"
 judge "python3 -c writing inline"         warn "$(bash_verdict "python3 -c \"open('yarn.lock','w')\"")"
 judge "code piped into a shell"           warn "$(bash_verdict "echo 'echo x > yarn.lock' | bash")"
@@ -265,5 +282,223 @@ judge "an unscoped cd still moves the frame"     deny \
   "$(bash_verdict "cd $REPO && echo x > yarn.lock")"
 judge "an unbalanced ) leaves cwd unknown"       warn \
   "$(bash_verdict "cd /tmp; true); echo x > yarn.lock")"
+
+# ===========================================================================
+section "6. a variable assigned a literal in the same command is resolved (#336)"
+# ===========================================================================
+# `S=/tmp/x; cp a "$S/b"` was UNSURE: an advisory on every scratch write of a
+# session, and — since an advisory is an allow — a walk-past for
+# `"$S/package-lock.json"`. Resolving the literal answers the real question.
+# Every resolved case is paired with the shapes that must NOT resolve, because
+# a guessed value is a confident wrong answer in either direction.
+# shellcheck disable=SC2016  # every $S below is the payload's, not this shell's
+S_SCRATCH="$TMP/scratch"; mkdir -p "$S_SCRATCH"
+judge "a literal scratch dir: no notice"      allow "$(bash_verdict "S=$S_SCRATCH; cp /tmp/a \"\$S/b\"")"
+judge "a lockfile through the variable: BLOCKED" deny \
+  "$(bash_verdict "S=$S_SCRATCH; cp /tmp/a \"\$S/package-lock.json\"")"
+judge "a workflow through the variable: BLOCKED" deny \
+  "$(bash_verdict "OUT=.github/workflows/ci.yml; echo x > \$OUT")"
+judge "a redirect through \${S}"              deny "$(bash_verdict "S=$REPO; echo x > \"\${S}/yarn.lock\"")"
+judge "export NAME=literal is a builtin: not resolved" warn "$(bash_verdict "export S=$REPO; echo x > \$S/yarn.lock")"
+judge "a double-quoted literal"               deny "$(bash_verdict "S=\"$REPO\"; echo x > \$S/yarn.lock")"
+judge "a chain of literals"                   deny "$(bash_verdict "R=$REPO; S=\$R; echo x > \$S/yarn.lock")"
+judge "cd through the variable moves the frame" deny "$(bash_verdict "S=$REPO; cd \$S && echo x > yarn.lock")"
+judge "  ... and a resolved ordinary write is allowed" allow \
+  "$(bash_verdict "S=$REPO; echo x > \$S/src/app.ts")"
+# What must stay UNSURE: the value is not a literal, or the assignment might
+# not have run, or something later may have changed it.
+judge "a substitution value"            warn "$(bash_verdict "S=\$(mktemp -d); echo x > \$S/yarn.lock")"
+judge "reassigned by a substitution"    warn "$(bash_verdict "S=$REPO; S=\$(mktemp -d); echo x > \$S/yarn.lock")"
+judge "the NAME=value cmd prefix form"  warn "$(bash_verdict "S=$REPO echo x > \$S/yarn.lock")"
+judge "assigned in a subshell"          warn "$(bash_verdict "(S=$REPO); echo x > \$S/yarn.lock")"
+judge "assigned in a pipeline"          warn "$(bash_verdict "S=$REPO | true; echo x > \$S/yarn.lock")"
+judge "assigned after &&"               warn "$(bash_verdict "false && S=$REPO; echo x > \$S/yarn.lock")"
+judge "assigned under then"             warn "$(bash_verdict "if true; then S=$REPO; fi; echo x > \$S/yarn.lock")"
+judge "unset afterwards"                warn "$(bash_verdict "S=$REPO; unset S; echo x > \$S/yarn.lock")"
+judge "read afterwards"                 warn "$(bash_verdict "S=$REPO; read S; echo x > \$S/yarn.lock")"
+judge "a for loop variable"             warn "$(bash_verdict "S=$REPO; for S in a; do :; done; echo x > \$S/yarn.lock")"
+judge "appended with +="                warn "$(bash_verdict "S=$REPO; S+=/x; echo x > \$S/yarn.lock")"
+judge "an array"                        warn "$(bash_verdict "S=($REPO); echo x > \$S/yarn.lock")"
+judge "arithmetic afterwards"           warn "$(bash_verdict "S=$REPO; ((S=1)); echo x > \$S/yarn.lock")"
+judge "a \${S:=} expansion afterwards"  warn "$(bash_verdict "S=$REPO; : \"\${S:=x}\"; echo x > \$S/yarn.lock")"
+judge "eval in between"                 warn "$(bash_verdict "S=$REPO; eval true; echo x > \$S/yarn.lock")"
+judge "a different parameter form"      warn "$(bash_verdict "S=$REPO; echo x > \"\${S:-/d}/yarn.lock\"")"
+judge "an escaped dollar is not a variable" warn "$(bash_verdict "S=$REPO; echo x > \\\$S/yarn.lock")"
+judge "an unquoted use that would word-split" warn "$(bash_verdict "S='$REPO /x'; echo x > \$S/yarn.lock")"
+judge "a glob through the variable is still a glob" warn "$(bash_verdict "S=$S_SCRATCH; rm -f \$S/*.txt")"
+# The table is the command's text, never this process's environment: a variable
+# the session exports but the command never assigns stays unresolved.
+judge "an exported variable the command never assigns stays unresolved" warn \
+  "$(S="$REPO" bash_verdict "echo x > \$S/yarn.lock")"
+
+# Codex review of PR #359, two P1 bypasses: each made a protected write look like
+# a /tmp write, which the guard then cleared silently — worse than the advisory
+# the parent revision gave. Every row here writes the repo's workflow through a
+# variable whose TRUE value is .github; the hardened answer is deny (resolved
+# correctly) or warn (left unresolved), and never allow. `checked` maps both
+# safe answers to one word so the assertion survives a later improvement that
+# turns a warn into a deny.
+checked() { case "$(bash_verdict "$1")" in deny|warn) echo checked ;; *) echo allow ;; esac; }
+W='$S/workflows/ci.yml'
+# (1) An assignment anywhere inside a compound command is forgotten, not only
+#     in the segment that begins with `then`/`do`.
+judge "P1-1 the exact case: second statement of a then-body" checked \
+  "$(checked "S=.github; if false; then :; S=/tmp; fi; echo x > \"$W\"")"
+judge "P1-1 an elif body"           checked "$(checked "S=.github; if false; then :; elif true; then S=/tmp; fi; echo x > \"$W\"")"
+judge "P1-1 an else body"           checked "$(checked "S=.github; if false; then :; else :; S=/tmp; fi; echo x > \"$W\"")"
+judge "P1-1 a nested loop body"     checked "$(checked "S=.github; for i in 1; do for j in 1; do :; S=/tmp; done; done; echo x > \"$W\"")"
+judge "P1-1 a while body"           checked "$(checked "S=.github; while false; do :; S=/tmp; done; echo x > \"$W\"")"
+judge "P1-1 a case body"            checked "$(checked "S=.github; case x in a) :; S=/tmp;; esac; echo x > \"$W\"")"
+judge "P1-1 a brace group"          checked "$(checked "S=.github; { S=/tmp; }; echo x > \"$W\"")"
+judge "P1-1 a subshell"             checked "$(checked "S=.github; (S=/tmp); echo x > \"$W\"")"
+judge "P1-1 a function body"        checked "$(checked "S=.github; f() { S=/tmp; }; f; echo x > \"$W\"")"
+judge "P1-1 export inside a body"   checked "$(checked "S=.github; if false; then :; export S=/tmp; fi; echo x > \"$W\"")"
+judge "P1-1 declare inside a body"  checked "$(checked "S=.github; if false; then :; declare S=/tmp; fi; echo x > \"$W\"")"
+judge "P1-1 the body on its own lines" checked \
+  "$(checked "$(printf 'S=.github\nif false\nthen\n  S=/tmp\nfi\necho x > "%s"' "$W")")"
+judge "P1-1 a subshell assignment is not restored over a later one" checked \
+  "$(checked "S=/tmp; (S=.github; case x in a) :;; esac; echo x > \"$W\")")"
+# (2) A command's redirections are opened before the command runs, so they
+#     resolve with the table as it stood before that command's assignments.
+#     (Under the whitelist below a name assigned twice, or by a builtin, is
+#     not resolved at all, so these are now UNSURE; the row holds either way.)
+judge "P1-2 the exact case: export with a redirect" checked \
+  "$(checked "S=.github; export S=/tmp > \"$W\"")"
+judge "P1-2 declare with a redirect"  checked "$(checked "S=.github; declare S=/tmp > \"$W\"")"
+judge "P1-2 local with a redirect"    checked "$(checked "S=.github; local S=/tmp > \"$W\"")"
+judge "P1-2 readonly with a redirect" checked "$(checked "S=.github; readonly S=/tmp > \"$W\"")"
+judge "P1-2 typeset with a redirect"  checked "$(checked "S=.github; typeset S=/tmp > \"$W\"")"
+judge "P1-2 a bare assignment with a redirect" checked "$(checked "S=.github; S=/tmp > \"$W\"")"
+judge "P1-2 printf -v with a redirect" checked "$(checked "S=.github; printf -v S /tmp > \"$W\"")"
+judge "P1-2 a name assigned twice resolves nowhere" warn \
+  "$(bash_verdict "S=src; export S=/tmp > \"\$S/app.ts\"; echo y > \"\$S/z\"")"
+# (3) Round three: a declaration builtin expands every operand before it
+#     assigns any (`export S=/tmp T="$S"` gives T the OLD S), and `S[0]=` was
+#     not read as touching S. Rather than name each form, the table is now a
+#     WHITELIST on the whole command text: NAME resolves only when it occurs
+#     exactly once as `NAME=` and everywhere else only as `$NAME`/`${NAME}`,
+#     that one assignment is a bare top-level statement, and the text names
+#     no eval/source/./exec/`sh -c`. Every other occurrence disqualifies it.
+judge "P1-3 the exact case: export with two operands" checked \
+  "$(checked "S=.github; export S=/tmp T=\"\$S\"; echo x > \"\$T/workflows/ci.yml\"")"
+judge "P1-3 a bare second operand too"      checked \
+  "$(checked "S=.github; T=\"\$S\" S=/tmp; echo x > \"\$T/workflows/ci.yml\"")"
+judge "P1-4 the exact case: an indexed assignment" checked \
+  "$(checked "S=/tmp; S[0]=.github; echo x > \"$W\"")"
+judge "P1-4 an indexed expansion"           warn "$(bash_verdict "S=$REPO; echo x > \"\${S[0]}/yarn.lock\"")"
+judge "P1-4 \$S[ is not trusted either"     warn "$(bash_verdict "S=$REPO; echo x > \"\$S[0]/yarn.lock\"")"
+judge "a nameref"                           checked \
+  "$(checked "S=/tmp; declare -n R=S; R=.github; cp /tmp/a \"$W\"")"
+judge "  ... the row as reviewed"           warn "$(bash_verdict "S=/tmp; declare -n R=S; R=.github; cp a \"\$S/ci.yml\"")"
+judge "let afterwards"                      warn "$(bash_verdict "S=/tmp; let S=1; echo x > \"$W\"")"
+judge "getopts afterwards"                  warn "$(bash_verdict "S=$REPO; getopts a S; echo x > \$S/yarn.lock")"
+# (The payload below is only judged, never run; the version guard in it is
+# what a real script would carry, and what the static GNU-ism check expects.)
+judge "mapfile afterwards"                  warn \
+  "$(bash_verdict "S=$REPO; [ \"\${BASH_VERSINFO[0]}\" -ge 4 ] && mapfile S; echo x > \$S/yarn.lock")"
+judge "\${#S} afterwards"                   warn "$(bash_verdict "S=$REPO; : \"\${#S}\"; echo x > \$S/yarn.lock")"
+judge "the name as a bare word anywhere"    warn "$(bash_verdict "S=$REPO; echo S; echo x > \$S/yarn.lock")"
+judge "a quoted name is a command, not an assignment" warn "$(bash_verdict "\"S=$REPO\"; echo x > \$S/yarn.lock")"
+judge "  ... even inside a comment"         warn "$(bash_verdict "S=$REPO; echo x > \$S/yarn.lock # S is scratch")"
+judge "  ... even inside a heredoc body"    warn \
+  "$(bash_verdict "$(printf 'S=%s; cat <<EOF\nS=other\nEOF\necho x > $S/yarn.lock' "$REPO")")"
+judge "exec anywhere resolves nothing"      warn "$(bash_verdict "S=$REPO; exec 3>/dev/null; echo x > \$S/yarn.lock")"
+judge "bash -c anywhere resolves nothing"   warn "$(bash_verdict "S=$REPO; bash -c true; echo x > \$S/yarn.lock")"
+judge "/bin/sh -ec anywhere resolves nothing" warn "$(bash_verdict "S=$REPO; /bin/sh -ec true; echo x > \$S/yarn.lock")"
+judge "source anywhere resolves nothing"    warn "$(bash_verdict "S=$REPO; source ./env; echo x > \$S/yarn.lock")"
+judge ". anywhere resolves nothing"         warn "$(bash_verdict "S=$REPO; . ./env; echo x > \$S/yarn.lock")"
+# (4) Round four. Names bash sets on its own carry no `NAME=` in the text:
+#     `read` with no operand sets REPLY, `cd` sets PWD. The Bash manual's
+#     "Shell Variables" list is a closed denylist (SHELL_MANAGED_NAMES).
+judge "P1-5 the exact case: REPLY set by read"   checked \
+  "$(checked "$(printf 'REPLY=/tmp; read <<< .github; echo x > "$REPLY/workflows/ci.yml"')")"
+judge "P1-5 the exact case: PWD set by cd"       checked \
+  "$(checked 'PWD=/tmp; cd .github; echo x > "$PWD/workflows/ci.yml"')"
+judge "P1-5 OLDPWD"                              warn "$(bash_verdict "OLDPWD=$REPO; cd /; echo x > \$OLDPWD/yarn.lock")"
+judge "P1-5 OPTARG"                              warn "$(bash_verdict "OPTARG=$REPO; getopts a: x -a y; echo x > \$OPTARG/yarn.lock")"
+judge "P1-5 RANDOM"                              warn "$(bash_verdict "RANDOM=$REPO; echo x > \$RANDOM/yarn.lock")"
+judge "P1-5 a BASH_* name"                       warn "$(bash_verdict "BASH_REMATCH=$REPO; echo x > \$BASH_REMATCH/yarn.lock")"
+judge "P1-5 an LC_ name"                         warn "$(bash_verdict "LC_ALL=$REPO; echo x > \$LC_ALL/yarn.lock")"
+judge "P1-5 the underscore"                      warn "$(bash_verdict "_=$REPO; echo x > \$_/yarn.lock")"
+judge "P1-5 TMPDIR"                              warn "$(bash_verdict "TMPDIR=$REPO; echo x > \$TMPDIR/yarn.lock")"
+#     A newline after `&&`, `||` or `|` closes an empty segment; the operator
+#     must keep governing the next line (a comment line in between too).
+judge "P1-6 the exact case: assignment after &&-newline" checked \
+  "$(checked "$(printf 'S=.github; false &&\nS=/tmp; echo x > "%s"' "$W")")"
+judge "P1-6 after ||-newline"                    checked \
+  "$(checked "$(printf 'S=.github; true ||\nS=/tmp; echo x > "%s"' "$W")")"
+judge "P1-6 after |-newline (a pipeline component)" warn \
+  "$(bash_verdict "$(printf 'true |\nS=%s; echo x > $S/yarn.lock' "$REPO")")"
+judge "P1-6 a comment line between && and the assignment" checked \
+  "$(checked "$(printf 'S=.github; false && # later\nS=/tmp; echo x > "%s"' "$W")")"
+judge "P1-6 a blank line between && and the assignment" checked \
+  "$(checked "$(printf 'S=.github; false &&\n\nS=/tmp; echo x > "%s"' "$W")")"
+judge "P1-6 a newline after ; is still unconditional" deny \
+  "$(bash_verdict "$(printf 'true;\nS=%s; echo x > $S/yarn.lock' "$REPO")")"
+judge "P1-6 (false) && on the next line is conditional" warn \
+  "$(bash_verdict "$(printf '(false) &&\nS=%s; echo x > $S/yarn.lock' "$REPO")")"
+# ... and the whitelist admits the plain case this issue is about.
+judge "the plain case still resolves: a scratch write, no notice" allow \
+  "$(bash_verdict "S=$S_SCRATCH; cp /tmp/a \"\$S/b\"")"
+judge "the plain case still resolves: a lockfile, a block" deny \
+  "$(bash_verdict "S=$REPO; echo x > \"\$S/yarn.lock\"")"
+judge "a heredoc that only expands the name is fine" deny \
+  "$(bash_verdict "$(printf 'S=%s; cat <<EOF\n$S\nEOF\necho x > $S/yarn.lock' "$REPO")")"
+# Found while writing the rows above, present on the parent revision too: a
+# reserved word that introduces a command sat in argv0's place, so the write
+# primitive after it was never parsed and `if true; then cp /tmp/a yarn.lock;
+# fi` was cleared with no record at all (a redirection after `then` was caught,
+# being the shell's; a cp/tee/sed -i was not). Same class — a reserved word in
+# command position mishandled — so it is closed here.
+judge "cp after then is parsed"      deny "$(bash_verdict "if true; then cp /tmp/a yarn.lock; fi")"
+judge "tee after do is parsed"       deny "$(bash_verdict "while true; do tee yarn.lock; done")"
+judge "cp inside a brace group"      deny "$(bash_verdict "{ cp /tmp/a yarn.lock; }")"
+judge "cp as the if condition"       deny "$(bash_verdict "if cp /tmp/a yarn.lock; then :; fi")"
+judge "sed -i after else"            deny "$(bash_verdict "if false; then :; else sed -i.bak s/a/b/ yarn.lock; fi")"
+judge "a negated write"              deny "$(bash_verdict "! tee yarn.lock")"
+judge "a mention after then is still a mention" allow "$(bash_verdict "if true; then cat yarn.lock; fi")"
+# The scoping must not have been "ignore every compound": a top-level literal
+# still resolves inside a body that only USES it.
+judge "a top-level literal used inside a loop body resolves" deny \
+  "$(bash_verdict "S=$REPO; for f in a; do cp \$f \"\$S/yarn.lock\"; done")"
+judge "a top-level literal used inside a then-body resolves" deny \
+  "$(bash_verdict "S=$REPO; if true; then echo x > \"\$S/yarn.lock\"; fi")"
+judge "a top-level literal after a closed compound resolves" deny \
+  "$(bash_verdict "if true; then :; fi; S=$REPO; echo x > \"\$S/yarn.lock\"")"
+
+# ===========================================================================
+section "7. each unresolved-write kind is explained once per session (#336)"
+# ===========================================================================
+# Sixty identical hundred-token paragraphs in one session buried its two real
+# blocks. The paragraph is shown once per (session, kind of reason); a repeat
+# is one line that still names what was not checked — never silence.
+FULL="NOT checked against the protected-path rules"
+BRIEF="same notice as earlier this session"
+SESSION="sess-$$-a"
+first="$(notice "python3 -c \"open('x','w')\"")"
+second="$(notice "python3 -c \"open('y','w')\"")"
+judge "the first inline-interpreter notice is the full paragraph" yes "$(has "$first" "$FULL")"
+judge "the second is not"                                        no  "$(has "$second" "$FULL")"
+judge "  ... but is still a notice"                              yes "$(has "$second" "$BRIEF")"
+judge "  ... naming the kind that was not checked"               yes "$(has "$second" "runs code supplied to it")"
+judge "  ... and the verdict is still warn, never allow"        warn "$(bash_verdict "python3 -c \"open('z','w')\"")"
+judge "a different kind in the same session is full again"      yes \
+  "$(has "$(notice "echo x > \$(mktemp)")" "$FULL")"
+judge "  ... and a repeat of it is brief"                        no \
+  "$(has "$(notice "echo x > \$(mktemp)")" "$FULL")"
+judge "a new kind beside a repeat: full, with the repeat folded in" yes \
+  "$(has "$(notice "rm -rf dist/*; python3 -c \"open('w','w')\"")" "(same unresolved-write notice as earlier this session")"
+SESSION="sess-$$-b"
+judge "another session starts over"                              yes \
+  "$(has "$(notice "python3 -c \"open('x','w')\"")" "$FULL")"
+SESSION=""
+judge "no session id: the full notice every time"                yes \
+  "$(has "$(notice "python3 -c \"open('x','w')\"")" "$FULL")"
+judge "  ... and again"                                          yes \
+  "$(has "$(notice "python3 -c \"open('x','w')\"")" "$FULL")"
+judge "a block is never deduplicated"                            deny \
+  "$(SESSION="sess-$$-a" bash_verdict "python3 -c \"open('yarn.lock','w')\"; echo x > yarn.lock")"
+judge "the markers live under the fixture TMPDIR, nowhere else" yes \
+  "$(exists "$TMPDIR/guard-sensitive-files")"
 
 harness_summary
