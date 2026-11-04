@@ -5,6 +5,63 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [5.3.1] — 2026-11-04
+
+### Security
+
+- **A GraphQL document is parsed, not scanned (#349).** `hooks/lib/pg_graphql.py` is a lexer
+  and parser for GraphQL executable documents: strings, block strings, comments, aliases,
+  variables and fragments, resolved transitively. The permission guard classifies a GraphQL
+  call by the root fields its operations run. A document the parser cannot resolve (a lex or
+  parse error, an undefined or cyclic fragment, an ambiguous operation set, a subscription,
+  an unmapped mutation field) is UNCLASSIFIED, which is R4.
+- **HTTP client calls are read from one option table per client (#349).**
+  `hooks/lib/pg_http.py` models curl, wget, httpie/xh and `gh api`: value options, attached
+  forms, clusters, curl `--next` groups and `--expand-*` templates, config files, and stdin
+  and `@file` bodies. Any option a table does not list makes the call unknown. The tables
+  are checked against the installed `curl --help all`, `gh api --help` and `wget --help`.
+- **Default-deny for non-GET GitHub calls (#349).** A non-GET request to a GitHub API host is
+  classified only when its method, path and body are all established. Anything else is
+  UNCLASSIFIED: an unknown request list, a route override, a body from a file, stdin or a
+  template, a client config file you can write (`~/.curlrc`, `~/.wgetrc`, httpie/xh
+  `config.json`), or a dot or empty segment, a percent escape or a backslash in the path.
+  So is an undecodable
+  body wherever the catalog reads the body to pick the id.
+- **gh short-option clusters are read as pflag reads them (#349).** `gh pr close 5 -dc bye`
+  deletes the branch, `gh pr review 5 -ab ok` approves, and `gh pr edit 5 -Bmain` changes the
+  base; the guard now sees each of them. `gh pr merge --auto -dt 5` and `--admin -dt 5` read
+  the current branch's PR, not PR 5.
+- **A curl or wget write to another host is `net.post.external` (#349).** Before, the guard
+  read `wget -e post_data=`, `-e method=` and getopt prefixes such as `--post-d=` as
+  `net.get`.
+- **httpie/xh `--form` with a typed item (`force:=true`) is unreadable (#349).** `pg_http`
+  reports its parameters as unknown instead of dropping the item.
+
+### Changed
+
+- **Cursor desktop asks instead of denying (ADR 004 D8).** From 3.28.7, a shell command the
+  guard would ask about on Claude Code is delivered as Cursor's `beforeShellExecution` `ask`.
+  The live run S2 measured that `ask` as an approval card in Auto-Review, Allowlist and Run
+  Everything. The `preToolUse` call before it answers no decision, because a `preToolUse`
+  `ask` is not enforced. These stay deny: the Cursor CLI (`--yolo` runs an ask unprompted,
+  S1), older desktop builds, `plugin-config.sh confirm`, MCP calls, and a session whose
+  environment names another host. In Allowlist mode the card does not show the guard's
+  reason.
+- **Fuzz suite.** `tests/test-permission-fuzz.sh` builds a seeded corpus of 2,200 mutating
+  and 287 benign GitHub calls from the grammars above. Every mutating call must ask or deny
+  and reach its id or UNCLASSIFIED, and every benign call must pass. Verdicts come from the
+  real resolver under a temp passwd home: the suite is listed in `TEST_SCRIPTS`.
+- **Cursor 3.28.7 validated.** `validated_against`, `reviewed_through`, `latest_known` and
+  `.cursor-version` move to 3.28.7 on the S2/S3 live run. No release notes exist for 3.28.
+  The GUI checks of issue #351 are recorded in `implementation-measurements.md`: S2 and S3
+  measured; U4 blocked because the screen was locked; S4 blocked because the account has no
+  Cursor Teams admin.
+- `gh api` with no endpoint is now UNCLASSIFIED (it was `repo.read`). A user-owned
+  `~/.curlrc`, `~/.wgetrc` or httpie/xh config makes a GitHub-bound call ask. A curl
+  `--unix-socket` or `--request-target` call to a host that is not GitHub, re-routed to
+  nothing that names GitHub, is now plain `net.get` or `net.post.external` (it was
+  UNCLASSIFIED): a local docker socket no longer asks.
+
 ## [5.3.0] — 2026-11-04
 
 ### Security
