@@ -6,6 +6,30 @@
         "hooks": [
           {
             "type": "command",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}\"/hooks/permission-guard.sh",
+            "timeout": 30,
+            "statusMessage": "Checking permission levels...",
+            "onFailure": "block"
+          }
+        ]
+      },
+      {
+        "matcher": "mcp__plugin_tamirs-superpowers_github__.*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}\"/hooks/permission-guard.sh",
+            "timeout": 30,
+            "statusMessage": "Checking permission levels...",
+            "onFailure": "block"
+          }
+        ]
+      },
+      {
+        "matcher": "Bash|Shell",
+        "hooks": [
+          {
+            "type": "command",
             "command": "bash \"${CLAUDE_PLUGIN_ROOT}\"/hooks/protect-other-branches.sh",
             "timeout": 15,
             "statusMessage": "Checking for concurrent agent work...",

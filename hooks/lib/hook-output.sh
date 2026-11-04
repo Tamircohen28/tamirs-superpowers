@@ -11,6 +11,7 @@
 #   hook_detect_platform "$HOOK_INPUT"     # HOOK_PLATFORM=claude|cursor|codex
 #   hook_allow
 #   hook_deny "reason"
+#   hook_ask "reason"                       # Claude only; a deny on every other host
 #   hook_additional_context "message"
 #   hook_stop_ok                            # Stop/SubagentStop: nothing to decide
 #
@@ -125,6 +126,31 @@ hook_deny() {
       '{hookSpecificOutput:{hookEventName:"PreToolUse",permissionDecision:"deny",permissionDecisionReason:$reason}}'
   fi
   exit 0
+}
+
+# hook_ask <reason> — PreToolUse: ask the human, on Claude Code only.
+#
+#   Claude Code honours a hook `ask` in every permission mode, bypass included,
+#   and turns it into a deny when no human is present (measured, ADR 004 D8,
+#   spike C4/U3). Every other host gets hook_deny with the same reason, because
+#   none of them can carry an ask from a plugin hook (ADR 004 D8):
+#     codex   an `ask` is rejected as unsupported and the call RUNS (fail open,
+#             source-cited X1);
+#     cursor  preToolUse drops `ask`, and beforeShellExecution's forced prompt is
+#             unused until spike S1 is measured;
+#     gemini  a hook `ask` hangs a headless run (G1), and hook input cannot tell
+#             headless from interactive. Under gemini-wrap.sh HOOK_PLATFORM reads
+#             claude (the payload is translated first), so Gemini is recognised by
+#             the GEMINI_SESSION_ID / GEMINI_PROJECT_DIR it exports to every hook;
+#             a variable that is wrongly present only turns an ask into a deny.
+hook_ask() {
+  local reason="$1"
+  if [[ "${HOOK_PLATFORM:-claude}" == "claude" && -z "${GEMINI_SESSION_ID:-}" && -z "${GEMINI_PROJECT_DIR:-}" ]]; then
+    jq -n --arg reason "$reason" \
+      '{hookSpecificOutput:{hookEventName:"PreToolUse",permissionDecision:"ask",permissionDecisionReason:$reason}}'
+    exit 0
+  fi
+  hook_deny "$reason"
 }
 
 hook_additional_context() {

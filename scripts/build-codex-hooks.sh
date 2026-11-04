@@ -35,7 +35,9 @@
 #     has no such field, so Codex cannot honour "block when the hook fails". The guards
 #     (worktree isolation, sensitive files, branch concurrency, Docker state) are
 #     therefore FAIL-OPEN on Codex: a guard that crashes or times out lets the action
-#     through. The Codex install doc says so.
+#     through. The Codex install doc says so. The permission guard (hooks/permission-guard.sh,
+#     ADR 004 D8) neutralises that itself: it traps every internal error to a deny and always
+#     exits 0 with valid JSON, so on Codex only a timeout or a kill still lets a call through.
 #
 # WHAT IS KEPT
 #   `${CLAUDE_PLUGIN_ROOT}` in every command: Codex exports it for compatibility, so
@@ -99,8 +101,9 @@ DESCRIPTION = (
     "loads the mod is left out. The events Codex has no equivalent for (" + ", ".join(DROPPED_EVENTS) +
     ") are left out. Claude's per-hook `onFailure` is left out because Codex's command hook "
     "has no such field, so every guard is fail-open on Codex: a guard that crashes or times "
-    "out lets the action through. ${CLAUDE_PLUGIN_ROOT} is kept because Codex exports it for "
-    "compatibility."
+    "out lets the action through. permission-guard.sh traps every internal error to a deny "
+    "itself (ADR 004 D8), so for it only a timeout or a kill is fail-open. ${CLAUDE_PLUGIN_ROOT} "
+    "is kept because Codex exports it for compatibility."
 )
 
 errors = []
