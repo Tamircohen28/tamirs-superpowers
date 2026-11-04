@@ -224,6 +224,50 @@ expect "env attempted widen (claude)" ask .level supervised
 TS_PERMISSION_LEVEL=unattended run "$H" pr.create --host gemini
 expect "env attempted widen (gemini)" ask .level supervised
 
+section "F10: env and option-store lowering also apply after a per-skill or per-group level"
+
+H="$(new_home)"; user_file "$H" '{"version": 1, "level": "standard", "skills": {"pr-dev": "unattended"}, "groups": {"repo": {"level": "unattended", "skills": ["cleanup"]}}}'
+run "$H" pr.close --host codex --skill pr-dev --cond own_pr_or_closes_ref_of_merged_pr=true
+expect "the skill's own level stands with nothing lower" allow .level unattended
+TS_PERMISSION_LEVEL=supervised run "$H" pr.create --host codex --skill pr-dev
+expect "TS_PERMISSION_LEVEL=supervised tightens a skill with its own entry" ask .level supervised
+judge "  ... level_source names the env and says lowering wins" yes "$(has "$(jf .level_source)" 'env:TS_PERMISSION_LEVEL (lowers the per-skill level')"
+CLAUDE_PLUGIN_OPTION_PERMISSION_LEVEL=standard run "$H" pr.close --host codex --skill pr-dev --cond own_pr_or_closes_ref_of_merged_pr=true
+expect "CLAUDE_PLUGIN_OPTION_PERMISSION_LEVEL=standard caps the skill at standard" ask .level standard
+TS_PERMISSION_LEVEL=supervised run "$H" pr.create --host codex --skill cleanup
+expect "  ... and a group level likewise" ask .level supervised
+claude_store "$H" standard
+run "$H" pr.close --host claude --skill pr-dev --cond own_pr_or_closes_ref_of_merged_pr=true
+expect "the Claude option store at standard caps the per-skill unattended" ask .level standard
+judge "  ... level_source names the store" yes "$(has "$(jf .level_source)" 'option_store:claude (lowers the per-skill level')"
+run "$H" pr.close --skill pr-dev --cond own_pr_or_closes_ref_of_merged_pr=true
+expect "  ... and with no --host (a store only lowers) too" ask .level standard
+H="$(new_home)"; user_file "$H" '{"version": 1, "level": "unattended", "skills": {"pr-dev": "supervised"}}'
+claude_store "$H" unattended
+run "$H" pr.create --host claude --skill pr-dev
+expect "a per-skill lowering still lowers (nothing raises it back)" ask .level supervised
+
+section "F7: a --host claim never skips another host's option store"
+
+H="$(new_home)"; user_file "$H" '{"version": 1, "level": "unattended"}'; claude_store "$H" supervised
+run "$H" pr.create --host gemini
+expect "--host gemini alone reads no Claude store (unattended)" allow .level unattended
+TAMIRS_PERMISSION_TEST_DETECTED_HOST=claude run "$H" pr.create --host gemini
+expect "--host gemini while the ancestry shows Claude Code: the stricter (Claude's store) stands" ask .level supervised
+warned "host disagreement" "this process runs under claude: resolved with the stricter"
+judge "  ... level_sources lists the host check" "disagrees claude" "$(jf '[.level_sources[] | select(.source=="host_check")][0] | "\(.state) \(.detected[0])"')"
+judge "  ... and the Claude store among the sources" supervised "$(jf '[.level_sources[] | select(.source=="option_store:claude")][0].level')"
+TAMIRS_PERMISSION_TEST_DETECTED_HOST=gemini run "$H" pr.create --host gemini
+expect "a claim the ancestry confirms changes nothing" allow .level unattended
+judge "  ... and lists no host check" 0 "$(jf '[.level_sources[] | select(.source=="host_check")] | length')"
+H="$(new_home)"; claude_store "$H" unattended
+TAMIRS_PERMISSION_TEST_DETECTED_HOST=codex run "$H" pr.create --host claude
+expect "--host claude under Codex: Claude's store raises only where it is the host (absent store elsewhere => supervised)" ask .level supervised
+TAMIRS_PERMISSION_TEST_DETECTED_HOST=codex,claude run "$H" pr.create --host claude
+expect "two detected hosts: every one counts" ask .level supervised
+run "$H" pr.create --host claude
+expect "with no other host detected the claim stands" allow .level unattended
+
 # ------------------------------------------------------------------ row 5
 section "row 5: user file skill_actions > actions > skills > groups; deny is final"
 
@@ -467,7 +511,8 @@ section "row 1: --perms= tickets (D4 row 1, D5; SR S-05, S-09, S-11)"
 
 # ticket <home> <kind> <level> [<json overrides>] [<ttl s>] [<created offset s>] — a ticket as the
 # writers render it (scripts/plugin-config.sh header): session s-1, agent main, host claude, skill
-# pr-dev, target {arg 42, repo github.com/you/app}, created now, 15 min (raise) or 24 h (lower).
+# pr-dev, target {arg 42, repo github.com/you/app}, created now, 15 min (raise) or 24 h (lower); a
+# raise carries state "active", as hooks/permission-approved.sh leaves it when it promotes one.
 # 0600 in a 0700 dir; prints its id.
 ticket() {
   local h="$1" d over="${4:-}"
@@ -485,6 +530,8 @@ u = lambda x: time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(x))
 tk = {"version": 1, "kind": kind, "id": tid, "skill": "pr-dev", "level": level,
       "target": {"arg": "42", "repo": "github.com/you/app"}, "session_id": "s-1", "agent": "main",
       "host": "claude", "created": u(t), "expires": u(t + ttl), "source": "plugin-config confirm (test)"}
+if kind == "raise":
+    tk["state"] = "active"   # promoted by the approved call's PostToolUse (D5 two-phase confirm)
 tk.update(json.loads(over))
 p = os.path.join(d, tid + ".json")
 with open(p, "w") as f:
@@ -646,6 +693,27 @@ H5="$(new_home)"; mkdir -p "$(tdir "$H5")"; chmod -R 700 "$H5/.local"
 printf '{"skill": "pr-dev", "level": "unattended"}\n' > "$(tdir "$H5")/t.json"
 run "$H5" pr.comment "${S1[@]}" --target you/app#42
 expect "a ticket-shaped file the writers never made raises nothing, and is no error" ask .level supervised
+
+# F7: when the --host claim and the detected host disagree, no raise ticket applies
+H5="$(new_home)"; ticket "$H5" raise standard >/dev/null
+TAMIRS_PERMISSION_TEST_DETECTED_HOST=gemini run "$H5" pr.comment "${S1[@]}" --target you/app#42
+expect "a raise ticket under a --host the ancestry contradicts raises nothing" ask
+warned "F7 ticket" "disagree (F7)"
+
+# two-phase confirm (D5, F1): only an ACTIVE raise counts; confirm on Claude Code merely stages one
+H5="$(new_home)"; ticket "$H5" raise standard '{"state": "staged"}' >/dev/null
+run "$H5" pr.comment "${S1[@]}" --target you/app#42
+expect "a staged raise ticket raises nothing" ask
+warned "staged" "not active (state 'staged')"
+H5="$(new_home)"; TK5="$(ticket "$H5" raise standard)"
+python3 -c 'import json,sys; p=sys.argv[1]; d=json.load(open(p)); d.pop("state"); open(p,"w").write(json.dumps(d))' "$(tdir "$H5")/$TK5.json"
+run "$H5" pr.comment "${S1[@]}" --target you/app#42
+expect "a raise ticket with no state raises nothing" ask
+warned "no state" "not active (state None)"
+H5="$(new_home)"; ticket "$H5" lower supervised '{"state": "staged"}' >/dev/null
+run "$H5" pr.comment "${S1[@]}" --target you/app#42
+expect "a lowering ticket with a state other than active is malformed" ask
+warned "lower staged" "malformed (state)"
 
 # lowering tickets: no provenance, every agent and target of the session, beat a raise (SR S-09)
 H6="$(new_home)"; user_file "$H6" '{"version": 1, "level": "standard", "actions": {"pr.review_request": "allow"}}'

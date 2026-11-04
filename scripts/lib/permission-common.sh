@@ -47,8 +47,12 @@
 #
 # TICKETS (D4 row 1, D5)
 #   <state>/tickets/<id>.json, the format in scripts/plugin-config.sh's header:
-#   kind "raise" from `plugin-config.sh confirm` (after a host prompt named skill,
-#   level, target and expiry), kind "lower" from hooks/permission-intent.sh. They
+#   kind "raise" from a confirmed --perms= request (after a host prompt named
+#   skill, level, target and expiry), kind "lower" from hooks/permission-intent.sh.
+#   A raise counts only with "state": "active": on Claude Code `confirm` merely
+#   stages it (<state>/staged/, never read here) and the host's PostToolUse on that
+#   very approved call (hooks/permission-approved.sh) promotes it (D5 two-phase
+#   confirm); a staged, unmarked or otherwise-marked raise is ignored. They
 #   are read only when the caller passes --session (the guard passes the hook's
 #   session_id and agent_id, "main" when it has none); another session's ticket
 #   is skipped. A RAISE applies to one call when all of these hold: the file and
@@ -70,6 +74,23 @@
 #   Expired, foreign and corrupt tickets are ignored with a warning; none of them
 #   is ever an error. The writers (scripts/plugin-config.sh, the prompt hook)
 #   prune expired ones (prune_tickets); --level lists the active lowerings.
+#
+# THE HOST CHECK (F7)
+#   --host is a claim (the guard derives it from the payload and env, which a
+#   repository can steer). The engine also reads its own process ancestry (with
+#   /bin/ps) for the nearest agent host above it, the one it runs under (an
+#   outer IDE whose terminal started that host does not count). When it differs
+#   from the claim, the level is the stricter of the answers for each (so naming
+#   Gemini never skips Claude's option store), both hosts' D9 floors apply, no
+#   raise ticket applies, and the answer warns and lists `host_check`. Without --host
+#   nothing changes (every store already only lowers). Under the accepted test
+#   root the ancestry is not read; TAMIRS_PERMISSION_TEST_DETECTED_HOST names the
+#   hosts instead.
+#
+# PER-SKILL LEVELS AND LOWERING (F10)
+#   A user-file skills.<s> or groups.<g> level replaces the global one, and then
+#   every option store and env level that is lower applies again: lowering always
+#   wins, so TS_PERMISSION_LEVEL=supervised tightens a skill with its own entry.
 #
 # HOST FLOORS (D9)
 #   Below its host's permissions_min (this plugin's platform-targets.json, else
@@ -524,6 +545,77 @@ def ps_line(pid):
         return int(parts[0]), (parts[1] if len(parts) > 1 else "")
     except ValueError:
         return None
+
+
+# ------------------------------------------------------------------ process ancestry (D5, D8; F1, F7)
+
+def process_chain():
+    """This engine's ancestry, nearest first: [(pid, ppid, args)], read with /bin/ps (never through PATH), and
+    whether the walk is complete: every hop read and pid 1 reached within 64 hops. The process itself is not
+    in it; its parent (the shell running the calling script) is the first entry."""
+    out, pid = [], os.getppid()
+    for _ in range(64):
+        if pid <= 1:
+            return out, True
+        got = ps_line(pid)
+        if got is None:
+            return out, False
+        ppid, args = got
+        out.append((pid, ppid, args))
+        pid = ppid
+    return out, False
+
+
+def host_of(args):
+    """The agent host a process's argument list is, or None: claude, claude-desktop, codex, cursor, gemini,
+    opencode, agy. Read from the program (and, for node/bun/deno, its script), never from other arguments."""
+    toks = args.split()
+    if not toks:
+        return None
+    if "/Claude.app/" in args:
+        return "claude-desktop"
+    if "/Cursor.app/" in args or "Cursor Helper" in args:
+        return "cursor"
+    if "/Antigravity.app/" in args:
+        return "agy"
+    progs = [os.path.basename(toks[0]).lstrip("-")]
+    if progs[0] in ("node", "nodejs", "bun", "deno") and len(toks) > 1:
+        progs.append(toks[1])
+    for p in progs:
+        b = os.path.basename(p)
+        if b in ("claude", "claude-code") or "/@anthropic-ai/claude-code/" in p:
+            return "claude"
+        if b == "codex" or "/@openai/codex/" in p:
+            return "codex"
+        if b == "gemini" or "/@google/gemini-cli/" in p:
+            return "gemini"
+        if b == "opencode" or "/opencode-ai/" in p or "/@opencode/" in p:
+            return "opencode"
+        if b in ("cursor-agent", "cursor"):
+            return "cursor"
+        if b == "agy":
+            return "agy"
+    return None
+
+
+DETECT_AS = {"claude": "claude", "claude-desktop": "claude", "codex": "codex", "cursor": "cursor",
+             "gemini": "gemini", "opencode": "opencode"}
+TEST_DETECTED_HOST_ENV = "TAMIRS_PERMISSION_TEST_DETECTED_HOST"
+
+
+def detected_hosts(home_source):
+    """F7: the host this process really runs under, from its ancestry, as a --host name in a list of at most
+    one: the NEAREST agent host above it (the one whose hook or tool call this is; an outer IDE whose terminal
+    started that host, such as Cursor's, is not it). The desktop app reads as claude; Antigravity is no target.
+    Under the accepted test root the ancestry is not read, because a suite may itself run under an agent:
+    TAMIRS_PERMISSION_TEST_DETECTED_HOST (comma-separated) names the hosts instead."""
+    if home_source == "test-root":
+        return [h for h in (os.environ.get(TEST_DETECTED_HOST_ENV) or "").split(",") if h in HOSTS]
+    for _, _, args in process_chain()[0]:
+        h = host_of(args)
+        if h:
+            return [DETECT_AS[h]] if h in DETECT_AS else []
+    return []
 
 
 def runs_test_script(args):
@@ -1097,8 +1189,17 @@ def read_ticket(path, name):
         created, expires = parse_utc(doc.get("created")), parse_utc(doc.get("expires"))
         if created is None or expires is None or expires <= created:
             raise ValueError("created or expires")
+        state = doc.get("state")
+        if doc["kind"] == "lower" and state not in (None, "active"):
+            raise ValueError("state")
     except ValueError as e:
         return None, "malformed (%s)" % e
+    if doc["kind"] == "raise" and state != "active":
+        # Two-phase confirm (D5, F1): `confirm` only stages a raise; the host's PostToolUse on that very,
+        # approved call (hooks/permission-approved.sh) promotes it to active. A staged or unmarked raise is no
+        # grant, wherever it sits.
+        return None, "a raise ticket that is not active (state %r): only the PostToolUse of the approved " \
+                     "confirm call promotes one (D5)" % (state,)
     repo = tg.get("repo")
     probs = list(r["problems"]) + (["%s is a symbolic link" % path] if os.path.islink(path) else [])
     return {"id": doc["id"], "kind": doc["kind"], "level": doc["level"], "skill": sk, "session_id": sid,
@@ -1450,18 +1551,19 @@ def cached_probe(ctx, host, path):
     return have, line, why
 
 
-def host_floor(ctx):
+def host_floor(ctx, host=None):
     """D9, evaluated only when an answer would be looser than supervised (so no call at supervised ever probes):
     {state: below | meets | unknown | skipped, ...}. below => every level above supervised runs as supervised;
     unknown (no binary, a timeout, no version, no recorded floor) => no clamp and a warning (D9: a warning only).
     Under the accepted test root the probe is skipped unless TAMIRS_PERMISSION_TEST_HOST_VERSION names the
     --version line to read (or `probe`, the real one), so no suite ever runs a real host CLI by accident."""
-    if ctx.get("floor") is not None:
-        return ctx["floor"]
-    host = ctx["host"]
+    host = ctx["host"] if host is None else host
+    cache = ctx.setdefault("floors", {})
+    if host in cache:
+        return cache[host]
     out = {"state": "skipped", "host": host, "bin": None, "have": None, "floor": None, "floor_source": None,
            "why": None}
-    ctx["floor"] = out
+    cache[host] = out
     if host not in FLOOR_PROBES:
         out["why"] = "no --host: the host version is not checked"
         return out
@@ -1504,7 +1606,18 @@ def host_floor(ctx):
 
 
 def floor_clamps(ctx):
-    return host_floor(ctx)["state"] == "below"
+    """D9 for every host the call may run under (F7: the --host claim and any other host the ancestry shows):
+    one below its floor clamps. ctx["floor"] is the floor that decided, for the messages and level_sources."""
+    first = None
+    for h in ctx.get("hosts") or [ctx["host"]]:
+        f = host_floor(ctx, h)
+        if first is None:
+            first = f
+        if f["state"] == "below":
+            ctx["floor"] = f
+            return True
+    ctx["floor"] = first
+    return False
 
 
 # ------------------------------------------------------------------ the D4 chain
@@ -1609,20 +1722,33 @@ def group_level(doc, skill, category, base, who):
 
 
 def view_level(ctx, user_doc, force_supervised):
+    """Rows 5-7 for one view of the user file. D3: the lower of the option store and the user file `level`, an
+    absent source skipped; with no --host a store only lowers. F7: with --host, one answer per host the call may
+    run under (the claim and any other host its ancestry shows), the stricter standing, so a host claim never
+    skips a store. Then the per-skill or per-group level of the user file. F10: the option stores and the env
+    levels LOWER again after it, so `TS_PERMISSION_LEVEL=supervised` (or a store at standard) also tightens a
+    skill that has its own entry: lowering always wins."""
     if force_supervised:
         return "supervised", "user_file invalid (D3 fail closed)"
-    present = []
+    ulv = user_doc.get("level") if user_doc is not None else None
+    stores = ctx.get("stores") or []
     if ctx["host"] is not None:
-        present += [(s["source"], s["level"]) for s in ctx["stores"] if s["level"]]
-    if user_doc is not None and user_doc.get("level"):
-        present.append(("user_file.level", user_doc["level"]))
-    if present:
-        lv = lowest(*[x for _, x in present])
-        src = next(n for n, x in present if x == lv)
+        best = None
+        for ss in ctx.get("store_sets") or [stores]:
+            present = [(s["source"], s["level"]) for s in ss if s["level"]]
+            if ulv:
+                present.append(("user_file.level", ulv))
+            if present:
+                lv = lowest(*[x for _, x in present])
+                got = (lv, next(n for n, x in present if x == lv))
+            else:
+                got = ("supervised", "default")
+            if best is None or is_lower(got[0], best[0]):
+                best = got
+        lv, src = best
     else:
-        lv, src = "supervised", "default"
-    if ctx["host"] is None:
-        for s in ctx["stores"]:
+        lv, src = (ulv, "user_file.level") if ulv else ("supervised", "default")
+        for s in stores:
             if s["level"] and is_lower(s["level"], lv):
                 lv, src = s["level"], s["source"] + " (no --host: lowering only)"
     for e in ctx["envs"]:
@@ -1632,6 +1758,12 @@ def view_level(ctx, user_doc, force_supervised):
         glv, gsrc = group_level(user_doc, ctx["skill"], ctx["category"], lv, "user")
         if gsrc:
             lv, src = glv, gsrc
+            for s in stores:
+                if s["level"] and is_lower(s["level"], lv):
+                    lv, src = s["level"], s["source"] + " (lowers the per-skill level: lowering always wins)"
+            for e in ctx["envs"]:
+                if is_lower(e["level"], lv):
+                    lv, src = e["level"], e["source"] + " (lowers the per-skill level: lowering always wins)"
     return lv, src
 
 
@@ -1850,7 +1982,17 @@ def build_ctx(o):
     ctx = {"cat": cat, "schema": schema, "home": home, "home_source": home_src, "host": o["host"],
            "skill": o["skill"], "category": skill_category(o["skill"]), "conds": o["conds"],
            "headless": o["headless"], "target": o["target"], "raised_by": [], "floor": None, "session": None}
-    ctx["stores"] = option_stores(home, o["host"])
+    # F7: a --host claim is checked against the hosts the ancestry shows. When they disagree the level is the
+    # stricter of the two answers (view_level), their floors all apply and no raise ticket applies, so naming
+    # another host (a guard misled by a repository env such as GEMINI_SESSION_ID) never skips Claude's store.
+    ctx["detected_hosts"] = detected_hosts(home_src) if o["host"] else []
+    others = [h for h in ctx["detected_hosts"] if h != o["host"]]
+    ctx["hosts"] = ([o["host"]] + others) if o["host"] else []
+    if others:
+        warn("--host %s, but this process runs under %s: resolved with the stricter of the two, so a host claim "
+             "never skips an option store (ADR 004 D3)" % (o["host"], " and ".join(others)))
+    ctx["store_sets"] = [option_stores(home, h) for h in ctx["hosts"]] if o["host"] else [option_stores(home, None)]
+    ctx["stores"] = [s for ss in ctx["store_sets"] for s in ss]
     ctx["envs"] = env_levels()
     ctx["user"] = load_user(home, schema)
     ctx["repo"] = repo_info(o["repo"])
@@ -1864,6 +2006,12 @@ def build_ctx(o):
     ctx["session"] = o["session"]
     ctx["agent"] = (o["agent"] or "main") if o["session"] else o["agent"]
     ctx["tickets"] = load_tickets(home, o)
+    if others and ctx["tickets"]["raise"]:
+        for tk in ctx["tickets"]["raise"]:
+            warn("raise ticket %s ignored: the call's --host %s and the host it runs under (%s) disagree (F7)"
+                 % (tk["id"], o["host"], ", ".join(others)))
+        ctx["tickets"]["ignored"] += len(ctx["tickets"]["raise"])
+        ctx["tickets"]["raise"] = []
     gr = os.environ.get("GH_REPO")
     base = normalize_slug(gr) if gr else (ctx["repo"]["origin"] if ctx["repo"] else None)
     ctx["call_target"] = parse_target(o["target"], base)
@@ -1904,6 +2052,10 @@ def level_sources(ctx):
     out.append(dict((k, u.get(k)) for k in ("source", "path", "state", "level", "lock", "reason")
                     if u.get(k) is not None))
     out += ctx["envs"]
+    others = [h for h in ctx.get("detected_hosts") or [] if h != ctx["host"]]
+    if others:
+        out.append({"source": "host_check", "state": "disagrees", "host": ctx["host"], "detected": others,
+                    "reason": "the ancestry shows %s: the stricter answer stands (F7)" % ", ".join(others)})
     pf = ctx["project"]
     if pf.get("path"):
         e = {"source": "project_file", "path": pf["path"], "state": pf["state"]}

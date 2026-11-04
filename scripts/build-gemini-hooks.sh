@@ -89,6 +89,13 @@
 #                     is dropped, never mapped onto a tool it was not measured on; a
 #                     group whose every token is dropped is left out, and a group
 #                     mixing it with a mapped token keeps the mapped ones.
+#   dropped hooks     hooks/permission-approved.sh (DROPPED_SCRIPTS), phase 2 of the
+#                     Claude Code two-phase confirm (ADR 004 D5): it promotes what
+#                     `plugin-config.sh confirm` STAGED on the Claude dialog, bound to
+#                     the call's tool_use_id. On Gemini the confirm's channel is the
+#                     static ask_user rule and confirm writes at once, so nothing is
+#                     staged there for an AfterTool to promote. A group left with no
+#                     hook is dropped.
 #   Any other Claude event, matcher token or per-hook key is an error (exit 2),
 #   so a new canonical entry cannot ship to Gemini half-translated.
 #
@@ -187,6 +194,11 @@ MCP_MATCHERS = {
 # for the host-recorded skill (ADR 004 D5). Gemini's activate_skill payload is not
 # translated by gemini-wrap.sh, so the token is dropped rather than mapped.
 DROPPED_MATCHER_TOKENS = {"Skill"}
+# Hooks that are Claude Code's alone, by script (see "dropped hooks" in THE MAPPING above).
+DROPPED_SCRIPTS = {
+    "hooks/permission-approved.sh": "phase 2 of the Claude Code two-phase confirm (ADR 004 D5); Gemini's confirm "
+                                    "is one-phase (the static ask_user rule), so nothing is staged to promote",
+}
 DROP_GROUP = object()
 
 errors = []
@@ -273,6 +285,9 @@ for event, groups in hooks_in.items():
                 err("%s: command %r is not `<bash|python3> \"${CLAUDE_PLUGIN_ROOT}\"/<script>`" % (event, h.get("command")))
                 continue
             interp, rel = m.group(1), m.group(2)
+            if rel in DROPPED_SCRIPTS:
+                dropped.append("%s[%s]" % (event, rel))
+                continue
             if not os.path.isfile(os.path.join(root, rel)):
                 err("%s: command names %s, which does not exist in this tree" % (event, rel))
             if (interp == "python3") != rel.endswith(".py"):
@@ -305,7 +320,9 @@ DESCRIPTION = (
     "`bash scripts/build-gemini-hooks.sh .`. Gemini CLI reads only the `hooks` object of an extension's "
     "hooks/hooks.json (this key is ignored). Events: PreToolUse->BeforeTool, PostToolUse->AfterTool, "
     "UserPromptSubmit->BeforeAgent, Stop->AfterAgent, PreCompact->PreCompress; SessionStart, SessionEnd "
-    "and Notification by name; " + ", ".join(DROPPED_EVENTS) + " have no Gemini event and are left out. "
+    "and Notification by name; " + ", ".join(DROPPED_EVENTS) + " have no Gemini event and are left out, and so "
+    "are the Claude-only hooks (" + ", ".join(sorted(DROPPED_SCRIPTS)) + ": the two-phase confirm stages nothing "
+    "on Gemini). "
     "Every command runs the canonical hook through hooks/gemini-wrap.sh, which translates the payload "
     "(write_file->Write, replace->Edit, run_shell_command->Bash) and the answer ({decision:deny,reason} / "
     "{} / hookSpecificOutput.additionalContext or systemMessage). Timeouts are milliseconds. Claude's "

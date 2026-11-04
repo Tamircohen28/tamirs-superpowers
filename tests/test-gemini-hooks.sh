@@ -110,6 +110,17 @@ judge "...and the group keeps only the mapped token" '^(run_shell_command)$' \
   "$(jq -r '.hooks.BeforeTool[0].matcher' "$C/platforms/gemini/hooks.json")"
 judge "the Skill-only group is left out (no permission-intent on BeforeTool)" 0 \
   "$(jq '[.hooks.BeforeTool[].hooks[] | select(.command | test("permission-intent"))] | length' "$ROOT/platforms/gemini/hooks.json")"
+judge "the Claude-only permission-approved.sh (two-phase confirm, ADR 004 D5) is left out" 0 \
+  "$(jq '[.hooks[][].hooks[] | select(.command | test("permission-approved"))] | length' "$ROOT/platforms/gemini/hooks.json")"
+judge "  ... while hooks/hooks.json wires it on PostToolUse Bash" 1 \
+  "$(jq '[.hooks.PostToolUse[] | select(.matcher == "Bash") | .hooks[] | select(.command | test("permission-approved"))] | length' "$ROOT/hooks/hooks.json")"
+judge "  ... and the generated description says why" yes \
+  "$(jq -r .description "$ROOT/platforms/gemini/hooks.json" | grep -q 'permission-approved.sh: the two-phase confirm stages nothing' && echo yes || echo no)"
+C="$TMP/approved-only"; make_copy "$C"
+edit_json "$C/hooks/hooks.json" '.hooks.PostToolUse = [.hooks.PostToolUse[] | select(.matcher == "Bash")]'
+assert_exit "a group holding only a dropped script is not an error" 0 bash "$GEN" "$C"
+judge "  ... and leaves no empty AfterTool group behind" 0 \
+  "$(jq '[.hooks.AfterTool // [] | .[] | select((.hooks | length) == 0)] | length' "$C/platforms/gemini/hooks.json")"
 
 C="$TMP/bad-script"; make_copy "$C"
 edit_json "$C/hooks/hooks.json" '.hooks.Stop[0].hooks[0].command = "bash \"${CLAUDE_PLUGIN_ROOT}\"/hooks/does-not-exist.sh"'
@@ -176,8 +187,9 @@ judge "every hook is type command" 0 "$(jq '[.hooks[][].hooks[] | select(.type !
 # Every canonical hook outside the events Gemini has no counterpart for is carried over,
 # the GitHub MCP group included (mapped onto mcp_github_<tool>, ADR 004 D8). A group whose
 # every matcher token is in build-gemini-hooks.sh's DROPPED_MATCHER_TOKENS (today `Skill`,
-# Claude Code's skill-activation tool: no Gemini counterpart this plugin uses) is left out.
-n_canon="$(jq '[.hooks | to_entries[] | select(.key | IN("WorktreeCreate","WorktreeRemove","DirectoryAdded","StopFailure","SubagentStop","TaskCompleted","TeammateIdle","UserPromptExpansion") | not) | .value[] | select(.matcher != null and (.matcher | split("|") | map(gsub("^\\s+|\\s+$"; "")) | all(. == "Skill")) | not) | .hooks[]] | length' "$ROOT/hooks/hooks.json")"
+# Claude Code's skill-activation tool: no Gemini counterpart this plugin uses) is left out, and so is
+# every hook in its DROPPED_SCRIPTS (today hooks/permission-approved.sh, the Claude-only two-phase confirm).
+n_canon="$(jq '[.hooks | to_entries[] | select(.key | IN("WorktreeCreate","WorktreeRemove","DirectoryAdded","StopFailure","SubagentStop","TaskCompleted","TeammateIdle","UserPromptExpansion") | not) | .value[] | select(.matcher != null and (.matcher | split("|") | map(gsub("^\\s+|\\s+$"; "")) | all(. == "Skill")) | not) | .hooks[] | select(.command | test("hooks/permission-approved\\.sh") | not)] | length' "$ROOT/hooks/hooks.json")"
 n_gem="$(jq '[.hooks[][].hooks[]] | length' "$HOOKS")"
 judge "every canonical hook outside the dropped events is carried over ($n_canon)" "$n_canon" "$n_gem"
 
