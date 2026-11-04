@@ -381,7 +381,7 @@ else
       if [[ "$bin" == claude ]] && ver_lt "$have" 2.1.271; then
         warnv "  ... and below 2.1.271 the install dialog's permission_level options picker does not load (C2): use scripts/plugin-config.sh"
       fi
-      echo "          remedy: upgrade $label to $fv or later; until then keep the level at supervised (/plugin-config supervised) — the resolver does not clamp it yet"
+      echo "          remedy: upgrade $label to $fv or later; until then every level above supervised runs as supervised there (the resolver's ADR 004 D9 clamp)"
       MISSING+=("permission levels on $label $have: below the floor $fv — upgrade, or stay at supervised")
     else
       ok "permission levels: $label $have meets the floor $fv"
