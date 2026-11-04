@@ -13,7 +13,10 @@
 #       seconds) — so the shape is asserted field by field;
 #     - the wrapper's two translations silently stop matching the canonical
 #       hooks' dialect — so a real guard is run on a real Gemini-shaped payload
-#       and its decision read back, plus synthetic hooks for every envelope.
+#       and its decision read back, plus synthetic hooks for every envelope:
+#       the bundled GitHub MCP server's mcp_github_<tool> calls become the
+#       Claude names, another server's tools keep theirs, and an ask from any
+#       hook leaves as a deny (a hook ask hangs a headless run, ADR 004 D8).
 #
 # Runs without a Gemini binary. Needs jq, git and python3 >= 3.11 (tomllib).
 # Exit 0 if all pass, 1 otherwise.
@@ -138,8 +141,8 @@ judge "no Claude tool name survives in a matcher" "" \
   "$(jq -r '.hooks[][] | .matcher // empty' "$HOOKS" | grep -E 'Bash|Edit|Write|Shell|Notebook|StrReplace' || true)"
 judge "every tool matcher is anchored" "" \
   "$(jq -r '(.hooks.BeforeTool + .hooks.AfterTool)[] | .matcher // empty' "$HOOKS" | grep -vE '^\^\(.*\)\$$' || true)"
-judge "tool matchers name only write_file/replace/run_shell_command" "" \
-  "$(jq -r '(.hooks.BeforeTool + .hooks.AfterTool)[] | .matcher // empty' "$HOOKS" | sed 's/[\^()$]//g' | tr '|' '\n' | sort -u | grep -vE '^(write_file|replace|run_shell_command)$' || true)"
+judge "tool matchers name only write_file/replace/run_shell_command and the bundled GitHub MCP server" "" \
+  "$(jq -r '(.hooks.BeforeTool + .hooks.AfterTool)[] | .matcher // empty' "$HOOKS" | sed 's/[\^()$]//g' | tr '|' '\n' | sort -u | grep -vxF -e write_file -e replace -e run_shell_command -e 'mcp_github_[A-Za-z0-9_.:-]+' || true)"
 judge "lifecycle groups carry no matcher (Gemini compares those as exact strings)" "" \
   "$(jq -r '(.hooks.AfterAgent + .hooks.BeforeAgent + .hooks.SessionStart + .hooks.SessionEnd + .hooks.Notification + .hooks.PreCompress)[] | .matcher // empty' "$HOOKS")"
 
@@ -162,10 +165,9 @@ judge "every timeout is a whole number of seconds expressed in milliseconds" "" 
 judge "every hook has a name" 0 "$(jq '[.hooks[][].hooks[] | select(.name == null or .name == "")] | length' "$HOOKS")"
 judge "hook names are unique" "" "$(jq -r '.hooks[][].hooks[].name' "$HOOKS" | sort | uniq -d)"
 judge "every hook is type command" 0 "$(jq '[.hooks[][].hooks[] | select(.type != "command")] | length' "$HOOKS")"
-# MCP-name matcher groups (mcp__...) are skipped by build-gemini-hooks.sh on purpose:
-# Gemini names MCP tools mcp_<server>_<tool>, so a carried-over matcher would match
-# nothing and the guard would allow every call (ADR 004 D8).
-n_canon="$(jq '[.hooks | to_entries[] | select(.key | IN("WorktreeCreate","WorktreeRemove","DirectoryAdded","StopFailure","SubagentStop","TaskCompleted","TeammateIdle") | not) | .value[] | select((.matcher // "") | startswith("mcp__") | not) | .hooks[]] | length' "$ROOT/hooks/hooks.json")"
+# Every canonical hook outside the events Gemini has no counterpart for is carried over,
+# the GitHub MCP group included (mapped onto mcp_github_<tool>, ADR 004 D8).
+n_canon="$(jq '[.hooks | to_entries[] | select(.key | IN("WorktreeCreate","WorktreeRemove","DirectoryAdded","StopFailure","SubagentStop","TaskCompleted","TeammateIdle","UserPromptExpansion") | not) | .value[] | .hooks[]] | length' "$ROOT/hooks/hooks.json")"
 n_gem="$(jq '[.hooks[][].hooks[]] | length' "$HOOKS")"
 judge "every canonical hook outside the dropped events is carried over ($n_canon)" "$n_canon" "$n_gem"
 
@@ -272,6 +274,21 @@ for pair in "BeforeAgent UserPromptSubmit" "AfterAgent Stop" "PreCompress PreCom
   set -- $pair
   judge "$1 -> $2" "$2" "$(gemini_translate_input "$(jq -n --arg e "$1" '{hook_event_name:$e}')" | jq -r .hook_event_name)"
 done
+GH='mcp__plugin_tamirs-superpowers_github__'
+t="$(gemini_translate_input "$(jq -n '{hook_event_name:"BeforeTool", tool_name:"mcp_github_merge_pull_request", tool_input:{pullNumber:5},
+  mcp_context:{server_name:"github", tool_name:"merge_pull_request", command:"bash"}}')")"
+judge "the bundled server's tool (mcp_context github) -> the Claude name" "${GH}merge_pull_request" "$(jq -r .tool_name <<<"$t")"
+judge "...its arguments untouched, the Gemini name kept beside it" '5 mcp_github_merge_pull_request' "$(jq -r '"\(.tool_input.pullNumber) \(.gemini_tool_name)"' <<<"$t")"
+t="$(gemini_translate_input "$(jq -n '{tool_name:"mcp_github_some_long_name_here", mcp_context:{server_name:"github", tool_name:"create_pull_request"}}')")"
+judge "the server's own tool name (mcp_context.tool_name) decides, not the call name" "${GH}create_pull_request" "$(jq -r .tool_name <<<"$t")"
+t="$(gemini_translate_input "$(jq -n '{tool_name:"mcp_github_get_me", tool_input:{}}')")"
+judge "no mcp_context: an mcp_github_<tool> name maps by name" "${GH}get_me" "$(jq -r .tool_name <<<"$t")"
+t="$(gemini_translate_input "$(jq -n '{tool_name:"mcp_github_enterprise_merge", mcp_context:{server_name:"github_enterprise", tool_name:"merge"}}')")"
+judge "another server whose name starts the same way keeps its own name" mcp_github_enterprise_merge "$(jq -r .tool_name <<<"$t")"
+t="$(gemini_translate_input "$(jq -n '{tool_name:"mcp_context7_query-docs", mcp_context:{server_name:"context7", tool_name:"query-docs"}}')")"
+judge "an unrelated server's tool passes through" mcp_context7_query-docs "$(jq -r .tool_name <<<"$t")"
+t="$(gemini_translate_input "$(jq -n '{tool_name:"mcp_github_", tool_input:{}}')")"
+judge "mcp_github_ with no tool name is not translated" mcp_github_ "$(jq -r .tool_name <<<"$t")"
 judge "gemini_is_gemini: GEMINI_SESSION_ID in the environment" 0 "$(GEMINI_SESSION_ID=x gemini_is_gemini '{}'; echo $?)"
 judge "gemini_is_gemini: a Gemini-only event name in the payload" 0 "$(gemini_is_gemini '{"hook_event_name":"BeforeTool"}'; echo $?)"
 judge "gemini_is_gemini: a Claude payload with no Gemini env is not Gemini" 1 "$(gemini_is_gemini '{"hook_event_name":"PreToolUse"}'; echo $?)"
@@ -297,7 +314,13 @@ P_AGENT='{"hook_event_name":"BeforeAgent","prompt":"p"}'
 P_STOP='{"hook_event_name":"AfterAgent","prompt":"p","prompt_response":"r","stop_hook_active":false}'
 P_START='{"hook_event_name":"SessionStart","source":"startup"}'
 judge "permissionDecision deny -> decision deny + reason" '{"decision":"deny","reason":"no"}' "$(wrapf deny.sh "$P_TOOL")"
-judge "permissionDecision ask -> decision ask" '{"decision":"ask","reason":"sure?"}' "$(wrapf ask.sh "$P_TOOL")"
+judge "permissionDecision ask -> decision deny with the same reason (an ask hangs headless, G1)" '{"decision":"deny","reason":"sure?"}' "$(wrapf ask.sh "$P_TOOL")"
+mk ask2.sh   "printf '%s\n' '{\"decision\":\"ask\",\"reason\":\"top-level?\"}'"
+judge "a top-level decision ask -> decision deny, same reason" '{"decision":"deny","reason":"top-level?"}' "$(wrapf ask2.sh "$P_TOOL")"
+mk ask3.sh   "printf '%s\n' '{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"permissionDecision\":\"ask\"}}'"
+judge "an ask with no reason -> a deny that says why" yes "$(has "$(wrapf ask3.sh "$P_TOOL" | jq -r 'select(.decision == "deny") | .reason')" "cannot carry")"
+judge "no answer of the wrapper carries decision ask" "" \
+  "$(for h in ask.sh ask2.sh ask3.sh deny.sh block.sh; do wrapf "$h" "$P_TOOL"; done | jq -r 'select(.decision == "ask") | .decision')"
 judge "Stop decision block -> AfterAgent deny with the reason" '{"decision":"deny","reason":"keep going"}' "$(wrapf block.sh "$P_STOP")"
 judge "additionalContext on BeforeAgent -> hookSpecificOutput with its hookEventName" \
   '{"hookSpecificOutput":{"hookEventName":"BeforeAgent","additionalContext":"hint"}}' "$(wrapf ctx.sh "$P_AGENT")"

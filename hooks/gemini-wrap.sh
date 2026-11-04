@@ -17,11 +17,20 @@
 #
 # WHAT IT DOES
 #   1. Reads the Gemini payload and rewrites it to Claude's shape
-#      (hooks/lib/gemini-output.sh: gemini_translate_input).
+#      (hooks/lib/gemini-output.sh: gemini_translate_input), including the
+#      bundled GitHub MCP server's tools (mcp_github_<tool> -> the Claude name
+#      mcp__plugin_tamirs-superpowers_github__<tool> that permission-guard.sh
+#      reads); another server's tool keeps its own name.
 #   2. Runs the hook on that payload, with CLAUDE_PLUGIN_ROOT set to the
 #      extension root for any hook that resolves a sibling through it.
 #   3. Rewrites the hook's stdout into Gemini's envelope (gemini_translate_output),
 #      forwards the hook's stderr unchanged, and prints EXACTLY ONE JSON object.
+#      An `ask` from the hook leaves as a deny with the same reason, never as
+#      Gemini's own ask: a hook ask hangs a headless run and hook input cannot
+#      tell headless from interactive (ADR 004 D8, measured G1). The canonical
+#      guards already answer deny on Gemini; this is the belt for any hook that
+#      would not (one that reads HOOK_PLATFORM=claude from the translated
+#      payload with the GEMINI_* environment missing).
 #   4. Always exits 0. Gemini treats every non-zero exit except 1 as a deny; a
 #      canonical hook's exit 2 is a block (translated to decision:deny with its
 #      stderr as the reason) and any other non-zero exit is a non-blocking error
