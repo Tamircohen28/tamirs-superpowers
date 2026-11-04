@@ -29,7 +29,8 @@
 #                       a catalog condition the caller established (repeatable). A
 #                       raise or invariant deny applies unless its condition is
 #                       established false; a precondition holds only when true.
-#   --level             print the effective level and its sources instead
+#   --level             print the effective level, its sources and the active
+#                       lowering tickets (this session's with --session) instead
 #   --explain           a readable trace instead of JSON (with --json: JSON + trace)
 #   --json              JSON output (the default)
 #
@@ -66,6 +67,9 @@
 #      an absent source is skipped. TS_PERMISSION_LEVEL and
 #      CLAUDE_PLUGIN_OPTION_PERMISSION_LEVEL only lower it.
 #   7  supervised
+#   D9: with --host, a host CLI below its permissions_min floor runs every level
+#   above supervised as supervised (an unknown version only warns): the HOST
+#   FLOORS block of scripts/lib/permission-common.sh.
 #   An unknown action id is UNCLASSIFIED: R4. Where the files live and how they
 #   are checked: scripts/lib/permission-common.sh.
 #

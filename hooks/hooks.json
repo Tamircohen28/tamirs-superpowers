@@ -26,6 +26,16 @@
         ]
       },
       {
+        "matcher": "Skill",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}\"/hooks/permission-intent.sh",
+            "timeout": 10
+          }
+        ]
+      },
+      {
         "matcher": "Bash|Shell",
         "hooks": [
           {

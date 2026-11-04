@@ -132,7 +132,9 @@ Every action the plugin can take has an id and a risk class R0–R4 in
 changes this checkout, R2 is visible but routine (push your own branch, open a PR,
 comment), R3 is hard to undo or merges and deletes, R4 is never automatic (releases,
 tags, creating or deleting a repository, branch protection, host and policy config,
-spawning another agent host). An action the catalog does not know is R4.
+spawning another agent host, typing into a terminal: `tmux send-keys` with any global
+option, `cmux send`, `wezterm cli send-text`, `kitty @ send-text`, `zellij action write`,
+`osascript` keystrokes, `xdotool`). An action the catalog does not know is R4.
 
 | class | `supervised` (default) | `standard` | `unattended` |
 |---|---|---|---|
@@ -156,7 +158,8 @@ never merges directly on its own.
 
 **No human present, no ask.** A headless run (`claude -p`, CI, a host that cannot carry an
 ask) turns every ask into a deny, and the deny names the setting that would allow it — the
-once-only route and the durable one, or, for R4, that no setting allows it automatically.
+durable one (no host ships a one-run `--perms=` raise today, see below), or, for R4, that no
+setting allows it automatically.
 
 **The R4 rule.** An R4 action is allowed only by the host's own permission prompt on that
 very call, which shows the action, the target and its effect. No level, file, `--perms=`
@@ -188,9 +191,8 @@ leaves an existing file alone.
 Claude install that chose `unattended` with no user file runs `unattended`, while
 `unattended` in the option and `standard` in the file runs `standard`. Neither ⇒
 `supervised`. A host below its permission floor (see [What is enforced
-where](#what-is-enforced-where)) should run every level as `supervised`: `make doctor` warns
-about it, but the resolver does not clamp the level yet, so keep an older host at
-`supervised`.
+where](#what-is-enforced-where)) runs every level as `supervised`: the resolver clamps it and
+says so in the answer, and `make doctor` warns about it.
 
 ### The files
 
@@ -198,7 +200,7 @@ about it, but the resolver does not clamp the level yet, so keep an older host a
 |---|---|---|
 | `~/.config/tamirs-superpowers/permissions.json` (0600, dir 0700) | your level, per-skill and per-group levels, per-action `allow`/`ask`/`deny`, repo trust entries | `/plugin-config`, `scripts/plugin-config.sh`, `setup.sh` |
 | `~/.config/tamirs-superpowers/permissions.lock` | `{sha256, by, at}` of the file above | the same writer |
-| `~/.local/state/tamirs-superpowers/` | short-lived pending records, tickets and call stamps | the writer and the prompt hook |
+| `~/.local/state/tamirs-superpowers/` | short-lived pending records, tickets, call stamps, the active-skill contexts (`intent/`) and the cached host-version probe (`hostver/`) | the writer, the prompt hook, the guard and the resolver |
 | `<repo>/.tamirs-superpowers/permissions.json` | a committable project file: tightens, and may widen only auto-merge once trusted | you, by hand |
 
 `~` here is your account's home from the passwd entry, never the session's `HOME` or
@@ -237,7 +239,9 @@ is ignored with a warning naming the durable setting.
 The command runs only when you type it — never on the model's own initiative. Every change
 goes through one writer, [`scripts/plugin-config.sh`](../../scripts/plugin-config.sh), which
 validates, writes atomically and re-locks. `show` prints each value with its source and
-whether the file still matches its lock.
+whether the file still matches its lock, the pending requests, and the active lowering
+tickets of every session. Every run of the writer also deletes expired tickets (the resolver
+ignores an expired ticket either way).
 
 The writer compares every action's decision before and after the change:
 
@@ -277,16 +281,23 @@ permission guard applies the resulting ticket on every call it judges
   command, for the whole session on Codex and Gemini — on every agent and target, and over
   any raise. Cursor and OpenCode have no prompt hook for it; there only a skill's own check
   reads the token.
-- **Raising** has a route only on Claude Code: the prompt hook records a pending request
-  only for a prompt you typed (never one the model, `claude -p` or the SDK produced), and
-  it becomes a ticket only after `/plugin-config confirm <nonce>` passes the host dialog,
-  which shows the skill, level, target and expiry. The ticket then lets that skill's
+- **Raising is disabled on Claude Code today.** The prompt hook would record a pending
+  request only for a prompt the host attests you typed (`UserPromptSubmit.source ==
+  "user"`), and Claude Code does not send that field at all (measured on 2.1.318, in the
+  interactive CLI, `claude -p` and the SDK). So every `--perms=` raise there is refused with
+  a note that says *Claude Code does not send prompt origin; use /plugin-config to set a
+  durable per-skill level* — `/plugin-config pr-dev standard` gets you the same effect for
+  every run of that skill (see [Per-skill levels](#per-skill-levels)). The fail-closed path
+  stays in place, so the raise comes back unchanged once the host sends the field: then the
+  request becomes a ticket only after `/plugin-config confirm <nonce>` passes the host
+  dialog, which shows the skill, level, target and expiry, and the ticket lets that skill's
   actions on that target run at the requested level for **15 minutes**: R2 at `standard`,
-  and at `unattended` also the listed R3 actions whose precondition holds. It never covers
-  R4, never lifts a `deny` from any file or the environment, and binds to the session and
-  the agent that typed it: a call the hook input marks as another agent's (a subagent with
-  its own agent id) does not get it. Until Claude Code is shown to mark subagent calls that
-  way, a subagent's call on the very same target does (ADR 004's partial S-11 disposition).
+  and at `unattended` also the listed R3 actions whose precondition holds. A ticket never
+  covers R4, never lifts a `deny` from any file or the environment, and binds to the
+  session and the agent that typed it: Claude Code marks every subagent call with its own
+  agent id, so a subagent's call never gets the main thread's ticket. A confirmed raise
+  does not retire an active lowering of the same session for that skill: the lowering
+  still wins until it expires, and `confirm` says so.
 - **The target** is the slash command's first argument plus this checkout's repository.
   `/pr-dev 42` covers PR (or issue) #42 there and repository-level steps in that repository
   (create an issue or a label, rerun CI). It does not cover another PR, another repository,
@@ -298,6 +309,27 @@ permission guard applies the resulting ticket on every call it judges
   (`scripts/plugin-config.sh` in your own terminal).
 
 Use `/plugin-config` for a durable change.
+
+### Per-skill levels
+
+`skills.<id>` and `groups.<g>` in your user file (`/plugin-config pr-dev standard`) set a
+level for one skill or one category. Such a level **lowers** whenever that skill is running.
+It **raises** the guard's answers only when all of these hold:
+
+- the user file is your own, verified against its lock (a hand-edited file is read
+  tighten-only, so its raises are dropped);
+- Claude Code itself recorded the skill as active: either you typed its slash command (the
+  host's `UserPromptExpansion`, paired with the `UserPromptSubmit` of the same prompt by
+  their shared `prompt_id`) or the agent invoked it with the `Skill` tool (a `PreToolUse`
+  the plugin's `Skill` matcher records); it does not need the prompt's origin, which Claude
+  Code does not send;
+- the call is that agent's: a skill the main thread runs never raises a subagent's call, a
+  subagent's skill never touches the main thread's, and a subagent never runs above the main
+  thread's level (it is judged under both and the stricter answer stands).
+
+The skill stays active for that agent until its next slash command or `Skill` call, or the
+end of the session. A project file's `skills`/`groups` only ever lower. On every other host a
+per-skill raise is advisory (the skill's own check) or not wired; see the table below.
 
 ### Auto-merge for one repository
 
@@ -329,7 +361,7 @@ under it.
 
 | platform | shell commands | GitHub MCP tools | host prompt for asks and R4 | per-skill levels | `--perms=` | floor |
 |---|---|---|---|---|---|---|
-| Claude Code | ENFORCED: `permission-guard.sh`, fail closed | ENFORCED if the MCP matcher fires (wired, firing unverified), plus server flags | ENFORCED: the hook `ask` dialog, in every permission mode; headless ⇒ deny | lowering ENFORCED; a per-skill raise from the user file is not applied by the guard yet | lowering ENFORCED; a raise ENFORCED once confirmed in the dialog | 2.1.317 |
+| Claude Code | ENFORCED: `permission-guard.sh`, fail closed | ENFORCED: the MCP matcher fires for the bundled server's tools (measured), plus server flags | ENFORCED: the hook `ask` dialog, in every permission mode (measured: the reason verbatim, Yes/No, Esc rejects); headless ⇒ deny | lowering ENFORCED; a raise from your locked user file ENFORCED once the host records the skill for that agent | lowering ENFORCED; no raise (the host sends no prompt origin) | 2.1.317 |
 | Claude Desktop | unverified | server flags | unverified | ADVISORY | no raise; lowering unverified | as Claude Code |
 | Codex CLI | ENFORCED, deny only | server flags | none: an R4 call is denied with the command to run | ADVISORY | lowering ENFORCED, session-wide; no raise | 0.166.0 |
 | Cursor | ENFORCED, deny only, `failClosed` | ENFORCED, deny only | none yet: R4 is denied | ADVISORY | no prompt hook: ADVISORY | CLI 2026.10.22 / app 3.27.22 |
@@ -346,9 +378,16 @@ its floor — `cursor-agent` against the CLI floor, the Cursor app against the a
 from the app bundle, never by launching it) — and below it warns, naming what the floor
 stands for (for Claude Code also the lower floors: `onFailure: "block"` from 2.1.295, the
 install dialog's `permission_level` picker from 2.1.271). Each probe has a 3-second
-deadline; a version that is unreadable or does not answer in time is a warning only. ADR 004 has a host below its
-floor run every level as `supervised`; the resolver does not clamp it yet, so keep such a
-host at `supervised` yourself.
+deadline; a version that is unreadable or does not answer in time is a warning only.
+
+The resolver enforces the floor: with `--host` (the guard always passes it), a host CLI
+below its floor runs every level above `supervised` as `supervised`, and the answer and
+`--level` say so (`host floor (D9)`). It reads the version as `doctor` does — the host
+CLI's `--version` on your PATH (`cursor-agent` for Cursor), under the same 3-second
+deadline — only when an answer would be looser than `supervised`'s, so a `supervised`
+call and the guard's fast path never run it; the result is cached per session in
+`~/.local/state/tamirs-superpowers/hostver/` for 10 minutes or until the binary changes. A
+version it cannot read is a warning, never a clamp.
 
 The guard reads the default branch and the required checks from GitHub through `gh` with a
 3-second deadline; a condition it cannot establish in time takes the stricter answer. The guard and the resolver themselves fail closed: a missing, crashing or unparseable
@@ -377,7 +416,7 @@ resolve-permission.sh <action-id> [--skill <id>] [--target <t>] [--repo <path>] 
   [--host claude|codex|cursor|gemini|opencode] [--headless] [--objective <id>] \
   [--session <id> [--agent <id>]] [--call <token>] [--cond <name>=true|false ...] \
   [--explain] [--json]
-resolve-permission.sh --level [--skill <id>] [--host <h>] [--repo <path>]
+resolve-permission.sh --level [--skill <id>] [--host <h>] [--repo <path>] [--session <id> [--agent <id>]]
 ```
 
 It prints one JSON verdict (`verdict` allow/ask/deny, `r`, `level`, `level_source`,
@@ -386,7 +425,10 @@ Without `--host` a host option may only lower the level. `--cond` passes a preco
 caller established; one not passed never holds. `--session` (and `--agent`, default `main`)
 reads that session's `--perms=` tickets, and `--target` names what the call acts on — a PR
 or issue number or `.` (the repository `gh` would use), `<owner>/<repo>[#n]`, a PR or issue
-URL — which a raise ticket must match; `ticket` in the output names the one that decided. `--explain` prints a readable trace. Exit 0
+URL — which a raise ticket must match; `ticket` in the output names the one that decided.
+`--level` also lists the active lowering tickets (`lowering_tickets`: the session's with
+`--session`, every session's without), and a `host_floor` entry in `level_sources` reports
+the D9 check when it ran. `--explain` prints a readable trace. Exit 0
 is a decided verdict; 2 (usage) and 3 (internal error) also print a deny, and a caller that
 gets anything else must deny.
 

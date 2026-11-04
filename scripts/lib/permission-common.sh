@@ -54,8 +54,9 @@
 #   is skipped. A RAISE applies to one call when all of these hold: the file and
 #   its dir are safe (as for the user file), it is unexpired and lives at most 15
 #   minutes from its creation, its session and agent equal the call's (SR S-11;
-#   no agent id in the hook input reads as "main", the ADR's partial disposition:
-#   the ticket then also reaches a subagent's call, on its exact target only),
+#   no agent id in the hook input reads as "main": Claude Code sends agent_id on
+#   every subagent call and on no main-thread call, measured M5, so a main-thread
+#   ticket never reaches a subagent),
 #   its host is the call's when both are known, its skill is the call's --skill,
 #   the step is R2 or R3 (never R4 or UNCLASSIFIED, SR S-05; never a step context
 #   raised), and the call's --target equals the ticket's {arg, repo} on every
@@ -65,8 +66,25 @@
 #   the ticket's level; it never lifts a deny, and row 0 still clamps never_auto.
 #   A LOWERING applies to every call of the session for its skill (null = all),
 #   any agent, any target, from a safe or an unsafe file alike (D10.2: tightening
-#   needs no trust), and beats any raise. Expired, foreign and corrupt tickets
-#   are ignored with a warning; none of them is ever an error.
+#   needs no trust), and beats any raise (a confirmed raise never retires it).
+#   Expired, foreign and corrupt tickets are ignored with a warning; none of them
+#   is ever an error. The writers (scripts/plugin-config.sh, the prompt hook)
+#   prune expired ones (prune_tickets); --level lists the active lowerings.
+#
+# HOST FLOORS (D9)
+#   Below its host's permissions_min (this plugin's platform-targets.json, else
+#   the registry's permission_levels since; cursor-agent: permissions_min_cli)
+#   every level above supervised runs as supervised: an answer looser than
+#   supervised's is tightened to it and --level reports supervised. The version
+#   is `<host CLI> --version` on PATH, as scripts/doctor.sh reads it, under the
+#   same 3 s deadline (its whole process group killed after it), cached per
+#   session in <state>/hostver/<host>.<session hash>.json (0600) for 10 minutes
+#   or until the binary changes. It is probed only when an answer would be
+#   looser than supervised's, so a supervised call, and the guard's fast path,
+#   never run it. An unknown version (no binary, a timeout, no version, no
+#   recorded floor) is a warning, never a clamp. Under the accepted test root it
+#   is not probed unless TAMIRS_PERMISSION_TEST_HOST_VERSION names the --version
+#   line (or `probe`).
 #
 # THE TEST OVERRIDE AND ITS GUARD
 #   The permission suites need a fake passwd home. TAMIRS_PERMISSION_TEST_ROOT
@@ -112,14 +130,13 @@ PERM_ROOT="$(CDPATH='' cd -- "$_perm_lib_dir/../.." 2>/dev/null && pwd -P)" || P
 unset _perm_lib_dir
 
 IFS= read -r -d '' _PERM_ENGINE <<'PY' || true
-import calendar, hashlib, json, os, pwd, re, stat, subprocess, sys, time
+import calendar, hashlib, json, os, pwd, re, signal, stat, subprocess, sys, time
 
 ROOT = sys.argv[1]
 ARGS = sys.argv[2:]
 LEVELS = ("supervised", "standard", "unattended")
 RANK = {"allow": 0, "ask": 1, "deny": 2}
 HOSTS = ("claude", "codex", "cursor", "gemini", "opencode")
-PROMPT_HOSTS = ("claude", "gemini")
 PLUGIN = "tamirs-superpowers"
 MAX_BYTES = 262144
 TEST_ENV = "TAMIRS_PERMISSION_TEST_ROOT"
@@ -143,6 +160,26 @@ REPO_RE = re.compile(r"\A[a-z0-9.-]+(:[0-9]+)?/[a-z0-9._-]+/[a-z0-9._-]+\Z")
 RAISE_TTL = 15 * 60     # D5: a raise ticket lives 15 minutes
 CLOCK_SLACK = 60        # seconds a ticket's created may sit in the future (clock skew)
 MAX_TICKETS = 256
+LOWER_MAX_AGE = 2 * 86400   # no ticket lives longer than a lowering's 24 h; a file older than this is litter
+# D5: the hosts where a --perms= RAISE can come from a prompt hook today. None: Claude Code sends no
+# UserPromptSubmit.source in any entrypoint (measured M3, implementation-measurements.md), so no prompt there is
+# attested as typed by the user; Gemini CLI's activate_skill pairing is not wired (hooks/permission-intent.sh).
+# A host joins this list only when its prompt hook can write a pending record.
+PERMS_RAISE_HOSTS = ()
+# D9: the host version, probed once per session (cached in <state>/hostver/ for FLOOR_TTL), against the floor in
+# this plugin's own platform-targets.json (or the registry's permission_levels since). host -> (binary, target,
+# floor field). Cursor is judged by its CLI: the hook cannot tell the CLI from the desktop app.
+FLOOR_PROBES = {"claude": ("claude", "claude_code", "permissions_min"),
+                "codex": ("codex", "codex", "permissions_min"),
+                "cursor": ("cursor-agent", "cursor", "permissions_min_cli"),
+                "gemini": ("gemini", "gemini_cli", "permissions_min"),
+                "opencode": ("opencode", "opencode", "permissions_min")}
+FLOOR_LABELS = {"claude": "Claude Code", "codex": "Codex CLI", "cursor": "Cursor CLI", "gemini": "Gemini CLI",
+                "opencode": "OpenCode"}
+PROBE_SECS = 3          # doctor.sh's probe deadline (DOCTOR_PROBE_SECONDS default); fixed: env only tightens
+FLOOR_TTL = 600         # a cached probe is reused for 10 minutes within one session
+TEST_HOST_VERSION_ENV = "TAMIRS_PERMISSION_TEST_HOST_VERSION"
+VERSION_RE = re.compile(r"[0-9]+(?:\.[0-9]+)+")
 
 
 class Usage(Exception):
@@ -1179,6 +1216,56 @@ def ticket_what(tk):
     return "--perms=%s for %s on %s, until %s" % (tk["level"], tk["skill"] or "the session", where, tk["expires"])
 
 
+def scan_tickets(home):
+    """Every ticket file of the state dir as (path, name, ticket or None, why); [] when there is none."""
+    tdir = os.path.join(dirs(home)[1], "tickets")
+    try:
+        names = sorted(n for n in os.listdir(tdir) if not n.startswith("."))[:MAX_TICKETS]
+    except OSError:
+        return []
+    out = []
+    for n in names:
+        p = os.path.join(tdir, n)
+        tk, why = read_ticket(p, n)
+        out.append((p, n, tk, why))
+    return out
+
+
+def list_lowerings(home, session=None):
+    """The active (unexpired, readable) lowering tickets, this session's only when one is named, as plain dicts
+    (D5, SR S-09: what `--level` and `plugin-config.sh show` list)."""
+    now = time.time()
+    out = []
+    for _, _, tk, _ in scan_tickets(home):
+        if tk is None or tk["kind"] != "lower" or tk["exp"] <= now:
+            continue
+        if session is not None and tk["session_id"] != session:
+            continue
+        out.append({"id": tk["id"], "skill": tk["skill"], "level": tk["level"], "session_id": tk["session_id"],
+                    "agent": tk["agent"], "host": tk["host"], "expires": tk["expires"],
+                    "target": {"arg": tk["arg"], "repo": tk["repo"]}})
+    return out
+
+
+def prune_tickets(home):
+    """The writers' sweep (D6): delete every expired ticket, and any ticket file older than any ticket can live.
+    The resolver never needs it: an expired ticket is ignored whether or not it is still on disk. Returns the
+    number deleted."""
+    now, n = time.time(), 0
+    for p, _, tk, _ in scan_tickets(home):
+        try:
+            old = os.lstat(p).st_mtime < now - LOWER_MAX_AGE
+        except OSError:
+            continue
+        if (tk is not None and tk["exp"] <= now) or old:
+            try:
+                os.unlink(p)
+                n += 1
+            except OSError:
+                pass
+    return n
+
+
 def read_plain_json(p):
     r = read_guarded(p, "any")
     if r["state"] == "absent":
@@ -1194,6 +1281,229 @@ def read_plain_json(p):
 def auto_merge_flag(doc):
     d = doc.get("delivery") if isinstance(doc, dict) else None
     return d.get("auto_merge") if isinstance(d, dict) else None
+
+
+# ------------------------------------------------------------------ D9: host floors
+
+def ver_lt(a, b):
+    """Dotted-numeric a < b (doctor.sh's ver_lt)."""
+    x, y = [int(p) for p in a.split(".")], [int(p) for p in b.split(".")]
+    k = max(len(x), len(y))
+    x, y = x + [0] * (k - len(x)), y + [0] * (k - len(y))
+    return x < y
+
+
+def floor_value(target, field):
+    """(version, source) of a host's D9 floor, read from this plugin's own install as doctor.sh reads it:
+    platform-targets.json, else (permissions_min only) the registry's permission_levels since, which
+    check-capability-registry.sh holds equal. (None, None) when neither records it."""
+    st, doc = read_plain_json(os.path.join(ROOT, "docs", "engineering", "build-and-release",
+                                           "platform-targets.json"))
+    if st == "ok":
+        v = ((doc.get("targets") or {}).get(target) or {}).get(field)
+        if isinstance(v, str) and VERSION_RE.fullmatch(v):
+            return v, "platform-targets.json"
+    if field == "permissions_min":
+        st, doc = read_plain_json(os.path.join(ROOT, "core", "capabilities", "platforms.json"))
+        if st == "ok":
+            for plat in (doc.get("platforms") or {}).values():
+                srf = ((plat or {}).get("surfaces") or {}).get(target) if isinstance(plat, dict) else None
+                v = (((srf or {}).get("capabilities") or {}).get("permission_levels") or {}).get("since")
+                if isinstance(v, str) and VERSION_RE.fullmatch(v):
+                    return v, "core/capabilities/platforms.json"
+    return None, None
+
+
+def which(name):
+    """The first executable <name> on PATH, absolute entries only: an empty or relative entry would read the
+    working directory, which a repository controls."""
+    for d in (os.environ.get("PATH") or "").split(os.pathsep):
+        if not os.path.isabs(d):
+            continue
+        p = os.path.join(d, name)
+        if os.path.isfile(p) and os.access(p, os.X_OK):
+            return p
+    return None
+
+
+def probe_version(path):
+    """(version, line, why): `<path> --version` under doctor.sh's deadline, in its own process group, killed
+    with everything it started when the deadline passes. Never reads stdin."""
+    try:
+        pr = subprocess.Popen([path, "--version"], stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
+                              stderr=subprocess.DEVNULL, close_fds=True, start_new_session=True)
+    except OSError as e:
+        return None, None, "could not run %s --version (%s)" % (path, e.__class__.__name__)
+    try:
+        out, _ = pr.communicate(timeout=PROBE_SECS)
+    except subprocess.TimeoutExpired:
+        try:
+            os.killpg(pr.pid, signal.SIGKILL)
+        except OSError:
+            pass
+        try:
+            pr.communicate(timeout=1)
+        except (subprocess.TimeoutExpired, OSError, ValueError):
+            pass
+        return None, None, "%s --version timed out after %d s" % (path, PROBE_SECS)
+    line = (out or b"").decode("utf-8", "replace").strip().split("\n", 1)[0].strip()[:160]
+    m = VERSION_RE.search(line)
+    if not m:
+        return None, line, "%s --version printed no version (%r)" % (path, line[:60])
+    return m.group(0), line, None
+
+
+def floor_cache(state, host, session):
+    key = hashlib.sha256((session or "-").encode("utf-8", "replace")).hexdigest()[:16]
+    return os.path.join(state, "hostver", "%s.%s.json" % (host, key))
+
+
+def private_mkdir(path):
+    old = os.umask(0o077)
+    try:
+        os.makedirs(path, mode=0o700, exist_ok=True)
+    finally:
+        os.umask(old)
+    st = os.lstat(path)
+    if stat.S_ISLNK(st.st_mode) or not stat.S_ISDIR(st.st_mode) or st.st_uid != os.getuid():
+        raise OSError("%s is not a directory owned by this user" % path)
+    if st.st_mode & 0o077:
+        os.chmod(path, 0o700)
+
+
+def bin_id(path):
+    real = os.path.realpath(path)
+    st = os.stat(real)
+    return real, [st.st_dev, st.st_ino, st.st_size, int(st.st_mtime)]
+
+
+def cached_probe(ctx, host, path):
+    """(version, line, why) for this host binary in this session: the cache when it is this session's, this
+    exact binary (realpath, inode, size, mtime) and under FLOOR_TTL old, else one probe under a lock that other
+    resolver processes of the same call wait on (bounded), written back 0600. Any cache trouble probes."""
+    state = dirs(ctx["home"])[1]
+    cp = floor_cache(state, host, ctx["session"])
+    try:
+        real, bid = bin_id(path)
+    except OSError:
+        return probe_version(path)
+
+    def fresh():
+        r = read_guarded(cp, "private")
+        if r["state"] != "ok":
+            return None
+        d, err = parse_json(r["data"], True)
+        if err or not isinstance(d, dict) or d.get("version") != 1 or d.get("host") != host:
+            return None
+        if d.get("session") != ctx["session"] or d.get("bin") != real or d.get("bin_id") != bid:
+            return None
+        at = d.get("at")
+        if not isinstance(at, int) or not (time.time() - FLOOR_TTL < at <= time.time() + CLOCK_SLACK):
+            return None
+        return d.get("have"), d.get("line"), d.get("why")
+
+    got = fresh()
+    if got is not None:
+        trace("host version: cached probe %s" % cp)
+        return got
+    lockf = None
+    try:
+        import fcntl
+        private_mkdir(state)
+        private_mkdir(os.path.dirname(cp))
+        lockf = os.open(os.path.join(os.path.dirname(cp), ".lock"),
+                        os.O_WRONLY | os.O_CREAT | getattr(os, "O_NOFOLLOW", 0), 0o600)
+        until = time.time() + PROBE_SECS + 1
+        while True:
+            try:
+                fcntl.flock(lockf, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                break
+            except OSError:
+                if time.time() > until:
+                    break
+                time.sleep(0.05)
+        got = fresh()
+        if got is not None:
+            return got
+    except (OSError, ImportError):
+        pass
+    have, line, why = probe_version(path)
+    try:
+        doc = {"version": 1, "host": host, "session": ctx["session"], "bin": real, "bin_id": bid, "have": have,
+               "line": line, "why": why, "at": int(time.time())}
+        tmp = "%s.tmp-%d" % (cp, os.getpid())
+        fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0), 0o600)
+        try:
+            os.write(fd, (json.dumps(doc, sort_keys=True, ensure_ascii=True) + "\n").encode("ascii"))
+        finally:
+            os.close(fd)
+        os.rename(tmp, cp)
+    except (OSError, ValueError):
+        pass
+    finally:
+        if lockf is not None:
+            try:
+                os.close(lockf)
+            except OSError:
+                pass
+    return have, line, why
+
+
+def host_floor(ctx):
+    """D9, evaluated only when an answer would be looser than supervised (so no call at supervised ever probes):
+    {state: below | meets | unknown | skipped, ...}. below => every level above supervised runs as supervised;
+    unknown (no binary, a timeout, no version, no recorded floor) => no clamp and a warning (D9: a warning only).
+    Under the accepted test root the probe is skipped unless TAMIRS_PERMISSION_TEST_HOST_VERSION names the
+    --version line to read (or `probe`, the real one), so no suite ever runs a real host CLI by accident."""
+    if ctx.get("floor") is not None:
+        return ctx["floor"]
+    host = ctx["host"]
+    out = {"state": "skipped", "host": host, "bin": None, "have": None, "floor": None, "floor_source": None,
+           "why": None}
+    ctx["floor"] = out
+    if host not in FLOOR_PROBES:
+        out["why"] = "no --host: the host version is not checked"
+        return out
+    binname, target, field = FLOOR_PROBES[host]
+    label = FLOOR_LABELS[host]
+    out["bin"] = binname
+    test = os.environ.get(TEST_HOST_VERSION_ENV) if ctx["home_source"] == "test-root" else None
+    if ctx["home_source"] == "test-root" and not test:
+        out["why"] = "not probed under the test root"
+        trace("host floor: %s" % out["why"])
+        return out
+    fv, fsrc = floor_value(target, field)
+    out["floor"], out["floor_source"] = fv, fsrc
+    if test and test != "probe":
+        m = VERSION_RE.search(test)
+        have, why = (m.group(0), None) if m else (None, "the --version line %r holds no version" % test[:60])
+    else:
+        path = which(binname)
+        if path is None:
+            have, why = None, "%s is not on PATH" % binname
+        else:
+            have, _, why = cached_probe(ctx, host, path)
+    out["have"] = have
+    if fv is None:
+        out["state"], out["why"] = "unknown", "no %s floor (%s) is recorded in this install" % (label, field)
+    elif have is None:
+        out["state"], out["why"] = "unknown", why
+    elif ver_lt(have, fv):
+        out["state"] = "below"
+        out["why"] = "%s %s is below the permission-levels floor %s (%s)" % (label, have, fv, fsrc)
+    else:
+        out["state"], out["why"] = "meets", "%s %s meets the floor %s" % (label, have, fv)
+    if out["state"] == "below":
+        warn("%s: every level above supervised runs as supervised until it is upgraded (ADR 004 D9)" % out["why"])
+    elif out["state"] == "unknown":
+        warn("the %s version is unknown (%s), so its permission-levels floor is not checked (ADR 004 D9: a warning "
+             "only)" % (label, out["why"]))
+    trace("host floor: %s %s" % (out["state"], out["why"]))
+    return out
+
+
+def floor_clamps(ctx):
+    return host_floor(ctx)["state"] == "below"
 
 
 # ------------------------------------------------------------------ the D4 chain
@@ -1424,6 +1734,12 @@ def eval_candidate(c, view, ctx):
     if ctx["stamp"] in ("missing", "unsafe"):
         pv, _, _ = ceiling(c, "supervised", cat, conds)
         tighten(pv, "call stamp %s: answered as supervised (D8)" % ctx["stamp"], "call-stamp")
+    # D9: below the host's floor every level above supervised runs as supervised. Probed only when this answer
+    # is looser than supervised's, so a call that supervised already decides never runs a probe.
+    if st["v"] != "deny" and ctx["host"]:
+        pv, _, _ = ceiling(c, "supervised", cat, conds)
+        if RANK[st["v"]] < RANK[pv] and floor_clamps(ctx):
+            tighten(pv, "host floor (D9): %s; answered as supervised" % ctx["floor"]["why"], "host-floor")
     # row 0: safety invariants, R4 never automatic, never_auto
     for d in c["denies"]:
         s = conds.get(d["when"])
@@ -1474,6 +1790,10 @@ def allow_with(c, st, ctx, verdict, level):
     if st["cause"] == "call-stamp":
         out["note"] = "the permission guard did not stamp this call (--call): it is answered as supervised (D8)"
         return out
+    if st["cause"] == "host-floor":
+        out["note"] = ("%s: until the host is upgraded every level above supervised runs as supervised, so no "
+                       "level setting allows it (ADR 004 D9)" % ctx["floor"]["why"])
+        return out
     if st["cause"] == "ticket-lower":
         out["note"] = ("a lowering --perms= ticket of this session holds it (%s, D5, SR S-09): it lapses when it "
                        "expires or the session ends" % st["by"])
@@ -1492,8 +1812,21 @@ def allow_with(c, st, ctx, verdict, level):
         if ctx["skill"]:
             out["durable"].append("/plugin-config %s %s" % (ctx["skill"], need))
         out["durable"].append("/plugin-config %s allow" % c["id"])
-    if need and (host in PROMPT_HOSTS or host is None):
-        out["once"] = "--perms=%s%s" % (need, "" if host else " (Claude Code and Gemini CLI only: D5)")
+    if need and host in PERMS_RAISE_HOSTS:
+        out["once"] = "--perms=%s" % need
+    elif need and host == "claude":
+        out["once"] = None
+        out["note"] = ("no one-run --perms= raise on Claude Code: it does not send prompt origin "
+                       "(UserPromptSubmit.source, absent on 2.1.318), so no prompt is attested as yours; set a "
+                       "durable level with /plugin-config instead (D5)")
+    elif need and host == "gemini":
+        out["once"] = None
+        out["note"] = ("no one-run --perms= raise on Gemini CLI: its prompt hook only lowers (the activate_skill "
+                       "pairing is not wired); set a durable level with /plugin-config, confirmed on the ask_user "
+                       "prompt (D5, D6)")
+    elif need and host is None:
+        out["once"] = None
+        out["note"] = "no host ships a one-run --perms= raise today; set a durable level with /plugin-config (D5)"
     elif need:
         out["once"] = None
         out["note"] = ("%s has no host-attested channel: change the level outside the session "
@@ -1515,7 +1848,7 @@ def build_ctx(o):
     home, home_src = passwd_home()
     ctx = {"cat": cat, "schema": schema, "home": home, "home_source": home_src, "host": o["host"],
            "skill": o["skill"], "category": skill_category(o["skill"]), "conds": o["conds"],
-           "headless": o["headless"], "target": o["target"], "raised_by": []}
+           "headless": o["headless"], "target": o["target"], "raised_by": [], "floor": None, "session": None}
     ctx["stores"] = option_stores(home, o["host"])
     ctx["envs"] = env_levels()
     ctx["user"] = load_user(home, schema)
@@ -1581,6 +1914,10 @@ def level_sources(ctx):
         out.append(e)
     if ctx["stamp"]:
         out.append({"source": "call_stamp", "state": ctx["stamp"]})
+    fl = ctx.get("floor")
+    if fl is not None and fl["state"] != "skipped":
+        out.append({"source": "host_floor", "state": fl["state"], "host": fl["host"], "version": fl["have"],
+                    "floor": fl["floor"], "floor_source": fl["floor_source"], "reason": fl["why"]})
     tk = ctx.get("tickets") or {}
     if tk.get("state") not in (None, "not read"):
         out.append({"source": "tickets", "state": tk["state"], "raise": [t["id"] for t in tk["raise"]],
@@ -1620,6 +1957,8 @@ def effective_level(ctx):
         lv, src = lt["level"], "lowering ticket %s (D4 row 1)" % lt["id"]
     if ctx["stamp"] in ("missing", "unsafe") and is_lower("supervised", lv):
         lv, src = "supervised", "call stamp %s (D8)" % ctx["stamp"]
+    if is_lower("supervised", lv) and ctx["host"] and floor_clamps(ctx):
+        lv, src = "supervised", "host floor (D9): %s" % ctx["floor"]["why"]
     return lv, src
 
 
@@ -1691,7 +2030,8 @@ def level_report(o):
     ctx = build_ctx(o)
     lv, src = effective_level(ctx)
     return {"level": lv, "level_source": src, "level_sources": level_sources(ctx), "skill": ctx["skill"],
-            "host": ctx["host"], "home_source": ctx["home_source"], "warnings": WARN}
+            "host": ctx["host"], "home_source": ctx["home_source"],
+            "lowering_tickets": list_lowerings(ctx["home"], ctx["session"]), "warnings": WARN}
 
 
 # ------------------------------------------------------------------ CLI
@@ -1808,6 +2148,9 @@ def cmd_resolve(a):
             for s in doc["level_sources"]:
                 sys.stdout.write("  source %s: %s%s\n" % (s.get("source"), s.get("state", "-"),
                                                           " = %s" % s["level"] if s.get("level") else ""))
+            for t in doc["lowering_tickets"]:
+                sys.stdout.write("  lowering ticket %s: %s at %s, session %s, until %s\n" % (
+                    t["id"], t["skill"] or "the whole session", t["level"], t["session_id"], t["expires"]))
             return 0
         out(doc, text)
         return 0

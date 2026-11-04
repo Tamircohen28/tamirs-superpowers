@@ -118,6 +118,16 @@
 #     A raise ticket lives 15 minutes and satisfies R2/R3 only, never R4 (D5,
 #     SR S-05). Lowering tickets come from the prompt hook (SR S-09).
 #
+# TICKET HYGIENE (D4 row 1, D5)
+#   Every run that may write sweeps tickets/: an expired ticket, or any ticket
+#   file older than a lowering can live (48 h), is deleted (the resolver ignores
+#   an expired one whether or not it is still there). `show` lists the active
+#   lowering tickets of every session (the resolver's --level lists the
+#   session's). Confirming a raise never retires a lowering: D4 row 1 applies a
+#   lowering always and a raise only above it, so an active lowering of the same
+#   session for that skill (or for the whole session) still wins, and confirm
+#   says so; the lowering lapses at its expiry or with the session.
+#
 # Bash 3.2 compatible. Needs python3 (stdlib only, run with -I -S).
 set -uo pipefail
 
@@ -929,6 +939,15 @@ def confirm_perms(c, rec, sess):
         CHANNEL[sess], ticket["level"], ticket["skill"] or "this session",
         "/".join(x for x in (tg.get("repo"), tg.get("arg")) if x) or "no resolvable target (it matches nothing)",
         ticket["expires"], tid))
+    # D4 row 1: a lowering applies always, a raise only above it. Confirming a raise does not retire an earlier
+    # lowering of the session for that skill (or for the whole session): it still wins until it expires.
+    wins = [t for t in E["list_lowerings"](c.home, rec["session_id"])
+            if t["skill"] is None or t["skill"] == ticket["skill"]]
+    RESULT["lowering_wins"] = [t["id"] for t in wins]
+    for t in wins:
+        say("note: lowering ticket %s (%s at %s, until %s) still applies and wins over this raise (ADR 004 D4 row 1: "
+            "a lowering always applies); it lapses at its expiry or with the session" % (
+                t["id"], t["skill"] or "the whole session", t["level"], t["expires"]))
     return 0
 
 
@@ -1054,6 +1073,11 @@ def cmd_show(c, a):
     RESULT["pending"] = pend
     for p in pend:
         say("pending %s (%s, expires %s): %s" % (p["nonce"], p["kind"], p["expires"], p["what"]))
+    lows = E["list_lowerings"](c.home)
+    RESULT["lowering_tickets"] = lows
+    for t in lows:
+        say("lowering ticket %s: %s at %s, session %s (agent %s), until %s" % (
+            t["id"], t["skill"] or "the whole session", t["level"], t["session_id"], t["agent"], t["expires"]))
     return 0
 
 
@@ -1062,6 +1086,13 @@ def main():
     if not a:
         raise Fail("no subcommand (see --help)", 2)
     c = load()
+    if not (os.environ.get("TAMIRS_PERMISSION_TEST_ROOT") and c.home_source != "test-root"):
+        try:
+            n = E["prune_tickets"](c.home)
+            if n:
+                RESULT["pruned_tickets"] = n
+        except OSError:
+            pass
     sub, rest = a[0], a[1:]
     if sub == "show":
         return cmd_show(c, rest)

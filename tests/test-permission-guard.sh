@@ -22,10 +22,14 @@
 #   7. the OpenCode dialect ("host": "opencode" in the payload, as guard.ts sends it): ask
 #      for R2 only, deny for every R3/R4, UNCLASSIFIED and policy.edit call, and never a
 #      looser answer on a deny-only host that carries the same marker (D8);
-#   8. the active skill from hooks/permission-intent.sh's intent/<sid>.json: --skill and
-#      --objective reach the resolver, a skill raise applies only when user_typed, a
-#      lowering always, and a missing, corrupt, unsafe, stale or foreign context is the
-#      global level (D5, D8, SR S-09);
+#   8. the active skill from hooks/permission-intent.sh's intent/ contexts: --skill and
+#      --objective reach the resolver; a per-skill raise from the user's locked file applies
+#      only when the host recorded the skill for that very agent (a paired expansion,
+#      prompt_id as measured M2, or a Skill call), a subagent's call stays at most at the
+#      main thread's level (M5, D1 agent.spawn), a lowering always applies, and a missing,
+#      corrupt, unsafe, stale or foreign context is the global level (D5, D8, SR S-09);
+#  8b. the D9 host floor: below permissions_min every level above supervised runs as
+#      supervised; the probe is cached per session and never runs on the fast path;
 #   9. plugin-config.sh confirm <nonce>: the Claude dialog names the pending request's
 #      skill, level, target and expiry (or its rows), PG stamps asked/<nonce>.json with the
 #      bytes it showed, and a nonce with no usable record is a deny (D5, D8 call stamp);
@@ -336,6 +340,22 @@ TTY=(
   'xdotool type y|tty.drive'
   "python3 -c 'import pty; pty.spawn([\"claude\"])'|tty.drive"
   "node -e \"require('node-pty').spawn('claude')\"|tty.drive"
+  'tmux -L x -f /dev/null send-keys -t s y Enter|tty.drive'
+  'tmux -S /tmp/sock -u -2 -N send -t s 1|tty.drive'
+  'tmux -L x paste-buffer -t s|tty.drive'
+  'tmux -2u send-k -t s 1|tty.drive'
+  'tmux new-session -d -s w \; send-keys -t w 1 Enter|tty.drive'
+  "tmux set-hook -g after-new-window 'send-keys -t w 1'|tty.drive"
+  "/opt/homebrew/bin/tmux -L t015 -f /dev/null send-keys -t m1 Escape|tty.drive"
+  'cmux send 1|tty.drive'
+  'cmux send-key Enter|tty.drive'
+  'cmux send-panel --panel 2 1|tty.drive'
+  'cmux send-key-panel --panel 2 Enter|tty.drive'
+  'cmux --password p send --surface surface:4 1|tty.drive'
+  'wezterm cli send-text --pane-id 1 y|tty.drive'
+  'kitty @ send-text y|tty.drive'
+  'zellij action write-chars y|tty.drive'
+  'sleep 15; tmux send-keys -t "$TMUX_PANE" 1 Enter|tty.drive'
   'claude -p hi|process.spawn.agent_host'
   'codex exec "fix it"|process.spawn.agent_host'
   'gemini -p hi|process.spawn.agent_host'
@@ -354,6 +374,12 @@ for row in "${TTY[@]}"; do
   expect "codex denies: $c" codex "$(codex_bash "$c")" deny "$id"
   expect "cursor denies: $c" cursor "$(cursor_shell "$c")" deny "$id"
 done
+# a terminal multiplexer that only reads or starts a session is not tty.drive (it reaches no guarded id)
+for c in 'tmux -L x list-sessions' 'tmux new-session -d -s build' 'cmux notify --title done' 'cmux list-panels'; do
+  expect "claude allows: $c" claude "$(claude_bash "$c")" allow
+done
+judge "the pre-filter sends cmux to the engine" false "$(classify 'cmux send 1' | jq -r .fast_path_allows)"
+judge "  ... and a tmux with global options" false "$(classify 'tmux -L x -f /dev/null send-keys -t s y Enter' | jq -r .fast_path_allows)"
 
 section "policy.edit forms (D5-D7): R4, and the out-of-session writers are denied outright"
 POL=(
@@ -627,7 +653,7 @@ expect "opencode: an R2 ask" claude "$(oc_bash 'bash scripts/resolve-permission.
 judge "  ... is stamped (it may run once approved)" yes "$(exists "$SEEN/ocococoo00000001")"
 
 # --- 8. the active skill (hooks/permission-intent.sh, D5/D8) ---------------------------------
-section "the active skill: --skill from intent/<sid>.json; a raise only when user_typed"
+section "the active skill: --skill from intent/; a raise only when the host recorded it for this agent"
 STATE="$PH/.local/state/tamirs-superpowers"
 INTENT="$STATE/intent/pg-1.json"
 set_doc() { # set_doc '<user-file json>'
@@ -650,15 +676,19 @@ rm -rf "$STATE/intent"
 intent_expand tamirs-superpowers:pr-dev
 judge "permission-intent.sh wrote the context PG reads" "pr-dev null" "$(jq -r '"\(.skill) \(.user_typed)"' "$INTENT" 2>/dev/null)"
 set_doc '{"version": 1, "level": "supervised", "skills": {"pr-dev": "standard"}}'
-expect "a skill raise from an unpaired slash command does not apply (user_typed null): R2 asks" claude "$(claude_bash 'gh pr create --fill')" ask "pr.create"
+expect "a skill raise from an unpaired slash command does not apply (host_recorded false): R2 asks" claude "$(claude_bash 'gh pr create --fill')" ask "pr.create"
 judge "  ... the reason names the skill and why it only lowers" yes "$(has "$(reason)" "counts only where it is stricter")"
-intent_edit '.user_typed = true'
-expect "the same raise once user_typed: R2 is allowed (pr-dev at standard)" claude "$(claude_bash 'gh pr create --fill')" allow
+intent_edit '.host_recorded = true'
+expect "the same raise once the host recorded it (paired): R2 is allowed (pr-dev at standard)" claude "$(claude_bash 'gh pr create --fill')" allow
+intent_edit '.host_recorded = false | .user_typed = true'
+expect "  ... a context from before host_recorded (user_typed true) still counts" claude "$(claude_bash 'gh pr create --fill')" allow
+intent_edit '.host_recorded = true | .user_typed = false'
+expect "  ... user_typed false does not matter once the host recorded it (M3: no source is ever sent)" claude "$(claude_bash 'gh pr create --fill')" allow
 expect "  ... R3 still asks" claude "$(claude_bash 'gh pr merge 5 --squash')" ask "pr.merge"
 expect "  ... a call from another agent does not get the raise" claude "$(claude_bash 'gh pr create --fill' | jq -c '. + {agent_id:"sub-1"}')" ask "another agent"
 expect "  ... nor another session (no context of its own)" claude "$(claude_bash 'gh pr create --fill' | jq -c '.session_id = "pg-2"')" ask "pr.create"
 set_doc '{"version": 1, "level": "standard", "skills": {"pr-dev": "supervised"}}'
-intent_edit '.user_typed = null'
+intent_edit '.user_typed = null | .host_recorded = false'
 expect "a skill lowering applies without provenance: R2 asks under /pr-dev" claude "$(claude_bash 'gh pr create --fill')" ask "pr.create"
 expect "  ... and from another agent too" claude "$(claude_bash 'gh pr create --fill' | jq -c '. + {agent_id:"sub-1"}')" ask "pr.create"
 expect "  ... without a context the global standard allows it" claude "$(claude_bash 'gh pr create --fill' | jq -c '.session_id = "pg-2"')" allow
@@ -685,6 +715,79 @@ rm -rf "$STATE/intent"
 ln -s "$T/elsewhere" "$STATE/intent"
 expect "the same context behind an intent dir that is a symlink is ignored" claude "$(claude_bash 'gh pr create --fill')" allow
 rm -f "$STATE/intent"
+
+# The host's own records, through the real hook (permission-intent.sh): the measured M2 pairing and a Skill call.
+rm -rf "$STATE/intent"
+set_doc '{"version": 1, "level": "supervised", "skills": {"pr-dev": "standard", "worker-dev": "standard"}}'
+pi_q() { bash "$ROOT/hooks/permission-intent.sh" >/dev/null 2>&1; }
+jq -nc --arg d "$REPO" '{session_id:"pg-1",prompt_id:"pid-1",cwd:$d,hook_event_name:"UserPromptSubmit",prompt:"/tamirs-superpowers:pr-dev 42"}' | pi_q
+jq -nc --arg d "$REPO" '{session_id:"pg-1",prompt_id:"pid-1",cwd:$d,hook_event_name:"UserPromptExpansion",expansion_type:"slash_command",command_name:"tamirs-superpowers:pr-dev",command_args:"42",command_source:"plugin"}' | pi_q
+judge "M2 as measured (no source, one prompt_id): the context is host_recorded" "pr-dev true false" \
+  "$(jq -r '"\(.skill) \(.host_recorded) \(.user_typed)"' "$INTENT" 2>/dev/null)"
+expect "  ... so the user's per-skill standard applies on the main thread: R2 allowed" claude "$(claude_bash 'gh pr create --fill')" allow
+expect "  ... R3 still asks" claude "$(claude_bash 'gh pr merge 5 --squash')" ask "pr.merge"
+expect "  ... a subagent's call does not get the main thread's raise (M5)" claude "$(claude_bash 'gh pr create --fill' | jq -c '. + {agent_id:"af490d90651b7315a",agent_type:"general-purpose"}')" ask "another agent"
+skill_call() { # skill_call <skill> [agent_id] — the host's Skill tool call, through permission-intent.sh
+  jq -nc --arg n "$1" --arg ag "${2:-}" --arg d "$REPO" \
+    '{session_id:"pg-1",cwd:$d,hook_event_name:"PreToolUse",tool_name:"Skill",tool_input:{skill:$n,args:"42"}} + (if $ag == "" then {} else {agent_id:$ag,agent_type:"general-purpose"} end)' | pi_q
+}
+SUB='. + {agent_id:"af490d90651b7315a",agent_type:"general-purpose"}'
+skill_call tamirs-superpowers:worker-dev af490d90651b7315a
+judge "a subagent's Skill call writes its own context" "worker-dev true" \
+  "$(jq -r '"\(.skill) \(.host_recorded)"' "$STATE/intent/pg-1.agent-af490d90651b7315a.json" 2>/dev/null)"
+expect "  ... and its raise applies, bounded by the main thread's own (both standard): R2 allowed" claude "$(claude_bash 'gh pr create --fill' | jq -c "$SUB")" allow
+expect "  ... the main thread is untouched by it (still its own /pr-dev)" claude "$(claude_bash 'gh pr create --fill')" allow
+rm -f "$INTENT"
+expect "with no main-thread context the subagent runs at most at the global level (D1 agent.spawn)" claude "$(claude_bash 'gh pr create --fill' | jq -c "$SUB")" ask "another agent"
+expect "  ... and a subagent's skill never reaches a main-thread call" claude "$(claude_bash 'gh pr create --fill')" ask "pr.create"
+skill_call tamirs-superpowers:pr-dev
+judge "a main-thread Skill call is host_recorded at once" "pr-dev true PreToolUse:Skill" \
+  "$(jq -r '"\(.skill) \(.host_recorded) \(.recorded_by)"' "$INTENT" 2>/dev/null)"
+expect "  ... so its per-skill level applies: R2 allowed" claude "$(claude_bash 'gh pr create --fill')" allow
+set_doc '{"version": 1, "level": "supervised", "skills": {"pr-dev": "standard", "worker-dev": "standard"}}' # relock
+cp "$CFG/permissions.json" "$T/pf.bak"; printf '{"version": 1, "level": "supervised", "skills": {"pr-dev": "unattended", "worker-dev": "standard"}}\n' > "$CFG/permissions.json"
+expect "a hand-edited user file (lock mismatch) is read tighten-only: no per-skill raise" claude "$(claude_bash 'gh pr create --fill')" ask "pr.create"
+cp "$T/pf.bak" "$CFG/permissions.json"
+mkdir -p "$REPO/.tamirs-superpowers"
+printf '{"version": 1, "skills": {"pr-dev": "supervised"}}\n' > "$REPO/.tamirs-superpowers/permissions.json"
+expect "a project-file lowering of the recorded skill applies" claude "$(claude_bash 'gh pr create --fill')" ask "pr.create"
+set_doc '{"version": 1, "level": "supervised"}'
+printf '{"version": 1, "skills": {"pr-dev": "standard"}}\n' > "$REPO/.tamirs-superpowers/permissions.json"
+expect "a project-file per-skill level never raises, recorded skill or not" claude "$(claude_bash 'gh pr create --fill')" ask "pr.create"
+rm -rf "$REPO/.tamirs-superpowers"
+set_doc '{"version": 1, "level": "supervised", "skills": {"pr-dev": "standard", "worker-dev": "standard"}}'
+expect "control: the user file's own per-skill level applies again" claude "$(claude_bash 'gh pr create --fill')" allow
+skill_call engineering:code-review
+expect "another plugin's Skill call ends /pr-dev's context: R2 asks again" claude "$(claude_bash 'gh pr create --fill')" ask "pr.create"
+rm -rf "$STATE/intent"
+
+# --- 8b. the D9 host floor ------------------------------------------------------------------
+section "the D9 host floor: below permissions_min every level above supervised runs as supervised"
+set_level standard
+HV="$T/hv-bin"; mkdir -p "$HV"
+printf '#!/bin/sh\necho x >> "%s/hv.count"\ncat "%s/hv.version"\n' "$T" "$T" > "$HV/claude"; chmod +x "$HV/claude"
+printf '2.1.300 (Claude Code)\n' > "$T/hv.version"; : > "$T/hv.count"
+hv_pg() { TAMIRS_PERMISSION_TEST_HOST_VERSION=probe PATH="$HV:$PATH" bash "$HOOK" 2>/dev/null; }
+OUT="$(claude_bash 'gh pr create --fill' | jq -c '.session_id = "hv-1"' | hv_pg)"
+judge "claude 2.1.300 (< 2.1.317): standard's R2 allow becomes an ask" ask "$(verdict claude)"
+judge "  ... and the reason names the floor" yes "$(has "$(reason)" "below the permission-levels floor 2.1.317")"
+OUT="$(claude_bash 'gh pr create --fill' | jq -c '.session_id = "hv-1"' | hv_pg)"
+judge "  ... the probe ran once for the session (cached)" 1 "$(wc -l < "$T/hv.count" | tr -d ' ')"
+OUT="$(claude_bash 'git status' | jq -c '.session_id = "hv-1"' | hv_pg)"
+judge "the fast path never probes" 1 "$(wc -l < "$T/hv.count" | tr -d ' ')"
+printf '2.1.318 (Claude Code)\n' > "$T/hv.version"
+OUT="$(claude_bash 'gh pr create --fill' | jq -c '.session_id = "hv-2"' | hv_pg)"
+judge "a host at the floor: the level holds (allow), probed for the new session" "allow 2" "$(verdict claude) $(wc -l < "$T/hv.count" | tr -d ' ')"
+printf 'no version here\n' > "$T/hv.version"
+OUT="$(claude_bash 'gh pr create --fill' | jq -c '.session_id = "hv-3"' | hv_pg)"
+judge "an unreadable host version: unknown, so no clamp (a warning only)" allow "$(verdict claude)"
+OUT="$(claude_bash 'gh pr create --fill' | jq -c '.session_id = "hv-4"' | TAMIRS_PERMISSION_TEST_HOST_VERSION='0.150.0' CODEX_HOME="$T/codex-home" bash "$HOOK" 2>/dev/null)"
+judge "codex 0.150.0 (< 0.166.0): the R2 call is clamped (delivered as Codex's deny)" deny "$(verdict codex)"
+judge "  ... naming the floor" yes "$(has "$(reason)" "below the permission-levels floor 0.166.0")"
+set_level none
+OUT="$(claude_bash 'gh pr create --fill' | jq -c '.session_id = "hv-5"' | hv_pg)"
+judge "at supervised nothing probes (the answer is already supervised's)" "ask 3" "$(verdict claude) $(wc -l < "$T/hv.count" | tr -d ' ')"
+
 set_level none
 # what reaches the resolver: a stub that logs its arguments
 mk_tree "$T/t-argv"

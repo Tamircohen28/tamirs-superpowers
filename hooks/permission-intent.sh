@@ -10,25 +10,33 @@
 #
 # EVENTS
 #   Claude Code  UserPromptExpansion (expansion_type slash_command): command_name
-#                and command_args (spike C3). Writes the active-skill context; a
-#                lowering --perms= becomes a lowering ticket; a raise waits for
-#                its other half.
-#                UserPromptSubmit: `source` (C3; "user" | "sdk" | "system" | ...;
-#                missing = NOT user). EVERY prompt whose first line starts with a
-#                `/<command>` token records its half (source, that command, its
-#                --perms= token or none), whether or not it carries --perms=, so
-#                an ordinary user-typed `/<skill>` marks its context user_typed
-#                and a per-skill RAISE from the user file can apply to it (D8).
-#                A prompt that does not start with `/` cannot be a slash command
-#                and is not read (one string match).
-#                The two halves pair when they share the session, arrive within
-#                60 s of each other, name the same command and carry the same
-#                --perms= token (or both none); only then is user_typed set (true
-#                only with source == "user"), and only then, with source ==
-#                "user", is a raise recorded pending. A model Skill call,
-#                `claude -p`/SDK text (source != user), a submit naming another
-#                command and a half that never pairs mark nothing user_typed and
-#                record nothing that can raise (D5; SR S-02).
+#                and command_args (measured M2: command_source "plugin", and the
+#                prompt_id of the UserPromptSubmit that fired just before it).
+#                Writes the active-skill context; a lowering --perms= becomes a
+#                lowering ticket; a raise waits for its other half.
+#                UserPromptSubmit: `source` ("user" | "sdk" | ...; missing = NOT
+#                user). Claude Code 2.1.318 never sends it, interactive, -p or SDK
+#                (measured M3), so no submit is ever user-typed there. EVERY prompt
+#                whose first line starts with a `/<command>` token records its half
+#                (source, prompt_id, that command, its --perms= token or none). A
+#                prompt that does not start with `/` cannot be a slash command and
+#                is not read (one string match).
+#                The two halves PAIR when they share the session, name the same
+#                command, carry the same --perms= token (or both none) and the same
+#                prompt_id; a host that sends no prompt_id on either half pairs them
+#                within 60 s instead. Pairing marks the context host_recorded (the
+#                host recorded this command as the prompt's expansion) and
+#                user_typed (true only with source == "user"); only with source ==
+#                "user" is a --perms= raise recorded pending. While Claude Code
+#                sends no `source`, every --perms= RAISE is refused with a note that
+#                says so and names /plugin-config (the fail-closed rule of D5; a
+#                lowering still applies).
+#                PreToolUse on the Skill tool (tool_input.skill, the host's own record
+#                of a skill it is about to run; that this matcher fires is not one
+#                of the item-13 measurements): the host records that skill as active
+#                for the calling agent, so its context is written host_recorded at
+#                once. Its arguments are never read for --perms= (model text, D5
+#                "never from content"). Never answers anything: no output, exit 0.
 #   Codex CLI    UserPromptSubmit (CODEX_HOME in the hook env): no host-attested
 #   Gemini CLI   channel (D5), so a --perms= token only LOWERS, session-wide; a
 #                raise is answered with a note naming the out-of-session route.
@@ -44,28 +52,40 @@
 # rename. With TAMIRS_PERMISSION_TEST_ROOT set but refused by the library, it
 # writes nothing.
 #
-# STATE IT WRITES (the format task-012's guard and the resolver read)
-#   intent/<sid>.json  the active-skill context, one per session, rewritten on
-#                      every slash command and kept 24 h:
+# STATE IT WRITES (the format the guard and the resolver read)
+#   intent/<sid>.json (the main thread) and intent/<sid>.agent-<agent>.json (a
+#                      subagent, keyed by the hook's agent_id, measured M5): one
+#                      agent's active-skill context, rewritten on every slash
+#                      command (main thread) and every Skill call of that agent,
+#                      kept 24 h:
 #     {"version": 1, "session_id", "agent" ("main" or the hook's agent_id),
 #      "host", "command_name", "skill" (a shipped skill id, or null),
-#      "user_typed" (true once a source == "user" submit paired with it; false
-#      when the paired submit was not the user's; null when unpaired),
-#      "perms" (the --perms= level or null), "target" {"arg", "repo"},
-#      "objective" (SUPERPOWERS_OBJECTIVE_ID when set, else null), "at", "expires"}
+#      "host_recorded" (true once the host recorded the skill as active for this
+#      agent: a paired expansion, or a Skill call; false until an expansion
+#      pairs), "recorded_by" ("UserPromptExpansion" | "PreToolUse:Skill"),
+#      "prompt_id" (the expansion's, or null), "user_typed" (true once a source ==
+#      "user" submit paired with it; false when the paired submit was not the
+#      user's; null when unpaired or a Skill call), "perms" (the --perms= level or
+#      null), "target" {"arg", "repo"}, "objective" (SUPERPOWERS_OBJECTIVE_ID when
+#      set, else null), "at", "expires"}
 #     A reader may apply a per-skill LOWERING from it always, and a per-skill
-#     raise only when user_typed is true (D8; ADR Open risks: the context persists
-#     across turns until the next slash command or session).
-#   intent/<sid>.expansion.json {at, command_name, skill, perms, act, target},
-#   intent/<sid>.submit.json {at, source, command, perms}  the two halves while
-#                      they wait to pair (deleted when paired, pruned after 10 min;
-#                      act: a raise still waits for the pairing).
+#     raise from the user's own verified file only when host_recorded is true and
+#     the call is that agent's (D8; ADR Open risks: the context persists across
+#     turns until the agent's next slash command or Skill call, or the session's
+#     end).
+#   intent/<sid>.expansion.json {at, command_name, skill, perms, act, target,
+#                      prompt_id},
+#   intent/<sid>.submit.json {at, source, command, perms, prompt_id}  the two
+#                      halves while they wait to pair (deleted when paired, pruned
+#                      after 10 min; act: a raise still waits for the pairing).
 #   pending/<nonce>.json  kind "perms" (format: scripts/plugin-config.sh header)
 #   tickets/<id>.json     kind "lower" (format: scripts/plugin-config.sh header),
 #                      24 h, bound to (session_id, agent); skill null = session-wide.
+#                      Writing one also prunes the expired tickets beside it.
 #   <sid> is the session id when it matches [A-Za-z0-9_-]{1,128}, else "h-" and
-#   the first 32 hex digits of its sha256. target.arg is the first non-flag word
-#   of the arguments; target.repo the checkout's origin as host/owner/name.
+#   the first 32 hex digits of its sha256; <agent> likewise ([A-Za-z0-9_-]{1,64}).
+#   target.arg is the first non-flag word of the arguments; target.repo the
+#   checkout's origin as host/owner/name.
 #
 # OUTPUT: hookSpecificOutput.additionalContext (the model reads it) when there is
 # something to say; otherwise nothing. Always exit 0.
@@ -82,15 +102,17 @@ unset _pi_here
 source "${SCRIPT_DIR}/lib/hook-output.sh" 2>/dev/null || exit 0
 
 input="$(hook_read_stdin)"
-# Fast path: the only prompts this hook reads are slash-command expansions,
-# prompts that start with a slash command (their source pairs with the
-# expansion) and prompts that carry --perms=. Everything else costs a match.
+# Fast path: the only events this hook reads are slash-command expansions,
+# prompts that start with a slash command (their half pairs with the
+# expansion), prompts that carry --perms= and Skill tool calls. Everything
+# else costs a match.
 _pi_slash='"prompt"[[:space:]]*:[[:space:]]*"([[:space:]]|\\[nrt])*/'
+_pi_skill='"tool_name"[[:space:]]*:[[:space:]]*"Skill"'
 case "$input" in
   *UserPromptExpansion*|*--perms=*) ;;
-  *) [[ "$input" =~ $_pi_slash ]] || exit 0 ;;
+  *) [[ "$input" =~ $_pi_slash ]] || [[ "$input" =~ $_pi_skill ]] || exit 0 ;;
 esac
-unset _pi_slash
+unset _pi_slash _pi_skill
 command -v python3 >/dev/null 2>&1 || exit 0
 command -v jq >/dev/null 2>&1 || exit 0
 hook_detect_platform "$input"
@@ -118,6 +140,8 @@ TTL_CONTEXT = 24 * 3600
 HALF_TTL = 600
 PERMS_RE = re.compile(r"\A--perms=(\S*)\Z")
 SID_RE = re.compile(r"\A[A-Za-z0-9_-]{1,128}\Z")
+AGENT_KEY_RE = re.compile(r"\A[A-Za-z0-9_-]{1,64}\Z")
+PID_RE = re.compile(r"\A[^\x00-\x1f\x7f]{1,200}\Z")
 OBJ_RE = re.compile(r"\A[A-Za-z0-9][A-Za-z0-9._-]{0,127}\Z")
 PLUGIN = "tamirs-superpowers"
 
@@ -170,6 +194,19 @@ def read_json(path):
     return d if not err and isinstance(d, dict) else None
 
 
+def context_name(sid, agent):
+    """The intent/ file of one agent's context: <sid>.json (main thread) or <sid>.agent-<agent>.json."""
+    if agent == "main":
+        return sid + ".json"
+    ak = agent if AGENT_KEY_RE.match(agent) else "h-" + hashlib.sha256(agent.encode("utf-8")).hexdigest()[:32]
+    return "%s.agent-%s.json" % (sid, ak)
+
+
+def prompt_id(payload):
+    p = payload.get("prompt_id")
+    return p if isinstance(p, str) and PID_RE.match(p) else None
+
+
 def first_line(s):
     return (s or "").lstrip("\n").split("\n", 1)[0]
 
@@ -217,8 +254,11 @@ def skill_of(command_name):
     return n if E["skill_category"](n) else None
 
 
-def current_level(skill, host):
+def current_level(skill, host, sid_raw=None, agent=None):
+    """The level the call would run at now, this session's lowering tickets included (D4 row 1)."""
     argv = ["--level", "--host", host] if host in E["HOSTS"] else ["--level"]
+    if sid_raw and E["SESSION_RE"].match(sid_raw) and agent and E["AGENT_RE"].match(agent):
+        argv += ["--session", sid_raw, "--agent", agent]
     if skill:
         argv += ["--skill", skill]
     return E["level_report"](E["parse_resolve_args"](argv))["level"]
@@ -271,6 +311,10 @@ def main():
               "session_id": sid_raw, "agent": agent, "host": host, "created": now_utc(t),
               "expires": now_utc(t + TTL_LOWER), "source": "prompt-hook %s" % ev}
         atomic_write(os.path.join(d, tid + ".json"), render(tk))
+        try:
+            E["prune_tickets"](home)
+        except Exception:
+            pass
         return tid
 
     def pending(skill, level, target, command_name):
@@ -284,7 +328,7 @@ def main():
         return rec
 
     def raise_or_lower(skill, level, target, user, source, command_name, cur=None):
-        cur = cur or current_level(skill, host)
+        cur = cur or current_level(skill, host, sid_raw, agent)
         who = skill or "this session"
         if E["is_lower"](level, cur):
             tid = lower_ticket(skill, level, target)
@@ -297,8 +341,17 @@ def main():
                     "D5). To raise the level, run `bash %s %s` in your own terminal, outside the agent session."
                     % (level, host, os.path.join(ROOT, "scripts", "plugin-config.sh"), level))
         if user is not True:
+            if source is None:
+                # M3: Claude Code 2.1.318 sends no UserPromptSubmit.source in any entrypoint. A missing source is
+                # not the user (D5's fail-closed rule): a pty-driven or nested host sends the same input (SR S-02).
+                return ("--perms=%s is ignored: Claude Code does not send prompt origin; use /plugin-config to set a "
+                        "durable per-skill level (`/plugin-config %s %s`, or `bash %s %s %s` in your own terminal). "
+                        "Without UserPromptSubmit.source no prompt can be shown to be typed by the user, so a "
+                        "one-run --perms= raise is disabled on Claude Code; a lowering still applies (ADR 004 D5)."
+                        % (level, skill or "<skill>", level, os.path.join(ROOT, "scripts", "plugin-config.sh"),
+                           skill or "<skill>", level))
             return ("--perms=%s is ignored: the prompt was not typed by the user (source %s), and only a user-typed "
-                    "slash command may request a raise (ADR 004 D5)." % (level, source or "missing"))
+                    "slash command may request a raise (ADR 004 D5)." % (level, source))
         rec = pending(skill, level, target, command_name)
         tg = "/".join(x for x in (target.get("repo"), target.get("arg")) if x) or "no resolvable target"
         return ("The user requested --perms=%s for %s on %s. This is a REQUEST, not a grant (ADR 004 D5): nothing "
@@ -307,6 +360,27 @@ def main():
                 "%s, valid 15 minutes after approval, R2/R3 only). If they decline, continue at %s." % (
                     level, who, tg, cur, os.path.join(ROOT, "scripts", "plugin-config.sh"), rec["nonce"], who, level,
                     tg, cur))
+
+    if ev == "PreToolUse":
+        # The host's own Skill call: it records the skill as active for this agent (main or a subagent, M5).
+        if host != "claude" or payload.get("tool_name") != "Skill":
+            return None
+        ti = payload.get("tool_input") if isinstance(payload.get("tool_input"), dict) else {}
+        name = ti.get("skill")
+        if not isinstance(name, str) or not name.strip():
+            return None
+        name = name.strip()[:200]
+        args = ti.get("args") if isinstance(ti.get("args"), str) else ""
+        obj = os.environ.get("SUPERPOWERS_OBJECTIVE_ID") or None
+        idir = dir_("intent")
+        prune(idir, TTL_CONTEXT)
+        ctx = {"version": 1, "session_id": sid_raw, "agent": agent, "host": host, "command_name": name,
+               "skill": skill_of(name), "host_recorded": True, "recorded_by": "PreToolUse:Skill", "prompt_id": None,
+               "user_typed": None, "perms": None, "target": target_of(first_line(args), cwd),
+               "objective": obj if obj and OBJ_RE.match(obj) else None, "at": now_utc(t),
+               "expires": now_utc(t + TTL_CONTEXT)}
+        atomic_write(os.path.join(idir, context_name(sid, agent)), render(ctx))
+        return None
 
     if host == "claude" and ev == "UserPromptExpansion":
         if payload.get("expansion_type") not in (None, "slash_command"):
@@ -319,11 +393,13 @@ def main():
         obj = os.environ.get("SUPERPOWERS_OBJECTIVE_ID") or None
         idir = dir_("intent")
         prune(idir, TTL_CONTEXT)
+        pid = prompt_id(payload)
         ctx = {"version": 1, "session_id": sid_raw, "agent": agent, "host": host, "command_name": cname,
-               "skill": skill, "user_typed": None, "perms": level, "target": target,
+               "skill": skill, "host_recorded": False, "recorded_by": "UserPromptExpansion", "prompt_id": pid,
+               "user_typed": None, "perms": level, "target": target,
                "objective": obj if obj and OBJ_RE.match(obj) else None, "at": now_utc(t),
                "expires": now_utc(t + TTL_CONTEXT)}
-        atomic_write(os.path.join(idir, sid + ".json"), render(ctx))
+        atomic_write(os.path.join(idir, context_name(sid, agent)), render(ctx))
         # Every expansion waits for its submit half, which says who typed it (user_typed). Only a raise is
         # still to act on when they pair; a lowering, a no-op or a note is answered here and now.
         act, msg = False, None
@@ -332,14 +408,14 @@ def main():
         elif level and skill is None:
             msg = "--perms=%s is ignored: /%s is not one of this plugin's skills." % (level, cname)
         elif level:
-            cur = current_level(skill, host)
+            cur = current_level(skill, host, sid_raw, agent)
             if E["is_lower"](level, cur) or level == cur:
                 msg = raise_or_lower(skill, level, target, False, None, cname, cur)
             else:
                 act = True
         atomic_write(os.path.join(idir, sid + ".expansion.json"),
                      render({"at": t, "command_name": cname, "skill": skill, "perms": level, "act": act,
-                             "target": target}))
+                             "target": target, "prompt_id": pid, "agent": agent}))
         return pair(idir, sid, raise_or_lower) or msg
 
     if ev == "UserPromptSubmit":
@@ -354,7 +430,7 @@ def main():
             src_ = payload.get("source")
             atomic_write(os.path.join(idir, sid + ".submit.json"),
                          render({"at": t, "source": src_ if isinstance(src_, str) else None, "command": typed,
-                                 "perms": level}))
+                                 "perms": level, "prompt_id": prompt_id(payload)}))
             return pair(idir, sid, raise_or_lower)
         if badv is not None:
             return "--perms=%s is not a level (%s): ignored." % (badv, " | ".join(LEVELS))
@@ -368,7 +444,11 @@ def pair(idir, sid, raise_or_lower):
     x, s = read_json(xp), read_json(sp)
     if x is None or s is None:
         return None
-    if (abs(int(x.get("at", 0)) - int(s.get("at", 0))) > PAIR_WINDOW or x.get("perms") != s.get("perms")
+    xpid, spid = x.get("prompt_id"), s.get("prompt_id")
+    # M2: the submit and its expansion carry the same prompt_id; only a host that sends none on either half falls
+    # back to the 60 s window.
+    same_prompt = (xpid == spid) if (xpid or spid) else abs(int(x.get("at", 0)) - int(s.get("at", 0))) <= PAIR_WINDOW
+    if (not same_prompt or x.get("perms") != s.get("perms")
             or not same_command(s.get("command"), x.get("command_name"))):
         for p, h in ((xp, x), (sp, s)):
             if time.time() - int(h.get("at", 0)) > PAIR_WINDOW:
@@ -383,10 +463,12 @@ def pair(idir, sid, raise_or_lower):
         except OSError:
             pass
     user = s.get("source") == "user"
-    cp = os.path.join(idir, sid + ".json")
+    cp = os.path.join(idir, context_name(sid, str(x.get("agent") or "main")))
     ctx = read_json(cp)
-    if ctx is not None and ctx.get("command_name") == x.get("command_name"):
+    if (ctx is not None and ctx.get("command_name") == x.get("command_name")
+            and ctx.get("recorded_by") == "UserPromptExpansion" and ctx.get("prompt_id") == xpid):
         ctx["user_typed"] = user
+        ctx["host_recorded"] = True
         atomic_write(cp, render(ctx))
     if not x.get("act") or not x.get("perms"):
         return None
@@ -405,7 +487,7 @@ PY
 
 _pi_event="$(printf '%s' "$input" | jq -r '.hook_event_name // empty' 2>/dev/null)" || _pi_event=""
 case "$_pi_event" in
-  UserPromptExpansion|UserPromptSubmit) ;;
+  UserPromptExpansion|UserPromptSubmit|PreToolUse) ;;
   *) exit 0 ;;
 esac
 PI_EVENT="$_pi_event" python3 -I -S -c "$_PI_PY" "$PI_ROOT" "${HOOK_PLATFORM:-claude}" 3<<<"$_PERM_ENGINE" <<<"$input" 2>/dev/null
