@@ -5,6 +5,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [5.4.0] — 2026-11-04
+
 ### Added
 
 - **`make test-hooks` fails when a suite writes to the real home.** `scripts/real-home-witness.sh`
