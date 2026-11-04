@@ -280,7 +280,7 @@ judge "non-plugin, relative and missing paths are dropped" '{"pluginPaths":[]}' 
 judge "…and each is named on stderr" 3 "$(printf '%s\n' "$ERR" | grep -c 'ignoring')"
 
 section "the safety tier fails closed; the advisory tier does not"
-SAFETY=(enforce-worktree-edits.sh guard-sensitive-files.sh protect-other-branches.sh cursor-agent-tools-guard.sh)
+SAFETY=(enforce-worktree-edits.sh guard-sensitive-files.sh protect-other-branches.sh cursor-agent-tools-guard.sh permission-guard.sh)
 while IFS=$'\t' read -r event cmd fc; do
   script="${cmd##*/}"
   case "$event" in
