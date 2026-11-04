@@ -16,6 +16,7 @@ import uuid
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from pathlib import Path
 
+from scripts.permission_gate import CHILD_PERMISSION_FLAGS, require
 from scripts.utils import parse_skill_md
 
 
@@ -73,6 +74,10 @@ def run_single_query(
             "--output-format", "stream-json",
             "--verbose",
             "--include-partial-messages",
+            # Explicit and restrictive: the user's own default mode (bypass,
+            # for one) never reaches the child. Trigger detection reads the
+            # first tool_use from the stream, so it is unaffected.
+            *CHILD_PERMISSION_FLAGS,
         ]
         if model:
             cmd.extend(["--model", model])
@@ -279,6 +284,13 @@ def main():
     name, original_description, content = parse_skill_md(skill_path)
     description = args.description or original_description
     project_root = find_project_root()
+
+    sessions = len(eval_set) * args.runs_per_query
+    require(
+        f"start {sessions} nested `claude -p` sessions ({len(eval_set)} queries x "
+        f"{args.runs_per_query} runs, {args.num_workers} at a time) in {project_root}, "
+        "each a real model call on your account"
+    )
 
     if args.verbose:
         print(f"Evaluating: {description}", file=sys.stderr)

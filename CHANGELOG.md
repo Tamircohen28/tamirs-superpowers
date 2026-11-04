@@ -5,6 +5,57 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [5.3.0] — 2026-11-04
+
+### Security
+
+- **Every R3/R4 step a skill or script takes now goes through the permission resolver
+  (ADR 004 item 10).** Each one asks `scripts/resolve-permission.sh` first; a deny, a missing
+  or failing resolver, or an ask with nobody at a terminal stops the step with exit 3, the
+  setting that would allow it, and the exact command to run yourself in your own terminal.
+  `--yes`, `--force` and `--adopt all` never skip an R3/R4 gate. Gated now: repo-scaffold's
+  repository creation (`repo.create`), `enable-repo-merge-settings.sh`
+  (`repo.settings.merge`), `github-policy.sh apply` (`ruleset.apply`, `ruleset.apply.org`),
+  usage-capture `enable.sh` (the settings rewrite, `--bodies`, the collector start and stop),
+  capture-config policy hunks (`config.policy.stage`, per hunk), retro writes outside the
+  repository, skill-creator's nested `claude -p` runs (`process.spawn.agent_host`; children
+  run with `--permission-mode dontAsk`), mcp-builder's installs, inspector runs and global
+  host config, pr-dev's issue close, PR close and merge, and the cleanup skill's R3/R4 steps.
+  From an agent's shell, which has no terminal, the R4 ones always stop and hand you the
+  command.
+- **`PM_ALLOW_DOCKER` approves nothing.** docker-guard asks the resolver about `docker.state`:
+  a host ask dialog on Claude Code, a deny elsewhere, a block when the resolver fails. The
+  inline and exported token are both ignored.
+- **`GITHUB_POLICY_ALLOW_LIVE` is gone.** An environment switch may only tighten (ADR 004 D3);
+  setting it prints that it is ignored.
+
+### Changed
+
+- **Worktree dependency installs.** At `supervised` (the default) the worktree hook no longer
+  installs dependencies: it writes the commands to run to `session-files/worktree-setup.log`.
+  At `standard` and above it runs only script-free installs (`npm ci --ignore-scripts`, pnpm,
+  classic yarn and bun with scripts off, `cargo fetch`); anything that would run repository
+  code (repo-pinned yarn, lockfile-less npm, uv, poetry, pipenv, go, deno, bundler, composer)
+  is printed instead.
+- **Branch cleanup keeps what it cannot prove safe.** `cleanup-after-merge.sh` and
+  `cleanup.sh --yes` delete nothing unless the PR is merged, its head is neither the base nor
+  the default branch, and it is not cross-repository; a remote branch also has to be
+  unprotected and at the merged head. Every deletion asks the resolver
+  (`branch.delete.remote` is R3), so under `supervised` and `standard` a headless run keeps
+  remote branches and exits 3 with a `skipped:` list of what it kept and why. A dirty worktree
+  is never force-removed. On Claude Code, pr-dev deletes a kept branch with
+  `git push origin --delete <branch>` as its own call, so the host dialog asks you.
+- **`enable-repo-merge-settings.sh` is a dry run by default.** It prints the PATCH; `--apply`
+  sends it after the resolver. repo-scaffold and repo-standards pass `--apply` and treat exit
+  3 as a degraded success that reports the command to run yourself.
+- **mcp-builder registers servers at project scope by default**; user-level host config goes
+  through the gate.
+- **capture-config delivers only adopted sinks** and refuses stray `core/` or `platforms/`
+  edits in its commits.
+- repo-scaffold and mcp-builder `SKILL.md` are back under 500 lines: Stage 4 governance detail
+  moved to `references/branch-governance.md`, the tool templates to
+  `references/tool-templates.md`.
+
 ## [5.2.0] — 2026-11-04
 
 ### Added
