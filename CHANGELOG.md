@@ -5,6 +5,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [5.4.1] — 2026-11-05
+
 ### Fixed
 
 - **The protected-file guard's one admitted assignment must start its statement, and
