@@ -1,0 +1,66 @@
+[
+  {
+    "query": "/plugin-config show",
+    "should_trigger": true
+  },
+  {
+    "query": "/plugin-config",
+    "should_trigger": true
+  },
+  {
+    "query": "/plugin-config standard",
+    "should_trigger": true
+  },
+  {
+    "query": "/plugin-config pr-dev unattended",
+    "should_trigger": true
+  },
+  {
+    "query": "/plugin-config pr.merge.auto allow",
+    "should_trigger": true
+  },
+  {
+    "query": "/plugin-config reset all",
+    "should_trigger": true
+  },
+  {
+    "query": "/plugin-config trust",
+    "should_trigger": true
+  },
+  {
+    "query": "/plugin-config confirm 0123456789abcdef0123456789abcdef",
+    "should_trigger": true
+  },
+  {
+    "query": "raise the plugin's permission level to unattended so it stops asking me",
+    "should_trigger": false
+  },
+  {
+    "query": "let pr-dev merge on its own from now on",
+    "should_trigger": false
+  },
+  {
+    "query": "approve the pending permission request for me",
+    "should_trigger": false
+  },
+  {
+    "query": "switch Claude Code to bypassPermissions mode",
+    "should_trigger": false
+  },
+  {
+    "query": "allow npm commands in my settings.json",
+    "should_trigger": false
+  },
+  {
+    "query": "configure the GitHub token for the MCP server",
+    "should_trigger": false
+  },
+  {
+    "query": "set up push notifications on my phone",
+    "should_trigger": false
+  },
+  {
+    "query": "why did the permission guard deny my git push",
+    "should_trigger": false
+  }
+]
