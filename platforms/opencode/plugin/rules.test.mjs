@@ -364,6 +364,18 @@ test("L4 protected paths: case folding, ~ and $HOME spellings, parents of repo-r
   assert.equal(t.mode, "deny")
   assert.match(t.reason, /would receive a whole directory tree/)
   assert.equal(protectedReason(`${H}/projects/x`, [`${H}/projects/x`], pfacts(), "tree", "cp"), null)
+  // D10.1 narrowed: a repository's OpenCode config, plugins and agents, and its Gemini settings, policies and
+  // extensions are protected; its generated command, skill and adapter dirs for other hosts are not.
+  for (const f of [".gemini/settings.json", ".gemini/policies/p.toml", ".gemini/extensions/x/e.json", "opencode.jsonc",
+    ".opencode/opencode.json", ".opencode/opencode.jsonc", ".opencode/plugin/x.ts", ".opencode/plugins/x.ts",
+    ".opencode/agent/a.md", ".opencode/agents/a.md"]) {
+    assert.equal(protectedReason(`/work/proj/${f}`, [`/work/proj/${f}`], pfacts())?.mode, "deny", f)
+  }
+  for (const f of [".gemini/skills/x/SKILL.md", ".gemini/agents/a.md", ".gemini/GEMINI.md", ".opencode/commands/c.md"]) {
+    assert.equal(protectedReason(`/work/proj/${f}`, [`/work/proj/${f}`], pfacts()), null, f)
+  }
+  assert.equal(protectedReason("/work/proj/.gemini", ["/work/proj/.gemini"], pfacts(), "delete", "rm")?.mode, "deny")
+  assert.equal(protectedReason("/work/proj/.opencode/commands", ["/work/proj/.opencode/commands"], pfacts(), "delete", "rm"), null)
   // The workflow rule reaches the workflows directory itself, and a .github that is removed or filled.
   assert.match(workflowReason(`${MAIN}/.github/workflows`, "delete"), /is a GitHub Actions workflow/)
   assert.match(workflowReason(`${MAIN}/.github`, "tree", "cp"), /holds the GitHub Actions workflows/)

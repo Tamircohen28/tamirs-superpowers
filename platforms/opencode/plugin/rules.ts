@@ -155,7 +155,9 @@ export const PROTECTED_PATHS: Readonly<Record<ProtectedId, readonly string[]>> =
     "{home}/.gemini/settings.json",
     "{home}/.gemini/policies/**",
     "{home}/.gemini/extensions/tamirs-superpowers/**",
-    "{repo}/.gemini/**",
+    "{repo}/.gemini/settings.json",
+    "{repo}/.gemini/policies/**",
+    "{repo}/.gemini/extensions/**",
     "{home}/.codex/config.toml",
     "{home}/.codex/hooks*",
     "{home}/.codex/rules/**",
@@ -166,7 +168,13 @@ export const PROTECTED_PATHS: Readonly<Record<ProtectedId, readonly string[]>> =
     "{repo}/.cursor/hooks.json",
     "{home}/.config/opencode/**",
     "{repo}/opencode.json",
-    "{repo}/.opencode/**",
+    "{repo}/opencode.jsonc",
+    "{repo}/.opencode/opencode.json",
+    "{repo}/.opencode/opencode.jsonc",
+    "{repo}/.opencode/plugin/**",
+    "{repo}/.opencode/plugins/**",
+    "{repo}/.opencode/agent/**",
+    "{repo}/.opencode/agents/**",
     "{home}/.config/gh/**",
     "{home}/.gitconfig",
   ],
@@ -348,6 +356,7 @@ export function deliverAsDeny(reason: string): Decision {
     `${reason} OpenCode cannot carry this ask: \`opencode --auto\` approves a plugin ask (measured O1), so it is delivered as a deny (ADR 004 D8).`,
   )
 }
+
 
 // ---------------------------------------------- hooks/enforce-worktree-edits.sh ---
 

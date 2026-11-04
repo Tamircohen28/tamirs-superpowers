@@ -76,7 +76,9 @@
 #     a hard link made before this call. git's replays (checkout, switch,
 #     restore, reset --hard, merge, pull, rebase, cherry-pick, revert, am,
 #     stash) are judged against the PROTECTED paths by the files git says they
-#     change; they never meet the generated-file rules, since a merge
+#     change, as an R4 ask (hook_ask on Claude Code, a deny on every other host:
+#     an integrator merging a branch legitimately brings such a file in, and the
+#     user decides); they never meet the generated-file rules, since a merge
 #     legitimately rewrites a lockfile.
 #   The half that closes those is a git/CI check on the modified path — it sees
 #   the outcome rather than the mechanism, so no choice of tool routes around
@@ -210,7 +212,9 @@ while IFS=$'\t' read -r kind mode why; do
   esac
 done < <(printf '%s\n' "$analysis")
 if [ -n "$ask_reason" ]; then
-  protected_ask "R4 ASK: $ask_reason This plugin runs from a source checkout, so its guard files are editable, but only with the user's explicit approval of this change."
+  # The reason says why this is an ask (a source checkout's guard file, or a
+  # git replay onto a protected path); write-targets.py words it.
+  protected_ask "R4 ASK: $ask_reason"
 fi
 
 # Pass 2 — generated files. The user's override applies here, and only to

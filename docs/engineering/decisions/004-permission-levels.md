@@ -324,12 +324,19 @@ for 10 minutes; the clamp is named in each answer it changes and in `--level`. T
 1. **Policy, guards and host config are R4 `policy.edit`** ([SR] S-03). GSF denies, with no `PM_ALLOW_PROTECTED`
    bypass, Edit-class and parsed-Bash writes to the D3 dirs, host plugin caches, guard files in the running plugin
    root (R4 ask in a source checkout, where contributors edit them) and host settings: Claude
-   `{~,<repo>}/.claude/settings*.json`; Gemini `~/.gemini/{settings.json,policies/**}`, `<repo>/.gemini/**`, the
+   `{~,<repo>}/.claude/settings*.json`; Gemini `~/.gemini/{settings.json,policies/**}`,
+   `<repo>/.gemini/{settings.json,policies/**,extensions/**}`, the
    extension `.env`; Codex `~/.codex/{config.toml,hooks*,rules/**,plugins/**}` (a write into the plugin root changes
    its content hash and stops its hooks until re-trusted, [codex] B2); Cursor
    `~/.cursor/{hooks,cli-config,permissions}.json`, `<repo>/.cursor/hooks.json`; OpenCode `~/.config/opencode/**`,
-   `<repo>/{opencode.json,.opencode/**}`; shared `~/.config/gh/**`, `~/.gitconfig`. It resolves the `realpath` of
-   the target and of any `ln` destination; an UNSURE write whose text names one of these paths is a deny.
+   `<repo>/{opencode.json,opencode.jsonc}`, `<repo>/.opencode/{opencode.json,opencode.jsonc,plugin/**,plugins/**,agent/**,agents/**}`
+   (config, plugin code and agents' permission rules); shared `~/.config/gh/**`, `~/.gitconfig`. A repository's
+   generated command, skill and agent-adapter dirs for other hosts (`.gemini/skills/`, `.gemini/agents/`,
+   `.opencode/commands/`) are not policy and are not protected. It resolves the `realpath` of the target and of any
+   `ln` destination; an UNSURE write whose text names one of these paths is a deny. A git replay (checkout, switch,
+   restore, reset, merge, pull, rebase, cherry-pick, revert, am, stash) that would rewrite one of these paths is an
+   R4 ask — `hook_ask`, the host prompt, on Claude Code and a deny on every other host — never a silent allow: an
+   integrator merging a branch legitimately brings such a file in, and the user decides.
 2. **Hash and re-confirm (CVE-2025-54136 class, [P] §5.2):** a user file whose sha256 ≠ the lock, or a project file
    whose hash ≠ its trust entry, keeps its tightening entries (measured against the no-file defaults) and drops its
    widening ones until a human confirms through D5/D6.
