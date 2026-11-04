@@ -80,6 +80,15 @@
 #                     policy (permission_rules on mcpName = "github") and the server
 #                     flags stay beside it (ADR 004 D8). A group mixing it with a shell
 #                     or file token maps both.
+#   dropped tokens    Skill (permission-intent.sh on Claude Code's Skill tool, ADR 004
+#                     D5/D8 "E": the host-recorded skill a per-skill level keys on).
+#                     Gemini's counterpart is BeforeTool(activate_skill), but
+#                     gemini-wrap.sh does not translate that payload and
+#                     permission-intent.sh records no skill on Gemini, so per-skill
+#                     levels are not applied there yet (the D8 Gemini row). The token
+#                     is dropped, never mapped onto a tool it was not measured on; a
+#                     group whose every token is dropped is left out, and a group
+#                     mixing it with a mapped token keeps the mapped ones.
 #   Any other Claude event, matcher token or per-hook key is an error (exit 2),
 #   so a new canonical entry cannot ship to Gemini half-translated.
 #
@@ -173,6 +182,12 @@ CMD_RE = re.compile(r'^(bash|python3)\s+"\$\{CLAUDE_PLUGIN_ROOT\}"?/?([^"\s]+)"?
 MCP_MATCHERS = {
     "mcp__plugin_tamirs-superpowers_github__.*": "mcp_github_[A-Za-z0-9_.:-]+",
 }
+# Claude matcher tokens with no Gemini counterpart this plugin uses (see THE MAPPING
+# above): Skill is Claude Code's skill-activation tool, which permission-intent.sh reads
+# for the host-recorded skill (ADR 004 D5). Gemini's activate_skill payload is not
+# translated by gemini-wrap.sh, so the token is dropped rather than mapped.
+DROPPED_MATCHER_TOKENS = {"Skill"}
+DROP_GROUP = object()
 
 errors = []
 def err(msg): errors.append(msg)
@@ -185,12 +200,17 @@ if not isinstance(hooks_in, dict):
     sys.exit("error: hooks/hooks.json has no `hooks` object")
 
 def translate_matcher(event, matcher):
-    """Claude tool matcher -> anchored Gemini regex, or None for match-all."""
+    """Claude tool matcher -> anchored Gemini regex, None for match-all, or DROP_GROUP
+    when every token is in DROPPED_MATCHER_TOKENS (the group is left out)."""
     if matcher is None or matcher.strip() in ("", "*"):
         return None
     tools = []
-    for tok in matcher.split("|"):
-        tok = tok.strip()
+    toks = [t.strip() for t in matcher.split("|")]
+    if all(t in DROPPED_MATCHER_TOKENS for t in toks):
+        return DROP_GROUP
+    for tok in toks:
+        if tok in DROPPED_MATCHER_TOKENS:
+            continue
         if tok in MCP_MATCHERS:
             gtok = MCP_MATCHERS[tok]
         elif tok in TOOL_MAP:
@@ -231,6 +251,9 @@ for event, groups in hooks_in.items():
         matcher = None
         if gev in TOOL_EVENTS:
             matcher = translate_matcher(event, g.get("matcher"))
+            if matcher is DROP_GROUP:
+                dropped.append("%s[%s]" % (event, g.get("matcher")))
+                continue
             if matcher:
                 og["matcher"] = matcher
         # A lifecycle matcher on Gemini is an exact-string compare against the

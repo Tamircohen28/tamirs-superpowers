@@ -54,7 +54,7 @@ SRC="$ROOT/platforms/gemini/policies.source.json"
 LEGACY="$ROOT/platforms/gemini/policies/tamirs-superpowers.toml"
 PERM="$ROOT/platforms/gemini/policies/tamirs-superpowers-permissions.toml"
 CATALOG="$ROOT/core/permissions/actions.json"
-MCP_TOKEN='mcp__plugin_tamirs-superpowers_github__.*'
+MCP_MATCHER='mcp__plugin_tamirs-superpowers_github__.*'
 
 T="$(harness_tmpdir)"
 T="$(cd "$T" && pwd -P)"
@@ -502,7 +502,7 @@ for n in permission-guard-shell permission-guard-mcp; do
     "$(jq -r --arg n "$n" '[.hooks.BeforeTool[].hooks[] | select(.name == $n) | .timeout][0] // empty' "$HOOKS")"
 done
 judge "the canonical file still wires the GitHub MCP matcher (so the mapping is exercised)" yes \
-  "$(if jq -e --arg m "$MCP_TOKEN" '[.hooks.PreToolUse[] | select(.matcher == $m)] | length == 1' "$ROOT/hooks/hooks.json" >/dev/null; then echo yes; else echo no; fi)"
+  "$(if jq -e --arg m "$MCP_MATCHER" '[.hooks.PreToolUse[] | select(.matcher == $m)] | length == 1' "$ROOT/hooks/hooks.json" >/dev/null; then echo yes; else echo no; fi)"
 judge "no generated tool group lacks a matcher (never a match-all)" 0 \
   "$(jq '[(.hooks.BeforeTool + .hooks.AfterTool)[] | select(has("matcher") | not)] | length' "$HOOKS")"
 judge "the only generated matcher naming an MCP tool is the bundled server's" "$GEM_MCP" \
@@ -520,10 +520,10 @@ if command -v node >/dev/null 2>&1; then
     "$(node -e 'const m = new RegExp(process.argv[1]); console.log(m.test("mcp_github_merge_pull_request"), m.test("mcp_context7_query-docs"))' "$GEM_MCP")"
 fi
 judge "the description says how the MCP group is mapped" yes \
-  "$(has "$(jq -r .description "$HOOKS")" "The GitHub MCP group (Claude matcher $MCP_TOKEN) runs on $GEM_MCP")"
+  "$(has "$(jq -r .description "$HOOKS")" "The GitHub MCP group (Claude matcher $MCP_MATCHER) runs on $GEM_MCP")"
 
 C="$T/mixed"; make_copy "$C"
-jq --arg m "$MCP_TOKEN" '.hooks.PreToolUse[0].matcher = "Bash|" + $m' "$C/hooks/hooks.json" > "$C/h" && mv "$C/h" "$C/hooks/hooks.json"
+jq --arg m "$MCP_MATCHER" '.hooks.PreToolUse[0].matcher = "Bash|" + $m' "$C/hooks/hooks.json" > "$C/h" && mv "$C/h" "$C/hooks/hooks.json"
 bash "$GEN" "$C" >/dev/null 2>&1
 judge "a group mixing the MCP token and a shell token maps both" "^(run_shell_command|mcp_github_[A-Za-z0-9_.:-]+)\$" \
   "$(jq -r '.hooks.BeforeTool[0].matcher' "$C/platforms/gemini/hooks.json")"

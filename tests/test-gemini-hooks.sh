@@ -103,6 +103,14 @@ C="$TMP/bad-matcher"; make_copy "$C"
 edit_json "$C/hooks/hooks.json" '.hooks.PreToolUse[0].matcher = "Bash|WebFetch"'
 assert_exit "a matcher token with no Gemini tool name is exit 2" 2 bash "$GEN" "$C"
 
+C="$TMP/skill-mixed"; make_copy "$C"
+edit_json "$C/hooks/hooks.json" '.hooks.PreToolUse[0].matcher = "Bash|Skill"'
+assert_exit "a dropped token (Skill) beside a mapped one is not an error" 0 bash "$GEN" "$C"
+judge "...and the group keeps only the mapped token" '^(run_shell_command)$' \
+  "$(jq -r '.hooks.BeforeTool[0].matcher' "$C/platforms/gemini/hooks.json")"
+judge "the Skill-only group is left out (no permission-intent on BeforeTool)" 0 \
+  "$(jq '[.hooks.BeforeTool[].hooks[] | select(.command | test("permission-intent"))] | length' "$ROOT/platforms/gemini/hooks.json")"
+
 C="$TMP/bad-script"; make_copy "$C"
 edit_json "$C/hooks/hooks.json" '.hooks.Stop[0].hooks[0].command = "bash \"${CLAUDE_PLUGIN_ROOT}\"/hooks/does-not-exist.sh"'
 assert_exit "a command naming a missing script is exit 2" 2 bash "$GEN" "$C"
@@ -166,8 +174,10 @@ judge "every hook has a name" 0 "$(jq '[.hooks[][].hooks[] | select(.name == nul
 judge "hook names are unique" "" "$(jq -r '.hooks[][].hooks[].name' "$HOOKS" | sort | uniq -d)"
 judge "every hook is type command" 0 "$(jq '[.hooks[][].hooks[] | select(.type != "command")] | length' "$HOOKS")"
 # Every canonical hook outside the events Gemini has no counterpart for is carried over,
-# the GitHub MCP group included (mapped onto mcp_github_<tool>, ADR 004 D8).
-n_canon="$(jq '[.hooks | to_entries[] | select(.key | IN("WorktreeCreate","WorktreeRemove","DirectoryAdded","StopFailure","SubagentStop","TaskCompleted","TeammateIdle","UserPromptExpansion") | not) | .value[] | .hooks[]] | length' "$ROOT/hooks/hooks.json")"
+# the GitHub MCP group included (mapped onto mcp_github_<tool>, ADR 004 D8). A group whose
+# every matcher token is in build-gemini-hooks.sh's DROPPED_MATCHER_TOKENS (today `Skill`,
+# Claude Code's skill-activation tool: no Gemini counterpart this plugin uses) is left out.
+n_canon="$(jq '[.hooks | to_entries[] | select(.key | IN("WorktreeCreate","WorktreeRemove","DirectoryAdded","StopFailure","SubagentStop","TaskCompleted","TeammateIdle","UserPromptExpansion") | not) | .value[] | select(.matcher != null and (.matcher | split("|") | map(gsub("^\\s+|\\s+$"; "")) | all(. == "Skill")) | not) | .hooks[]] | length' "$ROOT/hooks/hooks.json")"
 n_gem="$(jq '[.hooks[][].hooks[]] | length' "$HOOKS")"
 judge "every canonical hook outside the dropped events is carried over ($n_canon)" "$n_canon" "$n_gem"
 

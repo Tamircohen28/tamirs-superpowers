@@ -44,6 +44,15 @@ harness_require jq python3 git
 
 TMP="$(harness_tmpdir)"
 export HOME="$TMP/home"; mkdir -p "$HOME"
+# The permission hooks (permission-intent.sh, permission-guard.sh) read and write the
+# PASSWD home's state, never HOME (ADR 004 D3), so a fake HOME alone would let this
+# suite write intent/ and seen/ records into the developer's real
+# ~/.local/state/tamirs-superpowers. TAMIRS_PERMISSION_TEST_ROOT redirects them to a
+# 0700 temp dir; the resolver honours it only under a suite listed in TEST_SCRIPTS
+# (scripts/lib/permission-common.sh), this one included. The check below refuses to
+# run rather than let a hook touch the real home.
+PH="$TMP/passwd-home"; mkdir -m 700 "$PH"
+export TAMIRS_PERMISSION_TEST_ROOT="$PH"
 export GIT_CONFIG_NOSYSTEM=1 SUPERPOWERS_WORKTREE_CLEANUP=0
 export AGENT_CLAIM_DIR="$TMP/claims"
 export CLAUDE_PLUGIN_ROOT="$ROOT" CLAUDE_PLUGIN_DATA="$TMP/plugin-data"
@@ -51,6 +60,12 @@ mkdir -p "$CLAUDE_PLUGIN_DATA" "$AGENT_CLAIM_DIR"
 unset TAMIRS_USAGE_CAPTURE CLAUDE_ENV_FILE SUPERPOWERS_CURSOR_PLUGIN_PATH \
   CLAUDE_PLUGIN_OPTION_PUSHOVER_TOKEN CLAUDE_PLUGIN_OPTION_PUSHOVER_USER \
   PLUGIN_ROOT PLUGIN_DATA CODEX_HOME GEMINI_CWD GEMINI_PROJECT_DIR 2>/dev/null || true
+
+hs="$(bash "$ROOT/scripts/resolve-permission.sh" repo.read --json 2>/dev/null | jq -r '.home_source // empty')"
+if [ "$hs" != "test-root" ]; then
+  echo "FATAL: the resolver did not take TAMIRS_PERMISSION_TEST_ROOT (home_source=$hs); refusing to run hooks against the real passwd home" >&2
+  exit 1
+fi
 
 # --- the two situations ------------------------------------------------------------------
 PLAIN="$TMP/plain"; harness_new_repo "$PLAIN"
@@ -384,5 +399,9 @@ for dialect in claude codex cursor gemini; do
   judge "$dialect: a workflow write is DENIED" yes "$(denied "$dialect" "$OUT" "$RC")"
   judge "$dialect: the deny is one JSON object" yes "$(one_object "$OUT")"
 done
+
+section "hermetic: the permission hooks wrote their state under the test root, never the real home"
+judge "permission-intent.sh records landed in the temp passwd home" yes \
+  "$(if find "$PH/.local/state/tamirs-superpowers" -type f 2>/dev/null | grep -q .; then echo yes; else echo no; fi)"
 
 harness_summary

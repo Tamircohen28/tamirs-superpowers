@@ -287,6 +287,10 @@ judge "no employer-internal reference is shipped" "" "$emp"
 # A foreign orchestrator named in an executable, a manifest or a skill is a
 # dependency. Named in docs/ prose it is documentation — and refusing that would
 # force the docs to hide which third-party wiring this repo preserves.
+# Two files name cmux to BLOCK it, not to depend on it: the permission catalog's
+# tty.drive action (core/permissions/actions.json) and the guard's candidate-command
+# regex (hooks/permission-guard.sh) deny driving a terminal through cmux (ADR 004 D5).
+# Exactly those two paths are exempt; any other executable naming cmux still fails.
 orch=""
 while IFS= read -r hit; do
   [ -n "$hit" ] || continue
@@ -298,6 +302,7 @@ while IFS= read -r hit; do
 # force the data to hide which third-party wiring it preserves.
 done < <(scan_i "$ORCHESTRATOR_RE" | strip_noise \
           | grep -vE '^(tests/|session-files/|docs/|CHANGELOG\.md)' \
+          | grep -vE '^(core/permissions/actions\.json|hooks/permission-guard\.sh):' \
           | grep -vE ':[0-9]+:[[:space:]]*"_[A-Za-z0-9_]*"[[:space:]]*:' || true)
 judge "no foreign-orchestrator dependency is shipped" "" "$orch"
 

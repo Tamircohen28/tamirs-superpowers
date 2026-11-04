@@ -134,7 +134,7 @@ judge "warns: Claude Code 2.1.300 below $CC" yes "$(has "$w" "warn")"
 judge "  ... names the ask dialog under bypassPermissions" yes "$(has "$w" "bypassPermissions")"
 judge "  ... names where the floor came from" yes "$(has "$w" "platform-targets.json, ADR 004 D9")"
 judge "  ... not the onFailure floor (2.1.300 >= 2.1.295)" no "$(has "$OUT" "onFailure")"
-judge "  ... a remedy that names supervised" yes "$(has "$OUT" "remedy: upgrade Claude Code to $CC or later; until then keep the level at supervised")"
+judge "  ... a remedy that names supervised" yes "$(has "$OUT" "remedy: upgrade Claude Code to $CC or later; until then every level above supervised runs as supervised")"
 judge "  ... and a Summary line" yes "$(has "$(sed -n '/== Summary/,$p' "$T/doctor.out")" "permission levels on Claude Code 2.1.300")"
 fakes "claude=2.1.290 (Claude Code)"
 doctor
