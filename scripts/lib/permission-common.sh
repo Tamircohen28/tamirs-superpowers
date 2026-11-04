@@ -1315,8 +1315,12 @@ def floor_value(target, field):
 
 
 def which(name):
+    """The first executable <name> on PATH, absolute entries only: an empty or relative entry would read the
+    working directory, which a repository controls."""
     for d in (os.environ.get("PATH") or "").split(os.pathsep):
-        p = os.path.join(d or ".", name)
+        if not os.path.isabs(d):
+            continue
+        p = os.path.join(d, name)
         if os.path.isfile(p) and os.access(p, os.X_OK):
             return p
     return None

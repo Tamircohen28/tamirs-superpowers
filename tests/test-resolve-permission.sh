@@ -817,6 +817,10 @@ judge "  ... and the unknown is cached, so the next call does not wait again" ye
 OUT="$(cd "$NOWHERE" && TAMIRS_PERMISSION_TEST_ROOT="$H" TAMIRS_PERMISSION_TEST_HOST_VERSION=probe PATH="$TMP/no-such-dir:/usr/bin:/bin" bash "$RESOLVE" pr.create --host opencode 2>/dev/null)"; RC=$?
 expect "no host CLI on PATH: unknown, no clamp" allow
 warned "no binary" "opencode is not on PATH"
+mkdir -p "$TMP/cwd-bin"; printf '#!/bin/sh\necho 9.9.9\n' > "$TMP/cwd-bin/opencode"; chmod +x "$TMP/cwd-bin/opencode"
+OUT="$(cd "$TMP/cwd-bin" && TAMIRS_PERMISSION_TEST_ROOT="$H" TAMIRS_PERMISSION_TEST_HOST_VERSION=probe PATH=":.:/usr/bin:/bin" bash "$RESOLVE" pr.create --host opencode 2>/dev/null)"; RC=$?
+expect "an empty or relative PATH entry is never read (the working directory is the repository's)" allow
+warned "relative PATH" "opencode is not on PATH"
 
 # ------------------------------------------------------------------ headless, unknown, alias
 section "headless ask -> deny; unknown ids; aliases (D1, D2)"
