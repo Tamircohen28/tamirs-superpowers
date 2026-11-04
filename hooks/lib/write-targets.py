@@ -813,13 +813,23 @@ def _script_then_files(words, script_flags, cmd=None):
 #     it once the tokenizer has removed its quotes, or one whose only expansion
 #     is `$HOME` or an earlier entry of the table (the same two things
 #     _static_value already resolved);
-#   - only an assignment that reaches the SHELL: a bare `NAME=value` statement,
-#     or `export`/`declare`/`typeset`/`readonly NAME=value`, run
-#     unconditionally — not in a pipeline component or a background job (a
-#     subshell, where it dies), not after `&&`/`||` or under
-#     `if`/`then`/`else`/`while`/`do` (it may never run), and never the
-#     `NAME=value cmd` prefix form, which is the command's environment, not the
-#     shell's. A `( … )` group's assignments are restored at the `)`, like cwd;
+#   - only an assignment that reaches the SHELL, at the TOP LEVEL of the
+#     command: a bare `NAME=value` statement, or
+#     `export`/`declare`/`typeset`/`readonly NAME=value`, not in a pipeline
+#     component or a background job (a subshell, where it dies), not after
+#     `&&`/`||`, and never the `NAME=value cmd` prefix form, which is the
+#     command's environment, not the shell's. analyze_command counts the
+#     compound depth across the whole command — `if`…`fi`, `while`/`until`/
+#     `for`/`select`…`done`, `case`…`esac`, `{`…`}`, `(`…`)`, a function body —
+#     and an assignment anywhere at depth > 0 FORGETS the name instead: the
+#     body may not run, may run later, or runs in a subshell. The first cut
+#     judged only the segment that began with `then`/`do`, so
+#     `if false; then :; S=/tmp; fi` trusted the second statement of the
+#     body (Codex review, PR #359). Nothing is ever restored at a `)`: a
+#     restore brings back a value the subshell may have replaced;
+#   - a redirection is opened before its command runs, so it is resolved
+#     under the table as it stood BEFORE that command's own assignments:
+#     `S=.github; export S=/tmp > "$S/w"` writes .github/w (same review);
 #   - anything that could change the variable afterwards forgets it rather
 #     than guessing: a non-literal reassignment, `+=`, an array, `unset`,
 #     `read`, `for`/`select NAME`, `local`, `printf -v`, `mapfile`/`readarray`,
@@ -836,9 +846,50 @@ PARAM_ASSIGN = re.compile(r"\$\{(%s):?=" % _NAME)
 ARITH_MUTATE = re.compile(
     r"(?<![A-Za-z0-9_$])(%s)\s*(?:(?:[-+*/%%&|^]|<<|>>)?=(?!=)|\+\+|--)|(?:\+\+|--)\s*(%s)"
     % (_NAME, _NAME))
-CONDITIONAL_KEYWORDS = ("if", "then", "elif", "else", "while", "until", "do")
-NEUTRAL_KEYWORDS = ("{", "}", "!", "time")
+# Reserved words in command position. Openers and closers move the compound
+# depth; the rest are passed over to reach the command they introduce.
+SCOPE_OPENERS = ("if", "while", "until", "for", "select", "case", "{")
+SCOPE_CLOSERS = ("fi", "done", "esac", "}")
+NEUTRAL_KEYWORDS = ("then", "elif", "else", "do", "in", "!", "time", "function")
+ALL_KEYWORDS = SCOPE_OPENERS + SCOPE_CLOSERS + NEUTRAL_KEYWORDS
+# The reserved words a command can directly follow in one segment. `for`,
+# `select`, `case` and `function` are followed by a name, not a command.
+COMMAND_INTRODUCERS = ("if", "then", "elif", "else", "while", "until", "do", "{", "!")
 FORGETS_ALL = ("eval", "source", ".")
+
+
+def _scope_update(seg, scope):
+    """Apply a segment's leading reserved words to scope["depth"]; return the new depth.
+
+    `{ S=/tmp` opens before the assignment is read and `fi` closes before
+    the next command, so the depth returned is the one this segment's own
+    commands run at. A quoted word is never reserved. Unbalanced closers stop
+    at zero.
+    """
+    words = [t for t in seg if t.kind == "word"]
+    i = 0
+    while i < len(words):
+        w = words[i].value
+        if words[i].quoted:
+            break
+        if w in SCOPE_OPENERS:
+            scope["depth"] += 1
+        elif w in SCOPE_CLOSERS:
+            scope["depth"] = max(0, scope["depth"] - 1)
+        elif w == "function":
+            i += 1      # `function NAME` — the name is not a command
+        elif w not in NEUTRAL_KEYWORDS:
+            break
+        i += 1
+    return scope["depth"]
+
+
+def _skip_keywords(rest):
+    """Drop leading reserved words (and a `function NAME`) from a word list."""
+    while rest and not rest[0].quoted and rest[0].value in ALL_KEYWORDS:
+        if rest[0].value == "function" and len(rest) > 1:
+            rest.pop(0)
+        rest.pop(0)
 
 
 def _assign_value(name, op, value, tok):
@@ -858,9 +909,16 @@ def _forget_names(text):
         ASSIGNS.pop(m.group(1) or m.group(2), None)
 
 
-def _track_assignments(words, piped_in, terminator, conditional):
-    """Update ASSIGNS from one segment's words, before its writes are judged."""
-    for w in words:
+def _track_assignments(seg, words, piped_in, terminator, conditional):
+    """Update ASSIGNS from one segment, before its writes are judged.
+
+    `seg` is every token (a redirection operand can hold `${S:=x}` too);
+    `words` the command words. `conditional` is true at compound depth > 0 or
+    after `&&`/`||`: an assignment there is forgotten, never trusted.
+    """
+    for w in seg:
+        if w.kind != "word":
+            continue
         # `${S=x}` assigns; `(( S=1 ))` and `$(( S++ ))` mutate.
         for m in PARAM_ASSIGN.finditer(w.value):
             ASSIGNS.pop(m.group(1), None)
@@ -868,12 +926,14 @@ def _track_assignments(words, piped_in, terminator, conditional):
             _forget_names(w.value)
     if piped_in or terminator in ("|", "&"):
         return      # a subshell: nothing here reaches the parent shell
+    # `for NAME in …` / `select NAME in …` rebind NAME; read before the
+    # reserved words are skipped, since `for` is one of them.
+    for i, w in enumerate(words[:-1]):
+        if not w.quoted and w.value in ("for", "select"):
+            ASSIGNS.pop(words[i + 1].value, None)
+            _forget_names(words[i + 1].value)
     rest = list(words)
-    while rest and rest[0].value in NEUTRAL_KEYWORDS:
-        rest.pop(0)
-    if rest and rest[0].value in CONDITIONAL_KEYWORDS:
-        conditional = True
-        rest.pop(0)
+    _skip_keywords(rest)
     leading = []
     while rest and ASSIGN_WORD.match(rest[0].value):
         leading.append(rest.pop(0))
@@ -911,9 +971,6 @@ def _track_assignments(words, piped_in, terminator, conditional):
     elif base in ("unset", "read", "mapfile", "readarray"):
         for w in ops:
             ASSIGNS.pop(w.value.split("[", 1)[0], None)
-    elif base in ("for", "select") and rest[1:]:
-        ASSIGNS.pop(rest[1].value, None)
-        _forget_names(rest[1].value)
     elif base == "printf":
         for i, w in enumerate(rest[1:-1]):
             if w.value == "-v":
@@ -1672,23 +1729,26 @@ def analyze_command(command, cwd):
     # `(cd /tmp); echo x > src/components/ui/button.tsx` against /tmp — a
     # protected path reported as an unprotected one while Bash writes the
     # protected one. An unbalanced `)` leaves cwd unknown rather than wrong.
-    # The same-command assignments (ASSIGNS) are scoped the same way, and an
-    # unbalanced `)` forgets them all rather than keeping a subshell's.
+    # The same-command assignments (ASSIGNS) are never restored at a `)`:
+    # a restore would bring back a value the subshell may have replaced. They
+    # are scoped by DEPTH instead — the open `(` groups plus the open compound
+    # commands (_scope_update) — and an assignment at any depth above zero
+    # forgets its name (see "Same-command literal assignments").
     cwd_stack = []
     ASSIGNS.clear()
+    scope = {"depth": 0}
     prev_terminator = ""
 
     for seg, piped_in, terminator in segments:
         if seg:
+            depth = _scope_update(seg, scope) + len(cwd_stack)
             cwd = _segment_records(seg, piped_in, terminator, cwd, records, heredoc_iter,
-                                   conditional=prev_terminator in ("&&", "||"))
+                                   conditional=depth > 0 or prev_terminator in ("&&", "||"))
         # The group boundary is the terminator of the segment just processed.
         if terminator == "(":
-            cwd_stack.append((cwd, dict(ASSIGNS)))
+            cwd_stack.append(cwd)
         elif terminator == ")":
-            cwd, saved = cwd_stack.pop() if cwd_stack else (None, {})
-            ASSIGNS.clear()
-            ASSIGNS.update(saved)
+            cwd = cwd_stack.pop() if cwd_stack else None
         prev_terminator = terminator
     records.extend(("ANOMALY", why, "") for why in anomalies)
     return records
@@ -1757,21 +1817,40 @@ def _segment_records(seg, piped_in, terminator, cwd, records, heredoc_iter, cond
             continue
         words.append(tok)
 
+    # The table as it stands BEFORE this segment's own assignments: bash opens
+    # a command's redirections before it runs the command, so `S=.github;
+    # export S=/tmp > "$S/w"` writes .github/w, whatever `export` then sets.
+    before = dict(ASSIGNS)
+
     def finish(pairs=()):
         # A redirection writes even when the command is `exec`, a bare `> f`, or
         # a wrapper this parse gave up on — it is the shell's write, not theirs.
-        _record_targets(redirects + list(pairs), cwd, records, fragment)
+        after = dict(ASSIGNS)
+        ASSIGNS.clear()
+        ASSIGNS.update(before)
+        _record_targets(redirects, cwd, records, fragment)
+        ASSIGNS.clear()
+        ASSIGNS.update(after)
+        _record_targets(list(pairs), cwd, records, fragment)
 
-    # What this segment assigns is known before its writes are resolved
+    # What this segment assigns is known before its operands are resolved
     # (`S=/x` and `cp a "$S/b"` are separate segments; `S=/x cp a "$S/b"`
     # expands `$S` before the prefix is applied, and the prefix never reaches
     # the shell, so recording it only now is also correct for that form).
-    _track_assignments(words, piped_in, terminator, conditional)
+    _track_assignments(seg, words, piped_in, terminator, conditional)
 
     # Leading `VAR=value` assignments and transparent wrappers — including each
-    # wrapper's OWN options, or the first of them lands in argv0's place.
+    # wrapper's OWN options, or the first of them lands in argv0's place. A
+    # reserved word that INTRODUCES a command (`then cp a yarn.lock`,
+    # `do tee yarn.lock`, `{ cp …`, `if cp …`) is stripped the same way: left
+    # in place it was argv0, matched no write primitive, and the write after it
+    # was reported as no write at all (a redirection was still caught, being
+    # the shell's; a `cp`, `tee` or `sed -i` was not).
     while words:
         head = words[0].value
+        if not words[0].quoted and head in COMMAND_INTRODUCERS:
+            words.pop(0)
+            continue
         if "=" in head and not head.startswith("=") and head.split("=", 1)[0].replace("_", "a").isalnum():
             words.pop(0)
             continue

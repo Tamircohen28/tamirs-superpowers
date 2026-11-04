@@ -55,9 +55,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   unresolved-write kind once per session (#336).** `S=/tmp/x; cp a "$S/b"` is now checked as
   `/tmp/x/b` instead of reported as unresolved, so `S=/tmp/x; cp a "$S/package-lock.json"` is a
   block, and a scratch-directory write under such a variable raises no notice. Only a literal
-  value assigned unconditionally in the same command resolves: a substitution, a pipeline or
-  subshell assignment, one after `&&`/`||` or under `if`/`while`, a later `unset`/`read`/
-  `for`/`+=`/arithmetic, and `eval`/`source` leave the variable unresolved as before. The full
+  value assigned at the top level of the command resolves: a substitution, a pipeline or
+  background assignment, one after `&&`/`||`, one anywhere inside `if`/`while`/`for`/`case`/
+  `{ }`/`( )` or a function body, a later `unset`/`read`/`for`/`+=`/arithmetic, and
+  `eval`/`source` leave the variable unresolved as before. A command's redirections resolve
+  with the table as it stood before that command's own assignments, as bash opens them. A
+  write primitive that follows `then`, `do`, `else`, `{`, `if` or `!` in the same statement
+  (`if true; then cp a yarn.lock; fi`) is now parsed; before, the reserved word sat in the
+  command's place and the write went unreported. The full
   "NOT checked" paragraph is injected once per session per kind of reason (`hooks/
   guard-sensitive-files.sh`, marker files under the plugin data directory or `TMPDIR`); a
   repeat is one line that still names the unresolved target. Blocks are unchanged.

@@ -331,6 +331,67 @@ judge "a glob through the variable is still a glob" warn "$(bash_verdict "S=$S_S
 judge "an exported variable the command never assigns stays unresolved" warn \
   "$(S="$REPO" bash_verdict "echo x > \$S/yarn.lock")"
 
+# Codex review of PR #359, two P1 bypasses: each made a protected write look like
+# a /tmp write, which the guard then cleared silently — worse than the advisory
+# the parent revision gave. Every row here writes the repo's workflow through a
+# variable whose TRUE value is .github; the hardened answer is deny (resolved
+# correctly) or warn (left unresolved), and never allow. `checked` maps both
+# safe answers to one word so the assertion survives a later improvement that
+# turns a warn into a deny.
+checked() { case "$(bash_verdict "$1")" in deny|warn) echo checked ;; *) echo allow ;; esac; }
+W='$S/workflows/ci.yml'
+# (1) An assignment anywhere inside a compound command is forgotten, not only
+#     in the segment that begins with `then`/`do`.
+judge "P1-1 the exact case: second statement of a then-body" checked \
+  "$(checked "S=.github; if false; then :; S=/tmp; fi; echo x > \"$W\"")"
+judge "P1-1 an elif body"           checked "$(checked "S=.github; if false; then :; elif true; then S=/tmp; fi; echo x > \"$W\"")"
+judge "P1-1 an else body"           checked "$(checked "S=.github; if false; then :; else :; S=/tmp; fi; echo x > \"$W\"")"
+judge "P1-1 a nested loop body"     checked "$(checked "S=.github; for i in 1; do for j in 1; do :; S=/tmp; done; done; echo x > \"$W\"")"
+judge "P1-1 a while body"           checked "$(checked "S=.github; while false; do :; S=/tmp; done; echo x > \"$W\"")"
+judge "P1-1 a case body"            checked "$(checked "S=.github; case x in a) :; S=/tmp;; esac; echo x > \"$W\"")"
+judge "P1-1 a brace group"          checked "$(checked "S=.github; { S=/tmp; }; echo x > \"$W\"")"
+judge "P1-1 a subshell"             checked "$(checked "S=.github; (S=/tmp); echo x > \"$W\"")"
+judge "P1-1 a function body"        checked "$(checked "S=.github; f() { S=/tmp; }; f; echo x > \"$W\"")"
+judge "P1-1 export inside a body"   checked "$(checked "S=.github; if false; then :; export S=/tmp; fi; echo x > \"$W\"")"
+judge "P1-1 declare inside a body"  checked "$(checked "S=.github; if false; then :; declare S=/tmp; fi; echo x > \"$W\"")"
+judge "P1-1 the body on its own lines" checked \
+  "$(checked "$(printf 'S=.github\nif false\nthen\n  S=/tmp\nfi\necho x > "%s"' "$W")")"
+judge "P1-1 a subshell assignment is not restored over a later one" checked \
+  "$(checked "S=/tmp; (S=.github; case x in a) :;; esac; echo x > \"$W\")")"
+# (2) A command's redirections are opened before the command runs, so they
+#     resolve with the table as it stood before that command's assignments.
+judge "P1-2 the exact case: export with a redirect" deny \
+  "$(bash_verdict "S=.github; export S=/tmp > \"$W\"")"
+judge "P1-2 declare with a redirect"  deny "$(bash_verdict "S=.github; declare S=/tmp > \"$W\"")"
+judge "P1-2 local with a redirect"    deny "$(bash_verdict "S=.github; local S=/tmp > \"$W\"")"
+judge "P1-2 readonly with a redirect" deny "$(bash_verdict "S=.github; readonly S=/tmp > \"$W\"")"
+judge "P1-2 typeset with a redirect"  deny "$(bash_verdict "S=.github; typeset S=/tmp > \"$W\"")"
+judge "P1-2 a bare assignment with a redirect" deny "$(bash_verdict "S=.github; S=/tmp > \"$W\"")"
+judge "P1-2 printf -v with a redirect" deny "$(bash_verdict "S=.github; printf -v S /tmp > \"$W\"")"
+judge "P1-2 ... and the NEXT command sees the new value" allow \
+  "$(bash_verdict "S=src; export S=/tmp > \"\$S/app.ts\"; echo y > \"\$S/z\"")"
+# Found while writing the rows above, present on the parent revision too: a
+# reserved word that introduces a command sat in argv0's place, so the write
+# primitive after it was never parsed and `if true; then cp /tmp/a yarn.lock;
+# fi` was cleared with no record at all (a redirection after `then` was caught,
+# being the shell's; a cp/tee/sed -i was not). Same class — a reserved word in
+# command position mishandled — so it is closed here.
+judge "cp after then is parsed"      deny "$(bash_verdict "if true; then cp /tmp/a yarn.lock; fi")"
+judge "tee after do is parsed"       deny "$(bash_verdict "while true; do tee yarn.lock; done")"
+judge "cp inside a brace group"      deny "$(bash_verdict "{ cp /tmp/a yarn.lock; }")"
+judge "cp as the if condition"       deny "$(bash_verdict "if cp /tmp/a yarn.lock; then :; fi")"
+judge "sed -i after else"            deny "$(bash_verdict "if false; then :; else sed -i.bak s/a/b/ yarn.lock; fi")"
+judge "a negated write"              deny "$(bash_verdict "! tee yarn.lock")"
+judge "a mention after then is still a mention" allow "$(bash_verdict "if true; then cat yarn.lock; fi")"
+# The scoping must not have been "ignore every compound": a top-level literal
+# still resolves inside a body that only USES it.
+judge "a top-level literal used inside a loop body resolves" deny \
+  "$(bash_verdict "S=$REPO; for f in a; do cp \$f \"\$S/yarn.lock\"; done")"
+judge "a top-level literal used inside a then-body resolves" deny \
+  "$(bash_verdict "S=$REPO; if true; then echo x > \"\$S/yarn.lock\"; fi")"
+judge "a top-level literal after a closed compound resolves" deny \
+  "$(bash_verdict "if true; then :; fi; S=$REPO; echo x > \"\$S/yarn.lock\"")"
+
 # ===========================================================================
 section "7. each unresolved-write kind is explained once per session (#336)"
 # ===========================================================================
