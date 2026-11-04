@@ -13,6 +13,15 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   every suite; a change fails the run naming the suite. Two suites leaked there in the 5.2.0 run and
   nothing noticed until a human looked. A missing directory fingerprints as `absent`, so CI compares equal.
 
+### Fixed
+
+- **Cursor docs no longer send an individual account to a Configure form it does not have.** The
+  install guide and the v5 upgrade guide said to set the `GITHUB_TOKEN` plugin variable under
+  Plugins → Configure and that a solo account "has not been checked". The 2026-11-04 S4 check
+  answered it: an individual Pro+ dashboard shows no Configure entry and no variables field, only a
+  team admin can set the value, and on an individual plan the github MCP server stays off, which
+  nothing else depends on.
+
 ## [5.3.1] — 2026-11-04
 
 ### Security

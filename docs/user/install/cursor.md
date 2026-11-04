@@ -52,11 +52,12 @@ Dashboard, so the two can sit side by side at different versions. For a headless
 The bundled github MCP server needs a GitHub personal access token, and in a Cursor plugin
 a token is a **plugin variable**: the MCP file says `${GITHUB_TOKEN}`, the manifest
 declares `GITHUB_TOKEN` under `variables`, and the value is set in the Cursor dashboard —
-never in the repo. Cursor's plugin reference says **team admins** set the values; whether a
-solo, non-team account gets its own Configure form has not been checked, so on a team plan ask
-your admin.
+never in the repo. Cursor's plugin reference says **team admins** set the values, and an
+individual account cannot: on an individual Pro+ dashboard (checked 2026-11-04) the plugin's
+row and details dialog carry no **Configure** entry and no variables field. On a team plan ask
+your admin; on an individual plan the server simply stays off, which nothing else depends on.
 
-1. Dashboard → **Plugins** → **tamirs-superpowers** → **Configure**.
+1. A team admin: Dashboard → **Plugins** → **tamirs-superpowers** → **Configure**.
 2. Set **GitHub token for the bundled github MCP server** to a token with `repo` scope.
 
 Cursor hands it to the server as `GITHUB_PERSONAL_ACCESS_TOKEN`; nothing else in the
@@ -377,7 +378,7 @@ never adopt anything silently. `apply` shows a diff and asks per change, default
 | skills | native | since desktop 3.22.7 pin; pin as **Custom Mode** (2026-08-19) via ⌥⏎ / Alt+Enter from `/` |
 | subagents | native | declared capability; cloud subagents can use **isolated VMs** (2026-08-19) |
 | slash commands | partial | 26 generated into `.cursor/commands/`, one per user-invocable skill; declared in the manifest. `partial` because no live Cursor run has confirmed they appear under `/` |
-| MCP | native | generated `platforms/cursor/mcp.json`, declared in the manifest; the github token is the `GITHUB_TOKEN` plugin variable set under Plugins → Configure |
+| MCP | native | generated `platforms/cursor/mcp.json`, declared in the manifest; the github token is the `GITHUB_TOKEN` plugin variable a team admin sets under Plugins → Configure; an individual account has no Configure entry, so the server stays off |
 | git · shell · GitHub CLI | native | `gh` is an optional host dependency everywhere |
 | auto-invocation | partial | CLI sticky skills + Custom Modes; description-based selection across all surfaces is unverified — **name the skill** or pin a mode |
 | hooks | partial | **Cursor-format plugin hooks DO run**, from `platforms/cursor/hooks.json`, declared in the manifest. Claude-shaped hooks (`hooks/hooks.json`) still do not — Cursor never reads a plugin's own `hooks.json`, which is why the bundle sits at a declared non-default path. 10 of Cursor's 21 events are wired (`workspaceOpen`, `sessionStart`, `sessionEnd`, `beforeSubmitPrompt`, `preToolUse`, `beforeShellExecution`, `postToolUse`, `stop`, `preCompact`, `subagentStop`) with `failClosed` on the safety tier; still `partial` because `subagentStart` is unwired, cloud agents get no session lifecycle, and the lifecycle port has had no live run |

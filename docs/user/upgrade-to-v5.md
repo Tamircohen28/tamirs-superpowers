@@ -39,7 +39,7 @@ The full record is the `[5.0.0]` section of [`CHANGELOG.md`](../../CHANGELOG.md)
 | Change | What it means | What to do |
 |---|---|---|
 | Ten events, fail-closed safety tier | The bundle wires ten of Cursor's twenty-one events (was six); the three guards carry `failClosed: true` | Nothing. A guard that cannot run now denies |
-| The GitHub token is a plugin variable | `platforms/cursor/mcp.json` says `${GITHUB_TOKEN}`; the manifest declares it under `variables` | Dashboard → Plugins → tamirs-superpowers → Configure → set `GITHUB_TOKEN` |
+| The GitHub token is a plugin variable | `platforms/cursor/mcp.json` says `${GITHUB_TOKEN}`; the manifest declares it under `variables` | On a team, an admin sets it: Dashboard → Plugins → tamirs-superpowers → Configure → `GITHUB_TOKEN`. An individual account has no Configure entry (checked 2026-11-04); the github server stays off and nothing else needs it |
 | Lifecycle hooks speak Cursor's shapes | `user_message` on stop and subagent stop, `continue` on prompts, `pluginPaths` on workspace open; never `followup_message` | Nothing |
 
 ## Gemini CLI
