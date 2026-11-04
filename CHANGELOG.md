@@ -51,6 +51,17 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   section; one eval reworded and one negative eval added. Evidence: the ADR 004 run spent most
   of its 14 hours waiting on PRs whose successors had disjoint scopes.
 
+- **The protected-file guard resolves same-command literal assignments and explains each
+  unresolved-write kind once per session (#336).** `S=/tmp/x; cp a "$S/b"` is now checked as
+  `/tmp/x/b` instead of reported as unresolved, so `S=/tmp/x; cp a "$S/package-lock.json"` is a
+  block, and a scratch-directory write under such a variable raises no notice. Only a literal
+  value assigned unconditionally in the same command resolves: a substitution, a pipeline or
+  subshell assignment, one after `&&`/`||` or under `if`/`while`, a later `unset`/`read`/
+  `for`/`+=`/arithmetic, and `eval`/`source` leave the variable unresolved as before. The full
+  "NOT checked" paragraph is injected once per session per kind of reason (`hooks/
+  guard-sensitive-files.sh`, marker files under the plugin data directory or `TMPDIR`); a
+  repeat is one line that still names the unresolved target. Blocks are unchanged.
+
 ## [5.3.1] — 2026-11-04
 
 ### Security

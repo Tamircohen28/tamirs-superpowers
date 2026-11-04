@@ -52,7 +52,11 @@ WHAT IT CANNOT DECIDE, AND SAYS SO
     A shell command's write targets are not always statically knowable. Where
     the target is a variable, a command substitution or a glob, and where the
     command is an arbitrary-code evaluator handed inline code, this emits UNSURE
-    rather than falling silent. Silence would read as "no protected file
+    rather than falling silent. One variable IS resolved: a name the same
+    command assigned a literal to, unconditionally, earlier in the text
+    (`S=/tmp/x; cp a "$S/b"` — see "Same-command literal assignments"), because
+    the text answers the question and an advisory there is a silent allow of
+    `"$S/package-lock.json"`. Silence would read as "no protected file
     touched" when the true answer is "could not determine" — the exact shape of
     failure this repo's `no silent or empty failure paths` rule forbids.
 
@@ -788,21 +792,171 @@ def _script_then_files(words, script_flags, cmd=None):
     return ops if gave_script else ops[1:]
 
 
+# --------------------------------------------------------------------------
+# Same-command literal assignments (issue #336)
+# --------------------------------------------------------------------------
+# `S=/abs/scratch; cp a "$S/b"` names its target as plainly as
+# `cp a /abs/scratch/b` does: the value is a literal in the SAME command
+# string. Reporting that write as UNSURE answered "could not determine" to a
+# question the text answers, and it was wrong in both directions at once — the
+# advisory fired on every scratch write of a long session (about sixty times,
+# measured), and a protected path spelled through the variable
+# (`S=/tmp/x; cp a "$S/package-lock.json"`) walked past the generated-file
+# rules, since an advisory is still an allow.
+#
+# So analyze_command keeps ASSIGNS, NAME -> literal value, for the assignments
+# seen so far in the command, and _static_value substitutes `$NAME`/`${NAME}`
+# from it. Resolving only ever turns an advisory into a checked path, and a
+# checked path into a block; what the table cannot answer is UNSURE exactly as
+# before. The table is deliberately narrow:
+#   - only a value this parser reads as a literal: a word with no expansion in
+#     it once the tokenizer has removed its quotes, or one whose only expansion
+#     is `$HOME` or an earlier entry of the table (the same two things
+#     _static_value already resolved);
+#   - only an assignment that reaches the SHELL: a bare `NAME=value` statement,
+#     or `export`/`declare`/`typeset`/`readonly NAME=value`, run
+#     unconditionally — not in a pipeline component or a background job (a
+#     subshell, where it dies), not after `&&`/`||` or under
+#     `if`/`then`/`else`/`while`/`do` (it may never run), and never the
+#     `NAME=value cmd` prefix form, which is the command's environment, not the
+#     shell's. A `( … )` group's assignments are restored at the `)`, like cwd;
+#   - anything that could change the variable afterwards forgets it rather
+#     than guessing: a non-literal reassignment, `+=`, an array, `unset`,
+#     `read`, `for`/`select NAME`, `local`, `printf -v`, `mapfile`/`readarray`,
+#     `let` and `(( ))` arithmetic, a `${NAME=…}`/`${NAME:=…}` expansion; `eval`,
+#     `source` and `.` can set anything, so they forget everything;
+#   - an unquoted use whose value would word-split is not substituted, and one
+#     that would glob is reported as a glob by _record_targets as before.
+ASSIGNS = {}
+_NAME = r"[A-Za-z_][A-Za-z0-9_]*"
+ASSIGN_WORD = re.compile(r"^(%s)(\+?=)(.*)$" % _NAME, re.S)
+VAR_REF = re.compile(r"\$(?:\{(%s)\}|(%s))" % (_NAME, _NAME))
+PARAM_ASSIGN = re.compile(r"\$\{(%s):?=" % _NAME)
+# `x=1`, `x+=1`, `x<<=1`, `x++`, `--x` inside `(( ))`, `$(( ))` or `let`; never `==`.
+ARITH_MUTATE = re.compile(
+    r"(?<![A-Za-z0-9_$])(%s)\s*(?:(?:[-+*/%%&|^]|<<|>>)?=(?!=)|\+\+|--)|(?:\+\+|--)\s*(%s)"
+    % (_NAME, _NAME))
+CONDITIONAL_KEYWORDS = ("if", "then", "elif", "else", "while", "until", "do")
+NEUTRAL_KEYWORDS = ("{", "}", "!", "time")
+FORGETS_ALL = ("eval", "source", ".")
+
+
+def _assign_value(name, op, value, tok):
+    """Record one `NAME=value` that reaches the shell; forget what cannot be read."""
+    if op == "+=":
+        ASSIGNS.pop(name, None)
+        return
+    lit = _static_value(Tok("word", value, tok.expands, tok.quoted))
+    if lit is None:
+        ASSIGNS.pop(name, None)
+    else:
+        ASSIGNS[name] = lit
+
+
+def _forget_names(text):
+    for m in ARITH_MUTATE.finditer(text):
+        ASSIGNS.pop(m.group(1) or m.group(2), None)
+
+
+def _track_assignments(words, piped_in, terminator, conditional):
+    """Update ASSIGNS from one segment's words, before its writes are judged."""
+    for w in words:
+        # `${S=x}` assigns; `(( S=1 ))` and `$(( S++ ))` mutate.
+        for m in PARAM_ASSIGN.finditer(w.value):
+            ASSIGNS.pop(m.group(1), None)
+        if w.value.startswith("((") or "$((" in w.value:
+            _forget_names(w.value)
+    if piped_in or terminator in ("|", "&"):
+        return      # a subshell: nothing here reaches the parent shell
+    rest = list(words)
+    while rest and rest[0].value in NEUTRAL_KEYWORDS:
+        rest.pop(0)
+    if rest and rest[0].value in CONDITIONAL_KEYWORDS:
+        conditional = True
+        rest.pop(0)
+    leading = []
+    while rest and ASSIGN_WORD.match(rest[0].value):
+        leading.append(rest.pop(0))
+    if not rest:
+        for tok in leading:
+            name, op, value = ASSIGN_WORD.match(tok.value).groups()
+            # `S=(a b)`: the tokenizer stops the word at the `(`, so the value
+            # reads as empty; an array is not a path.
+            if conditional or (terminator == "(" and tok is leading[-1] and value == ""):
+                ASSIGNS.pop(name, None)
+            else:
+                _assign_value(name, op, value, tok)
+        return
+    # `NAME=value cmd`: the command's environment, not the shell's. The command
+    # itself may still set or unset variables.
+    while rest and os.path.basename(rest[0].value) in WRAPPERS:
+        rest.pop(0)
+        while rest and (rest[0].value.startswith("-") or ASSIGN_WORD.match(rest[0].value)):
+            rest.pop(0)
+    if not rest:
+        return
+    base = os.path.basename(rest[0].value)
+    ops = [w for w in rest[1:] if not w.value.startswith("-")]
+    if base in FORGETS_ALL:
+        ASSIGNS.clear()
+    elif base in ("export", "declare", "typeset", "readonly", "local"):
+        for w in ops:
+            m = ASSIGN_WORD.match(w.value)
+            if m and not conditional:
+                _assign_value(m.group(1), m.group(2), m.group(3), w)
+            elif m:
+                ASSIGNS.pop(m.group(1), None)
+            elif base != "export" or conditional:
+                ASSIGNS.pop(w.value, None)
+    elif base in ("unset", "read", "mapfile", "readarray"):
+        for w in ops:
+            ASSIGNS.pop(w.value.split("[", 1)[0], None)
+    elif base in ("for", "select") and rest[1:]:
+        ASSIGNS.pop(rest[1].value, None)
+        _forget_names(rest[1].value)
+    elif base == "printf":
+        for i, w in enumerate(rest[1:-1]):
+            if w.value == "-v":
+                ASSIGNS.pop(rest[i + 2].value, None)
+    elif base == "let":
+        for w in ops:
+            _forget_names(w.value)
+
+
+def _substitute_assigns(value, quoted):
+    """`value` with every `$NAME`/`${NAME}` the table knows replaced; None if it would word-split."""
+    def sub(m):
+        return ASSIGNS.get(m.group(1) or m.group(2), m.group(0))
+    out = VAR_REF.sub(sub, value)
+    if out != value and not quoted and any(c.isspace() for c in out):
+        return None
+    return out
+
+
 def _static_value(tok):
     """The literal text of a word, or None when it depends on a runtime expansion.
 
-    `$HOME`/`${HOME}` at the start is the one expansion resolved: it is the same
-    session HOME `~` already expands to, and both are protected homes (D3).
+    Two expansions are resolved: `$HOME`/`${HOME}` at the start — the same
+    session HOME `~` already expands to, and both are protected homes (D3) — and
+    a variable the same command assigned a literal to (ASSIGNS, above).
     """
     v = tok.value
-    if tok.expands or "$" in v or "`" in v:
-        m = HOME_VAR.match(v)
-        home = os.environ.get("HOME")
-        rest = v[m.end():] if m else ""
-        if m and home and "$" not in rest and "`" not in rest and "\\" not in rest:
-            return home + rest
-        return None
-    return v
+    if not (tok.expands or "$" in v or "`" in v):
+        return v
+    if tok.expands and ASSIGNS and "$" in v:
+        sub = _substitute_assigns(v, tok.quoted)
+        if sub is None:
+            return None
+        if sub != v:
+            v = sub
+            if "$" not in v and "`" not in v and "\\" not in v:
+                return v
+    m = HOME_VAR.match(v)
+    home = os.environ.get("HOME")
+    rest = v[m.end():] if m else ""
+    if m and home and "$" not in rest and "`" not in rest and "\\" not in rest:
+        return home + rest
+    return None
 
 
 def _resolve(value, cwd):
@@ -1518,16 +1672,24 @@ def analyze_command(command, cwd):
     # `(cd /tmp); echo x > src/components/ui/button.tsx` against /tmp — a
     # protected path reported as an unprotected one while Bash writes the
     # protected one. An unbalanced `)` leaves cwd unknown rather than wrong.
+    # The same-command assignments (ASSIGNS) are scoped the same way, and an
+    # unbalanced `)` forgets them all rather than keeping a subshell's.
     cwd_stack = []
+    ASSIGNS.clear()
+    prev_terminator = ""
 
     for seg, piped_in, terminator in segments:
         if seg:
-            cwd = _segment_records(seg, piped_in, terminator, cwd, records, heredoc_iter)
+            cwd = _segment_records(seg, piped_in, terminator, cwd, records, heredoc_iter,
+                                   conditional=prev_terminator in ("&&", "||"))
         # The group boundary is the terminator of the segment just processed.
         if terminator == "(":
-            cwd_stack.append(cwd)
+            cwd_stack.append((cwd, dict(ASSIGNS)))
         elif terminator == ")":
-            cwd = cwd_stack.pop() if cwd_stack else None
+            cwd, saved = cwd_stack.pop() if cwd_stack else (None, {})
+            ASSIGNS.clear()
+            ASSIGNS.update(saved)
+        prev_terminator = terminator
     records.extend(("ANOMALY", why, "") for why in anomalies)
     return records
 
@@ -1555,8 +1717,12 @@ QUIET_COMMANDS = ("cd", "pushd", "popd", "true", ":", "echo", "printf", "test", 
                   "export", "ls", "cat", "pwd", "head", "tail", "wc", "grep", "which", "type")
 
 
-def _segment_records(seg, piped_in, terminator, cwd, records, heredoc_iter):
-    """Append this segment's records; return the cwd the NEXT segment sees."""
+def _segment_records(seg, piped_in, terminator, cwd, records, heredoc_iter, conditional=False):
+    """Append this segment's records; return the cwd the NEXT segment sees.
+
+    `conditional` is true when the segment follows `&&`/`||`: it may never
+    run, so an assignment in it is forgotten rather than trusted.
+    """
     fragment = " ".join(t.value for t in seg if t.kind == "word")[:160]
 
     # This segment's own `<<`/`<<-` bodies, in order — pulled off the shared
@@ -1595,6 +1761,12 @@ def _segment_records(seg, piped_in, terminator, cwd, records, heredoc_iter):
         # A redirection writes even when the command is `exec`, a bare `> f`, or
         # a wrapper this parse gave up on — it is the shell's write, not theirs.
         _record_targets(redirects + list(pairs), cwd, records, fragment)
+
+    # What this segment assigns is known before its writes are resolved
+    # (`S=/x` and `cp a "$S/b"` are separate segments; `S=/x cp a "$S/b"`
+    # expands `$S` before the prefix is applied, and the prefix never reaches
+    # the shell, so recording it only now is also correct for that form).
+    _track_assignments(words, piped_in, terminator, conditional)
 
     # Leading `VAR=value` assignments and transparent wrappers — including each
     # wrapper's OWN options, or the first of them lands in argv0's place.

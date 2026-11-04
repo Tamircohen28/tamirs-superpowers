@@ -68,7 +68,12 @@
 #   - Targets built at runtime (`> "$OUT"`, `xargs`, `find -exec`, a glob) and
 #     a patch it cannot read now (piped in, or rewritten earlier in the same
 #     command). Also UNSURE. A readable patch is read: its target headers are
-#     the targets.
+#     the targets. A variable assigned a LITERAL earlier in the same command
+#     (`S=/tmp/x; cp a "$S/b"`) is resolved, so that write is checked, and
+#     `S=/tmp/x; cp a "$S/package-lock.json"` is a block; a value built by a
+#     substitution, or assigned where it might not run, stays UNSURE (#336).
+#   - Every UNSURE kind is explained once per session; a repeat is one line
+#     naming the unresolved target (#336, below).
 #   - Ordinary programs that happen to write (`make`, `npm install`, a checked-in
 #     script, `awk -f prog`). NOT reported: at that breadth the warning fires on
 #     everything and means nothing, and the tool-level guard never covered them.
@@ -222,11 +227,46 @@ fi
 override=0
 [ "${PM_ALLOW_PROTECTED:-0}" = "1" ] && override=1
 
+# Each KIND of unresolved write is explained in full once per session (#336).
+# The explanation is the same hundred tokens every time; in one measured
+# session it was injected about sixty times, none of them a block, and buried
+# the two real blocks. A repeat still says the write was not checked — that is
+# the no-silent-failure property — in one line that names the unresolved
+# target, without the paragraph. The key is the reason with its per-command
+# detail (the `(…)` tail) stripped, so `$OUT` and `$S/b` are one kind; the
+# marker is a file per (session, kind) under the plugin's data directory
+# (TMPDIR when the host exports none), per user, swept after two days. No
+# session id means no marker and the full notice every time.
+notice_dir=""
+session_key="$(printf '%s' "$input" | jq -r '.session_id // .conversation_id // empty' 2>/dev/null || true)"
+session_key="${session_key//[^a-zA-Z0-9_-]/_}"
+if [ -n "$session_key" ]; then
+  notice_base="${CLAUDE_PLUGIN_DATA:-${TMPDIR:-/tmp}}"
+  notice_base="${notice_base%/}/guard-sensitive-files/notices-$(id -u)"
+  notice_dir="${notice_base}/${session_key}"
+fi
+# notice_marker <reason> — the marker path for this session and reason kind.
+notice_marker() {
+  local kind="${1%% (*}" sum
+  sum="$(printf '%s' "$kind" | cksum | cut -d' ' -f1)"
+  printf '%s/%s' "$notice_dir" "$sum"
+}
+
 unsure=""
+repeats=""
+new_markers=()
 while IFS=$'\t' read -r kind detail fragment; do
   case "$kind" in
     TARGET|DELETE|TREE) classify "$detail" "$fragment" "$kind" ;;
-    UNSURE)             unsure="${unsure}  - ${detail}"$'\n' ;;
+    UNSURE)
+      case "$unsure$repeats" in *"$detail"*) continue ;; esac   # once per command too
+      if [ -n "$notice_dir" ] && [ -f "$(notice_marker "$detail")" ]; then
+        repeats="${repeats:+${repeats}; }${detail}"
+      else
+        unsure="${unsure}  - ${detail}"$'\n'
+        [ -n "$notice_dir" ] && new_markers+=("$(notice_marker "$detail")")
+      fi
+      ;;
   esac
 done < <(printf '%s\n' "$analysis")
 
@@ -234,8 +274,16 @@ done < <(printf '%s\n' "$analysis")
 # protected file was touched". This is advisory, never a block — the command
 # still runs, and the agent is told what the guard could not check.
 if [ -n "$unsure" ]; then
+  if [ "${#new_markers[@]}" -gt 0 ]; then
+    mkdir -p "$notice_dir" 2>/dev/null && chmod 700 "$notice_base" "$notice_dir" 2>/dev/null
+    for marker in "${new_markers[@]}"; do : > "$marker" 2>/dev/null || true; done
+    find "$notice_base" -mindepth 1 -maxdepth 1 -type d -mtime +2 -exec rm -rf {} + 2>/dev/null || true
+  fi
+  [ -n "$repeats" ] && unsure="${unsure}  - (same unresolved-write notice as earlier this session: ${repeats})"$'\n'
   hook_additional_context "PROTECTED-FILE GUARD: this command writes somewhere it could not resolve statically, so it was NOT checked against the protected-path rules:
 ${unsure}If it writes a lockfile, a .github/workflows/ file, .yarn/releases/, generated shadcn UI, or gitignored build output, that is on you — rewrite it with a literal path so the guard can see the target, or ask the user before proceeding."
+elif [ -n "$repeats" ]; then
+  hook_additional_context "PROTECTED-FILE GUARD: unresolved write, not checked (same notice as earlier this session): ${repeats}"
 fi
 
 hook_allow
