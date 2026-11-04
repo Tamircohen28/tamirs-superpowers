@@ -1,12 +1,18 @@
 # GENERATED FILE — DO NOT EDIT.
-#   Source:     platforms/gemini/policies.source.json
+#   Source:     platforms/gemini/policies.source.json (rules)
 #   Generator:  scripts/build-gemini-hooks.sh
 #   Regenerate: bash scripts/build-gemini-hooks.sh .
 #
-# Gemini CLI loads every policies/*.toml at the extension root as tier-2 rules.
-# Only deny (and ask_user) are honoured in an extension policy; every rule
-# below is a deny, so this file can narrow what the model may do and never
-# widen it. A user-tier rule (~/.gemini/policies/*.toml) outranks these.
+# Gemini CLI loads every policies/*.toml at the extension root as tier-2 rules
+# (tier + priority/1000; the YOLO allow-all is 1.998, so a mode-less rule here
+# holds under --yolo). An extension may contribute only deny and ask_user:
+# loadExtensionPolicies drops allow rules and rules whose modes name yolo, so
+# these files can narrow what the model may do and never widen it. A user-tier
+# rule (~/.gemini/policies/*.toml) or an "Always allow" outranks them.
+#
+# Every rule below is a deny at priority 100, mirroring a hook or policy this
+# plugin already enforces. The ADR 004 permission rules (ask_user for R4) are
+# in tamirs-superpowers-permissions.toml beside this file.
 #
 # Not expressible statically (left to the hooks in hooks/hooks.json):
 #   - A push to a branch another agent currently holds (hooks/protect-other-branches.sh): the answer depends on live claim files under the shared claim directory, not on the command text.
@@ -15,13 +21,13 @@
 #   - shadcn components/ui/ (guard-sensitive-files.sh): denied only when components.json exists in the repo.
 #   - Writes made THROUGH a shell command (`cat > yarn.lock`, `sed -i`, `tee`): argsPattern sees only the tool's own arguments; the hook's write-target parser covers that shape.
 #   - Durable Docker state (hooks/docker-guard.py): a judgement over run arguments, not a literal to match.
-#   - The PM_ALLOW_PROTECTED=1 override: an extension policy has no environment escape hatch; a user-tier rule in ~/.gemini/policies/ is the override.
+#   - An override for an intended edit: the hook's PM_ALLOW_PROTECTED=1 unlocks its generated-file rules only, and an extension policy has no environment switch at all. The user's own route is a user-tier rule in ~/.gemini/policies/, written outside the agent session.
 
 [[rule]]
 # no-force-push
-# mirrors: core/policies/git.md: 'No force-push to base_branch or to a branch another task is working on'. Static form: no force-push anywhere; --force-with-lease is deliberately NOT matched (the next character after --force is '-', not whitespace or end), because a lease push is how pr-dev rebases its own branch.
+# mirrors: core/policies/git.md: 'No force-push to base_branch or to a branch another task is working on'. Static form: no force-push anywhere; --force-with-lease is deliberately NOT matched (the next character after --force is '-', not whitespace, the closing quote of the stringified command, or end), because a lease push is how pr-dev rebases its own branch.
 toolName = "run_shell_command"
-commandRegex = '\bgit\s+push\b[^;&|]*\s(--force|-f)(\s|$)'
+commandRegex = '\bgit\s+push\b[^;&|]*\s(--force|-f)(\s|"|$)'
 decision = "deny"
 priority = 100
 denyMessage = "tamirs-superpowers policy: `git push --force`/`-f` is denied. core/policies/git.md forbids force-pushing the base branch or a branch another task holds; use --force-with-lease on a branch you own, or ask the user."
@@ -30,7 +36,7 @@ denyMessage = "tamirs-superpowers policy: `git push --force`/`-f` is denied. cor
 # no-branch-force-delete
 # mirrors: core/policies/git.md: a branch with unmerged work is live work and is not deleted. `git branch -D` (and -rD/-Dr, `--delete --force`) discards unmerged commits without a merge check; plain `-d` refuses, which is the point.
 toolName = "run_shell_command"
-commandRegex = '\bgit\s+branch\b[^;&|]*\s(-[a-zA-Z]*D[a-zA-Z]*|--delete\s+--force|--force\s+--delete)(\s|$)'
+commandRegex = '\bgit\s+branch\b[^;&|]*\s(-[a-zA-Z]*D[a-zA-Z]*|--delete\s+--force|--force\s+--delete)(\s|"|$)'
 decision = "deny"
 priority = 100
 denyMessage = "tamirs-superpowers policy: `git branch -D` is denied — it discards unmerged work without a merge check. Use `git branch -d` (refuses when unmerged) or ask the user."
@@ -55,9 +61,9 @@ denyMessage = "tamirs-superpowers policy: .yarn/releases/ holds the vendored Yar
 
 [[rule]]
 # no-workflow-edits
-# mirrors: hooks/guard-sensitive-files.sh .github/workflows/ rule: workflows are edited through the GitHub API/UI (or the github MCP server), never the local file.
+# mirrors: hooks/guard-sensitive-files.sh .github/workflows/ rule: a workflow change is R4 workflow.edit (ADR 004 D1, D10.5); the user approves and makes it, never a route around the guard.
 toolName = ["write_file", "replace"]
 argsPattern = '"file_path":"[^"]*/\.github/workflows/[^"]+"'
 decision = "deny"
 priority = 100
-denyMessage = "tamirs-superpowers policy: .github/workflows/ files are not edited locally. Use the github MCP server (create_or_update_file), `gh api`, or the GitHub web UI."
+denyMessage = "tamirs-superpowers policy: .github/workflows/ files are not edited by the agent. Changing a workflow is an R4 action (workflow.edit): ask the user to approve this exact change and to make it themselves, rather than routing it through another tool or a remote API."
