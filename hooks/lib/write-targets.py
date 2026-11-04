@@ -53,10 +53,10 @@ WHAT IT CANNOT DECIDE, AND SAYS SO
     the target is a variable, a command substitution or a glob, and where the
     command is an arbitrary-code evaluator handed inline code, this emits UNSURE
     rather than falling silent. One variable IS resolved: a name the same
-    command assigned a literal to, unconditionally, earlier in the text
-    (`S=/tmp/x; cp a "$S/b"` — see "Same-command literal assignments"), because
-    the text answers the question and an advisory there is a silent allow of
-    `"$S/package-lock.json"`. Silence would read as "no protected file
+    command assigned a literal to in one bare top-level statement and otherwise
+    only expands (`S=/tmp/x; cp a "$S/b"` — the whitelist under "Same-command
+    literal assignments"), because the text answers the question and an
+    advisory there is a silent allow of `"$S/package-lock.json"`. Silence would read as "no protected file
     touched" when the true answer is "could not determine" — the exact shape of
     failure this repo's `no silent or empty failure paths` rule forbids.
 
@@ -804,48 +804,61 @@ def _script_then_files(words, script_flags, cmd=None):
 # (`S=/tmp/x; cp a "$S/package-lock.json"`) walked past the generated-file
 # rules, since an advisory is still an allow.
 #
-# So analyze_command keeps ASSIGNS, NAME -> literal value, for the assignments
-# seen so far in the command, and _static_value substitutes `$NAME`/`${NAME}`
-# from it. Resolving only ever turns an advisory into a checked path, and a
-# checked path into a block; what the table cannot answer is UNSURE exactly as
-# before. The table is deliberately narrow:
-#   - only a value this parser reads as a literal: a word with no expansion in
-#     it once the tokenizer has removed its quotes, or one whose only expansion
-#     is `$HOME` or an earlier entry of the table (the same two things
-#     _static_value already resolved);
-#   - only an assignment that reaches the SHELL, at the TOP LEVEL of the
-#     command: a bare `NAME=value` statement, or
-#     `export`/`declare`/`typeset`/`readonly NAME=value`, not in a pipeline
-#     component or a background job (a subshell, where it dies), not after
-#     `&&`/`||`, and never the `NAME=value cmd` prefix form, which is the
-#     command's environment, not the shell's. analyze_command counts the
-#     compound depth across the whole command — `if`…`fi`, `while`/`until`/
-#     `for`/`select`…`done`, `case`…`esac`, `{`…`}`, `(`…`)`, a function body —
-#     and an assignment anywhere at depth > 0 FORGETS the name instead: the
-#     body may not run, may run later, or runs in a subshell. The first cut
-#     judged only the segment that began with `then`/`do`, so
-#     `if false; then :; S=/tmp; fi` trusted the second statement of the
-#     body (Codex review, PR #359). Nothing is ever restored at a `)`: a
-#     restore brings back a value the subshell may have replaced;
-#   - a redirection is opened before its command runs, so it is resolved
-#     under the table as it stood BEFORE that command's own assignments:
-#     `S=.github; export S=/tmp > "$S/w"` writes .github/w (same review);
-#   - anything that could change the variable afterwards forgets it rather
-#     than guessing: a non-literal reassignment, `+=`, an array, `unset`,
-#     `read`, `for`/`select NAME`, `local`, `printf -v`, `mapfile`/`readarray`,
-#     `let` and `(( ))` arithmetic, a `${NAME=…}`/`${NAME:=…}` expansion; `eval`,
-#     `source` and `.` can set anything, so they forget everything;
-#   - an unquoted use whose value would word-split is not substituted, and one
-#     that would glob is reported as a glob by _record_targets as before.
+# So analyze_command keeps ASSIGNS, NAME -> literal value, and _static_value
+# substitutes `$NAME`/`${NAME}` from it. Resolving only ever turns an advisory
+# into a checked path, and a checked path into a block; what the table cannot
+# answer is UNSURE exactly as before.
+#
+# WHICH NAMES MAY RESOLVE — a whitelist, not a list of mutations
+#   Three review rounds on PR #359 each found a form that changed a variable
+#   behind the table's back (`if false; then :; S=/tmp; fi`,
+#   `export S=/tmp > "$S/w"`, `export S=/tmp T="$S"`, `S[0]=.github`), and a
+#   table that forgets the forms it knows is only as safe as that list. So the
+#   rule is stated the other way round, as what MUST hold of the whole command
+#   text for a name to resolve at all (_resolvable_names):
+#     - the identifier NAME occurs exactly once as `NAME=`: followed by `=`
+#       and not `==`, and not preceded by `$`, `{`, a quote (`"S=/x"` runs a
+#       command named S=/x) or an identifier character;
+#     - every other occurrence of NAME on a word boundary, anywhere in the raw
+#       text — quotes, heredoc bodies and comments included — is a plain
+#       `$NAME` (not followed by `[`) or `${NAME}` expansion;
+#     - the text names no evaluator that can assign anything: `eval`,
+#       `source`, `.`, `exec`, or a shell handed `-c`.
+#   A `NAME[`, `NAME+=`, a second `NAME=`, `${NAME:=…}`, `${NAME[`, `${!NAME}`,
+#   `${#NAME}`, NAME as an argument to anything (`read`, `for`, `unset`,
+#   `declare -n R=`, `printf -v`, `mapfile`, `getopts`, `let`) and NAME inside
+#   `(( ))` each put a bare occurrence in the text, so none of them has to be
+#   known by name. A name that could change is never admitted, so nothing is
+#   ever forgotten or restored.
+#
+#   The one `NAME=` must then be a statement of the shell's own
+#   (_track_assignments): a bare `NAME=<literal>` at compound depth 0 — an
+#   `if`…`fi`, a loop, `case`…`esac`, `{`…`}`, `(`…`)` and a function body
+#   all count, across the whole command (_scope_update) — not in a pipeline
+#   component or a background job, not after `&&`/`||`, not led by a
+#   reserved word, with no command after it (the `NAME=value cmd` prefix is
+#   the command's environment, not the shell's) and under no builtin
+#   (`export`, `declare`, … expand all their operands before assigning any).
+#   The value is a literal in the tokenizer's sense, or one whose only
+#   expansions are `$HOME` and names already admitted.
+#
+#   A redirection is opened before its command runs, so it resolves under the
+#   table as it stood before that command's own assignments
+#   (_segment_records' `before`). An unquoted use whose value would word-split
+#   is not substituted, and one that would glob is reported as a glob by
+#   _record_targets as before.
 ASSIGNS = {}
+RESOLVABLE = set()
 _NAME = r"[A-Za-z_][A-Za-z0-9_]*"
 ASSIGN_WORD = re.compile(r"^(%s)(\+?=)(.*)$" % _NAME, re.S)
 VAR_REF = re.compile(r"\$(?:\{(%s)\}|(%s))" % (_NAME, _NAME))
-PARAM_ASSIGN = re.compile(r"\$\{(%s):?=" % _NAME)
-# `x=1`, `x+=1`, `x<<=1`, `x++`, `--x` inside `(( ))`, `$(( ))` or `let`; never `==`.
-ARITH_MUTATE = re.compile(
-    r"(?<![A-Za-z0-9_$])(%s)\s*(?:(?:[-+*/%%&|^]|<<|>>)?=(?!=)|\+\+|--)|(?:\+\+|--)\s*(%s)"
-    % (_NAME, _NAME))
+ASSIGN_SITE = re.compile(r"(?<![A-Za-z0-9_${])(%s)=(?!=)" % _NAME)
+# An evaluator the text could hand an assignment to, in any position at all.
+FORBIDS_RESOLUTION = re.compile(
+    r"(?<![A-Za-z0-9_.-])(?:eval|source|exec)(?![A-Za-z0-9_.-])"
+    r"|(?:^|[\s;&|(){}])\.(?=\s)"
+    r"|(?<![A-Za-z0-9_.-])(?:bash|sh|zsh|dash|ksh)\s+(?:-\S+\s+)*-[A-Za-z]*c(?![A-Za-z0-9])",
+    re.M)
 # Reserved words in command position. Openers and closers move the compound
 # depth; the rest are passed over to reach the command they introduce.
 SCOPE_OPENERS = ("if", "while", "until", "for", "select", "case", "{")
@@ -855,7 +868,33 @@ ALL_KEYWORDS = SCOPE_OPENERS + SCOPE_CLOSERS + NEUTRAL_KEYWORDS
 # The reserved words a command can directly follow in one segment. `for`,
 # `select`, `case` and `function` are followed by a name, not a command.
 COMMAND_INTRODUCERS = ("if", "then", "elif", "else", "while", "until", "do", "{", "!")
-FORGETS_ALL = ("eval", "source", ".")
+
+
+def _resolvable_names(text):
+    """The names the whole command text allows to resolve (the rule above)."""
+    if FORBIDS_RESOLUTION.search(text):
+        return set()
+    out = set()
+    for name in set(m.group(1) for m in ASSIGN_SITE.finditer(text)):
+        sites = 0
+        clean = True
+        for m in re.finditer(r"(?<![A-Za-z0-9_])%s(?![A-Za-z0-9_])" % re.escape(name), text):
+            s, e = m.start(), m.end()
+            before = text[s - 1] if s else ""
+            before2 = text[s - 2:s] if s >= 2 else ""
+            after = text[e] if e < len(text) else ""
+            if before == "$" and after != "[":
+                continue                                    # $NAME
+            if before2 == "${" and after == "}":
+                continue                                    # ${NAME}
+            if before not in ("$", "{", '"', "'") and after == "=" and text[e:e + 2] != "==":
+                sites += 1                                  # NAME= (a quoted name is a command)
+                continue
+            clean = False
+            break
+        if clean and sites == 1:
+            out.add(name)
+    return out
 
 
 def _scope_update(seg, scope):
@@ -884,100 +923,37 @@ def _scope_update(seg, scope):
     return scope["depth"]
 
 
-def _skip_keywords(rest):
-    """Drop leading reserved words (and a `function NAME`) from a word list."""
-    while rest and not rest[0].quoted and rest[0].value in ALL_KEYWORDS:
-        if rest[0].value == "function" and len(rest) > 1:
-            rest.pop(0)
-        rest.pop(0)
+def _track_assignments(words, piped_in, terminator, conditional):
+    """Admit this segment's bare top-level literal assignments to ASSIGNS.
 
-
-def _assign_value(name, op, value, tok):
-    """Record one `NAME=value` that reaches the shell; forget what cannot be read."""
-    if op == "+=":
-        ASSIGNS.pop(name, None)
-        return
-    lit = _static_value(Tok("word", value, tok.expands, tok.quoted))
-    if lit is None:
-        ASSIGNS.pop(name, None)
-    else:
-        ASSIGNS[name] = lit
-
-
-def _forget_names(text):
-    for m in ARITH_MUTATE.finditer(text):
-        ASSIGNS.pop(m.group(1) or m.group(2), None)
-
-
-def _track_assignments(seg, words, piped_in, terminator, conditional):
-    """Update ASSIGNS from one segment, before its writes are judged.
-
-    `seg` is every token (a redirection operand can hold `${S:=x}` too);
-    `words` the command words. `conditional` is true at compound depth > 0 or
-    after `&&`/`||`: an assignment there is forgotten, never trusted.
+    `conditional` is true at compound depth > 0 or after `&&`/`||`. Only a
+    name in RESOLVABLE is ever admitted, and nothing is ever removed.
     """
-    for w in seg:
-        if w.kind != "word":
-            continue
-        # `${S=x}` assigns; `(( S=1 ))` and `$(( S++ ))` mutate.
-        for m in PARAM_ASSIGN.finditer(w.value):
-            ASSIGNS.pop(m.group(1), None)
-        if w.value.startswith("((") or "$((" in w.value:
-            _forget_names(w.value)
-    if piped_in or terminator in ("|", "&"):
-        return      # a subshell: nothing here reaches the parent shell
-    # `for NAME in …` / `select NAME in …` rebind NAME; read before the
-    # reserved words are skipped, since `for` is one of them.
-    for i, w in enumerate(words[:-1]):
-        if not w.quoted and w.value in ("for", "select"):
-            ASSIGNS.pop(words[i + 1].value, None)
-            _forget_names(words[i + 1].value)
+    if conditional or piped_in or terminator in ("|", "&") or not words:
+        return
+    # A quoted reserved word is a command, not a keyword. (A quoted NAME,
+    # `"S=/x"`, is a command too, not an assignment; the tokenizer flags both
+    # `"S=/x"` and `S="/x"` as quoted, so _resolvable_names tells them apart
+    # on the raw text: a name preceded by a quote is never admitted.)
+    if not words[0].quoted and words[0].value in ALL_KEYWORDS:
+        return
     rest = list(words)
-    _skip_keywords(rest)
     leading = []
     while rest and ASSIGN_WORD.match(rest[0].value):
         leading.append(rest.pop(0))
-    if not rest:
-        for tok in leading:
-            name, op, value = ASSIGN_WORD.match(tok.value).groups()
-            # `S=(a b)`: the tokenizer stops the word at the `(`, so the value
-            # reads as empty; an array is not a path.
-            if conditional or (terminator == "(" and tok is leading[-1] and value == ""):
-                ASSIGNS.pop(name, None)
-            else:
-                _assign_value(name, op, value, tok)
-        return
-    # `NAME=value cmd`: the command's environment, not the shell's. The command
-    # itself may still set or unset variables.
-    while rest and os.path.basename(rest[0].value) in WRAPPERS:
-        rest.pop(0)
-        while rest and (rest[0].value.startswith("-") or ASSIGN_WORD.match(rest[0].value)):
-            rest.pop(0)
-    if not rest:
-        return
-    base = os.path.basename(rest[0].value)
-    ops = [w for w in rest[1:] if not w.value.startswith("-")]
-    if base in FORGETS_ALL:
-        ASSIGNS.clear()
-    elif base in ("export", "declare", "typeset", "readonly", "local"):
-        for w in ops:
-            m = ASSIGN_WORD.match(w.value)
-            if m and not conditional:
-                _assign_value(m.group(1), m.group(2), m.group(3), w)
-            elif m:
-                ASSIGNS.pop(m.group(1), None)
-            elif base != "export" or conditional:
-                ASSIGNS.pop(w.value, None)
-    elif base in ("unset", "read", "mapfile", "readarray"):
-        for w in ops:
-            ASSIGNS.pop(w.value.split("[", 1)[0], None)
-    elif base == "printf":
-        for i, w in enumerate(rest[1:-1]):
-            if w.value == "-v":
-                ASSIGNS.pop(rest[i + 2].value, None)
-    elif base == "let":
-        for w in ops:
-            _forget_names(w.value)
+    if rest:
+        return      # `NAME=value cmd`, or a builtin's operands: not the shell's own statement
+    for tok in leading:
+        name, op, value = ASSIGN_WORD.match(tok.value).groups()
+        if op != "=" or name not in RESOLVABLE:
+            continue
+        # `S=(a b)`: the tokenizer stops the word at the `(`, so the value
+        # reads as empty; an array is not a path.
+        if terminator == "(" and tok is leading[-1] and value == "":
+            continue
+        lit = _static_value(Tok("word", value, tok.expands, tok.quoted))
+        if lit is not None:
+            ASSIGNS[name] = lit
 
 
 def _substitute_assigns(value, quoted):
@@ -988,6 +964,8 @@ def _substitute_assigns(value, quoted):
     if out != value and not quoted and any(c.isspace() for c in out):
         return None
     return out
+
+
 
 
 def _static_value(tok):
@@ -1729,13 +1707,15 @@ def analyze_command(command, cwd):
     # `(cd /tmp); echo x > src/components/ui/button.tsx` against /tmp — a
     # protected path reported as an unprotected one while Bash writes the
     # protected one. An unbalanced `)` leaves cwd unknown rather than wrong.
-    # The same-command assignments (ASSIGNS) are never restored at a `)`:
-    # a restore would bring back a value the subshell may have replaced. They
-    # are scoped by DEPTH instead — the open `(` groups plus the open compound
-    # commands (_scope_update) — and an assignment at any depth above zero
-    # forgets its name (see "Same-command literal assignments").
+    # The same-command assignments (ASSIGNS) are admitted only at depth zero —
+    # the open `(` groups plus the open compound commands (_scope_update) —
+    # and only for the names the whole text allows (RESOLVABLE, see
+    # "Same-command literal assignments"); nothing is ever forgotten or
+    # restored, because a name that could change is never admitted.
     cwd_stack = []
     ASSIGNS.clear()
+    RESOLVABLE.clear()
+    RESOLVABLE.update(_resolvable_names(command))
     scope = {"depth": 0}
     prev_terminator = ""
 
@@ -1780,8 +1760,8 @@ QUIET_COMMANDS = ("cd", "pushd", "popd", "true", ":", "echo", "printf", "test", 
 def _segment_records(seg, piped_in, terminator, cwd, records, heredoc_iter, conditional=False):
     """Append this segment's records; return the cwd the NEXT segment sees.
 
-    `conditional` is true when the segment follows `&&`/`||`: it may never
-    run, so an assignment in it is forgotten rather than trusted.
+    `conditional` is true when the segment follows `&&`/`||` or sits inside
+    a compound command: it may never run, so no assignment in it is admitted.
     """
     fragment = " ".join(t.value for t in seg if t.kind == "word")[:160]
 
@@ -1837,7 +1817,7 @@ def _segment_records(seg, piped_in, terminator, cwd, records, heredoc_iter, cond
     # (`S=/x` and `cp a "$S/b"` are separate segments; `S=/x cp a "$S/b"`
     # expands `$S` before the prefix is applied, and the prefix never reaches
     # the shell, so recording it only now is also correct for that form).
-    _track_assignments(seg, words, piped_in, terminator, conditional)
+    _track_assignments(words, piped_in, terminator, conditional)
 
     # Leading `VAR=value` assignments and transparent wrappers — including each
     # wrapper's OWN options, or the first of them lands in argv0's place. A

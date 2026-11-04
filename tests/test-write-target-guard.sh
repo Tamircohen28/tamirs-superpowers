@@ -299,7 +299,7 @@ judge "a lockfile through the variable: BLOCKED" deny \
 judge "a workflow through the variable: BLOCKED" deny \
   "$(bash_verdict "OUT=.github/workflows/ci.yml; echo x > \$OUT")"
 judge "a redirect through \${S}"              deny "$(bash_verdict "S=$REPO; echo x > \"\${S}/yarn.lock\"")"
-judge "export NAME=literal"                   deny "$(bash_verdict "export S=$REPO; echo x > \$S/yarn.lock")"
+judge "export NAME=literal is a builtin: not resolved" warn "$(bash_verdict "export S=$REPO; echo x > \$S/yarn.lock")"
 judge "a double-quoted literal"               deny "$(bash_verdict "S=\"$REPO\"; echo x > \$S/yarn.lock")"
 judge "a chain of literals"                   deny "$(bash_verdict "R=$REPO; S=\$R; echo x > \$S/yarn.lock")"
 judge "cd through the variable moves the frame" deny "$(bash_verdict "S=$REPO; cd \$S && echo x > yarn.lock")"
@@ -360,16 +360,57 @@ judge "P1-1 a subshell assignment is not restored over a later one" checked \
   "$(checked "S=/tmp; (S=.github; case x in a) :;; esac; echo x > \"$W\")")"
 # (2) A command's redirections are opened before the command runs, so they
 #     resolve with the table as it stood before that command's assignments.
-judge "P1-2 the exact case: export with a redirect" deny \
-  "$(bash_verdict "S=.github; export S=/tmp > \"$W\"")"
-judge "P1-2 declare with a redirect"  deny "$(bash_verdict "S=.github; declare S=/tmp > \"$W\"")"
-judge "P1-2 local with a redirect"    deny "$(bash_verdict "S=.github; local S=/tmp > \"$W\"")"
-judge "P1-2 readonly with a redirect" deny "$(bash_verdict "S=.github; readonly S=/tmp > \"$W\"")"
-judge "P1-2 typeset with a redirect"  deny "$(bash_verdict "S=.github; typeset S=/tmp > \"$W\"")"
-judge "P1-2 a bare assignment with a redirect" deny "$(bash_verdict "S=.github; S=/tmp > \"$W\"")"
-judge "P1-2 printf -v with a redirect" deny "$(bash_verdict "S=.github; printf -v S /tmp > \"$W\"")"
-judge "P1-2 ... and the NEXT command sees the new value" allow \
+#     (Under the whitelist below a name assigned twice, or by a builtin, is
+#     not resolved at all, so these are now UNSURE; the row holds either way.)
+judge "P1-2 the exact case: export with a redirect" checked \
+  "$(checked "S=.github; export S=/tmp > \"$W\"")"
+judge "P1-2 declare with a redirect"  checked "$(checked "S=.github; declare S=/tmp > \"$W\"")"
+judge "P1-2 local with a redirect"    checked "$(checked "S=.github; local S=/tmp > \"$W\"")"
+judge "P1-2 readonly with a redirect" checked "$(checked "S=.github; readonly S=/tmp > \"$W\"")"
+judge "P1-2 typeset with a redirect"  checked "$(checked "S=.github; typeset S=/tmp > \"$W\"")"
+judge "P1-2 a bare assignment with a redirect" checked "$(checked "S=.github; S=/tmp > \"$W\"")"
+judge "P1-2 printf -v with a redirect" checked "$(checked "S=.github; printf -v S /tmp > \"$W\"")"
+judge "P1-2 a name assigned twice resolves nowhere" warn \
   "$(bash_verdict "S=src; export S=/tmp > \"\$S/app.ts\"; echo y > \"\$S/z\"")"
+# (3) Round three: a declaration builtin expands every operand before it
+#     assigns any (`export S=/tmp T="$S"` gives T the OLD S), and `S[0]=` was
+#     not read as touching S. Rather than name each form, the table is now a
+#     WHITELIST on the whole command text: NAME resolves only when it occurs
+#     exactly once as `NAME=` and everywhere else only as `$NAME`/`${NAME}`,
+#     that one assignment is a bare top-level statement, and the text names
+#     no eval/source/./exec/`sh -c`. Every other occurrence disqualifies it.
+judge "P1-3 the exact case: export with two operands" checked \
+  "$(checked "S=.github; export S=/tmp T=\"\$S\"; echo x > \"\$T/workflows/ci.yml\"")"
+judge "P1-3 a bare second operand too"      checked \
+  "$(checked "S=.github; T=\"\$S\" S=/tmp; echo x > \"\$T/workflows/ci.yml\"")"
+judge "P1-4 the exact case: an indexed assignment" checked \
+  "$(checked "S=/tmp; S[0]=.github; echo x > \"$W\"")"
+judge "P1-4 an indexed expansion"           warn "$(bash_verdict "S=$REPO; echo x > \"\${S[0]}/yarn.lock\"")"
+judge "P1-4 \$S[ is not trusted either"     warn "$(bash_verdict "S=$REPO; echo x > \"\$S[0]/yarn.lock\"")"
+judge "a nameref"                           checked \
+  "$(checked "S=/tmp; declare -n R=S; R=.github; cp /tmp/a \"$W\"")"
+judge "  ... the row as reviewed"           warn "$(bash_verdict "S=/tmp; declare -n R=S; R=.github; cp a \"\$S/ci.yml\"")"
+judge "let afterwards"                      warn "$(bash_verdict "S=/tmp; let S=1; echo x > \"$W\"")"
+judge "getopts afterwards"                  warn "$(bash_verdict "S=$REPO; getopts a S; echo x > \$S/yarn.lock")"
+judge "mapfile afterwards"                  warn "$(bash_verdict "S=$REPO; mapfile S; echo x > \$S/yarn.lock")"
+judge "\${#S} afterwards"                   warn "$(bash_verdict "S=$REPO; : \"\${#S}\"; echo x > \$S/yarn.lock")"
+judge "the name as a bare word anywhere"    warn "$(bash_verdict "S=$REPO; echo S; echo x > \$S/yarn.lock")"
+judge "a quoted name is a command, not an assignment" warn "$(bash_verdict "\"S=$REPO\"; echo x > \$S/yarn.lock")"
+judge "  ... even inside a comment"         warn "$(bash_verdict "S=$REPO; echo x > \$S/yarn.lock # S is scratch")"
+judge "  ... even inside a heredoc body"    warn \
+  "$(bash_verdict "$(printf 'S=%s; cat <<EOF\nS=other\nEOF\necho x > $S/yarn.lock' "$REPO")")"
+judge "exec anywhere resolves nothing"      warn "$(bash_verdict "S=$REPO; exec 3>/dev/null; echo x > \$S/yarn.lock")"
+judge "bash -c anywhere resolves nothing"   warn "$(bash_verdict "S=$REPO; bash -c true; echo x > \$S/yarn.lock")"
+judge "/bin/sh -ec anywhere resolves nothing" warn "$(bash_verdict "S=$REPO; /bin/sh -ec true; echo x > \$S/yarn.lock")"
+judge "source anywhere resolves nothing"    warn "$(bash_verdict "S=$REPO; source ./env; echo x > \$S/yarn.lock")"
+judge ". anywhere resolves nothing"         warn "$(bash_verdict "S=$REPO; . ./env; echo x > \$S/yarn.lock")"
+# ... and the whitelist admits the plain case this issue is about.
+judge "the plain case still resolves: a scratch write, no notice" allow \
+  "$(bash_verdict "S=$S_SCRATCH; cp /tmp/a \"\$S/b\"")"
+judge "the plain case still resolves: a lockfile, a block" deny \
+  "$(bash_verdict "S=$REPO; echo x > \"\$S/yarn.lock\"")"
+judge "a heredoc that only expands the name is fine" deny \
+  "$(bash_verdict "$(printf 'S=%s; cat <<EOF\n$S\nEOF\necho x > $S/yarn.lock' "$REPO")")"
 # Found while writing the rows above, present on the parent revision too: a
 # reserved word that introduces a command sat in argv0's place, so the write
 # primitive after it was never parsed and `if true; then cp /tmp/a yarn.lock;

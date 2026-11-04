@@ -54,12 +54,15 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - **The protected-file guard resolves same-command literal assignments and explains each
   unresolved-write kind once per session (#336).** `S=/tmp/x; cp a "$S/b"` is now checked as
   `/tmp/x/b` instead of reported as unresolved, so `S=/tmp/x; cp a "$S/package-lock.json"` is a
-  block, and a scratch-directory write under such a variable raises no notice. Only a literal
-  value assigned at the top level of the command resolves: a substitution, a pipeline or
-  background assignment, one after `&&`/`||`, one anywhere inside `if`/`while`/`for`/`case`/
-  `{ }`/`( )` or a function body, a later `unset`/`read`/`for`/`+=`/arithmetic, and
-  `eval`/`source` leave the variable unresolved as before. A command's redirections resolve
-  with the table as it stood before that command's own assignments, as bash opens them. A
+  block, and a scratch-directory write under such a variable raises no notice. The rule is a
+  whitelist on the whole command text: a name resolves only when it occurs exactly once as a
+  bare top-level `NAME=literal` statement (not in a pipeline, subshell, `&&`/`||`, any
+  compound command or a builtin) and everywhere else only as `$NAME`/`${NAME}`. Any other
+  occurrence of the name (an index, `+=`, a second assignment, a builtin operand,
+  `read`/`for`/`unset`/`declare -n`/`let`, arithmetic, a bare mention even in a comment), or an
+  `eval`/`source`/`.`/`exec`/`sh -c` anywhere, leaves it unresolved as before. A command's
+  redirections resolve with the table as it stood before that command's own assignments, as
+  bash opens them. A
   write primitive that follows `then`, `do`, `else`, `{`, `if` or `!` in the same statement
   (`if true; then cp a yarn.lock; fi`) is now parsed; before, the reserved word sat in the
   command's place and the write went unreported. The full
