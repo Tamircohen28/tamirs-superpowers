@@ -42,8 +42,29 @@
 #   fixed for the server's lifetime (ADR Open risks: a mid-session level change
 #   applies at L1/L2 only). The script writes no state.
 #
+# THE SERVER BINARY (L1, the second adversarial pass)
+#   The token goes to exactly one program, so that program is never looked up on
+#   the inherited PATH (a repository's env or .envrc can put its own
+#   `github-mcp-server` first). It is the first of these that holds an acceptable
+#   binary: /opt/homebrew/bin, /usr/local/bin, /home/linuxbrew/.linuxbrew/bin,
+#   <passwd home>/.local/bin (the passwd entry's home, D3, never HOME), /usr/bin;
+#   the Docker fallback's `docker` likewise (plus Docker Desktop's
+#   /Applications/Docker.app/Contents/Resources/bin). A symlink is followed to its
+#   file. Acceptable: a regular executable file owned by root or this user and
+#   writable by neither group nor others, in a directory (its own and the listed
+#   one) owned by root or this user and not world-writable (Homebrew's bin is
+#   group-writable by design). Under the permission suites' accepted test root the
+#   list is that root's .local/bin alone. The token is taken out of the
+#   environment first and handed back only to that binary at exec, so no helper
+#   (python3, bash, ps) this script runs on PATH ever sees it; those helpers are
+#   trusted as every hook of this plugin trusts them (ADR 004 Open risks).
+#
 # Tries the official binary first, falls back to Docker.
 set -euo pipefail
+
+# The token is for the server alone: no helper below inherits it (L1).
+GM_TOKEN="${GITHUB_PERSONAL_ACCESS_TOKEN:-}"
+unset GITHUB_PERSONAL_ACCESS_TOKEN
 
 case "${BASH_SOURCE[0]}" in
   */*) _gm_here="${BASH_SOURCE[0]%/*}" ;;
@@ -95,6 +116,83 @@ print(d.get("level") if isinstance(d, dict) and d.get("level") in ("supervised",
   printf '%s\tresolve-permission.sh --level%s' "$lv" "${HOST:+ --host $HOST}"
 }
 
+GM_FIND=/usr/bin/find; [[ -x "$GM_FIND" ]] || GM_FIND=/bin/find
+GM_READLINK=/usr/bin/readlink; [[ -x "$GM_READLINK" ]] || GM_READLINK=/bin/readlink
+
+# gm_owned_ok <path> — owned by root or this user (fixed-path find, never PATH).
+gm_owned_ok() {
+  [[ -O "$1" ]] && return 0
+  [[ -n "$("$GM_FIND" "$1" -maxdepth 0 -user 0 -print 2>/dev/null)" ]]
+}
+# gm_writable_by <path> <perm> — prints the path when any of the given write bits is set.
+gm_writable_by() { "$GM_FIND" "$1" -maxdepth 0 -perm "$2" -print 2>/dev/null; }
+
+# gm_real <path> — the file a symlink chain ends at, absolute (at most 16 hops).
+gm_real() {
+  local p="$1" t n=0 d
+  while [[ -L "$p" && "$n" -lt 16 ]]; do
+    t="$("$GM_READLINK" "$p" 2>/dev/null)" || return 1
+    case "$t" in /*) p="$t" ;; *) p="${p%/*}/$t" ;; esac
+    n=$((n + 1))
+  done
+  [[ -L "$p" ]] && return 1
+  d="$(CDPATH='' cd -P -- "${p%/*}" 2>/dev/null && pwd -P)" || return 1
+  printf '%s/%s\n' "$d" "${p##*/}"
+}
+
+# gm_home_dirs — "<home><TAB><home_source>" from the permission library (passwd home, D3).
+gm_home_dirs() {
+  local out=""
+  # shellcheck source=scripts/lib/permission-common.sh
+  if [[ -n "$GM_ROOT" ]] && . "$GM_ROOT/scripts/lib/permission-common.sh" 2>/dev/null; then
+    out="$(perm_dirs 2>/dev/null | python3 -I -S -c 'import json, sys
+try:
+    d = json.load(sys.stdin)
+except ValueError:
+    d = {}
+h, s = d.get("home"), d.get("home_source")
+print("%s\t%s" % (h, s) if isinstance(h, str) and h.startswith("/") and "\t" not in h else "")' 2>/dev/null)" || out=""
+  fi
+  printf '%s' "$out"
+}
+
+GM_REFUSED=()
+GM_FOUND=""
+# gm_trusted <name> — sets GM_FOUND to the absolute path of an acceptable <name> from the fixed list (THE
+# SERVER BINARY), or to nothing (returns 1). Every candidate it rejects is appended to GM_REFUSED with the
+# reason. Called directly, never in a subshell, so both survive.
+gm_trusted() {
+  local name="$1" home="" src="" dirs=() d c real x
+  GM_FOUND=""
+  IFS=$'\t' read -r home src < <(gm_home_dirs) || true
+  if [[ "$src" == test-root ]]; then
+    dirs=("$home/.local/bin")
+  else
+    dirs=(/opt/homebrew/bin /usr/local/bin /home/linuxbrew/.linuxbrew/bin)
+    [[ "$home" == /* ]] && dirs+=("$home/.local/bin")
+    dirs+=(/usr/bin)
+    [[ "$name" == docker ]] && dirs+=(/Applications/Docker.app/Contents/Resources/bin)
+  fi
+  for d in "${dirs[@]}"; do
+    c="$d/$name"
+    [[ -e "$c" || -L "$c" ]] || continue
+    if ! real="$(gm_real "$c")"; then GM_REFUSED+=("$c: the symlink does not resolve"); continue; fi
+    if [[ ! -f "$real" || ! -x "$real" ]]; then GM_REFUSED+=("$c: $real is not an executable file"); continue; fi
+    if ! gm_owned_ok "$real"; then GM_REFUSED+=("$c: $real is owned by another user"); continue; fi
+    if [[ -n "$(gm_writable_by "$real" -0020)$(gm_writable_by "$real" -0002)" ]]; then
+      GM_REFUSED+=("$c: $real is group- or world-writable"); continue
+    fi
+    local bad=""
+    for x in "${real%/*}" "$d"; do
+      if ! gm_owned_ok "$x" || [[ -n "$(gm_writable_by "$x" -0002)" ]]; then bad="$x"; break; fi
+    done
+    if [[ -n "$bad" ]]; then GM_REFUSED+=("$c: its directory $bad is world-writable or owned by another user"); continue; fi
+    GM_FOUND="$real"
+    return 0
+  done
+  return 1
+}
+
 IFS=$'\t' read -r LEVEL WHY < <(gm_level) || true
 LEVEL="${LEVEL:-supervised}"
 case "$LEVEL" in
@@ -103,27 +201,41 @@ case "$LEVEL" in
   *) LEVEL=supervised; FLAGS=(--read-only) ;;
 esac
 
+SERVER="" DOCKER=""
+if gm_trusted github-mcp-server; then
+  SERVER="$GM_FOUND"
+elif gm_trusted docker; then
+  DOCKER="$GM_FOUND"
+fi
+
+gm_jstr() { local s="$1"; s="${s//\\/\\\\}"; s="${s//\"/\\\"}"; s="${s//$'\n'/ }"; s="${s//$'\t'/ }"; printf '"%s"' "$s"; }
+
 if [[ "$PRINT" -eq 1 ]]; then
-  printf '{"level": "%s", "host": "%s", "why": "%s", "flags": [' "$LEVEL" "$HOST" "${WHY//\"/\'}"
+  printf '{"level": "%s", "host": "%s", "why": %s, "flags": [' "$LEVEL" "$HOST" "$(gm_jstr "$WHY")"
   sep=""
   for f in "${FLAGS[@]}"; do printf '%s"%s"' "$sep" "$f"; sep=", "; done
+  printf '], "server": %s, "docker": %s, "refused": [' \
+    "$([[ -n "$SERVER" ]] && gm_jstr "$SERVER" || printf null)" "$([[ -n "$DOCKER" ]] && gm_jstr "$DOCKER" || printf null)"
+  sep=""
+  for r in ${GM_REFUSED[@]+"${GM_REFUSED[@]}"}; do printf '%s%s' "$sep" "$(gm_jstr "$r")"; sep=", "; done
   printf ']}\n'
   exit 0
 fi
 
-if [[ -z "${GITHUB_PERSONAL_ACCESS_TOKEN:-}" ]]; then
+if [[ -z "$GM_TOKEN" ]]; then
   echo '{"jsonrpc":"2.0","error":{"code":-32000,"message":"github_token is not set. Run: claude plugin configure tamirs-superpowers (or /plugin > tamirs-superpowers > Configure) and paste a GitHub token with repo scope."}}' >&2
   exit 1
 fi
-export GITHUB_PERSONAL_ACCESS_TOKEN
 
-if command -v github-mcp-server &>/dev/null; then
-  exec github-mcp-server stdio "${FLAGS[@]}"
-elif command -v docker &>/dev/null; then
-  exec docker run -i --rm \
+if [[ -n "$SERVER" ]]; then
+  GITHUB_PERSONAL_ACCESS_TOKEN="$GM_TOKEN" exec "$SERVER" stdio "${FLAGS[@]}"
+elif [[ -n "$DOCKER" ]]; then
+  GITHUB_PERSONAL_ACCESS_TOKEN="$GM_TOKEN" exec "$DOCKER" run -i --rm \
     -e GITHUB_PERSONAL_ACCESS_TOKEN \
     ghcr.io/github/github-mcp-server stdio "${FLAGS[@]}"
 else
-  echo '{"jsonrpc":"2.0","error":{"code":-32000,"message":"Install github-mcp-server: brew install github-mcp-server"}}' >&2
+  msg="Install github-mcp-server (brew install github-mcp-server): no acceptable github-mcp-server or docker in /opt/homebrew/bin, /usr/local/bin, /home/linuxbrew/.linuxbrew/bin, ~/.local/bin or /usr/bin (PATH is not searched)"
+  for r in ${GM_REFUSED[@]+"${GM_REFUSED[@]}"}; do msg="$msg; refused $r"; done
+  printf '{"jsonrpc":"2.0","error":{"code":-32000,"message":%s}}\n' "$(gm_jstr "$msg")" >&2
   exit 1
 fi

@@ -241,6 +241,7 @@ SESSIONS = ("none", "claude", "gemini") + NO_CHANNEL
 TEST_SESSION_ENV = "TAMIRS_PERMISSION_TEST_SESSION"
 NONCE_RE = re.compile(r"\A[0-9a-f]{32}\Z")
 TOOL_USE_RE = re.compile(r"\A[A-Za-z0-9_-]{1,128}\Z")
+ROOT_VAR = "CLAUDE_" + "PLUGIN_ROOT"   # the host's plugin-root variable, as a confirm command may name it
 TTL = 15 * 60
 
 
@@ -1150,13 +1151,13 @@ def stage(c, nonce, rec, data, st):
 def plain_confirm(cmd, nonce):
     """True when a Bash command is exactly `[bash|sh] <path>/plugin-config.sh confirm <nonce> [--json]` -- the
     form the permission guard puts to the dialog -- and nothing else: no second command, pipe, redirection,
-    substitution or variable other than ${CLAUDE_PLUGIN_ROOT}. A wrapper the guard cannot see never promotes."""
+    substitution or variable other than the plugin root's. A wrapper the guard cannot see never promotes."""
     if not isinstance(cmd, str) or len(cmd) > 4096:
         return False
     t = cmd.strip()
     if re.search(r"[;&|<>`\n\r()]", t):
         return False
-    t = re.sub(r"\$\{CLAUDE_PLUGIN_ROOT\}|\$CLAUDE_PLUGIN_ROOT(?![A-Za-z0-9_])", "/plugin-root", t)
+    t = re.sub(r"\$\{%s\}|\$%s(?![A-Za-z0-9_])" % (ROOT_VAR, ROOT_VAR), "/plugin-root", t)
     if "$" in t:
         return False
     try:

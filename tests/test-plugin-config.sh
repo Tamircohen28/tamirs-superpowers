@@ -37,7 +37,9 @@
 #     run prunes expired tickets, and confirming a raise says an active lowering
 #     of the session still wins.
 #   * scripts/github-mcp.sh --print-flags: the D8 flags per level (the server is
-#     never started).
+#     never started), and L1: the binary that gets the token comes from a fixed
+#     list of trusted locations (the test root's .local/bin here), never PATH,
+#     group/world-writable ones refused, and no PATH helper sees the token.
 #
 # NOTHING TOUCHES THE REAL HOME
 #   Every run points TAMIRS_PERMISSION_TEST_ROOT at a temp root. The permission
@@ -744,6 +746,39 @@ judge "merge_pull_request is excluded at every level above supervised" yes "$(ha
 judge "an env level only lowers" "supervised --read-only" "$(TS_PERMISSION_LEVEL=supervised flags)"
 judge "a bad --host is a usage error" 2 "$(bash "$MCP" --print-flags --host nope >/dev/null 2>&1; echo $?)"
 judge "without a token it refuses to start" 1 "$(cd "$NOWHERE" && TAMIRS_PERMISSION_TEST_ROOT="$R7" env -u GITHUB_PERSONAL_ACCESS_TOKEN bash "$MCP" >/dev/null 2>&1; echo $?)"
+
+# L1: the binary that receives the token is never looked up on PATH. Under the test root the only trusted
+# location is the root's .local/bin, so no real server or docker can ever run here.
+R13="$(new_root)"; LB="$R13/.local/bin"; mkdir -p "$LB"; chmod 700 "$R13/.local"; chmod 755 "$LB"
+FAKEPATH="$(harness_tmpdir)"; MARK="$(harness_tmpdir)"; REALPY="$(command -v python3)"
+printf '#!/bin/sh\necho "path-binary $* ${GITHUB_PERSONAL_ACCESS_TOKEN:+token}" > "%s/ran"\n' "$MARK" > "$FAKEPATH/github-mcp-server"
+printf '#!/bin/sh\necho used >> "%s/py"\n[ -n "${GITHUB_PERSONAL_ACCESS_TOKEN:-}" ] && echo leaked >> "%s/py"\nexec "%s" "$@"\n' "$MARK" "$MARK" "$REALPY" > "$FAKEPATH/python3"
+chmod 755 "$FAKEPATH/github-mcp-server" "$FAKEPATH/python3"
+mcp13() { (cd "$NOWHERE" && TAMIRS_PERMISSION_TEST_ROOT="$R13" PATH="$FAKEPATH:$PATH" "$@"); }
+srv() { mcp13 bash "$MCP" --print-flags 2>/dev/null | jq -r "${1:-.server}"; }
+judge "a github-mcp-server first on PATH is never chosen" null "$(srv)"
+out="$(mcp13 env GITHUB_PERSONAL_ACCESS_TOKEN=t bash "$MCP" </dev/null 2>&1)"; rc=$?
+judge "with no trusted binary it refuses to start (1), and the PATH one never runs" "1 no" "$rc $(exists "$MARK/ran")"
+judge "  ... saying PATH is not searched" yes "$(has "$out" 'PATH is not searched')"
+printf '#!/bin/sh\necho "trusted $* ${GITHUB_PERSONAL_ACCESS_TOKEN:+token}" > "%s/ran"\n' "$MARK" > "$LB/github-mcp-server"
+chmod 755 "$LB/github-mcp-server"
+judge "the passwd home's ~/.local/bin binary is chosen" "$(canon "$LB")/github-mcp-server" "$(srv)"
+rm -f "$MARK/py"
+mcp13 env GITHUB_PERSONAL_ACCESS_TOKEN=t bash "$MCP" </dev/null >/dev/null 2>&1
+judge "it is exec'd with the level's flags, and only it receives the token" "trusted stdio --read-only token" "$(cat "$MARK/ran" 2>/dev/null)"
+judge "  ... a helper run on PATH (python3) never saw the token" "yes no" \
+  "$(grep -q used "$MARK/py" 2>/dev/null && echo yes || echo no) $(grep -q leaked "$MARK/py" 2>/dev/null && echo yes || echo no)"
+chmod 775 "$LB/github-mcp-server"
+judge "a group-writable binary is refused" "null yes" "$(srv) $(has "$(srv '.refused | join(" ")')" 'group- or world-writable')"
+chmod 757 "$LB/github-mcp-server"
+judge "a world-writable binary is refused" null "$(srv)"
+chmod 755 "$LB/github-mcp-server"; chmod 777 "$LB"
+judge "a binary in a world-writable directory is refused" "null yes" "$(srv) $(has "$(srv '.refused | join(" ")')" 'world-writable or owned by another user')"
+chmod 755 "$LB"
+mkdir -p "$R13/opt"; chmod 755 "$R13/opt"; mv "$LB/github-mcp-server" "$R13/opt/"; ln -s "$R13/opt/github-mcp-server" "$LB/github-mcp-server"
+judge "a symlink is followed to its file, which is judged" "$(canon "$R13/opt")/github-mcp-server" "$(srv)"
+chmod 775 "$R13/opt/github-mcp-server"
+judge "  ... a group-writable symlink target is refused" null "$(srv)"
 
 # ---------------------------------------------------------------------------
 section "the real config and state dirs were never touched"
