@@ -5,6 +5,16 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Fixed
+
+- **The protected-file guard's one admitted assignment must start its statement, and
+  `coproc` is a subshell (#363).** `\S=/tmp; echo x > "$S/workflows/ci.yml"` runs a command
+  named `S=/tmp`, and `coproc { :; S=/tmp; }` assigns inside a coprocess; both left an
+  inherited `S` resolved to `/tmp` and the workflow write cleared. The write-target parser now
+  admits `NAME=literal` only when nothing but whitespace, a `;` or a newline precedes it on
+  its line, and counts everything on a `coproc` statement and in its body as depth above zero.
+  Both are unresolved writes again, as before 5.4.0.
+
 ## [5.4.0] — 2026-11-04
 
 ### Added

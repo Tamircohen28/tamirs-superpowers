@@ -817,8 +817,11 @@ def _script_then_files(words, script_flags, cmd=None):
 #   rule is stated the other way round, as what MUST hold of the whole command
 #   text for a name to resolve at all (_resolvable_names):
 #     - the identifier NAME occurs exactly once as `NAME=`: followed by `=`
-#       and not `==`, and not preceded by `$`, `{`, a quote (`"S=/x"` runs a
-#       command named S=/x) or an identifier character;
+#       and not `==`, and the FIRST word of its statement — preceded only by
+#       the start of the text, a `;` or a newline, and whitespace
+#       (_statement_start). A backslash (`\S=/tmp` runs a command named
+#       S=/tmp), a quote, `{`, `(`, `&&`, a reserved word or any other word
+#       before it disqualifies the name (issue #363);
 #     - every other occurrence of NAME on a word boundary, anywhere in the raw
 #       text — quotes, heredoc bodies and comments included — is a plain
 #       `$NAME` (not followed by `[`) or `${NAME}` expansion;
@@ -863,11 +866,11 @@ FORBIDS_RESOLUTION = re.compile(
 # depth; the rest are passed over to reach the command they introduce.
 SCOPE_OPENERS = ("if", "while", "until", "for", "select", "case", "{")
 SCOPE_CLOSERS = ("fi", "done", "esac", "}")
-NEUTRAL_KEYWORDS = ("then", "elif", "else", "do", "in", "!", "time", "function")
+NEUTRAL_KEYWORDS = ("then", "elif", "else", "do", "in", "!", "time", "function", "coproc")
 ALL_KEYWORDS = SCOPE_OPENERS + SCOPE_CLOSERS + NEUTRAL_KEYWORDS
 # The reserved words a command can directly follow in one segment. `for`,
 # `select`, `case` and `function` are followed by a name, not a command.
-COMMAND_INTRODUCERS = ("if", "then", "elif", "else", "while", "until", "do", "{", "!")
+COMMAND_INTRODUCERS = ("if", "then", "elif", "else", "while", "until", "do", "{", "!", "coproc")
 
 
 # Names bash sets or reads on its own, with no assignment in the text — so the
@@ -899,6 +902,23 @@ def _shell_managed(name):
     return name in SHELL_MANAGED_NAMES or name.startswith(SHELL_MANAGED_PREFIXES)
 
 
+def _statement_start(text, pos):
+    """True when text[pos] begins a statement: only whitespace since the start, a `;` or a newline.
+
+    The one admitted `NAME=` must be the FIRST word of its statement. Anything
+    else before it on the line — a backslash (`\\S=/tmp` runs a command named
+    S=/tmp), a quote, `{`, `(`, `&&`, `|`, a reserved word (`if`, `then`,
+    `do`, `coproc`, `time`, `!`), another word — means bash does not read it
+    as the shell's own assignment, or runs it somewhere the parent never
+    sees (issue #363). Whether that statement is also at compound depth 0 is
+    _track_assignments' half of the rule.
+    """
+    i = pos
+    while i > 0 and text[i - 1] in " \t":
+        i -= 1
+    return i == 0 or text[i - 1] in ";\n"
+
+
 def _resolvable_names(text):
     """The names the whole command text allows to resolve (the rule above)."""
     if FORBIDS_RESOLUTION.search(text):
@@ -918,8 +938,8 @@ def _resolvable_names(text):
                 continue                                    # $NAME
             if before2 == "${" and after == "}":
                 continue                                    # ${NAME}
-            if before not in ("$", "{", '"', "'") and after == "=" and text[e:e + 2] != "==":
-                sites += 1                                  # NAME= (a quoted name is a command)
+            if after == "=" and text[e:e + 2] != "==" and _statement_start(text, s):
+                sites += 1                                  # NAME=, first word of its statement
                 continue
             clean = False
             break
@@ -938,6 +958,7 @@ def _scope_update(seg, scope):
     """
     words = [t for t in seg if t.kind == "word"]
     i = 0
+    own = 0     # extra depth for this segment's own commands only
     while i < len(words):
         w = words[i].value
         if words[i].quoted:
@@ -948,10 +969,21 @@ def _scope_update(seg, scope):
             scope["depth"] = max(0, scope["depth"] - 1)
         elif w == "function":
             i += 1      # `function NAME` — the name is not a command
+        elif w == "coproc":
+            # `coproc cmd`, `coproc { … }`, `coproc NAME { … }`: the coprocess
+            # is a subshell, so the rest of this statement runs at depth > 0
+            # and a `{`/compound body that follows opens on top of that
+            # (issue #363). The optional NAME is the word before a `{` or an
+            # opener keyword; `(` is a separator, so it is never a word here.
+            own = 1
+            if (i + 2 < len(words) and not words[i + 1].quoted
+                    and words[i + 1].value not in ALL_KEYWORDS
+                    and words[i + 2].value in SCOPE_OPENERS):
+                i += 1
         elif w not in NEUTRAL_KEYWORDS:
             break
         i += 1
-    return scope["depth"]
+    return scope["depth"] + own
 
 
 def _track_assignments(words, piped_in, terminator, conditional):
