@@ -19,7 +19,17 @@
 #      and the context it refuses to guess (cd chains, export, GH_REPO=);
 #   6. levels through a real user file + lock (standard), the call stamp (D8), the
 #      policy.edit forms (setup.sh --permission-level, plugin-config.sh, host config CLIs);
-#   7. hook_ask's dialects, the shared tokeniser's two modes, and the hook wiring.
+#   7. the OpenCode dialect ("host": "opencode" in the payload, as guard.ts sends it): ask
+#      for R2 only, deny for every R3/R4, UNCLASSIFIED and policy.edit call, and never a
+#      looser answer on a deny-only host that carries the same marker (D8);
+#   8. the active skill from hooks/permission-intent.sh's intent/<sid>.json: --skill and
+#      --objective reach the resolver, a skill raise applies only when user_typed, a
+#      lowering always, and a missing, corrupt, unsafe, stale or foreign context is the
+#      global level (D5, D8, SR S-09);
+#   9. plugin-config.sh confirm <nonce>: the Claude dialog names the pending request's
+#      skill, level, target and expiry (or its rows), PG stamps asked/<nonce>.json with the
+#      bytes it showed, and a nonce with no usable record is a deny (D5, D8 call stamp);
+#  10. hook_ask's dialects, the shared tokeniser's two modes, and the hook wiring.
 #
 # HERMETIC
 #   The resolver reads the passwd home, never HOME. Its test override,
@@ -350,11 +360,14 @@ POL=(
   'bash scripts/plugin-config.sh pr.merge.auto allow'
   'bash scripts/plugin-config.sh reset all'
   'bash scripts/plugin-config.sh trust'
-  'bash scripts/plugin-config.sh confirm 0123456789abcdef'
   '"$CLAUDE_PLUGIN_ROOT"/scripts/plugin-config.sh supervised'
 )
 for c in "${POL[@]}"; do
   expect "claude asks: $c" claude "$(claude_bash "$c")" ask "policy.edit"
+  expect "codex denies: $c" codex "$(codex_bash "$c")" deny "policy.edit"
+  expect "cursor denies: $c" cursor "$(cursor_shell "$c")" deny "policy.edit"
+done
+for c in 'bash scripts/plugin-config.sh confirm 0123456789abcdef' 'bash scripts/plugin-config.sh confirm 0123456789abcdef0123456789abcdef'; do
   expect "codex denies: $c" codex "$(codex_bash "$c")" deny "policy.edit"
   expect "cursor denies: $c" cursor "$(cursor_shell "$c")" deny "policy.edit"
 done
@@ -571,7 +584,199 @@ judge "a README write on a non-default branch of origin: default_branch and the 
 expect "cursor: MCP:merge_pull_request is denied" cursor "$(cursor_mcp 'MCP:merge_pull_request' '{"owner":"me","repo":"app","pullNumber":5}')" deny "pr.merge"
 expect "cursor: an MCP tool PG does not know is not PG's" cursor "$(cursor_mcp 'MCP:search_docs' '{}')" allow
 
-# --- 7. libraries and wiring ---------------------------------------------------------------
+# --- 7. the OpenCode dialect (D8: "R2: hook ask (A under --auto); R3/R4: deny") -----------------
+section "OpenCode dialect: ask for R2 only, deny what must survive --auto"
+oc_bash() { claude_bash "$@" | jq -c '. + {host:"opencode"}'; }
+oc_mcp() { claude_mcp "$@" | jq -c '. + {host:"opencode"}'; }
+expect "opencode: ls is allowed" claude "$(oc_bash 'ls -la')" allow
+judge "opencode: the allow is {}" '{}' "$(run_pg claude "$(oc_bash 'git status')"; printf '%s' "$OUT")"
+expect "opencode: gh pr create (R2) asks" claude "$(oc_bash 'gh pr create --fill')" ask "pr.create"
+judge "  ... and says --auto approves it" yes "$(has "$(reason)" "opencode --auto")"
+judge "  ... the route it names is the terminal one (no in-session raise on OpenCode)" yes "$(has "$(reason)" "outside the agent session")"
+expect "opencode: an own-branch push (R2) asks" claude "$(oc_bash 'git push -u origin HEAD')" ask "git.push.branch"
+expect "opencode: gh pr merge (R3) is a deny" claude "$(oc_bash 'gh pr merge 5 --squash')" deny "carries only an R2 ask"
+expect "opencode: a force push (R3) is a deny" claude "$(oc_bash 'git push --force origin feat')" deny "git.push.force"
+expect "opencode: claude -p (R4) is a deny" claude "$(oc_bash 'claude -p hi')" deny "process.spawn.agent_host"
+expect "opencode: UNCLASSIFIED gh is a deny" claude "$(oc_bash 'gh secret set FOO -b x')" deny "UNCLASSIFIED"
+expect "opencode: a policy.edit writer call is a deny" claude "$(oc_bash 'bash scripts/plugin-config.sh standard')" deny "policy.edit"
+expect "opencode: R2 together with R3 in one command is a deny" claude "$(oc_bash 'gh pr create --fill && gh pr merge 5')" deny "pr.merge"
+git -C "$REPO" checkout -q local-only && git -C "$REPO" commit -q --allow-empty -m oc-only-here && git -C "$REPO" checkout -q feat
+expect "opencode: a branch -D raised to R3 is a deny" claude "$(oc_bash 'git branch -D local-only')" deny "branch.delete.local"
+expect "opencode: MCP create_pull_request (R2) asks" claude "$(oc_mcp "${PFX}create_pull_request" '{"owner":"me","repo":"app","title":"t","head":"feat","base":"main"}')" ask "pr.create"
+expect "opencode: MCP merge_pull_request (R3) is a deny" claude "$(oc_mcp "${PFX}merge_pull_request" '{"owner":"me","repo":"app","pullNumber":5}')" deny "pr.merge"
+expect "opencode: an unknown tool of the server (UNCLASSIFIED) is a deny" claude "$(oc_mcp "${PFX}dismiss_notification" '{}')" deny "UNCLASSIFIED"
+# the marker never loosens a deny-only host
+expect "marker + CODEX_HOME: still Codex, the R2 ask is a deny" codex "$(oc_bash 'gh pr create --fill')" deny "codex cannot carry a hook ask"
+expect "marker + turn_id: still Codex" claude "$(oc_bash 'gh pr create --fill' | jq -c '. + {turn_id:"t"}')" deny "codex"
+expect "marker + GEMINI_* env: still Gemini" gemini "$(oc_bash 'gh pr create --fill')" deny "gemini cannot carry a hook ask"
+expect "marker on a Cursor payload: still Cursor's deny" cursor "$(cursor_shell 'gh pr create --fill' | jq -c '. + {host:"opencode"}')" deny "cursor cannot carry"
+expect "another host value is ignored (Claude asks R3)" claude "$(claude_bash 'gh pr merge 5' | jq -c '. + {host:"elsewhere"}')" ask "pr.merge"
+set_level standard
+expect "opencode, standard: gh pr create is allowed" claude "$(oc_bash 'gh pr create --fill')" allow
+expect "opencode, standard: gh pr merge is still a deny" claude "$(oc_bash 'gh pr merge 5 --squash')" deny "pr.merge"
+set_level none
+SEEN="$PH/.local/state/tamirs-superpowers/seen"
+expect "codex: an ask delivered as a deny" codex "$(codex_bash 'bash scripts/resolve-permission.sh pr.create --call cdxcdxcdx0000001 && gh pr create --fill')" deny
+judge "  ... writes no call stamp (the command never runs)" no "$(exists "$SEEN/cdxcdxcdx0000001")"
+expect "opencode: an R2 ask" claude "$(oc_bash 'bash scripts/resolve-permission.sh pr.create --call ocococoo00000001 && gh pr create --fill')" ask
+judge "  ... is stamped (it may run once approved)" yes "$(exists "$SEEN/ocococoo00000001")"
+
+# --- 8. the active skill (hooks/permission-intent.sh, D5/D8) ---------------------------------
+section "the active skill: --skill from intent/<sid>.json; a raise only when user_typed"
+STATE="$PH/.local/state/tamirs-superpowers"
+INTENT="$STATE/intent/pg-1.json"
+set_doc() { # set_doc '<user-file json>'
+  rm -rf "$PH/.config"; mkdir -p "$CFG"; chmod 700 "$PH/.config" "$CFG"
+  printf '%s\n' "$1" > "$CFG/permissions.json"; chmod 600 "$CFG/permissions.json"
+  printf '{"sha256": "%s", "by": "plugin-config", "at": "2026-11-04T00:00:00Z"}\n' \
+    "$(python3 -c 'import hashlib,sys; print(hashlib.sha256(open(sys.argv[1],"rb").read()).hexdigest())' "$CFG/permissions.json")" > "$CFG/permissions.lock"
+  chmod 600 "$CFG/permissions.lock"
+}
+# The writer itself makes the context: a /pr-dev slash-command expansion, as Claude Code sends it.
+intent_expand() { # intent_expand <command_name> [session] — runs hooks/permission-intent.sh
+  jq -nc --arg n "$1" --arg s "${2:-pg-1}" --arg d "$REPO" \
+    '{session_id:$s,cwd:$d,hook_event_name:"UserPromptExpansion",expansion_type:"slash_command",command_name:$n,command_args:"42"}' |
+    bash "$ROOT/hooks/permission-intent.sh" >/dev/null 2>&1
+}
+intent_edit() { # intent_edit '<jq filter>' — rewrite the context in place, 0600
+  jq -S "$1" "$INTENT" > "$INTENT.new" && chmod 600 "$INTENT.new" && mv "$INTENT.new" "$INTENT"
+}
+rm -rf "$STATE/intent"
+intent_expand tamirs-superpowers:pr-dev
+judge "permission-intent.sh wrote the context PG reads" "pr-dev null" "$(jq -r '"\(.skill) \(.user_typed)"' "$INTENT" 2>/dev/null)"
+set_doc '{"version": 1, "level": "supervised", "skills": {"pr-dev": "standard"}}'
+expect "a skill raise from an unpaired slash command does not apply (user_typed null): R2 asks" claude "$(claude_bash 'gh pr create --fill')" ask "pr.create"
+judge "  ... the reason names the skill and why it only lowers" yes "$(has "$(reason)" "counts only where it is stricter")"
+intent_edit '.user_typed = true'
+expect "the same raise once user_typed: R2 is allowed (pr-dev at standard)" claude "$(claude_bash 'gh pr create --fill')" allow
+expect "  ... R3 still asks" claude "$(claude_bash 'gh pr merge 5 --squash')" ask "pr.merge"
+expect "  ... a call from another agent does not get the raise" claude "$(claude_bash 'gh pr create --fill' | jq -c '. + {agent_id:"sub-1"}')" ask "another agent"
+expect "  ... nor another session (no context of its own)" claude "$(claude_bash 'gh pr create --fill' | jq -c '.session_id = "pg-2"')" ask "pr.create"
+set_doc '{"version": 1, "level": "standard", "skills": {"pr-dev": "supervised"}}'
+intent_edit '.user_typed = null'
+expect "a skill lowering applies without provenance: R2 asks under /pr-dev" claude "$(claude_bash 'gh pr create --fill')" ask "pr.create"
+expect "  ... and from another agent too" claude "$(claude_bash 'gh pr create --fill' | jq -c '. + {agent_id:"sub-1"}')" ask "pr.create"
+expect "  ... without a context the global standard allows it" claude "$(claude_bash 'gh pr create --fill' | jq -c '.session_id = "pg-2"')" allow
+# unusable contexts: the global level (standard here), never an error and never a deny of their own
+intent_edit '.expires = "2020-01-01T00:00:00Z"'
+expect "an expired context is ignored (global standard)" claude "$(claude_bash 'gh pr create --fill')" allow
+intent_expand tamirs-superpowers:pr-dev
+intent_edit '.session_id = "someone-else"'
+expect "a context naming another session is ignored" claude "$(claude_bash 'gh pr create --fill')" allow
+intent_expand tamirs-superpowers:pr-dev
+chmod 644 "$INTENT"
+expect "a group/world-readable context is ignored (unsafe)" claude "$(claude_bash 'gh pr create --fill')" allow
+chmod 600 "$INTENT"
+printf 'not json' > "$INTENT"; chmod 600 "$INTENT"
+expect "a corrupt context is ignored (global level, no error)" claude "$(claude_bash 'gh pr create --fill')" allow
+intent_expand tamirs-superpowers:pr-dev
+intent_edit '.skill = "no-such-skill"'
+expect "a context naming no shipped skill is ignored" claude "$(claude_bash 'gh pr create --fill')" allow
+intent_expand tamirs-superpowers:pr-dev
+expect "control: the valid context lowers again" claude "$(claude_bash 'gh pr create --fill')" ask "pr.create"
+mkdir -p "$T/elsewhere" && chmod 700 "$T/elsewhere"
+cp "$INTENT" "$T/elsewhere/pg-1.json" && chmod 600 "$T/elsewhere/pg-1.json"
+rm -rf "$STATE/intent"
+ln -s "$T/elsewhere" "$STATE/intent"
+expect "the same context behind an intent dir that is a symlink is ignored" claude "$(claude_bash 'gh pr create --fill')" allow
+rm -f "$STATE/intent"
+set_level none
+# what reaches the resolver: a stub that logs its arguments
+mk_tree "$T/t-argv"
+mkdir -p "$T/t-argv/skills/dev-workflow/pr-dev" && : > "$T/t-argv/skills/dev-workflow/pr-dev/SKILL.md"
+cat > "$T/t-argv/scripts/resolve-permission.sh" <<SH
+#!/usr/bin/env bash
+printf '%s\n' "\$*" >> "$T/argv.log"
+printf '%s\n' '{"verdict":"ask","r":2,"reason":"stub asks","effective_action":"pr.create"}'
+SH
+intent_expand tamirs-superpowers:pr-dev
+intent_edit '.objective = "obj-7"'
+rm -f "$T/argv.log"
+expect "with a context (user_typed null) the stub is asked" claude "$(claude_bash 'gh pr create --fill')" ask "" "$T/t-argv/hooks/permission-guard.sh"
+judge "  ... twice: with --skill pr-dev and without (the stricter answer kept)" "1 1" \
+  "$(grep -c -- '--skill pr-dev' "$T/argv.log") $(grep -vc -- '--skill' "$T/argv.log")"
+judge "  ... both with --objective obj-7 (tighten only)" 2 "$(grep -c -- '--objective obj-7' "$T/argv.log")"
+intent_edit '.user_typed = true'
+rm -f "$T/argv.log"
+expect "with user_typed the stub is asked" claude "$(claude_bash 'gh pr create --fill')" ask "" "$T/t-argv/hooks/permission-guard.sh"
+judge "  ... once, with --skill pr-dev" "1 1" "$(wc -l < "$T/argv.log" | tr -d ' ') $(grep -c -- '--skill pr-dev' "$T/argv.log")"
+rm -rf "$STATE/intent"; rm -f "$T/argv.log"
+expect "with no context the stub is asked" claude "$(claude_bash 'gh pr create --fill')" ask "" "$T/t-argv/hooks/permission-guard.sh"
+judge "  ... once, with neither --skill nor --objective" "1 0" "$(wc -l < "$T/argv.log" | tr -d ' ') $(grep -c -e '--skill' -e '--objective' "$T/argv.log")"
+rm -f "$T/argv.log"
+expect "the fast path reads no context and runs no resolver" claude "$(claude_bash 'ls')" allow "" "$T/t-argv/hooks/permission-guard.sh"
+judge "  ... nothing logged" no "$(exists "$T/argv.log")"
+
+# --- 9. plugin-config.sh confirm <nonce> (D5) ------------------------------------------------
+section "confirm <nonce>: the dialog names the request, PG stamps what it showed"
+PEND="$STATE/pending"
+ASKED="$STATE/asked"
+mkdir -p "$PEND"; chmod 700 "$STATE" "$PEND"
+mk_pending() { # mk_pending <nonce> <kind> [expires] [mode] — a record as the writers render it
+  python3 - "$PEND/$1.json" "$1" "$2" "${3:-2099-01-01T00:00:00Z}" "${4:-600}" <<'PY'
+import hashlib, json, os, sys
+path, nonce, kind, exp, mode = sys.argv[1:6]
+def render(d): return (json.dumps(d, indent=2, sort_keys=True, ensure_ascii=True) + "\n").encode("ascii")
+if kind == "perms":
+    rec = {"version": 1, "kind": "perms", "nonce": nonce, "skill": "pr-dev", "level": "standard",
+           "target": {"arg": "42", "repo": "github.com/me/app"}, "session_id": "pg-1", "agent": "main",
+           "host": "claude", "command_name": "tamirs-superpowers:pr-dev", "created": "2026-11-04T10:00:00Z", "expires": exp}
+else:
+    rec = {"version": 1, "kind": "config", "nonce": nonce, "created": "2026-11-04T10:00:00Z", "expires": exp,
+           "op": "pr.merge.auto allow", "base_sha256": "absent", "doc": {"version": 1, "actions": {"pr.merge.auto": "allow"}},
+           "rows": [{"action": "pr.merge.auto", "r": 3, "from": "ask", "to": "allow", "skills": [],
+                     "context": "when its preconditions hold"}], "host": "claude"}
+rec["body_sha256"] = hashlib.sha256(render(rec)).hexdigest()
+if os.path.exists(path):
+    os.unlink(path)
+open(path, "wb").write(render(rec))
+os.chmod(path, int(mode, 8))
+PY
+}
+N1=11111111111111111111111111111111
+N2=22222222222222222222222222222222
+mk_pending "$N1" perms
+expect "claude: confirm of a --perms= request asks" claude "$(claude_bash "bash scripts/plugin-config.sh confirm $N1")" ask "policy.edit"
+r="$(reason)"
+for w in "skill pr-dev" "--perms=standard" "github.com/me/app/42" "15 minutes" "never R4" "expires 2099-01-01T00:00:00Z"; do
+  judge "  ... the dialog names '$w'" yes "$(has "$r" "$w")"
+done
+judge "  ... PG stamped asked/$N1.json" yes "$(exists "$ASKED/$N1.json")"
+judge "  ... 0600 in a 0700 dir" "600 700" "$(python3 -c 'import os,sys; print(" ".join(oct(os.stat(p).st_mode & 0o777)[2:] for p in sys.argv[1:]))' "$ASKED/$N1.json" "$ASKED")"
+judge "  ... with the sha256 of the bytes it showed" \
+  "$(python3 -c 'import hashlib,sys; print(hashlib.sha256(open(sys.argv[1],"rb").read()).hexdigest())' "$PEND/$N1.json")" \
+  "$(jq -r .file_sha256 "$ASKED/$N1.json")"
+judge "  ... the record's own hash, the session and the expiry" "$(jq -r .body_sha256 "$PEND/$N1.json") pg-1 2099-01-01T00:00:00Z" \
+  "$(jq -r '"\(.body_sha256) \(.session_id) \(.expires)"' "$ASKED/$N1.json")"
+judge "  ... and left the pending record for the writer" yes "$(exists "$PEND/$N1.json")"
+mk_pending "$N2" config
+expect "claude: confirm of a config change asks and names its rows" claude "$(claude_bash "bash scripts/plugin-config.sh confirm $N2")" ask "pr.merge.auto (R3): ask -> allow for every skill when its preconditions hold"
+judge "  ... and the op" yes "$(has "$(reason)" "pr.merge.auto allow")"
+rm -rf "$ASKED"
+expect "codex: confirm of a valid record is still a deny (no channel, D5)" codex "$(codex_bash "bash scripts/plugin-config.sh confirm $N1")" deny "policy.edit"
+expect "opencode: likewise" claude "$(oc_bash "bash scripts/plugin-config.sh confirm $N1")" deny "policy.edit"
+judge "  ... neither wrote a confirm stamp" no "$(exists "$ASKED/$N1.json")"
+expect "a nonce with no record: a deny, nothing to approve" claude "$(claude_bash 'bash scripts/plugin-config.sh confirm 33333333333333333333333333333333')" deny "nothing for the user to approve"
+expect "not a nonce: a deny" claude "$(claude_bash 'bash scripts/plugin-config.sh confirm 0123456789abcdef')" deny "not a nonce"
+expect "confirm with no nonce: a deny" claude "$(claude_bash 'bash scripts/plugin-config.sh confirm')" deny "not a nonce"
+mk_pending "$N1" perms 2020-01-01T00:00:00Z
+expect "an expired request: a deny" claude "$(claude_bash "bash scripts/plugin-config.sh confirm $N1")" deny "expired"
+mk_pending "$N1" perms
+python3 - "$PEND/$N1.json" <<'PY'
+import json, sys
+p = sys.argv[1]; d = json.load(open(p)); d["level"] = "unattended"
+open(p, "w").write(json.dumps(d, indent=2, sort_keys=True) + "\n")
+PY
+expect "an altered record (its hash no longer matches): a deny" claude "$(claude_bash "bash scripts/plugin-config.sh confirm $N1")" deny "does not match its hash"
+mk_pending "$N1" perms 2099-01-01T00:00:00Z 644
+expect "a group/world-readable record: a deny (unsafe)" claude "$(claude_bash "bash scripts/plugin-config.sh confirm $N1")" deny "nothing for the user to approve"
+judge "none of those denies was stamped" no "$(exists "$ASKED")"
+mk_pending "$N1" perms
+expect "confirm beside an R3 call: the dialog still names the request" claude "$(claude_bash "bash scripts/plugin-config.sh confirm $N1 && gh pr merge 5")" ask "skill pr-dev"
+judge "classify lists the nonce" "[\"$N1\"]" "$(classify "bash scripts/plugin-config.sh confirm $N1" | jq -c .confirms)"
+rm -rf "$PEND" "$ASKED"
+
+# --- 10. libraries and wiring ---------------------------------------------------------------
 section "hook_ask: an ask on Claude only"
 HO="$ROOT/hooks/lib/hook-output.sh"
 judge "claude: permissionDecision ask" ask "$(bash -c 'source "$1"; HOOK_PLATFORM=claude; hook_ask "why"' _ "$HO" | jq -r .hookSpecificOutput.permissionDecision)"

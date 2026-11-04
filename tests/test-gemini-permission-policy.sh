@@ -17,11 +17,15 @@
 #      shell command checked part by part) answers ask_user for the R4 forms, deny for
 #      the denied forms, and nothing for ordinary commands.
 #   4. platforms/gemini/hooks.json wires hooks/permission-guard.sh on BeforeTool
-#      run_shell_command through gemini-wrap.sh; the GitHub MCP matcher group is left
-#      out, never turned into a match-all.
+#      run_shell_command and on the bundled GitHub MCP server's tools, both through
+#      gemini-wrap.sh; the MCP matcher is that server's mcp_github_<tool> names and
+#      nothing wider (never a match-all).
 #   5. The guard in the Gemini dialect never answers ask (a hook ask hangs a headless
 #      run, G1): every call that asks on Claude Code is a deny through gemini-wrap.sh,
 #      at supervised and at unattended (TS_PERMISSION_LEVEL in the extension .env).
+#      A GitHub MCP merge (mcp_github_merge_pull_request, as Gemini sends it, with and
+#      without its mcp_context) is denied by the guard; a read of the same server and
+#      any other server's tool are left alone.
 #   6. TS_PERMISSION_LEVEL: platforms/manifests.source.json and gemini-extension.json
 #      agree, the setting is a plain (non-keychain) string whose description lists the
 #      three levels and says the plugin validates it, and the resolver reads that name.
@@ -485,28 +489,47 @@ else
 fi
 
 # --------------------------------------------------------------------------------
-section "hooks.json: permission-guard.sh on BeforeTool, the MCP group left out"
+section "hooks.json: permission-guard.sh on BeforeTool, shell and the bundled GitHub MCP server"
+GEM_MCP='^(mcp_github_[A-Za-z0-9_.:-]+)$'
 pg_groups="$(jq -c '[.hooks.BeforeTool[] | select(any(.hooks[]; .command | endswith("/hooks/permission-guard.sh\""))) | .matcher]' "$HOOKS")"
-judge "permission-guard.sh runs on exactly one BeforeTool group, matcher ^(run_shell_command)\$" '["^(run_shell_command)$"]' "$pg_groups"
-# shellcheck disable=SC2016  # ${extensionPath} is Gemini's placeholder, expanded by Gemini, never by this shell
-judge "...through gemini-wrap.sh" 'bash "${extensionPath}/hooks/gemini-wrap.sh" "${extensionPath}/hooks/permission-guard.sh"' \
-  "$(jq -r '[.hooks.BeforeTool[].hooks[] | select(.name == "permission-guard-shell") | .command][0] // empty' "$HOOKS")"
-judge "...with its timeout in milliseconds" 30000 \
-  "$(jq -r '[.hooks.BeforeTool[].hooks[] | select(.name == "permission-guard-shell") | .timeout][0] // empty' "$HOOKS")"
-judge "the canonical file still wires the GitHub MCP matcher (so the skip is exercised)" yes \
+judge "permission-guard.sh runs on exactly two BeforeTool groups: run_shell_command and the GitHub MCP server" \
+  "[\"^(run_shell_command)\$\",\"$GEM_MCP\"]" "$pg_groups"
+for n in permission-guard-shell permission-guard-mcp; do
+  # shellcheck disable=SC2016  # ${extensionPath} is Gemini's placeholder, expanded by Gemini, never by this shell
+  judge "$n: through gemini-wrap.sh" 'bash "${extensionPath}/hooks/gemini-wrap.sh" "${extensionPath}/hooks/permission-guard.sh"' \
+    "$(jq -r --arg n "$n" '[.hooks.BeforeTool[].hooks[] | select(.name == $n) | .command][0] // empty' "$HOOKS")"
+  judge "$n: its timeout in milliseconds" 30000 \
+    "$(jq -r --arg n "$n" '[.hooks.BeforeTool[].hooks[] | select(.name == $n) | .timeout][0] // empty' "$HOOKS")"
+done
+judge "the canonical file still wires the GitHub MCP matcher (so the mapping is exercised)" yes \
   "$(if jq -e --arg m "$MCP_TOKEN" '[.hooks.PreToolUse[] | select(.matcher == $m)] | length == 1' "$ROOT/hooks/hooks.json" >/dev/null; then echo yes; else echo no; fi)"
-judge "no generated tool group lacks a matcher (a skipped group never becomes match-all)" 0 \
+judge "no generated tool group lacks a matcher (never a match-all)" 0 \
   "$(jq '[(.hooks.BeforeTool + .hooks.AfterTool)[] | select(has("matcher") | not)] | length' "$HOOKS")"
-judge "no generated matcher names an MCP tool" "" \
+judge "the only generated matcher naming an MCP tool is the bundled server's" "$GEM_MCP" \
   "$(jq -r '(.hooks.BeforeTool + .hooks.AfterTool)[] | .matcher' "$HOOKS" | grep -E 'mcp' || true)"
-judge "the description says why the MCP group is left out" yes \
-  "$(has "$(jq -r .description "$HOOKS")" "Left out on purpose: PreToolUse $MCP_TOKEN")"
+# Gemini tests the matcher with new RegExp(matcher).test(toolName) (0.60.0 hookPlanner); JS and Python agree on this one.
+judge "the MCP matcher takes the server's tools and nothing else" "yes yes yes no no no no no" \
+  "$(python3 -c '
+import re, sys
+m = sys.argv[1]
+names = ["mcp_github_merge_pull_request", "mcp_github_get_me", "mcp_github_create_or_update_file",
+         "mcp_context7_query-docs", "mcp_github_", "run_shell_command", "xmcp_github_merge", "mcp__plugin_tamirs-superpowers_github__merge_pull_request"]
+print(" ".join("yes" if re.search(m, n) else "no" for n in names))' "$GEM_MCP")"
+if command -v node >/dev/null 2>&1; then
+  judge "...and JavaScript's RegExp agrees" "true false" \
+    "$(node -e 'const m = new RegExp(process.argv[1]); console.log(m.test("mcp_github_merge_pull_request"), m.test("mcp_context7_query-docs"))' "$GEM_MCP")"
+fi
+judge "the description says how the MCP group is mapped" yes \
+  "$(has "$(jq -r .description "$HOOKS")" "The GitHub MCP group (Claude matcher $MCP_TOKEN) runs on $GEM_MCP")"
 
 C="$T/mixed"; make_copy "$C"
 jq --arg m "$MCP_TOKEN" '.hooks.PreToolUse[0].matcher = "Bash|" + $m' "$C/hooks/hooks.json" > "$C/h" && mv "$C/h" "$C/hooks/hooks.json"
 bash "$GEN" "$C" >/dev/null 2>&1
-judge "a group mixing a skipped token and a mapped one keeps the mapped one" '^(run_shell_command)$' \
+judge "a group mixing the MCP token and a shell token maps both" "^(run_shell_command|mcp_github_[A-Za-z0-9_.:-]+)\$" \
   "$(jq -r '.hooks.BeforeTool[0].matcher' "$C/platforms/gemini/hooks.json")"
+C="$T/no-expansion"; make_copy "$C"
+judge "UserPromptExpansion (Claude-only) is dropped, not an error" 0 "$(bash "$GEN" "$C" >/dev/null 2>&1; echo $?)"
+judge "...and is not in the generated file" "" "$(jq -r '.hooks | keys[] | select(. == "UserPromptExpansion")' "$C/platforms/gemini/hooks.json")"
 C="$T/other-mcp"; make_copy "$C"
 jq '.hooks.PreToolUse[1].matcher = "mcp__other__.*"' "$C/hooks/hooks.json" > "$C/h" && mv "$C/h" "$C/hooks/hooks.json"
 assert_exit "an MCP matcher token the generator does not know is still an error" 2 bash "$GEN" "$C"
@@ -563,7 +586,6 @@ ASKS=(
   "gh release create v1"
   "claude -p hi"
   "gh frobnicate --now"
-  "bash scripts/plugin-config.sh confirm 0123456789abcdef"
 )
 for c in "${ASKS[@]}"; do
   judge "control: Claude Code asks for \`$c\` at supervised" ask "$(claude_verdict "$c")"
@@ -574,6 +596,32 @@ for c in "${ASKS[@]}"; do
 done
 judge "...and the deny says why (ask delivered as a deny, D8)" yes \
   "$(has "$(gemini_answer "gh pr create --fill" | jq -r .reason)" "delivered as a deny")"
+judge "plugin-config.sh confirm of no pending request: Gemini denies it" deny \
+  "$(gemini_answer "bash scripts/plugin-config.sh confirm 0123456789abcdef0123456789abcdef" | jq -r '.decision // "allow"')"
+
+# The GitHub MCP server's calls as Gemini sends them: mcp_<server>_<tool>, plus mcp_context.
+gemini_mcp() { # gemini_mcp <gemini-tool-name> <args-json> [server tool] [server] — through the generated command
+  local ctx='null'
+  [ -n "${3:-}" ] && ctx="$(jq -cn --arg t "$3" --arg s "${4:-github}" '{server_name:$s, tool_name:$t, command:"bash", args:["github-mcp.sh"]}')"
+  jq -cn --arg t "$1" --argjson a "$2" --argjson c "$ctx" --arg cwd "$REPO" '{session_id:"s",transcript_path:"/t",cwd:$cwd,
+      hook_event_name:"BeforeTool",timestamp:"now",tool_name:$t,tool_input:$a} + (if $c == null then {} else {mcp_context:$c} end)' |
+    GEMINI_SESSION_ID=s GEMINI_PROJECT_DIR="$REPO" bash "$W" bash "$WRAP" "$PG" 2>/dev/null
+}
+MERGE='{"owner":"me","repo":"app","pullNumber":5,"merge_method":"squash"}'
+out="$(gemini_mcp mcp_github_merge_pull_request "$MERGE" merge_pull_request)"
+judge "Gemini MCP merge_pull_request (with mcp_context) is denied by the guard" deny "$(jq -r '.decision // "allow"' <<<"$out")"
+judge "...naming pr.merge, the guard's own reason" yes "$(has "$(jq -r .reason <<<"$out")" "pr.merge")"
+judge "...one JSON object on one line" "1 object" "$(printf '%s\n' "$out" | wc -l | tr -d ' ') $(jq -r type <<<"$out" 2>/dev/null)"
+judge "Gemini MCP merge_pull_request without mcp_context: denied too" deny \
+  "$(gemini_mcp mcp_github_merge_pull_request "$MERGE" | jq -r '.decision // "allow"')"
+judge "Gemini MCP create_pull_request (R2) at supervised: a deny, never an ask" deny \
+  "$(gemini_mcp mcp_github_create_pull_request '{"owner":"me","repo":"app","title":"t","head":"feat","base":"main"}' create_pull_request | jq -r '.decision // "allow"')"
+judge "Gemini MCP get_file_contents (a read): allowed" '{}' \
+  "$(gemini_mcp mcp_github_get_file_contents '{"owner":"me","repo":"app","path":"README.md"}' get_file_contents)"
+judge "an unrelated MCP server's tool is untouched by the guard" '{}' \
+  "$(gemini_mcp mcp_context7_query-docs '{"libraryId":"x","query":"merge_pull_request"}' query-docs context7)"
+judge "a server merely named github_enterprise is not the bundled one: untouched" '{}' \
+  "$(gemini_mcp mcp_github_enterprise_merge_pull_request "$MERGE" merge_pull_request github_enterprise)"
 
 # TS_PERMISSION_LEVEL in the extension .env is the Gemini option store (D3, D7).
 ENVF="$PH/.gemini/extensions/tamirs-superpowers/.env"
@@ -587,12 +635,17 @@ for c in "gh repo create me/x --private" "claude -p hi" "gh pr merge 5 --squash"
   judge "...an R3/R4/UNCLASSIFIED call is still a deny, never an ask: \`$c\`" deny \
     "$(gemini_answer "$c" | jq -r '.decision // "allow"')"
 done
+judge "...the GitHub MCP R2 create_pull_request runs" allow \
+  "$(gemini_mcp mcp_github_create_pull_request '{"owner":"me","repo":"app","title":"t","head":"feat","base":"main"}' create_pull_request | jq -r '.decision // "allow"')"
+judge "...the GitHub MCP merge is still a deny" deny "$(gemini_mcp mcp_github_merge_pull_request "$MERGE" merge_pull_request | jq -r '.decision // "allow"')"
 printf 'TS_PERMISSION_LEVEL=yolo\n' > "$ENVF"
 judge "a value outside the enum counts as supervised (D7): the R2 call is a deny" deny \
   "$(gemini_answer "gh pr create --fill" | jq -r '.decision // "allow"')"
 rm -f "$ENVF"
 judge "no Gemini answer from the guard ever carries decision ask" "" \
-  "$(for c in "${ASKS[@]}"; do gemini_answer "$c"; done | jq -r 'select(.decision == "ask") | .reason' 2>/dev/null)"
+  "$({ for c in "${ASKS[@]}"; do gemini_answer "$c"; done
+       gemini_mcp mcp_github_merge_pull_request "$MERGE" merge_pull_request
+       gemini_mcp mcp_github_create_pull_request '{}' create_pull_request; } | jq -r 'select(.decision == "ask") | .reason' 2>/dev/null)"
 
 # --------------------------------------------------------------------------------
 section "TS_PERMISSION_LEVEL: manifest source, generated extension manifest, resolver"

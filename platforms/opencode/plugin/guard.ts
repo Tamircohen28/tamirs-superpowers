@@ -19,11 +19,16 @@
 // THE PERMISSION LAYER (ADR 004 D8, spikes O1/O2)
 //   - One source of truth: the canonical bash guard decides, through the same action
 //     catalog, conditions and resolver as on every other host; guard.ts only hands it
-//     a payload (rules.ts pgPayload, the Codex dialect: deny only, no option store)
-//     and reads the answer (pgVerdict). A TypeScript port of the matcher would drift.
-//   - Deny only. A plugin `deny` is final under `opencode --auto` (measured O1b); an
-//     `ask` is approved by it (O1c), so nothing here ever sets ask — or allow, which
-//     would widen a configured ask (O1e). An R2 ask arrives as a deny too.
+//     a payload in the guard's OPENCODE dialect (opencodePayload: rules.ts pgPayload
+//     without the Codex marker, plus "host": "opencode"; resolver host opencode, no
+//     option store) and reads the answer (opencodeVerdict). A TypeScript port of the
+//     matcher would drift.
+//   - D8's OpenCode row, "R2: hook ask (A under --auto); R3/R4: deny". The guard
+//     answers ask only for an R2 call (never_auto and UNCLASSIFIED excluded) and deny
+//     for everything that must survive `opencode --auto`: a plugin `deny` is final
+//     under it (measured O1b), an `ask` is approved by it (O1c). So guard.ts sets
+//     the guard's own effect, ask or deny, and never allow, which would widen a
+//     configured ask (O1e).
 //   - Never ctx.session.update: a session rule overrides a config deny (measured O2),
 //     so using it would let this plugin widen what the user's opencode.json forbids
 //     (ADR 004 D10.4).
@@ -261,6 +266,45 @@ function judgeWrite(file: string, kind: TargetKind, via: string, cwd: string, le
 const PG_TIMEOUT_MS = 25_000
 const PG_CACHE_MS = 5_000
 const pgCache = new Map<string, { at: number; d: Decision }>()
+// Shell commands whose R2 ask the permission hook put to OpenCode's own prompt. The
+// create.before backstop lets such a command through once, within this window, and
+// denies any other asked command: a shell created outside the permission flow never
+// saw a prompt.
+const PG_ASKED_MS = 15 * 60_000
+const pgAsked = new Map<string, number>()
+
+/**
+ * The guard payload in its OpenCode dialect: pgPayload's call without the Codex marker
+ * (`turn_id`, which would make the guard answer as Codex, deny only), with "host":
+ * "opencode" — honoured by the guard only where the host otherwise reads as Claude Code.
+ */
+function opencodePayload(call: PgCall, sessionID: string): Record<string, unknown> {
+  const p: Record<string, unknown> = { ...pgPayload(call, sessionID), host: "opencode" }
+  delete p.turn_id
+  return p
+}
+
+/**
+ * Read the guard's OpenCode-dialect answer: its ask (an R2 call, D8) stays an ask with
+ * its reason; everything else is read by pgVerdict, which allows only `{}` or an
+ * explicit allow and denies a deny, garbage and silence (fail closed, D4).
+ */
+function opencodeVerdict(stdout: string): Decision {
+  try {
+    const o: unknown = JSON.parse(stdout.trim())
+    const h = o && typeof o === "object" && !Array.isArray(o) ? (o as Record<string, unknown>).hookSpecificOutput : undefined
+    if (h && typeof h === "object" && (h as Record<string, unknown>).permissionDecision === "ask") {
+      const r = (h as Record<string, unknown>).permissionDecisionReason
+      return {
+        effect: "ask",
+        reason: typeof r === "string" && r ? r : "tamirs-superpowers permission guard asks before this R2 call (ADR 004 D8).",
+      }
+    }
+  } catch {
+    /* not JSON: pgVerdict denies it */
+  }
+  return pgVerdict(stdout)
+}
 
 /** Run the canonical permission guard on one call. Every failure is a deny. */
 function runPermissionGuard(call: PgCall, sessionID: string): Decision {
@@ -277,7 +321,7 @@ function runPermissionGuard(call: PgCall, sessionID: string): Decision {
   } else {
     try {
       const out = execFileSync("bash", [PERMISSION_GUARD], {
-        input: JSON.stringify(pgPayload(call, sessionID)),
+        input: JSON.stringify(opencodePayload(call, sessionID)),
         encoding: "utf8",
         timeout: PG_TIMEOUT_MS,
         maxBuffer: 1 << 20,
@@ -285,7 +329,7 @@ function runPermissionGuard(call: PgCall, sessionID: string): Decision {
         cwd: call.cwd && path.isAbsolute(call.cwd) && existsSync(call.cwd) ? call.cwd : PLUGIN_ROOT,
         stdio: ["pipe", "pipe", "pipe"],
       })
-      d = pgVerdict(out)
+      d = opencodeVerdict(out)
     } catch (err) {
       const why = (err as NodeJS.ErrnoException & { signal?: string }).signal
         ? `it was stopped (${(err as { signal?: string }).signal})`
@@ -420,10 +464,23 @@ export default Plugin.define({
           }
         } else if (e.action === "shell") {
           const cwd = typeof e.metadata?.cwd === "string" ? e.metadata.cwd : locationDir
+          const asked: string[] = []
           for (const cmd of e.resources) {
-            d = judgeShell(cmd, cwd, legacy, session)
-            if (d.effect !== "allow") break
+            const c = judgeShell(cmd, cwd, legacy, session)
+            // A deny of any command decides; an ask is kept while the rest are still judged.
+            if (c.effect === "deny") {
+              d = c
+              break
+            }
+            if (c.effect === "ask") {
+              if (d.effect === "allow") d = c
+              asked.push(cmd)
+            }
             if (legacy) claimPushes(cmd, cwd)
+          }
+          if (d.effect === "ask") {
+            if (pgAsked.size > 256) pgAsked.clear()
+            for (const cmd of asked) pgAsked.set(cmd, Date.now())
           }
         } else {
           const tool = githubMcpTool(String(e.action))
@@ -431,8 +488,10 @@ export default Plugin.define({
           if (tool) d = runPermissionGuard({ kind: "mcp", tool, input: e.metadata?.input, cwd: locationDir }, session)
         }
         if (d.effect !== "allow") {
-          // Only ever deny: an ask is approved by --auto (O1c) and an allow would widen (O1e).
-          e.effect = "deny"
+          // The guard's own effect, deny or (R2 only) ask; never allow, which would widen a
+          // configured ask (O1e). A deny is final under --auto (O1b); the R2 ask is approved by
+          // it (O1c), which ADR 004 D8 accepts for R2 alone.
+          e.effect = d.effect
           e.message = d.reason
         }
       } catch (err) {
@@ -445,6 +504,20 @@ export default Plugin.define({
       let d: Decision
       try {
         d = judgeShell(e.command, e.cwd, legacy, lastSessionID)
+        if (d.effect === "ask") {
+          // An R2 ask the permission hook put to OpenCode's prompt: this is the shell it
+          // asked about, once. Any other ask has had no prompt, so it is a deny here.
+          const at = pgAsked.get(e.command)
+          if (at !== undefined && Date.now() - at < PG_ASKED_MS) {
+            pgAsked.delete(e.command)
+            d = ALLOW
+          } else {
+            d = deny(
+              `${d.reason} This shell was created outside OpenCode's permission flow, where that ask is put, so it ` +
+                "is denied (ADR 004 D8).",
+            )
+          }
+        }
       } catch (err) {
         d = failClosed(err)
       }

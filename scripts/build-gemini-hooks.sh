@@ -43,10 +43,16 @@
 #   PreCompact        -> PreCompress
 #   SessionStart, SessionEnd, Notification -> same name
 #   dropped           WorktreeCreate, WorktreeRemove, DirectoryAdded, StopFailure,
-#                     SubagentStop — Gemini has no such event (its migrate table
-#                     folds SubAgentStop into AfterAgent; this repo's
-#                     subagent-handoff-check reads a subagent transcript that
-#                     AfterAgent never has, so it is dropped, not misrouted).
+#                     SubagentStop, TaskCompleted, TeammateIdle — Gemini has no
+#                     such event (its migrate table folds SubAgentStop into
+#                     AfterAgent; this repo's subagent-handoff-check reads a
+#                     subagent transcript that AfterAgent never has, so it is
+#                     dropped, not misrouted). UserPromptExpansion — Claude Code's
+#                     slash-command expansion (command_name/command_args), the
+#                     Claude-only half of permission-intent.sh's --perms= pairing
+#                     (ADR 004 D5). Gemini has no expansion event; the same hook's
+#                     prompt half still runs there on BeforeAgent (UserPromptSubmit),
+#                     where a --perms= token only lowers.
 #   per hook          command  `bash "${extensionPath}/hooks/gemini-wrap.sh" "${extensionPath}/<script>"`
 #                     timeout  seconds -> milliseconds (Gemini's unit; `gemini
 #                              hooks migrate` copies the number unchanged, which
@@ -58,17 +64,22 @@
 #                     onFailure    dropped — Gemini has no such field. The guards
 #                              are therefore fail-open on Gemini the same way
 #                              they are on Codex; the install doc says so.
-#   skipped matcher   mcp__plugin_tamirs-superpowers_github__.* (permission-guard.sh
-#                     on the bundled GitHub MCP server's tools). Gemini names an MCP
-#                     tool mcp_<server>_<tool> (source-cited, gemini-cli 0.60.0
-#                     bundle, mcp-tool.ts generateValidName/formatMcpToolName), and
-#                     gemini-wrap.sh passes that name through untranslated, so the
-#                     guard would see no GitHub MCP tool and allow every call: a
-#                     wired hook that can only say yes. The group is dropped, never
-#                     turned into a match-all; the GitHub MCP layer on Gemini is the
-#                     static policy (permission_rules on mcpName = "github") plus the
-#                     server flags (ADR 004 D8). A group with a skipped token and a
-#                     mapped one keeps the mapped one.
+#   MCP matcher       mcp__plugin_tamirs-superpowers_github__.* (permission-guard.sh on
+#                     the bundled GitHub MCP server's tools) -> mcp_github_[A-Za-z0-9_.:-]+,
+#                     anchored like every tool matcher. Gemini names an MCP tool
+#                     mcp_<server>_<tool> with the characters generateValidName keeps
+#                     (source-cited, gemini-cli 0.60.0 bundle, mcp-tool.ts
+#                     generateValidName/formatMcpToolName; the server is `github` in
+#                     gemini-extension.json), so the regex is that server's tools and
+#                     nothing wider: never a match-all. gemini-wrap.sh rewrites such a
+#                     call to the Claude name (gemini-output.sh, from the BeforeTool
+#                     payload's mcp_context, which names the server and its own tool
+#                     name), so permission-guard.sh judges it exactly as on Claude Code;
+#                     a call of another server whose name merely starts the same way
+#                     keeps its own name and the guard leaves it alone. The static
+#                     policy (permission_rules on mcpName = "github") and the server
+#                     flags stay beside it (ADR 004 D8). A group mixing it with a shell
+#                     or file token maps both.
 #   Any other Claude event, matcher token or per-hook key is an error (exit 2),
 #   so a new canonical entry cannot ship to Gemini half-translated.
 #
@@ -141,7 +152,10 @@ EVENT_MAP = {
     "Stop": "AfterAgent", "PreCompact": "PreCompress",
     "SessionStart": "SessionStart", "SessionEnd": "SessionEnd", "Notification": "Notification",
 }
-DROPPED_EVENTS = ["WorktreeCreate", "WorktreeRemove", "DirectoryAdded", "StopFailure", "SubagentStop", "TaskCompleted", "TeammateIdle"]
+DROPPED_EVENTS = ["WorktreeCreate", "WorktreeRemove", "DirectoryAdded", "StopFailure", "SubagentStop", "TaskCompleted", "TeammateIdle",
+                  # Claude's slash-command expansion: permission-intent.sh's Claude-only half (ADR 004 D5). Gemini has
+                  # no expansion event; the hook's prompt half runs on BeforeAgent through UserPromptSubmit.
+                  "UserPromptExpansion"]
 TOOL_EVENTS = {"BeforeTool", "AfterTool"}
 TOOL_MAP = {
     "Bash": "run_shell_command", "Shell": "run_shell_command",
@@ -152,14 +166,12 @@ HOOK_KEYS = {"type", "command", "timeout", "statusMessage", "onFailure"}
 GROUP_KEYS = {"matcher", "hooks", "sequential"}
 WRAPPER = "hooks/gemini-wrap.sh"
 CMD_RE = re.compile(r'^(bash|python3)\s+"\$\{CLAUDE_PLUGIN_ROOT\}"?/?([^"\s]+)"?\s*$')
-# Claude matcher tokens with no runnable Gemini counterpart that are left out ON
-# PURPOSE (see THE MAPPING above). A group made only of these is dropped whole:
-# turning it into a matcher-less group would fire its hooks on every tool.
-SKIPPED_MATCHERS = {
-    "mcp__plugin_tamirs-superpowers_github__.*":
-        "Gemini names these tools mcp_github_<tool> and gemini-wrap.sh passes the name through, so "
-        "permission-guard.sh would see no GitHub MCP tool and allow every call; the static policy "
-        "(tamirs-superpowers-permissions.toml, mcpName = github) and the server flags are the layer (ADR 004 D8)",
+# Claude MCP matcher tokens -> the Gemini regex for exactly the same server's tools
+# (see THE MAPPING above). Gemini spells an MCP tool mcp_<server>_<tool>, keeping only
+# [A-Za-z0-9_.:-]; gemini-wrap.sh translates the bundled server's calls back to the
+# Claude name the guard reads. A mapped regex names one server, never every tool.
+MCP_MATCHERS = {
+    "mcp__plugin_tamirs-superpowers_github__.*": "mcp_github_[A-Za-z0-9_.:-]+",
 }
 
 errors = []
@@ -172,34 +184,36 @@ hooks_in = canon.get("hooks")
 if not isinstance(hooks_in, dict):
     sys.exit("error: hooks/hooks.json has no `hooks` object")
 
-SKIP = object()
-
 def translate_matcher(event, matcher):
-    """Claude tool matcher -> anchored Gemini regex, None for match-all, SKIP to drop the group."""
+    """Claude tool matcher -> anchored Gemini regex, or None for match-all."""
     if matcher is None or matcher.strip() in ("", "*"):
         return None
     tools = []
-    skipped = []
     for tok in matcher.split("|"):
         tok = tok.strip()
-        if tok in SKIPPED_MATCHERS:
-            skipped.append(tok)
+        if tok in MCP_MATCHERS:
+            gtok = MCP_MATCHERS[tok]
+        elif tok in TOOL_MAP:
+            gtok = TOOL_MAP[tok]
+        else:
+            err("%s: matcher token %r has no Gemini tool mapping; add it to TOOL_MAP (or MCP_MATCHERS) or drop it"
+                % (event, tok))
             continue
-        if tok not in TOOL_MAP:
-            err("%s: matcher token %r has no Gemini tool mapping; add it to TOOL_MAP or drop it" % (event, tok))
-            continue
-        if TOOL_MAP[tok] not in tools:
-            tools.append(TOOL_MAP[tok])
+        if gtok not in tools:
+            tools.append(gtok)
     if tools:
         return "^(%s)$" % "|".join(tools)
-    return SKIP if skipped else None
+    # Every token was an error: never let the group fall through to a match-all.
+    return "^()$"
 
 def slug_for(tools_regex):
-    return "shell" if "run_shell_command" in (tools_regex or "") else "write"
+    r = tools_regex or ""
+    if "run_shell_command" in r:
+        return "shell"
+    return "mcp" if "mcp_" in r else "write"
 
 hooks_out_obj = {}
 dropped = []
-skipped_groups = []
 names = {}
 for event, groups in hooks_in.items():
     if event in DROPPED_EVENTS:
@@ -217,12 +231,6 @@ for event, groups in hooks_in.items():
         matcher = None
         if gev in TOOL_EVENTS:
             matcher = translate_matcher(event, g.get("matcher"))
-            if matcher is SKIP:
-                toks = [t.strip() for t in g.get("matcher").split("|")]
-                skipped_groups.append(("%s %s (%s)" % (event, g.get("matcher"), ", ".join(
-                    os.path.basename(str(h.get("command", "")).rstrip('"')) for h in g.get("hooks", []))),
-                    "; ".join(SKIPPED_MATCHERS[t] for t in toks if t in SKIPPED_MATCHERS)))
-                continue
             if matcher:
                 og["matcher"] = matcher
         # A lifecycle matcher on Gemini is an exact-string compare against the
@@ -280,8 +288,11 @@ DESCRIPTION = (
     "{} / hookSpecificOutput.additionalContext or systemMessage). Timeouts are milliseconds. Claude's "
     "onFailure has no Gemini field, so every guard is fail-open here: a guard that crashes or times out "
     "lets the action through; policies/*.toml are the hook-free layer. permission-guard.sh answers deny, "
-    "never ask, on Gemini (a hook ask hangs a headless run, ADR 004 D8)."
-    + "".join(" Left out on purpose: %s - %s." % g for g in skipped_groups)
+    "never ask, on Gemini, and gemini-wrap.sh turns any ask a hook gives into a deny with the same reason (a "
+    "hook ask hangs a headless run, ADR 004 D8). The GitHub MCP group (Claude matcher "
+    "mcp__plugin_tamirs-superpowers_github__.*) runs on ^(mcp_github_[A-Za-z0-9_.:-]+)$, the bundled server's "
+    "tools as Gemini names them (mcp_<server>_<tool>); gemini-wrap.sh rewrites such a call to the Claude name "
+    "so permission-guard.sh judges it as on Claude Code, and leaves another server's tool under its own name."
 )
 
 # --- policies ------------------------------------------------------------------
@@ -474,7 +485,6 @@ for rel, text in ((hooks_out, json.dumps({"description": DESCRIPTION, "hooks": h
 if verbose:
     print("kept events: " + ", ".join(hooks_out_obj))
     print("dropped events: " + (", ".join(dropped) or "none"))
-    print("skipped matcher groups: " + (", ".join(g for g, _ in skipped_groups) or "none"))
     print("hook names: " + ", ".join(sorted(names)))
     print("policy rules: %d" % len(rule_blocks))
     print("permission rules: %d (ask_user %d, deny %d)" % (

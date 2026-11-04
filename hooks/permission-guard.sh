@@ -57,19 +57,47 @@
 #   cursor  deny only: preToolUse drops ask and beforeShellExecution's forced
 #           prompt stays unused until spike S1 is measured (D5, D8).
 #   gemini  (GEMINI_SESSION_ID / GEMINI_PROJECT_DIR in env) deny only: a hook ask
-#           hangs headless (G1). Wiring is task-005's.
+#           hangs headless (G1). Run through hooks/gemini-wrap.sh, which also turns
+#           any ask into a deny and maps the bundled GitHub MCP server's
+#           mcp_github_<tool> calls onto the Claude names below.
+#   opencode  ("host": "opencode" in the payload, which platforms/opencode/plugin/
+#           guard.ts builds; honoured only when the host would otherwise read as
+#           claude) ask for R2 only, deny for everything that must survive
+#           `opencode --auto`: every R3/R4 id, never_auto, UNCLASSIFIED (D8 "R2: hook
+#           ask (A under --auto); R3/R4: deny", O1b/O1c). The answer has Claude's
+#           shape; guard.ts maps ask -> OpenCode ask, deny -> deny.
 #   The resolver is told the host (--host) so the option store and the "setting
 #   that would allow it" are that host's.
 #
 # D5-D7 DUTIES
 #   The call stamp (D8): a resolve-permission.sh call carrying --call <token> in
-#   a command PG does not deny gets <state>/seen/<token> (dirs 0700), which the
-#   resolver consumes as proof that PG ran. policy.edit forms that must never run
+#   a command PG does not deny (as delivered: an ask a host cannot carry is a
+#   deny) gets <state>/seen/<token> (dirs 0700), which the resolver consumes as
+#   proof that PG ran. <state> is <passwd home>/.local/state/tamirs-superpowers,
+#   read with pwd.getpwuid unless the test override is in the environment, when
+#   scripts/lib/permission-common.sh decides (D3). policy.edit forms that must never run
 #   from agent Bash are denied outright: plugin-config.sh provision (D6) and the
 #   host config CLIs `claude plugin configure`, `gemini extensions config` (D7).
 #   Every other policy.edit form the catalog lists (plugin-config.sh writes,
 #   confirm, setup.sh --permission-level) is R4: the Claude dialog asks, every
 #   other host denies.
+#   plugin-config.sh confirm <nonce> (D5): the dialog must name what it approves,
+#   so PG reads <state>/pending/<nonce>.json (0600, its own hash checked, not
+#   expired) and puts its skill, level, target and expiry (a --perms= request) or
+#   its widened rows (a config change) in the ask; a nonce with no usable record is
+#   a deny. Before it answers that ask, PG writes <state>/asked/<nonce>.json
+#   {version, nonce, file_sha256 (the bytes it showed), body_sha256, kind,
+#   session_id, agent, host, at, expires}, 0600 in a 0700 dir: the call-stamp
+#   pattern of D8 applied to the confirm, so the writer can require proof that
+#   this very confirm, these very bytes, went to the host prompt.
+#   The active skill (D8 "per-skill levels at L2"): <state>/intent/<sid>.json,
+#   written by hooks/permission-intent.sh (format in its header). Its skill is
+#   passed to the resolver as --skill and its objective as --objective (D4 row 3,
+#   tighten only). The skill may widen only when the slash command was user_typed
+#   and this call is the same agent's; otherwise each id is resolved with and
+#   without it and the stricter answer stands (a lowering needs no provenance, SR
+#   S-09). A missing, unsafe, stale or malformed context is no skill: the global
+#   level decides; it never errors into an allow.
 #
 # FAIL CLOSED (D4, SR S-12)
 #   Unparseable payload, no jq, no python3, a missing or corrupt catalog, a
@@ -143,7 +171,12 @@ _pg_finish() {
     allow) hook_allow ;;
     ask)
       printf '%s\n' "$reason" >&2
-      hook_ask "$reason" ;;
+      # Belt: only the two dialects whose host carries a hook ask may answer one (the engine
+      # already turns every other host's ask into a deny, D8).
+      case "${PG_HOST:-}" in
+        claude|opencode) hook_ask "$reason" ;;
+        *) hook_deny "$reason" ;;
+      esac ;;
     *)
       printf '%s\n' "$reason" >&2
       hook_deny "$reason" ;;
@@ -179,15 +212,21 @@ _pg_candidate() {
 }
 
 IFS= read -r -d '' _PG_ENGINE <<'PY' || true
-import fnmatch, json, os, re, signal, subprocess, sys, time
+import fnmatch, hashlib, json, os, re, signal, stat, subprocess, sys, time
 
 ROOT, HOST, MODE = sys.argv[1], sys.argv[2], sys.argv[3]
 BUDGET = float(sys.argv[4]) if len(sys.argv) > 4 else 20.0
 T0 = time.time()
-ASK_HOSTS = ("claude",)
+ASK_HOSTS = ("claude",)       # carry every ask (the D5 dialog)
+R2_ASK_HOSTS = ("opencode",)  # carry an R2 ask only; --auto approves it (D8, O1c)
 UNCL = "UNCLASSIFIED"
 SEP, NESTED = "\x1f", "\x1e"
 CALL_RE = re.compile(r"\A[A-Za-z0-9_-]{8,128}\Z")
+NONCE_RE = re.compile(r"\A[0-9a-f]{32}\Z")
+SID_RE = re.compile(r"\A[A-Za-z0-9_-]{1,128}\Z")
+SKILL_ID_RE = re.compile(r"\A[a-z0-9]+(-[a-z0-9]+)*\Z")
+OBJ_ID_RE = re.compile(r"\A[A-Za-z0-9][A-Za-z0-9._-]{0,127}\Z")
+UTC_RE = re.compile(r"\A\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ\Z")
 RANK = {"allow": 0, "ask": 1, "deny": 2}
 RESOLVER = os.path.join(ROOT, "scripts", "resolve-permission.sh")
 COND_LIB = os.path.join(ROOT, "hooks", "lib", "permission-conditions.sh")
@@ -1149,6 +1188,7 @@ HITS = []          # {"id", "kind", "p"/"args", "seg", ...}
 UNCL_FROM = []     # texts that made the call UNCLASSIFIED
 PG_DENY = []       # (id, reason) forms PG denies outright
 STAMPS = []        # call-stamp tokens
+CONFIRMS = []      # nonces of plugin-config.sh confirm <nonce>
 
 
 def seg_text(toks):
@@ -1190,6 +1230,8 @@ def classify_segment(s):
         if pos and pos[0] == "provision":
             PG_DENY.append(("policy.edit", "plugin-config.sh provision writes the permission file and lock for CI "
                             "before the agent starts; it never runs from agent Bash (ADR 004 D6)"))
+        if pos and pos[0] == "confirm":
+            CONFIRMS.append(pos[1] if len(pos) > 1 else "")
     if p["argv0"] == "claude" and p["sub"][:2] == ["plugin", "configure"]:
         PG_DENY.append(("policy.edit", "`claude plugin configure` writes the plugin's option store; run it in your "
                         "own terminal, never from agent Bash (ADR 004 D7, D10.3)"))
@@ -1317,6 +1359,160 @@ except Exception as e:  # noqa: BLE001
     answer("deny", "tamirs-superpowers permission guard: classifying the call failed (%s: %s), so it is denied "
            "(fail closed, ADR 004 D4)." % (e.__class__.__name__, str(e)[:120]))
 
+# --------------------------------------------------------------- D3 state (intent, pending, stamps)
+
+_STATE = {}
+
+
+def state_dir():
+    """<home>/.local/state/tamirs-superpowers, <home> from the passwd entry (D3), or None. Without the test
+    override in the environment that is pwd.getpwuid, exactly what the resolver's library answers then; with it,
+    the library itself decides whether the override holds (scripts/lib/permission-common.sh)."""
+    if "d" in _STATE:
+        return _STATE["d"]
+    d = None
+    if not os.environ.get("TAMIRS_PERMISSION_TEST_ROOT"):
+        try:
+            import pwd
+            d = os.path.join(pwd.getpwuid(os.getuid()).pw_dir, ".local", "state", "tamirs-superpowers")
+        except (ImportError, KeyError):
+            d = None
+    if d is None:
+        try:
+            r = subprocess.run(["bash", "-c", '. "$1/scripts/lib/permission-common.sh" && perm_state_dir', "_", ROOT],
+                               stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+                               timeout=max(0.5, min(5.0, left())))
+            d = r.stdout.decode("utf-8", "replace").strip() if r.returncode == 0 else None
+        except (OSError, subprocess.SubprocessError):
+            d = None
+    _STATE["d"] = d if d and os.path.isabs(d) else None
+    return _STATE["d"]
+
+
+def private_dir_ok(d):
+    try:
+        st = os.lstat(d)
+    except OSError:
+        return False
+    return stat.S_ISDIR(st.st_mode) and st.st_uid == os.getuid() and not st.st_mode & 0o077
+
+
+def read_private(path, limit=262144):
+    """The bytes of a D3 state file, read once, or None: its directory and the file owned by this uid with no
+    group/other bits, a regular file, not followed through a link, at most `limit` bytes."""
+    if not private_dir_ok(os.path.dirname(path)):
+        return None
+    try:
+        fd = os.open(path, os.O_RDONLY | os.O_NONBLOCK | getattr(os, "O_NOFOLLOW", 0))
+    except OSError:
+        return None
+    try:
+        st = os.fstat(fd)
+        if not stat.S_ISREG(st.st_mode) or st.st_uid != os.getuid() or st.st_mode & 0o077 or st.st_size > limit:
+            return None
+        chunks, size = [], 0
+        while True:
+            b = os.read(fd, 65536)
+            if not b:
+                break
+            size += len(b)
+            if size > limit:
+                return None
+            chunks.append(b)
+        return b"".join(chunks)
+    except OSError:
+        return None
+    finally:
+        os.close(fd)
+
+
+def private_subdir(name):
+    """<state>/<name>, created 0700 (and <state>), or (None, why)."""
+    state = state_dir()
+    if not state:
+        return None, "the state dir could not be resolved"
+    sub = os.path.join(state, name)
+    try:
+        old = os.umask(0o077)
+        try:
+            os.makedirs(sub, mode=0o700, exist_ok=True)
+        finally:
+            os.umask(old)
+        for d in (state, sub):
+            st = os.lstat(d)
+            if st.st_uid != os.getuid() or not stat.S_ISDIR(st.st_mode):
+                return None, "%s is not a directory owned by this user" % d
+            if st.st_mode & 0o077:
+                os.chmod(d, 0o700)
+    except OSError as e:
+        return None, "%s could not be created (%s)" % (sub, e.__class__.__name__)
+    return sub, None
+
+
+def now_utc():
+    return time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+
+
+def canon(doc):
+    """The serialisation scripts/plugin-config.sh and hooks/permission-intent.sh hash (sorted keys, indent 2)."""
+    return (json.dumps(doc, indent=2, sort_keys=True, ensure_ascii=True) + "\n").encode("ascii")
+
+
+def session_ids():
+    """(raw session id, file key) as hooks/permission-intent.sh names intent/<key>.json; (None, None) without one."""
+    raw = str(PAY.get("session_id") or PAY.get("conversation_id") or "")
+    if not raw:
+        return None, None
+    return raw, (raw if SID_RE.match(raw) else "h-" + hashlib.sha256(raw.encode("utf-8")).hexdigest()[:32])
+
+
+def shipped_skill(sk):
+    base = os.path.join(ROOT, "skills")
+    try:
+        cats = os.listdir(base)
+    except OSError:
+        return False
+    return any(os.path.isfile(os.path.join(base, c, sk, "SKILL.md")) for c in cats)
+
+
+def intent_context():
+    """The active-skill context hooks/permission-intent.sh keeps in intent/<sid>.json (its header has the format):
+    {skill, objective, raise_ok, why}. raise_ok only when the slash command was user_typed and this call is the
+    same agent's; a per-skill level may then widen, otherwise it only counts where it is stricter. Anything
+    missing, unsafe, stale or malformed is no skill at all: the global level decides."""
+    none = {"skill": None, "objective": None, "raise_ok": False, "why": None}
+    raw, key = session_ids()
+    state = state_dir()
+    if not raw or not state:
+        return none
+    data = read_private(os.path.join(state, "intent", key + ".json"), 65536)
+    if data is None:
+        return none
+    try:
+        doc = json.loads(data.decode("ascii"))
+    except (UnicodeDecodeError, ValueError):
+        return none
+    if not isinstance(doc, dict) or doc.get("version") != 1 or doc.get("session_id") != raw:
+        return none
+    exp = doc.get("expires")
+    if not isinstance(exp, str) or not UTC_RE.match(exp) or exp <= now_utc():
+        return none
+    sk = doc.get("skill")
+    if not (isinstance(sk, str) and SKILL_ID_RE.match(sk) and shipped_skill(sk)):
+        sk = None
+    obj = doc.get("objective")
+    obj = obj if isinstance(obj, str) and OBJ_ID_RE.match(obj) else None
+    agent = str(PAY.get("agent_id") or "main")[:128]
+    same_agent = doc.get("agent") == agent
+    raise_ok = bool(sk) and doc.get("user_typed") is True and same_agent
+    why = None
+    if sk and not raise_ok:
+        why = ("the /%s context counts only where it is stricter than the global level (%s)" % (
+            sk, "a call from another agent than the one that ran it" if not same_agent else
+            "the slash command was not shown to be typed by the user, hooks/permission-intent.sh user_typed"))
+    return {"skill": sk, "objective": obj, "raise_ok": raise_ok, "why": why}
+
+
 # --------------------------------------------------------------- resolve
 
 def needs_resolver(aid):
@@ -1384,7 +1580,7 @@ if MODE.startswith("classify"):
     sys.stdout.write(json.dumps({
         "ids": sorted(set(h["id"] for h in HITS)), "unclassified": bool(UNCL_FROM), "unclassified_from": UNCL_FROM,
         "resolver_calls": [{"id": j["id"], "conds": j["conds"], "target": j["target"]} for j in JOBS],
-        "pg_deny": [r for _, r in PG_DENY], "stamps": STAMPS, "notes": NOTES, "context_ok": CTX["ok"], "context_why": CTX["why"],
+        "pg_deny": [r for _, r in PG_DENY], "stamps": STAMPS, "confirms": CONFIRMS, "notes": NOTES, "context_ok": CTX["ok"], "context_why": CTX["why"],
         "fast_path_allows": (sys.argv[5] == "1") if len(sys.argv) > 5 else False}, sort_keys=True) + "\n")
     sys.exit(0)
 
@@ -1394,6 +1590,50 @@ def resolver_failed(job, why):
                   "reason": "denied: resolver error: %s (fail closed, D4, SR S-12)" % why, "setting_that_would_allow": None}
 
 
+INTENT = intent_context() if JOBS else {"skill": None, "objective": None, "raise_ok": False, "why": None}
+# The skill variants each job is resolved under: with --skill when the context may widen; with and without it,
+# the stricter answer kept, when it may only lower (D5 SR S-09: a lowering needs no provenance); none without one.
+VARIANTS = ([True] if INTENT["raise_ok"] else [True, False]) if INTENT["skill"] else [False]
+
+
+def resolver_answer(pr, aid):
+    """One resolver process's answer as a result dict (a resolver failure is a deny, D4)."""
+    j = {"id": aid}
+    try:
+        outb, _ = pr.communicate(timeout=max(0.5, left() - 0.5))
+    except subprocess.TimeoutExpired:
+        pr.kill()
+        pr.communicate()
+        resolver_failed(j, "it did not answer before the guard's deadline")
+        return j["res"]
+    if pr.returncode != 0:
+        resolver_failed(j, "it exited %d" % pr.returncode)
+        try:
+            d = json.loads(outb.decode("utf-8", "replace"))
+            if isinstance(d, dict) and d.get("reason"):
+                j["res"]["reason"] = "denied: resolver exit %d: %s" % (pr.returncode, d["reason"])
+        except ValueError:
+            pass
+        return j["res"]
+    try:
+        d = json.loads(outb.decode("utf-8", "replace"))
+    except ValueError:
+        resolver_failed(j, "it printed no JSON")
+        return j["res"]
+    if not isinstance(d, dict) or d.get("verdict") not in RANK:
+        resolver_failed(j, "its answer has no verdict")
+        return j["res"]
+    return d
+
+
+def res_rank(d):
+    try:
+        r = int(d.get("r") if d.get("r") is not None else 4)
+    except (TypeError, ValueError):
+        r = 4
+    return (RANK[d["verdict"]], r)
+
+
 if JOBS and not os.path.isfile(RESOLVER):
     for j in JOBS:
         resolver_failed(j, "scripts/resolve-permission.sh is missing")
@@ -1401,43 +1641,35 @@ else:
     repo = CTX["cwd"] or payload_cwd() or os.getcwd()
     procs = []
     for j in JOBS:
-        argv = ["bash", RESOLVER, j["id"], "--host", HOST, "--repo", repo, "--json"]
-        for c in j["conds"]:
-            argv += ["--cond", c]
-        if j["target"]:
-            argv += ["--target", j["target"]]
-        try:
-            pr = subprocess.Popen(argv, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, stdin=subprocess.DEVNULL)
-        except OSError as e:
-            resolver_failed(j, "could not start (%s)" % e.__class__.__name__)
-            continue
-        procs.append((j, pr))
-    for j, pr in procs:
-        try:
-            outb, _ = pr.communicate(timeout=max(0.5, left() - 0.5))
-        except subprocess.TimeoutExpired:
-            pr.kill()
-            pr.communicate()
-            resolver_failed(j, "it did not answer before the guard's deadline")
-            continue
-        if pr.returncode != 0:
-            resolver_failed(j, "it exited %d" % pr.returncode)
+        for with_skill in VARIANTS:
+            argv = ["bash", RESOLVER, j["id"], "--host", HOST, "--repo", repo, "--json"]
+            for c in j["conds"]:
+                argv += ["--cond", c]
+            if j["target"]:
+                argv += ["--target", j["target"]]
+            if INTENT["objective"]:
+                argv += ["--objective", INTENT["objective"]]   # D4 row 3: tightens only
+            if with_skill:
+                argv += ["--skill", INTENT["skill"]]
             try:
-                d = json.loads(outb.decode("utf-8", "replace"))
-                if isinstance(d, dict) and d.get("reason"):
-                    j["res"]["reason"] = "denied: resolver exit %d: %s" % (pr.returncode, d["reason"])
-            except ValueError:
-                pass
+                pr = subprocess.Popen(argv, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+                                      stdin=subprocess.DEVNULL)
+            except OSError as e:
+                resolver_failed(j, "could not start (%s)" % e.__class__.__name__)
+                break
+            procs.append((j, with_skill, pr))
+    got = {}
+    for j, with_skill, pr in procs:
+        got.setdefault(id(j), []).append((with_skill, resolver_answer(pr, j["id"])))
+    for j in JOBS:
+        answers = got.get(id(j), [])
+        if "res" in j:   # a variant could not start: that deny stands
             continue
-        try:
-            d = json.loads(outb.decode("utf-8", "replace"))
-        except ValueError:
-            resolver_failed(j, "it printed no JSON")
+        if len(answers) != len(VARIANTS):
+            resolver_failed(j, "not every resolver call answered")
             continue
-        if not isinstance(d, dict) or d.get("verdict") not in RANK:
-            resolver_failed(j, "its answer has no verdict")
-            continue
-        j["res"] = d
+        # The strictest answer wins; on a tie the one under the skill context (it names the skill's level).
+        j["res"] = max(answers, key=lambda a: (res_rank(a[1]), a[0]))[1]
 
 for reason_id, why in PG_DENY:
     JOBS.append({"id": reason_id, "conds": [], "target": None, "hits": [],
@@ -1455,6 +1687,130 @@ final = max(JOBS, key=lambda j: (RANK[j["res"]["verdict"]], rnum(j))) if JOBS el
 verdict = final["res"]["verdict"] if final else "allow"
 stamp_err = None
 
+
+def ask_carried():
+    """Can this host carry the ask as an ask (D8)? Claude: always (the D5 dialog). OpenCode: only when every
+    asking id is an R2 that is not never_auto and not UNCLASSIFIED, since `opencode --auto` approves a plugin ask
+    (O1c) and D8 accepts that for R2 alone. Everyone else: never."""
+    if HOST in ASK_HOSTS:
+        return True
+    if HOST not in R2_ASK_HOSTS:
+        return False
+    asks = [j for j in JOBS if j["res"]["verdict"] == "ask"]
+    return bool(asks) and all(j["id"] != UNCL and rnum(j) <= 2 and not j["res"].get("never_auto")
+                              and not j["res"].get("unclassified") for j in asks)
+
+
+ASK_AS_DENY = verdict == "ask" and not ask_carried()
+delivered = "deny" if ASK_AS_DENY else verdict
+
+# --------------------------------------------------------------- plugin-config.sh confirm <nonce> (D5)
+
+
+def row_text(r):
+    if not isinstance(r, dict):
+        return "?"
+    sk = r.get("skills")
+    who = (" for %s" % ", ".join(str(x)[:64] for x in sk[:6])) if isinstance(sk, list) and sk else " for every skill"
+    when = " when its preconditions hold" if r.get("context") not in (None, "any") else ""
+    return "%s (R%s): %s -> %s%s%s" % (str(r.get("action"))[:80], r.get("r"), r.get("from"), r.get("to"), who, when)
+
+
+def pending_record(nonce):
+    """(record, file sha256, None) for a usable pending/<nonce>.json, else (None, None, why)."""
+    if not NONCE_RE.match(nonce or ""):
+        return None, None, "`%s` is not a nonce (32 hex characters)" % (nonce or "")[:40]
+    state = state_dir()
+    if not state:
+        return None, None, "the state dir could not be resolved"
+    data = read_private(os.path.join(state, "pending", nonce + ".json"))
+    if data is None:
+        return None, None, "there is no pending request %s (expired, already used, never made, or unsafe)" % nonce
+    try:
+        rec = json.loads(data.decode("ascii"))
+    except (UnicodeDecodeError, ValueError):
+        return None, None, "the pending record %s is unreadable" % nonce
+    if not isinstance(rec, dict) or rec.get("nonce") != nonce or rec.get("kind") not in ("perms", "config"):
+        return None, None, "the pending record %s is malformed" % nonce
+    if rec.get("body_sha256") != hashlib.sha256(canon(dict((k, v) for k, v in rec.items()
+                                                             if k != "body_sha256"))).hexdigest():
+        return None, None, "the pending record %s does not match its hash (SR S-17)" % nonce
+    exp = rec.get("expires")
+    if not isinstance(exp, str) or not UTC_RE.match(exp) or exp <= now_utc():
+        return None, None, "the pending request %s has expired" % nonce
+    return rec, hashlib.sha256(data).hexdigest(), None
+
+
+def render_pending(nonce, rec):
+    """What the D5 host prompt must name: skill, level, target and expiry (or the rows a config change widens)."""
+    if rec["kind"] == "perms":
+        tg = rec.get("target") if isinstance(rec.get("target"), dict) else {}
+        where = "/".join(str(x)[:120] for x in (tg.get("repo"), tg.get("arg")) if x) or "no resolvable target"
+        return ("Approving runs `plugin-config.sh confirm %s`, which grants --perms=%s for %s on %s: a ticket valid 15 "
+                "minutes from approval, for R2/R3 calls only, never R4 (request made %s, expires %s)." % (
+                    nonce, str(rec.get("level"))[:20], ("skill " + str(rec["skill"])[:64]) if rec.get("skill")
+                    else "this whole session", where, rec.get("created"), rec.get("expires")))
+    rows = rec.get("rows") if isinstance(rec.get("rows"), list) else []
+    shown = "; ".join(row_text(r) for r in rows[:8]) + ("; and %d more" % (len(rows) - 8) if len(rows) > 8 else "")
+    return ("Approving runs `plugin-config.sh confirm %s`, which writes `%s` to the permission file, widening: %s "
+            "(request made %s, expires %s)." % (nonce, str(rec.get("op"))[:160], shown or "nothing listed",
+                                                rec.get("created"), rec.get("expires")))
+
+
+def write_asked(nonce, rec, file_sha):
+    """<state>/asked/<nonce>.json: PG put this confirm, these bytes, to the host prompt (for the writer to require)."""
+    d, why = private_subdir("asked")
+    if d is None:
+        return why
+    raw, _ = session_ids()
+    doc = {"version": 1, "nonce": nonce, "file_sha256": file_sha, "body_sha256": rec.get("body_sha256"),
+           "kind": rec.get("kind"), "session_id": raw, "agent": str(PAY.get("agent_id") or "main")[:128],
+           "host": HOST, "at": now_utc(), "expires": rec.get("expires")}
+    tmp = os.path.join(d, ".%s.tmp-%d" % (nonce, os.getpid()))
+    try:
+        try:
+            os.unlink(tmp)
+        except OSError:
+            pass
+        fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0), 0o600)
+        try:
+            os.write(fd, canon(doc))
+        finally:
+            os.close(fd)
+        os.rename(tmp, os.path.join(d, nonce + ".json"))
+    except OSError as e:
+        return "the confirm stamp could not be written (%s)" % e.__class__.__name__
+    return None
+
+
+CONFIRM_LINES = []
+if delivered == "ask" and CONFIRMS:
+    # The confirm is R4 policy.edit, so this is the Claude dialog (D5). It must name what it approves; a nonce
+    # with no usable record has nothing to name, so it is a deny. Each record is read once: the bytes shown are
+    # the bytes stamped.
+    seen_recs, refused = [], []
+    for n in CONFIRMS:
+        rec, fsha, why = pending_record(n)
+        if rec is None:
+            refused.append(why)
+        else:
+            seen_recs.append((n, rec, fsha))
+    if refused:
+        for why in refused:
+            JOBS.append({"id": "policy.edit", "conds": [], "target": None, "hits": [],
+                         "res": {"verdict": "deny", "effective_action": "policy.edit", "r": 4,
+                                 "reason": "denied: plugin-config.sh confirm has nothing for the user to approve: %s "
+                                           "(ADR 004 D5: the host prompt names the request's skill, level, target "
+                                           "and expiry)" % why, "setting_that_would_allow": None}})
+        final = max(JOBS, key=lambda j: (RANK[j["res"]["verdict"]], rnum(j)))
+        verdict = delivered = "deny"
+    else:
+        for n, rec, fsha in seen_recs:
+            CONFIRM_LINES.append(render_pending(n, rec))
+            err_ = write_asked(n, rec, fsha)
+            if err_:
+                CONFIRM_LINES.append("Confirm stamp not written: %s." % err_)
+
 # --------------------------------------------------------------- the call stamp (D8)
 
 
@@ -1462,27 +1818,10 @@ def write_stamps():
     good = [t for t in STAMPS if CALL_RE.match(t)]
     if not good:
         return None
+    seen, why = private_subdir("seen")
+    if seen is None:
+        return why
     try:
-        r = subprocess.run(["bash", "-c", '. "$1/scripts/lib/permission-common.sh" && perm_state_dir', "_", ROOT],
-                           stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, timeout=max(0.5, min(5.0, left())))
-        state = r.stdout.decode("utf-8", "replace").strip() if r.returncode == 0 else ""
-    except (OSError, subprocess.SubprocessError):
-        state = ""
-    if not state or not os.path.isabs(state):
-        return "the state dir could not be resolved"
-    seen = os.path.join(state, "seen")
-    try:
-        old = os.umask(0o077)
-        try:
-            os.makedirs(seen, mode=0o700, exist_ok=True)
-        finally:
-            os.umask(old)
-        for d in (state, seen):
-            st = os.lstat(d)
-            if st.st_uid != os.getuid() or not os.path.isdir(d) or os.path.islink(d):
-                return "%s is not a directory owned by this user" % d
-            if st.st_mode & 0o077:
-                os.chmod(d, 0o700)
         for t in good:
             try:
                 fd = os.open(os.path.join(seen, t), os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0),
@@ -1496,7 +1835,9 @@ def write_stamps():
     return None
 
 
-if verdict != "deny" and STAMPS:
+# Only a call PG does not deny AS DELIVERED is stamped: on a deny-only host an ask leaves as a deny, and the
+# command never runs.
+if delivered != "deny" and STAMPS:
     stamp_err = write_stamps()
 
 if verdict == "allow":
@@ -1545,7 +1886,12 @@ lines = []
 head = "tamirs-superpowers permission guard (ADR 004)"
 res = final["res"]
 why = str(res.get("reason") or "").strip()
-if verdict == "ask" and HOST not in ASK_HOSTS:
+if ASK_AS_DENY and HOST in R2_ASK_HOSTS:
+    verdict = "deny"
+    lines.append("%s: denied %s. %s; %s carries only an R2 ask (`opencode --auto` approves a plugin ask, measured "
+                 "O1c), so an R3/R4, never-automatic or UNCLASSIFIED ask is delivered as a deny (D8)." % (
+                     head, describe(final), why, HOST))
+elif ASK_AS_DENY:
     verdict = "deny"
     lines.append("%s: denied %s. %s; %s cannot carry a hook ask (it would %s), so the ask is delivered as a deny "
                  "(D8)." % (head, describe(final), why, HOST,
@@ -1553,8 +1899,15 @@ if verdict == "ask" and HOST not in ASK_HOSTS:
                              "gemini": "hang a headless run"}.get(HOST, "not reach a human")))
 elif verdict == "ask":
     lines.append("%s: asks before %s. %s." % (head, describe(final), why))
+    if HOST in R2_ASK_HOSTS:
+        lines.append("An R2 ask: under `opencode --auto` it is approved without a prompt (O1c), which D8 accepts for "
+                     "R2 only.")
+    lines.extend(CONFIRM_LINES)
 else:
     lines.append("%s: denied %s. %s." % (head, describe(final), why))
+if INTENT["skill"]:
+    lines.append("Active skill (hooks/permission-intent.sh): %s%s." % (
+        INTENT["skill"], "" if INTENT["raise_ok"] else "; " + INTENT["why"]))
 unknown = [rb.get("when") for rb in (res.get("raised_by") or []) if isinstance(rb, dict) and rb.get("condition") == "unknown"]
 if unknown:
     lines.append("Not established, so the raise applied: %s." % ", ".join(sorted(set(x for x in unknown if x))))
@@ -1632,21 +1985,27 @@ fi
 hook_detect_platform "$input"
 [ -n "${input//[[:space:]]/}" ] || _pg_finish allow ""
 
-PG_HOST="${HOOK_PLATFORM:-claude}"
-if [ -n "${GEMINI_SESSION_ID:-}" ] || [ -n "${GEMINI_PROJECT_DIR:-}" ]; then PG_HOST=gemini; fi
-
-_pg_tool="" _pg_event="" _pg_cmd="" _pg_nul=""
+_pg_tool="" _pg_event="" _pg_cmd="" _pg_nul="" _pg_phost=""
 {
   IFS= read -r -d '' _pg_nul
   IFS= read -r -d '' _pg_tool
   IFS= read -r -d '' _pg_event
   IFS= read -r -d '' _pg_cmd
+  IFS= read -r -d '' _pg_phost
 } < <(printf '%s' "$input" | jq -j '
   def s: if type == "string" then . elif . == null then "" else tostring end;
   (.tool_name | s) as $t | (.hook_event_name | s) as $e
   | ((if (.tool_input | type) == "object" then .tool_input.command else null end) // .command | s) as $c
   | (if ($t + $e + $c | contains("\u0000")) then "nul" else "ok" end) + "\u0000" + $t + "\u0000" + $e + "\u0000" + $c + "\u0000"
+    + (if .host == "opencode" then "opencode" else "" end) + "\u0000"
 ' 2>/dev/null)
+
+PG_HOST="${HOOK_PLATFORM:-claude}"
+if [ -n "${GEMINI_SESSION_ID:-}" ] || [ -n "${GEMINI_PROJECT_DIR:-}" ]; then PG_HOST=gemini; fi
+# OpenCode's guard.ts asks for its dialect with "host": "opencode" in the payload it builds. Honoured
+# only where the host otherwise reads as Claude Code, so it can never make a deny-only host (Codex,
+# Cursor, Gemini) answer an ask; against Claude Code it only tightens (R3/R4 asks become denies).
+if [ "$PG_HOST" = claude ] && [ "$_pg_phost" = opencode ]; then PG_HOST=opencode; fi
 
 case "$_pg_nul" in
   ok) : ;;
