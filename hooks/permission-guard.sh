@@ -1001,6 +1001,15 @@ HTTP_METHODS = {"GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"}
 DATA_LONG = {"--data", "--data-raw", "--data-binary", "--data-urlencode", "--data-ascii", "--form", "--form-string",
              "--json", "--post-data", "--body-data"}
 UPLOAD_LONG = {"--upload-file", "--post-file", "--body-file"}
+# curl options that send the request somewhere other than the URL names: an overridden path, a re-routed
+# host, or a socket. PG cannot tell what they reach, so the call is UNCLASSIFIED (Codex P1, round 3).
+ROUTE_OVERRIDE_LONG = {"--request-target", "--unix-socket", "--abstract-unix-socket"}
+# Re-routing options matter only when they name a GitHub host (a local dev server stays a plain call).
+ROUTE_TO_HOST_LONG = {"--connect-to", "--resolve"}
+
+
+def names_github(v):
+    return "github" in (v or "").lower()
 # curl's short options that take a value: in a cluster (-sSd'{..}') the rest of the word, else the next word, is it.
 CURL_SHORT_VALUE = set("AbcCdDeEFHKmoPQrtTuUwxXyYz")
 # wget's (getopt): -i reads URLs from a file, -e runs a .wgetrc command.
@@ -1074,6 +1083,12 @@ def http_call(p):
                 call["urls"].append(val)
             elif key == "--config" or (key == "--input-file" and prog == "wget"):
                 call["unread"] = True
+            elif prog == "curl" and key in ROUTE_OVERRIDE_LONG:
+                call["unread"] = True   # the request goes somewhere other than the URL says (Codex P1, round 3)
+            elif prog == "curl" and key in ROUTE_TO_HOST_LONG and names_github(val):
+                call["unread"] = True   # re-routes a GitHub host: the URL no longer says where it lands
+            elif key == "--header" and val.lower().lstrip().startswith("host:") and names_github(val):
+                call["unread"] = True   # a Host: override re-targets the request to a GitHub host
             elif key == "--execute" and prog == "wget":
                 wget_execute(val, call)
             elif key not in vopts:
@@ -1102,6 +1117,8 @@ def http_call(p):
                         data.append("@" + val)
                     elif ch == "K":
                         call["unread"] = True
+                    elif ch == "H" and val.lower().lstrip().startswith("host:") and names_github(val):
+                        call["unread"] = True   # a Host: override re-targets the request (Codex P1, round 3)
                     break
                 if ch == "G" and prog == "curl":
                     get = True

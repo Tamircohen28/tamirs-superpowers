@@ -4,9 +4,9 @@
 #
 # WHAT IT PROVES
 #   Every input the adversarial review (F1-F10, plus the low finding L1) and the two
-#   Codex review threads (P1, P2, and round 2's P1-a, P1-b) reproduced as a walk-around is
+#   Codex review threads (P1, P2, round 2's P1-a, P1-b and round 3's P1-c) reproduced as a walk-around is
 #   fed to the hook or script that must stop it, and each row names its finding:
-#     hooks/permission-guard.sh       (PG)  F1 F2 F3 F5 F7 F8 F9 P1 P1-a P1-b
+#     hooks/permission-guard.sh       (PG)  F1 F2 F3 F5 F7 F8 F9 P1 P1-a P1-b P1-c
 #     hooks/guard-sensitive-files.sh  (GSF) F4 F6 P2
 #     scripts/plugin-config.sh, scripts/resolve-permission.sh, scripts/github-mcp.sh
 #                                           F1 (the writer), F7, F10, L1
@@ -517,6 +517,18 @@ pg P1-b "curl -d x .../issues --expand-url '{{u}}' --variable u=.../releases" "c
 pg P1-b "curl -K cfg.txt (URLs from a file)" 'curl -K cfg.txt'
 pg P1-b "curl -sK cfg.txt https://example.com" 'curl -sK cfg.txt https://example.com'
 pg P1-b "wget -i urls.txt (URLs from a file)" 'wget -i urls.txt'
+rm -rf "$PH/.config"
+
+# =========================================================================================
+section "Codex round 3 P1-c: a curl request-target or route override cannot hide the real target (at standard)"
+# =========================================================================================
+user_file "$PH" '{"version": 1, "level": "standard"}'
+pg P1-c "curl --json ... --request-target .../releases .../issues" "curl --json '{\"tag_name\":\"v1\",\"title\":\"x\"}' --request-target /repos/me/app/releases $ISS"
+pg P1-c "curl -d x --request-target=/repos/me/app/releases .../issues" "curl -d x --request-target=/repos/me/app/releases $ISS"
+pg P1-c "curl -X POST -d x --connect-to example.com:443:api.github.com:443 https://example.com/...releases" "curl -X POST -d x --connect-to example.com:443:api.github.com:443 https://example.com/repos/me/app/releases"
+pg P1-c "curl -X POST -d x -H 'Host: api.github.com' https://203.0.113.5/...releases" "curl -X POST -d x -H 'Host: api.github.com' https://203.0.113.5/repos/me/app/releases"
+pg P1-c "curl -X POST -d x --header=host:api.github.com https://203.0.113.5/...releases" "curl -X POST -d x --header='host: api.github.com' https://203.0.113.5/repos/me/app/releases"
+pg P1-c "curl -d x --unix-socket /tmp/s .../issues" "curl -d x --unix-socket /tmp/s $ISS"
 rm -rf "$PH/.config"
 
 # =========================================================================================
