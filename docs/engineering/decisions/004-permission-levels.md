@@ -132,7 +132,12 @@ have none; OpenCode `ctx.options` is ignored because a project `opencode.json` c
 that is absent (no option store on that host, or a user file with no `level` key) is *skipped*, not read as
 `supervised` — so a Claude install-picker choice of `unattended` with no user file yields `unattended`, while store
 `unattended` + file `standard` yields `standard`. A Claude project-scope install carries no preset (`pluginConfigs`
-is user/managed scope, doc-cited [claude] C).
+is user/managed scope, doc-cited [claude] C). A user-file `skills`/`groups` level replaces the file's `level` for that
+skill, and then the option store and every env switch **lower again** (lowering always wins:
+`TS_PERMISSION_LEVEL=supervised` tightens a skill with its own entry; second pass F10). The store read is that of the
+host the resolver runs under: `--host` is a claim, and when the nearest agent host in the resolver's own process
+ancestry differs, the stricter of the two answers stands, both D9 floors apply and no raise ticket applies (F7), so a
+claim never skips a store.
 
 **Project file:** `<repo>/.tamirs-superpowers/permissions.json` (committable; `.dev-files/` is gitignored). It may
 always tighten. **It may widen only `actions["pr.merge.auto"]`**, only once `/plugin-config trust` records its sha256
@@ -202,6 +207,27 @@ user's own terminal — PG denies its widening subcommands and `confirm` from ag
 `provision`), and an R4 call is denied with the command for the user to run. The Codex/Cursor chat-confirm is
 removed: their hooks cannot tell typed text from `codex exec resume` or `cursor-agent -p` ([SR] S-10).
 
+**"Outside any agent session" is checked, not inferred from an empty ancestry** (second pass F1): the writer widens at
+once only when no agent host or marker is visible, its ancestry reads to pid 1, it is not reparented (its session
+leader is an ancestor and nothing up to it is a child of pid 1: `( cmd & )`, `nohup`, `setsid` after a double fork
+fail), it has a controlling terminal, `HOME`/`PATH`/`TERM` are set (`env -i` fails) and no pty driver or interpreter
+runs above it; then it shows the rows on `/dev/tty` and writes only after `y`. Any other run is `unverified`, a
+no-channel session. A TTY and that `y` are still no human proof (S-01): the rules keep agent routes out, the prompt
+makes a stray run show what it widens. `provision` keeps CI's shape (no TTY, a CI marker, the session-leader rule
+relaxed for a CI service) and never replaces a file it did not write.
+
+**On Claude Code the proof is the host running the approved call, not the dialog being shown** (F1): PG's confirm
+stamp `asked/<nonce>.json` is written when PG *returns* `ask` and names the call's `tool_use_id`. `confirm`, running
+inside that call, consumes the stamp and only **stages** its result (`staged/<nonce>.json`, bound to the stamp's
+`tool_use_id`, session and agent); the resolver never reads a staged record and honours a raise ticket only with
+`state: "active"`. `hooks/permission-approved.sh`, a Claude PostToolUse hook on `Bash`, promotes it — writes the
+user file and lock, or the raise ticket as active — only when its payload's `tool_use_id`, `session_id` and agent
+equal the staged record's and the command is exactly the plain `plugin-config.sh confirm <nonce>`. Claude Code runs
+PostToolUse only for a call that ran: a declined dialog never runs the call, so nothing is promoted; a confirm re-run
+later through a form PG misses has another `tool_use_id` and is not the plain form, so it is never promoted; a staged
+record lapses with the stamp (15 minutes). Gemini's `confirm` stays one-phase (its static `ask_user` rule is the
+prompt, and no post-call binding is wired): Open risks.
+
 | ticket rule | text |
 |---|---|
 | shape | `{id, skill, target, level, session_id, agent, created, expires}`: one skill, one target (first argument + repo slug; `actions.json` defines equality per action kind, and an unresolvable target never matches), 15 minutes; written only by the D6 writer, GSF denies every other write |
@@ -210,6 +236,7 @@ removed: their hooks cannot tell typed text from `codex exec resume` or `cursor-
 | never from content | file, PR, issue or tool output never reaches a prompt hook; L1 ignores `--perms=` there; hooks parse it only as a standalone token on the first line of `command_args` |
 | lowering ([SR] S-09) | needs no provenance: prompt hooks write lowering tickets and PG applies them for the session; L1 parsing is the fallback where no prompt hook exists. A later confirmed raise does not retire it (D4 row 1 lowers always); `show` and `--level` list the active ones, and the writers prune expired tickets |
 | mechanics ([SR] S-17) | nonce ≥ 64 bits from `/dev/urandom`, bound to its pending record's hash and expiring with it; single-use records consumed by atomic `rename`; readers hash and parse the same bytes, read once |
+| two-phase (F1) | on Claude Code `confirm` stages, bound to the dialog's `tool_use_id`, and only that approved call's PostToolUse promotes; a raise ticket counts only with `state: "active"` |
 
 Tickets replace the agent-typeable approval token of [`docker-guard.py`][docker] ([A3] D5).
 
@@ -228,11 +255,14 @@ Tickets replace the agent-typeable approval token of [`docker-guard.py`][docker]
   fixed indent, atomic tmp + `mv`, 0600, `.bak`, lock rewrite. `show` prints each value's source and hash status.
 - **Anti-escalation:** the writer diffs every action's effective decision before and after. A change that widens
   nothing is written at once. One that widens anything (including `reset` of a deny and `trust`) is recorded pending
-  with its rows and a nonce, and written only by `confirm <nonce>` passing a D5 host prompt that shows them or, where
-  D5 lists none, by the writer run outside any agent session. It never writes R4 `allow` or host option stores; a
-  Claude/Gemini level raise prints the host route (`/config`, `/plugin configure`; `gemini extensions config`).
+  with its rows and a nonce, and written only by `confirm <nonce>` passing a D5 host prompt that shows them — on
+  Claude Code in two phases, staged by the approved call and promoted by its PostToolUse (D5) — or, where D5 lists
+  none, by the writer run outside any agent session as D5 defines it, after `y` on `/dev/tty`. It never writes R4
+  `allow` or host option stores; a Claude/Gemini level raise prints the host route (`/config`, `/plugin configure`;
+  `gemini extensions config`).
 - **CI** ([SR] S-18): `plugin-config.sh provision` writes the file and lock in a workflow step before the agent
-  starts; PG denies it from agent Bash, and `show` marks such a lock `by: provision`.
+  starts; PG denies it from agent Bash, it requires a CI marker and an unbroken session (D5), it never replaces a file
+  whose lock is not `by: provision`, and `show` marks such a lock `by: provision`.
 
 ### D7 — Install and later change (g)
 
@@ -331,7 +361,7 @@ way to a human-approved local edit. Option names (`permission_level`, `TS_PERMIS
 
 | risk | severity |
 |---|---|
-| A same-UID process that bypasses the Bash parser (`python3 -c`, `make`, [A3] D13) and rewrites both the policy and its lock, or runs the writer, is undetected | Medium |
+| A same-UID process that bypasses the Bash parser (`python3 -c`, `make`, [A3] D13) and rewrites both the policy and its lock, or runs the writer, is undetected. The writer's session rules (D5) and the two-phase confirm close the agent routes the second pass found, but such a process can still escape the ancestry and the terminal rules (a compiled pty driver with an innocuous name, keys typed into the user's own terminal through tmux or the terminal app), forge the confirm stamp and a PostToolUse payload, or `provision` a machine with no user file after `setsid` and a forged CI marker | High |
 | Text-level L2 cannot see inside interpreters or scripts (reproduced, [A3] D1): an interpreter can drive a pty (measured, [SR] S-01), start a nested host on a pty that answers its own prompts (inferred), or inject keys into the user's terminal to answer a host prompt; allows such as `Bash(python3 *)` widen that gap | High |
 | A careless user approves a host prompt that injected text requested; pending records come only from typed prompts, and the Claude dialog shows the reason verbatim but pre-selects `1. Yes`, so an Enter reflex approves (M1, [S3]) | Medium |
 | Codex, Cursor and OpenCode have no in-session raise; the out-of-session step pushes users toward a global `unattended` ([SR] S-18) | Medium |
@@ -340,8 +370,35 @@ way to a human-approved local edit. Option names (`permission_level`, `TS_PERMIS
 | The D9 probe reads the host CLI on PATH, not the running host process: an auto-updated binary, or a repository `env` that changes PATH, can report another version than the one running; it only decides whether the clamp applies | Low |
 | Channels outside the plugin — browser and computer-use MCP servers acting on github.com, another GitHub MCP server or `gh` from another tool, `copilot.assign` handing work to an agent with its own write access — are governed by no level ([SR] S-20) | Medium |
 | MCP flags are fixed for the server's lifetime; a mid-session level change applies at L1/L2 only | Low |
-| The adversarial review ([SR]) ran against the pre-disposition draft; design added while folding it in — the call stamp, the `provision` writer, the GitHub MCP flags table — has had no second adversarial pass. The implementation objective runs one before code lands | Medium |
+| A Gemini `confirm` is one-phase: the static `ask_user` rule is its only gate, so a confirm reaching the writer through a form the rule's command regex misses writes at once (the F1 class, unbound there until a guard stamp and an AfterTool binding are wired) | High |
+| The second adversarial pass (below) ran against the implementation of PR #348; its fixes — the writer's session rules, the two-phase confirm, the host check — have had no third pass | Medium |
 | Codex plugin hooks run only after `/hooks` trust, re-required on every update ([codex] B2); until then only L1 (at `supervised`: no call stamp) and server flags apply | Medium |
+
+## Second adversarial pass (implementation)
+
+An adversarial review of the implementation (PR #348, 2026-11-04) found ten numbered findings, low-severity ones and
+two Codex review threads. They are fixed in the hardening wave of the implementation objective; each fix's commit is
+on its task branch (the integration task records the merged ids).
+
+| finding | severity | what | fix |
+|---|---|---|---|
+| F1 | critical | the writer read an empty ancestry (`( cmd & )`, `env -i`) as "outside any session" and widened at once; the Claude confirm stamp was written when PG *asked*, so a declined dialog left it usable, and PG missed the `plugin-config.sh` script in some forms | writer session rules and `y` on `/dev/tty`, two-phase confirm with `hooks/permission-approved.sh` (D5, D6): task-019, commit c8a9c7e; PG `script_hit`: task-017 |
+| F2 | high | PG fast path | task-017 |
+| F3 | high | PG tokeniser | task-017 |
+| F4 | high | GSF protected paths: case, fd, copy, extract, git and hardlink forms | task-018 |
+| F5 | high | PG payload size and deadline | task-017 |
+| F6 | medium | GSF override | task-018 |
+| F7 | medium | a `--host` claim from env could skip an option store | PG host: task-017; resolver host check (D3): task-019, c8a9c7e |
+| F8 | medium | PG literal matching | task-017 |
+| F9 | medium | PG remotes | task-017 |
+| F10 | medium | a per-skill or per-group level replaced the env- and store-lowered level | lowering after the skill level (D3): task-019, c8a9c7e |
+| L1 | low | `github-mcp.sh` took `github-mcp-server` from the inherited PATH, with the token | fixed trusted locations, owner and mode checks, the token withheld from helpers: task-019, commit 7cbb417 |
+| L4 | low | OpenCode parity of the protected paths | task-018 |
+| Codex P1 | — | `curl -d` with an attached body read as a GET | task-017 |
+| Codex P2 | — | a parent-directory `rm`/`mv` bypassed repo-relative protection | task-018 |
+
+Open risks above carry what stays: the same-UID row and the text-level row are High, and Gemini's one-phase confirm
+is new.
 
 ## Implementation objective must…
 

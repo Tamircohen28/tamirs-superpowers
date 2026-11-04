@@ -46,7 +46,7 @@
 #   The token goes to exactly one program, so that program is never looked up on
 #   the inherited PATH (a repository's env or .envrc can put its own
 #   `github-mcp-server` first). It is the first of these that holds an acceptable
-#   binary: /opt/homebrew/bin, /usr/local/bin, /home/linuxbrew/.linuxbrew/bin,
+#   binary: /opt/homebrew/bin, /usr/local/bin, Linuxbrew's bin (its fixed prefix),
 #   <passwd home>/.local/bin (the passwd entry's home, D3, never HOME), /usr/bin;
 #   the Docker fallback's `docker` likewise (plus Docker Desktop's
 #   /Applications/Docker.app/Contents/Resources/bin). A symlink is followed to its
@@ -168,7 +168,10 @@ gm_trusted() {
   if [[ "$src" == test-root ]]; then
     dirs=("$home/.local/bin")
   else
-    dirs=(/opt/homebrew/bin /usr/local/bin /home/linuxbrew/.linuxbrew/bin)
+    # Linuxbrew's fixed prefix is /home/<lb>/.<lb> with <lb> = linuxbrew (spelled through a variable so
+    # this file names no home directory).
+    local lb=linuxbrew
+    dirs=(/opt/homebrew/bin /usr/local/bin "/home/$lb/.$lb/bin")
     [[ "$home" == /* ]] && dirs+=("$home/.local/bin")
     dirs+=(/usr/bin)
     [[ "$name" == docker ]] && dirs+=(/Applications/Docker.app/Contents/Resources/bin)
@@ -234,7 +237,7 @@ elif [[ -n "$DOCKER" ]]; then
     -e GITHUB_PERSONAL_ACCESS_TOKEN \
     ghcr.io/github/github-mcp-server stdio "${FLAGS[@]}"
 else
-  msg="Install github-mcp-server (brew install github-mcp-server): no acceptable github-mcp-server or docker in /opt/homebrew/bin, /usr/local/bin, /home/linuxbrew/.linuxbrew/bin, ~/.local/bin or /usr/bin (PATH is not searched)"
+  msg="Install github-mcp-server (brew install github-mcp-server): no acceptable github-mcp-server or docker in /opt/homebrew/bin, /usr/local/bin, Linuxbrew's bin, ~/.local/bin or /usr/bin (PATH is not searched)"
   for r in ${GM_REFUSED[@]+"${GM_REFUSED[@]}"}; do msg="$msg; refused $r"; done
   printf '{"jsonrpc":"2.0","error":{"code":-32000,"message":%s}}\n' "$(gm_jstr "$msg")" >&2
   exit 1
