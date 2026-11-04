@@ -11,7 +11,8 @@ adversarial [security review][SR] of this ADR found:
 
 - **No host lets a plugin widen host permissions** ([R]; [claude], [codex], [cursor], [gemini], [opencode]), so the
   most autonomous level only removes the *plugin's own* gates. The levers that *can* widen are banned in D10.4.
-- **Enforcement verbs differ per host** (D8): Claude honours a hook `ask` in every mode (measured C4/U3, [S1]);
+- **Enforcement verbs differ per host** (D8): Claude honours a hook `ask` in every mode (measured headless C4/U3,
+  [S1], and interactive M1, [S3]);
   Codex fails open on it (source-cited X1); Cursor `preToolUse` drops it, `beforeShellExecution` forces a prompt
   (source-cited U1); a Gemini hook `ask` hangs headless (measured G1); OpenCode `--auto` approves it (measured O1).
 - **The agent can fake a typed prompt on every host:** it drives `/dev/tty` through `pty.fork()` (measured, [SR]
@@ -73,7 +74,7 @@ ports), **MCP** = GitHub MCP tool matcher + server flags (D8), **GSF** = [`guard
 | `git.verify.skip` (`--no-verify`, `-n`, `-c core.hooksPath=/dev/null`, `HUSKY=0`, `SKIP=`) | R4 | none intended ([SR] S-14) | PG · [safety] invariant 6: only the D5 host prompt grants the one-off |
 | `pr.merge.admin` | R4 | pr-dev ([A1] D-2) | PG; denied while a required check fails or is pending ([safety] invariant 2) |
 | `git.push.force.default` (`git.force_push.default`), `release.create`, `tag.push` (`git.tag.create`) | R4 | none today ([A3] D1, C) | PG |
-| `process.spawn.agent_host` (`process.spawn.claude_cli`): `claude`, `codex`, `gemini`, `opencode`, `cursor-agent`, `agy`, headless or not, also via `npx`, `bunx`, `pnpm dlx`, `node …/cli.js`; `tty.drive`: `script`, `expect`, `unbuffer`, python/node `pty`, `tmux send-keys`, `screen -X stuff`, `osascript` (`keystroke`, `do script`), `xdotool` | R4 m | skill-creator nested `claude -p` ([A2] F5); `tty.drive`: none intended | PG; both can forge a typed prompt or answer a TTY or host prompt (D5; [SR] S-01, S-02) |
+| `process.spawn.agent_host` (`process.spawn.claude_cli`): `claude`, `codex`, `gemini`, `opencode`, `cursor-agent`, `agy`, headless or not, also via `npx`, `bunx`, `pnpm dlx`, `node …/cli.js`; `tty.drive`: `script`, `expect`, `unbuffer`, python/node `pty`, `tmux send-keys`/`paste-buffer` (after any global option such as `-L`/`-S`/`-f`), `cmux send`/`send-key`, `wezterm cli send-text`, `kitty @ send-text`, `zellij action write`, `screen -X stuff`, `osascript` (`keystroke`, `do script`, `write text`), `xdotool` (list: [S3] Impact 4) | R4 m | skill-creator nested `claude -p` ([A2] F5); `tty.drive`: none intended | PG; both can forge a typed prompt or answer a TTY or host prompt (D5; [SR] S-01, S-02) |
 | `repo.create` (incl. `fork_repository`), `repo.delete` | R4 | repo-scaffold, MCP ([A1] D-3, [A3] B5) | PG, MCP, server exclusion |
 | `ruleset.apply`, `ruleset.apply.org`, `branch_protection.write` (apply, remove, legacy shim) | R4 | github-policy, repo-* ([A1] D-8/D-9) | PG (script names, `gh api …/protection`) |
 | `workflow.edit` (local or remote), `file.write.remote` to workflows, hooks or policy | R4 | GSF today denies locally and points at the MCP path ([A3] D3) | GSF, MCP |
@@ -131,7 +132,12 @@ have none; OpenCode `ctx.options` is ignored because a project `opencode.json` c
 that is absent (no option store on that host, or a user file with no `level` key) is *skipped*, not read as
 `supervised` — so a Claude install-picker choice of `unattended` with no user file yields `unattended`, while store
 `unattended` + file `standard` yields `standard`. A Claude project-scope install carries no preset (`pluginConfigs`
-is user/managed scope, doc-cited [claude] C).
+is user/managed scope, doc-cited [claude] C). A user-file `skills`/`groups` level replaces the file's `level` for that
+skill, and then the option store and every env switch **lower again** (lowering always wins:
+`TS_PERMISSION_LEVEL=supervised` tightens a skill with its own entry; second pass F10). The store read is that of the
+host the resolver runs under: `--host` is a claim, and when the nearest agent host in the resolver's own process
+ancestry differs, the stricter of the two answers stands, both D9 floors apply and no raise ticket applies (F7), so a
+claim never skips a store.
 
 **Project file:** `<repo>/.tamirs-superpowers/permissions.json` (committable; `.dev-files/` is gitignored). It may
 always tighten. **It may widen only `actions["pr.merge.auto"]`**, only once `/plugin-config trust` records its sha256
@@ -191,7 +197,7 @@ confirm <nonce>` passes a host prompt naming skill, level, target and expiry.
 
 | platform | host-attested channel (raise, D6 widening, R4) | prompt hook that writes the pending record | evidence |
 |---|---|---|---|
-| Claude Code | the permission dialog of a PG hook `ask`, on `confirm` or on the R4 call itself | `UserPromptExpansion.command_args` of a prompt whose `UserPromptSubmit.source == "user"`; missing `source` ⇒ not user; a model `Skill` call never qualifies | dialog: measured C4/U3 (honoured in every mode, headless ⇒ deny), its rendering of the reason unobserved (U3). `source`: source-cited C3, its value under `claude -p` and the SDK unmeasured ⇒ not attested, a request at most |
+| Claude Code | the permission dialog of a PG hook `ask`, on `confirm` or on the R4 call itself | `UserPromptExpansion.command_args` of a prompt whose `UserPromptSubmit.source == "user"` (paired on their shared `prompt_id`); missing `source` ⇒ not user; a model `Skill` call never qualifies. **2.1.318 sends no `source` at all, so no raise request is ever written: the Claude `--perms=` raise is disabled until the host emits it** (the refusal says so and names `/plugin-config`); a lowering still applies | dialog: measured headless C4/U3 (honoured in every mode, headless ⇒ deny) and interactive M1 ([S3]: `default`, `auto`, `bypassPermissions`; the reason shown verbatim, multi-line too, with its origin label; `1. Yes` pre-selected, `2. No`; Esc rejects and the call never runs). Prompt hooks: M2 (`command_name`, `command_args`, `command_source: "plugin"`; the submit fires first, same `prompt_id`); `source` declared in the schema but absent in the interactive CLI, `-p` and stream-json (M3) ⇒ never attested |
 | Gemini CLI | a static extension `ask_user` rule matching `confirm` and the R4 patterns | interactive `BeforeAgent.prompt` right after `BeforeTool(activate_skill)` | `ask_user` holds under `--yolo` and denies headless (measured G3); its TTY prompt source-cited. Hook input cannot tell `gemini -p` (G1, G2) |
 | Cursor CLI | **none until S1 is measured**; candidate: `beforeShellExecution` `ask`, which forces a prompt in every approval mode (source-cited U1), behaviour under `-p` unverified | none: `beforeSubmitPrompt` also sees `cursor-agent -p` text | U1, S1–S3 ([S2]) |
 | Codex CLI, Cursor desktop, OpenCode | **none: the raise path is disabled.** Codex hook `ask` fails open (X1) and plugins cannot ship execpolicy rules ([codex] A6); Cursor desktop is unverified (S2); OpenCode `--auto` approves every pending ask client-side (O1) | none: `codex exec`, `cursor-agent -p` and `opencode run` author the prompt | X1, O1, [SR] S-02/S-10 |
@@ -201,14 +207,36 @@ user's own terminal — PG denies its widening subcommands and `confirm` from ag
 `provision`), and an R4 call is denied with the command for the user to run. The Codex/Cursor chat-confirm is
 removed: their hooks cannot tell typed text from `codex exec resume` or `cursor-agent -p` ([SR] S-10).
 
+**"Outside any agent session" is checked, not inferred from an empty ancestry** (second pass F1): the writer widens at
+once only when no agent host or marker is visible, its ancestry reads to pid 1, it is not reparented (its session
+leader is an ancestor and nothing up to it is a child of pid 1: `( cmd & )`, `nohup`, `setsid` after a double fork
+fail), it has a controlling terminal, `HOME`/`PATH`/`TERM` are set (`env -i` fails) and no pty driver or interpreter
+runs above it; then it shows the rows on `/dev/tty` and writes only after `y`. Any other run is `unverified`, a
+no-channel session. A TTY and that `y` are still no human proof (S-01): the rules keep agent routes out, the prompt
+makes a stray run show what it widens. `provision` keeps CI's shape (no TTY, a CI marker, the session-leader rule
+relaxed for a CI service) and never replaces a file it did not write.
+
+**On Claude Code the proof is the host running the approved call, not the dialog being shown** (F1): PG's confirm
+stamp `asked/<nonce>.json` is written when PG *returns* `ask` and names the call's `tool_use_id`. `confirm`, running
+inside that call, consumes the stamp and only **stages** its result (`staged/<nonce>.json`, bound to the stamp's
+`tool_use_id`, session and agent); the resolver never reads a staged record and honours a raise ticket only with
+`state: "active"`. `hooks/permission-approved.sh`, a Claude PostToolUse hook on `Bash`, promotes it — writes the
+user file and lock, or the raise ticket as active — only when its payload's `tool_use_id`, `session_id` and agent
+equal the staged record's and the command is exactly the plain `plugin-config.sh confirm <nonce>`. Claude Code runs
+PostToolUse only for a call that ran: a declined dialog never runs the call, so nothing is promoted; a confirm re-run
+later through a form PG misses has another `tool_use_id` and is not the plain form, so it is never promoted; a staged
+record lapses with the stamp (15 minutes). Gemini's `confirm` stays one-phase (its static `ask_user` rule is the
+prompt, and no post-call binding is wired): Open risks.
+
 | ticket rule | text |
 |---|---|
 | shape | `{id, skill, target, level, session_id, agent, created, expires}`: one skill, one target (first argument + repo slug; `actions.json` defines equality per action kind, and an unresolvable target never matches), 15 minutes; written only by the D6 writer, GSF denies every other write |
 | R2/R3 only ([SR] S-05) | no ticket satisfies R4: it passes only on the host prompt of that very call, which shows the id, the target and the effect (head SHA, failing or pending required checks) |
-| main thread ([SR] S-11) | binds `(session_id, agent)`; honoured on main-thread calls unless the orchestrator has the writer re-issue it to a named task; until an agent id is observed in hook input (item 13) it also reaches subagents, on its exact target only |
+| main thread ([SR] S-11) | binds `(session_id, agent)`; honoured on main-thread calls unless the orchestrator has the writer re-issue it to a named task. Claude Code's hook input carries `agent_id` (and `agent_type`) on every subagent call and on no main-thread call (measured M5, [S3]), so a main-thread ticket never reaches a subagent |
 | never from content | file, PR, issue or tool output never reaches a prompt hook; L1 ignores `--perms=` there; hooks parse it only as a standalone token on the first line of `command_args` |
-| lowering ([SR] S-09) | needs no provenance: prompt hooks write lowering tickets and PG applies them for the session; L1 parsing is the fallback where no prompt hook exists |
+| lowering ([SR] S-09) | needs no provenance: prompt hooks write lowering tickets and PG applies them for the session; L1 parsing is the fallback where no prompt hook exists. A later confirmed raise does not retire it (D4 row 1 lowers always); `show` and `--level` list the active ones, and the writers prune expired tickets |
 | mechanics ([SR] S-17) | nonce ≥ 64 bits from `/dev/urandom`, bound to its pending record's hash and expiring with it; single-use records consumed by atomic `rename`; readers hash and parse the same bytes, read once |
+| two-phase (F1) | on Claude Code `confirm` stages, bound to the dialog's `tool_use_id`, and only that approved call's PostToolUse promotes; a raise ticket counts only with `state: "active"` |
 
 Tickets replace the agent-typeable approval token of [`docker-guard.py`][docker] ([A3] D5).
 
@@ -227,11 +255,14 @@ Tickets replace the agent-typeable approval token of [`docker-guard.py`][docker]
   fixed indent, atomic tmp + `mv`, 0600, `.bak`, lock rewrite. `show` prints each value's source and hash status.
 - **Anti-escalation:** the writer diffs every action's effective decision before and after. A change that widens
   nothing is written at once. One that widens anything (including `reset` of a deny and `trust`) is recorded pending
-  with its rows and a nonce, and written only by `confirm <nonce>` passing a D5 host prompt that shows them or, where
-  D5 lists none, by the writer run outside any agent session. It never writes R4 `allow` or host option stores; a
-  Claude/Gemini level raise prints the host route (`/config`, `/plugin configure`; `gemini extensions config`).
+  with its rows and a nonce, and written only by `confirm <nonce>` passing a D5 host prompt that shows them — on
+  Claude Code in two phases, staged by the approved call and promoted by its PostToolUse (D5) — or, where D5 lists
+  none, by the writer run outside any agent session as D5 defines it, after `y` on `/dev/tty`. It never writes R4
+  `allow` or host option stores; a Claude/Gemini level raise prints the host route (`/config`, `/plugin configure`;
+  `gemini extensions config`).
 - **CI** ([SR] S-18): `plugin-config.sh provision` writes the file and lock in a workflow step before the agent
-  starts; PG denies it from agent Bash, and `show` marks such a lock `by: provision`.
+  starts; PG denies it from agent Bash, it requires a CI marker and an unbroken session (D5), it never replaces a file
+  whose lock is not `by: provision`, and `show` marks such a lock `by: provision`.
 
 ### D7 — Install and later change (g)
 
@@ -248,7 +279,7 @@ Layers: **L1** skill gate (resolver call before the step), **L2** hook deny, **L
 
 | platform | L2 shell (R2–R4) | L2 GitHub MCP | L3 host ask | ask is delivered as | fail-open neutralised by | per-skill levels at L2 |
 |---|---|---|---|---|---|---|
-| Claude Code | E: PG on `Bash`, `onFailure: "block"` | E if a `mcp__plugin_tamirs-superpowers_github__.*` matcher fires (unverified, [A3] A) + server flags | E: hook `ask` in default/auto/bypass, headless ⇒ deny (measured C4/U3; interactive rendering unobserved) | hook `ask` (the D5 dialog; the only R4 route) | `onFailure: "block"` (2.1.295+) | E via `UserPromptExpansion`; a model `Skill` call as a context signal is unverified |
+| Claude Code | E: PG on `Bash`, `onFailure: "block"` | E: the `mcp__plugin_tamirs-superpowers_github__.*` matcher fires for the bundled server's tools and a sibling matcher does not (measured M4, [S3]) + server flags | E: hook `ask` in default/auto/bypass, reason shown verbatim, Esc rejects (measured M1, [S3]); headless ⇒ deny (C4/U3) | hook `ask` (the D5 dialog; the only R4 route) | `onFailure: "block"` (2.1.295+) | E: a skill the host records as active for that agent takes its level from the user's verified, locked file — a `UserPromptExpansion` paired with its `UserPromptSubmit` on one `prompt_id` (M2), or a `PreToolUse` on the `Skill` tool (measured M6, [S3]: the matcher fires for a model `Skill` call, `tool_input.skill` names it); no `source` needed (M3). Bound per agent (M5): a subagent runs at most at the main thread's level (D1 `agent.spawn`); project-file levels only tighten |
 | Claude Desktop | unverified (C5/U4) | server flags | unverified | as CLI once a call stamp (below) proves PG ran | call stamp; else L1 runs `supervised` | A |
 | Codex CLI | E, deny only: exit 2 + stderr, or `deny` with reason (source-cited X1; live U5) | MCP-tool hook actions (0.148, [codex] E) matcher unverified ⇒ server flags | none: hook `ask` fails open (X1) | deny naming the D5 out-of-session route; R4 always deny | guard traps every error to a deny, never exits non-0/2; SessionStart canary self-test; `setup.sh` offers user-owned execpolicy `prompt` rules for R4 as a belt while plugin hooks are untrusted ([codex] implication 10) | A |
 | Cursor CLI | E: `preToolUse` + `beforeShellExecution` deny, `failClosed` (source-cited U1) | E: `preToolUse` deny on the MCP path (source-cited U1.4) | `beforeShellExecution` ask forces a prompt (source-cited U1) — unused until S1 | deny; after S1, R4 and `confirm` via `beforeShellExecution` ask | `failClosed: true` | A |
@@ -276,10 +307,13 @@ are excluded because their human gate lives on the `gh` path.
 
 Recorded per target in [`platform-targets.json`][targets] (new `permissions_min` beside `supported_min`). A readable
 host version below it ⇒ levels above `supervised` run as `supervised`, said once; an unreadable one ⇒ warning only.
+The resolver applies it with `--host`: the version is the host CLI's `--version` on PATH, as `doctor.sh` reads it
+under the same 3 s deadline, probed only when an answer would be looser than `supervised`'s and cached per session
+for 10 minutes; the clamp is named in each answer it changes and in `--level`. The guard's fast path never probes.
 
 | platform | minimum | the feature that forces it |
 |---|---|---|
-| Claude Code | 2.1.317 | hook `ask` honoured under bypass and headless deny measured only here (C4/U3); `UserPromptSubmit.source` still rolling out (C3). Below it: `options` load floor 2.1.271 (C2), `onFailure: "block"` 2.1.295 ([claude] F) |
+| Claude Code | 2.1.317 | hook `ask` honoured under bypass and headless deny measured here (C4/U3), the interactive dialog on 2.1.318 (M1); `UserPromptSubmit.source` declared but not emitted on 2.1.318 (M3). Below it: `options` load floor 2.1.271 (C2), `onFailure: "block"` 2.1.295 ([claude] F) |
 | Codex CLI | 0.166.0 | deny-only contract and fail-open paths source-cited at this tag (X1); unknown keys ignored (X4) |
 | Cursor CLI / desktop | 2026.10.22 / 3.27.22 | shell deny/ask consumer source-cited (U1); desktop deny-only, pending S2 |
 | Gemini CLI | 0.66.0 | G1–G3 measured |
@@ -290,12 +324,19 @@ host version below it ⇒ levels above `supervised` run as `supervised`, said on
 1. **Policy, guards and host config are R4 `policy.edit`** ([SR] S-03). GSF denies, with no `PM_ALLOW_PROTECTED`
    bypass, Edit-class and parsed-Bash writes to the D3 dirs, host plugin caches, guard files in the running plugin
    root (R4 ask in a source checkout, where contributors edit them) and host settings: Claude
-   `{~,<repo>}/.claude/settings*.json`; Gemini `~/.gemini/{settings.json,policies/**}`, `<repo>/.gemini/**`, the
+   `{~,<repo>}/.claude/settings*.json`; Gemini `~/.gemini/{settings.json,policies/**}`,
+   `<repo>/.gemini/{settings.json,policies/**,extensions/**}`, the
    extension `.env`; Codex `~/.codex/{config.toml,hooks*,rules/**,plugins/**}` (a write into the plugin root changes
    its content hash and stops its hooks until re-trusted, [codex] B2); Cursor
    `~/.cursor/{hooks,cli-config,permissions}.json`, `<repo>/.cursor/hooks.json`; OpenCode `~/.config/opencode/**`,
-   `<repo>/{opencode.json,.opencode/**}`; shared `~/.config/gh/**`, `~/.gitconfig`. It resolves the `realpath` of
-   the target and of any `ln` destination; an UNSURE write whose text names one of these paths is a deny.
+   `<repo>/{opencode.json,opencode.jsonc}`, `<repo>/.opencode/{opencode.json,opencode.jsonc,plugin/**,plugins/**,agent/**,agents/**}`
+   (config, plugin code and agents' permission rules); shared `~/.config/gh/**`, `~/.gitconfig`. A repository's
+   generated command, skill and agent-adapter dirs for other hosts (`.gemini/skills/`, `.gemini/agents/`,
+   `.opencode/commands/`) are not policy and are not protected. It resolves the `realpath` of the target and of any
+   `ln` destination; an UNSURE write whose text names one of these paths is a deny. A git replay (checkout, switch,
+   restore, reset, merge, pull, rebase, cherry-pick, revert, am, stash) that would rewrite one of these paths is an
+   R4 ask — `hook_ask`, the host prompt, on Claude Code and a deny on every other host — never a silent allow: an
+   integrator merging a branch legitimately brings such a file in, and the user decides.
 2. **Hash and re-confirm (CVE-2025-54136 class, [P] §5.2):** a user file whose sha256 ≠ the lock, or a project file
    whose hash ≠ its trust entry, keeps its tightening entries (measured against the no-file defaults) and drops its
    widening ones until a human confirms through D5/D6.
@@ -315,7 +356,9 @@ level states what it does on every host, with no claim beyond the evidence; the 
 same ceiling; ADR 003's option pattern (`CLAUDE_PLUGIN_OPTION_*`, manifest default) is reused for lowering.
 
 **Harder:** `supervised` costs about six prompts per typical objective run, `standard` two ([A1] E); a `--perms=`
-raise costs one host prompt, and on Codex, Cursor and OpenCode nothing raises inside a session. `/plugin-config` is
+raise costs one host prompt where a host attests the prompt's origin — today none does (Claude Code sends no
+`UserPromptSubmit.source`, M3; Gemini's pairing is unwired), so a durable per-skill level is the in-session route, and
+on Codex, Cursor and OpenCode nothing raises inside a session. `/plugin-config` is
 the first explicit-only skill (CLAUDE.md's "No skill is Explicit-only today" changes). Per-skill raises do nothing at
 L2 on Codex and Cursor. Hooks stop installing dependencies; skill-creator's nested `claude -p` asks per spawn; an
 agent can no longer edit host settings files, and workflow edits via MCP (memory `feedback-ci-yml-guard-hook`) give
@@ -325,16 +368,48 @@ way to a human-approved local edit. Option names (`permission_level`, `TS_PERMIS
 
 | risk | severity |
 |---|---|
-| A same-UID process that bypasses the Bash parser (`python3 -c`, `make`, [A3] D13) and rewrites both the policy and its lock, or runs the writer, is undetected | Medium |
+| A same-UID process that bypasses the Bash parser (`python3 -c`, `make`, [A3] D13) and rewrites both the policy and its lock, or runs the writer, is undetected. The writer's session rules (D5) and the two-phase confirm close the agent routes the second pass found, but such a process can still escape the ancestry and the terminal rules (a compiled pty driver with an innocuous name, keys typed into the user's own terminal through tmux or the terminal app), forge the confirm stamp and a PostToolUse payload, or `provision` a machine with no user file after `setsid` and a forged CI marker | High |
 | Text-level L2 cannot see inside interpreters or scripts (reproduced, [A3] D1): an interpreter can drive a pty (measured, [SR] S-01), start a nested host on a pty that answers its own prompts (inferred), or inject keys into the user's terminal to answer a host prompt; allows such as `Bash(python3 *)` widen that gap | High |
-| A careless user approves a host prompt that injected text requested; pending records come only from typed prompts, but how the dialog renders scope is unobserved (U3) | Medium |
+| A careless user approves a host prompt that injected text requested; pending records come only from typed prompts, and the Claude dialog shows the reason verbatim but pre-selects `1. Yes`, so an Enter reflex approves (M1, [S3]) | Medium |
 | Codex, Cursor and OpenCode have no in-session raise; the out-of-session step pushes users toward a global `unattended` ([SR] S-18) | Medium |
 | A Gemini user "Always allow" (4.95) outranks the extension rules, including the `ask_user` on `confirm` (source-cited inference, [gemini] B) | Medium |
-| Until hook input is shown to carry an agent id, a main-thread ticket reaches subagents on its target; the active-skill context persists across turns until the next session or compaction | Medium |
+| The active-skill context persists across turns until that agent's next slash command or `Skill` call or the session's end, and a model's own `Skill` call selects that skill's user-file level: the user chose the level, not the moment (a main-thread ticket no longer reaches subagents: M5) | Medium |
+| The D9 probe reads the host CLI on PATH, not the running host process: an auto-updated binary, or a repository `env` that changes PATH, can report another version than the one running; it only decides whether the clamp applies | Low |
 | Channels outside the plugin — browser and computer-use MCP servers acting on github.com, another GitHub MCP server or `gh` from another tool, `copilot.assign` handing work to an agent with its own write access — are governed by no level ([SR] S-20) | Medium |
 | MCP flags are fixed for the server's lifetime; a mid-session level change applies at L1/L2 only | Low |
-| The adversarial review ([SR]) ran against the pre-disposition draft; design added while folding it in — the call stamp, the `provision` writer, the GitHub MCP flags table — has had no second adversarial pass. The implementation objective runs one before code lands | Medium |
+| A Gemini `confirm` is one-phase: the static `ask_user` rule is its only gate, so a confirm reaching the writer through a form the rule's command regex misses writes at once (the F1 class, unbound there until a guard stamp and an AfterTool binding are wired) | High |
+| The second adversarial pass (below) ran against the implementation of PR #348; its fixes — the writer's session rules, the two-phase confirm, the host check — have had no third pass | Medium |
 | Codex plugin hooks run only after `/hooks` trust, re-required on every update ([codex] B2); until then only L1 (at `supervised`: no call stamp) and server flags apply | Medium |
+
+## Second adversarial pass (implementation)
+
+An adversarial review of the implementation (PR #348, 2026-11-04) found ten numbered findings, low-severity ones and
+two Codex review threads. The hardening wave of the implementation objective fixed them; the commits below are the
+merged ones, and `tests/test-security-regressions.sh` replays every reproduced input against the real
+hooks: 131 rows, each naming its finding, all held now and all failing against origin/master's hooks (80 of them
+because the hook or script did not exist there yet).
+
+| finding | severity | what | fix (merged commits) | disposition |
+|---|---|---|---|---|
+| F1 | critical | the writer read an empty ancestry (`( cmd & )`, `env -i`) as "outside any session" and widened at once; the Claude confirm stamp was written when PG *asked*, so a declined dialog left it usable, and PG missed the `plugin-config.sh` script in some forms | writer session rules and `y` on `/dev/tty`, two-phase confirm with `hooks/permission-approved.sh` (D5, D6): c8a9c7e; PG `script_hit`: a7cb121; suites: 9413ab7 | fixed; same-UID forging stays a High open risk |
+| F2 | high | PG fast path | a7cb121 | fixed |
+| F3 | high | PG tokeniser | a7cb121 | fixed (anomalies fail closed) |
+| F4 | high | GSF protected paths: case, fd, copy, extract, git and hardlink forms | b1c7b3f; repo-relative narrowing and git replays as an R4 ask (D10.1): 1b658b8 | fixed; a hard link made before the call stays unseen (low) |
+| F5 | high | PG payload size and deadline | a7cb121 | fixed (> 8 KB denied) |
+| F6 | medium | GSF override | b1c7b3f; OpenCode: d2944c5 | fixed |
+| F7 | medium | a `--host` claim from env could skip an option store | PG host: a7cb121; resolver host check (D3): c8a9c7e | fixed |
+| F8 | medium | PG literal matching | a7cb121 | fixed |
+| F9 | medium | PG remotes | a7cb121; suites: 9413ab7 | fixed |
+| F10 | medium | a per-skill or per-group level replaced the env- and store-lowered level | lowering after the skill level (D3): c8a9c7e | fixed |
+| L1 | low | `github-mcp.sh` took `github-mcp-server` from the inherited PATH, with the token | fixed trusted locations, owner and mode checks, the token withheld from helpers: 7cbb417 | fixed |
+| L4 | low | OpenCode parity of the protected paths | b43a1c9; guard.ts through `write-targets.py --protected`: d2944c5 | fixed where python3 is present; the rules.ts port is the fallback |
+| Codex P1 | — | `curl -d` with an attached body read as a GET | a7cb121 | fixed |
+| Codex P2 | — | a parent-directory `rm`/`mv` bypassed repo-relative protection | b1c7b3f | fixed |
+
+ADR and user docs for the wave: db05ef1; the plugin-config skill's exit rows: d00578c.
+
+Open risks above carry what stays: the same-UID row and the text-level row are High, and Gemini's one-phase confirm
+is a new, explicit High: unbound until a guard stamp and an AfterTool binding are wired.
 
 ## Implementation objective must…
 
@@ -376,6 +451,9 @@ way to a human-approved local edit. Option names (`permission_level`, `TS_PERMIS
     and under `-p`, `sessionStart` env reach. Gemini: the `ask_user` TTY prompt, `BeforeAgent` on subagent prompts,
     user-tier policy integrity, workspace `.env` reach. OpenCode: MCP action names, `session.hook("prompt")` under
     `opencode run` and child sessions, evaluate-hook order with a second and a project-local plugin ([SR] S-16).
+    **Measured on Claude Code 2.1.318 ([S3]):** the gate passed (U3 steps 3–4 = M1, plugin hook M1b), U2 (M2),
+    `source` under `-p` and stream-json (M3: absent), the Claude MCP matcher (M4) and the agent id (M5). Still open:
+    U1, U4, U6 (self-approval by keystrokes) and the other Claude rows above.
 
 ## Alternatives rejected
 
@@ -402,7 +480,7 @@ way to a human-approved local edit. Option names (`permission_level`, `TS_PERMIS
 
 | finding | severity | disposition | ADR section changed | rationale |
 |---|---|---|---|---|
-| S-01 | critical | applied-partially | Context, D1 (`tty.drive`), D5, D8, Open risks, Alternatives | A TTY is no human proof anywhere, `tty.drive` is R4, and on Claude only the dialog passes R4; the PIN is declined (not host-attested, guessable offline from a same-UID hash) |
+| S-01 | critical | applied-partially | Context, D1 (`tty.drive`), D5, D8, Open risks, Alternatives | A TTY is no human proof anywhere, `tty.drive` is R4 (its terminal-driver forms widened after [S3] Impact 4: a background job could answer the R4 dialog by keys), and on Claude only the dialog passes R4; the PIN is declined (not host-attested, guessable offline from a same-UID hash) |
 | S-02 | critical | applied | Context, D1 (`process.spawn.agent_host`), D5 | Prompt hooks only request; every agent-host spawn is R4 (stronger than the proposed R3 m); the env-marker check and the `--permission-mode` exception are dropped, since the spawn is R4 regardless |
 | S-03 | high | applied | D1 `policy.edit`, D10.1, item 5 | Host settings and option stores protected; `realpath`; an UNSURE write naming a protected path denies; no `PM_ALLOW_PROTECTED` |
 | S-04 | high | applied | D3, item 13 | Dirs come from the passwd entry with owner/mode checks; env only tightens; option raises are read from the user settings file |
@@ -412,7 +490,7 @@ way to a human-approved local edit. Option names (`permission_level`, `TS_PERMIS
 | S-08 | high | applied | D1 (R2 m, R3 m rows), Consequences, item 10 | Only script-free installs are R2; a hook never installs |
 | S-09 | medium | applied | D5 | Lowering tickets are enforced by PG |
 | S-10 | medium | applied | D5, D8, Alternatives | Chat-confirm removed outright (stronger than "off until measured"): the hook cannot tell typed text from `codex exec resume` |
-| S-11 | medium | applied-partially | D5, Open risks, item 13 | Tickets bind `(session_id, agent)` with re-issue; until an agent id is observed a ticket still reaches subagents on its exact target |
+| S-11 | medium | applied | D5, D8, Open risks, item 13 | Tickets bind `(session_id, agent)` with re-issue; Claude Code's hook input carries `agent_id` on subagent calls and none on the main thread (measured M5, [S3]), so a main-thread ticket never reaches a subagent, and the active-skill context is bound per agent too |
 | S-12 | medium | applied | D4, D8 | Network deadline, resolver failure ⇒ deny, `unknown` never holds; a per-call stamp replaces the heartbeat |
 | S-13 | medium | applied | D1 (`pr.merge.auto`, status writes) | Pinned-source check or required review, no workflow/CODEOWNERS/policy edits; status and check-run writes never automatic (GitHub behaviour inferred) |
 | S-14 | medium | applied | D1 (`git.verify.skip`, `work.discard`, `pr.merge.admin`) | Adapted: verify-skip is R4, as invariant 6's one-off needs the host prompt; discard is denied over uncommitted changes; `--admin` denied while a check fails or is pending |
@@ -433,6 +511,7 @@ way to a human-approved local edit. Option names (`permission_level`, `TS_PERMIS
 [P]: ../research/permissions/platforms/prior-art.md
 [S1]: ../research/permissions/spikes/claude-codex.md
 [S2]: ../research/permissions/spikes/cursor-gemini-opencode.md
+[S3]: ../research/permissions/spikes/implementation-measurements.md
 [A1]: ../research/permissions/audit/devflow-repo-skills.md
 [A2]: ../research/permissions/audit/other-skills.md
 [A3]: ../research/permissions/audit/non-skill-surfaces.md

@@ -50,7 +50,7 @@ skill frontmatter.
 |--------|---------|---------------------|
 | Every task gets a PR | **No** — one objective, one PR (`delivery.md`) | Independent deliverables, security isolation, or deploy sequencing can justify more; a scratch objective may justify none |
 | Every worker runs the full test suite | **No** — Tier 1 is targeted (`validation.md`) | A task touching a shared core may warrant the full suite; most do not |
-| Every PR auto-merges | Off unless configured | Branch protection, review requirements, and user preference decide this — never force it |
+| Every PR auto-merges | Off unless configured | Auto-merge is the action `pr.merge.auto`, decided only by `scripts/resolve-permission.sh` per [ADR 004](../../docs/engineering/decisions/004-permission-levels.md) (D2, D4): a user-file allow or a trusted project file turns it on, and the repository must also allow auto-merge. `TAMIRS_AUTO_MERGE=always` and an objective's `delivery.auto_merge: true` grant nothing. **R4 actions — `gh pr merge --admin` among them — are never automatic at any level**: only the human's approval of that very call passes one, and no file, env or ticket does |
 | Every branch is fully updated before merge | Loose by default | Strict-update policy is a repository setting; forcing it wastes CI on every unrelated push |
 | Every skill carries Claude-specific frontmatter fields | **No** | Portable core frontmatter is canonical; Claude fields live in the platform extension namespace (spec §3.4) |
 

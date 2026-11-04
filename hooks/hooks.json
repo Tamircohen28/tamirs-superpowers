@@ -6,6 +6,40 @@
         "hooks": [
           {
             "type": "command",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}\"/hooks/permission-guard.sh",
+            "timeout": 30,
+            "statusMessage": "Checking permission levels...",
+            "onFailure": "block"
+          }
+        ]
+      },
+      {
+        "matcher": "mcp__plugin_tamirs-superpowers_github__.*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}\"/hooks/permission-guard.sh",
+            "timeout": 30,
+            "statusMessage": "Checking permission levels...",
+            "onFailure": "block"
+          }
+        ]
+      },
+      {
+        "matcher": "Skill",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}\"/hooks/permission-intent.sh",
+            "timeout": 10
+          }
+        ]
+      },
+      {
+        "matcher": "Bash|Shell",
+        "hooks": [
+          {
+            "type": "command",
             "command": "bash \"${CLAUDE_PLUGIN_ROOT}\"/hooks/protect-other-branches.sh",
             "timeout": 15,
             "statusMessage": "Checking for concurrent agent work...",
@@ -63,6 +97,16 @@
       }
     ],
     "PostToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}\"/hooks/permission-approved.sh",
+            "timeout": 15
+          }
+        ]
+      },
       {
         "matcher": "Edit|Write",
         "hooks": [
@@ -157,6 +201,22 @@
             "type": "command",
             "command": "bash \"${CLAUDE_PLUGIN_ROOT}\"/hooks/skill-suggest.sh",
             "timeout": 5
+          },
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}\"/hooks/permission-intent.sh",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "UserPromptExpansion": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}\"/hooks/permission-intent.sh",
+            "timeout": 10
           }
         ]
       }

@@ -16,7 +16,7 @@
     {
       "id": 3,
       "prompt": "Deliver this objective. Note: this repository has auto-merge disabled at the org level and requires two human approvals.",
-      "expected_output": "FALLBACK/DEGRADATION: resolves the merge policy against repository configuration rather than forcing --auto. States plainly that auto-merge is unavailable here and that two human approvals are the remaining gate. Records the decision on the objective (set-delivery --auto-merge false --pr-url ...). Still creates exactly one PR and still hands to pr-dev. Does not claim auto-merge was enabled.",
+      "expected_output": "FALLBACK/DEGRADATION: resolves the merge policy through scripts/resolve-permission.sh (via resolve-merge-policy.sh) rather than forcing --auto, and reports its auto_merge_source. States plainly that auto-merge is unavailable here and that two human approvals are the remaining gate. Records the decision on the objective (set-delivery --auto-merge false --pr-url ...). Still creates exactly one PR and still hands to pr-dev. Does not claim auto-merge was enabled.",
       "files": []
     },
     {

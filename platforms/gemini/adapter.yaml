@@ -19,7 +19,8 @@ generated:
   agents: .gemini/agents                                  # scripts/build-gemini-extension.sh
   hooks: platforms/gemini/hooks.json                      # scripts/build-gemini-hooks.sh, from hooks/hooks.json;
                                                           # shipped at hooks/hooks.json in the gemini distribution
-  policies: platforms/gemini/policies/tamirs-superpowers.toml   # scripts/build-gemini-hooks.sh, from policies.source.json
+  policies: platforms/gemini/policies/tamirs-superpowers.toml   # scripts/build-gemini-hooks.sh, from policies.source.json `rules`
+  permission_policies: platforms/gemini/policies/tamirs-superpowers-permissions.toml  # same generator, `permission_rules` (ADR 004 D8)
   portable_skills: .agents/skills                         # scripts/build-agents-skills.sh (the .gemini/skills alias)
   regenerate: bash scripts/build-gemini-extension.sh . && bash scripts/build-gemini-hooks.sh . && bash scripts/build-agents-skills.sh .
   check: bash scripts/build-gemini-extension.sh . --check && bash scripts/build-gemini-hooks.sh . --check && bash scripts/build-agents-skills.sh . --check
@@ -60,13 +61,24 @@ notes: >-
   --skip-settings`), lists with its MCP server and its GITHUB_PERSONAL_ACCESS_TOKEN setting,
   and keeps both files in the installed copy; the loader reads only the `hooks` object and
   hydrates ${extensionPath}. Firing was not observed (no API key, no interactive session),
-  so the registry row is unchanged. Policies are deny-only by construction (the generator
-  forces decision = deny; Gemini ignores allow in extension policies): force push, branch
-  -D, and write_file/replace onto lockfiles, .yarn/releases/ and .github/workflows/. The
-  token is a manifest `settings[]` entry with `sensitive: true` (OS keychain) and
-  `envVar: GITHUB_PERSONAL_ACCESS_TOKEN`, set with `gemini extensions config
-  tamirs-superpowers GITHUB_PERSONAL_ACCESS_TOKEN`; measured: settings values reach the
-  extension's MCP servers only, not its hooks. Known limitation, not fixable from here: an
+  so the registry row is unchanged. Policies never allow (Gemini drops allow and yolo-mode
+  rules from an extension, and the generator refuses both): tamirs-superpowers.toml is
+  deny-only (force push, branch -D, and write_file/replace onto lockfiles, .yarn/releases/
+  and .github/workflows/); tamirs-superpowers-permissions.toml is ADR 004 D8's static layer,
+  mode-less ask_user for R4 command forms (holds under --yolo, denies with no TTY; measured
+  G3 on 0.66.0) and deny for host config CLIs, plugin-config.sh provision, protected paths
+  and the GitHub MCP tools the server excludes. permission-guard.sh runs on BeforeTool
+  run_shell_command and answers deny, never ask (a hook ask hangs headless, G1). It also
+  runs on the bundled GitHub MCP server's tools (BeforeTool ^(mcp_github_[A-Za-z0-9_.:-]+)$):
+  gemini-wrap.sh maps those calls to the Claude tool names (mcp_context.server_name github,
+  else the mcp_github_ prefix; another server's tool keeps its name) and turns any ask into
+  a deny; that the hook fires for an extension server's tools is source-read (0.60.0), not
+  measured live, so the static MCP denies above stay. The token is a manifest `settings[]` entry with `sensitive: true` (OS
+  keychain) and `envVar: GITHUB_PERSONAL_ACCESS_TOKEN`, set with `gemini extensions config
+  tamirs-superpowers GITHUB_PERSONAL_ACCESS_TOKEN`; TS_PERMISSION_LEVEL is a plain setting
+  stored in the extension's .env, where the permission resolver reads it (ADR 004 D3, D7).
+  The earlier 'settings reach MCP servers only' reading was taken with --skip-settings;
+  source shows hooks receive them too. Known limitation, not fixable from here: an
   extension installed from a bare git URL roots at the repo root, where hooks/hooks.json is
   the CLAUDE file (its ${CLAUDE_PLUGIN_ROOT} commands cannot run on Gemini) and agents/ is
   Claude-shaped (one `Invalid tool name` error per file); the gemini release tarball is the

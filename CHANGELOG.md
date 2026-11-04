@@ -5,14 +5,113 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [5.2.0] — 2026-11-04
+
 ### Added
 
-- **ADR 004 (accepted): configurable permission levels.** Design for letting users choose how
-  autonomous the plugin is — `supervised` (default), `standard`, `unattended` — over an R0–R4
-  danger rubric, with per-platform enforcement grounded in live checks of Claude Code 2.1.317,
-  Codex 0.166.0, Cursor, Gemini CLI 0.66.0 and OpenCode 2.2.5. Docs only; nothing changes
-  behaviour until the implementation lands. Research, audits, spikes and the security review:
-  `docs/engineering/research/permissions/`.
+- **Permission levels (ADR 004).** You choose how autonomous the plugin is: `supervised`
+  (the default), `standard` or `unattended`. Every action the plugin's skills and scripts can
+  take (push a branch, open a PR, comment, arm auto-merge, delete a branch, write config) has
+  an id and a risk class R0–R4 in `core/permissions/actions.json`, and the level decides which
+  of them run without asking you. R4 actions (releases, tags, creating or deleting a
+  repository, branch protection, host and policy config, spawning another agent host, typing
+  into a terminal) are never automatic at any level: only the host's own prompt on that very
+  call allows one. An action the catalog does not know is R4. A level governs the plugin's own
+  actions only and never widens or silences the host's prompts. A headless run turns every ask
+  into a deny that names the setting that would allow it. One resolver decides everything,
+  `scripts/resolve-permission.sh`; the full guide is the Permission levels section of
+  `docs/user/configuration.md`, the design is
+  `docs/engineering/decisions/004-permission-levels.md`.
+- **Choosing a level.** Claude Code: the `permission_level` option in the install dialog.
+  Gemini CLI: the `TS_PERMISSION_LEVEL` extension setting. Codex CLI, Cursor and OpenCode,
+  which have no install-time option: `bash scripts/setup.sh apply --permission-level <level>`
+  (or `SETUP_PERMISSION_LEVEL`), or the level prompt `setup.sh apply` now shows on a terminal
+  when one of them is in scope. It writes `~/.config/tamirs-superpowers/permissions.json`
+  (0600) and its lock, never prompts without a terminal, and changes an existing file only
+  after you confirm its diff. On Codex, `--codex-rules` also writes optional execpolicy
+  `prompt` rules for the R4 command forms. The lower of the host option and the file applies.
+- **`/plugin-config`**, a new skill (31 skills now), and its writer `scripts/plugin-config.sh`:
+  show the effective level and what every action would do, set or reset the level or a
+  per-skill level, and trust one repository's `.tamirs-superpowers/permissions.json`.
+  Tightening applies at once. Widening from inside an agent session becomes a pending request
+  that applies only after you approve it in the host's own dialog (Claude Code) or `ask_user`
+  prompt (Gemini CLI); on other hosts, widen from your own terminal.
+- **`--perms=<level>` on a skill command** lowers the level for the rest of that session. No
+  host offers a one-run raise today (Claude Code does not send a prompt's origin), so a raise
+  is refused with a pointer to `/plugin-config`.
+- **Per-skill levels** from your locked user file apply on Claude Code to the agent the host
+  recorded the skill for (a typed slash command, or a Skill tool call); a subagent never runs
+  above the main thread, and a repository file's per-skill levels only tighten.
+- **The permission guard, `hooks/permission-guard.sh`, on every platform**, enforced as far as
+  each host allows:
+  - **Claude Code:** shell commands and the bundled GitHub MCP tools, fail closed. An ask is
+    the host's own Yes/No dialog in the default, auto and bypassPermissions modes (measured),
+    a deny when headless, and the only route for an R4 call.
+  - **Codex CLI and Cursor:** shell commands (and Cursor's MCP calls), deny only, fail closed
+    on Cursor. An R4 call is denied with the command to run yourself.
+  - **Gemini CLI:** shell commands and the GitHub MCP tools through `hooks/gemini-wrap.sh`,
+    deny only, plus a static policy file (`ask_user` for the R4 forms, denies for host config
+    CLIs, protected paths and the MCP tools D8 excludes) that holds with hooks off and under
+    `--yolo`.
+  - **OpenCode:** `platforms/opencode/plugin/guard.ts` runs the same guard; R2 asks, R3 and R4
+    are denied, because `--auto` approves any ask.
+  - **Claude Desktop:** unverified; the GitHub MCP server flags still apply.
+  The bundled GitHub MCP server also starts with the flags your level allows
+  (`scripts/github-mcp.sh`, see Changed).
+- **`make doctor` checks permission floors.** Every host CLI on your PATH is compared with the
+  version its permission semantics were measured on (`permissions_min`: Claude Code 2.1.317,
+  Codex CLI 0.166.0, Cursor CLI 2026.10.22 and app 3.27.22, Gemini CLI 0.66.0, OpenCode
+  2.2.5). Below its floor a host runs every level above `supervised` as `supervised`, and the
+  resolver says so in its answer.
+- `permission_levels` is the 22nd capability in `core/capabilities/platforms.json`, one row per
+  supported surface.
+
+### Changed
+
+- **Behaviour change: auto-merge is off unless you configure it.** `pr-dev` and `deliver-dev`
+  used to arm `gh pr merge --auto` whenever the repository allowed auto-merge. Now
+  `resolve-merge-policy.sh` asks the resolver for the `pr.merge.auto` action and arms
+  auto-merge only when the answer is allow **and** the repository allows it. With no
+  configuration the answer is skip. To turn it back on, use the `unattended` level, or set
+  `"actions": {"pr.merge.auto": "allow"}` in your user file or in a trusted repository's
+  `.tamirs-superpowers/permissions.json`. `TAMIRS_AUTO_MERGE=always` no longer grants it (a
+  warning names the setting to use); `TAMIRS_AUTO_MERGE=never` and an objective's
+  `delivery.auto_merge: false` still turn it off. The output adds `auto_merge_verdict` and
+  `auto_merge_allow_with`, and `--host` passes the agent host to the resolver.
+- **Behaviour change: the bundled GitHub MCP server is read-only at `supervised`** (the
+  default). At `standard` and `unattended` it excludes `merge_pull_request`,
+  `delete_repository`, `create_repository`, `fork_repository` and the file, issue and review
+  write tools whose arguments can reach R3/R4, so those actions go through `gh`, where the
+  guard sees them. `merge_pull_request` is excluded at every level.
+- **`pr-dev --admin` is an R4 action** (`pr.merge.admin`): it asks on the host prompt at every
+  level, and is denied while a required check is failing, pending or unknown.
+
+### Security
+
+- **Protected paths in `guard-sensitive-files.sh` (behaviour change).** An agent can no longer
+  write the plugin's permission policy, its own guard files or host settings: the permission
+  files, lock and state, the running plugin's `hooks/` and permission scripts, a repository's
+  `.tamirs-superpowers/`, `~/.claude/settings*.json` and a repository's
+  `.claude/settings*.json`, the Gemini, Codex, Cursor and OpenCode config files, `~/.config/gh/`
+  and `~/.gitconfig` (the `policy.edit` and `config.global.write` paths in
+  `core/permissions/actions.json`). These are checked first, by lexical path and by realpath,
+  and the deny asks the agent to have you make the change yourself. An `ln` or `mv` whose
+  source is protected, deleting a directory that contains a protected path, and a write the
+  guard cannot resolve that names one are denied too. `PM_ALLOW_PROTECTED` no longer unlocks
+  them (it still unlocks the lockfile, workflow, shadcn and build-output rules). When the plugin
+  runs from a source checkout, a write to its guard files is an R4 ask instead.
+- **No route around a guard is suggested.** The deny messages no longer name the GitHub MCP
+  file-write tool as a way to edit a workflow file, on any platform.
+- **The guard fails closed.** Every error, timeout or malformed answer inside the permission
+  guard is a deny. It denies the host config CLIs and `plugin-config.sh provision` outright,
+  and `plugin-config.sh confirm` on Claude Code requires the guard's own stamp proving the
+  confirm went to the host dialog.
+- **Nothing answers a host prompt for you.** No hook, mod handler or OpenCode plugin call that
+  could approve a host permission prompt is shipped (no `PermissionRequest` hook, no mod
+  `tool.check`, no OpenCode session allow); `tests/test-manifest-invariants.sh` holds it.
+- **Permission state follows your passwd home.** The resolver, the guard and the writer read
+  your account's home from the passwd entry, never `HOME` or `XDG_*`, and check owner, mode and
+  parent directories of every file they trust.
 
 ## [5.1.3] — 2026-11-03
 
@@ -306,7 +405,7 @@ setting; the Agent Plugins manifest lives under `platforms/agent-plugins/`, neve
   string — are classified and printed, every other finding fails, `--spec-strict` promotes
   the divergences, and an unreachable registry skips rather than fails. CI's `skill-contract`
   job runs it beside `tests/test-skill-contract.sh --strict` (every warning a failure; eval
-  coverage now 30 of 30 skills, with fallback cases added to `diagnose-refusal` and
+  coverage now `30 of 30 skills`, with fallback cases added to `diagnose-refusal` and
   `usage-capture`).
 - **Hook conformance.** `tests/test-hook-conformance.sh` (940 checks): one scenario corpus (a
   plain checkout; an active objective with a task worktree) replayed through every wired

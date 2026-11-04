@@ -18,7 +18,7 @@ See [`AGENTS.md`](AGENTS.md#commands) for the full list. `make validate` before 
 
 Do not assume these exist on other providers — check [`core/capabilities/platforms.json`](core/capabilities/platforms.json) first, and degrade explicitly per [`core/policies/safety.md`](core/policies/safety.md).
 
-Per-release host notes, 2.1.234 through 2.1.317, with what was adopted and what was reviewed and declined: [`docs/engineering/host-notes/claude-code.md`](docs/engineering/host-notes/claude-code.md).
+Per-release host notes, 2.1.234 through 2.1.318, with what was adopted and what was reviewed and declined: [`docs/engineering/host-notes/claude-code.md`](docs/engineering/host-notes/claude-code.md).
 
 - **Subagents** (`Agent` tool) — parallel worker execution, measured on Claude Code; not exercised on Desktop. Every `agents/*.md` pins its model alias in `model:`. A worker that stops on its own `maxTurns` comes back marked `partial`, which the handoff vocabulary in [`worker-dev`](skills/dev-workflow/worker-dev/SKILL.md) already treats as "decide, never quietly integrate around it."
 - **Project instructions** — Claude Code loads a project's `CLAUDE.md` (falling back to `AGENTS.md`); Desktop, Cursor, Codex and OpenCode read `AGENTS.md`. This repo ships both. A `CLAUDE.md` at a *plugin* root is never loaded as plugin context, which is why this file is a contributor page, not an instruction file.
@@ -80,10 +80,10 @@ The two flags are **independent** — not a package deal:
 | Tier | `user-invocable` | `disable-model-invocation` | Examples |
 |------|:---:|:---:|----------|
 | User + auto-trigger (default) | `true` | `false` | plan-dev, start-dev, pr-dev, switch-dev, repo-standards, cleanup, retro |
-| Explicit-only (slash, no auto) | `true` | `true` | *(none — see below)* |
+| Explicit-only (slash, no auto) | `true` | `true` | plugin-config |
 | Internal companion | `false` | `false` | docs-review, mcp-pagination, changelog-review |
 
-No skill is Explicit-only today. `switch-dev` was, and the gate cost the repo the skill's whole point: it is what an agent should reach for when a session hits a rate limit mid-objective, which is precisely when the user is not in a position to type `/switch-dev`, and the gate also made it unreachable from `orchestrate-dev`/`worker-dev` — so an orchestrated run that hit a limit could not hand off and simply died. Zero invocations across 953 sessions was the measured result.
+`plugin-config` is the one Explicit-only skill, and deliberately: it changes the plugin's own permission policy, so the model must never reach for it on its own initiative, and on Claude the same flag keeps subagents and workflows from invoking it (ADR 004 D6). Its body only hands the user's arguments to `scripts/plugin-config.sh`, the deterministic writer; Codex gets `agents/openai.yaml` with `allow_implicit_invocation: false`, OpenCode a code command. No other skill should be Explicit-only. `switch-dev` was, and the gate cost the repo the skill's whole point: it is what an agent should reach for when a session hits a rate limit mid-objective, which is precisely when the user is not in a position to type `/switch-dev`, and the gate also made it unreachable from `orchestrate-dev`/`worker-dev` — so an orchestrated run that hit a limit could not hand off and simply died. Zero invocations across 953 sessions was the measured result.
 
 **Gating warning:** `disable-model-invocation: true` also blocks **subagent and workflow orchestration** — a subagent invoking a skill *is* model invocation, so a gated skill cannot be fanned out across subagents. Gate only a skill that must *never* run autonomously. Prefer putting safety **inside** the skill: `cleanup` stays model-invocable with confirmation gates, a dry-run, and a script that only touches provably-safe targets; `retro` stays model-invocable because it only *proposes* changes and never writes without approval.
 

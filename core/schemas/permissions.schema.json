@@ -1,0 +1,160 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/Tamircohen28/tamirs-superpowers/core/schemas/permissions.schema.json",
+  "title": "Permission configuration: user file, project file and lock",
+  "description": "ADR 004 D3. The root validates the canonical user file, <home>/.config/tamirs-superpowers/permissions.json, where <home> comes from the passwd entry, never HOME or XDG_*. The project file, <repo>/.tamirs-superpowers/permissions.json, validates against #/$defs/project_file; the lock beside the user file, permissions.lock, against #/$defs/lock_file. Every object is closed and every string ASCII. An invalid file means supervised, overrides ignored, warning (fail closed). What a schema cannot see is the resolver's (D4): skill and group membership in the shipped tree, project entries only tightening, trust widening only for a matching hash, remote and origin.",
+  "$ref": "#/$defs/user_file",
+  "$defs": {
+    "user_file": {
+      "type": "object",
+      "required": ["version"],
+      "additionalProperties": false,
+      "properties": {
+        "version": { "$ref": "#/$defs/version" },
+        "level": { "$ref": "#/$defs/level" },
+        "groups": { "$ref": "#/$defs/groups" },
+        "skills": { "$ref": "#/$defs/skills" },
+        "actions": { "$ref": "#/$defs/user_actions" },
+        "skill_actions": {
+          "type": "object",
+          "propertyNames": { "$ref": "#/$defs/skill_id" },
+          "additionalProperties": { "$ref": "#/$defs/user_actions" }
+        },
+        "trust": { "type": "array", "items": { "$ref": "#/$defs/trust_entry" } }
+      }
+    },
+    "project_file": {
+      "description": "Committable and tighten-only, except actions[\"pr.merge.auto\"], which may be allow once /plugin-config trust has recorded this file's sha256 in the user file (D3, SR S-15). It never carries trust.",
+      "type": "object",
+      "required": ["version"],
+      "additionalProperties": false,
+      "properties": {
+        "version": { "$ref": "#/$defs/version" },
+        "level": { "$ref": "#/$defs/level" },
+        "groups": { "$ref": "#/$defs/groups" },
+        "skills": { "$ref": "#/$defs/skills" },
+        "actions": { "$ref": "#/$defs/project_actions" },
+        "skill_actions": {
+          "type": "object",
+          "propertyNames": { "$ref": "#/$defs/skill_id" },
+          "additionalProperties": { "$ref": "#/$defs/project_actions" }
+        }
+      }
+    },
+    "lock_file": {
+      "description": "Written only by the D6 writer (scripts/plugin-config.sh). by = provision marks a lock CI wrote before the agent started (D6, SR S-18).",
+      "type": "object",
+      "required": ["sha256", "by", "at"],
+      "additionalProperties": false,
+      "properties": {
+        "sha256": { "$ref": "#/$defs/sha256" },
+        "by": { "enum": ["plugin-config", "provision"] },
+        "at": { "$ref": "#/$defs/timestamp" }
+      }
+    },
+    "version": { "type": "integer", "const": 1 },
+    "level": { "enum": ["supervised", "standard", "unattended"] },
+    "verdict": { "enum": ["allow", "ask", "deny"] },
+    "verdict_r4": {
+      "description": "An R4 id accepts only ask or deny: nothing allows R4 automatically (D1, D3).",
+      "enum": ["ask", "deny"]
+    },
+    "skill_id": { "type": "string", "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$" },
+    "group_id": {
+      "description": "A skill category: the domain directory under skills/ (dev-workflow, repo, toolkit, ...).",
+      "type": "string",
+      "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$"
+    },
+    "groups": {
+      "type": "object",
+      "propertyNames": { "$ref": "#/$defs/group_id" },
+      "additionalProperties": {
+        "description": "skills is a snapshot: a skill added to the group later gets a group raise only after re-confirmation (P 5.6).",
+        "type": "object",
+        "required": ["level", "skills"],
+        "additionalProperties": false,
+        "properties": {
+          "level": { "$ref": "#/$defs/level" },
+          "skills": { "type": "array", "items": { "$ref": "#/$defs/skill_id" }, "uniqueItems": true }
+        }
+      }
+    },
+    "skills": {
+      "type": "object",
+      "propertyNames": { "$ref": "#/$defs/skill_id" },
+      "additionalProperties": { "$ref": "#/$defs/level" }
+    },
+    "action_id": {
+      "description": "A canonical id of core/permissions/actions.json (aliases are not accepted). tests/test-permission-catalog.sh holds this list equal to the catalog.",
+      "enum": [
+        "repo.read", "net.get", "secrets.read.config", "env.read.names", "file.write.repo", "git.commit",
+        "git.branch.create", "git.index.untrack", "git.merge.local", "git.rebase.own", "git.sync.ff", "git.worktree.add",
+        "worktree.remove", "worktree.cleanup", "branch.delete.local", "fs.build_dirs.delete", "work.discard", "agent.spawn",
+        "server.local.start", "browser.open", "code.exec.repo_script", "git.push.branch", "pr.create", "pr.comment",
+        "pr.review_request", "ci.rerun", "pr.update_branch", "pr.thread.resolve", "issue.create", "issue.comment",
+        "issue.edit", "label.create", "label.edit", "copilot.assign", "file.write.remote", "notify.send",
+        "net.post.external", "secrets.collect.chat", "daemon.start", "daemon.stop", "deps.install", "pr.merge.auto",
+        "pr.merge", "branch.delete.remote", "pr.close", "issue.close", "git.push.default", "git.push.force",
+        "pr.review.approve", "repo.settings.merge", "file.write.outside_repo", "handoff.force", "commit.status.write", "check_run.write",
+        "process.kill", "pkg.install.network", "pkg.exec.network", "docker.state", "code.exec.foreign_repo", "git.verify.skip",
+        "pr.merge.admin", "git.push.force.default", "release.create", "tag.push", "process.spawn.agent_host", "tty.drive",
+        "repo.create", "repo.delete", "ruleset.apply", "ruleset.apply.org", "branch_protection.write", "workflow.edit",
+        "config.global.write", "config.policy.stage", "secrets.capture.bodies", "policy.edit", "worktree.remove.force", "worktree.drop",
+        "git.reset_to_remote"
+      ]
+    },
+    "user_actions": {
+      "description": "Per-action verdicts. The properties list is every R4 id of the catalog, restricted to ask or deny; tests/test-permission-catalog.sh holds it equal to the catalog's R4 set.",
+      "type": "object",
+      "propertyNames": { "$ref": "#/$defs/action_id" },
+      "additionalProperties": { "$ref": "#/$defs/verdict" },
+      "properties": {
+        "git.verify.skip": { "$ref": "#/$defs/verdict_r4" },
+        "pr.merge.admin": { "$ref": "#/$defs/verdict_r4" },
+        "git.push.force.default": { "$ref": "#/$defs/verdict_r4" },
+        "release.create": { "$ref": "#/$defs/verdict_r4" },
+        "tag.push": { "$ref": "#/$defs/verdict_r4" },
+        "process.spawn.agent_host": { "$ref": "#/$defs/verdict_r4" },
+        "tty.drive": { "$ref": "#/$defs/verdict_r4" },
+        "repo.create": { "$ref": "#/$defs/verdict_r4" },
+        "repo.delete": { "$ref": "#/$defs/verdict_r4" },
+        "ruleset.apply": { "$ref": "#/$defs/verdict_r4" },
+        "ruleset.apply.org": { "$ref": "#/$defs/verdict_r4" },
+        "branch_protection.write": { "$ref": "#/$defs/verdict_r4" },
+        "workflow.edit": { "$ref": "#/$defs/verdict_r4" },
+        "config.global.write": { "$ref": "#/$defs/verdict_r4" },
+        "config.policy.stage": { "$ref": "#/$defs/verdict_r4" },
+        "secrets.capture.bodies": { "$ref": "#/$defs/verdict_r4" },
+        "policy.edit": { "$ref": "#/$defs/verdict_r4" },
+        "worktree.remove.force": { "$ref": "#/$defs/verdict_r4" },
+        "worktree.drop": { "$ref": "#/$defs/verdict_r4" },
+        "git.reset_to_remote": { "$ref": "#/$defs/verdict_r4" }
+      }
+    },
+    "project_actions": {
+      "description": "A project file may only tighten: ask or deny everywhere, and allow only for pr.merge.auto (honoured once trusted).",
+      "type": "object",
+      "propertyNames": { "$ref": "#/$defs/action_id" },
+      "additionalProperties": { "$ref": "#/$defs/verdict_r4" },
+      "properties": {
+        "pr.merge.auto": { "$ref": "#/$defs/verdict" }
+      }
+    },
+    "trust_entry": {
+      "description": "One trusted project file (D3): its repo realpath (shared by the repo's worktrees), the remote it may act on, and the sha256 it was confirmed at. Widening applies only when the action's target repo equals remote and the checkout's origin; a changed hash or a new clone ignores it with a notice.",
+      "type": "object",
+      "required": ["repo", "remote", "file", "sha256", "widens", "at"],
+      "additionalProperties": false,
+      "properties": {
+        "repo": { "type": "string", "pattern": "^/[ -~]*$" },
+        "remote": { "type": "string", "pattern": "^[A-Za-z0-9.-]+(:[0-9]+)?/[A-Za-z0-9._-]+/[A-Za-z0-9._-]+$" },
+        "file": { "const": ".tamirs-superpowers/permissions.json" },
+        "sha256": { "$ref": "#/$defs/sha256" },
+        "widens": { "type": "array", "items": { "const": "pr.merge.auto" }, "minItems": 1, "uniqueItems": true },
+        "at": { "$ref": "#/$defs/timestamp" }
+      }
+    },
+    "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "timestamp": { "type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$" }
+  }
+}

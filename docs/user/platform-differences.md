@@ -137,6 +137,7 @@ them.
 | `mcp` | native | native | native | native | native | native |
 | `statusline` | native | unsupported | unsupported | unsupported | unsupported | adapter |
 | `mods` | native | native | unsupported | unsupported | unsupported | adapter |
+| `permission_levels` | native | unknown | partial | partial | partial | partial |
 | `shell` | native | partial | native | native | native | native |
 | `git` | native | partial | native | native | native | native |
 | `github_cli` | native | unknown | native | native | native | native |

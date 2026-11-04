@@ -1,8 +1,8 @@
 {
   "name": "tamirs-superpowers",
   "displayName": "Tamir's Superpowers",
-  "version": "5.1.3",
-  "description": "30 bundled skills, 10 specialist agents, smart worktree hooks, statusline, and MCP server stubs — plan, implement, review, debug, multi-agent setup, and audit code from one plugin.",
+  "version": "5.2.0",
+  "description": "31 bundled skills, 10 specialist agents, smart worktree hooks, statusline, and MCP server stubs — plan, implement, review, debug, multi-agent setup, and audit code from one plugin.",
   "homepage": "https://github.com/Tamircohen28/tamirs-superpowers",
   "repository": "https://github.com/Tamircohen28/tamirs-superpowers",
   "documentationUrl": "https://github.com/Tamircohen28/tamirs-superpowers/blob/master/docs/user/install/claude-code.md",
@@ -43,6 +43,13 @@
     }
   },
   "userConfig": {
+    "permission_level": {
+      "type": "string",
+      "title": "Permission level (how much the skills do without asking you)",
+      "description": "supervised (default): asks before anything that leaves this machine - push, open a PR, comment, merge, delete a branch. standard: pushes its own branches, opens PRs and comments without asking; still asks before merging, closing or deleting. unattended: also arms auto-merge, deletes merged branches and closes finished PRs and issues, each only when its safety precondition holds. The riskiest actions ask at every level. It governs the plugin, never Claude Code's own prompts; the lower of this and ~/.config/tamirs-superpowers/permissions.json applies (ADR 004).",
+      "options": ["supervised", "standard", "unattended"],
+      "default": "supervised"
+    },
     "github_token": {
       "type": "string",
       "title": "GitHub token for the bundled github MCP server",

@@ -165,7 +165,11 @@ SUMS_BEFORE="$(cksum "$CODEX_DIR/AGENTS.md" "$GEMINI_DIR/GEMINI.md" "$MDC" \
 OUT2="$(run_setup apply)"
 judge "second apply reports everything up to date" yes \
   "$(has "$OUT2" 'Everything is already up to date')"
-judge "second apply wrote nothing" no "$(has "$OUT2" 'written')"
+# A write is reported as `  ok  <platform>  <file>  written`. Match that line, not the bare
+# word: the permission-level step (ADR 004 item 9) prints "nothing written (no terminal to
+# ask on)" on every non-interactive run, which is the opposite of a write.
+judge "second apply wrote nothing" no \
+  "$(if printf '%s\n' "$OUT2" | grep -Eq '^[[:space:]]*ok[[:space:]].*[[:space:]]written[[:space:]]*$'; then echo yes; else echo no; fi)"
 
 SUMS_AFTER="$(cksum "$CODEX_DIR/AGENTS.md" "$GEMINI_DIR/GEMINI.md" "$MDC" \
   "$OPENCODE_DIR/AGENTS.md" "$CODEX_DIR/config.toml" "$GEMINI_DIR/settings.json" \

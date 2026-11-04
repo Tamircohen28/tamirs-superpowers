@@ -330,3 +330,15 @@ claude_exit_guard_unrender() { printf '%s' "$SETUP_DELETE_SENTINEL"; }
 claude_exit_guard_destructive() { printf 'no'; }
 claude_exit_guard_postwrite() { chmod +x "$1" 2>/dev/null || true; }
 claude_exit_guard_summary() { printf 'proxy=%s ip=%s' "${CLAUDE_EXIT_PROXY:-}" "${CLAUDE_EXIT_PUBLIC_IP:-}"; }
+
+# ---------------------------------------------------------------------------
+# permission level route (ADR 004 D7)
+# ---------------------------------------------------------------------------
+# Claude Code asks for userConfig.permission_level in the plugin's install
+# dialog, so setup does not ask again for Claude alone; it prints the route. The
+# user file setup writes for another host still applies here: the effective level
+# is the lower of the two (D3).
+# shellcheck disable=SC2016  # the backticks are literal Markdown-style quoting
+claude_permission_level_route() {
+  printf 'note:Claude Code: the level is the plugin option permission_level, picked at install; change it with /config or /plugin configure (or `claude plugin configure` in your own terminal).'
+}

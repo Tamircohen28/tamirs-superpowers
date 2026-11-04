@@ -197,3 +197,324 @@ setup_json_normalize() { jq --indent 2 '.'; }
 setup_json_merge() {
   printf '%s' "$1" | jq --argjson b "$2" "${SETUP_JQ_DEEPMERGE} deepmerge(\$b)"
 }
+
+# --- permission level (ADR 004 D3, D7, D10) ----------------------------------
+# The one setup step that is not a module: it writes the plugin's USER policy
+# file, not a host config file, and the file is the user's from the moment it
+# exists. So it is never "rendered" onto the machine, never backed up and
+# restored by `remove`, and never rewritten without the user seeing the diff.
+#
+# WHERE IT WRITES
+#   Exactly where the resolver reads: scripts/lib/permission-common.sh resolves
+#   the passwd home (never HOME or XDG_*, SR S-04), so this step asks that library
+#   for the path instead of computing one. When TAMIRS_PERMISSION_TEST_ROOT is set
+#   but the library refused it, the step refuses to write at all: a test that
+#   meant a temp root must never land in the real home.
+#
+# WHAT IT WRITES (D3, D10.2)
+#   permissions.json (0600, dir 0700) with `version` and `level`, every other key
+#   of an existing file kept, and its lock {sha256, by: plugin-config, at} --
+#   written by scripts/plugin-config.sh (`set <level>`), the D6 writer, never by
+#   this file: one writer, one lock format. This step is the writer's
+#   out-of-session path (D5: `make setup`, asks once on a TTY); inside an agent
+#   session the writer holds a raise pending until it is confirmed.
+#
+# WHEN IT WRITES
+#   * --permission-level <level> or the TTY prompt picks a level.
+#   * Non-interactive (--yes, no TTY, CI): never prompts. No flag => nothing is
+#     written (an absent file means supervised). A flag writes a NEW file only:
+#     an existing file changes only after its diff is confirmed on a terminal, and
+#     a raise is refused outright without one.
+#   * An existing file that is unreadable or fails the schema is never touched.
+
+SETUP_PERM_DIR=""; SETUP_PERM_FILE=""; SETUP_PERM_LOCK=""
+SETUP_PERM_HOME_SOURCE=""; SETUP_PERM_WRITABLE=""
+SETUP_PERM_STATE=""; SETUP_PERM_CUR_LEVEL=""; SETUP_PERM_LOCK_STATE=""; SETUP_PERM_REASON=""
+
+setup_perm_valid_level() {
+  case "$1" in supervised|standard|unattended) return 0 ;; *) return 1 ;; esac
+}
+
+setup_perm_rank() {
+  case "$1" in standard) printf 1 ;; unattended) printf 2 ;; *) printf 0 ;; esac
+}
+
+# setup_perm_lib — source the resolver library once. Returns 1 when it is absent
+# or unusable; the step then reports and writes nothing.
+setup_perm_lib() {
+  local lib="${SETUP_REPO_ROOT:-}/scripts/lib/permission-common.sh"
+  if command -v perm_dirs >/dev/null 2>&1; then return 0; fi
+  [ -f "$lib" ] || return 1
+  # shellcheck source=scripts/lib/permission-common.sh
+  . "$lib" || return 1
+  command -v perm_dirs >/dev/null 2>&1
+}
+
+# setup_perm_paths — sets SETUP_PERM_DIR/FILE/LOCK/HOME_SOURCE and
+# SETUP_PERM_WRITABLE ("yes" or "no:<reason>"). Returns 1 when no path resolves.
+setup_perm_paths() {
+  local j=""
+  SETUP_PERM_DIR=""; SETUP_PERM_FILE=""; SETUP_PERM_LOCK=""; SETUP_PERM_HOME_SOURCE=""
+  if ! setup_perm_lib; then
+    SETUP_PERM_WRITABLE="no:scripts/lib/permission-common.sh is missing from this checkout"
+    return 1
+  fi
+  j="$(perm_dirs 2>/dev/null)" || j=""
+  if [ -n "$j" ]; then
+    SETUP_PERM_DIR="$(printf '%s' "$j" | jq -r '.config_dir // empty' 2>/dev/null)" || SETUP_PERM_DIR=""
+    SETUP_PERM_HOME_SOURCE="$(printf '%s' "$j" | jq -r '.home_source // empty' 2>/dev/null)" || SETUP_PERM_HOME_SOURCE=""
+  fi
+  case "$SETUP_PERM_DIR" in
+    /*) ;;
+    *) SETUP_PERM_WRITABLE="no:the permission library could not resolve the passwd home (python3 is required)"
+       SETUP_PERM_DIR=""
+       return 1 ;;
+  esac
+  SETUP_PERM_FILE="$SETUP_PERM_DIR/permissions.json"
+  SETUP_PERM_LOCK="$SETUP_PERM_DIR/permissions.lock"
+  if [ -n "${TAMIRS_PERMISSION_TEST_ROOT:-}" ] && [ "$SETUP_PERM_HOME_SOURCE" != test-root ]; then
+    SETUP_PERM_WRITABLE="no:TAMIRS_PERMISSION_TEST_ROOT is set but the resolver refused it, so the path is the real home; refusing to write there"
+  else
+    SETUP_PERM_WRITABLE=yes
+  fi
+  return 0
+}
+
+# setup_perm_state — the user file as the resolver sees it: SETUP_PERM_STATE
+# (absent | invalid | verified | tighten-only), SETUP_PERM_CUR_LEVEL (empty when
+# the file has no `level`), SETUP_PERM_LOCK_STATE and SETUP_PERM_REASON.
+setup_perm_state() {
+  local j=""
+  SETUP_PERM_STATE=""; SETUP_PERM_CUR_LEVEL=""; SETUP_PERM_LOCK_STATE=""; SETUP_PERM_REASON=""
+  j="$(perm_load_user_file 2>/dev/null)" || j=""
+  if [ -z "$j" ] || ! printf '%s' "$j" | jq -e 'type == "object"' >/dev/null 2>&1; then
+    SETUP_PERM_STATE=invalid
+    SETUP_PERM_REASON="the permission library could not read it"
+    return 0
+  fi
+  SETUP_PERM_STATE="$(printf '%s' "$j" | jq -r '.state // "invalid"')"
+  SETUP_PERM_CUR_LEVEL="$(printf '%s' "$j" | jq -r '.level // empty')"
+  SETUP_PERM_LOCK_STATE="$(printf '%s' "$j" | jq -r '.lock // empty')"
+  SETUP_PERM_REASON="$(printf '%s' "$j" | jq -r '.reason // empty')"
+}
+
+# setup_perm_render <level> — the file as it should be, on stdout. An existing
+# valid file keeps every other key; the writer's formatting (jq -S, 2 spaces).
+setup_perm_render() {
+  local level="$1"
+  if [ -f "$SETUP_PERM_FILE" ] && [ "$SETUP_PERM_STATE" != absent ] && [ "$SETUP_PERM_STATE" != invalid ]; then
+    jq -S --indent 2 --arg l "$level" '.level = $l' "$SETUP_PERM_FILE"
+  else
+    jq -n -S --indent 2 --arg l "$level" '{version: 1, level: $l}'
+  fi
+}
+
+# setup_perm_write <level> — through the D6 writer, scripts/plugin-config.sh, the
+# one writer of the user file and its lock (ADR 004 D6): the same schema check,
+# sorted-key serialisation, atomic replace, .bak and lock (hashed with the
+# library's sha256, `by: plugin-config`) as /plugin-config. Every other key of the
+# file is kept. The writer applies a raise at once only in the user's own
+# interactive terminal -- no agent host or marker in the process ancestry, not
+# reparented, a controlling TTY, HOME/PATH/TERM set -- and only after `y` is typed
+# on /dev/tty, so a raise chosen in the setup menu is asked a second time there
+# (D5, D6; the second adversarial pass, F1). A `n` there is exit 3. Anywhere else
+# -- an agent session, no TTY, a cleared environment, a reparented run -- it records
+# the raise pending (exit 4) and prints the `confirm <nonce>` that applies it under
+# a host-attested human proof (D5). Either way setup reports the level as not written.
+setup_perm_write() {
+  local level="$1" out rc writer="${SETUP_REPO_ROOT:-}/scripts/plugin-config.sh"
+  case "$SETUP_PERM_WRITABLE" in
+    yes) ;;
+    *) setup_err "permission level not written: ${SETUP_PERM_WRITABLE#no:}"; return 1 ;;
+  esac
+  [ -f "$writer" ] || { setup_err "permission level not written: scripts/plugin-config.sh is missing from this checkout"; return 1; }
+  out="$(bash "$writer" set "$level" 2>&1)" && rc=0 || rc=$?
+  case "$rc" in
+    0) return 0 ;;
+    4) printf '%s\n' "$out" | sed 's/^/  /'
+       setup_err "permission level not written yet: this runs inside an agent session, so the raise waits for the confirm above (ADR 004 D5)"
+       return 1 ;;
+    *) printf '%s\n' "$out" | sed 's/^/  /'
+       setup_err "permission level not written (scripts/plugin-config.sh exited $rc)"
+       return 1 ;;
+  esac
+}
+
+# setup_perm_menu — the choice, on stderr (human output; never stdout, never stdin).
+setup_perm_menu() {
+  local def="$1"
+  {
+    printf '\n%sPermission level%s — how much the plugin'"'"'s skills do without asking you (ADR 004)\n' "$SETUP_C_BOLD" "$SETUP_C_OFF"
+    printf '  1) supervised   the default. Asks before anything that leaves this machine:\n'
+    printf '                  push, open a PR, comment, merge, delete a branch.\n'
+    printf '  2) standard     pushes its own branches, opens PRs and comments without asking;\n'
+    printf '                  still asks before merging, closing or deleting anything.\n'
+    printf '  3) unattended   also arms auto-merge, deletes merged branches and closes finished\n'
+    printf '                  PRs and issues, each only when its safety precondition holds.\n'
+    printf '  The riskiest actions (releases, repository create/delete, force-push to the default\n'
+    printf '  branch, editing policy) ask at every level. A level governs the plugin, never the\n'
+    printf '  host: its own approval prompts stay. On Codex, Cursor and OpenCode an "ask" arrives\n'
+    printf '  as a refusal that names the command for you to run.\n'
+    printf '  Stored in %s (0600, locked); k keeps things as they are.\n' "$(setup_tilde "$SETUP_PERM_FILE")"
+    printf '  Enter = %s\n' "$def"
+  } >&2
+}
+
+# setup_perm_choose <default> — prints supervised | standard | unattended | keep.
+# Three unrecognised answers mean keep: a typo never picks a level.
+setup_perm_choose() {
+  local def="$1" ans n=0
+  setup_perm_menu "$def"
+  while [ "$n" -lt 3 ]; do
+    n=$((n + 1))
+    ans="$(setup_lower "$(setup_ask "Level [1/2/3, k = keep] (${def}): " "$def")")"
+    case "$ans" in
+      1|supervised) printf 'supervised'; return 0 ;;
+      2|standard) printf 'standard'; return 0 ;;
+      3|unattended) printf 'unattended'; return 0 ;;
+      k|keep|skip|n|no|none) printf 'keep'; return 0 ;;
+      *) setup_note "'$ans' is not one of 1, 2, 3 or k" ;;
+    esac
+  done
+  printf 'keep'
+}
+
+# setup_permission_level_step <plan|apply|remove>
+#   Globals read: SETUP_PERMISSION_LEVEL (the --permission-level value),
+#   SETUP_PERM_PROMPT_ROUTE (yes when a target in scope has no install-time level
+#   option: Codex, Cursor, OpenCode, D7) and SETUP_PERM_NOTES (one line per host
+#   whose own installer sets the level: Claude, Gemini).
+#   Returns 1 only when an explicit --permission-level could not be applied.
+setup_permission_level_step() {
+  local mode="$1" flag="${SETUP_PERMISSION_LEVEL:-}" want="" def cur new curf rank_want rank_cur ans line
+  if [ -z "$flag" ] && [ "${SETUP_PERM_PROMPT_ROUTE:-no}" != yes ] && [ -z "${SETUP_PERM_NOTES:-}" ]; then
+    return 0
+  fi
+  # remove: the file is the user's policy, never an installed artefact. Say so
+  # when one exists; print nothing else.
+  if [ "$mode" = remove ]; then
+    if setup_perm_paths && [ -f "$SETUP_PERM_FILE" ]; then
+      printf '\n%sPermission level%s\n' "$SETUP_C_BOLD" "$SETUP_C_OFF"
+      printf '  %s left in place: it is your policy, not an installed file. Delete it to return to supervised.\n' "$(setup_tilde "$SETUP_PERM_FILE")"
+    fi
+    return 0
+  fi
+  printf '\n%sPermission level%s\n' "$SETUP_C_BOLD" "$SETUP_C_OFF"
+  if [ -n "${SETUP_PERM_NOTES:-}" ]; then
+    while IFS= read -r line; do
+      [ -n "$line" ] && printf '  %s\n' "$line"
+    done <<EOT
+$SETUP_PERM_NOTES
+EOT
+  fi
+  if [ -z "$flag" ] && [ "${SETUP_PERM_PROMPT_ROUTE:-no}" != yes ]; then
+    return 0
+  fi
+
+  if ! setup_perm_paths; then
+    setup_warn "permission level: ${SETUP_PERM_WRITABLE#no:}"
+    [ -n "$flag" ] && return 1
+    return 0
+  fi
+  setup_perm_state
+  case "$SETUP_PERM_STATE" in
+    absent) printf '  %s: none yet, so every host runs supervised\n' "$(setup_tilde "$SETUP_PERM_FILE")" ;;
+    invalid) printf '  %s: INVALID (%s)\n' "$(setup_tilde "$SETUP_PERM_FILE")" "$SETUP_PERM_REASON" ;;
+    *) printf '  %s: level %s, lock %s%s\n' "$(setup_tilde "$SETUP_PERM_FILE")" \
+         "${SETUP_PERM_CUR_LEVEL:-unset (supervised)}" "${SETUP_PERM_LOCK_STATE:-unknown}" \
+         "$( [ "$SETUP_PERM_STATE" = verified ] || printf ' — read tighten-only: %s' "$SETUP_PERM_REASON")" ;;
+  esac
+
+  case "$mode" in
+    plan)
+      if [ -n "$flag" ]; then printf '  apply would set the level to %s\n' "$flag"
+      else printf '  apply asks for a level on a terminal; --permission-level <level> sets it\n'; fi
+      return 0 ;;
+  esac
+
+  if [ "$SETUP_PERM_STATE" = invalid ]; then
+    setup_warn "permission level: $(setup_tilde "$SETUP_PERM_FILE") is not touched while it is invalid; fix or delete it (D3: until then it reads as supervised)"
+    [ -n "$flag" ] && return 1
+    return 0
+  fi
+
+  def="${SETUP_PERM_CUR_LEVEL:-supervised}"
+  if [ -n "$flag" ]; then
+    want="$flag"
+  elif setup_can_prompt; then
+    want="$(setup_perm_choose "$def")"
+  elif [ "$SETUP_PERM_STATE" = absent ]; then
+    printf '  nothing written (no terminal to ask on). Set one with --permission-level <level>.\n'
+    return 0
+  else
+    printf '  kept as is (no terminal to ask on)\n'
+    return 0
+  fi
+  if [ "$want" = keep ]; then
+    printf '  kept as is\n'
+    return 0
+  fi
+
+  new="$(mktemp)"
+  if ! setup_perm_render "$want" > "$new" 2>/dev/null; then
+    rm -f "$new"; setup_err "permission level: cannot render $(setup_tilde "$SETUP_PERM_FILE")"; return 1
+  fi
+
+  if [ "$SETUP_PERM_STATE" = absent ]; then
+    if setup_perm_write "$want"; then
+      rm -f "$new"
+      setup_perm_report_written "$want"
+      return 0
+    fi
+    rm -f "$new"; return 1
+  fi
+
+  curf="$(mktemp)"
+  jq -S --indent 2 '.' "$SETUP_PERM_FILE" > "$curf" 2>/dev/null || cp "$SETUP_PERM_FILE" "$curf"
+  if cmp -s "$curf" "$new" && [ "$SETUP_PERM_LOCK_STATE" = match ] && [ "$SETUP_PERM_STATE" = verified ]; then
+    rm -f "$new" "$curf"
+    printf '  already %s — nothing to do\n' "$want"
+    return 0
+  fi
+  printf '%s\n' "$(setup_diff "$curf" "$new")"
+  rm -f "$curf"
+
+  if ! setup_can_prompt; then
+    rm -f "$new"
+    cur="${SETUP_PERM_CUR_LEVEL:-supervised}"
+    rank_want="$(setup_perm_rank "$want")"; rank_cur="$(setup_perm_rank "$cur")"
+    if [ "$rank_want" -gt "$rank_cur" ]; then
+      setup_err "permission level not raised ($cur -> $want): a raise needs your confirmation on a terminal (ADR 004 D10). Run: bash scripts/setup.sh apply --permission-level $want"
+    else
+      setup_err "permission level not written: an existing $(setup_tilde "$SETUP_PERM_FILE") changes only after you confirm its diff on a terminal. Run: bash scripts/setup.sh apply --permission-level $want"
+    fi
+    return 1
+  fi
+
+  if [ "$SETUP_PERM_LOCK_STATE" != match ] || [ "$SETUP_PERM_STATE" != verified ]; then
+    setup_warn "this file is not verified (${SETUP_PERM_REASON:-lock ${SETUP_PERM_LOCK_STATE:-absent}}). Confirming re-locks ALL of its content, shown in full:"
+    sed 's/^/    /' "$SETUP_PERM_FILE" >&2
+  fi
+  ans="$(setup_lower "$(setup_ask 'Write this permission level? [y/N] ' n)")"
+  case "$ans" in
+    y|yes) ;;
+    *) rm -f "$new"; printf '  kept as is\n'; return 0 ;;
+  esac
+  if setup_perm_write "$want"; then
+    rm -f "$new"
+    setup_perm_report_written "$want"
+    return 0
+  fi
+  rm -f "$new"; return 1
+}
+
+# setup_perm_report_written <level> — say what landed, and whether the resolver
+# reads it as verified (a dotfiles repo at the home, a group-writable parent and
+# the like make it tighten-only, D3).
+setup_perm_report_written() {
+  setup_perm_state
+  printf '  %swritten%s: level %s -> %s (0600, locked)\n' "$SETUP_C_GREEN" "$SETUP_C_OFF" "$1" "$(setup_tilde "$SETUP_PERM_FILE")"
+  if [ "$SETUP_PERM_STATE" != verified ]; then
+    setup_warn "the resolver reads it as $SETUP_PERM_STATE (${SETUP_PERM_REASON:-no reason given})"
+  fi
+}

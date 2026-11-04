@@ -129,8 +129,10 @@ case "$TARGET" in
     ;;
   opencode)
     # OpenCode reads opencode.json, AGENTS.md and the .opencode/ adapter (agents, commands,
-    # the V2 plugin). It executes no shell hook.
-    ROOTS=(opencode.json AGENTS.md .opencode platforms/opencode "${COMMON_ROOTS[@]}")
+    # the V2 plugin). It loads no hook manifest, but the V2 plugin's guard.ts runs
+    # hooks/permission-guard.sh as is (ADR 004 D8), so that one script and the
+    # libraries it sources ship; no other hook does.
+    ROOTS=(opencode.json AGENTS.md .opencode platforms/opencode hooks/permission-guard.sh hooks/lib "${COMMON_ROOTS[@]}")
     PRUNE_PATHS+=(
       docs/user/install/claude-code.md docs/user/install/claude-desktop.md docs/user/install/codex.md docs/user/install/cursor.md docs/user/install/gemini.md
       scripts/lib/setup-claude.sh scripts/lib/setup-codex.sh scripts/lib/setup-cursor.sh scripts/lib/setup-gemini.sh

@@ -575,6 +575,8 @@ judge "no --repo still works (cwd inference preserved)" 42 \
   "$(mp | jq -r .pr)"
 
 # The policy file must be honoured through the python3 fallback, not discarded.
+# The resolver reads .dev-files/policy.json only inside a git work tree (ADR 004 D4).
+git -C "$TMP" init -q 2>/dev/null || true
 mkdir -p "$TMP/.dev-files"
 printf '{"delivery":{"auto_merge":false}}\n' > "$TMP/.dev-files/policy.json"
 judge "policy.json auto_merge=false is honoured (jq present)" skip \
@@ -591,7 +593,7 @@ out="$( cd "$TMP" && env -i HOME="$HOME" PATH="$NOJQ" bash "$MERGEPOL" 42 2>/dev
 judge "without jq, policy.json is still read (python3 fallback)" yes \
   "$(has "$out" '"auto_merge": "skip"')"
 judge "  ... and the source names the file, not a default" yes \
-  "$(has "$out" 'policy.json delivery.auto_merge=false')"
+  "$(has "$out" 'delivery.auto_merge false')"
 
 # POSITIVE CONTROL — with NEITHER reader, the output says the files were unread
 # instead of presenting the default as a decision.
