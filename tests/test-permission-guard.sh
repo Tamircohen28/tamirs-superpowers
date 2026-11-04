@@ -1,0 +1,504 @@
+#!/usr/bin/env bash
+# test-permission-guard.sh — hooks/permission-guard.sh (PG) under crafted stdin, per host
+# dialect (ADR 004 items 4 and 12; D1, D2, D5-D8).
+#
+# WHAT IT HOLDS
+#   1. the fast path: an ordinary command is allowed on every host without the resolver,
+#      and the bash pre-filter lets through no command the catalog can map to a guarded id;
+#   2. the catalog's own fixture table (tests/test-permission-catalog.sh FIXTURES and
+#      MCP_FIXTURES, read from that file, not copied) maps to the same ids through PG's
+#      bash tokeniser and matcher as through the reference matcher;
+#   3. the D1 equivalents of a merge, a branch delete and a force push, and the R4
+#      tty.drive / process.spawn.agent_host forms, answer ask on Claude Code and deny on
+#      Codex (whose hook ask fails open, X1) and Cursor (deny only until S1);
+#   4. fail closed: no resolver, a resolver that crashes or prints garbage, a corrupt
+#      catalog, no python3, no jq, a non-JSON payload, a NUL byte: all deny;
+#   5. the conditions PG establishes locally (default branch, tag refs, uncommitted and
+#      unpushed work) and the context it refuses to guess (cd chains, export);
+#   6. levels through a real user file + lock (standard), the call stamp (D8), the
+#      policy.edit forms (setup.sh --permission-level, plugin-config.sh, host config CLIs);
+#   7. hook_ask's dialects, the shared tokeniser's two modes, and the hook wiring.
+#
+# HERMETIC
+#   The resolver reads the passwd home, never HOME. Its test override,
+#   TAMIRS_PERMISSION_TEST_ROOT, is honoured only under an ancestor process running a
+#   file named test-resolve-permission.sh (scripts/lib/permission-common.sh header), so
+#   every hook run here goes through a two-line wrapper of that name in the temp dir.
+#   The first check proves the override took; without it the suite stops rather than
+#   judge the developer's own permission file. No network, no gh, no model call.
+#
+# Bash 3.2 compatible.
+set -uo pipefail
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+# shellcheck source=tests/lib/harness.sh
+source "$ROOT/tests/lib/harness.sh"
+harness_require jq python3 git
+
+HOOK="$ROOT/hooks/permission-guard.sh"
+T="$(harness_tmpdir)"
+T="$(cd "$T" && pwd -P)"
+chmod 700 "$T"
+PH="$T/passwd-home"
+mkdir -m 700 "$PH"
+export TAMIRS_PERMISSION_TEST_ROOT="$PH"
+export HOME="$T/env-home"
+mkdir -p "$HOME"
+export GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL="$T/gitconfig"
+: > "$GIT_CONFIG_GLOBAL"
+unset CODEX_HOME GEMINI_SESSION_ID GEMINI_PROJECT_DIR GEMINI_CWD TS_PERMISSION_LEVEL \
+  CLAUDE_PLUGIN_OPTION_PERMISSION_LEVEL TAMIRS_AUTO_MERGE GH_REPO GH_HOST PLUGIN_ROOT PLUGIN_DATA \
+  CLAUDE_PLUGIN_ROOT CURSOR_PLUGIN_ROOT 2>/dev/null || true
+
+W="$T/bin/test-resolve-permission.sh"
+mkdir -p "$T/bin"
+cat > "$W" <<'SH'
+#!/usr/bin/env bash
+# Named so the resolver honours TAMIRS_PERMISSION_TEST_ROOT below this process. Not exec: it must stay the ancestor.
+"$@"
+rc=$?
+exit "$rc"
+SH
+
+section "the suite is hermetic"
+hs="$(bash "$W" bash "$ROOT/scripts/resolve-permission.sh" repo.read --json 2>/dev/null | jq -r '.home_source // empty')"
+if [ "$hs" != "test-root" ]; then
+  echo "FATAL: the resolver did not take TAMIRS_PERMISSION_TEST_ROOT (home_source=$hs); refusing to judge the real permission file" >&2
+  exit 1
+fi
+ok "the resolver reads the temp passwd home ($PH)"
+
+# --- fixtures ------------------------------------------------------------------------
+REPO="$T/repo"
+harness_new_repo "$REPO" main
+git -C "$REPO" remote add origin https://github.com/me/app.git
+git -C "$REPO" update-ref refs/remotes/origin/main HEAD
+git -C "$REPO" symbolic-ref refs/remotes/origin/HEAD refs/remotes/origin/main
+git -C "$REPO" checkout -q -b feat
+printf 'x\n' > "$REPO/README"
+git -C "$REPO" add README && git -C "$REPO" commit -qm readme
+git -C "$REPO" update-ref refs/remotes/origin/feat HEAD
+git -C "$REPO" branch -q gone refs/remotes/origin/main
+git -C "$REPO" branch -q local-only HEAD
+git -C "$REPO" tag v1.0 refs/remotes/origin/main
+NOHEAD="$T/nohead"
+harness_new_repo "$NOHEAD" main
+git -C "$NOHEAD" remote add origin https://github.com/me/other.git
+git -C "$NOHEAD" checkout -q -b feat
+for d in "$REPO" "$NOHEAD"; do
+  case "$d" in "$T"/*) ;; *) echo "fixture $d escaped the temp dir" >&2; exit 2 ;; esac
+done
+
+PFX='mcp__plugin_tamirs-superpowers_github__'
+claude_bash() { jq -nc --arg c "$1" --arg d "${2:-$REPO}" '{session_id:"pg-1",transcript_path:"/t",cwd:$d,hook_event_name:"PreToolUse",permission_mode:"default",tool_name:"Bash",tool_use_id:"call-1",tool_input:{command:$c,description:"probe"}}'; }
+codex_bash() { claude_bash "$@" | jq -c '. + {turn_id:"01a1480e-39dc-7131-8dd0-5becbd825a5e", model:"placeholder"}'; }
+cursor_pre() { jq -nc --arg t "$1" --arg c "$2" --arg d "${3:-$REPO}" '{conversation_id:"conv-1",generation_id:"g",hook_event_name:"preToolUse",cursor_version:"3.27.22",workspace_roots:[$d],cwd:$d,tool_name:$t,tool_use_id:"call-1",tool_input:{command:$c}}'; }
+cursor_shell() { jq -nc --arg c "$1" --arg d "${2:-$REPO}" '{conversation_id:"conv-1",generation_id:"g",hook_event_name:"beforeShellExecution",cursor_version:"3.27.22",workspace_roots:[$d],cwd:$d,command:$c,sandbox:"disabled"}'; }
+claude_mcp() { jq -nc --arg t "$1" --argjson a "$2" --arg d "${3:-$REPO}" '{session_id:"pg-1",cwd:$d,hook_event_name:"PreToolUse",tool_name:$t,tool_input:$a}'; }
+cursor_mcp() { jq -nc --arg t "$1" --argjson a "$2" --arg d "${3:-$REPO}" '{conversation_id:"conv-1",hook_event_name:"preToolUse",cursor_version:"3.27.22",workspace_roots:[$d],cwd:$d,tool_name:$t,tool_input:$a}'; }
+
+# run_pg <dialect> <payload> [hook]  -> OUT RC ERR
+OUT="" RC=0 ERR=""
+run_pg() {
+  local dialect="$1" payload="$2" hook="${3:-$HOOK}" errf="$T/err.$$"
+  case "$dialect" in
+    codex)  OUT="$(printf '%s' "$payload" | CODEX_HOME="$T/codex-home" bash "$W" bash "$hook" 2>"$errf")" ;;
+    gemini) OUT="$(printf '%s' "$payload" | GEMINI_SESSION_ID=g-1 GEMINI_PROJECT_DIR="$REPO" bash "$W" bash "$hook" 2>"$errf")" ;;
+    *)      OUT="$(printf '%s' "$payload" | bash "$W" bash "$hook" 2>"$errf")" ;;
+  esac
+  RC=$?
+  ERR="$(cat "$errf" 2>/dev/null)"
+  rm -f "$errf"
+}
+verdict() { # verdict <dialect> -> allow|ask|deny|<invalid>
+  local n
+  n="$(printf '%s' "$OUT" | jq -s 'length' 2>/dev/null || echo 0)"
+  [ "$n" = 1 ] || { echo "invalid($n objects)"; return; }
+  case "$1" in
+    cursor) printf '%s' "$OUT" | jq -r '.permission // "none"' ;;
+    *) printf '%s' "$OUT" | jq -r '.hookSpecificOutput.permissionDecision // "allow"' ;;
+  esac
+}
+reason() { printf '%s' "$OUT" | jq -r '.hookSpecificOutput.permissionDecisionReason // .user_message // ""' 2>/dev/null; }
+# expect <label> <dialect> <payload> <verdict> [reason-substring] [hook]
+expect() {
+  local label="$1" dialect="$2" payload="$3" want="$4" needle="${5:-}" got
+  run_pg "$dialect" "$payload" "${6:-$HOOK}"
+  got="$(verdict "$dialect")"
+  if [ "$got" != "$want" ] || [ "$RC" != 0 ]; then
+    bad "$label" "expected $want (exit 0), got $got (exit $RC); reason: $(reason | head -c 300)"
+    return
+  fi
+  if [ -n "$needle" ] && [ "$(has "$(reason)" "$needle")" != yes ]; then
+    bad "$label" "verdict $got, but the reason does not name '$needle': $(reason | head -c 300)"
+    return
+  fi
+  ok "$label"
+}
+classify() { bash "$HOOK" --classify "$1" "${2:-$REPO}"; }
+
+# --- 1. the fast path --------------------------------------------------------------
+section "fast path: ordinary commands are allowed on every host"
+for c in 'ls -la' 'git status' 'git log --oneline -5' 'echo hello | grep h' 'cat README && wc -l README' 'python3 tests/x.py'; do
+  expect "claude: $c" claude "$(claude_bash "$c")" allow
+  expect "codex: $c" codex "$(codex_bash "$c")" allow
+  expect "cursor preToolUse Shell: $c" cursor "$(cursor_pre Shell "$c")" allow
+  expect "cursor beforeShellExecution: $c" cursor "$(cursor_shell "$c")" allow
+done
+judge "claude allow is {}" '{}' "$(run_pg claude "$(claude_bash 'git status')"; printf '%s' "$OUT")"
+judge "cursor allow is {\"permission\":\"allow\"}" '{"permission":"allow"}' "$(run_pg cursor "$(cursor_shell 'git status')"; printf '%s' "$OUT")"
+for c in 'ls -la' 'git status' 'git diff HEAD~1 -- README'; do
+  judge "fast path takes '$c'" true "$(classify "$c" | jq -r '.fast_path_allows')"
+done
+# The pre-filter strips quotes, so a quoted mention takes the slow path. There the D1 marker rule applies as in
+# the reference matcher: a command that maps to no id but carries `git push` is UNCLASSIFIED (R4). A mention inside
+# a command that does map to an id (a commit message) is that id's argument and nothing more.
+judge "a quoted mention is not fast-pathed" false "$(classify 'echo "git push --force origin main"' | jq -r '.fast_path_allows')"
+expect "…a marker in an unmapped command is UNCLASSIFIED (D1)" claude "$(claude_bash 'echo "git push --force origin main"')" ask "UNCLASSIFIED"
+judge "a non-shell, non-MCP tool is not PG's (Edit)" allow "$(run_pg claude "$(jq -nc --arg d "$REPO" '{cwd:$d,tool_name:"Edit",tool_input:{file_path:"/x"}}')"; verdict claude)"
+judge "Cursor preToolUse Write is not PG's" allow "$(run_pg cursor "$(cursor_mcp Write '{"file_path":"/x"}')"; verdict cursor)"
+expect "an empty payload is allowed (nothing to judge)" claude "" allow
+
+pl="$(claude_bash 'git status')"
+t0="$(python3 -c 'import time; print(time.time())')"
+for _ in 1 2 3 4 5 6 7 8 9 10; do printf '%s' "$pl" | bash "$HOOK" >/dev/null 2>&1; done
+t1="$(python3 -c 'import time; print(time.time())')"
+ms="$(python3 -c "print(int(($t1 - $t0) * 100))")"
+printf '  info fast-path latency: %s ms per call (git status, mean of 10)\n' "$ms"
+[ "$ms" -lt 1000 ] && ok "fast path stays well under the hook timeout (${ms} ms)" || bad "fast path latency" "${ms} ms per call"
+
+section "the pre-filter misses no guarded form the catalog lists"
+eval "$(sed -n '/^_pg_candidate() {/,/^}/p' "$HOOK")"
+miss=""
+while IFS= read -r c; do
+  [ -n "$c" ] || continue
+  _pg_candidate "$c" || miss="$miss [$c]"
+done < <(python3 - "$ROOT/core/permissions/actions.json" <<'PY'
+import json, sys
+cat = json.load(open(sys.argv[1]))
+fill = lambda g: g.replace("{default}", "main").replace("*", "x").replace("[!-]", "a")
+for a in cat["actions"]:
+    if (a.get("l2") or []) == ["L1"] or (a["r"] < 2 and not a.get("raises") and not a.get("denies")):
+        continue
+    for e in a["equivalents"].get("argv", []):
+        words = [("bash scripts/" + e["script"]) if "script" in e else " ".join(fill(t) for t in e["cmd"])]
+        words = [" ".join(fill(v) for v in e.get("env_any", [])[:1])] + words
+        for k in ("all", "any", "args"):
+            words += [fill(g) for g in e.get(k, [])[:1]] if k != "all" else [fill(g) for g in e.get(k, [])]
+        print(" ".join(w for w in words if w))
+PY
+)
+[ -z "$miss" ] && ok "every R2-R4 (or raisable) argv form in actions.json is a pre-filter candidate" || bad "pre-filter misses" "$miss"
+
+# --- 2. the catalog's fixture table, through PG ----------------------------------------
+section "the catalog's fixture table maps to the same ids through PG"
+n_fx=0
+while IFS=$'\t' read -r st label detail; do
+  [ -n "$st" ] || continue
+  n_fx=$((n_fx + 1))
+  if [ "$st" = ok ]; then ok "pg matcher: $label"; else bad "pg matcher: $label" "$detail"; fi
+done < <(python3 - "$ROOT/tests/test-permission-catalog.sh" "$HOOK" "$REPO" <<'PY'
+import ast, json, re, subprocess, sys
+src, hook, repo = sys.argv[1], sys.argv[2], sys.argv[3]
+text = open(src, encoding="utf-8").read()
+def table(name):
+    m = re.search(r"^%s = (\[.*?^\])$" % name, text, re.S | re.M)
+    return ast.literal_eval(m.group(1).replace("[UNCL]", "['UNCLASSIFIED']")) if m else []
+fx, mfx = table("FIXTURES"), table("MCP_FIXTURES")
+if len(fx) < 40 or len(mfx) < 5:
+    print("FAIL\tthe fixture tables of tests/test-permission-catalog.sh\tnot found (%d, %d)" % (len(fx), len(mfx)))
+def judge(label, got, uncl, want, avoid, fast):
+    if want == ["UNCLASSIFIED"]:
+        good = not got and uncl
+    else:
+        good = all(w in got for w in want) and not any(x in got for x in avoid) and not (uncl and not want)
+    why = "got %s%s" % (sorted(got), " +UNCLASSIFIED" if uncl else "")
+    if good and want and fast:
+        good, why = False, "the fast path would have allowed it"
+    print("%s\t%s -> %s\t%s" % ("ok" if good else "FAIL", label.replace("\t", " "), ", ".join(want) or "no id", why))
+for cmd, want, avoid in fx:
+    r = subprocess.run(["bash", hook, "--classify", cmd, repo], capture_output=True)
+    try:
+        out = json.loads(r.stdout)
+    except ValueError:
+        print("FAIL\t%s\tclassify printed no JSON (exit %d)" % (cmd, r.returncode)); continue
+    judge(cmd, set(out["ids"]), out["unclassified"], want, avoid, out["fast_path_allows"])
+for tool, args, want, avoid in mfx:
+    r = subprocess.run(["bash", hook, "--classify-mcp", tool, json.dumps(args), repo], capture_output=True)
+    try:
+        out = json.loads(r.stdout)
+    except ValueError:
+        print("FAIL\tmcp %s\tclassify printed no JSON (exit %d)" % (tool, r.returncode)); continue
+    judge("mcp %s %s" % (tool, json.dumps(args)), set(out["ids"]), out["unclassified"] or not out["ids"], want, avoid, False)
+PY
+)
+[ "$n_fx" -ge 50 ] && ok "the fixture table ran ($n_fx rows)" || bad "the fixture table ran" "only $n_fx rows"
+
+# --- 3. the equivalents, per host -----------------------------------------------------
+section "merge, branch-delete and force-push equivalents: ask on Claude, deny on Codex and Cursor"
+EQ=(
+  'gh pr merge 5 --squash|pr.merge'
+  'gh api -X PUT repos/me/app/pulls/5/merge|pr.merge'
+  "gh api graphql -f query='mutation{mergePullRequest(input:{pullRequestId:\"x\"}){clientMutationId}}'|pr.merge"
+  'curl -X PUT -H "Authorization: token $(gh auth token)" https://api.github.com/repos/me/app/pulls/5/merge|pr.merge'
+  'git push origin :feat|branch.delete.remote'
+  'git push origin --delete feat|branch.delete.remote'
+  'git push --force origin feat|git.push.force'
+  'git push --force-with-lease origin feat|git.push.force'
+  'curl -X DELETE https://api.github.com/repos/me/app|repo.delete'
+  'gh api -X DELETE repos/me/app|repo.delete'
+)
+for row in "${EQ[@]}"; do
+  c="${row%|*}" id="${row##*|}"
+  expect "claude asks: $c" claude "$(claude_bash "$c")" ask "$id"
+  expect "codex denies: $c" codex "$(codex_bash "$c")" deny "$id"
+  expect "cursor preToolUse denies: $c" cursor "$(cursor_pre Shell "$c")" deny "$id"
+  expect "cursor beforeShellExecution denies: $c" cursor "$(cursor_shell "$c")" deny "$id"
+done
+# a push to the default branch is denied everywhere: protected_default_branch needs the API (unknown => applies)
+for c in 'git push origin +HEAD:main' 'git push --force origin main' 'git push origin main' 'git push origin HEAD:refs/heads/master'; do
+  expect "claude denies: $c" claude "$(claude_bash "$c")" deny "git.push.default"
+  expect "codex denies: $c" codex "$(codex_bash "$c")" deny
+done
+# --admin is denied while a required check fails or is pending (safety invariant 2); that needs the API, so unknown applies
+expect "claude denies: gh pr merge --admin" claude "$(claude_bash 'gh pr merge 5 --squash --admin')" deny "safety#2"
+expect "cursor denies: gh pr merge --admin" cursor "$(cursor_shell 'gh pr merge 5 --squash --admin')" deny "pr.merge.admin"
+expect "codex: an ask is delivered as a deny, saying why" codex "$(codex_bash 'gh pr merge 5')" deny "codex cannot carry a hook ask"
+expect "codex: the deny names the out-of-session route" codex "$(codex_bash 'gh pr create --fill')" deny "scripts/plugin-config.sh"
+expect "cursor: the deny says the ask cannot be carried" cursor "$(cursor_shell 'gh pr merge 5')" deny "cursor cannot carry a hook ask"
+expect "gemini (env): an ask is delivered as a deny" gemini "$(claude_bash 'gh pr merge 5')" deny "gemini cannot carry a hook ask"
+expect "claude: a plain own-branch push asks (R2 at supervised)" claude "$(claude_bash 'git push -u origin HEAD')" ask "git.push.branch"
+expect "claude: UNCLASSIFIED gh is R4 and asks" claude "$(claude_bash 'gh secret set FOO -b x')" ask "UNCLASSIFIED"
+expect "claude: a file-sourced GraphQL query is UNCLASSIFIED" claude "$(claude_bash 'gh api graphql -F query=@q.graphql')" ask "UNCLASSIFIED"
+expect "claude: a GraphQL document in a variable is UNCLASSIFIED" claude "$(claude_bash 'gh api graphql -f query="$Q"')" ask "UNCLASSIFIED"
+expect "claude: gh api with a variable path and a method is UNCLASSIFIED" claude "$(claude_bash 'gh api -X DELETE "$URL"')" ask "UNCLASSIFIED"
+expect "claude: gh api with a variable path, GET, is a read" claude "$(claude_bash 'gh api "$URL"')" allow
+expect "claude: gh pr view is a read" claude "$(claude_bash 'gh pr view 5 --json state')" allow
+expect "claude: x=\$(gh pr merge ...) is seen inside the substitution" claude "$(claude_bash 'x=$(gh pr merge 5 --admin)')" deny "pr.merge.admin"
+expect "claude: a substitution of an unknown gh call is UNCLASSIFIED" claude "$(claude_bash 'x=$(gh secret set FOO)')" ask "UNCLASSIFIED"
+expect "claude: bash -lc is descended into" claude "$(claude_bash 'bash -lc "gh pr merge 5"')" ask "pr.merge"
+expect "claude: quotes cannot hide the program" claude "$(claude_bash 'g"i"t push --force origin feat')" ask "git.push.force"
+expect "claude: -uf is -u -f" claude "$(claude_bash 'git push -uf origin feat')" ask "git.push.force"
+expect "claude: a commit message mentioning a push is a commit" claude "$(claude_bash 'git commit -m "then git push --force origin main"')" allow
+expect "claude: --no-verify is R4" claude "$(claude_bash 'git commit --no-verify -m x')" ask "git.verify.skip"
+
+section "tty.drive and process.spawn.agent_host (R4): ask on Claude, deny on Codex and Cursor"
+TTY=(
+  'script -q /dev/null claude|tty.drive'
+  "expect -c 'spawn claude; send y'|tty.drive"
+  'unbuffer claude -p hi|tty.drive'
+  'tmux send-keys -t 0 y Enter|tty.drive'
+  'screen -S s -X stuff y|tty.drive'
+  "osascript -e 'tell application \"System Events\" to keystroke \"y\"'|tty.drive"
+  "osascript -e 'tell application \"Terminal\" to do script \"y\"'|tty.drive"
+  'xdotool type y|tty.drive'
+  "python3 -c 'import pty; pty.spawn([\"claude\"])'|tty.drive"
+  "node -e \"require('node-pty').spawn('claude')\"|tty.drive"
+  'claude -p hi|process.spawn.agent_host'
+  'codex exec "fix it"|process.spawn.agent_host'
+  'gemini -p hi|process.spawn.agent_host'
+  'opencode run hi|process.spawn.agent_host'
+  'cursor-agent -p hi|process.spawn.agent_host'
+  'npx -y @anthropic-ai/claude-code -p hi|process.spawn.agent_host'
+  'bunx @openai/codex exec x|process.spawn.agent_host'
+  'node /opt/x/node_modules/@anthropic-ai/claude-code/cli.js -p hi|process.spawn.agent_host'
+  'env FOO=1 claude -p hi|process.spawn.agent_host'
+  'bash -c "claude -p hi"|process.spawn.agent_host'
+  'x=$(claude -p hi)|process.spawn.agent_host'
+)
+for row in "${TTY[@]}"; do
+  c="${row%|*}" id="${row##*|}"
+  expect "claude asks: $c" claude "$(claude_bash "$c")" ask "$id"
+  expect "codex denies: $c" codex "$(codex_bash "$c")" deny "$id"
+  expect "cursor denies: $c" cursor "$(cursor_shell "$c")" deny "$id"
+done
+
+section "policy.edit forms (D5-D7): R4, and the out-of-session writers are denied outright"
+POL=(
+  'bash scripts/setup.sh --permission-level unattended --yes'
+  'bash scripts/setup.sh --permission-level=standard'
+  'SETUP_PERMISSION_LEVEL=standard bash scripts/setup.sh --yes'
+  'bash scripts/plugin-config.sh standard'
+  'bash scripts/plugin-config.sh pr-dev unattended'
+  'bash scripts/plugin-config.sh pr.merge.auto allow'
+  'bash scripts/plugin-config.sh reset all'
+  'bash scripts/plugin-config.sh trust'
+  'bash scripts/plugin-config.sh confirm 0123456789abcdef'
+  '"$CLAUDE_PLUGIN_ROOT"/scripts/plugin-config.sh supervised'
+)
+for c in "${POL[@]}"; do
+  expect "claude asks: $c" claude "$(claude_bash "$c")" ask "policy.edit"
+  expect "codex denies: $c" codex "$(codex_bash "$c")" deny "policy.edit"
+  expect "cursor denies: $c" cursor "$(cursor_shell "$c")" deny "policy.edit"
+done
+expect "plugin-config.sh show is a read" claude "$(claude_bash 'bash scripts/plugin-config.sh show')" allow
+expect "claude denies plugin-config.sh provision (D6)" claude "$(claude_bash 'bash scripts/plugin-config.sh provision --level standard')" deny "D6"
+expect "claude denies claude plugin configure (D7)" claude "$(claude_bash 'claude plugin configure tamirs-superpowers --values-stdin')" deny "D7"
+expect "claude denies gemini extensions config (D7)" claude "$(claude_bash 'gemini extensions config tamirs-superpowers TS_PERMISSION_LEVEL')" deny "D7"
+
+# --- 4. fail closed --------------------------------------------------------------------
+section "fail closed"
+mk_tree() { # mk_tree <dir> — a plugin tree with the guard, its libs, the resolver and the catalog
+  mkdir -p "$1/scripts/lib"
+  cp -R "$ROOT/hooks" "$ROOT/core" "$1/"
+  cp "$ROOT/scripts/resolve-permission.sh" "$1/scripts/"
+  cp "$ROOT/scripts/lib/permission-common.sh" "$1/scripts/lib/"
+}
+mk_tree "$T/t-nores"; rm -f "$T/t-nores/scripts/resolve-permission.sh"
+expect "no resolver: deny" claude "$(claude_bash 'gh pr create --fill')" deny "resolve-permission.sh is missing" "$T/t-nores/hooks/permission-guard.sh"
+expect "no resolver, codex: deny" codex "$(codex_bash 'gh pr create --fill')" deny "resolver" "$T/t-nores/hooks/permission-guard.sh"
+mk_tree "$T/t-garbage"; printf '#!/usr/bin/env bash\necho nonsense\n' > "$T/t-garbage/scripts/resolve-permission.sh"
+expect "a resolver printing garbage: deny" claude "$(claude_bash 'gh pr create --fill')" deny "printed no JSON" "$T/t-garbage/hooks/permission-guard.sh"
+mk_tree "$T/t-exit3"; printf '#!/usr/bin/env bash\necho %s\nexit 3\n' "'{\"verdict\":\"allow\",\"reason\":\"crash\"}'" > "$T/t-exit3/scripts/resolve-permission.sh"
+expect "a resolver exiting 3 (even printing allow): deny" claude "$(claude_bash 'gh pr create --fill')" deny "exit 3" "$T/t-exit3/hooks/permission-guard.sh"
+mk_tree "$T/t-cat"; printf '{"actions": [' > "$T/t-cat/core/permissions/actions.json"
+expect "a corrupt catalog: deny" claude "$(claude_bash 'gh pr create --fill')" deny "catalog" "$T/t-cat/hooks/permission-guard.sh"
+expect "a corrupt catalog, cursor: deny in Cursor's shape" cursor "$(cursor_shell 'gh pr create --fill')" deny "catalog" "$T/t-cat/hooks/permission-guard.sh"
+expect "a corrupt catalog does not touch the fast path" claude "$(claude_bash 'ls')" allow "" "$T/t-cat/hooks/permission-guard.sh"
+mkdir -p "$T/nopy" "$T/nojq"
+for b in bash jq git sed cat mktemp dirname basename tr head env ps id dscl getent; do
+  p="$(command -v "$b" 2>/dev/null)" || continue
+  ln -sf "$p" "$T/nopy/$b"
+  [ "$b" = jq ] || ln -sf "$p" "$T/nojq/$b"
+done
+ln -sf "$(command -v python3)" "$T/nojq/python3"
+run_nopath() { OUT="$(printf '%s' "$2" | PATH="$1" "$(command -v bash)" "$HOOK" 2>/dev/null)"; RC=$?; }
+run_nopath "$T/nopy" "$(claude_bash 'gh pr create --fill')"
+judge "no python3: deny" deny "$(verdict claude)"
+judge "no python3: the reason says so" yes "$(has "$(reason)" python3)"
+run_nopath "$T/nojq" "$(claude_bash 'gh pr create --fill')"
+judge "no jq: deny (literal JSON)" deny "$(verdict claude)"
+run_nopath "$T/nojq" "$(cursor_shell 'gh pr create --fill')"
+judge "no jq, Cursor payload: deny in Cursor's shape" deny "$(verdict cursor)"
+run_nopath "$T/nojq" "$(claude_bash 'ls')"
+judge "no jq: even ls is denied (the payload cannot be read)" deny "$(verdict claude)"
+expect "a non-JSON payload: deny" claude 'this is not json' deny "not valid JSON"
+expect "a NUL byte in the command: deny" claude '{"cwd":"/tmp","tool_name":"Bash","tool_input":{"command":"ls\u0000git push --force origin main"}}' deny "NUL"
+judge "a hook argument it does not know exits 2, never allows" 2 "$(bash "$HOOK" --bogus </dev/null >/dev/null 2>&1; echo $?)"
+
+# --- 5. conditions and context -----------------------------------------------------------
+section "conditions PG establishes, and context it refuses to guess"
+judge "push -u origin HEAD: default_branch and tag_ref established false" \
+  '["default_branch=false","tag_ref=false"]' "$(classify 'git push -u origin HEAD' | jq -c '[.resolver_calls[] | select(.id=="git.push.branch") | .conds[]] | sort')"
+judge "push origin \$(git branch --show-current) reads as the current branch" \
+  '["default_branch=false","tag_ref=false"]' "$(classify 'git push -u origin $(git branch --show-current)' | jq -c '[.resolver_calls[] | select(.id=="git.push.branch") | .conds[]] | sort')"
+judge "push of a tag: tag_ref established true" '["tag_ref=true"]' "$(classify 'git push origin v1.0' | jq -c '[.resolver_calls[] | select(.id=="git.push.branch") | .conds[] | select(startswith("tag_ref"))]')"
+expect "no refs/remotes/origin/HEAD: an own-branch push is denied, with the remedy" claude "$(claude_bash 'git push -u origin HEAD' "$NOHEAD")" deny "git remote set-head"
+expect "a leading cd is followed (into the repo without origin/HEAD)" claude "$(claude_bash "cd $NOHEAD && git push -u origin HEAD")" deny "default_branch"
+expect "a leading cd is followed (into the repo with origin/HEAD)" claude "$(claude_bash "cd $REPO && git push -u origin HEAD" "$NOHEAD")" ask "git.push.branch"
+judge "a subshell cd is not followed" false "$(classify '(cd /tmp); git push -u origin HEAD' | jq -r .context_ok)"
+judge "two cds are not followed" false "$(classify "cd $REPO && cd /tmp && git push" | jq -r .context_ok)"
+judge "export changes the target: not followed" false "$(classify 'export GIT_DIR=/x; git push -u origin HEAD' | jq -r .context_ok)"
+judge "GIT_DIR=… on the push: no condition established" '[]' "$(classify 'GIT_DIR=/x git push -u origin HEAD' | jq -c '[.resolver_calls[] | select(.id=="git.push.branch") | .conds[]]')"
+judge "git -C <repo> is followed" '["default_branch=false","tag_ref=false"]' "$(classify "git -C $REPO push -u origin HEAD" "$NOHEAD" | jq -c '[.resolver_calls[] | select(.id=="git.push.branch") | .conds[]] | sort')"
+expect "a clean tree: git checkout -- . is allowed" claude "$(claude_bash 'git checkout -- .')" allow
+printf 'dirty\n' >> "$REPO/README"
+expect "a dirty tree: git checkout -- . is denied (safety invariant 4)" claude "$(claude_bash 'git checkout -- .')" deny "safety#4"
+expect "a dirty tree: git restore is denied" codex "$(codex_bash 'git restore README')" deny "safety#4"
+git -C "$REPO" checkout -q -- README
+git -C "$REPO" commit -q --allow-empty -m local
+expect "reset --hard over an unpushed commit is R4" claude "$(claude_bash 'git reset --hard HEAD~1')" ask "R4"
+git -C "$REPO" reset -q --hard refs/remotes/origin/feat
+expect "reset --hard with nothing unpushed is R1" claude "$(claude_bash 'git reset --hard HEAD')" allow
+expect "branch -D of a branch a remote holds is R1" claude "$(claude_bash 'git branch -D gone')" allow
+git -C "$REPO" checkout -q local-only && git -C "$REPO" commit -q --allow-empty -m only-here && git -C "$REPO" checkout -q feat
+expect "branch -D of commits no remote holds is raised to R3" claude "$(claude_bash 'git branch -D local-only')" ask "branch.delete.local"
+git -C "$REPO" worktree add -q "$T/wt" -b wt-branch refs/remotes/origin/main 2>/dev/null
+expect "worktree remove of a clean, pushed worktree is R1" claude "$(claude_bash "git worktree remove $T/wt")" allow
+git -C "$T/wt" commit -q --allow-empty -m wt-local
+expect "worktree remove of unpushed work is R4" claude "$(claude_bash "git worktree remove --force $T/wt")" ask "worktree.remove.force"
+
+# --- 6. levels, the call stamp, MCP ---------------------------------------------------------
+section "levels through a real user file and lock"
+CFG="$PH/.config/tamirs-superpowers"
+set_level() {
+  rm -rf "$PH/.config"
+  [ "$1" = none ] && return 0
+  mkdir -p "$CFG"
+  chmod 700 "$PH/.config" "$CFG"
+  printf '{"version": 1, "level": "%s"}\n' "$1" > "$CFG/permissions.json"
+  chmod 600 "$CFG/permissions.json"
+  printf '{"sha256": "%s", "by": "plugin-config", "at": "2026-11-04T00:00:00Z"}\n' \
+    "$(python3 -c 'import hashlib,sys; print(hashlib.sha256(open(sys.argv[1],"rb").read()).hexdigest())' "$CFG/permissions.json")" > "$CFG/permissions.lock"
+  chmod 600 "$CFG/permissions.lock"
+}
+set_level standard
+judge "the resolver reads level standard from the user file" "standard user_file.level" \
+  "$(bash "$W" bash "$ROOT/scripts/resolve-permission.sh" pr.create --json 2>/dev/null | jq -r '"\(.level) \(.level_source)"')"
+expect "standard: an own-branch push is allowed" claude "$(claude_bash 'git push -u origin HEAD')" allow
+expect "standard: gh pr create is allowed" claude "$(claude_bash 'gh pr create --fill')" allow
+expect "standard, codex: gh pr create is allowed ({})" codex "$(codex_bash 'gh pr create --fill')" allow
+expect "standard: gh pr merge still asks (R3)" claude "$(claude_bash 'gh pr merge 5 --squash')" ask "pr.merge"
+expect "standard: auto-merge stays off (asks)" claude "$(claude_bash 'gh pr merge 5 --auto --squash')" ask "pr.merge.auto"
+expect "standard: a push to main is still denied" claude "$(claude_bash 'git push origin main')" deny "git.push.default"
+expect "standard: R4 still asks" claude "$(claude_bash 'claude -p hi')" ask "process.spawn.agent_host"
+expect "standard, no origin/HEAD: the push is still denied (unknown never holds)" claude "$(claude_bash 'git push -u origin HEAD' "$NOHEAD")" deny
+export TS_PERMISSION_LEVEL=supervised
+expect "an env lowering is honoured (TS_PERMISSION_LEVEL=supervised)" claude "$(claude_bash 'gh pr create --fill')" ask
+unset TS_PERMISSION_LEVEL
+set_level none
+
+section "the call stamp (D8)"
+SEEN="$PH/.local/state/tamirs-superpowers/seen"
+expect "a resolver call with --call is allowed" claude "$(claude_bash 'bash scripts/resolve-permission.sh pr.create --skill pr-dev --call abcdefgh12345678')" allow
+judge "PG stamped it" yes "$(exists "$SEEN/abcdefgh12345678")"
+judge "the stamp is 0600" 600 "$(python3 -c 'import os,sys; print(oct(os.stat(sys.argv[1]).st_mode & 0o777)[2:])' "$SEEN/abcdefgh12345678" 2>/dev/null)"
+judge "its dirs are 0700" "700 700" "$(python3 -c 'import os,sys; print(" ".join(oct(os.stat(p).st_mode & 0o777)[2:] for p in sys.argv[1:]))' "$SEEN/.." "$SEEN")"
+judge "the resolver consumes it" consumed "$(bash "$W" bash "$ROOT/scripts/resolve-permission.sh" pr.create --call abcdefgh12345678 --json 2>/dev/null | jq -r '.level_sources[] | select(.source=="call_stamp") | .state')"
+judge "and it is gone" no "$(exists "$SEEN/abcdefgh12345678")"
+expect "a denied command gets no stamp" claude "$(claude_bash 'bash scripts/resolve-permission.sh x --call zzzzzzzz99999999 && git push origin main')" deny
+judge "no stamp for the denied call" no "$(exists "$SEEN/zzzzzzzz99999999")"
+expect "an invalid token writes nothing" claude "$(claude_bash 'bash scripts/resolve-permission.sh x --call ../../../escape')" allow
+judge "nothing escaped the seen dir" no "$(exists "$PH/.local/escape")"
+
+section "GitHub MCP tools"
+expect "claude: merge_pull_request asks" claude "$(claude_mcp "${PFX}merge_pull_request" '{"owner":"me","repo":"app","pullNumber":5}')" ask "pr.merge"
+expect "codex: merge_pull_request denies" codex "$(claude_mcp "${PFX}merge_pull_request" '{"owner":"me","repo":"app","pullNumber":5}' | jq -c '. + {turn_id:"t"}')" deny "pr.merge"
+expect "claude: get_me is a read" claude "$(claude_mcp "${PFX}get_me" '{}')" allow
+expect "claude: a workflow write is R4" claude "$(claude_mcp "${PFX}create_or_update_file" '{"owner":"me","repo":"app","branch":"x","path":".github/workflows/ci.yml","content":"x","message":"m"}')" ask "workflow.edit"
+expect "claude: delete_repository is R4" claude "$(claude_mcp "${PFX}delete_repository" '{"owner":"me","repo":"app"}')" ask "repo.delete"
+expect "claude: a tool of this server with no entry is UNCLASSIFIED" claude "$(claude_mcp "${PFX}dismiss_notification" '{}')" ask "UNCLASSIFIED"
+expect "claude: another server's tool is not PG's" claude "$(claude_mcp 'mcp__other__merge_pull_request' '{}')" allow
+judge "a README write on a non-default branch of origin: default_branch and the path established false" \
+  '["default_branch=false","workflow_hook_or_policy_path=false"]' \
+  "$(bash "$HOOK" --classify-mcp create_or_update_file '{"owner":"me","repo":"app","branch":"x","path":"README.md"}' "$REPO" | jq -c '[.resolver_calls[0].conds[]] | sort')"
+expect "cursor: MCP:merge_pull_request is denied" cursor "$(cursor_mcp 'MCP:merge_pull_request' '{"owner":"me","repo":"app","pullNumber":5}')" deny "pr.merge"
+expect "cursor: an MCP tool PG does not know is not PG's" cursor "$(cursor_mcp 'MCP:search_docs' '{}')" allow
+
+# --- 7. libraries and wiring ---------------------------------------------------------------
+section "hook_ask: an ask on Claude only"
+HO="$ROOT/hooks/lib/hook-output.sh"
+judge "claude: permissionDecision ask" ask "$(bash -c 'source "$1"; HOOK_PLATFORM=claude; hook_ask "why"' _ "$HO" | jq -r .hookSpecificOutput.permissionDecision)"
+judge "claude: the reason is kept" why "$(bash -c 'source "$1"; HOOK_PLATFORM=claude; hook_ask "why"' _ "$HO" | jq -r .hookSpecificOutput.permissionDecisionReason)"
+judge "codex: a deny" deny "$(bash -c 'source "$1"; HOOK_PLATFORM=codex; hook_ask "why"' _ "$HO" | jq -r .hookSpecificOutput.permissionDecision)"
+judge "cursor: a deny in Cursor's shape" deny "$(bash -c 'source "$1"; HOOK_PLATFORM=cursor; hook_ask "why"' _ "$HO" | jq -r .permission)"
+judge "gemini env: a deny" deny "$(GEMINI_PROJECT_DIR=/x bash -c 'source "$1"; HOOK_PLATFORM=claude; hook_ask "why"' _ "$HO" | jq -r .hookSpecificOutput.permissionDecision)"
+judge "hook_deny is unchanged (claude)" deny "$(bash -c 'source "$1"; HOOK_PLATFORM=claude; hook_deny "why"' _ "$HO" | jq -r .hookSpecificOutput.permissionDecision)"
+judge "hook_allow is unchanged (claude)" '{}' "$(bash -c 'source "$1"; HOOK_PLATFORM=claude; hook_allow' _ "$HO")"
+
+section "the shared tokeniser"
+CT="$ROOT/hooks/lib/command-tokens.sh"
+seg() { bash -c 'source "$1"; "$2" "$3" | tr "\037\036" "|^"' _ "$CT" "$1" "$2" 2>/dev/null; }
+judge "default mode: a quoted push is one argument" 'git|commit|-m|x; git push' "$(seg cmdtok_segments 'git commit -m "x; git push"')"
+judge "default mode: \$( ) splits (agent-claim's contract)" "$(printf 'git|push|origin\ngit|branch|--show-current')" "$(seg cmdtok_effective_segments 'git push origin $(git branch --show-current)')"
+judge "keep mode: the substitution stays in its word and is also a nested segment" \
+  "$(printf '^gh|auth|token\ncurl|-H|t $(gh auth token)|https://api.github.com/x')" "$(seg cmdtok_argv_segments 'curl -H "t $(gh auth token)" https://api.github.com/x')"
+judge "agent-claim still exposes the tokeniser under its names" yes \
+  "$(bash -c 'source "$1"; type claim_shell_segments >/dev/null && type claim_effective_segments >/dev/null && [ "$_CLAIM_TOKSEP" = "$CMDTOK_SEP" ] && echo yes' _ "$ROOT/hooks/lib/agent-claim.sh")"
+
+section "wiring"
+judge "hooks.json: PG on Bash|Shell, onFailure block" 1 \
+  "$(jq '[.hooks.PreToolUse[] | select(.matcher=="Bash|Shell") | .hooks[] | select(.command|test("permission-guard.sh")) | select(.onFailure=="block")] | length' "$ROOT/hooks/hooks.json")"
+judge "hooks.json: PG on the GitHub MCP matcher, onFailure block" 1 \
+  "$(jq --arg m "${PFX}.*" '[.hooks.PreToolUse[] | select(.matcher==$m) | .hooks[] | select(.command|test("permission-guard.sh")) | select(.onFailure=="block")] | length' "$ROOT/hooks/hooks.json")"
+judge "the MCP matcher matches a tool of the server and not another" "yes no" \
+  "$(python3 -c "import re,sys; m=sys.argv[1]; print(' '.join('yes' if re.fullmatch(m, t) else 'no' for t in (sys.argv[2]+'merge_pull_request', 'mcp__other__merge_pull_request')))" "${PFX}.*" "$PFX")"
+judge "codex hooks.json carries PG on both matchers" 2 \
+  "$(jq '[.hooks.PreToolUse[] | .hooks[] | select(.command|test("permission-guard.sh"))] | length' "$ROOT/platforms/codex/hooks.json")"
+for ev in preToolUse beforeShellExecution; do
+  judge "cursor $ev: PG, failClosed, no loop cap" 1 \
+    "$(jq --arg e "$ev" '[.hooks[$e][] | select(.command|test("permission-guard.sh")) | select(.failClosed==true and has("loop_limit") and .loop_limit==null)] | length' "$ROOT/platforms/cursor/hooks.json")"
+done
+judge "hooks-classification.md names PG core-safety-invariant" yes \
+  "$(grep -q 'permission-guard.sh.*core-safety-invariant' "$ROOT/docs/engineering/architecture/hooks-classification.md" && echo yes || echo no)"
+
+harness_summary
