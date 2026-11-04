@@ -55,6 +55,9 @@ plugin_copy() {
 }
 INST="$TMP/installed/tamirs-superpowers"; plugin_copy "$INST"
 SRC="$TMP/src-plain";                     plugin_copy "$SRC"; git -C "$SRC" init -q
+# The real hook-output.sh defines hook_ask (ADR 004 D8). This fixture models a
+# library without it, so the guard's fail-closed branch is still exercised.
+printf '\nunset -f hook_ask 2>/dev/null || true\n' >> "$SRC/hooks/lib/hook-output.sh"
 SRC_ASK="$TMP/src-ask";                   plugin_copy "$SRC_ASK"; git -C "$SRC_ASK" init -q
 cat >> "$SRC_ASK/hooks/lib/hook-output.sh" <<'STUB'
 
