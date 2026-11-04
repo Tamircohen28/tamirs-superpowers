@@ -45,6 +45,29 @@
 #   A file that cannot be read or parsed, or fails the schema, means supervised
 #   with every override ignored (D3 fail closed).
 #
+# TICKETS (D4 row 1, D5)
+#   <state>/tickets/<id>.json, the format in scripts/plugin-config.sh's header:
+#   kind "raise" from `plugin-config.sh confirm` (after a host prompt named skill,
+#   level, target and expiry), kind "lower" from hooks/permission-intent.sh. They
+#   are read only when the caller passes --session (the guard passes the hook's
+#   session_id and agent_id, "main" when it has none); another session's ticket
+#   is skipped. A RAISE applies to one call when all of these hold: the file and
+#   its dir are safe (as for the user file), it is unexpired and lives at most 15
+#   minutes from its creation, its session and agent equal the call's (SR S-11;
+#   no agent id in the hook input reads as "main", the ADR's partial disposition:
+#   the ticket then also reaches a subagent's call, on its exact target only),
+#   its host is the call's when both are known, its skill is the call's --skill,
+#   the step is R2 or R3 (never R4 or UNCLASSIFIED, SR S-05; never a step context
+#   raised), and the call's --target equals the ticket's {arg, repo} on every
+#   field actions.json target_kinds lists for the action's kind (an unresolvable
+#   field never matches, so kind none and today's branch, tag, org, command,
+#   process and package kinds never match). It then lifts an ask to the ceiling of
+#   the ticket's level; it never lifts a deny, and row 0 still clamps never_auto.
+#   A LOWERING applies to every call of the session for its skill (null = all),
+#   any agent, any target, from a safe or an unsafe file alike (D10.2: tightening
+#   needs no trust), and beats any raise. Expired, foreign and corrupt tickets
+#   are ignored with a warning; none of them is ever an error.
+#
 # THE TEST OVERRIDE AND ITS GUARD
 #   The permission suites need a fake passwd home. TAMIRS_PERMISSION_TEST_ROOT
 #   names one, and it is honoured only when ALL of these hold:
@@ -89,7 +112,7 @@ PERM_ROOT="$(CDPATH='' cd -- "$_perm_lib_dir/../.." 2>/dev/null && pwd -P)" || P
 unset _perm_lib_dir
 
 IFS= read -r -d '' _PERM_ENGINE <<'PY' || true
-import hashlib, json, os, pwd, re, stat, subprocess, sys
+import calendar, hashlib, json, os, pwd, re, stat, subprocess, sys, time
 
 ROOT = sys.argv[1]
 ARGS = sys.argv[2:]
@@ -113,6 +136,13 @@ CALL_RE = re.compile(r"\A[A-Za-z0-9_-]{8,128}\Z")
 OBJ_RE = re.compile(r"\A[A-Za-z0-9][A-Za-z0-9._-]{0,127}\Z")
 SLUG = r"[A-Za-z0-9._-]+"
 UNCLASSIFIED = "UNCLASSIFIED"
+TICKET_NAME_RE = re.compile(r"\A([0-9a-f]{32})\.json\Z")
+SESSION_RE = re.compile(r"\A[^\x00-\x1f\x7f]{1,256}\Z")
+AGENT_RE = re.compile(r"\A[^\x00-\x1f\x7f]{1,128}\Z")
+REPO_RE = re.compile(r"\A[a-z0-9.-]+(:[0-9]+)?/[a-z0-9._-]+/[a-z0-9._-]+\Z")
+RAISE_TTL = 15 * 60     # D5: a raise ticket lives 15 minutes
+CLOCK_SLACK = 60        # seconds a ticket's created may sit in the future (clock skew)
+MAX_TICKETS = 256
 
 
 class Usage(Exception):
@@ -409,10 +439,11 @@ def load_catalog():
             if i not in by:
                 raise ValueError("override for unknown id %s" % i)
             over[i] = dict((lv, cells[lv]) for lv in LEVELS)
+        kinds = dict((k, list(v)) for k, v in (doc.get("target_kinds") or {}).items() if not k.startswith("_"))
     except (KeyError, TypeError, ValueError, AttributeError) as e:
         raise Internal("action catalog is malformed (%s)" % e)
     return {"by": by, "alias": alias, "ceil": ceil, "over": over, "conds": conds,
-            "over_raw": doc["levels"].get("overrides") or {}}
+            "over_raw": doc["levels"].get("overrides") or {}, "kinds": kinds}
 
 
 def load_schema():
@@ -924,6 +955,230 @@ def call_stamp(home, token):
     return "consumed"
 
 
+# ------------------------------------------------------------------ tickets (D4 row 1, D5)
+
+def parse_utc(s):
+    if not isinstance(s, str) or not re.match(r"\A\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ\Z", s):
+        return None
+    try:
+        return calendar.timegm(time.strptime(s, "%Y-%m-%dT%H:%M:%SZ"))
+    except (ValueError, OverflowError):
+        return None
+
+
+def parse_target(t, base):
+    """What a target string names (D5): {repo: host/owner/name, number, url: (scheme, host, path), realpath}.
+    A field it does not name is None. A bare number (42, #42) and "." name `base`, the repository gh would use."""
+    out = {"repo": None, "number": None, "url": None, "realpath": None}
+    if not isinstance(t, str):
+        return out
+    t = t.strip()
+    m = re.match(r"\A#?([0-9]{1,12})\Z", t)
+    if t == "." or m:
+        out["repo"] = base
+        out["number"] = str(int(m.group(1))) if m and base else None
+        return out
+    if "://" in t:
+        u = re.match(r"\A([A-Za-z][A-Za-z0-9+.-]*)://(?:[^@/?#]*@)?([^/?#]+)([^?#]*)", t)
+        if u:
+            out["url"] = (u.group(1).lower(), u.group(2).lower(), u.group(3) or "/")
+        pm = re.match(r"\A(.+?)/(?:pull|pulls|issues)/([0-9]{1,12})/*\Z", t)
+        out["repo"] = normalize_remote(pm.group(1) if pm else t)
+        out["number"] = str(int(pm.group(2))) if pm and out["repo"] else None
+        return out
+    if t.startswith("/"):
+        out["realpath"] = os.path.realpath(t)
+        return out
+    pm = re.match(r"\A(.+)#([0-9]{1,12})\Z", t)
+    s = pm.group(1) if pm else t
+    out["repo"] = normalize_slug(s) if "/" in s else None
+    out["number"] = str(int(pm.group(2))) if pm and out["repo"] else None
+    return out
+
+
+def target_fields(kind, p, kinds):
+    """The fields actions.json target_kinds lists for `kind`, as a tuple, or None when any of them is
+    unresolvable: D5's equality, under which an unresolvable target never matches and kind none has no target."""
+    want = kinds.get(kind)
+    if not want:
+        return None
+    vals = {}
+    if kind == "url":
+        if p["url"]:
+            vals = dict(zip(("scheme", "host", "path"), p["url"]))
+    else:
+        if p["repo"]:
+            vals.update(zip(("host", "owner", "name"), p["repo"].split("/", 2)))
+        if p["number"]:
+            vals["number"] = p["number"]
+        if p["realpath"]:
+            vals["realpath"] = p["realpath"]
+    got = tuple(vals.get(f) for f in want)
+    return got if all(x is not None for x in got) else None
+
+
+def ticket_target(tk):
+    """A ticket's target {arg, repo} (D5: its first argument plus the checkout's repository) as parse_target
+    reads it. An argument that names no target leaves the repository alone."""
+    p = parse_target(tk["arg"], tk["repo"]) if tk["arg"] is not None else parse_target(".", tk["repo"])
+    if not any(p.values()):
+        p = parse_target(".", tk["repo"])
+    return p
+
+
+def read_ticket(path, name):
+    """(ticket, None) or (None, why). The format is scripts/plugin-config.sh's header (tickets/<id>.json)."""
+    m = TICKET_NAME_RE.match(name)
+    if not m:
+        return None, "not a ticket file name (<32 hex digits>.json)"
+    r = read_guarded(path, "private")
+    if r["state"] not in ("ok", "unsafe"):
+        return None, "unreadable (%s)" % (r.get("error") or r["state"])
+    doc, err = parse_json(r["data"], True)
+    if err or not isinstance(doc, dict):
+        return None, "corrupt (%s)" % (err or "not a JSON object")
+    try:
+        if doc.get("version") != 1 or doc.get("kind") not in ("raise", "lower"):
+            raise ValueError("version or kind")
+        if doc.get("id") != m.group(1):
+            raise ValueError("its id is not its file name")
+        if doc.get("level") not in LEVELS:
+            raise ValueError("level")
+        sk = doc.get("skill")
+        if sk is not None and not (isinstance(sk, str) and SKILL_RE.match(sk)):
+            raise ValueError("skill")
+        sid, ag, host = doc.get("session_id"), doc.get("agent"), doc.get("host")
+        if not (isinstance(sid, str) and sid) or not (isinstance(ag, str) and ag):
+            raise ValueError("session_id or agent")
+        if host is not None and not isinstance(host, str):
+            raise ValueError("host")
+        tg = doc.get("target")
+        if not isinstance(tg, dict) or any(tg.get(k) is not None and not isinstance(tg.get(k), str)
+                                           for k in ("arg", "repo")):
+            raise ValueError("target")
+        created, expires = parse_utc(doc.get("created")), parse_utc(doc.get("expires"))
+        if created is None or expires is None or expires <= created:
+            raise ValueError("created or expires")
+    except ValueError as e:
+        return None, "malformed (%s)" % e
+    repo = tg.get("repo")
+    probs = list(r["problems"]) + (["%s is a symbolic link" % path] if os.path.islink(path) else [])
+    return {"id": doc["id"], "kind": doc["kind"], "level": doc["level"], "skill": sk, "session_id": sid,
+            "agent": ag, "host": host, "arg": tg.get("arg"),
+            "repo": repo.lower() if isinstance(repo, str) and REPO_RE.match(repo.lower()) else None,
+            "created": created, "exp": expires, "expires": doc["expires"], "problems": probs}, None
+
+
+def load_tickets(home, o):
+    """D4 row 1, D5: this session's --perms= tickets, read only with --session. Raise tickets come from
+    scripts/plugin-config.sh confirm (a host prompt named skill, level, target and expiry); lowering tickets
+    from hooks/permission-intent.sh. Another session's ticket is skipped. An expired, foreign or corrupt one is
+    ignored with a warning, never an error. A raise counts only from a safe file in a safe dir, bound to this
+    (session, agent): an unsafe one is read tighten-only, its lowering counting and its raise not (D10.2)."""
+    out = {"state": "not read", "raise": [], "lower": [], "ignored": 0}
+    sess = o["session"]
+    if not sess:
+        return out
+    agent = o["agent"] or "main"
+    state = dirs(home)[1]
+    tdir = os.path.join(state, "tickets")
+    if not os.path.lexists(tdir):
+        out["state"] = "none"
+        return out
+    dprobs = (["%s is a symbolic link" % tdir] if os.path.islink(tdir) else []) + dir_problems(state) + \
+        dir_problems(tdir)
+    try:
+        names = sorted(os.listdir(tdir))
+    except OSError as e:
+        warn("tickets dir %s cannot be listed (%s): no ticket applies (D5)" % (tdir, e.strerror or e))
+        out["state"] = "unreadable"
+        return out
+    if dprobs:
+        warn("tickets dir %s is unsafe (%s): its raise tickets are ignored, its lowering tickets still count "
+             "(D10.2)" % (tdir, "; ".join(dprobs[:2])))
+    out["state"] = "unsafe dir" if dprobs else "read"
+    now = time.time()
+    seen = 0
+    for n in names:
+        if n.startswith("."):
+            continue   # a writer's temp file (tmp + rename)
+        seen += 1
+        if seen > MAX_TICKETS:
+            warn("more than %d files in %s: the rest are not read" % (MAX_TICKETS, tdir))
+            break
+        p = os.path.join(tdir, n)
+        tk, why = read_ticket(p, n)
+        if tk is None:
+            out["ignored"] += 1
+            warn("ticket %s ignored: %s (D5)" % (p, why))
+            continue
+        if tk["session_id"] != sess:
+            continue   # another session's ticket: not this call's to judge
+        if tk["exp"] <= now:
+            out["ignored"] += 1
+            warn("ticket %s expired at %s: ignored (D5)" % (tk["id"], tk["expires"]))
+            continue
+        if tk["kind"] == "lower":
+            out["lower"].append(tk)   # S-09: a lowering needs no provenance, any agent, any target
+            continue
+        bad = None
+        if dprobs or tk["problems"]:
+            bad = "it is unsafe (%s), so only a lowering would count (D10.2)" % "; ".join((dprobs + tk["problems"])[:2])
+        elif tk["exp"] - tk["created"] > RAISE_TTL or tk["created"] > now + CLOCK_SLACK:
+            bad = "a raise lives at most 15 minutes from its confirmation (D5)"
+        elif tk["skill"] is None:
+            bad = "it names no skill: a raise covers one skill and one target (D5)"
+        elif tk["agent"] != agent:
+            bad = "it is bound to agent %s and this call is agent %s (D5, SR S-11)" % (tk["agent"], agent)
+        elif tk["host"] and o["host"] and tk["host"] != o["host"]:
+            bad = "it is bound to host %s and this call is on %s" % (tk["host"], o["host"])
+        if bad:
+            out["ignored"] += 1
+            warn("raise ticket %s ignored: %s" % (tk["id"], bad))
+            continue
+        out["raise"].append(tk)
+    return out
+
+
+def ticket_raise_for(c, ctx):
+    """The raise ticket covering this candidate, or None. R2/R3 only (never R4 or UNCLASSIFIED, SR S-05), never
+    a step context raised, only for the call's skill, and only when the call's target equals the ticket's for
+    the action's target kind (actions.json target_kinds)."""
+    tks = (ctx.get("tickets") or {}).get("raise") or []
+    if not tks or c["unclassified"] or c["raised"] or c["r"] not in (2, 3) or not ctx["skill"]:
+        return None
+    kinds = ctx["cat"]["kinds"]
+    kind = (ctx["cat"]["by"].get(c["id"]) or {}).get("target")
+    mine = target_fields(kind, ctx["call_target"], kinds)
+    if mine is None:
+        trace("  %s: no ticket can match: the call's %s target is unresolved" % (c["id"], kind))
+        return None
+    best = None
+    for tk in tks:
+        if tk["skill"] != ctx["skill"] or target_fields(kind, ticket_target(tk), kinds) != mine:
+            continue
+        if best is None or is_lower(best["level"], tk["level"]):
+            best = tk
+    return best
+
+
+def ticket_lower_for(ctx):
+    """The lowest lowering ticket of this session for the call's skill (skill null = the whole session)."""
+    best = None
+    for tk in (ctx.get("tickets") or {}).get("lower") or []:
+        if tk["skill"] is not None and tk["skill"] != ctx["skill"]:
+            continue
+        if best is None or is_lower(tk["level"], best["level"]):
+            best = tk
+    return best
+
+
+def ticket_what(tk):
+    p = ticket_target(tk)
+    where = "/".join(x for x in (p["repo"], p["number"]) if x) or (tk["arg"] or "no target")
+    return "--perms=%s for %s on %s, until %s" % (tk["level"], tk["skill"] or "the session", where, tk["expires"])
+
+
 def read_plain_json(p):
     r = read_guarded(p, "any")
     if r["state"] == "absent":
@@ -1145,6 +1400,26 @@ def eval_candidate(c, view, ctx):
                 tighten("deny", "%s %s delivery.auto_merge false" % (kind, path), "legacy-deny")
         if ctx["env_auto_merge"] == "never":
             tighten("deny", "env TAMIRS_AUTO_MERGE=never (D4 row 2)", "env-deny")
+    # row 1: --perms= tickets (D5). A raise ticket lifts the answer to its level's ceiling for its one skill and
+    # one target, never over a deny (any deny is final) and never for R4 (row 0 below); a lowering always applies.
+    rt = ticket_raise_for(c, ctx)
+    if rt is not None:
+        pv, _, _ = ceiling(c, rt["level"], cat, conds)
+        if st["v"] == "deny":
+            trace("  %s: ticket %s cannot lift a deny (D4)" % (c["id"], rt["id"]))
+        elif RANK[pv] < RANK[st["v"]]:
+            setv(pv, "ticket %s: %s, confirmed on the host prompt (D4 row 1, D5)" % (rt["id"], ticket_what(rt)),
+                 "ticket")
+            st["ticket"] = rt["id"]
+    lt = ticket_lower_for(ctx) if not c["unclassified"] else None
+    if lt is not None:
+        pv, _, _ = ceiling(c, lt["level"], cat, conds)
+        if widened_at(c, lt["level"], st, cat):
+            trace("  %s: lowering ticket %s to %s keeps the configured allow (D2 %s row)" % (
+                c["id"], lt["id"], lt["level"], c["id"]))
+        elif RANK[pv] > RANK[st["v"]]:
+            setv(pv, "lowering ticket %s: %s (D4 row 1, SR S-09)" % (lt["id"], ticket_what(lt)), "ticket-lower")
+            st["ticket"] = lt["id"]
     # the call stamp (D8): no stamp from PG means this call is answered as supervised
     if ctx["stamp"] in ("missing", "unsafe"):
         pv, _, _ = ceiling(c, "supervised", cat, conds)
@@ -1199,6 +1474,10 @@ def allow_with(c, st, ctx, verdict, level):
     if st["cause"] == "call-stamp":
         out["note"] = "the permission guard did not stamp this call (--call): it is answered as supervised (D8)"
         return out
+    if st["cause"] == "ticket-lower":
+        out["note"] = ("a lowering --perms= ticket of this session holds it (%s, D5, SR S-09): it lapses when it "
+                       "expires or the session ends" % st["by"])
+        return out
     if st["cause"] == "precondition" and level == "unattended":
         out["durable"] = ["/plugin-config %s allow" % c["id"]] if c["r"] < 4 else []
         out["note"] = ("unattended allows it only while %s holds, and that is not established: the guard checks it "
@@ -1246,6 +1525,14 @@ def build_ctx(o):
     ctx["stamp"] = call_stamp(home, o["call"]) if o["call"] else None
     if ctx["stamp"] in ("missing", "unsafe"):
         warn("call stamp %s is %s: the call is answered as supervised (D8)" % (o["call"], ctx["stamp"]))
+    # row 1: this session's tickets, and what the call acts on (a bare number or "." is the repository gh
+    # would use: GH_REPO, else the checkout's origin, as for the trust check)
+    ctx["session"] = o["session"]
+    ctx["agent"] = (o["agent"] or "main") if o["session"] else o["agent"]
+    ctx["tickets"] = load_tickets(home, o)
+    gr = os.environ.get("GH_REPO")
+    base = normalize_slug(gr) if gr else (ctx["repo"]["origin"] if ctx["repo"] else None)
+    ctx["call_target"] = parse_target(o["target"], base)
     am = []
     if ctx["repo"]:
         p = os.path.join(ctx["repo"]["top"], ".dev-files", "policy.json")
@@ -1294,6 +1581,10 @@ def level_sources(ctx):
         out.append(e)
     if ctx["stamp"]:
         out.append({"source": "call_stamp", "state": ctx["stamp"]})
+    tk = ctx.get("tickets") or {}
+    if tk.get("state") not in (None, "not read"):
+        out.append({"source": "tickets", "state": tk["state"], "raise": [t["id"] for t in tk["raise"]],
+                    "lower": [t["id"] for t in tk["lower"]], "ignored": tk["ignored"]})
     return out
 
 
@@ -1324,6 +1615,9 @@ def effective_level(ctx):
         plv, psrc = (glv, gsrc) if gsrc else (doc.get("level"), "project.level")
         if plv and is_lower(plv, lv):
             lv, src = plv, psrc
+    lt = ticket_lower_for(ctx)
+    if lt is not None and is_lower(lt["level"], lv):
+        lv, src = lt["level"], "lowering ticket %s (D4 row 1)" % lt["id"]
     if ctx["stamp"] in ("missing", "unsafe") and is_lower("supervised", lv):
         lv, src = "supervised", "call stamp %s (D8)" % ctx["stamp"]
     return lv, src
@@ -1384,9 +1678,9 @@ def resolve(o):
         "decided_by": "headless" if h2d else by, "deny_wins_from": deny_from,
         "never_auto": c["never_auto"], "precondition": pre, "raised_by": ctx["raised_by"],
         "unclassified": c["unclassified"], "headless": ctx["headless"], "headless_ask_to_deny": h2d,
-        "setting_that_would_allow": aw, "allow_with": aw,
-        "skill": ctx["skill"], "host": ctx["host"], "target": ctx["target"], "home_source": ctx["home_source"],
-        "warnings": WARN,
+        "setting_that_would_allow": aw, "allow_with": aw, "ticket": st.get("ticket"),
+        "skill": ctx["skill"], "host": ctx["host"], "target": ctx["target"], "session": ctx["session"],
+        "agent": ctx["agent"], "home_source": ctx["home_source"], "warnings": WARN,
     }
     if o["explain"]:
         doc["trace"] = TRACE
@@ -1404,9 +1698,11 @@ def level_report(o):
 
 def parse_resolve_args(a):
     o = {"action": None, "skill": None, "target": None, "repo": None, "host": None, "objective": None,
-         "call": None, "conds": {}, "headless": False, "json": False, "level_mode": False, "explain": False}
+         "call": None, "session": None, "agent": None, "conds": {}, "headless": False, "json": False,
+         "level_mode": False, "explain": False}
     val = {"--action": "action", "--skill": "skill", "--target": "target", "--repo": "repo", "--host": "host",
-           "--objective": "objective", "--call": "call", "--cond": "cond"}
+           "--objective": "objective", "--call": "call", "--cond": "cond", "--session": "session",
+           "--agent": "agent"}
     flag = {"--headless": "headless", "--json": "json", "--level": "level_mode", "--explain": "explain"}
     i = 0
     while i < len(a):
@@ -1445,6 +1741,12 @@ def parse_resolve_args(a):
         raise Usage("--objective %r is not an objective id" % o["objective"])
     if o["call"] is not None and not CALL_RE.match(o["call"]):
         raise Usage("--call expects 8-128 characters of [A-Za-z0-9_-]")
+    if o["session"] is not None and not SESSION_RE.match(o["session"]):
+        raise Usage("--session expects 1-256 characters, no control characters")
+    if o["agent"] is not None and not AGENT_RE.match(o["agent"]):
+        raise Usage("--agent expects 1-128 characters, no control characters")
+    if o["agent"] is not None and o["session"] is None:
+        raise Usage("--agent needs --session (a ticket binds both, D5)")
     if not o["level_mode"]:
         if o["action"] is None:
             raise Usage("missing the action id (--action <id>)")

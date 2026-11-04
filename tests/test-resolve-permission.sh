@@ -6,8 +6,9 @@
 # WHAT THIS SUITE HOLDS
 #   A table: one case per D4 precedence row (7 default, 6 option store + user
 #   level, 5 user keys, 4 project file and trust, 3 objective, 2 TAMIRS_AUTO_MERGE,
-#   1 tickets not read, 0 invariants) and per failure mode (missing or corrupt
-#   catalog and schema, no python3, a missing library, a corrupt user file, wrong
+#   1 --perms= tickets, one case per D5 rule, 0 invariants) and per failure mode
+#   (missing or corrupt catalog and schema, no python3, a missing library, a
+#   corrupt user file, wrong
 #   owner or mode, lock mismatch or absence, an untrusted widening project file,
 #   a trusted one and every way trust breaks, env tightening and attempted
 #   widening, headless ask -> deny, the never_auto clamp, an R4 allow attempt, an
@@ -434,7 +435,7 @@ expect "policy.json auto_merge true grants nothing" ask
 warned "policy.json true" "grants nothing"
 
 # ------------------------------------------------------------------ rows 3, 2, 1
-section "row 3: objective delivery.auto_merge; row 2: TAMIRS_AUTO_MERGE; row 1: no ticket read"
+section "row 3: objective delivery.auto_merge; row 2: TAMIRS_AUTO_MERGE"
 
 REPO4="$TMP/app4"; new_repo "$REPO4"; mkdir -p "$REPO4/.dev-files/objectives/obj1"
 H="$(new_home)"; user_file "$H" '{"version": 1, "actions": {"pr.merge.auto": "allow"}}'
@@ -458,10 +459,239 @@ TAMIRS_AUTO_MERGE=always run "$H" pr.merge.auto --host codex --target 42
 expect "TAMIRS_AUTO_MERGE=always grants nothing" ask
 warned "TAMIRS_AUTO_MERGE=always" "/plugin-config pr.merge.auto allow"
 
-H="$(new_home)"; mkdir -p "$H/.local/state/tamirs-superpowers/tickets"; chmod -R 700 "$H/.local"
-printf '{"skill": "pr-dev", "level": "unattended"}\n' > "$H/.local/state/tamirs-superpowers/tickets/t.json"
-run "$H" pr.create --host claude --skill pr-dev
-expect "a ticket-shaped file raises nothing (row 1 is not read)" ask .level supervised
+
+# ------------------------------------------------------------------ row 1
+section "row 1: --perms= tickets (D4 row 1, D5; SR S-05, S-09, S-11)"
+
+# ticket <home> <kind> <level> [<json overrides>] [<ttl s>] [<created offset s>] — a ticket as the
+# writers render it (scripts/plugin-config.sh header): session s-1, agent main, host claude, skill
+# pr-dev, target {arg 42, repo github.com/you/app}, created now, 15 min (raise) or 24 h (lower).
+# 0600 in a 0700 dir; prints its id.
+ticket() {
+  local h="$1" d over="${4:-}"
+  [ -n "$over" ] || over='{}'
+  d="$h/.local/state/tamirs-superpowers/tickets"
+  mkdir -p "$d"
+  chmod 700 "$h/.local" "$h/.local/state" "$h/.local/state/tamirs-superpowers" "$d"
+  python3 - "$d" "$2" "$3" "$over" "${5:-}" "${6:-0}" <<'PY'
+import json, os, sys, time
+d, kind, level, over, ttl, off = sys.argv[1:7]
+t = int(time.time()) + int(off)
+ttl = int(ttl) if ttl else (900 if kind == "raise" else 86400)
+tid = os.urandom(16).hex()
+u = lambda x: time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(x))
+tk = {"version": 1, "kind": kind, "id": tid, "skill": "pr-dev", "level": level,
+      "target": {"arg": "42", "repo": "github.com/you/app"}, "session_id": "s-1", "agent": "main",
+      "host": "claude", "created": u(t), "expires": u(t + ttl), "source": "plugin-config confirm (test)"}
+tk.update(json.loads(over))
+p = os.path.join(d, tid + ".json")
+with open(p, "w") as f:
+    f.write(json.dumps(tk, indent=2, sort_keys=True) + "\n")
+os.chmod(p, 0o600)
+print(tid)
+PY
+}
+tdir() { printf '%s/.local/state/tamirs-superpowers/tickets' "$1"; }
+S1=(--host claude --session s-1 --agent main --skill pr-dev)
+TREPO="$TMP/app-t"; new_repo "$TREPO"
+
+H="$(new_home)"; TK="$(ticket "$H" raise standard)"
+run "$H" pr.comment "${S1[@]}" --target you/app#42
+expect "a raise ticket on its skill and target: R2 allowed" allow .ticket "$TK" .level supervised
+judge "  ... decided_by names the ticket" yes "$(has "$(jf .decided_by)" "ticket $TK")"
+judge "  ... level_sources lists it" "$TK" "$(jf '[.level_sources[] | select(.source=="tickets")][0].raise[0]')"
+run "$H" pr.comment --host claude --skill pr-dev --target you/app#42
+expect "no --session: tickets are not read" ask .ticket null
+run "$H" pr.comment --host claude --session s-2 --agent main --skill pr-dev --target you/app#42
+expect "another session: not this call's ticket" ask
+run "$H" pr.comment --host claude --session s-1 --skill pr-dev --target you/app#42
+expect "--session without --agent is the main thread (the partial S-11 disposition)" allow .agent main
+run "$H" pr.comment --host claude --session s-1 --agent sub-1 --skill pr-dev --target you/app#42
+expect "an observed subagent id: the main-thread ticket does not reach it (S-11)" ask
+warned "subagent" "bound to agent main"
+run "$H" pr.comment --host claude --session s-1 --agent main --skill start-dev --target you/app#42
+expect "another skill: one skill per ticket" ask
+run "$H" pr.comment --host claude --session s-1 --agent main --target you/app#42
+expect "no skill on the call: no raise" ask
+run "$H" pr.comment --host gemini --session s-1 --agent main --skill pr-dev --target you/app#42
+expect "a ticket bound to claude, a call on gemini" ask
+warned "host" "bound to host claude"
+
+# the target: actions.json target_kinds equality, an unresolvable field never matches
+run "$H" pr.comment "${S1[@]}" --target you/app#43
+expect "pr kind: another PR number" ask
+run "$H" pr.comment "${S1[@]}" --target other/app#42
+expect "pr kind: the same number in another repo" ask
+run "$H" pr.comment "${S1[@]}"
+expect "pr kind: no --target, nothing to match" ask
+run "$H" pr.comment "${S1[@]}" --target https://github.com/you/app/pull/42
+expect "pr kind: the PR URL" allow
+run "$H" pr.comment "${S1[@]}" --target github.com/you/app#42
+expect "pr kind: host/owner/repo#n" allow
+run "$H" pr.comment "${S1[@]}" --repo "$TREPO" --target 42
+expect "pr kind: a bare number in a checkout whose origin is you/app" allow
+GH_REPO=other/app run "$H" pr.comment "${S1[@]}" --repo "$TREPO" --target 42
+expect "pr kind: a bare number while GH_REPO names another repo (gh acts there)" ask
+run "$H" pr.comment "${S1[@]}" --repo "$NOWHERE" --target 42
+expect "pr kind: a bare number with no checkout origin is unresolvable" ask
+run "$H" issue.comment "${S1[@]}" --target you/app#42
+expect "issue kind: the ticket's number in its repo" allow
+run "$H" issue.create "${S1[@]}" --target you/app
+expect "repo kind: the ticket's repository" allow
+run "$H" issue.create "${S1[@]}" --repo "$TREPO" --target .
+expect "repo kind: '.' in the ticket's checkout" allow
+run "$H" issue.create "${S1[@]}" --target other/app
+expect "repo kind: another repository" ask
+run "$H" git.push.branch "${S1[@]}" --target you/app --cond default_branch=false --cond tag_ref=false
+expect "branch kind: a ticket names no branch, so it never matches" ask
+H2="$(new_home)"; ticket "$H2" raise standard '{"target": {"arg": "add-login", "repo": "github.com/you/app"}}' >/dev/null
+run "$H2" issue.create "${S1[@]}" --target you/app
+expect "an argument that names no target leaves the repository (repo kind matches)" allow
+run "$H2" pr.comment "${S1[@]}" --target you/app#42
+expect "  ... and no number (pr kind does not)" ask
+H2="$(new_home)"; ticket "$H2" raise standard '{"target": {"arg": "42", "repo": null}}' >/dev/null
+run "$H2" pr.comment "${S1[@]}" --target you/app#42
+expect "a ticket with no resolvable repository matches nothing" ask
+
+# R2/R3 only; R3 needs the unattended ceiling and its precondition; never R4 or UNCLASSIFIED
+run "$H" pr.close "${S1[@]}" --target you/app#42 --cond own_pr_or_closes_ref_of_merged_pr=true
+expect "R3 under a standard ticket: the standard ceiling asks" ask
+H3="$(new_home)"; TK3="$(ticket "$H3" raise unattended)"
+run "$H3" pr.close "${S1[@]}" --target you/app#42 --cond own_pr_or_closes_ref_of_merged_pr=true
+expect "R3 under an unattended ticket, precondition holds" allow .ticket "$TK3"
+run "$H3" pr.close "${S1[@]}" --target you/app#42
+expect "R3 under an unattended ticket, precondition unknown" ask
+run "$H3" pr.merge "${S1[@]}" --target you/app#42
+expect "R3 never_auto: no ticket makes it automatic" ask .never_auto true
+run "$H3" pr.merge.admin "${S1[@]}" --target you/app#42 --cond required_check_failing_or_pending=false
+expect "R4: no ticket satisfies it (S-05)" ask .r 4 .ticket null
+run "$H3" repo.create "${S1[@]}" --target you/app
+expect "R4 repo kind: still the host prompt" ask .r 4
+run "$H3" made.up.action "${S1[@]}" --target you/app#42
+expect "UNCLASSIFIED: never" ask .unclassified true
+run "$H3" pr.thread.resolve "${S1[@]}" --target you/app#42
+expect "a step context raised (another's thread unknown: R3) gets no ticket" ask .r 3
+run "$H" pr.thread.resolve "${S1[@]}" --target you/app#42 --cond others_thread=false
+expect "  ... the same step, not raised, gets it" allow .r 2
+
+# any deny is final; a ticket outranks rows 2-7's asks, not their denies
+H4="$(new_home)"; user_file "$H4" '{"version": 1, "actions": {"pr.comment": "deny"}}'; ticket "$H4" raise unattended >/dev/null
+run "$H4" pr.comment "${S1[@]}" --target you/app#42
+expect "a user deny stands over a ticket" deny
+H4="$(new_home)"; user_file "$H4" '{"version": 1, "actions": {"pr.comment": "ask"}}'; ticket "$H4" raise standard >/dev/null
+run "$H4" pr.comment "${S1[@]}" --target you/app#42
+expect "a user ask (row 5) is lifted by the confirmed ticket (row 1)" allow
+TREPO2="$TMP/app-t2"; new_repo "$TREPO2"; project_file "$TREPO2" '{"version": 1, "actions": {"pr.comment": "deny"}}'
+run "$H4" pr.comment "${S1[@]}" --repo "$TREPO2" --target 42
+expect "a project deny stands over a ticket" deny
+TAMIRS_AUTO_MERGE=never run "$H3" pr.merge.auto "${S1[@]}" --target you/app#42 \
+  --cond pinned_check_or_review_and_no_protected_paths=true
+expect "TAMIRS_AUTO_MERGE=never stands over a ticket" deny
+run "$H3" pr.merge.auto "${S1[@]}" --target you/app#42 --cond pinned_check_or_review_and_no_protected_paths=true
+expect "pr.merge.auto under an unattended ticket, precondition holds" allow
+run "$H" pr.merge.auto "${S1[@]}" --target you/app#42 --cond pinned_check_or_review_and_no_protected_paths=true
+expect "pr.merge.auto under a standard ticket: standard keeps it off" ask
+run "$H" pr.comment "${S1[@]}" --target you/app#42 --headless
+expect "headless: the ticket's allow needs no human" allow
+run "$H" pr.comment "${S1[@]}" --target you/app#43 --headless
+expect "headless without a matching ticket: ask -> deny" deny
+run "$H" pr.comment "${S1[@]}" --target you/app#42 --call nostamp001
+expect "the call stamp (D8) is not lifted by a ticket" ask
+
+# the raise ticket's own checks: expiry, lifetime, shape, file and dir safety
+H5="$(new_home)"; ticket "$H5" raise standard '{}' 900 -1000 >/dev/null
+run "$H5" pr.comment "${S1[@]}" --target you/app#42
+expect "an expired raise ticket" ask
+warned "expired" "expired at"
+H5="$(new_home)"; ticket "$H5" raise standard '{}' 3600 >/dev/null
+run "$H5" pr.comment "${S1[@]}" --target you/app#42
+expect "a raise ticket that lives an hour" ask
+warned "an hour" "at most 15 minutes"
+H5="$(new_home)"; ticket "$H5" raise standard '{}' 900 3600 >/dev/null
+run "$H5" pr.comment "${S1[@]}" --target you/app#42
+expect "a raise ticket created in the future" ask
+warned "future" "at most 15 minutes"
+H5="$(new_home)"; ticket "$H5" raise standard '{"skill": null}' >/dev/null
+run "$H5" pr.comment "${S1[@]}" --target you/app#42
+expect "a raise ticket with no skill" ask
+warned "no skill" "names no skill"
+H5="$(new_home)"; TK5="$(ticket "$H5" raise standard)"; chmod 644 "$(tdir "$H5")/$TK5.json"
+run "$H5" pr.comment "${S1[@]}" --target you/app#42
+expect "a group/world-readable raise ticket" ask
+warned "0644 raise" "only a lowering would count"
+H5="$(new_home)"; ticket "$H5" raise standard >/dev/null; chmod 755 "$(tdir "$H5")"
+run "$H5" pr.comment "${S1[@]}" --target you/app#42
+expect "a raise ticket in a 0755 tickets dir" ask
+warned "0755 dir" "is unsafe"
+H5="$(new_home)"; mkdir -p "$TMP/elsewhere-$$"; chmod 700 "$TMP/elsewhere-$$"
+TK5="$(ticket "$H5" raise standard)"; mv "$(tdir "$H5")/$TK5.json" "$TMP/elsewhere-$$/"
+rmdir "$(tdir "$H5")"; ln -s "$TMP/elsewhere-$$" "$(tdir "$H5")"
+run "$H5" pr.comment "${S1[@]}" --target you/app#42
+expect "a raise ticket behind a symlinked tickets dir" ask
+warned "symlinked dir" "symbolic link"
+H5="$(new_home)"; TK5="$(ticket "$H5" raise standard)"; mv "$(tdir "$H5")/$TK5.json" "$(tdir "$H5")/0123456789abcdef0123456789abcdef.json"
+run "$H5" pr.comment "${S1[@]}" --target you/app#42
+expect "a ticket whose id is not its file name" ask
+warned "renamed" "its id is not its file name"
+H5="$(new_home)"; ticket "$H5" raise standard >/dev/null
+printf 'not json\n' > "$(tdir "$H5")/ffffffffffffffffffffffffffffffff.json"; chmod 600 "$(tdir "$H5")/ffffffffffffffffffffffffffffffff.json"
+printf '{"skill": "pr-dev", "level": "unattended"}\n' > "$(tdir "$H5")/t.json"; chmod 600 "$(tdir "$H5")/t.json"
+run "$H5" pr.comment "${S1[@]}" --target you/app#42
+expect "corrupt and misnamed files are ignored; the valid ticket beside them still applies" allow
+warned "corrupt" "corrupt"
+warned "misnamed" "not a ticket file name"
+H5="$(new_home)"; mkdir -p "$(tdir "$H5")"; chmod -R 700 "$H5/.local"
+printf '{"skill": "pr-dev", "level": "unattended"}\n' > "$(tdir "$H5")/t.json"
+run "$H5" pr.comment "${S1[@]}" --target you/app#42
+expect "a ticket-shaped file the writers never made raises nothing, and is no error" ask .level supervised
+
+# lowering tickets: no provenance, every agent and target of the session, beat a raise (SR S-09)
+H6="$(new_home)"; user_file "$H6" '{"version": 1, "level": "standard", "actions": {"pr.review_request": "allow"}}'
+TL="$(ticket "$H6" lower supervised '{"skill": null, "target": {"arg": null, "repo": null}}')"
+run "$H6" pr.create --host claude --session s-1 --agent main
+expect "a session-wide lowering: R2 asks again" ask .level supervised .ticket "$TL"
+judge "  ... level_source names it" yes "$(has "$(jf .level_source)" "lowering ticket $TL")"
+judge "  ... the setting note says why" yes "$(has "$(jf .setting_that_would_allow.note)" "lowering --perms= ticket")"
+run "$H6" pr.create --host claude --session s-1 --agent sub-1 --target other/app#9
+expect "  ... from another agent and on another target too" ask
+run "$H6" pr.review_request --host claude --session s-1 --agent main --target you/app#42
+expect "  ... and over a user allow (row 1 above row 5)" ask
+run "$H6" pr.create --host claude --session s-2 --agent main
+expect "  ... not in another session" allow
+run "$H6" --level --host claude --session s-1
+judge "--level with --session reports the lowering" supervised "$(jf .level)"
+H6="$(new_home)"; user_file "$H6" '{"version": 1, "level": "standard"}'; ticket "$H6" lower supervised >/dev/null
+run "$H6" pr.create --host claude --session s-1 --agent main --skill pr-dev
+expect "a lowering for pr-dev applies under pr-dev" ask
+run "$H6" pr.create --host claude --session s-1 --agent main --skill start-dev
+expect "  ... not under another skill" allow
+run "$H6" pr.create --host claude --session s-1 --agent main
+expect "  ... nor with no skill" allow
+ticket "$H6" raise unattended >/dev/null
+run "$H6" pr.comment "${S1[@]}" --target you/app#42
+expect "a lowering beats a raise for the same skill" ask
+H6="$(new_home)"; user_file "$H6" '{"version": 1, "level": "standard"}'
+TL="$(ticket "$H6" lower supervised '{"skill": null}')"; chmod 644 "$(tdir "$H6")/$TL.json"
+run "$H6" pr.create --host claude --session s-1 --agent main
+expect "an unsafe lowering ticket still lowers (tighten-only, D10.2)" ask
+H6="$(new_home)"; user_file "$H6" '{"version": 1, "level": "standard"}'; ticket "$H6" lower supervised '{"skill": null}' 86400 -90000 >/dev/null
+run "$H6" pr.create --host claude --session s-1 --agent main
+expect "an expired lowering ticket no longer lowers" allow
+H6="$(new_home)"; user_file "$H6" '{"version": 1, "level": "unattended", "actions": {"pr.merge.auto": "allow"}}'
+ticket "$H6" lower standard '{"skill": null}' >/dev/null
+run "$H6" pr.merge.auto --host claude --session s-1 --agent main --target you/app#42
+expect "a lowering to standard keeps the configured pr.merge.auto allow (D2 row)" allow
+ticket "$H6" lower supervised '{"skill": null}' >/dev/null
+run "$H6" pr.merge.auto --host claude --session s-1 --agent main --target you/app#42
+expect "  ... a lowering to supervised does not" ask
+
+run "$H" pr.comment --host claude --agent main --skill pr-dev
+judge "usage: --agent without --session exits 2" 2 "$RC"
+judge "usage: ... and denies" deny "$(jf .verdict)"
+run "$H" pr.comment --host claude --session "$(printf 'a\tb')" --skill pr-dev
+judge "usage: a control character in --session exits 2" 2 "$RC"
+run "$H" pr.comment "${S1[@]}" --target you/app#42 --explain
+judge "--explain traces the ticket" yes "$(has "$OUT" "ticket $TK")"
 
 # ------------------------------------------------------------------ row 0
 section "row 0: invariants, context raises, R4 never automatic"

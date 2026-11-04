@@ -7,11 +7,16 @@
 #
 # Reports: detected platform(s), canonical plugin version and any drift, required and
 # optional tool presence with versions, which optional features are therefore usable,
-# the capabilities the detected platform provides, and a one-line remedy for everything
+# the capabilities the detected platform provides, each detected host CLI's version
+# against its permission-levels floor (ADR 004 D9), and a one-line remedy for everything
 # missing.
 #
 # Non-interactive by design: every probe reads from /dev/null, so this never blocks on
-# stdin (the statusline shipped with an unguarded read once — that bug does not recur here).
+# stdin (the statusline shipped with an unguarded read once — that bug does not recur here),
+# and runs under a hard deadline (DOCTOR_PROBE_SECONDS, 1-3, default 3), so a CLI that
+# hangs on --version (a launcher shim, say) is reported "version unknown (probe timed out)"
+# instead of stalling the report. The Cursor desktop app is never launched: its version is
+# read from the app bundle's package.json.
 #
 # Exit 0 when the install is usable, even with optional features missing. Exit 1 only
 # when the install is genuinely broken: core files absent or unparseable, a required
@@ -24,16 +29,20 @@
 # session for the sandbox.
 set -euo pipefail
 
-usage() { sed -n '2,17p' "$0" | sed -E 's/^# ?//'; exit "${1:-0}"; }
+usage() { sed -n '2,22p' "$0" | sed -E 's/^# ?//'; exit "${1:-0}"; }
 [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]] && usage 0
 
 ROOT="$(cd "${1:-$(dirname "$(dirname "${BASH_SOURCE[0]}")")}" && pwd)"
+# This plugin's own install, which [repo-root] may not be: the permission floors are facts
+# about the plugin, read from where it is installed.
+PLUGIN_HOME="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 BROKEN=0
 MISSING=()
 
 hdr()  { printf '\n== %s ==\n' "$1"; }
 ok()   { printf '  ok      %s\n' "$*"; }
 warnl(){ printf '  missing %s\n' "$*"; }
+warnv(){ printf '  warn    %s\n' "$*"; }
 skipl(){ printf '  n/a     %s\n' "$*"; }
 bad()  { printf '  BROKEN  %s\n' "$*"; BROKEN=$(( BROKEN + 1 )); }
 
@@ -58,12 +67,51 @@ else
   done
 fi
 
-# Print "name version" for a tool, or empty if absent. Never reads stdin.
+PROBE_SECS="${DOCTOR_PROBE_SECONDS:-3}"
+case "$PROBE_SECS" in 1|2|3) ;; *) PROBE_SECS=3 ;; esac
+PROBE_TIMED_OUT="version unknown (probe timed out)"
+
+# with_deadline <seconds> <command...> — run it, killed after <seconds> with every process it
+# started; its status, or 124/137/143 when the deadline killed it. coreutils timeout/gtimeout
+# when installed, else a background job in its own process group and a watchdog (macOS ships
+# no timeout): the pattern of hooks/lib/permission-conditions.sh.
+with_deadline() {
+  local secs="$1" pid wd rc=0 mon=0 sl
+  shift
+  if command -v timeout >/dev/null 2>&1; then
+    timeout -k 1 "$secs" "$@" || rc=$?
+    return "$rc"
+  fi
+  if command -v gtimeout >/dev/null 2>&1; then
+    gtimeout -k 1 "$secs" "$@" || rc=$?
+    return "$rc"
+  fi
+  sl="$(command -v sleep 2>/dev/null || echo /bin/sleep)"
+  case "$-" in *m*) mon=1 ;; esac
+  set -m
+  "$@" &
+  pid=$!
+  [[ "$mon" == 1 ]] || set +m
+  ( "$sl" "$secs"; kill -TERM -- "-$pid" 2>/dev/null; "$sl" 1; kill -KILL -- "-$pid" 2>/dev/null ) \
+    </dev/null >/dev/null 2>&1 &
+  wd=$!
+  wait "$pid" || rc=$?
+  kill "$wd" 2>/dev/null || true
+  wait "$wd" 2>/dev/null || true
+  return "$rc"
+}
+
+# Print "name version" for a tool, or empty if absent. Never reads stdin; never waits longer
+# than the probe deadline.
 tool_version() {
-  local bin="$1" ver
+  local bin="$1" out="" rc=0
   command -v "$bin" >/dev/null 2>&1 || return 1
-  ver="$("$bin" --version </dev/null 2>/dev/null | head -1 || true)"
-  printf '%s' "${ver:-present}"
+  out="$(with_deadline "$PROBE_SECS" "$bin" --version </dev/null 2>/dev/null)" || rc=$?
+  case "$rc" in
+    124|137|143) printf '%s' "$PROBE_TIMED_OUT"; return 0 ;;
+  esac
+  out="$(printf '%s\n' "$out" | head -1 || true)"
+  printf '%s' "${out:-present}"
 }
 
 echo "tamirs-superpowers doctor"
@@ -80,7 +128,10 @@ detected=()
 
 for pair in "claude:claude_code" "cursor-agent:cursor" "codex:codex" "gemini:gemini_cli" "opencode:opencode"; do
   bin="${pair%%:*}"; id="${pair##*:}"
-  if v="$(tool_version "$bin")"; then detected+=("$id (CLI: $v)"); fi
+  if v="$(tool_version "$bin")"; then
+    detected+=("$id (CLI: $v)")
+    printf -v "HV_${bin//-/_}" '%s' "$v"   # reused by the permission-floor check below
+  fi
 done
 
 if (( ${#detected[@]} == 0 )); then
@@ -164,7 +215,7 @@ done
 
 # --- Optional features ---
 hdr "Optional features"
-if command -v gh >/dev/null 2>&1 && gh auth status </dev/null >/dev/null 2>&1; then
+if command -v gh >/dev/null 2>&1 && with_deadline 5 gh auth status </dev/null >/dev/null 2>&1; then
   ok "GitHub automation — gh installed and authenticated"
 else
   warnl "GitHub automation — PR/issue steps will print output for manual filing instead"
@@ -225,6 +276,119 @@ else
       | "  \(.value.status | (. + "                    ")[0:21])\(.key)"
         + (if .value.fallback then "\n      fallback: \(.value.fallback)" else "" end)
     ' "$REGISTRY" | sed 's/^/  /'
+  fi
+fi
+
+# --- Permission levels: host floors (ADR 004 D9) ---
+# Each host CLI on PATH against the version its permission-level semantics were measured or
+# source-cited on. The floors are read from this plugin's platform-targets.json
+# (permissions_min, and Cursor's permissions_min_cli for cursor-agent) and, where the
+# engineering docs did not ship (every distribution prunes them), from the registry's
+# permission_levels `since`, which check-capability-registry.sh holds equal. D9: below the
+# floor every level above supervised should run as supervised; an unreadable version is a
+# warning only. Only `--version` is ever run, under the probe deadline; nothing here starts a
+# session or the Cursor app.
+hdr "Permission levels (host floors, ADR 004 D9)"
+FLOOR_TARGETS="$PLUGIN_HOME/docs/engineering/build-and-release/platform-targets.json"
+FLOOR_REGISTRY="$PLUGIN_HOME/core/capabilities/platforms.json"
+
+# perm_floor <target> <field> — prints "<version> <source>" or nothing.
+perm_floor() {
+  local t="$1" f="$2" v=""
+  if [[ -f "$FLOOR_TARGETS" ]]; then
+    v="$(jq -r --arg t "$t" --arg f "$f" '.targets[$t][$f] // empty' "$FLOOR_TARGETS" 2>/dev/null || true)"
+    [[ -n "$v" ]] && { printf '%s platform-targets.json' "$v"; return 0; }
+  fi
+  if [[ "$f" == permissions_min && -f "$FLOOR_REGISTRY" ]]; then
+    v="$(jq -r --arg t "$t" 'first(.platforms[].surfaces[$t]? | select(. != null)) | .capabilities.permission_levels.since // empty' \
+      "$FLOOR_REGISTRY" 2>/dev/null || true)"
+    [[ -n "$v" ]] && printf '%s core/capabilities/platforms.json' "$v"
+  fi
+  return 0
+}
+
+# cursor_app_version — the Cursor desktop app's version from its bundle's package.json, read
+# as a file: `cursor --version` can block (the launcher shim waits on the app), so it is never
+# run. DOCTOR_CURSOR_APP_DIRS (colon-separated resources/app dirs) replaces the default places.
+cursor_app_version() {
+  local dirs d v
+  dirs="${DOCTOR_CURSOR_APP_DIRS:-$HOME/Applications/Cursor.app/Contents/Resources/app:/Applications/Cursor.app/Contents/Resources/app:/usr/share/cursor/resources/app:/opt/Cursor/resources/app:/opt/cursor/resources/app}"
+  local IFS=:
+  for d in $dirs; do
+    [[ -n "$d" && -f "$d/package.json" ]] || continue
+    v="$(jq -r '.version // empty' "$d/package.json" 2>/dev/null || true)"
+    printf '%s' "${v:-present}"
+    return 0
+  done
+  return 0
+}
+
+# ver_lt <a> <b> — 0 when dotted-numeric a < b (a pre-release suffix is ignored).
+ver_lt() {
+  awk -v a="$1" -v b="$2" 'BEGIN { n = split(a, x, "."); m = split(b, y, "."); k = (n > m ? n : m)
+    for (i = 1; i <= k; i++) { p = (i <= n ? x[i] + 0 : 0); q = (i <= m ? y[i] + 0 : 0)
+      if (p < q) exit 0; if (p > q) exit 1 } exit 1 }'
+}
+
+# bin | target | floor field | label | what the floor guarantees (ADR 004 D9's feature column)
+declare -a FLOORS=(
+  "claude|claude_code|permissions_min|Claude Code|the permission guard's ask dialog under bypassPermissions, its headless deny (C4/U3) and the UserPromptSubmit source a --perms= raise needs (C3) were measured from this version"
+  "codex|codex|permissions_min|Codex CLI|the deny-only hook contract the permission guard answers in is source-cited from this version; an older build may let an ask or a malformed answer through (X1)"
+  "cursor-agent|cursor|permissions_min_cli|Cursor CLI|the preToolUse/beforeShellExecution deny the permission guard answers is source-cited from this build (U1)"
+  "@cursor-app|cursor|permissions_min|Cursor desktop|the desktop app's deny-only hooks are assumed from this build (pending spike S2)"
+  "gemini|gemini_cli|permissions_min|Gemini CLI|the static ask_user rule for R4 and confirm and its headless deny under --yolo were measured from this version (G1-G3)"
+  "opencode|opencode|permissions_min|OpenCode|a plugin permission-hook deny staying final under --auto was measured from this version (O1-O3)"
+)
+if ! command -v jq >/dev/null 2>&1; then
+  skipl "permission floors — needs jq to read them"
+elif [[ ! -f "$FLOOR_TARGETS" && ! -f "$FLOOR_REGISTRY" ]]; then
+  skipl "permission floors — neither platform-targets.json nor core/capabilities/platforms.json is in this install"
+else
+  checked=0
+  for row in "${FLOORS[@]}"; do
+    IFS='|' read -r bin target field label feature <<<"$row"
+    if [[ "$bin" == @cursor-app ]]; then
+      raw="$(cursor_app_version)"
+    else
+      var="HV_${bin//-/_}"
+      raw="${!var:-}"
+      if [[ -z "$raw" ]]; then
+        raw="$(tool_version "$bin" || true)"
+      fi
+    fi
+    [[ -n "$raw" ]] || continue
+    checked=$(( checked + 1 ))
+    floor="$(perm_floor "$target" "$field")"
+    if [[ -z "$floor" ]]; then
+      skipl "permission levels: $label floor ($field) is not recorded in this install"
+      continue
+    fi
+    fv="${floor%% *}"; fsrc="${floor#* }"
+    if [[ "$raw" == "$PROBE_TIMED_OUT" ]]; then
+      warnv "permission levels: $label $PROBE_TIMED_OUT after ${PROBE_SECS}s, so its floor $fv is not checked (ADR 004 D9: a warning only)"
+      continue
+    fi
+    have="$(printf '%s\n' "$raw" | grep -Eo '[0-9]+(\.[0-9]+)+' | head -1 || true)"
+    if [[ -z "$have" ]]; then
+      warnv "permission levels: $label version unreadable ('$raw'), so its floor $fv is not checked (ADR 004 D9: a warning only)"
+      continue
+    fi
+    if ver_lt "$have" "$fv"; then
+      warnv "permission levels: $label $have is below the floor $fv ($fsrc, ADR 004 D9): $feature"
+      if [[ "$bin" == claude ]] && ver_lt "$have" 2.1.295; then
+        warnv "  ... and below 2.1.295, \`onFailure: \"block\"\` is not honoured: the permission guard fails OPEN if it cannot start"
+      fi
+      if [[ "$bin" == claude ]] && ver_lt "$have" 2.1.271; then
+        warnv "  ... and below 2.1.271 the install dialog's permission_level options picker does not load (C2): use scripts/plugin-config.sh"
+      fi
+      echo "          remedy: upgrade $label to $fv or later; until then keep the level at supervised (/plugin-config supervised) — the resolver does not clamp it yet"
+      MISSING+=("permission levels on $label $have: below the floor $fv — upgrade, or stay at supervised")
+    else
+      ok "permission levels: $label $have meets the floor $fv"
+    fi
+  done
+  if (( checked == 0 )); then
+    skipl "permission floors — no host CLI on PATH to compare"
   fi
 fi
 

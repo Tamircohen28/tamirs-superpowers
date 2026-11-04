@@ -9,9 +9,13 @@
 #
 # Options:
 #   --skill <id>        the skill taking the step (per-skill and per-group levels)
-#   --target <t>        what it acts on; for pr.merge.auto trust: a PR number (the
-#                       repo gh would use: GH_REPO, else origin), <owner>/<repo>[#n],
-#                       <host>/<owner>/<repo>[#n] or a PR URL
+#   --target <t>        what it acts on (pr.merge.auto trust, ticket matching): a PR
+#                       or issue number or "." (the repo gh would use: GH_REPO, else
+#                       origin), <owner>/<repo>[#n], <host>/<owner>/<repo>[#n], a
+#                       PR/issue URL, or an absolute path
+#   --session <id>      the host session: reads this session's --perms= tickets
+#   --agent <id>        the calling agent (default main; needs --session): a raise
+#                       ticket applies only to the agent it is bound to
 #   --repo <path>       the checkout (default: the working directory)
 #   --host <h>          claude | codex | cursor | gemini | opencode. Selects the option
 #                       store that may set the level. Without it every store may only
@@ -34,8 +38,9 @@
 #    verdict: allow|ask|deny, decision (= verdict), reason, decided_by,
 #    deny_wins_from, never_auto, precondition {name, state}, raised_by[],
 #    unclassified, headless, headless_ask_to_deny, setting_that_would_allow
-#    {once, durable[], note}, allow_with (= setting_that_would_allow), skill, host,
-#    target, home_source, warnings[]}
+#    {once, durable[], note}, allow_with (= setting_that_would_allow), ticket (the
+#    id of the ticket that decided, or null), skill, host, target, session, agent,
+#    home_source, warnings[]}
 #
 # Exit: 0 for a decided verdict (allow, ask or deny); 2 for a usage error; 3 for
 # an internal error (missing or corrupt catalog or schema, no python3, a crash).
@@ -44,7 +49,11 @@
 #
 # PRECEDENCE (D4, highest first; "tighten" moves only toward deny)
 #   0  safety invariants (catalog denies), R4 never allow, never_auto never allow
-#   1  --perms= tickets (D5) -- not read yet: nothing in this resolver raises
+#   1  --perms= tickets (D5), with --session: a lowering ticket always lowers; a
+#      raise ticket (confirmed on a host prompt) lifts an ask to its level's
+#      ceiling for one skill and one target, R2/R3 only, bound to (session,
+#      agent), at most 15 minutes, never over a deny. Rules: the TICKETS block of
+#      scripts/lib/permission-common.sh
 #   2  TAMIRS_AUTO_MERGE: never => pr.merge.auto deny; always => ignored + warning
 #   3  objective delivery.auto_merge: false => deny; true => grants nothing
 #   4  project file <repo>/.tamirs-superpowers/permissions.json: tightens; widens
@@ -64,6 +73,7 @@
 #   resolve-permission.sh pr.create --skill pr-dev --host claude
 #   resolve-permission.sh --action pr.merge.auto --target 42 --skill pr-dev --headless
 #   resolve-permission.sh git.push.branch --cond default_branch=false --cond tag_ref=false
+#   resolve-permission.sh pr.comment --skill pr-dev --target 42 --session "$SID" --agent main
 set -uo pipefail
 
 usage() {
