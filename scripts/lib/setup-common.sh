@@ -213,11 +213,11 @@ setup_json_merge() {
 #
 # WHAT IT WRITES (D3, D10.2)
 #   permissions.json (0600, dir 0700) with `version` and `level`, every other key
-#   of an existing file kept; then permissions.lock {sha256, by, at} over the
-#   exact bytes written, hashed by the library's own perm_sha256 so the resolver
-#   reads the file as `verified`. `by` is "plugin-config": the lock schema knows
-#   only the D6 writer and CI provision, and this step is the D6 writer's
-#   out-of-session path (D5: `make setup`, asks once on a TTY).
+#   of an existing file kept, and its lock {sha256, by: plugin-config, at} --
+#   written by scripts/plugin-config.sh (`set <level>`), the D6 writer, never by
+#   this file: one writer, one lock format. This step is the writer's
+#   out-of-session path (D5: `make setup`, asks once on a TTY); inside an agent
+#   session the writer holds a raise pending until it is confirmed.
 #
 # WHEN IT WRITES
 #   * --permission-level <level> or the TTY prompt picks a level.
@@ -309,37 +309,31 @@ setup_perm_render() {
   fi
 }
 
-# setup_perm_atomic <src> <dest> — 0600 temp file in the destination dir, then mv.
-setup_perm_atomic() {
-  local src="$1" dest="$2" tmp
-  tmp="$(dirname "$dest")/.$(basename "$dest").tamirs-tmp.$$"
-  ( umask 077 && cat "$src" > "$tmp" ) || { rm -f "$tmp"; return 1; }
-  if chmod 600 "$tmp" && mv -f "$tmp" "$dest"; then return 0; fi
-  rm -f "$tmp"
-  return 1
-}
-
-# setup_perm_write <content-file> — the file, then its lock (D3, D10.2).
+# setup_perm_write <level> — through the D6 writer, scripts/plugin-config.sh, the
+# one writer of the user file and its lock (ADR 004 D6): the same schema check,
+# sorted-key serialisation, atomic replace, .bak and lock (hashed with the
+# library's sha256, `by: plugin-config`) as /plugin-config. Every other key of the
+# file is kept. Run from the user's own terminal (no agent host in the process
+# ancestry) the writer applies a raise at once; run inside an agent session it
+# records a raise pending and prints the `confirm <nonce>` that applies it under a
+# host-attested human proof (D5) -- setup then reports the level as not written.
 setup_perm_write() {
-  local new="$1" sha lockf
+  local level="$1" out rc writer="${SETUP_REPO_ROOT:-}/scripts/plugin-config.sh"
   case "$SETUP_PERM_WRITABLE" in
     yes) ;;
     *) setup_err "permission level not written: ${SETUP_PERM_WRITABLE#no:}"; return 1 ;;
   esac
-  ( umask 077 && mkdir -p "$SETUP_PERM_DIR" ) || { setup_err "cannot create $SETUP_PERM_DIR"; return 1; }
-  chmod 700 "$SETUP_PERM_DIR" || return 1
-  setup_perm_atomic "$new" "$SETUP_PERM_FILE" || { setup_err "cannot write $SETUP_PERM_FILE"; return 1; }
-  sha="$(perm_sha256 "$SETUP_PERM_FILE" 2>/dev/null)" || sha=""
-  case "$sha" in
-    [0-9a-f]*) [ "${#sha}" -eq 64 ] || sha="" ;;
-    *) sha="" ;;
+  [ -f "$writer" ] || { setup_err "permission level not written: scripts/plugin-config.sh is missing from this checkout"; return 1; }
+  out="$(bash "$writer" set "$level" 2>&1)" && rc=0 || rc=$?
+  case "$rc" in
+    0) return 0 ;;
+    4) printf '%s\n' "$out" | sed 's/^/  /'
+       setup_err "permission level not written yet: this runs inside an agent session, so the raise waits for the confirm above (ADR 004 D5)"
+       return 1 ;;
+    *) printf '%s\n' "$out" | sed 's/^/  /'
+       setup_err "permission level not written (scripts/plugin-config.sh exited $rc)"
+       return 1 ;;
   esac
-  [ -n "$sha" ] || { setup_err "cannot hash $SETUP_PERM_FILE; its lock was not written"; return 1; }
-  lockf="$(mktemp)"
-  jq -n -S --indent 2 --arg s "$sha" --arg at "$(setup_utc)" '{sha256: $s, by: "plugin-config", at: $at}' > "$lockf"
-  setup_perm_atomic "$lockf" "$SETUP_PERM_LOCK" || { rm -f "$lockf"; setup_err "cannot write $SETUP_PERM_LOCK"; return 1; }
-  rm -f "$lockf"
-  return 0
 }
 
 # setup_perm_menu — the choice, on stderr (human output; never stdout, never stdin).
@@ -463,7 +457,7 @@ EOT
   fi
 
   if [ "$SETUP_PERM_STATE" = absent ]; then
-    if setup_perm_write "$new"; then
+    if setup_perm_write "$want"; then
       rm -f "$new"
       setup_perm_report_written "$want"
       return 0
@@ -502,7 +496,7 @@ EOT
     y|yes) ;;
     *) rm -f "$new"; printf '  kept as is\n'; return 0 ;;
   esac
-  if setup_perm_write "$new"; then
+  if setup_perm_write "$want"; then
     rm -f "$new"
     setup_perm_report_written "$want"
     return 0
