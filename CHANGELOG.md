@@ -60,7 +60,10 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   compound command or a builtin) and everywhere else only as `$NAME`/`${NAME}`. Any other
   occurrence of the name (an index, `+=`, a second assignment, a builtin operand,
   `read`/`for`/`unset`/`declare -n`/`let`, arithmetic, a bare mention even in a comment), or an
-  `eval`/`source`/`.`/`exec`/`sh -c` anywhere, leaves it unresolved as before. A command's
+  `eval`/`source`/`.`/`exec`/`sh -c` anywhere, leaves it unresolved as before. Names bash
+  manages itself (the manual's "Shell Variables": `REPLY`, `PWD`, `OPTARG`, `RANDOM`, `BASH*`,
+  `LC_*`, `_`, …) never resolve, and a newline or comment line after `&&`, `||` or `|` keeps
+  the operator in force for the next line. A command's
   redirections resolve with the table as it stood before that command's own assignments, as
   bash opens them. A
   write primitive that follows `then`, `do`, `else`, `{`, `if` or `!` in the same statement

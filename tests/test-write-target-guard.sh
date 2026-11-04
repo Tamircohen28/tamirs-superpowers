@@ -392,7 +392,10 @@ judge "a nameref"                           checked \
 judge "  ... the row as reviewed"           warn "$(bash_verdict "S=/tmp; declare -n R=S; R=.github; cp a \"\$S/ci.yml\"")"
 judge "let afterwards"                      warn "$(bash_verdict "S=/tmp; let S=1; echo x > \"$W\"")"
 judge "getopts afterwards"                  warn "$(bash_verdict "S=$REPO; getopts a S; echo x > \$S/yarn.lock")"
-judge "mapfile afterwards"                  warn "$(bash_verdict "S=$REPO; mapfile S; echo x > \$S/yarn.lock")"
+# (The payload below is only judged, never run; the version guard in it is
+# what a real script would carry, and what the static GNU-ism check expects.)
+judge "mapfile afterwards"                  warn \
+  "$(bash_verdict "S=$REPO; [ \"\${BASH_VERSINFO[0]}\" -ge 4 ] && mapfile S; echo x > \$S/yarn.lock")"
 judge "\${#S} afterwards"                   warn "$(bash_verdict "S=$REPO; : \"\${#S}\"; echo x > \$S/yarn.lock")"
 judge "the name as a bare word anywhere"    warn "$(bash_verdict "S=$REPO; echo S; echo x > \$S/yarn.lock")"
 judge "a quoted name is a command, not an assignment" warn "$(bash_verdict "\"S=$REPO\"; echo x > \$S/yarn.lock")"
@@ -404,6 +407,36 @@ judge "bash -c anywhere resolves nothing"   warn "$(bash_verdict "S=$REPO; bash 
 judge "/bin/sh -ec anywhere resolves nothing" warn "$(bash_verdict "S=$REPO; /bin/sh -ec true; echo x > \$S/yarn.lock")"
 judge "source anywhere resolves nothing"    warn "$(bash_verdict "S=$REPO; source ./env; echo x > \$S/yarn.lock")"
 judge ". anywhere resolves nothing"         warn "$(bash_verdict "S=$REPO; . ./env; echo x > \$S/yarn.lock")"
+# (4) Round four. Names bash sets on its own carry no `NAME=` in the text:
+#     `read` with no operand sets REPLY, `cd` sets PWD. The Bash manual's
+#     "Shell Variables" list is a closed denylist (SHELL_MANAGED_NAMES).
+judge "P1-5 the exact case: REPLY set by read"   checked \
+  "$(checked "$(printf 'REPLY=/tmp; read <<< .github; echo x > "$REPLY/workflows/ci.yml"')")"
+judge "P1-5 the exact case: PWD set by cd"       checked \
+  "$(checked 'PWD=/tmp; cd .github; echo x > "$PWD/workflows/ci.yml"')"
+judge "P1-5 OLDPWD"                              warn "$(bash_verdict "OLDPWD=$REPO; cd /; echo x > \$OLDPWD/yarn.lock")"
+judge "P1-5 OPTARG"                              warn "$(bash_verdict "OPTARG=$REPO; getopts a: x -a y; echo x > \$OPTARG/yarn.lock")"
+judge "P1-5 RANDOM"                              warn "$(bash_verdict "RANDOM=$REPO; echo x > \$RANDOM/yarn.lock")"
+judge "P1-5 a BASH_* name"                       warn "$(bash_verdict "BASH_REMATCH=$REPO; echo x > \$BASH_REMATCH/yarn.lock")"
+judge "P1-5 an LC_ name"                         warn "$(bash_verdict "LC_ALL=$REPO; echo x > \$LC_ALL/yarn.lock")"
+judge "P1-5 the underscore"                      warn "$(bash_verdict "_=$REPO; echo x > \$_/yarn.lock")"
+judge "P1-5 TMPDIR"                              warn "$(bash_verdict "TMPDIR=$REPO; echo x > \$TMPDIR/yarn.lock")"
+#     A newline after `&&`, `||` or `|` closes an empty segment; the operator
+#     must keep governing the next line (a comment line in between too).
+judge "P1-6 the exact case: assignment after &&-newline" checked \
+  "$(checked "$(printf 'S=.github; false &&\nS=/tmp; echo x > "%s"' "$W")")"
+judge "P1-6 after ||-newline"                    checked \
+  "$(checked "$(printf 'S=.github; true ||\nS=/tmp; echo x > "%s"' "$W")")"
+judge "P1-6 after |-newline (a pipeline component)" warn \
+  "$(bash_verdict "$(printf 'true |\nS=%s; echo x > $S/yarn.lock' "$REPO")")"
+judge "P1-6 a comment line between && and the assignment" checked \
+  "$(checked "$(printf 'S=.github; false && # later\nS=/tmp; echo x > "%s"' "$W")")"
+judge "P1-6 a blank line between && and the assignment" checked \
+  "$(checked "$(printf 'S=.github; false &&\n\nS=/tmp; echo x > "%s"' "$W")")"
+judge "P1-6 a newline after ; is still unconditional" deny \
+  "$(bash_verdict "$(printf 'true;\nS=%s; echo x > $S/yarn.lock' "$REPO")")"
+judge "P1-6 (false) && on the next line is conditional" warn \
+  "$(bash_verdict "$(printf '(false) &&\nS=%s; echo x > $S/yarn.lock' "$REPO")")"
 # ... and the whitelist admits the plain case this issue is about.
 judge "the plain case still resolves: a scratch write, no notice" allow \
   "$(bash_verdict "S=$S_SCRATCH; cp /tmp/a \"\$S/b\"")"

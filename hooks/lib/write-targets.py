@@ -870,12 +870,43 @@ ALL_KEYWORDS = SCOPE_OPENERS + SCOPE_CLOSERS + NEUTRAL_KEYWORDS
 COMMAND_INTRODUCERS = ("if", "then", "elif", "else", "while", "until", "do", "{", "!")
 
 
+# Names bash sets or reads on its own, with no assignment in the text — so the
+# whitelist's "exactly one `NAME=`" proves nothing about them: `read` with no
+# operand sets REPLY, `cd` sets PWD and OLDPWD, `getopts` sets OPTARG/OPTIND,
+# `mapfile` with no operand fills MAPFILE, a pipeline sets PIPESTATUS, and
+# RANDOM, SECONDS, LINENO and the like change on every reference (Codex,
+# PR #359). The closed list is the Bash Reference Manual, section 5 "Shell
+# Variables" (5.1 "Bourne Shell Variables", 5.2 "Bash Variables"), as read at
+# bash 5.2: every variable there that the shell assigns, updates or special-
+# cases, plus the prefixes it reserves (BASH*, COMP*, READLINE*, HIST*, LC_*)
+# and `_`. A user who shadows one of these gets UNSURE, as before this table.
+SHELL_MANAGED_NAMES = frozenset((
+    "REPLY", "PWD", "OLDPWD", "RANDOM", "SRANDOM", "SECONDS", "LINENO", "HISTCMD",
+    "OPTARG", "OPTIND", "OPTERR", "PIPESTATUS", "SHLVL", "UID", "EUID", "PPID",
+    "BASHPID", "FUNCNAME", "GROUPS", "DIRSTACK", "MAPFILE", "COPROC",
+    "EPOCHSECONDS", "EPOCHREALTIME", "HOSTNAME", "HOSTTYPE", "MACHTYPE", "OSTYPE",
+    "IFS", "PATH", "HOME", "CDPATH", "PS0", "PS1", "PS2", "PS3", "PS4",
+    "PROMPT_COMMAND", "PROMPT_DIRTRIM", "TMPDIR", "MAIL", "MAILPATH", "MAILCHECK",
+    "ENV", "EXECIGNORE", "FIGNORE", "GLOBIGNORE", "GLOBSORT", "IGNOREEOF",
+    "INPUTRC", "INSIDE_EMACS", "EMACS", "LANG", "LINES", "COLUMNS", "POSIXLY_CORRECT",
+    "SHELL", "SHELLOPTS", "TIMEFORMAT", "TMOUT", "auto_resume", "histchars", "CHILD_MAX",
+    "_",
+))
+SHELL_MANAGED_PREFIXES = ("BASH", "COMP", "READLINE", "HIST", "LC_")
+
+
+def _shell_managed(name):
+    return name in SHELL_MANAGED_NAMES or name.startswith(SHELL_MANAGED_PREFIXES)
+
+
 def _resolvable_names(text):
     """The names the whole command text allows to resolve (the rule above)."""
     if FORBIDS_RESOLUTION.search(text):
         return set()
     out = set()
     for name in set(m.group(1) for m in ASSIGN_SITE.finditer(text)):
+        if _shell_managed(name):
+            continue
         sites = 0
         clean = True
         for m in re.finditer(r"(?<![A-Za-z0-9_])%s(?![A-Za-z0-9_])" % re.escape(name), text):
@@ -1696,8 +1727,13 @@ def analyze_command(command, cwd):
     for tok in toks:
         if tok.kind == "op" and tok.value in SEGMENT_SEPARATORS:
             segments.append((segment, piped, tok.value))
+            # A newline right after `|` (a continuation line, a comment line)
+            # closes an EMPTY segment; the pipe still feeds the next command,
+            # so "piped" carries over instead of being reset (Codex, PR #359;
+            # the `&&`/`||` counterpart is prev_terminator, below).
+            if segment or tok.value == "|":
+                piped = tok.value == "|"
             segment = []
-            piped = tok.value == "|"
         else:
             segment.append(tok)
     segments.append((segment, piped, ""))
@@ -1729,7 +1765,12 @@ def analyze_command(command, cwd):
             cwd_stack.append(cwd)
         elif terminator == ")":
             cwd = cwd_stack.pop() if cwd_stack else None
-        prev_terminator = terminator
+        # `false &&` followed by a newline, or by a comment line, closes an
+        # EMPTY segment whose `\n` must not overwrite the `&&` still governing
+        # the next command (Codex, PR #359): an empty segment changes the
+        # conditional state only when its own terminator is a list operator.
+        if seg or terminator in ("&&", "||", "|", "&"):
+            prev_terminator = terminator
     records.extend(("ANOMALY", why, "") for why in anomalies)
     return records
 
