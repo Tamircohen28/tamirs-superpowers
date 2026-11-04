@@ -109,12 +109,267 @@ A project that wants durable, reviewable workflow state can un-ignore
 Defaults live in [`core/policies/delivery.md`](../../core/policies/delivery.md):
 
 - **one objective = one PR** — extra PRs need a reason from the enumerated exception list;
-- **auto-merge is a preference, not an invariant** — it is enabled only when the repository
-  configuration and your preference both allow it, and never forced against branch
-  protection or a required review;
+- **auto-merge is off unless configured** — it is the action `pr.merge.auto`, decided by
+  your [permission level](#permission-levels) (or a trusted repo file), enabled only when
+  the repository allows auto-merge too, and never forced against branch protection or a
+  required review;
 - **branch-update-before-merge is loose by default** — strictness is a repository setting.
 
 Without `gh`, delivery ends at a pushed integration branch and reports exactly that.
+
+## Permission levels
+
+The plugin's skills push branches, open PRs, comment, arm auto-merge, delete branches and
+write config. The **permission level** decides which of those it does without asking you.
+It governs **the plugin's own actions only**: no level widens what the host itself asks,
+and `unattended` does not silence Claude Code's, Codex's or any other host's prompts. The
+design, evidence and every rule below: [ADR 004](../engineering/decisions/004-permission-levels.md).
+
+### The three levels
+
+Every action the plugin can take has an id and a risk class R0–R4 in
+[`core/permissions/actions.json`](../../core/permissions/actions.json): R0 reads, R1
+changes this checkout, R2 is visible but routine (push your own branch, open a PR,
+comment), R3 is hard to undo or merges and deletes, R4 is never automatic (releases,
+tags, creating or deleting a repository, branch protection, host and policy config,
+spawning another agent host). An action the catalog does not know is R4.
+
+| class | `supervised` (default) | `standard` | `unattended` |
+|---|---|---|---|
+| R0, R1 | allow | allow | allow |
+| R2 | ask | allow | allow |
+| R3 | ask | ask | allow **only** for the listed actions below, and only while their precondition holds; otherwise ask |
+| R4 | ask on the host prompt, per call, naming the target | same | same — never automatic |
+| an explicit `deny`, a [safety invariant](../../core/policies/safety.md) | deny | deny | deny |
+| `pr.merge.auto` (auto-merge) | ask | ask (= off) unless a file sets `actions["pr.merge.auto"]: "allow"` | allow when its precondition holds |
+
+Under `unattended` only these R3 actions run without asking: `pr.merge.auto` (the PR has a
+required check with a pinned source or a required review, and touches no workflow,
+`CODEOWNERS` or `.tamirs-superpowers/` file), `branch.delete.remote` (the PR is merged, the
+branch is not the default and not cross-repo), `pr.close` and `issue.close` (your own PR, or
+the `Closes #N` of a merged one), `git.push.force` (your own branch, with
+`--force-with-lease`) and `pkg.*` installs from a pinned lockfile. A precondition the plugin
+cannot establish counts as not holding.
+
+Auto-merge means `gh pr merge --auto` only, so GitHub's protection still decides; the plugin
+never merges directly on its own.
+
+**No human present, no ask.** A headless run (`claude -p`, CI, a host that cannot carry an
+ask) turns every ask into a deny, and the deny names the setting that would allow it — the
+once-only route and the durable one, or, for R4, that no setting allows it automatically.
+
+**The R4 rule.** An R4 action is allowed only by the host's own permission prompt on that
+very call, which shows the action, the target and its effect. No level, file, `--perms=`
+ticket or environment variable makes it automatic, and a file may set an R4 id only to
+`ask` or `deny`. On a host with no such prompt (below) an R4 call is denied with the command
+for you to run yourself.
+
+### Choosing a level at install
+
+| platform | at install | change it later |
+|---|---|---|
+| Claude Code | the `permission_level` option in the install dialog: `supervised`, `standard` or `unattended` (default `supervised`) | `/config`, `/plugin` > **tamirs-superpowers** > **Configure**, or `claude plugin configure tamirs-superpowers` in your own terminal |
+| Gemini CLI | the `TS_PERMISSION_LEVEL` setting, prompted at `gemini extensions install` unless you pass `--skip-settings` (empty = `supervised`; anything else unknown = `supervised` with a warning) | `gemini extensions config tamirs-superpowers TS_PERMISSION_LEVEL` in your own terminal |
+| Codex CLI, Cursor, OpenCode | no install-time option exists; `bash scripts/setup.sh apply --permission-level <level>` (or `SETUP_PERMISSION_LEVEL=<level>`), or answer the level prompt `setup.sh apply` shows on a terminal when one of them is in scope | `/plugin-config` to tighten in a session; to widen, `scripts/plugin-config.sh` in your own terminal or `setup.sh` again |
+
+`setup.sh --permission-level` writes the user file below (0600, plus its lock). A run with
+no terminal never prompts: without the flag it writes nothing, with it it writes a new file
+only — an existing file changes only after you confirm its diff on a terminal.
+`--only permission-level` runs that step alone, and `remove` leaves the file in place, since
+it is your policy. For Claude Code and Gemini CLI, setup prints the host's own route instead
+of asking twice. On Codex, `setup.sh apply --codex-rules` (or `SETUP_CODEX_RULES=1`) also
+writes optional, user-owned execpolicy `prompt` rules for the R4 command forms at
+`~/.codex/rules/tamirs-superpowers.rules` — a belt while the plugin's hooks are untrusted;
+Codex marks rules experimental, so it is off unless you opt in, and `--no-codex-rules`
+leaves an existing file alone.
+
+**Which level applies.** The lower of the host's option (Claude `permission_level`, Gemini
+`TS_PERMISSION_LEVEL`) and the user file's `level`. A source that is absent is skipped, so a
+Claude install that chose `unattended` with no user file runs `unattended`, while
+`unattended` in the option and `standard` in the file runs `standard`. Neither ⇒
+`supervised`. A host below its permission floor (see [What is enforced
+where](#what-is-enforced-where)) is meant to run every level as `supervised`; that check is
+not wired yet.
+
+### The files
+
+| file | what it holds | who writes it |
+|---|---|---|
+| `~/.config/tamirs-superpowers/permissions.json` (0600, dir 0700) | your level, per-skill and per-group levels, per-action `allow`/`ask`/`deny`, repo trust entries | `/plugin-config`, `scripts/plugin-config.sh`, `setup.sh` |
+| `~/.config/tamirs-superpowers/permissions.lock` | `{sha256, by, at}` of the file above | the same writer |
+| `~/.local/state/tamirs-superpowers/` | short-lived pending records, tickets and call stamps | the writer and the prompt hook |
+| `<repo>/.tamirs-superpowers/permissions.json` | a committable project file: tightens, and may widen only auto-merge once trusted | you, by hand |
+
+`~` here is your account's home from the passwd entry, never the session's `HOME` or
+`XDG_*`, which a repository can set. Every reader requires the files to be yours, 0600 in
+0700 directories, with no group- or world-writable parent and outside every git work tree.
+Both files validate against [`core/schemas/permissions.schema.json`](../../core/schemas/permissions.schema.json):
+
+```json
+{ "version": 1, "level": "standard",
+  "skills": { "pr-dev": "unattended" },
+  "actions": { "pkg.install.network": "deny" } }
+```
+
+The most specific key decides: `skill_actions.<skill>.<id>` > `actions.<id>` > `skills.<id>` >
+`groups.<g>`; any `deny` from any layer is final. **Do not hand-edit the user file**: a file
+whose hash no longer matches its lock is read tighten-only — its denies hold, its allows and
+raises are dropped — until you re-confirm it through `/plugin-config`. An invalid file runs
+as `supervised` with a warning.
+
+Environment switches only ever tighten: `TS_PERMISSION_LEVEL`,
+`CLAUDE_PLUGIN_OPTION_PERMISSION_LEVEL`, `TAMIRS_AUTO_MERGE=never`; `TAMIRS_AUTO_MERGE=always`
+is ignored with a warning naming the durable setting.
+
+### Changing it later: `/plugin-config`
+
+```text
+/plugin-config show [<skill|group|action-id>]
+/plugin-config <level>                          the global level
+/plugin-config <skill|group> <level>            e.g. /plugin-config pr-dev unattended
+/plugin-config <action-id> [<skill>] allow|ask|deny   e.g. /plugin-config pr.merge.auto allow
+/plugin-config reset [<skill|group|action-id>|level|all]
+/plugin-config trust                            trust this repo's project file
+/plugin-config confirm <nonce>                  apply a pending widening or --perms= request
+```
+
+The command runs only when you type it — never on the model's own initiative. Every change
+goes through one writer, [`scripts/plugin-config.sh`](../../scripts/plugin-config.sh), which
+validates, writes atomically and re-locks. `show` prints each value with its source and
+whether the file still matches its lock.
+
+The writer compares every action's decision before and after the change:
+
+- **A change that widens nothing** (a lower level, a `deny`) is written at once, from
+  anywhere, in any session.
+- **A change that widens anything** — a higher level, an `allow`, a `reset` that drops a
+  deny, `trust` — is recorded **pending** with its rows and a nonce, and the writer exits 4
+  printing `confirm <nonce>`. `confirm` passes only through a prompt the host itself shows
+  you: on Claude Code the permission dialog on that very call, on Gemini CLI the extension's
+  `ask_user` rule. Codex, Cursor, OpenCode and Claude Desktop have no such prompt, so there
+  `confirm` is refused (exit 3) and the message names the command to run **in your own
+  terminal**, outside any agent session, where the writer applies the change at once:
+
+  ```bash
+  bash <plugin root>/scripts/plugin-config.sh standard
+  ```
+
+- It never writes an R4 `allow`, and never writes a host's option store: a Claude or Gemini
+  level raise also prints the host route above, since the lower of the two applies.
+
+Exit codes: 0 done, 1 failed, 2 usage error, 3 refused, 4 recorded pending. Every
+subcommand takes `--json`. For CI, `plugin-config.sh provision --level <level>` (or
+`--file <path>`) writes the file and lock in a workflow step **before** the agent starts;
+it refuses inside an agent session, and `show` marks such a lock `by: provision`.
+
+### One run: `--perms=<level>`
+
+A `--perms=<level>` token on the first line of a slash command (`/pr-dev 42
+--perms=standard`) asks for a different level for that one skill and target, for 15
+minutes. It is read only as a standalone token you typed, never from file, PR, issue or
+tool output.
+
+- **Lowering** (`--perms=supervised`) needs no proof: the prompt hook on Claude Code, Codex
+  CLI and Gemini CLI records it as a lowering ticket for the session.
+- **Raising** has a route only on Claude Code: the prompt hook records a pending request
+  only for a prompt you typed (never one the model, `claude -p` or the SDK produced), and
+  it becomes a ticket only after `/plugin-config confirm <nonce>` passes the host dialog,
+  which shows the skill, level, target and expiry. A ticket covers R2 and R3 only, never R4.
+- **Disabled** as a raise on Codex, Cursor, OpenCode and Claude Desktop, and on Gemini CLI
+  until its skill-pairing hook is wired: nothing there can prove you typed it, so
+  `--perms=` only lowers and the note names the out-of-session route
+  (`scripts/plugin-config.sh` in your own terminal).
+
+**Status:** the requests and tickets are recorded, but the resolver does not read tickets
+yet ([`resolve-permission.sh`](../../scripts/resolve-permission.sh), precedence row 1), so
+today a `--perms=` token changes no decision. Use `/plugin-config` for a durable change.
+
+### Auto-merge for one repository
+
+To let the plugin arm auto-merge in one repository without raising your global level,
+commit a project file:
+
+```json
+{ "version": 1, "actions": { "pr.merge.auto": "allow" } }
+```
+
+at `<repo>/.tamirs-superpowers/permissions.json`, then run `/plugin-config trust` in that
+checkout. Trust records the file's sha256 under the repository's real path and its `origin`
+in your user file, and it is a widening, so it needs the confirm above. From then on the
+widening applies only to PRs whose repository equals both the recorded remote and the
+checkout's `origin`. A changed hash or a fresh clone drops the widening with a notice until
+you trust it again. A project file may always tighten (`deny`, a lower `level`), trusted or
+not; it can never widen anything other than `pr.merge.auto`.
+
+The legacy inputs only tighten: `.dev-files/policy.json` `delivery.auto_merge: false` acts
+as `pr.merge.auto: deny` (and `true` is ignored with a warning, for one minor release), and
+an objective's `delivery.auto_merge: false` denies while `true` grants nothing.
+
+### What is enforced where
+
+**ENFORCED** means a hook or host rule stops the call even if the model ignores the skill's
+instructions; **ADVISORY** means only the skill's own check stands, which a model can skip.
+The skill-level check (L1) is advisory on every platform; the table is about the layers
+under it.
+
+| platform | shell commands | GitHub MCP tools | host prompt for asks and R4 | per-skill levels | floor |
+|---|---|---|---|---|---|
+| Claude Code | ENFORCED: `permission-guard.sh`, fail closed | ENFORCED if the MCP matcher fires (wired, firing unverified), plus server flags | ENFORCED: the hook `ask` dialog, in every permission mode; headless ⇒ deny | lowering ENFORCED; a per-skill raise is not applied by the guard yet | 2.1.317 |
+| Claude Desktop | unverified | server flags | unverified | ADVISORY | as Claude Code |
+| Codex CLI | ENFORCED, deny only | server flags | none: an R4 call is denied with the command to run | ADVISORY | 0.166.0 |
+| Cursor | ENFORCED, deny only, `failClosed` | ENFORCED, deny only | none yet: R4 is denied | ADVISORY | CLI 2026.10.22 / app 3.27.22 |
+| Gemini CLI | ENFORCED, deny only, plus static policy rules | hook plus static rules | ENFORCED: static `ask_user` rules for R4 and `confirm` | not wired yet | 0.66.0 |
+| OpenCode | ENFORCED when it is the only plugin (plugin order is unmeasured) | unmeasured | ADVISORY: `opencode --auto` approves an ask, so only R2 asks; R3 and R4 deny | not wired yet | 2.2.5 |
+
+The floor is the host version the level semantics were measured on
+([`platform-targets.json`](../engineering/build-and-release/platform-targets.json)
+`permissions_min`). ADR 004 has a readable host version below it run every level as
+`supervised` (an unreadable one only warns); the resolver does not apply the floor yet, so
+read it as the oldest version these guarantees were measured or source-cited on.
+
+The guard reads the default branch and the required checks from GitHub through `gh` with a
+3-second deadline; a condition it cannot establish in time takes the stricter answer. The guard and the resolver themselves fail closed: a missing, crashing or unparseable
+resolver is a deny for R2 and above.
+
+The GitHub MCP server starts with the tool set your level allows
+([`scripts/github-mcp.sh`](../../scripts/github-mcp.sh); `github-mcp.sh --print-flags`
+prints what it would pass and why, starting nothing): `supervised` ⇒ `--read-only`;
+`standard` and `unattended` ⇒ every tool except merge, repository create/delete/fork and the
+tools whose arguments can reach R3/R4 (file writes, `issue_write`, `update_pull_request`,
+`pull_request_review_write`). Merging through MCP is excluded at every level. The flags are
+fixed for the server's lifetime, so a level change mid-session reaches the MCP tool set at
+the next session.
+
+Channels outside the plugin — another GitHub MCP server, `gh` run by another tool, browser
+automation on github.com — are governed by no level.
+
+### For scripts: the resolver and the merge policy
+
+[`scripts/resolve-permission.sh`](../../scripts/resolve-permission.sh) is the one
+implementation of every decision above; the guard, the skills and `/plugin-config show` all
+call it.
+
+```bash
+resolve-permission.sh <action-id> [--skill <id>] [--target <t>] [--repo <path>] \
+  [--host claude|codex|cursor|gemini|opencode] [--headless] [--objective <id>] \
+  [--call <token>] [--cond <name>=true|false ...] [--explain] [--json]
+resolve-permission.sh --level [--skill <id>] [--host <h>] [--repo <path>]
+```
+
+It prints one JSON verdict (`verdict` allow/ask/deny, `r`, `level`, `level_source`,
+`decided_by`, `reason`, `precondition`, `setting_that_would_allow`, `warnings`, …).
+Without `--host` a host option may only lower the level. `--cond` passes a precondition the
+caller established; one not passed never holds. `--explain` prints a readable trace. Exit 0
+is a decided verdict; 2 (usage) and 3 (internal error) also print a deny, and a caller that
+gets anything else must deny.
+
+[`resolve-merge-policy.sh`](../../skills/dev-workflow/pr-dev/scripts/resolve-merge-policy.sh)
+`[--repo <owner/name>] [--host <h>] <PR> [objective]` asks the resolver for `pr.merge.auto`
+and answers `auto_merge: enable` only when the verdict is allow **and** the repository
+allows auto-merge; the default is `skip`. `--host` is passed through to the resolver. Its
+JSON now also carries `auto_merge_verdict` (`allow`, `ask`, `deny`, `error` or `not-asked`)
+and `auto_merge_allow_with` (the durable setting that would allow it, or `null`), beside
+`auto_merge_source`.
 
 ## Phone notifications (opt-in)
 
