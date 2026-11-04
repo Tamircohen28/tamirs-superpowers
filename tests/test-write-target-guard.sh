@@ -483,6 +483,53 @@ for ctx in '' ' ' 'true; ' 'true;  ' $'true;\n' $'\n' $'true;\n  '; do
   judge "fuzz: <${ctx//$'\n'/\\n}>S=/tmp is admitted" allow \
     "$(bash_verdict "$(printf '%sS=/tmp; echo x > "%s"' "$ctx" "$W")")"
 done
+# (6) Codex on PR #364: making `coproc` a command introducer exposed the `cd`
+#     after it, and the tracked cwd followed a cd that ran in the coprocess's
+#     subshell. The class is every context where a cd does not reach the
+#     parent: a coproc, a background job, a pipeline component, a `( … )`,
+#     a `{ … }` that turns out to be backgrounded or piped, `$( )`, `sh -c`
+#     — the parent's cwd is UNCHANGED there. And where a cd runs in the
+#     parent but only maybe (an if/loop/case body, a function body, after
+#     `&&`/`||`) the cwd becomes UNKNOWN, since "moved" and "unchanged" can
+#     each be the wrong answer. Every row runs from the repo's .github with
+#     the write `echo x > workflows/ci.yml`: judged against .github it is a
+#     deny, against /tmp a silent allow, against nothing a warn.
+gh_verdict() {
+  jq -n --arg c "$1" --arg cwd "$REPO/.github" \
+     '{tool_name:"Bash", cwd:$cwd, tool_input:{command:$c}}' \
+  | bash "$GUARD" 2>/dev/null \
+  | jq -r 'if .hookSpecificOutput.permissionDecision=="deny" then "deny"
+           elif .hookSpecificOutput.additionalContext then "warn"
+           else "allow" end' 2>/dev/null
+}
+gh_checked() { case "$(gh_verdict "$1")" in deny|warn) echo checked ;; *) echo allow ;; esac; }
+WF='echo x > workflows/ci.yml'
+judge "364 the exact case: coproc cd"      deny "$(gh_verdict "coproc cd /tmp; wait; $WF")"
+judge "coproc { cd; }"                     deny "$(gh_verdict "coproc { cd /tmp; }; wait; $WF")"
+judge "coproc name { cd; }"                deny "$(gh_verdict "coproc name { cd /tmp; }; wait; $WF")"
+judge "(cd)"                               deny "$(gh_verdict "(cd /tmp); $WF")"
+judge "cd &"                               deny "$(gh_verdict "cd /tmp & wait; $WF")"
+judge "{ cd; } &"                          deny "$(gh_verdict "{ cd /tmp; } & wait; $WF")"
+judge "{ cd; } | cat"                      deny "$(gh_verdict "{ cd /tmp; } | cat; $WF")"
+judge "if …; fi &"                         deny "$(gh_verdict "if true; then cd /tmp; fi & wait; $WF")"
+judge "cd | cat"                           deny "$(gh_verdict "cd /tmp | cat; $WF")"
+judge "\$(cd)"                             deny "$(gh_verdict "\$(cd /tmp); $WF")"
+judge "bash -c cd"                         deny "$(gh_verdict "bash -c 'cd /tmp'; $WF")"
+judge "the control: a top-level cd still moves the cwd" allow "$(gh_verdict "cd /tmp; $WF")"
+judge "a brace group that ran in the parent moved it too" allow "$(gh_verdict "{ cd /tmp; }; $WF")"
+judge "a write inside the coproc body uses the body's cwd" allow \
+  "$(gh_verdict "coproc { cd /tmp; $WF; }")"
+# A cd that runs in the parent only conditionally leaves the cwd unknown:
+# never a confident answer in either direction.
+judge "cd in a then-body: unknown, never allow"   checked "$(gh_checked "if false; then cd /tmp; fi; $WF")"
+judge "  ... and it is unknown, not unchanged"    warn    "$(gh_verdict "if true; then cd /tmp; fi; $WF")"
+judge "cd in a loop body"                         checked "$(gh_checked "for i in 1; do cd /tmp; done; $WF")"
+judge "cd in a case body"                         checked "$(gh_checked "case x in a) cd /tmp;; esac; $WF")"
+judge "cd after &&"                               checked "$(gh_checked "false && cd /tmp; $WF")"
+judge "cd after ||"                               checked "$(gh_checked "true || cd /tmp; $WF")"
+judge "cd in a function body, NAME() form"        checked "$(gh_checked "f() { cd /tmp; }; $WF")"
+judge "cd in a function body, function form"      checked "$(gh_checked "function f { cd /tmp; }; $WF")"
+judge "a compound with no cd leaves the cwd alone" deny    "$(gh_verdict "if true; then :; fi; $WF")"
 # Found while writing the rows above, present on the parent revision too: a
 # reserved word that introduces a command sat in argv0's place, so the write
 # primitive after it was never parsed and `if true; then cp /tmp/a yarn.lock;
