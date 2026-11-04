@@ -166,7 +166,7 @@ TEST_ENV = "TAMIRS_PERMISSION_TEST_ROOT"
 TEST_SCRIPTS = tuple("test-" + n for n in ("resolve-permission.sh", "permission-guard.sh",
                                              "setup-permission-level.sh", "merge-policy.sh",
                                              "plugin-config.sh", "hook-conformance.sh",
-                                             "security-regressions.sh"))
+                                             "security-regressions.sh", "permission-fuzz.sh"))
 SHELLS = ("bash", "sh", "zsh", "dash", "ksh")
 TEMP_ROOTS = ("/tmp", "/private/tmp", "/var/tmp", "/private/var/tmp", "/var/folders", "/private/var/folders")
 ENV_LEVELS = ("TS_PERMISSION_LEVEL", "CLAUDE_PLUGIN_OPTION_PERMISSION_LEVEL")

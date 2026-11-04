@@ -25,13 +25,14 @@
 #             Claude and denies on Codex; a benign call is allowed on both.
 #
 # HERMETIC
-#   The verdicts come from a copy of the plugin tree (hooks/ and core/ byte-identical) whose
-#   scripts/resolve-permission.sh is a stub answering the default level's ceiling from the catalog (supervised:
-#   R0/R1 allow, R2-R4 and unknown ids ask), the way tests/test-permission-guard.sh swaps resolvers in its own tree
-#   copies. The real resolver is held by tests/test-resolve-permission.sh; here it would read the passwd home,
-#   whose test override is honoured only under the suites scripts/lib/permission-common.sh lists. No payload
-#   carries a session id, so PG reads no state; HOME, the client config variables and git config point into the
-#   temp dir; gh is tests/lib/fake-gh.sh; no command is run, only judged; no network.
+#   The verdicts come from the checkout's own hook and its real scripts/resolve-permission.sh, at the default level
+#   (no permission file: supervised, R0/R1 allow, R2-R4 and unknown ids ask). The resolver reads a temp passwd home
+#   through TAMIRS_PERMISSION_TEST_ROOT, which it honours only under an ancestor shell running one of the permission
+#   suites (this one is listed, scripts/lib/permission-common.sh TEST_SCRIPTS); the first check proves the override
+#   took, and without it the suite stops rather than let a hook read the real permission state. No payload carries
+#   a session id, so PG reads no state; HOME, the client config variables and git config point into the temp dir;
+#   gh is tests/lib/fake-gh.sh; no command is run, only judged; no network. The real home's config and state dirs
+#   are witnessed unchanged at the end.
 #
 # SPEED
 #   The calls are judged in parallel (FUZZ_JOBS, default min(cpus, 8)). python3 is put on PATH as the interpreter's
@@ -55,7 +56,7 @@ export GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL="$T/gitconfig"
 : > "$GIT_CONFIG_GLOBAL"
 unset CODEX_HOME GEMINI_SESSION_ID GEMINI_PROJECT_DIR GEMINI_CWD TS_PERMISSION_LEVEL \
   CLAUDE_PLUGIN_OPTION_PERMISSION_LEVEL TAMIRS_AUTO_MERGE GH_REPO GH_HOST PLUGIN_ROOT PLUGIN_DATA \
-  CLAUDE_PLUGIN_ROOT CURSOR_PLUGIN_ROOT TAMIRS_PERMISSION_TEST_ROOT TAMIRS_PERMISSION_TEST_SESSION \
+  CLAUDE_PLUGIN_ROOT CURSOR_PLUGIN_ROOT TAMIRS_PERMISSION_TEST_SESSION \
   CURL_HOME XDG_CONFIG_HOME WGETRC HTTPIE_CONFIG_DIR XH_CONFIG_DIR GH_TOKEN GITHUB_TOKEN 2>/dev/null || true
 export NO_COLOR=1
 
@@ -67,33 +68,22 @@ export PATH="$T/bin:${PYBIN:+$PYBIN:}$PATH"
 section "the suite is hermetic"
 judge "gh is the fake (tests/lib/fake-gh.sh)" yes "$(gh --version 2>/dev/null | grep -q fake-gh && echo yes || echo no)"
 
-# The tree the verdicts come from: hooks/ and core/ as they are, the resolver a stub (see HERMETIC).
-TREE="$T/tree"
-mkdir -p "$TREE/scripts"
-cp -R "$ROOT/hooks" "$ROOT/core" "$TREE/"
-python3 -c '
-import json, sys
-cat = json.load(open(sys.argv[1], encoding="utf-8"))
-with open(sys.argv[2], "w", encoding="utf-8") as f:
-    for a in cat["actions"]:
-        f.write("%s\t%d\n" % (a["id"], a["r"]))
-' "$ROOT/core/permissions/actions.json" "$TREE/scripts/r.tsv"
-cat > "$TREE/scripts/resolve-permission.sh" <<'STUB'
-#!/usr/bin/env bash
-# The fuzz suite's resolver: the supervised ceiling of core/permissions/actions.json (R0/R1 allow, R2-R4 ask); an id
-# the catalog does not list is UNCLASSIFIED, R4.
-id="${1:-}" r=4
-while IFS="$(printf '\t')" read -r k v; do
-  if [ "$k" = "$id" ]; then r="$v"; break; fi
-done < "${BASH_SOURCE[0]%/*}/r.tsv"
-v=ask
-[ "$r" -le 1 ] && v=allow
-printf '{"action":"%s","effective_action":"%s","r":%s,"verdict":"%s","decision":"%s","reason":"fuzz stub resolver: the supervised ceiling","setting_that_would_allow":null}\n' "$id" "$id" "$r" "$v" "$v"
-STUB
-judge "the tree's guard is the checkout's, byte for byte" yes \
-  "$(cmp -s "$ROOT/hooks/permission-guard.sh" "$TREE/hooks/permission-guard.sh" && cmp -s "$ROOT/hooks/lib/pg_http.py" "$TREE/hooks/lib/pg_http.py" && cmp -s "$ROOT/hooks/lib/pg_graphql.py" "$TREE/hooks/lib/pg_graphql.py" && echo yes || echo no)"
-judge "the stub answers supervised: repo.delete asks" ask "$(bash "$TREE/scripts/resolve-permission.sh" repo.delete | jq -r .verdict)"
-judge "the stub answers supervised: repo.read is allowed" allow "$(bash "$TREE/scripts/resolve-permission.sh" repo.read | jq -r .verdict)"
+# The resolver the verdicts come from: the checkout's, reading a temp passwd home (see HERMETIC).
+PH="$T/passwd-home"
+mkdir -m 700 "$PH"
+export TAMIRS_PERMISSION_TEST_ROOT="$PH"
+RESOLVE="$ROOT/scripts/resolve-permission.sh"
+hs="$(bash "$RESOLVE" repo.read --json 2>/dev/null | jq -r '.home_source // empty')"
+if [ "$hs" != "test-root" ]; then
+  echo "FATAL: $RESOLVE did not take TAMIRS_PERMISSION_TEST_ROOT (home_source=$hs); refusing to run hooks that would read the real permission state" >&2
+  exit 1
+fi
+ok "the resolver reads the temp passwd home"
+judge "the default level asks for repo.delete" ask "$(bash "$RESOLVE" repo.delete --json 2>/dev/null | jq -r .verdict)"
+judge "the default level allows repo.read" allow "$(bash "$RESOLVE" repo.read --json 2>/dev/null | jq -r .verdict)"
+REAL_HOME="$(python3 -I -S -c 'import os, pwd; print(pwd.getpwuid(os.getuid()).pw_dir)')"
+witness() { ls -lAR "$REAL_HOME/.config/tamirs-superpowers" "$REAL_HOME/.local/state/tamirs-superpowers" 2>/dev/null | shasum | awk '{print $1}'; }
+REAL_BEFORE="$(witness)"
 
 WORK="$T/work"
 mkdir -p "$WORK"
@@ -493,12 +483,12 @@ judge "the corpus is the same on a second build (deterministic)" yes \
 
 section "every call, judged by the real guard"
 JOBS_N="${FUZZ_JOBS:-$(python3 -c 'import os; print(min(os.cpu_count() or 2, 8))')}"
-python3 - "$CORPUS" "$ROOT/hooks/permission-guard.sh" "$TREE/hooks/permission-guard.sh" "$WORK" "$JOBS_N" \
+python3 - "$CORPUS" "$ROOT/hooks/permission-guard.sh" "$WORK" "$JOBS_N" \
   > "$T/results.txt" <<'RUN'
 import json, subprocess, sys
 from concurrent.futures import ThreadPoolExecutor
 
-corpus, pg, tree_pg, cwd, jobs = sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4], int(sys.argv[5])
+corpus, pg, cwd, jobs = sys.argv[1], sys.argv[2], sys.argv[3], int(sys.argv[4])
 rows = [(d["kind"], d["id"], d["cmd"]) for d in (json.loads(l) for l in open(corpus, encoding="utf-8") if l.strip())]
 
 
@@ -511,7 +501,7 @@ def payload(cmd, codex):
 
 
 def verdict(cmd, codex):
-    r = subprocess.run(["bash", tree_pg], input=payload(cmd, codex).encode(), stdout=subprocess.PIPE,
+    r = subprocess.run(["bash", pg], input=payload(cmd, codex).encode(), stdout=subprocess.PIPE,
                        stderr=subprocess.DEVNULL, timeout=60)
     try:
         d = json.loads(r.stdout.decode())
@@ -522,15 +512,22 @@ def verdict(cmd, codex):
 
 def judge(row):
     kind, aid, cmd = row
-    try:
-        c = json.loads(subprocess.run(["bash", pg, "--classify", cmd, cwd], stdout=subprocess.PIPE,
-                                      stderr=subprocess.DEVNULL, timeout=60).stdout.decode())
-    except ValueError:
-        c = None
+    c = None
+    for _ in range(2):
+        # A classify answer that is not JSON is a fail-closed deny, not a reading: the guard prints one when its 4 s
+        # tokeniser deadline passes, which the suite's own parallel load can cause (seen once in the first runs on
+        # the real resolver). It is asked once more; a second miss fails the call and shows what was printed.
+        raw = subprocess.run(["bash", pg, "--classify", cmd, cwd], stdout=subprocess.PIPE,
+                             stderr=subprocess.DEVNULL, timeout=60).stdout.decode("utf-8", "replace")
+        try:
+            c = json.loads(raw)
+            break
+        except ValueError:
+            c = None
     cl, cx = verdict(cmd, False), verdict(cmd, True)
     why = []
     if c is None:
-        why.append("classify printed no JSON")
+        why.append("classify printed no JSON: %r" % raw[:200])
     elif kind == "mutating":
         if not c["unclassified"] and aid not in c["ids"]:
             why.append("read as %s, not %s and not UNCLASSIFIED" % (",".join(c["ids"]) or "no id", aid))
@@ -583,5 +580,8 @@ for kind in mutating benign; do
     grep "^FAIL	$kind" "$T/results.txt" | head -15 | cut -c1-400 | sed 's/^/    /'
   fi
 done
+
+section "the real config and state dirs were never touched"
+judge "real-home witness unchanged" "$REAL_BEFORE" "$(witness)"
 
 harness_summary
