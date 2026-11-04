@@ -59,7 +59,9 @@
 #   a client config file (~/.curlrc, ...), a dot segment or escape in the path,
 #   or an undecodable body the id depends on is UNCLASSIFIED. A request to any
 #   other host keeps the catalog's net.get / net.post.external, unless it is
-#   re-routed to GitHub. Either module failing to import makes every command
+#   re-routed to GitHub; a curl or wget call the catalog reads as net.get whose
+#   request pg_http reads as another method (wget -e post_data=, --post-d=) is
+#   net.post.external. Either module failing to import makes every command
 #   that reaches the engine UNCLASSIFIED.
 #
 # CONDITIONS (D4: unknown never holds; a raise or deny applies unless false)
@@ -1110,8 +1112,9 @@ def http_call(s, p):
     UNCLASSIFIED (R4), beside whatever ids its path still names. A GraphQL request is classified by the root
     fields of its decoded query documents (graphql_ids).
 
-    A request to any other host keeps the catalog's argv reading (net.get / net.post.external); it is
-    UNCLASSIFIED only when it is re-routed to GitHub or through something PG cannot read (routes_reach_github).
+    A request to any other host keeps the catalog's argv reading (net.get / net.post.external), except that a
+    request pg_http reads as neither GET nor HEAD is never net.get; it is UNCLASSIFIED only when it is re-routed
+    to GitHub or through something PG cannot read (routes_reach_github).
     A call whose request list is not established is UNCLASSIFIED when it is curl or wget (a config file, a URL
     file, a template or a recursive fetch can hide a GitHub URL), `gh api`, or names a GitHub API host anywhere."""
     gh = p["argv0"] == "gh"
@@ -1119,7 +1122,7 @@ def http_call(s, p):
     words = p["sub"] if gh else p["all"]
     env = dict(e.split("=", 1) for e in p["env"])
     config = config_unknown(res.get("default_config") or [], env)
-    hit = uncl = False
+    hit = uncl = write_elsewhere = False
     if res.get("targets_unknown"):
         if gh and not res.get("requests") and any(w in ("-h", "--help") for w in words):
             add("repo.read", "argv", s, p=p)   # gh api --help sends nothing
@@ -1129,6 +1132,8 @@ def http_call(s, p):
     for q in res.get("requests") or []:
         urls = q.get("urls") or []
         bound = urls if gh else [u for u in urls if api_host(u)]
+        if len(bound) < len(urls) and q.get("method") not in ("GET", "HEAD"):
+            write_elsewhere = True
         if not bound:
             if q.get("route_override") and routes_reach_github(q.get("routes") or []):
                 uncl = True
@@ -1168,6 +1173,14 @@ def http_call(s, p):
                 uncl = uncl or config or bool(res.get("targets_unknown"))
             elif not settled or UNSETTLED_PATH.search(path) or (not fields_known and fields_matter(method, path)):
                 uncl = True
+    if write_elsewhere and any(h["id"] == "net.get" and h["seg"] is s for h in HITS):
+        # The catalog's argv globs read this call as a GET to a host that is not GitHub, but pg_http read one of
+        # its requests there as something else: wget -e post_data=, -e method=, a getopt prefix (--post-d=x,
+        # --meth=POST). It is net.post.external, never net.get (#349).
+        HITS[:] = [h for h in HITS if not (h["id"] == "net.get" and h["seg"] is s)]
+        if not any(h["id"] == "net.post.external" and h["seg"] is s for h in HITS):
+            add("net.post.external", "argv", s, p=p)
+        hit = True
     return hit, uncl
 
 

