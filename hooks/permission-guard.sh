@@ -938,6 +938,10 @@ def graphql_ids(doc, file_sourced):
     got = set()
     for n in names:
         got |= GRAPHQL.get(n, set())
+    # A fragment spread or definition can carry more mutation fields than the operation body PG scanned; PG does
+    # not resolve fragments, so a mutation that uses one is UNCLASSIFIED (Codex P1, round 5).
+    if "..." in doc or re.search(r"\bfragment\b", doc):
+        return got, True
     return got, any(n not in GRAPHQL for n in names)
 
 
@@ -1055,7 +1059,9 @@ def http_call(p):
         nxt = toks[k + 1] if k + 1 < len(toks) else ""
         if prog == "curl" and t.startswith("--expand-") and len(t) > 9:
             t = "--" + t[9:]   # curl 8.3+: --expand-data is --data with {{variables}} expanded
-            if t.partition("=")[0] == "--url" and "{{" in (t.partition("=")[2] or nxt):
+            # Any expanded option holding a {{variable}} is a template PG does not resolve: what curl sends (a URL,
+            # a body, a header) is unknown, so the call is UNCLASSIFIED (Codex P1, rounds 2 and 5).
+            if "{{" in (t.partition("=")[2] or nxt):
                 call["unread"] = True
         if t in ("-X", "--request") or (prog == "wget" and t == "--method"):
             call["methods"].append(nxt.upper())
