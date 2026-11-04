@@ -45,14 +45,18 @@ guide:
 | `commands/*.toml` | converted to skills | documented; this repo ships no commands |
 | MCP servers | `mcp_config.json` — `url`/`httpUrl` become `serverUrl`; stdio keeps `command`/`args` | documented |
 | sub-agents | reported "skipped (none detected)" in Google's sample output | unverified for this repo's `.gemini/agents/` |
-| `hooks/hooks.json`, `policies/*.toml` | not mentioned | **unverified** |
+| `hooks/hooks.json` | not in the migration guide; the [hooks page](https://antigravity.google/docs/hooks) documents plugin `hooks.json` in the CLI | **unverified** — firing not measured |
+| `policies/*.toml` | not mentioned | **unverified** |
 
 ## Route B — the native plugin folder (generated, unverified)
 
 `platforms/antigravity/` is the native shape: a `plugin.json` that is exactly
-`{name, description}` (the schema is closed — `additionalProperties: false` — so the
-version, author and keywords every other manifest carries cannot go in it), and an
-`mcp_config.json` with the `github` stdio server. A plugin install is one of:
+`{name, description}`, and an `mcp_config.json` with the `github` stdio server. Two fields
+only, because an earlier reading of the docs gave the schema as closed
+(`additionalProperties: false`). The current [plugins page](https://antigravity.google/docs/plugins/)
+example also shows `$schema`, `displayName`, `version`, `logo` and `suggestedPrompts`, so the
+schema may no longer be closed; that is unverified until `agy plugin validate --strict` runs on
+it, and the generator adds nothing until then. A plugin install is one of:
 
 ```bash
 agy plugin install </path/to/plugin-folder>          # local path
@@ -70,13 +74,17 @@ What is **not** known, and why this route is not recommended yet:
   Gemini's `${extensionPath}`). The generated `mcp_config.json` uses a path relative to the
   plugin root; whether `agy` resolves it against the plugin directory is unverified. Route A
   yields absolute paths because the Gemini extension is already installed somewhere concrete.
-- **Hooks.** The folder ships **no `hooks.json`**, deliberately. Google says hooks carry over
-  from Gemini extensions "at launch" without 1:1 parity; one third-party source says `agy`
-  loads hooks but does not fire them. A hooks file that loads and never fires reads as a guard
+- **Hooks.** The folder ships **no `hooks.json`**, deliberately. Antigravity's
+  [hooks page](https://antigravity.google/docs/hooks) now documents plugin `hooks.json` in the
+  CLI and the `PreToolUse` decision values, and Google says hooks carry over from Gemini
+  extensions "at launch" without 1:1 parity; one third-party source says `agy` loads hooks but
+  does not fire them, and no firing has been measured here. A hooks file that loads and never fires reads as a guard
   that is not one. The worktree, sensitive-file and branch guards are therefore **not active on
   Antigravity** until a live run shows a hook fire; until then they are what the skills tell the
   agent to do by hand ([`core/policies/safety.md`](../../../core/policies/safety.md)).
-- **Token.** Gemini's keychain-backed `settings[]` has no documented Antigravity equivalent;
+- **Token.** Antigravity's plugins page now documents required **config variables**: a plugin
+  that declares them installs disabled, and enabling it opens a setup dialog for each one. The
+  generated folder declares none, and the mechanism has not been exercised here.
   `scripts/github-mcp.sh` reads `GITHUB_PERSONAL_ACCESS_TOKEN` from its environment, so export it
   in the shell that starts `agy` or put it in the server's `env` block yourself. Nothing in the
   generated file carries a token.
@@ -140,6 +148,6 @@ Validation of what this repo can check without the binary:
 
 ```bash
 bash scripts/build-antigravity-plugin.sh . --check   # generated files match their sources
-bash tests/test-antigravity-adapter.sh               # closed schema, MCP shape, no hooks.json, adapter contract
+bash tests/test-antigravity-adapter.sh               # two-field plugin.json, MCP shape, no hooks.json, adapter contract
 bash tests/test-agents-skills.sh                     # the .agents/skills mirror
 ```

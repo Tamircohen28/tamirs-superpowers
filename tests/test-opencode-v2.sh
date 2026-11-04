@@ -44,10 +44,12 @@ CONFIG="$ROOT/opencode.json"
 PLUGIN="$ROOT/platforms/opencode/plugin"
 
 # OpenCode 2 Core permission actions — https://opencode.ai/v2/docs/permissions/,
-# read 2026-10-17. Pinned here independently of the generator and of
-# scripts/check-opencode-permission-keys.sh, so a drift in either shows up as a
-# disagreement rather than as two copies of one mistake.
-V2_ACTIONS=" read edit glob grep shell subagent skill question webfetch websearch external_directory execute "
+# read 2026-10-17; re-read 2026-11-03 against the 2.2.5 docs, which add
+# `experimental_image_generate` (on by default since 2.2.2). Pinned here
+# independently of the generator and of scripts/check-opencode-permission-keys.sh,
+# so a drift in either shows up as a disagreement rather than as two copies of one
+# mistake.
+V2_ACTIONS=" read edit glob grep shell subagent skill question webfetch websearch experimental_image_generate external_directory execute "
 V1_ONLY=" bash task doom_loop lsp list todowrite write "
 
 # frontmatter <file> — the YAML block between the first two `---` lines.

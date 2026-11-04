@@ -99,19 +99,30 @@ mkdir -p "$DEST"
 # Every OpenCode 2 Core permission ACTION a canonical tool can map onto. Anything
 # not granted by the canonical file is denied explicitly, so an allowlist stays an
 # allowlist. Source: https://opencode.ai/v2/docs/permissions/ ("Built-in tools
-# currently use these actions"), read 2026-10-17. The published schema does not
+# currently use these actions"), read 2026-10-17, re-read 2026-11-03 against the
+# 2.2.5 docs. The published schema does not
 # enumerate actions — `Permission.Rule.action` is a free string, "so plugins may
 # define more" — which is exactly why the list is pinned here and in
 # scripts/check-opencode-permission-keys.sh rather than fetched: a misspelt action
 # is a deny rule that denies nothing, and nothing would notice.
 #
+# Two actions no canonical tool maps onto, so every restricted agent denies them:
+#   - `experimental_image_generate` — on by default since 2.2.2 when the provider
+#     has image models (#60258). Under the allow-all base policy an agent that does
+#     not deny it can generate images, which no canonical allowlist grants.
+#   - `execute` — Code Mode. Its nested tools enforce their own rules, but Code Mode
+#     is still a capability no canonical tool names, and an allowlist that does not
+#     name it must not grant it. Denying it removes Code Mode only: since 2.2.0
+#     OpenCode exposes the Code Mode MCP tools directly when `execute` is denied,
+#     and those stay under their own `<server>_<tool>` rules. Evidence for both:
+#     docs/engineering/research/permissions/platforms/opencode.md, "Repo drift" 1-2.
+#
 # Deliberately absent: `external_directory` (emitted separately, always `ask`),
-# `execute` (Code Mode; "nested tools enforce their rules", so the per-action
-# rules above already govern what it can reach), the MCP `<server>_<tool>` family
+# the MCP `<server>_<tool>` family
 # (no canonical equivalent — see map_tool), and every name that is NOT a Core action: `bash`
 # (the tool alias runs as `shell`), `task` (`subagent`), `doom_loop`, `lsp`, `list`,
 # `todowrite`, `write`.
-OPENCODE_ACTIONS=(read edit glob grep shell subagent skill question webfetch websearch)
+OPENCODE_ACTIONS=(read edit glob grep shell subagent skill question webfetch websearch experimental_image_generate execute)
 
 # Canonical Claude tool name -> OpenCode 2 permission action. Unlisted canonical
 # tools (notably `mcp__*` server tools, and LS — V2 has no `list` action; `glob`

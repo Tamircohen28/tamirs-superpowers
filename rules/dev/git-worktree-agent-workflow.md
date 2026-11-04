@@ -37,6 +37,15 @@ An objective decomposes into zero or more **worker tasks**, plus exactly one **i
 
 `.agent-worktrees/` may also live outside the repository (a user-level path such as `~/.agent-worktrees/<repo>/<objective>/…`). Both layouts are supported; the repo-local one must stay git-ignored.
 
+To relocate it, give the resolver a base directory: `resolve-worktree.sh --worktree-base <dir>`, or `AGENT_WORKTREE_BASE=<dir>` in the environment. The flag wins over the variable. Worktrees then go to `<dir>/<slug>/integration` and `<dir>/<slug>/task-NNN`, with the branch names unchanged.
+
+- `--objective … --task`, `--objective … --integration` and `--migrate` accept the flag.
+- `--list` needs no flag, because it reads `git worktree list`, which knows every base. A worktree under a custom base is still classified as the objective layout, by its `<slug>/integration` or `<slug>/task-NNN` shape.
+- A relative `<dir>` resolves against the current directory. The directory is created when the first worktree is placed. It cannot be `/`, and if it already exists it must be a directory.
+- Legacy adoption works the same: a legacy worktree that already holds the branch is still returned.
+
+The hooks read a different variable. `SUPERPOWERS_AGENT_WORKTREE_ROOT` is how `hooks/lib/objective-common.sh` decides whether a path is an objective worktree, and where `worktree-create.sh` and `enforce-worktree-edits.sh` point agents. If you relocate with `--worktree-base`, set `SUPERPOWERS_AGENT_WORKTREE_ROOT` to the same directory. Otherwise the hooks will not recognize worktrees outside a `.agent-worktrees/` path.
+
 An objective with a single trivial task does not need worker worktrees at all — one integration worktree is a complete, valid setup. Do not manufacture parallelism that the objective does not have.
 
 ### What each worktree is for

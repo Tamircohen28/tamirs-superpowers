@@ -180,14 +180,27 @@ echo "--- .opencode/agents: allowlist semantics survive translation ---"
 # boundary is silently gone.
 noperm=()
 nodeny=()
+# Actions no canonical tool maps onto, so no allowlist can grant them: every
+# restricted adapter must deny each one. `experimental_image_generate` is on by
+# default since OpenCode 2.2.2 and `execute` is Code Mode; an adapter missing
+# either leaves that capability allowed by the base policy.
+UNGRANTABLE="experimental_image_generate execute"
+nodeny_ungrantable=()
+restricted=0
 for f in "$SRC"/*.md; do
   [ -e "$f" ] || continue
   b="$(basename "$f")"
   [ -f "$DEST/$b" ] || continue
   # Only agents whose canonical file declares an allowlist are constrained.
   awk 'NR==1&&/^---/{fm=1;next} fm&&/^---/{exit} fm&&/^tools:/{found=1} END{exit !found}' "$f" || continue
+  restricted=$((restricted + 1))
   grep -q '^permissions:' "$DEST/$b" || { noperm+=("$b"); continue; }
   grep -qE '^    effect: deny$' "$DEST/$b" || nodeny+=("$b")
+  rules="$(awk 'NR==1&&/^---/{fm=1;next} fm&&/^---/{exit} fm{print}' "$DEST/$b" | tr '\n' ' ')"
+  for act in $UNGRANTABLE; do
+    printf '%s' "$rules" | grep -qE "action: $act +resource: \"\*\" +effect: deny" \
+      || nodeny_ungrantable+=("$b:$act")
+  done
 done
 if [ "${#noperm[@]}" -eq 0 ]; then
   ok "adapters use the OpenCode 2 'permissions:' ruleset"
@@ -198,6 +211,13 @@ if [ "${#nodeny[@]}" -eq 0 ]; then
   ok "adapters deny non-granted actions explicitly (allowlist is not silently widened)"
 else
   bad "adapters deny non-granted actions explicitly" "no deny rules in: ${nodeny[*]}"
+fi
+if [ "$restricted" -eq 0 ]; then
+  bad "restricted adapters deny experimental_image_generate and execute" "no canonical agent declares tools: — nothing was checked"
+elif [ "${#nodeny_ungrantable[@]}" -eq 0 ]; then
+  ok "restricted adapters deny experimental_image_generate and execute ($restricted checked)"
+else
+  bad "restricted adapters deny experimental_image_generate and execute" "missing deny: ${nodeny_ungrantable[*]}"
 fi
 
 # The V1 map is deprecated and V2 only auto-translates it; this repo targets V2.

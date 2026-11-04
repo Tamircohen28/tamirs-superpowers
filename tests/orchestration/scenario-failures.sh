@@ -102,3 +102,36 @@ judge "src/api/** does NOT reach src/apikeys" no \
 # one that will fail and should be updated to `no`.
 judge "KNOWN SHARP EDGE: a single-* scope grants the whole subtree" yes \
   "$(scope_matches 'src/*' 'src/deep/nested/secret.txt')"
+
+section "handoff --followup field forms: item[|blocking][|role]"
+
+# A delimiter-free spec once came back with its item copied into suggested_role
+# (cut prints a line with no delimiter whole, for every field number).
+sim_new "$(harness_tmpdir)" followups "Followup parsing"
+sim_state task-add followups --role implementer --scope 'src/**' --title "F" >/dev/null
+fu() { sim_handoff emit followups task-001 --status partial --followup "$1" 2>/dev/null | jq -c '.followups[0]'; }
+
+judge "1 field: item only — no blocking, no suggested_role" \
+  '{"item":"write the docs"}' "$(fu 'write the docs')"
+judge "2 fields: item|blocking" \
+  '{"item":"write the docs","blocking":true}' "$(fu 'write the docs|blocking')"
+judge "2 fields: item|non-blocking" \
+  '{"item":"write the docs","blocking":false}' "$(fu 'write the docs|non-blocking')"
+judge "3 fields: item|true|role" \
+  '{"item":"write the docs","blocking":true,"suggested_role":"implementer"}' "$(fu 'write the docs|true|implementer')"
+judge "3 fields: item|false|role" \
+  '{"item":"write the docs","blocking":false,"suggested_role":"reviewer"}' "$(fu 'write the docs|false|reviewer')"
+judge "3 fields with blocking left empty: item||role" \
+  '{"item":"write the docs","suggested_role":"implementer"}' "$(fu 'write the docs||implementer')"
+
+fu_rc=0
+fu_err="$(sim_handoff emit followups task-001 --status partial --followup 'write the docs|implementer' 2>&1 >/dev/null)" || fu_rc=$?
+judge "a role in the blocking slot is refused, not read as non-blocking (exit 1)" 1 "$fu_rc"
+judge "and the error says where the role goes" yes "$(has "$fu_err" "the role is the 3rd field")"
+
+judge "1-field --decision gains no rationale copied from the decision" \
+  '{"decision":"use jq"}' \
+  "$(sim_handoff emit followups task-001 --status partial --decision 'use jq' 2>/dev/null | jq -c '.decisions[0]')"
+judge "1-field --risk is accepted with no severity" \
+  '{"risk":"flaky on macOS"}' \
+  "$(sim_handoff emit followups task-001 --status partial --risk 'flaky on macOS' 2>/dev/null | jq -c '.risks[0]')"

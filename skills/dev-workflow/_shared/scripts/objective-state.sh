@@ -418,12 +418,24 @@ cmd_validate() {
   done
 
   # Concurrent tasks must not share write scope (spec section 11 conflict policy).
+  # "Concurrent" means no dependency PATH joins them, in either direction — not
+  # merely no direct edge: in A->B->C, A and C can never run together, so a file
+  # they share is ordered, not contended. Same rule as plan-dev's validate_plan.py
+  # (_reachable). The graph is built from every task, completed ones included,
+  # because a finished middle link still orders its two ends.
   local overlap
   overlap="$(find "$dir/tasks" -name 'task-*.json' -print0 2>/dev/null | sort -z | xargs -0 -r jq -s '
-    [ .[] | select(.status != "completed" and .status != "cancelled") ] as $open
+    def reach($g; $start):
+      { seen: [], stack: ($g[$start] // []) }
+      | until(.stack | length == 0;
+          .stack[0] as $n | .stack |= .[1:]
+          | if any(.seen[]; . == $n) then . else .seen += [$n] | .stack += ($g[$n] // []) end)
+      | .seen;
+    (map({ key: .id, value: (.depends_on // []) }) | from_entries) as $graph
+    | [ .[] | select(.status != "completed" and .status != "cancelled") ] as $open
     | [ $open[] as $a | $open[] as $b
         | select($a.id < $b.id)
-        | select(($a.depends_on | index($b.id)) == null and ($b.depends_on | index($a.id)) == null)
+        | select((reach($graph; $a.id) | index($b.id)) == null and (reach($graph; $b.id) | index($a.id)) == null)
         | select([ $a.scope[] as $s | $b.scope[] | select(. == $s) ] | length > 0)
         | "\($a.id) and \($b.id) share write scope" ] | .[]' -r)"
   if [[ -n "$overlap" ]]; then

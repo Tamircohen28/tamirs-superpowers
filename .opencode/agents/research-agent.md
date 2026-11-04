@@ -18,6 +18,12 @@ permissions:
   - action: question
     resource: "*"
     effect: deny
+  - action: experimental_image_generate
+    resource: "*"
+    effect: deny
+  - action: execute
+    resource: "*"
+    effect: deny
   - action: external_directory
     resource: "*"
     effect: ask

@@ -33,6 +33,11 @@
 # "fixing" its numbers would falsify it. Without this rule the checker pressures every such
 # document into corruption. Verify both halves of the rule with --self-test.
 #
+# A CHANGELOG's RELEASED sections — everything from its first `## [x.y.z]` heading down —
+# are exempt from the skill-count check for the same reason: "30 of 30 skills" in the
+# 5.1.0 entry was true when 5.1.0 shipped, and a release entry is never rewritten. Only
+# `## [Unreleased]` describes the tree as it is now, so it stays checked.
+#
 # Exit 0 if checks pass; 1 on failure.
 set -euo pipefail
 
@@ -91,15 +96,23 @@ number_word() {
 # under docs/engineering/roadmap/*-research/ quote other projects' counts and versions
 # verbatim ("3,984 skills", a host's own version table), so they are not claims about this
 # tree and are left out; the same holds for docs/engineering/host-notes/, which records
-# what each host's releases changed ("32 entries in its skills frontmatter").
+# what each host's releases changed ("32 entries in its skills frontmatter"), and for
+# docs/engineering/research/, whose audits count the subset they examined ("14 skills"
+# in a review of one domain) — a count of what was studied, not of what ships.
 prose_lines() {
   local root="$1" pattern="$2"
   find "$root" -name "$pattern" -type f \
     -not -path '*/.git/*' -not -path '*/node_modules/*' \
     -not -path '*_contract/fixtures/*' -not -path '*/session-files/*' \
-    -not -path '*/docs/engineering/roadmap/*-research/*' -not -path '*/docs/engineering/host-notes/*' 2>/dev/null \
+    -not -path '*/docs/engineering/roadmap/*-research/*' -not -path '*/docs/engineering/host-notes/*' \
+    -not -path '*/docs/engineering/research/*' 2>/dev/null \
   | while IFS= read -r f; do
       awk -v fname="${f#"$root"/}" '
+        # A CHANGELOG below its first released heading (`## [5.1.0] — ...`) is history:
+        # each entry was true when it shipped. Stop at that heading; [Unreleased] above it
+        # is still a claim about this tree. Outside a fence only, so a quoted heading in a
+        # code block does not end the scan early.
+        !fence && fname ~ /(^|\/)CHANGELOG\.md$/ && /^## \[v?[0-9]+\.[0-9]+\.[0-9]+\]/ { exit }
         # A fence line toggles the state and is itself never a claim. Matches ``` and ~~~
         # with any info string (```bash, ```jsonc).
         /^[[:space:]]*(```|~~~)/ { fence = !fence; next }
@@ -151,11 +164,16 @@ if [[ "$SELF_TEST" == true ]]; then
 ST_JSON
 
   st_pass=0 st_fail=0
+  # st_case <name> <want-exit> <body> [doc-path] — doc-path is relative to the root
+  # (default DOC.md); the file is removed afterwards so cases never leak into each other.
   st_case() {
-    local name="$1" want="$2" body="$3"
-    printf '%s\n' "$body" >"$st_root/DOC.md"
+    local name="$1" want="$2" body="$3" doc="${4:-DOC.md}"
+    rm -f "$st_root/DOC.md"
+    mkdir -p "$(dirname "$st_root/$doc")"
+    printf '%s\n' "$body" >"$st_root/$doc"
     local got=0
     bash "$0" "$st_root" >/dev/null 2>&1 || got=1
+    [[ "$doc" == DOC.md ]] || rm -f "${st_root:?}/$doc"
     if [[ "$got" == "$want" ]]; then
       echo "  ok    $name (expected $( [[ $want == 1 ]] && echo fail || echo pass ))"
       st_pass=$(( st_pass + 1 ))
@@ -193,6 +211,15 @@ as recorded.'
 
 The tree ships 27 skills today.'
 
+  # Research and roadmap research notes count what they studied, not what ships. The
+  # exemption is by directory, so a sibling directory must still be checked.
+  st_case "stale count in docs/engineering/research/"   0 'This audit reviewed 27 skills.' \
+    'docs/engineering/research/audit/report.md'
+  st_case "stale count in roadmap/*-research/"           0 'That marketplace lists 27 skills.' \
+    'docs/engineering/roadmap/v9-research/notes.md'
+  st_case "stale count in docs/engineering/decisions/"   1 'This plugin bundles 27 skills.' \
+    'docs/engineering/decisions/001-x.md'
+
   # Section 4: the record pins cursor at 3.22.7.
   st_case "stale validated version in prose"  1 '| Cursor IDE | IDE | supported - validated 3.16.17 |'
   st_case "correct validated version in prose" 0 '| Cursor IDE | IDE | supported - validated 3.22.7 |'
@@ -202,6 +229,54 @@ The tree ships 27 skills today.'
 Cursor IDE — validated 3.16.17
 ```
 '
+
+  # CHANGELOG release history: a stale count under a released heading is a record, not a
+  # claim, and passes; the same count under [Unreleased] still fails. DOC.md is emptied
+  # first so an earlier case cannot decide these.
+  st_changelog_case() {
+    local name="$1" want="$2" body="$3" got=0
+    : >"$st_root/DOC.md"
+    printf '%s\n' "$body" >"$st_root/CHANGELOG.md"
+    bash "$0" "$st_root" >/dev/null 2>&1 || got=1
+    rm -f "$st_root/CHANGELOG.md"
+    if [[ "$got" == "$want" ]]; then
+      echo "  ok    $name (expected $( [[ $want == 1 ]] && echo fail || echo pass ))"
+      st_pass=$(( st_pass + 1 ))
+    else
+      echo "  FAIL  $name — expected exit $want, got $got" >&2
+      st_fail=$(( st_fail + 1 ))
+    fi
+  }
+  st_changelog_case "stale count in CHANGELOG [Unreleased]"    1 '# Changelog
+
+## [Unreleased]
+
+- Coverage is now 27 skills.
+
+## [1.0.0] — 2026-01-01
+
+- First release.'
+  st_changelog_case "stale count in a released CHANGELOG entry" 0 '# Changelog
+
+## [Unreleased]
+
+## [1.0.0] — 2026-01-01
+
+- Coverage is now 27 skills.'
+  st_changelog_case "stale count above the first release heading" 1 '# Changelog
+
+Notes: this plugin bundles 27 skills.
+
+## [1.0.0] — 2026-01-01'
+  st_changelog_case "release heading inside a fence does not end the scan" 1 '# Changelog
+
+## [Unreleased]
+
+```
+## [1.0.0] — example
+```
+
+- Coverage is now 27 skills.'
 
   echo "self-test: $st_pass passed, $st_fail failed"
   (( st_fail == 0 )) || exit 1

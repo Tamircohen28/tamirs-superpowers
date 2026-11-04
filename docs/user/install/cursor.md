@@ -6,7 +6,9 @@ loaded as a local plugin with no failures, and its commands, skills and worktree
 hooks inside the desktop app. The support floor stays **3.22.7**, the last build a live run confirmed
 on its own, not a guess. The IDE release notes are read through 3.27
 ([cursor.com/docs/release-notes/ide](https://cursor.com/docs/release-notes/ide)); the feature
-changelog is date-only through **2026-10-20**.
+changelog is date-only through **2026-10-20**. Newer builds exist and are **not** validated
+here: desktop **3.28.7** is the stable build Cursor's download API reports, and `cursor-agent`
+**2026.10.22** heads the CLI changelog (both read 2026-11-03).
 
 ---
 
@@ -47,7 +49,10 @@ Dashboard, so the two can sit side by side at different versions. For a headless
 
 The bundled github MCP server needs a GitHub personal access token, and in a Cursor plugin
 a token is a **plugin variable**: the MCP file says `${GITHUB_TOKEN}`, the manifest
-declares `GITHUB_TOKEN` under `variables`, and the value is set by you — never in the repo.
+declares `GITHUB_TOKEN` under `variables`, and the value is set in the Cursor dashboard —
+never in the repo. Cursor's plugin reference says **team admins** set the values; whether a
+solo, non-team account gets its own Configure form has not been checked, so on a team plan ask
+your admin.
 
 1. Dashboard → **Plugins** → **tamirs-superpowers** → **Configure**.
 2. Set **GitHub token for the bundled github MCP server** to a token with `repo` scope.
@@ -139,8 +144,8 @@ checkout of the plugin. The engineering note behind every entry is
 **The safety tier fails closed.** `enforce-worktree-edits.sh`, `guard-sensitive-files.sh`
 (both events), `protect-other-branches.sh` and the agent-tools guard carry `failClosed: true`
 — Cursor's `onFailure: "block"` — so a guard that crashes or times out **denies** rather than
-allows, and `loop_limit: null` so Cursor's default cap of five firings per loop never turns a
-guard off. Every advisory entry stays fail-open: a broken reminder costs a reminder, not a
+allows. They also carry `loop_limit: null`, which is most likely a no-op on these events:
+Cursor documents `loop_limit` only for `stop`/`subagentStop` hooks. Every advisory entry stays fail-open: a broken reminder costs a reminder, not a
 tool call.
 
 **It points somewhere non-default deliberately.** Cursor's component discovery falls back to
@@ -249,8 +254,8 @@ the event fires at all inside a [cloud agent](#what-runs-where-cloud-agents).
 | `sessionEnd` | — | ❌ | ✅ | `session-end.sh` (archive, prune), `release-agent-claims.sh`, `handoff-reminder.sh` (reminder on stderr from a `~/.cursor/worktrees/…` checkout). Cursor documents no output for this event; none is printed |
 | `stop` | — | ✅ | ✅ | `check-done.sh`, the definition-of-done reminder — on stderr (stdout is the no-op `{}`), never as `followup_message` |
 | `preCompact` | — | ✅ | ✅ | `precompact-snapshot.sh` writes `.dev-files/compaction/latest.md` before context is lost |
+| `subagentStop` | — | ✅ | ✅ | `subagent-handoff-check.sh` warns when a subagent finishes under an active objective with no handoff, or a `completed` one with no validation — as `user_message` and on stderr, never as `followup_message` (the event's only documented output, which Cursor would auto-submit as your next message) |
 | `workspaceOpen` | — | ❌ | ✅ | `cursor-workspace-open.sh` → `{"pluginPaths": […]}` from `SUPERPOWERS_CURSOR_PLUGIN_PATH` (colon-separated absolute plugin checkouts); `[]` otherwise. The route to auto-load a checkout of this plugin without a marketplace install |
-| `subagentStop` | — | ✅ | ❌ | Its peer `subagent-handoff-check.sh` still answers its warning in Claude's dialect (`hookSpecificOutput`), which Cursor drops; wired the day it speaks Cursor — `tests/test-cursor-lifecycle.sh` re-checks that path each run. Its only documented output is `followup_message`, which this plugin never emits |
 | `subagentStart` | ✅ | ✅ | ❌ | `cursor-agent-tools-guard.sh` would **deny every spawn** under an active frame as written (no `tool_name` on this payload); a spawn-time deny needs its own branch keyed on `subagent_type` + `tool_call_id`, de-duplicated against the `preToolUse` Task push |
 | `postToolUseFailure` | — | ✅ | ❌ | Observation point (`error_message`, `failure_type`, `is_interrupt` → `additional_context`); available, nothing needs it yet |
 | `beforeMCPExecution` · `afterMCPExecution` | ✅ / — | ❌ | ❌ | `preToolUse` already fires for MCP tool calls; wiring this too would double-judge the same call |
@@ -264,8 +269,8 @@ rest. `docker-guard.py` stays Claude-only (below).
 ### What runs where: cloud agents
 
 Cloud agents run 14 of the 21 events and **do not load user-level hooks**. Of the ten events
-wired here, `preToolUse`, `postToolUse`, `beforeShellExecution`, `beforeSubmitPrompt`, `stop`
-and `preCompact` fire in a cloud agent; `sessionStart`, `sessionEnd` and `workspaceOpen` do
+wired here, `preToolUse`, `postToolUse`, `beforeShellExecution`, `beforeSubmitPrompt`, `stop`,
+`preCompact` and `subagentStop` fire in a cloud agent; `sessionStart`, `sessionEnd` and `workspaceOpen` do
 not. So a cloud agent keeps every guard, the `/goal` lint and both prompt reminders, but gets
 no session lifecycle: no session-files directory from `session-init.sh` (the first write still
 creates the worktree), no archive/prune/claim-release at the end, and no `pluginPaths`
@@ -373,11 +378,12 @@ never adopt anything silently. `apply` shows a diff and asks per change, default
 | MCP | native | generated `platforms/cursor/mcp.json`, declared in the manifest; the github token is the `GITHUB_TOKEN` plugin variable set under Plugins → Configure |
 | git · shell · GitHub CLI | native | `gh` is an optional host dependency everywhere |
 | auto-invocation | partial | CLI sticky skills + Custom Modes; description-based selection across all surfaces is unverified — **name the skill** or pin a mode |
-| hooks | partial | **Cursor-format plugin hooks DO run**, from `platforms/cursor/hooks.json`, declared in the manifest. Claude-shaped hooks (`hooks/hooks.json`) still do not — Cursor never reads a plugin's own `hooks.json`, which is why the bundle sits at a declared non-default path. 10 of Cursor's 21 events are wired (`workspaceOpen`, `sessionStart`, `sessionEnd`, `beforeSubmitPrompt`, `preToolUse`, `beforeShellExecution`, `postToolUse`, `stop`, `preCompact`) with `failClosed` on the safety tier; still `partial` because `subagentStart`/`subagentStop` are unwired, cloud agents get no session lifecycle, and the lifecycle port has had no live run |
+| hooks | partial | **Cursor-format plugin hooks DO run**, from `platforms/cursor/hooks.json`, declared in the manifest. Claude-shaped hooks (`hooks/hooks.json`) still do not — Cursor never reads a plugin's own `hooks.json`, which is why the bundle sits at a declared non-default path. 10 of Cursor's 21 events are wired (`workspaceOpen`, `sessionStart`, `sessionEnd`, `beforeSubmitPrompt`, `preToolUse`, `beforeShellExecution`, `postToolUse`, `stop`, `preCompact`, `subagentStop`) with `failClosed` on the safety tier; still `partial` because `subagentStart` is unwired, cloud agents get no session lifecycle, and the lifecycle port has had no live run |
 | worktree isolation | emulated | The skill runs `git worktree` itself; no hook automation |
 | parallel subagents | partial | Cloud swarm on isolated VMs (2026-08-19); local concurrency unmeasured |
 | background tasks · structured questions · session transcripts | unknown | Not measured — treated as unavailable, with stated fallbacks |
-| statusline · artifacts · extension install | unsupported | Cosmetic, absent, and not a Cursor mechanism, respectively |
+| statusline · artifacts | unsupported | Cosmetic and absent, respectively |
+| extension install | unknown | The CLI changelog documents installing plugins from a git URL (`agent plugin marketplace add <git-url>`); a plugin marketplace source, not a Gemini-style extension, and not run here |
 
 ### Working tips (3.11 → 2026-10-20; desktop 3.27.22 validated and reviewed; CLI 2026-08-26)
 - **Agent SDK (2026-10-20):** Cursor shipped a GA **Agent SDK** (`npm i -g @grok/agent-sdk`; package was `@cursor/bdk` / `@cursor/agent-sdk`) — agents-as-code with `instructions.md`, typed `tools/`, `skills/`, MCP connections, channels, and evals ([docs](https://cursor.com/docs/agent-sdk)). **Not** the Claude Code Agent SDK mentioned in Claude host notes. Cursor Cloud also ships host skills (`agent-sdk-create-agent`, `agent-sdk-evals`, …) that are **not** bundled by this plugin. Prefer Cursor Automations for schedule/event bots without typed tools; graduate to Agent SDK when you need versioned evals / hill-climbing. This plugin stays skills/hooks/rules — no Agent SDK project required for install.

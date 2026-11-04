@@ -11,7 +11,8 @@
 # MCP servers are declared in .codex-plugin/plugin.json (mcpServers: ./.mcp.json).
 # Activate by setting the env vars documented in .mcp.json — never commit a token.
 #
-# Hooks: hooks/hooks.json is wired for Codex via .codex-plugin/plugin.json.
+# Hooks: the generated platforms/codex/hooks.json (since 5.0.0, not
+# hooks/hooks.json) is wired for Codex via .codex-plugin/plugin.json.
 # Capability facts live in core/capabilities/platforms.json; check there before
 # relying on hooks, subagents, or a statusline.
 

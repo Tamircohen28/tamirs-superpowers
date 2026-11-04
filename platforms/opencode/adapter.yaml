@@ -38,7 +38,8 @@ notes: >-
   objective pane) from the same directory. The ADR 004 permission layer is the
   canonical hooks/permission-guard.sh, run by guard.ts on every shell and GitHub MCP
   call and delivered deny-only (an ask is approved by --auto, measured O1). The
-  plugin LOADS on 2.0.32 (`opencode plugin list`); its denies stopping an action live
+  plugin loads on 2.2.5 (`opencode plugin list` names tamirs-superpowers.guard from
+  the second call on a warm service, measured 2026-10-31); its denies stopping an action live
   is unverified (a probe plugin's deny under --auto was measured, spike O1b).
   mcp is `native`: opencode.json declares `mcp.servers.github` running
   scripts/github-mcp.sh with the token from GITHUB_PERSONAL_ACCESS_TOKEN.

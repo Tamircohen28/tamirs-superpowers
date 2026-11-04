@@ -62,8 +62,11 @@ session — except for the two groups below, which are switched by a plugin opti
 ### Hook tiers (`notification_hooks`, `contributor_hooks`)
 
 Two plugin options switch whole groups of hooks on or off without editing the manifest.
-Set them in `/plugin` > **tamirs-superpowers** > **Configure**, in `/config`, or from the
-shell with `claude plugin configure tamirs-superpowers`:
+Set them in `/plugin` > **tamirs-superpowers** > **Configure**, or from the shell with
+`claude plugin configure tamirs-superpowers`. `/config` also lists them, but only in the
+Claude Code CLI (2.1.269+) and only for non-sensitive options; Claude Desktop does not open
+`/config` ("Repo drift" 3 in the
+[Claude permissions research](../engineering/research/permissions/platforms/claude.md#repo-drift)):
 
 | Option | Default | Hooks it switches |
 |---|---|---|
@@ -171,7 +174,7 @@ for you to run yourself.
 
 | platform | at install | change it later |
 |---|---|---|
-| Claude Code | the `permission_level` option in the install dialog: `supervised`, `standard` or `unattended` (default `supervised`) | `/config`, `/plugin` > **tamirs-superpowers** > **Configure**, or `claude plugin configure tamirs-superpowers` in your own terminal |
+| Claude Code | the `permission_level` option in the install dialog: `supervised`, `standard` or `unattended` (default `supervised`) | `/plugin` > **tamirs-superpowers** > **Configure**, `claude plugin configure tamirs-superpowers` in your own terminal, or `/config` in the CLI only (2.1.269+; Desktop does not open it) |
 | Gemini CLI | the `TS_PERMISSION_LEVEL` setting, prompted at `gemini extensions install` unless you pass `--skip-settings` (empty = `supervised`; anything else unknown = `supervised` with a warning) | `gemini extensions config tamirs-superpowers TS_PERMISSION_LEVEL` in your own terminal |
 | Codex CLI, Cursor, OpenCode | no install-time option exists; `bash scripts/setup.sh apply --permission-level <level>` (or `SETUP_PERMISSION_LEVEL=<level>`), or answer the level prompt `setup.sh apply` shows on a terminal when one of them is in scope | `/plugin-config` to tighten in a session; to widen, `scripts/plugin-config.sh` in your own terminal or `setup.sh` again |
 

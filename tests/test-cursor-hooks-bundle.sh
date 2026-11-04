@@ -68,7 +68,7 @@ for s in enforce-worktree-edits.sh guard-sensitive-files.sh protect-other-branch
   n="$(jq -r --arg s "$s" '[.hooks.preToolUse[] | select(.command | test($s))] | map(select(.failClosed == true)) | length' "$B")"
   [ "$n" -ge 1 ] && ok "preToolUse → $s carries failClosed: true" || bad "preToolUse → $s failClosed" "not set"
   n="$(jq -r --arg s "$s" '[.hooks.preToolUse[] | select(.command | test($s))] | map(select(.loop_limit == null and has("loop_limit"))) | length' "$B")"
-  [ "$n" -ge 1 ] && ok "preToolUse → $s removes the loop_limit cap" || bad "preToolUse → $s loop_limit" "a guard capped at 5 firings stops guarding"
+  [ "$n" -ge 1 ] && ok "preToolUse → $s keeps the bundle's loop_limit: null" || bad "preToolUse → $s loop_limit" "missing (documented only for stop/subagentStop, most likely a no-op here, but the bundle and its docs declare it)"
 done
 n="$(jq -r '[.hooks.beforeShellExecution[] | select(.command | test("guard-sensitive-files")) | select(.failClosed == true)] | length' "$B")"
 [ "$n" -ge 1 ] && ok "beforeShellExecution → guard-sensitive-files.sh carries failClosed: true" || bad "beforeShellExecution failClosed" "not set"
