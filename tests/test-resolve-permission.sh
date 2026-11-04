@@ -6,7 +6,9 @@
 # WHAT THIS SUITE HOLDS
 #   A table: one case per D4 precedence row (7 default, 6 option store + user
 #   level, 5 user keys, 4 project file and trust, 3 objective, 2 TAMIRS_AUTO_MERGE,
-#   1 --perms= tickets, one case per D5 rule, 0 invariants) and per failure mode
+#   1 --perms= tickets, one case per D5 rule, 0 invariants), the D9 host floor
+#   (a cached, deadline-bound probe; below => supervised, unknown => a warning) and
+#   per failure mode
 #   (missing or corrupt catalog and schema, no python3, a missing library, a
 #   corrupt user file, wrong
 #   owner or mode, lock mismatch or absence, an untrusted widening project file,
@@ -660,6 +662,11 @@ run "$H6" pr.create --host claude --session s-2 --agent main
 expect "  ... not in another session" allow
 run "$H6" --level --host claude --session s-1
 judge "--level with --session reports the lowering" supervised "$(jf .level)"
+judge "  ... and lists it" "$TL null supervised s-1" "$(jf '.lowering_tickets[0] | "\(.id) \(.skill) \(.level) \(.session_id)"')"
+OUT="$(cd "$NOWHERE" && TAMIRS_PERMISSION_TEST_ROOT="$H6" bash "$RESOLVE" --level --host claude --session s-1 --explain 2>/dev/null)"
+judge "  ... in text too" yes "$(has "$OUT" "lowering ticket $TL: the whole session at supervised, session s-1")"
+run "$H6" --level --host claude --session s-2
+judge "  ... another session lists none" 0 "$(jf '.lowering_tickets | length')"
 H6="$(new_home)"; user_file "$H6" '{"version": 1, "level": "standard"}'; ticket "$H6" lower supervised >/dev/null
 run "$H6" pr.create --host claude --session s-1 --agent main --skill pr-dev
 expect "a lowering for pr-dev applies under pr-dev" ask
@@ -719,13 +726,113 @@ expect "branch.delete.local, merged" allow .r 1
 run "$H" branch.delete.local --host codex
 expect "branch.delete.local raised to R3: the user allow does not carry" ask .r 3 '.raised_by[0].to' R3
 
+# ------------------------------------------------------------------ D9 host floor
+section "D9: a host below permissions_min runs every level above supervised as supervised"
+
+HV="$TMP/hv-bin"; mkdir -p "$HV"
+fake_host() { # fake_host <bin> <--version line> [sleep s] — a host CLI that logs each probe
+  { printf '#!/bin/sh\n'; printf 'echo %s >> "%s/probes"\n' "$1" "$TMP"
+    [ -n "${3:-}" ] && printf 'sleep %s\n' "$3"
+    printf 'echo "%s"\n' "$2"; } > "$HV/$1"
+  chmod +x "$HV/$1"
+}
+nprobes() { [ -f "$TMP/probes" ] && grep -c "^$1\$" "$TMP/probes" || echo 0; }
+hvrun() { # hvrun <home> <override> <resolver args...>
+  local h="$1" v="$2"; shift 2
+  OUT="$(cd "$NOWHERE" && TAMIRS_PERMISSION_TEST_ROOT="$h" TAMIRS_PERMISSION_TEST_HOST_VERSION="$v" PATH="$HV:$PATH" bash "$RESOLVE" "$@" 2>/dev/null)"
+  RC=$?
+}
+floor() { jf '[.level_sources[] | select(.source == "host_floor")][0] | "\(.state) \(.version) \(.floor)"'; }
+
+H="$(new_home)"; user_file "$H" '{"version": 1, "level": "standard"}'
+run "$H" pr.create --host claude
+expect "under the test root with no override the floor is not probed" allow
+judge "  ... and is not reported" "" "$(jf '[.level_sources[] | select(.source == "host_floor")] | .[0].state // ""')"
+for row in "claude|2.1.316 (Claude Code)|2.1.316|2.1.317" "codex|codex-cli 0.165.9|0.165.9|0.166.0" \
+           "cursor|2026.10.21-abc|2026.10.21|2026.10.22" "gemini|0.65.0|0.65.0|0.66.0" "opencode|opencode v2.2.4|2.2.4|2.2.5"; do
+  IFS='|' read -r host line have fv <<<"$row"
+  hvrun "$H" "$line" pr.create --host "$host"
+  expect "$host '$line' (< $fv): R2 at standard asks" ask .level supervised
+  judge "  ... reported below its floor" "below $have $fv" "$(floor)"
+  judge "  ... decided_by names D9" yes "$(has "$(jf .decided_by)" "host floor (D9)")"
+done
+hvrun "$H" "2.1.317 (Claude Code)" pr.create --host claude
+expect "claude at the floor: standard holds" allow .level standard
+judge "  ... reported as meeting it" "meets 2.1.317 2.1.317" "$(floor)"
+hvrun "$H" "2.1.300" pr.create --host claude
+judge "  ... the setting note says no level setting lifts it" yes "$(has "$(jf .setting_that_would_allow.note)" "every level above supervised runs as supervised")"
+warned "below the floor" "below the permission-levels floor 2.1.317"
+hvrun "$H" "not a version" pr.create --host claude
+expect "an unreadable version: no clamp" allow .level standard
+warned "unreadable version" "is not checked (ADR 004 D9: a warning only)"
+hvrun "$H" "2.1.300" pr.create
+expect "no --host: no host to check, no clamp" allow
+hvrun "$H" "2.1.300" --level --host claude
+judge "--level clamps too" "supervised yes" "$(jf .level) $(has "$(jf .level_source)" "host floor (D9)")"
+hvrun "$H" "2.1.300" pr.merge --host claude
+expect "an answer supervised already gives (R3 asks) is unchanged" ask
+hvrun "$H" "2.1.300" git.commit --host claude
+expect "R1 stays allowed below the floor (supervised allows it)" allow
+H2="$(new_home)"; user_file "$H2" '{"version": 1, "level": "standard", "actions": {"pr.create": "allow"}}'
+hvrun "$H2" "2.1.300" pr.create --host claude
+expect "a user action allow is clamped as well (the host's own gates are unproven below the floor)" ask
+H2="$(new_home)"; user_file "$H2" '{"version": 1, "level": "standard", "actions": {"pr.create": "deny"}}'
+hvrun "$H2" "2.1.300" pr.create --host claude
+expect "a deny stays a deny" deny
+
+# the real probe: once per session, cached, deadline-bound; never at supervised
+: > "$TMP/probes"
+fake_host claude "2.1.300 (Claude Code)"
+hvrun "$H" probe pr.create --host claude --session hv-1 --agent main
+expect "probe: the CLI on PATH below the floor" ask
+judge "  ... probed once" 1 "$(nprobes claude)"
+hvrun "$H" probe pr.create --host claude --session hv-1 --agent main
+judge "  ... the same session reuses the cache" 1 "$(nprobes claude)"
+CF="$(ls "$H/.local/state/tamirs-superpowers/hostver/"claude.*.json 2>/dev/null | head -1)"
+judge "  ... a 0600 cache in a 0700 dir" "600 700" "$(python3 -c 'import os,stat,sys; print("%o %o" % (stat.S_IMODE(os.stat(sys.argv[1]).st_mode), stat.S_IMODE(os.stat(os.path.dirname(sys.argv[1])).st_mode)))' "$CF" 2>/dev/null)"
+hvrun "$H" probe pr.create --host claude --session hv-2 --agent main
+judge "  ... a new session probes again" 2 "$(nprobes claude)"
+sleep 1; fake_host claude "2.1.318 (Claude Code)"; printf '# padding\n' >> "$HV/claude"
+hvrun "$H" probe pr.create --host claude --session hv-1 --agent main
+expect "  ... a replaced binary (an upgrade) is probed again, cache or not" allow
+judge "  ... (probe count)" 3 "$(nprobes claude)"
+python3 -c 'import json, sys; p = sys.argv[1]; d = json.load(open(p)); d["at"] -= 3600; open(p, "w").write(json.dumps(d))' "$CF"
+hvrun "$H" probe pr.create --host claude --session hv-1 --agent main
+judge "  ... a cache older than its 10-minute TTL is probed again" 4 "$(nprobes claude)"
+H3="$(new_home)"
+hvrun "$H3" probe pr.create --host claude --session hv-1 --agent main
+expect "at supervised (no user file) the answer is supervised's" ask
+judge "  ... so nothing is probed" 4 "$(nprobes claude)"
+fake_host codex "codex-cli 0.170.0" 9
+t0="$(python3 -c 'import time; print(time.time())')"
+hvrun "$H" probe pr.create --host codex --session hv-1 --agent main
+t1="$(python3 -c 'import time; print(time.time())')"
+expect "a CLI that hangs on --version: unknown, no clamp" allow
+warned "probe deadline" "timed out after 3 s"
+judge "  ... killed at the 3 s deadline" yes "$(python3 -c "print('yes' if $t1 - $t0 < 6 else 'no')")"
+t0="$(python3 -c 'import time; print(time.time())')"
+hvrun "$H" probe pr.create --host codex --session hv-1 --agent main
+t1="$(python3 -c 'import time; print(time.time())')"
+judge "  ... and the unknown is cached, so the next call does not wait again" yes "$(python3 -c "print('yes' if $t1 - $t0 < 2 else 'no')")"
+OUT="$(cd "$NOWHERE" && TAMIRS_PERMISSION_TEST_ROOT="$H" TAMIRS_PERMISSION_TEST_HOST_VERSION=probe PATH="$TMP/no-such-dir:/usr/bin:/bin" bash "$RESOLVE" pr.create --host opencode 2>/dev/null)"; RC=$?
+expect "no host CLI on PATH: unknown, no clamp" allow
+warned "no binary" "opencode is not on PATH"
+
 # ------------------------------------------------------------------ headless, unknown, alias
 section "headless ask -> deny; unknown ids; aliases (D1, D2)"
 
 H="$(new_home)"
 run "$H" pr.create --host claude --skill pr-dev --headless
 expect "headless R2 ask -> deny" deny .headless_ask_to_deny true '.setting_that_would_allow.durable[0]' "/plugin-config standard" \
-  '.setting_that_would_allow.once' "--perms=standard" .allow_with.once "--perms=standard"
+  '.setting_that_would_allow.durable[1]' "/plugin-config pr-dev standard" \
+  '.setting_that_would_allow.once' null .allow_with.once null
+judge "  ... no --perms= raise on Claude Code: it sends no prompt origin (M3)" yes \
+  "$(has "$(jf .setting_that_would_allow.note)" "it does not send prompt origin")"
+run "$H" pr.create --host gemini --headless
+expect "  ... nor on Gemini CLI (its prompt hook only lowers)" deny '.setting_that_would_allow.once' null
+judge "  ... which the note says" yes "$(has "$(jf .setting_that_would_allow.note)" "only lowers")"
+run "$H" pr.create --headless
+expect "  ... nor with no --host" deny '.setting_that_would_allow.once' null
 run "$H" pr.create --host opencode --headless
 expect "headless on a host with no channel" deny '.setting_that_would_allow.once' null
 run "$H" repo.create --host claude --headless

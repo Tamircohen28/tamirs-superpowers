@@ -15,11 +15,18 @@
 #     written when the test root is refused.
 #   * hooks/permission-intent.sh, from crafted Claude payloads: a user-typed
 #     slash command with a raising --perms= records a PENDING request (never a
-#     ticket); a non-user or missing `source` records none; a lowering becomes a
-#     lowering ticket at once; confirm turns a pending request into a ticket;
-#     EVERY slash command pairs with its submit half, so an ordinary user-typed
-#     /skill is marked user_typed (true only for source user, never for another
-#     command or a prompt that does not start with it).
+#     ticket); a non-user or missing `source` records none, and a missing one (all
+#     Claude Code sends, measured M3) says why and names /plugin-config; a
+#     lowering becomes a lowering ticket at once; confirm turns a pending request
+#     into a ticket; EVERY slash command pairs with its submit half (on the shared
+#     prompt_id when the host sends one, M2), which marks its context
+#     host_recorded, and user_typed only for source user (never for another
+#     command or a prompt that does not start with it); a PreToolUse on the Skill
+#     tool records that skill host_recorded for the calling agent, a subagent in
+#     its own file (M5).
+#   * ticket hygiene (D5): show lists the active lowering tickets, every writer
+#     run prunes expired tickets, and confirming a raise says an active lowering
+#     of the session still wins.
 #   * scripts/github-mcp.sh --print-flags: the D8 flags per level (the server is
 #     never started).
 #
@@ -359,8 +366,11 @@ out="$(expn '42 --perms=standard' s2 | hook)"
 judge "source sdk: no request" 1 "$(npend)"
 judge "and the model is told why" yes "$(has "$out" 'not typed by the user (source sdk)')"
 subm '/pr-dev 42 --perms=standard' "" s3 | hook >/dev/null
-expn '42 --perms=standard' s3 | hook >/dev/null
+out="$(expn '42 --perms=standard' s3 | hook)"
 judge "a missing source: no request" 1 "$(npend)"
+judge "  ... and the model is told why: Claude Code sends no prompt origin" yes \
+  "$(has "$out" 'Claude Code does not send prompt origin; use /plugin-config to set a durable per-skill level')"
+judge "  ... naming the durable route for this skill and level" yes "$(has "$out" '/plugin-config pr-dev standard')"
 expn $'42\n--perms=unattended' s4 | hook >/dev/null
 subm $'/pr-dev 42\n--perms=unattended' user s4 | hook >/dev/null
 judge "--perms= off the first line is ignored" 1 "$(npend)"
@@ -418,6 +428,45 @@ expn '42 --perms=unattended' u8 | hook >/dev/null
 subm '/tamirs-superpowers:pr-dev 42' user u8 | hook >/dev/null
 judge "a --perms= raise whose submit carries none does not pair (no request)" "$np0 null" "$(npend) $(ut u8)"
 
+# host_recorded (D8, M2/M3): pairing proves the host expanded this command for this prompt, whatever `source` says,
+# so the user's own per-skill level may widen on it; user_typed stays false while Claude Code sends no source.
+hr() { jq -r '"\(.host_recorded) \(.user_typed) \(.recorded_by)"' "$(sdir "$R6")/intent/$1.json" 2>/dev/null; }
+judge "a paired user submit: host_recorded true" "true true UserPromptExpansion" "$(hr u1)"
+judge "a paired submit with no source: host_recorded true, user_typed false" "true false UserPromptExpansion" "$(hr u4)"
+judge "an expansion that never paired: host_recorded false" "false null UserPromptExpansion" "$(hr u5)"
+subm_pid() { jq -nc --arg p "$1" --arg s "$2" --arg i "$3" '{hook_event_name:"UserPromptSubmit",session_id:$s,prompt_id:$i,cwd:"/",prompt:$p}'; }
+expn_pid() { jq -nc --arg a "$1" --arg s "$2" --arg i "$3" \
+  '{hook_event_name:"UserPromptExpansion",session_id:$s,prompt_id:$i,cwd:"/",expansion_type:"slash_command",command_name:"tamirs-superpowers:pr-dev",command_args:$a,command_source:"plugin",prompt:("/tamirs-superpowers:pr-dev " + $a)}'; }
+subm_pid '/tamirs-superpowers:pr-dev 42' m1 p-1 | hook >/dev/null; expn_pid '42' m1 p-1 | hook >/dev/null
+judge "M2 as measured (submit first, the same prompt_id, no source): host_recorded" "true false UserPromptExpansion" "$(hr m1)"
+judge "  ... the context keeps the prompt_id" p-1 "$(jq -r .prompt_id "$(sdir "$R6")/intent/m1.json" 2>/dev/null)"
+subm_pid '/tamirs-superpowers:pr-dev 42' m2 p-1 | hook >/dev/null; expn_pid '42' m2 p-2 | hook >/dev/null
+judge "another prompt_id does not pair, even inside the 60 s window" "false null UserPromptExpansion" "$(hr m2)"
+subm '/tamirs-superpowers:pr-dev 42' "" m3 | hook >/dev/null; expn_pid '42' m3 p-3 | hook >/dev/null
+judge "a prompt_id on one half only does not pair" "false null UserPromptExpansion" "$(hr m3)"
+
+# The host's own Skill call (PreToolUse, matcher Skill in hooks/hooks.json): the skill is active for that agent.
+skillc() { jq -nc --arg n "$1" --arg s "$2" --arg ag "${3:-}" \
+  '{hook_event_name:"PreToolUse",session_id:$s,cwd:"/",tool_name:"Skill",tool_input:{skill:$n,args:"42"}} + (if $ag == "" then {} else {agent_id:$ag,agent_type:"general-purpose"} end)'; }
+out="$(skillc tamirs-superpowers:pr-dev k1 | hook)"
+judge "a Skill call is silent (it never answers the tool call)" "" "$out"
+judge "  ... and records the skill host_recorded for the main thread" "pr-dev main true null PreToolUse:Skill" \
+  "$(jq -r '"\(.skill) \(.agent) \(.host_recorded) \(.user_typed) \(.recorded_by)"' "$(sdir "$R6")/intent/k1.json" 2>/dev/null)"
+skillc worker-dev k1 af490d90651b7315a | hook >/dev/null
+judge "a subagent's Skill call gets its own file (M5 agent_id)" "worker-dev af490d90651b7315a true" \
+  "$(jq -r '"\(.skill) \(.agent) \(.host_recorded)"' "$(sdir "$R6")/intent/k1.agent-af490d90651b7315a.json" 2>/dev/null)"
+judge "  ... and leaves the main thread's context alone" "pr-dev main" "$(jq -r '"\(.skill) \(.agent)"' "$(sdir "$R6")/intent/k1.json" 2>/dev/null)"
+skillc engineering:code-review k1 | hook >/dev/null
+judge "another plugin's skill replaces the main context with no skill of ours" "null true" \
+  "$(jq -r '"\(.skill) \(.host_recorded)"' "$(sdir "$R6")/intent/k1.json" 2>/dev/null)"
+np1="$(npend)"; nt1="$(ntick)"
+skillc tamirs-superpowers:pr-dev k2 | jq -c '.tool_input.args = "42 --perms=supervised"' | hook >/dev/null
+judge "a Skill call's args are never read for --perms= (model text, D5)" "$np1 $nt1" "$(npend) $(ntick)"
+skillc tamirs-superpowers:pr-dev k3 | CODEX_HOME="$NOWHERE" hook >/dev/null
+judge "Codex: a Skill-shaped PreToolUse records nothing" no "$(exists "$(sdir "$R6")/intent/k3.json")"
+printf '{"hook_event_name":"PreToolUse","session_id":"k4","cwd":"/","tool_name":"Edit","tool_input":{"file_path":"/x"}}' | hook >/dev/null
+judge "another tool's PreToolUse records nothing" no "$(exists "$(sdir "$R6")/intent/k4.json")"
+
 NONCE="$(jq -r .nonce "$REC")"
 judge "the guard asks on the confirm made from another session" ask "$(ask_pg "$R6" "$NONCE" s-other)"
 out="$(pc "$R6" claude confirm "$NONCE")"; rc=$?
@@ -430,6 +479,41 @@ judge "a raise ticket for pr-dev at unattended, bound to its session" "raise pr-
 judge "it expires 15 minutes after it was made" 900 \
   "$(jq -r 'select(.kind == "raise") | [.created, .expires] | map(strptime("%Y-%m-%dT%H:%M:%SZ") | mktime) | .[1] - .[0]' "$(sdir "$R6")"/tickets/*.json)"
 judge "the request is consumed" no "$(exists "$REC")"
+
+# ---------------------------------------------------------------------------
+section "ticket hygiene: show lists lowerings, writers prune expired tickets, a lowering beats a confirmed raise"
+
+R8="$(new_root)"
+hook8() { (cd "$NOWHERE" && TAMIRS_PERMISSION_TEST_ROOT="$R8" bash "$HOOK"); }
+pc "$R8" none standard >/dev/null
+expn '7 --perms=supervised' h1 | hook8 >/dev/null
+LOWF="$(find "$(sdir "$R8")/tickets" -name '*.json' | head -1)"; LOW="$(basename "$LOWF" .json)"
+js="$(pcj "$R8" none show)"
+judge "show --json lists the active lowering ticket" "$LOW pr-dev supervised h1" \
+  "$(printf '%s' "$js" | jq -r '.lowering_tickets[0] | "\(.id) \(.skill) \(.level) \(.session_id)"')"
+judge "show says so in text" yes "$(has "$(pc "$R8" none show)" "lowering ticket $LOW: pr-dev at supervised, session h1")"
+judge "--level --session lists the session's lowering tickets" "$LOW" \
+  "$( (cd "$NOWHERE" && TAMIRS_PERMISSION_TEST_ROOT="$R8" bash "$RESOLVE" --level --json --session h1) | jq -r '.lowering_tickets[0].id')"
+judge "  ... and not another session's" 0 \
+  "$( (cd "$NOWHERE" && TAMIRS_PERMISSION_TEST_ROOT="$R8" bash "$RESOLVE" --level --json --session h2) | jq -r '.lowering_tickets | length')"
+# an expired ticket: the resolver ignores it, the next writer run deletes it
+OLDT="$(sdir "$R8")/tickets/0123456789abcdef0123456789abcdef.json"
+jq -n '{version:1,kind:"lower",id:"0123456789abcdef0123456789abcdef",skill:null,level:"supervised",target:{arg:null,repo:null},session_id:"h1",agent:"main",host:"claude",created:"2026-01-01T00:00:00Z",expires:"2026-01-02T00:00:00Z",source:"test"}' > "$OLDT"
+chmod 600 "$OLDT"
+judge "an expired ticket is not listed" 1 "$(pcj "$R8" none show | jq -r '.lowering_tickets | length')"
+judge "  ... and the writer run that listed it deleted it" no "$(exists "$OLDT")"
+judge "the active one is kept" yes "$(exists "$LOWF")"
+# a confirmed raise for the same skill and session: the lowering still wins (D4 row 1, lower always)
+subm '/tamirs-superpowers:pr-dev 42 --perms=unattended' user h1 | hook8 >/dev/null
+expn '42 --perms=unattended' h1 | hook8 >/dev/null
+N8="$(jq -r .nonce "$(find "$(sdir "$R8")/pending" -name '*.json' | head -1)" 2>/dev/null)"
+judge "the guard asks on the confirm" ask "$(ask_pg "$R8" "$N8" h1)"
+out="$(pc "$R8" claude confirm "$N8")"; rc=$?
+judge "confirm writes the raise ticket" 0 "$rc"
+judge "  ... and says the session's lowering still wins" yes "$(has "$out" "lowering ticket $LOW (pr-dev at supervised")"
+judge "  ... which it does not retire" yes "$(exists "$LOWF")"
+judge "the resolver agrees: pr-dev runs at supervised in that session" supervised \
+  "$( (cd "$NOWHERE" && TAMIRS_PERMISSION_TEST_ROOT="$R8" bash "$RESOLVE" --level --json --session h1 --agent main --skill pr-dev) | jq -r .level)"
 
 # ---------------------------------------------------------------------------
 section "github-mcp.sh applies the D8 flags per level (never starts the server)"

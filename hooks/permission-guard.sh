@@ -90,17 +90,26 @@
 #   session_id, agent, host, at, expires}, 0600 in a 0700 dir: the call-stamp
 #   pattern of D8 applied to the confirm, so the writer can require proof that
 #   this very confirm, these very bytes, went to the host prompt.
-#   The active skill (D8 "per-skill levels at L2"): <state>/intent/<sid>.json,
-#   written by hooks/permission-intent.sh (format in its header). Its skill is
-#   passed to the resolver as --skill and its objective as --objective (D4 row 3,
-#   tighten only). The skill may widen only when the slash command was user_typed
-#   and this call is the same agent's; otherwise each id is resolved with and
-#   without it and the stricter answer stands (a lowering needs no provenance, SR
-#   S-09). A missing, unsafe, stale or malformed context is no skill: the global
-#   level decides; it never errors into an allow.
+#   The active skill (D8 "per-skill levels at L2"): <state>/intent/<sid>.json
+#   (the main thread) and <sid>.agent-<agent_id>.json (a subagent), written by
+#   hooks/permission-intent.sh (format in its header). The skill is passed to the
+#   resolver as --skill and the objective as --objective (D4 row 3, tighten
+#   only). A per-skill level from the user's own verified, locked file may widen
+#   only when the host recorded the skill as active for THIS agent: a
+#   UserPromptExpansion paired with its UserPromptSubmit (one prompt_id, M2), or a
+#   PreToolUse on the Skill tool (host_recorded). It no longer needs `source ==
+#   "user"`, which Claude Code never sends (M3). Otherwise each id is resolved
+#   with and without the skill and the stricter answer stands (a lowering needs no
+#   provenance, SR S-09). A subagent's call is also resolved under the main
+#   thread's context, the strictest answer kept, so it runs at most at the main
+#   thread's level (D1 agent.spawn) and a main-thread skill never raises it (M5);
+#   a subagent's context never touches a main-thread call. Project-file per-skill
+#   levels only tighten (the resolver). A missing, unsafe, stale or malformed
+#   context is no skill: the global level decides; it never errors into an allow.
 #   --perms= tickets (D4 row 1, D5): every resolver call carries --session and
-#   --agent (the payload's session_id and agent_id; no agent_id is the main
-#   thread, the ADR's partial S-11 disposition) and, for the R2/R3 actions of the
+#   --agent (the payload's session_id and agent_id; Claude Code sends agent_id on
+#   every subagent call and on no main-thread call, measured M5, so no agent_id
+#   is the main thread) and, for the R2/R3 actions of the
 #   pr, issue and repo target kinds, --target: the selector of `gh pr|issue <verb>
 #   <n|url>` (with -R/GH_REPO=), the MCP call's owner/repo and number, or "." for
 #   the repository gh would use. The resolver reads and matches the tickets itself.
@@ -208,7 +217,7 @@ _pg_candidate() {
   if [ -n "${GH_HOST:-}" ]; then
     case "$t" in *"$GH_HOST"*) return 0 ;; esac
   fi
-  [[ "$t" =~ $b(gh|curl|wget|http|https|xh|claude|codex|gemini|opencode|cursor-agent|agy|script|expect|unbuffer|tmux|screen|osascript|xdotool|npm|npx|pnpm|yarn|bun|bunx|uv|uvx|pip|pip3|pipx|cargo|bundle|gem|brew|docker|docker-compose|podman|kill|pkill|killall)$e ]] && return 0
+  [[ "$t" =~ $b(gh|curl|wget|http|https|xh|claude|codex|gemini|opencode|cursor-agent|agy|script|expect|unbuffer|tmux|cmux|screen|osascript|xdotool|ydotool|wtype|cliclick|wezterm|kitty|kitten|zellij|npm|npx|pnpm|yarn|bun|bunx|uv|uvx|pip|pip3|pipx|cargo|bundle|gem|brew|docker|docker-compose|podman|kill|pkill|killall)$e ]] && return 0
   if [[ "$t" =~ ${b}git$e ]]; then
     [[ "$t" =~ (^|[^[:alnum:]_-])(push|reset|clean|checkout|restore|switch|stash|branch|tag|config|worktree|commit|merge|rebase|am|pull)([^[:alnum:]_-]|$) ]] && return 0
     case "$t" in *alias*|*hooksPath*|*hookspath*|*HUSKY*|*SKIP=*|*GIT_CONFIG*) return 0 ;; esac
@@ -1484,42 +1493,98 @@ def shipped_skill(sk):
     return any(os.path.isfile(os.path.join(base, c, sk, "SKILL.md")) for c in cats)
 
 
-def intent_context():
-    """The active-skill context hooks/permission-intent.sh keeps in intent/<sid>.json (its header has the format):
-    {skill, objective, raise_ok, why}. raise_ok only when the slash command was user_typed and this call is the
-    same agent's; a per-skill level may then widen, otherwise it only counts where it is stricter. Anything
-    missing, unsafe, stale or malformed is no skill at all: the global level decides."""
-    none = {"skill": None, "objective": None, "raise_ok": False, "why": None}
-    raw, key = session_ids()
-    state = state_dir()
-    if not raw or not state:
-        return none
-    data = read_private(os.path.join(state, "intent", key + ".json"), 65536)
+AGENT_KEY_RE = re.compile(r"\A[A-Za-z0-9_-]{1,64}\Z")
+
+
+def call_agent():
+    """The agent this call belongs to: the payload's agent_id, which Claude Code sends on a subagent's calls and
+    never on the main thread's (measured M5), so no agent_id is the main thread."""
+    return str(PAY.get("agent_id") or "main")[:128]
+
+
+def context_name(key, agent):
+    """intent/ file of one agent's active-skill context, as hooks/permission-intent.sh names it: <sid>.json for the
+    main thread, <sid>.agent-<agent>.json for a subagent (a hash when the id is not a plain token)."""
+    if agent == "main":
+        return key + ".json"
+    ak = agent if AGENT_KEY_RE.match(agent) else "h-" + hashlib.sha256(agent.encode("utf-8")).hexdigest()[:32]
+    return "%s.agent-%s.json" % (key, ak)
+
+
+def read_context(state, raw, key, agent):
+    """One agent's context, {skill, objective, host_recorded}, or None when it is missing, unsafe, stale,
+    malformed, another session's or another agent's. host_recorded: the host itself recorded the skill as active
+    for this agent (a UserPromptExpansion paired with its UserPromptSubmit, or a PreToolUse on the Skill tool)."""
+    data = read_private(os.path.join(state, "intent", context_name(key, agent)), 65536)
     if data is None:
-        return none
+        return None
     try:
         doc = json.loads(data.decode("ascii"))
     except (UnicodeDecodeError, ValueError):
-        return none
+        return None
     if not isinstance(doc, dict) or doc.get("version") != 1 or doc.get("session_id") != raw:
-        return none
+        return None
+    if doc.get("agent") != agent:
+        return None
     exp = doc.get("expires")
     if not isinstance(exp, str) or not UTC_RE.match(exp) or exp <= now_utc():
-        return none
+        return None
     sk = doc.get("skill")
     if not (isinstance(sk, str) and SKILL_ID_RE.match(sk) and shipped_skill(sk)):
         sk = None
     obj = doc.get("objective")
     obj = obj if isinstance(obj, str) and OBJ_ID_RE.match(obj) else None
-    agent = str(PAY.get("agent_id") or "main")[:128]
-    same_agent = doc.get("agent") == agent
-    raise_ok = bool(sk) and doc.get("user_typed") is True and same_agent
+    return {"skill": sk, "objective": obj,
+            "host_recorded": doc.get("host_recorded") is True or doc.get("user_typed") is True}
+
+
+def ctx_variants(c):
+    """The --skill values one context contributes: the skill alone when the host recorded it (its per-skill level
+    from the user file may widen), the skill and none when it did not (it counts only where stricter), none
+    without one."""
+    if not c or not c["skill"]:
+        return [None]
+    return [c["skill"]] if c["host_recorded"] else [c["skill"], None]
+
+
+def intent_context():
+    """The active-skill contexts hooks/permission-intent.sh keeps in intent/ (its header has the format), as
+    {skill, objective, variants, raise_ok, why}. Every resolver call runs once per variant (a skill id or None)
+    and the strictest answer stands. A per-skill level may widen only on the calls of the agent the host
+    recorded the skill for (D8; M5): the main thread's own context for a main-thread call; for a subagent's call,
+    its own context, bounded by the main thread's (D1 agent.spawn: the child runs at the caller's ceiling, never
+    higher), so a skill recorded on the main thread never raises a subagent's call and a subagent's skill never
+    touches the main thread's. A lowering needs no provenance (SR S-09). Anything missing, unsafe, stale or
+    malformed is no skill at all: the global level decides."""
+    none = {"skill": None, "objective": None, "variants": [None], "raise_ok": False, "why": None}
+    raw, key = session_ids()
+    state = state_dir()
+    if not raw or not state:
+        return none
+    agent = call_agent()
+    own = read_context(state, raw, key, agent)
+    main = read_context(state, raw, key, "main") if agent != "main" else None
+    variants = ctx_variants(own)
+    if agent != "main":
+        for v in ctx_variants(main):
+            if v not in variants:
+                variants.append(v)
+    sk = (own or {}).get("skill") or (main or {}).get("skill")
+    if not sk:
+        variants = [None]
+    obj = (own or {}).get("objective") or (main or {}).get("objective")
+    raise_ok = variants == [sk] and bool(sk)
     why = None
     if sk and not raise_ok:
-        why = ("the /%s context counts only where it is stricter than the global level (%s)" % (
-            sk, "a call from another agent than the one that ran it" if not same_agent else
-            "the slash command was not shown to be typed by the user, hooks/permission-intent.sh user_typed"))
-    return {"skill": sk, "objective": obj, "raise_ok": raise_ok, "why": why}
+        if agent != "main":
+            why = ("this call is from another agent (subagent %s) than the main thread, so it runs at most at the "
+                   "main thread's level (D1 agent.spawn; a skill is bound to the agent the host recorded it for)"
+                   % agent[:64])
+        else:
+            why = ("the /%s context counts only where it is stricter than the global level: the host did not record "
+                   "the skill as active (an expansion that never paired with its prompt, hooks/permission-intent.sh)"
+                   % sk)
+    return {"skill": sk, "objective": obj, "variants": variants, "raise_ok": raise_ok, "why": why}
 
 
 # --------------------------------------------------------------- resolve
@@ -1689,10 +1754,11 @@ def resolver_failed(job, why):
                   "reason": "denied: resolver error: %s (fail closed, D4, SR S-12)" % why, "setting_that_would_allow": None}
 
 
-INTENT = intent_context() if JOBS else {"skill": None, "objective": None, "raise_ok": False, "why": None}
-# The skill variants each job is resolved under: with --skill when the context may widen; with and without it,
-# the stricter answer kept, when it may only lower (D5 SR S-09: a lowering needs no provenance); none without one.
-VARIANTS = ([True] if INTENT["raise_ok"] else [True, False]) if INTENT["skill"] else [False]
+INTENT = intent_context() if JOBS else {"skill": None, "objective": None, "variants": [None], "raise_ok": False,
+                                       "why": None}
+# The --skill values each job is resolved under (intent_context): a skill whose level may widen alone; a skill
+# that may only lower beside None, the stricter answer kept (D5 SR S-09: a lowering needs no provenance).
+VARIANTS = INTENT["variants"]
 
 
 def resolver_answer(pr, aid):
@@ -1738,16 +1804,16 @@ if JOBS and not os.path.isfile(RESOLVER):
         resolver_failed(j, "scripts/resolve-permission.sh is missing")
 else:
     repo = CTX["cwd"] or payload_cwd() or os.getcwd()
-    # D4 row 1: the session and agent a --perms= ticket binds (D5, SR S-11). An absent agent_id is the main
-    # thread, which is the ADR's partial disposition: until hook input is shown to carry an agent id, a
-    # main-thread ticket also reaches a subagent's call, on its exact target only.
+    # D4 row 1: the session and agent a --perms= ticket binds (D5, SR S-11). Claude Code sends agent_id on a
+    # subagent's calls and on no main-thread call (M5), so an absent one is the main thread and a main-thread
+    # ticket never reaches a subagent.
     _sid = session_ids()[0]
-    _agent = str(PAY.get("agent_id") or "main")[:128]
+    _agent = call_agent()
     SESSION_ARGV = ["--session", _sid, "--agent", _agent] if (
         _sid and len(_sid) <= 256 and not re.search(r"[\x00-\x1f\x7f]", _sid + _agent)) else []
     procs = []
     for j in JOBS:
-        for with_skill in VARIANTS:
+        for vi, with_skill in enumerate(VARIANTS):
             argv = ["bash", RESOLVER, j["id"], "--host", HOST, "--repo", repo, "--json"] + SESSION_ARGV
             for c in j["conds"]:
                 argv += ["--cond", c]
@@ -1756,17 +1822,17 @@ else:
             if INTENT["objective"]:
                 argv += ["--objective", INTENT["objective"]]   # D4 row 3: tightens only
             if with_skill:
-                argv += ["--skill", INTENT["skill"]]
+                argv += ["--skill", with_skill]
             try:
                 pr = subprocess.Popen(argv, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
                                       stdin=subprocess.DEVNULL)
             except OSError as e:
                 resolver_failed(j, "could not start (%s)" % e.__class__.__name__)
                 break
-            procs.append((j, with_skill, pr))
+            procs.append((j, (len(VARIANTS) - vi) if with_skill else 0, pr))
     got = {}
-    for j, with_skill, pr in procs:
-        got.setdefault(id(j), []).append((with_skill, resolver_answer(pr, j["id"])))
+    for j, prio, pr in procs:
+        got.setdefault(id(j), []).append((prio, resolver_answer(pr, j["id"])))
     for j in JOBS:
         answers = got.get(id(j), [])
         if "res" in j:   # a variant could not start: that deny stands
@@ -1774,7 +1840,7 @@ else:
         if len(answers) != len(VARIANTS):
             resolver_failed(j, "not every resolver call answered")
             continue
-        # The strictest answer wins; on a tie the one under the skill context (it names the skill's level).
+        # The strictest answer wins; on a tie the one under a skill (the call's own first: it names its level).
         j["res"] = max(answers, key=lambda a: (res_rank(a[1]), a[0]))[1]
 
 for reason_id, why in PG_DENY:

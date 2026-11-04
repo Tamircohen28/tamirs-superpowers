@@ -94,7 +94,8 @@
     "env": "Leading NAME=value words are env assignments. env_any globs match them; target_env names change the target, never the id.",
     "global_options": {
       "git": { "value": ["-C", "-c", "--git-dir", "--work-tree", "--namespace", "--exec-path", "--config-env"], "flag": ["--no-pager", "-P", "--bare", "--no-replace-objects", "--literal-pathspecs", "--no-optional-locks"] },
-      "gh": { "value": ["-R", "--repo", "--hostname"], "flag": [] }
+      "gh": { "value": ["-R", "--repo", "--hostname"], "flag": [] },
+      "tmux": { "value": ["-L", "-S", "-f", "-c", "-T"], "flag": ["-2", "-C", "-CC", "-D", "-l", "-N", "-u", "-v", "-vv", "-V"] }
     },
     "value_options": {
       "gh api": ["-X", "--method", "-f", "-F", "--field", "--raw-field", "-H", "--header", "-q", "--jq", "-t", "--template", "--input", "-p", "--preview", "--cache", "--hostname"],
@@ -1459,16 +1460,32 @@
           { "cmd": ["unbuffer"] },
           { "cmd": ["tmux", "send-keys"] },
           { "cmd": ["tmux", "send"] },
-          { "cmd": ["screen"], "all": ["-X", "stuff"] },
-          { "cmd": ["osascript"], "any": ["*keystroke*", "*key code*", "*do script*"] },
+          { "cmd": ["tmux", "send-prefix"] },
+          { "cmd": ["tmux", "paste-buffer"] },
+          { "cmd": ["tmux", "pasteb"] },
+          { "cmd": ["tmux"], "any": ["send", "send *", "*send-k*", "*send-p*", "pa", "pas", "past", "paste*", "*paste-b*", "*pasteb*"] },
+          { "cmd": ["tmux"], "all": ["*pipe*", "-*I*"] },
+          { "cmd": ["cmux"], "any": ["send", "send-key", "send-panel", "send-key-panel", "paste", "paste-buffer"] },
+          { "cmd": ["cmux"], "all": ["rpc", "*send*"] },
+          { "cmd": ["cmux"], "all": ["rpc", "*paste*"] },
+          { "cmd": ["wezterm"], "any": ["send-text"] },
+          { "cmd": ["kitty"], "any": ["send-text", "send-key"] },
+          { "cmd": ["kitten"], "any": ["send-text", "send-key"] },
+          { "cmd": ["zellij"], "any": ["write", "write-chars"] },
+          { "cmd": ["screen"], "all": ["-X", "*stuff*"] },
+          { "cmd": ["screen"], "all": ["-X", "paste"] },
+          { "cmd": ["osascript"], "any": ["*keystroke*", "*key code*", "*do script*", "*write text*"] },
           { "cmd": ["xdotool"] },
+          { "cmd": ["ydotool"] },
+          { "cmd": ["wtype"] },
+          { "cmd": ["cliclick"] },
           { "cmd": ["python3"], "any": ["*import pty*", "*pty.fork*", "*pty.spawn*", "*openpty*"] },
           { "cmd": ["python"], "any": ["*import pty*", "*pty.fork*", "*pty.spawn*", "*openpty*"] },
           { "cmd": ["node"], "any": ["*node-pty*"] }
         ]
       },
       "sources": ["ADR#D1", "ADR#D5", "SR#S-01"],
-      "note": "Drives a terminal: can forge a typed prompt or answer a TTY or host prompt (D5)."
+      "note": "Drives a terminal: can forge a typed prompt or answer a TTY or host prompt (D5), the guard's own R4 dialog included (implementation-measurements.md Impact 4). tmux: its global options (-L/-S/-f/... before the command, matching.global_options) are skipped, and the `any` entry catches what an exact argv prefix cannot: a unique-prefix abbreviation (send-k, pa, past), a clustered or attached option (-2u, -Lsock), a `\\;`-chained command and a key-sending command quoted inside another (set-hook, run-shell). pipe-pane -I types a command's output into the pane. cmux: send, send-key, send-panel, send-key-panel, paste and paste-buffer after any global option, and an rpc method naming send or paste (inferred from the method names). wezterm cli send-text, kitty/kitten @ send-text|send-key, zellij action write|write-chars, iTerm's AppleScript `write text`, and the keystroke injectors ydotool, wtype and cliclick are the same verb. A wrapper script stays the D1 residual."
     },
     {
       "id": "repo.create",
