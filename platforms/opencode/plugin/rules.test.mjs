@@ -40,6 +40,7 @@ import {
   sensitiveReason,
   shellSegments,
   shellWriteTargets,
+  workflowReason,
 } from "./rules.ts"
 
 const HERE = path.dirname(fileURLToPath(import.meta.url))
@@ -281,12 +282,145 @@ test("an R4 ask leaves OpenCode as a deny (D8: --auto approves a plugin ask)", (
 
 test("shell write targets: mv and ln sources, -t DIR", () => {
   const paths = (cmd) => shellWriteTargets(cmd).map((t) => `${t.kind}:${t.path}${t.linkAt ? "@" + t.linkAt : ""}`)
-  assert.deepEqual(paths("mv ~/.gitconfig /tmp/g"), ["write:/tmp/g", "move:~/.gitconfig"])
-  assert.deepEqual(paths("ln -s ../hooks/permission-guard.sh x.sh"), ["write:x.sh", "link:../hooks/permission-guard.sh@x.sh"])
-  assert.deepEqual(paths("ln /a/b /c/d"), ["write:/c/d", "link:/a/b"])
-  assert.deepEqual(paths("cp -t dist a.js b.js"), ["write:dist"])
-  assert.deepEqual(paths("mv -t dist a.js b.js"), ["write:dist", "move:a.js", "move:b.js"])
+  // mv and ln can put a whole directory in place, so their destination is a tree target (F4b).
+  assert.deepEqual(paths("mv ~/.gitconfig /tmp/g"), ["tree:/tmp/g", "move:~/.gitconfig"])
+  assert.deepEqual(paths("ln -s ../hooks/permission-guard.sh x.sh"), ["tree:x.sh", "link:../hooks/permission-guard.sh@x.sh"])
+  assert.deepEqual(paths("ln /a/b /c/d"), ["tree:/c/d", "link:/a/b"])
+  // -t DIR: each source lands under DIR, which is what is written (`cp -t ~/.claude settings.json`).
+  assert.deepEqual(paths("cp -t dist a.js b.js"), ["write:dist/a.js", "write:dist/b.js"])
+  assert.deepEqual(paths("mv -t dist a.js b.js"), ["tree:dist/a.js", "tree:dist/b.js", "move:a.js", "move:b.js"])
+  assert.deepEqual(paths("cp -t ~/.claude settings.json"), ["write:~/.claude/settings.json"])
   assert.deepEqual(paths("cp src.js dist/bundle.js"), ["write:dist/bundle.js"])
+})
+
+// ---------------------------- L4: the protected-path parse, nearer write-targets.py ---
+
+test("L4 fd redirects: any fd, under exec, read-write and >& FILE are writes; duplications are not (F4b)", () => {
+  const paths = (cmd) => shellWriteTargets(cmd).map((t) => `${t.kind}:${t.path}`)
+  assert.deepEqual(paths("exec 3> ~/.config/tamirs-superpowers/permissions.json; echo '{}' >&3"), [
+    "write:~/.config/tamirs-superpowers/permissions.json",
+  ])
+  assert.deepEqual(paths("exec 3<> ~/.gitconfig"), ["write:~/.gitconfig"])
+  assert.deepEqual(paths("echo x >& ~/.gitconfig"), ["write:~/.gitconfig"])
+  assert.deepEqual(paths("echo x >&2; exec 3>&-; exec 4>&3-"), [])
+  assert.deepEqual(paths("exec 3< ~/.gitconfig; cat <&3"), [])
+})
+
+test("L4 tokenizer tricks: a comment's apostrophe, $'\\'' and (( << )) no longer hide a write (F4d)", () => {
+  const paths = (cmd) => shellWriteTargets(cmd).map((t) => `${t.kind}:${t.path}`)
+  assert.deepEqual(paths("# don't\necho x > ~/.claude/settings.json; echo '"), ["write:~/.claude/settings.json"])
+  assert.deepEqual(paths("echo $'\\''\necho x > ~/.claude/settings.json; echo '"), ["write:~/.claude/settings.json"])
+  assert.deepEqual(paths("(( 1 << 2 ))\ncp /tmp/a ~/.gitconfig"), ["write:~/.gitconfig"])
+  assert.deepEqual(paths("# never edit ~/.claude/settings.json\necho ok"), [], "a comment that names a path writes nothing")
+  // The segmenter the push guard shares reads the same three shapes.
+  assert.deepEqual(effectiveSegments("# it's\ngit push origin main"), [["git", "push", "origin", "main"]])
+  assert.deepEqual(effectiveSegments("(( 1 << 2 ))\ngit push origin main").pop(), ["git", "push", "origin", "main"])
+})
+
+test("L4 directory copies, links and extraction are tree targets judged by the directory they fill (F4b)", () => {
+  const paths = (cmd) => shellWriteTargets(cmd).map((t) => `${t.kind}:${t.path}`)
+  assert.deepEqual(paths("cp -r /tmp/e/.claude ~/"), ["tree:~/.claude"])
+  assert.deepEqual(paths("cp -R /tmp/e/ ~/.claude/"), ["tree:~/.claude/"], "a trailing-slash source fills the destination itself")
+  assert.deepEqual(paths("cp -r foo ~"), ["tree:~/foo"])
+  assert.deepEqual(paths("rsync -a src/ ~/.config/"), ["tree:~/.config/"])
+  assert.deepEqual(paths("tar -xf x.tar -C ~/.claude"), ["tree:~/.claude"])
+  assert.deepEqual(paths("tar xzf x.tgz --directory=/opt/x"), ["tree:/opt/x"])
+  assert.deepEqual(paths("tar xzf x.tgz"), ["tree:."], "no -C: the cwd")
+  assert.deepEqual(paths("tar -tf x.tar -C d"), [], "listing writes nothing")
+  assert.deepEqual(paths("tar -czf ~/.claude/settings.json src"), ["write:~/.claude/settings.json"])
+  assert.deepEqual(paths("unzip -o x.zip -d ~/.claude"), ["tree:~/.claude"])
+  assert.deepEqual(paths("unzip -l x.zip"), [])
+  assert.deepEqual(paths("cp -l ~/.claude/settings.json /tmp/x"), ["write:/tmp/x", "link:~/.claude/settings.json"])
+  assert.deepEqual(paths("cp -al ~/.claude /tmp/c"), ["tree:/tmp/c", "link:~/.claude"])
+})
+
+test("L4 protected paths: case folding, ~ and $HOME spellings, parents of repo-relative paths, trees into a repo root", () => {
+  const hit = (p, over = {}, containing = false, tree = false) =>
+    protectedHits([p], pfacts(over), containing, tree).map((h) => `${h.mode}:${h.id}`)
+  // F4a: folded unless the volume is shown to be case-sensitive.
+  assert.deepEqual(hit(`${H}/.CLAUDE/settings.json`), ["deny:policy.edit"])
+  assert.deepEqual(hit(`${H}/.claude/SETTINGS.json`), ["deny:policy.edit"])
+  assert.deepEqual(hit("/work/proj/.TAMIRS-superpowers/permissions.json"), ["deny:policy.edit"])
+  assert.deepEqual(hit(`${H}/.CLAUDE/settings.json`, { caseInsensitive: () => null }), ["deny:policy.edit"], "unknown folds")
+  assert.deepEqual(hit(`${H}/.CLAUDE/settings.json`, { caseInsensitive: () => false }), [], "case-sensitive: another file")
+  assert.deepEqual(hit(`${H}/.CLAUDE/CLAUDE.md`), [], "a folded neighbour is still a neighbour")
+  // guard.ts resolves a written ~ (or $HOME) against the cwd; the shell expands it to a home.
+  const r = protectedReason("/work/proj/~/.gitconfig", ["/work/proj/~/.gitconfig"], pfacts(), "write", "redirect")
+  assert.equal(r.mode, "deny")
+  assert.match(r.reason, /resolves to '\/Users\/you\/\.gitconfig'/)
+  assert.equal(protectedReason("/work/proj/$HOME/.config/gh/hosts.yml", ["/work/proj/$HOME/.config/gh/hosts.yml"], pfacts()).mode, "deny")
+  assert.equal(protectedReason("/work/proj/~/notes.md", ["/work/proj/~/notes.md"], pfacts()), null)
+  // Codex P2: a parent of a repo-relative protected path is one too; a repo root stays removable.
+  assert.deepEqual(hit("/work/proj/.claude", {}, true), ["deny:policy.edit"])
+  assert.ok(hit("/work/proj/.git", {}, true).includes("deny:config.global.write"))
+  assert.deepEqual(hit("/work/proj/src", {}, true), [])
+  assert.deepEqual(hit("/work/proj", {}, true), [], "deleting a repository root is not deleting its settings")
+  assert.ok(hit("/work/proj", {}, false, true).length > 0, "a tree written INTO a repository root can land on its settings")
+  assert.deepEqual(hit("/work/proj/src", {}, false, true), [])
+  // protectedReason routes delete, move, link and tree to the parent rules.
+  assert.equal(protectedReason("/work/proj/.claude", ["/work/proj/.claude"], pfacts(), "delete", "rm").mode, "deny")
+  assert.equal(protectedReason("/work/proj/.cursor", ["/work/proj/.cursor"], pfacts(), "move", "mv").mode, "deny")
+  const t = protectedReason(`${H}/.claude`, [`${H}/.claude`], pfacts(), "tree", "cp")
+  assert.equal(t.mode, "deny")
+  assert.match(t.reason, /would receive a whole directory tree/)
+  assert.equal(protectedReason(`${H}/projects/x`, [`${H}/projects/x`], pfacts(), "tree", "cp"), null)
+  // The workflow rule reaches the workflows directory itself, and a .github that is removed or filled.
+  assert.match(workflowReason(`${MAIN}/.github/workflows`, "delete"), /is a GitHub Actions workflow/)
+  assert.match(workflowReason(`${MAIN}/.github`, "tree", "cp"), /holds the GitHub Actions workflows/)
+  assert.equal(workflowReason(`${MAIN}/.github`, "write"), null)
+  assert.equal(workflowReason(`${MAIN}/.github/ISSUE_TEMPLATE`, "delete"), null)
+  assert.equal(sensitiveReason(`${MAIN}/.github/workflows/ci.yml`), workflowReason(`${MAIN}/.github/workflows/ci.yml`))
+})
+
+test("L4 parity: every class this port reads, write-targets.py --protected judges the same way", {
+  skip: spawnSync("sh", ["-c", "command -v python3"]).status !== 0 && "python3 missing",
+}, () => {
+  const t = realpathSync(mkdtempSync(path.join(tmpdir(), "ts-oc-l4-")))
+  try {
+    const home = path.join(t, "home")
+    const repo = path.join(t, "repo")
+    execFileSync("mkdir", ["-p", home, path.join(repo, ".git"), path.join(repo, "src")])
+    const facts = { homes: [home], pluginRoots: [], isRepoRoot: (d) => d === repo || d === path.join(repo) }
+    const ts = (cmd) => {
+      for (const w of shellWriteTargets(cmd)) {
+        const abs = w.path.startsWith("/") ? w.path : path.resolve(repo, w.path)
+        const v = protectedReason(abs, [abs], facts, w.kind, w.via)
+        if (v && v.mode === "deny") return "deny"
+      }
+      return "allow"
+    }
+    const py = (cmd) => {
+      const out = execFileSync("python3", [path.join(ROOT, "hooks", "lib", "write-targets.py"), "--protected"], {
+        input: JSON.stringify({ tool_name: "Bash", cwd: repo, tool_input: { command: cmd } }),
+        encoding: "utf8",
+        env: { ...process.env, HOME: home },
+      })
+      return /^PROTECTED\tdeny\t/m.test(out) ? "deny" : "allow"
+    }
+    const denied = [
+      "exec 3> ~/.config/tamirs-superpowers/permissions.json; echo '{}' >&3",
+      "exec 3<> ~/.gitconfig",
+      "echo x >& ~/.gitconfig",
+      "cp -r /tmp/e/.claude ~/",
+      "cp -R /tmp/e/ ~/.claude/",
+      "rsync -a /tmp/e/ ~/.config/",
+      "tar -xf x.tar -C ~/.claude",
+      "unzip -o x.zip -d ~/.config/gh",
+      "tar -czf ~/.claude/settings.json src",
+      "rm -rf .claude",
+      "mv .git /tmp/x",
+      "cp -R /tmp/e/ .cursor/",
+      "cp -l ~/.gitconfig /tmp/g",
+      "cp -t ~/.claude settings.json",
+      "# don't\necho x > ~/.claude/settings.json; echo '",
+      "(( 1 << 2 ))\necho x > ~/.gitconfig",
+    ]
+    for (const c of denied) assert.deepEqual([ts(c), py(c)], ["deny", "deny"], c)
+    const allowed = ["cp -r foo ~/projects/", "tar -xf x.tar -C /tmp/out", "rm -rf src", "echo x > /tmp/n", "cp -r ~/.claude /tmp/backup", "unzip -l x.zip"]
+    for (const c of allowed) assert.deepEqual([ts(c), py(c)], ["allow", "allow"], c)
+  } finally {
+    rmSync(t, { recursive: true, force: true })
+  }
 })
 
 test("GitHub MCP actions map onto the guard's tool names; nothing else does", () => {
