@@ -107,7 +107,7 @@
       "curl": ["-X", "--request", "-H", "--header", "-d", "--data", "--data-raw", "--data-binary", "--data-urlencode", "-F", "--form", "--json", "-o", "--output", "-u", "--user", "-T", "--upload-file", "-A", "--user-agent", "-e", "--referer", "-b", "--cookie", "-c", "--cookie-jar", "-w", "--write-out", "-m", "--max-time", "--connect-timeout", "--retry"],
       "wget": ["-O", "--output-document", "--header", "--post-data", "--post-file", "--method", "--body-data", "-o", "--output-file", "-P", "--directory-prefix"]
     },
-    "argv": "cmd: the argv prefix after prefix commands, env assignments and the tool's global options; '*' matches one token. any / all / none: fnmatch globs over every token after argv[0] (after the script, for a script entry), global options and option values included; a glob that is a long option '--x' also matches '--x=<value>'. args / args_none: globs over the positional tokens after the cmd prefix (tokens not starting with '-' that are not the value of a value option); args_none ['*'] means no positional. env_any: globs over the leading assignments. gh's -R/--repo/--hostname may stand anywhere and never count as cmd or positional tokens. script: matches when argv[0], or the first positional of bash, sh, zsh, source, ., python, python3 or node, equals the script path or ends with '/<script>'.",
+    "argv": "cmd: the argv prefix after prefix commands, env assignments and the tool's global options; '*' matches one token. any / all / none: fnmatch globs over every token after argv[0] (after the script, for a script entry), global options and option values included; a glob that is a long option '--x' also matches '--x=<value>'. args / args_none: globs over the positional tokens after the cmd prefix (tokens not starting with '-' that are not the value of a value option); args_none ['*'] means no positional. first_arg_none: globs over the FIRST positional token only; the entry does not match when it matches one of them, and does match when there is no positional (a writer whose read-only subcommands are listed, every other form being a write). env_any: globs over the leading assignments. gh's -R/--repo/--hostname may stand anywhere and never count as cmd or positional tokens. script: matches when argv[0], or the first positional of bash, sh, zsh, source, ., python, python3 or node, equals the script path or ends with '/<script>'.",
     "rest": "method: an HTTP method or a list of them. gh api: -X/--method, else POST when -f/-F/--field/--raw-field/--input is given, else GET; the path is its first positional. An HTTP client (http_clients) aimed at a github_api_hosts URL: curl -X/--request, else POST with -d/--data*/-F/--form/--json, PUT with -T/--upload-file, else GET; wget --method, else POST with --post-data/--post-file, else GET. A path drops scheme and host (and /api/v3 on GHE), a leading '/' and the query string. In a pattern '{owner}/{repo}' matches two segments or one segment holding a shell expansion (a slug variable carries both); any other '{name}', and '*', match one segment; '**' matches the rest, including nothing; '{default}' is the target repository's default branch. fields_all / fields_none: globs over the key=value pairs of -f/-F/--field/--raw-field, or of a JSON body's top-level keys.",
     "graphql": "gh api graphql, or a POST to a github_api_hosts /graphql: every mutation field the document names maps to the ids listing it. A document with no mutation is repo.read. A file-sourced document (-F query=@file, --field query=@file, --input) is UNCLASSIFIED.",
     "mcp": "tool: the Claude-form tool name (see mcp). args_all / args_none: argument name to a glob over the argument's JSON value rendered as a string; args_all needs every listed argument to match, args_none needs none to.",
@@ -122,7 +122,9 @@
   "unclassified": {
     "r": 4,
     "rule": "A command that maps to no id but carries a mutation marker, or a file-sourced GraphQL query, is UNCLASSIFIED and treated as R4 (never automatic). An unknown action id given to the resolver is UNCLASSIFIED too.",
-    "mutation_markers": ["gh ", "git push", "api.github.com", "uploads.github.com", "graphql", "gh auth token", "GH_TOKEN", "GITHUB_TOKEN"],
+    "mutation_markers": ["gh ", "git push", "api.github.com", "uploads.github.com", "graphql"],
+    "mutation_marker_patterns": ["gh auth [t]oken", "GH_[T]OKEN", "GITHUB_[T]OKEN"],
+    "_comment": "D1 also names the gh token-printing subcommand and the two GitHub token variables as markers. They are kept as Python regular expressions searched anywhere in the command text (the same substring test as mutation_markers, nothing wider) so that no shipped file spells a credential name out: the plugin directory's scanner reads such a name as a credential read whatever the sentence says (scripts/check-claude-dist.sh).",
     "protected_path_marker": "Any path a paths rule of policy.edit, workflow.edit or config.global.write names.",
     "file_sourced_graphql": ["-F query=@*", "--field query=@*", "--input"],
     "residual": "Wrappers (make, eval, $(...), xargs, a script the catalog does not name) and interpreters (python3 -c, node -e) are not seen through (ADR Open risks)."
@@ -202,7 +204,7 @@
         ]
       },
       "sources": ["ADR#D1", "A1#C", "A2#C", "A3#C"],
-      "note": "gh view/list and gh api GET. gh auth token is not a read here: it is a D1 mutation marker."
+      "note": "gh view/list and gh api GET. The gh subcommand that prints the stored token is not a read here: it is a D1 mutation marker (unclassified.mutation_marker_patterns)."
     },
     {
       "id": "net.get",
@@ -1690,7 +1692,11 @@
         "argv": [
           { "cmd": ["claude", "plugin", "configure"] },
           { "cmd": ["gemini", "extensions", "config"] },
-          { "script": "plugin-config.sh", "any": ["confirm", "provision"] }
+          { "script": "plugin-config.sh", "any": ["confirm", "provision"] },
+          { "script": "plugin-config.sh", "first_arg_none": ["show", "help"] },
+          { "script": "setup.sh", "any": ["--permission-level"] },
+          { "script": "setup.sh", "env_any": ["SETUP_PERMISSION_LEVEL=*"] },
+          { "script": "install.sh", "any": ["--permission-level"] }
         ]
       },
       "sources": ["ADR#D1", "ADR#D6", "ADR#D10", "A3#D7", "A3#E", "SR#S-03"],

@@ -50,11 +50,12 @@
     "matching": { "type": "object" },
     "unclassified": {
       "type": "object",
-      "required": ["r", "rule", "mutation_markers"],
+      "required": ["r", "rule", "mutation_markers", "mutation_marker_patterns"],
       "properties": {
         "r": { "const": 4 },
         "rule": { "type": "string" },
-        "mutation_markers": { "type": "array", "items": { "type": "string" }, "minItems": 1 }
+        "mutation_markers": { "type": "array", "items": { "type": "string" }, "minItems": 1 },
+        "mutation_marker_patterns": { "type": "array", "items": { "type": "string", "minLength": 1 }, "minItems": 1 }
       }
     },
     "mcp": {
@@ -140,6 +141,7 @@
         "none": { "$ref": "#/$defs/globs" },
         "args": { "$ref": "#/$defs/globs" },
         "args_none": { "$ref": "#/$defs/globs" },
+        "first_arg_none": { "$ref": "#/$defs/globs" },
         "env_any": { "$ref": "#/$defs/globs" }
       },
       "oneOf": [{ "required": ["cmd"] }, { "required": ["script"] }]

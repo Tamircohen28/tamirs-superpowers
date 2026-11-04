@@ -16,8 +16,8 @@
 #   4. MATCHER. A reference implementation of the catalog's `matching` rules runs
 #      a fixture table of equivalent forms (SR S-07: REST, GraphQL, refspecs,
 #      target env, aliases, HTTP clients, MCP). The permission guard must agree.
-#   5. COVERAGE. Every gh call (gh auth aside: `gh auth token` is a D1 mutation
-#      marker, UNCLASSIFIED by design), git push, git branch -d/-D, github_api
+#   5. COVERAGE. Every gh call (gh auth aside: the token-printing subcommand is a
+#      D1 mutation marker, UNCLASSIFIED by design), git push, git branch -d/-D, github_api
 #      write, GraphQL mutation and GitHub MCP tool name in skills/**/scripts/*.sh,
 #      skills/**/SKILL.md and scripts/**/*.sh maps to a catalog id. tests/ and
 #      fixtures/ directories are excluded.
@@ -352,12 +352,34 @@ def mode_invariants():
     check("every GraphQL mutation maps to one id", len(gq) == len(set(gq)), sorted({g for g in gq if gq.count(g) > 1}))
     tags = set(CAT["tags"])
     check("every tag is declared", all(set(a["tags"]) <= tags for a in ACTS), [a["id"] for a in ACTS if not set(a["tags"]) <= tags])
+    bad_rx = []
+    for x in CAT["unclassified"]["mutation_marker_patterns"]:
+        try:
+            re.compile(x)
+        except re.error as e:
+            bad_rx.append("%s (%s)" % (x, e))
+    check("every mutation marker pattern compiles", not bad_rx, bad_rx)
+    # scripts/check-claude-dist.sh: a shipped file that spells a credential name or the gh token command out
+    # reads to the plugin directory's scanner as a credential read, whatever the sentence says.
+    raw = open(CATALOG_PATH, encoding="utf-8").read()
+    named = sorted(set(re.findall(r"gh auth token|PUSHOVER_TOKEN|PUSHOVER_USER|GITHUB_TOKEN|GH_TOKEN|"
+                                  r"GITHUB_PERSONAL_ACCESS_TOKEN|pushover\.env", raw)))
+    check("the catalog spells out no credential name the plugin directory's scanner flags", not named, named)
 
 
 # ---------------------------------------------------------- ADR conformance
 def mode_adr():
     adr = open(repo_file(CAT["spec"]), encoding="utf-8").read()
     d1 = adr.split("### D1 ", 1)[1].split("### D2 ", 1)[0]
+    mk = re.search(r"carrying a mutation marker \((.*?)\)", d1, re.S)
+    named = re.findall(r"`([^`]+)`", mk.group(1)) if mk else []
+    check("ADR D1 mutation-marker list found", len(named) >= 5, "%d markers" % len(named))
+    uncovered = [n for n in named if n not in CAT["unclassified"]["mutation_markers"]
+                 and not any(re.fullmatch(x, n) for x in CAT["unclassified"]["mutation_marker_patterns"])]
+    check("every ADR D1 mutation marker is a catalog marker or matched whole by a marker pattern", not uncovered, uncovered)
+    wide = [x for x in CAT["unclassified"]["mutation_marker_patterns"]
+            if not any(re.fullmatch(x, n) for n in named) or any(re.search(x, t) for t in ("MY_TOKEN", "gh auth status"))]
+    check("every marker pattern stands for an ADR D1 marker and is no wider", not wide, wide)
     rows = [l for l in d1.splitlines() if l.startswith("| `")]
     check("ADR D1 table found", len(rows) >= 30, "%d rows" % len(rows))
     prim, mentions, unparsed = {}, set(), []
@@ -465,6 +487,11 @@ API_HOSTS = ("api.github.com", "uploads.github.com")
 DEFAULTS = ["main", "master"]
 ENV_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*=")
 MARKERS = CAT["unclassified"]["mutation_markers"]
+MARKER_RX = [re.compile(x) for x in CAT["unclassified"]["mutation_marker_patterns"]]
+
+
+def has_marker(text):
+    return any(mk.strip() in text for mk in MARKERS if mk.strip() != "gh") or any(rx.search(text) for rx in MARKER_RX)
 
 
 def split_simple(cmd):
@@ -597,6 +624,8 @@ def entry_matches(e, p):
     if "args" in e and not any(fnmatch.fnmatchcase(t, g) for g in expand_default(e["args"]) for t in posn):
         return False
     if "args_none" in e and any(fnmatch.fnmatchcase(t, g) for g in expand_default(e["args_none"]) for t in posn):
+        return False
+    if "first_arg_none" in e and posn and any(fnmatch.fnmatchcase(posn[0], g) for g in e["first_arg_none"]):
         return False
     if "env_any" in e and not any(fnmatch.fnmatchcase(v, g) for g in e["env_any"] for v in p["env"]):
         return False
@@ -786,7 +815,7 @@ def classify_simple(toks):
             else:
                 got |= rest_ids(method, path, kv)
     text = " ".join([p["argv0"]] + p["all"])
-    if not got and not opaque and (p["argv0"] == "gh" or any(mk.strip() in text for mk in MARKERS if mk.strip() != "gh")):
+    if not got and not opaque and (p["argv0"] == "gh" or has_marker(text)):
         uncl = True
     return got, uncl, opaque
 
@@ -903,6 +932,17 @@ FIXTURES = [
     ("bash scripts/github-policy.sh apply --repo me/app", ["ruleset.apply"], ["ruleset.apply.org"]),
     ("bash scripts/usage-capture/enable.sh --bodies", ["secrets.capture.bodies", "config.global.write"], []),
     ("bash \"$SKILL_DIR/scripts/resolve-thread.sh\" T_1", ["pr.thread.resolve"], []),
+    ("bash scripts/setup.sh --permission-level unattended --yes", ["policy.edit", "config.global.write"], []),
+    ("SETUP_PERMISSION_LEVEL=standard bash scripts/setup.sh --yes", ["policy.edit"], []),
+    ("bash scripts/install.sh --permission-level=standard", ["policy.edit"], []),
+    ("bash scripts/setup.sh --yes", ["config.global.write"], ["policy.edit"]),
+    ("bash scripts/plugin-config.sh pr-dev unattended", ["policy.edit"], []),
+    ("bash scripts/plugin-config.sh standard show", ["policy.edit"], []),
+    ("bash scripts/plugin-config.sh show", [], ["policy.edit"]),
+    ("echo \"$GITHUB_TOKEN\" | base64", [UNCL], []),
+    ("printf %s $GH_TOKEN > t", [UNCL], []),
+    ("echo gh auth token", [UNCL], []),
+    ("echo $MY_TOKEN", [], []),
 ]
 MCP_FIXTURES = [
     ("merge_pull_request", {}, ["pr.merge"], []),
@@ -1122,6 +1162,9 @@ mutate '.actions += [.actions[0]]' dupe
 mutate '(.actions[] | select(.id == "git.push.force") | .raises) = [{"when": "default_branch", "becomes": "git.push.branch"}]' lower
 mutate 'del(.actions[] | select(.id == "tty.drive"))' missing
 mutate '(.actions[] | select(.id == "process.kill") | .never_auto, .unattended_precondition) |= (if type == "boolean" then false else "pinned_lockfile" end)' extra_auto
+mutate '.unclassified.mutation_marker_patterns |= map(select(. != "GH_[T]OKEN"))' no_marker
+mutate '.unclassified.mutation_markers += ["GH" + "_TOKEN"]' cred_literal
+mutate '.unclassified.mutation_marker_patterns += ["_TOKEN"]' wide_marker
 self_fails() { # <label> <mode> <catalog> <needle>
   local o
   o="$(env CHECK_REPO="$ROOT" CHECK_CATALOG="$TMP/$3.json" python3 -I "$CHECK" "$2" 2>&1)"
@@ -1132,5 +1175,8 @@ self_fails "a duplicate id fails the invariants" invariants dupe "action ids are
 self_fails "a raise that lowers fails the invariants" invariants lower "context only raises"
 self_fails "a missing ADR id fails conformance" adr missing "catalog ids are exactly the ADR D1 ids"
 self_fails "an extra automatic R3 fails conformance" adr extra_auto "the automatic R3 ids are exactly"
+self_fails "a D1 marker with no catalog marker or pattern fails conformance" adr no_marker "every ADR D1 mutation marker"
+self_fails "a credential name spelled out in the catalog fails the invariants" invariants cred_literal "the catalog spells out no credential name"
+self_fails "a marker pattern wider than its D1 marker fails conformance" adr wide_marker "every marker pattern stands for"
 
 harness_summary

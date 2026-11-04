@@ -17,13 +17,13 @@
 #   to put an answer of our choosing in front of it -- and it is what proves the
 #   mapping (allow/ask/deny/error -> enable/skip) and the call shape.
 #
-#   Part B runs the real script against the real resolver. The real resolver
-#   reads the passwd home (TAMIRS_PERMISSION_TEST_ROOT is honoured only under
-#   tests/test-resolve-permission.sh), so only the rows that a user file cannot
-#   override are asserted unconditionally: never, objective false, legacy
-#   policy.json false, and the warnings. The "no configuration => skip" default
-#   is asserted when the resolver reports no user, project or option-store
-#   file on this machine, and skipped (visibly) otherwise.
+#   Part B runs the real script against the real resolver. The resolver reads
+#   the passwd home, and its test override TAMIRS_PERMISSION_TEST_ROOT is
+#   honoured under this suite (an allowlisted permission suite,
+#   scripts/lib/permission-common.sh header), so Part B points it at an empty
+#   0700 temp home and stops unless the resolver reports home_source test-root:
+#   the "no configuration => skip" default is then asserted unconditionally, and
+#   a user file in that home shows the real resolver's allow reaching "enable".
 #
 # Hermetic: temp fixtures, tests/lib/fake-gh.sh for every gh call, no network.
 set -uo pipefail
@@ -43,6 +43,9 @@ unset GH_TOKEN GITHUB_TOKEN GH_REPO TAMIRS_AUTO_MERGE OBJECTIVES_ROOT \
   TS_PERMISSION_LEVEL CLAUDE_PLUGIN_OPTION_PERMISSION_LEVEL TAMIRS_PERMISSION_TEST_ROOT 2>/dev/null || true
 
 REAL_MP="$ROOT/skills/dev-workflow/pr-dev/scripts/resolve-merge-policy.sh"
+# Part B's passwd home: empty, 0700, outside every work tree (the resolver's test-root rules).
+PH="$TMP/passwd-home"
+mkdir -m 700 "$PH"
 
 # --- fixtures -----------------------------------------------------------------
 FX="$TMP/fx"
@@ -284,6 +287,14 @@ judge "  ... and the protection fields are unchanged by this (requires_review)" 
 # =============================================================================
 section "B. the real resolver"
 # =============================================================================
+export TAMIRS_PERMISSION_TEST_ROOT="$PH"
+hs="$(cd "$REPO" && bash "$ROOT/scripts/resolve-permission.sh" pr.merge.auto --json 2>/dev/null | jq -r '.home_source // empty')"
+if [ "$hs" != test-root ]; then
+  bad "the real resolver reads the temp passwd home under this suite" "home_source=$hs"
+  printf 'FATAL: Part B would judge the real permission file\n'
+  harness_summary
+fi
+ok "the real resolver reads the temp passwd home under this suite"
 scenario default
 rm -rf "$REPO/.dev-files"
 
@@ -319,22 +330,27 @@ judge "always => the resolver's warning names the durable route" yes \
 judge "  ... and always is not the source of the decision" no \
   "$(has "$(f .auto_merge_source <<<"$out")" "TAMIRS_AUTO_MERGE=always")"
 
-# The default, and always-grants-nothing, depend on this machine having no
-# permission configuration -- the resolver reads the passwd home, which a test
-# cannot redirect outside tests/test-resolve-permission.sh. Ask the resolver.
-probe="$( cd "$REPO" && bash "$ROOT/scripts/resolve-permission.sh" --action pr.merge.auto \
-  --target acme/widget#42 --skill pr-dev --repo "$REPO" --json 2>/dev/null )"
-configured="$(jq -r '[.level_sources[]? | select(.state != "absent" and (.state | tostring | startswith("none") | not))] | length' <<<"$probe" 2>/dev/null || echo unknown)"
-if [ "$configured" = 0 ]; then
-  out="$(mpb)"
-  judge "no configuration anywhere => skip (auto-merge is off unless configured)" skip "$(f .auto_merge <<<"$out")"
-  judge "  ... the resolver asked" ask "$(f .auto_merge_verdict <<<"$out")"
-  out="$(mpb TAMIRS_AUTO_MERGE=always)"
-  judge "always, with no configuration => skip" skip "$(f .auto_merge <<<"$out")"
-else
-  skip "no configuration => skip (real resolver)" "this machine has a permission config ($configured source(s)); Part A covers the mapping"
-  skip "always, with no configuration => skip (real resolver)" "same"
-fi
+# The default, and always-grants-nothing: the temp passwd home holds no configuration.
+out="$(mpb)"
+judge "no configuration anywhere => skip (auto-merge is off unless configured)" skip "$(f .auto_merge <<<"$out")"
+judge "  ... the resolver asked" ask "$(f .auto_merge_verdict <<<"$out")"
+out="$(mpb TAMIRS_AUTO_MERGE=always)"
+judge "always, with no configuration => skip" skip "$(f .auto_merge <<<"$out")"
+
+# A locked user file that allows pr.merge.auto (D2 standard row) reaches "enable" through the real resolver.
+CFG="$PH/.config/tamirs-superpowers"
+mkdir -p "$CFG"; chmod 700 "$PH/.config" "$CFG"
+printf '{"version": 1, "level": "standard", "actions": {"pr.merge.auto": "allow"}}\n' > "$CFG/permissions.json"
+chmod 600 "$CFG/permissions.json"
+printf '{"sha256": "%s", "by": "plugin-config", "at": "2026-11-04T00:00:00Z"}\n' \
+  "$(python3 -c 'import hashlib,sys; print(hashlib.sha256(open(sys.argv[1],"rb").read()).hexdigest())' "$CFG/permissions.json")" > "$CFG/permissions.lock"
+chmod 600 "$CFG/permissions.lock"
+out="$(mpb)"
+judge "a user-file allow at standard => enable (real resolver, repository allows)" enable "$(f .auto_merge <<<"$out")"
+judge "  ... the resolver allowed" allow "$(f .auto_merge_verdict <<<"$out")"
+out="$(mpb TAMIRS_AUTO_MERGE=never)"
+judge "  ... and never still tightens it to skip" skip "$(f .auto_merge <<<"$out")"
+rm -rf "$PH/.config"
 
 # The real script must find the real resolver from its own location: the
 # source is the resolver's, never "not found".

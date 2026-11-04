@@ -19,13 +19,12 @@
 #   HOME is a temp tree for every setup run. The permission file is not under
 #   HOME but under the passwd home (D3), so every run also points
 #   TAMIRS_PERMISSION_TEST_ROOT at a temp root. The resolver library honours that
-#   variable only when an ANCESTOR process runs a file named
-#   test-resolve-permission.sh (scripts/lib/permission-common.sh, "THE TEST
-#   OVERRIDE AND ITS GUARD"), so the runs go through a two-line launcher of that
-#   name in this suite's temp dir — the library's header names this route. setup
-#   itself refuses to write when the variable is set and the library refused it,
-#   and the suite aborts before any write if the override is not honoured. A
-#   witness on the real config dir is compared at the end.
+#   variable only when an ANCESTOR shell is running one of the permission suites,
+#   this one included (scripts/lib/permission-common.sh, "THE TEST OVERRIDE AND
+#   ITS GUARD"), so every run is simply a child of this script. setup itself
+#   refuses to write when the variable is set and the library refused it, and the
+#   suite aborts before any write if the override is not honoured. A witness on
+#   the real config dir is compared at the end.
 #
 # HOW THE PROMPT IS DRIVEN
 #   CI has no TTY, and setup reads /dev/tty only. The interactive cases source
@@ -58,12 +57,10 @@ witness() { ls -lA "$REAL_CFG" 2>/dev/null | shasum | awk '{print $1}'; }
 REAL_BEFORE="$(witness)"
 
 FIX="$(harness_tmpdir)"
-LAUNCH="$FIX/test-resolve-permission.sh"
-printf '#!/usr/bin/env bash\n# Named for the resolver'"'"'s test-root guard; runs its arguments as a child.\n"$@"\n' > "$LAUNCH"
 NOWHERE="$(harness_tmpdir)"   # cwd for every run: no repository, no project file
 
 new_root() { local r; r="$(harness_tmpdir)"; chmod 700 "$r"; printf '%s' "$r"; }
-in_root() { local root="$1"; shift; (cd "$NOWHERE" && TAMIRS_PERMISSION_TEST_ROOT="$root" bash "$LAUNCH" "$@"); }
+in_root() { local root="$1"; shift; (cd "$NOWHERE" && TAMIRS_PERMISSION_TEST_ROOT="$root" "$@"); }
 setup_in() { local root="$1" home="$2"; shift 2; in_root "$root" env HOME="$home" bash "$SETUP" "$@" 2>&1; }
 level_of() { in_root "$1" bash "$RESOLVE" --level --json --host "${2:-codex}" 2>/dev/null; }
 pfile() { printf '%s/.config/tamirs-superpowers/permissions.json' "$1"; }
@@ -112,19 +109,27 @@ section "the test root is honoured (precondition for every write below)"
 ROOT="$(new_root)"
 src="$(in_root "$ROOT" bash -c '. "$1"; perm_dirs' x "$REPO_ROOT/scripts/lib/permission-common.sh" 2>/dev/null | jq -r '.home_source')"
 if [ "$src" != test-root ]; then
-  bad "the resolver honours TAMIRS_PERMISSION_TEST_ROOT under the launcher" "home_source=$src"
+  bad "the resolver honours TAMIRS_PERMISSION_TEST_ROOT under this suite" "home_source=$src"
   printf 'FATAL: refusing to run write cases: they would target the real home\n'
   harness_summary
 fi
-ok "the resolver honours TAMIRS_PERMISSION_TEST_ROOT under the launcher"
+ok "the resolver honours TAMIRS_PERMISSION_TEST_ROOT under this suite"
 
-# Without the launcher the library refuses the root, and setup must refuse to
-# write rather than fall through to the passwd home. Only the path resolution is
-# exercised here; nothing is written.
-got="$( (cd "$NOWHERE" && TAMIRS_PERMISSION_TEST_ROOT="$ROOT" bash -c '
-  SETUP_REPO_ROOT="$1"; . "$SETUP_REPO_ROOT/scripts/lib/setup-common.sh"
-  setup_perm_paths; printf "%s|%s" "$SETUP_PERM_HOME_SOURCE" "${SETUP_PERM_WRITABLE%%:*}"' x "$REPO_ROOT" 2>/dev/null) )"
-judge "a refused test root makes setup refuse to write" "passwd|no" "$got"
+# When the library refuses the root, setup must refuse to write rather than fall
+# through to the passwd home. Refused two ways: a root that is not 0700, and a
+# process orphaned away from this suite (its ancestry runs no permission suite).
+# Only the path resolution is exercised here; nothing is written.
+paths_probe='SETUP_REPO_ROOT="$1"; . "$SETUP_REPO_ROOT/scripts/lib/setup-common.sh"
+  setup_perm_paths; printf "%s|%s" "$SETUP_PERM_HOME_SOURCE" "${SETUP_PERM_WRITABLE%%:*}"'
+LOOSE="$(new_root)"; chmod 755 "$LOOSE"
+got="$(in_root "$LOOSE" bash -c "$paths_probe" x "$REPO_ROOT" 2>/dev/null)"
+judge "a refused test root (mode 0755) makes setup refuse to write" "passwd|no" "$got"
+OD="$(harness_tmpdir)"
+( exec /bin/sh -c 'sleep 1; cd "$4"; TAMIRS_PERMISSION_TEST_ROOT="$1" bash -c "$5" x "$2" > "$3/out" 2>/dev/null; echo $? > "$3/rc"' \
+    sh "$ROOT" "$REPO_ROOT" "$OD" "$NOWHERE" "$paths_probe" >/dev/null 2>&1 & )
+n=0
+while [ ! -s "$OD/rc" ] && [ "$n" -lt 150 ]; do sleep 0.1; n=$((n + 1)); done
+judge "a root refused by ancestry (orphaned process) makes setup refuse to write" "passwd|no" "$(cat "$OD/out" 2>/dev/null)"
 
 # ---------------------------------------------------------------------------
 section "non-interactive: no flag writes nothing"
