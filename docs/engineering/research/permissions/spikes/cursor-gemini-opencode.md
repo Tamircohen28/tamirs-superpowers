@@ -229,7 +229,7 @@ Custom action raised from the plugin with `ctx.permission.assert({action:"probe.
 
 No step below needs me to log in on your behalf; each uses your own authenticated Cursor install.
 
-**S1. Cursor CLI: does hook `ask` prompt (U1, CLI).** In a scratch repo (`mkdir /tmp/cur-ask && cd /tmp/cur-ask && git init`):
+**S1. Cursor CLI: does hook `ask` prompt (U1, CLI).** *Measured 2026-11-04 — see `implementation-measurements.md` "Live checks (issue #351)": interactive prompts; ignored under `--yolo`; print mode inconclusive. The source-cited claim above that it prompts "in every mode" is superseded.* In a scratch repo (`mkdir /tmp/cur-ask && cd /tmp/cur-ask && git init`):
 1. `mkdir .cursor && printf '#!/bin/bash\ncat >/dev/null\necho "{\\"permission\\":\\"ask\\",\\"user_message\\":\\"probe\\"}"\n' > .cursor/ask.sh && chmod +x .cursor/ask.sh`
 2. `printf '{"version":1,"hooks":{"beforeShellExecution":[{"command":".cursor/ask.sh"}]}}' > .cursor/hooks.json`
 3. `cursor-agent --yolo "run: echo hi > out.txt"` (interactive). Expected: an approval card containing `Hook requested approval: probe` even with `--yolo`; `out.txt` absent until you approve.

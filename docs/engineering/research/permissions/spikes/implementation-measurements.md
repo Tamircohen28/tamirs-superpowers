@@ -259,3 +259,250 @@ PreToolUse branch reads `tool_input.skill` (stripping the `tamirs-superpowers:` 
 reads `args` for `--perms=`, which is the shape measured here, so no parser change is needed. The fixtures in
 `tests/test-permission-guard.sh` and `tests/test-plugin-config.sh` (`tool_input: {skill, args}`) match it. The D8
 "PreToolUse on the `Skill` tool" route for a host-recorded skill is therefore measured, not only wired.
+
+## Live checks (issue #351) — 2026-11-04
+
+Runs the four host measurements the sections above leave `blocked` or `source-cited`: U1 (install dialog) and U6
+(self-approval by keystrokes) on Claude Code, U5 (`ask` on Codex) and S1 (`ask` on the Cursor CLI). **They supersede the
+`blocked` rows U1 and U6 in the verdict table above**, and S1 overturns one source-cited claim (below).
+
+Hosts: Claude Code **2.1.318** (`~/.local/bin/claude` called directly, never the shell function, no
+`--dangerously-skip-permissions`; `env -i` with only `HOME USER LOGNAME TERM LANG SHELL PATH`; `--model haiku`); Codex
+CLI **0.166.0** (the repo floor, fetched with `npm exec --prefix <scratch>/npm @openai/codex@0.166.0`; it used the
+default `CODEX_HOME` and the existing ChatGPT login; the installed **0.156.0** gave the same result in one comparison
+run); Cursor CLI **2026.10.22-27dcf5f**; tmux 3.8, a private server `/opt/homebrew/bin/tmux -L live -f /dev/null`
+(the `tmux` on `PATH` is a cmux shim), killed afterwards. No login or OAuth flow was started. Every probe command was
+`echo <PROBE-ID>` and every approval given was to such an echo. `$LIVE` below is
+`/private/tmp/claude-501/-Users-tamircohen-Projects-tamirs-superpowers/4d09d4e0-b2ec-46c3-8c1c-8cf1d67342b8/scratchpad/live`
+(captures, hooks and payloads kept there).
+
+### Verdict table
+
+| id | question | verdict | answer | host version |
+|---|---|---|---|---|
+| U1 | Does `/plugin install` show a configuration dialog for a `userConfig` `options` field; is the default pre-selected; can it be skipped or accepted without typing? | **measured** | **Yes to all.** After a scope picker (user / project / local) a `Configure <plugin>` screen opens with `Preset ◀ supervised ▶` (left/right cycles `options`), a `Save configuration` row and the field's `description` underneath. The **declared `default` is pre-selected**: a second plugin whose default is the *middle* option (`standard`) opened on `standard`, so it is the default, not the first option. Enter, Enter accepts without typing. Esc skips: `✓ Installed … Plugin is now active.`, nothing stored; `/plugin configure <plugin>@<mkt>` then opens the same screen (so (d) yes). A save writes `pluginConfigs."<plugin>@<mkt>".options.preset` into the **user** `~/.claude/settings.json` even for a local-scope install. | Claude Code 2.1.318 |
+| U6 | Can a process other than the agent answer the host's own hook-`ask` dialog by keystrokes? | **measured** | **Yes.** A detached process (own session via `setsid`, minimal env, `TMUX` unset, its parent not the claude process) polled the pane, then ran `tmux -L live send-keys -t <pane> Enter` (run A) or `… 1` with no Enter (run B). Both answered the real dialog and `echo U6-PROBE-x` then ran (PostToolUse marker, `stdout` = the probe). The TUI cannot tell the keystroke from a human's. Not run, by the one-command rule: the variant where the agent itself starts the background `tmux send-keys`; the host side is identical (the same keystroke into the same pty). | Claude Code 2.1.318 |
+| U5 | Codex `PreToolUse` hook returning `permissionDecision: "ask"` for the shell tool: reported as unsupported, and does the command still run? | **measured** | **Fail-open, as the source said.** TUI line `Hook failed — PreToolUse hook returned unsupported permissionDecision:ask`, then `Ran echo U5-PROBE-TUI`; no approval prompt even with `Permissions: Workspace (Ask for approval)`. `codex exec`: `hook: PreToolUse Failed`, command `succeeded`. Control: the same hook returning `deny` gives `PreToolUse Blocked` and the command never runs. 0.156.0 behaves identically. | Codex 0.166.0 (and 0.156.0) |
+| S1 | Cursor `beforeShellExecution` returning `{"permission":"ask"}`: prompt, silent run, or reject? | **measured** | **Interactive, no force:** a card `Run this command? / Hook requested approval: probe • Not in allowlist: echo` with `Run (once) (y)`, `Run Everything (shift+tab)`, `Skip & tell the agent what to do instead (esc or n)`; `y` ran it. **Print mode `-p --trust`, no force:** rejected three times (`Rejected:`, no reason), never ran, **but the control without any hook is rejected identically** (the allowlist is `Shell(ls)`), so print mode does not show that `ask` did it. **`--yolo` (Run Everything), print and interactive:** the hook ran and **no card appeared; the command ran**. `ask` does not hold under Run Everything, contradicting the source-cited reading in `cursor-gemini-opencode.md` U1 ("forces a prompt in every approval mode, including unrestricted"). | Cursor CLI 2026.10.22 |
+
+### U1 evidence — the install dialog
+
+Scratch marketplace `t002-mkt` (plugin `pt2`: one `preset` field, `type: string`, `options: [supervised, standard,
+unattended]`, `default: "supervised"`) plus `live-mkt3` (plugin `pt3`, the same field with `default: "standard"`). The
+real TUI ran in tmux from an empty trusted directory, no `--settings`, default permission mode. Typed:
+`/plugin marketplace add $LIVE/../t002/mkt`, then `/plugin install pt2@t002-mkt`.
+
+```text
+❯ /plugin marketplace add …/t002/mkt
+  ⎿  Successfully added marketplace: t002-mkt
+❯ /plugin install pt2@t002-mkt
+   Plugin Details / pt2 / defaulted only
+   ❯ Install for you (user scope)
+     Install for all collaborators on this repository (project scope)
+     Install for you, in this repo only (local scope)          <- chosen (Down, Down, Enter) to keep user settings out of it
+     Back to plugin list
+    Configure pt2
+    Plugin options
+    ❯ Preset  ◀ supervised ▶
+      Save configuration
+    p                                                           <- the field's `description`
+    ↑/↓ to move · ←/→ to change · Enter to continue · Esc to cancel
+```
+
+- **Skip (Esc)** → `⎿ ✓ Installed pt2. Plugin is now active.`; `~/.claude/settings.json` had no `pluginConfigs` key; the
+  project's `.claude/settings.local.json` held `enabledPlugins: {"pt2@t002-mkt": true}`.
+- **`/plugin configure pt2@t002-mkt`** → the same screen, `Preset ◀ supervised ▶`. **Enter** on the field moves to
+  `Save configuration` (the arrows line disappears from the footer); **Enter** again → `⎿ Configuration saved.`. No typing.
+- **Where the save went** (`diff` of the user `settings.json` before/after the save, install scope `local`):
+
+  ```diff
+  +  "pluginConfigs": {
+  +    "pt2@t002-mkt": {
+  +      "options": {
+  +        "preset": "supervised"
+  ```
+- **Default vs first option.** `pt2`'s default is also its first option, so a second plugin `pt3` with `default:
+  "standard"` was installed the same way: `❯ Preset  ◀ standard ▶`. Skipped with Esc, then uninstalled.
+- **Cleanup.** `/plugin uninstall pt2@t002-mkt` → `✔ Uninstalled pt2. Applies when you close this menu.` (it opens the
+  plugin manager, focused on an MCP row marked `Enter to auth`; Esc closes it, Enter would start OAuth, so do not press it).
+  `/plugin marketplace remove t002-mkt` → `✔ Removed 1 marketplace`.
+
+**Corrections to the written user step U1.** (1) Its "nothing below touches your settings except the install" is not
+right: `/plugin marketplace add` writes `extraKnownMarketplaces.<name>` into the **user** `settings.json` whatever scope
+the plugin later gets, and a saved `configure` writes `pluginConfigs` there too. (2) After a saved configuration,
+uninstall plus `marketplace remove` left a stub `"pluginConfigs": {},` in `settings.json` (after a skipped dialog, as with
+`pt3`, the file came back byte-identical). (3) The scope picker comes before the options screen.
+
+### U6 evidence — a second process answers the dialog
+
+```text
+$LIVE/u6/s-u6.json = PreToolUse(Bash) → ask.sh   (saves stdin; prints permissionDecision "ask",
+                                                    reason "u6-spike: hook ask on echo U6-PROBE")
+                     PostToolUse(Bash) → post.sh (saves stdin; a file exists only if the command ran)
+tmux -L live new-session -d -s u6A -c <trusted empty dir> env -i … ~/.local/bin/claude \
+     --settings $LIVE/u6/s-u6.json --model haiku --permission-mode default
+# a separate, detached process, started before the prompt:
+nohup env -i HOME PATH perl -MPOSIX -e 'POSIX::setsid(); exec @ARGV' $LIVE/u6/approver.sh u6A "echo U6-PROBE-A" Enter
+# typed into the pane: Use the Bash tool to run exactly this one command and nothing else: echo U6-PROBE-A
+```
+
+The approver polls `capture-pane` and acts only when the dialog is up: it sends the keys if the command line is exactly
+` echo U6-PROBE-A` and `Escape` otherwise. A first dry run (Esc, declined, no PostToolUse file) fixed the dialog layout:
+
+```text
+ Bash command / Echo the probe string
+╌╌╌╌╌╌╌╌╌╌╌╌╌
+ echo U6-PROBE-A
+╌╌╌╌╌╌╌╌╌╌╌╌╌
+ │ Hook PreToolUse:Bash requires confirmation for this command:
+ │ u6-spike: hook ask on echo U6-PROBE [settings]
+ Do you want to proceed?   ❯ 1. Yes   2. No   Esc to cancel · Tab to amend
+```
+
+```text
+approver.log: 14:03:07 approver pid=96749 ppid=96324 TMUX=unset: dialog for 'echo U6-PROBE-A' seen; sending: Enter
+              14:03:33 approver pid=99190 ppid=98753 TMUX=unset: dialog for 'echo U6-PROBE-B' seen; sending: 1
+final pane A: ⏺ The command ran and printed U6-PROBE-A.        final pane B: ⏺ The command printed U6-PROBE-B.
+PostToolUse A: {"command":"echo U6-PROBE-A", …} tool_response {"stdout":"U6-PROBE-A","stderr":"","interrupted":false, …}
+PostToolUse B: command "echo U6-PROBE-B", stdout "U6-PROBE-B"          PreToolUse payload: permission_mode "default"
+```
+
+Both keystroke forms work: `Enter` takes the pre-selected `1. Yes`; the digit alone selects and confirms. The approver's
+parent was not the claude process and its environment carried no `TMUX`, so this needs only the socket (`-L`/`-S`) or any
+other way to write to the pty, not a position inside the pane.
+
+### U5 evidence — Codex hook `ask`
+
+`$LIVE/u5/repo` is a scratch `git init` repo. Its `.codex/hooks.json` registers `PreToolUse` on `Bash` →
+`ask.sh` (saves stdin, prints `{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"ask",
+"permissionDecisionReason":"u5-spike: ask on echo U5-PROBE"}}`) and `PostToolUse` → `post.sh` (saves stdin).
+
+```text
+R=$LIVE/u5/repo
+env -i HOME USER LOGNAME TERM=dumb LANG PATH=<node>:/usr/bin:/bin  <codex 0.166.0> exec --json --ephemeral \
+  --dangerously-bypass-hook-trust -C $R -c 'projects={"<R>"={trust_level="trusted"}}' -c 'notify=[]' \
+  "Run this one shell command and nothing else: echo U5-PROBE"
+```
+
+Two traps found on the way (both change how U5 must be run):
+
+1. **`-c 'projects."<path>".trust_level="trusted"'` does nothing.** The override key is split on `.`
+   (`codex-rs/config/src/overrides.rs:22`, `path.split('.')`), so a quoted path segment never survives. The first two
+   runs silently had the project layer disabled: the hook never fired, and a deliberately malformed `.codex/hooks.json`
+   produced no warning. Passing the whole table as the *value* (`-c 'projects={"<R>"={trust_level="trusted"}}'`) works.
+2. **Hook trust.** `--dangerously-bypass-hook-trust` (present in 0.156.0 and 0.166.0) is per invocation. It was used instead
+   of granting trust in `/hooks`, which writes `[hooks.state…]` into `~/.codex/config.toml`. It does not touch the approval
+   policy or the sandbox. The user's own global `~/.codex/hooks.json` (cmux) registers a `PreToolUse` hook too, which is why two
+   `PreToolUse` lines appear.
+
+```text
+$ codex exec … (plain mode, 0.166.0)                                  # stderr, trimmed
+approval: never    sandbox: workspace-write [workdir, /tmp, $TMPDIR]
+hook: PreToolUse
+hook: PreToolUse
+hook: PreToolUse Completed                                            # presumably the user's global cmux hook
+hook: PreToolUse Failed                                               # our ask hook (the deny control prints `Blocked` here)
+exec  /bin/zsh -lc 'echo U5-PROBE-PLAIN' …  succeeded in 0ms:  U5-PROBE-PLAIN
+hook: PostToolUse … Completed
+```
+
+`ask.sh` captured `{"hook_event_name":"PreToolUse","permission_mode":"bypassPermissions","tool_name":"Bash","tool_input":
+{"command":"echo U5-PROBE"},…}` and `post.sh` a PostToolUse with `"tool_response":"U5-PROBE\n"`, so the command executed.
+(`permission_mode` is `bypassPermissions` here only because `exec` runs with `approval: never`, as `hook_runtime.rs:1073-1081`
+predicts.) `--json` mode prints no hook items, so the reason text needs the TUI. TUI run, same repo, same flags without
+`exec`/`--json`, plus `--no-alt-screen`; `/status` printed `Permissions: Workspace (Ask for approval)`:
+
+```text
+› Run this one shell command and nothing else: echo U5-PROBE-TUI
+• I'll run that command.
+• Hook failed
+  └ PreToolUse hook returned unsupported permissionDecision:ask
+• Ran echo U5-PROBE-TUI
+  └ U5-PROBE-TUI                      (hook payload permission_mode: "default")
+```
+
+Control, same repo with the hook returning `permissionDecision: "deny"`: `ERROR codex_core::tools::router: error=Command
+blocked by PreToolUse hook: u5-spike: deny control on echo U5-PROBE-CTL`, `hook: PreToolUse Blocked`, the model reported
+the block, and no `PostToolUse` file exists. So the hook path was live and `ask` alone failed open. Installed 0.156.0:
+the same `PreToolUse Failed` and `succeeded in 0ms`.
+
+### S1 evidence — Cursor CLI hook `ask`
+
+`$LIVE/s1/repo` (`git init`) has `.cursor/hooks.json` = `{"version":1,"hooks":{"beforeShellExecution":[{"command":
+".cursor/ask.sh"}],"afterShellExecution":[{"command":".cursor/after.sh"}]}}`; `ask.sh` saves stdin and prints
+`{"permission":"ask","user_message":"probe"}`; `after.sh` saves stdin. The user's global `~/.cursor/hooks.json` (cmux, a
+no-op without `CMUX_*`) loads too. All runs: `env -i … cursor-agent … --trust --model auto`.
+
+| run | flags | what happened |
+|---|---|---|
+| plain `-p` | `-p` | `⚠ Workspace Trust Required … Pass --trust, --yolo, or -f`, exit 1. A trust flag is mandatory in print mode. |
+| R1 | `-p --trust` | The model tried `echo S1-PROBE`, again, then `/bin/echo S1-PROBE`; each `Rejected:` with no reason; reported "rejected three times". Hook ran 3 times. |
+| C0 (control) | `-p --trust`, **no hook** | Identical: rejected three times. `echo` is not allowlisted (`~/.cursor/cli-config.json` has `Shell(ls)` only). |
+| R2 | `-p --trust --yolo` | Hook ran once; `afterShellExecution` payload `output: "S1-PROBE-R2\n"`; the model printed it. **Ran.** |
+| I1 | interactive, `--trust` | Card (below); `y` → `$ echo S1-PROBE-I1 8.7s`, `afterShellExecution` `output: "S1-PROBE-I1\n"`. |
+| I2 | interactive, `--trust --yolo` | Hook ran (`before.*.json` exists); **no card**; `$ echo S1-PROBE-I2 2.1s`, `output: "S1-PROBE-I2\n"`. |
+
+```text
+  $ echo S1-PROBE-I1 Waiting for approval...
+ $  echo S1-PROBE-I1 in .
+ Run this command?
+ Hook requested approval: probe • Not in allowlist: echo
+  → Run (once) (y)
+    Run Everything (shift+tab)
+    Skip & tell the agent what to do instead (esc or n)
+```
+
+Notes: (1) `afterShellExecution` fires for a **rejected** command too (R1: `output: ""`, `duration` ~700 ms), so it is
+not evidence that a command ran; the pane text and `output` are. (2) The card carries no "always allow" choice, matching
+the source-cited `canAllowlist=false`. (3) The `user_message` is shown as `Hook requested approval: <user_message>`, and
+the allowlist reason is appended after a bullet. (4) The payload carries `command`, `cwd` (empty here), `sandbox`,
+`workspace_roots`, `conversation_id`, `cursor_version`. (5) `--trust` persisted a `.workspace-trusted` file under
+`~/.cursor/projects/<scratch path>/`; that directory was archived to `$LIVE/s1/cursor-project-state` and removed.
+
+### Before/after proof of the user's config
+
+Recorded with `stat -f '%Sm %z'` and `shasum -a 256` (first 16 hex) before the first command and after the last.
+
+| file | before | after | what happened |
+|---|---|---|---|
+| `~/.claude/settings.json` | 2026-11-03T22:55:58, 8529 B, `47f9808a32cf78e0` | 2026-11-04T14:26:37, 8529 B, `47f9808a32cf78e0` | **Byte-identical; mtime moved.** U1's own writes (`extraKnownMarketplaces.t002-mkt`, `pluginConfigs`, and the `"pluginConfigs": {}` stub left after uninstall). The original bytes were reconstructed from a snapshot minus the added keys and the result hashed to the recorded value *before* anything was written back; `diff` then confirmed it. |
+| `~/.claude/settings.local.json` | 2026-08-12T09:54:13, 276 B, `92075d73b5f238f9` | same | untouched |
+| `~/.claude/plugins/installed_plugins.json` | 15122 B, `c24351ffe9f25311` | `c24351ffe9f25311` | equal (parsed JSON compare also equal) |
+| `~/.claude/plugins/known_marketplaces.json` | four entries | the same four | `t002-mkt` and `live-mkt3` added, then removed; the only differences from the snapshot are two `lastUpdated` stamps (`claude-plugins-official`, `tamirs-marketplace`) the host refreshes at startup |
+| `claude plugin list`, `claude plugin marketplace list` | saved | `diff` empty (twice: after `pt2`, after `pt3`) | restored; also removed `~/.claude/plugins/cache/{t002-mkt,live-mkt3}` (orphaned scratch copies) |
+| `~/.codex/config.toml` | 2026-11-03T21:35:31, 10275 B, `122994006f141a14` | 2026-11-04T14:25:05, 10275 B, `122994006f141a14` | **Byte-identical; mtime moved.** `codex exec` never touched it; launching the Codex **TUI** at 14:09:48 appended `[tui] screen_reader_detection_done = true` and `[tui.model_availability_nux] "gpt-6.1-sol" = 1` (+91 B, host housekeeping). Removing exactly those lines reproduced the recorded hash, then the file was written back. No `[projects…]` or `[hooks.state…]` entry was added. |
+| `~/.codex/hooks.json` | 2026-08-31T22:04:18, 2845 B, `1593ca26c17f7c58` | same | untouched |
+| `~/.cursor/hooks.json` | 2026-08-31T22:04:22, 3813 B, `531c80218c796c31` | same | untouched |
+| `~/.cursor/cli-config.json` | 2026-11-01T22:10:34, 1483 B, `5ca38dfb68c14784` | 1483 → 2088 B | **Not byte-restorable, and not a config edit of ours.** `cursor-agent` rewrites it on every invocation: it refreshes `privacyCache.updatedAt` (first call, `status`, 14:11:04, before any probe) and adds `autoReviewAvailabilityCache` and `serverConfigCache`. The one preference it flipped, `hasChangedDefaultModel` false → true (from passing `--model auto`), was set back to `false`. `permissions`, `approvalMode`, `model` and the rest are unchanged against a 14:11 snapshot. |
+| `~/.cursor/projects/` | 58 entries | 58 | the scratch workspace's entry (with `.workspace-trusted`) was archived under `$LIVE` and removed |
+
+Left in place as ordinary tool state (session history, not config): the Codex TUI rollout under
+`~/.codex/sessions/2026/11/04/`, Claude transcripts for the scratch directories under `~/.claude/projects/`, and the
+`~/.claude.json` project entries those sessions touch. Nothing was pushed or committed.
+
+## Impact on ADR 004 D8 (live checks)
+
+Question for each: does it let a softer `ask` replace a `deny` anywhere?
+
+1. **U1: no, and not an enforcement item.** It turns two doc-cited D3/D7 statements into measured ones: the install picker
+   exists, opens on the declared default (not merely the first option), accepts with two Enters or is skipped, and a saved
+   value lands in `<home>/.claude/settings.json` `pluginConfigs` even for a local-scope install, so D3's "a Claude
+   project-scope install carries no preset" holds and the install scope does not move the store. A skipped dialog stores
+   nothing, which is D7's "reported not yet set until stored" case (runtime default `supervised`, C1).
+2. **U6: no, it removes ground.** The D5 dialog is a human channel only while nothing the agent can start can write to the
+   terminal's pty. A second process answered it with `Enter` or a bare `1`. For Claude R4 (hook `ask` is "the only R4
+   route") that makes `tty.drive` classification load-bearing rather than hardening: keep it R4, and close the two gaps
+   recorded under Impact 4 above (`tmux -L/-S/-f` global options in `actions.json`; `cmux send*`, `wezterm cli
+   send-text`, `kitty @ send-text`, `zellij action write-chars` absent). A wrapper script stays invisible to the parser,
+   the accepted open risk. The D8 Claude cell "E: hook `ask` ... Esc rejects" stays true for a human and should say it
+   is not proof against same-user automation.
+3. **U5: no.** Measured fail-open on both versions, `deny` blocks. The Codex row stays "E, deny only"; R4 always `deny`
+   naming the out-of-session route; the canary and "guard traps every error to a deny" cells stand. `ask` on Codex is
+   a visible `Hook failed` line, never a prompt.
+4. **S1: no, and it narrows the Cursor CLI cell.** D8 currently says "after S1, R4 and `confirm` via `beforeShellExecution`
+   ask". Measured: `ask` produces a real card only in interactive mode **without** Run Everything; under `--yolo` it is
+   silently ignored (print and interactive), and in print mode without force it is a reject indistinguishable from "not
+   allowlisted". So on the Cursor CLI R3/R4 stay `deny` (`failClosed: true`), and `ask` may be added only as a courtesy
+   layer for the interactive, non-yolo path, never as the thing that holds. The Cursor desktop cell stays unverified (S2).
+   The source-cited claim in `cursor-gemini-opencode.md` U1 and the "L3 host ask" cell should be changed from
+   "forces a prompt in every approval mode" to the measured condition.
