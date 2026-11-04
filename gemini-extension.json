@@ -18,6 +18,12 @@
       "description": "GitHub personal access token (repo scope) for the bundled github MCP server. Stored in the system keychain and handed to scripts/github-mcp.sh as GITHUB_PERSONAL_ACCESS_TOKEN; nothing else in the extension reads it. Leave it empty to keep the server off - it refuses to start without one.",
       "envVar": "GITHUB_PERSONAL_ACCESS_TOKEN",
       "sensitive": true
+    },
+    {
+      "name": "TS_PERMISSION_LEVEL",
+      "description": "Permission level for this plugin's own actions: supervised (the default: pushes, PRs and everything riskier ask first), standard (routine PR work runs, merges and deletions ask) or unattended (also runs the few listed actions whose precondition holds, such as auto-merge with required checks). R4 actions (releases and tags, creating or deleting a repository, host and policy config) are never automatic at any level, and no level widens what Gemini itself asks. Leave it empty for supervised. The plugin validates the value: anything other than supervised, standard or unattended counts as supervised, with a warning. Change it later with `gemini extensions config tamirs-superpowers TS_PERMISSION_LEVEL` in your own terminal.",
+      "envVar": "TS_PERMISSION_LEVEL",
+      "sensitive": false
     }
   ]
 }

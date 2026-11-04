@@ -3,21 +3,47 @@
 // Runs with plain Node (`node --test rules.test.mjs`): Node 22.18+ strips the
 // types from rules.ts on import, so no OpenCode host, no npm install and no
 // build step are needed. tests/test-opencode-v2.sh runs this file.
+//
+// The ADR 004 tests at the end also read core/permissions/actions.json and
+// hooks/lib/write-targets.py (the protected-path table must equal both), read
+// guard.ts as text (what it must never call), and run hooks/permission-guard.sh on
+// the payload pgPayload builds, through a wrapper the resolver trusts for its test
+// root (no real permission file is read). Those skip when bash, jq or python3 is missing.
 import { test } from "node:test"
 import assert from "node:assert/strict"
+import { execFileSync, spawnSync } from "node:child_process"
+import { chmodSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs"
+import { tmpdir } from "node:os"
+import path from "node:path"
+import { fileURLToPath } from "node:url"
 import {
   activeObjectiveId,
   claimKey,
+  deliverAsDeny,
   effectiveSegments,
+  githubMcpTool,
   gitPushes,
+  globTailRegex,
   inspectClaim,
   isAgentWorkspacePath,
   judgeEdit,
   judgePush,
+  opencodeReason,
+  PG_MCP_PREFIX,
+  pgEnv,
+  pgPayload,
+  pgVerdict,
+  PROTECTED_PATHS,
+  PROTECTED_REMEDY,
+  protectedHits,
+  protectedReason,
   sensitiveReason,
   shellSegments,
   shellWriteTargets,
 } from "./rules.ts"
+
+const HERE = path.dirname(fileURLToPath(import.meta.url))
+const ROOT = path.resolve(HERE, "..", "..", "..")
 
 const MAIN = "/work/proj"
 const facts = (over = {}) => ({ mainRoot: MAIN, objectiveId: "obj-1", claudeConfigRoot: "/work/dot/.claude", globalWorktreeRoot: "/work/dot/.claude/worktrees", ...over })
@@ -47,8 +73,7 @@ test("writes inside an objective worktree, a legacy worktree, or the Claude conf
 test("sensitive paths are denied regardless of the tool doing the writing", () => {
   assert.match(sensitiveReason(`${MAIN}/package-lock.json`), /lockfile/)
   assert.match(sensitiveReason(`${MAIN}/Cargo.lock`), /lockfile/)
-  assert.match(sensitiveReason(`${MAIN}/.github/workflows/ci.yml`, { remoteIsGithub: true }), /GitHub MCP/)
-  assert.match(sensitiveReason(`${MAIN}/.github/workflows/ci.yml`, { remoteIsGithub: false }), /GitHub host's API/)
+  assert.match(sensitiveReason(`${MAIN}/.github/workflows/ci.yml`), /R4 action \(workflow\.edit\): ask the user to approve this exact change/)
   assert.match(sensitiveReason(`${MAIN}/.yarn/releases/yarn-4.cjs`), /vendored Yarn/)
   assert.match(sensitiveReason(`${MAIN}/src/components/ui/button.tsx`, { repoRoot: MAIN, hasShadcnConfig: true }), /shadcn/)
   assert.equal(sensitiveReason(`${MAIN}/src/components/ui/button.tsx`, { repoRoot: MAIN, hasShadcnConfig: false }), null)
@@ -147,4 +172,222 @@ test("shell write targets: redirects, tee, sed -i, cp/mv, rm", () => {
   assert.deepEqual(paths("rm -rf dist/"), ["delete:dist/"])
   assert.deepEqual(paths(`git commit -m "see > notes"`), [])
   assert.deepEqual(paths("grep -r 'pattern' src"), [])
+})
+
+// ------------------------------------------------------------- ADR 004 ---
+
+test("no deny text points at a bypass: no GitHub MCP write tool, no PM_ALLOW_PROTECTED (D10.5)", () => {
+  const texts = [
+    sensitiveReason(`${MAIN}/package-lock.json`),
+    sensitiveReason(`${MAIN}/.yarn/releases/yarn-4.cjs`),
+    sensitiveReason(`${MAIN}/.github/workflows/ci.yml`),
+    sensitiveReason(`${MAIN}/src/components/ui/button.tsx`, { repoRoot: MAIN, hasShadcnConfig: true }),
+    sensitiveReason(`${MAIN}/dist/bundle.js`, { repoRoot: MAIN, gitIgnored: true }),
+    PROTECTED_REMEDY,
+  ]
+  for (const t of texts) {
+    assert.ok(t)
+    assert.doesNotMatch(t, /create_or_update_file|PM_ALLOW_PROTECTED|GitHub MCP/)
+  }
+  const src = readFileSync(path.join(HERE, "rules.ts"), "utf8")
+  assert.doesNotMatch(src, /create_or_update_file/)
+})
+
+test("the protected-path table equals core/permissions/actions.json and write-targets.py's fallback", () => {
+  const cat = JSON.parse(readFileSync(path.join(ROOT, "core", "permissions", "actions.json"), "utf8"))
+  const byId = Object.fromEntries(cat.actions.map((a) => [a.id, a]))
+  for (const id of Object.keys(PROTECTED_PATHS)) {
+    assert.deepEqual([...PROTECTED_PATHS[id]], byId[id].equivalents.paths, `${id} differs from actions.json`)
+  }
+  const py = readFileSync(path.join(ROOT, "hooks", "lib", "write-targets.py"), "utf8")
+  const block = py.slice(py.indexOf("FALLBACK_PROTECTED = {"), py.indexOf("GLOB_CHARS"))
+  for (const id of Object.keys(PROTECTED_PATHS)) {
+    const m = new RegExp(`"${id.replace(".", "\\.")}": \\[([^\\]]*)\\]`).exec(block)
+    assert.ok(m, `write-targets.py has no ${id} fallback`)
+    assert.deepEqual([...m[1].matchAll(/"([^"]+)"/g)].map((x) => x[1]), [...PROTECTED_PATHS[id]], `${id} differs from write-targets.py`)
+  }
+})
+
+const H = "/Users/you"
+const PLUG = "/opt/ts"
+const pfacts = (over = {}) => ({
+  homes: [H],
+  pluginRoots: [{ root: PLUG, sourceCheckout: false }],
+  isRepoRoot: (d) => d === "/work/proj",
+  ...over,
+})
+
+test("glob tails: ** crosses directories, * does not, a /** tail also matches the directory itself", () => {
+  const rx = (t) => new RegExp("^" + globTailRegex(t) + "$")
+  assert.ok(rx(".config/opencode/**").test(".config/opencode/opencode.json"))
+  assert.ok(rx(".config/opencode/**").test(".config/opencode"))
+  assert.ok(rx(".config/opencode/**").test(".config/opencode/a/b"))
+  assert.ok(rx(".claude/settings*.json").test(".claude/settings.local.json"))
+  assert.ok(!rx(".claude/settings*.json").test(".claude/x/settings.json"))
+  assert.ok(!rx(".gitconfig").test(".gitconfigx"))
+})
+
+test("protected paths: home, repo and plugin-root rules, with deny over ask", () => {
+  const hit = (p, over, containing) => protectedHits([p], pfacts(over), containing).map((h) => `${h.mode}:${h.id}`)
+  assert.deepEqual(hit(`${H}/.config/tamirs-superpowers/permissions.json`), ["deny:policy.edit"])
+  assert.deepEqual(hit(`${H}/.gemini/settings.json`), ["deny:policy.edit"])
+  assert.deepEqual(hit(`${H}/.config/opencode/opencode.json`), ["deny:policy.edit"])
+  assert.deepEqual(hit(`${H}/.gitconfig`), ["deny:policy.edit"])
+  assert.deepEqual(hit("/work/proj/opencode.json"), ["deny:policy.edit"])
+  assert.deepEqual(hit("/work/proj/.opencode/agents/x.md"), ["deny:policy.edit"])
+  assert.deepEqual(hit("/work/proj/.tamirs-superpowers/permissions.json"), ["deny:policy.edit"])
+  assert.deepEqual(hit("/work/proj/.git/hooks/pre-commit"), ["deny:config.global.write"])
+  assert.deepEqual(hit("/work/proj/.git/config"), ["deny:config.global.write"])
+  // {repo} means a repository root, not any directory: a nested opencode.json is ordinary.
+  assert.deepEqual(hit("/work/proj/platforms/opencode/templates/opencode.json"), [])
+  assert.deepEqual(hit("/work/proj/src/app.ts"), [])
+  assert.deepEqual(hit(`${H}/.gemini/tmp/plans/plan.md`), [])
+  // The running plugin's guard files: deny when installed, an R4 ask in a source checkout.
+  assert.deepEqual(hit(`${PLUG}/hooks/permission-guard.sh`), ["deny:policy.edit"])
+  assert.deepEqual(hit(`${PLUG}/hooks/lib/x.sh`, { pluginRoots: [{ root: PLUG, sourceCheckout: true }] }), ["ask:policy.edit"])
+  assert.deepEqual(hit(`${PLUG}/scripts/resolve-permission.sh`), ["deny:policy.edit"])
+  assert.deepEqual(hit(`${PLUG}/scripts/other.sh`), [])
+  // Deleting a directory that holds a protected home path counts as deleting it; a repo root does not.
+  assert.deepEqual(
+    protectedHits([`${H}/.config`], pfacts(), true).map((h) => h.pattern),
+    ["{home}/.config/tamirs-superpowers/**", "{home}/.config/opencode/**", "{home}/.config/gh/**"],
+  )
+  assert.deepEqual(hit(`${H}/.config`), [], "without containing, the directory itself is not one of the paths")
+  assert.deepEqual(hit("/work/proj", {}, true), [])
+  // A second spelling (the realpath) is judged too.
+  assert.deepEqual(protectedHits(["/tmp/link", `${H}/.gitconfig`], pfacts()).map((h) => h.form), [`${H}/.gitconfig`])
+})
+
+test("protectedReason: R4 wording, deny beats ask, the realpath named, no bypass named", () => {
+  const d = protectedReason(`${H}/.config/opencode/opencode.json`, [`${H}/.config/opencode/opencode.json`], pfacts(), "write", "tee")
+  assert.equal(d.mode, "deny")
+  assert.match(d.reason, /^BLOCKED: '.*' would be written, and it is protected as policy\.edit \(R4; matches \{home\}\/\.config\/opencode\/\*\*\)\. \(via: tee\)/)
+  assert.ok(d.reason.endsWith(PROTECTED_REMEDY))
+  const r = protectedReason("/tmp/x", ["/tmp/x", `${H}/.gitconfig`], pfacts(), "link", "ln")
+  assert.match(r.reason, /resolves to '\/Users\/you\/\.gitconfig'.*would become reachable through a new link/)
+  const a = protectedReason(`${PLUG}/hooks/x.sh`, [`${PLUG}/hooks/x.sh`], pfacts({ pluginRoots: [{ root: PLUG, sourceCheckout: true }] }))
+  assert.equal(a.mode, "ask")
+  assert.match(a.reason, /^R4 ASK: .*source checkout/)
+  const both = protectedReason(`${PLUG}/hooks/x.sh`, [`${PLUG}/hooks/x.sh`, `${H}/.gitconfig`], pfacts({ pluginRoots: [{ root: PLUG, sourceCheckout: true }] }))
+  assert.equal(both.mode, "deny")
+  assert.equal(protectedReason("/work/proj/src/a.ts", ["/work/proj/src/a.ts"], pfacts()), null)
+})
+
+test("an R4 ask leaves OpenCode as a deny (D8: --auto approves a plugin ask)", () => {
+  const d = deliverAsDeny("R4 ASK: x.")
+  assert.equal(d.effect, "deny")
+  assert.match(d.reason, /delivered as a deny \(ADR 004 D8\)/)
+})
+
+test("shell write targets: mv and ln sources, -t DIR", () => {
+  const paths = (cmd) => shellWriteTargets(cmd).map((t) => `${t.kind}:${t.path}${t.linkAt ? "@" + t.linkAt : ""}`)
+  assert.deepEqual(paths("mv ~/.gitconfig /tmp/g"), ["write:/tmp/g", "move:~/.gitconfig"])
+  assert.deepEqual(paths("ln -s ../hooks/permission-guard.sh x.sh"), ["write:x.sh", "link:../hooks/permission-guard.sh@x.sh"])
+  assert.deepEqual(paths("ln /a/b /c/d"), ["write:/c/d", "link:/a/b"])
+  assert.deepEqual(paths("cp -t dist a.js b.js"), ["write:dist"])
+  assert.deepEqual(paths("mv -t dist a.js b.js"), ["write:dist", "move:a.js", "move:b.js"])
+  assert.deepEqual(paths("cp src.js dist/bundle.js"), ["write:dist/bundle.js"])
+})
+
+test("GitHub MCP actions map onto the guard's tool names; nothing else does", () => {
+  assert.equal(githubMcpTool("github_merge_pull_request"), "merge_pull_request")
+  assert.equal(githubMcpTool("github_create_or_update_file"), "create_or_update_file")
+  assert.equal(githubMcpTool("shell"), null)
+  assert.equal(githubMcpTool("edit"), null)
+  assert.equal(githubMcpTool("gitlab_merge"), null)
+  assert.equal(githubMcpTool("github_"), null)
+})
+
+test("pgPayload: the Codex dialect (deny only, no option store), Claude tool names", () => {
+  const sh = pgPayload({ kind: "shell", command: "gh pr create", cwd: "/w" }, "s1")
+  assert.deepEqual(sh, { session_id: "s1", turn_id: "opencode", hook_event_name: "PreToolUse", cwd: "/w", tool_name: "Bash", tool_input: { command: "gh pr create" } })
+  const m = pgPayload({ kind: "mcp", tool: "merge_pull_request", input: { pullNumber: 3 }, cwd: "/w" }, "")
+  assert.equal(m.tool_name, PG_MCP_PREFIX + "merge_pull_request")
+  assert.deepEqual(m.tool_input, { pullNumber: 3 })
+  assert.equal(m.session_id, "opencode")
+  assert.deepEqual(pgPayload({ kind: "mcp", tool: "x", input: "nope", cwd: "/w" }, "s").tool_input, {})
+})
+
+test("pgEnv drops what would make the guard judge as another host", () => {
+  const e = pgEnv({ PATH: "/bin", GEMINI_SESSION_ID: "g", GEMINI_PROJECT_DIR: "/p", GEMINI_CWD: "/c", CODEX_HOME: "/x", HOME: "/h", U: undefined })
+  assert.deepEqual(e, { PATH: "/bin", HOME: "/h" })
+})
+
+test("pgVerdict: {} is the only allow; deny keeps its reason; ask, garbage and silence are denies", () => {
+  assert.equal(pgVerdict("{}\n").effect, "allow")
+  assert.equal(pgVerdict('{"hookSpecificOutput":{"permissionDecision":"allow"}}').effect, "allow")
+  const reason = "tamirs-superpowers permission guard (ADR 004): denied pr.create (R2). asks: level supervised ceiling for R2; codex cannot carry a hook ask (it would run the call unchecked), so the ask is delivered as a deny (D8). To allow it: codex has no host-attested channel: x."
+  const d = pgVerdict(JSON.stringify({ hookSpecificOutput: { hookEventName: "PreToolUse", permissionDecision: "deny", permissionDecisionReason: reason } }))
+  assert.equal(d.effect, "deny")
+  assert.match(d.reason, /opencode cannot carry a plugin ask \(`opencode --auto` approves it, measured O1\)/)
+  assert.match(d.reason, /opencode has no host-attested channel/)
+  assert.doesNotMatch(d.reason, /codex/)
+  assert.equal(pgVerdict('{"hookSpecificOutput":{"permissionDecision":"ask","permissionDecisionReason":"r"}}').effect, "deny")
+  for (const bad of ["", "not json", "[]", "null", '{"systemMessage":"x"}', '{"hookSpecificOutput":{}}']) {
+    assert.equal(pgVerdict(bad).effect, "deny", `${JSON.stringify(bad)} must deny`)
+  }
+  assert.equal(opencodeReason("plain"), "plain")
+})
+
+test("guard.ts never widens: no session.update, no allow or ask effect, PG run as is (D8, D10.4)", () => {
+  const g = readFileSync(path.join(HERE, "guard.ts"), "utf8")
+  assert.doesNotMatch(g, /\.session\.update\(/)
+  assert.doesNotMatch(g, /effect\s*=\s*"(allow|ask)"/)
+  assert.doesNotMatch(g, /permission\.assert\(/)
+  assert.match(g, /execFileSync\("bash", \[PERMISSION_GUARD\]/)
+  assert.match(g, /path\.join\(PLUGIN_ROOT, "hooks", "permission-guard\.sh"\)/)
+  // The legacy switch is read once and never gates the permission guard call.
+  assert.match(g, /const legacy = process\.env\.TAMIRS_OPENCODE_GUARD !== "0"/)
+  assert.doesNotMatch(g, /TAMIRS_OPENCODE_GUARD === "0"\) return/)
+})
+
+// --- hooks/permission-guard.sh on the payload pgPayload builds (hermetic resolver) ---
+const have = (bin) => spawnSync("sh", ["-c", `command -v ${bin}`]).status === 0
+const canRun = have("bash") && have("jq") && have("python3")
+
+function pgHarness() {
+  const t = realpathSync(mkdtempSync(path.join(tmpdir(), "ts-oc-pg-")))
+  chmodSync(t, 0o700)
+  const ph = path.join(t, "passwd-home")
+  execFileSync("mkdir", ["-m", "700", ph])
+  // The resolver honours TAMIRS_PERMISSION_TEST_ROOT only under an ancestor running a file of this name.
+  const w = path.join(t, "test-resolve-permission.sh")
+  writeFileSync(w, '#!/usr/bin/env bash\n"$@"\nrc=$?\nexit "$rc"\n')
+  const env = pgEnv({ ...process.env, TAMIRS_PERMISSION_TEST_ROOT: ph, HOME: path.join(t, "env-home") })
+  delete env.TS_PERMISSION_LEVEL
+  delete env.TAMIRS_AUTO_MERGE
+  const run = (call) =>
+    pgVerdict(
+      execFileSync("bash", [w, "bash", path.join(ROOT, "hooks", "permission-guard.sh")], {
+        input: JSON.stringify(pgPayload(call, "s")),
+        encoding: "utf8",
+        env,
+        stdio: ["pipe", "pipe", "ignore"],
+      }),
+    )
+  const home = execFileSync("bash", [w, "bash", path.join(ROOT, "scripts", "resolve-permission.sh"), "repo.read", "--json"], { encoding: "utf8", env })
+  return { t, run, homeSource: JSON.parse(home).home_source }
+}
+
+test("the real permission guard behind pgPayload/pgVerdict: allows ordinary calls, never asks", { skip: !canRun && "bash, jq or python3 missing" }, () => {
+  const h = pgHarness()
+  try {
+    assert.equal(h.homeSource, "test-root", "the resolver must read the temp passwd home, never the real one")
+    const sh = (command) => h.run({ kind: "shell", command, cwd: h.t })
+    assert.equal(sh("ls -la").effect, "allow")
+    assert.equal(sh("git status").effect, "allow")
+    for (const c of ["gh pr create --fill", "gh repo create me/x --private", "claude -p hi", "gh frobnicate --now", "gemini extensions config tamirs-superpowers TS_PERMISSION_LEVEL"]) {
+      const d = sh(c)
+      assert.equal(d.effect, "deny", `${c} must be a deny at supervised on OpenCode`)
+      assert.match(d.reason, /tamirs-superpowers permission guard/)
+      assert.doesNotMatch(d.reason, /\bcodex\b/)
+    }
+    const mcp = (tool, input) => h.run({ kind: "mcp", tool, input, cwd: h.t })
+    assert.equal(mcp("get_file_contents", { owner: "o", repo: "r", path: "README.md" }).effect, "allow")
+    assert.equal(mcp("merge_pull_request", { owner: "o", repo: "r", pullNumber: 1 }).effect, "deny")
+    assert.equal(mcp("delete_repository", { owner: "o", repo: "r" }).effect, "deny")
+    assert.equal(mcp("no_such_tool", {}).effect, "deny", "an unknown tool of the server is UNCLASSIFIED (R4)")
+  } finally {
+    rmSync(h.t, { recursive: true, force: true })
+  }
 })
