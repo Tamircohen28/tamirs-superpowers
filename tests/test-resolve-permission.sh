@@ -688,4 +688,21 @@ else
   bad "orphaned process" "no answer within 15s"
 fi
 
+# A permission suite NAMED in an ancestor's arguments is not a suite being run (think
+# `claude -p "run tests/test-permission-guard.sh"`): an orphan whose own argument list
+# carries the path of every allowlisted suite still gets the real passwd home.
+D2="$TMP/detached-named"; mkdir -p "$D2"
+( exec /bin/sh -c 'sleep 1; cd "$4"; TAMIRS_PERMISSION_TEST_ROOT="$1" bash "$2" --level --host codex > "$3/out" 2>/dev/null; echo $? > "$3/rc"' \
+    sh "$H" "$RESOLVE" "$D2" "$NOWHERE" "$ROOT/tests/test-resolve-permission.sh" "$ROOT/tests/test-permission-guard.sh" \
+    "$ROOT/tests/test-setup-permission-level.sh" "$ROOT/tests/test-merge-policy.sh" >/dev/null 2>&1 & )
+n=0
+while [ ! -s "$D2/rc" ] && [ "$n" -lt 150 ]; do sleep 0.1; n=$((n + 1)); done
+if [ -s "$D2/rc" ]; then
+  OUT="$(cat "$D2/out")"
+  judge "a suite named, not run, by an ancestor: real passwd home" passwd "$(jf .home_source)"
+  judge "  ... and the warning lists the suites that count" yes "$(has "$(jf '.warnings | join(" ")')" "test-merge-policy.sh")"
+else
+  bad "orphaned process naming the suites" "no answer within 15s"
+fi
+
 harness_summary

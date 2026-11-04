@@ -14,24 +14,30 @@
 #   4. fail closed: no resolver, a resolver that crashes or prints garbage, a corrupt
 #      catalog, no python3, no jq, a non-JSON payload, a NUL byte: all deny;
 #   5. the conditions PG establishes locally (default branch, tag refs, uncommitted and
-#      unpushed work) and the context it refuses to guess (cd chains, export);
+#      unpushed work), the ones it reads from GitHub under one 3 s deadline (the default
+#      branch with no refs/remotes/<remote>/HEAD, required checks for gh pr merge --admin)
+#      and the context it refuses to guess (cd chains, export, GH_REPO=);
 #   6. levels through a real user file + lock (standard), the call stamp (D8), the
 #      policy.edit forms (setup.sh --permission-level, plugin-config.sh, host config CLIs);
 #   7. hook_ask's dialects, the shared tokeniser's two modes, and the hook wiring.
 #
 # HERMETIC
 #   The resolver reads the passwd home, never HOME. Its test override,
-#   TAMIRS_PERMISSION_TEST_ROOT, is honoured only under an ancestor process running a
-#   file named test-resolve-permission.sh (scripts/lib/permission-common.sh header), so
-#   every hook run here goes through a two-line wrapper of that name in the temp dir.
+#   TAMIRS_PERMISSION_TEST_ROOT, is honoured only under an ancestor shell running one of
+#   the permission suites, this one included (scripts/lib/permission-common.sh header).
 #   The first check proves the override took; without it the suite stops rather than
-#   judge the developer's own permission file. No network, no gh, no model call.
+#   judge the developer's own permission file. Every gh PG's lookups run is
+#   tests/lib/fake-gh.sh, first on PATH, with `gh pr checks` (which the shim does not
+#   serve) answered from files in the temp dir by a wrapper that hands every other call
+#   to the shim. No network, no model call.
 #
 # Bash 3.2 compatible.
 set -uo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 # shellcheck source=tests/lib/harness.sh
 source "$ROOT/tests/lib/harness.sh"
+# shellcheck source=tests/lib/fake-gh.sh
+source "$ROOT/tests/lib/fake-gh.sh"
 harness_require jq python3 git
 
 HOOK="$ROOT/hooks/permission-guard.sh"
@@ -49,18 +55,37 @@ unset CODEX_HOME GEMINI_SESSION_ID GEMINI_PROJECT_DIR GEMINI_CWD TS_PERMISSION_L
   CLAUDE_PLUGIN_OPTION_PERMISSION_LEVEL TAMIRS_AUTO_MERGE GH_REPO GH_HOST PLUGIN_ROOT PLUGIN_DATA \
   CLAUDE_PLUGIN_ROOT CURSOR_PLUGIN_ROOT 2>/dev/null || true
 
-W="$T/bin/test-resolve-permission.sh"
-mkdir -p "$T/bin"
-cat > "$W" <<'SH'
+# gh: tests/lib/fake-gh.sh, first on PATH. Scenario dir $FX/none serves nothing, so a
+# lookup PG makes fails (unknown) unless a case switches scenario. `gh pr checks` is
+# answered from $CHK.json / $CHK.rc / $CHK.sleep (absent json = gh exits 1, as gh does
+# when no required check is reported) and logged beside the shim's own lines.
+FX="$T/fx"
+mkdir -p "$FX/_defaults" "$FX/none" "$FX/develop" "$FX/feat-default" "$FX/slow"
+printf '{"defaultBranchRef":{"name":"develop"}}\n' > "$FX/develop/repo-view.json"
+printf '{"defaultBranchRef":{"name":"feat"}}\n' > "$FX/feat-default/repo-view.json"
+printf '{"defaultBranchRef":{"name":"develop"}}\n' > "$FX/slow/repo-view.json"
+fake_gh_install "$T/bin" "$T/gh.log" "$FX/none"
+CHK="$T/checks"
+cat > "$T/bin/gh" <<SH
 #!/usr/bin/env bash
-# Named so the resolver honours TAMIRS_PERMISSION_TEST_ROOT below this process. Not exec: it must stay the ancestor.
-"$@"
-rc=$?
-exit "$rc"
+# fake-gh.sh, plus the two answers it does not serve: gh pr checks, and a slow scenario.
+case "\$FAKE_GH_FIXTURES" in */slow) sleep 6 ;; esac
+if [ "\${1:-}" = pr ] && [ "\${2:-}" = checks ]; then
+  printf '0\tGET\tgh:pr/checks\t-\t%s\n' "\$*" >> "\$FAKE_GH_LOG"
+  [ -f "$CHK.sleep" ] && sleep "\$(cat "$CHK.sleep")"
+  [ -f "$CHK.json" ] || { echo "no required checks reported on the 'feat' branch" >&2; exit 1; }
+  cat "$CHK.json"
+  exit "\$(cat "$CHK.rc" 2>/dev/null || echo 0)"
+fi
+exec bash "$ROOT/tests/lib/fake-gh.sh" "\$@"
 SH
+chmod +x "$T/bin/gh"
+export PATH="$T/bin:$PATH"
+checks() { rm -f "$CHK.json" "$CHK.rc" "$CHK.sleep"; [ "$#" -gt 0 ] && printf '%s\n' "$1" > "$CHK.json"; [ -n "${2:-}" ] && printf '%s\n' "$2" > "$CHK.rc"; return 0; }
 
 section "the suite is hermetic"
-hs="$(bash "$W" bash "$ROOT/scripts/resolve-permission.sh" repo.read --json 2>/dev/null | jq -r '.home_source // empty')"
+judge "gh is the fake (tests/lib/fake-gh.sh)" yes "$(gh --version 2>/dev/null | grep -q fake-gh && echo yes || echo no)"
+hs="$(bash "$ROOT/scripts/resolve-permission.sh" repo.read --json 2>/dev/null | jq -r '.home_source // empty')"
 if [ "$hs" != "test-root" ]; then
   echo "FATAL: the resolver did not take TAMIRS_PERMISSION_TEST_ROOT (home_source=$hs); refusing to judge the real permission file" >&2
   exit 1
@@ -101,9 +126,9 @@ OUT="" RC=0 ERR=""
 run_pg() {
   local dialect="$1" payload="$2" hook="${3:-$HOOK}" errf="$T/err.$$"
   case "$dialect" in
-    codex)  OUT="$(printf '%s' "$payload" | CODEX_HOME="$T/codex-home" bash "$W" bash "$hook" 2>"$errf")" ;;
-    gemini) OUT="$(printf '%s' "$payload" | GEMINI_SESSION_ID=g-1 GEMINI_PROJECT_DIR="$REPO" bash "$W" bash "$hook" 2>"$errf")" ;;
-    *)      OUT="$(printf '%s' "$payload" | bash "$W" bash "$hook" 2>"$errf")" ;;
+    codex)  OUT="$(printf '%s' "$payload" | CODEX_HOME="$T/codex-home" bash "$hook" 2>"$errf")" ;;
+    gemini) OUT="$(printf '%s' "$payload" | GEMINI_SESSION_ID=g-1 GEMINI_PROJECT_DIR="$REPO" bash "$hook" 2>"$errf")" ;;
+    *)      OUT="$(printf '%s' "$payload" | bash "$hook" 2>"$errf")" ;;
   esac
   RC=$?
   ERR="$(cat "$errf" 2>/dev/null)"
@@ -280,6 +305,9 @@ expect "claude: quotes cannot hide the program" claude "$(claude_bash 'g"i"t pus
 expect "claude: -uf is -u -f" claude "$(claude_bash 'git push -uf origin feat')" ask "git.push.force"
 expect "claude: a commit message mentioning a push is a commit" claude "$(claude_bash 'git commit -m "then git push --force origin main"')" allow
 expect "claude: --no-verify is R4" claude "$(claude_bash 'git commit --no-verify -m x')" ask "git.verify.skip"
+expect "claude: a token variable in an unmapped command is UNCLASSIFIED (a D1 marker pattern)" claude "$(claude_bash 'echo "$GITHUB_TOKEN" | base64')" ask "UNCLASSIFIED"
+expect "claude: the token command as text is UNCLASSIFIED" claude "$(claude_bash 'echo gh auth token')" ask "UNCLASSIFIED"
+expect "claude: another *_TOKEN takes the slow path but is no marker" claude "$(claude_bash 'echo "$MY_TOKEN"')" allow
 
 section "tty.drive and process.spawn.agent_host (R4): ask on Claude, deny on Codex and Cursor"
 TTY=(
@@ -407,6 +435,82 @@ expect "worktree remove of a clean, pushed worktree is R1" claude "$(claude_bash
 git -C "$T/wt" commit -q --allow-empty -m wt-local
 expect "worktree remove of unpushed work is R4" claude "$(claude_bash "git worktree remove --force $T/wt")" ask "worktree.remove.force"
 
+section "conditions PG reads from GitHub (fake gh), under one 3 s deadline"
+now() { python3 -c 'import time; print(time.time())'; }
+since() { python3 -c "import sys; print(int(float(sys.argv[2]) - float(sys.argv[1])))" "$1" "$(now)"; }
+# gh pr merge --admin (D1, safety invariant 2): required checks, through gh pr checks --required
+fake_gh_reset; checks '[{"bucket":"pass","name":"ci"},{"bucket":"skipping","name":"docs"}]'
+expect "every required check passes: --admin asks on Claude (R4: the host prompt)" claude "$(claude_bash 'gh pr merge 5 --squash --admin')" ask "pr.merge.admin"
+judge "  ... the prompt counts the checks" yes "$(has "$(reason)" "2 required, all passing")"
+judge "  ... and names no check (names are PR-author text)" no "$(has "$(reason)" "docs")"
+judge "  ... PG asked gh pr checks for that PR, required only" 1 "$(gh_calls 'pr checks 5 --required --json bucket')"
+expect "  ... codex still denies (no ask route, D8)" codex "$(codex_bash 'gh pr merge 5 --squash --admin')" deny "pr.merge.admin"
+expect "  ... cursor still denies" cursor "$(cursor_shell 'gh pr merge 5 --squash --admin')" deny "pr.merge.admin"
+checks '[{"bucket":"pass"},{"bucket":"fail"}]'
+expect "a failing required check: --admin is denied" claude "$(claude_bash 'gh pr merge 5 --admin')" deny "safety#2"
+judge "  ... the reason counts it" yes "$(has "$(reason)" "1 failing")"
+checks '[{"bucket":"pass"},{"bucket":"pending"}]' 8
+expect "a pending required check (gh exit 8): denied" claude "$(claude_bash 'gh pr merge 5 --admin')" deny "1 pending"
+checks '[{"bucket":"pass"},{"bucket":"cancel"}]'
+expect "a cancelled required check: denied" claude "$(claude_bash 'gh pr merge 5 --admin')" deny "safety#2"
+checks '[{"bucket":"pass"},{"bucket":"weird"}]'
+expect "a state gh does not name: denied (unknown)" claude "$(claude_bash 'gh pr merge 5 --admin')" deny "safety#2"
+checks '[]'
+expect "an empty list: denied (unknown)" claude "$(claude_bash 'gh pr merge 5 --admin')" deny "safety#2"
+checks 'not json'
+expect "output that is not JSON: denied" claude "$(claude_bash 'gh pr merge 5 --admin')" deny "no JSON"
+checks
+expect "no required check reported (gh exits 1): denied, as one may not have started" claude "$(claude_bash 'gh pr merge 5 --admin')" deny "safety#2"
+checks '[{"bucket":"pass"}]' 1
+expect "a passing list with a non-zero exit: denied" claude "$(claude_bash 'gh pr merge 5 --admin')" deny "safety#2"
+checks '[{"bucket":"pass"}]'; printf '6\n' > "$CHK.sleep"
+t0="$(now)"
+expect "a lookup that outlives the deadline: denied" claude "$(claude_bash 'gh pr merge 5 --admin')" deny "no answer within"
+el="$(since "$t0")"
+[ "$el" -lt 6 ] && ok "  ... and the guard answered in ${el}s, before gh would have (6 s)" || bad "the 3 s deadline held" "${el}s"
+rm -f "$CHK.sleep"
+fake_gh_reset; checks '[{"bucket":"pass"}]'
+expect "-R owner/repo: the same repository is asked" claude "$(claude_bash 'gh pr merge 7 --admin -R me/app')" ask "pr.merge.admin"
+judge "  ... with -R me/app" 1 "$(gh_calls 'pr checks 7 -R me/app --required')"
+fake_gh_reset
+expect "no selector: the current branch's PR is asked" claude "$(claude_bash 'gh pr merge --admin --squash')" ask "pr.merge.admin"
+judge "  ... gh pr checks with no selector" 1 "$(gh_calls 'pr checks --required --json bucket')"
+fake_gh_reset
+expect "a PR URL is passed on" claude "$(claude_bash 'gh pr merge https://github.com/me/app/pull/9 --admin')" ask "pr.merge.admin"
+judge "  ... as the URL" 1 "$(gh_calls 'pr checks https://github.com/me/app/pull/9 --required')"
+fake_gh_reset
+expect "GH_REPO=… retargets the merge: no lookup, denied" claude "$(claude_bash 'GH_REPO=me/other gh pr merge 5 --admin')" deny "safety#2"
+expect "--hostname: no lookup, denied" claude "$(claude_bash 'gh pr merge 5 --admin --hostname ghe.example')" deny "safety#2"
+expect "a cd chain PG does not follow: no lookup, denied" claude "$(claude_bash 'cd /tmp && cd / && gh pr merge 5 --admin')" deny "safety#2"
+expect "two selectors: no lookup, denied" claude "$(claude_bash 'gh pr merge 5 6 --admin')" deny "safety#2"
+expect "a selector with an expansion: no lookup, denied" claude "$(claude_bash 'gh pr merge "$PR" --admin')" deny "safety#2"
+judge "none of those five asked gh" 0 "$(gh_calls 'pr checks')"
+checks
+# the default branch, when refs/remotes/<remote>/HEAD does not resolve: gh repo view of the push URL
+fake_gh_use_fixtures "$FX/develop"; fake_gh_reset
+expect "no origin/HEAD, GitHub says develop: an own-branch push asks (R2) instead of a deny" claude "$(claude_bash 'git push -u origin HEAD' "$NOHEAD")" ask "git.push.branch"
+judge "  ... PG asked gh repo view for the remote's repository" 1 "$(gh_calls 'repo view github.com/me/other --json defaultBranchRef')"
+judge "  ... default_branch and tag_ref established false" '["default_branch=false","tag_ref=false"]' \
+  "$(classify 'git push -u origin HEAD' "$NOHEAD" | jq -c '[.resolver_calls[] | select(.id=="git.push.branch") | .conds[]] | sort')"
+expect "  ... a push to develop is a default-branch push: denied" claude "$(claude_bash 'git push origin HEAD:develop' "$NOHEAD")" deny "git.push.default"
+fake_gh_use_fixtures "$FX/feat-default"
+expect "GitHub's answer can raise too (feat is the default there): denied" claude "$(claude_bash 'git push -u origin HEAD' "$NOHEAD")" deny "git.push.default"
+fake_gh_use_fixtures "$FX/slow"
+t0="$(now)"
+expect "a default-branch lookup past the deadline: denied" claude "$(claude_bash 'git push -u origin HEAD' "$NOHEAD")" deny "default_branch"
+el="$(since "$t0")"
+[ "$el" -lt 6 ] && ok "  ... and the guard answered in ${el}s, before gh would have (6 s)" || bad "the 3 s deadline held" "${el}s"
+fake_gh_use_fixtures "$FX/none"
+expect "no answer from GitHub: denied, with the remedy" claude "$(claude_bash 'git push -u origin HEAD' "$NOHEAD")" deny "git remote set-head"
+judge "  ... and the reason says GitHub was asked" yes "$(has "$(reason)" "could not be read from GitHub")"
+fake_gh_use_fixtures "$FX/develop"; fake_gh_reset
+expect "a repository whose origin/HEAD resolves asks GitHub nothing" claude "$(claude_bash 'git push -u origin HEAD')" ask "git.push.branch"
+judge "  ... no gh call" 0 "$(gh_calls 'repo view')"
+fake_gh_use_fixtures "$FX/none"
+judge "the conditions lib: a usage error exits 2" 2 "$(bash "$ROOT/hooks/lib/permission-conditions.sh" bogus >/dev/null 2>&1; echo $?)"
+judge "the conditions lib: no gh on PATH is unknown, never a pass" "unknown gh is not installed" \
+  "$(PATH="$T/nopy" bash "$ROOT/hooks/lib/permission-conditions.sh" required-checks "$REPO" 5 - 2>/dev/null)"
+
 # --- 6. levels, the call stamp, MCP ---------------------------------------------------------
 section "levels through a real user file and lock"
 CFG="$PH/.config/tamirs-superpowers"
@@ -423,7 +527,7 @@ set_level() {
 }
 set_level standard
 judge "the resolver reads level standard from the user file" "standard user_file.level" \
-  "$(bash "$W" bash "$ROOT/scripts/resolve-permission.sh" pr.create --json 2>/dev/null | jq -r '"\(.level) \(.level_source)"')"
+  "$(bash "$ROOT/scripts/resolve-permission.sh" pr.create --json 2>/dev/null | jq -r '"\(.level) \(.level_source)"')"
 expect "standard: an own-branch push is allowed" claude "$(claude_bash 'git push -u origin HEAD')" allow
 expect "standard: gh pr create is allowed" claude "$(claude_bash 'gh pr create --fill')" allow
 expect "standard, codex: gh pr create is allowed ({})" codex "$(codex_bash 'gh pr create --fill')" allow
@@ -431,7 +535,10 @@ expect "standard: gh pr merge still asks (R3)" claude "$(claude_bash 'gh pr merg
 expect "standard: auto-merge stays off (asks)" claude "$(claude_bash 'gh pr merge 5 --auto --squash')" ask "pr.merge.auto"
 expect "standard: a push to main is still denied" claude "$(claude_bash 'git push origin main')" deny "git.push.default"
 expect "standard: R4 still asks" claude "$(claude_bash 'claude -p hi')" ask "process.spawn.agent_host"
-expect "standard, no origin/HEAD: the push is still denied (unknown never holds)" claude "$(claude_bash 'git push -u origin HEAD' "$NOHEAD")" deny
+expect "standard, no origin/HEAD, GitHub silent: the push is still denied (unknown never holds)" claude "$(claude_bash 'git push -u origin HEAD' "$NOHEAD")" deny
+fake_gh_use_fixtures "$FX/develop"
+expect "standard, no origin/HEAD, GitHub names the default: the own-branch push is allowed" claude "$(claude_bash 'git push -u origin HEAD' "$NOHEAD")" allow
+fake_gh_use_fixtures "$FX/none"
 export TS_PERMISSION_LEVEL=supervised
 expect "an env lowering is honoured (TS_PERMISSION_LEVEL=supervised)" claude "$(claude_bash 'gh pr create --fill')" ask
 unset TS_PERMISSION_LEVEL
@@ -443,7 +550,7 @@ expect "a resolver call with --call is allowed" claude "$(claude_bash 'bash scri
 judge "PG stamped it" yes "$(exists "$SEEN/abcdefgh12345678")"
 judge "the stamp is 0600" 600 "$(python3 -c 'import os,sys; print(oct(os.stat(sys.argv[1]).st_mode & 0o777)[2:])' "$SEEN/abcdefgh12345678" 2>/dev/null)"
 judge "its dirs are 0700" "700 700" "$(python3 -c 'import os,sys; print(" ".join(oct(os.stat(p).st_mode & 0o777)[2:] for p in sys.argv[1:]))' "$SEEN/.." "$SEEN")"
-judge "the resolver consumes it" consumed "$(bash "$W" bash "$ROOT/scripts/resolve-permission.sh" pr.create --call abcdefgh12345678 --json 2>/dev/null | jq -r '.level_sources[] | select(.source=="call_stamp") | .state')"
+judge "the resolver consumes it" consumed "$(bash "$ROOT/scripts/resolve-permission.sh" pr.create --call abcdefgh12345678 --json 2>/dev/null | jq -r '.level_sources[] | select(.source=="call_stamp") | .state')"
 judge "and it is gone" no "$(exists "$SEEN/abcdefgh12345678")"
 expect "a denied command gets no stamp" claude "$(claude_bash 'bash scripts/resolve-permission.sh x --call zzzzzzzz99999999 && git push origin main')" deny
 judge "no stamp for the denied call" no "$(exists "$SEEN/zzzzzzzz99999999")"

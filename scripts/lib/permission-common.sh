@@ -46,22 +46,27 @@
 #   with every override ignored (D3 fail closed).
 #
 # THE TEST OVERRIDE AND ITS GUARD
-#   tests/test-resolve-permission.sh needs a fake passwd home. TAMIRS_PERMISSION_TEST_ROOT
+#   The permission suites need a fake passwd home. TAMIRS_PERMISSION_TEST_ROOT
 #   names one, and it is honoured only when ALL of these hold:
 #     1. it is an absolute path to a real directory (not a symlink) owned by the
 #        uid with mode 0700, as mktemp -d makes;
 #     2. its realpath is under a system temp root (/tmp, /var/tmp, /var/folders,
 #        and their /private forms) -- fixed paths, not TMPDIR;
 #     3. it is outside every git work tree;
-#     4. a process ANCESTOR of the engine is running a file named
-#        test-resolve-permission.sh (read with /bin/ps, never through PATH).
+#     4. a process ANCESTOR of the engine is a shell RUNNING one of the suites
+#        that need it, by exact basename -- the resolver, guard, setup-level and
+#        merge-policy suites under tests/ (TEST_SCRIPTS below) -- as its script:
+#        the file is the shell's first operand, or the process itself (read with
+#        /bin/ps, never through PATH). A name anywhere else in an ancestor's
+#        arguments does not count: `claude -p "run <suite>"` is no test run, and
+#        neither is a shell given -c or -s.
 #   Rules 1-3 stop a cloned repo that only ships files and env (it can point the
 #   variable at itself, but its own tree is a git work tree and not under a temp
 #   root). Rule 4 is the one that matters: a hook is a child of the host process,
 #   whose ancestry the agent cannot rewrite, so a project env that sets the
 #   variable and an agent that writes a forged home under /tmp still get the real
 #   passwd home in every hook. An L1 call from agent Bash can satisfy rule 4 by
-#   naming its own script so, but L1 is advisory by design (D8) -- the agent can
+#   running a script so named, but L1 is advisory by design (D8) -- the agent can
 #   skip the call outright. A refused override is ignored with a warning; the
 #   passwd entry decides. No other input (catalog, schema, plugin root) can be
 #   redirected: the root is this file's own location.
@@ -95,7 +100,10 @@ PROMPT_HOSTS = ("claude", "gemini")
 PLUGIN = "tamirs-superpowers"
 MAX_BYTES = 262144
 TEST_ENV = "TAMIRS_PERMISSION_TEST_ROOT"
-TEST_SCRIPT = "test-" + "resolve-permission.sh"
+# Spelled in parts so that no ancestor's argument list (an engine passed with -c) ever holds a whole name.
+TEST_SCRIPTS = tuple("test-" + n for n in ("resolve-permission.sh", "permission-guard.sh",
+                                             "setup-permission-level.sh", "merge-policy.sh"))
+SHELLS = ("bash", "sh", "zsh", "dash", "ksh")
 TEMP_ROOTS = ("/tmp", "/private/tmp", "/var/tmp", "/private/var/tmp", "/var/folders", "/private/var/folders")
 ENV_LEVELS = ("TS_PERMISSION_LEVEL", "CLAUDE_PLUGIN_OPTION_PERMISSION_LEVEL")
 ID_RE = re.compile(r"\A[A-Za-z0-9._-]{1,128}\Z")
@@ -448,6 +456,36 @@ def ps_line(pid):
         return None
 
 
+def runs_test_script(args):
+    """True when a process's argument list is one of TEST_SCRIPTS being run: the program itself, or a shell
+    whose first operand it is. A shell given -c or -s runs no script file. The value of a long option that
+    takes one is read as the operand, which can only refuse, never accept."""
+    toks = args.split()
+    if not toks:
+        return False
+    prog = os.path.basename(toks[0]).lstrip("-")
+    if prog in TEST_SCRIPTS:
+        return True
+    if prog not in SHELLS:
+        return False
+    k = 1
+    while k < len(toks):
+        t = toks[k]
+        if t == "--":
+            k += 1
+            break
+        if t in ("-o", "+o", "-O", "+O"):
+            k += 2
+            continue
+        if t[:1] in ("-", "+") and len(t) > 1:
+            if not t.startswith("--") and ("c" in t[1:] or "s" in t[1:]):
+                return False
+            k += 1
+            continue
+        break
+    return k < len(toks) and os.path.basename(toks[k]) in TEST_SCRIPTS
+
+
 def under_test_harness():
     pid = os.getppid()
     for _ in range(32):
@@ -457,9 +495,8 @@ def under_test_harness():
         if got is None:
             return False
         ppid, args = got
-        for tok in args.split():
-            if tok == TEST_SCRIPT or tok.endswith("/" + TEST_SCRIPT):
-                return True
+        if runs_test_script(args):
+            return True
         pid = ppid
     return False
 
@@ -484,7 +521,7 @@ def test_root_refusal(t):
     if in_work_tree(real):
         return "inside a git work tree"
     if not under_test_harness():
-        return "the process is not running under %s" % TEST_SCRIPT
+        return "the process is not running under one of the permission suites (%s)" % ", ".join(TEST_SCRIPTS)
     return None
 
 

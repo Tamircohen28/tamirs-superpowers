@@ -10,9 +10,10 @@
 #   of levels and precedence. The answer is the strictest verdict of every id the
 #   call reaches (deny > ask > allow; a tie reports the highest R). A command that
 #   maps to no id but carries one of the catalog's mutation markers
-#   (unclassified.mutation_markers: `git push`, api.github.com, graphql, the
-#   token commands and variables, ...) or runs `gh` is UNCLASSIFIED, which is R4:
-#   never automatic.
+#   (unclassified.mutation_markers: `git push`, api.github.com, graphql, ...; and
+#   unclassified.mutation_marker_patterns, the token command and variables, kept
+#   as patterns so no shipped file spells a credential name) or runs `gh` is
+#   UNCLASSIFIED, which is R4: never automatic.
 #
 #   R0/R1 ids with no context raise and the "L1 only" ids (notify.send,
 #   net.post.external, deps.install, daemon.*) need no resolver call: D8 puts L2
@@ -27,17 +28,24 @@
 #   concurrency guard) and matched by the engine below.
 #
 # CONDITIONS (D4: unknown never holds; a raise or deny applies unless false)
-#   PG establishes only what it can read locally, offline, under a deadline:
-#   default_branch and tag_ref for git push and the GitHub MCP/REST branch writes
-#   (refs/remotes/<remote>/HEAD; main and master always count as default),
-#   uncommitted_changes, drops_unpushed_commits, discards_work,
+#   Read locally: default_branch and tag_ref for git push and the GitHub MCP/REST
+#   branch writes (refs/remotes/<remote>/HEAD; main and master always count as
+#   default), uncommitted_changes, drops_unpushed_commits, discards_work,
 #   unmerged_no_remote_copy, unmerged_commits (only "fully merged" is shown) and
-#   workflow_hook_or_policy_path. Everything that needs the GitHub API
-#   (protected_default_branch, required checks, PR state, thread authorship,
-#   claims, lockfiles) stays unknown, so its raise or deny applies. A command
-#   whose working directory or target environment PG cannot pin (more than one
-#   `cd`, a `cd` not of the form `cd <dir> && …`, `export`/`source`/`unset`,
-#   GIT_DIR=…, git -c/--git-dir) gets no repository condition at all.
+#   workflow_hook_or_policy_path.
+#   Read from GitHub, through lib/permission-conditions.sh, under ONE deadline of
+#   3 s for the whole call (D8: well under the host timeout): the default branch
+#   when refs/remotes/<remote>/HEAD does not resolve (gh repo view of the
+#   remote's push URL), and required_check_failing_or_pending for
+#   `gh pr merge --admin` (gh pr checks --required). An error, a timeout or an
+#   answer PG cannot read leaves the condition unknown, so its raise or deny
+#   applies exactly as with no lookup at all.
+#   Still unknown, so their raise or deny applies: protected_default_branch, PR
+#   state, thread authorship, claims, lockfiles. A command whose working
+#   directory or target environment PG cannot pin (more than one `cd`, a `cd` not
+#   of the form `cd <dir> && …`, `export`/`source`/`unset`, GIT_DIR=…,
+#   git -c/--git-dir, GH_REPO=… or --hostname on the merge) gets no repository
+#   condition at all.
 #
 # PER HOST (D8)
 #   claude  allow | ask | deny (hookSpecificOutput.permissionDecision). The ask
@@ -59,8 +67,9 @@
 #   resolver consumes as proof that PG ran. policy.edit forms that must never run
 #   from agent Bash are denied outright: plugin-config.sh provision (D6) and the
 #   host config CLIs `claude plugin configure`, `gemini extensions config` (D7).
-#   Every other policy.edit form (plugin-config.sh writes, confirm, setup.sh
-#   --permission-level) is R4: the Claude dialog asks, every other host denies.
+#   Every other policy.edit form the catalog lists (plugin-config.sh writes,
+#   confirm, setup.sh --permission-level) is R4: the Claude dialog asks, every
+#   other host denies.
 #
 # FAIL CLOSED (D4, SR S-12)
 #   Unparseable payload, no jq, no python3, a missing or corrupt catalog, a
@@ -76,8 +85,10 @@
 #   permission-guard.sh --classify-mcp <tool> '<args-json>' [cwd]
 #       print, as JSON, the ids the call maps to, whether it is UNCLASSIFIED, the
 #       resolver calls PG would make (id, --cond values, --target), the forms PG
-#       denies outright and whether the fast path would have let it through. No
-#       resolver runs, nothing is written. A hook is never given arguments.
+#       denies outright, what the GitHub lookups found (notes) and whether the fast
+#       path would have let it through. No resolver runs and nothing is written;
+#       the GitHub lookups (reads, under the same deadline) do. A hook is never
+#       given arguments.
 #
 # Bash 3.2 compatible. Needs jq (payload) and python3 (stdlib, -I -S).
 set -uo pipefail
@@ -168,7 +179,7 @@ _pg_candidate() {
 }
 
 IFS= read -r -d '' _PG_ENGINE <<'PY' || true
-import fnmatch, json, os, re, subprocess, sys, time
+import fnmatch, json, os, re, signal, subprocess, sys, time
 
 ROOT, HOST, MODE = sys.argv[1], sys.argv[2], sys.argv[3]
 BUDGET = float(sys.argv[4]) if len(sys.argv) > 4 else 20.0
@@ -179,6 +190,8 @@ SEP, NESTED = "\x1f", "\x1e"
 CALL_RE = re.compile(r"\A[A-Za-z0-9_-]{8,128}\Z")
 RANK = {"allow": 0, "ask": 1, "deny": 2}
 RESOLVER = os.path.join(ROOT, "scripts", "resolve-permission.sh")
+COND_LIB = os.path.join(ROOT, "hooks", "lib", "permission-conditions.sh")
+NET_BUDGET = 3.0   # seconds, for every GitHub lookup of this call together (D8)
 
 
 def answer(verdict, reason):
@@ -207,6 +220,7 @@ try:
     BYID = {a["id"]: a for a in ACTS}
     M = CAT["matching"]
     MARKERS = [m.strip() for m in CAT["unclassified"]["mutation_markers"] if m.strip()]
+    MARKER_RX = [re.compile(x) for x in CAT["unclassified"]["mutation_marker_patterns"]]
     PFX = CAT["mcp"]["claude_prefix"]
     for a in ACTS:
         a["equivalents"], a["r"]
@@ -228,14 +242,6 @@ TARGET_ENV = re.compile(r"^(GH_REPO|GH_HOST|GH_ENTERPRISE_TOKEN|GIT_DIR|GIT_WORK
                         r"GIT_CONFIG_PARAMETERS|GIT_NAMESPACE|GIT_INDEX_FILE|GIT_OBJECT_DIRECTORY)=")
 KNOWN_MCP = set(e["tool"][len(PFX):] for a in ACTS for e in a["equivalents"].get("mcp", []))
 
-# PG supplements (orchestrator, 2026-11-04): policy.edit forms the catalog does not list yet. They only ADD an
-# id to a call, so they can raise a verdict and never lower one. Fold them into actions.json (followup).
-SUPPLEMENT = [
-    ("policy.edit", {"script": "setup.sh", "any": ["--permission-level"]}),
-    ("policy.edit", {"script": "setup.sh", "env_any": ["SETUP_PERMISSION_LEVEL=*"]}),
-    ("policy.edit", {"script": "install.sh", "any": ["--permission-level"]}),
-]
-READ_ONLY_WRITER = {"show", "-h", "--help", "help"}
 
 # --------------------------------------------------------------- tokens
 
@@ -384,6 +390,8 @@ def entry_matches(e, p, defaults):
     if "args" in e and not any(fnmatch.fnmatchcase(t, g) for g in expand_default(e["args"], defaults) for t in posn):
         return False
     if "args_none" in e and any(fnmatch.fnmatchcase(t, g) for g in expand_default(e["args_none"], defaults) for t in posn):
+        return False
+    if "first_arg_none" in e and posn and any(fnmatch.fnmatchcase(posn[0], g) for g in e["first_arg_none"]):
         return False
     if "env_any" in e and not any(fnmatch.fnmatchcase(v, g) for g in e["env_any"] for v in p["env"]):
         return False
@@ -560,7 +568,7 @@ def http_call(p):
 
 def has_marker(text):
     # `gh ` counts only as the program (argv0), as in the reference matcher: as a substring it is prose.
-    return any(mk in text for mk in MARKERS if mk != "gh")
+    return any(mk in text for mk in MARKERS if mk != "gh") or any(rx.search(text) for rx in MARKER_RX)
 
 
 # --------------------------------------------------------------- local facts (git, offline, deadline)
@@ -596,6 +604,64 @@ def git_rc(d, *args):
     return r[0] if r else None
 
 
+# --------------------------------------------------------------- GitHub facts (lib/permission-conditions.sh)
+
+NET = {"t0": None}
+NOTES = []         # what a lookup found, for the reason (counts only: names are PR-author text)
+_LIB = {}
+
+
+def net_left():
+    used = 0.0 if NET["t0"] is None else time.time() - NET["t0"]
+    return min(NET_BUDGET - used, left() - 1.0)
+
+
+def conditions_lib(cmd, *args):
+    """The one line lib/permission-conditions.sh prints, or None: no budget left, no lib, a non-zero
+    exit or the deadline. The lib bounds itself (timeout/gtimeout, else a watchdog); this is the backstop,
+    and it kills the lib's whole process group so a stray gh cannot keep the pipe open."""
+    key = (cmd,) + args
+    if key in _LIB:
+        return _LIB[key]
+    res, budget = None, net_left()
+    if budget >= 0.3 and os.path.isfile(COND_LIB):
+        if NET["t0"] is None:
+            NET["t0"] = time.time()
+        argv = ["bash", COND_LIB, cmd, "--deadline", "%.1f" % budget] + list(args)
+        try:
+            pr = subprocess.Popen(argv, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, stdin=subprocess.DEVNULL,
+                                  start_new_session=True)
+        except OSError:
+            pr = None
+        if pr is not None:
+            try:
+                out, _ = pr.communicate(timeout=budget + 1.0)
+                if pr.returncode == 0:
+                    res = out.decode("utf-8", "replace").strip().split("\n")[0][:300]
+            except subprocess.TimeoutExpired:
+                try:
+                    os.killpg(pr.pid, signal.SIGKILL)
+                except OSError:
+                    pass
+                try:
+                    pr.communicate(timeout=1.0)
+                except (OSError, subprocess.SubprocessError):
+                    pass
+    _LIB[key] = res
+    return res
+
+
+def remote_default_branch(d, remote):
+    """GitHub's default branch for the repository <remote>'s push URL names, or None."""
+    out = conditions_lib("default-branch", d, remote)
+    if out and safe(out) and not out.startswith("refs/"):
+        return out
+    note = "the default branch of `%s` could not be read from GitHub either" % remote
+    if note not in NOTES:
+        NOTES.append(note)
+    return None
+
+
 SAFE_REF = re.compile(r"\A[A-Za-z0-9._/@+-]{1,200}\Z")
 
 
@@ -608,7 +674,10 @@ def default_branch(d, remote):
         return None
     out = git_out(d, "symbolic-ref", "--quiet", "refs/remotes/%s/HEAD" % remote)
     pre = "refs/remotes/%s/" % remote
-    return out[len(pre):] if out and out.startswith(pre) else None
+    if out and out.startswith(pre):
+        return out[len(pre):]
+    # No local answer: ask GitHub, under the call's network deadline (an error leaves it unknown).
+    return remote_default_branch(d, remote) if d else None
 
 
 def defaults_set(d, remote):
@@ -909,8 +978,44 @@ def remote_branch_default(owner_repo, branch):
     return None if names is None else branch in names
 
 
+MERGE_VOPTS = {"-t", "--subject", "-b", "--body", "-F", "--body-file", "-A", "--author-email", "--match-head-commit"}
+REPO_ARG = re.compile(r"\A[A-Za-z0-9._-]+/[A-Za-z0-9._-]+\Z")
+PR_URL = re.compile(r"\Ahttps://[A-Za-z0-9.-]+/[A-Za-z0-9._-]+/[A-Za-z0-9._-]+/pull/[0-9]+/?\Z")
+
+
+def required_checks(p):
+    """required_check_failing_or_pending for `gh pr merge … --admin` (safety invariant 2), from
+    gh pr checks --required on the same PR, in the same directory, against the same -R repo.
+    True / False / None (anything PG cannot pin or read)."""
+    if not CTX["ok"] or p["argv0"] != "gh" or p["sub"][:2] != ["pr", "merge"]:
+        return None
+    if any(TARGET_ENV.match(v) for v in p["env"]):
+        return None
+    repo = None
+    for k, v in p["gopts"]:
+        if k == "--hostname" or (k in ("-R", "--repo") and (not v or not REPO_ARG.match(v) or repo not in (None, v))):
+            return None
+        if k in ("-R", "--repo"):
+            repo = v
+    pos = positionals(p["sub"][2:], MERGE_VOPTS)
+    if len(pos) > 1:
+        return None
+    if pos and not (pos[0].isdigit() or PR_URL.match(pos[0]) or safe(pos[0])):
+        return None
+    sel = pos[0] if pos else "-"
+    out = conditions_lib("required-checks", CTX["cwd"], sel, repo or "-")
+    word, _, summary = (out or "unknown the lookup did not answer").partition(" ")
+    what = "PR %s%s" % (sel if sel != "-" else "of the current branch", (" in %s" % repo) if repo else "")
+    note = "required checks on %s: %s (gh pr checks --required)" % (what, summary or word)
+    if note not in NOTES:
+        NOTES.append(note)
+    return {"true": True, "false": False}.get(word)
+
+
 def establish(name, hit):
     p, kind = hit.get("p"), hit["kind"]
+    if name == "required_check_failing_or_pending":
+        return required_checks(p) if kind == "argv" and p else None
     if kind == "mcp":
         args = hit["args"]
         if name == "workflow_hook_or_policy_path":
@@ -1079,16 +1184,9 @@ def classify_segment(s):
         if any(entry_matches(e, p, defaults) for e in a["equivalents"].get("argv", [])):
             add(a["id"], "argv", s, p=p)
             got_any = True
-    for aid, e in SUPPLEMENT:
-        if entry_matches(e, p, defaults):
-            add(aid, "argv", s, p=p)
-            got_any = True
     writer = script_hit(p, "plugin-config.sh")
     if writer is not None:
         pos = positionals(writer, set())
-        if not pos or pos[0] not in READ_ONLY_WRITER:
-            add("policy.edit", "argv", s, p=p)
-            got_any = True
         if pos and pos[0] == "provision":
             PG_DENY.append(("policy.edit", "plugin-config.sh provision writes the permission file and lock for CI "
                             "before the agent starts; it never runs from agent Bash (ADR 004 D6)"))
@@ -1286,7 +1384,7 @@ if MODE.startswith("classify"):
     sys.stdout.write(json.dumps({
         "ids": sorted(set(h["id"] for h in HITS)), "unclassified": bool(UNCL_FROM), "unclassified_from": UNCL_FROM,
         "resolver_calls": [{"id": j["id"], "conds": j["conds"], "target": j["target"]} for j in JOBS],
-        "pg_deny": [r for _, r in PG_DENY], "stamps": STAMPS, "context_ok": CTX["ok"], "context_why": CTX["why"],
+        "pg_deny": [r for _, r in PG_DENY], "stamps": STAMPS, "notes": NOTES, "context_ok": CTX["ok"], "context_why": CTX["why"],
         "fast_path_allows": (sys.argv[5] == "1") if len(sys.argv) > 5 else False}, sort_keys=True) + "\n")
     sys.exit(0)
 
@@ -1462,7 +1560,10 @@ if unknown:
     lines.append("Not established, so the raise applied: %s." % ", ".join(sorted(set(x for x in unknown if x))))
     if "default_branch" in unknown:
         lines.append("PG reads the default branch from refs/remotes/<remote>/HEAD (`git remote set-head origin --auto` "
-                     "sets it) and needs a named remote and a resolvable destination.")
+                     "sets it), else from GitHub (gh repo view, under a 3 s deadline), and needs a named remote and a "
+                     "resolvable destination.")
+if NOTES:
+    lines.append(" ".join(n[:1].upper() + n[1:] + "." for n in NOTES))
 if not CTX["ok"] and CTX["why"] and MODE == "shell":
     lines.append("Repository conditions were not read: %s." % "; ".join(sorted(set(CTX["why"]))))
 st = settings(final)
