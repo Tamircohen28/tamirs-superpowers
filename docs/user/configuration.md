@@ -188,8 +188,9 @@ leaves an existing file alone.
 Claude install that chose `unattended` with no user file runs `unattended`, while
 `unattended` in the option and `standard` in the file runs `standard`. Neither ⇒
 `supervised`. A host below its permission floor (see [What is enforced
-where](#what-is-enforced-where)) is meant to run every level as `supervised`; that check is
-not wired yet.
+where](#what-is-enforced-where)) should run every level as `supervised`: `make doctor` warns
+about it, but the resolver does not clamp the level yet, so keep an older host at
+`supervised`.
 
 ### The files
 
@@ -265,24 +266,38 @@ it refuses inside an agent session, and `show` marks such a lock `by: provision`
 ### One run: `--perms=<level>`
 
 A `--perms=<level>` token on the first line of a slash command (`/pr-dev 42
---perms=standard`) asks for a different level for that one skill and target, for 15
-minutes. It is read only as a standalone token you typed, never from file, PR, issue or
-tool output.
+--perms=standard`) asks for a different level for that one skill and target. It is read
+only as a standalone token you typed, never from file, PR, issue or tool output. The
+permission guard applies the resulting ticket on every call it judges
+([`resolve-permission.sh`](../../scripts/resolve-permission.sh), precedence row 1).
 
 - **Lowering** (`--perms=supervised`) needs no proof: the prompt hook on Claude Code, Codex
-  CLI and Gemini CLI records it as a lowering ticket for the session.
+  CLI and Gemini CLI records it as a lowering ticket at once, and it holds for the rest of
+  the session (24 hours at most) — for that skill when the token was on a Claude Code slash
+  command, for the whole session on Codex and Gemini — on every agent and target, and over
+  any raise. Cursor and OpenCode have no prompt hook for it; there only a skill's own check
+  reads the token.
 - **Raising** has a route only on Claude Code: the prompt hook records a pending request
   only for a prompt you typed (never one the model, `claude -p` or the SDK produced), and
   it becomes a ticket only after `/plugin-config confirm <nonce>` passes the host dialog,
-  which shows the skill, level, target and expiry. A ticket covers R2 and R3 only, never R4.
+  which shows the skill, level, target and expiry. The ticket then lets that skill's
+  actions on that target run at the requested level for **15 minutes**: R2 at `standard`,
+  and at `unattended` also the listed R3 actions whose precondition holds. It never covers
+  R4, never lifts a `deny` from any file or the environment, and binds to the session and
+  the agent that typed it: a call the hook input marks as another agent's (a subagent with
+  its own agent id) does not get it. Until Claude Code is shown to mark subagent calls that
+  way, a subagent's call on the very same target does (ADR 004's partial S-11 disposition).
+- **The target** is the slash command's first argument plus this checkout's repository.
+  `/pr-dev 42` covers PR (or issue) #42 there and repository-level steps in that repository
+  (create an issue or a label, rerun CI). It does not cover another PR, another repository,
+  `gh pr create` (no number yet) or a branch push: a ticket names no branch, so those still
+  ask.
 - **Disabled** as a raise on Codex, Cursor, OpenCode and Claude Desktop, and on Gemini CLI
   until its skill-pairing hook is wired: nothing there can prove you typed it, so
   `--perms=` only lowers and the note names the out-of-session route
   (`scripts/plugin-config.sh` in your own terminal).
 
-**Status:** the requests and tickets are recorded, but the resolver does not read tickets
-yet ([`resolve-permission.sh`](../../scripts/resolve-permission.sh), precedence row 1), so
-today a `--perms=` token changes no decision. Use `/plugin-config` for a durable change.
+Use `/plugin-config` for a durable change.
 
 ### Auto-merge for one repository
 
@@ -312,20 +327,28 @@ instructions; **ADVISORY** means only the skill's own check stands, which a mode
 The skill-level check (L1) is advisory on every platform; the table is about the layers
 under it.
 
-| platform | shell commands | GitHub MCP tools | host prompt for asks and R4 | per-skill levels | floor |
-|---|---|---|---|---|---|
-| Claude Code | ENFORCED: `permission-guard.sh`, fail closed | ENFORCED if the MCP matcher fires (wired, firing unverified), plus server flags | ENFORCED: the hook `ask` dialog, in every permission mode; headless ⇒ deny | lowering ENFORCED; a per-skill raise is not applied by the guard yet | 2.1.317 |
-| Claude Desktop | unverified | server flags | unverified | ADVISORY | as Claude Code |
-| Codex CLI | ENFORCED, deny only | server flags | none: an R4 call is denied with the command to run | ADVISORY | 0.166.0 |
-| Cursor | ENFORCED, deny only, `failClosed` | ENFORCED, deny only | none yet: R4 is denied | ADVISORY | CLI 2026.10.22 / app 3.27.22 |
-| Gemini CLI | ENFORCED, deny only, plus static policy rules | hook plus static rules | ENFORCED: static `ask_user` rules for R4 and `confirm` | not wired yet | 0.66.0 |
-| OpenCode | ENFORCED when it is the only plugin (plugin order is unmeasured) | unmeasured | ADVISORY: `opencode --auto` approves an ask, so only R2 asks; R3 and R4 deny | not wired yet | 2.2.5 |
+| platform | shell commands | GitHub MCP tools | host prompt for asks and R4 | per-skill levels | `--perms=` | floor |
+|---|---|---|---|---|---|---|
+| Claude Code | ENFORCED: `permission-guard.sh`, fail closed | ENFORCED if the MCP matcher fires (wired, firing unverified), plus server flags | ENFORCED: the hook `ask` dialog, in every permission mode; headless ⇒ deny | lowering ENFORCED; a per-skill raise from the user file is not applied by the guard yet | lowering ENFORCED; a raise ENFORCED once confirmed in the dialog | 2.1.317 |
+| Claude Desktop | unverified | server flags | unverified | ADVISORY | no raise; lowering unverified | as Claude Code |
+| Codex CLI | ENFORCED, deny only | server flags | none: an R4 call is denied with the command to run | ADVISORY | lowering ENFORCED, session-wide; no raise | 0.166.0 |
+| Cursor | ENFORCED, deny only, `failClosed` | ENFORCED, deny only | none yet: R4 is denied | ADVISORY | no prompt hook: ADVISORY | CLI 2026.10.22 / app 3.27.22 |
+| Gemini CLI | ENFORCED, deny only, plus static policy rules | hook plus static rules | ENFORCED: static `ask_user` rules for R4 and `confirm` | not wired yet | lowering by hook, session-wide; raise not wired yet | 0.66.0 |
+| OpenCode | ENFORCED when it is the only plugin (plugin order is unmeasured) | unmeasured | ADVISORY: `opencode --auto` approves an ask, so only R2 asks; R3 and R4 deny | not wired yet | no prompt hook: ADVISORY | 2.2.5 |
 
-The floor is the host version the level semantics were measured on
+The same facts, per surface, are the `permission_levels` rows of
+[`core/capabilities/platforms.json`](../../core/capabilities/platforms.json). The floor is
+the host version the level semantics were measured or source-cited on
 ([`platform-targets.json`](../engineering/build-and-release/platform-targets.json)
-`permissions_min`). ADR 004 has a readable host version below it run every level as
-`supervised` (an unreadable one only warns); the resolver does not apply the floor yet, so
-read it as the oldest version these guarantees were measured or source-cited on.
+`permissions_min`, and `permissions_min_cli` for `cursor-agent`). `make doctor`
+([`scripts/doctor.sh`](../../scripts/doctor.sh)) compares every host CLI on your PATH with
+its floor — `cursor-agent` against the CLI floor, the Cursor app against the app's (read
+from the app bundle, never by launching it) — and below it warns, naming what the floor
+stands for (for Claude Code also the lower floors: `onFailure: "block"` from 2.1.295, the
+install dialog's `permission_level` picker from 2.1.271). Each probe has a 3-second
+deadline; a version that is unreadable or does not answer in time is a warning only. ADR 004 has a host below its
+floor run every level as `supervised`; the resolver does not clamp it yet, so keep such a
+host at `supervised` yourself.
 
 The guard reads the default branch and the required checks from GitHub through `gh` with a
 3-second deadline; a condition it cannot establish in time takes the stricter answer. The guard and the resolver themselves fail closed: a missing, crashing or unparseable
@@ -352,14 +375,18 @@ call it.
 ```bash
 resolve-permission.sh <action-id> [--skill <id>] [--target <t>] [--repo <path>] \
   [--host claude|codex|cursor|gemini|opencode] [--headless] [--objective <id>] \
-  [--call <token>] [--cond <name>=true|false ...] [--explain] [--json]
+  [--session <id> [--agent <id>]] [--call <token>] [--cond <name>=true|false ...] \
+  [--explain] [--json]
 resolve-permission.sh --level [--skill <id>] [--host <h>] [--repo <path>]
 ```
 
 It prints one JSON verdict (`verdict` allow/ask/deny, `r`, `level`, `level_source`,
 `decided_by`, `reason`, `precondition`, `setting_that_would_allow`, `warnings`, …).
 Without `--host` a host option may only lower the level. `--cond` passes a precondition the
-caller established; one not passed never holds. `--explain` prints a readable trace. Exit 0
+caller established; one not passed never holds. `--session` (and `--agent`, default `main`)
+reads that session's `--perms=` tickets, and `--target` names what the call acts on — a PR
+or issue number or `.` (the repository `gh` would use), `<owner>/<repo>[#n]`, a PR or issue
+URL — which a raise ticket must match; `ticket` in the output names the one that decided. `--explain` prints a readable trace. Exit 0
 is a decided verdict; 2 (usage) and 3 (internal error) also print a deny, and a caller that
 gets anything else must deny.
 

@@ -29,6 +29,11 @@
 #   9. plugin-config.sh confirm <nonce>: the Claude dialog names the pending request's
 #      skill, level, target and expiry (or its rows), PG stamps asked/<nonce>.json with the
 #      bytes it showed, and a nonce with no usable record is a deny (D5, D8 call stamp);
+#  9b. --perms= tickets (D4 row 1, D5): what PG passes the resolver (--session, --agent,
+#      --target per action kind), then the real chain permission-intent.sh -> PG confirm
+#      dialog -> plugin-config.sh confirm -> PG, where the raise applies to its one skill
+#      and target only, never to a subagent, another session or Codex, and a typed
+#      lowering applies at once to every agent of the session;
 #  10. hook_ask's dialects, the shared tokeniser's two modes, and the hook wiring.
 #
 # HERMETIC
@@ -700,6 +705,16 @@ intent_edit '.user_typed = true'
 rm -f "$T/argv.log"
 expect "with user_typed the stub is asked" claude "$(claude_bash 'gh pr create --fill')" ask "" "$T/t-argv/hooks/permission-guard.sh"
 judge "  ... once, with --skill pr-dev" "1 1" "$(wc -l < "$T/argv.log" | tr -d ' ') $(grep -c -- '--skill pr-dev' "$T/argv.log")"
+rm -f "$T/argv.log"
+expect "a PR comment: the stub is asked" claude "$(claude_bash 'gh pr comment 42 --body hi')" ask "" "$T/t-argv/hooks/permission-guard.sh"
+judge "  ... with --session pg-1 --agent main, the binding a ticket checks (D5)" 1 "$(grep -c -- '--session pg-1 --agent main' "$T/argv.log")"
+judge "  ... and --target 42, the PR it acts on" 1 "$(grep -c -- '--target 42' "$T/argv.log")"
+rm -f "$T/argv.log"
+expect "a subagent's PR comment" claude "$(claude_bash 'gh pr comment 42 --body hi' | jq -c '. + {agent_id:"sub-1"}')" ask "" "$T/t-argv/hooks/permission-guard.sh"
+judge "  ... carries --agent sub-1 on every call" "2 2" "$(wc -l < "$T/argv.log" | tr -d ' ') $(grep -c -- '--agent sub-1' "$T/argv.log")"
+rm -f "$T/argv.log"
+expect "a payload with no session id" claude "$(claude_bash 'gh pr comment 42 --body hi' | jq -c 'del(.session_id)')" ask "" "$T/t-argv/hooks/permission-guard.sh"
+judge "  ... passes no --session (no ticket can apply)" 0 "$(grep -c -- '--session' "$T/argv.log")"
 rm -rf "$STATE/intent"; rm -f "$T/argv.log"
 expect "with no context the stub is asked" claude "$(claude_bash 'gh pr create --fill')" ask "" "$T/t-argv/hooks/permission-guard.sh"
 judge "  ... once, with neither --skill nor --objective" "1 0" "$(wc -l < "$T/argv.log" | tr -d ' ') $(grep -c -e '--skill' -e '--objective' "$T/argv.log")"
@@ -775,6 +790,93 @@ mk_pending "$N1" perms
 expect "confirm beside an R3 call: the dialog still names the request" claude "$(claude_bash "bash scripts/plugin-config.sh confirm $N1 && gh pr merge 5")" ask "skill pr-dev"
 judge "classify lists the nonce" "[\"$N1\"]" "$(classify "bash scripts/plugin-config.sh confirm $N1" | jq -c .confirms)"
 rm -rf "$PEND" "$ASKED"
+
+# --- 9b. --perms= tickets (D4 row 1, D5) -----------------------------------------------------
+section "tickets: the call target PG passes, per action kind"
+tgt() { classify "$1" | jq -r '[.resolver_calls[] | .target // "null"] | join(",")'; }
+tgt_mcp() { bash "$HOOK" --classify-mcp "$1" "$2" "$REPO" | jq -r '[.resolver_calls[] | .target // "null"] | join(",")'; }
+judge "gh pr comment 42: the PR number" 42 "$(tgt 'gh pr comment 42 --body hi')"
+judge "gh pr comment '#42'" 42 "$(tgt 'gh pr comment "#42" --body hi')"
+judge "gh -R me/other pr comment 7: the repo and number" "me/other#7" "$(tgt 'gh -R me/other pr comment 7 -b x')"
+judge "GH_REPO=me/other gh issue comment 7" "me/other#7" "$(tgt 'GH_REPO=me/other gh issue comment 7 -b x')"
+judge "a PR URL selector" "https://github.com/me/app/pull/9" "$(tgt 'gh pr comment https://github.com/me/app/pull/9 -b x')"
+judge "every id the call reaches gets the target" "42,42" "$(tgt 'gh pr edit 42 --add-reviewer x')"
+judge "gh issue create: the repository gh would use" "." "$(tgt 'gh issue create --title t --body b')"
+judge "gh label create -R me/other: that repository" "me/other" "$(tgt 'gh label create bug -R me/other')"
+judge "gh pr create: no number, so no pr target" null "$(tgt 'gh pr create --fill')"
+judge "a branch selector names no number" null "$(tgt 'gh pr comment feat -b x')"
+judge "a selector after a flag is not read as one" null "$(tgt 'gh pr comment --body 42')"
+judge "GH_HOST= retargets: not pinned" null "$(tgt 'GH_HOST=x gh pr comment 42 -b y')"
+judge "--hostname: not pinned" null "$(tgt 'gh pr comment 42 --hostname x -b y')"
+judge "an unpinned cd: no target" null "$(tgt 'cd a; cd b; gh pr comment 42 -b y')"
+judge "gh api: the path is not read as a target" null "$(tgt 'gh api -X POST repos/me/app/issues/42/comments -f body=x')"
+judge "a branch push: no ticket kind" null "$(tgt 'git push -u origin feat')"
+judge "pr.merge.auto keeps its trust target" 42 "$(tgt 'gh pr merge --auto 42')"
+judge "MCP add_issue_comment: owner/repo#n" "me/app#42" "$(tgt_mcp add_issue_comment '{"owner":"me","repo":"app","issue_number":42,"body":"x"}')"
+judge "MCP pullNumber" "me/app#5" "$(tgt_mcp update_pull_request_branch '{"owner":"me","repo":"app","pullNumber":5}')"
+judge "MCP issue_write create: the repository" "me/app" "$(tgt_mcp issue_write '{"method":"create","owner":"me","repo":"app","title":"t"}')"
+judge "MCP create_pull_request: no number" null "$(tgt_mcp create_pull_request '{"owner":"me","repo":"app","title":"t","head":"feat","base":"main"}')"
+judge "MCP owner with an expansion: no target" null "$(tgt_mcp add_issue_comment '{"owner":"$X","repo":"app","issue_number":42,"body":"x"}')"
+
+section "tickets end to end: permission-intent.sh -> PG confirm -> plugin-config.sh confirm -> PG"
+rm -rf "$STATE/intent" "$STATE/pending" "$STATE/asked" "$STATE/tickets"
+set_level none
+pi() { bash "$ROOT/hooks/permission-intent.sh" >/dev/null 2>&1; }
+typed() { # typed <command_args> [session] — a /pr-dev slash command the user typed, both halves
+  jq -nc --arg a "$1" --arg s "${2:-pg-1}" --arg d "$REPO" \
+    '{session_id:$s,cwd:$d,hook_event_name:"UserPromptExpansion",expansion_type:"slash_command",command_name:"tamirs-superpowers:pr-dev",command_args:$a}' | pi
+  jq -nc --arg a "$1" --arg s "${2:-pg-1}" --arg d "$REPO" \
+    '{session_id:$s,cwd:$d,hook_event_name:"UserPromptSubmit",prompt:("/tamirs-superpowers:pr-dev " + $a),source:"user"}' | pi
+}
+typed '42 --perms=standard'
+NONCE=""
+for f in "$STATE"/pending/*.json; do [ -f "$f" ] && NONCE="$(basename "$f" .json)"; done
+judge "a typed --perms=standard on /pr-dev 42 is a pending request, no grant" "perms pr-dev standard 42 github.com/me/app" \
+  "$(jq -r '"\(.kind) \(.skill) \(.level) \(.target.arg) \(.target.repo)"' "$STATE/pending/$NONCE.json" 2>/dev/null)"
+judge "  ... and the context it leaves is user_typed" "pr-dev true" "$(jq -r '"\(.skill) \(.user_typed)"' "$STATE/intent/pg-1.json" 2>/dev/null)"
+expect "before the confirm the R2 call still asks" claude "$(claude_bash 'gh pr comment 42 --body hi')" ask "pr.comment"
+expect "PG puts the confirm to the user, naming the request" claude "$(claude_bash "bash scripts/plugin-config.sh confirm $NONCE")" ask "skill pr-dev"
+TAMIRS_PERMISSION_TEST_SESSION=claude bash "$ROOT/scripts/plugin-config.sh" confirm "$NONCE" >/dev/null 2>&1; rc=$?
+nt=0; for f in "$STATE"/tickets/*.json; do [ -f "$f" ] && nt=$((nt + 1)); done
+judge "the writer turns the approved request into one ticket" "0 1" "$rc $nt"
+expect "the ticket's skill and target: the R2 comment is allowed" claude "$(claude_bash 'gh pr comment 42 --body hi')" allow
+expect "  ... through the GitHub MCP tool too" claude "$(claude_mcp "${PFX}add_issue_comment" '{"owner":"me","repo":"app","issue_number":42,"body":"x"}')" allow
+expect "  ... and a repo-kind step in its repository" claude "$(claude_bash 'gh issue create --title t --body b')" allow
+expect "another PR still asks" claude "$(claude_bash 'gh pr comment 43 --body hi')" ask "pr.comment"
+expect "another repository still asks" claude "$(claude_bash 'gh -R me/other issue create --title t --body b')" ask "issue.create"
+expect "a branch push still asks (a ticket names no branch)" claude "$(claude_bash 'git push -u origin feat')" ask "git.push.branch"
+expect "R3 under a standard ticket still asks" claude "$(claude_bash 'gh pr close 42')" ask "pr.close"
+expect "a subagent's call does not inherit it (S-11)" claude "$(claude_bash 'gh pr comment 42 --body hi' | jq -c '. + {agent_id:"sub-1"}')" ask "pr.comment"
+expect "another session does not see it" claude "$(claude_bash 'gh pr comment 42 --body hi' | jq -c '.session_id = "pg-2"')" ask "pr.comment"
+expect "codex never carries it (a claude ticket, and no raise path there)" codex "$(codex_bash 'gh pr comment 42 --body hi')" deny "pr.comment"
+git -C "$REPO" remote add mirror git@github.com:me/app.git
+expect "a second remote naming the same repository: still pinned" claude "$(claude_bash 'gh pr comment 42 --body hi')" allow
+git -C "$REPO" remote add upstream https://github.com/other/app.git
+judge "a remote naming another repository: a bare number is not pinned (gh may act on upstream)" null "$(tgt 'gh pr comment 42 --body hi')"
+expect "  ... so the ticket does not match" claude "$(claude_bash 'gh pr comment 42 --body hi')" ask "pr.comment"
+expect "  ... while -R names the ticket's repository explicitly" claude "$(claude_bash 'gh -R me/app pr comment 42 --body hi')" allow
+git -C "$REPO" remote remove upstream; git -C "$REPO" remote remove mirror
+for f in "$STATE"/tickets/*.json; do
+  [ -f "$f" ] && python3 - "$f" <<'PY'
+import json, sys, time
+p = sys.argv[1]; d = json.load(open(p)); t = int(time.time())
+d["created"] = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(t - 1000))
+d["expires"] = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(t - 100))
+open(p, "w").write(json.dumps(d, indent=2, sort_keys=True) + "\n")
+PY
+done
+expect "once it expires the comment asks again" claude "$(claude_bash 'gh pr comment 42 --body hi')" ask "pr.comment"
+rm -rf "$STATE/intent" "$STATE/pending" "$STATE/asked" "$STATE/tickets"
+set_level standard
+expect "control: at standard an R2 call is allowed" claude "$(claude_bash 'gh pr create --fill')" allow
+typed '7 --perms=supervised'
+judge "a typed --perms=supervised is a lowering ticket at once" "lower pr-dev supervised" \
+  "$(cat "$STATE"/tickets/*.json 2>/dev/null | jq -r '"\(.kind) \(.skill) \(.level)"')"
+expect "the lowering applies under /pr-dev" claude "$(claude_bash 'gh pr create --fill')" ask "lowering ticket"
+expect "  ... to a subagent's call too (a lowering needs no provenance, S-09)" claude "$(claude_bash 'gh pr create --fill' | jq -c '. + {agent_id:"sub-1"}')" ask "pr.create"
+expect "  ... and not in another session" claude "$(claude_bash 'gh pr create --fill' | jq -c '.session_id = "pg-2"')" allow
+set_level none
+rm -rf "$STATE/intent" "$STATE/pending" "$STATE/asked" "$STATE/tickets"
 
 # --- 10. libraries and wiring ---------------------------------------------------------------
 section "hook_ask: an ask on Claude only"

@@ -98,6 +98,15 @@
 #   without it and the stricter answer stands (a lowering needs no provenance, SR
 #   S-09). A missing, unsafe, stale or malformed context is no skill: the global
 #   level decides; it never errors into an allow.
+#   --perms= tickets (D4 row 1, D5): every resolver call carries --session and
+#   --agent (the payload's session_id and agent_id; no agent_id is the main
+#   thread, the ADR's partial S-11 disposition) and, for the R2/R3 actions of the
+#   pr, issue and repo target kinds, --target: the selector of `gh pr|issue <verb>
+#   <n|url>` (with -R/GH_REPO=), the MCP call's owner/repo and number, or "." for
+#   the repository gh would use. The resolver reads and matches the tickets itself.
+#   A target PG cannot pin (a branch selector, --hostname, GH_HOST=, an unpinned
+#   cd, a bare number or "." in a checkout whose remotes name more than one
+#   repository) is not passed, and no ticket matches a call without one.
 #
 # FAIL CLOSED (D4, SR S-12)
 #   Unparseable payload, no jq, no python3, a missing or corrupt catalog, a
@@ -1556,6 +1565,96 @@ def pr_target(hit):
     return "%s#%s" % (repo, ref) if repo else ref
 
 
+GH_SLUG_RE = re.compile(r"\A[A-Za-z0-9._-]{1,100}\Z")
+
+
+def gh_repo_of(p):
+    """(pinned, repo): the -R/--repo or GH_REPO= repository of a gh call, None for gh's default (GH_REPO, else
+    origin); pinned is False when PG cannot tell (--hostname, GH_HOST=, an expansion, two different -R)."""
+    repo = None
+    for k, v in p["gopts"]:
+        if k == "--hostname":
+            return False, None
+        if k in ("-R", "--repo"):
+            if not v or (repo is not None and v != repo):
+                return False, None
+            repo = v
+    for v in p["env"]:
+        if v.startswith("GH_HOST="):
+            return False, None
+        if v.startswith("GH_REPO=") and repo is None:
+            repo = v.split("=", 1)[1]
+    if repo is not None and (not repo or re.search(r"[$`\s]", repo)):
+        return False, None
+    return True, repo
+
+
+def one_remote_repo(d):
+    """True when every remote of the checkout names one repository. Only then does a bare number or "." mean
+    the same repository to gh (which, with several remotes, may prefer upstream or a `gh repo set-default`
+    one) as to the resolver (origin). False when PG cannot tell."""
+    out = git(d, "config", "--get-regexp", r"^remote\..*\.url$") if d else None
+    if not out or out[0] != 0:
+        return False
+    repos = set()
+    for line in out[1].splitlines():
+        parts = line.split(None, 1)
+        m = re.match(r"^(?:[a-z+]+://)?(?:[^@/]+@)?([^/:]+)(?::\d+)?[:/]+([^/]+)/([^/]+?)(?:\.git)?/?$",
+                     parts[1].strip()) if len(parts) == 2 else None
+        if not m:
+            return False
+        repos.add("/".join(g.lower() for g in m.groups()))
+    return len(repos) == 1
+
+
+def call_target(hit):
+    """--target: what the call acts on, so a --perms= ticket (D5) can match it, in a form the resolver reads (a
+    PR or issue number, <owner>/<repo>[#n], a PR/issue URL, or "." for the repository gh would use). Only for the
+    R2/R3 pr, issue and repo kinds a ticket can name; None when PG cannot pin it, which no ticket matches."""
+    t = raw_call_target(hit)
+    if t and (t == "." or re.fullmatch(r"#?\d+", t)) and not one_remote_repo(CTX["cwd"] if CTX["ok"] else None):
+        return None   # several remotes: gh may not act on origin, so a relative target is not pinned
+    return t
+
+
+def raw_call_target(hit):
+    if hit["id"] == "pr.merge.auto":
+        return pr_target(hit)
+    a = BYID.get(hit["id"]) or {}
+    kind = a.get("target")
+    if a.get("r") not in (2, 3) or kind not in ("pr", "issue", "repo"):
+        return None
+    if hit["kind"] == "mcp":
+        args = hit.get("args") or {}
+        o, r = args.get("owner"), args.get("repo")
+        if not (isinstance(o, str) and isinstance(r, str) and GH_SLUG_RE.match(o) and GH_SLUG_RE.match(r)):
+            return None
+        if kind == "repo":
+            return "%s/%s" % (o, r)
+        for k in ("pullNumber", "pull_number", "issue_number", "issueNumber"):
+            n = args.get(k)
+            if (isinstance(n, int) and not isinstance(n, bool) and n > 0) or (isinstance(n, str) and n.isdigit()):
+                return "%s/%s#%d" % (o, r, int(n))
+        return None
+    if hit["kind"] != "argv" or not CTX["ok"] or hit["p"]["argv0"] != "gh":
+        return None
+    p = hit["p"]
+    pinned, repo = gh_repo_of(p)
+    if not pinned:
+        return None
+    if kind == "repo":
+        # gh issue create, gh label create/edit, gh run rerun act on the repository itself
+        return (repo or ".") if p["sub"][:1] in (["issue"], ["label"], ["run"]) else None
+    if p["sub"][:1] not in (["pr"], ["issue"]) or len(p["sub"]) < 3:
+        return None
+    sel = p["sub"][2]   # the selector is the first word after the verb, or none (the current branch's PR)
+    if re.fullmatch(r"https://[^/\s]+/[^/\s]+/[^/\s]+/(?:pull|issues)/\d+/?", sel):
+        return sel
+    if not re.fullmatch(r"#?\d{1,12}", sel):
+        return None
+    return "%s#%s" % (repo, sel.lstrip("#")) if repo else sel.lstrip("#")
+
+
 JOBS, JOB_KEYS = [], {}
 for h in HITS:
     if not needs_resolver(h["id"]):
@@ -1565,7 +1664,7 @@ for h in HITS:
         v = establish(n, h)
         if v is not None:
             conds.append("%s=%s" % (n, "true" if v else "false"))
-    target = pr_target(h)
+    target = call_target(h)
     key = (h["id"], tuple(sorted(conds)), target)
     if key in JOB_KEYS:
         JOB_KEYS[key]["hits"].append(h)
@@ -1639,10 +1738,17 @@ if JOBS and not os.path.isfile(RESOLVER):
         resolver_failed(j, "scripts/resolve-permission.sh is missing")
 else:
     repo = CTX["cwd"] or payload_cwd() or os.getcwd()
+    # D4 row 1: the session and agent a --perms= ticket binds (D5, SR S-11). An absent agent_id is the main
+    # thread, which is the ADR's partial disposition: until hook input is shown to carry an agent id, a
+    # main-thread ticket also reaches a subagent's call, on its exact target only.
+    _sid = session_ids()[0]
+    _agent = str(PAY.get("agent_id") or "main")[:128]
+    SESSION_ARGV = ["--session", _sid, "--agent", _agent] if (
+        _sid and len(_sid) <= 256 and not re.search(r"[\x00-\x1f\x7f]", _sid + _agent)) else []
     procs = []
     for j in JOBS:
         for with_skill in VARIANTS:
-            argv = ["bash", RESOLVER, j["id"], "--host", HOST, "--repo", repo, "--json"]
+            argv = ["bash", RESOLVER, j["id"], "--host", HOST, "--repo", repo, "--json"] + SESSION_ARGV
             for c in j["conds"]:
                 argv += ["--cond", c]
             if j["target"]:
