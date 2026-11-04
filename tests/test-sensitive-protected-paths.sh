@@ -13,7 +13,8 @@
 #   - an unresolved write (an interpreter, a variable) that NAMES a protected
 #     path is a deny, while one that names none stays the advisory it was;
 #   - PM_ALLOW_PROTECTED unlocks nothing protected, but still unlocks the
-#     generated-file rules (lockfiles, workflows) it always did;
+#     generated-file rules (lockfiles) it always did — never a workflow, since
+#     env switches only tighten (D3) and a cloned repo's settings can set it;
 #   - the running plugin's guard files: deny in an installed copy, an R4 ask in
 #     a source checkout (hook_ask when the platform has one, else deny);
 #   - no deny text names PM_ALLOW_PROTECTED or the GitHub MCP write tool (D10.5);
@@ -206,10 +207,10 @@ judge "python3 -c naming opencode config"   deny "$(vb "python3 -c \"open('$PHOM
 judge "an installed guard file"             deny "$(vg "$INST/hooks/guard-sensitive-files.sh" Write "$INST/hooks/lib/write-targets.py")"
 judge "a source-checkout guard file is still an ask" ask \
   "$(vg "$SRC_ASK/hooks/guard-sensitive-files.sh" Write "$SRC_ASK/hooks/permission-guard.sh")"
-section "... and is still honoured for the generated-file rules"
+section "... and is still honoured for the generated-file rules, workflows excepted"
 judge "Edit a lockfile"                     allow "$(v Edit "$REPO/yarn.lock")"
 judge "Bash write to a lockfile"            allow "$(vb "echo x > yarn.lock")"
-judge "Write a workflow"                    allow "$(v Write "$REPO/.github/workflows/ci.yml")"
+judge "Write a workflow is still denied (F6)" deny "$(v Write "$REPO/.github/workflows/ci.yml")"
 unset PM_ALLOW_PROTECTED
 
 # ===========================================================================

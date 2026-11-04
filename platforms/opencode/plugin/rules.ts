@@ -63,7 +63,8 @@ export interface SensitiveFacts {
   readonly gitIgnored?: boolean
 }
 
-export type WriteKind = "write" | "delete"
+/** write: a file. delete: a file or tree removed. tree: a path a copy, move, link or extraction fills. */
+export type WriteKind = "write" | "delete" | "tree"
 
 /**
  * Mirrors the `classify` function of hooks/guard-sensitive-files.sh rule for rule
@@ -72,9 +73,31 @@ export type WriteKind = "write" | "delete"
  * hook, no text names an override (ADR 004 D10.5): the user's PM_ALLOW_PROTECTED=1
  * still skips this pass, but a deny never advertises it to the agent.
  */
+/**
+ * The workflow half of sensitiveReason, exported on its own because no environment switch may
+ * reach it (ADR 004 D3, F6): guard-sensitive-files.sh judges it before PM_ALLOW_PROTECTED. The
+ * workflows directory itself counts, and so does a `.github` that a delete or a tree write removes
+ * or fills (the shell hook also checks the directory exists; this pure rule cannot, so it denies).
+ */
+export function workflowReason(file: string, kind: WriteKind = "write", via = ""): string | null {
+  const f = normPath(file)
+  const context = via ? ` (via: ${via})` : ""
+  const holds = /\/\.github$/.test(f) && (kind === "delete" || kind === "tree")
+  if (!/\/\.github\/workflows(?:\/|$)/.test(f) && !holds) return null
+  // R4 `workflow.edit` (ADR 004 D10.5): the remedy is the user, not a route around
+  // this guard — a remote write tool is the same change with no guard on it.
+  return (
+    `BLOCKED: '${file}' ${holds ? "holds the GitHub Actions workflows" : "is a GitHub Actions workflow"}.${context} ` +
+    "Changing a workflow is an R4 action (workflow.edit): ask the user to approve this exact change and to make it themselves, " +
+    "rather than routing it through another tool or a remote API."
+  )
+}
+
 export function sensitiveReason(file: string, facts: SensitiveFacts = {}, kind: WriteKind = "write", via = ""): string | null {
   const f = normPath(file)
   const context = via ? ` (via: ${via})` : ""
+  const workflow = workflowReason(file, kind, via)
+  if (workflow) return workflow
   if (/\.lock$|\/package-lock\.json$|\/pnpm-lock\.yaml$|\/bun\.lockb$|\/go\.sum$/.test(f)) {
     return (
       `BLOCKED: '${file}' is a package-manager lockfile — it is generated, never hand-edited.${context} ` +
@@ -83,14 +106,6 @@ export function sensitiveReason(file: string, facts: SensitiveFacts = {}, kind: 
   }
   if (f.includes("/.yarn/releases/")) {
     return `BLOCKED: '${file}' is the vendored Yarn binary under .yarn/releases/.${context} Change it with 'yarn set version <version>', not by editing the file.`
-  }
-  if (f.includes("/.github/workflows/")) {
-    // R4 `workflow.edit` (ADR 004 D10.5): the remedy is the user, not a route around
-    // this guard — a remote write tool is the same change with no guard on it.
-    return (
-      `BLOCKED: '${file}' is a GitHub Actions workflow.${context} Changing a workflow is an R4 action (workflow.edit): ` +
-      "ask the user to approve this exact change and to make it themselves, rather than routing it through another tool or a remote API."
-    )
   }
   if (/\/components\/ui\//.test(f)) {
     if (facts.repoRoot && facts.hasShadcnConfig) {
@@ -165,6 +180,11 @@ export interface ProtectedFacts {
   readonly pluginRoots: readonly { readonly root: string; readonly sourceCheckout: boolean }[]
   /** True for a directory that holds a `.git` entry, or is the session cwd: what `{repo}` means. */
   readonly isRepoRoot: (dir: string) => boolean
+  /**
+   * Whether the volume holding a path matches names case-insensitively (macOS APFS): true, false, or null
+   * when it cannot tell. Absent or null folds — folding only ever protects one spelling more (F4a).
+   */
+  readonly caseInsensitive?: (path: string) => boolean | null
 }
 
 export interface ProtectedHit {
@@ -210,26 +230,57 @@ function ancestors(form: string): string[] {
 }
 
 /**
- * write-targets.py `Protection.match`: every protected rule a path hits, judged on each
- * spelling in `forms` (the lexical path and its realpath, both absolute). `containing`
- * also counts deleting a directory that holds a protected home or plugin-root path; a
- * `{repo}` root itself may be deleted (a temporary repository stays removable).
+ * guard.ts resolves a written `~/x` (or `$HOME/x`) against the cwd, as `<cwd>/~/x`; the shell
+ * expands it to a home. Each such spelling is judged under every home too (it only tightens).
  */
-export function protectedHits(forms: readonly string[], facts: ProtectedFacts, containing = false): ProtectedHit[] {
+function withHomeForms(forms: readonly string[], homes: readonly string[]): string[] {
+  const out = [...forms]
+  for (const raw of forms) {
+    const p = normPath(raw)
+    const m = /\/(?:~|\$HOME|\$\{HOME\})(\/.*)?$/.exec(p)
+    if (!m) continue
+    for (const h of homes) {
+      const x = normPath(h) + (m[1] ?? "")
+      if (!out.includes(x)) out.push(x)
+    }
+  }
+  return out
+}
+
+/**
+ * write-targets.py `Protection.match`: every protected rule a path hits, judged on each
+ * spelling in `forms` (the lexical path and its realpath, both absolute), case-folded unless
+ * `facts.caseInsensitive` shows the volume is case-sensitive. `containing` also counts a
+ * path that is an ANCESTOR of a protected one — home, plugin-root and repo-relative alike
+ * (deleting or moving `.claude` away removes `.claude/settings.json`). A `{repo}` root
+ * itself may be deleted (a temporary repository stays removable), but `tree` — a copy, move
+ * or extraction INTO the path — counts the root too: an archive unpacked over a repository
+ * can rewrite its settings.
+ */
+export function protectedHits(forms: readonly string[], facts: ProtectedFacts, containing = false, tree = false): ProtectedHit[] {
   const hits: ProtectedHit[] = []
+  const within = containing || tree
+  const all = withHomeForms(forms, facts.homes)
   for (const id of Object.keys(PROTECTED_PATHS) as ProtectedId[]) {
     for (const pattern of PROTECTED_PATHS[id]) {
       const m = /^\{(home|repo|plugin_root)\}\/(.+)$/.exec(pattern)
       if (!m) continue
       const [, ph, tail] = m
       const tre = globTailRegex(tail)
-      for (const raw of forms) {
+      for (const raw of all) {
         const form = normPath(raw)
+        const fold = facts.caseInsensitive ? facts.caseInsensitive(form) !== false : true
+        const f = (x: string) => (fold ? x.toLowerCase() : x)
+        const below = form === "/" ? "/" : f(form) + "/"
         if (ph === "repo") {
-          const rx = new RegExp("^" + tre + "$")
-          if (ancestors(form).some((r) => rx.test(form.slice(r.length + 1)) && facts.isRepoRoot(r))) {
-            hits.push({ mode: "deny", id, pattern, form })
+          const rx = new RegExp("^" + tre + "$", fold ? "i" : "")
+          const roots = ancestors(form).filter((r) => facts.isRepoRoot(r))
+          let hit = roots.some((r) => rx.test(form.slice(r.length + 1)))
+          if (!hit && within) {
+            const bases = tree && facts.isRepoRoot(form) ? [...roots, form] : roots
+            hit = bases.some((r) => f(r + "/" + fixedPart(tail)).startsWith(below))
           }
+          if (hit) hits.push({ mode: "deny", id, pattern, form })
           continue
         }
         const roots =
@@ -239,9 +290,9 @@ export function protectedHits(forms: readonly string[], facts: ProtectedFacts, c
         for (const { root, mode } of roots) {
           const base = normPath(root)
           if (!base || base === "/") continue
-          const rx = new RegExp("^" + reEscape(base) + "/" + tre + "$")
+          const rx = new RegExp("^" + reEscape(base) + "/" + tre + "$", fold ? "i" : "")
           const fixed = base + "/" + fixedPart(tail)
-          if (rx.test(form) || (containing && fixed.startsWith(form + "/"))) hits.push({ mode, id, pattern, form })
+          if (rx.test(form) || (within && f(fixed).startsWith(below))) hits.push({ mode, id, pattern, form })
         }
       }
     }
@@ -254,6 +305,7 @@ export type TargetKind = WriteKind | "move" | "link"
 const KIND_WORDS: Readonly<Record<TargetKind, string>> = {
   write: "would be written",
   delete: "would be deleted",
+  tree: "would receive a whole directory tree (a copy, move, link or extraction)",
   move: "would be moved away",
   link: "would become reachable through a new link",
 }
@@ -275,7 +327,7 @@ export function protectedReason(
   kind: TargetKind = "write",
   via = "",
 ): { readonly mode: "deny" | "ask"; readonly reason: string } | null {
-  const hits = protectedHits(forms, facts, kind === "delete" || kind === "move" || kind === "link")
+  const hits = protectedHits(forms, facts, kind === "delete" || kind === "move" || kind === "link" || kind === "tree", kind === "tree")
   if (!hits.length) return null
   const hit = hits.find((h) => h.mode === "deny") ?? hits[0]
   const resolved = hit.form === normPath(file) ? "" : ` (resolves to '${hit.form}')`
@@ -531,6 +583,39 @@ export function shellSegments(s: string): Segment[] {
       haveTok = true
       i++
       continue
+    }
+    // A `#` that starts a word starts a comment: an apostrophe in it is prose, not a quote.
+    if (c === "#" && !haveTok) {
+      while (i < n && s[i] !== "\n") i++
+      continue
+    }
+    // `$'…'` — ANSI-C quoting, where `\'` is a quote character, not the end of the quote.
+    if (c === "$" && s[i + 1] === "'") {
+      let j = i + 2
+      while (j < n && s[j] !== "'") {
+        if (s[j] === "\\" && j + 1 < n) {
+          tok += s[j + 1]
+          j += 2
+        } else tok += s[j++]
+      }
+      haveTok = true
+      i = j + 1
+      continue
+    }
+    // `(( … ))` is arithmetic: `<<` there is a shift, never a heredoc.
+    if (c === "(" && s[i + 1] === "(" && !haveTok) {
+      let depth = 0
+      let j = i
+      for (; j < n; j++) {
+        if (s[j] === "(") depth++
+        else if (s[j] === ")" && --depth === 0) break
+      }
+      if (j < n && s[j - 1] === ")") {
+        tok = s.slice(i, j + 1)
+        haveTok = true
+        i = j + 1
+        continue
+      }
     }
     if (c === "'") {
       state = 1
@@ -837,13 +922,28 @@ export interface ShellWriteTarget {
 
 /**
  * The subset of hooks/lib/write-targets.py this plugin can read without Python:
- * `>`/`>>` redirect operands, `tee`, `sed -i`, `cp`/`mv`/`install`/`ln` destinations,
- * `mv` and `ln` sources (judged by the protected-path rules only, as write-targets.py
- * judges its SOURCE records) and `rm` operands. Anything built at runtime
- * (`> "$OUT"`, xargs, find -exec, interpreters) is invisible here — the Python helper
- * reports those as UNSURE and this port, honestly, does not see them at all. Paths
- * are returned as written; the caller resolves them against the command's cwd.
+ * redirect operands on any fd (`>`, `>>`, `3>`, `<>`, `>& FILE`, under `exec` too),
+ * `tee`, `sed -i`, `cp`/`mv`/`install`/`ln`/`rsync` destinations, `tar -x`/`unzip`
+ * extraction directories, `mv`, `ln` and `cp -l`/`-s` sources (judged by the
+ * protected-path rules only, as write-targets.py judges its SOURCE records) and `rm`
+ * operands. A destination that can receive a whole directory (`mv`, `ln`, `rsync`,
+ * `cp -r`, an extraction) is a `tree` target: a protected path inside it counts
+ * (F4b). Anything built at runtime (`> "$OUT"`, xargs, find -exec, interpreters), git
+ * replays and patches are invisible here — the Python helper reports or judges those
+ * and this port, honestly, does not see them at all. Paths are returned as written;
+ * the caller resolves them against the command's cwd.
  */
+/** Destinations that are always directories, though the parse cannot stat them: `cp -r x ~` fills ~/x. */
+const DIR_WORDS = /^(?:~[A-Za-z0-9_.-]*|\.|\.\.|\$HOME|\$\{HOME\})$/
+
+function baseName(p: string): string {
+  return p.replace(/\/+$/, "").split("/").pop() as string
+}
+
+function joinPath(dir: string, name: string): string {
+  return dir.replace(/\/+$/, "") + "/" + name
+}
+
 export function shellWriteTargets(command: string): ShellWriteTarget[] {
   const out: ShellWriteTarget[] = []
   // Redirect operands are dropped by shellSegments (they are not arguments), so
@@ -863,13 +963,22 @@ export function shellWriteTargets(command: string): ShellWriteTarget[] {
       if (c === '"') state = 0
       continue
     }
-    if (c === "'") state = 1
+    if (c === "#" && (i === 0 || " \t\n;&|(".includes(command[i - 1]))) {
+      while (i + 1 < command.length && command[i + 1] !== "\n") i++
+    } else if (c === "$" && command[i + 1] === "'") {
+      let j = i + 2
+      while (j < command.length && command[j] !== "'") j += command[j] === "\\" ? 2 : 1
+      i = j
+    } else if (c === "'") state = 1
     else if (c === '"') state = 2
     else if (c === "\\") i++
-    else if (c === ">" && command[i + 1] !== "&" && command[i - 1] !== "<") {
+    else if ((c === ">" && command[i - 1] !== "<") || (c === "<" && command[i + 1] === ">")) {
+      // `>`, `>>`, `>|`, `N>`, `<>` (read-write: it creates the file) and `>& FILE`.
       let j = i + 1
-      if (command[j] === ">") j++
-      if (command[j] === "|") j++
+      if (c === "<") j++
+      else if (command[j] === ">" || command[j] === "|") j++
+      const dup = c === ">" && command[j] === "&"
+      if (dup) j++
       while (command[j] === " " || command[j] === "\t") j++
       let k = j
       let q = ""
@@ -884,7 +993,8 @@ export function shellWriteTargets(command: string): ShellWriteTarget[] {
         else word += d
         k++
       }
-      if (word && word !== "/dev/null" && !word.startsWith("&")) out.push({ path: word, kind: "write", via: "redirect" })
+      // `>&2`, `>&-`, `>&3-` duplicate, close or move a descriptor: no file.
+      if (word && word !== "/dev/null" && !(dup && /^(?:\d+-?|-)$/.test(word))) out.push({ path: word, kind: "write", via: "redirect" })
       i = k - 1
     }
   }
@@ -913,7 +1023,7 @@ export function shellWriteTargets(command: string): ShellWriteTarget[] {
         files.push(a)
       }
       for (const f of files) out.push({ path: f, kind: "write", via: "sed -i" })
-    } else if (base === "cp" || base === "mv" || base === "install" || base === "ln") {
+    } else if (base === "cp" || base === "mv" || base === "install" || base === "ln" || base === "rsync") {
       // `-t DIR` / `--target-directory=DIR` names the destination; every operand is then a source.
       let dir: string | undefined
       let ops = operands
@@ -927,11 +1037,62 @@ export function shellWriteTargets(command: string): ShellWriteTarget[] {
       }
       const dest = dir ?? (ops.length >= 2 ? ops[ops.length - 1] : undefined)
       const sources = dir !== undefined ? ops : ops.length >= 2 ? ops.slice(0, -1) : base === "ln" ? ops : []
-      if (dest !== undefined) out.push({ path: dest, kind: "write", via: base })
+      const cluster = (re: RegExp) => args.some((a) => /^-[a-zA-Z]+$/.test(a) && re.test(a.slice(1)))
+      // mv, ln and rsync can put a whole directory in place, and so can cp -r/-R/-a.
+      const kind: TargetKind =
+        base === "mv" || base === "ln" || base === "rsync" || args.includes("--recursive") || args.includes("--archive") || (base === "cp" && cluster(/[rRa]/))
+          ? "tree"
+          : "write"
+      if (dest !== undefined) {
+        const noTdir = base !== "rsync" && (args.includes("--no-target-directory") || cluster(/T/))
+        const intoDir = dir !== undefined || (!noTdir && (sources.length > 1 || dest.endsWith("/") || DIR_WORDS.test(dest)))
+        if (intoDir && sources.length) {
+          // A source with a trailing slash has no basename: BSD cp and rsync fill the destination itself.
+          for (const src of sources) out.push({ path: src.endsWith("/") ? dest : joinPath(dest, baseName(src)), kind, via: base })
+        } else out.push({ path: dest, kind, via: base })
+      }
       if (base === "mv") for (const a of sources) out.push({ path: a, kind: "move", via: "mv" })
-      if (base === "ln") {
-        const symbolic = args.some((a) => a === "--symbolic" || (/^-[a-zA-Z]+$/.test(a) && a.includes("s")))
-        for (const a of sources) out.push({ path: a, kind: "link", via: "ln", ...(symbolic && dest ? { linkAt: dest } : {}) })
+      // A hard or symbolic link — ln, or cp -l/-s — makes its source reachable from the destination.
+      const linking = base === "ln" || (base === "cp" && (args.includes("--link") || args.includes("--symbolic-link") || cluster(/[ls]/)))
+      if (linking) {
+        const symbolic = args.some((a) => a === "--symbolic" || a === "--symbolic-link" || (/^-[a-zA-Z]+$/.test(a) && a.includes("s")))
+        for (const a of sources) out.push({ path: a, kind: "link", via: base, ...(symbolic && dest ? { linkAt: dest } : {}) })
+      }
+    } else if (base === "tar" || base === "bsdtar" || base === "gtar") {
+      const first = args[0] ?? ""
+      const bundle = first && !first.startsWith("-") && /^[A-Za-z]+$/.test(first) ? first : ""
+      const mode = (re: RegExp, longs: readonly string[]) =>
+        re.test(bundle) || args.some((a) => longs.includes(a.split("=")[0]) || (/^-[a-zA-Z]+$/.test(a) && re.test(a.slice(1))))
+      if (mode(/x/, ["--extract", "--get"]) && !mode(/O/, ["--to-stdout"])) {
+        // Extraction fills its -C directories, else the cwd.
+        const dirs: string[] = []
+        for (let k = 0; k < args.length; k++) {
+          const a = args[k]
+          if ((a === "-C" || a === "--directory") && k + 1 < args.length) dirs.push(args[k + 1])
+          else if (a.startsWith("--directory=")) dirs.push(a.slice("--directory=".length))
+          else if (/^-C./.test(a)) dirs.push(a.slice(2))
+        }
+        for (const d of dirs.length ? dirs : ["."]) out.push({ path: d, kind: "tree", via: "tar -x" })
+        if (mode(/P/, ["--absolute-names"])) out.push({ path: "/", kind: "tree", via: "tar -xP" })
+      } else if (mode(/[cruA]/, ["--create", "--append", "--update", "--catenate", "--concatenate", "--delete"])) {
+        // The archive it writes: `-f FILE`, `--file=FILE`, a cluster ending in f, or `tar czf FILE`.
+        for (let k = 0; k < args.length; k++) {
+          const a = args[k]
+          const next = args[k + 1]
+          if ((a === "-f" || a === "--file" || /^-[a-zA-Z]*f$/.test(a) || (k === 0 && bundle.includes("f"))) && next !== undefined && next !== "-") {
+            out.push({ path: next, kind: "write", via: "tar" })
+          } else if (a.startsWith("--file=") && a !== "--file=-") out.push({ path: a.slice("--file=".length), kind: "write", via: "tar" })
+        }
+      }
+    } else if (base === "unzip") {
+      // -l/-t/-v/-z/-Z list or test, -p/-c print: nothing is extracted.
+      if (!args.some((a) => /^-[a-zA-Z]+$/.test(a) && /[lptvzZc]/.test(a.slice(1)))) {
+        let dest = "."
+        for (let k = 0; k < args.length; k++) {
+          if (args[k] === "-d" && k + 1 < args.length) dest = args[k + 1]
+          else if (/^-d./.test(args[k])) dest = args[k].slice(2)
+        }
+        out.push({ path: dest, kind: "tree", via: "unzip" })
       }
     } else if (base === "rm") {
       for (const a of operands) out.push({ path: a, kind: "delete", via: "rm" })
