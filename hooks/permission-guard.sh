@@ -46,7 +46,8 @@
 #   quote or here-document, nesting past 4, a shell reading a pipe) is
 #   UNCLASSIFIED (R4). `gh` as a word in a segment that is not an inert command
 #   is the D1 `gh ` marker. git long options are read through their unique
-#   prefixes; hosts, markers and REST paths in any case.
+#   prefixes; gh short-option clusters as pflag reads them (-dc bye is -d -c bye,
+#   -Bmain is -B main, gh_split); hosts, markers and REST paths in any case.
 #
 # HTTP CLIENTS, gh api AND GRAPHQL (issue #349)
 #   curl, wget, http/https, xh/xhs and `gh api` are read by lib/pg_http.py, one
@@ -598,6 +599,55 @@ def expand_prog(toks, i):
     return toks[:i] + words + toks[i + 1:] if words else None
 
 
+# gh reads short options as pflag does: -ds is -d -s, -Bmain is -B main, -ab ok is -a -b ok, -d=x is -d. The
+# shorthands that take a value, per subcommand, from `gh help <subcommand>` (gh 2.103.3), for every subcommand the
+# catalog matches on an option or a positional, and for the PR selector pr_target and required_checks read. Any
+# other letter is read as a boolean: a value letter read as one can only show one more option (stricter, never a
+# hidden one), and a subcommand not listed is split letter by letter. -R is the global repository option, already
+# taken out (or marked unpinnable) before the split, so it ends a cluster there (#349).
+GH_SHORT_VALUES = {"pr merge": "AbFt", "pr close": "c", "pr review": "bF", "pr edit": "BbFmt",
+                   "workflow run": "Ffr"}
+GH_CLUSTER = re.compile(r"\A-[A-Za-z0-9]")
+
+
+def gh_split(sub):
+    """gh's words after its global options with every short-option cluster split as pflag reads it. `gh api` is
+    read by pg_http, which models pflag itself: its words are left as written."""
+    if sub[:1] == ["api"]:
+        return sub
+    vals = GH_SHORT_VALUES.get(" ".join(sub[:2]), "")
+    out, k = [], 0
+    while k < len(sub):
+        t = sub[k]
+        k += 1
+        if t == "--":
+            out += sub[k - 1:]
+            break
+        if not GH_CLUSTER.match(t) or len(t) < 3:
+            out.append(t)
+            continue
+        j = 1
+        while j < len(t):
+            c = t[j]
+            if c == "R":
+                # -dRacme/app: the rest is the repository, which parse() already took out or marked unpinnable.
+                # It stays one attached word, so it is never read as a positional.
+                out.append("-R" + t[j + 1:])
+                break
+            out.append("-" + c)
+            rest = t[j + 1:]
+            if rest.startswith("="):
+                if c in vals:
+                    out.append(rest[1:])
+                break   # -d=false: pflag gives the letter the value; reading it as set is the stricter side
+            if c in vals:
+                if rest:
+                    out.append(rest)
+                break
+            j += 1
+    return out
+
+
 def parse(toks, depth=0):
     env, i = [], 0
     while i < len(toks):
@@ -664,7 +714,10 @@ def parse(toks, depth=0):
                 gopts.append(("-R", None))   # -dR x: a repository PG cannot pin (the cluster is kept)
             clean.append(sub[k])
             k += 1
-        sub = clean
+        # Split after -R is taken out: the catalog's any/none read every word (p["all"]), the selectors the
+        # positionals (p["sub"]), and both must see `gh pr close 5 -dc bye` as -d -c bye.
+        sub = gh_split(clean)
+        rest = rest[:j] + gh_split(rest[j:])
     if argv0 == "git" and sub[:1] == ["push"]:
         # -uf is -u -f: a cluster of git push's boolean short flags is split so a force cannot hide in it.
         out_ = []
