@@ -30,3 +30,4 @@
 - [Orchestration speed: overlap, cap review rounds](feedback-orchestration-speed.md) — early-start dependent objectives, combine small PRs, cap parser review rounds + file an issue, GitHub-outage merge/CI workarounds
 - [Keep a requested status cadence](feedback-status-cadence.md) — "update me every 10 min" means unprompted lines on that cadence; the user asked "status?" ~10 times
 - [Don't clear others' stashes for a hook](feedback-stash-ownership.md) — a stop hook is not the user; diff and ask first; the 2026-11-04 stashes live in refs/archive/stash-2026-11-04/*
+- [Stack same-file PRs and fast-forward the stack](feedback-stacked-prs-fast-forward.md) — a squash of the base re-conflicts every PR above it; one CI round, then push the last green head to master; watchers must treat empty rollups as pending
