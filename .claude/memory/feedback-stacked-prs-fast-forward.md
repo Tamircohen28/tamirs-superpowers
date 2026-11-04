@@ -18,11 +18,16 @@ merge rewrites SHAs, which recreates the same conflict for the next PR. Only a f
 commits' SHAs in master so the next PR's merge-base moves forward.
 
 **How to apply:** rebase the PRs into one stack on `origin/master` (resolve the changelog by keeping both sides and
-merging duplicate `### ` headings), push each branch, let one CI round run on all of them in parallel, then
-`git push origin <head-sha>:refs/heads/master` for the last green head in the stack. GitHub marks every PR whose
-head is now reachable as merged, auto-deletes the branches, and closes `Closes #N` issues; the admin role bypasses
-the pull-request rule for the push. If a PR in the middle turns red (or Codex finds a real bypass), re-stack the
-ones above it directly onto master and move it to the end of the queue; each head is a prefix of the next, so a
-partial fast-forward is always possible. A watcher on `statusCheckRollup` must treat an empty rollup or an empty
-`conclusion` string as still pending — `//` in jq does not, and both fooled a first version. Related:
-[[feedback-orchestration-speed]], [[feedback-wait-for-codex-before-merge]].
+merging duplicate `### ` headings), push each branch, and let one CI round run on all of them in parallel. The
+normal delivery path stays the PR merge (`gh pr merge --squash --admin`, each call approved by the user). Landing
+the stack with `git push origin <head-sha>:refs/heads/master` is an **exception that needs the user's explicit
+authorization for that push**, never a default: `core/policies/safety.md` invariant 5 forbids a direct push to the
+protected default branch unless the repository allows it *and* the user asked, and `core/permissions/actions.json`
+marks `git.push.default` as `never_auto`. The admin role being able to bypass the ruleset is capability, not
+authorization. On 2026-11-04 the user had said "merge all the green PRs" and confirmed the stack plan before the
+push. When authorized: push the last green head in the stack; GitHub marks every PR whose head is now reachable as
+merged, auto-deletes the branches, and closes `Closes #N` issues. If a PR in the middle turns red (or Codex finds
+a real bypass), re-stack the ones above it directly onto master and move it to the end of the queue; each head
+is a prefix of the next, so a partial fast-forward is always possible. A watcher on `statusCheckRollup` must treat
+an empty rollup or an empty `conclusion` string as still pending — `//` in jq does not, and both fooled a first
+version. Related: [[feedback-orchestration-speed]], [[feedback-wait-for-codex-before-merge]].
