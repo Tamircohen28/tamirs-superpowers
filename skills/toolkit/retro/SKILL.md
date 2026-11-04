@@ -22,11 +22,12 @@ metadata:
     category: toolkit
     role: none
     validation-tier: 0
-    updated-date: '2026-08-19'
+    updated-date: '2026-11-04'
     capabilities:
       required:
         - skills
       optional:
+        - shell
         - session_transcripts
         - subagents
         - hooks
@@ -38,7 +39,7 @@ metadata:
       - memory
       - orchestration
   capability: toolkit
-  updated-date: '2026-08-19'
+  updated-date: '2026-11-04'
 ---
 
 # /retro — session postmortem & self-improvement
@@ -118,4 +119,20 @@ Ask the user to approve, edit, or cut items. **Do not create or edit any files (
 
 ## 4. On approval
 
-Make only the approved changes, and only in the layers this skill is allowed to write. Then list every file created/changed, what each does, and how to undo it. Remind the user to commit `.claude/` config + the memory dir so it's reviewable and survives machine changes.
+Chat approval decides *what* to change. Before the first write, check *where* each approved change lands by running the gate on every file it would create or edit:
+
+```bash
+bash "$CLAUDE_SKILL_DIR/scripts/gate-writes.sh" <path> [<path>...]   # add --headless when no human is in this session
+```
+
+The script classifies each path (ADR 004): `file.write.repo` (R1) inside the repo, `file.write.outside_repo` (R3) for the project memory dir under `~/.claude/projects/` and anything else outside the repo, `config.global.write` (R4) for global agent config such as `~/.claude/CLAUDE.md` or `~/.claude/hooks/`, `policy.edit` (R4) for host settings like `~/.claude/settings.json`, and `workflow.edit` (R4). It asks `scripts/resolve-permission.sh` about each path and prints one JSON line per path with a `decision`:
+
+| `decision` | Do this |
+|---|---|
+| `write` | Write it. |
+| `ask` | Name that exact path and its action to the user and write it only after a fresh "yes" to that file. Approving the proposal table is not enough for an R3/R4 target. With no human present (an orchestrated or `-p` run), pass `--headless`, which turns `ask` into `blocked`. |
+| `blocked` | Do not write it. Report the reason and `allow_with`. Framework policy (`core/**`, `rules/**` of this plugin) is always `blocked`: it stays a proposal regardless of approval. |
+
+Without `shell`, the gate cannot run. Treat every path outside the repo as `ask` and every framework-policy path as `blocked`. Exit 3 means at least one path is blocked. Write the others and report the blocked ones. A missing or failing resolver blocks every path (fail closed). Never write around the gate with a shell redirect or a different path.
+
+Then list every file created/changed, what each does, and how to undo it. Remind the user to commit `.claude/` config + the memory dir so it's reviewable and survives machine changes.

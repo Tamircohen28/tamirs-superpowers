@@ -145,10 +145,24 @@ Extract from args:
 - If `SCAFFOLD_TYPE=plugin`, set `TECH=node` unless `--tech` explicitly set
 - `CONTRACT_PROFILE=app-gold`; if `SCAFFOLD_TYPE=plugin`, set `CONTRACT_PROFILE=plugin-gold`
 
-Print a one-line plan before proceeding:
+Print a one-line plan:
 ```
-Creating private repo TamirCohen28/<REPO_NAME> [<SCAFFOLD_TYPE> / <TECH>] — "<DESCRIPTION>". Scaffolding now...
+Creating private repo TamirCohen28/<REPO_NAME> [<SCAFFOLD_TYPE> / <TECH>] — "<DESCRIPTION>".
 ```
+
+**Permission gate — before anything is created.** Creating a repository is `repo.create`, R4 in [ADR 004](../../../docs/engineering/decisions/004-permission-levels.md): it is public-facing, hard to undo, and the name and description come from free text, so a plan line is a notice, not a confirmation. Ask the resolver for this exact repository:
+
+```bash
+bash "$CLAUDE_SKILL_DIR/scripts/repo-create-gate.sh" \
+  --repo "TamirCohen28/$REPO_NAME" --visibility private --description "$DESCRIPTION"
+# add --headless when no person can answer you (a subagent, a `claude -p` run)
+```
+
+- exit `0` (allow) → continue to Stage 2.
+- exit `10` (ask — the answer R4 gets at every level) → show the user the printed `action:` line (owner/name, visibility, description) and create it **only on an explicit yes for that repository in this conversation**. A general "scaffold me a repo" earlier is not that yes. When you cannot ask anyone, stop: that is the headless case.
+- exit `3` or anything else → stop. Report the printed `blocked:` line verbatim (it names the setting that would allow it) and create nothing. A resolver that is missing or fails is a deny, never a pass.
+
+The gate never creates the repository itself: the `gh repo create` below stays its own visible call, so the host's own permission prompt on that call still sees it.
 
 If `--src` is a GitHub URL, run:
 ```bash
@@ -436,32 +450,15 @@ EOF
 git push -u origin HEAD
 ```
 
-Enable PR auto-merge (required for `start-dev` / `pr-dev`):
+Enable PR auto-merge, then apply the canonical repository policy (branch rulesets on the default branch):
 
 ```bash
-bash "$CONTRACT_ROOT/scripts/enable-repo-merge-settings.sh" "TamirCohen28/$REPO_NAME"
-```
-
-Apply the canonical repository policy (branch rulesets on the default branch):
-
-```bash
+bash "$CONTRACT_ROOT/scripts/enable-repo-merge-settings.sh" "TamirCohen28/$REPO_NAME" --apply --skill repo-scaffold
 PLUGIN_ROOT="$(cd "$CONTRACT_ROOT/../../.." && pwd)"
 bash "$PLUGIN_ROOT/scripts/github-policy.sh" apply --repo "TamirCohen28/$REPO_NAME"
 ```
 
-This replaced `ensure-branch-protection.sh`, which wrote classic `branches/*/protection` with one literal `CI` context and a hardcoded default-branch name. The old script remains only as a deprecating shim onto this command.
-
-**If it cannot run, the scaffold still succeeded.** Repository creation must never fail because branch governance could not be applied — the local tree, the docs, the CI and the contract gate are all real work that is already done and pushed. `github-policy.sh apply` exits non-zero when `gh` is missing, unauthenticated, or lacks repository-administration permission, and when there is no TTY to confirm at it prints the plan and writes nothing. Treat every one of those as a **degraded success**: continue to Stage 5, and report verbatim in the Stage 6 summary —
-
-> Local repository configured. GitHub repository policy was not applied because GitHub administration access is unavailable.
-
-— followed by the exact command the user can run themselves once access exists:
-
-```bash
-bash scripts/github-policy.sh apply --repo TamirCohen28/$REPO_NAME
-```
-
-Do not retry, do not fall back to classic branch protection, and do not silently mark the repo as protected.
+Both go through the permission resolver (`repo.settings.merge` R3, `ruleset.apply` R4). **If either cannot run, the scaffold still succeeded**: exit `3`, a missing or unauthenticated `gh`, or a plan printed for lack of a TTY are each a **degraded success** — continue to Stage 5 and report, in the Stage 6 summary, the verbatim sentence and the run-it-yourself commands given in [`references/branch-governance.md`](references/branch-governance.md) (read it before reporting). Never retry with a different flag, call `gh api` directly, fall back to classic branch protection, or mark the repo protected when it is not.
 
 ### Stage 5: Run skill-creator
 

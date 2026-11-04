@@ -25,7 +25,7 @@ metadata:
     category: toolkit
     role: implementer
     validation-tier: 1
-    updated-date: '2026-10-17'
+    updated-date: '2026-11-04'
     capabilities:
       required:
         - skills
@@ -42,7 +42,7 @@ metadata:
       - portable
       - schema
   capability: toolkit
-  updated-date: '2026-10-17'
+  updated-date: '2026-11-04'
 ---
 
 # Skill Creator
@@ -360,6 +360,8 @@ VIEWER_PID=$!
 
 For iteration 2+, add `--previous-workspace <workspace>/iteration-<N-1>`.
 
+It stops only a viewer it started; another process on the port is left alone and a free port used — read the printed URL.
+
 **Headless/no-display environments**: Use `--static <output_path>` to write a standalone HTML file. Feedback downloads as `feedback.json` when the user clicks "Submit All Reviews".
 
 Generate the viewer **before** evaluating outputs yourself — get results in front of the human first.
@@ -470,7 +472,7 @@ from the table below; the table is orientation, the registry is the answer.
 | Parallel with-skill/baseline runs | `parallel_subagents` | Sequential; timing comparison unreliable, correctness still valid |
 | Isolated runs, per-run token accounting | `subagents` | Inline; omit `timing.json` rather than inventing it |
 | Browser eval viewer | `background_tasks` | `--static <path>` standalone HTML |
-| Description optimisation (`run_loop.py`) | `shell` + the `claude` CLI | Not available — review the description by hand against the trigger eval set; do not simulate scores |
+| Description optimisation (`run_loop.py`) | `shell` + the `claude` CLI, and a terminal for its R4 gate | Not available — review the description by hand against the trigger eval set; do not simulate scores |
 | Packaging (`package_skill.py`) | `shell` | Not available |
 
 Two rules hold in every mode:

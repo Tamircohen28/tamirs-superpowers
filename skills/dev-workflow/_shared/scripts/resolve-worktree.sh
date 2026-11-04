@@ -15,12 +15,21 @@
 # Validation tier: 0 (edit-time). This script never runs project tests.
 #
 # Usage:
-#   resolve-worktree.sh --objective <slug> --task NNN [--base <branch>] [--root <dir>]
-#   resolve-worktree.sh --objective <slug> --integration [--base <branch>] [--root <dir>]
+#   resolve-worktree.sh --objective <slug> --task NNN [--base <branch>] [--root <dir>] [--worktree-base <dir>]
+#   resolve-worktree.sh --objective <slug> --integration [--base <branch>] [--root <dir>] [--worktree-base <dir>]
 #   resolve-worktree.sh --list [--root <dir>] [--table]
-#   resolve-worktree.sh --migrate <path> [--confirm-dirty] [--dry-run]
+#   resolve-worktree.sh --migrate <path> [--confirm-dirty] [--dry-run] [--worktree-base <dir>]
 #   resolve-worktree.sh <repo_root> <branch_name> [worktree_slug]   # legacy, still supported
 #   resolve-worktree.sh -h | --help
+#
+#   --root <dir>           the repository (any path inside it); its MAIN checkout
+#                          is the repo root, even when run from a linked worktree.
+#   --worktree-base <dir>  where objective worktrees go instead of
+#                          <repo root>/.agent-worktrees: <dir>/<slug>/integration
+#                          and <dir>/<slug>/task-NNN. Env: AGENT_WORKTREE_BASE (the
+#                          flag wins). Branch names and legacy adoption are
+#                          unchanged; --list needs no flag, because it reads
+#                          `git worktree list`, which knows every base.
 #
 # Output: one JSON object on stdout (a JSON array for --list; a table with
 #   --table). Diagnostics go to stderr.
@@ -38,7 +47,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 usage() {
-  sed -n '2,33p' "$0" | sed 's/^# \?//'
+  sed -n '2,41p' "$0" | sed 's/^# \?//'
   exit "${1:-0}"
 }
 
@@ -155,8 +164,19 @@ legacy_worktree_for() {
   return 1
 }
 
+# classify_layout <path> [branch] — an objective-shaped branch checked out at
+# <anything>/<slug>/integration or <anything>/<slug>/task-NNN is the objective
+# layout under a custom --worktree-base, wherever that base is.
 classify_layout() {
-  case "$1" in
+  local path="$1" branch="${2:-}" rest
+  case "$branch" in
+    objective/*)
+      if [[ "$path" == */"${branch#objective/}"/integration ]]; then printf 'objective\n'; return 0; fi ;;
+    worker/*/[0-9][0-9][0-9])
+      rest="${branch#worker/}"
+      if [[ "$path" == */"${rest%%/*}"/task-"${branch##*/}" ]]; then printf 'objective\n'; return 0; fi ;;
+  esac
+  case "$path" in
     */.agent-worktrees/*)                     printf 'objective\n' ;;
     */.claude/.worktrees/*|*/.cursor/.worktrees/*|*/.codex/.worktrees/*|*/.gemini/.worktrees/*|*/.opencode/.worktrees/*)
                                               printf 'legacy-platform\n' ;;
@@ -235,7 +255,7 @@ cmd_resolve_objective() {
   #    Resuming beats creating; a parallel worktree would split the work.
   local existing=""
   if existing="$(worktree_for_branch "$branch")"; then
-    emit_json objective "$slug" task "$task" layout "$(classify_layout "$existing")" \
+    emit_json objective "$slug" task "$task" layout "$(classify_layout "$existing" "$branch")" \
       platform "$(platform_of_path "$existing")" worktree_path "$existing" \
       branch "$branch" base "" created false resumed true
     return 0
@@ -265,7 +285,7 @@ cmd_resolve_objective() {
     fi
   fi
 
-  local path="${REPO_ROOT}/.agent-worktrees/${slug}/${subdir}"
+  local path="${WORKTREE_BASE}/${slug}/${subdir}"
   local state
   state="$(add_worktree "$path" "$branch" "$base")"
   emit_json objective "$slug" task "$task" layout "objective" platform "" \
@@ -289,7 +309,7 @@ cmd_resolve_positional() {
   local existing=""
   if existing="$(worktree_for_branch "$branch")"; then
     emit_json objective "$(objective_of "$existing" "$branch")" task "" \
-      layout "$(classify_layout "$existing")" platform "$(platform_of_path "$existing")" \
+      layout "$(classify_layout "$existing" "$branch")" platform "$(platform_of_path "$existing")" \
       worktree_path "$existing" branch "$branch" base "" created false resumed true
     return 0
   fi
@@ -353,7 +373,7 @@ cmd_list() {
   for i in "${!paths[@]}"; do
     path="${paths[$i]}"; branch="${branches[$i]}"
     if [[ "$path" == "$primary" ]]; then continue; fi   # the human's checkout, not an agent worktree
-    layout="$(classify_layout "$path")"
+    layout="$(classify_layout "$path" "$branch")"
     obj="$(objective_of "$path" "$branch")"
     dirty=false
     if is_dirty "$path"; then dirty=true; fi
@@ -383,10 +403,10 @@ cmd_migrate() {
   [[ -d "$src" ]] || die "no such worktree: $src" 2
   src="$(cd "$src" && pwd)"
 
-  local layout; layout="$(classify_layout "$src")"
+  local branch; branch="$(git -C "$src" branch --show-current 2>/dev/null || true)"
+  local layout; layout="$(classify_layout "$src" "$branch")"
   [[ "$layout" != "objective" ]] || die "$src is already in the objective layout — nothing to migrate"
 
-  local branch; branch="$(git -C "$src" branch --show-current 2>/dev/null || true)"
   [[ -n "$branch" ]] || die "$src has a detached HEAD — check out a branch there first, or migrate it by hand" 4
 
   local slug subdir
@@ -402,7 +422,7 @@ cmd_migrate() {
   esac
   [[ -n "$slug" ]] || die "could not derive an objective slug from branch '$branch'"
 
-  local dest="${REPO_ROOT}/.agent-worktrees/${slug}/${subdir}"
+  local dest="${WORKTREE_BASE}/${slug}/${subdir}"
   [[ ! -e "$dest" ]] || die "destination already exists: $dest" 4
 
   local dirty=false
@@ -436,9 +456,33 @@ cmd_migrate() {
     objective "$slug" dirty "$dirty" moved true
 }
 
+# --- worktree base ----------------------------------------------------------
+
+WORKTREE_BASE=""
+
+# resolve_worktree_base <flag-value> — sets WORKTREE_BASE to an absolute path
+# with no trailing slash. Call after resolve_repo_root. A relative base is taken
+# against $PWD, as any path argument is; it is never created here — add_worktree
+# makes the parent when it first places a worktree.
+resolve_worktree_base() {
+  local want="${1:-${AGENT_WORKTREE_BASE:-}}"
+  if [[ -z "$want" ]]; then
+    WORKTREE_BASE="${REPO_ROOT}/.agent-worktrees"
+    return 0
+  fi
+  case "$want" in
+    /*) ;;
+    *)  want="$PWD/$want" ;;
+  esac
+  while [[ "$want" == */ && "$want" != / ]]; do want="${want%/}"; done
+  [[ "$want" != / ]] || die "--worktree-base cannot be the filesystem root"
+  [[ ! -e "$want" || -d "$want" ]] || die "--worktree-base is not a directory: $want" 2
+  WORKTREE_BASE="$want"
+}
+
 # --- argument parsing -------------------------------------------------------
 
-MODE="" SLUG="" KIND="" TASK="" BASE="" ROOT="" TABLE=false MIGRATE_PATH=""
+MODE="" SLUG="" KIND="" TASK="" BASE="" ROOT="" TABLE=false MIGRATE_PATH="" WT_BASE_FLAG=""
 CONFIRM_DIRTY=false DRY_RUN=false
 POSITIONAL=()
 
@@ -449,6 +493,7 @@ while [[ $# -gt 0 ]]; do
     --integration)  KIND=integration; shift ;;
     --base)         BASE="${2:-}"; shift 2 ;;
     --root)         ROOT="${2:-}"; shift 2 ;;
+    --worktree-base) WT_BASE_FLAG="${2:-}"; [[ -n "$WT_BASE_FLAG" ]] || die "--worktree-base requires a directory"; shift 2 ;;
     --list)         MODE=list; shift ;;
     --table)        TABLE=true; shift ;;
     --migrate)      MODE=migrate; MIGRATE_PATH="${2:-}"; shift 2 ;;
@@ -465,6 +510,7 @@ case "$MODE" in
     [[ -n "$SLUG" ]] || die "--objective requires a slug"
     [[ -n "$KIND" ]] || die "--objective needs --task NNN or --integration"
     resolve_repo_root "$ROOT"
+    resolve_worktree_base "$WT_BASE_FLAG"
     cmd_resolve_objective "$SLUG" "$KIND" "$TASK" "$BASE"
     ;;
   list)
@@ -474,11 +520,14 @@ case "$MODE" in
   migrate)
     [[ -n "$MIGRATE_PATH" ]] || die "--migrate requires a worktree path"
     resolve_repo_root "${ROOT:-$MIGRATE_PATH}"
+    resolve_worktree_base "$WT_BASE_FLAG"
     cmd_migrate "$MIGRATE_PATH" "$CONFIRM_DIRTY" "$DRY_RUN"
     ;;
   *)
     [[ ${#POSITIONAL[@]} -ge 2 ]] \
       || die "usage: resolve-worktree.sh --objective <slug> --task NNN | --integration | --list | --migrate <path> | <repo_root> <branch>"
+    resolve_repo_root "${POSITIONAL[0]}"
+    resolve_worktree_base "$WT_BASE_FLAG"
     cmd_resolve_positional "${POSITIONAL[0]}" "${POSITIONAL[1]}" "${POSITIONAL[2]:-}"
     ;;
 esac

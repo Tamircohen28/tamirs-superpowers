@@ -40,7 +40,7 @@ metadata:
       required: [shell, git]
       optional: [github_cli, worktree_isolation]
     role: integrator
-    updated-date: "2026-08-19"
+    updated-date: "2026-11-04"
     validation-tier: 3
 
 ---
@@ -77,6 +77,8 @@ bash scripts/cleanup.sh [--dry-run] [--remote-only | --local-only] [--yes] [REPO
 `scripts/cleanup.sh` is the **provably-safe deterministic core** of this skill: it performs only the deletions that need no human judgment — remote branches fully merged into the default branch, auxiliary worktrees that are clean *and* merged/gone, git-ignored build/cache directories, and a fast-forward-only sync of the default branch. Anything requiring judgment — dirty worktrees, unpushed commits, unmerged branches, non-ignored files, a diverged default branch — is **reported and left untouched**.
 
 - It is **dry-run by default**; it changes nothing unless `--yes` is passed.
+- **`--yes` skips no permission gate.** It only turns the dry-run into a run: every remote branch deletion (`branch.delete.remote`, R3) and worktree removal is still decided by `scripts/resolve-permission.sh`. With no terminal attached an `ask` is blocked. A blocked step is listed with the setting that would allow it, and the script exits 3. Relay those lines verbatim. Never re-run the deletion by hand to get around a block.
+- It keeps every branch GitHub reports protected (the `protected` flag or a ruleset deletion rule), every branch at the default tip, and every worktree with unpushed commits, a live agent claim or an unfinished objective task.
 - It never drives PRs, never rescues uncommitted work, and never drops anything a human would want to review.
 
 The full interactive skill below remains the default for a single repo — it adds per-item confirmation, rescuing uncommitted work, and driving open PRs in parallel via `pr-dev`. Reach for the script when you need cleanup to run **unattended at scale**; reach for the skill when a human is in the loop.
@@ -91,6 +93,30 @@ Before doing anything:
    REPO=$(gh repo view --json nameWithOwner -q .nameWithOwner)
    DEFAULT=$(gh repo view --json defaultBranchRef -q .defaultBranchRef.name)
    ```
+
+## Permission gate
+
+Before each R3/R4 step below, ask the resolver (ADR 004). It is the plugin's `scripts/resolve-permission.sh`, three levels above this skill's directory:
+
+```bash
+PERM="$SKILL_DIR/../../../scripts/resolve-permission.sh"
+V="$(bash "$PERM" --action <id> --skill cleanup --target "<REPO or worktree path>" ${HOST:+--host "$HOST"} --json)" \
+  || V='{"verdict":"deny","reason":"resolver failed"}'
+jq -r '.verdict, .reason, (.setting_that_would_allow.durable // [] | join("; "))' <<<"$V"
+```
+
+| Step | Action id | R |
+|---|---|---|
+| 1c delete a remote branch | `branch.delete.remote` | R3 |
+| 2d remove a clean worktree | `worktree.remove` (add `--cond discards_work=false` only when it is clean, nothing is ignored and nothing is unpushed) | R1 |
+| 2c `drop`, a forced removal over changes | `worktree.drop` | R4 |
+| 3b `reset` to remote | `git.reset_to_remote` | R4 |
+
+- `allow`: run the step.
+- `ask`: the step runs only after the user's explicit per-item answer in chat (`yes`, `drop`, `reset`). An R4 step then also meets the host's own permission prompt, which is by design.
+- `deny`, or the resolver failed or is missing: skip the step. Report the `reason` and the setting that would allow it.
+
+A sub-agent with no human to answer treats `ask` as `deny`.
 
 ## Phase 1 — Remote branch cleanup
 
@@ -116,8 +142,9 @@ A branch is a **delete candidate** when ANY of the following is true:
 
 A branch is **safe to keep** when:
 - It has an open (not merged, not closed) PR
-- It matches a protected/long-lived pattern: `main`, `master`, `develop`, `release/*`, `hotfix/*`
-- It is `protected` on GitHub
+- It is `protected` on GitHub, or a ruleset with a `deletion` rule applies to it (`gh api "repos/$REPO/rules/branches/<branch>"`). This is the protection check. A name pattern is not.
+- It matches a long-lived name: `main`, `master`, `develop`, `release/*`, `hotfix/*` (an extra keep list, never the protection check)
+- It points at the default branch's tip (no commits of its own yet)
 
 ### 1b. Show the plan and confirm
 
@@ -142,7 +169,7 @@ Wait for `yes`. If the user says `no`, skip 1c and go directly to 1d.
 
 ### 1c. Delete confirmed branches
 
-For each confirmed delete candidate:
+For each confirmed delete candidate, after the [permission gate](#permission-gate) for `branch.delete.remote` allows it, or the user's `yes` answered its `ask`:
 
 ```bash
 git push origin --delete "<branch>" 2>&1 \
@@ -257,11 +284,13 @@ Options:
   drop  — discard everything, including the gitignored content, and remove (IRREVERSIBLE)
 ```
 
-Wait for the user's choice per worktree. Never drop without an explicit `drop` response.
+Wait for the user's choice per worktree. Never drop without an explicit `drop` response. A `drop` is `worktree.drop` (R4): run the [permission gate](#permission-gate) first. Never drop on a `deny`.
 
 For `ready-to-push` worktrees, push the branch and open/update a PR, then remove.
 
 ### 2d. Remove clean/resolved worktrees
+
+Skip a worktree when an agent holds a live claim on its branch (`~/.agent-work-claims/`), or when an objective task that is not finished owns it. Its worker is still running. Gate each removal (`worktree.remove`, see [permission gate](#permission-gate)).
 
 ```bash
 git worktree remove --force "<path>"
@@ -314,7 +343,7 @@ Warning: local <DEFAULT> has 2 commits not on remote:
 Push them or reset to remote? (push/reset)
 ```
 
-Wait for the answer. After syncing, run `git status` and confirm the branch is clean.
+Wait for the answer. `reset` is `git.reset_to_remote` (R4): run the [permission gate](#permission-gate) before resetting. After syncing, run `git status` and confirm the branch is clean.
 
 ## Output format
 
@@ -350,7 +379,8 @@ Summary:
 
 ## Hard rules
 
-- **Never delete the default branch, `main`, `master`, `develop`, `release/*`, or any protected branch** — check `protected: true` in the GitHub API response before deleting anything.
+- **Never delete the default branch, `main`, `master`, `develop`, `release/*`, or any protected branch.** Check GitHub's `protected` flag and the rulesets that apply before deleting anything. A branch whose protection cannot be read is kept.
+- **Never skip the permission gate.** This holds for `--yes`, for a fan-out and for a dry-run that turns into a run.
 - **Never discard uncommitted work without an explicit `drop` from the user** — always show the diff first.
 - **Never remove the main worktree** (first entry in `git worktree list`).
 - **Always ask before deleting build artifacts** — the generated-artifact list may contain intentional local directories.

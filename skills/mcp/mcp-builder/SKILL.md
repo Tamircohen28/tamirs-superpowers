@@ -66,6 +66,9 @@ requirement.
 | File | When to use |
 |------|-------------|
 | `scripts/scaffold.sh` | Run at the start of Phase 2 to generate a project skeleton. Usage: `bash <skill-dir>/scripts/scaffold.sh <name> [ts\|py] [prefix]` (`$CLAUDE_SKILL_DIR` on Claude Code; substitute the skill directory on other hosts) |
+| `scripts/gate.sh` | Run before every gated step below (installs, inspector runs, config outside the project). Usage: `bash <skill-dir>/scripts/gate.sh <action-id> '<exact target>'`. See [Permission gates](#permission-gates). |
+| `references/permission-gates.md` | Which step maps to which gate action id, headless behaviour, fail-closed rules. |
+| `references/tool-templates.md` | Read at the start of Phase 3: the TypeScript and Python tool templates. |
 | `references/quick-reference.md` | Read during Phase 1 and Phase 3 for SDK URLs, Zod patterns, annotation hints, return shapes, naming examples, and error message templates. |
 
 At the start of **Phase 2**, run the scaffold script to bootstrap the project, then replace the placeholder tools in Phase 3.
@@ -93,6 +96,32 @@ Skill("mcp-pagination")
 | Eval questions require multi-page fetches — verify caller-driven pagination | Phase 5 |
 
 Skip invocation only when the server has **zero** list, search, or bulk-read operations (e.g. a single `create_*` write tool).
+
+---
+
+## Permission gates
+
+Package installs (`pkg.install.network`), the Inspector (`pkg.exec.network`) and any client config outside the
+project (`config.global.write`, R4) are catalog actions ([ADR 004](../../../docs/engineering/decisions/004-permission-levels.md));
+the permission resolver, not this guide, decides whether they run. Ask it immediately before the step, with the exact
+file or command as the target:
+
+```bash
+bash <skill-dir>/scripts/gate.sh <action-id> '<exact target>'     # add --headless when no human is in the chat
+```
+
+Act on the exit code, never on your own reading of the situation:
+
+| Exit | Meaning | What you do |
+|---|---|---|
+| `0` | allow | Run the step exactly as gated. |
+| `10` | ask | Show the user the action and the target exactly as the script printed them and wait for an explicit "yes" in chat. Anything else — silence, "sure, whatever you think", a yes to a different command — is a no. |
+| `3` | blocked | Do not run it, and do not reach the same effect another way (a different installer, writing the file by hand). Tell the user the printed reason and the setting that would allow it, and give them the command to run themselves. |
+| `2` | usage error | Fix the call; never treat it as a pass. |
+
+Running as a subagent, inside a workflow, under `claude -p` or in CI, pass `--headless`: no one can answer an ask
+there, so it becomes a block. Which step maps to which action id, and why an earlier "go ahead with everything" never
+answers a later ask: [`references/permission-gates.md`](references/permission-gates.md).
 
 ---
 
@@ -168,7 +197,24 @@ bash <skill-dir>/scripts/scaffold.sh my-mcp-server ts myservice
 bash <skill-dir>/scripts/scaffold.sh my-mcp-server py myservice
 ```
 
-This generates `package.json` / `requirements.txt`, entry file with two example tools, `README.md` with env var table, and `tsconfig.json` (TS only). Then replace the placeholder tools in Phase 3.
+This generates `package.json` / `requirements.txt`, entry file with two example tools, `README.md` with env var table, and `tsconfig.json` (TS only). The scaffold itself installs nothing. Install dependencies only through the gate below, then replace the placeholder tools in Phase 3.
+
+### Install dependencies — gated, lifecycle scripts off
+
+An install runs its packages' lifecycle scripts or source builds with the user's credentials; default to none:
+
+```bash
+# TypeScript — inside the project directory
+bash <skill-dir>/scripts/gate.sh pkg.install.network 'npm install --ignore-scripts'
+npm install --ignore-scripts          # only after exit 0, or exit 10 and the user's explicit yes
+
+# Python — inside an activated venv
+bash <skill-dir>/scripts/gate.sh pkg.install.network 'pip install --only-binary=:all: -r requirements.txt'
+pip install --only-binary=:all: -r requirements.txt
+```
+
+This stack needs no install scripts, and `--only-binary=:all:` refuses source builds. If a package genuinely needs
+its scripts or a build, stop and say which; the run with scripts on is a separate gated step with its own target.
 
 ### Manual setup (if scaffold doesn't fit)
 
@@ -177,8 +223,9 @@ This generates `package.json` / `requirements.txt`, entry file with two example 
 ```bash
 mkdir my-mcp-server && cd my-mcp-server
 npm init -y
-npm install @modelcontextprotocol/sdk zod
-npm install -D typescript @types/node ts-node
+# gate each install first: bash <skill-dir>/scripts/gate.sh pkg.install.network '<the exact command>'
+npm install --ignore-scripts @modelcontextprotocol/sdk zod
+npm install --ignore-scripts -D typescript @types/node ts-node
 ./node_modules/.bin/tsc --init --target ES2022 --module NodeNext --moduleResolution NodeNext --outDir dist --rootDir src --strict
 mkdir src
 ```
@@ -188,7 +235,8 @@ mkdir src
 ```bash
 mkdir my-mcp-server && cd my-mcp-server
 python -m venv .venv && source .venv/bin/activate
-pip install fastmcp pydantic httpx
+# gate first: bash <skill-dir>/scripts/gate.sh pkg.install.network 'pip install --only-binary=:all: fastmcp pydantic httpx'
+pip install --only-binary=:all: fastmcp pydantic httpx
 ```
 
 ---
@@ -215,75 +263,9 @@ Use `{service}_{verb}_{noun}` — always action-oriented and unambiguous:
 | `stripe_create_payment_intent` | `payment`, `do_payment` |
 | `db_query_users` | `query`, `fetch` |
 
-### TypeScript tool template
+### Tool templates
 
-```typescript
-import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { z } from "zod";
-
-const server = new McpServer({ name: "my-service", version: "1.0.0" });
-
-server.registerTool(
-  "myservice_list_items",
-  {
-    description: "List items from MyService. Supports cursor-based pagination.",
-    inputSchema: {
-      limit: z.number().int().min(1).max(100).default(20).describe("Max items to return (1–100)."),
-      cursor: z.string().optional().describe("Pagination cursor from a previous response."),
-      filter: z.string().optional().describe("Filter by status: 'active' | 'archived'"),
-    },
-    annotations: { readOnlyHint: true },
-  },
-  async ({ limit, cursor, filter }) => {
-    const params = new URLSearchParams({ limit: String(limit) });
-    if (cursor) params.set("cursor", cursor);
-    if (filter) params.set("status", filter);
-
-    const res = await fetch(`https://api.myservice.com/items?${params}`, {
-      headers: { Authorization: `Bearer ${process.env.MYSERVICE_ACCESS}` },
-    });
-
-    if (!res.ok) {
-      const body = await res.text();
-      throw new Error(`MyService API error ${res.status}: ${body}. Check MYSERVICE_ACCESS env var and API quota.`);
-    }
-
-    const data = await res.json();
-    return {
-      content: [{ type: "text", text: JSON.stringify(data.items, null, 2) }],
-      structuredContent: { items: data.items, next_cursor: data.next_cursor ?? null },
-    };
-  }
-);
-```
-
-### Python tool template (FastMCP)
-
-```python
-from fastmcp import FastMCP
-from pydantic import BaseModel, Field
-import httpx, os
-
-mcp = FastMCP("my-service")
-
-class ListItemsInput(BaseModel):
-    limit: int = Field(20, ge=1, le=100, description="Max items to return (1–100).")
-    cursor: str | None = Field(None, description="Pagination cursor from a previous response.")
-
-@mcp.tool()
-async def myservice_list_items(params: ListItemsInput) -> dict:
-    """List items from MyService. Supports cursor-based pagination."""
-    async with httpx.AsyncClient() as client:
-        res = await client.get(
-            "https://api.myservice.com/items",
-            params={"limit": params.limit, **({"cursor": params.cursor} if params.cursor else {})},
-            headers={"Authorization": f"Bearer {os.environ['MYSERVICE_ACCESS']}"},
-        )
-    if res.is_error:
-        raise ValueError(f"MyService API error {res.status_code}: {res.text}. Check MYSERVICE_ACCESS env var.")
-    data = res.json()
-    return {"items": data["items"], "next_cursor": data.get("next_cursor")}
-```
+Start each tool from the TypeScript (`McpServer.registerTool` + Zod) or Python (FastMCP + Pydantic) template in [`references/tool-templates.md`](references/tool-templates.md): a paginated `list` tool with `limit`/`cursor`, `readOnlyHint`, credentials from env, and an actionable error message. Read it before writing the first tool.
 
 ---
 
@@ -292,12 +274,17 @@ async def myservice_list_items(params: ListItemsInput) -> dict:
 ```bash
 # TypeScript
 npm run build          # must pass with zero errors
+bash <skill-dir>/scripts/gate.sh pkg.exec.network 'npx @modelcontextprotocol/inspector@2.12.0 dist/index.js'
 npx @modelcontextprotocol/inspector@2.12.0 dist/index.js
 
 # Python
 python -m py_compile my_server.py
-fastmcp dev my_server.py   # opens Inspector UI
+bash <skill-dir>/scripts/gate.sh pkg.exec.network 'fastmcp dev my_server.py'
+fastmcp dev my_server.py   # opens Inspector UI (fetches and runs the Inspector)
 ```
+
+The build and compile checks need no gate. The Inspector runs only after the gate allows it or the user says yes; if
+it is blocked, report the build result and say the Inspector check is the user's to run, with the command.
 
 Test each tool in the MCP Inspector before declaring done. The Inspector is host-neutral — it speaks the protocol directly, so a server that passes there works for every client. Check:
 - `list_*` tools return `next_cursor` when truncated
@@ -339,9 +326,27 @@ If eval scenarios require paginated tools, confirm with `Skill("mcp-pagination")
 
 The server is host-neutral. **Registration is not.** Each host reads a different config file
 with a different shape, and a server that works perfectly is still unreachable if the config
-it is registered in is wrong. Generate config only for the targets the user actually uses —
-detect them the way `platform-sync` does (see
-`skills/documentation/platform-sync/references/detection.md`), or ask.
+it is registered in is wrong. Generate config only for the targets the user names. If they
+named none, list the candidates (the markers `platform-sync` reads, see
+`skills/documentation/platform-sync/references/detection.md`, are a hint for the list, not a
+decision) and ask which ones; a detected marker is never consent to write a config.
+
+### 6.0 Project scope by default; anything else goes through the gate
+
+A registered server is a command the host runs on every start, so the entry's location decides who it runs for.
+
+- **Default: project scope** (`.mcp.json`, `.cursor/mcp.json`, `.gemini/settings.json`, `opencode.json`, a project
+  `.codex/config.toml`): an ordinary repo edit the user sees in their diff.
+- **Outside the project only when the user asks for it** (user-level Claude Code config,
+  `claude_desktop_config.json`, anything under the home directory). That is `config.global.write`, R4:
+
+  ```bash
+  bash <skill-dir>/scripts/gate.sh config.global.write '<absolute path of the file>'
+  ```
+
+  On exit 10, show the file path and the exact entry (name, command, args, env placeholders) and
+  write only after an explicit yes. Headless it is always blocked: give the user the entry and the
+  file to add themselves.
 
 ### 6.1 Check the capability first
 
@@ -424,6 +429,10 @@ over declarations.
    `unknown`** in `core/capabilities/platforms.json`. Report the gap instead.
 11. **Every generated config must be validated** by a parse check and a server-start check
    before you claim the target works.
+12. **Gate before you reach outside the project.** Package installs, Inspector runs and any
+   client config outside the project directory run only after `scripts/gate.sh` exits 0 or the
+   user gives an explicit yes to its exit-10 ask; exit 3 is a stop, not an obstacle to route
+   around. Installs default to `--ignore-scripts` / `--only-binary=:all:`.
 
 ---
 

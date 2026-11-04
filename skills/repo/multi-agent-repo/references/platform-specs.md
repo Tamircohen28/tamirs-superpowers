@@ -15,8 +15,8 @@ This file is loaded when the skill needs schema details. Always fetch fresh docs
 | Codex — config basics | https://developers.openai.com/codex/config-basic |
 | Codex — advanced config | https://developers.openai.com/codex/config-advanced |
 | Gemini CLI — extensions | https://google-gemini.github.io/gemini-cli/docs/extensions/ |
-| OpenCode — skills | https://opencode.ai/docs/skills/ |
-| OpenCode — agents | https://opencode.ai/docs/agents/ |
+| OpenCode — skills | https://opencode.ai/v2/docs/skills/ |
+| OpenCode — agents | https://opencode.ai/v2/docs/agents/ |
 | OpenCode — config schema | https://opencode.ai/config.json |
 
 ## Targets and where support is stated
@@ -322,8 +322,10 @@ Truncation: capped at `project_doc_max_bytes` (default 32 KiB).
 
 ```toml
 model = "gpt-5.5"
-approval_policy = "on-request"    # "untrusted" | "on-request" | "never"
-sandbox_mode = "workspace-write"  # "workspace-write" | "danger-full-access"
+# approval_policy: "on-request" | "never" | { granular = { ... } }. "on-failure" is
+# an alias of on-request; "untrusted" was retired in 0.149.0 and is now a config error.
+approval_policy = "on-request"
+sandbox_mode = "workspace-write"  # "read-only" (default) | "workspace-write" | "danger-full-access"
 web_search = "cached"             # "cached" | "live" | "disabled"
 model_reasoning_effort = "high"
 project_doc_max_bytes = 32768

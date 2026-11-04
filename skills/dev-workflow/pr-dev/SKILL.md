@@ -310,7 +310,7 @@ Run this at startup, after every push, and at the readiness gate — it is idemp
 
 When `autoMergeRequest` is set, GitHub merges as soon as required checks and branch protection (including any required review) are satisfied. **`REVIEW_REQUIRED` alone is not blocked** — report "auto-merge enabled; waiting for review" and keep polling.
 
-When policy is `skip`, do not merge silently. Print the readiness summary and ask:
+When policy is `skip`, do not merge silently. A direct merge is `pr.merge` (R3, never automatic). First ask the resolver with the same call shape as the `--admin` gate below, using `--action pr.merge`. On `deny` (or a failed resolver), stop and report `reason` and the setting that would allow it. On `ask`, print the readiness summary and ask:
 
 ```
 PR #N is green and has no unresolved threads, but merge policy here is "ask first"
@@ -433,7 +433,8 @@ bash "$SKILL_DIR/scripts/cleanup-after-merge.sh" ${REPO:+--repo "$REPO"} "$PR"
 
 Then:
 
-- Close issues linked in the PR body if still open: `gh issue close <N> --comment "Shipped in PR #$PR."`
+- **Exit 3 means something was kept.** The script deletes nothing unless the PR is `MERGED`, its head is neither the base nor the default branch, and it is not cross-repository. It deletes the remote branch only when GitHub does not report it protected. Each deletion goes through the resolver (`branch.delete.remote` is R3). It never force-removes a worktree with uncommitted changes. Each kept item is listed under `skipped:` with its reason and, when the resolver blocked it, the setting that would allow it (`allow with: …`). Relay that list verbatim. A kept remote branch is deleted only with the user's approval of that very branch. On Claude Code, run `git push origin --delete <branch>` as its own Bash call (never chained with other commands): the permission guard raises the host dialog naming the branch, and that dialog is the approval — a rejection means keep it. On hosts with no such dialog the guard denies the call, so give the user the command to run themselves.
+- Linked issues that a `Closes #N` in the PR body did not already close: closing one is `issue.close` (R3). Ask the resolver for each issue first: `bash "$PERM" --action issue.close --skill pr-dev --target "$REPO#<N>" ${HOST:+--host "$HOST"} --json`. Run `gh issue close <N> --comment "Shipped in PR #$PR."` only on `allow`, or on `ask` after the user's yes in chat. On `deny`, leave the issue open and report the setting. **Closing a PR** (`gh pr close`, `pr.close`, R3) takes the same gate. pr-dev closes no PR it did not open.
 - When an objective drove this PR, mark it done: set `objective.json` `status` to `completed` and record `delivery.pr_url` (via `objective-state.sh set` when available).
 - Confirm `origin/<head>` is gone (`cleanup-after-merge.sh` deletes it when a UI merge left it behind).
 
@@ -470,7 +471,7 @@ Never silently stop, guess, or take a destructive action without confirmation. W
 - **Never open a second PR for the same objective.** One objective = one PR unless `delivery.strategy` names an exception from `core/policies/delivery.md`.
 - **Never update the branch on a loose base**, and never update it in a loop.
 - **Never fight a merge queue** — enqueue and wait.
-- **Always delete the remote branch after merge.**
+- **Always delete the remote branch after merge,** through `cleanup-after-merge.sh` and its gate. When the gate keeps it, report that. Never work around the gate.
 
 ## Anti-patterns
 
@@ -493,7 +494,7 @@ Never silently stop, guess, or take a destructive action without confirmation. W
 | `scripts/resolve-merge-policy.sh` | Resolves auto-merge, merge method, queue, branch-protection and strictness into one JSON object |
 | `scripts/fetch-pr-state.sh` | Fresh PR state + checks + review threads |
 | `scripts/resolve-thread.sh` | Resolve one review thread |
-| `scripts/cleanup-after-merge.sh` | Post-merge branch cleanup verification |
+| `scripts/cleanup-after-merge.sh` | Post-merge cleanup: checks merged/base/default/fork/protection, gates each deletion, exits 3 with a `skipped:` list |
 | `references/ci-monitor-loop.md` | Long-cycle CI waiting with Monitor |
 | `references/drive-discipline.md` | Polling bounds, no-required-checks merge gate, blocking pre-merge threads, batched review rounds |
 | `templates/review-reply.md.tmpl` | Review reply shapes |
