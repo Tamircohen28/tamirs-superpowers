@@ -318,6 +318,12 @@ expect "claude: a file-sourced GraphQL query is UNCLASSIFIED" claude "$(claude_b
 expect "claude: a GraphQL document in a variable is UNCLASSIFIED" claude "$(claude_bash 'gh api graphql -f query="$Q"')" ask "UNCLASSIFIED"
 expect "claude: gh api with a variable path and a method is UNCLASSIFIED" claude "$(claude_bash 'gh api -X DELETE "$URL"')" ask "UNCLASSIFIED"
 expect "claude: gh api with a variable path, GET, is a read" claude "$(claude_bash 'gh api "$URL"')" allow
+expect "claude: a # comment before a newline cannot hide a mutation (the tokeniser folds the newline)" claude \
+  "$(claude_bash "gh api graphql -f operationName=M -f query='query Q { viewer { login } } # x
+mutation M { deleteRef(input: {refId: \"x\"}) { clientMutationId } }'")" ask "UNCLASSIFIED"
+expect "claude: a one-line query with a trailing comment is a read" claude "$(claude_bash "gh api graphql -f query='query { viewer { login } } # mutation { deleteRef }'")" allow
+expect "claude: a GraphQL mutation behind a nested fragment is classified (pg_graphql)" claude \
+  "$(claude_bash "gh api graphql -f query='mutation { ...A } fragment A on Mutation { ...B } fragment B on Mutation { mergePullRequest(input: {pullRequestId: \"x\"}) { clientMutationId } }'")" ask "pr.merge"
 expect "claude: gh pr view is a read" claude "$(claude_bash 'gh pr view 5 --json state')" allow
 expect "claude: x=\$(gh pr merge ...) is seen inside the substitution" claude "$(claude_bash 'x=$(gh pr merge 5 --admin)')" deny "pr.merge.admin"
 expect "claude: a substitution of an unknown gh call is UNCLASSIFIED" claude "$(claude_bash 'x=$(gh secret set FOO)')" ask "UNCLASSIFIED"
@@ -428,6 +434,18 @@ mk_tree "$T/t-cat"; printf '{"actions": [' > "$T/t-cat/core/permissions/actions.
 expect "a corrupt catalog: deny" claude "$(claude_bash 'gh pr create --fill')" deny "catalog" "$T/t-cat/hooks/permission-guard.sh"
 expect "a corrupt catalog, cursor: deny in Cursor's shape" cursor "$(cursor_shell 'gh pr create --fill')" deny "catalog" "$T/t-cat/hooks/permission-guard.sh"
 expect "a corrupt catalog does not touch the fast path" claude "$(claude_bash 'ls')" allow "" "$T/t-cat/hooks/permission-guard.sh"
+mk_tree "$T/t-nomod"; rm -f "$T/t-nomod/hooks/lib/pg_http.py"
+expect "no hooks/lib/pg_http.py: an HTTP call is UNCLASSIFIED" claude "$(claude_bash 'curl -s https://api.github.com/repos/me/app')" ask "parser modules" "$T/t-nomod/hooks/permission-guard.sh"
+expect "  ... and so is every other candidate (gh pr create)" claude "$(claude_bash 'gh pr create --fill')" ask "UNCLASSIFIED" "$T/t-nomod/hooks/permission-guard.sh"
+expect "  ... Codex denies" codex "$(codex_bash 'gh pr create --fill')" deny "parser modules" "$T/t-nomod/hooks/permission-guard.sh"
+expect "  ... the fast path is untouched" claude "$(claude_bash 'git status')" allow "" "$T/t-nomod/hooks/permission-guard.sh"
+mk_tree "$T/t-badmod"; printf 'raise RuntimeError("broken")\n' > "$T/t-badmod/hooks/lib/pg_graphql.py"
+rm -rf "$T/t-badmod/hooks/lib/__pycache__"
+expect "a pg_graphql.py that raises on import: UNCLASSIFIED" claude "$(claude_bash 'gh api repos/me/app')" ask "parser modules" "$T/t-badmod/hooks/permission-guard.sh"
+judge "the guard writes no bytecode into hooks/lib" no "$(exists "$T/t-badmod/hooks/lib/__pycache__")"
+mk_tree "$T/t-pyc"; rm -rf "$T/t-pyc/hooks/lib/__pycache__"
+expect "  ... nor when both modules load (a GraphQL call)" claude "$(claude_bash "gh api graphql -f query='query { viewer { login } }'")" allow "" "$T/t-pyc/hooks/permission-guard.sh"
+judge "  ... no __pycache__ beside pg_http.py" no "$(exists "$T/t-pyc/hooks/lib/__pycache__")"
 mkdir -p "$T/nopy" "$T/nojq"
 for b in bash jq git sed cat mktemp dirname basename tr head env ps id dscl getent; do
   p="$(command -v "$b" 2>/dev/null)" || continue
@@ -653,6 +671,50 @@ expect "codex: an ask delivered as a deny" codex "$(codex_bash 'bash scripts/res
 judge "  ... writes no call stamp (the command never runs)" no "$(exists "$SEEN/cdxcdxcdx0000001")"
 expect "opencode: an R2 ask" claude "$(oc_bash 'bash scripts/resolve-permission.sh pr.create --call ocococoo00000001 && gh pr create --fill')" ask
 judge "  ... is stamped (it may run once approved)" yes "$(exists "$SEEN/ocococoo00000001")"
+
+section "Cursor desktop >= 3.28.7: a beforeShellExecution ask holds (measured S2); preToolUse Shell defers to it"
+# cursor_v <cursor_version> <beforeShellExecution|preToolUse> <command> — a Cursor shell payload of that build.
+cursor_v() {
+  case "$2" in
+    beforeShellExecution) cursor_shell "$3" | jq -c --arg v "$1" '.cursor_version = $v' ;;
+    *) cursor_pre Shell "$3" | jq -c --arg v "$1" '.cursor_version = $v' ;;
+  esac
+}
+expect "desktop 3.28.7, beforeShellExecution: gh pr merge 5 (R3) asks" cursor "$(cursor_v 3.28.7 beforeShellExecution 'gh pr merge 5')" ask "pr.merge"
+judge "  ... in Cursor's shape: permission, user_message, agent_message" "ask yes yes" \
+  "$(printf '%s' "$OUT" | jq -r '"\(.permission) \(.user_message | test("pr.merge")|if . then "yes" else "no" end) \(.agent_message | test("pr.merge")|if . then "yes" else "no" end)"')"
+judge "  ... the reason also goes to stderr (the Allowlist card shows none)" yes "$(has "$ERR" "pr.merge")"
+judge "  ... and names the measurement" yes "$(has "$(reason)" "S2")"
+expect "desktop 3.28.7, beforeShellExecution: an R4 (gh release create) asks" cursor "$(cursor_v 3.28.7 beforeShellExecution 'gh release create v1')" ask "release.create"
+expect "desktop 3.28.7, beforeShellExecution: UNCLASSIFIED asks" cursor "$(cursor_v 3.28.7 beforeShellExecution 'gh api -X DELETE "$URL"')" ask "UNCLASSIFIED"
+expect "desktop 3.29.0, beforeShellExecution: asks (above the floor)" cursor "$(cursor_v 3.29.0 beforeShellExecution 'gh pr merge 5')" ask "pr.merge"
+expect "desktop 4.0.1, beforeShellExecution: asks" cursor "$(cursor_v 4.0.1 beforeShellExecution 'gh pr merge 5')" ask "pr.merge"
+expect "desktop 3.28.7-nightly, beforeShellExecution: asks" cursor "$(cursor_v 3.28.7-nightly beforeShellExecution 'gh pr merge 5')" ask "pr.merge"
+expect "desktop 3.28.7, beforeShellExecution: a deny stays a deny (gh pr merge --admin)" cursor "$(cursor_v 3.28.7 beforeShellExecution 'gh pr merge 5 --squash --admin')" deny "pr.merge.admin"
+expect "desktop 3.28.7, beforeShellExecution: an ordinary command is allowed" cursor "$(cursor_v 3.28.7 beforeShellExecution 'git status')" allow
+expect "desktop 3.28.7, preToolUse Shell: the ask is left to beforeShellExecution (no decision)" cursor "$(cursor_v 3.28.7 preToolUse 'gh pr merge 5')" allow
+judge "  ... it is Cursor's allow, nothing else" '{"permission":"allow"}' "$OUT"
+judge "  ... and says why on stderr" yes "$(has "$ERR" "beforeShellExecution")"
+expect "desktop 3.28.7, preToolUse Shell: a deny stays a deny" cursor "$(cursor_v 3.28.7 preToolUse 'gh pr merge 5 --squash --admin')" deny "pr.merge.admin"
+expect "desktop 3.28.7, preToolUse Shell: writes no call stamp for a deferred ask" cursor "$(cursor_v 3.28.7 preToolUse 'bash scripts/resolve-permission.sh pr.create --call cursdefer0000001 && gh pr merge 5')" allow
+judge "  ... (the beforeShellExecution call that asks is the one PG stamps)" no "$(exists "$SEEN/cursdefer0000001")"
+expect "desktop 3.28.7, beforeShellExecution: the asking call is stamped" cursor "$(cursor_v 3.28.7 beforeShellExecution 'bash scripts/resolve-permission.sh pr.create --call cursask00000001x && gh pr merge 5')" ask "pr.merge"
+judge "  ... stamped" yes "$(exists "$SEEN/cursask00000001x")"
+expect "desktop 3.28.7, preToolUse Read: not PG's" cursor "$(cursor_mcp Read '{"file_path":"/x"}' | jq -c '.cursor_version = "3.28.7"')" allow
+expect "desktop 3.28.7, MCP:merge_pull_request: still a deny" cursor "$(cursor_mcp 'MCP:merge_pull_request' '{"owner":"me","repo":"app","pullNumber":5}' | jq -c '.cursor_version = "3.28.7"')" deny "pr.merge"
+expect "desktop 3.28.7, plugin-config.sh confirm: a deny (the D5 record cannot be shown)" cursor "$(cursor_v 3.28.7 beforeShellExecution "bash $ROOT/scripts/plugin-config.sh confirm 0123456789abcdef0123456789abcdef")" deny "policy.edit"
+OUT="$(cursor_v 3.28.7 beforeShellExecution 'gh pr merge 5' | CODEX_HOME="$T/codex-home" bash "$HOOK" 2>/dev/null)"
+judge "desktop 3.28.7 with CODEX_HOME in the environment: the stricter host denies" deny "$(verdict cursor)"
+OUT="$(cursor_v 3.28.7 preToolUse 'gh pr merge 5' | CODEX_HOME="$T/codex-home" bash "$HOOK" 2>/dev/null)"
+judge "  ... and its preToolUse Shell call denies too (no deferral)" deny "$(verdict cursor)"
+OUT="$(cursor_v 3.28.7 beforeShellExecution 'gh pr merge 5' | GEMINI_SESSION_ID=g-1 bash "$HOOK" 2>/dev/null)"
+judge "desktop 3.28.7 with GEMINI_SESSION_ID in the environment: deny" deny "$(verdict cursor)"
+for v in 3.28.6 3.27.22 3.28 '' 2026.10.22-27dcf5f 2026.11.01 20.1.1 x3.28.7 99999.1.1; do
+  expect "cursor_version '$v', beforeShellExecution: deny (the CLI, or a desktop build S2 did not measure)" cursor "$(cursor_v "$v" beforeShellExecution 'gh pr merge 5')" deny "cursor cannot carry"
+done
+expect "Cursor CLI 2026.10.22, preToolUse Shell: deny (no deferral)" cursor "$(cursor_v 2026.10.22-27dcf5f preToolUse 'gh pr merge 5')" deny "cursor cannot carry"
+OUT="$(cursor_v 2026.10.22-27dcf5f beforeShellExecution 'gh pr merge 5' | PG_CURSOR_ASK=ask bash "$HOOK" 2>/dev/null)"
+judge "an inherited PG_CURSOR_ASK=ask changes nothing on the CLI" deny "$(verdict cursor)"
 
 # --- 8. the active skill (hooks/permission-intent.sh, D5/D8) ---------------------------------
 section "the active skill: --skill from intent/; a raise only when the host recorded it for this agent"
@@ -1279,6 +1341,8 @@ judge "claude: permissionDecision ask" ask "$(bash -c 'source "$1"; HOOK_PLATFOR
 judge "claude: the reason is kept" why "$(bash -c 'source "$1"; HOOK_PLATFORM=claude; hook_ask "why"' _ "$HO" | jq -r .hookSpecificOutput.permissionDecisionReason)"
 judge "codex: a deny" deny "$(bash -c 'source "$1"; HOOK_PLATFORM=codex; hook_ask "why"' _ "$HO" | jq -r .hookSpecificOutput.permissionDecision)"
 judge "cursor: a deny in Cursor's shape" deny "$(bash -c 'source "$1"; HOOK_PLATFORM=cursor; hook_ask "why"' _ "$HO" | jq -r .permission)"
+judge "hook_cursor_ask: Cursor's ask shape" '{"permission":"ask","user_message":"why","agent_message":"why"}' \
+  "$(bash -c 'source "$1"; HOOK_PLATFORM=cursor; hook_cursor_ask "why"' _ "$HO" | jq -c .)"
 judge "gemini env: a deny" deny "$(GEMINI_PROJECT_DIR=/x bash -c 'source "$1"; HOOK_PLATFORM=claude; hook_ask "why"' _ "$HO" | jq -r .hookSpecificOutput.permissionDecision)"
 judge "hook_deny is unchanged (claude)" deny "$(bash -c 'source "$1"; HOOK_PLATFORM=claude; hook_deny "why"' _ "$HO" | jq -r .hookSpecificOutput.permissionDecision)"
 judge "hook_allow is unchanged (claude)" '{}' "$(bash -c 'source "$1"; HOOK_PLATFORM=claude; hook_allow' _ "$HO")"

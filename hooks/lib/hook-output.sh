@@ -12,6 +12,7 @@
 #   hook_allow
 #   hook_deny "reason"
 #   hook_ask "reason"                       # Claude only; a deny on every other host
+#   hook_cursor_ask "reason"                # Cursor beforeShellExecution ask, when the caller knows it holds
 #   hook_additional_context "message"
 #   hook_stop_ok                            # Stop/SubagentStop: nothing to decide
 #
@@ -136,8 +137,9 @@ hook_deny() {
 #   none of them can carry an ask from a plugin hook (ADR 004 D8):
 #     codex   an `ask` is rejected as unsupported and the call RUNS (fail open,
 #             source-cited X1);
-#     cursor  preToolUse drops `ask`, and beforeShellExecution's forced prompt is
-#             unused until spike S1 is measured;
+#     cursor  preToolUse drops `ask` (U1.4, S2), and Cursor's CLI runs a command
+#             under --yolo whatever beforeShellExecution asks (measured S1); the
+#             one Cursor ask that holds is hook_cursor_ask, below;
 #     gemini  a hook `ask` hangs a headless run (G1), and hook input cannot tell
 #             headless from interactive. Under gemini-wrap.sh HOOK_PLATFORM reads
 #             claude (the payload is translated first), so Gemini is recognised by
@@ -151,6 +153,21 @@ hook_ask() {
     exit 0
   fi
   hook_deny "$reason"
+}
+
+# hook_cursor_ask <reason> — Cursor beforeShellExecution: ask the human.
+#
+#   Cursor's desktop app shows a beforeShellExecution `ask` as an approval card in
+#   Auto-Review, Allowlist and Run Everything alike, and runs the command only when
+#   the user picks Run (measured S2, 2026-11-04, Cursor 3.28.7). That holds for that
+#   event on the desktop app only: preToolUse drops an ask, and the CLI ignores one
+#   under --yolo (S1). So this helper does not decide; the caller does
+#   (hooks/permission-guard.sh: desktop >= 3.28.7, beforeShellExecution), and every
+#   other Cursor answer stays hook_deny. The Allowlist card shows the command but
+#   not the reason, so a caller also writes the reason to stderr.
+hook_cursor_ask() {
+  jq -n --arg reason "$1" '{permission:"ask",user_message:$reason,agent_message:$reason}'
+  exit 0
 }
 
 hook_additional_context() {
