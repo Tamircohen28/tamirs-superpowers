@@ -17,7 +17,8 @@
 #   levels: supervised | standard | unattended
 #
 # Exit: 0 done (written, nothing to do, or shown); 1 failed; 2 usage error;
-#       3 refused (no host-attested channel, provision inside a session, R4 allow);
+#       3 refused (no host-attested channel, no usable guard confirm stamp,
+#         provision inside a session, R4 allow);
 #       4 recorded pending: run the `confirm <nonce>` it prints.
 #
 # WHERE IT WRITES (D3, SR S-04)
@@ -65,7 +66,13 @@
 #     claude    the Claude Code CLI. The proof is the host permission dialog that
 #               hooks/permission-guard.sh raises with a PreToolUse `ask` on this
 #               very Bash call (policy.edit is R4: it asks at every level, and a
-#               headless run turns that ask into a deny). D5's Claude row.
+#               headless run turns that ask into a deny). D5's Claude row. The
+#               ancestry alone proves nothing: confirm also requires the guard's
+#               call stamp <state>/asked/<nonce>.json, written just before it
+#               returned that ask, and consumes it (format below). No stamp, a
+#               stamp for other bytes, another nonce, session or host, or one
+#               older than 15 minutes, and confirm is refused (the request is
+#               kept, so the user can still confirm it in their own terminal).
 #     gemini    Gemini CLI: the static extension ask_user rule on `confirm`.
 #     codex, cursor, opencode, claude-desktop, agy, agent, nested
 #               no host-attested channel (D5 table): confirm is refused, the
@@ -96,6 +103,14 @@
 #     confirm consumes a record by atomic rename (single use), reads it once and
 #     hashes and parses the same bytes (SR S-17); a stale, altered or expired
 #     record is refused.
+#   asked/<nonce>.json  the guard's confirm stamp (hooks/permission-guard.sh header)
+#     {"version": 1, "nonce", "file_sha256" (sha256 of the pending bytes the
+#      dialog showed), "body_sha256", "kind", "session_id", "agent", "host",
+#      "at", "expires"}, 0600 in 0700. Read by confirm on the claude channel only:
+#     claimed by atomic rename (single use) and deleted whatever the outcome.
+#     It must name this nonce, the exact bytes of the record being confirmed,
+#     its body_sha256, kind and expires, host claude, the record's session_id (a
+#     --perms= request), and an `at` no more than 15 minutes old.
 #   tickets/<id>.json  id = 32 hex chars
 #     {"version": 1, "kind": "raise" | "lower", "id", "skill" (null = the whole
 #      session), "level", "target" {"arg", "repo"}, "session_id", "agent",
@@ -787,6 +802,45 @@ def claim(path):
     return claimed
 
 
+STAMP_SKEW = 60
+
+
+def claude_stamp(c, nonce, rec, data):
+    """None when the guard's asked/<nonce>.json proves that THIS confirm, these bytes, went to the Claude permission
+    dialog (D5, D8 call stamp); else why not. The stamp is consumed either way (single use)."""
+    held = claim(os.path.join(c.state, "asked", nonce + ".json"))
+    if held is None:
+        return ("there is no confirm stamp for %s: the permission guard did not put this confirm to the Claude "
+                "permission dialog (plugin hooks disabled, the command did not reach it as a Bash call, or the "
+                "stamp was already used)" % nonce)
+    try:
+        r = E["read_guarded"](held, "private")
+        if r["state"] != "ok":
+            return "the confirm stamp is unsafe: %s" % "; ".join(r["problems"] or [r.get("error") or r["state"]])
+        st, err = E["parse_json"](r["data"], True)
+        if err or not isinstance(st, dict):
+            return "the confirm stamp is unreadable (%s)" % (err or "not an object")
+        if st.get("version") != 1 or st.get("nonce") != nonce:
+            return "the confirm stamp is for another request (%s)" % str(st.get("nonce"))[:40]
+        if (st.get("file_sha256") != hashlib.sha256(data).hexdigest() or st.get("body_sha256") != rec.get("body_sha256")
+                or st.get("kind") != rec.get("kind") or st.get("expires") != rec.get("expires")):
+            return ("the confirm stamp names other bytes than this pending record: what the dialog showed is not "
+                    "what would be applied (SR S-17)")
+        if st.get("host") != "claude":
+            return "the confirm stamp was written for host %r, not claude" % str(st.get("host"))[:40]
+        if rec.get("kind") == "perms" and st.get("session_id") != rec.get("session_id"):
+            return "the confirm stamp is from another session than the request"
+        at, now = parse_utc(st.get("at")), time.time()
+        if at is None or at > now + STAMP_SKEW or now - at > TTL:
+            return "the confirm stamp is stale (asked at %s; it is good for 15 minutes)" % str(st.get("at"))[:40]
+        return None
+    finally:
+        try:
+            os.unlink(held)
+        except OSError:
+            pass
+
+
 def cmd_confirm(c, a):
     a = strip_opts(a, ())
     if len(a) != 1 or not NONCE_RE.match(a[0]):
@@ -815,6 +869,17 @@ def cmd_confirm(c, a):
         exp = parse_utc(rec.get("expires"))
         if exp is None or exp < time.time():
             raise Fail("the pending request %s expired at %s" % (nonce, rec.get("expires")))
+        if sess == "claude":
+            why_not = claude_stamp(c, nonce, rec, r["data"])
+            if why_not:
+                try:
+                    os.rename(held, path)
+                except OSError:
+                    pass
+                raise Fail("confirm refused: %s. Running under the Claude Code CLI is not proof on its own (ADR 004 "
+                           "D5): the proof is the guard's dialog on this very call. The request is kept: run it again "
+                           "so the dialog asks, or run this in your own terminal: %s"
+                           % (why_not, cmd_line("confirm", nonce)), 3)
         if rec.get("kind") == "config":
             return confirm_config(c, rec, sess)
         if rec.get("kind") == "perms":

@@ -946,13 +946,15 @@ export function shellWriteTargets(command: string): ShellWriteTarget[] {
 //
 // OpenCode runs no shell hook, so guard.ts runs the canonical permission guard itself:
 // one source of truth for the action catalog, the conditions and the resolver, instead
-// of a TypeScript port of the matcher. The guard has no OpenCode dialect yet. It is
-// handed a CODEX-dialect payload (`turn_id` set): deny only, and a resolver host that
-// reads no option store — exactly OpenCode's rows of ADR 004 D3 and D5 (no option
-// store, no host-attested channel). Codex's ask also fails open (X1), so the guard
-// already delivers every ask as a deny there; on OpenCode an ask would be approved by
-// `--auto` (O1c), so that is the right delivery here too. R2 asks therefore arrive as
-// denies as well, which is stricter than D8's "R2: hook ask (advisory under --auto)".
+// of a TypeScript port of the matcher. The functions here build and read its
+// CODEX-dialect payload (`turn_id` set): deny only, a resolver host that reads no option
+// store, every ask delivered as a deny (Codex's ask fails open, X1). guard.ts sends the
+// guard's OPENCODE dialect instead: this payload without `turn_id`, plus "host":
+// "opencode" (honoured only where the host would otherwise read as Claude Code). There
+// the guard asks for an R2 call, which D8 accepts as advisory under `--auto` (O1c), and
+// denies every R3/R4, never_auto and UNCLASSIFIED call; resolver host opencode, no
+// option store, no host-attested channel (ADR 004 D3, D5). guard.ts keeps that ask
+// (opencodeVerdict), hands everything else to pgVerdict below, and never sets allow.
 
 /** The bundled GitHub MCP server's tool prefix in the guard's (Claude) vocabulary. */
 export const PG_MCP_PREFIX = "mcp__plugin_tamirs-superpowers_github__"
@@ -971,7 +973,7 @@ export type PgCall =
   | { readonly kind: "shell"; readonly command: string; readonly cwd: string }
   | { readonly kind: "mcp"; readonly tool: string; readonly input: unknown; readonly cwd: string }
 
-/** The PreToolUse payload for hooks/permission-guard.sh, in the Codex dialect (see the section header). */
+/** The PreToolUse payload for hooks/permission-guard.sh, in the Codex dialect; guard.ts derives its OpenCode dialect from it (see the section header). */
 export function pgPayload(call: PgCall, sessionID: string): Record<string, unknown> {
   const base = { session_id: sessionID || "opencode", turn_id: "opencode", hook_event_name: "PreToolUse", cwd: call.cwd }
   if (call.kind === "shell") return { ...base, tool_name: "Bash", tool_input: { command: call.command } }
@@ -1009,7 +1011,8 @@ export function opencodeReason(reason: string): string {
 
 /**
  * Read the guard's answer. `{}` is the only allow; a deny keeps its reason; an ask
- * (which this dialect never emits) and anything unreadable are denies — the guard's
+ * (the Codex dialect never emits one; guard.ts keeps the OpenCode dialect's R2 ask
+ * itself before it calls this) and anything unreadable are denies — the guard's
  * silence is never consent (ADR 004 D4: resolver or guard failure is a deny).
  */
 export function pgVerdict(stdout: string): Decision {

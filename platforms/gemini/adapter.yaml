@@ -68,9 +68,12 @@ notes: >-
   mode-less ask_user for R4 command forms (holds under --yolo, denies with no TTY; measured
   G3 on 0.66.0) and deny for host config CLIs, plugin-config.sh provision, protected paths
   and the GitHub MCP tools the server excludes. permission-guard.sh runs on BeforeTool
-  run_shell_command and answers deny, never ask (a hook ask hangs headless, G1); it is not
-  wired to MCP tools, whose Gemini names (mcp_github_<tool>) the wrapper does not
-  translate. The token is a manifest `settings[]` entry with `sensitive: true` (OS
+  run_shell_command and answers deny, never ask (a hook ask hangs headless, G1). It also
+  runs on the bundled GitHub MCP server's tools (BeforeTool ^(mcp_github_[A-Za-z0-9_.:-]+)$):
+  gemini-wrap.sh maps those calls to the Claude tool names (mcp_context.server_name github,
+  else the mcp_github_ prefix; another server's tool keeps its name) and turns any ask into
+  a deny; that the hook fires for an extension server's tools is source-read (0.60.0), not
+  measured live, so the static MCP denies above stay. The token is a manifest `settings[]` entry with `sensitive: true` (OS
   keychain) and `envVar: GITHUB_PERSONAL_ACCESS_TOKEN`, set with `gemini extensions config
   tamirs-superpowers GITHUB_PERSONAL_ACCESS_TOKEN`; TS_PERMISSION_LEVEL is a plain setting
   stored in the extension's .env, where the permission resolver reads it (ADR 004 D3, D7).

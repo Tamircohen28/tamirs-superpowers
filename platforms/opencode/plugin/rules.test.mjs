@@ -329,11 +329,28 @@ test("pgVerdict: {} is the only allow; deny keeps its reason; ask, garbage and s
   assert.equal(opencodeReason("plain"), "plain")
 })
 
-test("guard.ts never widens: no session.update, no allow or ask effect, PG run as is (D8, D10.4)", () => {
+test("guard.ts never widens: no session.update, never an allow, e.effect only from the guard's Decision, ask only via opencodeVerdict (D8, D10.4)", () => {
   const g = readFileSync(path.join(HERE, "guard.ts"), "utf8")
   assert.doesNotMatch(g, /\.session\.update\(/)
-  assert.doesNotMatch(g, /effect\s*=\s*"(allow|ask)"/)
   assert.doesNotMatch(g, /permission\.assert\(/)
+  // An allow would widen a configured ask (O1e); guard.ts never sets one, in any spelling.
+  assert.doesNotMatch(g, /effect\s*=\s*"allow"/)
+  assert.doesNotMatch(g, /effect\s*=\s*ALLOW\b/)
+  // An ask is not a widening: it is the guard's own R2 answer (D8 OpenCode row). The evaluate
+  // hook copies e.effect only from a Decision that is not an allow, or sets a fail-closed deny.
+  const sets = [...g.matchAll(/\be\.effect\s*=(?!=)\s*([^\n;]+)/g)].map((m) => m[1].trim())
+  assert.deepEqual([...new Set(sets)].sort(), ['"deny"', "d.effect"], `e.effect is set from: ${sets.join(", ")}`)
+  assert.match(g, /if \(d\.effect !== "allow"\) \{[^}]*?e\.effect = d\.effect/)
+  // The only ask literal is opencodeVerdict's, which keeps the guard's own ask and hands
+  // everything else to pgVerdict (fail closed).
+  const asks = [...g.matchAll(/effect:\s*"ask"/g)]
+  assert.equal(asks.length, 1, "exactly one ask literal in guard.ts")
+  const fn = g.indexOf("function opencodeVerdict(")
+  const end = g.indexOf("\nfunction ", fn + 1)
+  assert.ok(fn >= 0 && asks[0].index > fn && asks[0].index < end, "the ask literal is inside opencodeVerdict")
+  assert.match(g.slice(fn, end), /permissionDecision === "ask"/)
+  assert.match(g.slice(fn, end), /return pgVerdict\(stdout\)/)
+  assert.doesNotMatch(g, /effect\s*=\s*"ask"/)
   assert.match(g, /execFileSync\("bash", \[PERMISSION_GUARD\]/)
   assert.match(g, /path\.join\(PLUGIN_ROOT, "hooks", "permission-guard\.sh"\)/)
   // The legacy switch is read once and never gates the permission guard call.
@@ -356,20 +373,19 @@ function pgHarness() {
   const env = pgEnv({ ...process.env, TAMIRS_PERMISSION_TEST_ROOT: ph, HOME: path.join(t, "env-home") })
   delete env.TS_PERMISSION_LEVEL
   delete env.TAMIRS_AUTO_MERGE
-  const run = (call) =>
-    pgVerdict(
-      execFileSync("bash", [w, "bash", path.join(ROOT, "hooks", "permission-guard.sh")], {
-        input: JSON.stringify(pgPayload(call, "s")),
-        encoding: "utf8",
-        env,
-        stdio: ["pipe", "pipe", "ignore"],
-      }),
-    )
+  const raw = (payload) =>
+    execFileSync("bash", [w, "bash", path.join(ROOT, "hooks", "permission-guard.sh")], {
+      input: JSON.stringify(payload),
+      encoding: "utf8",
+      env,
+      stdio: ["pipe", "pipe", "ignore"],
+    })
+  const run = (call) => pgVerdict(raw(pgPayload(call, "s")))
   const home = execFileSync("bash", [w, "bash", path.join(ROOT, "scripts", "resolve-permission.sh"), "repo.read", "--json"], { encoding: "utf8", env })
-  return { t, run, homeSource: JSON.parse(home).home_source }
+  return { t, run, raw, homeSource: JSON.parse(home).home_source }
 }
 
-test("the real permission guard behind pgPayload/pgVerdict: allows ordinary calls, never asks", { skip: !canRun && "bash, jq or python3 missing" }, () => {
+test("the real permission guard behind pgPayload/pgVerdict (Codex dialect): allows ordinary calls, never asks", { skip: !canRun && "bash, jq or python3 missing" }, () => {
   const h = pgHarness()
   try {
     assert.equal(h.homeSource, "test-root", "the resolver must read the temp passwd home, never the real one")
@@ -387,6 +403,37 @@ test("the real permission guard behind pgPayload/pgVerdict: allows ordinary call
     assert.equal(mcp("merge_pull_request", { owner: "o", repo: "r", pullNumber: 1 }).effect, "deny")
     assert.equal(mcp("delete_repository", { owner: "o", repo: "r" }).effect, "deny")
     assert.equal(mcp("no_such_tool", {}).effect, "deny", "an unknown tool of the server is UNCLASSIFIED (R4)")
+  } finally {
+    rmSync(h.t, { recursive: true, force: true })
+  }
+})
+
+test("the real permission guard in the OpenCode dialect (pgPayload + host opencode, no turn_id): R2 asks, R3/R4 deny, never allow", { skip: !canRun && "bash, jq or python3 missing" }, () => {
+  const h = pgHarness()
+  try {
+    assert.equal(h.homeSource, "test-root", "the resolver must read the temp passwd home, never the real one")
+    // guard.ts's opencodePayload: pgPayload without the Codex marker, plus the host key.
+    const oc = (call) => {
+      const p = { ...pgPayload(call, "s"), host: "opencode" }
+      delete p.turn_id
+      return JSON.parse(h.raw(p) || "{}")
+    }
+    const decision = (o) => (o.hookSpecificOutput || {}).permissionDecision || "allow"
+    const sh = (command) => oc({ kind: "shell", command, cwd: h.t })
+    assert.equal(decision(sh("ls -la")), "allow")
+    const create = sh("gh pr create --fill")
+    assert.equal(decision(create), "ask", "an R2 call is the guard's own ask on OpenCode (D8)")
+    assert.match(create.hookSpecificOutput.permissionDecisionReason, /tamirs-superpowers permission guard/)
+    for (const c of ["gh pr merge 1 --squash", "gh pr merge 1 --admin", "gh repo delete me/x --yes"]) {
+      assert.equal(decision(sh(c)), "deny", `${c} must be a deny on OpenCode (R3/R4: --auto would approve an ask, O1c)`)
+    }
+    const mcp = (tool, input) => decision(oc({ kind: "mcp", tool, input, cwd: h.t }))
+    assert.equal(mcp("merge_pull_request", { owner: "o", repo: "r", pullNumber: 1 }), "deny")
+    assert.equal(mcp("no_such_tool", {}), "deny", "UNCLASSIFIED is never an ask")
+    // Nothing the guard answers in this dialect is an explicit allow: {} is its only allow.
+    for (const o of [create, sh("ls -la"), sh("gh pr merge 1 --squash")]) {
+      assert.notEqual((o.hookSpecificOutput || {}).permissionDecision, "allow")
+    }
   } finally {
     rmSync(h.t, { recursive: true, force: true })
   }
