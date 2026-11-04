@@ -7,13 +7,19 @@
 #     home; the lock it writes verifies in scripts/resolve-permission.sh;
 #     anti-escalation (a widening inside an agent session is only recorded
 #     pending; `confirm` applies it once, on a host with a channel, and is refused
-#     where there is none); R4 allow is never stored; trust widens pr.merge.auto
-#     for its own remote only; provision is refused inside a session and marks
-#     its lock by: provision; nothing is written when the test root is refused.
+#     where there is none; on Claude only with the guard's single-use confirm
+#     stamp asked/<nonce>.json, written by the real hooks/permission-guard.sh, for
+#     these bytes, this nonce, session and host, and fresh); R4 allow is never
+#     stored; trust widens pr.merge.auto for its own remote only; provision is
+#     refused inside a session and marks its lock by: provision; nothing is
+#     written when the test root is refused.
 #   * hooks/permission-intent.sh, from crafted Claude payloads: a user-typed
 #     slash command with a raising --perms= records a PENDING request (never a
 #     ticket); a non-user or missing `source` records none; a lowering becomes a
-#     lowering ticket at once; confirm turns a pending request into a ticket.
+#     lowering ticket at once; confirm turns a pending request into a ticket;
+#     EVERY slash command pairs with its submit half, so an ordinary user-typed
+#     /skill is marked user_typed (true only for source user, never for another
+#     command or a prompt that does not start with it).
 #   * scripts/github-mcp.sh --print-flags: the D8 flags per level (the server is
 #     never started).
 #
@@ -61,6 +67,17 @@ mode_of() { python3 -I -S -c 'import os, stat, sys; print("%o" % stat.S_IMODE(os
 level_of() { (cd "${3:-$NOWHERE}" && TAMIRS_PERMISSION_TEST_ROOT="$1" bash "$RESOLVE" --level --json ${2:+--skill "$2"} 2>/dev/null); }
 verdict_of() { local root="$1"; shift; (cd "$NOWHERE" && TAMIRS_PERMISSION_TEST_ROOT="$root" bash "$RESOLVE" "$@" 2>/dev/null | jq -r .verdict); }
 ufstate() { level_of "$1" | jq -r '.level_sources[] | select(.source == "user_file") | .state'; }
+GUARD="$REPO_ROOT/hooks/permission-guard.sh"
+# ask_pg <root> <nonce> [session] — run the real permission guard on the Claude Bash call
+# `bash plugin-config.sh confirm <nonce>`; it writes the confirm stamp asked/<nonce>.json
+# before it returns ask (the D5 dialog). Prints the guard's decision.
+ask_pg() {
+  jq -nc --arg c "bash $PC confirm $2" --arg d "$NOWHERE" --arg s "${3:-pg-s}" \
+    '{session_id:$s,transcript_path:"/t",cwd:$d,hook_event_name:"PreToolUse",permission_mode:"default",tool_name:"Bash",tool_use_id:"call-1",tool_input:{command:$c,description:"confirm"}}' |
+    (cd "$NOWHERE" && TAMIRS_PERMISSION_TEST_ROOT="$1" bash "$GUARD" 2>/dev/null) |
+    jq -r '.hookSpecificOutput.permissionDecision // "allow"' 2>/dev/null
+}
+stampf() { printf '%s/asked/%s.json' "$(sdir "$1")" "$2"; }
 
 # ---------------------------------------------------------------------------
 section "the test root is honoured (precondition for every write below)"
@@ -173,12 +190,69 @@ judge "because its hash no longer matches" yes "$(has "$out" 'does not match its
 judge "the file is still unchanged" "$before" "$(sum "$(pfile "$R2")")"
 
 NONCE="$(pcj "$R2" claude unattended | jq -r .nonce)"
+PEND="$(sdir "$R2")/pending/$NONCE.json"
 out="$(pc "$R2" claude confirm "$NONCE")"; rc=$?
-judge "confirm in a Claude session (the PG dialog is the proof) exits 0" 0 "$rc"
+judge "confirm under the Claude CLI with no guard stamp is refused (3)" 3 "$rc"
+judge "it says there is no confirm stamp and that the CLI is no proof alone" "yes yes" \
+  "$(has "$out" 'there is no confirm stamp') $(has "$out" 'not proof on its own')"
+judge "the file is unchanged" "$before" "$(sum "$(pfile "$R2")")"
+judge "the request is kept (the terminal route still works)" yes "$(exists "$PEND")"
+judge "the guard asks on this confirm (the D5 dialog)" ask "$(ask_pg "$R2" "$NONCE")"
+judge "and stamps asked/<nonce>.json" yes "$(exists "$(stampf "$R2" "$NONCE")")"
+cp "$PEND" "$R2/pend.saved"
+out="$(pc "$R2" claude confirm "$NONCE")"; rc=$?
+judge "confirm with the guard's stamp exits 0" 0 "$rc"
 judge "it applied the raise" unattended "$(jq -r .level "$(pfile "$R2")")"
 judge "the resolver reads it verified" "unattended verified" "$(level_of "$R2" | jq -r '[.level, (.level_sources[] | select(.source == "user_file") | .state)] | join(" ")')"
+judge "the stamp is consumed" no "$(exists "$(stampf "$R2" "$NONCE")")"
 out="$(pc "$R2" claude confirm "$NONCE")"; rc=$?
 judge "a nonce is single-use" 1 "$rc"
+cp "$R2/pend.saved" "$PEND"; chmod 600 "$PEND"
+out="$(pc "$R2" claude confirm "$NONCE")"; rc=$?
+judge "replaying the confirm (the same record put back) is refused: the stamp is single-use" "3 yes" \
+  "$rc $(has "$out" 'there is no confirm stamp')"
+rm -f "$PEND"
+
+# A stamp for another nonce, or for other bytes under this nonce, proves nothing.
+pc "$R2" none supervised >/dev/null
+before="$(sum "$(pfile "$R2")")"
+NA="$(pcj "$R2" claude standard | jq -r .nonce)"
+NB="$(pcj "$R2" claude unattended | jq -r .nonce)"
+judge "the guard asks on confirm A" ask "$(ask_pg "$R2" "$NA")"
+mv "$(stampf "$R2" "$NA")" "$(stampf "$R2" "$NB")"
+out="$(pc "$R2" claude confirm "$NB")"; rc=$?
+judge "A's stamp under B's name is refused (3)" "3 yes" "$rc $(has "$out" 'the confirm stamp is for another request')"
+judge "the stamp was consumed by the refusal" no "$(exists "$(stampf "$R2" "$NB")")"
+out="$(pc "$R2" claude confirm "$NA")"; rc=$?
+judge "and A itself now has no stamp (3)" "3 yes" "$rc $(has "$out" 'there is no confirm stamp')"
+judge "the guard asks on confirm B" ask "$(ask_pg "$R2" "$NB")"
+PB="$(sdir "$R2")/pending/$NB.json"
+python3 -I -S - "$PB" <<'PY2'
+import hashlib, json, sys
+p = sys.argv[1]
+def render(d): return (json.dumps(d, indent=2, sort_keys=True, ensure_ascii=True) + "\n").encode("ascii")
+d = json.load(open(p)); d.pop("body_sha256")
+d["doc"]["actions"] = {"pr.merge": "allow"}; d["op"] = "pr.merge allow"
+d["body_sha256"] = hashlib.sha256(render(d)).hexdigest()
+open(p, "wb").write(render(d))
+PY2
+out="$(pc "$R2" claude confirm "$NB")"; rc=$?
+judge "a re-hashed record with another change than the dialog showed is refused (3)" "3 yes" \
+  "$rc $(has "$out" 'names other bytes than this pending record')"
+judge "nothing was written" "$before" "$(sum "$(pfile "$R2")")"
+judge "a stamp naming another host is refused" "3 yes" "$(
+  ask_pg "$R2" "$NA" >/dev/null
+  python3 -I -S -c 'import json,sys; p=sys.argv[1]; d=json.load(open(p)); d["host"]="gemini"; open(p,"w").write(json.dumps(d))' "$(stampf "$R2" "$NA")"
+  out="$(pc "$R2" claude confirm "$NA")"; printf '%s %s' "$?" "$(has "$out" 'not claude')")"
+judge "a stale stamp (asked over 15 minutes ago) is refused" "3 yes" "$(
+  ask_pg "$R2" "$NA" >/dev/null
+  python3 -I -S -c 'import json,sys; p=sys.argv[1]; d=json.load(open(p)); d["at"]="2026-01-01T00:00:00Z"; open(p,"w").write(json.dumps(d))' "$(stampf "$R2" "$NA")"
+  out="$(pc "$R2" claude confirm "$NA")"; printf '%s %s' "$?" "$(has "$out" 'is stale')")"
+judge "a stamp the user's other processes could rewrite (0644) is refused" "3 yes" "$(
+  ask_pg "$R2" "$NA" >/dev/null; chmod 644 "$(stampf "$R2" "$NA")"
+  out="$(pc "$R2" claude confirm "$NA")"; printf '%s %s' "$?" "$(has "$out" 'the confirm stamp is unsafe')")"
+judge "after all of that, A still applies with a fresh stamp" "ask 0 standard" "$(
+  a="$(ask_pg "$R2" "$NA")"; pc "$R2" claude confirm "$NA" >/dev/null; printf '%s %s %s' "$a" "$?" "$(jq -r .level "$(pfile "$R2")")")"
 
 out="$(pc "$R2" codex supervised)"; rc=$?
 judge "a lowering is written at once, even with no channel" "0 supervised" "$rc $(jq -r .level "$(pfile "$R2")")"
@@ -311,8 +385,44 @@ judge "Codex: a lowering is a session-wide ticket" "lower null" \
 
 out="$(printf '{"hook_event_name":"UserPromptSubmit","session_id":"s10","prompt":"hello"}' | hook)"
 judge "an ordinary prompt is silent" "" "$out"
+judge "and writes no half (it is no slash command)" no "$(exists "$(sdir "$R6")/intent/s10.submit.json")"
+
+# Every user-typed slash command marks its context user_typed, --perms= or not (D8: a per-skill raise
+# from the user file applies only to a user-typed command).
+ut() { jq -r .user_typed "$(sdir "$R6")/intent/$1.json" 2>/dev/null; }
+np0="$(npend)"; nt0="$(ntick)"
+out="$(expn '42' u1 | hook)"
+judge "a plain /skill expansion is silent" "" "$out"
+judge "  ... its context waits for the submit half (user_typed null)" null "$(ut u1)"
+out="$(subm '/tamirs-superpowers:pr-dev 42' user u1 | hook)"
+judge "  ... a user-typed submit with no --perms= pairs: user_typed true" true "$(ut u1)"
+judge "  ... silently" "" "$out"
+judge "  ... and records no request and no ticket" "$np0 $nt0" "$(npend) $(ntick)"
+judge "  ... both halves are gone" "no no" "$(exists "$(sdir "$R6")/intent/u1.expansion.json") $(exists "$(sdir "$R6")/intent/u1.submit.json")"
+subm '/pr-dev 7' user u2 | hook >/dev/null
+judge "the submit half is written for every slash prompt" yes "$(exists "$(sdir "$R6")/intent/u2.submit.json")"
+expn '7' u2 | hook >/dev/null
+judge "submit first, then expansion, and the short /pr-dev form: user_typed true" true "$(ut u2)"
+subm '/pr-dev 7' sdk u3 | hook >/dev/null; expn '7' u3 | hook >/dev/null
+judge "source sdk: user_typed false (nothing that can raise)" false "$(ut u3)"
+subm '/pr-dev 7' "" u4 | hook >/dev/null; expn '7' u4 | hook >/dev/null
+judge "a missing source: user_typed false" false "$(ut u4)"
+subm '/tamirs-superpowers:start-dev 7' user u5 | hook >/dev/null; expn '7' u5 | hook >/dev/null
+judge "a user submit naming another command does not pair: user_typed null" null "$(ut u5)"
+subm 'run /pr-dev 7 for me' user u6 | hook >/dev/null; expn '7' u6 | hook >/dev/null
+judge "a prompt that does not start with the command does not pair" null "$(ut u6)"
+expn '7' u7 | hook >/dev/null
+printf '{"hook_event_name":"UserPromptSubmit","session_id":"u7","cwd":"/","source":"user","prompt":"\\n  /pr-dev 7"}' | hook >/dev/null
+judge "leading blank lines before the command still pair" true "$(ut u7)"
+expn '42 --perms=unattended' u8 | hook >/dev/null
+subm '/tamirs-superpowers:pr-dev 42' user u8 | hook >/dev/null
+judge "a --perms= raise whose submit carries none does not pair (no request)" "$np0 null" "$(npend) $(ut u8)"
 
 NONCE="$(jq -r .nonce "$REC")"
+judge "the guard asks on the confirm made from another session" ask "$(ask_pg "$R6" "$NONCE" s-other)"
+out="$(pc "$R6" claude confirm "$NONCE")"; rc=$?
+judge "a stamp from another session than the request is refused (3)" "3 yes" "$rc $(has "$out" 'from another session')"
+judge "the guard asks on the confirm, naming the request" ask "$(ask_pg "$R6" "$NONCE" s1)"
 out="$(pc "$R6" claude confirm "$NONCE")"; rc=$?
 judge "confirm turns the request into a ticket" 0 "$rc"
 judge "a raise ticket for pr-dev at unattended, bound to its session" "raise pr-dev unattended s1 main" \

@@ -14,12 +14,21 @@
 #                lowering --perms= becomes a lowering ticket; a raise waits for
 #                its other half.
 #                UserPromptSubmit: `source` (C3; "user" | "sdk" | "system" | ...;
-#                missing = NOT user). Only prompts carrying "--perms=" are read.
+#                missing = NOT user). EVERY prompt whose first line starts with a
+#                `/<command>` token records its half (source, that command, its
+#                --perms= token or none), whether or not it carries --perms=, so
+#                an ordinary user-typed `/<skill>` marks its context user_typed
+#                and a per-skill RAISE from the user file can apply to it (D8).
+#                A prompt that does not start with `/` cannot be a slash command
+#                and is not read (one string match).
 #                The two halves pair when they share the session, arrive within
-#                60 s of each other and carry the same --perms= token; only then,
-#                and only with source == "user", is a raise recorded pending. A
-#                model Skill call, `claude -p`/SDK text (source != user) and a
-#                half that never pairs record nothing (D5; SR S-02).
+#                60 s of each other, name the same command and carry the same
+#                --perms= token (or both none); only then is user_typed set (true
+#                only with source == "user"), and only then, with source ==
+#                "user", is a raise recorded pending. A model Skill call,
+#                `claude -p`/SDK text (source != user), a submit naming another
+#                command and a half that never pairs mark nothing user_typed and
+#                record nothing that can raise (D5; SR S-02).
 #   Codex CLI    UserPromptSubmit (CODEX_HOME in the hook env): no host-attested
 #   Gemini CLI   channel (D5), so a --perms= token only LOWERS, session-wide; a
 #                raise is answered with a note naming the out-of-session route.
@@ -47,8 +56,10 @@
 #     A reader may apply a per-skill LOWERING from it always, and a per-skill
 #     raise only when user_typed is true (D8; ADR Open risks: the context persists
 #     across turns until the next slash command or session).
-#   intent/<sid>.expansion.json, intent/<sid>.submit.json  the two halves while
-#                      they wait to pair (deleted when paired, pruned after 10 min).
+#   intent/<sid>.expansion.json {at, command_name, skill, perms, act, target},
+#   intent/<sid>.submit.json {at, source, command, perms}  the two halves while
+#                      they wait to pair (deleted when paired, pruned after 10 min;
+#                      act: a raise still waits for the pairing).
 #   pending/<nonce>.json  kind "perms" (format: scripts/plugin-config.sh header)
 #   tickets/<id>.json     kind "lower" (format: scripts/plugin-config.sh header),
 #                      24 h, bound to (session_id, agent); skill null = session-wide.
@@ -71,12 +82,15 @@ unset _pi_here
 source "${SCRIPT_DIR}/lib/hook-output.sh" 2>/dev/null || exit 0
 
 input="$(hook_read_stdin)"
-# Fast path: the only prompts this hook reads are slash-command expansions and
-# prompts that carry --perms=. Everything else costs one string match.
+# Fast path: the only prompts this hook reads are slash-command expansions,
+# prompts that start with a slash command (their source pairs with the
+# expansion) and prompts that carry --perms=. Everything else costs a match.
+_pi_slash='"prompt"[[:space:]]*:[[:space:]]*"([[:space:]]|\\[nrt])*/'
 case "$input" in
   *UserPromptExpansion*|*--perms=*) ;;
-  *) exit 0 ;;
+  *) [[ "$input" =~ $_pi_slash ]] || exit 0 ;;
 esac
+unset _pi_slash
 command -v python3 >/dev/null 2>&1 || exit 0
 command -v jq >/dev/null 2>&1 || exit 0
 hook_detect_platform "$input"
@@ -180,6 +194,20 @@ def target_of(line, cwd):
     return {"arg": arg, "repo": info.get("origin") if info else None}
 
 
+def slash_command(line):
+    """The command a prompt's first line runs (`/<name> ...` -> name), or None when it is no slash command."""
+    t = line.split()
+    return t[0][1:201] if t and t[0].startswith("/") and len(t[0]) > 1 else None
+
+
+def same_command(typed, command_name):
+    """Does the submitted `/<typed>` name the expanded command (with or without the plugin prefix)?"""
+    c = (command_name or "").lstrip("/")
+    if not typed or not c:
+        return False
+    return typed == c or (skill_of(c) is not None and skill_of(typed) == skill_of(c))
+
+
 def skill_of(command_name):
     n = (command_name or "").lstrip("/")
     if n.startswith(PLUGIN + ":"):
@@ -201,11 +229,12 @@ def prune(d, max_age):
         names = os.listdir(d)
     except OSError:
         return
-    cut = time.time() - max_age
+    now = time.time()
     for n in names:
         p = os.path.join(d, n)
+        age = HALF_TTL if n.endswith((".expansion.json", ".submit.json")) else max_age
         try:
-            if os.lstat(p).st_mtime < cut:
+            if os.lstat(p).st_mtime < now - age:
                 os.unlink(p)
         except OSError:
             pass
@@ -295,29 +324,37 @@ def main():
                "objective": obj if obj and OBJ_RE.match(obj) else None, "at": now_utc(t),
                "expires": now_utc(t + TTL_CONTEXT)}
         atomic_write(os.path.join(idir, sid + ".json"), render(ctx))
+        # Every expansion waits for its submit half, which says who typed it (user_typed). Only a raise is
+        # still to act on when they pair; a lowering, a no-op or a note is answered here and now.
+        act, msg = False, None
         if badv is not None:
-            return "--perms=%s is not a level (%s): ignored." % (badv, " | ".join(LEVELS))
-        if not level:
-            return None
-        if skill is None:
-            return "--perms=%s is ignored: /%s is not one of this plugin's skills." % (level, cname)
-        cur = current_level(skill, host)
-        if E["is_lower"](level, cur) or level == cur:
-            return raise_or_lower(skill, level, target, False, None, cname, cur)
+            msg = "--perms=%s is not a level (%s): ignored." % (badv, " | ".join(LEVELS))
+        elif level and skill is None:
+            msg = "--perms=%s is ignored: /%s is not one of this plugin's skills." % (level, cname)
+        elif level:
+            cur = current_level(skill, host)
+            if E["is_lower"](level, cur) or level == cur:
+                msg = raise_or_lower(skill, level, target, False, None, cname, cur)
+            else:
+                act = True
         atomic_write(os.path.join(idir, sid + ".expansion.json"),
-                     render({"at": t, "command_name": cname, "skill": skill, "perms": level, "target": target}))
-        return pair(idir, sid, raise_or_lower)
+                     render({"at": t, "command_name": cname, "skill": skill, "perms": level, "act": act,
+                             "target": target}))
+        return pair(idir, sid, raise_or_lower) or msg
 
     if ev == "UserPromptSubmit":
         line = first_line(payload.get("prompt"))
         level, badv = perms_token(line)
         if host == "claude":
-            if not level:
+            typed = slash_command(line)
+            if typed is None:
                 return None
             idir = dir_("intent")
+            prune(idir, TTL_CONTEXT)
             src_ = payload.get("source")
             atomic_write(os.path.join(idir, sid + ".submit.json"),
-                         render({"at": t, "source": src_ if isinstance(src_, str) else None, "perms": level}))
+                         render({"at": t, "source": src_ if isinstance(src_, str) else None, "command": typed,
+                                 "perms": level}))
             return pair(idir, sid, raise_or_lower)
         if badv is not None:
             return "--perms=%s is not a level (%s): ignored." % (badv, " | ".join(LEVELS))
@@ -331,7 +368,8 @@ def pair(idir, sid, raise_or_lower):
     x, s = read_json(xp), read_json(sp)
     if x is None or s is None:
         return None
-    if abs(int(x.get("at", 0)) - int(s.get("at", 0))) > PAIR_WINDOW or x.get("perms") != s.get("perms"):
+    if (abs(int(x.get("at", 0)) - int(s.get("at", 0))) > PAIR_WINDOW or x.get("perms") != s.get("perms")
+            or not same_command(s.get("command"), x.get("command_name"))):
         for p, h in ((xp, x), (sp, s)):
             if time.time() - int(h.get("at", 0)) > PAIR_WINDOW:
                 try:
@@ -350,6 +388,8 @@ def pair(idir, sid, raise_or_lower):
     if ctx is not None and ctx.get("command_name") == x.get("command_name"):
         ctx["user_typed"] = user
         atomic_write(cp, render(ctx))
+    if not x.get("act") or not x.get("perms"):
+        return None
     return raise_or_lower(x.get("skill"), x["perms"], x.get("target") or {"arg": None, "repo": None},
                           user, s.get("source"), x.get("command_name"))
 
