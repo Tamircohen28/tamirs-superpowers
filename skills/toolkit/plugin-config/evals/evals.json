@@ -1,0 +1,17 @@
+{
+  "skill_name": "plugin-config",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "/plugin-config show",
+      "expected_output": "Runs scripts/plugin-config.sh show once and relays the user file state, lock, effective level and entries without editing any file.",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "/plugin-config pr-dev unattended",
+      "expected_output": "Runs scripts/plugin-config.sh pr-dev unattended; when it exits 4, shows the widened rows and the printed confirm command and stops without running confirm.",
+      "files": []
+    }
+  ]
+}

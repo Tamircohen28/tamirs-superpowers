@@ -30,6 +30,7 @@ the one that answers "what breaks if this is gone".
 | Hook | Event | Category | Platforms | Without hooks | Ship to users? |
 |---|---|---|---|---|---|
 | `permission-guard.sh` | PreToolUse `Bash\|Shell` and `mcp__plugin_tamirs-superpowers_github__.*`; Cursor `preToolUse` + `beforeShellExecution` | **core-safety-invariant** | Claude Code (ask/deny), Codex and Cursor (deny only, ADR 004 D8) | **Unprotected at L2.** Pushes, merges, branch deletes, agent-host spawns and tty drivers run at whatever the host allows; only the skills' own L1 gates remain, and those are advisory | **Yes** |
+| `permission-intent.sh` | UserPromptExpansion + UserPromptSubmit (Claude Code); UserPromptSubmit (Codex) | **claude-convenience** | Claude Code (raise requests and the active-skill context), Codex (lowering only, ADR 004 D5) | `--perms=` is not read at L2: a raise needs `scripts/plugin-config.sh` run outside the session, and a lowering falls back to the skills' L1 parsing. Never grants anything itself, so it is advisory (no `onFailure`) | **Yes** |
 | `protect-other-branches.sh` | PreToolUse `Bash\|Shell` | **core-safety-invariant** | Claude Code, Cursor | **Unprotected.** Concurrent agents overwrite each other's branches and PRs. | **Yes** |
 | `release-agent-claims.sh` | SessionEnd | **core-safety-invariant** | Claude Code, Cursor | Claims expire on their own staleness window instead of immediately | **Yes** |
 | `enforce-worktree-edits.sh` | PreToolUse `Edit\|Write\|…` | **core-safety-invariant** | Claude Code, Cursor | Main-checkout edits become an advisory rule in `AGENTS.md` | **Yes** |
@@ -69,6 +70,7 @@ the one that answers "what breaks if this is gone".
 | `lib/hook-output.sh` | Claude Code / Cursor PreToolUse JSON dialect. Cursor fail-closes on empty stdout; Claude Code treats it as allow — so every guard must emit valid JSON either way. Also `hook_tier_enabled`/`hook_tier_gate`, the [tier](#tiers) switch every gated hook calls first, and `hook_ask` (an ask on Claude Code; a deny on Codex, Cursor and under Gemini, ADR 004 D8). |
 | `lib/agent-claim.sh` | The cross-tool work-claim store behind `protect-other-branches.sh`. Tool-neutral by design: Claude Code, Cursor and Codex read and write the same files. Its shell tokeniser lives in `lib/command-tokens.sh`. |
 | `lib/command-tokens.sh` | The shell tokeniser shared by `lib/agent-claim.sh` (default mode, unchanged) and `permission-guard.sh` (keep mode: a command substitution stays inside its word and its commands are also emitted, marked nested). Quotes, heredocs, `VAR=x` prefixes, `&&`/`;`/`|` segments, wrappers and `sh -c` strings. |
+| `lib/permission-conditions.sh` | The GitHub-backed conditions of `permission-guard.sh` (default branch via `gh repo view`, required checks for `gh pr merge --admin`), all under one 3 s deadline; an error or timeout leaves a condition unknown, so its raise or deny applies (ADR 004 D4, D8). |
 | `lib/worktree-common.sh` | Single-task worktree model (`~/.claude/worktrees/<repo>/<slug>`, `wt/*` branches) plus dependency-install and retention policy. **Protected**: any change requires shellcheck plus exercising both `capture-task-slug.sh` and `worktree-create.sh`. |
 | `lib/objective-common.sh` | Objective model — `.agent-worktrees/<objective>/{integration,task-NNN}`, `objective/<slug>` and `worker/<slug>/NNN` branches, active-objective detection, and cross-layout classification. |
 
@@ -265,7 +267,7 @@ The shape the table argues for, with the two tiers that are now options marked.
 |---|---|---|
 | **safety** | `protect-other-branches`, `release-agent-claims`, `enforce-worktree-edits`, `guard-sensitive-files`, `docker-guard`, `goal-condition-lint` | on, never gated |
 | **worktree** | `capture-task-slug`, `session-init`, `session-end`, `worktree-create`, `worktree-remove` | on, never gated |
-| **convenience** | `check-done`, `directory-added`, `goal-compact-reminder`, `scope-decompose-reminder`, `handoff-reminder`, `rate-limit-handoff`, `subagent-handoff-check`, `precompact-snapshot`, `skill-suggest`, `show-changelog` | on, never gated |
+| **convenience** | `permission-intent`, `check-done`, `directory-added`, `goal-compact-reminder`, `scope-decompose-reminder`, `handoff-reminder`, `rate-limit-handoff`, `subagent-handoff-check`, `precompact-snapshot`, `skill-suggest`, `show-changelog` | on, never gated |
 | **notification** | `notify`, `notify-pushover`, `ensure-exit`, `usage-capture-ensure` | on — the `notification_hooks` option |
 | **contributor** | `plugin-reload-reminder`, `validate-report-links`, `skill-creator-guard` | off — the `contributor_hooks` option |
 

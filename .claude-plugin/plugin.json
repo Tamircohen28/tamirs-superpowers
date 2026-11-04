@@ -43,6 +43,13 @@
     }
   },
   "userConfig": {
+    "permission_level": {
+      "type": "string",
+      "title": "Permission level (how much the skills do without asking you)",
+      "description": "supervised (default): asks before anything that leaves this machine - push, open a PR, comment, merge, delete a branch. standard: pushes its own branches, opens PRs and comments without asking; still asks before merging, closing or deleting. unattended: also arms auto-merge, deletes merged branches and closes finished PRs and issues, each only when its safety precondition holds. The riskiest actions ask at every level. It governs the plugin, never Claude Code's own prompts; the lower of this and ~/.config/tamirs-superpowers/permissions.json applies (ADR 004).",
+      "options": ["supervised", "standard", "unattended"],
+      "default": "supervised"
+    },
     "github_token": {
       "type": "string",
       "title": "GitHub token for the bundled github MCP server",

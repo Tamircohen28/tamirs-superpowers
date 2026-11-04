@@ -48,8 +48,13 @@ RESOLVE="$REPO_ROOT/scripts/resolve-permission.sh"
 unset CODEX_HOME CURSOR_CONFIG_DIR OPENCODE_CONFIG_DIR GEMINI_CONFIG_DIR CLAUDE_CONFIG_DIR XDG_CONFIG_HOME \
   TS_PERMISSION_LEVEL CLAUDE_PLUGIN_OPTION_PERMISSION_LEVEL TAMIRS_AUTO_MERGE \
   SETUP_YES SETUP_TARGETS SETUP_ONLY SETUP_DESTRUCTIVE SETUP_PERMISSION_LEVEL SETUP_CODEX_RULES \
-  TAMIRS_PERMISSION_TEST_ROOT
+  TAMIRS_PERMISSION_TEST_ROOT TAMIRS_PERMISSION_TEST_SESSION
 export NO_COLOR=1
+# setup writes through scripts/plugin-config.sh, which finds the agent session it
+# runs in from its process ancestry (ADR 004 D5) -- and this suite may itself run
+# under an agent. Under the test root (and only there) the writer honours this
+# override; "none" is the user's own terminal, which is what setup is.
+export TAMIRS_PERMISSION_TEST_SESSION=none
 
 REAL_PASSWD_HOME="$(python3 -I -S -c 'import os, pwd; print(pwd.getpwuid(os.getuid()).pw_dir)')"
 REAL_CFG="$REAL_PASSWD_HOME/.config/tamirs-superpowers"
@@ -276,6 +281,26 @@ judge "it says why" yes "$(has "$out" 'is not touched while it is invalid')"
 out="$(setup_in "$R4" "$H" apply --yes --targets codex --only permission-level --permission-level standard)"; rc=$?
 judge "an invalid file with a flag exits 1" 1 "$rc"
 judge "and is not touched" "$before" "$(sum "$(pfile "$R4")")"
+
+# ---------------------------------------------------------------------------
+section "the write goes through the D6 writer (scripts/plugin-config.sh)"
+
+R7="$(new_root)"
+out="$(setup_in "$R7" "$H" apply --yes --targets codex --only permission-level --permission-level standard)"
+judge "a first write: the writer's lock (by plugin-config), no .bak" "plugin-config|no" \
+  "$(jq -r .by "$(plock "$R7")")|$(exists "$(pfile "$R7").bak")"
+# Inside an agent session the writer holds a raise pending (D5): setup reports it
+# as not written and prints the confirm command.
+out="$(FLAG=unattended TAMIRS_PERMISSION_TEST_SESSION=claude drive "$R7" y)"
+judge "inside an agent session a raise is not written" standard "$(jq -r .level "$(pfile "$R7")")"
+judge "setup says it waits for the confirm" yes "$(has "$out" 'not written yet')"
+judge "and prints the writer's confirm command" yes "$(has "$out" 'plugin-config.sh confirm ')"
+judge "the step returned 1" yes "$(has "$out" 'STEP_RC=1')"
+out="$(FLAG=supervised TAMIRS_PERMISSION_TEST_SESSION=codex drive "$R7" y)"
+judge "a lowering is written at once, even in a session with no channel" supervised "$(jq -r .level "$(pfile "$R7")")"
+judge "the replaced bytes are kept as permissions.json.bak" standard "$(jq -r .level "$(pfile "$R7").bak" 2>/dev/null)"
+judge "the resolver reads the writer's file as verified" "supervised verified" \
+  "$(level_of "$R7" | jq -r '[.level, (.level_sources[] | select(.source == "user_file") | .state)] | join(" ")')"
 
 # ---------------------------------------------------------------------------
 section "Claude Code and Gemini CLI: a note, not a second prompt (D7)"
