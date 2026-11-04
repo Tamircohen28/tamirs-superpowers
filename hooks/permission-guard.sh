@@ -46,8 +46,21 @@
 #   quote or here-document, nesting past 4, a shell reading a pipe) is
 #   UNCLASSIFIED (R4). `gh` as a word in a segment that is not an inert command
 #   is the D1 `gh ` marker. git long options are read through their unique
-#   prefixes; hosts, markers and REST paths in any case; httpie/xh methods;
-#   every curl body form.
+#   prefixes; hosts, markers and REST paths in any case.
+#
+# HTTP CLIENTS, gh api AND GRAPHQL (issue #349)
+#   curl, wget, http/https, xh/xhs and `gh api` are read by lib/pg_http.py, one
+#   option table per client (value options, attached forms, clusters, --next
+#   groups, --expand-*, config and stdin inputs), and GraphQL documents by
+#   lib/pg_graphql.py, a lexer and parser (strings, block strings, comments,
+#   fragments, aliases). Default-deny: a non-GET request to a GitHub API host
+#   is classified only when its method, path and body are all established; an
+#   unknown target, a route override, a body from a file, stdin or a template,
+#   a client config file (~/.curlrc, ...), a dot segment or escape in the path,
+#   or an undecodable body the id depends on is UNCLASSIFIED. A request to any
+#   other host keeps the catalog's net.get / net.post.external, unless it is
+#   re-routed to GitHub. Either module failing to import makes every command
+#   that reaches the engine UNCLASSIFIED.
 #
 # CONDITIONS (D4: unknown never holds; a raise or deny applies unless false)
 #   Read locally: default_branch and tag_ref for git push and the GitHub MCP/REST
@@ -76,8 +89,12 @@
 #           as a deny naming the out-of-session route. Every internal error is
 #           trapped to a deny and the script always exits 0, because Codex lets
 #           a call through on any other exit or on malformed output.
-#   cursor  deny only: preToolUse drops ask and beforeShellExecution's forced
-#           prompt stays unused until spike S1 is measured (D5, D8).
+#   cursor  deny, except on the desktop app from 3.28.7 (cursor_version not a
+#           dated CLI build): there a beforeShellExecution ask is an approval
+#           card in every run mode (measured S2), so a shell ask is delivered as
+#           Cursor's ask, and the preToolUse Shell call before it (which drops an
+#           ask) answers no decision, so that hook is reached. A confirm, an MCP
+#           call and the CLI (which ignores an ask under --yolo, S1) stay deny.
 #   gemini  (gemini_tool_name in the payload, which hooks/gemini-wrap.sh adds)
 #           deny only: a hook ask hangs headless (G1). gemini-wrap.sh also turns
 #           any ask into a deny and maps the bundled GitHub MCP server's
@@ -174,6 +191,7 @@
 set -uo pipefail
 
 _PG_DONE=0
+PG_CURSOR_ASK=""
 
 # Builtins-only deny for the paths where jq (or this script) cannot be trusted.
 _pg_lit_deny() {
@@ -235,6 +253,14 @@ _pg_finish() {
       # already turns every other host's ask into a deny, D8).
       case "${PG_HOST:-}" in
         claude|opencode) hook_ask "$reason" ;;
+        cursor)
+          # Cursor desktop's beforeShellExecution carries the ask (S2); its preToolUse Shell call, which runs first
+          # and drops an ask, answers no decision so that hook is reached (PG_CURSOR_ASK, set below, never inherited).
+          case "${PG_CURSOR_ASK:-}" in
+            ask) hook_cursor_ask "$reason" ;;
+            defer) hook_allow ;;
+            *) hook_deny "$reason" ;;
+          esac ;;
         *) hook_deny "$reason" ;;
       esac ;;
     *)
@@ -242,6 +268,22 @@ _pg_finish() {
       hook_deny "$reason" ;;
   esac
   exit 0
+}
+
+# _pg_cursor_desktop_ask <cursor_version> — 0 when the payload comes from Cursor's desktop app at or above 3.28.7,
+# the build on which a beforeShellExecution `ask` was measured as an approval card in Auto-Review, Allowlist and
+# Run Everything (S2, 2026-11-04). Cursor's CLI reports a dated build (2026.10.22-27dcf5f) and runs the command
+# under --yolo whatever the hook asks (S1), and an older or unreadable desktop version was never measured: both
+# stay deny-only.
+_pg_cursor_desktop_ask() {
+  local v="$1" a b c
+  case "$v" in 20*) return 1 ;; esac
+  [[ "$v" =~ ^([0-9]{1,4})\.([0-9]{1,4})\.([0-9]{1,4})([^0-9]|$) ]] || return 1
+  a=$((10#${BASH_REMATCH[1]})) b=$((10#${BASH_REMATCH[2]})) c=$((10#${BASH_REMATCH[3]}))
+  [ "$a" -gt 3 ] && return 0
+  [ "$a" -eq 3 ] || return 1
+  [ "$b" -gt 28 ] && return 0
+  [ "$b" -eq 28 ] && [ "$c" -ge 7 ]
 }
 
 # _pg_candidate <command> — 0 when the command could reach a guarded id.
@@ -325,6 +367,10 @@ BASH = sys.argv[6] if len(sys.argv) > 6 and sys.argv[6] else "bash"
 # The hosts the resolver is asked under (F7): the payload's, and the environment's when it names another. Every
 # id is resolved under each and the strictest answer stands; HOST (the dialect) is already the stricter one.
 RES_HOSTS = [h for h in (sys.argv[7].split(",") if len(sys.argv) > 7 else []) if h] or [HOST]
+# Cursor's desktop app carries a beforeShellExecution ask (measured S2): "ask" there; "defer" on its preToolUse
+# Shell call, which runs first and drops an ask, so PG stands aside for the beforeShellExecution hook that follows
+# it in the same tool wrapper. Anything else ("") is deny-only, as Cursor's CLI and every other Cursor event are.
+CURSOR_ASK = sys.argv[8] if len(sys.argv) > 8 and sys.argv[8] in ("ask", "defer") else ""
 T0 = time.time()
 ASK_HOSTS = ("claude",)       # carry every ask (the D5 dialog)
 R2_ASK_HOSTS = ("opencode",)  # carry an R2 ask only; --auto approves it (D8, O1c)
@@ -379,6 +425,27 @@ except Exception as e:  # noqa: BLE001 - any catalog defect is a deny
     answer("deny", "tamirs-superpowers permission guard: the action catalog core/permissions/actions.json is "
            "missing or corrupt (%s), so no call can be classified (fail closed, ADR 004 D4)." % e.__class__.__name__)
 
+# The argv model of the HTTP clients and `gh api` (lib/pg_http.py) and the GraphQL reader (lib/pg_graphql.py),
+# issue #349. -I -S leaves hooks/lib off sys.path: it is appended, so no file there can shadow a standard module,
+# and no bytecode is written into the plugin tree. If either cannot be imported, or is not the copy beside this
+# guard, every candidate shell command is UNCLASSIFIED (fail closed).
+pg_graphql = pg_http = None
+PG_MODS_ERR = None
+if MODE in ("shell", "classify-shell"):
+    sys.dont_write_bytecode = True
+    _PG_LIB = os.path.realpath(os.path.join(ROOT, "hooks", "lib"))
+    if _PG_LIB not in sys.path:
+        sys.path.append(_PG_LIB)
+    try:
+        import pg_graphql
+        import pg_http
+        for _m in (pg_graphql, pg_http):
+            if os.path.dirname(os.path.realpath(_m.__file__)) != _PG_LIB:
+                raise ImportError("%s was loaded from outside hooks/lib" % _m.__name__)
+    except Exception as e:  # noqa: BLE001 - any defect in either module is a fail-closed reading
+        pg_graphql = pg_http = None
+        PG_MODS_ERR = "%s: %s" % (e.__class__.__name__, str(e)[:120])
+
 PREFIX = set(M["prefix_commands"])
 PREFIX_VALUE_OPTS = {k: set(v) for k, v in M.get("prefix_value_options", {}).items() if not k.startswith("_")}
 DURATION_PREFIX = {"timeout", "gtimeout"}
@@ -390,7 +457,6 @@ INTERP_RX = re.compile(r"\A(python|pypy)[0-9.]*\Z")
 INTERP_VALUE_OPTS = {"-o", "+o", "-O", "+O", "--rcfile", "--init-file", "-m", "-W", "-X", "-r", "--require",
                      "--import", "--loader", "-I"}
 HTTP = set(M["http_clients"])
-HTTPIE = {"http", "https", "xh", "xhs"}
 API_HOSTS = ["api.github.com", "uploads.github.com"]
 if os.environ.get("GH_HOST"):
     API_HOSTS.append(os.environ["GH_HOST"].lower())
@@ -897,311 +963,212 @@ def rest_ids(method, path, kv, defaults):
     return got
 
 
-GQL_BLOCK_STRING = re.compile(r'"""(?:\\"""|[^"]|"(?!""))*"""', re.S)
-GQL_STRING = re.compile(r'"(?:\\.|[^"\\\n])*"')
-GQL_COMMENT = re.compile(r"#[^\n\r]*")
-
-
-def gql_strip(doc):
-    """The document with string values and comments blanked, so a delimiter inside one cannot hide a field from
-    the scanner (Codex P1, round 6). Block strings first, then strings, then # comments."""
-    doc = GQL_BLOCK_STRING.sub('""', doc)
-    doc = GQL_STRING.sub('""', doc)
-    return GQL_COMMENT.sub(" ", doc)
-
-
-def mutation_names(doc):
-    doc = gql_strip(doc)
-    names = []
-    for m in re.finditer(r"\bmutation\b[^{]*\{", doc):
-        depth, paren, k = 1, 0, m.end()
-        while k < len(doc) and depth:
-            ch = doc[k]
-            if ch == "(":
-                paren += 1
-            elif ch == ")":
-                paren -= 1
-            elif ch == "{" and not paren:
-                depth += 1
-            elif ch == "}" and not paren:
-                depth -= 1
-            elif depth == 1 and not paren and (ch.isalpha() or ch == "_"):
-                w = re.match(r"[A-Za-z_]\w*", doc[k:]).group(0)
-                after = doc[k + len(w):].lstrip()
-                if after[:1] in ("(", "{"):
-                    names.append(w)
-                k += len(w)
-                continue
-            k += 1
-    return names
-
-
 GRAPHQL = {}
 for _a in ACTS:
     for _g in _a["equivalents"].get("graphql", []):
         GRAPHQL.setdefault(_g, set()).add(_a["id"])
 
 
-def graphql_ids(doc, file_sourced):
-    """(ids, unclassified). A document PG cannot read (a file, a variable) is UNCLASSIFIED."""
-    if file_sourced or "{" not in doc:
+NL_FOLDED = "\n" in CMD_TEXT
+
+
+def graphql_ids(docs):
+    """(ids, unclassified) of one GraphQL request's query documents, each read by lib/pg_graphql.py the way a
+    GraphQL server reads it (#349): lexed and parsed, fragments resolved, aliases never mistaken for the field.
+    A query operation is repo.read; a mutation maps each root field it selects to the catalog's ids for it. No
+    readable document (None: a file, a variable, a body that is not a JSON object), a document the module refuses
+    (ok False), a subscription and a mutation field the catalog does not map are UNCLASSIFIED."""
+    if not docs:
         return set(), True
-    names = mutation_names(doc)
-    if not names:
-        return ({"repo.read"}, False) if "mutation" not in doc else (set(), True)
-    got = set()
-    for n in names:
-        got |= GRAPHQL.get(n, set())
-    # A fragment spread or definition can carry more mutation fields than the operation body PG scanned; PG does
-    # not resolve fragments, so a mutation that uses one is UNCLASSIFIED (Codex P1, round 5).
-    if "..." in doc or re.search(r"\bfragment\b", doc):
-        return got, True
-    return got, any(n not in GRAPHQL for n in names)
+    got, uncl = set(), False
+    for doc in docs:
+        # gh api -F fills {owner}, {repo} and {branch} into a value at run time: the document sent is not this one.
+        if any(ph in doc for ph in ("{owner}", "{repo}", "{branch}")):
+            uncl = True
+            continue
+        # The shell tokeniser hands PG a newline inside a quoted word as a space (its output is one line per
+        # segment). A # comment ends at a newline, so where one ended is lost: `query Q {..} # x<newline>mutation M
+        # {deleteRef ..}` would read as the query alone while the server, given operationName=M, runs the mutation.
+        if NL_FOLDED and "#" in doc:
+            uncl = True
+            continue
+        res = pg_graphql.analyze(doc)
+        if not res.get("ok"):
+            uncl = True
+            continue
+        for op in res.get("operations") or []:
+            if op.get("type") == "query":
+                got.add("repo.read")
+            elif op.get("type") == "mutation":
+                for f in op.get("root_fields") or []:
+                    if f in GRAPHQL:
+                        got |= GRAPHQL[f]
+                    else:
+                        uncl = True
+            else:
+                uncl = True
+    return got, uncl
 
 
-# gh api's value shorthands; -i (--include) is its one boolean shorthand, so -iXPOST is -i -X POST.
-GH_API_SHORT = {"X": "--method", "f": "--raw-field", "F": "--field", "H": "--header", "q": "--jq", "t": "--template",
-                "p": "--preview"}
+def graphql_docs(q, gh):
+    """The query documents of one GraphQL request, or None when PG cannot read them. gh api: every -f/-F query=
+    value (gh sends one, the last; reading each is stricter). Any other client: the body as sent must be a JSON
+    object whose every "query" key (a key given twice keeps both: a server may read either) is a string; each
+    body is decoded on its own, so a \\u escape spells its keyword before the document is read (Codex P1, round
+    4). A body from a file, stdin or a template is None."""
+    if q.get("body_unknown"):
+        return None
+    if gh:
+        docs = [f.split("=", 1)[1] for f in (q.get("fields") or []) if f.startswith("query=")]
+        return docs or None
+    body = q.get("body")
+    if body is None:
+        return None
+    try:
+        doc = json.loads(body, object_pairs_hook=lambda kv: ("{}", kv))
+    except (ValueError, RecursionError):
+        return None
+    if not (isinstance(doc, tuple) and doc[0] == "{}"):
+        return None
+    docs = [v for k, v in doc[1] if k == "query"]
+    return docs if docs and all(isinstance(d, str) for d in docs) else None
 
 
-def gh_api_words(toks):
-    """(options, positionals) of `gh api`'s words, read as pflag reads them (Codex P1, round 2): each option is
-    (long name, value) whether attached (-ftag_name=v1, -XPOST, -f=k=v, --field=k=v, --input=f), separate, or
-    inside a cluster (-iXPOST); the value is None for a flag, or for a value option with no word left."""
-    vopts = set(M["value_options"]["gh api"])
-    opts, pos, k = [], [], 0
-    while k < len(toks):
-        t, nxt = toks[k], (toks[k + 1] if k + 1 < len(toks) else None)
-        k += 1
-        if t == "--":
-            pos += toks[k:]
-            break
-        if t.startswith("--"):
-            key, eq, val = t.partition("=")
-            if not eq and key in vopts:
-                val, k = nxt, k + 1
-            opts.append((key, val if eq or key in vopts else None))
-        elif t.startswith("-") and len(t) > 1:
-            for j in range(1, len(t)):
-                if t[j] not in GH_API_SHORT:
-                    continue   # -i, or a shorthand gh refuses (then nothing runs)
-                val = t[j + 1:]
-                val = val[1:] if val.startswith("=") and len(val) > 1 else val
-                if not val:
-                    val, k = nxt, k + 1
-                opts.append((GH_API_SHORT[t[j]], val))
-                break
+# A path whose segments a client or GitHub may rewrite before routing it: a dot segment (curl removes them, so
+# contents/x/../.github/workflows/ci.yml is sent as a workflow path), an empty segment, a percent escape, a
+# backslash. A non-GET call to such a path is not established (#349).
+UNSETTLED_PATH = re.compile(r"(?:^|/)\.\.?(?:/|$)|//|%|\\")
+
+
+def fields_matter(method, path):
+    """Does the catalog read this REST call's body to pick its id (fields_all / fields_none)?"""
+    for a in ACTS:
+        for e in a["equivalents"].get("rest", []):
+            methods = e["method"] if isinstance(e["method"], list) else [e["method"]]
+            if method in methods and ("fields_all" in e or "fields_none" in e) and \
+                    path_regex(e["path"], STD_DEFAULTS).match(path):
+                return True
+    return False
+
+
+def routes_reach_github(routes):
+    """A re-route of a request to another host that may land on GitHub: one that names it (a Host header, a
+    --connect-to/--resolve target, a socket path), or one whose value PG cannot read (a header file, a {{template}},
+    an httpie/xh session file, curl's alt-svc cache). A local dev re-route (a docker socket, localhost) is plain."""
+    for r in routes:
+        val = r.split(" ", 1)[-1]
+        if names_github(r) or val.startswith("@") or "{{" in r or r.startswith(("--session", "--alt-svc")):
+            return True
+    return False
+
+
+def config_unknown(paths, env):
+    """Does one of the client's default config files (pg_http's default_config: ~/.curlrc, ~/.wgetrc, httpie and xh
+    config.json, ...) exist where this user could have written it, or does the command's own NAME=value prefix move
+    where the client looks? Either way options PG cannot read may change the method, body or target of the request
+    (#349). A file root owns and this user cannot write (Debian's /etc/wgetrc) is not the agent's to change."""
+    for path in paths:
+        if path.startswith("$"):
+            var, _, rest = path[1:].partition("/")
+            if var in env:
+                return True
+            base = os.environ.get(var)
+            if not base:
+                continue
+            full = os.path.join(base, rest) if rest else base
+        elif path.startswith("~/"):
+            if "HOME" in env:
+                return True
+            if not os.environ.get("HOME"):
+                continue
+            full = os.path.join(os.environ["HOME"], path[2:])
         else:
-            pos.append(t)
-    return opts, pos
-
-
-def gh_api(sub):
-    """(method, paths, fields, has_input): -X/--method, else POST when a request parameter (-f/-F/--field/
-    --raw-field) or --input is given ("adding request parameters will automatically switch the request method to
-    POST", gh api --help), else GET. Every positional is a path: gh takes one and refuses more, so classifying
-    each can only be stricter."""
-    opts, paths = gh_api_words(sub[1:])
-    method, fields, has_input = None, [], False
-    for key, val in opts:
-        if key == "--method":
-            method = val.upper() if val else method
-        elif key in ("--field", "--raw-field") and val is not None:
-            fields.append(("-F" if key == "--field" else "-f", val))
-        elif key == "--input":
-            has_input = True
-    if method is None:
-        method = "POST" if fields or has_input else "GET"
-    return method, paths, fields, has_input
-
-
-HTTP_METHODS = {"GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"}
-DATA_LONG = {"--data", "--data-raw", "--data-binary", "--data-urlencode", "--data-ascii", "--form", "--form-string",
-             "--json", "--post-data", "--body-data"}
-UPLOAD_LONG = {"--upload-file", "--post-file", "--body-file"}
-# curl options that send the request somewhere other than the URL names: an overridden path, a re-routed
-# host, or a socket. PG cannot tell what they reach, so the call is UNCLASSIFIED (Codex P1, round 3).
-ROUTE_OVERRIDE_LONG = {"--request-target", "--unix-socket", "--abstract-unix-socket"}
-# Re-routing options matter only when they name a GitHub host (a local dev server stays a plain call).
-ROUTE_TO_HOST_LONG = {"--connect-to", "--resolve"}
+            full = path
+        try:
+            st = os.stat(full)
+        except OSError:
+            continue
+        if st.st_uid == os.getuid() or os.access(full, os.W_OK):
+            return True
+    return False
 
 
 def names_github(v):
     return "github" in (v or "").lower()
-# curl's short options that take a value: in a cluster (-sSd'{..}') the rest of the word, else the next word, is it.
-CURL_SHORT_VALUE = set("AbcCdDeEFHKmoPQrtTuUwxXyYz")
-# wget's (getopt): -i reads URLs from a file, -e runs a .wgetrc command.
-WGET_SHORT_VALUE = set("aABCDeiIlnoOPQRtTUwXY")
-HTTPIE_ITEM = re.compile(r"\A([^=:@]+)(:=@|:=|==|=@|=|@|:)")
-HTTPIE_DATA = {"=", ":=", "@", "=@", ":=@"}
 
 
-def wget_execute(cmd, call):
-    """A wget -e/--execute .wgetrc command (names in any case, '_' and '-' ignored): method, post_data, body_data,
-    post_file and body_file act as their options; input names a URL file PG cannot read."""
-    key, eq, val = cmd.partition("=")
-    key = re.sub(r"[-_\s]", "", key).lower()
-    val = val.strip()
-    if not eq:
-        return
-    if key == "method":
-        call["methods"].append(val.upper())
-    elif key in ("postdata", "bodydata"):
-        call["data"].append(val)
-    elif key in ("postfile", "bodyfile"):
-        call["data"].append("@" + val)
-    elif key == "input":
-        call["unread"] = True
+def http_call(s, p):
+    """(hit, unclassified) of an HTTP client call (curl, wget, http/https, xh/xhs) or `gh api`, read by
+    lib/pg_http.py's table-driven argv model (#349): one request per curl --next group, each with its method, its
+    URLs, its body as sent and its key=value fields, and whether its body, its route or the request list itself
+    is something the words cannot show.
 
+    A request to a GitHub API host (every `gh api` request is one) is classified per URL. A GET is repo.read; a
+    non-GET is classified only when its method, its path and its body are all established -- no unknown target,
+    route override, file/stdin/template body or client config file, a path with no dot segment or escape, and a
+    decodable body wherever the catalog reads the body to pick the id -- and anything unestablished is
+    UNCLASSIFIED (R4), beside whatever ids its path still names. A GraphQL request is classified by the root
+    fields of its decoded query documents (graphql_ids).
 
-def http_call(p):
-    """(methods, paths, kv, data, unread) of an HTTP client call, or None when it aims at no GitHub API host and
-    reads nothing PG cannot see. A body in any form (-d/--data*/-F/--form/--json/-T/--upload-file, attached or
-    separate, in a cluster, curl's --expand-<option>) implies POST (PUT for an upload) unless -X/--request says
-    otherwise (Codex P1); httpie and xh take the method as their first word and imply POST from a data item (F8).
-    curl and wget send every URL they are given (curl's --url too), so every GitHub API URL is a path to classify
-    (Codex P1-b, round 2); a curl --next group may carry its own method, so then every method named, and the
-    implied ones, apply to every URL. unread: the call takes URLs or options from a file PG cannot read (curl
-    -K/--config, wget -i/--input-file, --config, -e input=) or from a curl --expand-url variable."""
-    prog = p["argv0"]
-    toks, k, get, nxt_group, pos = p["all"], 0, False, False, []
-    call = {"methods": [], "data": [], "urls": [], "unread": False}
-    data, upload = call["data"], False
-    vopts = set(M["value_options"].get(prog, []))
-    while k < len(toks):
-        t = toks[k]
-        nxt = toks[k + 1] if k + 1 < len(toks) else ""
-        if prog == "curl" and t.startswith("--expand-") and len(t) > 9:
-            t = "--" + t[9:]   # curl 8.3+: --expand-data is --data with {{variables}} expanded
-            # Any expanded option holding a {{variable}} is a template PG does not resolve: what curl sends (a URL,
-            # a body, a header) is unknown, so the call is UNCLASSIFIED (Codex P1, rounds 2 and 5).
-            if "{{" in (t.partition("=")[2] or nxt):
-                call["unread"] = True
-        if t in ("-X", "--request") or (prog == "wget" and t == "--method"):
-            call["methods"].append(nxt.upper())
-            k += 2
+    A request to any other host keeps the catalog's argv reading (net.get / net.post.external); it is
+    UNCLASSIFIED only when it is re-routed to GitHub or through something PG cannot read (routes_reach_github).
+    A call whose request list is not established is UNCLASSIFIED when it is curl or wget (a config file, a URL
+    file, a template or a recursive fetch can hide a GitHub URL), `gh api`, or names a GitHub API host anywhere."""
+    gh = p["argv0"] == "gh"
+    res = pg_http.parse("gh" if gh else p["argv0"], p["sub"] if gh else p["all"])
+    words = p["sub"] if gh else p["all"]
+    env = dict(e.split("=", 1) for e in p["env"])
+    config = config_unknown(res.get("default_config") or [], env)
+    hit = uncl = False
+    if res.get("targets_unknown"):
+        if gh and not res.get("requests") and any(w in ("-h", "--help") for w in words):
+            add("repo.read", "argv", s, p=p)   # gh api --help sends nothing
+            return True, False
+        if gh or p["argv0"] in ("curl", "wget") or any(api_host(w) for w in words):
+            uncl = True
+    for q in res.get("requests") or []:
+        urls = q.get("urls") or []
+        bound = urls if gh else [u for u in urls if api_host(u)]
+        if not bound:
+            if q.get("route_override") and routes_reach_github(q.get("routes") or []):
+                uncl = True
             continue
-        if t.startswith("--method=") or t.startswith("--request="):
-            call["methods"].append(t.split("=", 1)[1].upper())
-            k += 1
-            continue
-        if t in ("-G", "--get") and prog == "curl":
-            get, k = True, k + 1
-            continue
-        if t in ("-:", "--next") and prog == "curl":
-            nxt_group, k = True, k + 1
-            continue
-        if t.startswith("--"):
-            key, eq, val = t.partition("=")
-            val = val if eq else nxt
-            if key in DATA_LONG:
-                data.append(val)
-            elif key in UPLOAD_LONG:
-                upload = upload or key == "--upload-file"
-                data.append("@" + val)
-            elif key == "--url" and prog == "curl":
-                call["urls"].append(val)
-            elif key == "--config" or (key == "--input-file" and prog == "wget"):
-                call["unread"] = True
-            elif prog == "curl" and key in ROUTE_OVERRIDE_LONG:
-                call["unread"] = True   # the request goes somewhere other than the URL says (Codex P1, round 3)
-            elif prog == "curl" and key in ROUTE_TO_HOST_LONG and names_github(val):
-                call["unread"] = True   # re-routes a GitHub host: the URL no longer says where it lands
-            elif key == "--header" and val.lower().lstrip().startswith("host:") and names_github(val):
-                call["unread"] = True   # a Host: override re-targets the request to a GitHub host
-            elif key == "--execute" and prog == "wget":
-                wget_execute(val, call)
-            elif key not in vopts:
-                eq = "flag"   # a flag, or an option PG does not know: its own word only
-            k += 1 if eq else 2
-            continue
-        if prog in ("curl", "wget") and len(t) > 1 and t[0] == "-":
-            j, took_next = 1, False
-            while j < len(t):
-                ch = t[j]
-                if ch in (CURL_SHORT_VALUE if prog == "curl" else WGET_SHORT_VALUE):
-                    val = t[j + 1:]
-                    if not val:
-                        val, took_next = nxt, True
-                    if prog == "wget":
-                        if ch == "i":
-                            call["unread"] = True
-                        elif ch == "e":
-                            wget_execute(val, call)
-                    elif ch == "X":
-                        call["methods"].append(val.upper())
-                    elif ch in "dF":
-                        data.append(val)
-                    elif ch == "T":
-                        upload = True
-                        data.append("@" + val)
-                    elif ch == "K":
-                        call["unread"] = True
-                    elif ch == "H" and val.lower().lstrip().startswith("host:") and names_github(val):
-                        call["unread"] = True   # a Host: override re-targets the request (Codex P1, round 3)
-                    break
-                if ch == "G" and prog == "curl":
-                    get = True
-                if ch == ":" and prog == "curl":
-                    nxt_group = True
-                j += 1
-            k += 2 if took_next else 1
-            continue
-        if t.startswith("-") and len(t) > 1:
-            k += 2 if t in vopts else 1
-            continue
-        pos.append(t)
-        k += 1
-    if prog in HTTPIE and pos and pos[0].upper() in HTTP_METHODS and not call["methods"]:
-        call["methods"].append(pos.pop(0).upper())
-    for n, t in enumerate(pos):
-        if api_host(t):
-            call["urls"].append(t)
-            if prog in HTTPIE:
-                # httpie/xh take one URL; its request items key=v and key:=json are a body, key@file a form file.
-                data += [it for it in pos[n + 1:] if HTTPIE_ITEM.match(it) and HTTPIE_ITEM.match(it).group(2) in HTTPIE_DATA]
-                break
-    urls = [u for u in call["urls"] if api_host(u)]
-    if not urls and not call["unread"]:
-        return None
-    implied = "PUT" if upload else ("POST" if data and not get else "GET")
-    if nxt_group:
-        methods = set(call["methods"]) | {"GET"} | ({"POST"} if data else set()) | ({"PUT"} if upload else set())
-    else:
-        methods = {call["methods"][-1]} if call["methods"] else {implied}
-    kv = []
-    for d in data:
-        m = HTTPIE_ITEM.match(d) if prog in HTTPIE else None
-        if m and m.group(2) in ("=", ":="):
-            kv.append("%s=%s" % (m.group(1), d[m.end():]))
-    if prog not in HTTPIE:
-        # curl concatenates --json pieces (and joins -d pieces) before sending, so a field can be split across
-        # pieces (Codex P1, round 6): decode each piece and the concatenation; a body PG cannot decode as JSON is
-        # unknown, not "no fields" -- GitHub's REST API takes JSON bodies only.
-        pieces = [d for d in data if not d.startswith("@")]
-        bodies, undecoded = [], False
-        for cand in pieces + ([("".join(pieces))] if len(pieces) > 1 else []):
-            try:
-                bodies.append(json.loads(cand))
-            except ValueError:
-                undecoded = undecoded or cand in pieces
-        if undecoded and not any(isinstance(b, dict) for b in bodies[len(pieces) - 1:] if bodies) \
-                and len(pieces) > 0:
-            try:
-                json.loads("".join(pieces))
-            except ValueError:
-                call["unread"] = True
-    else:
-        bodies = []
-        for d in data:
-            try:
-                bodies.append(json.loads(d))
-            except ValueError:
-                pass
-    for body in bodies:
-        if isinstance(body, dict):
-            kv += ["%s=%s" % (k2, v if isinstance(v, str) else json.dumps(v)) for k2, v in body.items()]
-    return sorted(methods), [norm_path(u) for u in urls], kv, data, call["unread"]
+        method = q.get("method")
+        body_known = not q.get("body_unknown")
+        settled = (method is not None and body_known and not q.get("route_override") and
+                   not res.get("targets_unknown") and not config)
+        fields = q.get("fields")
+        fields_known = fields is not None or not q.get("body_pieces")
+        if p["argv0"] in ("http", "https", "xh", "xhs") and fields is not None and \
+                len(fields) < len(q.get("body_pieces") or []):
+            # httpie/xh --form keeps only string items (force:=true is dropped): the body's fields are not all known.
+            fields_known = False
+        kv = list(fields or [])
+        for url in bound:
+            path = norm_path(url)
+            if path == "graphql":
+                docs = graphql_docs(q, gh) if method == "POST" else None
+                g, u = graphql_ids(docs)
+                for aid in g:
+                    add(aid, "graphql", s, p=p)
+                hit, uncl = hit or bool(g), uncl or u or not settled
+                continue
+            if method is None:
+                uncl = True
+                continue
+            ids = rest_ids(method, path, kv, STD_DEFAULTS)
+            for aid in ids:
+                add(aid, "rest", s, p=p, rest=(method, path, kv))
+            hit = hit or bool(ids)
+            if not ids:
+                uncl = True
+            elif method == "GET":
+                # A read stays a read whatever its body or route; a config file or an unknown request list can
+                # turn it into another method.
+                uncl = uncl or config or bool(res.get("targets_unknown"))
+            elif not settled or UNSETTLED_PATH.search(path) or (not fields_known and fields_matter(method, path)):
+                uncl = True
+    return hit, uncl
 
 
 # Commands whose words are text or file names, never a program they run: a `gh` among their words is prose.
@@ -1879,7 +1846,7 @@ def classify_segment(s):
     """Adds the segment's hits; returns True when it is UNCLASSIFIED (a marker, no id)."""
     p, toks = s["p"], s["toks"]
     text = " ".join(toks)
-    got_any, opaque, uncl = False, False, False
+    got_any, uncl = False, False
     if p["argv0"] is None:
         return has_marker(text)
     if names_writer(s):
@@ -1925,73 +1892,14 @@ def classify_segment(s):
                 STAMPS.append(rp[k + 1])
             elif t.startswith("--call="):
                 STAMPS.append(t[len("--call="):])
-    # Every path of the call is classified, and one that maps to no id is UNCLASSIFIED even when another maps
-    # (Codex P1-b, round 2): the call is the strictest of its transfers.
-    if p["argv0"] == "gh" and p["sub"][:1] == ["api"]:
-        method, paths, fields, has_input = gh_api(p["sub"])
-        for path in paths or [None]:
-            hit = False
-            if path is None or re.fullmatch(r"\$[@*]|\$\{?[A-Za-z_]\w*\}?", path):
-                opaque = True
-                if method == "GET" and not fields:
-                    add("repo.read", "argv", s, p=p)
-                    hit = True
-            elif norm_path(path) == "graphql":
-                doc = " ".join(v.split("=", 1)[1] for _, v in fields if v.startswith("query="))
-                file_sourced = has_input or any(f in ("-F", "--field") and v.startswith("query=@") for f, v in fields)
-                g, u = graphql_ids(doc, file_sourced)
-                for aid in g:
-                    add(aid, "graphql", s, p=p)
-                hit, uncl = bool(g), uncl or u
-            else:
-                kv = [v for _, v in fields]
-                npath = norm_path(path)
-                for aid in rest_ids(method, npath, kv, STD_DEFAULTS):
-                    add(aid, "rest", s, p=p, rest=(method, npath, kv))
-                    hit = True
-                # A body read from a file (--input, -F k=@file) is unknown, not proof a field is absent: a non-GET
-                # call's body-dependent ids (pr.review.approve, ...) cannot be ruled out (Codex P1, round 4).
-                if method != "GET" and (has_input or any(f in ("-F", "--field") and "=@" in v for f, v in fields)):
-                    uncl = True
-            got_any, uncl = got_any or hit, uncl or not hit
-    if p["argv0"] in HTTP:
-        call = http_call(p)
-        if call:
-            methods, paths, kv, data, unread = call
-            uncl = uncl or unread
-            for path in paths:
-                hit = False
-                if path == "graphql":
-                    # Inspect the DECODED query of each JSON body (a \\u escape spells a keyword once decoded);
-                    # a body from a file or one that is not a JSON object cannot be read: unknown (Codex P1, round 4).
-                    docs, unreadable = [], False
-                    for x in data:
-                        if x.startswith("@"):
-                            unreadable = True
-                            continue
-                        try:
-                            b = json.loads(x)
-                        except ValueError:
-                            unreadable = True
-                            continue
-                        if isinstance(b, dict) and isinstance(b.get("query"), str):
-                            docs.append(b["query"])
-                        else:
-                            unreadable = True
-                    g, u = graphql_ids(" ".join(docs), unreadable or not docs)
-                    for aid in g:
-                        add(aid, "graphql", s, p=p)
-                    hit, uncl = bool(g), uncl or u
-                else:
-                    body_unread = any(x.startswith("@") for x in data)
-                    for method in methods:
-                        ids = rest_ids(method, path, kv, STD_DEFAULTS)
-                        for aid in ids:
-                            add(aid, "rest", s, p=p, rest=(method, path, kv))
-                        hit, uncl = hit or bool(ids), uncl or not ids
-                        if method != "GET" and body_unread:
-                            uncl = True   # fields from a file are unknown, not absent (Codex P1, round 4)
-                got_any, uncl = got_any or hit, uncl or not hit
+    # Every request and every URL of the call is classified, and one that maps to no id is UNCLASSIFIED even when
+    # another maps (Codex P1-b, round 2): the call is the strictest of its transfers.
+    if (p["argv0"] == "gh" and p["sub"][:1] == ["api"]) or p["argv0"] in HTTP:
+        if pg_http is None or pg_graphql is None:
+            uncl = True   # the parser modules did not load (PG_MODS_ERR): nothing here can be read
+        else:
+            h, u = http_call(s, p)
+            got_any, uncl = got_any or h, uncl or u
     s["hit"] = got_any
     if not got_any and (p["argv0"] == "gh" or p.get("dynamic") or
                         has_marker(" ".join([p["raw0"]] + p["all"]), p["argv0"])):
@@ -2057,6 +1965,9 @@ try:
             PG_DENY.append((UNCL, "the command is longer than %d bytes and carries a form PG must read, so it is "
                             "denied before it is tokenised (a long command could outlast the hook's deadline, F5): "
                             "put long text in a file and pass the file (--body-file, -F, git commit -F)" % MAX_CMD))
+        if PG_MODS_ERR:
+            UNCL_FROM.append("the guard's parser modules hooks/lib/pg_http.py and pg_graphql.py could not be loaded "
+                             "(%s), so no command can be read (fail closed, issue #349)" % PG_MODS_ERR)
         for a_ in ANOMALIES:
             UNCL_FROM.append("the shell tokeniser cannot read this command as a shell does: %s" % a_)
         for s in SEGS:
@@ -2559,6 +2470,11 @@ def ask_carried():
     (O1c) and D8 accepts that for R2 alone. Everyone else: never."""
     if HOST in ASK_HOSTS:
         return True
+    if HOST == "cursor":
+        # Cursor's desktop app shows a beforeShellExecution ask as an approval card in Auto-Review, Allowlist and
+        # Run Everything (measured S2, 3.28.7), so a shell call carries every ask there. A confirm stays a deny:
+        # the D5 dialog must show the pending record, and the Allowlist card shows no reason text (S2).
+        return bool(CURSOR_ASK) and MODE == "shell" and not CONFIRMS
     if HOST not in R2_ASK_HOSTS:
         return False
     asks = [j for j in JOBS if j["res"]["verdict"] == "ask"]
@@ -2568,6 +2484,10 @@ def ask_carried():
 
 ASK_AS_DENY = verdict == "ask" and not ask_carried()
 delivered = "deny" if ASK_AS_DENY else verdict
+# On Cursor desktop's preToolUse Shell call the ask is the beforeShellExecution hook's to carry: this call writes
+# nothing (no stamp), and the shell answers it with no decision.
+if delivered == "ask" and CURSOR_ASK == "defer":
+    delivered = "defer"
 
 # --------------------------------------------------------------- plugin-config.sh confirm <nonce> (D5)
 
@@ -2721,7 +2641,7 @@ def write_stamps():
 
 # Only a call PG does not deny AS DELIVERED is stamped: on a deny-only host an ask leaves as a deny, and the
 # command never runs.
-if delivered != "deny" and STAMPS:
+if delivered in ("allow", "ask") and STAMPS:
     stamp_err = write_stamps()
 
 if verdict == "allow":
@@ -2734,7 +2654,7 @@ def describe(j):
     res = j["res"]
     eff = res.get("effective_action") or j["id"]
     r = res.get("r")
-    if j["id"] == UNCL and j.get("uncl") and j["uncl"][0].startswith("the shell tokeniser"):
+    if j["id"] == UNCL and j.get("uncl") and j["uncl"][0].startswith(("the shell tokeniser", "the guard's parser")):
         what = "UNCLASSIFIED (R4): %s" % j["uncl"][0]
     elif j["id"] == UNCL and j.get("uncl"):
         what = "UNCLASSIFIED (R4): `%s` carries a mutation marker but maps to no action id in core/permissions/" \
@@ -2781,10 +2701,18 @@ elif ASK_AS_DENY:
     verdict = "deny"
     lines.append("%s: denied %s. %s; %s cannot carry a hook ask (it would %s), so the ask is delivered as a deny "
                  "(D8)." % (head, describe(final), why, HOST,
-                            {"codex": "run the call unchecked", "cursor": "be dropped",
+                            {"codex": "run the call unchecked",
+                             "cursor": "be dropped by preToolUse, and Cursor's CLI runs the command under --yolo whatever "
+                                       "a hook asks (S1)",
                              "gemini": "hang a headless run"}.get(HOST, "not reach a human")))
 elif verdict == "ask":
     lines.append("%s: asks before %s. %s." % (head, describe(final), why))
+    if delivered == "defer":
+        lines.append("Cursor preToolUse drops an ask, so this call is left to the beforeShellExecution hook that runs "
+                     "next, which asks (measured S2).")
+    elif HOST == "cursor":
+        lines.append("Cursor's desktop app shows this ask as an approval card in every run mode (measured S2, "
+                     "3.28.7); in Allowlist mode the card shows the command but not this reason.")
     if HOST in R2_ASK_HOSTS:
         lines.append("An R2 ask: under `opencode --auto` it is approved without a prompt (O1c), which D8 accepts for "
                      "R2 only.")
@@ -2871,23 +2799,25 @@ fi
 hook_detect_platform "$input"
 _pg_blank "$input" && _pg_finish allow ""
 
-_pg_tool="" _pg_event="" _pg_cmd="" _pg_nul="" _pg_phost=""
+_pg_tool="" _pg_event="" _pg_cmd="" _pg_nul="" _pg_phost="" _pg_cver=""
 {
   IFS= read -r -d '' _pg_nul
   IFS= read -r -d '' _pg_tool
   IFS= read -r -d '' _pg_event
   IFS= read -r -d '' _pg_cmd
   IFS= read -r -d '' _pg_phost
+  IFS= read -r -d '' _pg_cver
 } < <(printf '%s' "$input" | jq -j '
   def s: if type == "string" then . elif . == null then "" else tostring end;
   (.tool_name | s) as $t | (.hook_event_name | s) as $e
   | ((if (.tool_input | type) == "object" then .tool_input.command else null end) // .command | s) as $c
+  | (if (.cursor_version | type) == "string" then .cursor_version else "" end | gsub("\u0000"; "")) as $v
   | (if ($t + $e + $c | contains("\u0000")) then "nul" else "ok" end) + "\u0000" + $t + "\u0000" + $e + "\u0000" + $c + "\u0000"
     + (if (.conversation_id // .cursor_version // .workspace_roots) != null then "cursor"
        elif has("gemini_tool_name") then "gemini"
        elif .turn_id != null then "codex"
        elif .host == "opencode" then "opencode"
-       else "claude" end) + "\u0000"
+       else "claude" end) + "\u0000" + $v + "\u0000"
 ' 2>/dev/null)
 
 # The host (F7). The payload's SHAPE names it: Cursor's own keys, the gemini_tool_name hooks/gemini-wrap.sh
@@ -2919,6 +2849,17 @@ esac
 [ -z "$_pg_mode" ] && [ "$_pg_event" = beforeShellExecution ] && _pg_mode=shell
 [ -n "$_pg_mode" ] || _pg_finish allow ""
 
+# Cursor desktop's ask (D8, measured S2): beforeShellExecution carries it; the preToolUse Shell call before it
+# defers. Only when the payload is Cursor's and the environment names no other host (CODEX_HOME, GEMINI_*): Codex
+# ranks with Cursor above, so PG_HOST alone would not show it, and a Codex hook ask fails open (X1).
+PG_CURSOR_ASK=""
+if [ "$_pg_mode" = shell ] && [ "$_pg_phost" = cursor ] && [ "$PG_RES_HOSTS" = cursor ] && _pg_cursor_desktop_ask "$_pg_cver"; then
+  case "$_pg_event:$_pg_tool" in
+    beforeShellExecution:*) PG_CURSOR_ASK=ask ;;
+    preToolUse:Shell) PG_CURSOR_ASK=defer ;;
+  esac
+fi
+
 if [ "$_pg_mode" = shell ]; then
   _pg_blank "$_pg_cmd" && _pg_finish allow ""
   # FAST PATH: nothing in the command can reach a guarded id. The engine tokenises the rest itself, under a
@@ -2932,7 +2873,8 @@ fi
 
 _pg_out="$(
   printf '%s' "$input" |
-    python3 -I -S -c "$_PG_ENGINE" "$PG_ROOT" "$PG_HOST" "$_pg_mode" "$PG_BUDGET" 0 "${BASH:-bash}" "$PG_RES_HOSTS" 2>/dev/null
+    python3 -I -S -c "$_PG_ENGINE" "$PG_ROOT" "$PG_HOST" "$_pg_mode" "$PG_BUDGET" 0 "${BASH:-bash}" "$PG_RES_HOSTS" \
+      "$PG_CURSOR_ASK" 2>/dev/null
 )"
 _pg_rc=$?
 _pg_verdict="${_pg_out%%$'\n'*}"
