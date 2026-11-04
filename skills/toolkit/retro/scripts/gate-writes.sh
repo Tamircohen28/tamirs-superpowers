@@ -112,7 +112,7 @@ POLICY_HOME = [".config/tamirs-superpowers/**", ".local/state/tamirs-superpowers
                ".cursor/cli-config.json", ".cursor/permissions.json", ".config/opencode/**",
                ".config/gh/**", ".gitconfig"]
 POLICY_REPO = [".tamirs-superpowers/**", ".claude/settings*.json", ".gemini/**", ".cursor/hooks.json",
-               "opencode.json", ".opencode/**"]
+               "opencode.json", "opencode.jsonc", ".opencode/**"]
 
 def match(r, pats):
     return any(fnmatch.fnmatchcase(r, p) or (p.endswith("/**") and (r == p[:-3] or r.startswith(p[:-2])))

@@ -157,7 +157,9 @@ judge "allow: settings carry the OTEL env, prompts off" yes \
 BAK="$(ls "$SET".bak.* 2>/dev/null | head -1)"
 judge "allow: a timestamped backup was written first" yes "$(has "$BAK" "settings.json.bak.")"
 judge "allow: the backup is the original file" "$orig" "$(cat "$BAK" 2>/dev/null)"
-judge "allow: the backup is 0600" 600 "$(stat -f '%Lp' "$BAK" 2>/dev/null || stat -c '%a' "$BAK" 2>/dev/null)"
+# Portable octal mode: BSD `stat -f` means "file system" on GNU, so read it through Python (Codex P1).
+mode_of() { python3 -c 'import os,sys; print(oct(os.stat(sys.argv[1]).st_mode & 0o777)[2:])' "$1" 2>/dev/null; }
+judge "allow: the backup is 0600" 600 "$(mode_of "$BAK")"
 judge "allow: the result names the backup" yes "$(has "$out" '"backup"')"
 judge "allow: config.global.write was asked, on settings.json" yes \
   "$(has "$(stub_calls)" "--action config.global.write --skill usage-capture --target $SET")"
@@ -282,12 +284,13 @@ judge "the resolver is asked with --skill retro and the absolute target" yes \
   "$(has "$(stub_calls)" "--skill retro --target $(canon "$REPO")/.claude/memory/lesson.md")"
 
 out="$(STUB_MODE=ask gw "$HOME/.claude/CLAUDE.md" "$HOME/.claude/settings.json" "$HOME/.claude/projects/p/memory/x.md" \
-        .claude/settings.json .github/workflows/ci.yml .git/hooks/pre-commit)"; rc=$?
+        .claude/settings.json .github/workflows/ci.yml .git/hooks/pre-commit opencode.jsonc)"; rc=$?
 judge "ask: ~/.claude/CLAUDE.md is config.global.write, asked" "config.global.write ask" "$(dec "$out" .claude/CLAUDE.md)"
 judge "ask: ~/.claude/settings.json is policy.edit" "policy.edit ask" "$(dec "$out" home/.claude/settings.json)"
 judge "ask: the memory dir is file.write.outside_repo" "file.write.outside_repo ask" "$(dec "$out" memory/x.md)"
 judge "ask: repo .claude/settings.json is policy.edit" "policy.edit ask" "$(dec "$out" repo/.claude/settings.json)"
 judge "ask: a workflow is workflow.edit" "workflow.edit ask" "$(dec "$out" workflows/ci.yml)"
+judge "ask: repo opencode.jsonc is policy.edit (Codex P1)" "policy.edit ask" "$(dec "$out" repo/opencode.jsonc)"
 judge "ask: .git/hooks is config.global.write" "config.global.write ask" "$(dec "$out" .git/hooks/pre-commit)"
 judge "ask: exit 0 (the skill asks in chat)" 0 "$rc"
 
@@ -411,7 +414,7 @@ viewer "$VPORT" "$TMP/v1.log"; V1=$!; echo "$V1" >> "$BG_PIDS"
 wait_for "$TMP/v1.log" 'URL:'
 PIDFILE="$VTMP/tamirs-skill-creator-$(id -u)/viewer-$VPORT.pid"
 judge "the viewer records its pid" "$V1" "$(cat "$PIDFILE" 2>/dev/null)"
-judge "in a private 0700 directory" 700 "$(stat -f '%Lp' "$(dirname "$PIDFILE")" 2>/dev/null || stat -c '%a' "$(dirname "$PIDFILE")")"
+judge "in a private 0700 directory" 700 "$(mode_of "$(dirname "$PIDFILE")")"
 viewer "$VPORT" "$TMP/v2.log"; V2=$!; echo "$V2" >> "$BG_PIDS"
 wait_for "$TMP/v2.log" 'URL:'
 sleep 0.3
