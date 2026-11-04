@@ -223,12 +223,15 @@ Mark tasks `running` on dispatch (`task-set --status running`). One retry per fa
 
 **Early start is the default.** A dependent objective or phase starts from its predecessor's
 integration head **while the predecessor's PR is still in CI or review**. It does not wait for
-the merge. Branch from the predecessor's head SHA (for a whole objective: `init <id>
---base-branch objective/<predecessor>`, then `resolve-worktree.sh --objective <id> --integration
---base objective/<predecessor>`; the resolver does not read `base_branch` on its own), record
-that SHA, and do the work. Open no PR until the predecessor merges, then replay with
-`git rebase --onto origin/<default> <predecessor-head-sha>`. When the predecessor's merged tree
-equals the head you branched from, the rebased tree is identical and needs no re-validation.
+the merge. Branch from the predecessor's head SHA. For a whole objective, `base_branch` stays
+the default branch (it is the delivery base `deliver-dev` diffs against), the predecessor goes
+to the resolver as `--base objective/<predecessor>` (the git start point; the resolver does not
+read `base_branch`), and the SHA is recorded with `set <id> early_start.base_sha`. Do the work.
+Open no PR until the predecessor merges, then remove the worker worktrees and replay with
+`git rebase --onto origin/<default> <predecessor-head-sha> --rebase-merges --update-refs`, which
+moves the worker branches with the integration branch so `deliver-dev`'s ancestry check still
+holds. When the predecessor's merged tree equals the head you branched from, the rebased tree is
+identical and needs no re-validation.
 **Waiting is the exception, and it is stated:** take it only when a collision rule cannot hold
 (overlapping paths, a shared migration range, a non-additive registration point), record which
 one on the task, and say so in the report. A wait with no named rule is a defect. Recipe and

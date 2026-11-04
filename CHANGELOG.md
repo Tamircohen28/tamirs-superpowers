@@ -41,8 +41,10 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - **`orchestrate-dev` starts dependent work early by default (#355).** A dependent objective
   or phase now branches from its predecessor's integration head while the predecessor's PR is
   in CI or review, opens no PR until the predecessor merges, and is then replayed with
-  `git rebase --onto` from the recorded head SHA; when the merged tree equals that head, Tier 1
-  is not re-run. Waiting for the merge is the documented exception, taken only when a collision
+  `git rebase --onto` from the recorded head SHA, with `--rebase-merges --update-refs` so the
+  worker branches follow and `deliver-dev`'s ancestry check holds; `base_branch` stays the
+  default branch, the delivery base. When the merged tree equals that head, Tier 1 is not
+  re-run. Waiting for the merge is the documented exception, taken only when a collision
   rule (disjoint paths, separate migration ranges, additive registration points) cannot hold,
   and the rule that forced it is recorded on the task. Step 7, a hard rule, an anti-pattern row
   and `references/early-start.md` in the skill; the `orchestrator` role gains a Scheduling
