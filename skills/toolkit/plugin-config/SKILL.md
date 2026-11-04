@@ -63,10 +63,10 @@ hand edit would also break the lock, so the resolver would read the file tighten
 
    | exit | meaning | what you do |
    |---|---|---|
-   | 0 | done, nothing to do, or shown | relay it |
+   | 0 | done, nothing to do, or shown — or, on Claude Code, **staged**: inside the Bash call the permission dialog approved, `confirm <nonce>` only stages the change, and that same call's PostToolUse (`hooks/permission-approved.sh`) makes it active | relay it; for staged, say it becomes active once the call completes — never re-run the confirm through another form |
    | 1 | failed | relay the reason; do not retry with other arguments |
    | 2 | usage error | relay the message and the grammar below |
-   | 3 | refused (no host-attested channel, R4 `allow`, provision inside a session, or a Claude Code `confirm` with no usable guard stamp: `asked/<nonce>.json` missing, older than 15 minutes, or for other bytes, nonce, session or host — the pending request is kept) | relay it, including the command it names for the user's own terminal |
+   | 3 | refused (no host-attested channel, R4 `allow`, not your own terminal, `y` not answered on `/dev/tty` (a declined y/N), provision inside a session or over a file it did not write, or a Claude Code `confirm` with no usable guard stamp: `asked/<nonce>.json` missing, older than 15 minutes, or for other bytes, nonce, session or host — the pending request is kept) | relay it, including the command it names for the user's own terminal |
    | 4 | recorded **pending**: the change widens something | show the rows and the printed `confirm <nonce>` command; stop |
 
    On exit 4 the user decides. Run `confirm <nonce>` only when the user asks you to — on

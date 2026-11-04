@@ -1719,10 +1719,12 @@ def _script_records(words, fragment, records):
 # of git itself with cheap, local, read-only queries (`git diff --name-only`,
 # `git log --name-only`, `git stash show`, `git clean -n`). Those are REPLAY
 # records: judged against the protected paths only, never the generated-file
-# rules, since a merge legitimately changes a lockfile. When git cannot answer
-# (an unknown ref, a fetch that has not happened, a timeout), the command is
-# UNSURE and says so; an explicit pathspec that names a protected path is still
-# a deny.
+# rules, since a merge legitimately changes a lockfile, and a hit is an R4 ASK
+# (hook_ask on Claude Code, a deny on every other host), never a silent allow:
+# an integrator merging a branch legitimately brings a protected file in, and
+# the user decides. When git cannot answer (an unknown ref, a fetch that has
+# not happened, a timeout), the command is UNSURE and says so; an explicit
+# pathspec that names a protected path is still judged, as the same ask.
 #
 # Every git query runs with core.fsmonitor off, no pager, no external diff or
 # textconv, GIT_OPTIONAL_LOCKS=0 (no index refresh write) and a deadline, all
@@ -2510,7 +2512,9 @@ FALLBACK_PROTECTED = {
         "{home}/.gemini/settings.json",
         "{home}/.gemini/policies/**",
         "{home}/.gemini/extensions/tamirs-superpowers/**",
-        "{repo}/.gemini/**",
+        "{repo}/.gemini/settings.json",
+        "{repo}/.gemini/policies/**",
+        "{repo}/.gemini/extensions/**",
         "{home}/.codex/config.toml",
         "{home}/.codex/hooks*",
         "{home}/.codex/rules/**",
@@ -2521,7 +2525,13 @@ FALLBACK_PROTECTED = {
         "{repo}/.cursor/hooks.json",
         "{home}/.config/opencode/**",
         "{repo}/opencode.json",
-        "{repo}/.opencode/**",
+        "{repo}/opencode.jsonc",
+        "{repo}/.opencode/opencode.json",
+        "{repo}/.opencode/opencode.jsonc",
+        "{repo}/.opencode/plugin/**",
+        "{repo}/.opencode/plugins/**",
+        "{repo}/.opencode/agent/**",
+        "{repo}/.opencode/agents/**",
         "{home}/.config/gh/**",
         "{home}/.gitconfig",
     ],
@@ -2916,6 +2926,17 @@ def _source_records(argv0, words, cwd, fragment):
     return out
 
 
+# What an R4 ask adds to its reason, by why it is an ask and not a deny. A
+# guard file of a plugin source checkout is editable with approval; a git
+# replay (checkout, switch, restore, reset, merge, pull, rebase, cherry-pick,
+# revert, am, stash) is how an integrator legitimately brings a branch's
+# version of such a file in, so it is put to the user (hook_ask on Claude
+# Code, a deny on every other host) rather than refused outright (D10.1).
+SOURCE_CHECKOUT_ASK_TAIL = (" This plugin runs from a source checkout, so its guard files are editable, but only with "
+                            "the user's explicit approval of this change.")
+REPLAY_ASK_TAIL = (" A git branch operation brings in another commit's version of it, so it is put to the user "
+                   "rather than refused: approve only if you meant this operation to change that file.")
+
 # Kinds that never leave this module: they are consumed by protect().
 INTERNAL_KINDS = ("SOURCE", "REPLAY", "PREFIX", "ANOMALY", "RAN")
 
@@ -2945,13 +2966,18 @@ def protect(records, payload):
             return
         verdicts[subject] = (mode, message)
 
-    def flag_path(hits, path, why, fragment):
+    def flag_path(hits, path, why, fragment, replay=False):
         for mode, aid, pattern, form, inside in hits:
             resolved = "" if form == path else " (resolves to '%s')" % form
             via = " (via: %s)" % fragment if fragment else ""
             what = "it holds a path protected" if inside else "it is protected"
-            flag(path, mode, "'%s'%s %s, and %s as %s (R4; matches %s).%s"
-                 % (path, resolved, why, what, aid, pattern, via))
+            # A git replay is an R4 ASK, never a silent allow: hook_ask puts it to
+            # the user on Claude Code and is a deny on every other host (D8, D10.1).
+            if replay:
+                mode = "ask"
+            tail = (REPLAY_ASK_TAIL if replay else SOURCE_CHECKOUT_ASK_TAIL) if mode == "ask" else ""
+            flag(path, mode, "'%s'%s %s, and %s as %s (R4; matches %s).%s%s"
+                 % (path, resolved, why, what, aid, pattern, via, tail))
 
     for kind, detail, fragment in records:
         if kind == "SOURCE":
@@ -2961,7 +2987,7 @@ def protect(records, payload):
             continue
         if kind == "REPLAY":
             flag_path(prot.match(detail, containing=True), detail,
-                      "would be rewritten from another commit, the index or a patch", fragment)
+                      "would be rewritten from another commit, the index or a patch", fragment, replay=True)
             continue
         if kind == "PREFIX":
             flag_path(prot.match_prefix(detail), detail,
@@ -2995,7 +3021,7 @@ def protect(records, payload):
                     lead = "a write this parse could not resolve names '%s'" % m.group(0)
                 flag("name:" + m.group(0).casefold(), mode,
                      "%s, which matches %s; an unresolved write that names a protected path is treated as "
-                     "a write to it." % (lead, pattern))
+                     "a write to it.%s" % (lead, pattern, SOURCE_CHECKOUT_ASK_TAIL if mode == "ask" else ""))
     return [("PROTECTED",) + verdicts[s] for s in order] + out
 
 

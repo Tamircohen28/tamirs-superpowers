@@ -122,9 +122,17 @@ for rel in \
   .claude/settings.json \
   .claude/settings.local.json \
   .gemini/settings.json \
+  .gemini/policies/p.toml \
+  .gemini/extensions/x/gemini-extension.json \
   .cursor/hooks.json \
   opencode.json \
+  opencode.jsonc \
+  .opencode/opencode.json \
+  .opencode/opencode.jsonc \
   .opencode/plugin/x.ts \
+  .opencode/plugins/x.ts \
+  .opencode/agent/a.md \
+  .opencode/agents/a.md \
   .git/hooks/pre-commit \
   .git/config
 do
@@ -136,6 +144,15 @@ section "... and their unprotected neighbours are not"
 judge "Write <passwd home>/.claude/CLAUDE.md"        allow "$(v Write "$PHOME/.claude/CLAUDE.md")"
 judge "Write <passwd home>/.config/other-tool/x"     allow "$(v Write "$PHOME/.config/other-tool/x.json")"
 judge "Edit <repo>/.claude/agents/a.md"              allow "$(v Edit "$REPO/.claude/agents/a.md")"
+# D10.1 narrowed: a repository's generated adapters for other hosts are not policy.
+judge "Edit <repo>/.gemini/skills/x/SKILL.md"        allow "$(v Edit "$REPO/.gemini/skills/x/SKILL.md")"
+judge "Edit <repo>/.gemini/agents/a.md"              allow "$(v Edit "$REPO/.gemini/agents/a.md")"
+judge "Edit <repo>/.gemini/GEMINI.md"                allow "$(v Edit "$REPO/.gemini/GEMINI.md")"
+judge "Edit <repo>/.opencode/commands/c.md"          allow "$(v Edit "$REPO/.opencode/commands/c.md")"
+judge "rm -rf <repo>/.gemini/skills"                 allow "$(vb "rm -rf $REPO/.gemini/skills")"
+judge "rm -rf <repo>/.opencode/commands"             allow "$(vb "rm -rf $REPO/.opencode/commands")"
+judge "rm -rf <repo>/.gemini (holds settings.json)"  deny  "$(vb "rm -rf $REPO/.gemini")"
+judge "rm -rf <repo>/.opencode (holds agents/)"      deny  "$(vb "rm -rf $REPO/.opencode")"
 judge "Edit <repo>/src/settings.json"                allow "$(v Edit "$REPO/src/settings.json")"
 judge "Edit a .claude/settings.json below a non-root" allow "$(v Edit "$REPO/sub/.claude/settings.json")"
 

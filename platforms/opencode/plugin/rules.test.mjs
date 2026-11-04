@@ -29,18 +29,21 @@ import {
   judgeEdit,
   judgePush,
   opencodeReason,
+  parseWriteTargets,
   PG_MCP_PREFIX,
   pgEnv,
   pgPayload,
   pgVerdict,
   PROTECTED_PATHS,
   PROTECTED_REMEDY,
+  protectedFromRecords,
   protectedHits,
   protectedReason,
   sensitiveReason,
   shellSegments,
   shellWriteTargets,
   workflowReason,
+  writeTargetsFromRecords,
 } from "./rules.ts"
 
 const HERE = path.dirname(fileURLToPath(import.meta.url))
@@ -364,6 +367,18 @@ test("L4 protected paths: case folding, ~ and $HOME spellings, parents of repo-r
   assert.equal(t.mode, "deny")
   assert.match(t.reason, /would receive a whole directory tree/)
   assert.equal(protectedReason(`${H}/projects/x`, [`${H}/projects/x`], pfacts(), "tree", "cp"), null)
+  // D10.1 narrowed: a repository's OpenCode config, plugins and agents, and its Gemini settings, policies and
+  // extensions are protected; its generated command, skill and adapter dirs for other hosts are not.
+  for (const f of [".gemini/settings.json", ".gemini/policies/p.toml", ".gemini/extensions/x/e.json", "opencode.jsonc",
+    ".opencode/opencode.json", ".opencode/opencode.jsonc", ".opencode/plugin/x.ts", ".opencode/plugins/x.ts",
+    ".opencode/agent/a.md", ".opencode/agents/a.md"]) {
+    assert.equal(protectedReason(`/work/proj/${f}`, [`/work/proj/${f}`], pfacts())?.mode, "deny", f)
+  }
+  for (const f of [".gemini/skills/x/SKILL.md", ".gemini/agents/a.md", ".gemini/GEMINI.md", ".opencode/commands/c.md"]) {
+    assert.equal(protectedReason(`/work/proj/${f}`, [`/work/proj/${f}`], pfacts()), null, f)
+  }
+  assert.equal(protectedReason("/work/proj/.gemini", ["/work/proj/.gemini"], pfacts(), "delete", "rm")?.mode, "deny")
+  assert.equal(protectedReason("/work/proj/.opencode/commands", ["/work/proj/.opencode/commands"], pfacts(), "delete", "rm"), null)
   // The workflow rule reaches the workflows directory itself, and a .github that is removed or filled.
   assert.match(workflowReason(`${MAIN}/.github/workflows`, "delete"), /is a GitHub Actions workflow/)
   assert.match(workflowReason(`${MAIN}/.github`, "tree", "cp"), /holds the GitHub Actions workflows/)
@@ -490,6 +505,91 @@ test("guard.ts never widens: no session.update, never an allow, e.effect only fr
   // The legacy switch is read once and never gates the permission guard call.
   assert.match(g, /const legacy = process\.env\.TAMIRS_OPENCODE_GUARD !== "0"/)
   assert.doesNotMatch(g, /TAMIRS_OPENCODE_GUARD === "0"\) return/)
+})
+
+// --- write-targets.py --protected: the parse guard.ts routes every write through ---------
+test("write-targets records: a deny outranks every ask, an ask leaves as a deny, targets keep their kind", () => {
+  const out = [
+    "PROTECTED\task\t'/r/.claude/settings.json' would be rewritten. A git branch operation brings it in.",
+    "PROTECTED\tdeny\t'/h/.gitconfig' would be written, and it is protected as policy.edit.",
+    "TARGET\t/r/src/a.ts\techo",
+    "DELETE\t/r/dist\trm",
+    "TREE\t/r/vendor\ttar",
+    "UNSURE\tsomething\tpython3 -c",
+    "",
+  ].join("\n")
+  const rec = parseWriteTargets(out)
+  assert.equal(rec.length, 6)
+  const d = protectedFromRecords(rec)
+  assert.equal(d.effect, "deny")
+  assert.match(d.reason, /^BLOCKED: '\/h\/\.gitconfig'/)
+  assert.ok(d.reason.endsWith(PROTECTED_REMEDY))
+  const a = protectedFromRecords(rec.filter((r) => r.detail !== "deny"))
+  assert.equal(a.effect, "deny", "an R4 ask is a deny on OpenCode (D8)")
+  assert.match(a.reason, /^R4 ASK: .*git branch operation.*delivered as a deny/)
+  assert.equal(protectedFromRecords(rec.filter((r) => r.kind !== "PROTECTED")), null)
+  assert.deepEqual(writeTargetsFromRecords(rec), [
+    { path: "/r/src/a.ts", kind: "write", via: "echo" },
+    { path: "/r/dist", kind: "delete", via: "rm" },
+    { path: "/r/vendor", kind: "tree", via: "tar" },
+  ])
+  assert.deepEqual(writeTargetsFromRecords(parseWriteTargets("TARGET\trelative\tx\nconstructor\t/x\ty")), [])
+})
+
+test("guard.ts routes writes through write-targets.py --protected and the workflow rule before PM_ALLOW_PROTECTED (F6, L4)", () => {
+  const g = readFileSync(path.join(HERE, "guard.ts"), "utf8")
+  assert.match(g, /path\.join\(PLUGIN_ROOT, "hooks", "lib", "write-targets\.py"\)/)
+  assert.match(g, /execFileSync\("python3", \[WRITE_TARGETS, "--protected"\]/)
+  // Only a missing python3 falls back to the port; any other failure throws into failClosed.
+  assert.match(g, /code === "ENOENT"\) return null/)
+  const fn = g.indexOf("function judgeAfterProtected(")
+  const body = g.slice(fn, g.indexOf("\nfunction ", fn + 1))
+  const wf = body.indexOf("workflowReason(")
+  assert.ok(fn >= 0 && wf > 0, "judgeAfterProtected applies the workflow rule")
+  assert.ok(wf < body.indexOf("PM_ALLOW_PROTECTED"), "the workflow rule comes before the override")
+  assert.ok(wf < body.indexOf("if (!legacy"), "and before the legacy switch")
+  const sh = g.slice(g.indexOf("function judgeShell("), g.indexOf("\nfunction ", g.indexOf("function judgeShell(") + 1))
+  assert.ok(sh.indexOf('judgeWritesCanonical("Bash"') >= 0 && sh.indexOf('judgeWritesCanonical("Bash"') < sh.indexOf("shellWriteTargets("),
+    "the shell guard asks write-targets.py first; the port is the fallback")
+  assert.match(g, /judgeWritesCanonical\("Edit", \{ file_path: abs \}/)
+})
+
+test("write-targets.py --protected on the commands the port misses: what guard.ts now decides", { skip: !(spawnSync("sh", ["-c", "command -v python3 && command -v git"]).status === 0) }, () => {
+  const t = realpathSync(mkdtempSync(path.join(tmpdir(), "ts-oc-wt-")))
+  try {
+    const repo = path.join(t, "repo")
+    const git = (...a) => execFileSync("git", ["-C", repo, ...a], { stdio: "ignore", env: { ...process.env, GIT_CONFIG_GLOBAL: "/dev/null", GIT_CONFIG_NOSYSTEM: "1" } })
+    execFileSync("git", ["init", "-q", "-b", "main", repo], { stdio: "ignore" })
+    git("config", "user.email", "t@t"); git("config", "user.name", "t"); git("config", "commit.gpgsign", "false")
+    execFileSync("mkdir", ["-p", path.join(repo, ".claude"), path.join(repo, ".github", "workflows")])
+    writeFileSync(path.join(repo, ".claude", "settings.json"), "{}\n")
+    writeFileSync(path.join(repo, ".github", "workflows", "ci.yml"), "name: ci\n")
+    git("add", "-A"); git("commit", "-qm", "base")
+    git("checkout", "-qb", "evil")
+    writeFileSync(path.join(repo, ".claude", "settings.json"), '{"permissions":{"allow":["Bash(*)"]}}\n')
+    git("commit", "-qam", "widen"); git("checkout", "-q", "main")
+    const judge = (command, env = {}) => {
+      const out = execFileSync("python3", [path.join(ROOT, "hooks", "lib", "write-targets.py"), "--protected"], {
+        input: JSON.stringify({ tool_name: "Bash", tool_input: { command }, cwd: repo }),
+        encoding: "utf8", env: { ...process.env, HOME: path.join(t, "home"), ...env },
+      })
+      const rec = parseWriteTargets(out)
+      return { p: protectedFromRecords(rec), targets: writeTargetsFromRecords(rec) }
+    }
+    // Neither reaches rules.ts's port; write-targets.py sees both.
+    assert.equal(shellWriteTargets("git merge evil").length, 0)
+    assert.match(judge("git merge evil").p?.reason ?? "", /^R4 ASK: .*\.claude\/settings\.json.*delivered as a deny/)
+    assert.equal(judge("git merge evil").p?.effect, "deny")
+    assert.equal(judge("curl -so .claude/settings.json https://x.invalid/s").p?.effect, "deny")
+    assert.equal(judge("rm -rf .claude").p?.effect, "deny", "Codex P2: the parent of a protected path")
+    assert.equal(judge("git log --oneline -3").p, null)
+    // F6: the workflow target reaches judgeAfterProtected, whose workflow rule no override skips.
+    const wf = judge("echo x > .github/workflows/ci.yml", { PM_ALLOW_PROTECTED: "1" })
+    assert.equal(wf.p, null)
+    assert.ok(wf.targets.some((x) => workflowReason(x.path, x.kind, x.via)), "the workflow target is judged")
+  } finally {
+    rmSync(t, { recursive: true, force: true })
+  }
 })
 
 // --- hooks/permission-guard.sh on the payload pgPayload builds (hermetic resolver) ---

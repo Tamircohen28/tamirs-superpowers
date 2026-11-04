@@ -324,12 +324,19 @@ for 10 minutes; the clamp is named in each answer it changes and in `--level`. T
 1. **Policy, guards and host config are R4 `policy.edit`** ([SR] S-03). GSF denies, with no `PM_ALLOW_PROTECTED`
    bypass, Edit-class and parsed-Bash writes to the D3 dirs, host plugin caches, guard files in the running plugin
    root (R4 ask in a source checkout, where contributors edit them) and host settings: Claude
-   `{~,<repo>}/.claude/settings*.json`; Gemini `~/.gemini/{settings.json,policies/**}`, `<repo>/.gemini/**`, the
+   `{~,<repo>}/.claude/settings*.json`; Gemini `~/.gemini/{settings.json,policies/**}`,
+   `<repo>/.gemini/{settings.json,policies/**,extensions/**}`, the
    extension `.env`; Codex `~/.codex/{config.toml,hooks*,rules/**,plugins/**}` (a write into the plugin root changes
    its content hash and stops its hooks until re-trusted, [codex] B2); Cursor
    `~/.cursor/{hooks,cli-config,permissions}.json`, `<repo>/.cursor/hooks.json`; OpenCode `~/.config/opencode/**`,
-   `<repo>/{opencode.json,.opencode/**}`; shared `~/.config/gh/**`, `~/.gitconfig`. It resolves the `realpath` of
-   the target and of any `ln` destination; an UNSURE write whose text names one of these paths is a deny.
+   `<repo>/{opencode.json,opencode.jsonc}`, `<repo>/.opencode/{opencode.json,opencode.jsonc,plugin/**,plugins/**,agent/**,agents/**}`
+   (config, plugin code and agents' permission rules); shared `~/.config/gh/**`, `~/.gitconfig`. A repository's
+   generated command, skill and agent-adapter dirs for other hosts (`.gemini/skills/`, `.gemini/agents/`,
+   `.opencode/commands/`) are not policy and are not protected. It resolves the `realpath` of the target and of any
+   `ln` destination; an UNSURE write whose text names one of these paths is a deny. A git replay (checkout, switch,
+   restore, reset, merge, pull, rebase, cherry-pick, revert, am, stash) that would rewrite one of these paths is an
+   R4 ask — `hook_ask`, the host prompt, on Claude Code and a deny on every other host — never a silent allow: an
+   integrator merging a branch legitimately brings such a file in, and the user decides.
 2. **Hash and re-confirm (CVE-2025-54136 class, [P] §5.2):** a user file whose sha256 ≠ the lock, or a project file
    whose hash ≠ its trust entry, keeps its tightening entries (measured against the no-file defaults) and drops its
    widening ones until a human confirms through D5/D6.
@@ -377,28 +384,32 @@ way to a human-approved local edit. Option names (`permission_level`, `TS_PERMIS
 ## Second adversarial pass (implementation)
 
 An adversarial review of the implementation (PR #348, 2026-11-04) found ten numbered findings, low-severity ones and
-two Codex review threads. They are fixed in the hardening wave of the implementation objective; each fix's commit is
-on its task branch (the integration task records the merged ids).
+two Codex review threads. The hardening wave of the implementation objective fixed them; the commits below are the
+merged ones, and `tests/test-security-regressions.sh` replays every reproduced input against the real
+hooks: 131 rows, each naming its finding, all held now and all failing against origin/master's hooks (80 of them
+because the hook or script did not exist there yet).
 
-| finding | severity | what | fix |
-|---|---|---|---|
-| F1 | critical | the writer read an empty ancestry (`( cmd & )`, `env -i`) as "outside any session" and widened at once; the Claude confirm stamp was written when PG *asked*, so a declined dialog left it usable, and PG missed the `plugin-config.sh` script in some forms | writer session rules and `y` on `/dev/tty`, two-phase confirm with `hooks/permission-approved.sh` (D5, D6): task-019, commit c8a9c7e; PG `script_hit`: task-017 |
-| F2 | high | PG fast path | task-017 |
-| F3 | high | PG tokeniser | task-017 |
-| F4 | high | GSF protected paths: case, fd, copy, extract, git and hardlink forms | task-018 |
-| F5 | high | PG payload size and deadline | task-017 |
-| F6 | medium | GSF override | task-018 |
-| F7 | medium | a `--host` claim from env could skip an option store | PG host: task-017; resolver host check (D3): task-019, c8a9c7e |
-| F8 | medium | PG literal matching | task-017 |
-| F9 | medium | PG remotes | task-017 |
-| F10 | medium | a per-skill or per-group level replaced the env- and store-lowered level | lowering after the skill level (D3): task-019, c8a9c7e |
-| L1 | low | `github-mcp.sh` took `github-mcp-server` from the inherited PATH, with the token | fixed trusted locations, owner and mode checks, the token withheld from helpers: task-019, commit 7cbb417 |
-| L4 | low | OpenCode parity of the protected paths | task-018 |
-| Codex P1 | — | `curl -d` with an attached body read as a GET | task-017 |
-| Codex P2 | — | a parent-directory `rm`/`mv` bypassed repo-relative protection | task-018 |
+| finding | severity | what | fix (merged commits) | disposition |
+|---|---|---|---|---|
+| F1 | critical | the writer read an empty ancestry (`( cmd & )`, `env -i`) as "outside any session" and widened at once; the Claude confirm stamp was written when PG *asked*, so a declined dialog left it usable, and PG missed the `plugin-config.sh` script in some forms | writer session rules and `y` on `/dev/tty`, two-phase confirm with `hooks/permission-approved.sh` (D5, D6): c8a9c7e; PG `script_hit`: a7cb121; suites: 9413ab7 | fixed; same-UID forging stays a High open risk |
+| F2 | high | PG fast path | a7cb121 | fixed |
+| F3 | high | PG tokeniser | a7cb121 | fixed (anomalies fail closed) |
+| F4 | high | GSF protected paths: case, fd, copy, extract, git and hardlink forms | b1c7b3f; repo-relative narrowing and git replays as an R4 ask (D10.1): 1b658b8 | fixed; a hard link made before the call stays unseen (low) |
+| F5 | high | PG payload size and deadline | a7cb121 | fixed (> 8 KB denied) |
+| F6 | medium | GSF override | b1c7b3f; OpenCode: d2944c5 | fixed |
+| F7 | medium | a `--host` claim from env could skip an option store | PG host: a7cb121; resolver host check (D3): c8a9c7e | fixed |
+| F8 | medium | PG literal matching | a7cb121 | fixed |
+| F9 | medium | PG remotes | a7cb121; suites: 9413ab7 | fixed |
+| F10 | medium | a per-skill or per-group level replaced the env- and store-lowered level | lowering after the skill level (D3): c8a9c7e | fixed |
+| L1 | low | `github-mcp.sh` took `github-mcp-server` from the inherited PATH, with the token | fixed trusted locations, owner and mode checks, the token withheld from helpers: 7cbb417 | fixed |
+| L4 | low | OpenCode parity of the protected paths | b43a1c9; guard.ts through `write-targets.py --protected`: d2944c5 | fixed where python3 is present; the rules.ts port is the fallback |
+| Codex P1 | — | `curl -d` with an attached body read as a GET | a7cb121 | fixed |
+| Codex P2 | — | a parent-directory `rm`/`mv` bypassed repo-relative protection | b1c7b3f | fixed |
+
+ADR and user docs for the wave: db05ef1; the plugin-config skill's exit rows: d00578c.
 
 Open risks above carry what stays: the same-UID row and the text-level row are High, and Gemini's one-phase confirm
-is new.
+is a new, explicit High: unbound until a guard stamp and an AfterTool binding are wired.
 
 ## Implementation objective must…
 

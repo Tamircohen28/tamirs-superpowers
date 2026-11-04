@@ -783,9 +783,11 @@ run "$H" pr.merge.admin --host codex --cond required_check_failing_or_pending=fa
 expect "pr.merge.admin with checks green: R4 ask" ask .r 4
 run "$H" pr.merge.admin --host codex
 expect "pr.merge.admin with checks unknown: deny" deny
-run "$H" git.push.branch --host codex --cond default_branch=false --cond tag_ref=false
+run "$H" git.push.branch --host codex --cond default_branch=false --cond tag_ref=false --cond push_remote_not_origin=false
 expect "git.push.branch, conditions established" allow .effective_action git.push.branch
-run "$H" git.push.branch --host codex --cond default_branch=true --cond tag_ref=false --cond protected_default_branch=false
+run "$H" git.push.branch --host codex --cond default_branch=false --cond tag_ref=false --cond push_remote_not_origin=true
+expect "git.push.branch to a remote other than origin is raised to R3 (F9)" ask .r 3
+run "$H" git.push.branch --host codex --cond default_branch=true --cond tag_ref=false --cond protected_default_branch=false --cond push_remote_not_origin=false
 expect "git.push.branch to the default branch becomes git.push.default" ask .effective_action git.push.default
 run "$H" git.push.branch --host codex
 expect "git.push.branch, nothing established: strictest of every id it may become" deny

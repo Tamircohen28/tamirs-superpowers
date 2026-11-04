@@ -313,10 +313,14 @@ setup_perm_render() {
 # one writer of the user file and its lock (ADR 004 D6): the same schema check,
 # sorted-key serialisation, atomic replace, .bak and lock (hashed with the
 # library's sha256, `by: plugin-config`) as /plugin-config. Every other key of the
-# file is kept. Run from the user's own terminal (no agent host in the process
-# ancestry) the writer applies a raise at once; run inside an agent session it
-# records a raise pending and prints the `confirm <nonce>` that applies it under a
-# host-attested human proof (D5) -- setup then reports the level as not written.
+# file is kept. The writer applies a raise at once only in the user's own
+# interactive terminal -- no agent host or marker in the process ancestry, not
+# reparented, a controlling TTY, HOME/PATH/TERM set -- and only after `y` is typed
+# on /dev/tty, so a raise chosen in the setup menu is asked a second time there
+# (D5, D6; the second adversarial pass, F1). A `n` there is exit 3. Anywhere else
+# -- an agent session, no TTY, a cleared environment, a reparented run -- it records
+# the raise pending (exit 4) and prints the `confirm <nonce>` that applies it under
+# a host-attested human proof (D5). Either way setup reports the level as not written.
 setup_perm_write() {
   local level="$1" out rc writer="${SETUP_REPO_ROOT:-}/scripts/plugin-config.sh"
   case "$SETUP_PERM_WRITABLE" in

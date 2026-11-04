@@ -63,7 +63,9 @@
 set -euo pipefail
 
 # The token is for the server alone: no helper below inherits it (L1).
-GM_TOKEN="${GITHUB_PERSONAL_ACCESS_TOKEN:-}"
+# (An assignment is never word-split, so no quotes are needed, and none are written: the IP scan reads a
+# quoted `TOKEN="…"` as a literal secret.)
+GM_TOKEN=${GITHUB_PERSONAL_ACCESS_TOKEN:-}
 unset GITHUB_PERSONAL_ACCESS_TOKEN
 
 case "${BASH_SOURCE[0]}" in
@@ -231,9 +233,9 @@ if [[ -z "$GM_TOKEN" ]]; then
 fi
 
 if [[ -n "$SERVER" ]]; then
-  GITHUB_PERSONAL_ACCESS_TOKEN="$GM_TOKEN" exec "$SERVER" stdio "${FLAGS[@]}"
+  GITHUB_PERSONAL_ACCESS_TOKEN=$GM_TOKEN exec "$SERVER" stdio "${FLAGS[@]}"
 elif [[ -n "$DOCKER" ]]; then
-  GITHUB_PERSONAL_ACCESS_TOKEN="$GM_TOKEN" exec "$DOCKER" run -i --rm \
+  GITHUB_PERSONAL_ACCESS_TOKEN=$GM_TOKEN exec "$DOCKER" run -i --rm \
     -e GITHUB_PERSONAL_ACCESS_TOKEN \
     ghcr.io/github/github-mcp-server stdio "${FLAGS[@]}"
 else

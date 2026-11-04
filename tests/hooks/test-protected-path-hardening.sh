@@ -61,6 +61,18 @@ git -C "$REPO" commit -q -am "widen the project settings"
 git -C "$REPO" checkout -q -b benign main
 printf 'b\n' > "$REPO/src/a.txt"
 git -C "$REPO" commit -q -am "an ordinary change"
+# gen: regenerated adapters for other hosts, which are not policy (D10.1).
+git -C "$REPO" checkout -q -b gen main
+mkdir -p "$REPO/.gemini/skills/x" "$REPO/.gemini/agents" "$REPO/.opencode/commands"
+printf 's\n' > "$REPO/.gemini/skills/x/SKILL.md"
+printf 'a\n' > "$REPO/.gemini/agents/a.md"
+printf 'c\n' > "$REPO/.opencode/commands/c.md"
+git -C "$REPO" add -A && git -C "$REPO" commit -q -m "regenerated adapters"
+# ocagent: an OpenCode agent, whose frontmatter carries permission rules.
+git -C "$REPO" checkout -q -b ocagent main
+mkdir -p "$REPO/.opencode/agents"
+printf -- '---\npermission:\n  bash: allow\n---\n' > "$REPO/.opencode/agents/a.md"
+git -C "$REPO" add -A && git -C "$REPO" commit -q -m "an agent that allows every command"
 git -C "$REPO" checkout -q main
 # Two stashes: stash@{1} rewrites the settings, stash@{0} only src/.
 printf '{"stashed":true}\n' > "$REPO/.claude/settings.json"
@@ -92,6 +104,17 @@ v()        { decision "$(raw "$@")"; }
 vb()       { v Bash "$1" "${2:-$REPO}"; }
 # A multi-line command, written with \n escapes.
 vbn()      { vb "$(printf '%b' "$1")" "${2:-$REPO}"; }
+# replay <label> <command> [cwd] — a git replay onto a protected path is an R4
+# ask: hook_ask on Claude Code, a deny on Codex, Cursor and Gemini, never an allow.
+replay() {
+  local label="$1" c="$2" d="${3:-$REPO}" out cx cu gm
+  out="$(raw Bash "$c" "$d")"
+  judge "$label: Claude asks" ask "$(decision "$out")"
+  cx="$(payload Bash "$c" "$d" | jq -c '. + {turn_id:"t-1"}' | bash "$GUARD" 2>/dev/null | jq -r '.hookSpecificOutput.permissionDecision // "allow"')"
+  cu="$(payload Bash "$c" "$d" | jq -c '. + {conversation_id:"c-1",cursor_version:"3.27.22"}' | bash "$GUARD" 2>/dev/null | jq -r '.permission // "none"')"
+  gm="$(payload Bash "$c" "$d" | GEMINI_SESSION_ID=g-1 GEMINI_PROJECT_DIR="$d" bash "$GUARD" 2>/dev/null | jq -r '.hookSpecificOutput.permissionDecision // "allow"')"
+  judge "  ... Codex, Cursor and Gemini deny" "deny deny deny" "$cx $cu $gm"
+}
 
 # swapcase <path> — every letter of the LAST component with its case flipped.
 swapcase_last() { printf '%s/%s' "$(dirname "$1")" "$(basename "$1" | tr 'a-zA-Z' 'A-Za-z')"; }
@@ -293,7 +316,7 @@ judge "patch -p1 -i the same patch"       deny "$(vb "patch -p1 -i $TMP/evil.pat
 judge "patch with the protected file as its operand" deny "$(vb "patch .claude/settings.json $TMP/benign.patch")"
 judge "git apply a heredoc patch touching settings" deny \
   "$(vb "$(printf 'git apply <<%s\n%s\nEOF\n' "'EOF'" "$(cat "$TMP/evil.patch")")")"
-judge "git am an mbox touching settings"  deny "$(vb "git am $TMP/evil.mbox")"
+replay "git am an mbox touching settings" "git am $TMP/evil.mbox"
 judge "git -C <repo> apply from elsewhere" deny "$(vb "git -C $REPO apply $TMP/evil.patch" "$TMP")"
 judge "git apply an ordinary patch"       allow "$(vb "git apply $TMP/benign.patch")"
 judge "patch -p1 < an ordinary patch"     allow "$(vb "patch -p1 < $TMP/benign.patch")"
@@ -307,20 +330,27 @@ judge "a patch piped in is advisory"      warn "$(vb 'curl -s https://x.invalid/
 # ===========================================================================
 section "F4c: git rewrites judged by the files they would change"
 # ===========================================================================
-judge "git checkout <ref> -- .claude/settings.json" deny "$(vb 'git checkout evil -- .claude/settings.json')"
-judge "git checkout <ref> -- ."           deny "$(vb 'git checkout evil -- .')"
-judge "git restore --source <ref> <path>" deny "$(vb 'git restore --source evil .claude/settings.json')"
-judge "git restore --source=<ref> -- .claude" deny "$(vb 'git restore --source=evil -- .claude')"
-judge "git checkout <branch> (switch)"    deny "$(vb 'git checkout evil')"
-judge "git switch <branch>"               deny "$(vb 'git switch evil')"
-judge "git merge <branch>"                deny "$(vb 'git merge evil')"
-judge "git merge --no-ff -m msg <branch>" deny "$(vb 'git merge --no-ff -m "take it" evil')"
-judge "git pull . <branch> (a local remote)" deny "$(vb 'git pull . evil')"
-judge "git cherry-pick <commit>"          deny "$(vb 'git cherry-pick evil')"
-judge "git rebase <upstream>"             deny "$(vb 'git rebase evil')"
-judge "git reset --hard <ref>"            deny "$(vb 'git reset --hard evil')"
-judge "git stash apply stash@{1} (rewrites settings)" deny "$(vb 'git stash apply stash@{1}')"
-judge "git -C <repo> merge from elsewhere" deny "$(vb "git -C $REPO merge evil" "$TMP")"
+replay "git checkout <ref> -- .claude/settings.json" 'git checkout evil -- .claude/settings.json'
+replay "git checkout <ref> -- ." 'git checkout evil -- .'
+replay "git restore --source <ref> <path>" 'git restore --source evil .claude/settings.json'
+replay "git restore --source=<ref> -- .claude" 'git restore --source=evil -- .claude'
+replay "git checkout <branch> (switch)" 'git checkout evil'
+replay "git switch <branch>" 'git switch evil'
+replay "git merge <branch>" 'git merge evil'
+replay "git merge --no-ff -m msg <branch>" 'git merge --no-ff -m "take it" evil'
+replay "git pull . <branch> (a local remote)" 'git pull . evil'
+replay "git cherry-pick <commit>" 'git cherry-pick evil'
+replay "git rebase <upstream>" 'git rebase evil'
+replay "git reset --hard <ref>" 'git reset --hard evil'
+replay "git stash apply stash@{1} (rewrites settings)" 'git stash apply stash@{1}'
+replay "git -C <repo> merge from elsewhere" "git -C $REPO merge evil" "$TMP"
+judge "  ... and the ask says it is a git replay the user decides" yes \
+  "$(has "$(reason "$(raw Bash 'git merge evil')")" "git branch operation")"
+judge "a replay beside a direct write of the same file: the deny outranks the ask" deny \
+  "$(vb 'git merge evil; echo x > .claude/settings.json')"
+replay "git merge of a branch adding an OpenCode agent (D10.1, narrowed)" 'git merge ocagent'
+judge "git merge of regenerated .gemini/skills, .gemini/agents, .opencode/commands: allowed (not policy)" allow \
+  "$(vb 'git merge gen')"
 judge "git checkout <ref> -- an ordinary path" allow "$(vb 'git checkout benign -- src/a.txt')"
 judge "git checkout <ref> -- . where only src differs" allow "$(vb 'git checkout benign -- .')"
 judge "git restore --staged (the index only)" allow "$(vb 'git restore --staged .claude/settings.json')"

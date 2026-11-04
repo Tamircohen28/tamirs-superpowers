@@ -373,7 +373,7 @@
     "R4 forms that depend on state: worktree.remove.force, worktree.drop and git.reset_to_remote only when they discard uncommitted or unpushed work; git.push.force.default to a default branch other than main or master.",
     "The REST and GraphQL equivalents of the R4 actions beyond the named protection, ruleset and release forms (gh api with a variable path, curl to api.github.com, file-sourced GraphQL): permission-guard.sh maps or treats them as UNCLASSIFIED (R4).",
     "Wrappers and interpreters (make, eval, xargs, a script this catalog does not name, python3 -c, node -e): seen by no layer (ADR 004 Open risks).",
-    "Protected paths that depend on the repository root or the plugin root ({repo}/.gemini/**, {repo}/opencode.json, {repo}/.opencode/**, {plugin_root}/hooks/**): guard-sensitive-files.sh resolves both; writes made through a shell command likewise.",
+    "Protected paths that depend on the repository root or the plugin root ({repo}/.gemini/settings.json, {repo}/.gemini/policies/**, {repo}/opencode.json, {repo}/.opencode/plugin/**, {plugin_root}/hooks/**): guard-sensitive-files.sh resolves both; writes made through a shell command likewise.",
     "The GitHub MCP tools of R2 (create_pull_request, add_issue_comment, ...): level-dependent, so no static rule can decide them. hooks/permission-guard.sh does, on BeforeTool mcp_github_<tool>: gemini-wrap.sh maps the bundled server's calls to the Claude tool names (from mcp_context when it names server github, else by the mcp_github_ prefix) and delivers any ask as a deny (G1); the server flags stand behind it."
   ]
 }
