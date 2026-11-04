@@ -17,14 +17,16 @@ fi
 for d in "$home/.config/tamirs-superpowers" "$home/.local/state/tamirs-superpowers"; do
   if [ -e "$d" ]; then
     printf '%s\n' "$d"
-    # path, size and mtime of everything under it: any write changes the fingerprint
+    # path, size, nanosecond mtime and a content hash of everything under it: any write changes the
+    # fingerprint. Whole-second mtime missed an overwrite of same-length content within the same second.
     python3 -I -S - "$d" <<'PY'
-import os, sys
+import hashlib, os, sys
 for root, dirs, files in sorted(os.walk(sys.argv[1])):
     dirs.sort()
     for n in [root] + [os.path.join(root, f) for f in sorted(files)]:
         st = os.lstat(n)
-        print(n, st.st_size, int(st.st_mtime))
+        digest = hashlib.sha256(open(n, "rb").read()).hexdigest() if os.path.isfile(n) and not os.path.islink(n) else "-"
+        print(n, st.st_size, st.st_mtime_ns, digest)
 PY
   else
     printf '%s absent\n' "$d"
