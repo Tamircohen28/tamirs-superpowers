@@ -54,8 +54,13 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - **Cursor 3.28.7 validated.** `validated_against`, `reviewed_through`, `latest_known` and
   `.cursor-version` move to 3.28.7 on the S2/S3 live run. No release notes exist for 3.28.
   The GUI checks of issue #351 are recorded in `implementation-measurements.md`: S2 and S3
-  measured; U4 blocked because the screen was locked; S4 blocked because the account has no
-  Cursor Teams admin.
+  measured; S4 blocked because the account has no Cursor Teams admin.
+- **Claude Desktop measured (U4, issue #351).** A `PreToolUse` hook `ask` raises Desktop's
+  own approval dialog, with the reason verbatim and Deny / Allow once, even under Bypass
+  permissions, and Deny stops the call. Desktop installs a plugin with no `userConfig`
+  dialog and offers no Configure entry, so a plugin's hooks see no `CLAUDE_PLUGIN_OPTION_*`
+  value and the level there is the default, `supervised`. ADR 004 D7/D8, the registry's
+  Claude Desktop notes and `docs/user/configuration.md` say so.
 - `gh api` with no endpoint is now UNCLASSIFIED (it was `repo.read`). A user-owned
   `~/.curlrc`, `~/.wgetrc` or httpie/xh config makes a GitHub-bound call ask. A curl
   `--unix-socket` or `--request-target` call to a host that is not GitHub, re-routed to

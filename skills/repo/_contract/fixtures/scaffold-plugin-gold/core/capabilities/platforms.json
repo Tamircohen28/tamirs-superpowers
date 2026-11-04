@@ -323,9 +323,9 @@
               "notes": "No Desktop evidence."
             },
             "hooks": {
-              "last_verified": "2026-09-17",
+              "last_verified": "2026-11-04",
               "status": "unknown",
-              "notes": "Whether the plugin hook bundle fires in Desktop coding sessions has not been verified. Permission levels (ADR 004 D8): see this surface's permission_levels row.",
+              "notes": "Hooks fire in Desktop coding sessions: measured U4 on 2026-11-04 (Desktop 4.16336.0, embedded Claude Code 2.1.317), where a project PreToolUse hook and a plugin's own SessionStart hook ran, and a PreToolUse `ask` raised Desktop's approval card. This plugin's own hook bundle was not run end to end on Desktop. Permission levels (ADR 004 D8): see this surface's permission_levels row.",
               "fallback": "Assume no hooks; rely on in-skill guards and CI."
             },
             "mcp": {
@@ -423,7 +423,7 @@
             "permission_levels": {
               "last_verified": "2026-11-04",
               "status": "unknown",
-              "notes": "ADR 004 D8 (docs/engineering/decisions/004-permission-levels.md); L1 skill gates are advisory on every surface. L2 shell and L3 unverified (spikes C5/U4, docs/engineering/research/permissions/spikes/claude-codex.md): whether the plugin hooks fire in Desktop coding sessions is unmeasured. The GitHub MCP server flags apply at server start. Until a call stamp proves permission-guard.sh ran, L1 answers as supervised. --perms= cannot raise here (scripts/plugin-config.sh confirm refuses a claude-desktop session, D5). Per-skill levels ADVISORY.",
+              "notes": "ADR 004 D8 (docs/engineering/decisions/004-permission-levels.md); L1 skill gates are advisory on every surface. Measured U4 (2026-11-04, Desktop 4.16336.0, embedded Claude Code 2.1.317, docs/engineering/research/permissions/spikes/implementation-measurements.md \"GUI checks\"): hooks run in Desktop coding sessions (a project PreToolUse and a plugin SessionStart fired), and a PreToolUse hook `ask` raises Desktop's \"Allow Claude to run this command?\" card with the reason verbatim and Deny / Allow once, under Bypass permissions too; Deny stops the call. So L3 is the hook ask, as on the CLI; a plugin-shipped PreToolUse ask was not run separately and L2 `deny` was not exercised, so the call stamp stays: until it proves permission-guard.sh ran, L1 answers as supervised. Desktop has no userConfig route: \"Add to this computer\" shows no dialog, the plugin menu offers only Remove, and with nothing stored the hook env carries no CLAUDE_PLUGIN_OPTION_*, so the level comes from its absence (supervised). The GitHub MCP server flags apply at server start. --perms= cannot raise here (scripts/plugin-config.sh confirm refuses a claude-desktop session, D5). Per-skill levels ADVISORY.",
               "fallback": "Run at supervised: the skills' L1 gates stop before every R2+ step, the GitHub MCP server starts --read-only, and a level change runs scripts/plugin-config.sh in the user's own terminal."
             }
           }

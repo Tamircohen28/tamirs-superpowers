@@ -511,45 +511,82 @@ Question for each: does it let a softer `ask` replace a `deny` anywhere?
 
 The four ADR 004 item 13 checks that need a desktop app: U4 (Claude Desktop's Code tab), S2 (Cursor desktop run modes),
 S3 (what Cursor's `beforeSubmitPrompt` receives for `/pr-dev 42 --perms=standard`) and S4 (Cursor plugin variables).
-**S2 and S3 are measured; U4 and S4 stay blocked.** `$G` below is the run's scratch directory, outside the repository,
+**U4, S2 and S3 are measured** (U4 on a rerun with the screen unlocked); **S4 stays blocked.** `$G` below is the run's scratch directory, outside the repository,
 where every capture, hook and payload was kept. The repo was not edited during the run. No login or OAuth flow was
 started and no credentials were typed. Every probe command was `echo <PROBE-ID>`; exactly one approval was given, to
 `echo S2-PROBE-autoreview`. Every other prompt was skipped, and the controls and the `preToolUse` echo ran with no prompt.
 
-**Session condition.** The Mac's screen was **locked** for the whole run (`ioreg` reported `IOConsoleLocked = true` at
+**Session condition.** The Mac's screen was **locked** for the first run (`ioreg` reported `IOConsoleLocked = true` at
 15:13 and again at 15:37). Pixel input was refused (`loginwindow window … is in front`), and the AX trees of both
 Electron apps exposed no web content. Cursor was not running beforehand, so it was launched with
 `--remote-debugging-port` and its real workbench was driven through CDP (DOM mouse and key events,
 `Page.captureScreenshot`), which needs no unlock. Claude Desktop was already running with live sessions, so it was not
-restarted (U4).
+restarted; U4 was run again at 17:11–17:34 with the screen unlocked.
 
 ### Verdict table
 
 | id | verdict | answer | app version |
 |---|---|---|---|
-| U4 | **blocked: screen locked** | Not measured. Claude Desktop's web UI could not be seen or targeted while locked: an AX `View > Hide Sidebar` press took effect (the menu label flipped to `Show Sidebar`) but the window capture did not change. Driving it through CDP would mean relaunching the app and killing two live sessions. Nothing was installed. | Claude Desktop 4.16336.0 (embedded Claude Code 2.1.317) |
+| U4 | **measured** (rerun 17:11–17:34, screen unlocked; the 15:13 attempt was blocked by the locked screen) | **No userConfig dialog:** "Add to this computer" installs a plugin at once ("Pt2 is installed and ready to use."), with no picker and no default shown, and its menu offers only Remove; the plugin's `SessionStart` hook env carried **no `CLAUDE_PLUGIN_OPTION_PRESET`**. **A `PreToolUse` hook `ask` raises Desktop's dialog:** "Allow Claude to run this command?", the reason `U4 probe: hook ask` verbatim, Deny / Allow once, under **Bypass permissions**; Deny stopped the command. | Claude Desktop 4.16336.0 (embedded Claude Code 2.1.317) |
 | S2 | **measured** | `beforeShellExecution` returning `{"permission":"ask"}` **forces an approval card in all three run modes, Run Everything (Unsandboxed) included.** Auto-Review: card with `Hook requested approval: S2 probe: hook ask`; Run ran it. Allowlist: a card (generic text, no hook reason) even for an **allowlisted** `echo`, whose no-decision control ran unprompted; Skip rejected it. Run Everything: card with the hook's reason; Skip rejected it; the no-decision control ran unprompted. `preToolUse` (matcher `Shell`) returning `ask`: **not enforced**, the command ran unprompted under Run Everything. | Cursor desktop **3.27.22 → 3.28.7** (Cursor's own updater) |
 | S3 | **measured** | `beforeSubmitPrompt` receives the **literal typed text** `"prompt":"/pr-dev 42 --perms=standard"` with `"attachments":[]`: no skill or command field, no expansion. Picking `/pr-dev` from the skill picker (a `cursor_skill` mention chip) gives the same payload. The hook blocked the prompt (`continue:false`), so the model never ran. | Cursor desktop 3.28.7 |
 | S4 | **blocked: no Cursor Teams admin on this account** | cursor.com/dashboard (already signed in, Pro+ individual) has a *Personal*-only Plugins & MCPs page. The plugin row offers `View details` and `Remove`; the details dialog lists MCPs, Skills, Subagents, Hooks, Rules and Commands, with `Remove from Personal` as its only action: no Configure, no variables, although the plugin declares `variables.GITHUB_TOKEN`. Members shows "Upgrade to Teams". | cursor.com dashboard, 2026-11-04 |
 
-### U4 evidence — Claude Desktop (blocked)
+### U4 evidence — Claude Desktop (measured on a rerun with the screen unlocked)
 
-Prepared but not run: a scratch project `$G/u4proj` (a git repo whose `.claude/settings.json` holds a `PreToolUse`
-`Bash` hook that logs its stdin and answers `permissionDecision: "ask"`; self-tested, test output deleted) and a scratch
-marketplace that was never added. The hook's `fired.log` does not exist, so it never ran.
+**First attempt (15:13, blocked).** The screen was locked: Claude Desktop's web UI could not be seen or targeted, a
+background pixel click on `Customize` was refused (`loginwindow window … is in front`), the AX tree held 5,919
+elements that were all menus, and an AX `View > Hide Sidebar` press took effect (the label flipped) while the capture
+stayed frozen. Blind driving of the live app was ruled out; the sidebar press was undone and nothing was installed.
 
-1. The Code tab showed the "New session" view with two "Waiting" sessions listed.
-2. A background pixel click on `Customize` was refused (`Pixel dispatch blocked: loginwindow window … is in front`); the
-   same click in foreground mode returned `unverifiable` and the screenshot was byte-identical.
-3. The AX tree held 5,919 elements, every one of them a menu (`AXMenuItem` 5,276, `AXMenu` 362, `AXMenuBarItem` 251,
-   `AXMenuBar` 30).
-4. A pressed AX `View > Hide Sidebar` changed only the translucent sidebar backdrop in the capture, and the menu label
-   then read `Show Sidebar`: input reaches the app, rendering is frozen while locked. Blind driving of the user's live
-   app was ruled out.
+**Rerun (17:11–17:34, `IOConsoleLocked = false`).** Claude Desktop 4.16336.0, embedded Claude Code 2.1.317; the app
+was not restarted (one main process throughout). Baseline hashes of the user's config files were taken before the
+first click.
 
-Undone: `Show Sidebar` was pressed back (the label reads `Hide Sidebar` again), and `Go > Code` was pressed in case the
-foreground click had landed. No session, project, marketplace or plugin was changed. **To run it:** unlock the Mac, add
-the scratch marketplace by path in the Code tab, install its plugin, open `$G/u4proj` and ask it to `echo U4-PROBE`.
+1. **Add the scratch marketplace by path.** Customize → Plugins → `Add ▾` → Add marketplace, the scratch
+   marketplace's directory typed into the URL field, Sync. `main.log`: `Adding marketplace: …/t002/mkt`, then
+   `Marketplace added: t002-mkt`. `~/.claude/settings.json` gained `extraKnownMarketplaces."t002-mkt"`
+   (`source: directory`) and `known_marketplaces.json` gained `t002-mkt`.
+2. **Install `pt2` (one `preset` userConfig field, `default: "supervised"`): no dialog.** `Pt2 / defaulted only` →
+   **Add to this computer**; the row turned to `✓ Added` and a toast read "Pt2 is installed and ready to use."
+   **No dialog of any kind appeared**: no scope picker, no `Configure pt2`, no field, no default shown. `main.log`:
+   `installPlugin: skipping remote API path … (reason=local-sourced)`, `attempting CLI install … (scope=default)`,
+   `Plugin installed: pt2@t002-mkt`. `settings.json` gained only `enabledPlugins."pt2@t002-mkt": true`, no
+   `pluginConfigs`. The plugin row's `⋯` menu offers only **Remove**: there is no Configure entry in the Desktop UI.
+3. **What reaches the plugin's hooks.** `pt2`'s own `SessionStart` hook (it writes `env | grep -i CLAUDE_PLUGIN` to
+   its data directory) ran when the scratch session started. The captured env held only `CLAUDE_PLUGIN_ROOT` and
+   `CLAUDE_PLUGIN_DATA`: **no `CLAUDE_PLUGIN_OPTION_PRESET`**. With nothing stored, the declared default is not
+   exported to a hook. The CLI was not compared in this run.
+4. **A Code-tab session in the scratch project.** New → This computer → the scratch project `$G/u4proj` (opened
+   through a temporary symlink under `~`, removed afterwards). The app resolved the real path and asked "Trust this
+   workspace? … Execution allowed by: `.claude/settings.json`"; Trust workspace. Permission mode: **Bypass
+   permissions**, this account's Desktop default for local sessions (not chosen by the run).
+5. **`echo U4-PROBE`: the dialog appears; declined.** The project `PreToolUse` `Bash` hook fired (`fired.log`:
+   `2026-11-04T17:26:17 ask emitted`; stdin `tool_name: Bash`, **`permission_mode: "bypassPermissions"`**,
+   `tool_input.command: "echo U4-PROBE ."`, the trailing ` .` from the prompt's punctuation). The screen showed a card
+   **"Allow Claude to run this command?"** with the tool's description, **`U4 probe: hook ask`** (the hook's
+   `permissionDecisionReason`, verbatim), `$ echo U4-PROBE .` and the buttons **Deny** and **Allow once ⌘↩**.
+   **Deny** turned the tool row to `Stopped`; the command never ran.
+6. **Cleanup.** The marketplace was removed through Manage marketplaces ("This will also uninstall 1 plugin from this
+   marketplace: • Pt2"; `main.log`: `Removed 1 plugin(s) …`, `Removed "t002-mkt" from known_marketplaces.json`).
+   The scratch session was archived, not deleted. The worktree Desktop had created under `~/.claude/worktrees/u4proj/`
+   (clean) was removed with `git worktree remove` and `git branch -d`. The plugin's data directory and its orphaned
+   cache copy were removed. The landing bar's Worktree box and environment were set back to their starting values.
+   Desktop's add/remove had rewritten `~/.claude/settings.json` (trailing newline dropped) and
+   `known_marketplaces.json` (two other marketplaces' `lastUpdated` stamps) without changing their meaning; the exact
+   original bytes were put back.
+
+Restore proof (rerun baseline 17:11 → final 17:34): `~/.claude/settings.json`, `~/.claude/settings.local.json`,
+`~/.claude/plugins/known_marketplaces.json` and `~/.claude/plugins/installed_plugins.json` are byte-identical.
+Deliberately not reverted: `claude_desktop_config.json`'s last-viewed session pointer (now the archived scratch session;
+setting it back would mean opening the user's own session) and a capability cache key the app added; app-cache
+timestamps in `config.json`; `~/.claude.json`'s trust entry for the scratch project; the scratch session's transcript;
+a stale `u4proj` record in `git-worktrees.json`.
+
+App stability, observed and not caused by the run: Desktop's main webview renderer crashed (`render process gone …
+exitCode: 5`) once before the run and eight times during it; twice it showed "Claude keeps crashing", and each time
+the in-page Reload was used, never Restart Claude. The main process never changed and the existing sessions stayed
+listed.
 
 ### S2 evidence — Cursor desktop run modes
 
@@ -640,8 +677,16 @@ is now 3.28.7: the update was part of the run.
 
 ## Impact on ADR 004 D8 (GUI checks)
 
-1. **U4 (Claude Desktop row): no change.** L2 and L3 stay "unverified (C5/U4)" and the call-stamp fallback
-   (`supervised`) stays. The rerun needs only an unlocked screen.
+1. **U4 (Claude Desktop row): L3 unverified → E (measured).** A `PreToolUse` hook `ask` raises Desktop's own approval
+   card with the reason verbatim and Deny / Allow once, under Bypass permissions too (as M1 on the CLI), and Deny
+   blocks: "ask is delivered as" becomes "as CLI: hook `ask`", and the call stamp stays as defence in depth. This was a
+   project-settings hook; a plugin's own hooks were shown to run (`pt2`'s `SessionStart`), but a plugin-shipped
+   `PreToolUse` `ask` was not run separately, and `deny` was not exercised. **Level storage on Desktop:** Desktop
+   offers no way to set a `userConfig` value (no install dialog, no Configure entry), and with nothing stored the hook
+   env carries no `CLAUDE_PLUGIN_OPTION_*`, so the level comes only from its absence: `supervised`, which is what the
+   resolver already answers (D7 "no config"). Raising it means the CLI's `/plugin configure` (the shared
+   `~/.claude/settings.json` `pluginConfigs`; whether the embedded 2.1.317 reads it was not tested) or the neutral user
+   policy file.
 2. **S2 (Cursor desktop row): unverified → measured on 3.28.7.** L2: `beforeShellExecution` decisions are honoured in
    every mode (`deny` itself was not re-run on desktop; the deny-guard branch never fired). L3: `beforeShellExecution`
    `ask` is a real forced prompt in Auto-Review, Allowlist (over an allowlist entry) and Run Everything, which
