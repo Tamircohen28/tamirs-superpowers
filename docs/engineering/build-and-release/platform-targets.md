@@ -28,6 +28,8 @@ The README's platform badge row shows **platform tool versions** directly valida
 
 ## Versions
 
+Validated **2026-11-04** (live run) — **Cursor** `validated_against`/`reviewed_through`/`latest_known` 3.27.22 → **3.28.7**. Spike S2 of ADR 004 item 13 ran on the desktop app 3.28.7 (Cursor's own updater moved it from 3.27.22 during the run): a `beforeShellExecution` `ask` raised an approval card in Auto-Review, Allowlist and Run Everything, and a `preToolUse` `ask` was not enforced; S3 measured `beforeSubmitPrompt` on the same build ([implementation-measurements.md](../research/permissions/spikes/implementation-measurements.md), "GUI checks"). cursor.com/changelog and the IDE release notes publish nothing for 3.28, so `reviewed_through` moves with the live run. `supported_min` stays 3.22.7 and `permissions_min` 3.27.22.
+
 Validated **2026-11-03** (live run) — **Claude Code** `validated_against`/`reviewed_through`/`latest_known` 2.1.316 → **2.1.317**. The `claude` CLI already installed on the maintainer machine (2.1.317; nothing was installed or upgraded) ran `claude plugin validate` on the manifest and on the root (both pass; the one warning is the documented root-CLAUDE.md note) and `make test-mods` (`claude plugin test` 37/37 on the mod, 19/19 on the guard). Changelog 2.1.317 read, nothing breaking, nothing adopted.
 
 Validated **2026-11-01** (live run, throwaway prefix) — **Codex** `validated_against`/`reviewed_through`/`latest_known` 0.163.0 → **0.166.0**. The plugin installs from a local marketplace offline; a recording probe plugin received `SessionStart` and `UserPromptSubmit` on `codex exec` with payload keys identical to the committed fixtures, and the hook contract test passes (94/0). Release notes 0.164.0–0.166.0 read: hook approval is now bound to plugin contents (trust was already hash-bound), and `PreToolUse` hooks report the local command cwd (not measurable without a model turn); nothing needed a change.
@@ -43,7 +45,7 @@ Reviewed **2026-10-06** (changelog/schema only, no live binary; `validated_again
 | Surface | Min supported | Validated against | Reviewed through | Latest known | Install guide |
 |----------|---------------|-------------------|------------------|--------------|---------------|
 | Claude Code | 2.0.0 | 2.1.317 | 2.1.317 | 2.1.317 | [claude-code.md](../../user/install/claude-code.md) |
-| Cursor | 3.22.7 | 3.27.22 | 3.27.22 | 3.27.22 | [cursor.md](../../user/install/cursor.md) |
+| Cursor | 3.22.7 | 3.28.7 | 3.28.7 | 3.28.7 | [cursor.md](../../user/install/cursor.md) |
 | Codex | 0.40.0 | 0.166.0 | 0.166.0 | 0.166.0 | [codex.md](../../user/install/codex.md) |
 | Gemini CLI | 0.55.1 | 0.66.0 | 0.66.0 | 0.66.0 | [gemini.md](../../user/install/gemini.md) |
 | OpenCode | 2.2.5 | 2.2.5 | 2.2.5 | 2.2.5 | [opencode.md](../../user/install/opencode.md) |
