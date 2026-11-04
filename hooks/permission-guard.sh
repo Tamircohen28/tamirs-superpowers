@@ -1909,6 +1909,10 @@ def classify_segment(s):
                 for aid in rest_ids(method, npath, kv, STD_DEFAULTS):
                     add(aid, "rest", s, p=p, rest=(method, npath, kv))
                     hit = True
+                # A body read from a file (--input, -F k=@file) is unknown, not proof a field is absent: a non-GET
+                # call's body-dependent ids (pr.review.approve, ...) cannot be ruled out (Codex P1, round 4).
+                if method != "GET" and (has_input or any(f in ("-F", "--field") and "=@" in v for f, v in fields)):
+                    uncl = True
             got_any, uncl = got_any or hit, uncl or not hit
     if p["argv0"] in HTTP:
         call = http_call(p)
@@ -1918,16 +1922,35 @@ def classify_segment(s):
             for path in paths:
                 hit = False
                 if path == "graphql":
-                    g, u = graphql_ids(" ".join(data), any(x.startswith("@") for x in data))
+                    # Inspect the DECODED query of each JSON body (a \\u escape spells a keyword once decoded);
+                    # a body from a file or one that is not a JSON object cannot be read: unknown (Codex P1, round 4).
+                    docs, unreadable = [], False
+                    for x in data:
+                        if x.startswith("@"):
+                            unreadable = True
+                            continue
+                        try:
+                            b = json.loads(x)
+                        except ValueError:
+                            unreadable = True
+                            continue
+                        if isinstance(b, dict) and isinstance(b.get("query"), str):
+                            docs.append(b["query"])
+                        else:
+                            unreadable = True
+                    g, u = graphql_ids(" ".join(docs), unreadable or not docs)
                     for aid in g:
                         add(aid, "graphql", s, p=p)
                     hit, uncl = bool(g), uncl or u
                 else:
+                    body_unread = any(x.startswith("@") for x in data)
                     for method in methods:
                         ids = rest_ids(method, path, kv, STD_DEFAULTS)
                         for aid in ids:
                             add(aid, "rest", s, p=p, rest=(method, path, kv))
                         hit, uncl = hit or bool(ids), uncl or not ids
+                        if method != "GET" and body_unread:
+                            uncl = True   # fields from a file are unknown, not absent (Codex P1, round 4)
                 got_any, uncl = got_any or hit, uncl or not hit
     s["hit"] = got_any
     if not got_any and (p["argv0"] == "gh" or p.get("dynamic") or

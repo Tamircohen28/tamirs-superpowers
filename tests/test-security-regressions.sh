@@ -4,9 +4,9 @@
 #
 # WHAT IT PROVES
 #   Every input the adversarial review (F1-F10, plus the low finding L1) and the two
-#   Codex review threads (P1, P2, round 2's P1-a, P1-b and round 3's P1-c) reproduced as a walk-around is
+#   Codex review threads (P1, P2, round 2's P1-a, P1-b, round 3's P1-c, round 4's P1-d, P1-e) reproduced as a walk-around is
 #   fed to the hook or script that must stop it, and each row names its finding:
-#     hooks/permission-guard.sh       (PG)  F1 F2 F3 F5 F7 F8 F9 P1 P1-a P1-b P1-c
+#     hooks/permission-guard.sh       (PG)  F1 F2 F3 F5 F7 F8 F9 P1 P1-a P1-b P1-c P1-d P1-e
 #     hooks/guard-sensitive-files.sh  (GSF) F4 F6 P2
 #     scripts/plugin-config.sh, scripts/resolve-permission.sh, scripts/github-mcp.sh
 #                                           F1 (the writer), F7, F10, L1
@@ -529,6 +529,24 @@ pg P1-c "curl -X POST -d x --connect-to example.com:443:api.github.com:443 https
 pg P1-c "curl -X POST -d x -H 'Host: api.github.com' https://203.0.113.5/...releases" "curl -X POST -d x -H 'Host: api.github.com' https://203.0.113.5/repos/me/app/releases"
 pg P1-c "curl -X POST -d x --header=host:api.github.com https://203.0.113.5/...releases" "curl -X POST -d x --header='host: api.github.com' https://203.0.113.5/repos/me/app/releases"
 pg P1-c "curl -d x --unix-socket /tmp/s .../issues" "curl -d x --unix-socket /tmp/s $ISS"
+rm -rf "$PH/.config"
+
+# =========================================================================================
+section "Codex round 4 P1-d/P1-e: an unread body is unknown; a JSON body is decoded before it is read"
+# =========================================================================================
+user_file "$PH" '{"version": 1, "level": "standard"}'
+REV=https://api.github.com/repos/me/app/pulls/1/reviews
+pg P1-d "gh api .../pulls/1/reviews --input approval.json" 'gh api repos/me/app/pulls/1/reviews --input approval.json'
+pg P1-d "gh api .../pulls/1/reviews --input=approval.json" 'gh api repos/me/app/pulls/1/reviews --input=approval.json'
+pg P1-d "gh api .../pulls/1/reviews -F event=@ev.txt" 'gh api repos/me/app/pulls/1/reviews -F event=@ev.txt'
+pg P1-d "curl --json @approval.json .../pulls/1/reviews" "curl --json @approval.json $REV"
+pg P1-d "curl -d @approval.json .../pulls/1/reviews" "curl -d @approval.json $REV"
+pg P1-d "curl --data-binary @- .../pulls/1/reviews (stdin)" "curl --data-binary @- $REV"
+GQ='{"query":"mutat\u0069on{deleteRepository(input:{repositoryId:\"R\"}){clientMutationId}}"}'
+pg P1-e "curl --json '{query: mutat\\u0069on{deleteRepository}}' .../graphql" "curl -H 'Authorization: token x' --json '$GQ' https://api.github.com/graphql"
+pg P1-e "curl -d '{query: mutat\\u0069on{deleteRepository}}' .../graphql" "curl -d '$GQ' https://api.github.com/graphql"
+pg P1-e "curl -d @q.json .../graphql (body from a file)" 'curl -d @q.json https://api.github.com/graphql'
+pg P1-e "curl -d 'not json' .../graphql" "curl -d 'query=mutation{deleteRepository}' https://api.github.com/graphql"
 rm -rf "$PH/.config"
 
 # =========================================================================================
