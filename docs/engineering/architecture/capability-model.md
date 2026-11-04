@@ -65,7 +65,7 @@ Every surface carries a `support` value, and the enum has two members on purpose
 
 | `support` | Meaning | Carries |
 |---|---|---|
-| `supported` | This repo installs here, validates here, and has measured what it can do. | `install`, `validation`, and all 21 capability rows. |
+| `supported` | This repo installs here, validates here, and has measured what it can do. | `install`, `validation`, and all 22 capability rows. |
 | `unverified` | A real surface of the platform that this repo has **never exercised**. | `unverified_reason`, plus the identifying fields (`display_name`, `kind`, `aliases`, `doc_urls`). No `install`, no `validation`, no `capabilities`. |
 
 The schema enforces both halves. A `supported` surface missing `install`, `validation` or
@@ -181,7 +181,15 @@ a skill cannot declare a capability the registry does not define:
 `skills`, `skill_auto_invocation`, `subagents`, `parallel_subagents`, `agent_teams`,
 `hooks`, `mcp`, `statusline`, `shell`, `git`, `github_cli`, `background_tasks`,
 `worktree_isolation`, `plugin_marketplace`, `extension_install`, `slash_commands`,
-`ask_user_question`, `artifacts`, `session_transcripts`, `dynamic_workflows`, `mods`.
+`ask_user_question`, `artifacts`, `session_transcripts`, `dynamic_workflows`, `mods`,
+`permission_levels`.
+
+`permission_levels` records how much of [ADR 004](../decisions/004-permission-levels.md)'s
+level enforcement each surface can hold: `native` where a plugin hook can deny and raise a
+host-enforced ask (Claude Code), `partial` where only a deny is reliable (Codex, Cursor,
+Gemini, OpenCode) and the skill-body gate carries the ask, `unknown` where it was never
+measured (Claude Desktop). Its `since` is the platform's `permissions_min` in
+`platform-targets.json`.
 
 `dynamic_workflows` is `native` on Claude Code only (the `Workflow` tool that runs a
 JavaScript orchestration script across many subagents) and `unsupported` everywhere
