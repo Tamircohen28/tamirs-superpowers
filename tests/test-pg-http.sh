@@ -565,6 +565,11 @@ if client == "curl":
         if g:
             seen[g.group(1)] = g.group(2).lstrip()[:1] in "<["
     seen.pop("help", None)   # its <category> is optional: listed as a flag on purpose
+    # Some builds print a value option without its placeholder (curl 8.5.0: `--haproxy-clientip Sets client IP`),
+    # so a missing placeholder is no proof of a flag. Only a placeholder the table lacks is a mismatch.
+    for name in [n for n, takes in seen.items() if not takes and n in table.long and table.long[n].value]:
+        print("OMITTED %s" % name)
+        del seen[name]
 elif client == "wget":
     # `  -e,  --execute=COMMAND   ...`  /  `       --no-config   ...`; help prints no =VALUE for these three
     omits = {"max-redirect", "hsts-file", "preferred-location"}
@@ -608,6 +613,14 @@ judge "the deliberate mismatch is a MISMATCH" yes "$(has "$FIX" "MISMATCH quiet"
 judge "nothing else is flagged (a wrapped line, --max-redirect's unprinted value)" 2 "$(printf '%s\n' "$FIX" | grep -c '^M')"
 judge "seven options were read, the wrapped line not among them" yes "$(has "$FIX" "CHECKED 7")"
 
+section "the comparator reads a curl help that omits a value placeholder (self-test, curl 8.5.0 shape)"
+FIX="$(printf '%s\n' \
+  ' -d, --data <data>          HTTP POST data' \
+  '     --haproxy-clientip     Sets client IP in HAProxy PROXY protocol v1 header' \
+  '     --anyauth              Pick any authentication method' | compare curl)"
+judge "an omitted placeholder is OMITTED, not a mismatch" yes "$(has "$FIX" "OMITTED haproxy-clientip")"
+judge "  ... and nothing is a MISMATCH" "" "$(printf '%s\n' "$FIX" | grep '^MISMATCH')"
+
 section "curl: the table against the installed curl --help all"
 if harness_have curl; then
   CV="$(curl --version 2>/dev/null | head -1 | awk '{print $2}')"
@@ -616,6 +629,8 @@ if harness_have curl; then
   judge "curl $CV: the help was read (over 200 options)" yes "$(printf '%s\n' "$CMP" | awk '/^CHECKED/ {print ($2 > 200) ? "yes" : "no"}')"
   MISS="$(printf '%s\n' "$CMP" | grep '^MISSING' | sed 's/^MISSING //' | tr '\n' ' ')"
   [ -z "$MISS" ] || warn "curl $CV lists options the table lacks (read as unknown, the safe side): $MISS"
+  OMIT="$(printf '%s\n' "$CMP" | grep '^OMITTED' | sed 's/^OMITTED //' | tr '\n' ' ')"
+  [ -z "$OMIT" ] || warn "curl $CV prints these value options without a placeholder (the table keeps them as values): $OMIT"
   [ "$CV" = "8.7.1" ] || warn "the curl table was generated from 8.7.1; this machine runs $CV"
 else
   skip "curl --help all" "curl is not installed"

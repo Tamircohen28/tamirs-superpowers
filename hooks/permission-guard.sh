@@ -607,6 +607,16 @@ def expand_prog(toks, i):
 # taken out (or marked unpinnable) before the split, so it ends a cluster there (#349).
 GH_SHORT_VALUES = {"pr merge": "AbFt", "pr close": "c", "pr review": "bF", "pr edit": "BbFmt",
                    "workflow run": "Ffr"}
+# The long options that take a value, from the same help. Their separate value word (`--body "-auto off"`) is the
+# value, never a cluster to split: reading it as options turned a review comment into an approval.
+GH_LONG_VALUES = {
+    "pr merge": {"author-email", "body", "body-file", "match-head-commit", "subject"},
+    "pr close": {"comment"},
+    "pr review": {"body", "body-file"},
+    "pr edit": {"add-assignee", "add-label", "add-project", "add-reviewer", "attach", "base", "body", "body-file",
+                "milestone", "remove-assignee", "remove-label", "remove-project", "remove-reviewer", "title"},
+    "workflow run": {"field", "raw-field", "ref"},
+}
 GH_CLUSTER = re.compile(r"\A-[A-Za-z0-9]")
 
 
@@ -616,6 +626,7 @@ def gh_split(sub):
     if sub[:1] == ["api"]:
         return sub
     vals = GH_SHORT_VALUES.get(" ".join(sub[:2]), "")
+    longs = GH_LONG_VALUES.get(" ".join(sub[:2]), set())
     out, k = [], 0
     while k < len(sub):
         t = sub[k]
@@ -623,6 +634,18 @@ def gh_split(sub):
         if t == "--":
             out += sub[k - 1:]
             break
+        if t.startswith("--") and "=" not in t and t[2:] in longs:
+            out.append(t)
+            if k < len(sub):
+                out.append(sub[k])   # the option's value, as written
+                k += 1
+            continue
+        if t in ("-" + c for c in vals):
+            out.append(t)
+            if k < len(sub):
+                out.append(sub[k])
+                k += 1
+            continue
         if not GH_CLUSTER.match(t) or len(t) < 3:
             out.append(t)
             continue
@@ -643,6 +666,9 @@ def gh_split(sub):
             if c in vals:
                 if rest:
                     out.append(rest)
+                elif k < len(sub):
+                    out.append(sub[k])   # -db "-x": the value is the next word, as written
+                    k += 1
                 break
             j += 1
     return out
