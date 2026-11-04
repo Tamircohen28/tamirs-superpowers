@@ -11,7 +11,9 @@
 //                                       ctx.shell.hook("create.before") (ADR 004 D8)
 //   hooks/guard-sensitive-files.sh   -> the same hook on `edit`, plus `shell` write
 //                                       targets, plus ctx.shell.hook("create.before");
-//                                       its protected pass (D10.1) via rules.ts
+//                                       its parse and protected pass (D10.1) RUN AS IS:
+//                                       python3 hooks/lib/write-targets.py --protected,
+//                                       with rules.ts's port only where python3 is absent
 //   hooks/enforce-worktree-edits.sh  -> the same hook on `edit`
 //   hooks/protect-other-branches.sh  -> the same hook on `shell` (git push), plus
 //                                       ctx.shell.hook("create.before")
@@ -58,20 +60,25 @@
 //     has no equivalent, so a deny would name no destination. rules.ts states the
 //     narrower rule: main-checkout edits are denied only while an objective is
 //     active, when the orchestrator's worktrees ARE the destination.
-//   - write-targets.py's full command parse (interpreters, xargs, find -exec,
-//     apply_patch). rules.ts reads redirects, tee, sed -i, cp/mv/install/ln and rm;
-//     everything else is invisible rather than UNSURE. The binding half is still
-//     the git/CI check on the modified path, exactly as the shell hook's header says.
+//   - guard-sensitive-files.sh's UNSURE advisory: OpenCode's permission hook has no
+//     channel for a note that is not a decision. An unresolved write that NAMES a
+//     protected path is still a deny, decided by write-targets.py.
+//   - Without python3, write-targets.py cannot run, and rules.ts's port decides:
+//     redirects (fd and exec ones too), tee, sed -i, cp/mv/install/ln/link/pax,
+//     tree targets and rm, with case folding — but no git replays, patch headers,
+//     downloaders or awk/sed programs. The binding half is still the git/CI check on
+//     the modified path, exactly as the shell hook's header says.
 //   - This file spawns `git` for one question the filesystem cannot answer —
-//     `check-ignore` on a build-output path — and `bash hooks/permission-guard.sh`
-//     (which itself runs python3 and the resolver). Nothing else.
+//     `check-ignore` on a build-output path —, `python3 hooks/lib/write-targets.py`
+//     (which itself runs read-only local git queries for replays), and `bash
+//     hooks/permission-guard.sh` (which runs python3 and the resolver). Nothing else.
 //
 // OVERRIDES (same names as the shell hooks; none reaches the permission layer)
-//   PM_ALLOW_PROTECTED=1    skip the generated-file rules (lockfiles, workflows,
-//                           .yarn/releases, shadcn ui, build output) for an intended
-//                           edit; never a protected path (D10.1)
-//   TAMIRS_OPENCODE_GUARD=0 disable the legacy guards above; the permission layer
-//                           and the protected paths stay on
+//   PM_ALLOW_PROTECTED=1    skip the generated-file rules (lockfiles, .yarn/releases,
+//                           shadcn ui, build output) for an intended edit; never a
+//                           workflow (R4 workflow.edit, D10.5) or a protected path (D10.1)
+//   TAMIRS_OPENCODE_GUARD=0 disable the legacy guards above; the permission layer,
+//                           the workflow rule and the protected paths stay on
 //
 // Observed on @opencode/cli 2.2.5: `opencode plugin list` and `opencode debug
 // agents` run without a provider key, so the plugin's LOADING can be checked
@@ -101,9 +108,13 @@ import {
   pgEnv,
   pgPayload,
   pgVerdict,
+  parseWriteTargets,
+  protectedFromRecords,
   protectedReason,
   sensitiveReason,
   shellWriteTargets,
+  workflowReason,
+  writeTargetsFromRecords,
   type ClaimVerdict,
   type Decision,
   type PgCall,
@@ -111,6 +122,7 @@ import {
   type SensitiveFacts,
   type TargetKind,
   type WorktreeFacts,
+  type WriteTargetRecord,
 } from "./rules.ts"
 import { activeObjectiveFor, gitRoots, nearestExistingDir, originSlug, pushFallbackBranch, type GitRoots } from "./state.ts"
 
@@ -180,6 +192,36 @@ function worktreeFacts(roots: GitRoots | null): WorktreeFacts {
 /** This plugin's repository root: guard.ts sits at <root>/platforms/opencode/plugin/. */
 const PLUGIN_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..", "..")
 const PERMISSION_GUARD = path.join(PLUGIN_ROOT, "hooks", "permission-guard.sh")
+const WRITE_TARGETS = path.join(PLUGIN_ROOT, "hooks", "lib", "write-targets.py")
+// guard-sensitive-files.sh runs under a 5 s hook timeout; the parse budgets its git queries at 2.5 s.
+const WRITE_TARGETS_TIMEOUT_MS = 5_000
+
+/**
+ * `python3 hooks/lib/write-targets.py --protected` on one tool call, exactly as
+ * hooks/guard-sensitive-files.sh runs it: the canonical parse (heredocs, fd and exec
+ * redirects, copies and extractions as trees, git replays, patch headers, case folding,
+ * an unresolved write that names a protected path). null only when python3 is not
+ * installed, so the caller falls back to the rules.ts port; any other failure throws,
+ * and the hook's failClosed denies.
+ */
+function writeTargetRecords(toolName: string, toolInput: Record<string, unknown>, cwd: string): WriteTargetRecord[] | null {
+  if (!existsSync(WRITE_TARGETS)) throw new Error(`${WRITE_TARGETS} is missing, so no write can be judged`)
+  let out: string
+  try {
+    out = execFileSync("python3", [WRITE_TARGETS, "--protected"], {
+      input: JSON.stringify({ hook_event_name: "PreToolUse", tool_name: toolName, tool_input: toolInput, cwd }),
+      encoding: "utf8",
+      timeout: WRITE_TARGETS_TIMEOUT_MS,
+      maxBuffer: 4 << 20,
+      cwd: cwd && path.isAbsolute(cwd) && existsSync(cwd) ? cwd : PLUGIN_ROOT,
+      stdio: ["pipe", "pipe", "ignore"],
+    })
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === "ENOENT") return null
+    throw new Error(`write-targets.py failed (${String((err as Error)?.message ?? err).split("\n")[0]})`)
+  }
+  return parseWriteTargets(out)
+}
 
 /** The lexical spelling and the realpath of an absolute path (its nearest existing ancestor resolved). */
 function pathForms(abs: string): string[] {
@@ -246,10 +288,25 @@ function judgeProtected(abs: string, kind: TargetKind, via: string, cwd: string)
   return v.mode === "deny" ? deny(v.reason) : deliverAsDeny(v.reason)
 }
 
-/** Judge one file write: protected paths (always), then the generated-file rules and the worktree invariant (legacy). */
+/** Judge one file write with the rules.ts port: protected paths (always), then judgeAfterProtected. */
 function judgeWrite(file: string, kind: TargetKind, via: string, cwd: string, legacy: boolean): Decision {
   const p = judgeProtected(file, kind, via, cwd)
   if (p.effect !== "allow") return p
+  return judgeAfterProtected(file, kind, via, legacy)
+}
+
+/**
+ * Everything after the protected pass, in guard-sensitive-files.sh's order. The workflow
+ * rule first, before any PM_ALLOW_PROTECTED handling and whatever TAMIRS_OPENCODE_GUARD
+ * says: it is R4 workflow.edit (D10.5), and an environment switch may only tighten (D3) —
+ * a repository's config can set either variable (F6). Then, legacy only, the generated-file
+ * rules (which PM_ALLOW_PROTECTED=1 skips) and the worktree invariant.
+ */
+function judgeAfterProtected(file: string, kind: TargetKind, via: string, legacy: boolean): Decision {
+  if (kind !== "link") {
+    const workflow = workflowReason(file, kind === "move" ? "delete" : kind, via)
+    if (workflow) return deny(workflow)
+  }
   if (!legacy || kind === "move" || kind === "link") return ALLOW
   const roots = gitRoots(path.dirname(file))
   if (process.env.PM_ALLOW_PROTECTED !== "1") {
@@ -258,6 +315,24 @@ function judgeWrite(file: string, kind: TargetKind, via: string, cwd: string, le
   }
   if (kind === "delete") return ALLOW
   return judgeEdit(file, worktreeFacts(roots))
+}
+
+/**
+ * Judge one tool call's writes the way guard-sensitive-files.sh does: write-targets.py's
+ * PROTECTED records decide first (a deny outranks every ask, and an ask leaves as a deny,
+ * D8), then each TARGET / DELETE / TREE meets judgeAfterProtected. null when python3 is
+ * not installed: the caller then judges with the rules.ts port.
+ */
+function judgeWritesCanonical(toolName: string, toolInput: Record<string, unknown>, cwd: string, legacy: boolean): Decision | null {
+  const records = writeTargetRecords(toolName, toolInput, cwd)
+  if (!records) return null
+  const p = protectedFromRecords(records)
+  if (p) return p
+  for (const t of writeTargetsFromRecords(records)) {
+    const d = judgeAfterProtected(t.path, t.kind, t.via, legacy)
+    if (d.effect !== "allow") return d
+  }
+  return ALLOW
 }
 
 // ---------------------------------------- hooks/permission-guard.sh (ADR 004 D8) ---
@@ -401,17 +476,22 @@ function judgeShell(command: string, cwd: string, legacy: boolean, sessionID: st
     })
     if (push.effect !== "allow") return push
   }
-  for (const t of shellWriteTargets(command)) {
-    const bases = [cwd]
-    // A relative symlink target resolves against the link's directory (write-targets.py _source_records).
-    if (t.kind === "link" && t.linkAt) {
-      const at = path.isAbsolute(t.linkAt) ? t.linkAt : path.resolve(cwd, t.linkAt)
-      bases.push(t.linkAt.endsWith("/") || isDir(at) ? at : path.dirname(at))
-    }
-    for (const b of path.isAbsolute(t.path) ? [""] : bases) {
-      const abs = b ? path.resolve(b, t.path) : t.path
-      const d = judgeWrite(abs, t.kind, t.via, cwd, legacy)
-      if (d.effect !== "allow") return d
+  const canonical = judgeWritesCanonical("Bash", { command }, cwd, legacy)
+  if (canonical && canonical.effect !== "allow") return canonical
+  if (!canonical) {
+    // No python3: the rules.ts port, which reads fewer writers (see the header).
+    for (const t of shellWriteTargets(command)) {
+      const bases = [cwd]
+      // A relative symlink target resolves against the link's directory (write-targets.py _source_records).
+      if (t.kind === "link" && t.linkAt) {
+        const at = path.isAbsolute(t.linkAt) ? t.linkAt : path.resolve(cwd, t.linkAt)
+        bases.push(t.linkAt.endsWith("/") || isDir(at) ? at : path.dirname(at))
+      }
+      for (const b of path.isAbsolute(t.path) ? [""] : bases) {
+        const abs = b ? path.resolve(b, t.path) : t.path
+        const d = judgeWrite(abs, t.kind, t.via, cwd, legacy)
+        if (d.effect !== "allow") return d
+      }
     }
   }
   return runPermissionGuard({ kind: "shell", command, cwd }, sessionID)
@@ -459,7 +539,7 @@ export default Plugin.define({
         if (e.action === "edit") {
           for (const r of e.resources) {
             const abs = path.isAbsolute(r) ? r : path.resolve(locationDir, r)
-            d = judgeWrite(abs, "write", "", locationDir, legacy)
+            d = judgeWritesCanonical("Edit", { file_path: abs }, locationDir, legacy) ?? judgeWrite(abs, "write", "", locationDir, legacy)
             if (d.effect !== "allow") break
           }
         } else if (e.action === "shell") {

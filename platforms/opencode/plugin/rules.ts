@@ -357,6 +357,51 @@ export function deliverAsDeny(reason: string): Decision {
   )
 }
 
+// ------------------------------------- hooks/lib/write-targets.py --protected ---
+
+/**
+ * One line of `python3 hooks/lib/write-targets.py --protected`: `kind <tab> detail <tab> fragment`.
+ * For a PROTECTED record, detail is `deny` or `ask` and fragment is the reason.
+ */
+export interface WriteTargetRecord {
+  readonly kind: string
+  readonly detail: string
+  readonly fragment: string
+}
+
+export function parseWriteTargets(stdout: string): WriteTargetRecord[] {
+  const out: WriteTargetRecord[] = []
+  for (const line of stdout.split("\n")) {
+    if (!line.trim()) continue
+    const [kind = "", detail = "", ...rest] = line.split("\t")
+    out.push({ kind, detail, fragment: rest.join("\t") })
+  }
+  return out
+}
+
+/**
+ * Pass 1 of hooks/guard-sensitive-files.sh on the parse it reads: every deny outranks
+ * every ask, and the texts are the shell hook's own. An R4 ask (a guard file of a source
+ * checkout, a git replay onto a protected path) leaves as a deny, since OpenCode cannot
+ * carry it (D8). null when no record is PROTECTED.
+ */
+export function protectedFromRecords(records: readonly WriteTargetRecord[]): Decision | null {
+  const prot = records.filter((r) => r.kind === "PROTECTED")
+  if (!prot.length) return null
+  const denied = prot.find((r) => r.detail !== "ask")
+  if (denied) return deny(`BLOCKED: ${denied.fragment} ${PROTECTED_REMEDY}`)
+  return deliverAsDeny(`R4 ASK: ${prot[0].fragment}`)
+}
+
+/** Pass 2's input: the TARGET / DELETE / TREE records, as the generated-file rules read them. */
+export function writeTargetsFromRecords(
+  records: readonly WriteTargetRecord[],
+): { readonly path: string; readonly kind: WriteKind; readonly via: string }[] {
+  const kinds: Readonly<Record<string, WriteKind>> = { TARGET: "write", DELETE: "delete", TREE: "tree" }
+  return records
+    .filter((r) => Object.hasOwn(kinds, r.kind) && r.detail.startsWith("/"))
+    .map((r) => ({ path: r.detail, kind: kinds[r.kind], via: r.fragment }))
+}
 
 // ---------------------------------------------- hooks/enforce-worktree-edits.sh ---
 
