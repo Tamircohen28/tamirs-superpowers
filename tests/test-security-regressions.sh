@@ -4,9 +4,9 @@
 #
 # WHAT IT PROVES
 #   Every input the adversarial review (F1-F10, plus the low finding L1) and the two
-#   Codex review threads (P1, P2) reproduced as a walk-around is fed to the hook or
-#   script that must stop it, and each row names its finding:
-#     hooks/permission-guard.sh       (PG)  F1 F2 F3 F5 F7 F8 F9 P1
+#   Codex review threads (P1, P2, and round 2's P1-a, P1-b) reproduced as a walk-around is
+#   fed to the hook or script that must stop it, and each row names its finding:
+#     hooks/permission-guard.sh       (PG)  F1 F2 F3 F5 F7 F8 F9 P1 P1-a P1-b
 #     hooks/guard-sensitive-files.sh  (GSF) F4 F6 P2
 #     scripts/plugin-config.sh, scripts/resolve-permission.sh, scripts/github-mcp.sh
 #                                           F1 (the writer), F7, F10, L1
@@ -485,6 +485,41 @@ pg P1 "curl -sd '{...}' .../releases" "curl -sd '{\"tag_name\":\"v1\"}' https://
 pg P1 "curl -F name=v1 .../releases" 'curl -F name=v1 https://api.github.com/repos/me/app/releases'
 
 # =========================================================================================
+section "Codex round 2 P1-a: an attached, '=' or clustered gh api/curl/wget option is read"
+# =========================================================================================
+REL=https://api.github.com/repos/me/app/releases
+pg P1-a "gh api .../releases -ftag_name=v1" 'gh api repos/me/app/releases -ftag_name=v1'
+pg P1-a "gh api .../releases -Ftag_name=v1" 'gh api repos/me/app/releases -Ftag_name=v1'
+pg P1-a "gh api .../releases -f=tag_name=v1" 'gh api repos/me/app/releases -f=tag_name=v1'
+pg P1-a "gh api .../releases --field=tag_name=v1" 'gh api repos/me/app/releases --field=tag_name=v1'
+pg P1-a "gh api .../releases --raw-field=tag_name=v1" 'gh api repos/me/app/releases --raw-field=tag_name=v1'
+pg P1-a "gh api .../releases --input=body.json" 'gh api repos/me/app/releases --input=body.json'
+pg P1-a "gh api -HAccept:x .../releases -ftag_name=v1" 'gh api -HAccept:x repos/me/app/releases -ftag_name=v1'
+pg P1-a "gh api -iXDELETE repos/me/app (a pflag cluster)" 'gh api -iXDELETE repos/me/app'
+pg P1-a "curl --expand-data '{...}' .../releases" "curl --expand-data '{\"tag_name\":\"v1\"}' $REL"
+pg P1-a "curl --expand-request DELETE repos/me/app" 'curl --expand-request DELETE https://api.github.com/repos/me/app'
+pg P1-a "wget -e method=DELETE repos/me/app" 'wget -e method=DELETE https://api.github.com/repos/me/app'
+pg P1-a "wget -qe post_data=x .../releases" "wget -qe post_data=x $REL"
+
+# =========================================================================================
+section "Codex round 2 P1-b: every URL of a multi-transfer call is classified (at standard)"
+# =========================================================================================
+# At standard issue.create (R2) is allowed, so a row holds only if the second transfer is read.
+ISS=https://api.github.com/repos/me/app/issues
+user_file "$PH" '{"version": 1, "level": "standard"}'
+pg P1-b "curl -X POST -d '{...}' .../issues .../releases" "curl -X POST -d '{\"title\":\"x\",\"tag_name\":\"v1\"}' $ISS $REL"
+pg P1-b "curl -d '{...}' --url .../issues --url .../releases" "curl -d '{\"tag_name\":\"v1\"}' --url $ISS --url $REL"
+pg P1-b "wget --post-data '{...}' .../issues .../releases" "wget --post-data '{\"tag_name\":\"v1\"}' $ISS $REL"
+pg P1-b "gh api .../issues .../releases -f ..." 'gh api repos/me/app/issues repos/me/app/releases -f title=x -f tag_name=v1'
+pg P1-b "curl -X DELETE repos/me/app --next -X GET .../issues" "curl -X DELETE https://api.github.com/repos/me/app --next -X GET $ISS"
+pg P1-b "curl -d x .../issues '.../{releases,x}' (a URL glob)" "curl -d x $ISS 'https://api.github.com/repos/me/app/{releases,x}'"
+pg P1-b "curl -d x .../issues --expand-url '{{u}}' --variable u=.../releases" "curl -d x $ISS --expand-url '{{u}}' --variable u=$REL"
+pg P1-b "curl -K cfg.txt (URLs from a file)" 'curl -K cfg.txt'
+pg P1-b "curl -sK cfg.txt https://example.com" 'curl -sK cfg.txt https://example.com'
+pg P1-b "wget -i urls.txt (URLs from a file)" 'wget -i urls.txt'
+rm -rf "$PH/.config"
+
+# =========================================================================================
 section "Codex P2: a protected path's parent directory is protected too"
 # =========================================================================================
 gsf P2 "rm -rf .claude" deny 'rm -rf .claude'
@@ -512,11 +547,11 @@ section "the real config and state dirs were never touched"
 judge "real-home witness unchanged" "$REAL_BEFORE" "$(witness)"
 
 section "rows by finding"
-for id in F1 F2 F3 F4a F4b F4c F4d F5 F6 F7 F8 F9 F10 P1 P2 L1; do
+for id in F1 F2 F3 F4a F4b F4c F4d F5 F6 F7 F8 F9 F10 P1 P1-a P1-b P2 L1; do
   p="$(awk -F'\t' -v i="$id" '$1 == i && $2 == "pass"' "$ROWS" | wc -l | tr -d ' ')"
   f="$(awk -F'\t' -v i="$id" '$1 == i && $2 == "fail"' "$ROWS" | wc -l | tr -d ' ')"
-  printf '  %-4s %3s pass %3s fail\n' "$id" "$p" "$f"
+  printf '  %-5s %3s pass %3s fail\n' "$id" "$p" "$f"
 done
-printf '  all  %3s pass %3s fail\n' "$(awk -F'\t' '$2 == "pass"' "$ROWS" | wc -l | tr -d ' ')" "$(awk -F'\t' '$2 == "fail"' "$ROWS" | wc -l | tr -d ' ')"
+printf '  all   %3s pass %3s fail\n' "$(awk -F'\t' '$2 == "pass"' "$ROWS" | wc -l | tr -d ' ')" "$(awk -F'\t' '$2 == "fail"' "$ROWS" | wc -l | tr -d ' ')"
 
 harness_summary
