@@ -126,7 +126,10 @@ uninstall:
 test-hooks:
 	@echo "--- Hook behavior tests ---"
 	@find tests -maxdepth 2 -name 'test-*.sh' 2>/dev/null | sort | while read -r f; do \
-	  echo "==> $$f"; SUPERPOWERS_WORKTREE_CLEANUP=0 bash "$$f" || exit 1; \
+	  echo "==> $$f"; before="$$(bash scripts/real-home-witness.sh)"; \
+	  SUPERPOWERS_WORKTREE_CLEANUP=0 bash "$$f" || exit 1; \
+	  [ "$$before" = "$$(bash scripts/real-home-witness.sh)" ] || { \
+	    echo "FAIL $$f wrote to the real ~/.config or ~/.local/state tamirs-superpowers (use the test root)"; exit 1; }; \
 	done
 
 # The five per-platform contract suites. Each runs its always-on schema/contract

@@ -27,3 +27,6 @@
 - [Signed binary killed on launch (137) = stale inode signature](reference-macos-binary-killed-stale-signature.md) — same bytes run elsewhere; re-copy to a fresh inode, don't reinstall
 - [Cursor local plugin: real copy, not a symlink](reference-cursor-local-plugin-install.md) — 3.27 rejects symlinks; marketplace copy stays pinned old; diff with/without plugin to prove hooks
 - [Test the commit, not the working copy](feedback-test-the-commit-not-the-working-copy.md) — a shared worktree held another session's uncommitted fix; I called a finding fixed on that basis
+- [Orchestration speed: overlap, cap review rounds](feedback-orchestration-speed.md) — early-start dependent objectives, combine small PRs, cap parser review rounds + file an issue, GitHub-outage merge/CI workarounds
+- [Keep a requested status cadence](feedback-status-cadence.md) — "update me every 10 min" means unprompted lines on that cadence; the user asked "status?" ~10 times
+- [Don't clear others' stashes for a hook](feedback-stash-ownership.md) — a stop hook is not the user; diff and ask first; the 2026-11-04 stashes live in refs/archive/stash-2026-11-04/*
