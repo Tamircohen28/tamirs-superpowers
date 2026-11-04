@@ -38,6 +38,17 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   (`session_title` in session state, `CLAUDE_SESSION_TITLE` in the env file), and
   `notify.sh` prefixes notifications with it. `tests/test-worktree-hint.sh` pins all of it.
 
+- **`orchestrate-dev` starts dependent work early by default (#355).** A dependent objective
+  or phase now branches from its predecessor's integration head while the predecessor's PR is
+  in CI or review, opens no PR until the predecessor merges, and is then replayed with
+  `git rebase --onto` from the recorded head SHA; when the merged tree equals that head, Tier 1
+  is not re-run. Waiting for the merge is the documented exception, taken only when a collision
+  rule (disjoint paths, separate migration ranges, additive registration points) cannot hold,
+  and the rule that forced it is recorded on the task. Step 7, a hard rule, an anti-pattern row
+  and `references/early-start.md` in the skill; the `orchestrator` role gains a Scheduling
+  section; one eval reworded and one negative eval added. Evidence: the ADR 004 run spent most
+  of its 14 hours waiting on PRs whose successors had disjoint scopes.
+
 ## [5.3.1] — 2026-11-04
 
 ### Security

@@ -33,18 +33,24 @@
     },
     {
       "id": 6,
-      "prompt": "Phase 2 depends on phase 1, whose PR is still in CI and review. Don't make the team wait - how do we proceed?",
-      "expected_output": "Starts phase 2 from phase 1's head SHA; does not open phase 2's PR until phase 1 merges; then runs git rebase --onto origin/<default> <phase-1-head-sha>. States collision rules: disjoint paths, separate migration ranges, additive registration points.",
+      "prompt": "Phase 2 depends on phase 1, whose PR is still in CI and review. How do we proceed?",
+      "expected_output": "Starts phase 2 now, by default, without being asked to avoid waiting: branches from phase 1's head SHA and records it; does not open phase 2's PR until phase 1 merges; then runs git rebase --onto origin/<default> <phase-1-head-sha>, and skips re-running Tier 1 if the merged tree equals the recorded head. States collision rules: disjoint paths, separate migration ranges, additive registration points. Does not propose waiting for the merge as the plan.",
       "files": []
     },
     {
       "id": 7,
+      "prompt": "Objective B depends on objective A, whose PR is in review. Both objectives edit src/router.ts, and A's reviewer has just asked for changes to that file. Start B now?",
+      "expected_output": "NEGATIVE-BEHAVIOR: declines the early start because the disjoint-paths collision rule cannot hold (both write src/router.ts and A's open review fixes touch it). Names that rule as the reason, records it on the task with task-set --notes, and states the wait in one line in the report. Does not early-start anyway, and does not present waiting as the normal course.",
+      "files": []
+    },
+    {
+      "id": 8,
       "prompt": "Three workers have been running for 40 minutes. How do you keep tabs on them?",
       "expected_output": "Workers commit per task as targeted tests pass; orchestrator periodically runs scripts/agent-health.sh (--idle-min, --pile, --json, --repo) and nudges workers with uncommitted-pile or ~20 min without a write.",
       "files": []
     },
     {
-      "id": 8,
+      "id": 9,
       "prompt": "I need the security review finished before PR #77 merges, and two sub-agents own open review threads on it. How do you coordinate?",
       "expected_output": "Posts the pre-merge condition as a blocking review thread on the PR (not a chat message); triages all open threads at once, one message per owning sub-agent, one push per round.",
       "files": []
