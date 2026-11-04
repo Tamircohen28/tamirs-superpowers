@@ -22,10 +22,32 @@
 # FAST PATH
 #   A command none of whose words can reach a guarded id (no gh, no curl, no git
 #   push/reset/commit/..., no agent CLI, no tty driver, no package manager, no
-#   marker) is allowed by a bash-only pre-filter: no python, no resolver. The
-#   pre-filter strips quotes and backslashes first, so `g"i"t push` cannot hide.
+#   marker) AND every segment of which starts with a known-inert command (ls,
+#   cat, echo, grep, git status/log/diff, ...) is allowed by a bash-only
+#   pre-filter: no python, no resolver. It strips quotes and backslashes and
+#   matches in any case, so `g"i"t push`, `GIT push` and `GH pr merge` cannot
+#   hide; a first word holding $ { [ * ? ~ or split by a backslash-newline is not
+#   inert. Measured: about 38 ms per `git status` call (37 ms before the
+#   allow-list, the suite's mean of 10).
 #   Everything else is tokenised by lib/command-tokens.sh (shared with the
-#   concurrency guard) and matched by the engine below.
+#   concurrency guard) in a bash started with LC_ALL=C, under a 4 s deadline,
+#   and matched by the engine below. A command longer than 8 KB that reaches
+#   the engine is denied before it is tokenised (it could outlast the hook's
+#   deadline, F5), with the remedy: put long text in a file.
+#
+# WHAT THE ENGINE READS AS A SHELL WOULD (task-017)
+#   The program word in lower case, through ${IFS}, brace expansion and a glob
+#   (`/usr/bin/gi[t]`); a program still built at runtime is UNCLASSIFIED. The
+#   wrappers of the catalog's prefix_commands with their value options
+#   (caffeinate, arch, setsid, gtimeout, xargs, watch, exec -a, ...), env -S,
+#   su -c, find -exec, here-documents and herestrings fed to a shell, comments,
+#   process substitution. Any construct the tokeniser flags as an anomaly
+#   ($'...', ((...)), case in a substitution, nested backticks, an unterminated
+#   quote or here-document, nesting past 4, a shell reading a pipe) is
+#   UNCLASSIFIED (R4). `gh` as a word in a segment that is not an inert command
+#   is the D1 `gh ` marker. git long options are read through their unique
+#   prefixes; hosts, markers and REST paths in any case; httpie/xh methods;
+#   every curl body form.
 #
 # CONDITIONS (D4: unknown never holds; a raise or deny applies unless false)
 #   Read locally: default_branch and tag_ref for git push and the GitHub MCP/REST
@@ -56,18 +78,23 @@
 #           a call through on any other exit or on malformed output.
 #   cursor  deny only: preToolUse drops ask and beforeShellExecution's forced
 #           prompt stays unused until spike S1 is measured (D5, D8).
-#   gemini  (GEMINI_SESSION_ID / GEMINI_PROJECT_DIR in env) deny only: a hook ask
-#           hangs headless (G1). Run through hooks/gemini-wrap.sh, which also turns
+#   gemini  (gemini_tool_name in the payload, which hooks/gemini-wrap.sh adds)
+#           deny only: a hook ask hangs headless (G1). gemini-wrap.sh also turns
 #           any ask into a deny and maps the bundled GitHub MCP server's
 #           mcp_github_<tool> calls onto the Claude names below.
 #   opencode  ("host": "opencode" in the payload, which platforms/opencode/plugin/
-#           guard.ts builds; honoured only when the host would otherwise read as
-#           claude) ask for R2 only, deny for everything that must survive
+#           guard.ts builds) ask for R2 only, deny for everything that must survive
 #           `opencode --auto`: every R3/R4 id, never_auto, UNCLASSIFIED (D8 "R2: hook
 #           ask (A under --auto); R3/R4: deny", O1b/O1c). The answer has Claude's
 #           shape; guard.ts maps ask -> OpenCode ask, deny -> deny.
-#   The resolver is told the host (--host) so the option store and the "setting
-#   that would allow it" are that host's.
+#   The host is read from the payload's SHAPE (Cursor's keys, gemini_tool_name,
+#   Codex's turn_id, "host": "opencode", else Claude Code), never from the
+#   environment alone (F7): a repository can set CODEX_HOME, GEMINI_SESSION_ID or
+#   GEMINI_PROJECT_DIR. Where the environment names another host, the STRICTER
+#   dialect answers (deny-only > OpenCode's R2 ask > Claude's ask) and every id
+#   is resolved under both hosts, the strictest answer kept. The resolver is told
+#   the host (--host) so the option store and the "setting that would allow it"
+#   are that host's.
 #
 # D5-D7 DUTIES
 #   The call stamp (D8): a resolve-permission.sh call carrying --call <token> in
@@ -87,9 +114,15 @@
 #   its widened rows (a config change) in the ask; a nonce with no usable record is
 #   a deny. Before it answers that ask, PG writes <state>/asked/<nonce>.json
 #   {version, nonce, file_sha256 (the bytes it showed), body_sha256, kind,
-#   session_id, agent, host, at, expires}, 0600 in a 0700 dir: the call-stamp
+#   session_id, agent, tool_use_id (the payload's: the very call the prompt was
+#   shown for, which the writer's PostToolUse hook matches before it promotes a
+#   staged widening), host, at, expires}, 0600 in a 0700 dir: the call-stamp
 #   pattern of D8 applied to the confirm, so the writer can require proof that
 #   this very confirm, these very bytes, went to the host prompt.
+#   The writer itself is recognised however it is named (F1): as any argument of
+#   an interpreter (past -o/-O/--rcfile values), in any case, through a glob, a
+#   link or a byte-identical copy; and any other command naming it (cp, ln, mv,
+#   cat, ...) is policy.edit unless it only inspects it with no redirect or pipe.
 #   The active skill (D8 "per-skill levels at L2"): <state>/intent/<sid>.json
 #   (the main thread) and <sid>.agent-<agent_id>.json (a subagent), written by
 #   hooks/permission-intent.sh (format in its header). The skill is passed to the
@@ -123,8 +156,9 @@
 #   engine crash, an unexpected exit of this script: all deny, with the reason.
 #   An empty payload (nothing to judge) is allowed, as every guard here does.
 #
-# NOT SEEN (D1 residual, ADR Open risks): aliases, eval, xargs, make, scripts and
-# interpreters this catalog does not name, and anything assembled at runtime.
+# NOT SEEN (D1 residual, ADR Open risks): aliases, eval, make, scripts and
+# interpreters this catalog does not name (their file contents), a modified copy
+# of the writer, and anything assembled at runtime that is not the program word.
 #
 # INSPECTION (tests, debugging; read-only, never reached from a hook payload)
 #   permission-guard.sh --classify '<command>' [cwd]
@@ -181,6 +215,14 @@ PG_BUDGET="${PG_BUDGET_SECONDS:-20}"
 case "$PG_BUDGET" in ''|*[!0-9]*) PG_BUDGET=20 ;; esac
 [ "$PG_BUDGET" -gt 20 ] && PG_BUDGET=20
 
+# _pg_blank <text> — 0 when the text holds nothing but white space. A case pattern, not
+# ${text//[[:space:]]/}: under macOS's /bin/bash 3.2 that substitution is quadratic (4 s for a
+# 4 KB payload, twice per call), which alone outlasted the hook timeout on a long command (F5).
+_pg_blank() {
+  case "$1" in *[![:space:]]*) return 1 ;; esac
+  return 0
+}
+
 # _pg_finish <allow|ask|deny> <reason> — answer once, in the host's dialect.
 _pg_finish() {
   local verdict="$1" reason="${2:-}"
@@ -203,37 +245,86 @@ _pg_finish() {
 }
 
 # _pg_candidate <command> — 0 when the command could reach a guarded id.
+#
+# Two filters, both case-insensitive (a case-insensitive file system runs `GIT`
+# and `GH`), on the text with its quotes and backslashes stripped:
+#   1. markers and program words anywhere (api.github.com, a token variable,
+#      plugin-config, gh, curl, git + a mutating verb, ...);
+#   2. an allow-list of first words: every segment (split at ; & | ( ) ` and
+#      newlines) must start with a known-inert command, or `git` with a
+#      read-only verb. Anything else (a wrapper, an interpreter, a word holding
+#      $ { [ * ? ~, a word split by a backslash-newline) goes to the engine. A
+#      reader of files (cat, grep, ...) is inert only with no glob, brace or
+#      expansion in its segment, which could name the writer.
 _pg_candidate() {
-  local t="$1" b='(^|[[:space:];&|()`/!{])' e='([[:space:];&|)`]|$)'
-  t="${t//[\'\"\\]/}"
-  case "$t" in
-    # Any *_TOKEN variable (wider than the catalog's two token names, which the engine reads from the catalog).
-    *api.github.com*|*uploads.github.com*|*graphql*|*_TOKEN*|*'gh auth'*) return 0 ;;
-    *resolve-permission.sh*|*plugin-config.sh*|*setup.sh*|*install.sh*|*enable.sh*|*SETUP_PERMISSION_LEVEL*) return 0 ;;
-    *cleanup-after-merge.sh*|*cleanup.sh*|*resolve-thread.sh*|*update-issue-resume.sh*|*notify-pushover.sh*) return 0 ;;
-    *collector.py*|*handoff.sh*|*enable-repo-merge-settings.sh*|*github-policy.sh*|*ensure-branch-protection.sh*|*capture-config.sh*) return 0 ;;
-    *claude-code*|*gemini-cli*|*opencode-ai*|*@openai/codex*|*node-pty*) return 0 ;;
-  esac
-  if [ -n "${GH_HOST:-}" ]; then
-    case "$t" in *"$GH_HOST"*) return 0 ;; esac
-  fi
-  [[ "$t" =~ $b(gh|curl|wget|http|https|xh|claude|codex|gemini|opencode|cursor-agent|agy|script|expect|unbuffer|tmux|cmux|screen|osascript|xdotool|ydotool|wtype|cliclick|wezterm|kitty|kitten|zellij|npm|npx|pnpm|yarn|bun|bunx|uv|uvx|pip|pip3|pipx|cargo|bundle|gem|brew|docker|docker-compose|podman|kill|pkill|killall)$e ]] && return 0
-  if [[ "$t" =~ ${b}git$e ]]; then
-    [[ "$t" =~ (^|[^[:alnum:]_-])(push|reset|clean|checkout|restore|switch|stash|branch|tag|config|worktree|commit|merge|rebase|am|pull)([^[:alnum:]_-]|$) ]] && return 0
-    case "$t" in *alias*|*hooksPath*|*hookspath*|*HUSKY*|*SKIP=*|*GIT_CONFIG*) return 0 ;; esac
-  fi
-  if [[ "$t" =~ ${b}(python|python3|node)$e ]]; then
-    case "$t" in *pty*|*pip*|*cli.js*) return 0 ;; esac
-  fi
-  if [[ "$t" =~ ${b}go$e ]] && [[ "$t" =~ ${b}install$e ]]; then return 0; fi
-  return 1
+  local t="$1" b='(^|[[:space:];&|()`/!{])' e='([[:space:];&|)`]|$)' hit=0 nc=0 line w w2 rest
+  shopt -q nocasematch && nc=1
+  shopt -s nocasematch
+  while :; do
+    case "$t" in *\\$'\n'*) hit=1; break ;; esac
+    t="${t//[\'\"\\]/}"
+    case "$t" in
+      # Any *_TOKEN variable (wider than the catalog's two token names, which the engine reads from the catalog).
+      *api.github.com*|*uploads.github.com*|*graphql*|*_TOKEN*|*'gh auth'*) hit=1; break ;;
+      *resolve-permission*|*plugin*config*|*setup.sh*|*install.sh*|*enable.sh*|*SETUP_PERMISSION_LEVEL*) hit=1; break ;;
+      *cleanup-after-merge.sh*|*cleanup.sh*|*resolve-thread.sh*|*update-issue-resume.sh*|*notify-pushover.sh*) hit=1; break ;;
+      *collector.py*|*handoff.sh*|*enable-repo-merge-settings.sh*|*github-policy.sh*|*ensure-branch-protection.sh*|*capture-config.sh*) hit=1; break ;;
+      *claude-code*|*gemini-cli*|*opencode-ai*|*@openai/codex*|*node-pty*) hit=1; break ;;
+    esac
+    if [ -n "${GH_HOST:-}" ]; then
+      case "$t" in *"$GH_HOST"*) hit=1; break ;; esac
+    fi
+    if [[ "$t" =~ $b(gh|curl|wget|http|https|xh|xhs|claude|codex|gemini|opencode|cursor-agent|agy|script|expect|unbuffer|tmux|cmux|screen|osascript|xdotool|ydotool|wtype|cliclick|wezterm|kitty|kitten|zellij|npm|npx|pnpm|yarn|bun|bunx|uv|uvx|pip|pip3|pipx|cargo|bundle|gem|brew|docker|docker-compose|podman|kill|pkill|killall)$e ]]; then hit=1; break; fi
+    if [[ "$t" =~ ${b}git$e ]]; then
+      if [[ "$t" =~ (^|[^[:alnum:]_-])(push|send-pack|http-push|remote|symbolic-ref|update-ref|reset|clean|checkout|restore|switch|stash|branch|tag|config|worktree|commit|merge|rebase|am|pull|fetch)([^[:alnum:]_-]|$) ]]; then hit=1; break; fi
+      case "$t" in *alias*|*hooksPath*|*HUSKY*|*SKIP=*|*GIT_CONFIG*) hit=1; break ;; esac
+    fi
+    if [[ "$t" =~ ${b}(python|python3|node)$e ]]; then
+      case "$t" in *pty*|*pip*|*cli.js*) hit=1; break ;; esac
+    fi
+    if [[ "$t" =~ ${b}go$e ]] && [[ "$t" =~ ${b}install$e ]]; then hit=1; break; fi
+    # The allow-list of first words.
+    while IFS= read -r line; do
+      line="${line#"${line%%[![:space:]]*}"}"
+      while :; do
+        w="${line%%[[:space:]]*}"
+        case "$w" in
+          '!'|'{'|'}'|if|then|elif|else|fi|do|done|while|until) line="${line#"$w"}"; line="${line#"${line%%[![:space:]]*}"}" ;;
+          *) break ;;
+        esac
+      done
+      [ -n "$line" ] || continue
+      w="${line%%[[:space:]]*}"
+      case "$w" in
+        echo|printf|pwd|true|false|test|'['|date|sleep|which|type|whoami|id|uname|hostname|basename|dirname|seq|cd|expr) continue ;;
+        ls|cat|head|tail|wc|grep|egrep|fgrep|rg|sort|uniq|cut|tr|diff|cmp|stat|file|du|df|tree|less|more|jq|yq|mkdir|touch|column|nl|shasum|sha256sum|md5|md5sum|cksum|realpath|readlink)
+          case "$line" in *[\*\?\[\{\$]*) hit=1; break ;; esac
+          continue ;;
+        git)
+          rest="${line#"$w"}"; rest="${rest#"${rest%%[![:space:]]*}"}"; w2="${rest%%[[:space:]]*}"
+          case "$w2" in
+            status|log|diff|show|rev-parse|ls-files|blame|describe|shortlog|rev-list|cat-file|for-each-ref|show-ref|merge-base|grep|ls-tree|version|help|--version) continue ;;
+          esac
+          hit=1; break ;;
+        *) hit=1; break ;;
+      esac
+    done <<< "${t//[;&|()\`]/$'\n'}"
+    break
+  done
+  [ "$nc" = 1 ] || shopt -u nocasematch
+  [ "$hit" = 1 ]
 }
 
 IFS= read -r -d '' _PG_ENGINE <<'PY' || true
-import fnmatch, hashlib, json, os, re, signal, stat, subprocess, sys, time
+import fnmatch, glob, hashlib, itertools, json, os, re, signal, stat, subprocess, sys, time
 
 ROOT, HOST, MODE = sys.argv[1], sys.argv[2], sys.argv[3]
 BUDGET = float(sys.argv[4]) if len(sys.argv) > 4 else 20.0
+FAST = len(sys.argv) > 5 and sys.argv[5] == "1"
+BASH = sys.argv[6] if len(sys.argv) > 6 and sys.argv[6] else "bash"
+# The hosts the resolver is asked under (F7): the payload's, and the environment's when it names another. Every
+# id is resolved under each and the strictest answer stands; HOST (the dialect) is already the stricter one.
+RES_HOSTS = [h for h in (sys.argv[7].split(",") if len(sys.argv) > 7 else []) if h] or [HOST]
 T0 = time.time()
 ASK_HOSTS = ("claude",)       # carry every ask (the D5 dialog)
 R2_ASK_HOSTS = ("opencode",)  # carry an R2 ask only; --auto approves it (D8, O1c)
@@ -249,6 +340,10 @@ RANK = {"allow": 0, "ask": 1, "deny": 2}
 RESOLVER = os.path.join(ROOT, "scripts", "resolve-permission.sh")
 COND_LIB = os.path.join(ROOT, "hooks", "lib", "permission-conditions.sh")
 NET_BUDGET = 3.0   # seconds, for every GitHub lookup of this call together (D8)
+TOK_LIB = os.path.join(ROOT, "hooks", "lib", "command-tokens.sh")
+TOK_DEADLINE = 4.0   # seconds for the shell tokeniser (F5); past it the call is denied
+MAX_CMD = 8192       # bytes: a longer command that reaches the engine is denied before it is tokenised (F5)
+ANOM, HERESTR, PIPED = "\x1d", "\x1c", "\x1a"
 
 
 def answer(verdict, reason):
@@ -262,9 +357,8 @@ def left():
 
 
 raw = sys.stdin.buffer.read().decode("utf-8", "surrogateescape")
-ptext, _, segtext = raw.partition("\x1e\x1e\x1e\n")
 try:
-    PAY = json.loads(ptext)
+    PAY = json.loads(raw)
     if not isinstance(PAY, dict):
         raise ValueError("not an object")
 except ValueError:
@@ -285,14 +379,21 @@ except Exception as e:  # noqa: BLE001 - any catalog defect is a deny
     answer("deny", "tamirs-superpowers permission guard: the action catalog core/permissions/actions.json is "
            "missing or corrupt (%s), so no call can be classified (fail closed, ADR 004 D4)." % e.__class__.__name__)
 
-PREFIX = set(M["prefix_commands"]) | {"builtin", "stdbuf"}
-PREFIX_VALUE_OPTS = {"sudo": {"-u", "-g", "-h", "-p", "-C", "-U", "-r", "-t"}, "env": {"-u", "-C", "-S"},
-                     "timeout": {"-s", "-k", "--signal", "--kill-after"}, "nice": {"-n"}}
-INTERP = {"bash", "sh", "zsh", "source", ".", "python", "python3", "node"}
+PREFIX = set(M["prefix_commands"])
+PREFIX_VALUE_OPTS = {k: set(v) for k, v in M.get("prefix_value_options", {}).items() if not k.startswith("_")}
+DURATION_PREFIX = {"timeout", "gtimeout"}
+SHELLS = {"bash", "sh", "zsh", "ksh", "dash", "mksh", "yash", "ash", "posh", "rbash", "fish"}
+INTERP = SHELLS | {"source", ".", "python", "python2", "python3", "pypy", "pypy3", "node", "nodejs", "bun", "deno",
+                   "perl", "ruby"}
+INTERP_RX = re.compile(r"\A(python|pypy)[0-9.]*\Z")
+# Option values of a shell or python (a word after one is not the script).
+INTERP_VALUE_OPTS = {"-o", "+o", "-O", "+O", "--rcfile", "--init-file", "-m", "-W", "-X", "-r", "--require",
+                     "--import", "--loader", "-I"}
 HTTP = set(M["http_clients"])
+HTTPIE = {"http", "https", "xh", "xhs"}
 API_HOSTS = ["api.github.com", "uploads.github.com"]
 if os.environ.get("GH_HOST"):
-    API_HOSTS.append(os.environ["GH_HOST"])
+    API_HOSTS.append(os.environ["GH_HOST"].lower())
 STD_DEFAULTS = ["main", "master"]
 ENV_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*=")
 TARGET_ENV = re.compile(r"^(GH_REPO|GH_HOST|GH_ENTERPRISE_TOKEN|GIT_DIR|GIT_WORK_TREE|GIT_CONFIG_[A-Za-z0-9_]*|"
@@ -302,19 +403,134 @@ KNOWN_MCP = set(e["tool"][len(PFX):] for a in ACTS for e in a["equivalents"].get
 
 # --------------------------------------------------------------- tokens
 
-SEGS = []
-for line in segtext.split("\n"):
-    if not line:
-        continue
-    nested = line.startswith(NESTED)
-    if nested:
-        line = line[1:]
-    toks = line.split(SEP)
-    if any(toks):
-        SEGS.append({"nested": nested, "toks": toks})
+CMD_TEXT = ""
+_ti = PAY.get("tool_input")
+if isinstance(_ti, dict) and isinstance(_ti.get("command"), str):
+    CMD_TEXT = _ti["command"]
+elif isinstance(PAY.get("command"), str):
+    CMD_TEXT = PAY["command"]
+
+SEGS, ANOMALIES, TOO_LONG = [], [], len(CMD_TEXT.encode("utf-8", "surrogateescape")) > MAX_CMD
 
 
-def parse(toks):
+def tokenise(cmd):
+    """lib/command-tokens.sh's cmdtok_argv_segments, in a bash started with LC_ALL=C (character indexing is
+    linear there), under TOK_DEADLINE: a tokeniser that does not answer in time is a deny (F5)."""
+    env = dict(os.environ)
+    env["LC_ALL"] = "C"
+    try:
+        pr = subprocess.Popen([BASH, "-c", '. "$1" || exit 3; cmdtok_argv_segments "$2"', "_", TOK_LIB, cmd],
+                              stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, stdin=subprocess.DEVNULL, env=env,
+                              start_new_session=True)
+    except OSError as e:
+        answer("deny", "tamirs-superpowers permission guard: the shell tokeniser could not start (%s), so the call "
+               "cannot be judged (fail closed, ADR 004 D4)." % e.__class__.__name__)
+    try:
+        out, _ = pr.communicate(timeout=min(TOK_DEADLINE, max(0.5, left() - 2.0)))
+    except subprocess.TimeoutExpired:
+        try:
+            os.killpg(pr.pid, signal.SIGKILL)
+        except OSError:
+            pass
+        try:
+            pr.communicate(timeout=1.0)
+        except (OSError, subprocess.SubprocessError):
+            pass
+        answer("deny", "tamirs-superpowers permission guard: the command could not be tokenised within %d s, so it "
+               "is denied (fail closed, ADR 004 D4). Split it, or put long text in a file and pass the file." %
+               TOK_DEADLINE)
+    if pr.returncode != 0:
+        answer("deny", "tamirs-superpowers permission guard: the shell tokeniser exited %d, so the call cannot be "
+               "judged (fail closed, ADR 004 D4)." % pr.returncode)
+    return out.decode("utf-8", "surrogateescape")
+
+
+if MODE in ("shell", "classify-shell") and not TOO_LONG:
+    for line in tokenise(CMD_TEXT).split("\n"):
+        if not line:
+            continue
+        if line.startswith(ANOM):
+            if line[1:] not in ANOMALIES:
+                ANOMALIES.append(line[1:])
+            continue
+        nested = line.startswith(NESTED)
+        if nested:
+            line = line[1:]
+        toks = [t.replace(HERESTR, "") for t in line.split(SEP) if t != PIPED]
+        if any(toks):
+            SEGS.append({"nested": nested, "toks": toks})
+
+
+def is_interp(name):
+    return name in INTERP or bool(INTERP_RX.match(name or ""))
+
+
+# git accepts any unique prefix of a long option (`--no-verif`, `--har`, `--delet`): the long options the catalog
+# and PG read for each git verb, so such a prefix is read as its option before anything matches (F8).
+GIT_LONG = {}
+for _a in ACTS:
+    for _e in _a["equivalents"].get("argv", []):
+        if _e.get("cmd", [None])[0] == "git" and len(_e["cmd"]) > 1 and _e["cmd"][1] != "*":
+            for _k in ("any", "all", "none"):
+                for _g in _e.get(_k, []):
+                    if _g.startswith("--") and not any(ch in _g for ch in "*?[="):
+                        GIT_LONG.setdefault(_e["cmd"][1], set()).add(_g)
+for _key, _vals in M["value_options"].items():
+    if _key.startswith("git "):
+        GIT_LONG.setdefault(_key.split()[1], set()).update(v for v in _vals if v.startswith("--"))
+for _verb, _opts in (("push", ("--all", "--branches", "--mirror", "--tags", "--follow-tags", "--prune", "--delete",
+                               "--force", "--force-with-lease", "--force-if-includes", "--no-verify", "--dry-run",
+                               "--set-upstream", "--atomic", "--porcelain", "--quiet", "--verbose", "--progress",
+                               "--signed", "--no-signed", "--thin", "--no-thin", "--recurse-submodules", "--ipv4",
+                               "--ipv6", "--no-force-with-lease", "--no-force-if-includes")),
+                     ("send-pack", ("--all", "--mirror", "--force", "--dry-run", "--atomic", "--remote",
+                                    "--receive-pack", "--signed", "--stdin", "--thin", "--quiet", "--verbose",
+                                    "--force-with-lease")),
+                     ("pull", ("--ff-only", "--rebase", "--no-rebase", "--force")),
+                     ("merge", ("--ff-only", "--no-verify", "--squash", "--abort")),
+                     ("reset", ("--hard", "--merge", "--soft", "--mixed", "--keep")),
+                     ("branch", ("--delete", "--force", "--set-upstream-to", "--move", "--copy"))):
+    GIT_LONG.setdefault(_verb, set()).update(_opts)
+
+
+def git_long(verb, tok):
+    """The long option a git option word stands for: itself, or the one catalog option it is a prefix of (git
+    takes a unique prefix). An ambiguous prefix stays as written: git refuses it, so nothing runs."""
+    if not tok.startswith("--") or len(tok) < 3:
+        return tok
+    key, eq, val = tok.partition("=")
+    opts = GIT_LONG.get(verb, ())
+    if key in opts:
+        return tok
+    cands = [o for o in opts if o.startswith(key)]
+    if len(cands) != 1:
+        return tok
+    return cands[0] + eq + val
+
+
+IFS_RX = re.compile(r"\$\{?IFS\}?")
+BRACE_RX = re.compile(r"\A([^{}]*)\{([^{}]*,[^{}]*)\}([^{}]*)\Z")
+DYNAMIC_CH = "$`{}*?["
+
+
+def expand_prog(toks, i):
+    """The words a shell makes of the program word toks[i] (F2), or None when it is plain: `git${IFS}push` splits,
+    `{git,push,-f}` brace-expands, `/usr/bin/gi[t]` globs against the files there."""
+    t = toks[i]
+    if IFS_RX.search(t):
+        words = [w for w in IFS_RX.split(t) if w]
+    elif BRACE_RX.match(t):
+        m = BRACE_RX.match(t)
+        words = [m.group(1) + x + m.group(3) for x in m.group(2).split(",")]
+        words = [w for w in words if w]
+    elif any(ch in os.path.basename(t) for ch in "*?[") and t not in ("[", "[["):
+        words = sorted(tok_paths(t))[:16]
+    else:
+        return None
+    return toks[:i] + words + toks[i + 1:] if words else None
+
+
+def parse(toks, depth=0):
     env, i = [], 0
     while i < len(toks):
         t = toks[i]
@@ -322,19 +538,24 @@ def parse(toks):
             env.append(t)
             i += 1
             continue
-        name = os.path.basename(t)
+        name = os.path.basename(t).lower()
         if name in PREFIX:
             i += 1
             vo = PREFIX_VALUE_OPTS.get(name, set())
             while i < len(toks) and (toks[i].startswith("-") or toks[i].isdigit()):
                 i += 2 if toks[i] in vo else 1
-            if name == "timeout" and i < len(toks) and re.fullmatch(r"\d+(\.\d+)?[smhd]?", toks[i]):
+            if name in DURATION_PREFIX and i < len(toks) and re.fullmatch(r"\d+(\.\d+)?[smhd]?", toks[i]):
                 i += 1
             continue
         break
     if i >= len(toks):
         return {"env": env, "argv0": None, "raw0": None, "all": [], "sub": [], "gopts": []}
-    argv0, raw0, rest = os.path.basename(toks[i]), toks[i], toks[i + 1:]
+    if depth < 3:
+        exp = expand_prog(toks, i)
+        if exp is not None:
+            return parse(exp, depth + 1)
+    # A case-insensitive file system runs `GIT` and `/usr/bin/GH` (F2): the program is matched in lower case.
+    argv0, raw0, rest = os.path.basename(toks[i]).lower(), toks[i], toks[i + 1:]
     g = M["global_options"].get(argv0, {"value": [], "flag": []})
     longv = [v for v in g["value"] if v.startswith("--")]
     gopts, j = [], 0
@@ -351,6 +572,9 @@ def parse(toks):
         else:
             break
     sub = rest[j:]
+    if argv0 == "git" and sub:
+        sub = sub[:1] + [git_long(sub[0], t) for t in sub[1:]]
+        rest = rest[:j] + sub
     if argv0 == "gh":
         clean, k = [], 0
         while k < len(sub):
@@ -375,11 +599,20 @@ def parse(toks):
                 out_.append(t)
         sub = out_
         rest = rest[:j] + sub
-    return {"env": env, "argv0": argv0, "raw0": raw0, "all": rest, "sub": sub, "gopts": gopts}
+    # A program name still built at runtime ($X, ${X:-gh}, $(…), a glob that matched nothing here) cannot be read:
+    # with no id it is UNCLASSIFIED (F2), whatever its words.
+    dynamic = argv0 not in ("[", "[[") and any(ch in argv0 for ch in DYNAMIC_CH)
+    return {"env": env, "argv0": argv0, "raw0": raw0, "all": rest, "sub": sub, "gopts": gopts, "dynamic": dynamic}
+
+
+CONFIG_KEY_GLOB = re.compile(r"\A[A-Za-z*][A-Za-z0-9*-]*\.")
 
 
 def gmatch(glob, tok):
     if fnmatch.fnmatchcase(tok, glob):
+        return True
+    # A git config key (core.hooksPath, remote.*.url, alias.*): git reads section and key in any case (F8).
+    if CONFIG_KEY_GLOB.match(glob) and fnmatch.fnmatchcase(tok.lower(), glob.lower()):
         return True
     return glob.startswith("--") and not any(c in glob for c in "*?[") and tok.startswith(glob + "=")
 
@@ -414,14 +647,148 @@ def vopts_for(words):
     return set()
 
 
+# The scripts whose real file PG also recognises through a link or a byte-identical copy (F1): the D6 writer and
+# the installers that take --permission-level.
+POLICY_SCRIPTS = {"plugin-config.sh": os.path.join(ROOT, "scripts", "plugin-config.sh"),
+                  "setup.sh": os.path.join(ROOT, "scripts", "setup.sh"),
+                  "scripts/setup.sh": os.path.join(ROOT, "scripts", "setup.sh"),
+                  "install.sh": os.path.join(ROOT, "scripts", "install.sh"),
+                  "scripts/install.sh": os.path.join(ROOT, "scripts", "install.sh"),
+                  "permission-approved.sh": os.path.join(ROOT, "hooks", "permission-approved.sh")}
+GLOB_CH = "*?["
+_FILEID, _NAMES, _EXPAND = {}, {}, {}
+
+
+def file_id(path):
+    """(realpath, size, sha256) of a regular file, or None."""
+    if path in _FILEID:
+        return _FILEID[path]
+    res = None
+    try:
+        rp = os.path.realpath(path)
+        st = os.stat(rp)
+        if stat.S_ISREG(st.st_mode):
+            res = (rp, st.st_size, None)
+    except OSError:
+        res = None
+    _FILEID[path] = res
+    return res
+
+
+def file_sha(path):
+    fid = file_id(path)
+    if not fid:
+        return None
+    if fid[2] is None:
+        try:
+            with open(fid[0], "rb") as f:
+                fid = (fid[0], fid[1], hashlib.sha256(f.read()).hexdigest())
+        except OSError:
+            return None
+        _FILEID[path] = fid
+    return fid[2]
+
+
+def same_file(path, real):
+    """Is <path> the real script <real>: the same file (through any link), or a byte-identical copy?"""
+    a, b = file_id(path), file_id(real)
+    if not a or not b:
+        return False
+    if a[0] == b[0]:
+        return True
+    if a[1] != b[1] or a[1] > 4 * 1024 * 1024:
+        return False
+    h = file_sha(path)
+    return h is not None and h == file_sha(real)
+
+
+def tok_paths(tok):
+    """The existing files a word names, relative to the command's directory: itself, or its glob expansion."""
+    if tok in _EXPAND:
+        return _EXPAND[tok]
+    base = CTX["cwd"] if CTX.get("cwd") else (payload_cwd() or os.getcwd())
+    t = os.path.expanduser(tok)
+    path = t if os.path.isabs(t) else os.path.join(base, t)
+    out = []
+    if "$" not in tok and "`" not in tok:
+        if any(ch in tok for ch in GLOB_CH):
+            try:
+                out = [x for x in itertools.islice(glob.iglob(path), 64) if os.path.isfile(x)]
+            except (OSError, re.error, ValueError):
+                out = []
+        elif os.path.isfile(path):
+            out = [path]
+    _EXPAND[tok] = out
+    return out
+
+
+def literal_chars(pattern):
+    return len(re.sub(r"\[[^]]*\]|[*?]", "", pattern))
+
+
+def tok_names(tok, script):
+    """Does the word <tok> name the catalog script <script> (a path suffix)? In any case (APFS runs
+    PLUGIN-CONFIG.SH), through a glob a shell would expand to it, a link to it or, for POLICY_SCRIPTS, a
+    byte-identical copy of the real file (F1)."""
+    key = (tok, script)
+    if key in _NAMES:
+        return _NAMES[key]
+    tl, sl = tok.lower(), script.lower()
+    hit = tl == sl or tl.endswith("/" + sl)
+    if not hit and any(ch in tok for ch in GLOB_CH):
+        ts, ss = tl.split("/"), sl.split("/")
+        n = min(len(ts), len(ss))
+        hit = literal_chars(ts[-1]) >= 4 and all(fnmatch.fnmatchcase(ss[-1 - k], ts[-1 - k]) for k in range(n))
+    if not hit and (any(ch in tok for ch in GLOB_CH) or script in POLICY_SCRIPTS):
+        for path in tok_paths(tok):
+            pl = path.lower()
+            if pl == sl or pl.endswith("/" + sl) or (script in POLICY_SCRIPTS and same_file(path, POLICY_SCRIPTS[script])):
+                hit = True
+                break
+    _NAMES[key] = hit
+    return hit
+
+
 def script_hit(p, script):
-    cands = [(p["raw0"], p["all"])]
-    if p["argv0"] in INTERP:
-        pos = [k for k, t in enumerate(p["all"]) if not t.startswith("-")]
-        if pos:
-            cands.append((p["all"][pos[0]], p["all"][pos[0] + 1:]))
-    hit = [args for tok, args in cands if tok == script or tok.endswith("/" + script)]
-    return hit[0] if hit else None
+    """The words after <script> when the segment runs it: as the program, or as any argument of an interpreter
+    (bash -o pipefail <script>, sh --rcfile f <script>, env -i /bin/bash <glob>): an interpreter's options and
+    their values are skipped, and every later word is looked at too, so no option PG does not know can hide it."""
+    if p["raw0"] is None:
+        return None
+    if tok_names(p["raw0"], script):
+        return p["all"]
+    if is_interp(p["argv0"]):
+        for k, t in enumerate(p["all"]):
+            if k > 0 and p["all"][k - 1] in INTERP_VALUE_OPTS:
+                continue
+            if tok_names(t, script):
+                return p["all"][k + 1:]
+    return None
+
+
+# Read-only inspections that may name the writer without being policy.edit (F1): nothing they print is a
+# runnable copy, provided no output is redirected or piped.
+WRITER_INSPECT = {"ls", "stat", "file", "wc", "shellcheck", "diff", "cmp", "test", "["}
+WRITER_INSPECT_GIT = {"status", "diff", "log", "add", "blame", "ls-files", "commit"}
+
+
+def names_writer(s):
+    """policy.edit for a segment that names scripts/plugin-config.sh (any case, a glob, a link or a copy of it)
+    other than to run its read-only show/help or to inspect it (F1): cp/ln/mv/cat/install/... of the writer make a
+    runnable copy, and an interpreter running it under an option PG does not know is the writer itself."""
+    p = s["p"]
+    words = ([p["raw0"]] if p["raw0"] else []) + p["all"]
+    if not any(tok_names(t, "plugin-config.sh") or os.path.basename(t.lower()) == "plugin-config" for t in words):
+        return False
+    run = script_hit(p, "plugin-config.sh")
+    if run is not None:
+        pos = positionals(run, set())
+        return not (pos and pos[0] in ("show", "help", "--help", "-h"))
+    quiet = ">" not in CMD_TEXT and "|" not in CMD_TEXT
+    if quiet and (p["argv0"] in WRITER_INSPECT or (p["argv0"] == "git" and p["sub"][:1] and
+                                                    p["sub"][0] in WRITER_INSPECT_GIT)):
+        return False
+    return True
 
 
 def entry_matches(e, p, defaults):
@@ -449,6 +816,8 @@ def entry_matches(e, p, defaults):
     if "args_none" in e and any(fnmatch.fnmatchcase(t, g) for g in expand_default(e["args_none"], defaults) for t in posn):
         return False
     if "first_arg_none" in e and posn and any(fnmatch.fnmatchcase(posn[0], g) for g in e["first_arg_none"]):
+        return False
+    if "min_args" in e and len(posn) < e["min_args"]:
         return False
     if "env_any" in e and not any(fnmatch.fnmatchcase(v, g) for g in e["env_any"] for v in p["env"]):
         return False
@@ -479,16 +848,30 @@ def path_regex(pattern, defaults):
             out.append(("/", re.escape(s)))
         i += 1
     body = "".join((sep if n else "") + rx for n, (sep, rx) in enumerate(out))
-    _RX[key] = re.compile("^" + body + "/?$")
+    # GitHub's REST paths are matched in any case (F8): stricter than GitHub, never looser.
+    _RX[key] = re.compile("^" + body + "/?$", re.I)
     return _RX[key]
+
+
+def api_host(word):
+    """Does a URL word aim at a GitHub API host (any case, with or without a scheme)?"""
+    w = word.lower()
+    return any(h in w for h in API_HOSTS)
 
 
 def norm_path(path):
     p = path.strip().strip("\"'")
-    p = re.sub(r"^https?://[^/]+", "", p)
-    p = re.sub(r"^/api/(v3|uploads)(?=/)", "", p)
-    p = re.sub(r"^/api/graphql$", "/graphql", p)
-    return p.split("?", 1)[0].lstrip("/")
+    if re.match(r"^[A-Za-z][A-Za-z0-9+.-]*://", p):
+        p = re.sub(r"^[A-Za-z][A-Za-z0-9+.-]*://[^/]*", "", p)
+    else:
+        # `http api.github.com/repos/...` (httpie, xh): a host with no scheme.
+        first = p.split("/", 1)[0]
+        if first.lower().split(":", 1)[0] in API_HOSTS or first.lower() in API_HOSTS:
+            p = p[len(first):]
+    p = re.sub(r"^/api/(v3|uploads)(?=/)", "", p, flags=re.I)
+    p = re.sub(r"^/api/graphql$", "/graphql", p, flags=re.I)
+    p = p.split("?", 1)[0].lstrip("/")
+    return "graphql" if p.lower() == "graphql" else p
 
 
 def rest_ids(method, path, kv, defaults):
@@ -580,39 +963,94 @@ def gh_api(sub):
     return method, path, fields, has_input
 
 
+HTTP_METHODS = {"GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"}
+DATA_LONG = {"--data", "--data-raw", "--data-binary", "--data-urlencode", "--data-ascii", "--form", "--form-string",
+             "--json", "--post-data", "--body-data"}
+UPLOAD_LONG = {"--upload-file", "--post-file"}
+# curl's short options that take a value: in a cluster (-sSd'{..}') the rest of the word, else the next word, is it.
+CURL_SHORT_VALUE = set("AbcCdDeEFHKmoPQrtTuUwxXyYz")
+HTTPIE_ITEM = re.compile(r"\A([^=:@]+)(:=@|:=|==|=@|=|@|:)")
+HTTPIE_DATA = {"=", ":=", "@", "=@", ":=@"}
+
+
 def http_call(p):
-    toks, method, data, upload, url, k = p["all"], None, [], False, None, 0
-    vopts = set(M["value_options"].get(p["argv0"], []))
+    """(method, path, kv, data) of an HTTP client call aimed at a GitHub API host, or None. A body in any form
+    (-d/--data*/-F/--form/--json/-T/--upload-file, attached or separate, in a cluster) implies POST (PUT for an
+    upload) unless -X/--request says otherwise (Codex P1); httpie and xh take the method as their first word and
+    imply POST from a data item (F8)."""
+    prog = p["argv0"]
+    toks, method, data, upload, url, k, get, pos = p["all"], None, [], False, None, 0, False, []
+    vopts = set(M["value_options"].get(prog, []))
     while k < len(toks):
         t = toks[k]
         nxt = toks[k + 1] if k + 1 < len(toks) else ""
-        if t in ("-X", "--request") or (p["argv0"] == "wget" and t == "--method"):
+        if t in ("-X", "--request") or (prog == "wget" and t == "--method"):
             method, k = nxt.upper(), k + 2
-        elif t.startswith("--method=") or t.startswith("--request="):
+            continue
+        if t.startswith("--method=") or t.startswith("--request="):
             method, k = t.split("=", 1)[1].upper(), k + 1
-        elif t.startswith("-X") and len(t) > 2:
-            method, k = t[2:].upper(), k + 1
-        elif t in ("-d", "--data", "--data-raw", "--data-binary", "--data-urlencode", "-F", "--form", "--json",
-                   "--post-data", "--body-data"):
-            data.append(nxt)
-            k += 2
-        elif t in ("-T", "--upload-file", "--post-file"):
-            upload = upload or t != "--post-file"
-            data.append("@" + nxt)
-            k += 2
-        elif t in vopts:
-            k += 2
-        elif t.startswith("-"):
-            k += 1
-        else:
-            if url is None and any(h in t for h in API_HOSTS):
-                url = t
-            k += 1
+            continue
+        if t in ("-G", "--get") and prog == "curl":
+            get, k = True, k + 1
+            continue
+        if t.startswith("--"):
+            key, eq, val = t.partition("=")
+            if key in DATA_LONG:
+                data.append(val if eq else nxt)
+                k += 1 if eq else 2
+            elif key in UPLOAD_LONG:
+                upload = upload or key != "--post-file"
+                data.append("@" + (val if eq else nxt))
+                k += 1 if eq else 2
+            elif key in vopts and not eq:
+                k += 2
+            else:
+                k += 1
+            continue
+        if prog == "curl" and len(t) > 1 and t[0] == "-":
+            j, took_next = 1, False
+            while j < len(t):
+                ch = t[j]
+                if ch in CURL_SHORT_VALUE:
+                    val = t[j + 1:]
+                    if not val:
+                        val, took_next = nxt, True
+                    if ch == "X":
+                        method = val.upper()
+                    elif ch in "dF":
+                        data.append(val)
+                    elif ch == "T":
+                        upload = True
+                        data.append("@" + val)
+                    break
+                if ch == "G":
+                    get = True
+                j += 1
+            k += 2 if took_next else 1
+            continue
+        if t.startswith("-") and len(t) > 1:
+            k += 2 if t in vopts else 1
+            continue
+        pos.append(t)
+        k += 1
+    if prog in HTTPIE and pos and pos[0].upper() in HTTP_METHODS and method is None:
+        method = pos.pop(0).upper()
+    for n, t in enumerate(pos):
+        if api_host(t):
+            url = t
+            if prog in HTTPIE:
+                # httpie/xh request items: key=v and key:=json are a body, key@file a form file (POST).
+                data += [it for it in pos[n + 1:] if HTTPIE_ITEM.match(it) and HTTPIE_ITEM.match(it).group(2) in HTTPIE_DATA]
+            break
     if url is None:
         return None
     if method is None:
-        method = "PUT" if upload else ("POST" if data else "GET")
+        method = "PUT" if upload else ("POST" if data and not get else "GET")
     kv = []
+    for d in data:
+        m = HTTPIE_ITEM.match(d) if prog in HTTPIE else None
+        if m and m.group(2) in ("=", ":="):
+            kv.append("%s=%s" % (m.group(1), d[m.end():]))
     for d in data:
         try:
             body = json.loads(d)
@@ -623,9 +1061,23 @@ def http_call(p):
     return method, norm_path(url), kv, data
 
 
-def has_marker(text):
-    # `gh ` counts only as the program (argv0), as in the reference matcher: as a substring it is prose.
-    return any(mk in text for mk in MARKERS if mk != "gh") or any(rx.search(text) for rx in MARKER_RX)
+# Commands whose words are text or file names, never a program they run: a `gh` among their words is prose.
+INERT = {"echo", "printf", "cat", "ls", "grep", "egrep", "fgrep", "rg", "head", "tail", "wc", "sort", "uniq", "cut",
+         "tr", "diff", "cmp", "stat", "file", "less", "more", "jq", "yq", "which", "type", "test", "[", "true",
+         "false", "pwd", "basename", "dirname", "realpath", "readlink", "date", "sleep", "mkdir", "touch", "column",
+         "nl", "seq", "cd", "man", "shellcheck"}
+GH_WORD = re.compile(r"(?<![A-Za-z0-9_])gh(?![A-Za-z0-9_-])", re.I)
+MARKERS_L = [mk.lower() for mk in MARKERS if mk != "gh"]
+
+
+def has_marker(text, argv0=None):
+    """A D1 mutation marker, in any case (F8: `API.GITHUB.COM` reaches the same host). `gh` (the ADR's `gh `
+    marker) counts as a word anywhere in a segment that is not an inert command (F3: `$(which gh) pr merge`,
+    `${GH:-gh} pr merge`), and as prose in `echo gh ...`."""
+    tl = text.lower()
+    if any(mk in tl for mk in MARKERS_L) or any(rx.search(text) for rx in MARKER_RX):
+        return True
+    return argv0 not in INERT and bool(GH_WORD.search(text))
 
 
 # --------------------------------------------------------------- local facts (git, offline, deadline)
@@ -755,6 +1207,66 @@ def head_branch(d):
     return git_out(d, "symbolic-ref", "--quiet", "--short", "HEAD")
 
 
+def norm_remote(url, d=None):
+    """host[:port]/owner/name of a git remote URL (scheme, user, .git and case dropped), or the realpath of a
+    local repository path; None when it is neither."""
+    u = (url or "").strip()
+    if not u or "$" in u or "`" in u:
+        return None
+    m = re.match(r"^[A-Za-z][A-Za-z0-9+.-]*://(?:[^@/]+@)?([^/]+)/+(.+?)(?:\.git)?/*$", u)
+    if not m:
+        m = re.match(r"^(?:[^@/]+@)?([^/:]+):(?!/)(.+?)(?:\.git)?/*$", u)
+    if m:
+        host = m.group(1).lower()
+        if host.endswith(":443") or host.endswith(":22"):
+            host = host.rsplit(":", 1)[0]
+        return "%s/%s" % (host, m.group(2).lower())
+    base = d or (CTX["cwd"] if CTX.get("cwd") else None)
+    if not base:
+        return None
+    return "file:" + os.path.realpath(os.path.join(base, os.path.expanduser(u)))
+
+
+def remote_push_urls(d, name):
+    """The normalised push URLs of a named remote (pushurl, else url, rewrites applied), or None."""
+    out = git_out(d, "remote", "get-url", "--push", "--all", name)
+    if not out:
+        return None
+    urls = [norm_remote(x, d) for x in out.splitlines() if x.strip()]
+    return None if not urls or any(x is None for x in urls) else set(urls)
+
+
+def push_foreign(info):
+    """push_remote_not_origin for a git push (F9): False when every push URL of the push remote is one of origin's
+    push URLs, True when one is not, None when PG cannot tell. Only origin's URL is the repository the user
+    cloned; a branch push to any other remote, named or a URL, is a push of local commits elsewhere."""
+    d, rem = info["d"], info["remote"]
+    if not d or not rem:
+        return None
+    if rem == "origin":
+        return False
+    origin = remote_push_urls(d, "origin")
+    if not origin:
+        return None
+    if info["remote_named"]:
+        theirs = remote_push_urls(d, rem)
+    else:
+        x = norm_remote(git_out(d, "ls-remote", "--get-url", rem) or rem, d)
+        theirs = {x} if x else None
+    if not theirs:
+        return None
+    return not theirs <= origin
+
+
+def api_foreign(owner_repo):
+    """push_remote_not_origin for an API branch write: is <owner>/<repo> another repository than origin's?"""
+    d = CTX["cwd"] if CTX["ok"] else None
+    if not d or not owner_repo or "$" in owner_repo:
+        return None
+    slug = origin_slug(d)
+    return None if not slug else slug != owner_repo.lower()
+
+
 def has_ref(d, ref):
     """True / False (git says missing) / None (no repository, an error, the deadline)."""
     rc = git_rc(d, "show-ref", "--verify", "--quiet", ref)
@@ -788,13 +1300,6 @@ def payload_cwd():
         c = roots[0] if isinstance(roots, list) and roots and isinstance(roots[0], str) else ""
     return os.path.realpath(c) if c and os.path.isabs(c) and os.path.isdir(c) else None
 
-
-CMD_TEXT = ""
-_ti = PAY.get("tool_input")
-if isinstance(_ti, dict) and isinstance(_ti.get("command"), str):
-    CMD_TEXT = _ti["command"]
-elif isinstance(PAY.get("command"), str):
-    CMD_TEXT = PAY["command"]
 
 CTX = {"ok": True, "cwd": payload_cwd(), "why": []}
 if CTX["cwd"] is None:
@@ -1085,17 +1590,22 @@ def establish(name, hit):
             if "owner" in args and "repo" in args and "branch" in args:
                 return remote_branch_default("%s/%s" % (args["owner"], args["repo"]), args["branch"])
             return None
+        if name == "push_remote_not_origin":
+            o, r = args.get("owner"), args.get("repo")
+            return api_foreign("%s/%s" % (o, r)) if isinstance(o, str) and isinstance(r, str) else None
         if name == "tag_ref" and hit["tool"] == "create_branch":
             return False
         return None
     if kind == "rest":
         method, path, fields = hit["rest"]
-        m = re.match(r"^repos/([^/]+/[^/]+)/(.*)$", path)
+        m = re.match(r"^repos/([^/]+/[^/]+)/(.*)$", path, re.I)
         if not m:
             return None
         repo, tail = m.group(1), m.group(2)
         kv = dict(f.split("=", 1) for f in fields if "=" in f)
-        if name == "workflow_hook_or_policy_path" and tail.startswith("contents/"):
+        if name == "push_remote_not_origin":
+            return api_foreign(repo)
+        if name == "workflow_hook_or_policy_path" and tail.lower().startswith("contents/"):
             return protected_paths([tail[len("contents/"):]])
         branch = None
         if tail.startswith("git/refs/heads/"):
@@ -1126,6 +1636,8 @@ def establish(name, hit):
             return push_tag_ref(info)
         if name == "unmerged_commits":
             return push_unmerged(info)
+        if name == "push_remote_not_origin":
+            return push_foreign(info)
         return None
     if name == "uncommitted_changes":
         c = clean_tree(d)
@@ -1227,6 +1739,13 @@ def classify_segment(s):
     got_any, opaque, uncl = False, False, False
     if p["argv0"] is None:
         return has_marker(text)
+    if names_writer(s):
+        add("policy.edit", "argv", s, p=p)
+        got_any = True
+        note = ("the command names scripts/plugin-config.sh, a glob, link or copy of it, other than to run its "
+                "read-only show: that is the D6 writer itself, or a runnable copy of it (ADR 004 D10)")
+        if note not in NOTES:
+            NOTES.append(note)
     if p["argv0"] == "git" and p["sub"][:1] == ["push"]:
         d = seg_dir(p)
         remote = None
@@ -1299,7 +1818,8 @@ def classify_segment(s):
                     add(aid, "rest", s, p=p, rest=(method, path, kv))
                     got_any = True
     s["hit"] = got_any
-    if not got_any and (p["argv0"] == "gh" or has_marker(" ".join([p["argv0"]] + p["all"]))):
+    if not got_any and (p["argv0"] == "gh" or p.get("dynamic") or
+                        has_marker(" ".join([p["raw0"]] + p["all"]), p["argv0"])):
         uncl = True
     return uncl
 
@@ -1358,6 +1878,12 @@ try:
     if MODE in ("mcp", "classify-mcp"):
         MCP_DESC = classify_mcp()
     else:
+        if TOO_LONG:
+            PG_DENY.append((UNCL, "the command is longer than %d bytes and carries a form PG must read, so it is "
+                            "denied before it is tokenised (a long command could outlast the hook's deadline, F5): "
+                            "put long text in a file and pass the file (--body-file, -F, git commit -F)" % MAX_CMD))
+        for a_ in ANOMALIES:
+            UNCL_FROM.append("the shell tokeniser cannot read this command as a shell does: %s" % a_)
         for s in SEGS:
             s["uncl"] = classify_segment(s)
         # A command inside a substitution is UNCLASSIFIED only when the segment that holds it is not
@@ -1745,7 +2271,7 @@ if MODE.startswith("classify"):
         "ids": sorted(set(h["id"] for h in HITS)), "unclassified": bool(UNCL_FROM), "unclassified_from": UNCL_FROM,
         "resolver_calls": [{"id": j["id"], "conds": j["conds"], "target": j["target"]} for j in JOBS],
         "pg_deny": [r for _, r in PG_DENY], "stamps": STAMPS, "confirms": CONFIRMS, "notes": NOTES, "context_ok": CTX["ok"], "context_why": CTX["why"],
-        "fast_path_allows": (sys.argv[5] == "1") if len(sys.argv) > 5 else False}, sort_keys=True) + "\n")
+        "anomalies": ANOMALIES, "hosts": RES_HOSTS, "dialect": HOST, "fast_path_allows": FAST}, sort_keys=True) + "\n")
     sys.exit(0)
 
 
@@ -1813,8 +2339,9 @@ else:
         _sid and len(_sid) <= 256 and not re.search(r"[\x00-\x1f\x7f]", _sid + _agent)) else []
     procs = []
     for j in JOBS:
-        for vi, with_skill in enumerate(VARIANTS):
-            argv = ["bash", RESOLVER, j["id"], "--host", HOST, "--repo", repo, "--json"] + SESSION_ARGV
+        for hi, rhost in enumerate(RES_HOSTS):
+          for vi, with_skill in enumerate(VARIANTS):
+            argv = ["bash", RESOLVER, j["id"], "--host", rhost, "--repo", repo, "--json"] + SESSION_ARGV
             for c in j["conds"]:
                 argv += ["--cond", c]
             if j["target"]:
@@ -1829,7 +2356,8 @@ else:
             except OSError as e:
                 resolver_failed(j, "could not start (%s)" % e.__class__.__name__)
                 break
-            procs.append((j, (len(VARIANTS) - vi) if with_skill else 0, pr))
+            # On a tie the dialect's own host first, then the answer under a skill (it names its level).
+            procs.append((j, (1 if rhost == HOST else 0, (len(VARIANTS) - vi) if with_skill else 0), pr))
     got = {}
     for j, prio, pr in procs:
         got.setdefault(id(j), []).append((prio, resolver_answer(pr, j["id"])))
@@ -1837,7 +2365,7 @@ else:
         answers = got.get(id(j), [])
         if "res" in j:   # a variant could not start: that deny stands
             continue
-        if len(answers) != len(VARIANTS):
+        if len(answers) != len(VARIANTS) * len(RES_HOSTS):
             resolver_failed(j, "not every resolver call answered")
             continue
         # The strictest answer wins; on a tie the one under a skill (the call's own first: it names its level).
@@ -1929,14 +2457,29 @@ def render_pending(nonce, rec):
                                                 rec.get("created"), rec.get("expires")))
 
 
+TUID_RE = re.compile(r"\A[A-Za-z0-9_.:-]{1,256}\Z")
+
+
+def call_tool_use_id():
+    """The payload's tool_use_id (Claude PreToolUse), or None when it has none PG can bind an approval to."""
+    t = PAY.get("tool_use_id")
+    return t if isinstance(t, str) and TUID_RE.match(t) else None
+
+
 def write_asked(nonce, rec, file_sha):
     """<state>/asked/<nonce>.json: PG put this confirm, these bytes, to the host prompt (for the writer to require)."""
     d, why = private_subdir("asked")
     if d is None:
         return why
     raw, _ = session_ids()
+    tuid = call_tool_use_id()
+    if not tuid:
+        return "the hook payload names no tool_use_id, so the approval cannot be bound to this call"
     doc = {"version": 1, "nonce": nonce, "file_sha256": file_sha, "body_sha256": rec.get("body_sha256"),
            "kind": rec.get("kind"), "session_id": raw, "agent": str(PAY.get("agent_id") or "main")[:128],
+           # The very call the host prompt was shown for: hooks/permission-approved.sh (PostToolUse) promotes a
+           # staged widening only for this tool_use_id (task-019 contract).
+           "tool_use_id": tuid,
            "host": HOST, "at": now_utc(), "expires": rec.get("expires")}
     tmp = os.path.join(d, ".%s.tmp-%d" % (nonce, os.getpid()))
     try:
@@ -1965,6 +2508,10 @@ if delivered == "ask" and CONFIRMS:
         rec, fsha, why = pending_record(n)
         if rec is None:
             refused.append(why)
+        elif not call_tool_use_id():
+            # No id to bind the approval to: no stamp, so the writer would refuse the confirm anyway (fail closed).
+            refused.append("the hook payload names no tool_use_id, so an approval of %s could not be bound to this "
+                           "call and no confirm stamp is written" % n)
         else:
             seen_recs.append((n, rec, fsha))
     if refused:
@@ -2022,7 +2569,9 @@ def describe(j):
     res = j["res"]
     eff = res.get("effective_action") or j["id"]
     r = res.get("r")
-    if j["id"] == UNCL:
+    if j["id"] == UNCL and j.get("uncl") and j["uncl"][0].startswith("the shell tokeniser"):
+        what = "UNCLASSIFIED (R4): %s" % j["uncl"][0]
+    elif j["id"] == UNCL and j.get("uncl"):
         what = "UNCLASSIFIED (R4): `%s` carries a mutation marker but maps to no action id in core/permissions/" \
                "actions.json" % j["uncl"][0]
     else:
@@ -2115,7 +2664,6 @@ if [ "$#" -gt 0 ]; then
         [ "$#" -ge 2 ] || { echo "usage: permission-guard.sh --classify '<command>' [cwd]" >&2; exit 2; }
         _pg_cwd="${3:-$PWD}"
         input="$(jq -n --arg c "$2" --arg d "$_pg_cwd" '{session_id:"classify",cwd:$d,hook_event_name:"PreToolUse",tool_name:"Bash",tool_input:{command:$c}}')"
-        _pg_segs="$(LC_ALL=C cmdtok_argv_segments "$2")"
         _pg_fast=0
         _pg_candidate "$2" || _pg_fast=1
         _pg_mode=classify-shell
@@ -2123,10 +2671,11 @@ if [ "$#" -gt 0 ]; then
         [ "$#" -ge 3 ] || { echo "usage: permission-guard.sh --classify-mcp <tool> '<args-json>' [cwd]" >&2; exit 2; }
         _pg_cwd="${4:-$PWD}"
         input="$(jq -n --arg t "${PG_MCP_PREFIX}$2" --argjson a "$3" --arg d "$_pg_cwd" '{session_id:"classify",cwd:$d,hook_event_name:"PreToolUse",tool_name:$t,tool_input:$a}')" || exit 2
-        _pg_segs="" _pg_fast=0 _pg_mode=classify-mcp
+        _pg_fast=0 _pg_mode=classify-mcp
       fi
-      { printf '%s' "$input"; printf '\036\036\036\n'; printf '%s' "$_pg_segs"; } |
-        python3 -I -S -c "$_PG_ENGINE" "$PG_ROOT" "${PG_HOST:-claude}" "$_pg_mode" "$PG_BUDGET" "$_pg_fast"
+      printf '%s' "$input" |
+        python3 -I -S -c "$_PG_ENGINE" "$PG_ROOT" "${PG_HOST:-claude}" "$_pg_mode" "$PG_BUDGET" "$_pg_fast" \
+          "${BASH:-bash}" "${PG_HOST:-claude}"
       exit $? ;;
     -h|--help)
       sed -n '2,/^set -uo pipefail/p' "${BASH_SOURCE[0]}" | sed '$d; s/^# \{0,1\}//'
@@ -2148,14 +2697,14 @@ if ! command -v jq >/dev/null 2>&1; then
     *'"conversation_id"'*|*'"cursor_version"'*|*'"workspace_roots"'*) HOOK_PLATFORM=cursor ;;
     *) HOOK_PLATFORM=claude ;;
   esac
-  if [ -z "${input//[[:space:]]/}" ]; then _pg_finish allow ""; fi
+  if _pg_blank "$input"; then _pg_finish allow ""; fi
   _PG_DONE=1
   _pg_lit_deny "tamirs-superpowers permission guard cannot run: jq is not installed, so the hook payload cannot be read. Refusing to assume the call is safe (fail closed, ADR 004 D4)."
   exit 0
 fi
 
 hook_detect_platform "$input"
-[ -n "${input//[[:space:]]/}" ] || _pg_finish allow ""
+_pg_blank "$input" && _pg_finish allow ""
 
 _pg_tool="" _pg_event="" _pg_cmd="" _pg_nul="" _pg_phost=""
 {
@@ -2169,15 +2718,27 @@ _pg_tool="" _pg_event="" _pg_cmd="" _pg_nul="" _pg_phost=""
   (.tool_name | s) as $t | (.hook_event_name | s) as $e
   | ((if (.tool_input | type) == "object" then .tool_input.command else null end) // .command | s) as $c
   | (if ($t + $e + $c | contains("\u0000")) then "nul" else "ok" end) + "\u0000" + $t + "\u0000" + $e + "\u0000" + $c + "\u0000"
-    + (if .host == "opencode" then "opencode" else "" end) + "\u0000"
+    + (if (.conversation_id // .cursor_version // .workspace_roots) != null then "cursor"
+       elif has("gemini_tool_name") then "gemini"
+       elif .turn_id != null then "codex"
+       elif .host == "opencode" then "opencode"
+       else "claude" end) + "\u0000"
 ' 2>/dev/null)
 
-PG_HOST="${HOOK_PLATFORM:-claude}"
-if [ -n "${GEMINI_SESSION_ID:-}" ] || [ -n "${GEMINI_PROJECT_DIR:-}" ]; then PG_HOST=gemini; fi
-# OpenCode's guard.ts asks for its dialect with "host": "opencode" in the payload it builds. Honoured
-# only where the host otherwise reads as Claude Code, so it can never make a deny-only host (Codex,
-# Cursor, Gemini) answer an ask; against Claude Code it only tightens (R3/R4 asks become denies).
-if [ "$PG_HOST" = claude ] && [ "$_pg_phost" = opencode ]; then PG_HOST=opencode; fi
+# The host (F7). The payload's SHAPE names it: Cursor's own keys, the gemini_tool_name hooks/gemini-wrap.sh
+# adds, Codex's turn_id, the "host": "opencode" platforms/opencode/plugin/guard.ts sends, else Claude Code. The
+# environment (CODEX_HOME, GEMINI_SESSION_ID, GEMINI_PROJECT_DIR) can be set by a repository, so it never
+# loosens: where it names another host, the STRICTER dialect answers (deny-only > OpenCode's R2-only ask >
+# Claude's ask) and the resolver is asked under both hosts, the strictest answer kept.
+_pg_rank() { case "$1" in codex|cursor|gemini) echo 2 ;; opencode) echo 1 ;; *) echo 0 ;; esac; }
+[ -n "$_pg_phost" ] || _pg_phost=claude
+PG_HOST="$_pg_phost" PG_RES_HOSTS="$_pg_phost"
+for _pg_eh in ${CODEX_HOME:+codex} ${GEMINI_SESSION_ID:+gemini} ${GEMINI_PROJECT_DIR:+gemini}; do
+  case ",$PG_RES_HOSTS," in *",$_pg_eh,"*) continue ;; esac
+  PG_RES_HOSTS="$PG_RES_HOSTS,$_pg_eh"
+  [ "$(_pg_rank "$_pg_eh")" -gt "$(_pg_rank "$PG_HOST")" ] && PG_HOST="$_pg_eh"
+done
+unset _pg_eh
 
 case "$_pg_nul" in
   ok) : ;;
@@ -2193,12 +2754,11 @@ esac
 [ -z "$_pg_mode" ] && [ "$_pg_event" = beforeShellExecution ] && _pg_mode=shell
 [ -n "$_pg_mode" ] || _pg_finish allow ""
 
-_pg_segs=""
 if [ "$_pg_mode" = shell ]; then
-  [ -n "${_pg_cmd//[[:space:]]/}" ] || _pg_finish allow ""
-  # FAST PATH: nothing in the command can reach a guarded id.
+  _pg_blank "$_pg_cmd" && _pg_finish allow ""
+  # FAST PATH: nothing in the command can reach a guarded id. The engine tokenises the rest itself, under a
+  # deadline (F5).
   _pg_candidate "$_pg_cmd" || _pg_finish allow ""
-  _pg_segs="$(LC_ALL=C cmdtok_argv_segments "$_pg_cmd")"
 fi
 
 if ! command -v python3 >/dev/null 2>&1; then
@@ -2206,8 +2766,8 @@ if ! command -v python3 >/dev/null 2>&1; then
 fi
 
 _pg_out="$(
-  { printf '%s' "$input"; printf '\036\036\036\n'; printf '%s' "$_pg_segs"; } |
-    python3 -I -S -c "$_PG_ENGINE" "$PG_ROOT" "$PG_HOST" "$_pg_mode" "$PG_BUDGET" 2>/dev/null
+  printf '%s' "$input" |
+    python3 -I -S -c "$_PG_ENGINE" "$PG_ROOT" "$PG_HOST" "$_pg_mode" "$PG_BUDGET" 0 "${BASH:-bash}" "$PG_RES_HOSTS" 2>/dev/null
 )"
 _pg_rc=$?
 _pg_verdict="${_pg_out%%$'\n'*}"
