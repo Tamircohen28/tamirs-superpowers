@@ -416,7 +416,7 @@ for q in QUERIES:
               "xh POST api.github.com/graphql query=%s" % sq(q),
               "wget -qO- --post-data=%s %s/graphql" % (sq(body), API)]:
         ben(f)
-OTHER = ["https://example.com/x", "http://localhost:8080/api", "http://127.0.0.1:3000/hook", "https://registry.npmjs.org/x"]
+OTHER = ["https://example.com/x", "http://localhost/api", "http://127.0.0.1:3000/hook", "https://registry.npmjs.org/x"]
 for u in OTHER:
     for f in ["curl %s" % u, "curl -X POST -d '{\"a\":1}' %s" % u, "curl --json '{\"a\":1}' %s" % u,
               "curl -F f=@a.txt %s" % u, "curl -T a.txt %s" % u, "wget -q %s" % u, "wget --post-data=a=1 %s" % u,
@@ -429,9 +429,9 @@ for f in ["curl --unix-socket /var/run/docker.sock http://localhost/containers/j
           "curl -X POST -d x --connect-to example.com:443:127.0.0.1:8443 https://example.com/x",
           "curl --resolve example.com:443:127.0.0.1 -X PUT -d x https://example.com/x",
           "curl -H 'Host: dev.local' -X POST -d x http://127.0.0.1:8080/x",
-          "curl --request-target /other -X DELETE http://localhost:8080/x",
+          "curl --request-target /other -X DELETE http://localhost/x",
           "xh --unix-socket /tmp/app.sock POST http://localhost/x a=1",
-          "http POST http://localhost:8080/x Host:dev.local a=1"]:
+          "http POST http://localhost/x Host:dev.local a=1"]:
     ben(f)
 
 seen, uniq = set(), []
