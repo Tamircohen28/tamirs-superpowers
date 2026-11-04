@@ -82,13 +82,14 @@ echo "--- capture-task-slug: no objective => legacy worktree is still created --
 PLAIN="$TMPROOT/plain"
 new_repo "$PLAIN"
 out="$(run_capture "$PLAIN" "add a login form" "sess-plain")"
-legacy_wt="$HOME/.claude/worktrees/plain/add-a-login-form"
+# The slug is the date plus the session id prefix, not the prompt (issue #337).
+legacy_wt="$HOME/.claude/worktrees/plain/$(date +%Y%m%d)-sess-pla"
 
 if [ -d "$legacy_wt" ]; then ok "creates ~/.claude/worktrees/<repo>/<slug>"; else bad "creates ~/.claude/worktrees/<repo>/<slug>" "missing $legacy_wt"; fi
 judge "reports the worktree in additionalContext" \
   "yes" \
   "$(has "$out" "Dedicated worktree")"
-judge "records the slug as sessionTitle" "add-a-login-form" \
+judge "records the prompt's first words as sessionTitle" "add-a-login-form" \
   "$(printf '%s' "$out" | jq -r '.hookSpecificOutput.sessionTitle')"
 
 # ---------------------------------------------------------------------------

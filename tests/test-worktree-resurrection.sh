@@ -86,18 +86,24 @@ verdict() { case "$1" in ALLOW) printf ALLOW ;; DENY:*) printf DENY ;; *) printf
 
 state_field() { jq -r --arg k "$2" '.[$k] // "none"' "$HOME/.claude/session-state/$1.json" 2>/dev/null; }
 
+# The slug a free-text prompt gets: the date plus the session id's first eight
+# characters (issue #337). Prompt text no longer reaches a path or a branch.
+TODAY="$(date +%Y%m%d)"
+slug_for() { printf '%s-%s' "$TODAY" "${1:0:8}"; }
+
 # ---------------------------------------------------------------------------
 echo "--- first prompt still creates the worktree ---"
 
 REPO="$TMPROOT/proj"
 new_repo "$REPO"
-WT="$HOME/.claude/worktrees/proj/add-a-login-form"
+SLUG="$(slug_for sess-1)"
+WT="$HOME/.claude/worktrees/proj/$SLUG"
 
 out="$(run_capture "$REPO" "add a login form" "sess-1")"
 
 judge "creates ~/.claude/worktrees/<repo>/<slug>" "yes" "$(exists "$WT/.git")"
 judge "creates the wt/* branch" "yes" \
-  "$(git -C "$REPO" rev-parse --verify -q wt/add-a-login-form >/dev/null && echo yes || echo no)"
+  "$(git -C "$REPO" rev-parse --verify -q wt/$SLUG >/dev/null && echo yes || echo no)"
 judge "announces the worktree" "yes" "$(has "$out" "Dedicated worktree")"
 if [ "$(state_field sess-1 worktree_created_at)" = "none" ]; then
   bad "records worktree_created_at" "field absent"
@@ -117,14 +123,14 @@ judge "creation timestamp is not rewritten" "$created_at" "$(state_field sess-1 
 echo "--- REMOVAL STICKS: the prompt hook does not rebuild ---"
 
 git -C "$REPO" worktree remove --force "$WT"
-git -C "$REPO" branch -q -D wt/add-a-login-form
+git -C "$REPO" branch -q -D wt/$SLUG
 judge "removal actually removed it" "no" "$(exists "$WT")"
 
 out="$(run_capture "$REPO" "what did we ship" "sess-1")"
 
 judge "worktree stays gone" "no" "$(exists "$WT")"
 judge "branch stays gone" "no" \
-  "$(git -C "$REPO" rev-parse --verify -q wt/add-a-login-form >/dev/null && echo yes || echo no)"
+  "$(git -C "$REPO" rev-parse --verify -q wt/$SLUG >/dev/null && echo yes || echo no)"
 judge "git knows of no such worktree" "no" \
   "$(has "$(git -C "$REPO" worktree list)" "add-a-login-form")"
 if [ "$(state_field sess-1 worktree_retired_at)" = "none" ]; then
@@ -135,7 +141,7 @@ fi
 judge "says the worktree was removed" "yes" "$(has "$out" "was removed")"
 judge "does not claim a dedicated worktree" "no" "$(has "$out" "Dedicated worktree")"
 judge "session files fall back to the output dir" "yes" \
-  "$(has "$(state_field sess-1 session_files_dir)" "/.claude/outputs/add-a-login-form/session-files")"
+  "$(has "$(state_field sess-1 session_files_dir)" "/.claude/outputs/$SLUG/session-files")"
 judge "no session-files shell inside the dead path" "no" "$(exists "$WT/session-files")"
 
 echo "--- and it stays gone across further prompts ---"
@@ -172,7 +178,7 @@ echo "--- a bare directory is not a worktree ---"
 SHELLY="$TMPROOT/shelly"
 new_repo "$SHELLY"
 out="$(run_capture "$SHELLY" "shell case" "sess-2")"
-SWT="$HOME/.claude/worktrees/shelly/shell-case"
+SWT="$HOME/.claude/worktrees/shelly/$(slug_for sess-2)"
 git -C "$SHELLY" worktree remove --force "$SWT"
 mkdir -p "$SWT/session-files"
 
@@ -187,7 +193,7 @@ echo "--- SessionStart does not resurrect a dead path either ---"
 SI="$TMPROOT/siproj"
 new_repo "$SI"
 run_capture "$SI" "session init case" "sess-3" >/dev/null
-SIWT="$HOME/.claude/worktrees/siproj/session-init-case"
+SIWT="$HOME/.claude/worktrees/siproj/$(slug_for sess-3)"
 git -C "$SI" worktree remove --force "$SIWT"
 
 jq -n --arg cwd "$SI" --arg s "sess-3" \
@@ -216,7 +222,7 @@ echo "--- a session that predates the fix is adopted, not resurrected ---"
 # next prompt rebuilds. The upgrade path back into the original bug.
 UPG="$TMPROOT/upg"
 new_repo "$UPG"
-UWT="$HOME/.claude/worktrees/upg/ship-the-thing"
+UWT="$HOME/.claude/worktrees/upg/$(slug_for sess-u)"
 run_capture "$UPG" "ship the thing" "sess-u" >/dev/null
 jq 'del(.worktree_created_at)' "$HOME/.claude/session-state/sess-u.json" > "$TMPROOT/u.json"
 mv "$TMPROOT/u.json" "$HOME/.claude/session-state/sess-u.json"
@@ -242,20 +248,21 @@ echo "--- rebuilding preserves the branch tip, it does not reset it ---"
 # branch back to the base ref and strand them.
 KEEP="$TMPROOT/keep"
 new_repo "$KEEP"
-KWT="$HOME/.claude/worktrees/keep/save-my-work"
+KSLUG="$(slug_for sess-k)"
+KWT="$HOME/.claude/worktrees/keep/$KSLUG"
 run_capture "$KEEP" "save my work" "sess-k" >/dev/null
 echo "work in progress" > "$KWT/wip.txt"
 git -C "$KWT" add wip.txt
 git -C "$KWT" -c user.email=t@e -c user.name=t commit -q -m "wip: do not lose me"
-TIP="$(git -C "$KEEP" rev-parse wt/save-my-work)"
+TIP="$(git -C "$KEEP" rev-parse wt/$KSLUG)"
 git -C "$KEEP" worktree remove --force "$KWT"
-judge "the branch outlives its worktree" "$TIP" "$(git -C "$KEEP" rev-parse wt/save-my-work)"
+judge "the branch outlives its worktree" "$TIP" "$(git -C "$KEEP" rev-parse wt/$KSLUG)"
 judge "and the commit is not on the base branch" "no" \
   "$(git -C "$KEEP" merge-base --is-ancestor "$TIP" main 2>/dev/null && echo yes || echo no)"
 
 res="$(run_enforce "$KEEP/src/a.ts" "$KEEP" "sess-k")"
 judge "the edit guard rebuilds it" "yes" "$(exists "$KWT/.git")"
-judge "the branch tip is unchanged" "$TIP" "$(git -C "$KEEP" rev-parse wt/save-my-work)"
+judge "the branch tip is unchanged" "$TIP" "$(git -C "$KEEP" rev-parse wt/$KSLUG)"
 judge "the commit's file came back with it" "yes" "$(exists "$KWT/wip.txt")"
 judge "the edit is still denied" "DENY" "$(verdict "$res")"
 
@@ -267,7 +274,7 @@ echo "--- a prunable registration does not block the rebuild ---"
 # branch as checked out at a path that is gone.
 PRN="$TMPROOT/prn"
 new_repo "$PRN"
-PWT="$HOME/.claude/worktrees/prn/fix-the-parser"
+PWT="$HOME/.claude/worktrees/prn/$(slug_for sess-p)"
 run_capture "$PRN" "fix the parser" "sess-p" >/dev/null
 rm -rf "$PWT"
 judge "git still registers the dead worktree" "yes" \
@@ -284,7 +291,7 @@ echo "--- a leftover session-files shell is moved aside, not lost ---"
 # never happens and every edit stays denied with no way forward.
 SHL="$TMPROOT/shl"
 new_repo "$SHL"
-SWT="$HOME/.claude/worktrees/shl/write-the-plan"
+SWT="$HOME/.claude/worktrees/shl/$(slug_for sess-s)"
 run_capture "$SHL" "write the plan" "sess-s" >/dev/null
 git -C "$SHL" worktree remove --force "$SWT"
 mkdir -p "$SWT/session-files"
@@ -302,7 +309,7 @@ echo "--- retiring clears the exported worktree path ---"
 # first prompt's value would still point at the deleted worktree.
 ENVR="$TMPROOT/envr"
 new_repo "$ENVR"
-EWT="$HOME/.claude/worktrees/envr/tidy-the-exports"
+EWT="$HOME/.claude/worktrees/envr/$(slug_for sess-e)"
 ENVFILE="$TMPROOT/claude-env"
 : > "$ENVFILE"
 CLAUDE_ENV_FILE="$ENVFILE" run_capture "$ENVR" "tidy the exports" "sess-e" >/dev/null

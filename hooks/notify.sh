@@ -18,11 +18,12 @@ title="$(echo "$input" | jq -r '.title // "Claude Code"')"
 message="$(echo "$input" | jq -r '.message // "Claude needs your attention"')"
 session_id="$(echo "$input" | jq -r '.session_id // empty')"
 
-# Resolve the task slug: env first, then persisted session state.
-task_slug="${CLAUDE_TASK_SLUG:-${CLAUDE_SESSION_SLUG:-}}"
+# Resolve the label: the session title (the prompt's first words) when the
+# prompt hook recorded one, else the slug. Env first, then persisted state.
+task_slug="${CLAUDE_SESSION_TITLE:-${CLAUDE_TASK_SLUG:-${CLAUDE_SESSION_SLUG:-}}}"
 if [[ -z "$task_slug" && -n "$session_id" ]]; then
   state="$(load_session_state "$session_id")"
-  task_slug="$(echo "$state" | jq -r '.task_slug // .session_slug // empty')"
+  task_slug="$(echo "$state" | jq -r '.session_title // .task_slug // .session_slug // empty')"
 fi
 if [[ -n "$task_slug" && "$task_slug" != "null" ]]; then
   message="${task_slug}: ${message}"

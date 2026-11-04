@@ -281,6 +281,7 @@ The shape the table argues for, with the two tiers that are now options marked.
 | `tests/test-concurrency-guard.sh` | The claim guard's general contract (46 cases, pre-existing) |
 | `tests/test-integrator-carveout.sh` | The integrator exception **and its boundaries** |
 | `tests/test-worktree-objective.sh` | Stand-down under an objective, both layouts accepted, `--list`/`--migrate`, removal refusals, dependency-install controls |
+| `tests/test-worktree-hint.sh` | The `capture-task-slug.sh` hint: once per repo per session, re-emitted on a repo change or a rebuild, scoped to its repo; the stable slug (`issue-N`, `task-NNN`, date plus session id) and the prompt-derived session title |
 | `tests/test-check-done-tiers.sh` | Tier resolution and per-tier wording, including the unchanged no-tier default |
 | `tests/test-statusline.sh` | Piped JSON, `</dev/null`, and an open pipe with no writer — each under a hard wall-clock timeout |
 | `tests/test-goal-condition-lint.sh` | Which `/goal` conditions are refused and — weighted deliberately heavier — which must **not** be, including near-misses, carve-outs, the `force:` override, and that the menu's own recommended rewrite passes the hook |

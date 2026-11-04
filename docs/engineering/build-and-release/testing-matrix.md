@@ -36,6 +36,7 @@ static form when it is absent.
 | `test-check-done-tiers.sh` | the done-check respects tier boundaries |
 | `test-concurrency-guard.sh` | the agent-concurrency guard (`protect-other-branches.sh` + `lib/agent-claim.sh`) stops two agents claiming the same branch |
 | `test-worktree-objective.sh` | the objective-aware worktree lifecycle: `capture-task-slug.sh` stands down under an active objective; `enforce-worktree-edits.sh` accepts both layouts |
+| `test-worktree-hint.sh` | the worktree hint is emitted once per repo per session and names its repo; the slug is `issue-N`/`task-NNN` or date plus session id, never prompt text (#337) |
 | `test-integrator-carveout.sh` | the integrator carve-out in `protect-other-branches.sh` — the integrator may touch worker branches, nobody else may |
 | `test-skill-contract.sh` | the per-skill contract, plus the eval-coverage report |
 | `test-orchestration.sh` | the orchestration state machine transitions correctly |

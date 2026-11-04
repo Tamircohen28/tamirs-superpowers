@@ -205,8 +205,10 @@ adds a task. `handoff.sh emit` rejects out-of-scope writes deliberately.
 ### "Repo edits must happen in a dedicated worktree"
 
 The `enforce-worktree-edits` hook (Claude Code only). Either move into the task worktree —
-one is created under `~/.claude/worktrees/<repo>/<slug>/` after your first prompt — or, if
-you deliberately mean to edit the main checkout, disable that hook entry in your install.
+one is created under `~/.claude/worktrees/<repo>/<slug>/` after your first prompt, where
+`<slug>` is the issue or task your prompt named (`issue-337`) or the date plus your session
+id — or, if you deliberately mean to edit the main checkout, disable that hook entry in your
+install.
 
 ### Delivery stopped at a pushed branch
 

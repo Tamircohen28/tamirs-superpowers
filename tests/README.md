@@ -29,6 +29,7 @@ bash tests/test-check-done-tiers.sh
 bash tests/test-concurrency-guard.sh
 bash tests/test-integrator-carveout.sh
 bash tests/test-worktree-objective.sh
+bash tests/test-worktree-hint.sh          # the worktree hint: once per repo per session, stable slug
 bash tests/test-statusline.sh
 bash tests/test-gemini-adapter.sh
 bash tests/test-opencode-adapter.sh

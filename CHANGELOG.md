@@ -22,6 +22,22 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   team admin can set the value, and on an individual plan the github MCP server stays off, which
   nothing else depends on.
 
+### Changed
+
+- **The worktree hint is shown once per repo per session, and says which repo it is for
+  (#337).** `capture-task-slug.sh` records the path it last announced and stays silent while
+  the live worktree is that one; a cwd that moves to another repo gets that repo's hint once,
+  and a worktree the edit guard rebuilds is announced again. The hint reads "Dedicated
+  worktree for `<repo>`: `<path>`" and says that edits to other repos go in their own
+  `~/.claude/worktrees/<repo>/<slug>`. Lifecycle fields are kept per repo root, so a second
+  repo is created once on its own evidence instead of being reported as removed.
+- **The session slug carries no prompt text (#337).** It is `issue-N` or `task-NNN` when the
+  first prompt names one, so resuming an issue lands in the same worktree and `wt/*` branch;
+  otherwise `<YYYYMMDD>-<session id prefix>`. A host that sends no session id keeps the
+  prompt-derived slug. The title the host shows stays the prompt's first words
+  (`session_title` in session state, `CLAUDE_SESSION_TITLE` in the env file), and
+  `notify.sh` prefixes notifications with it. `tests/test-worktree-hint.sh` pins all of it.
+
 ## [5.3.1] — 2026-11-04
 
 ### Security
