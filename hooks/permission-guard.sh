@@ -1196,11 +1196,9 @@ def http_call(s, p):
         settled = (method is not None and body_known and not q.get("route_override") and
                    not res.get("targets_unknown") and not config)
         fields = q.get("fields")
+        # None: pg_http could not read the parameters (an undecodable body; an httpie/xh --form with a typed
+        # force:=true item, which pg_http flags itself).
         fields_known = fields is not None or not q.get("body_pieces")
-        if p["argv0"] in ("http", "https", "xh", "xhs") and fields is not None and \
-                len(fields) < len(q.get("body_pieces") or []):
-            # httpie/xh --form keeps only string items (force:=true is dropped): the body's fields are not all known.
-            fields_known = False
         kv = list(fields or [])
         for url in bound:
             path = norm_path(url)

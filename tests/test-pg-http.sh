@@ -434,6 +434,16 @@ row("http <url> 'a\\=b=c': an escape", "POST unknown", "http", H, "a\\=b=c")
 row("http <url> a=1 a=2: a duplicate key", "POST unknown", "http", H, "a=1", "a=2")
 row("http -f <url> a=b: a form", "POST known", "http", "-f", H, "a=b")
 row("http --form <url> a=b: fields", ["a=b"], "http", "--form", H, "a=b", f="fields")
+# #349: a form carries strings; a typed raw-JSON item is rendered the client's own way (httpie: force=True) or
+# refused, so the module reports the parameters unreadable rather than dropping the item.
+for prog in ("http", "xh"):
+    for flag in ("--form", "-f", "--multipart"):
+        row("%s %s <url> sha=abc force:=true: fields unreadable" % (prog, flag), None, prog, "--ignore-stdin", flag,
+            "PATCH", H, "sha=abc", "force:=true", f="fields")
+row("http --form <url> n:=1: an int is typed too", None, "http", "--form", H, "n:=1", f="fields")
+row("http --form <url> e:='\"x\"': a JSON string is a plain field", ["e=x"], "http", "--form", H, 'e:="x"',
+    f="fields")
+row("http <url> force:=true (JSON, no form): fields known", ["force=true"], "http", H, "force:=true", f="fields")
 row("http -I <url> q==x: a query item is no body", "GET known", "http", "-I", H, "q==x")
 row("http -I <url> q==@f: a query from a file", "GET unknown", "http", "-I", H, "q==@f")
 row("http -I <url> Host:api.github.com", ["yes"], "http", "-I", "1.2.3.4/x", "Host:api.github.com", f="route")

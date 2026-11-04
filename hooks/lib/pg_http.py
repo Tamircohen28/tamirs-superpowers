@@ -1403,7 +1403,15 @@ def _httpie(client, argv, out):
             elif sep == "=":
                 obj.append((key, val))
         if s["form"] or any(d[1] == "@" for d in data):
-            fields = ["%s=%s" % (k, v) for k, v in obj if isinstance(v, str)]
+            typed = [k for k, v in obj if not isinstance(v, str)]
+            if typed:
+                # A form carries strings: a typed raw-JSON item (force:=true, n:=1) is sent the client's own way
+                # (httpie writes str() of it: force=True) or refused, so the parameters are not all known (#349).
+                out.why("%s --form %s:=...: a typed JSON value in a form body, which %s renders its own way or "
+                        "refuses" % (name, typed[0], name))
+                fields = None
+            else:
+                fields = ["%s=%s" % (k, v) for k, v in obj]
         elif not bad:
             body = json.dumps(dict(obj))
             fields = ["%s=%s" % (k, v if isinstance(v, str) else json.dumps(v, separators=(",", ":")))
