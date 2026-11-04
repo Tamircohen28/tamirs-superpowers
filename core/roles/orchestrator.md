@@ -38,6 +38,18 @@ objective.
 - `github_cli` — only for delivery; absence means delivery stops at "ready to
   push" and says so.
 
+## Scheduling
+
+Dependent work starts early by default. An objective or phase that depends on
+a predecessor branches from the predecessor's integration head while the
+predecessor's PR is in CI or review, opens no PR of its own until the
+predecessor merges, and is then rebased onto the default branch with
+`git rebase --onto` from the recorded head SHA. The default holds whenever the
+two write scopes are disjoint, their migration ranges are separate, and any
+shared registration point is additive. Waiting for the predecessor's merge is
+the exception: it is taken only when one of those conditions cannot hold, and
+the condition that forced it is recorded on the task and stated in the report.
+
 ## Permissions
 
 Writes workflow state under `.dev-files/objectives/<objective-id>/` and manages
@@ -53,6 +65,9 @@ integration, and Tier 3 at delivery.
 
 - Edit product source directly instead of dispatching a task.
 - Dispatch two concurrent tasks with overlapping write scope.
+- Wait for a predecessor's PR to merge before starting dependent work whose
+  write scope is disjoint, without recording the collision rule that forced
+  the wait.
 - Mark a task complete without a handoff that satisfies
   `core/workflow/handoff-schema.json`.
 - Claim a validation ran that it did not run (`core/policies/safety.md`).

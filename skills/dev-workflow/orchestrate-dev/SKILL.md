@@ -221,7 +221,21 @@ that was already answered on disk.
 
 Mark tasks `running` on dispatch (`task-set --status running`). One retry per failed task (`--bump-attempts`); a second failure means re-plan the task, not re-run it.
 
-**Early start.** A dependent phase may start from its predecessor's head SHA while that PR is in CI/review, but must not open its PR until the predecessor merges; then `git rebase --onto origin/<default> <predecessor-head-sha>`. Needs disjoint paths, separate migration ranges, additive registration points: [`references/early-start.md`](references/early-start.md).
+**Early start is the default.** A dependent objective or phase starts from its predecessor's
+integration head **while the predecessor's PR is still in CI or review**. It does not wait for
+the merge. Branch from the predecessor's head SHA. For a whole objective, `base_branch` stays
+the default branch (it is the delivery base `deliver-dev` diffs against), the predecessor goes
+to the resolver as `--base objective/<predecessor>` (the git start point; the resolver does not
+read `base_branch`), and the SHA is recorded with `set <id> early_start.base_sha`. Do the work.
+Open no PR until the predecessor merges, then remove the worker worktrees and replay with
+`git rebase --onto origin/<default> <predecessor-head-sha> --rebase-merges --update-refs`, which
+moves the worker branches with the integration branch so `deliver-dev`'s ancestry check still
+holds. When the predecessor's merged tree equals the head you branched from, the rebased tree is
+identical and needs no re-validation.
+**Waiting is the exception, and it is stated:** take it only when a collision rule cannot hold
+(overlapping paths, a shared migration range, a non-additive registration point), record which
+one on the task, and say so in the report. A wait with no named rule is a defect. Recipe and
+rules: [`references/early-start.md`](references/early-start.md).
 
 **Health.** Workers commit as each task passes targeted tests. While they run, check each worktree periodically with `scripts/agent-health.sh` (`--idle-min N --pile N --json --repo PATH`; verdicts `ok|uncommitted-pile|idle|no-commits`) and nudge any worker with an uncommitted pile or no write for ~20 min: [`references/worker-health.md`](references/worker-health.md).
 
@@ -293,6 +307,7 @@ bash $S set-delivery auth-system --strategy multi-pr --reason '<which enumerated
 - **Never claim a capability you did not check.** Missing capability → stated fallback, or plainly "this platform does not support that".
 - **Never fabricate a handoff.** If a worker returned nothing, its task is `failed`, not `completed`.
 - **Concurrent tasks never share write scope.** `objective-state.sh validate` is the gate.
+- **Dependent work starts early by default.** A dependent objective or phase branches from its predecessor's integration head while that PR is in CI or review, and is rebased onto the default branch after the merge. Waiting for the merge is an exception named by the collision rule that forces it, recorded on the task.
 - **Pre-merge conditions go on the PR as review threads** (the ruleset blocks merge until resolved), never as a chat message that can cross with the merge. Drive the PR per `pr-dev` (poll, batch threads one message per owner, one push per round).
 - **The integrator owns modifications.** Reviewers are read-only.
 - Do not commit `.dev-files/` unless the project explicitly wants durable checked-in workflow state.
@@ -307,6 +322,7 @@ bash $S set-delivery auth-system --strategy multi-pr --reason '<which enumerated
 | Run the full suite in every worker | Tier 1 in workers, Tier 2 once at integration |
 | Silently degrade to sequential | Say which mode you are in and why |
 | Re-run a task after a restart | Read its handoff from `.dev-files/` |
+| Wait for the predecessor's PR to merge before starting a dependent objective with disjoint scope | Start it from the predecessor's integration head; `rebase --onto` after the merge; name the collision rule if you must wait |
 | Encode the provider in the branch name | Provider is `task.provider` metadata |
 
 ## Output format

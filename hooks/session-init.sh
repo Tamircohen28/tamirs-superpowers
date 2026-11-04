@@ -44,6 +44,9 @@ state="$(load_session_state "$session_id")"
 # stripped newlines can carry multi-line slugs/paths — re-slugify the slug and
 # discard any path with an embedded newline so it gets recomputed cleanly.
 task_slug="$(slugify_text "$(echo "$state" | jq -r '.task_slug // empty')" 48)"
+# The title the prompt hook recorded for the host to show. The slug itself
+# names paths and is a date or an issue id, not something to read.
+session_title="$(slugify_text "$(echo "$state" | jq -r '.session_title // empty')" 48)"
 worktree_path="$(echo "$state" | jq -r '.worktree_path // empty')"
 case "$worktree_path" in *$'\n'*) worktree_path="" ;; esac
 session_files_dir="$(echo "$state" | jq -r '.session_files_dir // empty')"
@@ -159,6 +162,9 @@ if [[ -n "${CLAUDE_ENV_FILE:-}" ]]; then
   if [[ -n "$task_slug" && "$task_slug" != "null" ]]; then
     echo "export CLAUDE_TASK_SLUG=\"${task_slug}\"" >> "$CLAUDE_ENV_FILE"
   fi
+  if [[ -n "$session_title" ]]; then
+    echo "export CLAUDE_SESSION_TITLE=\"${session_title}\"" >> "$CLAUDE_ENV_FILE"
+  fi
 fi
 
 context_parts=()
@@ -216,7 +222,7 @@ cat <<EOF
 {
   "hookSpecificOutput": {
     "hookEventName": "SessionStart",
-    "sessionTitle": $(echo "$slug" | jq -Rs .),
+    "sessionTitle": $(echo "${session_title:-$slug}" | jq -Rs .),
     "additionalContext": $(echo "$additional_context" | jq -Rs .)
   }
 }

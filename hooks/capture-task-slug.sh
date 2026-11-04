@@ -1,8 +1,24 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# UserPromptSubmit — derive task slug from the first user prompt of the session.
-# Creates or reuses a global worktree for git repos before edits begin.
+# UserPromptSubmit — fix the session's task slug on its first prompt and create
+# or reuse a global worktree for git repos before edits begin.
+#
+# Two values are recorded, and they are deliberately different things:
+#   task_slug      names the worktree, its `wt/*` branch and the outputs dir. It
+#                  is STABLE: an issue or task id when the prompt carries one,
+#                  otherwise the date plus the session id's prefix. Prompt text
+#                  never reaches a filesystem path or a branch name.
+#   session_title  is what the host shows for the session. It is the prompt's
+#                  first words, because a title exists to be read by a person.
+# A host that sends no session id keeps the old prompt-derived slug: there is
+# nothing stable to key on, and the legacy behaviour beats inventing one.
+#
+# The "Dedicated worktree" hint is emitted ONCE per repo per session (issue
+# #337): the path is constant, so every repeat after the first is noise, and a
+# session whose edits belong in another repo must be told which repo the path
+# is for. Lifecycle fields are kept per repo root so a cwd that moves to a
+# second repo gets that repo's worktree and its own hint.
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=lib/worktree-common.sh
@@ -46,40 +62,70 @@ session_id="$(echo "$input" | jq -r '.session_id // empty')"
 prompt="$(echo "$input" | jq -r '.prompt // empty')"
 cwd="$(echo "$input" | jq -r '.cwd // empty')"
 
+# task_ref_slug PROMPT — the task the prompt names, as a slug: "issue-N" for
+# the first GitHub issue reference (`#N`, `issue N`, `.../issues/N`), or
+# "task-NNN" for an objective task id. Empty when the prompt names neither.
+# Bash's own regex engine, so a host whose `grep` is a wrapper cannot change
+# the answer.
+task_ref_slug() {
+  local text re_hash re_word re_task
+  text=" $(printf '%s' "$1" | tr '\n\r\t' '   ' | tr '[:upper:]' '[:lower:]')"
+  re_hash='[^[:alnum:]]#([0-9]+)'
+  re_word='issues?[ /#:-]*([0-9]+)'
+  re_task='[^[:alnum:]-](task-[0-9]{3})'
+  if [[ "$text" =~ $re_hash ]]; then
+    printf 'issue-%s' "${BASH_REMATCH[1]}"
+  elif [[ "$text" =~ $re_word ]]; then
+    printf 'issue-%s' "${BASH_REMATCH[1]}"
+  elif [[ "$text" =~ $re_task ]]; then
+    printf '%s' "${BASH_REMATCH[1]}"
+  fi
+}
+
 state="$(load_session_state "$session_id")"
 prompt_count="$(echo "$state" | jq -r '.prompt_count // 0')"
 # Re-slugify on read so a state file poisoned with a multi-line slug (written
 # before slugify_text stripped newlines) self-heals instead of mangling paths.
 task_slug="$(slugify_text "$(echo "$state" | jq -r '.task_slug // empty')" 48)"
+session_title="$(slugify_text "$(echo "$state" | jq -r '.session_title // empty')" 48)"
 now_iso="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 
 if [[ "$prompt_count" == "0" || -z "$task_slug" || "$task_slug" == "null" ]]; then
-  task_slug="$(slugify_text "$prompt" 48)"
-  if [[ -z "$task_slug" ]]; then
-    # The prompt yielded nothing sluggable (absent, or whitespace/punctuation
-    # only). The session id is a legitimate fallback because it still IDENTIFIES
-    # this session — but only when there IS one. With both empty the old code
-    # produced the literal slug "session-", and that placeholder is precisely
-    # what turns "no information" into a real branch and worktree: `wt/session-`
-    # on the first call, then `wt/session` once the self-heal re-slugify strips
-    # the trailing hyphen. One content-free invocation, two junk branches.
-    #
-    # So the fallback is guarded, not defaulted: no identity, no slug, no
-    # worktree.
-    short_id="${session_id:0:8}"
-    if [[ -z "$short_id" ]]; then
-      emit_noop_and_exit
-    fi
-    task_slug="session-${short_id}"
+  title_slug="$(slugify_text "$prompt" 48)"
+  short_id="${session_id:0:8}"
+
+  # The slug, in order of preference: the task the prompt names (stable across
+  # sessions, so resuming #337 lands in the same worktree), then the date plus
+  # the session id (stable within the session, carries no prompt text), then —
+  # only for a host that sends no session id — the prompt's first words.
+  task_slug="$(task_ref_slug "$prompt")"
+  if [[ -z "$task_slug" && -n "$short_id" ]]; then
+    task_slug="$(date +%Y%m%d)-${short_id}"
   fi
+  if [[ -z "$task_slug" ]]; then
+    task_slug="$title_slug"
+  fi
+  if [[ -z "$task_slug" ]]; then
+    # Nothing identifies this session: no task reference, no session id, and a
+    # prompt that is absent or whitespace/punctuation only. The old code
+    # produced the literal slug "session-" here, and that placeholder is
+    # precisely what turns "no information" into a real branch and worktree:
+    # `wt/session-` on the first call, then `wt/session` once the self-heal
+    # re-slugify strips the trailing hyphen. One content-free invocation, two
+    # junk branches. So: no identity, no slug, no worktree.
+    emit_noop_and_exit
+  fi
+  session_title="${title_slug:-$task_slug}"
 
   state="$(echo "$state" | jq \
     --arg task_slug "$task_slug" \
+    --arg session_title "$session_title" \
     --arg initial_prompt "$prompt" \
     --arg now "$now_iso" \
     --argjson prompt_count 1 \
     '. + {
       task_slug: $task_slug,
+      session_title: $session_title,
       initial_prompt: $initial_prompt,
       prompt_count: $prompt_count,
       created_at: (if .created_at == null then $now else .created_at end),
@@ -87,20 +133,23 @@ if [[ "$prompt_count" == "0" || -z "$task_slug" || "$task_slug" == "null" ]]; th
     }')"
   save_session_state "$session_id" "$state"
 else
-  # Write the sanitized slug back so later readers see a clean value too.
-  state="$(echo "$state" | jq --arg task_slug "$task_slug" --argjson prompt_count $((prompt_count + 1)) --arg now "$now_iso" \
-    '. + {task_slug: $task_slug, prompt_count: $prompt_count, updated_at: $now}')"
+  # A state file from before session_title existed has only the slug, which
+  # was the prompt's first words then — so it still reads as a title.
+  session_title="${session_title:-$task_slug}"
+  # Write the sanitized values back so later readers see clean ones too.
+  state="$(echo "$state" | jq --arg task_slug "$task_slug" --arg session_title "$session_title" \
+    --argjson prompt_count $((prompt_count + 1)) --arg now "$now_iso" \
+    '. + {task_slug: $task_slug, session_title: $session_title, prompt_count: $prompt_count, updated_at: $now}')"
   save_session_state "$session_id" "$state"
 fi
 
 context_lines=()
-session_title="$(echo "$state" | jq -r '.task_slug // empty')"
 
 # jq renders a missing key as the STRING "null", which is non-empty and would
 # sail through every downstream check to produce a `wt/null` branch. Same
 # family as `wt/session-`: a placeholder standing in for information nobody
 # had.
-if [[ -z "$session_title" || "$session_title" == "null" ]]; then
+if [[ -z "$task_slug" || "$task_slug" == "null" ]]; then
   emit_noop_and_exit
 fi
 
@@ -117,9 +166,29 @@ fi
 if is_git_repo "$cwd"; then
   repo_root="$(repo_root_for "$cwd")"
   repo_name="$(repo_name_for "$cwd")"
-  worktree_path="$(worktree_path_for "$repo_name" "$session_title")"
+  worktree_path="$(worktree_path_for "$repo_name" "$task_slug")"
+
+  # ONE LIFECYCLE PER REPO.
+  #
+  # worktree_created_at / worktree_retired_at describe the worktree of the repo
+  # the session is in. A session whose cwd moves to a second repo used to carry
+  # the first repo's timestamps with it: created_at was set, the second repo's
+  # path was not live, so the second repo was reported "removed and NOT
+  # recreated" — for a worktree that had never existed. Park the outgoing
+  # repo's fields under .repos[<root>] and restore the incoming repo's, so each
+  # repo is created once and retired once on its own evidence.
+  prev_repo_root="$(echo "$state" | jq -r '.repo_root // empty')"
+  if [[ -n "$prev_repo_root" && "$prev_repo_root" != "$repo_root" ]]; then
+    state="$(echo "$state" | jq --arg prev "$prev_repo_root" --arg cur "$repo_root" '
+      .repos = ((.repos // {}) + {($prev): {worktree_path, worktree_created_at, worktree_retired_at, session_files_dir}})
+      | ((.repos[$cur]) // {}) as $incoming
+      | del(.worktree_path, .worktree_created_at, .worktree_retired_at, .session_files_dir)
+      | . + ($incoming | with_entries(select(.value != null)))')"
+  fi
+
   worktree_created_at="$(echo "$state" | jq -r '.worktree_created_at // empty')"
   worktree_retired_at="$(echo "$state" | jq -r '.worktree_retired_at // empty')"
+  worktree_hint_path="$(echo "$state" | jq -r '.worktree_hint_path // empty')"
   worktree_live=no
 
   # STAND DOWN WHEN AN ORCHESTRATOR OWNS THIS REPO.
@@ -185,8 +254,8 @@ if is_git_repo "$cwd"; then
     session_files_dir="$(ensure_session_files_dir "${worktree_path}/session-files")"
   elif [[ -n "$worktree_retired_at" || -n "$worktree_created_at" ]]; then
     worktree_retired_at="${worktree_retired_at:-$now_iso}"
-    session_files_dir="$(ensure_session_files_dir "${HOME}/.claude/outputs/${session_title}/session-files")"
-  elif create_session_worktree "$repo_root" "$worktree_path" "$session_title"; then
+    session_files_dir="$(ensure_session_files_dir "${HOME}/.claude/outputs/${task_slug}/session-files")"
+  elif create_session_worktree "$repo_root" "$worktree_path" "$task_slug"; then
     worktree_created_at="$now_iso"
     worktree_live=yes
     session_files_dir="$(ensure_session_files_dir "${worktree_path}/session-files")"
@@ -194,7 +263,43 @@ if is_git_repo "$cwd"; then
     # Creation was attempted and failed — a locked worktree, a `wt/*` branch
     # already checked out elsewhere. Do not describe a directory that is not
     # there; the edit guard will try again when an edit actually needs one.
-    session_files_dir="$(ensure_session_files_dir "${HOME}/.claude/outputs/${session_title}/session-files")"
+    session_files_dir="$(ensure_session_files_dir "${HOME}/.claude/outputs/${task_slug}/session-files")"
+  fi
+
+  # SAY IT ONCE.
+  #
+  # The dedicated-worktree hint used to be re-emitted on every prompt. Within
+  # one repo the path never changes, so the second copy and every copy after
+  # it was noise — measured at 15–20 repeats in one session (issue #337). The
+  # path the hint was last given for is recorded; the hint is emitted when the
+  # live path differs from it (first prompt, or the cwd moved to another repo)
+  # and the record is cleared whenever the worktree stops being live, so a
+  # worktree the edit guard rebuilds is announced again.
+  hint_mode="clear"
+  if [[ -n "$objective_id" && -z "$worktree_path" ]]; then
+    context_lines+=("Objective '${objective_id}' is active and orchestrator-managed. No session worktree was created.")
+    context_lines+=("Worker and integration worktrees live under: $(agent_worktree_root "$repo_root")/${objective_id}/")
+    context_lines+=("Ask the orchestrator for your task worktree (task-NNN) — do not create one.")
+    context_lines+=("Objective state: $(objective_state_dir "$repo_root" "$objective_id")")
+  elif [[ -n "$worktree_retired_at" ]]; then
+    context_lines+=("This session's worktree (${worktree_path}) was removed and has NOT been recreated.")
+    context_lines+=("Working in ${cwd}. An Edit/Write to repo files is still refused in the main checkout — the edit guard will rebuild the worktree then and name it.")
+    context_lines+=("Session artifacts (plans, reviews, investigations) go in: ${session_files_dir}")
+  elif [[ "$worktree_live" != "yes" ]]; then
+    context_lines+=("No session worktree could be created for ${repo_name}; working in ${cwd}.")
+    context_lines+=("Session artifacts (plans, reviews, investigations) go in: ${session_files_dir}")
+  elif is_global_worktree_path "$cwd" || is_agent_workspace "$cwd"; then
+    # Already inside a workspace: nothing to point at, nothing to forget.
+    hint_mode="keep"
+  elif [[ "$worktree_hint_path" == "$worktree_path" ]]; then
+    hint_mode="keep"
+  else
+    hint_mode="set"
+    context_lines+=("Git repo task detected. Dedicated worktree for ${repo_name}: ${worktree_path}")
+    context_lines+=("Before Edit/Write in ${repo_name}, run: cd \"${worktree_path}\" or use EnterWorktree.")
+    context_lines+=("Edits to other repos go in their own ~/.claude/worktrees/<repo>/<slug>, which the edit guard names. This hint is shown once per repo per session.")
+    context_lines+=("Session artifacts (plans, reviews, investigations) go in: ${session_files_dir}")
+    context_lines+=("Do NOT use repo .dev-files/ — use \$CLAUDE_SESSION_FILES_DIR instead.")
   fi
 
   state="$(echo "$state" | jq \
@@ -205,6 +310,7 @@ if is_git_repo "$cwd"; then
     --arg objective_id "$objective_id" \
     --arg worktree_created_at "$worktree_created_at" \
     --arg worktree_retired_at "$worktree_retired_at" \
+    --arg hint_mode "$hint_mode" \
   '. + {
     repo_root: $repo_root,
     repo_name: $repo_name,
@@ -213,12 +319,16 @@ if is_git_repo "$cwd"; then
     objective_id: (if ($objective_id | length) > 0 then $objective_id else null end)
   }
   | if ($worktree_created_at | length) > 0 then .worktree_created_at = $worktree_created_at else . end
-  | if ($worktree_retired_at | length) > 0 then .worktree_retired_at = $worktree_retired_at else del(.worktree_retired_at) end')"
+  | if ($worktree_retired_at | length) > 0 then .worktree_retired_at = $worktree_retired_at else del(.worktree_retired_at) end
+  | if $hint_mode == "set" then .worktree_hint_path = $worktree_path
+    elif $hint_mode == "clear" then del(.worktree_hint_path)
+    else . end')"
   save_session_state "$session_id" "$state"
 
   if [[ -n "${CLAUDE_ENV_FILE:-}" ]]; then
     append_env_exports "$CLAUDE_ENV_FILE" \
-      "CLAUDE_TASK_SLUG=\"${session_title}\"" \
+      "CLAUDE_TASK_SLUG=\"${task_slug}\"" \
+      "CLAUDE_SESSION_TITLE=\"${session_title}\"" \
       "CLAUDE_SESSION_FILES_DIR=\"${session_files_dir}\"" \
       "CLAUDE_REPO_ROOT=\"${repo_root}\""
     if [[ -n "$worktree_path" && "$worktree_live" == "yes" ]]; then
@@ -233,33 +343,14 @@ if is_git_repo "$cwd"; then
       append_env_exports "$CLAUDE_ENV_FILE" "SUPERPOWERS_OBJECTIVE_ID=\"${objective_id}\""
     fi
   fi
-
-  if [[ -n "$objective_id" && -z "$worktree_path" ]]; then
-    context_lines+=("Objective '${objective_id}' is active and orchestrator-managed. No session worktree was created.")
-    context_lines+=("Worker and integration worktrees live under: $(agent_worktree_root "$repo_root")/${objective_id}/")
-    context_lines+=("Ask the orchestrator for your task worktree (task-NNN) — do not create one.")
-    context_lines+=("Objective state: $(objective_state_dir "$repo_root" "$objective_id")")
-  elif [[ -n "$worktree_retired_at" ]]; then
-    context_lines+=("This session's worktree (${worktree_path}) was removed and has NOT been recreated.")
-    context_lines+=("Working in ${cwd}. An Edit/Write to repo files is still refused in the main checkout — the edit guard will rebuild the worktree then and name it.")
-    context_lines+=("Session artifacts (plans, reviews, investigations) go in: ${session_files_dir}")
-  elif [[ "$worktree_live" != "yes" ]]; then
-    context_lines+=("No session worktree could be created for ${repo_name}; working in ${cwd}.")
-    context_lines+=("Session artifacts (plans, reviews, investigations) go in: ${session_files_dir}")
-  elif ! is_global_worktree_path "$cwd" && ! is_agent_workspace "$cwd"; then
-    context_lines+=("Git repo task detected. Dedicated worktree: ${worktree_path}")
-    context_lines+=("Before Edit/Write, run: cd \"${worktree_path}\" or use EnterWorktree.")
-    context_lines+=("Session artifacts (plans, reviews, investigations) go in: ${session_files_dir}")
-    context_lines+=("Do NOT use repo .dev-files/ — use \$CLAUDE_SESSION_FILES_DIR instead.")
-  fi
 else
-  # session_title is guaranteed non-empty here: the guard above exits before
-  # this point when it is empty or the string "null". The old
-  # `${session_title:-session-${short_id}}` default was therefore unreachable —
-  # but it was also the exact placeholder shape that produced `wt/session-`,
-  # and a dead default is one moved guard away from being live again. Stating
-  # the invariant beats re-arming the bug.
-  session_slug="$session_title"
+  # task_slug is guaranteed non-empty here: the guard above exits before this
+  # point when it is empty or the string "null". The old
+  # `${slug:-session-${short_id}}` default was therefore unreachable — but it
+  # was also the exact placeholder shape that produced `wt/session-`, and a
+  # dead default is one moved guard away from being live again. Stating the
+  # invariant beats re-arming the bug.
+  session_slug="$task_slug"
   session_dir="${HOME}/.claude/outputs/${session_slug}"
   session_files_dir="$(ensure_session_files_dir "${session_dir}/session-files")"
   sync_session_files_archive "$session_files_dir" "$session_slug"
@@ -278,6 +369,7 @@ else
   if [[ -n "${CLAUDE_ENV_FILE:-}" ]]; then
     append_env_exports "$CLAUDE_ENV_FILE" \
       "CLAUDE_SESSION_SLUG=\"${session_slug}\"" \
+      "CLAUDE_SESSION_TITLE=\"${session_title}\"" \
       "CLAUDE_OUTPUT_DIR=\"${session_dir}\"" \
       "CLAUDE_SESSION_FILES_DIR=\"${session_files_dir}\""
   fi

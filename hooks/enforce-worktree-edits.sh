@@ -178,7 +178,7 @@ judge_target_dir() {
   else
     reason="Repo edits must happen in a dedicated worktree under ~/.claude/worktrees/${repo_name}/<task-slug>, not the main checkout (${repo_root})."
     if [[ -z "$worktree_path" || "$worktree_path" == "null" ]]; then
-      reason="${reason} Submit your task prompt first so the worktree slug is derived from it, then cd into the worktree."
+      reason="${reason} Submit your task prompt first so the session's worktree slug is recorded, then cd into the worktree."
     elif is_live_worktree "$worktree_path"; then
       reason="${reason} Use: cd \"${worktree_path}\" or EnterWorktree before editing."
 
