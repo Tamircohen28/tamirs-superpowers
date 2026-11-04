@@ -69,7 +69,8 @@
     "workflow_hook_or_policy_path": "A target path is under .github/workflows/**, .github/actions/**, CODEOWNERS, .github/CODEOWNERS, .tamirs-superpowers/**, .husky/** or .githooks/**, or, in this plugin's own repository, hooks/** or core/permissions/**.",
     "others_thread": "The review thread was started by someone else, or the agent has not replied to it.",
     "protected_default_branch": "The default branch is protected by a classic rule or a ruleset (safety invariant 5).",
-    "required_check_failing_or_pending": "A required status check on the PR head is failing or pending (safety invariant 2)."
+    "required_check_failing_or_pending": "A required status check on the PR head is failing or pending (safety invariant 2).",
+    "push_remote_not_origin": "The push goes to a remote, named or a URL, whose push URL is not one of origin's (an API branch write: to another repository than origin's). Local commits pushed anywhere but the repository the user cloned leave it (F9)."
   },
   "target_kinds": {
     "_comment": "D5: a ticket binds one target. Two targets are equal iff every listed field resolves on both sides and is equal; an unresolvable field never matches. Kind none has no target, so no ticket ever matches it: only the level ceiling can allow it.",
@@ -89,8 +90,24 @@
   "matching": {
     "_comment": "How an equivalents entry matches a call (D1 Equivalents, SR S-07). PG implements exactly this; tests/test-permission-catalog.sh carries the reference matcher and its fixture table.",
     "result": "A call maps to EVERY id with a matching entry. Its decision is the strictest of theirs (deny > ask > allow) and its reported id is the one with the highest r. A call with a mutation marker that maps to no id is UNCLASSIFIED.",
-    "simple_commands": "Split at ; && || | & and newlines, drop redirections, and match each simple command alone. $(...), backticks, eval, xargs, make and interpreters are the residual D1 names: the commands inside them are not seen.",
-    "prefix_commands": ["env", "command", "exec", "nohup", "time", "nice", "sudo", "timeout"],
+    "simple_commands": "Split at ; && || | & and newlines, drop redirections and comments, and match each simple command alone. The commands of $(...), backticks, <(...), the string of sh -c / su -c / env -S / watch, a here-document or herestring fed to a shell, and find -exec are matched too. eval, make, interpreters and a script file's contents are the residual D1 names: the commands inside them are not seen. A construct PG's tokeniser cannot read the way a shell does (an unterminated quote or here-document, $'...', ((...)), case inside a substitution, nested backticks, nesting past 4 levels, a shell reading its script from a pipe) is UNCLASSIFIED.",
+    "prefix_commands": ["env", "command", "exec", "nohup", "time", "nice", "sudo", "timeout", "builtin", "stdbuf", "doas", "gtimeout", "caffeinate", "arch", "setsid", "xargs", "ionice", "watch"],
+    "prefix_value_options": {
+      "_comment": "The options of a prefix command that take the next word as their value (that word is not the program). The program, a prefix command and a script are matched in any case: a case-insensitive file system runs GIT and PLUGIN-CONFIG.SH.",
+      "sudo": ["-u", "-g", "-h", "-p", "-C", "-U", "-r", "-t", "-D", "-R", "-T", "--user", "--group", "--host", "--prompt", "--close-from", "--other-user", "--role", "--type", "--chdir", "--chroot", "--command-timeout"],
+      "doas": ["-u", "-C"],
+      "env": ["-u", "-C", "-P", "-S", "--unset", "--chdir", "--split-string"],
+      "exec": ["-a"],
+      "nice": ["-n", "--adjustment"],
+      "timeout": ["-s", "-k", "--signal", "--kill-after"],
+      "gtimeout": ["-s", "-k", "--signal", "--kill-after"],
+      "caffeinate": ["-t", "-w"],
+      "arch": ["-arch", "-e", "-d"],
+      "xargs": ["-I", "-L", "-n", "-P", "-s", "-E", "-e", "-d", "-a", "-J", "-R", "-S", "--max-args", "--max-lines", "--max-procs", "--max-chars", "--delimiter", "--arg-file", "--eof", "--process-slot-var"],
+      "ionice": ["-c", "-n", "-p", "-P", "-u", "--class", "--classdata"],
+      "stdbuf": ["-i", "-o", "-e", "--input", "--output", "--error"],
+      "watch": ["-n", "--interval", "-q", "--equexit"]
+    },
     "env": "Leading NAME=value words are env assignments. env_any globs match them; target_env names change the target, never the id.",
     "global_options": {
       "git": { "value": ["-C", "-c", "--git-dir", "--work-tree", "--namespace", "--exec-path", "--config-env"], "flag": ["--no-pager", "-P", "--bare", "--no-replace-objects", "--literal-pathspecs", "--no-optional-locks"] },
@@ -106,15 +123,19 @@
       "git commit": ["-m", "--message", "-F", "--file", "-C", "--reuse-message", "-c", "--reedit-message", "--author", "--date", "-t", "--template", "--fixup", "--squash", "--cleanup", "--trailer"],
       "npm": ["--prefix", "--registry", "--omit", "--include", "--workspace", "-w"],
       "curl": ["-X", "--request", "-H", "--header", "-d", "--data", "--data-raw", "--data-binary", "--data-urlencode", "-F", "--form", "--json", "-o", "--output", "-u", "--user", "-T", "--upload-file", "-A", "--user-agent", "-e", "--referer", "-b", "--cookie", "-c", "--cookie-jar", "-w", "--write-out", "-m", "--max-time", "--connect-timeout", "--retry"],
-      "wget": ["-O", "--output-document", "--header", "--post-data", "--post-file", "--method", "--body-data", "-o", "--output-file", "-P", "--directory-prefix"]
+      "wget": ["-O", "--output-document", "--header", "--post-data", "--post-file", "--method", "--body-data", "-o", "--output-file", "-P", "--directory-prefix"],
+      "http": ["-a", "--auth", "-A", "--auth-type", "-o", "--output", "--session", "--session-read-only", "--verify", "--cert", "--cert-key", "--proxy", "--timeout", "-p", "--print", "--pretty", "-s", "--style", "--max-redirects", "--default-scheme", "--boundary"],
+      "https": ["-a", "--auth", "-A", "--auth-type", "-o", "--output", "--session", "--session-read-only", "--verify", "--cert", "--cert-key", "--proxy", "--timeout", "-p", "--print", "--pretty", "-s", "--style", "--max-redirects", "--default-scheme", "--boundary"],
+      "xh": ["-a", "--auth", "-A", "--auth-type", "-o", "--output", "--session", "--session-read-only", "--verify", "--cert", "--cert-key", "--proxy", "--timeout", "-p", "--print", "--pretty", "-s", "--style", "--max-redirects", "--default-scheme", "--boundary"],
+      "xhs": ["-a", "--auth", "-A", "--auth-type", "-o", "--output", "--session", "--session-read-only", "--verify", "--cert", "--cert-key", "--proxy", "--timeout", "-p", "--print", "--pretty", "-s", "--style", "--max-redirects", "--default-scheme", "--boundary"]
     },
-    "argv": "cmd: the argv prefix after prefix commands, env assignments and the tool's global options; '*' matches one token. any / all / none: fnmatch globs over every token after argv[0] (after the script, for a script entry), global options and option values included; a glob that is a long option '--x' also matches '--x=<value>'. args / args_none: globs over the positional tokens after the cmd prefix (tokens not starting with '-' that are not the value of a value option); args_none ['*'] means no positional. first_arg_none: globs over the FIRST positional token only; the entry does not match when it matches one of them, and does match when there is no positional (a writer whose read-only subcommands are listed, every other form being a write). env_any: globs over the leading assignments. gh's -R/--repo/--hostname may stand anywhere and never count as cmd or positional tokens. script: matches when argv[0], or the first positional of bash, sh, zsh, source, ., python, python3 or node, equals the script path or ends with '/<script>'.",
-    "rest": "method: an HTTP method or a list of them. gh api: -X/--method, else POST when -f/-F/--field/--raw-field/--input is given, else GET; the path is its first positional. An HTTP client (http_clients) aimed at a github_api_hosts URL: curl -X/--request, else POST with -d/--data*/-F/--form/--json, PUT with -T/--upload-file, else GET; wget --method, else POST with --post-data/--post-file, else GET. A path drops scheme and host (and /api/v3 on GHE), a leading '/' and the query string. In a pattern '{owner}/{repo}' matches two segments or one segment holding a shell expansion (a slug variable carries both); any other '{name}', and '*', match one segment; '**' matches the rest, including nothing; '{default}' is the target repository's default branch. fields_all / fields_none: globs over the key=value pairs of -f/-F/--field/--raw-field, or of a JSON body's top-level keys.",
+    "argv": "cmd: the argv prefix after prefix commands, env assignments and the tool's global options; '*' matches one token. any / all / none: fnmatch globs over every token after argv[0] (after the script, for a script entry), global options and option values included; a glob that is a long option '--x' also matches '--x=<value>'. args / args_none: globs over the positional tokens after the cmd prefix (tokens not starting with '-' that are not the value of a value option); args_none ['*'] means no positional. first_arg_none: globs over the FIRST positional token only; the entry does not match when it matches one of them, and does match when there is no positional (a writer whose read-only subcommands are listed, every other form being a write). min_args: the entry matches only with at least that many positionals (git symbolic-ref <name> <ref> writes, git symbolic-ref <name> reads). env_any: globs over the leading assignments. gh's -R/--repo/--hostname may stand anywhere and never count as cmd or positional tokens. argv[0] is matched in lower case (a case-insensitive file system runs GIT); a git config key glob (core.hooksPath, remote.*.url) in any case, as git reads it; a git long option written as a unique prefix (--no-verif, --har, --delet: git accepts it) is read as that option first. script: matches when argv[0], or ANY argument of an interpreter (bash, sh, zsh, ksh, dash, source, ., python*, node, ...) other than the value of one of its options (-o, -O, --rcfile, --init-file, -m, ...), equals the script path or ends with '/<script>', in any case, or is a glob a shell would expand to it; PG also follows links to, and byte-identical copies of, scripts/plugin-config.sh, setup.sh and install.sh, and reads any other command naming plugin-config.sh (cp, ln, mv, cat, ...) as policy.edit unless it only inspects it (F1).",
+    "rest": "method: an HTTP method or a list of them. gh api: -X/--method, else POST when -f/-F/--field/--raw-field/--input is given, else GET; the path is its first positional. An HTTP client (http_clients) aimed at a github_api_hosts URL (the host in any case, with or without a scheme): curl -X/--request, else POST with -d/--data*/-F/--form/--json, PUT with -T/--upload-file — attached (-d'{..}', --data=..), separate or inside a short-option cluster (-sd ..) — unless -G/--get, else GET; wget --method, else POST with --post-data/--post-file, else GET; http, https, xh and xhs (httpie syntax) take a method as their first positional, else POST with a data item (key=value, key:=json, key@file), else GET. A path drops scheme and host (and /api/v3 on GHE), a leading '/' and the query string, and matches its pattern in any case. In a pattern '{owner}/{repo}' matches two segments or one segment holding a shell expansion (a slug variable carries both); any other '{name}', and '*', match one segment; '**' matches the rest, including nothing; '{default}' is the target repository's default branch. fields_all / fields_none: globs over the key=value pairs of -f/-F/--field/--raw-field, or of a JSON body's top-level keys.",
     "graphql": "gh api graphql, or a POST to a github_api_hosts /graphql: every mutation field the document names maps to the ids listing it. A document with no mutation is repo.read. A file-sourced document (-F query=@file, --field query=@file, --input) is UNCLASSIFIED.",
     "mcp": "tool: the Claude-form tool name (see mcp). args_all / args_none: argument name to a glob over the argument's JSON value rendered as a string; args_all needs every listed argument to match, args_none needs none to.",
     "paths": "Write-path rules (GSF, enforce-worktree-edits) are realpath globs: '{repo}' is the checkout root, '{home}' the passwd home (D3), '{plugin_root}' the running plugin root, '{worktree}' the task worktree.",
     "default_branch": "'{default}' resolves to the target repository's default branch; when it cannot be resolved a pattern holding it matches (context may raise, never lower).",
-    "http_clients": ["curl", "wget", "http", "https", "xh"],
+    "http_clients": ["curl", "wget", "http", "https", "xh", "xhs"],
     "github_api_hosts": ["api.github.com", "uploads.github.com", "{GH_HOST}/api/v3", "{GH_HOST}/api/uploads", "{GH_HOST}/api/graphql"],
     "target_env": ["GH_REPO", "GH_HOST", "GH_ENTERPRISE_TOKEN", "GIT_DIR", "GIT_WORK_TREE", "GIT_CONFIG_*", "GIT_CONFIG_PARAMETERS"],
     "target_flags": { "gh": ["-R", "--repo", "--hostname"], "git": ["-C", "--git-dir", "--work-tree"] },
@@ -537,12 +558,13 @@
       "unattended_precondition": null,
       "raises": [
         { "when": "default_branch", "becomes": "git.push.default" },
-        { "when": "tag_ref", "becomes": "tag.push" }
+        { "when": "tag_ref", "becomes": "tag.push" },
+        { "when": "push_remote_not_origin", "r": 3 }
       ],
       "l2": ["PG"],
       "target": "branch",
       "equivalents": {
-        "argv": [{ "cmd": ["git", "push"] }],
+        "argv": [{ "cmd": ["git", "push"] }, { "cmd": ["git", "send-pack"] }, { "cmd": ["git", "http-push"] }],
         "rest": [
           { "method": "POST", "path": "repos/{owner}/{repo}/git/refs", "fields_none": ["ref=refs/tags/*"] },
           { "method": "PATCH", "path": "repos/{owner}/{repo}/git/refs/heads/**" }
@@ -551,7 +573,7 @@
         "mcp": [{ "tool": "mcp__plugin_tamirs-superpowers_github__create_branch" }]
       },
       "sources": ["ADR#D1", "A1#C"],
-      "note": "Own, non-default branch. Every git push matches this id; the stricter push ids add to it."
+      "note": "Own, non-default branch, to origin. Every git push, send-pack and http-push matches this id; the stricter push ids add to it, and a push to any other remote is raised to R3 (push_remote_not_origin)."
     },
     {
       "id": "pr.create",
@@ -988,6 +1010,8 @@
         "argv": [
           { "cmd": ["git", "push"], "any": ["--delete", "-d"] },
           { "cmd": ["git", "push"], "args": [":*"] },
+          { "cmd": ["git", "send-pack"], "args": [":*"] },
+          { "cmd": ["git", "http-push"], "any": ["-d", "-D"] },
           { "cmd": ["gh", "pr", "close"], "any": ["--delete-branch", "-d"] },
           { "script": "cleanup-after-merge.sh" },
           { "script": "cleanup/scripts/cleanup.sh", "any": ["--yes", "-y"] }
@@ -1046,7 +1070,11 @@
       "equivalents": {
         "argv": [
           { "cmd": ["git", "push"], "args": ["{default}", "*:{default}", "refs/heads/{default}", "*:refs/heads/{default}"] },
-          { "cmd": ["git", "push"], "any": ["--all", "--branches"] }
+          { "cmd": ["git", "push"], "any": ["--all", "--branches"] },
+          { "cmd": ["git", "send-pack"], "args": ["{default}", "*:{default}", "refs/heads/{default}", "*:refs/heads/{default}"] },
+          { "cmd": ["git", "send-pack"], "any": ["--all"] },
+          { "cmd": ["git", "http-push"], "args": ["{default}", "*:{default}", "refs/heads/{default}", "*:refs/heads/{default}"] },
+          { "cmd": ["git", "http-push"], "any": ["--all"] }
         ],
         "rest": [{ "method": "PATCH", "path": "repos/{owner}/{repo}/git/refs/heads/{default}" }]
       },
@@ -1065,7 +1093,11 @@
       "equivalents": {
         "argv": [
           { "cmd": ["git", "push"], "any": ["--force", "-f", "--force-with-lease", "--force-if-includes"] },
-          { "cmd": ["git", "push"], "args": ["+*"] }
+          { "cmd": ["git", "push"], "args": ["+*"] },
+          { "cmd": ["git", "send-pack"], "any": ["--force", "--force-with-lease"] },
+          { "cmd": ["git", "send-pack"], "args": ["+*"] },
+          { "cmd": ["git", "http-push"], "any": ["--force"] },
+          { "cmd": ["git", "http-push"], "args": ["+*"] }
         ],
         "rest": [{ "method": "PATCH", "path": "repos/{owner}/{repo}/git/refs/heads/**", "fields_all": ["force=true"] }],
         "graphql": ["updateRef", "updateRefs"]
@@ -1359,7 +1391,12 @@
         "argv": [
           { "cmd": ["git", "push"], "any": ["--force", "-f", "--force-with-lease", "--force-if-includes"], "args": ["{default}", "*:{default}", "refs/heads/{default}", "*:refs/heads/{default}"] },
           { "cmd": ["git", "push"], "args": ["+{default}", "+*:{default}", "+refs/heads/{default}", "+*:refs/heads/{default}"] },
-          { "cmd": ["git", "push"], "any": ["--mirror"] }
+          { "cmd": ["git", "push"], "any": ["--mirror"] },
+          { "cmd": ["git", "send-pack"], "args": ["+{default}", "+*:{default}", "+refs/heads/{default}", "+*:refs/heads/{default}"] },
+          { "cmd": ["git", "send-pack"], "any": ["--force", "--force-with-lease"], "args": ["{default}", "*:{default}", "refs/heads/{default}", "*:refs/heads/{default}"] },
+          { "cmd": ["git", "send-pack"], "any": ["--mirror"] },
+          { "cmd": ["git", "http-push"], "args": ["+{default}", "+*:{default}", "+refs/heads/{default}", "+*:refs/heads/{default}"] },
+          { "cmd": ["git", "http-push"], "any": ["--force"], "args": ["{default}", "*:{default}", "refs/heads/{default}", "*:refs/heads/{default}"] }
         ],
         "rest": [{ "method": "PATCH", "path": "repos/{owner}/{repo}/git/refs/heads/{default}", "fields_all": ["force=true"] }]
       },
@@ -1406,6 +1443,8 @@
         "argv": [
           { "cmd": ["git", "push"], "any": ["--tags", "--follow-tags"] },
           { "cmd": ["git", "push"], "args": ["refs/tags/*", "*:refs/tags/*", "+refs/tags/*"] },
+          { "cmd": ["git", "send-pack"], "args": ["refs/tags/*", "*:refs/tags/*", "+refs/tags/*"] },
+          { "cmd": ["git", "http-push"], "args": ["refs/tags/*", "*:refs/tags/*", "+refs/tags/*"] },
           { "cmd": ["git", "tag"], "args": ["*"], "none": ["-l", "--list", "-v", "--verify", "-d", "--delete"] }
         ],
         "rest": [
@@ -1624,8 +1663,13 @@
         "paths": ["{repo}/.git/hooks/**", "{repo}/.git/config"],
         "argv": [
           { "cmd": ["git", "config"], "any": ["--global", "--system"], "none": ["--get", "--get-all", "--get-regexp", "--get-urlmatch", "-l", "--list"] },
-          { "cmd": ["git", "config"], "any": ["alias.*", "core.hooksPath", "core.hookspath", "core.fsmonitor", "core.sshCommand", "include.path", "includeIf.*", "credential.helper"], "none": ["--get", "--get-all", "--get-regexp", "--get-urlmatch", "-l", "--list"] },
+          { "cmd": ["git", "config"], "any": ["alias.*", "core.hooksPath", "core.hookspath", "core.fsmonitor", "core.sshCommand", "include.path", "includeIf.*", "credential.helper", "remote.*.url", "remote.*.pushurl", "url.*.insteadOf", "url.*.pushInsteadOf"], "none": ["--get", "--get-all", "--get-regexp", "--get-urlmatch", "-l", "--list"] },
           { "cmd": ["git", "*"], "any": ["alias.*=*"] },
+          { "cmd": ["git", "remote"], "any": ["add", "set-url", "rename", "remove", "rm"] },
+          { "cmd": ["git", "remote"], "any": ["set-head"], "none": ["-a", "--auto", "-d", "--delete"] },
+          { "cmd": ["git", "symbolic-ref"], "args": ["refs/remotes/*"], "min_args": 2 },
+          { "cmd": ["git", "update-ref"], "args": ["refs/remotes/*"] },
+          { "cmd": ["git", "fetch"], "args": ["*:refs/remotes/*"] },
           { "cmd": ["gh", "alias"], "any": ["set", "import", "delete"] },
           { "cmd": ["gh", "config", "set"] },
           { "cmd": ["gh", "auth", "setup-git"] },
@@ -1635,7 +1679,7 @@
         ]
       },
       "sources": ["ADR#D1", "A2#F1", "A3#D11", "SR#S-07"],
-      "note": "Global config, and any git config that runs code (alias.*, core.hooksPath and friends)."
+      "note": "Global config, any git config that runs code (alias.*, core.hooksPath and friends), and the remote URLs and remote-tracking refs PG reads as facts: git remote add/set-url/rename/remove, an explicit git remote set-head (--auto asks the remote), git symbolic-ref/update-ref of refs/remotes/** and a fetch refspec into them, remote.*.url/pushurl and url.*.insteadOf (F9). They write {repo}/.git/config or the refs default_branch and the unpushed checks trust."
     },
     {
       "id": "config.policy.stage",
@@ -1713,7 +1757,8 @@
           { "script": "plugin-config.sh", "first_arg_none": ["show", "help"] },
           { "script": "setup.sh", "any": ["--permission-level"] },
           { "script": "setup.sh", "env_any": ["SETUP_PERMISSION_LEVEL=*"] },
-          { "script": "install.sh", "any": ["--permission-level"] }
+          { "script": "install.sh", "any": ["--permission-level"] },
+          { "script": "permission-approved.sh" }
         ]
       },
       "sources": ["ADR#D1", "ADR#D6", "ADR#D10", "A3#D7", "A3#E", "SR#S-03"],

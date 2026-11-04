@@ -481,17 +481,54 @@ def mode_adr():
 # ------------------------------------------------------------------ matcher
 M = CAT["matching"]
 PREFIX = set(M["prefix_commands"])
-INTERP = {"bash", "sh", "zsh", "source", ".", "python", "python3", "node"}
+PREFIX_VO = {k: set(v) for k, v in M.get("prefix_value_options", {}).items() if not k.startswith("_")}
+INTERP = {"bash", "sh", "zsh", "ksh", "dash", "mksh", "yash", "ash", "posh", "rbash", "fish", "source", ".", "python",
+          "python2", "python3", "pypy", "pypy3", "node", "nodejs", "bun", "deno", "perl", "ruby"}
+INTERP_VO = {"-o", "+o", "-O", "+O", "--rcfile", "--init-file", "-m", "-W", "-X", "-r", "--require", "--import",
+             "--loader", "-I"}
 HTTP = set(M["http_clients"])
+HTTPIE = {"http", "https", "xh", "xhs"}
 API_HOSTS = ("api.github.com", "uploads.github.com")
 DEFAULTS = ["main", "master"]
 ENV_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*=")
 MARKERS = CAT["unclassified"]["mutation_markers"]
 MARKER_RX = [re.compile(x) for x in CAT["unclassified"]["mutation_marker_patterns"]]
+INERT = {"echo", "printf", "cat", "ls", "grep", "egrep", "fgrep", "rg", "head", "tail", "wc", "sort", "uniq", "cut",
+         "tr", "diff", "cmp", "stat", "file", "less", "more", "jq", "yq", "which", "type", "test", "[", "true",
+         "false", "pwd", "basename", "dirname", "realpath", "readlink", "date", "sleep", "mkdir", "touch", "column",
+         "nl", "seq", "cd", "man", "shellcheck"}
+GH_WORD = re.compile(r"(?<![A-Za-z0-9_])gh(?![A-Za-z0-9_-])", re.I)
 
 
-def has_marker(text):
-    return any(mk.strip() in text for mk in MARKERS if mk.strip() != "gh") or any(rx.search(text) for rx in MARKER_RX)
+def has_marker(text, argv0=None):
+    """D1 markers in any case; `gh` as a word in a segment whose program is not inert (the reference matcher's
+    reading of the ADR's `gh ` marker)."""
+    tl = text.lower()
+    if any(mk.strip().lower() in tl for mk in MARKERS if mk.strip() != "gh") or any(rx.search(text) for rx in MARKER_RX):
+        return True
+    return argv0 not in INERT and bool(GH_WORD.search(text))
+
+
+# git takes a unique prefix of a long option: the catalog's long options per git verb (matching.argv).
+GIT_LONG = {}
+for _a in ACTS:
+    for _e in _a["equivalents"].get("argv", []):
+        if _e.get("cmd", [None])[0] == "git" and len(_e["cmd"]) > 1 and _e["cmd"][1] != "*":
+            for _k in ("any", "all", "none"):
+                GIT_LONG.setdefault(_e["cmd"][1], set()).update(
+                    g for g in _e.get(_k, []) if g.startswith("--") and not any(c in g for c in "*?[="))
+for _key, _vals in M["value_options"].items():
+    if _key.startswith("git "):
+        GIT_LONG.setdefault(_key.split()[1], set()).update(v for v in _vals if v.startswith("--"))
+
+
+def git_long(verb, tok):
+    if not tok.startswith("--") or len(tok) < 3:
+        return tok
+    key, eq, val = tok.partition("=")
+    opts = GIT_LONG.get(verb, set())
+    cands = [o for o in opts if o.startswith(key)]
+    return tok if key in opts or len(cands) != 1 else cands[0] + eq + val
 
 
 def split_simple(cmd):
@@ -524,18 +561,19 @@ def parse(toks):
         if ENV_RE.match(toks[i]):
             env.append(toks[i])
             i += 1
-        elif os.path.basename(toks[i]) in PREFIX:
-            name = os.path.basename(toks[i])
+        elif os.path.basename(toks[i]).lower() in PREFIX:
+            name = os.path.basename(toks[i]).lower()
+            vo = PREFIX_VO.get(name, set())
             i += 1
-            while i < len(toks) and toks[i].startswith("-"):
-                i += 1
-            if name == "timeout":
+            while i < len(toks) and (toks[i].startswith("-") or toks[i].isdigit()):
+                i += 2 if toks[i] in vo else 1
+            if name in ("timeout", "gtimeout") and i < len(toks) and re.fullmatch(r"\d+(\.\d+)?[smhd]?", toks[i]):
                 i += 1
         else:
             break
     if i >= len(toks):
         return None
-    argv0, raw0, rest = os.path.basename(toks[i]), toks[i], toks[i + 1:]
+    argv0, raw0, rest = os.path.basename(toks[i]).lower(), toks[i], toks[i + 1:]
     g = M["global_options"].get(argv0, {"value": [], "flag": []})
     j = 0
     while j < len(rest):
@@ -547,6 +585,9 @@ def parse(toks):
         else:
             break
     sub = rest[j:]
+    if argv0 == "git" and sub:
+        sub = sub[:1] + [git_long(sub[0], t) for t in sub[1:]]
+        rest = rest[:j] + sub
     if argv0 == "gh":
         clean, k = [], 0
         while k < len(sub):
@@ -557,13 +598,28 @@ def parse(toks):
                 clean.append(sub[k])
             k += 1
         sub = clean
-    return {"env": env, "argv0": argv0, "raw0": raw0, "all": rest, "sub": sub}
+    return {"env": env, "argv0": argv0, "raw0": raw0, "all": rest, "sub": sub,
+            "dynamic": argv0 not in ("[", "[[") and any(c in argv0 for c in "$`{}*?[")}
 
 
 def gmatch(glob, tok):
     if fnmatch.fnmatchcase(tok, glob):
         return True
+    if re.match(r"\A[A-Za-z*][A-Za-z0-9*-]*\.", glob) and fnmatch.fnmatchcase(tok.lower(), glob.lower()):
+        return True   # a git config key, in any case
     return glob.startswith("--") and not any(c in glob for c in "*?[") and tok.startswith(glob + "=")
+
+
+def tok_names(tok, script):
+    """tok names script: the path or a '/<script>' suffix in any case, or a glob a shell expands to it."""
+    tl, sl = tok.lower(), script.lower()
+    if tl == sl or tl.endswith("/" + sl):
+        return True
+    if any(c in tok for c in "*?["):
+        ts, ss = tl.split("/"), sl.split("/")
+        lit = len(re.sub(r"\[[^]]*\]|[*?]", "", ts[-1]))
+        return lit >= 4 and all(fnmatch.fnmatchcase(ss[-1 - k], ts[-1 - k]) for k in range(min(len(ts), len(ss))))
+    return False
 
 
 def expand_default(globs):
@@ -598,12 +654,10 @@ def vopts_for(words):
 
 def entry_matches(e, p):
     if "script" in e:
-        cands = [(p["raw0"], p["all"])]
-        if p["argv0"] in INTERP:
-            pos = [k for k, t in enumerate(p["all"]) if not t.startswith("-")]
-            if pos:
-                cands.append((p["all"][pos[0]], p["all"][pos[0] + 1:]))
-        hit = [args for tok, args in cands if tok == e["script"] or tok.endswith("/" + e["script"])]
+        hit = [p["all"]] if tok_names(p["raw0"], e["script"]) else []
+        if not hit and (p["argv0"] in INTERP or re.fullmatch(r"(python|pypy)[0-9.]*", p["argv0"])):
+            hit = [p["all"][k + 1:] for k, t in enumerate(p["all"])
+                   if not (k and p["all"][k - 1] in INTERP_VO) and tok_names(t, e["script"])][:1]
         if not hit:
             return False
         toks, posn = hit[0], positionals(hit[0], set())
@@ -626,6 +680,8 @@ def entry_matches(e, p):
     if "args_none" in e and any(fnmatch.fnmatchcase(t, g) for g in expand_default(e["args_none"]) for t in posn):
         return False
     if "first_arg_none" in e and posn and any(fnmatch.fnmatchcase(posn[0], g) for g in e["first_arg_none"]):
+        return False
+    if "min_args" in e and len(posn) < e["min_args"]:
         return False
     if "env_any" in e and not any(fnmatch.fnmatchcase(v, g) for g in e["env_any"] for v in p["env"]):
         return False
@@ -650,14 +706,18 @@ def path_regex(pattern):
             out.append(("/", re.escape(s)))
         i += 1
     body = "".join((sep if n else "") + rx for n, (sep, rx) in enumerate(out))
-    return re.compile("^" + body + "/?$")
+    return re.compile("^" + body + "/?$", re.I)
 
 
 def norm_path(path):
     p = path.strip().strip("\"'")
-    p = re.sub(r"^https?://[^/]+", "", p)
-    p = re.sub(r"^/api/v3(?=/)", "", p)
-    return p.split("?", 1)[0].lstrip("/")
+    if re.match(r"^[A-Za-z][A-Za-z0-9+.-]*://", p):
+        p = re.sub(r"^[A-Za-z][A-Za-z0-9+.-]*://[^/]*", "", p)
+    elif p.split("/", 1)[0].lower().split(":", 1)[0] in API_HOSTS:
+        p = p[len(p.split("/", 1)[0]):]
+    p = re.sub(r"^/api/v3(?=/)", "", p, flags=re.I)
+    p = p.split("?", 1)[0].lstrip("/")
+    return "graphql" if p.lower() == "graphql" else p
 
 
 def rest_ids(method, path, kv):
@@ -745,36 +805,71 @@ def gh_api(sub):
 
 
 def http_call(p):
-    toks, method, data, upload, url, k = p["all"], None, [], False, None, 0
-    vopts = set(M["value_options"].get(p["argv0"], []))
+    """matching.rest: the method, path and body of an HTTP client call aimed at a GitHub API host, or None."""
+    prog, toks, k = p["argv0"], p["all"], 0
+    method, data, upload, get, pos = None, [], False, False, []
+    vopts = set(M["value_options"].get(prog, []))
+    long_data = ("--data", "--data-raw", "--data-binary", "--data-urlencode", "--data-ascii", "--form", "--form-string",
+                 "--json", "--post-data", "--body-data")
     while k < len(toks):
-        t = toks[k]
-        nxt = toks[k + 1] if k + 1 < len(toks) else ""
-        if t in ("-X", "--request") or (p["argv0"] == "wget" and t == "--method"):
+        t, nxt = toks[k], toks[k + 1] if k + 1 < len(toks) else ""
+        if t in ("-X", "--request") or (prog == "wget" and t == "--method"):
             method, k = nxt.upper(), k + 2
-        elif t.startswith("--method=") or t.startswith("--request="):
+        elif t.startswith(("--method=", "--request=")):
             method, k = t.split("=", 1)[1].upper(), k + 1
-        elif t in ("-d", "--data", "--data-raw", "--data-binary", "--data-urlencode", "-F", "--form", "--json", "--post-data", "--body-data"):
-            data.append(nxt)
-            k += 2
-        elif t in ("-T", "--upload-file", "--post-file"):
-            upload = upload or t != "--post-file"
-            data.append("@" + nxt)
-            k += 2
-        elif t in vopts:
-            k += 2
-        elif t.startswith("-"):
-            k += 1
+        elif prog == "curl" and t in ("-G", "--get"):
+            get, k = True, k + 1
+        elif t.startswith("--"):
+            key, eq, val = t.partition("=")
+            if key in long_data:
+                data.append(val if eq else nxt)
+            elif key in ("--upload-file", "--post-file"):
+                upload = upload or key != "--post-file"
+                data.append("@" + (val if eq else nxt))
+            k += 1 if eq or (key not in long_data + ("--upload-file", "--post-file") and key not in vopts) else 2
+        elif prog == "curl" and t.startswith("-") and len(t) > 1:
+            took = False
+            for j, ch in enumerate(t[1:], 1):
+                if ch in "AbcCdDeEFHKmoPQrtTuUwxXyYz":
+                    val = t[j + 1:] or nxt
+                    took = not t[j + 1:]
+                    if ch == "X":
+                        method = val.upper()
+                    elif ch in "dF":
+                        data.append(val)
+                    elif ch == "T":
+                        upload = True
+                        data.append("@" + val)
+                    break
+                if ch == "G":
+                    get = True
+            k += 2 if took else 1
+        elif t.startswith("-") and len(t) > 1:
+            k += 2 if t in vopts else 1
         else:
-            if url is None and any(h in t for h in API_HOSTS):
-                url = t
+            pos.append(t)
             k += 1
+    if prog in HTTPIE and pos and pos[0].upper() in ("GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS") \
+            and method is None:
+        method = pos.pop(0).upper()
+    url, items = None, []
+    for n, t in enumerate(pos):
+        if any(h in t.lower() for h in API_HOSTS):
+            url = t
+            if prog in HTTPIE:
+                items = [x for x in pos[n + 1:] if re.match(r"\A[^=:@]+(:=@|:=|=@|=(?!=)|@)", x)]
+            break
     if url is None:
         return None
+    data += items
     if method is None:
-        method = "PUT" if upload else ("POST" if data else "GET")
+        method = "PUT" if upload else ("POST" if data and not get else "GET")
     kv = []
     for d in data:
+        m = re.match(r"\A([^=:@]+)(:=|=)(?!=)", d) if prog in HTTPIE else None
+        if m:
+            kv.append("%s=%s" % (m.group(1), d[m.end():]))
+            continue
         try:
             body = json.loads(d)
         except ValueError:
@@ -814,8 +909,8 @@ def classify_simple(toks):
                 uncl = uncl or u
             else:
                 got |= rest_ids(method, path, kv)
-    text = " ".join([p["argv0"]] + p["all"])
-    if not got and not opaque and (p["argv0"] == "gh" or has_marker(text)):
+    text = " ".join([p["raw0"]] + p["all"])
+    if not got and not opaque and (p["argv0"] == "gh" or p["dynamic"] or has_marker(text, p["argv0"])):
         uncl = True
     return got, uncl, opaque
 
@@ -962,6 +1057,54 @@ FIXTURES = [
     ("printf %s $GH_TOKEN > t", [UNCL], []),
     ("echo gh auth token", [UNCL], []),
     ("echo $MY_TOKEN", [], []),
+    # task-017 hardening: an interpreter's option values, case and globs cannot hide the writer (F1)
+    ("bash -o pipefail scripts/plugin-config.sh unattended", ["policy.edit"], []),
+    ("sh -o errexit scripts/plugin-config.sh provision --level unattended", ["policy.edit"], []),
+    ("bash --rcfile /dev/null scripts/plugin-config.sh standard", ["policy.edit"], []),
+    ("bash scripts/PLUGIN-CONFIG.SH unattended", ["policy.edit"], []),
+    ("env -i /bin/bash scripts/plugin-confi?.sh unattended", ["policy.edit"], []),
+    ("bash -x scripts/plugin-config.sh show", [], ["policy.edit"]),
+    ("echo '{}' | bash hooks/permission-approved.sh", ["policy.edit"], []),
+    ("hooks/permission-approved.sh < payload.json", ["policy.edit"], []),
+    # the program in any case, the push family, wrappers (F2, F3)
+    ("GIT push --force origin main", ["git.push.force.default"], []),
+    ("GH pr merge 1 --admin", ["pr.merge.admin"], []),
+    ("git send-pack https://github.com/acme/app.git +HEAD:refs/heads/main", ["git.push.force.default"], []),
+    ("git http-push https://example.com/app.git feat", ["git.push.branch"], ["git.push.default"]),
+    ("caffeinate -i gh pr merge 1 --admin", ["pr.merge.admin"], []),
+    ("arch -arch arm64 gh pr merge 1", ["pr.merge"], []),
+    ("gtimeout -s KILL 5 gh pr merge 1", ["pr.merge"], []),
+    ("echo 1 | xargs -I{} gh pr merge {} --admin", ["pr.merge.admin"], []),
+    ("exec -a x gh pr merge 1", ["pr.merge"], []),
+    ("\"$GH\" pr merge 1", [UNCL], []),
+    # literal matching: host case, httpie/xh methods, git option prefixes, curl bodies (F8, Codex P1)
+    ("curl -X PUT https://API.GITHUB.COM/repos/acme/app/pulls/1/merge", ["pr.merge"], []),
+    ("curl -X PUT https://Api.GitHub.com/repos/acme/app/pulls/1/merge", ["pr.merge"], []),
+    ("http PUT api.github.com/repos/acme/app/pulls/1/merge", ["pr.merge"], []),
+    ("xh PUT api.github.com/repos/acme/app/pulls/1/merge", ["pr.merge"], []),
+    ("http api.github.com/repos/me/app/issues title=x", ["issue.create"], []),
+    ("git commit --no-verif -m x", ["git.verify.skip"], []),
+    ("git reset --har HEAD~1", ["work.discard"], []),
+    ("git branch --delet feat", ["branch.delete.local"], []),
+    ("git -c CORE.HOOKSPATH=/dev/null commit -m x", ["git.verify.skip"], []),
+    ("curl -d'{\"tag_name\":\"v1\"}' https://api.github.com/repos/me/app/releases", ["release.create"], ["repo.read"]),
+    ("curl --data='{\"tag_name\":\"v1\"}' https://api.github.com/repos/me/app/releases", ["release.create"], ["repo.read"]),
+    ("curl -sSd '{\"tag_name\":\"v1\"}' https://api.github.com/repos/me/app/releases", ["release.create"], ["repo.read"]),
+    ("curl --json '{\"tag_name\":\"v1\"}' https://api.github.com/repos/me/app/releases", ["release.create"], ["repo.read"]),
+    ("curl -G -d q=x https://api.github.com/search/issues", ["repo.read"], []),
+    # the remotes and remote-tracking refs PG reads as facts (F9)
+    ("git remote set-head origin zzz", ["config.global.write"], []),
+    ("git remote set-head origin --auto", [], ["config.global.write"]),
+    ("git symbolic-ref refs/remotes/origin/HEAD refs/remotes/origin/zzz", ["config.global.write"], []),
+    ("git symbolic-ref --short refs/remotes/origin/HEAD", [], ["config.global.write"]),
+    ("git remote add fork https://github.com/me/fork.git", ["config.global.write"], []),
+    ("git remote set-url origin https://github.com/evil/app.git", ["config.global.write"], []),
+    ("git remote rename origin old", ["config.global.write"], []),
+    ("git config remote.origin.pushURL https://github.com/evil/app.git", ["config.global.write"], []),
+    ("git config url.https://evil.example/.insteadOf https://github.com/", ["config.global.write"], []),
+    ("git update-ref refs/remotes/origin/feat HEAD", ["config.global.write"], []),
+    ("git fetch . feat:refs/remotes/origin/feat", ["config.global.write"], []),
+    ("git remote -v", [], ["config.global.write"]),
 ]
 MCP_FIXTURES = [
     ("merge_pull_request", {}, ["pr.merge"], []),

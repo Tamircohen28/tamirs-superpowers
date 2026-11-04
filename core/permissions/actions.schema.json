@@ -142,6 +142,7 @@
         "args": { "$ref": "#/$defs/globs" },
         "args_none": { "$ref": "#/$defs/globs" },
         "first_arg_none": { "$ref": "#/$defs/globs" },
+        "min_args": { "type": "integer", "minimum": 1 },
         "env_any": { "$ref": "#/$defs/globs" }
       },
       "oneOf": [{ "required": ["cmd"] }, { "required": ["script"] }]
