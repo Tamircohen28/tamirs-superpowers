@@ -42,7 +42,7 @@ opencode --version      # opencode v2.2.5
 
 | What | Where | How it reaches OpenCode |
 |---|---|---|
-| The 30 skills | `skills/<domain>/<name>/SKILL.md`, canonical, read in place | `opencode.json` `skills` array (11 entries: six domains plus the four `repo` skills listed one by one) |
+| The 31 skills | `skills/<domain>/<name>/SKILL.md`, canonical, read in place | `opencode.json` `skills` array (11 entries: six domains plus the four `repo` skills listed one by one) |
 | 10 specialist agents | `.opencode/agents/*.md`, **generated** from `agents/*.md` | OpenCode 2's own agent directory (plural) |
 | 27 slash commands | `.opencode/commands/*.md`, **generated** from the user-invocable skills | OpenCode 2's command directory |
 | The three core guards | `platforms/opencode/plugin/index.ts` → `guard.ts` (server plugin) | `opencode.json` `plugins: ["./platforms/opencode/plugin"]` |

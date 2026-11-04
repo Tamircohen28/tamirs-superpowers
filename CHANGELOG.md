@@ -306,7 +306,7 @@ setting; the Agent Plugins manifest lives under `platforms/agent-plugins/`, neve
   string — are classified and printed, every other finding fails, `--spec-strict` promotes
   the divergences, and an unreachable registry skips rather than fails. CI's `skill-contract`
   job runs it beside `tests/test-skill-contract.sh --strict` (every warning a failure; eval
-  coverage now 30 of 30 skills, with fallback cases added to `diagnose-refusal` and
+  coverage now `30 of 30 skills`, with fallback cases added to `diagnose-refusal` and
   `usage-capture`).
 - **Hook conformance.** `tests/test-hook-conformance.sh` (940 checks): one scenario corpus (a
   plain checkout; an active objective with a task worktree) replayed through every wired
