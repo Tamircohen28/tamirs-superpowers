@@ -66,7 +66,7 @@ hand edit would also break the lock, so the resolver would read the file tighten
    | 0 | done, nothing to do, or shown | relay it |
    | 1 | failed | relay the reason; do not retry with other arguments |
    | 2 | usage error | relay the message and the grammar below |
-   | 3 | refused (no host-attested channel, R4 `allow`, provision inside a session) | relay it, including the command it names for the user's own terminal |
+   | 3 | refused (no host-attested channel, R4 `allow`, provision inside a session, or a Claude Code `confirm` with no usable guard stamp: `asked/<nonce>.json` missing, older than 15 minutes, or for other bytes, nonce, session or host — the pending request is kept) | relay it, including the command it names for the user's own terminal |
    | 4 | recorded **pending**: the change widens something | show the rows and the printed `confirm <nonce>` command; stop |
 
    On exit 4 the user decides. Run `confirm <nonce>` only when the user asks you to — on
