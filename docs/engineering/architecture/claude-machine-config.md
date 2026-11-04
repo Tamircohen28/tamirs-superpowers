@@ -99,7 +99,10 @@ permission mode, and a `deny` decision sets a blocking error that survives
 bypass. `permissions-ask.json` remains the right policy for any machine not in
 bypass mode.
 
-Overrides: `PM_ALLOW_DOCKER=1` inline on the command, or exported for a session.
+There is no override token. The guard asks `scripts/resolve-permission.sh` about
+`docker.state` (ADR 004): on Claude Code the answer is a host `ask` dialog for that
+one call, elsewhere a deny, and a missing or failing resolver blocks.
+`PM_ALLOW_DOCKER=1` — inline or exported — approves nothing.
 The name in the block message comes from `DOCKER_GUARD_OWNER`. The script reads
 stdin under a `select()` timeout (`DOCKER_GUARD_STDIN_TIMEOUT`, default 2s), so
 an absent or interactive stdin exits immediately rather than hanging the tool

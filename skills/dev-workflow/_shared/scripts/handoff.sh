@@ -16,7 +16,7 @@
 #              [--validation 'command|tier|pass|fail|skipped[|note]']...
 #              [--decision 'decision|rationale']...
 #              [--risk 'risk|critical|high|medium|low[|mitigation]']...
-#              [--followup 'item[|blocking][|role]']...
+#              [--followup 'item[|blocking|non-blocking|true|false][|role]']...
 #              [--force]            write even when scope checks fail
 #   handoff.sh write <objective-id> <task-id> <handoff.json> [--force]
 #   handoff.sh read  <objective-id> <task-id>
@@ -72,6 +72,7 @@ CHANGES="added modified deleted renamed"
 RESULTS="pass fail skipped"
 TIERS="edit worker integration delivery"
 SEVERITIES="critical high medium low"
+BLOCKING="blocking non-blocking true false"
 
 in_list() {
   local needle="$1" item
@@ -82,8 +83,19 @@ in_list() {
   return 1
 }
 
-# field 'a|b|c' N  ->  Nth pipe-separated field, empty when absent
-field() { printf '%s' "$1" | cut -d'|' -f"$2"; }
+# field <spec> <n> -> the n-th '|'-separated field of <spec>, or "" when it has
+# fewer than n fields. Not `cut -d'|' -fN`: cut prints a delimiter-free line
+# whole for every N, so `--followup 'item'` used to become
+# {item, suggested_role: item} and `--decision 'd'` gained rationale "d".
+field() {
+  local rest="$1" n="$2"
+  while (( n > 1 )); do
+    if [[ "$rest" != *"|"* ]]; then rest=""; break; fi
+    rest="${rest#*|}"
+    n=$((n - 1))
+  done
+  printf '%s' "${rest%%|*}"
+}
 
 # scope_escapes <task-file> <newline-separated paths>  -> escaping paths on stdout
 scope_escapes() {
@@ -204,8 +216,13 @@ cmd_emit() {
             | if $s == "" then . else .severity = $s end
             | if $m == "" then . else .mitigation = $m end ]')"; shift 2 ;;
       --followup)
-        followups="$(jq -n --argjson acc "$followups" --arg i "$(field "$2" 1)" \
-          --arg b "$(field "$2" 2)" --arg role "$(field "$2" 3)" '$acc + [ {item: $i}
+        local fitem fblock
+        fitem="$(field "$2" 1)"; fblock="$(field "$2" 2)"
+        [[ -n "$fitem" ]] || die "--followup expects 'item[|blocking][|role]'"
+        [[ -z "$fblock" ]] || in_list "$fblock" "$BLOCKING" \
+          || die "--followup blocking field must be one of: $BLOCKING (got '$fblock'; the role is the 3rd field)"
+        followups="$(jq -n --argjson acc "$followups" --arg i "$fitem" \
+          --arg b "$fblock" --arg role "$(field "$2" 3)" '$acc + [ {item: $i}
             | if $b == "" then . else .blocking = ($b == "true" or $b == "blocking") end
             | if $role == "" then . else .suggested_role = $role end ]')"; shift 2 ;;
       *) die "emit: unknown option '$1'" ;;

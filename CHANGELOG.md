@@ -5,6 +5,96 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [5.3.0] — 2026-11-04
+
+### Security
+
+- **Every R3/R4 step a skill or script takes now goes through the permission resolver
+  (ADR 004 item 10).** Each one asks `scripts/resolve-permission.sh` first; a deny, a missing
+  or failing resolver, or an ask with nobody at a terminal stops the step with exit 3, the
+  setting that would allow it, and the exact command to run yourself in your own terminal.
+  `--yes`, `--force` and `--adopt all` never skip an R3/R4 gate. Gated now: repo-scaffold's
+  repository creation (`repo.create`), `enable-repo-merge-settings.sh`
+  (`repo.settings.merge`), `github-policy.sh apply` (`ruleset.apply`, `ruleset.apply.org`),
+  usage-capture `enable.sh` (the settings rewrite, `--bodies`, the collector start and stop),
+  capture-config policy hunks (`config.policy.stage`, per hunk), retro writes outside the
+  repository, skill-creator's nested `claude -p` runs (`process.spawn.agent_host`; children
+  run with `--permission-mode dontAsk`), mcp-builder's installs, inspector runs and global
+  host config, pr-dev's issue close, PR close and merge, and the cleanup skill's R3/R4 steps.
+  From an agent's shell, which has no terminal, the R4 ones always stop and hand you the
+  command.
+- **`PM_ALLOW_DOCKER` approves nothing.** docker-guard asks the resolver about `docker.state`:
+  a host ask dialog on Claude Code, a deny elsewhere, a block when the resolver fails. The
+  inline and exported token are both ignored.
+- **`GITHUB_POLICY_ALLOW_LIVE` is gone.** An environment switch may only tighten (ADR 004 D3);
+  setting it prints that it is ignored.
+
+### Changed
+
+- **Worktree dependency installs.** At `supervised` (the default) the worktree hook no longer
+  installs dependencies: it writes the commands to run to `session-files/worktree-setup.log`.
+  At `standard` and above it runs only script-free installs (`npm ci --ignore-scripts`, pnpm,
+  classic yarn and bun with scripts off, `cargo fetch`); anything that would run repository
+  code (repo-pinned yarn, lockfile-less npm, uv, poetry, pipenv, go, deno, bundler, composer)
+  is printed instead.
+- **Branch cleanup keeps what it cannot prove safe.** `cleanup-after-merge.sh` and
+  `cleanup.sh --yes` delete nothing unless the PR is merged, its head is neither the base nor
+  the default branch, and it is not cross-repository; a remote branch also has to be
+  unprotected and at the merged head. Every deletion asks the resolver
+  (`branch.delete.remote` is R3), so under `supervised` and `standard` a headless run keeps
+  remote branches and exits 3 with a `skipped:` list of what it kept and why. A dirty worktree
+  is never force-removed. On Claude Code, pr-dev deletes a kept branch with
+  `git push origin --delete <branch>` as its own call, so the host dialog asks you.
+- **`enable-repo-merge-settings.sh` is a dry run by default.** It prints the PATCH; `--apply`
+  sends it after the resolver. repo-scaffold and repo-standards pass `--apply` and treat exit
+  3 as a degraded success that reports the command to run yourself.
+- **mcp-builder registers servers at project scope by default**; user-level host config goes
+  through the gate.
+- **capture-config delivers only adopted sinks** and refuses stray `core/` or `platforms/`
+  edits in its commits.
+- repo-scaffold and mcp-builder `SKILL.md` are back under 500 lines: Stage 4 governance detail
+  moved to `references/branch-governance.md`, the tool templates to
+  `references/tool-templates.md`.
+
+### Fixed
+
+- **OpenCode agents with a tool allowlist now deny image generation and Code Mode.**
+  OpenCode 2.2.2 added the `experimental_image_generate` permission action, on by default
+  wherever the provider has image models, and the generated agents never denied it or
+  `execute` (Code Mode). Under OpenCode's allow-all base policy, every restricted agent in
+  `.opencode/agents/` could reach both. No canonical tool maps to either, so every agent with
+  a `tools:` allowlist now denies them, and the generator's pinned action list, the
+  permission-key check and both OpenCode adapter tests know the new action.
+- **Orchestration tooling.** `handoff.sh emit` no longer copies a one-field `--followup`,
+  `--decision` or `--risk` into its missing fields (a bare `--followup 'item'` used to record
+  `item` as its suggested role), and a followup's blocking field must be `blocking`,
+  `non-blocking`, `true` or `false`. `objective-state.sh validate` accepts two tasks that
+  share a write scope when any dependency path orders them, not only a direct `depends_on`,
+  matching `plan-dev`'s planner. `resolve-worktree.sh --worktree-base <dir>` (or
+  `AGENT_WORKTREE_BASE`) places objective worktrees under `<dir>/<objective>/` instead of the
+  default `.agent-worktrees/` location; `rules/dev/git-worktree-agent-workflow.md` documents
+  it, together with the hook variable that must match it.
+- **The doc-claims check stops failing on counts that were true when written.** Research
+  notes under `docs/engineering/research/` and released `CHANGELOG.md` entries are no longer
+  held to today's skill count; `[Unreleased]` and every other doc still are.
+- **Platform docs that had drifted from upstream.** Codex: the install command is
+  `codex plugin add`, which takes `<plugin>@<marketplace>` (the CLI has no `install`
+  subcommand), and the config reference drops the `untrusted` approval policy, retired in
+  0.149.0, and names `read-only` as the default sandbox mode. Cursor: the hook bundle is
+  documented as wiring `subagentStop`; `loop_limit: null` is described as most likely a no-op
+  on the guard events, since Cursor documents it only for `stop`/`subagentStop`; extension
+  install is `unknown`, not `unsupported`. Gemini CLI:
+  extension settings reach hooks and `${VAR}` text in the manifest, hooks, skills and
+  agents, not only MCP servers. Antigravity: plugin hooks and config variables are now
+  documented upstream. OpenCode: doc links point at the V2 docs, and the MCP capability's
+  validation command checks the V2 link the install guide carries. Claude Code: `/config`
+  lists plugin options only in the CLI (2.1.269+) and only non-sensitive ones, never in
+  Claude Desktop; and the statusline guide no longer claims the plugin's own
+  `settings.statusLine` wires the footer, since the manifest reference says plugin settings
+  honour only `agent` and `subagentStatusLine` (unverified live; set a user-level
+  `statusLine`).
+
+
 ## [5.2.0] — 2026-11-04
 
 ### Added

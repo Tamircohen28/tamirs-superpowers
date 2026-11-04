@@ -78,7 +78,8 @@ notes: >-
   tamirs-superpowers GITHUB_PERSONAL_ACCESS_TOKEN`; TS_PERMISSION_LEVEL is a plain setting
   stored in the extension's .env, where the permission resolver reads it (ADR 004 D3, D7).
   The earlier 'settings reach MCP servers only' reading was taken with --skip-settings;
-  source shows hooks receive them too. Known limitation, not fixable from here: an
+  source (v0.60.0-v0.66.0) shows hooks receive them too, and set values replace ${VAR}
+  placeholders in the manifest, hooks/hooks.json, bundled skills and agents. Known limitation, not fixable from here: an
   extension installed from a bare git URL roots at the repo root, where hooks/hooks.json is
   the CLAUDE file (its ${CLAUDE_PLUGIN_ROOT} commands cannot run on Gemini) and agents/ is
   Claude-shaped (one `Invalid tool name` error per file); the gemini release tarball is the

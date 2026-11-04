@@ -224,12 +224,25 @@ else
   ok "enable.sh refuses a gateway URL as a label"
 fi
 
-out="$(bash "$ENABLE" --json --dir "$LOGDIR" --port "$PORT" 2>/dev/null || true)"
-if [[ -f "$HOME/.claude/settings.json" ]] \
-   && jq -e '.env.OTEL_EXPORTER_OTLP_PROTOCOL == "http/json" and .env.OTEL_LOG_TOOL_DETAILS == "1" and (.env | has("OTEL_LOG_USER_PROMPTS") | not)' "$HOME/.claude/settings.json" >/dev/null; then
-  ok "enable.sh writes Claude OTEL env (prompts off)"
+# A real (non-dry) run from a shell with no controlling terminal — an agent's
+# Bash, CI — reaches the config.global.write gate (R4, ADR 004 D2/D5): the real
+# resolver never allows R4 and nobody is there to confirm, so enable.sh stops
+# with exit 3 before its first write. The write path itself, with a stub
+# resolver answering allow, is covered in tests/test-toolkit-gates.sh.
+# no_tty: a new session, so /dev/tty cannot open even when make runs in a terminal.
+no_tty() { python3 -I -S -c 'import os, sys; os.setsid(); os.execvp(sys.argv[1], sys.argv[1:])' "$@"; }
+printf '{"env":{"KEEP_ME":"1"}}\n' >"$HOME/.claude/settings.json"
+before="$(cksum <"$HOME/.claude/settings.json")"
+out="$(no_tty bash "$ENABLE" --json --dir "$LOGDIR" --port "$PORT" 2>&1)"; rc=$?
+after="$(cksum <"$HOME/.claude/settings.json")"
+backups="$(find "$HOME/.claude" -name 'settings.json.bak.*' | wc -l | tr -d ' ')"
+if [[ "$rc" -eq 3 && "$before" == "$after" && "$backups" == 0 ]] \
+   && printf '%s' "$out" | grep -q 'blocked: config.global.write' \
+   && printf '%s' "$out" | grep -q 'Run it yourself in a terminal'; then
+  ok "enable.sh without a terminal refuses the settings write (exit 3, settings untouched)"
 else
-  bad "enable.sh writes Claude OTEL env (prompts off)" "settings=$(cat "$HOME/.claude/settings.json" 2>/dev/null) out=$out"
+  bad "enable.sh without a terminal refuses the settings write (exit 3, settings untouched)" \
+    "rc=$rc backups=$backups settings=$(cat "$HOME/.claude/settings.json" 2>/dev/null) out=$out"
 fi
 python3 "$COLLECTOR" --dir "$LOGDIR" --port "$PORT" --stop >/dev/null 2>&1 || true
 

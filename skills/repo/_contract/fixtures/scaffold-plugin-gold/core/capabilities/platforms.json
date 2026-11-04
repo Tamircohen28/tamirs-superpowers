@@ -467,7 +467,7 @@
           ],
           "install": {
             "type": "marketplace",
-            "command": "codex plugin install scaffold-plugin-gold",
+            "command": "codex plugin add scaffold-plugin-gold@scaffold-plugin-gold",
             "doc": "docs/user/install/codex.md"
           },
           "validation": {
@@ -555,7 +555,7 @@
               "last_verified": "2026-09-17",
               "status": "native",
               "validation": "bash scripts/check-marketplace-schema.sh .",
-              "notes": "Codex installs plugins from a marketplace; the install command on this surface is `codex plugin install scaffold-plugin-gold`. The evidence is the marketplace manifest this repo publishes, which is what the validation checks. The previous note offered platform-targets.json as its source — that file's capabilities array is generated FROM this registry, so the row was citing itself."
+              "notes": "Codex installs plugins from a marketplace; the install command on this surface is `codex plugin add scaffold-plugin-gold@scaffold-plugin-gold` (the CLI has no `install` subcommand: `codex plugin` takes add | list | marketplace | remove, and `add` takes PLUGIN@MARKETPLACE; source-cited cli/src/plugin_cmd.rs on 0.166.0). The evidence is the marketplace manifest this repo publishes, which is what the validation checks. The previous note offered platform-targets.json as its source — that file's capabilities array is generated FROM this registry, so the row was citing itself."
             },
             "extension_install": {
               "last_verified": "2026-09-17",
@@ -688,7 +688,7 @@
             "hooks": {
               "last_verified": "2026-09-23",
               "status": "partial",
-              "notes": "Cursor-format plugin hooks DO run, measured 2026-09-23 on cursor-agent 2026.07.17-3e2a980: .cursor-plugin/plugin.json declares \"hooks\": \"./platforms/cursor/hooks.json\" and a write to .github/workflows/ci.yml was blocked with the guard's own reason reaching the agent and the file unchanged, while an ordinary write succeeded. Claude-shaped plugin hooks (hooks/hooks.json, CLAUDE_PLUGIN_ROOT) still do NOT run under a Cursor plugin install - Cursor reads third-party Claude hooks only from .claude/settings.local.json, .claude/settings.json and ~/.claude/settings.json, never from a plugin's own hooks.json - which is why the bundle sits at a non-default path: an undeclared component binds to that unreadable default rather than disabling itself. Status stays 'partial' because only 3 of Cursor's 21 events are wired (preToolUse, beforeShellExecution, postToolUse); extending coverage is #179 E8. Project-level .cursor/hooks.json remains a separate thing, shipping soft contributor guards for this repo as an open project. See #221. 2026-10-17 (5.0.0): the bundle wires ten of Cursor's 21 events: workspaceOpen (pluginPaths from SUPERPOWERS_CURSOR_PLUGIN_PATH), sessionStart (session-init.sh -> additional_context; env not emitted, shape undocumented), sessionEnd (session-end.sh, release-agent-claims.sh, handoff-reminder.sh; no output, reminder on stderr), beforeSubmitPrompt (goal-condition-lint.sh blocks with continue:false + user_message; scope-decompose-reminder.sh and skill-suggest.sh pass with continue:true + user_message, addressed to the user since the event has no model channel), preToolUse, beforeShellExecution, postToolUse, stop (check-done.sh, {} + stderr), preCompact (precompact-snapshot.sh writes .dev-files/compaction/latest.md). failClosed: true and loop_limit: null on the safety tier only: enforce-worktree-edits.sh, guard-sensitive-files.sh (preToolUse and beforeShellExecution), protect-other-branches.sh, cursor-agent-tools-guard.sh (preToolUse). No hook emits followup_message (Cursor auto-submits it as the user's next message); tests/test-cursor-lifecycle.sh asserts the envelope of every entry against tests/fixtures/cursor/. Unwired with reasons in platforms/cursor/README.md: subagentStop, subagentStart, postToolUseFailure, MCP/read/after* events. Cloud agents run the guards, prompt hooks, stop and preCompact but not sessionStart/sessionEnd/workspaceOpen and load no user-level hooks. Status stays partial: no live run of the lifecycle port yet (fixtures built from the documented fields, desktop 3.24). Permission levels (ADR 004 D8): see this surface's permission_levels row.",
+              "notes": "Cursor-format plugin hooks DO run, measured 2026-09-23 on cursor-agent 2026.07.17-3e2a980: .cursor-plugin/plugin.json declares \"hooks\": \"./platforms/cursor/hooks.json\" and a write to .github/workflows/ci.yml was blocked with the guard's own reason reaching the agent and the file unchanged, while an ordinary write succeeded. Claude-shaped plugin hooks (hooks/hooks.json, CLAUDE_PLUGIN_ROOT) still do NOT run under a Cursor plugin install - Cursor reads third-party Claude hooks only from .claude/settings.local.json, .claude/settings.json and ~/.claude/settings.json, never from a plugin's own hooks.json - which is why the bundle sits at a non-default path: an undeclared component binds to that unreadable default rather than disabling itself. At that measurement the bundle wired 3 of Cursor's 21 events (preToolUse, beforeShellExecution, postToolUse); #179 E8 extended it to the ten below. Project-level .cursor/hooks.json remains a separate thing, shipping soft contributor guards for this repo as an open project. See #221. 2026-10-17 (5.0.0): the bundle wires ten of Cursor's 21 events: workspaceOpen (pluginPaths from SUPERPOWERS_CURSOR_PLUGIN_PATH), sessionStart (session-init.sh -> additional_context; env not emitted, shape undocumented), sessionEnd (session-end.sh, release-agent-claims.sh, handoff-reminder.sh; no output, reminder on stderr), beforeSubmitPrompt (goal-condition-lint.sh blocks with continue:false + user_message; scope-decompose-reminder.sh and skill-suggest.sh pass with continue:true + user_message, addressed to the user since the event has no model channel), preToolUse, beforeShellExecution, postToolUse, stop (check-done.sh, {} + stderr), preCompact (precompact-snapshot.sh writes .dev-files/compaction/latest.md), subagentStop (subagent-handoff-check.sh: its handoff warning goes to user_message and stderr on Cursor, never followup_message). failClosed: true and loop_limit: null on the safety tier only: enforce-worktree-edits.sh, guard-sensitive-files.sh (preToolUse and beforeShellExecution), protect-other-branches.sh, cursor-agent-tools-guard.sh (preToolUse); Cursor's hooks reference documents loop_limit only for stop/subagentStop hooks, so on these permission events it is most likely a no-op (doc-cited, not measured). No hook emits followup_message (Cursor auto-submits it as the user's next message); tests/test-cursor-lifecycle.sh asserts the envelope of every entry against tests/fixtures/cursor/. Unwired with reasons in platforms/cursor/README.md: subagentStart, postToolUseFailure, MCP/read/after* events. Cloud agents run the guards, prompt hooks, stop, preCompact and subagentStop but not sessionStart/sessionEnd/workspaceOpen and load no user-level hooks. Status stays partial: no live run of the lifecycle port yet (fixtures built from the documented fields, desktop 3.24). Permission levels (ADR 004 D8): see this surface's permission_levels row.",
               "fallback": "Treat guards as advisory; enforce the same rules in CI."
             },
             "mcp": {
@@ -737,9 +737,9 @@
               "notes": "Team marketplace import from repo."
             },
             "extension_install": {
-              "last_verified": "2026-09-17",
-              "status": "unsupported",
-              "notes": "Cursor installs plugins, not git-URL extensions.",
+              "last_verified": "2026-11-03",
+              "status": "unknown",
+              "notes": "No longer verified absent: the Cursor CLI changelog documents installing plugins from a git URL (`agent plugin marketplace add <git-url>`; doc-cited https://cursor.com/docs/cli/changelog.md, read 2026-11-03, docs/engineering/research/permissions/platforms/cursor.md). That is a plugin marketplace source rather than a Gemini-style extension install, and it has not been run here, so it is unmeasured.",
               "fallback": "Use the plugin manifest install path."
             },
             "slash_commands": {
@@ -994,7 +994,7 @@
           "display_name": "Antigravity CLI",
           "kind": "cli",
           "support": "unverified",
-          "unverified_reason": "Google retired Gemini CLI for consumer tiers on 2026-06-18 in favour of Antigravity CLI (`agy`), a closed-source successor with its own plugin format: a folder with a required closed-schema plugin.json, optional mcp_config.json, hooks.json, skills/<name>/SKILL.md, agents/<name>.md and rules/<name>.md, installed with `agy plugin install` or imported from a Gemini extension with `agy plugin import gemini`. Google states skills, hooks, subagents and extensions carry over at launch without 1:1 parity, and one third-party source claims hooks load but do not fire; neither was measured here. The gemini_cli surface stays supported for enterprise Code Assist and paid API-key users. No capability is claimed until a live `agy` run records one. The route documented, not measured: `agy plugin import gemini` from an installed Gemini extension, or `agy plugin install` on the folder scripts/build-dist.sh --target antigravity writes (docs/user/install/antigravity.md). The validation command is static only: the generated plugin.json and mcp_config.json are held to the documented closed schema and the antigravity distribution to its layout; every coarse key in platforms/antigravity/adapter.yaml stays unknown until a live agy run records one. Widening lever, never used (ADR 004 D8, D10.4): Antigravity hooks accept `allow` and `auto_approve` decisions (docs/engineering/research/permissions/platforms/gemini.md, PreToolUse decision values); if this repo's hooks are ever wired there they are deny-only, and no shipped hook or adapter emits auto_approve (tests/test-manifest-invariants.sh holds it).",
+          "unverified_reason": "Google retired Gemini CLI for consumer tiers on 2026-06-18 in favour of Antigravity CLI (`agy`), a closed-source successor with its own plugin format: a folder with a required plugin.json (this repo emits only {name, description}, the two fields an earlier reading of the docs gave as a closed schema; the current plugins page example also shows $schema, displayName, version, logo and suggestedPrompts, so whether the schema is still closed is unverified without `agy plugin validate --strict`), optional mcp_config.json, hooks.json, skills/<name>/SKILL.md, agents/<name>.md and rules/<name>.md, installed with `agy plugin install` or imported from a Gemini extension with `agy plugin import gemini`. Google states skills, hooks, subagents and extensions carry over at launch without 1:1 parity, and one third-party source claims hooks load but do not fire; neither was measured here. The docs now also cover plugin hooks.json in the CLI (https://antigravity.google/docs/hooks) and required plugin config variables, which install the plugin disabled and open a setup dialog on enable (https://antigravity.google/docs/plugins/); neither is measured or used here. The gemini_cli surface stays supported for enterprise Code Assist and paid API-key users. No capability is claimed until a live `agy` run records one. The route documented, not measured: `agy plugin import gemini` from an installed Gemini extension, or `agy plugin install` on the folder scripts/build-dist.sh --target antigravity writes (docs/user/install/antigravity.md). The validation command is static only: the generated plugin.json and mcp_config.json are held to the two-field shape and the antigravity distribution to its layout; every coarse key in platforms/antigravity/adapter.yaml stays unknown until a live agy run records one. Widening lever, never used (ADR 004 D8, D10.4): Antigravity hooks accept `allow` and `auto_approve` decisions (docs/engineering/research/permissions/platforms/gemini.md, PreToolUse decision values); if this repo's hooks are ever wired there they are deny-only, and no shipped hook or adapter emits auto_approve (tests/test-manifest-invariants.sh holds it).",
           "aliases": [
             "agy",
             "antigravity",
@@ -1017,9 +1017,9 @@
       "primary_surface": "opencode",
       "doc_urls": [
         "https://opencode.ai/config.json",
-        "https://opencode.ai/docs/agents/",
-        "https://opencode.ai/docs/plugins/",
-        "https://opencode.ai/docs/skills/"
+        "https://opencode.ai/v2/docs/agents/",
+        "https://opencode.ai/v2/docs/plugins/",
+        "https://opencode.ai/v2/docs/skills/"
       ],
       "surfaces": {
         "opencode": {
@@ -1030,9 +1030,9 @@
             "open-code"
           ],
           "doc_urls": [
-            "https://opencode.ai/docs/skills/",
-            "https://opencode.ai/docs/agents/",
-            "https://opencode.ai/docs/plugins/",
+            "https://opencode.ai/v2/docs/skills/",
+            "https://opencode.ai/v2/docs/agents/",
+            "https://opencode.ai/v2/docs/plugins/",
             "https://opencode.ai/config.json"
           ],
           "install": {
@@ -1066,7 +1066,7 @@
             "parallel_subagents": {
               "last_verified": "2026-10-16",
               "status": "unknown",
-              "notes": "Unmeasured: the evidence conflicts and no live v2 run has settled it. Against: foreground task calls issued in one turn were reported to run serially (sst/opencode#29638, re-reporting #14195; closed not planned), and subagent_depth defaults to 1 (opencode.ai/docs/config), so subagents cannot nest. For: the v2 tools docs (dev.opencode.ai/v2/docs/tools) document background: true, which returns immediately and notifies the parent. Docs and issues rechecked 2026-10-16. Until a v2 run exercises the background path, treat parallel fan-out as unavailable. 2026-10-17: OpenCode 2 docs: the subagent tool takes background: true (returns immediately, notifies the parent on finish); experimental.subagent_depth defaults to 1, so the orchestrator must be the primary agent (the canonical orchestrator grants no Task, so its adapter denies subagent — reviewed, kept: on OpenCode the person's primary agent orchestrates); whether several foreground calls in one turn run concurrently is undocumented; no live run.",
+              "notes": "Unmeasured: the evidence conflicts and no live v2 run has settled it. Against: foreground task calls issued in one turn were reported to run serially (anomalyco/opencode#29638, filed when the repo was sst/opencode, re-reporting #14195; closed not planned), and subagent_depth defaults to 1 (opencode.ai/docs/config), so subagents cannot nest. For: the v2 tools docs (dev.opencode.ai/v2/docs/tools) document background: true, which returns immediately and notifies the parent. Docs and issues rechecked 2026-10-16. Until a v2 run exercises the background path, treat parallel fan-out as unavailable. 2026-10-17: OpenCode 2 docs: the subagent tool takes background: true (returns immediately, notifies the parent on finish); experimental.subagent_depth defaults to 1, so the orchestrator must be the primary agent (the canonical orchestrator grants no Task, so its adapter denies subagent — reviewed, kept: on OpenCode the person's primary agent orchestrates); whether several foreground calls in one turn run concurrently is undocumented; no live run.",
               "fallback": "Fan out sequentially."
             },
             "agent_teams": {
@@ -1084,8 +1084,8 @@
             "mcp": {
               "last_verified": "2026-10-31",
               "status": "native",
-              "validation": "grep -q 'opencode.ai/docs/mcp-servers' docs/user/install/opencode.md",
-              "notes": "OpenCode reads MCP servers from the 'mcp' block of opencode.json, not from .mcp.json. This repo deliberately ships no 'mcp' block -- docs/user/install/opencode.md tells the user to port the entries they want -- so the validation asserts that documented path, not a key we do not ship. It previously read jq -e '.mcp // {}' opencode.json, which names a key that has never been present AND could not fail: the // {} fallback substitutes an empty object, and jq -e only exits non-zero on false or null. It reported success on every input, including this one. 2026-10-17 (5.0.0): opencode.json declares mcp.servers.github = local scripts/github-mcp.sh with the token variable the official server reads via {env:}; measured on 2.2.5 (2026-10-31): `opencode mcp list` on a warm service shows the server failing with the script's own 'github_token is not set' message until the variable is exported (the first call after a cold start lists nothing)."
+              "validation": "grep -q 'opencode.ai/v2/docs/mcp-servers' docs/user/install/opencode.md",
+              "notes": "OpenCode reads MCP servers from the 'mcp' block of opencode.json, not from .mcp.json. This repo deliberately ships no 'mcp' block -- docs/user/install/opencode.md tells the user to port the entries they want -- so the validation asserts that documented path, not a key we do not ship. It previously read jq -e '.mcp // {}' opencode.json, which names a key that has never been present AND could not fail: the // {} fallback substitutes an empty object, and jq -e only exits non-zero on false or null. It reported success on every input, including this one. 2026-10-17 (5.0.0): opencode.json declares mcp.servers.github = local scripts/github-mcp.sh with the token variable the official server reads via {env:}; measured on 2.2.5 (2026-10-31): `opencode mcp list` on a warm service shows the server failing with the script's own 'github_token is not set' message until the variable is exported (the first call after a cold start lists nothing). 2026-11-04: the validation greps the V2 docs URL the install doc links (opencode.ai/v2/docs/mcp-servers); the V1 path it named before matched nothing in that doc, so the command exited 1."
             },
             "statusline": {
               "last_verified": "2026-10-17",
@@ -1188,7 +1188,7 @@
             "opencode-desktop"
           ],
           "doc_urls": [
-            "https://opencode.ai/docs/"
+            "https://opencode.ai/v2/docs/"
           ]
         }
       }

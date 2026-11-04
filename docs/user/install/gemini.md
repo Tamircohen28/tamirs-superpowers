@@ -17,7 +17,7 @@ it. It has no install guide and no capability claims in either direction — see
 
 | | |
 |---|---|
-| **Validated against** | Gemini CLI **0.66.0** — `gemini --version` → `0.66.0`; `gemini extensions validate .` → `Extension . has been successfully validated.`; a distribution carrying the generated `hooks/hooks.json` and `policies/` installs with `gemini extensions install <path> --consent --skip-settings` and lists its MCP server and keychain setting; every `.gemini/skills/` and `.agents/skills/` symlink resolves (0 broken). Hook **firing** is not yet observed — see [Hooks and policies](#hooks-and-policies) |
+| **Validated against** | Gemini CLI **0.66.0**, run 2026-10-31 from a throwaway npm prefix (`@google/gemini-cli`) with an empty HOME — not the machine's global `gemini`, which may be older (it was 0.60.0 when this was re-read on 2026-11-03) — `gemini --version` → `0.66.0`; `gemini extensions validate .` → `Extension . has been successfully validated.`; a distribution carrying the generated `hooks/hooks.json` and `policies/` installs with `gemini extensions install <path> --consent --skip-settings` and lists its MCP server and keychain setting; every `.gemini/skills/` and `.agents/skills/` symlink resolves (0 broken). Hook **firing** is not yet observed — see [Hooks and policies](#hooks-and-policies) |
 | **Minimum supported** | **0.55.1** — the oldest version this adapter was actually exercised on |
 | **Extension manifest** | `gemini-extension.json` (repo root) |
 | **Context file** | `.gemini/GEMINI.md` |
@@ -173,7 +173,7 @@ gemini extensions config tamirs-superpowers GITHUB_PERSONAL_ACCESS_TOKEN
 gemini extensions config tamirs-superpowers GITHUB_PERSONAL_ACCESS_TOKEN --scope workspace   # per workspace
 ```
 
-Measured on 0.64.0: a setting's value reaches the extension's **MCP servers** and nothing else — hooks do not see it, which is the right boundary (no hook here needs it). Exporting `GITHUB_PERSONAL_ACCESS_TOKEN` in the shell still works for a linked clone. No token is stored in the manifest or anywhere in the repo.
+A setting's value reaches more than the extension's **MCP servers**. Gemini CLI's source (v0.60.0 through v0.66.0) also adds every set value to each extension hook's environment, and substitutes `${VAR}` placeholders in `gemini-extension.json`, `hooks/hooks.json`, bundled `SKILL.md` bodies and agent definitions; by a reading of the code (not measured) it does not reach the shell tool's environment. The earlier "MCP servers only" reading was measured on 0.64.0 with `--skip-settings`, so no value existed to inject. No hook here reads `GITHUB_PERSONAL_ACCESS_TOKEN`. Exporting `GITHUB_PERSONAL_ACCESS_TOKEN` in the shell still works for a linked clone. No token is stored in the manifest or anywhere in the repo.
 
 ## Hooks and policies
 

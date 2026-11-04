@@ -124,7 +124,6 @@
       "capability_gaps": {
         "artifacts": "No artifact publishing surface.",
         "dynamic_workflows": "The Workflow tool is Claude-specific; no declared Cursor equivalent.",
-        "extension_install": "Cursor installs plugins, not git-URL extensions.",
         "mods": "Cursor loads platforms/cursor/hooks.json, never hooks/hooks.json, so it never sees the `modules` key. No equivalent in-process hook API.",
         "statusline": "No plugin-declared statusline."
       },

@@ -1,6 +1,6 @@
 # Statusline
 
-`scripts/statusline.sh` renders a 2–5 line status display in the Claude Code footer on every turn (two lines always; lines 3–5 only when the host sends their data). It is wired via `settings.statusLine` in `.claude-plugin/plugin.json`:
+`scripts/statusline.sh` renders a 2–5 line status display in the Claude Code footer on every turn (two lines always; lines 3–5 only when the host sends their data). `.claude-plugin/plugin.json` declares it under `settings.statusLine`:
 
 ```json
 "statusLine": {
@@ -8,6 +8,14 @@
   "command": "s=\"${CLAUDE_PLUGIN_ROOT:-}/scripts/statusline.sh\"; [ -f \"$s\" ] || s=$(ls $HOME/.claude/plugins/cache/tamirs-marketplace/tamirs-superpowers/*/scripts/statusline.sh 2>/dev/null | sort -rV | head -1); [ -n \"$s\" ] && [ -f \"$s\" ] && bash \"$s\""
 }
 ```
+
+**The host may not apply that key.** Here is the evidence, and what it does not settle:
+
+- **Documented: dropped.** The [plugin manifest reference](https://code.claude.com/docs/en/plugins-reference#settings) says of plugin `settings`: "Only `agent` and `subagentStatusLine` take effect; other keys are dropped at load." Its standard-layout table describes a root `settings.json` the same way. `statusLine` is not on that list. Read 2026-11-04.
+- **The validator does not flag it.** `claude plugin validate .claude-plugin/plugin.json` on Claude Code 2.1.318 reports one warning, the root `CLAUDE.md`, and nothing about `settings.statusLine`. So the validator neither confirms nor denies the documented drop.
+- **Unverified live.** No session has checked whether an installed copy of the plugin renders this statusline when the user's own settings have no `statusLine`. A user-level `statusLine` in `~/.claude/settings.json` would hide the drop, and the maintainer's machine has one.
+
+Until a live check says otherwise, assume the documentation is right. Point a user-level `statusLine` (`~/.claude/settings.json`, an object `{"type": "command", "command": "..."}`) at the same command to get the footer. The plugin's `settings.statusLine` alone may not be enough. Research: [`claude.md`](research/permissions/platforms/claude.md), "Repo drift" item 1.
 
 The command tries `${CLAUDE_PLUGIN_ROOT}` first (set when the host exports it to the statusLine command, and under `--plugin-dir`) and falls back to a `$HOME`-based glob over the marketplace cache, which finds the latest installed version so the path survives plugin updates.
 

@@ -49,8 +49,25 @@ ORG="ProductionMasterAI"
 mkdir -p "$TMP/bin" "$TMP/home" "$TMP/work"
 cp -R "$REPO_ROOT/tests/fixtures/github" "$FIX"
 harness_new_repo "$ROOT" main
-ln -s "$REPO_ROOT/scripts" "$ROOT/scripts"
+# `scripts/` is a real directory of per-entry symlinks rather than one link, for
+# the reason tests/test-github-policy.sh gives: `apply` asks
+# scripts/resolve-permission.sh, found beside the subject (ADR 004 D4), and that
+# one entry is a STUB answering per STUB_MODE. The real resolver never answers
+# allow for ruleset.apply (R4), so without the stub no test could reach a write.
+mkdir -p "$ROOT/scripts"
+for e in "$REPO_ROOT"/scripts/*; do
+  [ "$(basename "$e")" = resolve-permission.sh ] || ln -s "$e" "$ROOT/scripts/$(basename "$e")"
+done
 ln -s "$REPO_ROOT/config"  "$ROOT/config"
+STUB_LOG="$TMP/resolver.log"
+export STUB_LOG
+cat >"$ROOT/scripts/resolve-permission.sh" <<'STUB'
+#!/usr/bin/env bash
+printf 'ARGV %s\n' "$*" >>"$STUB_LOG"
+printf '{"verdict":"%s","decision":"%s","r":4,"reason":"stub %s","setting_that_would_allow":{"once":null,"durable":["stub-durable-setting"],"note":"stub note"}}\n' \
+  "${STUB_MODE:-ask}" "${STUB_MODE:-ask}" "${STUB_MODE:-ask}"
+STUB
+chmod +x "$ROOT/scripts/resolve-permission.sh"
 
 REAL_GH="$(command -v gh 2>/dev/null || true)"
 fake_gh_install "$TMP/bin" "$TMP/gh.log" "$FIX/org-available"
@@ -107,21 +124,24 @@ for d in org-available org-plan-free org-scope org-stricter org-drift org-notfou
   org_repo_list "$d" example-service ppfa-proxy-gw ppfa-telemetry
 done
 
-# run_policy <args...> — one entrypoint invocation with a fresh call log.
+# run_policy <args...> — one entrypoint invocation with a fresh call log. The
+# stub resolver answers `ask` (the real resolver's answer for R4 at every level).
 run_policy() {
   fake_gh_reset
-  ( cd "$ROOT" && bash "$ROOT/scripts/github-policy.sh" "$@" ) >"$OUT" 2>"$ERR"
+  : >"$STUB_LOG"
+  ( cd "$ROOT" && STUB_MODE="${STUB_MODE:-ask}" bash "$ROOT/scripts/github-policy.sh" "$@" ) >"$OUT" 2>"$ERR"
   RC=$?
 }
 
-# run_policy_live <args...> — the same, with the unattended-write authorisation
-# the LIVE-TARGET GATE requires. Every mutation count uses this, including the
-# ones expecting ZERO: without it the gate is what produces the zero and "the
-# org guard blocked this write" would be indistinguishable from "no terminal".
+# run_policy_live <args...> — the same, with the stub resolver answering allow:
+# the stand-in for "a person authorised this write". Every mutation count uses
+# this, including the ones expecting ZERO: without it the gate is what produces
+# the zero and "the org guard blocked this write" would be indistinguishable
+# from "nobody authorised it".
 run_policy_live() {
   fake_gh_reset
-  ( cd "$ROOT" && GITHUB_POLICY_ALLOW_LIVE=1 \
-      bash "$ROOT/scripts/github-policy.sh" "$@" ) >"$OUT" 2>"$ERR"
+  : >"$STUB_LOG"
+  ( cd "$ROOT" && STUB_MODE=allow bash "$ROOT/scripts/github-policy.sh" "$@" ) >"$OUT" 2>"$ERR"
   RC=$?
 }
 
@@ -546,14 +566,16 @@ judge "16: the two bodies are the two canonical rulesets" "Default Branch - PR &
 judge "16: and no org ruleset was ever deleted"     "0" \
   "$(awk -F'\t' '$2 == "DELETE" { n++ } END { print n + 0 }' "$FAKE_GH_LOG")"
 
-# The LIVE-TARGET GATE covers org writes exactly as it covers repository writes.
+# The permission gate covers org writes exactly as it covers repository writes:
+# the resolver answers ask (as the real one does for R4), so --yes with no
+# terminal writes nothing and says there is no one to confirm.
 scenario org-available
-fake_gh_reset
-( cd "$ROOT" && bash "$ROOT/scripts/github-policy.sh" apply --org "$ORG" --org-level --yes ) \
-  >"$OUT" 2>"$ERR"
+run_policy apply --org "$ORG" --org-level --yes
 judge "16 (gate): --yes alone, no terminal, writes no org ruleset" "0" "$(writes_to "orgs/$ORG")"
 judge "16 (gate): and says why"                                    "yes" \
-  "$(outhas 'refusing to write without a terminal')"
+  "$(outhas 'there is no one here to confirm')"
+judge "16 (gate): the resolver was asked about the org write"      "yes" \
+  "$(has "$(cat "$STUB_LOG" 2>/dev/null)" "--action ruleset.apply.org --skill github-policy --target $ORG")"
 atleast "16 (gate): the refusal still read live state"             "1" "$(reads)"
 
 run_policy plan --org-level

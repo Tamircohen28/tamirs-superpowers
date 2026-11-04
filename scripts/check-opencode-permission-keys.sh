@@ -45,10 +45,18 @@ GEN="$ROOT/scripts/build-opencode-agents.sh"
 DEST="$ROOT/.opencode/agents"
 
 # OpenCode 2 Core permission actions, https://opencode.ai/v2/docs/permissions/,
-# read 2026-10-17 (docs current for @opencode/cli 2.0.32). The MCP family
-# (`<server>_<tool>`, `opencode_list_mcp_resources`, `opencode_read_mcp_resource`)
-# is excluded: those are per-server names, not a fixed vocabulary.
-V2_ACTIONS="read edit glob grep shell subagent skill question webfetch websearch external_directory execute"
+# first read 2026-10-17 (docs current for @opencode/cli 2.0.32); re-read 2026-11-03
+# against the 2.2.5 docs, which add `experimental_image_generate` — a new action, on
+# by default since 2.2.2 wherever the provider has image models (anomalyco/opencode
+# #60258; docs/engineering/research/permissions/platforms/opencode.md, "Repo drift" 1).
+# The MCP family (`<server>_<tool>`, `opencode_list_mcp_resources`,
+# `opencode_read_mcp_resource`) is excluded: those are per-server names, not a fixed
+# vocabulary.
+#
+# --refresh can only tell that a pinned action is still MENTIONED; it cannot see a
+# NEW one, which is how `experimental_image_generate` went unpinned for a release.
+# When OpenCode ships, re-read the docs table itself.
+V2_ACTIONS="read edit glob grep shell subagent skill question webfetch websearch experimental_image_generate external_directory execute"
 
 # Names that are not Core actions (legacy `permission` map keys, or never real).
 # Any of these in generator output is a regression.

@@ -37,14 +37,16 @@ notes: >-
   at a deliberately non-default path (Cursor would otherwise bind to hooks/hooks.json,
   the Claude file it cannot read), wiring ten of Cursor's 21 events: workspaceOpen,
   sessionStart, sessionEnd, beforeSubmitPrompt, preToolUse, beforeShellExecution,
-  postToolUse, stop, preCompact — the same scripts as Claude, speaking Cursor's dialect
-  through hooks/lib/hook-output.sh and hooks/lib/cursor-output.sh, with failClosed on the
-  safety tier. Still `partial`: subagentStart/subagentStop are unwired (see
+  postToolUse, stop, preCompact, subagentStop — the same scripts as Claude, speaking
+  Cursor's dialect through hooks/lib/hook-output.sh and hooks/lib/cursor-output.sh, with
+  failClosed on the safety tier. Still `partial`: subagentStart is unwired (see
   platforms/cursor/README.md), cloud agents run no session lifecycle, and the port has
   not had a live run. Project-level .cursor/hooks.json ships soft contributor guards
   only, so the same rules are enforced again in CI. MCP comes from the generated platforms/cursor/mcp.json rather than the
   shared .mcp.json because Cursor treats every ${VAR} in a plugin MCP file as a plugin
   variable that must be declared under the manifest's `variables` schema; the Claude
   ${user_config.github_token} form is not a declarable name. GITHUB_TOKEN is the one
-  variable, set by the user under Plugins > Configure, never in the repo; the generator
+  variable, set in the Cursor dashboard under Plugins > Configure, never in the repo
+  (Cursor's reference says team admins set the values; whether a non-team account gets
+  its own Configure form is unverified); the generator
   refuses an undeclared variable or a declared one with a default.

@@ -54,6 +54,7 @@ Ten of Cursor's 21 events. **Wired because a script needs it, not to fill the ta
 | `postToolUse` | `cursor-agent-tools-guard.sh` | safety (pop) | Pops the subagent frame when its `Task` completes. A missed pop leaves the frame active — over-restrictive, never unguarded — so this entry is fail-open on purpose. | `{"permission":"allow"}` from `hook_allow`; ignored by an observational event |
 | `stop` | `check-done.sh` | convenience | The definition-of-done reminder. **Stays advisory**: Cursor's `followup_message` is auto-submitted as the user's next message, so the reminder stays on stderr and stdout is the cross-host no-op `{}` (`hook_stop_ok`). | `{}` |
 | `preCompact` | `precompact-snapshot.sh` | convenience | Writes `.dev-files/compaction/latest.md` (branch, dirty files, objective, recent commits) before context is lost — a file survives compaction unconditionally. Observational event; the script's Claude-dialect `systemMessage` is ignored there (a Cursor `user_message` branch is a pending patch). | `user_message` documented; file is the value |
+| `subagentStop` | `subagent-handoff-check.sh` | convenience | Warns when a subagent finishes under an active objective with no handoff written, or with a `completed` handoff whose `validation[]` is empty. On Cursor the warning goes to `user_message` and stderr (`cursor_subagent_note`); the event's documented output is `followup_message`, which this plugin never emits. Quiet path: the cross-host `{}`. `tests/test-cursor-lifecycle.sh` asserts the Cursor-shaped answer on the informative path. | `user_message` / `{}` |
 
 ### Fail-closed on the safety tier
 
@@ -62,8 +63,10 @@ non-zero/non-2 **denies** instead of allowing. It is set on exactly the safety-t
 `enforce-worktree-edits.sh`, `guard-sensitive-files.sh` (both events),
 `protect-other-branches.sh`, `cursor-agent-tools-guard.sh` on `preToolUse` — and on nothing
 else, so a broken reminder costs a reminder, not a tool call. Those entries also carry
-`loop_limit: null`: Cursor caps a hook at 5 firings per loop by default, and a guard that stops
-guarding after five denials is not a guard.
+`loop_limit: null`, which is most likely a no-op there: Cursor's hooks reference documents
+`loop_limit` (default 5) only as a per-script limit for `stop`/`subagentStop` hooks, not for
+the permission events these guards run on. It was added to lift a per-loop firing cap on the
+guards; the docs do not describe such a cap, and none was measured.
 
 Two Cursor rules the bundle relies on, both from the hooks reference: the permission hooks
 (`preToolUse`, `beforeShellExecution`, `beforeMCPExecution`, `beforeReadFile`,
@@ -84,7 +87,6 @@ fails if any output on any event carries that key.
 
 | Event | Why not |
 |---|---|
-| `subagentStop` | Its Claude peer, `subagent-handoff-check.sh`, is quiet with the cross-host `{}` but, on the path where it has something to say (an objective with no handoff), still answers `hookSpecificOutput.additionalContext` — a Claude field Cursor drops, so wiring it would run a hook whose warning never reaches anyone. It is wired the day that path is Cursor-shaped (`tests/test-cursor-lifecycle.sh` probes exactly that path every run and flips to a warning when it happens). The patch is a `cursor_subagent_note` branch; the event's only documented output is `followup_message`, so on Cursor the handoff warning belongs on stderr or as `user_message`, never as a follow-up. |
 | `subagentStart` | `cursor-agent-tools-guard.sh` would not benefit as written: it keys frames on the `Task` `tool_use_id` it already sees on `preToolUse`, and on a `subagentStart` payload (`tool_name` absent) its fallback path would **deny the spawn** under any active frame. A spawn-time deny needs a dedicated branch keyed on `subagent_type` + `tool_call_id` (which equals the Task `tool_use_id`), de-duplicated against the `preToolUse` push. |
 | `postToolUseFailure` | Observation point (`error_message`, `failure_type`, `is_interrupt`; out `additional_context`). No guard here needs it. Documented as available for a future retry/diagnostics hook. |
 | `beforeMCPExecution` / `afterMCPExecution` | `preToolUse` already fires for MCP tool calls (`MCP:<tool>`); judging the same call twice buys nothing. Neither runs in cloud agents. |
@@ -103,12 +105,12 @@ Cloud agents run 14 of the 21 events and **do not load user-level hooks**. Of th
 
 | Runs in cloud agents | Desktop / CLI only |
 |---|---|
-| `preToolUse`, `postToolUse`, `beforeShellExecution`, `beforeSubmitPrompt`, `stop`, `preCompact` | `sessionStart`, `sessionEnd`, `workspaceOpen` |
+| `preToolUse`, `postToolUse`, `beforeShellExecution`, `beforeSubmitPrompt`, `stop`, `preCompact`, `subagentStop` | `sessionStart`, `sessionEnd`, `workspaceOpen` |
 
 So a cloud agent keeps every guard and every prompt hook, but gets no session lifecycle: no
 session-files dir from `session-init.sh` (the first write still creates the worktree), no
-archive/prune/claim-release at `sessionEnd`, and no `pluginPaths` injection. `subagentStart`,
-`subagentStop` and `postToolUseFailure` would run in cloud agents if wired; `beforeMCPExecution`
+archive/prune/claim-release at `sessionEnd`, and no `pluginPaths` injection. `subagentStart`
+and `postToolUseFailure` would run in cloud agents if wired; `beforeMCPExecution`
 and `afterMCPExecution` would not.
 
 ## Tests

@@ -206,10 +206,11 @@ git checkout -b feat/repo-standards-setup 2>/dev/null || git checkout -b "feat/r
 5. **Phases 1–4:** Implement per plan using `$CONTRACT_ROOT/templates/` (see `INDEX.md`).
    **Phase 4 (branch governance)** — after the CI workflow is on the default branch:
    ```bash
-   bash "$CONTRACT_ROOT/scripts/enable-repo-merge-settings.sh"
+   bash "$CONTRACT_ROOT/scripts/enable-repo-merge-settings.sh" "$REPO_SLUG" --apply --skill repo-standards
    bash "$POLICY_CLI" plan  --repo "$REPO_SLUG"   # diff only, writes nothing
    bash "$POLICY_CLI" apply --repo "$REPO_SLUG"   # confirms each change at the TTY
    ```
+   Without `--apply` the merge-settings script only prints its PATCH; with it, the resolver is asked about `repo.settings.merge` (R3, never automatic). Exit `3` means it was not applied (denied, declined, or no terminal to confirm at — the usual case in an agent shell): a **degraded success**. Continue, and relay its `blocked:` line and "run this yourself" command in the report; never retry with another flag or send the PATCH with `gh api` yourself.
    `github-policy.sh` replaced `ensure-branch-protection.sh`, which read and wrote **classic** `branches/*/protection` — an endpoint that 404s on a repository correctly governed by rulesets, so it reported protected repos as unprotected. The old script survives only as a deprecating shim onto these verbs.
 
    Rulesets are authoritative; classic protection is a **legacy migration item**, reported and never written, and its absence is not a gap. Every rule, required context, and enforcement value comes from `config/github/repository-policy.json` — do not restate any of it here or in the report.

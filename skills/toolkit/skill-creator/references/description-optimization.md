@@ -37,6 +37,17 @@ python -m scripts.run_loop \
   --verbose
 ```
 
+**This loop is gated (ADR 004 `process.spawn.agent_host`, R4).** `run_loop.py`,
+`run_eval.py` and `improve_description.py` each start nested `claude -p`
+sessions, and no permission level allows that automatically. Before the first
+spawn the script states how many sessions it will start and proceeds only on a
+typed `yes` on the terminal. With no terminal (an agent's shell, CI) it stops
+with exit 3, starts nothing, and prints the exact command for the user to run
+in their own terminal. Hand the user that command; do not retry or work around
+it. When allowed, each child runs with an explicit `--permission-mode dontAsk`,
+so the user's own default mode (bypass, for one) never reaches it and only
+pre-approved tools can run. `improve_description.py` also passes `--tools ""`.
+
 Use the model ID from your system prompt — triggering tests must match the model the user
 actually runs. Never hardcode a model id here; a pinned id tests a model the user does not
 have.

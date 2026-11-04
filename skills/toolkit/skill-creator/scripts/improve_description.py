@@ -14,6 +14,7 @@ import subprocess
 import sys
 from pathlib import Path
 
+from scripts.permission_gate import CHILD_PERMISSION_FLAGS, require
 from scripts.utils import parse_skill_md
 
 
@@ -23,7 +24,9 @@ def _call_claude(prompt: str, model: str | None, timeout: int = 300) -> str:
     Prompt goes over stdin (not argv) because it embeds the full SKILL.md
     body and can easily exceed comfortable argv length.
     """
-    cmd = ["claude", "-p", "--output-format", "text"]
+    # Text in, text out: no tools at all, and an explicit restrictive mode so
+    # the user's own default (bypass, for one) never reaches the child.
+    cmd = ["claude", "-p", "--output-format", "text", "--tools", "", *CHILD_PERMISSION_FLAGS]
     if model:
         cmd.extend(["--model", model])
 
@@ -212,6 +215,8 @@ def main():
 
     name, _, content = parse_skill_md(skill_path)
     current_description = eval_results["description"]
+
+    require("start 1-2 nested `claude -p` sessions to rewrite the description, each a real model call on your account")
 
     if args.verbose:
         print(f"Current: {current_description}", file=sys.stderr)

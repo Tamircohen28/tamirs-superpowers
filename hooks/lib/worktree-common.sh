@@ -236,6 +236,27 @@ write_worktree_env_local() {
 #   last successful install in that worktree, and no more than
 #   SUPERPOWERS_MAX_CONCURRENT_INSTALLS run at once.
 #
+# A HOOK NEVER RUNS CODE THE USER DID NOT CHOOSE (ADR 004 D1 deps.install, SR S-08)
+#   The checkout can be anyone's (a contributor's PR head), and an install that
+#   runs lifecycle scripts (`prepare`, `postinstall`), builds packages (uv,
+#   poetry, pipenv, bundler, composer) or runs a package manager the repository
+#   ships (.yarnrc.yml yarnPath and plugins, .yarnrc yarn-path, .pnpmfile.cjs)
+#   runs that repository's code with the user's credentials, from a hook, with
+#   no tool call any guard could see. So:
+#     - only the script-free installs of the catalog's deps.install (R2) ever
+#       run: `npm ci --ignore-scripts`, `pnpm install --frozen-lockfile
+#       --ignore-scripts --ignore-pnpmfile`, `yarn install --frozen-lockfile
+#       --ignore-scripts` (classic yarn, no repo-pinned yarn), `bun install
+#       --frozen-lockfile --ignore-scripts`, `cargo fetch` — and only when
+#       scripts/resolve-permission.sh ALLOWS deps.install for the worktree
+#       (asked --headless: a hook has no human to ask). At the default level,
+#       supervised, R2 asks, so nothing is installed;
+#     - every other install (no lockfile, a repo-pinned package manager, uv,
+#       poetry, pipenv, go, deno, bundler, composer), and every allowed one the
+#       resolver did not allow, is logged as the command for the user to run;
+#     - a resolver that is missing or fails reads as not allowed (fail closed).
+#   Nothing here asks: the log names each command and why it did not run.
+#
 # ENVIRONMENT
 #   SUPERPOWERS_WORKTREE_INSTALL_DEPS   auto (default) | 0/false/off/no to disable
 #   SUPERPOWERS_MAX_CONCURRENT_INSTALLS max simultaneous installers (default 2)
@@ -248,6 +269,14 @@ write_worktree_env_local() {
 # which is exactly the signal cleanup_stale_worktrees uses to decide a worktree
 # still holds work — a stamp in the tree would quietly disable stale cleanup.
 WORKTREE_DEPS_STAMP="superpowers-deps"
+# The permission resolver, by this file's own location (<plugin>/hooks/lib/ ->
+# <plugin>/scripts/), never through an environment variable.
+case "${BASH_SOURCE[0]}" in
+  */*) _wc_lib_dir="${BASH_SOURCE[0]%/*}" ;;
+  *) _wc_lib_dir=. ;;
+esac
+WORKTREE_PERMISSION_RESOLVER="$(CDPATH='' cd -- "$_wc_lib_dir/../.." 2>/dev/null && pwd -P)/scripts/resolve-permission.sh"
+unset _wc_lib_dir
 PKG_CACHE_DIR="${SUPERPOWERS_PKG_CACHE_DIR:-${HOME}/.claude/cache/pkg}"
 INSTALL_SLOT_DIR="${PKG_CACHE_DIR}/.slots"
 
@@ -268,6 +297,19 @@ worktree_deps_enabled() {
     0|false|off|no|never|disabled) return 1 ;;
     *) return 0 ;;
   esac
+}
+
+# worktree_deps_install_allowed <worktree_path> — 0 only when the permission
+# resolver answers allow for deps.install on this worktree. ask, deny, a missing
+# resolver, a non-zero exit or unreadable output are all "no" (fail closed). A
+# hook has no human present, so it asks --headless.
+worktree_deps_install_allowed() {
+  local worktree_path="$1" out verdict
+  [[ -f "$WORKTREE_PERMISSION_RESOLVER" ]] || return 1
+  out="$(bash "$WORKTREE_PERMISSION_RESOLVER" deps.install --target "$worktree_path" \
+           --repo "$worktree_path" --headless --json </dev/null 2>/dev/null)" || return 1
+  verdict="$(printf '%s' "$out" | jq -r '.verdict // empty' 2>/dev/null)" || return 1
+  [[ "$verdict" == "allow" ]]
 }
 
 # A single digest over every lockfile present. Any dependency change moves it;
@@ -392,75 +434,115 @@ run_worktree_post_setup() {
     return 0
   fi
 
-  local slot=""
-  if ! slot="$(_acquire_install_slot)"; then
-    echo "${stamp} no installer slot free after ${SUPERPOWERS_INSTALL_SLOT_WAIT:-300}s — skipping install (run it manually if needed)" >> "$logfile"
-    return 0
+  local allowed=0 slot=""
+  if worktree_deps_install_allowed "$worktree_path"; then
+    allowed=1
+    if ! slot="$(_acquire_install_slot)"; then
+      echo "${stamp} no installer slot free after ${SUPERPOWERS_INSTALL_SLOT_WAIT:-300}s — skipping install (run it manually if needed)" >> "$logfile"
+      return 0
+    fi
+    _export_shared_pkg_cache
+  else
+    echo "${stamp} deps.install is not allowed without asking at your permission level (scripts/resolve-permission.sh), and a hook cannot ask — nothing is installed; each command is listed below for you to run" >> "$logfile"
   fi
-  _export_shared_pkg_cache
 
   # Dependency install, per ecosystem. This used to cover JS (three lockfiles)
   # and poetry only: a Go, Rust, uv, bun or Deno worktree came up with no deps
   # and the log said nothing at all about why. Every branch below logs what it
-  # ran, and the tail of the function logs when nothing matched — a worktree
-  # without deps must be a stated outcome, not a silent one.
-  local installed=0
-  run_install() { # run_install <label> <cmd...>
-    local label="$1"; shift
-    echo "${stamp} ${label}" >> "$logfile"
+  # ran or what the user should run, and the tail of the function logs when
+  # nothing matched — a worktree without deps must be a stated outcome, not a
+  # silent one.
+  local installed=0 ran=0 printed=0 qpath
+  qpath="$(printf '%q' "$worktree_path")"
+  # run_install <label> <rerun-with-scripts> <cmd...> — a script-free install
+  # (deps.install). Runs only when the resolver allowed it; otherwise it is
+  # printed like any other.
+  run_install() {
+    local label="$1" with_scripts="$2"; shift 2
     installed=1
-    (cd "$worktree_path" && "$@" >> "$logfile" 2>&1) || errors+=("$label")
+    if (( ! allowed )); then
+      echo "${stamp} ${label}: NOT run — run it yourself: cd ${qpath} && $*" >> "$logfile"
+      printed=1
+      return 0
+    fi
+    echo "${stamp} ${label}" >> "$logfile"
+    ran=1
+    if (cd "$worktree_path" && "$@" >> "$logfile" 2>&1); then
+      [[ -n "$with_scripts" ]] && echo "${stamp} lifecycle scripts were skipped; if this project needs them, run yourself: cd ${qpath} && ${with_scripts}" >> "$logfile"
+    else
+      errors+=("$label")
+    fi
+    return 0
+  }
+  # print_install <label> <why> <cmd...> — an install that can run the
+  # project's own code: never run by a hook, at any level (SR S-08).
+  print_install() {
+    local label="$1" why="$2"; shift 2
+    installed=1
+    printed=1
+    echo "${stamp} ${label}: NOT run by the hook — ${why}. If you trust this checkout, run it yourself: cd ${qpath} && $*" >> "$logfile"
   }
   have() { command -v "$1" >/dev/null 2>&1; }
+  local runs_code="can run the project's own code (ADR 004 S-08)"
 
   if [[ -f "${worktree_path}/package.json" ]]; then
     if   [[ -f "${worktree_path}/yarn.lock" ]] && have yarn; then
-      run_install "yarn install" yarn install --immutable
+      if [[ -f "${worktree_path}/.yarnrc.yml" ]] || grep -qs '^[[:space:]]*yarn-path' "${worktree_path}/.yarnrc"; then
+        print_install "yarn install" "the repository configures its own yarn (.yarnrc.yml / yarn-path), which ${runs_code}" \
+          yarn install --immutable --mode=skip-build
+      else
+        run_install "yarn install" "yarn install --frozen-lockfile" \
+          yarn install --frozen-lockfile --ignore-scripts --non-interactive
+      fi
     elif [[ -f "${worktree_path}/package-lock.json" ]] && have npm; then
-      run_install "npm ci" npm ci
+      run_install "npm ci" "npm rebuild" npm ci --ignore-scripts
     elif [[ -f "${worktree_path}/pnpm-lock.yaml" ]] && have pnpm; then
-      run_install "pnpm install" pnpm install --frozen-lockfile
+      run_install "pnpm install" "pnpm rebuild" \
+        pnpm install --frozen-lockfile --ignore-scripts --ignore-pnpmfile
     elif [[ -f "${worktree_path}/bun.lockb" || -f "${worktree_path}/bun.lock" ]] && have bun; then
-      run_install "bun install" bun install --frozen-lockfile
+      run_install "bun install" "bun install --frozen-lockfile" \
+        bun install --frozen-lockfile --ignore-scripts
     elif have npm; then
-      # package.json with no lockfile: `npm ci` would fail, `npm install` is the
-      # honest equivalent. Previously this case installed nothing, silently.
-      run_install "npm install (no lockfile present)" npm install
+      # package.json with no lockfile: `npm ci` would fail, and `npm install`
+      # resolves versions from the network — not a lockfile install, so it is
+      # the user's to run. Previously this case installed nothing, silently.
+      print_install "npm install (no lockfile present)" "with no lockfile it resolves versions from the network" \
+        npm install --ignore-scripts
     else
       echo "${stamp} package.json present but no usable package manager on PATH — deps NOT installed" >> "$logfile"
     fi
   fi
 
   if [[ -f "${worktree_path}/deno.json" || -f "${worktree_path}/deno.jsonc" ]] && have deno; then
-    run_install "deno install" deno install
+    print_install "deno install" "it $runs_code" deno install
   fi
 
   if [[ ! -d "${worktree_path}/.venv" ]]; then
     if   [[ -f "${worktree_path}/uv.lock" ]] && have uv; then
-      run_install "uv sync" uv sync
+      print_install "uv sync" "it builds packages, which $runs_code" uv sync
     elif [[ -f "${worktree_path}/poetry.lock" || -f "${worktree_path}/pyproject.toml" ]] && have poetry; then
-      run_install "poetry install" poetry install
+      print_install "poetry install" "it builds packages, which $runs_code" poetry install
     elif [[ -f "${worktree_path}/Pipfile.lock" ]] && have pipenv; then
-      run_install "pipenv sync" pipenv sync
+      print_install "pipenv sync" "it builds packages, which $runs_code" pipenv sync
     elif [[ -f "${worktree_path}/pyproject.toml" || -f "${worktree_path}/requirements.txt" ]]; then
       echo "${stamp} Python project detected but no uv/poetry/pipenv on PATH — deps NOT installed (create a venv and install manually)" >> "$logfile"
     fi
   fi
 
   if [[ -f "${worktree_path}/go.mod" ]] && have go; then
-    run_install "go mod download" go mod download
+    print_install "go mod download" "go.mod can pin a toolchain go downloads and runs, so it is not on the script-free list" go mod download
   fi
 
   if [[ -f "${worktree_path}/Cargo.toml" ]] && have cargo; then
-    run_install "cargo fetch" cargo fetch
+    run_install "cargo fetch" "" cargo fetch
   fi
 
   if [[ -f "${worktree_path}/Gemfile" ]] && have bundle; then
-    run_install "bundle install" bundle install
+    print_install "bundle install" "it builds native extensions, which $runs_code" bundle install
   fi
 
   if [[ -f "${worktree_path}/composer.json" ]] && have composer; then
-    run_install "composer install" composer install
+    print_install "composer install" "composer runs the project's scripts and plugins, which $runs_code" composer install
   fi
 
   if (( ! installed )); then
@@ -473,9 +555,10 @@ run_worktree_post_setup() {
     echo "setup errors: ${errors[*]}" >> "$logfile"
     return 1
   fi
-  # Only stamp a clean run — a failed install must not be mistaken for a
+  # Only stamp a clean run that installed everything it found — a failed
+  # install, or a command left for the user, must not be mistaken for a
   # satisfied one on the next pass.
-  [[ -n "$want_hash" ]] && printf '%s\n' "$want_hash" > "$stamp_file"
+  (( ran && ! printed )) && [[ -n "$want_hash" ]] && printf '%s\n' "$want_hash" > "$stamp_file"
   return 0
 }
 

@@ -285,25 +285,84 @@ def generate_html(
 # HTTP server (stdlib only, zero dependencies)
 # ---------------------------------------------------------------------------
 
-def _kill_port(port: int) -> None:
-    """Kill any process listening on the given port."""
+# THE VIEWER STOPS ONLY A VIEWER IT STARTED (audit other-skills F6; ADR 004 D1).
+# It used to SIGTERM whatever listened on the port, which could be anyone's dev
+# server: an unverified PID is process.kill (R3). Now a running viewer records
+# itself in a pid file in a private per-user directory; a restart stops that PID
+# only when the file is ours and the PID's command line is still this script.
+# Anything else on the port is reported and left alone, and the viewer serves on
+# a free port instead.
+def _pid_dir() -> Path:
+    import tempfile
+    return Path(tempfile.gettempdir()) / f"tamirs-skill-creator-{os.getuid()}"
+
+
+def _pid_file(port: int) -> Path:
+    return _pid_dir() / f"viewer-{port}.pid"
+
+
+def _is_viewer(pid: int) -> bool:
     try:
-        result = subprocess.run(
-            ["lsof", "-ti", f":{port}"],
-            capture_output=True, text=True, timeout=5,
-        )
-        for pid_str in result.stdout.strip().split("\n"):
-            if pid_str.strip():
-                try:
-                    os.kill(int(pid_str.strip()), signal.SIGTERM)
-                except (ProcessLookupError, ValueError):
-                    pass
-        if result.stdout.strip():
-            time.sleep(0.5)
-    except subprocess.TimeoutExpired:
+        out = subprocess.run(
+            ["ps", "-o", "command=", "-p", str(pid)],
+            capture_output=True, text=True, timeout=5, check=False,
+        ).stdout
+    except (OSError, subprocess.SubprocessError):
+        return False
+    return "generate_review.py" in out
+
+
+def _record_pid(port: int) -> Path | None:
+    d = _pid_dir()
+    try:
+        d.mkdir(mode=0o700, exist_ok=True)
+        st = d.stat()
+        if st.st_uid != os.getuid() or (st.st_mode & 0o077):
+            print(f"Note: {d} is not a private directory of yours; not recording the viewer pid", file=sys.stderr)
+            return None
+        f = _pid_file(port)
+        f.write_text(f"{os.getpid()}\n")
+        os.chmod(f, 0o600)
+        return f
+    except OSError:
+        return None
+
+
+def _stop_own_viewer(port: int) -> None:
+    """Stop a previous viewer on <port> that this script started, and only that."""
+    f = _pid_file(port)
+    try:
+        st = f.stat()
+        if st.st_uid != os.getuid() or f.parent.stat().st_uid != os.getuid():
+            return
+        pid = int(f.read_text().strip())
+    except (OSError, ValueError):
+        return
+    if pid <= 1 or pid == os.getpid() or not _is_viewer(pid):
+        try:
+            f.unlink()
+        except OSError:
+            pass
+        return
+    try:
+        os.kill(pid, signal.SIGTERM)
+        time.sleep(0.5)
+    except (ProcessLookupError, PermissionError):
         pass
-    except FileNotFoundError:
-        print("Note: lsof not found, cannot check if port is in use", file=sys.stderr)
+    try:
+        f.unlink()
+    except OSError:
+        pass
+
+
+def _port_holders(port: int) -> str:
+    try:
+        out = subprocess.run(
+            ["lsof", "-ti", f":{port}"], capture_output=True, text=True, timeout=5, check=False,
+        ).stdout
+    except (OSError, subprocess.SubprocessError):
+        return ""
+    return ", ".join(p for p in out.split() if p.strip())
 
 class ReviewHandler(BaseHTTPRequestHandler):
     """Serves the review HTML and handles feedback saves.
@@ -435,16 +494,22 @@ def main() -> None:
         print(f"\n  Static viewer written to: {args.static}\n")
         sys.exit(0)
 
-    # Kill any existing process on the target port
+    # Stop a previous viewer of ours on this port; never anything else.
     port = args.port
-    _kill_port(port)
+    _stop_own_viewer(port)
     handler = partial(ReviewHandler, workspace, skill_name, feedback_path, previous, benchmark_path)
     try:
         server = HTTPServer(("127.0.0.1", port), handler)
     except OSError:
-        # Port still in use after kill attempt — find a free one
+        holders = _port_holders(port)
+        print(
+            f"Note: port {port} is in use" + (f" by pid {holders}" if holders else "")
+            + " (not a viewer this script started); leaving it alone and serving on a free port.",
+            file=sys.stderr,
+        )
         server = HTTPServer(("127.0.0.1", 0), handler)
         port = server.server_address[1]
+    pid_file = _record_pid(port)
 
     url = f"http://localhost:{port}"
     print(f"\n  Eval Viewer")
@@ -460,11 +525,21 @@ def main() -> None:
 
     webbrowser.open(url)
 
+    def _on_term(_signum, _frame):
+        raise KeyboardInterrupt
+
+    signal.signal(signal.SIGTERM, _on_term)
     try:
         server.serve_forever()
     except KeyboardInterrupt:
         print("\nStopped.")
         server.server_close()
+    finally:
+        try:
+            if pid_file and pid_file.read_text().strip() == str(os.getpid()):
+                pid_file.unlink()
+        except OSError:
+            pass
 
 
 if __name__ == "__main__":
