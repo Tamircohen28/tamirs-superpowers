@@ -1,6 +1,28 @@
 #!/usr/bin/env bash
 # PreToolUse guard: block writes to genuinely generated / protected files.
-# Override for an intentional edit: set PM_ALLOW_PROTECTED=1 in the environment.
+#
+# Two classes, judged in this order (ADR 004 D10):
+#   1. PROTECTED (R4 `policy.edit`, `config.global.write`): the plugin's own
+#      permission files and state dir (from the passwd entry, never HOME/XDG),
+#      a project's .tamirs-superpowers/, the guard files of the running plugin,
+#      the installed plugin cache, and every host settings / option store that
+#      could widen what an agent may do. The table is core/permissions/
+#      actions.json. Denied; NO environment switch unlocks them, because the
+#      agent must never edit its own policy (D10.3). Guard files of a running
+#      plugin that is a source checkout are an R4 ask instead (contributors
+#      edit them), through hook_ask where the platform has one, else a deny.
+#      Targets are judged by realpath too, and an unresolved write whose text
+#      names a protected path is a deny (S-03).
+#   2. GENERATED (lockfiles, .yarn/releases, workflows, shadcn UI, ignored build
+#      output). The user may set PM_ALLOW_PROTECTED=1 to edit a lockfile,
+#      .yarn/releases, shadcn UI or build output on purpose; it is theirs to
+#      set and no deny text names it (D10.5). It never unlocks a WORKFLOW: env
+#      switches only tighten (D3), and a cloned repo's .claude/settings.json
+#      `env` can set this one, so a workflow, like a hook script or a policy
+#      path, is judged whatever it says.
+#   Paths are compared case-folded on a case-insensitive volume (macOS APFS):
+#   the parser repeats each target under its on-disk spelling, and folds its
+#   own protected rules wherever the volume folds or cannot be shown not to.
 #
 # WHY THIS KEYS ON THE PATH BEING WRITTEN, NOT THE TOOL DOING THE WRITING
 #   Until 2026-08-31 this hook was wired to `Edit|Write|MultiEdit|…` and read a
@@ -44,13 +66,20 @@
 #     a heredoc piped to a shell) writes in a language this parser does not
 #     read. Reported as UNSURE, never silently allowed.
 #   - Targets built at runtime (`> "$OUT"`, `xargs`, `find -exec`, a glob) and
-#     paths inside a patch fed to `patch`/`git apply`. Also UNSURE.
+#     a patch it cannot read now (piped in, or rewritten earlier in the same
+#     command). Also UNSURE. A readable patch is read: its target headers are
+#     the targets.
 #   - Ordinary programs that happen to write (`make`, `npm install`, a checked-in
-#     script). NOT reported: at that breadth the warning fires on everything and
-#     means nothing, and the tool-level guard never covered them either.
-#   - Metadata-only changes (`chmod`, `chown`) and git's own restores
-#     (`git checkout -- f`, `git restore`), which replay tracked content rather
-#     than authoring new content.
+#     script, `awk -f prog`). NOT reported: at that breadth the warning fires on
+#     everything and means nothing, and the tool-level guard never covered them.
+#   - Metadata-only changes (`chmod`, `chown`), git aliases, and a write through
+#     a hard link made before this call. git's replays (checkout, switch,
+#     restore, reset --hard, merge, pull, rebase, cherry-pick, revert, am,
+#     stash) are judged against the PROTECTED paths by the files git says they
+#     change, as an R4 ask (hook_ask on Claude Code, a deny on every other host:
+#     an integrator merging a branch legitimately brings such a file in, and the
+#     user decides); they never meet the generated-file rules, since a merge
+#     legitimately rewrites a lockfile.
 #   The half that closes those is a git/CI check on the modified path — it sees
 #   the outcome rather than the mechanism, so no choice of tool routes around
 #   it. This hook is the fast-feedback half, not the binding one.
@@ -64,7 +93,6 @@ input="$(hook_read_stdin)"
 hook_detect_platform "$input"
 
 [ -z "$input" ] && hook_allow
-[ "${PM_ALLOW_PROTECTED:-0}" = "1" ] && hook_allow
 
 # nearest_existing_dir DIR — walk up from DIR to the nearest ancestor that
 # actually exists. `git -C` on a directory that does not exist yet fails
@@ -85,21 +113,55 @@ nearest_existing_dir() {
 }
 
 # TARGET <tab> <abs path> <tab> <fragment>   — a file this call will write
+# DELETE <tab> <abs path> <tab> <fragment>   — a file or tree this call removes
+# TREE   <tab> <abs path> <tab> <fragment>   — a path a copy/move/extraction fills
 # UNSURE <tab> <why>      <tab> <fragment>   — a write this parse cannot resolve
-analysis="$(python3 "${SCRIPT_DIR}/lib/write-targets.py" 2>/dev/null <<<"$input")"
+# PROTECTED <tab> deny|ask <tab> <why>           — an R4 path (--protected)
+analysis="$(python3 "${SCRIPT_DIR}/lib/write-targets.py" --protected 2>/dev/null <<<"$input")"
 
 deny() {
   local reason="$1"
-  reason="$reason If this edit is genuinely intended and the user asked for it, set PM_ALLOW_PROTECTED=1 in the environment and retry."
   echo "$reason" >&2
   hook_deny "$reason"
 }
 
-# classify <abs path> <fragment> <TARGET|DELETE> — deny (and exit) if protected.
+# The R4 remedy (D10.3, D10.5): only the user changes these, outside the
+# agent's reach. It names no bypass — not an env switch, not another tool.
+PROTECTED_REMEDY="Only the user changes plugin permission policy, guard files and host settings (ADR 004 D10): stop and ask them to make this change themselves, outside this session. Do not retry it through another tool, command or path."
+
+protected_ask() {
+  local reason="$1"
+  if declare -F hook_ask >/dev/null 2>&1; then
+    echo "$reason" >&2
+    hook_ask "$reason"
+  fi
+  # No host ask here: an R4 ask the platform cannot deliver is a deny (D8).
+  deny "$reason"
+}
+
+# classify <abs path> <fragment> <TARGET|DELETE|TREE> — deny (and exit) if protected.
+# With PM_ALLOW_PROTECTED=1 only the workflow rule is judged (see the header).
 classify() {
   local file="$1" via="$2" kind="$3" repo_root remedy context=""
   [ -n "$file" ] || return 0
   [ -n "$via" ] && context=" (via: $via)"
+
+  # R4 `workflow.edit` (D10.5): the remedy is the user, not a route around
+  # this hook — a remote write tool is the same change with no guard on it.
+  # The workflows directory itself counts, and so does a .github that holds
+  # one when it is removed or filled by a copy or extraction.
+  remedy="Changing a workflow is an R4 action (workflow.edit): ask the user to approve this exact change and to make it themselves, rather than routing it through another tool or a remote API"
+  case "$file" in
+    */.github/workflows|*/.github/workflows/*)
+      deny "BLOCKED: '$file' is a GitHub Actions workflow.$context $remedy."
+      ;;
+    */.github)
+      if [ "$kind" = "TREE" ] || { [ "$kind" = "DELETE" ] && [ -d "$file/workflows" ]; }; then
+        deny "BLOCKED: '$file' holds the GitHub Actions workflows.$context $remedy."
+      fi
+      ;;
+  esac
+  [ "$override" = "1" ] && return 0
 
   # Repo root for the file being written — every derived check below needs
   # it. Resolved from the nearest EXISTING ancestor of the file's directory,
@@ -114,13 +176,6 @@ classify() {
       ;;
     */.yarn/releases/*)
       deny "BLOCKED: '$file' is the vendored Yarn binary under .yarn/releases/.$context Change it with 'yarn set version <version>', not by editing the file."
-      ;;
-    */.github/workflows/*)
-      remedy="Edit it through your GitHub host's API or web UI rather than the local file"
-      if [ -n "$repo_root" ] && git -C "$repo_root" remote get-url origin 2>/dev/null | grep -q 'github\.com'; then
-        remedy="Edit it via the GitHub MCP (create_or_update_file) if that server is configured for this session; otherwise use 'gh api' or the GitHub web UI"
-      fi
-      deny "BLOCKED: '$file' is a GitHub Actions workflow.$context $remedy."
       ;;
     */src/components/ui/*|*/components/ui/*)
       # The only honest signal that this directory is generated is a shadcn
@@ -145,11 +200,33 @@ classify() {
 # Process substitution, not a pipe: `deny` must be able to exit THIS shell.
 # In a pipeline the loop is a subshell, `exit` leaves it, and the script would
 # fall through and print a second, contradictory allow.
+#
+# Pass 1 — protected paths, before and regardless of PM_ALLOW_PROTECTED.
+# Every deny outranks every ask, so the asks wait for the whole list.
+ask_reason=""
+while IFS=$'\t' read -r kind mode why; do
+  [ "$kind" = "PROTECTED" ] || continue
+  case "$mode" in
+    ask) [ -n "$ask_reason" ] || ask_reason="$why" ;;
+    *)   deny "BLOCKED: $why $PROTECTED_REMEDY" ;;
+  esac
+done < <(printf '%s\n' "$analysis")
+if [ -n "$ask_reason" ]; then
+  # The reason says why this is an ask (a source checkout's guard file, or a
+  # git replay onto a protected path); write-targets.py words it.
+  protected_ask "R4 ASK: $ask_reason"
+fi
+
+# Pass 2 — generated files. The user's override applies here, and only to
+# the rules it may reach: never the workflow rule (D3, D10.5).
+override=0
+[ "${PM_ALLOW_PROTECTED:-0}" = "1" ] && override=1
+
 unsure=""
 while IFS=$'\t' read -r kind detail fragment; do
   case "$kind" in
-    TARGET|DELETE) classify "$detail" "$fragment" "$kind" ;;
-    UNSURE)        unsure="${unsure}  - ${detail}"$'\n' ;;
+    TARGET|DELETE|TREE) classify "$detail" "$fragment" "$kind" ;;
+    UNSURE)             unsure="${unsure}  - ${detail}"$'\n' ;;
   esac
 done < <(printf '%s\n' "$analysis")
 

@@ -1,0 +1,2516 @@
+#!/usr/bin/env bash
+# shellcheck shell=bash
+# permission-common.sh — the permission resolver's library (ADR 004 D3, D4, D10).
+#
+# Sourced, never executed. scripts/resolve-permission.sh is the CLI; hooks, the
+# D6 writer and github-mcp.sh source this file for the same answers. Every
+# function is a thin wrapper over ONE embedded python3 engine (stdlib only, run
+# with -I -S so a planted json.py in the working directory is never imported),
+# so the whole resolution is one process and one reading of each file.
+#
+# FUNCTIONS (each prints to stdout; JSON unless noted)
+#   perm_passwd_home              home dir from the passwd entry (text)
+#   perm_dirs                     {home, home_source, config_dir, state_dir}
+#   perm_user_config_dir          <home>/.config/tamirs-superpowers (text)
+#   perm_state_dir                <home>/.local/state/tamirs-superpowers (text)
+#   perm_check_file <path> [private|store|dir]
+#                                 {state, real, problems[]}; returns 1 when unsafe
+#   perm_option_store_level <host>
+#                                 the preset the host's option store holds
+#   perm_sha256 <file>            hex sha256 of the bytes (text)
+#   perm_load_user_file           state of the user file, its lock and its level
+#   perm_load_project_file [repo] state and sha256 of <repo>/.tamirs-superpowers/permissions.json
+#   perm_lock_check               match | mismatch | absent | invalid | unsafe (text)
+#   perm_trust_check <repo> <target>
+#                                 {trusted, reason}: may the project file widen pr.merge.auto
+#   perm_map_verdict <action-id> <level> [--cond name=true|false]...
+#                                 the catalog's level table alone: allow | ask | deny (text)
+#   perm_normalize_remote <url>   host[:port]/owner/name, lower case (text)
+#   perm_repo_key <path>          realpath of the main work tree, shared by worktrees (text)
+#   perm_resolve <resolve-permission.sh arguments>
+#                                 the full D4 resolution; see scripts/resolve-permission.sh
+#
+# WHERE THE FILES ARE (D3, SR S-04)
+#   <home> comes from the passwd entry of the real uid (python pwd.getpwuid; the
+#   bash fallback uses getent on Linux and dscl on macOS), NEVER from HOME or
+#   XDG_*: a repo's .claude/settings.json env, a Gemini workspace .env or a Cursor
+#   sessionStart hook can set those. User file <home>/.config/tamirs-superpowers/
+#   permissions.json beside permissions.lock; state <home>/.local/state/
+#   tamirs-superpowers/. A D3 file must be owned by the uid with no group or other
+#   bits (0600), its dir likewise (0700), every parent owned by the uid or root and
+#   not group/world-writable (a root-owned sticky dir such as /tmp is allowed), and
+#   its realpath outside every git work tree. A file that fails is read
+#   TIGHTEN-ONLY with a warning: its entries count only where they are stricter
+#   than the no-file result (D10.2's rule, measured against the no-file defaults).
+#   A file that cannot be read or parsed, or fails the schema, means supervised
+#   with every override ignored (D3 fail closed).
+#
+# TICKETS (D4 row 1, D5)
+#   <state>/tickets/<id>.json, the format in scripts/plugin-config.sh's header:
+#   kind "raise" from a confirmed --perms= request (after a host prompt named
+#   skill, level, target and expiry), kind "lower" from hooks/permission-intent.sh.
+#   A raise counts only with "state": "active": on Claude Code `confirm` merely
+#   stages it (<state>/staged/, never read here) and the host's PostToolUse on that
+#   very approved call (hooks/permission-approved.sh) promotes it (D5 two-phase
+#   confirm); a staged, unmarked or otherwise-marked raise is ignored. They
+#   are read only when the caller passes --session (the guard passes the hook's
+#   session_id and agent_id, "main" when it has none); another session's ticket
+#   is skipped. A RAISE applies to one call when all of these hold: the file and
+#   its dir are safe (as for the user file), it is unexpired and lives at most 15
+#   minutes from its creation, its session and agent equal the call's (SR S-11;
+#   no agent id in the hook input reads as "main": Claude Code sends agent_id on
+#   every subagent call and on no main-thread call, measured M5, so a main-thread
+#   ticket never reaches a subagent),
+#   its host is the call's when both are known, its skill is the call's --skill,
+#   the step is R2 or R3 (never R4 or UNCLASSIFIED, SR S-05; never a step context
+#   raised), and the call's --target equals the ticket's {arg, repo} on every
+#   field actions.json target_kinds lists for the action's kind (an unresolvable
+#   field never matches, so kind none and today's branch, tag, org, command,
+#   process and package kinds never match). It then lifts an ask to the ceiling of
+#   the ticket's level; it never lifts a deny, and row 0 still clamps never_auto.
+#   A LOWERING applies to every call of the session for its skill (null = all),
+#   any agent, any target, from a safe or an unsafe file alike (D10.2: tightening
+#   needs no trust), and beats any raise (a confirmed raise never retires it).
+#   Expired, foreign and corrupt tickets are ignored with a warning; none of them
+#   is ever an error. The writers (scripts/plugin-config.sh, the prompt hook)
+#   prune expired ones (prune_tickets); --level lists the active lowerings.
+#
+# THE HOST CHECK (F7)
+#   --host is a claim (the guard derives it from the payload and env, which a
+#   repository can steer). The engine also reads its own process ancestry (with
+#   /bin/ps) for the nearest agent host above it, the one it runs under (an
+#   outer IDE whose terminal started that host does not count). When it differs
+#   from the claim, the level is the stricter of the answers for each (so naming
+#   Gemini never skips Claude's option store), both hosts' D9 floors apply, no
+#   raise ticket applies, and the answer warns and lists `host_check`. Without --host
+#   nothing changes (every store already only lowers). Under the accepted test
+#   root the ancestry is not read; TAMIRS_PERMISSION_TEST_DETECTED_HOST names the
+#   hosts instead.
+#
+# PER-SKILL LEVELS AND LOWERING (F10)
+#   A user-file skills.<s> or groups.<g> level replaces the global one, and then
+#   every option store and env level that is lower applies again: lowering always
+#   wins, so TS_PERMISSION_LEVEL=supervised tightens a skill with its own entry.
+#
+# HOST FLOORS (D9)
+#   Below its host's permissions_min (this plugin's platform-targets.json, else
+#   the registry's permission_levels since; cursor-agent: permissions_min_cli)
+#   every level above supervised runs as supervised: an answer looser than
+#   supervised's is tightened to it and --level reports supervised. The version
+#   is `<host CLI> --version` on PATH, as scripts/doctor.sh reads it, under the
+#   same 3 s deadline (its whole process group killed after it), cached per
+#   session in <state>/hostver/<host>.<session hash>.json (0600) for 10 minutes
+#   or until the binary changes. It is probed only when an answer would be
+#   looser than supervised's, so a supervised call, and the guard's fast path,
+#   never run it. An unknown version (no binary, a timeout, no version, no
+#   recorded floor) is a warning, never a clamp. Under the accepted test root it
+#   is not probed unless TAMIRS_PERMISSION_TEST_HOST_VERSION names the --version
+#   line (or `probe`).
+#
+# THE TEST OVERRIDE AND ITS GUARD
+#   The permission suites need a fake passwd home. TAMIRS_PERMISSION_TEST_ROOT
+#   names one, and it is honoured only when ALL of these hold:
+#     1. it is an absolute path to a real directory (not a symlink) owned by the
+#        uid with mode 0700, as mktemp -d makes;
+#     2. its realpath is under a system temp root (/tmp, /var/tmp, /var/folders,
+#        and their /private forms) -- fixed paths, not TMPDIR;
+#     3. it is outside every git work tree;
+#     4. a process ANCESTOR of the engine is a shell RUNNING one of the suites
+#        that need it, by exact basename -- the resolver, guard, setup-level,
+#        merge-policy, plugin-config, hook-conformance and security-regressions
+#        suites under tests/ (TEST_SCRIPTS below) -- as its script:
+#        the file is the shell's first operand, or the process itself (read with
+#        /bin/ps, never through PATH). A name anywhere else in an ancestor's
+#        arguments does not count: `claude -p "run <suite>"` is no test run, and
+#        neither is a shell given -c or -s.
+#   Rules 1-3 stop a cloned repo that only ships files and env (it can point the
+#   variable at itself, but its own tree is a git work tree and not under a temp
+#   root). Rule 4 is the one that matters: a hook is a child of the host process,
+#   whose ancestry the agent cannot rewrite, so a project env that sets the
+#   variable and an agent that writes a forged home under /tmp still get the real
+#   passwd home in every hook. An L1 call from agent Bash can satisfy rule 4 by
+#   running a script so named, but L1 is advisory by design (D8) -- the agent can
+#   skip the call outright. A refused override is ignored with a warning; the
+#   passwd entry decides. No other input (catalog, schema, plugin root) can be
+#   redirected: the root is this file's own location.
+#
+# FAILURE IS A DENY (D4, SR S-12)
+#   perm_resolve exits 0 with a decided verdict, 2 on a usage error and 3 on an
+#   internal error (missing or corrupt catalog or schema, no python3, a crash).
+#   On 2 and 3 it still prints a JSON object whose verdict is deny.
+#
+# Bash 3.2 compatible; needs python3 (stdlib only). No jq, no gh, no git: the
+# origin is read from the repository's config file by the engine.
+
+# This file's directory, then the plugin root. CDPATH is cleared so a relative
+# path cannot be redirected by the environment.
+case "${BASH_SOURCE[0]}" in
+  */*) _perm_lib_dir="${BASH_SOURCE[0]%/*}" ;;
+  *) _perm_lib_dir=. ;;
+esac
+PERM_ROOT="$(CDPATH='' cd -- "$_perm_lib_dir/../.." 2>/dev/null && pwd -P)" || PERM_ROOT=""
+unset _perm_lib_dir
+
+IFS= read -r -d '' _PERM_ENGINE <<'PY' || true
+import calendar, hashlib, json, os, pwd, re, signal, stat, subprocess, sys, time
+
+ROOT = sys.argv[1]
+ARGS = sys.argv[2:]
+LEVELS = ("supervised", "standard", "unattended")
+RANK = {"allow": 0, "ask": 1, "deny": 2}
+HOSTS = ("claude", "codex", "cursor", "gemini", "opencode")
+PLUGIN = "tamirs-superpowers"
+MAX_BYTES = 262144
+TEST_ENV = "TAMIRS_PERMISSION_TEST_ROOT"
+# Spelled in parts so that no ancestor's argument list (an engine passed with -c) ever holds a whole name.
+TEST_SCRIPTS = tuple("test-" + n for n in ("resolve-permission.sh", "permission-guard.sh",
+                                             "setup-permission-level.sh", "merge-policy.sh",
+                                             "plugin-config.sh", "hook-conformance.sh",
+                                             "security-regressions.sh"))
+SHELLS = ("bash", "sh", "zsh", "dash", "ksh")
+TEMP_ROOTS = ("/tmp", "/private/tmp", "/var/tmp", "/private/var/tmp", "/var/folders", "/private/var/folders")
+ENV_LEVELS = ("TS_PERMISSION_LEVEL", "CLAUDE_PLUGIN_OPTION_PERMISSION_LEVEL")
+ID_RE = re.compile(r"\A[A-Za-z0-9._-]{1,128}\Z")
+SKILL_RE = re.compile(r"\A[a-z0-9]+(-[a-z0-9]+)*\Z")
+CALL_RE = re.compile(r"\A[A-Za-z0-9_-]{8,128}\Z")
+OBJ_RE = re.compile(r"\A[A-Za-z0-9][A-Za-z0-9._-]{0,127}\Z")
+SLUG = r"[A-Za-z0-9._-]+"
+UNCLASSIFIED = "UNCLASSIFIED"
+TICKET_NAME_RE = re.compile(r"\A([0-9a-f]{32})\.json\Z")
+SESSION_RE = re.compile(r"\A[^\x00-\x1f\x7f]{1,256}\Z")
+AGENT_RE = re.compile(r"\A[^\x00-\x1f\x7f]{1,128}\Z")
+REPO_RE = re.compile(r"\A[a-z0-9.-]+(:[0-9]+)?/[a-z0-9._-]+/[a-z0-9._-]+\Z")
+RAISE_TTL = 15 * 60     # D5: a raise ticket lives 15 minutes
+CLOCK_SLACK = 60        # seconds a ticket's created may sit in the future (clock skew)
+MAX_TICKETS = 256
+LOWER_MAX_AGE = 2 * 86400   # no ticket lives longer than a lowering's 24 h; a file older than this is litter
+# D5: the hosts where a --perms= RAISE can come from a prompt hook today. None: Claude Code sends no
+# UserPromptSubmit.source in any entrypoint (measured M3, implementation-measurements.md), so no prompt there is
+# attested as typed by the user; Gemini CLI's activate_skill pairing is not wired (hooks/permission-intent.sh).
+# A host joins this list only when its prompt hook can write a pending record.
+PERMS_RAISE_HOSTS = ()
+# D9: the host version, probed once per session (cached in <state>/hostver/ for FLOOR_TTL), against the floor in
+# this plugin's own platform-targets.json (or the registry's permission_levels since). host -> (binary, target,
+# floor field). Cursor is judged by its CLI: the hook cannot tell the CLI from the desktop app.
+FLOOR_PROBES = {"claude": ("claude", "claude_code", "permissions_min"),
+                "codex": ("codex", "codex", "permissions_min"),
+                "cursor": ("cursor-agent", "cursor", "permissions_min_cli"),
+                "gemini": ("gemini", "gemini_cli", "permissions_min"),
+                "opencode": ("opencode", "opencode", "permissions_min")}
+FLOOR_LABELS = {"claude": "Claude Code", "codex": "Codex CLI", "cursor": "Cursor CLI", "gemini": "Gemini CLI",
+                "opencode": "OpenCode"}
+PROBE_SECS = 3          # doctor.sh's probe deadline (DOCTOR_PROBE_SECONDS default); fixed: env only tightens
+FLOOR_TTL = 600         # a cached probe is reused for 10 minutes within one session
+TEST_HOST_VERSION_ENV = "TAMIRS_PERMISSION_TEST_HOST_VERSION"
+VERSION_RE = re.compile(r"[0-9]+(?:\.[0-9]+)+")
+
+
+class Usage(Exception):
+    pass
+
+
+class Internal(Exception):
+    pass
+
+
+WARN = []
+TRACE = []
+
+
+def warn(msg):
+    if msg not in WARN:
+        WARN.append(msg)
+
+
+def trace(msg):
+    TRACE.append(msg)
+
+
+def lowest(*lv):
+    return min(lv, key=LEVELS.index)
+
+
+def is_lower(a, b):
+    return LEVELS.index(a) < LEVELS.index(b)
+
+
+def stricter(a, b):
+    return a if RANK[a] >= RANK[b] else b
+
+
+# ------------------------------------------------------------------ files
+
+def in_work_tree(path):
+    d = path if os.path.isdir(path) else os.path.dirname(path)
+    while True:
+        if os.path.lexists(os.path.join(d, ".git")):
+            return d
+        up = os.path.dirname(d)
+        if up == d:
+            return None
+        d = up
+
+
+def parent_problem(real):
+    uid = os.getuid()
+    d = os.path.dirname(real)
+    while True:
+        try:
+            st = os.stat(d)
+        except OSError:
+            return "cannot stat %s" % d
+        if st.st_uid not in (uid, 0):
+            return "%s is owned by uid %d" % (d, st.st_uid)
+        if st.st_mode & 0o022 and not (st.st_mode & stat.S_ISVTX and st.st_uid == 0):
+            return "%s is group- or world-writable" % d
+        up = os.path.dirname(d)
+        if up == d:
+            return None
+        d = up
+
+
+def dir_problems(path):
+    real = os.path.realpath(path)
+    try:
+        st = os.stat(real)
+    except OSError:
+        return ["cannot stat %s" % path]
+    out = []
+    if not stat.S_ISDIR(st.st_mode):
+        out.append("%s is not a directory" % path)
+    if st.st_uid != os.getuid():
+        out.append("%s is owned by uid %d, not %d" % (path, st.st_uid, os.getuid()))
+    if st.st_mode & 0o077:
+        out.append("%s has mode %04o, needs 0700" % (path, stat.S_IMODE(st.st_mode)))
+    p = parent_problem(real)
+    if p:
+        out.append(p)
+    wt = in_work_tree(real)
+    if wt:
+        out.append("%s is inside the git work tree %s" % (path, wt))
+    return out
+
+
+def read_guarded(path, kind):
+    """Read a file once, checking the bytes it returns. kind: private (a D3 file:
+    owner uid, no group/other bits, safe parents, outside git work trees), store
+    (a host option store: owner uid, not group/world-writable, safe parents) or
+    any (content only, e.g. a committable project file)."""
+    r = {"path": path, "real": None, "data": None, "problems": [], "state": None}
+    if not os.path.lexists(path):
+        r["state"] = "absent"
+        return r
+    real = os.path.realpath(path)
+    r["real"] = real
+    try:
+        fd = os.open(real, os.O_RDONLY | os.O_NONBLOCK | getattr(os, "O_NOFOLLOW", 0))
+    except OSError as e:
+        r["state"] = "unreadable"
+        r["error"] = e.strerror or str(e)
+        return r
+    try:
+        st = os.fstat(fd)
+        if not stat.S_ISREG(st.st_mode):
+            r["state"] = "unreadable"
+            r["error"] = "not a regular file"
+            return r
+        if kind != "any":
+            if st.st_uid != os.getuid():
+                r["problems"].append("%s is owned by uid %d, not %d" % (path, st.st_uid, os.getuid()))
+            mask = 0o077 if kind == "private" else 0o022
+            if st.st_mode & mask:
+                r["problems"].append("%s has mode %04o, %s" % (
+                    path, stat.S_IMODE(st.st_mode),
+                    "needs 0600" if kind == "private" else "is group- or world-writable"))
+        chunks = []
+        size = 0
+        while True:
+            b = os.read(fd, 65536)
+            if not b:
+                break
+            chunks.append(b)
+            size += len(b)
+            if size > MAX_BYTES:
+                r["state"] = "unreadable"
+                r["error"] = "larger than %d bytes" % MAX_BYTES
+                return r
+        r["data"] = b"".join(chunks)
+    finally:
+        os.close(fd)
+    if kind != "any":
+        p = parent_problem(real)
+        if p:
+            r["problems"].append(p)
+    if kind == "private":
+        wt = in_work_tree(real)
+        if wt:
+            r["problems"].append("%s is inside the git work tree %s" % (path, wt))
+    r["state"] = "unsafe" if r["problems"] else "ok"
+    return r
+
+
+def _no_dups(pairs):
+    d = {}
+    for k, v in pairs:
+        if k in d:
+            raise ValueError("duplicate key %r" % k)
+        d[k] = v
+    return d
+
+
+def _no_const(c):
+    raise ValueError("non-finite number %s" % c)
+
+
+def parse_json(data, ascii_only):
+    try:
+        text = data.decode("ascii" if ascii_only else "utf-8")
+    except UnicodeDecodeError:
+        return None, "not ASCII" if ascii_only else "not UTF-8"
+    try:
+        return json.loads(text, object_pairs_hook=_no_dups, parse_constant=_no_const), None
+    except ValueError as e:
+        return None, "not valid JSON (%s)" % e
+
+
+def sha256(data):
+    return hashlib.sha256(data).hexdigest()
+
+
+# ------------------------------------------------------------------ schema
+# A JSON Schema 2020-12 subset: exactly the keywords permissions.schema.json uses.
+# An unknown keyword is an internal error, so the schema cannot outgrow this.
+SCHEMA_KEYS = {"$schema", "$id", "title", "description", "$comment", "$ref", "$defs", "type",
+               "required", "additionalProperties", "properties", "propertyNames", "enum",
+               "const", "pattern", "items", "minItems", "uniqueItems", "default", "examples"}
+TYPES = {"object": dict, "array": list, "string": str, "boolean": bool}
+
+
+def _same(a, b):
+    return a == b and type(a) is type(b)
+
+
+def validate(inst, sch, root, path="$"):
+    errs = []
+    for k in sch:
+        if k not in SCHEMA_KEYS:
+            raise Internal("permissions schema uses unsupported keyword %s" % k)
+    if "$ref" in sch:
+        ref = sch["$ref"]
+        if not ref.startswith("#/"):
+            raise Internal("permissions schema has a non-local $ref %s" % ref)
+        node = root
+        for part in ref[2:].split("/"):
+            node = node[part]
+        errs += validate(inst, node, root, path)
+    t = sch.get("type")
+    if t is not None:
+        if t == "integer":
+            ok = isinstance(inst, int) and not isinstance(inst, bool)
+        else:
+            ok = isinstance(inst, TYPES[t]) and not (t != "boolean" and isinstance(inst, bool))
+        if not ok:
+            return errs + ["%s is not %s" % (path, t)]
+    if "enum" in sch and not any(_same(inst, e) for e in sch["enum"]):
+        errs.append("%s is not one of %s" % (path, sch["enum"]))
+    if "const" in sch and not _same(inst, sch["const"]):
+        errs.append("%s must be %r" % (path, sch["const"]))
+    if "pattern" in sch and isinstance(inst, str):
+        pat = sch["pattern"]
+        if pat.endswith("$") and not pat.endswith("\\$"):
+            pat = pat[:-1] + r"\Z"
+        if not re.search(pat, inst):
+            errs.append("%s does not match %s" % (path, sch["pattern"]))
+    if isinstance(inst, dict):
+        props = sch.get("properties", {})
+        for req in sch.get("required", []):
+            if req not in inst:
+                errs.append("%s lacks %s" % (path, req))
+        ap = sch.get("additionalProperties", True)
+        for k, v in inst.items():
+            if "propertyNames" in sch:
+                errs += validate(k, sch["propertyNames"], root, "%s key %r" % (path, k))
+            if k in props:
+                errs += validate(v, props[k], root, "%s.%s" % (path, k))
+            elif ap is False:
+                errs.append("%s has unknown key %r" % (path, k))
+            elif isinstance(ap, dict):
+                errs += validate(v, ap, root, "%s.%s" % (path, k))
+    if isinstance(inst, list):
+        if "items" in sch:
+            for i, v in enumerate(inst):
+                errs += validate(v, sch["items"], root, "%s[%d]" % (path, i))
+        if len(inst) < sch.get("minItems", 0):
+            errs.append("%s has fewer than %d items" % (path, sch["minItems"]))
+        if sch.get("uniqueItems"):
+            seen = []
+            for v in inst:
+                if any(_same(v, s) for s in seen):
+                    errs.append("%s has duplicate items" % path)
+                    break
+                seen.append(v)
+    return errs
+
+
+# ------------------------------------------------------------------ plugin data
+
+def read_plugin_json(rel, what):
+    p = os.path.join(ROOT, rel)
+    try:
+        with open(p, "rb") as f:
+            data = f.read(4 * MAX_BYTES + 1)
+    except OSError as e:
+        raise Internal("%s unreadable: %s (%s)" % (what, p, e.strerror))
+    doc, err = parse_json(data, False)
+    if err:
+        raise Internal("%s %s is %s" % (what, p, err))
+    return doc
+
+
+def load_catalog():
+    doc = read_plugin_json(os.path.join("core", "permissions", "actions.json"), "action catalog")
+    try:
+        by, alias = {}, {}
+        conds = set(k for k in doc["conditions"] if not k.startswith("_"))
+        for a in doc["actions"]:
+            i = a["id"]
+            if i in by or not isinstance(a["r"], int) or not 0 <= a["r"] <= 4:
+                raise ValueError("bad or duplicate id %r" % i)
+            by[i] = a
+            for al in a.get("aliases") or []:
+                alias[al] = i
+        for a in by.values():
+            for rz in a.get("raises") or []:
+                if rz["when"] not in conds or ("becomes" in rz and rz["becomes"] not in by):
+                    raise ValueError("raise of %s names an unknown condition or id" % a["id"])
+            for dn in a.get("denies") or []:
+                if dn["when"] not in conds:
+                    raise ValueError("deny of %s names an unknown condition" % a["id"])
+            pre = a.get("unattended_precondition")
+            if pre is not None and pre not in conds:
+                raise ValueError("precondition of %s is unknown" % a["id"])
+        ceil = doc["levels"]["ceilings"]
+        for lv in LEVELS:
+            for r in range(5):
+                if ceil[lv]["R%d" % r] not in ("allow", "ask", "allow_if_precondition"):
+                    raise ValueError("ceiling %s R%d" % (lv, r))
+        over = {}
+        for i, cells in (doc["levels"].get("overrides") or {}).items():
+            if i not in by:
+                raise ValueError("override for unknown id %s" % i)
+            over[i] = dict((lv, cells[lv]) for lv in LEVELS)
+        kinds = dict((k, list(v)) for k, v in (doc.get("target_kinds") or {}).items() if not k.startswith("_"))
+    except (KeyError, TypeError, ValueError, AttributeError) as e:
+        raise Internal("action catalog is malformed (%s)" % e)
+    return {"by": by, "alias": alias, "ceil": ceil, "over": over, "conds": conds,
+            "over_raw": doc["levels"].get("overrides") or {}, "kinds": kinds}
+
+
+def load_schema():
+    doc = read_plugin_json(os.path.join("core", "schemas", "permissions.schema.json"), "permissions schema")
+    for d in ("user_file", "project_file", "lock_file"):
+        if d not in doc.get("$defs", {}):
+            raise Internal("permissions schema lacks $defs/%s" % d)
+    return doc
+
+
+def skill_category(skill):
+    if not skill:
+        return None
+    base = os.path.join(ROOT, "skills")
+    try:
+        cats = sorted(os.listdir(base))
+    except OSError:
+        return None
+    for c in cats:
+        if os.path.isfile(os.path.join(base, c, skill, "SKILL.md")):
+            return c
+    return None
+
+
+# ------------------------------------------------------------------ home (D3, SR S-04)
+
+def ps_line(pid):
+    ps = "/bin/ps" if os.path.exists("/bin/ps") else "/usr/bin/ps"
+    try:
+        out = subprocess.run([ps, "-ww", "-o", "ppid=", "-o", "args=", "-p", str(pid)],
+                             stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+                             timeout=3, env={"PATH": "/usr/bin:/bin", "LC_ALL": "C"})
+    except (OSError, subprocess.SubprocessError):
+        return None
+    line = out.stdout.decode("utf-8", "replace").strip()
+    if not line:
+        return None
+    parts = line.split(None, 1)
+    try:
+        return int(parts[0]), (parts[1] if len(parts) > 1 else "")
+    except ValueError:
+        return None
+
+
+# ------------------------------------------------------------------ process ancestry (D5, D8; F1, F7)
+
+def process_chain():
+    """This engine's ancestry, nearest first: [(pid, ppid, args)], read with /bin/ps (never through PATH), and
+    whether the walk is complete: every hop read and pid 1 reached within 64 hops. The process itself is not
+    in it; its parent (the shell running the calling script) is the first entry."""
+    out, pid = [], os.getppid()
+    for _ in range(64):
+        if pid <= 1:
+            return out, True
+        got = ps_line(pid)
+        if got is None:
+            return out, False
+        ppid, args = got
+        out.append((pid, ppid, args))
+        pid = ppid
+    return out, False
+
+
+def host_of(args):
+    """The agent host a process's argument list is, or None: claude, claude-desktop, codex, cursor, gemini,
+    opencode, agy. Read from the program (and, for node/bun/deno, its script), never from other arguments."""
+    toks = args.split()
+    if not toks:
+        return None
+    if "/Claude.app/" in args:
+        return "claude-desktop"
+    if "/Cursor.app/" in args or "Cursor Helper" in args:
+        return "cursor"
+    if "/Antigravity.app/" in args:
+        return "agy"
+    progs = [os.path.basename(toks[0]).lstrip("-")]
+    if progs[0] in ("node", "nodejs", "bun", "deno") and len(toks) > 1:
+        progs.append(toks[1])
+    for p in progs:
+        b = os.path.basename(p)
+        if b in ("claude", "claude-code") or "/@anthropic-ai/claude-code/" in p:
+            return "claude"
+        if b == "codex" or "/@openai/codex/" in p:
+            return "codex"
+        if b == "gemini" or "/@google/gemini-cli/" in p:
+            return "gemini"
+        if b == "opencode" or "/opencode-ai/" in p or "/@opencode/" in p:
+            return "opencode"
+        if b in ("cursor-agent", "cursor"):
+            return "cursor"
+        if b == "agy":
+            return "agy"
+    return None
+
+
+DETECT_AS = {"claude": "claude", "claude-desktop": "claude", "codex": "codex", "cursor": "cursor",
+             "gemini": "gemini", "opencode": "opencode"}
+TEST_DETECTED_HOST_ENV = "TAMIRS_PERMISSION_TEST_DETECTED_HOST"
+
+
+def detected_hosts(home_source):
+    """F7: the host this process really runs under, from its ancestry, as a --host name in a list of at most
+    one: the NEAREST agent host above it (the one whose hook or tool call this is; an outer IDE whose terminal
+    started that host, such as Cursor's, is not it). The desktop app reads as claude; Antigravity is no target.
+    Under the accepted test root the ancestry is not read, because a suite may itself run under an agent:
+    TAMIRS_PERMISSION_TEST_DETECTED_HOST (comma-separated) names the hosts instead."""
+    if home_source == "test-root":
+        return [h for h in (os.environ.get(TEST_DETECTED_HOST_ENV) or "").split(",") if h in HOSTS]
+    for _, _, args in process_chain()[0]:
+        h = host_of(args)
+        if h:
+            return [DETECT_AS[h]] if h in DETECT_AS else []
+    return []
+
+
+def runs_test_script(args):
+    """True when a process's argument list is one of TEST_SCRIPTS being run: the program itself, or a shell
+    whose first operand it is. A shell given -c or -s runs no script file. The value of a long option that
+    takes one is read as the operand, which can only refuse, never accept."""
+    toks = args.split()
+    if not toks:
+        return False
+    prog = os.path.basename(toks[0]).lstrip("-")
+    if prog in TEST_SCRIPTS:
+        return True
+    if prog not in SHELLS:
+        return False
+    k = 1
+    while k < len(toks):
+        t = toks[k]
+        if t == "--":
+            k += 1
+            break
+        if t in ("-o", "+o", "-O", "+O"):
+            k += 2
+            continue
+        if t[:1] in ("-", "+") and len(t) > 1:
+            if not t.startswith("--") and ("c" in t[1:] or "s" in t[1:]):
+                return False
+            k += 1
+            continue
+        break
+    return k < len(toks) and os.path.basename(toks[k]) in TEST_SCRIPTS
+
+
+def under_test_harness():
+    pid = os.getppid()
+    for _ in range(32):
+        if pid <= 1:
+            return False
+        got = ps_line(pid)
+        if got is None:
+            return False
+        ppid, args = got
+        if runs_test_script(args):
+            return True
+        pid = ppid
+    return False
+
+
+def test_root_refusal(t):
+    if not os.path.isabs(t):
+        return "not an absolute path"
+    try:
+        st = os.lstat(t)
+    except OSError:
+        return "does not exist"
+    if stat.S_ISLNK(st.st_mode) or not stat.S_ISDIR(st.st_mode):
+        return "not a directory (or a symlink)"
+    if st.st_uid != os.getuid():
+        return "not owned by uid %d" % os.getuid()
+    if st.st_mode & 0o077:
+        return "mode %04o, not 0700" % stat.S_IMODE(st.st_mode)
+    real = os.path.realpath(t)
+    roots = set(os.path.realpath(r) for r in TEMP_ROOTS if os.path.isdir(r))
+    if not any(real.startswith(r.rstrip("/") + "/") for r in roots):
+        return "not under a system temp directory"
+    if in_work_tree(real):
+        return "inside a git work tree"
+    if not under_test_harness():
+        return "the process is not running under one of the permission suites (%s)" % ", ".join(TEST_SCRIPTS)
+    return None
+
+
+def passwd_home():
+    t = os.environ.get(TEST_ENV)
+    if t:
+        why = test_root_refusal(t)
+        if why is None:
+            return os.path.realpath(t), "test-root"
+        warn("%s ignored (%s): the passwd entry decides" % (TEST_ENV, why))
+    try:
+        return pwd.getpwuid(os.getuid()).pw_dir, "passwd"
+    except KeyError:
+        raise Internal("no passwd entry for uid %d" % os.getuid())
+
+
+def dirs(home):
+    return (os.path.join(home, ".config", PLUGIN), os.path.join(home, ".local", "state", PLUGIN))
+
+
+# ------------------------------------------------------------------ level sources
+
+def store_bad(s, why):
+    s["state"] = "invalid"
+    s["level"] = "supervised"
+    s["reason"] = why
+    warn("option store %s is unusable (%s): it counts as supervised" % (s["path"], why))
+    return s
+
+
+def store_level_value(s, where, v, vals):
+    if v in LEVELS:
+        vals.append(v)
+    else:
+        warn("%s %s=%r is not a level: supervised (D7)" % (s["path"], where, v))
+        vals.append("supervised")
+
+
+def store_claude(home):
+    p = os.path.join(home, ".claude", "settings.json")
+    s = {"source": "option_store:claude", "path": p, "level": None}
+    r = read_guarded(p, "store")
+    if r["state"] == "absent":
+        s["state"] = "absent"
+        return s
+    if r["state"] != "ok":
+        return store_bad(s, r.get("error") or "; ".join(r["problems"]))
+    doc, err = parse_json(r["data"], False)
+    if err:
+        return store_bad(s, err)
+    vals = []
+    pc = doc.get("pluginConfigs") if isinstance(doc, dict) else None
+    if isinstance(pc, dict):
+        for k in sorted(pc):
+            if k != PLUGIN and not k.startswith(PLUGIN + "@"):
+                continue
+            ent = pc[k]
+            opts = ent.get("options") if isinstance(ent, dict) else None
+            if isinstance(opts, dict) and "permission_level" in opts:
+                store_level_value(s, "pluginConfigs[%s].options.permission_level" % k, opts["permission_level"], vals)
+    if not vals:
+        s["state"] = "absent"
+        return s
+    s["state"] = "present"
+    s["level"] = lowest(*vals)
+    return s
+
+
+def store_gemini(home):
+    p = os.path.join(home, ".gemini", "extensions", PLUGIN, ".env")
+    s = {"source": "option_store:gemini", "path": p, "level": None}
+    r = read_guarded(p, "store")
+    if r["state"] == "absent":
+        s["state"] = "absent"
+        return s
+    if r["state"] != "ok":
+        return store_bad(s, r.get("error") or "; ".join(r["problems"]))
+    try:
+        text = r["data"].decode("utf-8")
+    except UnicodeDecodeError:
+        return store_bad(s, "not UTF-8")
+    val = None
+    for line in text.splitlines():
+        t = line.strip()
+        if not t or t.startswith("#"):
+            continue
+        if t.startswith("export "):
+            t = t[7:].lstrip()
+        k, sep, v = t.partition("=")
+        if not sep or k.strip() != "TS_PERMISSION_LEVEL":
+            continue
+        v = v.strip()
+        if len(v) >= 2 and v[0] == v[-1] and v[0] in "\"'":
+            v = v[1:-1]
+        val = v
+    if val is None:
+        s["state"] = "absent"
+        return s
+    vals = []
+    store_level_value(s, "TS_PERMISSION_LEVEL", val, vals)
+    s["state"] = "present"
+    s["level"] = vals[0]
+    return s
+
+
+def option_stores(home, host):
+    """The host's store raises and lowers. With no --host every store may only
+    lower: an unknown host is read as one with no store (D3: absent is skipped)."""
+    if host == "claude":
+        return [store_claude(home)]
+    if host == "gemini":
+        return [store_gemini(home)]
+    if host is None:
+        return [store_claude(home), store_gemini(home)]
+    return []
+
+
+def env_levels():
+    out = []
+    for n in ENV_LEVELS:
+        v = os.environ.get(n)
+        if not v:
+            continue
+        if v not in LEVELS:
+            warn("%s=%r is not a level: read as supervised (env only tightens, D3)" % (n, v))
+            v = "supervised"
+        out.append({"source": "env:" + n, "state": "tighten-only", "level": v})
+    return out
+
+
+def lock_state(cfg, digest, schema):
+    r = read_guarded(os.path.join(cfg, "permissions.lock"), "private")
+    if r["state"] == "absent":
+        return "absent"
+    if r["state"] != "ok":
+        return "unsafe"
+    doc, err = parse_json(r["data"], True)
+    if err or validate(doc, schema["$defs"]["lock_file"], schema):
+        return "invalid"
+    return "match" if doc["sha256"] == digest else "mismatch"
+
+
+def load_user(home, schema):
+    cfg = dirs(home)[0]
+    p = os.path.join(cfg, "permissions.json")
+    u = {"source": "user_file", "path": p, "level": None, "doc": None, "lock": None, "sha256": None}
+    r = read_guarded(p, "private")
+    if r["state"] == "absent":
+        u["state"] = "absent"
+        return u
+
+    def invalid(why):
+        u["state"] = "invalid"
+        u["reason"] = why
+        warn("user file %s is invalid (%s): supervised, its overrides ignored (D3 fail closed)" % (p, why))
+        return u
+
+    if r["state"] == "unreadable":
+        return invalid(r["error"])
+    problems = list(r["problems"]) + dir_problems(cfg)
+    doc, err = parse_json(r["data"], True)
+    if err:
+        return invalid(err)
+    errs = validate(doc, schema["$defs"]["user_file"], schema)
+    if errs:
+        return invalid("; ".join(errs[:3]))
+    u["doc"] = doc
+    u["level"] = doc.get("level")
+    u["sha256"] = sha256(r["data"])
+    u["lock"] = lock_state(cfg, u["sha256"], schema)
+    if problems:
+        u["state"] = "tighten-only"
+        u["reason"] = "; ".join(problems)
+        warn("user file %s fails the owner/mode checks (%s): only its tightening entries count (D3, SR S-04)"
+             % (p, u["reason"]))
+    elif u["lock"] != "match":
+        u["state"] = "tighten-only"
+        u["reason"] = "permissions.lock is %s" % u["lock"]
+        warn("user file %s does not match its lock (%s): only its tightening entries count until "
+             "/plugin-config re-locks it (D10.2)" % (p, u["lock"]))
+    else:
+        u["state"] = "verified"
+    return u
+
+
+# ------------------------------------------------------------------ repository
+
+def read_origin(cfg):
+    try:
+        with open(cfg, "rb") as f:
+            text = f.read(MAX_BYTES).decode("utf-8", "replace")
+    except OSError:
+        return None
+    section, url = None, None
+    for raw in text.splitlines():
+        line = raw.strip()
+        if not line or line[0] in "#;":
+            continue
+        m = re.match(r'\A\[\s*([A-Za-z0-9.-]+)(?:\s+"((?:[^"\\]|\\.)*)")?\s*\]\s*(.*)\Z', line)
+        if m:
+            name = m.group(1).lower()
+            if name == "include" or name.startswith("includeif"):
+                warn("%s uses an include: its origin is unresolved" % cfg)
+                return None
+            if name == "remote.origin":
+                section = ("remote", "origin")
+            else:
+                section = (name, m.group(2))
+            line = m.group(3)
+            if not line:
+                continue
+        if section == ("remote", "origin") and url is None:
+            k, sep, v = line.partition("=")
+            if sep and k.strip().lower() == "url":
+                v = re.sub(r"\s[#;].*\Z", "", v).strip()
+                if len(v) >= 2 and v[0] == v[-1] == '"':
+                    v = v[1:-1]
+                url = v
+    return url
+
+
+def normalize_remote(u):
+    if not u:
+        return None
+    u = u.strip()
+    m = re.match(r"\A([A-Za-z][A-Za-z0-9+.-]*)://(?:[^@/]*@)?([A-Za-z0-9.-]+)(:[0-9]+)?/+(%s)/(%s?)(?:\.git)?/*\Z"
+                 % (SLUG, SLUG), u)
+    if m:
+        scheme, host, port, owner, name = m.groups()
+        if (port == ":22" and "ssh" in scheme) or (port == ":443" and scheme == "https"):
+            port = None
+    else:
+        m = re.match(r"\A(?:[^@/:]+@)?([A-Za-z0-9.-]+):/*(%s)/(%s?)(?:\.git)?/*\Z" % (SLUG, SLUG), u)
+        if not m:
+            return None
+        host, owner, name = m.groups()
+        port = None
+    if name.endswith(".git"):
+        name = name[:-4]
+    return ("%s%s/%s/%s" % (host, port or "", owner, name)).lower()
+
+
+def normalize_slug(s):
+    s = re.sub(r"#[0-9]+\Z", "", s.strip())
+    parts = s.split("/")
+    if not all(re.match(r"\A%s\Z" % SLUG, x) for x in parts):
+        return None
+    if len(parts) == 3 and re.match(r"\A[A-Za-z0-9.-]+(:[0-9]+)?\Z", parts[0]) and "." in parts[0]:
+        return "/".join(parts).lower()
+    if len(parts) == 2:
+        return ("%s/%s/%s" % (os.environ.get("GH_HOST") or "github.com", parts[0], parts[1])).lower()
+    return None
+
+
+def target_repo(t, origin):
+    """The repository a target names, as host/owner/name; None when unresolvable.
+    A bare PR number names the repository gh would use: GH_REPO, else origin."""
+    if not t:
+        return None
+    t = t.strip()
+    if re.match(r"\A#?[0-9]+\Z", t):
+        gr = os.environ.get("GH_REPO")
+        return normalize_slug(gr) if gr else origin
+    if "://" in t:
+        t2 = re.sub(r"/(?:pull|pulls|issues)/[0-9]+/*\Z", "", t)
+        return normalize_remote(t2)
+    return normalize_slug(t)
+
+
+def repo_info(path):
+    try:
+        start = os.path.realpath(path or os.getcwd())
+    except OSError:
+        return None
+    d = start if os.path.isdir(start) else os.path.dirname(start)
+    while True:
+        g = os.path.join(d, ".git")
+        if os.path.lexists(g):
+            break
+        up = os.path.dirname(d)
+        if up == d:
+            return None
+        d = up
+    common = None
+    if os.path.isdir(g):
+        common = g
+    else:
+        try:
+            with open(g) as f:
+                txt = f.read(4096)
+        except OSError:
+            txt = ""
+        m = re.match(r"\Agitdir:\s*(.+)", txt.strip())
+        if m:
+            gd = m.group(1).strip()
+            if not os.path.isabs(gd):
+                gd = os.path.join(d, gd)
+            gd = os.path.realpath(gd)
+            try:
+                with open(os.path.join(gd, "commondir")) as f:
+                    common = os.path.realpath(os.path.join(gd, f.read(4096).strip()))
+            except OSError:
+                common = gd
+    if common is None:
+        key = os.path.realpath(d)
+    elif os.path.basename(common) == ".git":
+        key = os.path.realpath(os.path.dirname(common))
+    else:
+        key = os.path.realpath(common)
+    origin = normalize_remote(read_origin(os.path.join(common, "config"))) if common else None
+    return {"top": d, "key": key, "origin": origin}
+
+
+def load_project(repo, schema):
+    if repo is None:
+        return {"source": "project_file", "path": None, "state": "absent", "doc": None}
+    p = os.path.join(repo["top"], ".tamirs-superpowers", "permissions.json")
+    pf = {"source": "project_file", "path": p, "doc": None, "sha256": None}
+    r = read_guarded(p, "any")
+    if r["state"] == "absent":
+        pf["state"] = "absent"
+        return pf
+
+    def invalid(why):
+        pf["state"] = "invalid"
+        pf["reason"] = why
+        warn("project file %s is invalid (%s): supervised, its overrides ignored (D3 fail closed)" % (p, why))
+        return pf
+
+    if r["state"] == "unreadable":
+        return invalid(r["error"])
+    doc, err = parse_json(r["data"], True)
+    if err:
+        return invalid(err)
+    errs = validate(doc, schema["$defs"]["project_file"], schema)
+    if errs:
+        return invalid("; ".join(errs[:3]))
+    pf["doc"] = doc
+    pf["sha256"] = sha256(r["data"])
+    pf["state"] = "valid"
+    return pf
+
+
+def trust_state(user, pf, repo, target):
+    """D3 and SR S-15: a project file widens pr.merge.auto only with a trust entry
+    in a VERIFIED user file whose repo is this checkout's main work tree, whose
+    sha256 is the file's, and whose remote equals both the origin and the target."""
+    if pf is None or pf.get("state") != "valid":
+        return False, "no valid project file"
+    if user["state"] != "verified":
+        return False, "the user file is %s, so its trust entries do not count" % user["state"]
+    entries = user["doc"].get("trust") or []
+    if not entries:
+        return False, "the user file has no trust entry"
+    origin = repo.get("origin") if repo else None
+    if not origin:
+        return False, "the checkout's origin is unresolved"
+    tr = target_repo(target, origin)
+    if tr is None:
+        return False, "the target repository is unresolved (pass --target <n>, <owner>/<repo>#<n> or a PR URL)"
+    why = "no trust entry for %s" % repo["key"]
+    for e in entries:
+        if os.path.realpath(e["repo"]) != repo["key"]:
+            continue
+        if e["sha256"] != pf["sha256"]:
+            why = "the project file changed since it was trusted (sha256 differs)"
+            continue
+        rem = e["remote"].lower()
+        if rem != origin:
+            why = "the trust entry's remote %s is not the checkout's origin %s" % (rem, origin)
+            continue
+        if tr != rem:
+            why = "the target %s is not the trusted remote %s" % (tr, rem)
+            continue
+        if "pr.merge.auto" in e["widens"]:
+            return True, "trusted for %s at %s" % (rem, e["at"])
+    return False, why
+
+
+def call_stamp(home, token):
+    state = dirs(home)[1]
+    seen = os.path.join(state, "seen")
+    stamp = os.path.join(seen, token)
+    if not os.path.lexists(stamp):
+        return "missing"
+    probs = dir_problems(state) + dir_problems(seen)
+    st = os.lstat(stamp)
+    if probs or not stat.S_ISREG(st.st_mode) or st.st_uid != os.getuid():
+        return "unsafe"
+    claimed = "%s.consumed-%d" % (stamp, os.getpid())
+    try:
+        os.rename(stamp, claimed)
+    except OSError:
+        return "missing"
+    try:
+        os.unlink(claimed)
+    except OSError:
+        pass
+    return "consumed"
+
+
+# ------------------------------------------------------------------ tickets (D4 row 1, D5)
+
+def parse_utc(s):
+    if not isinstance(s, str) or not re.match(r"\A\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ\Z", s):
+        return None
+    try:
+        return calendar.timegm(time.strptime(s, "%Y-%m-%dT%H:%M:%SZ"))
+    except (ValueError, OverflowError):
+        return None
+
+
+def parse_target(t, base):
+    """What a target string names (D5): {repo: host/owner/name, number, url: (scheme, host, path), realpath}.
+    A field it does not name is None. A bare number (42, #42) and "." name `base`, the repository gh would use."""
+    out = {"repo": None, "number": None, "url": None, "realpath": None}
+    if not isinstance(t, str):
+        return out
+    t = t.strip()
+    m = re.match(r"\A#?([0-9]{1,12})\Z", t)
+    if t == "." or m:
+        out["repo"] = base
+        out["number"] = str(int(m.group(1))) if m and base else None
+        return out
+    if "://" in t:
+        u = re.match(r"\A([A-Za-z][A-Za-z0-9+.-]*)://(?:[^@/?#]*@)?([^/?#]+)([^?#]*)", t)
+        if u:
+            out["url"] = (u.group(1).lower(), u.group(2).lower(), u.group(3) or "/")
+        pm = re.match(r"\A(.+?)/(?:pull|pulls|issues)/([0-9]{1,12})/*\Z", t)
+        out["repo"] = normalize_remote(pm.group(1) if pm else t)
+        out["number"] = str(int(pm.group(2))) if pm and out["repo"] else None
+        return out
+    if t.startswith("/"):
+        out["realpath"] = os.path.realpath(t)
+        return out
+    pm = re.match(r"\A(.+)#([0-9]{1,12})\Z", t)
+    s = pm.group(1) if pm else t
+    out["repo"] = normalize_slug(s) if "/" in s else None
+    out["number"] = str(int(pm.group(2))) if pm and out["repo"] else None
+    return out
+
+
+def target_fields(kind, p, kinds):
+    """The fields actions.json target_kinds lists for `kind`, as a tuple, or None when any of them is
+    unresolvable: D5's equality, under which an unresolvable target never matches and kind none has no target."""
+    want = kinds.get(kind)
+    if not want:
+        return None
+    vals = {}
+    if kind == "url":
+        if p["url"]:
+            vals = dict(zip(("scheme", "host", "path"), p["url"]))
+    else:
+        if p["repo"]:
+            vals.update(zip(("host", "owner", "name"), p["repo"].split("/", 2)))
+        if p["number"]:
+            vals["number"] = p["number"]
+        if p["realpath"]:
+            vals["realpath"] = p["realpath"]
+    got = tuple(vals.get(f) for f in want)
+    return got if all(x is not None for x in got) else None
+
+
+def ticket_target(tk):
+    """A ticket's target {arg, repo} (D5: its first argument plus the checkout's repository) as parse_target
+    reads it. An argument that names no target leaves the repository alone."""
+    p = parse_target(tk["arg"], tk["repo"]) if tk["arg"] is not None else parse_target(".", tk["repo"])
+    if not any(p.values()):
+        p = parse_target(".", tk["repo"])
+    return p
+
+
+def read_ticket(path, name):
+    """(ticket, None) or (None, why). The format is scripts/plugin-config.sh's header (tickets/<id>.json)."""
+    m = TICKET_NAME_RE.match(name)
+    if not m:
+        return None, "not a ticket file name (<32 hex digits>.json)"
+    r = read_guarded(path, "private")
+    if r["state"] not in ("ok", "unsafe"):
+        return None, "unreadable (%s)" % (r.get("error") or r["state"])
+    doc, err = parse_json(r["data"], True)
+    if err or not isinstance(doc, dict):
+        return None, "corrupt (%s)" % (err or "not a JSON object")
+    try:
+        if doc.get("version") != 1 or doc.get("kind") not in ("raise", "lower"):
+            raise ValueError("version or kind")
+        if doc.get("id") != m.group(1):
+            raise ValueError("its id is not its file name")
+        if doc.get("level") not in LEVELS:
+            raise ValueError("level")
+        sk = doc.get("skill")
+        if sk is not None and not (isinstance(sk, str) and SKILL_RE.match(sk)):
+            raise ValueError("skill")
+        sid, ag, host = doc.get("session_id"), doc.get("agent"), doc.get("host")
+        if not (isinstance(sid, str) and sid) or not (isinstance(ag, str) and ag):
+            raise ValueError("session_id or agent")
+        if host is not None and not isinstance(host, str):
+            raise ValueError("host")
+        tg = doc.get("target")
+        if not isinstance(tg, dict) or any(tg.get(k) is not None and not isinstance(tg.get(k), str)
+                                           for k in ("arg", "repo")):
+            raise ValueError("target")
+        created, expires = parse_utc(doc.get("created")), parse_utc(doc.get("expires"))
+        if created is None or expires is None or expires <= created:
+            raise ValueError("created or expires")
+        state = doc.get("state")
+        if doc["kind"] == "lower" and state not in (None, "active"):
+            raise ValueError("state")
+    except ValueError as e:
+        return None, "malformed (%s)" % e
+    if doc["kind"] == "raise" and state != "active":
+        # Two-phase confirm (D5, F1): `confirm` only stages a raise; the host's PostToolUse on that very,
+        # approved call (hooks/permission-approved.sh) promotes it to active. A staged or unmarked raise is no
+        # grant, wherever it sits.
+        return None, "a raise ticket that is not active (state %r): only the PostToolUse of the approved " \
+                     "confirm call promotes one (D5)" % (state,)
+    repo = tg.get("repo")
+    probs = list(r["problems"]) + (["%s is a symbolic link" % path] if os.path.islink(path) else [])
+    return {"id": doc["id"], "kind": doc["kind"], "level": doc["level"], "skill": sk, "session_id": sid,
+            "agent": ag, "host": host, "arg": tg.get("arg"),
+            "repo": repo.lower() if isinstance(repo, str) and REPO_RE.match(repo.lower()) else None,
+            "created": created, "exp": expires, "expires": doc["expires"], "problems": probs}, None
+
+
+def load_tickets(home, o):
+    """D4 row 1, D5: this session's --perms= tickets, read only with --session. Raise tickets come from
+    scripts/plugin-config.sh confirm (a host prompt named skill, level, target and expiry); lowering tickets
+    from hooks/permission-intent.sh. Another session's ticket is skipped. An expired, foreign or corrupt one is
+    ignored with a warning, never an error. A raise counts only from a safe file in a safe dir, bound to this
+    (session, agent): an unsafe one is read tighten-only, its lowering counting and its raise not (D10.2)."""
+    out = {"state": "not read", "raise": [], "lower": [], "ignored": 0}
+    sess = o["session"]
+    if not sess:
+        return out
+    agent = o["agent"] or "main"
+    state = dirs(home)[1]
+    tdir = os.path.join(state, "tickets")
+    if not os.path.lexists(tdir):
+        out["state"] = "none"
+        return out
+    dprobs = (["%s is a symbolic link" % tdir] if os.path.islink(tdir) else []) + dir_problems(state) + \
+        dir_problems(tdir)
+    try:
+        names = sorted(os.listdir(tdir))
+    except OSError as e:
+        warn("tickets dir %s cannot be listed (%s): no ticket applies (D5)" % (tdir, e.strerror or e))
+        out["state"] = "unreadable"
+        return out
+    if dprobs:
+        warn("tickets dir %s is unsafe (%s): its raise tickets are ignored, its lowering tickets still count "
+             "(D10.2)" % (tdir, "; ".join(dprobs[:2])))
+    out["state"] = "unsafe dir" if dprobs else "read"
+    now = time.time()
+    seen = 0
+    for n in names:
+        if n.startswith("."):
+            continue   # a writer's temp file (tmp + rename)
+        seen += 1
+        if seen > MAX_TICKETS:
+            warn("more than %d files in %s: the rest are not read" % (MAX_TICKETS, tdir))
+            break
+        p = os.path.join(tdir, n)
+        tk, why = read_ticket(p, n)
+        if tk is None:
+            out["ignored"] += 1
+            warn("ticket %s ignored: %s (D5)" % (p, why))
+            continue
+        if tk["session_id"] != sess:
+            continue   # another session's ticket: not this call's to judge
+        if tk["exp"] <= now:
+            out["ignored"] += 1
+            warn("ticket %s expired at %s: ignored (D5)" % (tk["id"], tk["expires"]))
+            continue
+        if tk["kind"] == "lower":
+            out["lower"].append(tk)   # S-09: a lowering needs no provenance, any agent, any target
+            continue
+        bad = None
+        if dprobs or tk["problems"]:
+            bad = "it is unsafe (%s), so only a lowering would count (D10.2)" % "; ".join((dprobs + tk["problems"])[:2])
+        elif tk["exp"] - tk["created"] > RAISE_TTL or tk["created"] > now + CLOCK_SLACK:
+            bad = "a raise lives at most 15 minutes from its confirmation (D5)"
+        elif tk["skill"] is None:
+            bad = "it names no skill: a raise covers one skill and one target (D5)"
+        elif tk["agent"] != agent:
+            bad = "it is bound to agent %s and this call is agent %s (D5, SR S-11)" % (tk["agent"], agent)
+        elif tk["host"] and o["host"] and tk["host"] != o["host"]:
+            bad = "it is bound to host %s and this call is on %s" % (tk["host"], o["host"])
+        if bad:
+            out["ignored"] += 1
+            warn("raise ticket %s ignored: %s" % (tk["id"], bad))
+            continue
+        out["raise"].append(tk)
+    return out
+
+
+def ticket_raise_for(c, ctx):
+    """The raise ticket covering this candidate, or None. R2/R3 only (never R4 or UNCLASSIFIED, SR S-05), never
+    a step context raised, only for the call's skill, and only when the call's target equals the ticket's for
+    the action's target kind (actions.json target_kinds)."""
+    tks = (ctx.get("tickets") or {}).get("raise") or []
+    if not tks or c["unclassified"] or c["raised"] or c["r"] not in (2, 3) or not ctx["skill"]:
+        return None
+    kinds = ctx["cat"]["kinds"]
+    kind = (ctx["cat"]["by"].get(c["id"]) or {}).get("target")
+    mine = target_fields(kind, ctx["call_target"], kinds)
+    if mine is None:
+        trace("  %s: no ticket can match: the call's %s target is unresolved" % (c["id"], kind))
+        return None
+    best = None
+    for tk in tks:
+        if tk["skill"] != ctx["skill"] or target_fields(kind, ticket_target(tk), kinds) != mine:
+            continue
+        if best is None or is_lower(best["level"], tk["level"]):
+            best = tk
+    return best
+
+
+def ticket_lower_for(ctx):
+    """The lowest lowering ticket of this session for the call's skill (skill null = the whole session)."""
+    best = None
+    for tk in (ctx.get("tickets") or {}).get("lower") or []:
+        if tk["skill"] is not None and tk["skill"] != ctx["skill"]:
+            continue
+        if best is None or is_lower(tk["level"], best["level"]):
+            best = tk
+    return best
+
+
+def ticket_what(tk):
+    p = ticket_target(tk)
+    where = "/".join(x for x in (p["repo"], p["number"]) if x) or (tk["arg"] or "no target")
+    return "--perms=%s for %s on %s, until %s" % (tk["level"], tk["skill"] or "the session", where, tk["expires"])
+
+
+def scan_tickets(home):
+    """Every ticket file of the state dir as (path, name, ticket or None, why); [] when there is none."""
+    tdir = os.path.join(dirs(home)[1], "tickets")
+    try:
+        names = sorted(n for n in os.listdir(tdir) if not n.startswith("."))[:MAX_TICKETS]
+    except OSError:
+        return []
+    out = []
+    for n in names:
+        p = os.path.join(tdir, n)
+        tk, why = read_ticket(p, n)
+        out.append((p, n, tk, why))
+    return out
+
+
+def list_lowerings(home, session=None):
+    """The active (unexpired, readable) lowering tickets, this session's only when one is named, as plain dicts
+    (D5, SR S-09: what `--level` and `plugin-config.sh show` list)."""
+    now = time.time()
+    out = []
+    for _, _, tk, _ in scan_tickets(home):
+        if tk is None or tk["kind"] != "lower" or tk["exp"] <= now:
+            continue
+        if session is not None and tk["session_id"] != session:
+            continue
+        out.append({"id": tk["id"], "skill": tk["skill"], "level": tk["level"], "session_id": tk["session_id"],
+                    "agent": tk["agent"], "host": tk["host"], "expires": tk["expires"],
+                    "target": {"arg": tk["arg"], "repo": tk["repo"]}})
+    return out
+
+
+def prune_tickets(home):
+    """The writers' sweep (D6): delete every expired ticket, and any ticket file older than any ticket can live.
+    The resolver never needs it: an expired ticket is ignored whether or not it is still on disk. Returns the
+    number deleted."""
+    now, n = time.time(), 0
+    for p, _, tk, _ in scan_tickets(home):
+        try:
+            old = os.lstat(p).st_mtime < now - LOWER_MAX_AGE
+        except OSError:
+            continue
+        if (tk is not None and tk["exp"] <= now) or old:
+            try:
+                os.unlink(p)
+                n += 1
+            except OSError:
+                pass
+    return n
+
+
+def read_plain_json(p):
+    r = read_guarded(p, "any")
+    if r["state"] == "absent":
+        return "absent", None
+    if r["state"] != "ok":
+        return "invalid", None
+    doc, err = parse_json(r["data"], False)
+    if err or not isinstance(doc, dict):
+        return "invalid", None
+    return "ok", doc
+
+
+def auto_merge_flag(doc):
+    d = doc.get("delivery") if isinstance(doc, dict) else None
+    return d.get("auto_merge") if isinstance(d, dict) else None
+
+
+# ------------------------------------------------------------------ D9: host floors
+
+def ver_lt(a, b):
+    """Dotted-numeric a < b (doctor.sh's ver_lt)."""
+    x, y = [int(p) for p in a.split(".")], [int(p) for p in b.split(".")]
+    k = max(len(x), len(y))
+    x, y = x + [0] * (k - len(x)), y + [0] * (k - len(y))
+    return x < y
+
+
+def floor_value(target, field):
+    """(version, source) of a host's D9 floor, read from this plugin's own install as doctor.sh reads it:
+    platform-targets.json, else (permissions_min only) the registry's permission_levels since, which
+    check-capability-registry.sh holds equal. (None, None) when neither records it."""
+    st, doc = read_plain_json(os.path.join(ROOT, "docs", "engineering", "build-and-release",
+                                           "platform-targets.json"))
+    if st == "ok":
+        v = ((doc.get("targets") or {}).get(target) or {}).get(field)
+        if isinstance(v, str) and VERSION_RE.fullmatch(v):
+            return v, "platform-targets.json"
+    if field == "permissions_min":
+        st, doc = read_plain_json(os.path.join(ROOT, "core", "capabilities", "platforms.json"))
+        if st == "ok":
+            for plat in (doc.get("platforms") or {}).values():
+                srf = ((plat or {}).get("surfaces") or {}).get(target) if isinstance(plat, dict) else None
+                v = (((srf or {}).get("capabilities") or {}).get("permission_levels") or {}).get("since")
+                if isinstance(v, str) and VERSION_RE.fullmatch(v):
+                    return v, "core/capabilities/platforms.json"
+    return None, None
+
+
+def which(name):
+    """The first executable <name> on PATH, absolute entries only: an empty or relative entry would read the
+    working directory, which a repository controls."""
+    for d in (os.environ.get("PATH") or "").split(os.pathsep):
+        if not os.path.isabs(d):
+            continue
+        p = os.path.join(d, name)
+        if os.path.isfile(p) and os.access(p, os.X_OK):
+            return p
+    return None
+
+
+def probe_version(path):
+    """(version, line, why): `<path> --version` under doctor.sh's deadline, in its own process group, killed
+    with everything it started when the deadline passes. Never reads stdin."""
+    try:
+        pr = subprocess.Popen([path, "--version"], stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
+                              stderr=subprocess.DEVNULL, close_fds=True, start_new_session=True)
+    except OSError as e:
+        return None, None, "could not run %s --version (%s)" % (path, e.__class__.__name__)
+    try:
+        out, _ = pr.communicate(timeout=PROBE_SECS)
+    except subprocess.TimeoutExpired:
+        try:
+            os.killpg(pr.pid, signal.SIGKILL)
+        except OSError:
+            pass
+        try:
+            pr.communicate(timeout=1)
+        except (subprocess.TimeoutExpired, OSError, ValueError):
+            pass
+        return None, None, "%s --version timed out after %d s" % (path, PROBE_SECS)
+    line = (out or b"").decode("utf-8", "replace").strip().split("\n", 1)[0].strip()[:160]
+    m = VERSION_RE.search(line)
+    if not m:
+        return None, line, "%s --version printed no version (%r)" % (path, line[:60])
+    return m.group(0), line, None
+
+
+def floor_cache(state, host, session):
+    key = hashlib.sha256((session or "-").encode("utf-8", "replace")).hexdigest()[:16]
+    return os.path.join(state, "hostver", "%s.%s.json" % (host, key))
+
+
+def private_mkdir(path):
+    old = os.umask(0o077)
+    try:
+        os.makedirs(path, mode=0o700, exist_ok=True)
+    finally:
+        os.umask(old)
+    st = os.lstat(path)
+    if stat.S_ISLNK(st.st_mode) or not stat.S_ISDIR(st.st_mode) or st.st_uid != os.getuid():
+        raise OSError("%s is not a directory owned by this user" % path)
+    if st.st_mode & 0o077:
+        os.chmod(path, 0o700)
+
+
+def bin_id(path):
+    real = os.path.realpath(path)
+    st = os.stat(real)
+    return real, [st.st_dev, st.st_ino, st.st_size, int(st.st_mtime)]
+
+
+def cached_probe(ctx, host, path):
+    """(version, line, why) for this host binary in this session: the cache when it is this session's, this
+    exact binary (realpath, inode, size, mtime) and under FLOOR_TTL old, else one probe under a lock that other
+    resolver processes of the same call wait on (bounded), written back 0600. Any cache trouble probes."""
+    state = dirs(ctx["home"])[1]
+    cp = floor_cache(state, host, ctx["session"])
+    try:
+        real, bid = bin_id(path)
+    except OSError:
+        return probe_version(path)
+
+    def fresh():
+        r = read_guarded(cp, "private")
+        if r["state"] != "ok":
+            return None
+        d, err = parse_json(r["data"], True)
+        if err or not isinstance(d, dict) or d.get("version") != 1 or d.get("host") != host:
+            return None
+        if d.get("session") != ctx["session"] or d.get("bin") != real or d.get("bin_id") != bid:
+            return None
+        at = d.get("at")
+        if not isinstance(at, int) or not (time.time() - FLOOR_TTL < at <= time.time() + CLOCK_SLACK):
+            return None
+        return d.get("have"), d.get("line"), d.get("why")
+
+    got = fresh()
+    if got is not None:
+        trace("host version: cached probe %s" % cp)
+        return got
+    lockf = None
+    try:
+        import fcntl
+        private_mkdir(state)
+        private_mkdir(os.path.dirname(cp))
+        lockf = os.open(os.path.join(os.path.dirname(cp), ".lock"),
+                        os.O_WRONLY | os.O_CREAT | getattr(os, "O_NOFOLLOW", 0), 0o600)
+        until = time.time() + PROBE_SECS + 1
+        while True:
+            try:
+                fcntl.flock(lockf, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                break
+            except OSError:
+                if time.time() > until:
+                    break
+                time.sleep(0.05)
+        got = fresh()
+        if got is not None:
+            return got
+    except (OSError, ImportError):
+        pass
+    have, line, why = probe_version(path)
+    try:
+        doc = {"version": 1, "host": host, "session": ctx["session"], "bin": real, "bin_id": bid, "have": have,
+               "line": line, "why": why, "at": int(time.time())}
+        tmp = "%s.tmp-%d" % (cp, os.getpid())
+        fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0), 0o600)
+        try:
+            os.write(fd, (json.dumps(doc, sort_keys=True, ensure_ascii=True) + "\n").encode("ascii"))
+        finally:
+            os.close(fd)
+        os.rename(tmp, cp)
+    except (OSError, ValueError):
+        pass
+    finally:
+        if lockf is not None:
+            try:
+                os.close(lockf)
+            except OSError:
+                pass
+    return have, line, why
+
+
+def host_floor(ctx, host=None):
+    """D9, evaluated only when an answer would be looser than supervised (so no call at supervised ever probes):
+    {state: below | meets | unknown | skipped, ...}. below => every level above supervised runs as supervised;
+    unknown (no binary, a timeout, no version, no recorded floor) => no clamp and a warning (D9: a warning only).
+    Under the accepted test root the probe is skipped unless TAMIRS_PERMISSION_TEST_HOST_VERSION names the
+    --version line to read (or `probe`, the real one), so no suite ever runs a real host CLI by accident."""
+    host = ctx["host"] if host is None else host
+    cache = ctx.setdefault("floors", {})
+    if host in cache:
+        return cache[host]
+    out = {"state": "skipped", "host": host, "bin": None, "have": None, "floor": None, "floor_source": None,
+           "why": None}
+    cache[host] = out
+    if host not in FLOOR_PROBES:
+        out["why"] = "no --host: the host version is not checked"
+        return out
+    binname, target, field = FLOOR_PROBES[host]
+    label = FLOOR_LABELS[host]
+    out["bin"] = binname
+    test = os.environ.get(TEST_HOST_VERSION_ENV) if ctx["home_source"] == "test-root" else None
+    if ctx["home_source"] == "test-root" and not test:
+        out["why"] = "not probed under the test root"
+        trace("host floor: %s" % out["why"])
+        return out
+    fv, fsrc = floor_value(target, field)
+    out["floor"], out["floor_source"] = fv, fsrc
+    if test and test != "probe":
+        m = VERSION_RE.search(test)
+        have, why = (m.group(0), None) if m else (None, "the --version line %r holds no version" % test[:60])
+    else:
+        path = which(binname)
+        if path is None:
+            have, why = None, "%s is not on PATH" % binname
+        else:
+            have, _, why = cached_probe(ctx, host, path)
+    out["have"] = have
+    if fv is None:
+        out["state"], out["why"] = "unknown", "no %s floor (%s) is recorded in this install" % (label, field)
+    elif have is None:
+        out["state"], out["why"] = "unknown", why
+    elif ver_lt(have, fv):
+        out["state"] = "below"
+        out["why"] = "%s %s is below the permission-levels floor %s (%s)" % (label, have, fv, fsrc)
+    else:
+        out["state"], out["why"] = "meets", "%s %s meets the floor %s" % (label, have, fv)
+    if out["state"] == "below":
+        warn("%s: every level above supervised runs as supervised until it is upgraded (ADR 004 D9)" % out["why"])
+    elif out["state"] == "unknown":
+        warn("the %s version is unknown (%s), so its permission-levels floor is not checked (ADR 004 D9: a warning "
+             "only)" % (label, out["why"]))
+    trace("host floor: %s %s" % (out["state"], out["why"]))
+    return out
+
+
+def floor_clamps(ctx):
+    """D9 for every host the call may run under (F7: the --host claim and any other host the ancestry shows):
+    one below its floor clamps. ctx["floor"] is the floor that decided, for the messages and level_sources."""
+    first = None
+    for h in ctx.get("hosts") or [ctx["host"]]:
+        f = host_floor(ctx, h)
+        if first is None:
+            first = f
+        if f["state"] == "below":
+            ctx["floor"] = f
+            return True
+    ctx["floor"] = first
+    return False
+
+
+# ------------------------------------------------------------------ the D4 chain
+
+def candidate(a, r, raised, via):
+    return {"id": a["id"], "r": r, "raised": raised, "via": via,
+            "never_auto": bool(a.get("never_auto")), "pre": a.get("unattended_precondition"),
+            "denies": a.get("denies") or [], "unclassified": False}
+
+
+def candidates(act, conds, cat, raised_by):
+    """The action and every id a context raise reaches. A raise applies when its
+    condition holds OR is unknown (catalog conditions; D4: unknown never holds).
+    The call is judged by the strictest of them (task-001's matcher rule)."""
+    out, seen = [], set()
+
+    def visit(a, via, depth):
+        seen.add(a["id"])
+        r, raised, becomes = a["r"], False, []
+        for rz in a.get("raises") or []:
+            st = conds.get(rz["when"])
+            if st is False:
+                trace("raise %s -> %s skipped: %s established false" % (
+                    a["id"], rz.get("becomes") or "R%s" % rz.get("r"), rz["when"]))
+                continue
+            how = "holds" if st else "unknown"
+            if "becomes" in rz:
+                becomes.append((rz["becomes"], rz["when"], how))
+            elif rz.get("r", 0) > r:
+                r, raised = rz["r"], True
+                raised_by.append({"from": a["id"], "when": rz["when"], "condition": how, "to": "R%d" % r})
+                trace("raise %s to R%d: %s %s" % (a["id"], r, rz["when"], how))
+        out.append(candidate(a, r, raised, via))
+        for b, when, how in becomes:
+            raised_by.append({"from": a["id"], "when": when, "condition": how, "to": b})
+            trace("raise %s -> %s: %s %s" % (a["id"], b, when, how))
+            if b not in seen and depth < 4:
+                visit(cat["by"][b], via + [a["id"]], depth + 1)
+
+    visit(act, [], 0)
+    return out
+
+
+def ceiling(c, level, cat, conds):
+    if c["unclassified"]:
+        cell = cat["ceil"][level]["R4"]
+    elif not c["raised"] and c["id"] in cat["over"]:
+        cell = cat["over"][c["id"]][level]
+    else:
+        cell = cat["ceil"][level]["R%d" % c["r"]]
+    if cell == "allow_if_precondition":
+        if c["never_auto"]:
+            return "ask", "never_auto", "%s at %s: never automatic (D1 'none')" % (c["id"], level)
+        if c["pre"] and conds.get(c["pre"]) is True:
+            return "allow", "precondition", "%s at %s: precondition %s holds" % (c["id"], level, c["pre"])
+        return "ask", "precondition", "%s at %s: precondition %s %s" % (
+            c["id"], level, c["pre"] or "(none)", "not established" if c["pre"] else "absent")
+    return cell, "ceiling", "level %s ceiling for R%d" % (level, c["r"])
+
+
+def user_key(doc, cid, skill):
+    """Row 5's action keys. A deny anywhere is final; otherwise the most specific
+    key present (skill_actions > actions) decides."""
+    sa = ((doc.get("skill_actions") or {}).get(skill) or {}) if skill else {}
+    ac = doc.get("actions") or {}
+    keys = []
+    if cid in sa:
+        keys.append((sa[cid], "user.skill_actions[%s][%s]" % (skill, cid)))
+    if cid in ac:
+        keys.append((ac[cid], "user.actions[%s]" % cid))
+    for v, src in keys:
+        if v == "deny":
+            return [(v, src)]
+    return keys
+
+
+def group_level(doc, skill, category, base, who):
+    """skills[s] > groups. A group's level applies to a skill in its snapshot and in
+    its category (raise or lower); a category member missing from the snapshot,
+    or a snapshot member outside the category, gets only a lowering (D3 groups)."""
+    sk = doc.get("skills") or {}
+    if skill in sk:
+        return sk[skill], "%s.skills[%s]" % (who, skill)
+    full, lower_only = [], []
+    for g, ent in sorted((doc.get("groups") or {}).items()):
+        snap = skill in (ent.get("skills") or [])
+        incat = category is not None and g == category
+        if snap and incat:
+            full.append((ent["level"], "%s.groups[%s]" % (who, g)))
+        elif snap or incat:
+            lower_only.append((ent["level"], "%s.groups[%s] (lowering only)" % (who, g)))
+    if full:
+        lv = lowest(*[x for x, _ in full])
+        res = (lv, next(s for x, s in full if x == lv))
+    else:
+        res = (None, None)
+    for lv, src in lower_only:
+        cur = res[0] if res[0] is not None else base
+        if cur is None or is_lower(lv, cur):
+            res = (lv, src)
+    return res
+
+
+def view_level(ctx, user_doc, force_supervised):
+    """Rows 5-7 for one view of the user file. D3: the lower of the option store and the user file `level`, an
+    absent source skipped; with no --host a store only lowers. F7: with --host, one answer per host the call may
+    run under (the claim and any other host its ancestry shows), the stricter standing, so a host claim never
+    skips a store. Then the per-skill or per-group level of the user file. F10: the option stores and the env
+    levels LOWER again after it, so `TS_PERMISSION_LEVEL=supervised` (or a store at standard) also tightens a
+    skill that has its own entry: lowering always wins."""
+    if force_supervised:
+        return "supervised", "user_file invalid (D3 fail closed)"
+    ulv = user_doc.get("level") if user_doc is not None else None
+    stores = ctx.get("stores") or []
+    if ctx["host"] is not None:
+        best = None
+        for ss in ctx.get("store_sets") or [stores]:
+            present = [(s["source"], s["level"]) for s in ss if s["level"]]
+            if ulv:
+                present.append(("user_file.level", ulv))
+            if present:
+                lv = lowest(*[x for _, x in present])
+                got = (lv, next(n for n, x in present if x == lv))
+            else:
+                got = ("supervised", "default")
+            if best is None or is_lower(got[0], best[0]):
+                best = got
+        lv, src = best
+    else:
+        lv, src = (ulv, "user_file.level") if ulv else ("supervised", "default")
+        for s in stores:
+            if s["level"] and is_lower(s["level"], lv):
+                lv, src = s["level"], s["source"] + " (no --host: lowering only)"
+    for e in ctx["envs"]:
+        if is_lower(e["level"], lv):
+            lv, src = e["level"], e["source"]
+    if user_doc is not None and ctx["skill"]:
+        glv, gsrc = group_level(user_doc, ctx["skill"], ctx["category"], lv, "user")
+        if gsrc:
+            lv, src = glv, gsrc
+            for s in stores:
+                if s["level"] and is_lower(s["level"], lv):
+                    lv, src = s["level"], s["source"] + " (lowers the per-skill level: lowering always wins)"
+            for e in ctx["envs"]:
+                if is_lower(e["level"], lv):
+                    lv, src = e["level"], e["source"] + " (lowers the per-skill level: lowering always wins)"
+    return lv, src
+
+
+def project_opinion(ctx, c):
+    pf = ctx["project"]
+    if pf["state"] == "invalid":
+        return ("level", "supervised"), "project file invalid (D3 fail closed)"
+    if pf["state"] != "valid":
+        return None, None
+    doc, skill, cid = pf["doc"], ctx["skill"], c["id"]
+    keys = user_key(doc, cid, skill)
+    for v, src in keys:
+        src = src.replace("user.", "project.", 1)
+        if v == "allow":
+            if cid == "pr.merge.auto" and ctx["trust"][0]:
+                return "allow", src + " (trusted: %s)" % ctx["trust"][1]
+            warn("the project file's %s allow is ignored: %s (D3, SR S-15)" % (cid, ctx["trust"][1]))
+            continue
+        return v, src
+    if skill:
+        glv, gsrc = group_level(doc, skill, ctx["category"], None, "project")
+        if gsrc:
+            return ("level", glv), gsrc
+    if doc.get("level"):
+        return ("level", doc["level"]), "project.level"
+    return None, None
+
+
+def widened_at(c, level, st, cat):
+    """D2's pr.merge.auto row: at standard it is ask UNLESS the user file or a
+    trusted project file allows it. So a tightening to standard leaves such an
+    allow standing; a tightening to supervised does not."""
+    return (st["v"] == "allow" and st["cause"] in ("user", "project") and level == "standard"
+            and not c["raised"] and "widen" in (cat["over_raw"].get(c["id"]) or {}))
+
+
+def eval_candidate(c, view, ctx):
+    cat, conds = ctx["cat"], ctx["conds"]
+    st = {"v": None, "by": None, "cause": None}
+
+    def setv(v, by, cause):
+        st["v"], st["by"], st["cause"] = v, by, cause
+        trace("  %s: %s <- %s" % (c["id"], v, by))
+
+    def tighten(v, by, cause):
+        if RANK[v] > RANK[st["v"]]:
+            setv(v, by, cause)
+
+    v, cause, by = ceiling(c, view["level"], cat, conds)
+    setv(v, by, cause)
+    # row 5: the user file (skill_actions > actions; skills and groups set the level)
+    if view["user_doc"] is not None and not c["unclassified"]:
+        for key, src in user_key(view["user_doc"], c["id"], ctx["skill"]):
+            if key == "allow" and c["raised"]:
+                trace("  %s: %s allow ignored: context raised it to R%d" % (c["id"], src, c["r"]))
+                continue
+            setv(key, src, "user-deny" if key == "deny" else "user")
+            break
+    # row 4: the project file; tighten always, widen pr.merge.auto only when trusted
+    if not c["unclassified"]:
+        op, src = project_opinion(ctx, c)
+        if op == "allow":
+            if st["v"] != "deny":
+                setv("allow", src, "project")
+        elif op in ("ask", "deny"):
+            tighten(op, src, "project-deny" if op == "deny" else "project")
+        elif op is not None:
+            pv, _, _ = ceiling(c, op[1], cat, conds)
+            if widened_at(c, op[1], st, cat):
+                trace("  %s: %s=%s keeps the configured allow (D2 %s row)" % (c["id"], src, op[1], c["id"]))
+            else:
+                tighten(pv, "%s=%s ceiling for R%d" % (src, op[1], c["r"]), "project")
+    # rows 4 (legacy), 3 and 2: pr.merge.auto only, tighten-only
+    if c["id"] == "pr.merge.auto":
+        for kind, path, flag in ctx["auto_merge_inputs"]:
+            if flag is False:
+                tighten("deny", "%s %s delivery.auto_merge false" % (kind, path), "legacy-deny")
+        if ctx["env_auto_merge"] == "never":
+            tighten("deny", "env TAMIRS_AUTO_MERGE=never (D4 row 2)", "env-deny")
+    # row 1: --perms= tickets (D5). A raise ticket lifts the answer to its level's ceiling for its one skill and
+    # one target, never over a deny (any deny is final) and never for R4 (row 0 below); a lowering always applies.
+    rt = ticket_raise_for(c, ctx)
+    if rt is not None:
+        pv, _, _ = ceiling(c, rt["level"], cat, conds)
+        if st["v"] == "deny":
+            trace("  %s: ticket %s cannot lift a deny (D4)" % (c["id"], rt["id"]))
+        elif RANK[pv] < RANK[st["v"]]:
+            setv(pv, "ticket %s: %s, confirmed on the host prompt (D4 row 1, D5)" % (rt["id"], ticket_what(rt)),
+                 "ticket")
+            st["ticket"] = rt["id"]
+    lt = ticket_lower_for(ctx) if not c["unclassified"] else None
+    if lt is not None:
+        pv, _, _ = ceiling(c, lt["level"], cat, conds)
+        if widened_at(c, lt["level"], st, cat):
+            trace("  %s: lowering ticket %s to %s keeps the configured allow (D2 %s row)" % (
+                c["id"], lt["id"], lt["level"], c["id"]))
+        elif RANK[pv] > RANK[st["v"]]:
+            setv(pv, "lowering ticket %s: %s (D4 row 1, SR S-09)" % (lt["id"], ticket_what(lt)), "ticket-lower")
+            st["ticket"] = lt["id"]
+    # the call stamp (D8): no stamp from PG means this call is answered as supervised
+    if ctx["stamp"] in ("missing", "unsafe"):
+        pv, _, _ = ceiling(c, "supervised", cat, conds)
+        tighten(pv, "call stamp %s: answered as supervised (D8)" % ctx["stamp"], "call-stamp")
+    # D9: below the host's floor every level above supervised runs as supervised. Probed only when this answer
+    # is looser than supervised's, so a call that supervised already decides never runs a probe.
+    if st["v"] != "deny" and ctx["host"]:
+        pv, _, _ = ceiling(c, "supervised", cat, conds)
+        if RANK[st["v"]] < RANK[pv] and floor_clamps(ctx):
+            tighten(pv, "host floor (D9): %s; answered as supervised" % ctx["floor"]["why"], "host-floor")
+    # row 0: safety invariants, R4 never automatic, never_auto
+    for d in c["denies"]:
+        s = conds.get(d["when"])
+        if s is not False:
+            tighten("deny", "safety invariant %s: %s %s" % (
+                d.get("source", "?"), d["when"], "holds" if s else "not established false"), "invariant")
+    if st["v"] == "allow" and c["r"] >= 4:
+        setv("ask", "R4 is never automatic (D1, D4)", "r4")
+    if st["v"] == "allow" and c["never_auto"]:
+        setv("ask", "%s is never automatic (D1 'none'; D2 R3 row)" % c["id"], "never_auto")
+    return st
+
+
+def pick(results):
+    best = None
+    for c, st in results:
+        if best is None or RANK[st["v"]] > RANK[best[1]["v"]] or (
+                RANK[st["v"]] == RANK[best[1]["v"]] and c["r"] > best[0]["r"]):
+            best = (c, st)
+    return best
+
+
+def allow_with(c, st, ctx, verdict, level):
+    if verdict == "allow":
+        return None
+    out = {"once": None, "durable": [], "note": None}
+    host = ctx["host"]
+    if st["cause"] in ("user-deny", "project-deny", "legacy-deny", "env-deny"):
+        out["note"] = "a deny is final (D4): remove it at its source, %s" % st["by"]
+        if c["id"] == "pr.merge.auto" and st["cause"] == "legacy-deny":
+            out["note"] += "; the durable route is /plugin-config pr.merge.auto allow"
+        return out
+    if st["cause"] == "invariant":
+        out["note"] = "a safety invariant denies it at every level; no setting lifts it (D4 row 0)"
+        return out
+    if c["r"] >= 4:
+        out["note"] = ("R4: no setting allows it automatically; only the host prompt on that very call passes it "
+                       "(D2, D5)" + ("; with no human present, run it yourself outside the agent session"
+                                     if ctx["headless"] else ""))
+        return out
+    if c["never_auto"]:
+        out["note"] = "%s is never automatic at any level (D1 'none'): approve it per call" % c["id"]
+        return out
+    if c["raised"]:
+        out["note"] = ("context raised it to R%d (%s): establish the condition false with --cond, or approve it "
+                       "per call" % (c["r"], ", ".join(x["when"] for x in ctx["raised_by"] if x["from"] == c["id"])))
+        return out
+    if st["cause"] == "call-stamp":
+        out["note"] = "the permission guard did not stamp this call (--call): it is answered as supervised (D8)"
+        return out
+    if st["cause"] == "host-floor":
+        out["note"] = ("%s: until the host is upgraded every level above supervised runs as supervised, so no "
+                       "level setting allows it (ADR 004 D9)" % ctx["floor"]["why"])
+        return out
+    if st["cause"] == "ticket-lower":
+        out["note"] = ("a lowering --perms= ticket of this session holds it (%s, D5, SR S-09): it lapses when it "
+                       "expires or the session ends" % st["by"])
+        return out
+    if st["cause"] == "precondition" and level == "unattended":
+        out["durable"] = ["/plugin-config %s allow" % c["id"]] if c["r"] < 4 else []
+        out["note"] = ("unattended allows it only while %s holds, and that is not established: the guard checks it "
+                       "(--cond %s=true); otherwise approve it per call" % (c["pre"], c["pre"]))
+        return out
+    need ="standard" if c["r"] == 2 else ("unattended" if c["r"] == 3 and c["pre"] else None)
+    if c["id"] == "pr.merge.auto":
+        out["durable"] = ["/plugin-config pr.merge.auto allow",
+                          "/plugin-config trust (a project file that allows pr.merge.auto, D3)"]
+    elif need:
+        out["durable"] = ["/plugin-config %s" % need]
+        if ctx["skill"]:
+            out["durable"].append("/plugin-config %s %s" % (ctx["skill"], need))
+        out["durable"].append("/plugin-config %s allow" % c["id"])
+    if need and host in PERMS_RAISE_HOSTS:
+        out["once"] = "--perms=%s" % need
+    elif need and host == "claude":
+        out["once"] = None
+        out["note"] = ("no one-run --perms= raise on Claude Code: it does not send prompt origin "
+                       "(UserPromptSubmit.source, absent on 2.1.318), so no prompt is attested as yours; set a "
+                       "durable level with /plugin-config instead (D5)")
+    elif need and host == "gemini":
+        out["once"] = None
+        out["note"] = ("no one-run --perms= raise on Gemini CLI: its prompt hook only lowers (the activate_skill "
+                       "pairing is not wired); set a durable level with /plugin-config, confirmed on the ask_user "
+                       "prompt (D5, D6)")
+    elif need and host is None:
+        out["once"] = None
+        out["note"] = "no host ships a one-run --perms= raise today; set a durable level with /plugin-config (D5)"
+    elif need:
+        out["once"] = None
+        out["note"] = ("%s has no host-attested channel: change the level outside the session "
+                       "(scripts/plugin-config.sh in your own terminal, make setup, or CI provision; D5, D7)" % host)
+    if c["r"] == 3 and c["pre"] and c["id"] != "pr.merge.auto":
+        out["note"] = ((out["note"] + "; ") if out["note"] else "") + \
+            "unattended allows it only while %s holds" % c["pre"]
+    if st["cause"] in ("user", "project"):
+        out["note"] = ((out["note"] + "; ") if out["note"] else "") + "set to ask by %s" % st["by"]
+    return out
+
+
+def build_ctx(o):
+    cat = load_catalog()
+    schema = load_schema()
+    for n in o["conds"]:
+        if n not in cat["conds"]:
+            raise Usage("unknown condition %r (see core/permissions/actions.json conditions)" % n)
+    home, home_src = passwd_home()
+    ctx = {"cat": cat, "schema": schema, "home": home, "home_source": home_src, "host": o["host"],
+           "skill": o["skill"], "category": skill_category(o["skill"]), "conds": o["conds"],
+           "headless": o["headless"], "target": o["target"], "raised_by": [], "floor": None, "session": None}
+    # F7: a --host claim is checked against the hosts the ancestry shows. When they disagree the level is the
+    # stricter of the two answers (view_level), their floors all apply and no raise ticket applies, so naming
+    # another host (a guard misled by a repository env such as GEMINI_SESSION_ID) never skips Claude's store.
+    ctx["detected_hosts"] = detected_hosts(home_src) if o["host"] else []
+    others = [h for h in ctx["detected_hosts"] if h != o["host"]]
+    ctx["hosts"] = ([o["host"]] + others) if o["host"] else []
+    if others:
+        warn("--host %s, but this process runs under %s: resolved with the stricter of the two, so a host claim "
+             "never skips an option store (ADR 004 D3)" % (o["host"], " and ".join(others)))
+    ctx["store_sets"] = [option_stores(home, h) for h in ctx["hosts"]] if o["host"] else [option_stores(home, None)]
+    ctx["stores"] = [s for ss in ctx["store_sets"] for s in ss]
+    ctx["envs"] = env_levels()
+    ctx["user"] = load_user(home, schema)
+    ctx["repo"] = repo_info(o["repo"])
+    ctx["project"] = load_project(ctx["repo"], schema)
+    ctx["trust"] = trust_state(ctx["user"], ctx["project"], ctx["repo"], o["target"])
+    ctx["stamp"] = call_stamp(home, o["call"]) if o["call"] else None
+    if ctx["stamp"] in ("missing", "unsafe"):
+        warn("call stamp %s is %s: the call is answered as supervised (D8)" % (o["call"], ctx["stamp"]))
+    # row 1: this session's tickets, and what the call acts on (a bare number or "." is the repository gh
+    # would use: GH_REPO, else the checkout's origin, as for the trust check)
+    ctx["session"] = o["session"]
+    ctx["agent"] = (o["agent"] or "main") if o["session"] else o["agent"]
+    ctx["tickets"] = load_tickets(home, o)
+    if others and ctx["tickets"]["raise"]:
+        for tk in ctx["tickets"]["raise"]:
+            warn("raise ticket %s ignored: the call's --host %s and the host it runs under (%s) disagree (F7)"
+                 % (tk["id"], o["host"], ", ".join(others)))
+        ctx["tickets"]["ignored"] += len(ctx["tickets"]["raise"])
+        ctx["tickets"]["raise"] = []
+    gr = os.environ.get("GH_REPO")
+    base = normalize_slug(gr) if gr else (ctx["repo"]["origin"] if ctx["repo"] else None)
+    ctx["call_target"] = parse_target(o["target"], base)
+    am = []
+    if ctx["repo"]:
+        p = os.path.join(ctx["repo"]["top"], ".dev-files", "policy.json")
+        state, doc = read_plain_json(p)
+        if state == "ok":
+            am.append(("legacy", p, auto_merge_flag(doc)))
+    if o["objective"]:
+        paths = []
+        if os.environ.get("OBJECTIVES_ROOT"):
+            paths.append(os.path.join(os.environ["OBJECTIVES_ROOT"], o["objective"], "objective.json"))
+        base = ctx["repo"]["top"] if ctx["repo"] else os.getcwd()
+        paths.append(os.path.join(base, ".dev-files", "objectives", o["objective"], "objective.json"))
+        found = False
+        for p in sorted(set(paths), key=paths.index):
+            state, doc = read_plain_json(p)
+            if state == "ok":
+                found = True
+                am.append(("objective", p, auto_merge_flag(doc)))
+            elif state == "invalid":
+                warn("objective file %s is unreadable or invalid: ignored" % p)
+        if not found:
+            warn("objective %s has no readable objective.json: row 3 contributes nothing" % o["objective"])
+    ctx["auto_merge_inputs"] = am
+    ctx["env_auto_merge"] = os.environ.get("TAMIRS_AUTO_MERGE") or None
+    return ctx
+
+
+def level_sources(ctx):
+    out = []
+    for s in ctx["stores"]:
+        out.append(dict((k, s.get(k)) for k in ("source", "path", "state", "level", "reason") if s.get(k) is not None))
+    if ctx["host"] in ("codex", "cursor", "opencode"):
+        out.append({"source": "option_store:%s" % ctx["host"], "state": "none on this host (D3)"})
+    u = ctx["user"]
+    out.append(dict((k, u.get(k)) for k in ("source", "path", "state", "level", "lock", "reason")
+                    if u.get(k) is not None))
+    out += ctx["envs"]
+    others = [h for h in ctx.get("detected_hosts") or [] if h != ctx["host"]]
+    if others:
+        out.append({"source": "host_check", "state": "disagrees", "host": ctx["host"], "detected": others,
+                    "reason": "the ancestry shows %s: the stricter answer stands (F7)" % ", ".join(others)})
+    pf = ctx["project"]
+    if pf.get("path"):
+        e = {"source": "project_file", "path": pf["path"], "state": pf["state"]}
+        if pf.get("doc") and pf["doc"].get("level"):
+            e["level"] = pf["doc"]["level"]
+        if pf["state"] == "valid":
+            e["trusted"] = ctx["trust"][0]
+            e["trust"] = ctx["trust"][1]
+        out.append(e)
+    if ctx["stamp"]:
+        out.append({"source": "call_stamp", "state": ctx["stamp"]})
+    fl = ctx.get("floor")
+    if fl is not None and fl["state"] != "skipped":
+        out.append({"source": "host_floor", "state": fl["state"], "host": fl["host"], "version": fl["have"],
+                    "floor": fl["floor"], "floor_source": fl["floor_source"], "reason": fl["why"]})
+    tk = ctx.get("tickets") or {}
+    if tk.get("state") not in (None, "not read"):
+        out.append({"source": "tickets", "state": tk["state"], "raise": [t["id"] for t in tk["raise"]],
+                    "lower": [t["id"] for t in tk["lower"]], "ignored": tk["ignored"]})
+    return out
+
+
+def views(ctx):
+    u = ctx["user"]
+    if u["state"] == "verified":
+        return [("user_file", u["doc"], False)]
+    if u["state"] == "tighten-only":
+        return [("user_file (tighten-only)", u["doc"], False), ("no user file", None, False)]
+    if u["state"] == "invalid":
+        return [("user_file invalid", None, True)]
+    return [("no user file", None, False)]
+
+
+def effective_level(ctx):
+    best = None
+    for name, doc, force in views(ctx):
+        lv, src = view_level(ctx, doc, force)
+        if best is None or is_lower(lv, best[0]):
+            best = (lv, src)
+    lv, src = best
+    if ctx["project"]["state"] == "invalid":
+        if is_lower("supervised", lv):
+            lv, src = "supervised", "project file invalid (D3 fail closed)"
+    elif ctx["project"]["state"] == "valid":
+        doc = ctx["project"]["doc"]
+        glv, gsrc = group_level(doc, ctx["skill"], ctx["category"], None, "project") if ctx["skill"] else (None, None)
+        plv, psrc = (glv, gsrc) if gsrc else (doc.get("level"), "project.level")
+        if plv and is_lower(plv, lv):
+            lv, src = plv, psrc
+    lt = ticket_lower_for(ctx)
+    if lt is not None and is_lower(lt["level"], lv):
+        lv, src = lt["level"], "lowering ticket %s (D4 row 1)" % lt["id"]
+    if ctx["stamp"] in ("missing", "unsafe") and is_lower("supervised", lv):
+        lv, src = "supervised", "call stamp %s (D8)" % ctx["stamp"]
+    if is_lower("supervised", lv) and ctx["host"] and floor_clamps(ctx):
+        lv, src = "supervised", "host floor (D9): %s" % ctx["floor"]["why"]
+    return lv, src
+
+
+def resolve(o):
+    ctx = build_ctx(o)
+    cat = ctx["cat"]
+    requested = o["action"]
+    aid = cat["alias"].get(requested, requested)
+    if aid != requested:
+        warn("%s is an alias of %s" % (requested, aid))
+    if aid in cat["by"]:
+        cands = candidates(cat["by"][aid], ctx["conds"], cat, ctx["raised_by"])
+    else:
+        warn("unknown action id %s: UNCLASSIFIED, treated as R4 (D1)" % requested)
+        cands = [{"id": requested, "r": 4, "raised": False, "via": [], "never_auto": True, "pre": None,
+                  "denies": [], "unclassified": True}]
+    # one pass per view; a tighten-only user file is the stricter of with and without it
+    final = None
+    for name, doc, force in views(ctx):
+        lv, lsrc = view_level(ctx, doc, force)
+        trace("view %s: level %s (%s)" % (name, lv, lsrc))
+        view = {"level": lv, "user_doc": doc}
+        got = pick([(c, eval_candidate(c, view, ctx)) for c in cands])
+        if final is None or RANK[got[1]["v"]] > RANK[final[1]["v"]]:
+            final = got
+    c, st = final
+    verdict, by = st["v"], st["by"]
+    deny_from = by if verdict == "deny" else None
+    h2d = False
+    if verdict == "ask" and ctx["headless"]:
+        verdict, h2d = "deny", True
+        deny_from = "headless: no human present, so ask becomes deny (D2)"
+        trace("headless: ask -> deny")
+    if c["id"] == "pr.merge.auto" or aid == "pr.merge.auto":
+        for kind, path, flag in ctx["auto_merge_inputs"]:
+            if flag is True:
+                warn("%s %s delivery.auto_merge true grants nothing: the durable route is "
+                     "/plugin-config pr.merge.auto allow or a trusted project file (D4 rows 3-4)" % (kind, path))
+        eam = ctx["env_auto_merge"]
+        if eam == "always":
+            warn("TAMIRS_AUTO_MERGE=always is ignored: run /plugin-config pr.merge.auto allow (D4 row 2)")
+        elif eam and eam != "never":
+            warn("TAMIRS_AUTO_MERGE=%r is not never or always: ignored" % eam)
+    lv, lsrc = effective_level(ctx)
+    pre = None
+    if c["pre"]:
+        s = ctx["conds"].get(c["pre"])
+        pre = {"name": c["pre"], "state": "holds" if s else ("does-not-hold" if s is False else "unknown")}
+    aw = allow_with(c, st, ctx, verdict, lv)
+    word = {"allow": "allowed", "ask": "asks", "deny": "denied"}[verdict]
+    doc = {
+        "action": aid, "requested": requested, "effective_action": c["id"], "r": c["r"],
+        "level": lv, "level_source": lsrc, "level_sources": level_sources(ctx),
+        "verdict": verdict, "decision": verdict,
+        "reason": "%s: %s" % (word, deny_from if verdict == "deny" else by),
+        "decided_by": "headless" if h2d else by, "deny_wins_from": deny_from,
+        "never_auto": c["never_auto"], "precondition": pre, "raised_by": ctx["raised_by"],
+        "unclassified": c["unclassified"], "headless": ctx["headless"], "headless_ask_to_deny": h2d,
+        "setting_that_would_allow": aw, "allow_with": aw, "ticket": st.get("ticket"),
+        "skill": ctx["skill"], "host": ctx["host"], "target": ctx["target"], "session": ctx["session"],
+        "agent": ctx["agent"], "home_source": ctx["home_source"], "warnings": WARN,
+    }
+    if o["explain"]:
+        doc["trace"] = TRACE
+    return doc
+
+
+def level_report(o):
+    ctx = build_ctx(o)
+    lv, src = effective_level(ctx)
+    return {"level": lv, "level_source": src, "level_sources": level_sources(ctx), "skill": ctx["skill"],
+            "host": ctx["host"], "home_source": ctx["home_source"],
+            "lowering_tickets": list_lowerings(ctx["home"], ctx["session"]), "warnings": WARN}
+
+
+# ------------------------------------------------------------------ CLI
+
+def parse_resolve_args(a):
+    o = {"action": None, "skill": None, "target": None, "repo": None, "host": None, "objective": None,
+         "call": None, "session": None, "agent": None, "conds": {}, "headless": False, "json": False,
+         "level_mode": False, "explain": False}
+    val = {"--action": "action", "--skill": "skill", "--target": "target", "--repo": "repo", "--host": "host",
+           "--objective": "objective", "--call": "call", "--cond": "cond", "--session": "session",
+           "--agent": "agent"}
+    flag = {"--headless": "headless", "--json": "json", "--level": "level_mode", "--explain": "explain"}
+    i = 0
+    while i < len(a):
+        x = a[i]
+        k, v, inline = x, None, False
+        if x.startswith("--") and "=" in x:
+            k, v = x.split("=", 1)
+            inline = True
+        if k in val:
+            if not inline:
+                i += 1
+                if i >= len(a):
+                    raise Usage("%s needs a value" % k)
+                v = a[i]
+            if k == "--cond":
+                m = re.match(r"\A([a-z][a-z0-9_]*)=(true|false)\Z", v)
+                if not m:
+                    raise Usage("--cond expects <condition>=true|false, got %r" % v)
+                o["conds"][m.group(1)] = m.group(2) == "true"
+            elif o[val[k]] is not None:
+                raise Usage("%s given twice" % k)
+            else:
+                o[val[k]] = v
+        elif k in flag and not inline:
+            o[flag[k]] = True
+        elif not x.startswith("-") and o["action"] is None:
+            o["action"] = x
+        else:
+            raise Usage("unknown argument %r" % x)
+        i += 1
+    if o["host"] is not None and o["host"] not in HOSTS:
+        raise Usage("--host must be one of %s" % ", ".join(HOSTS))
+    if o["skill"] is not None and not SKILL_RE.match(o["skill"]):
+        raise Usage("--skill %r is not a skill id" % o["skill"])
+    if o["objective"] is not None and not OBJ_RE.match(o["objective"]):
+        raise Usage("--objective %r is not an objective id" % o["objective"])
+    if o["call"] is not None and not CALL_RE.match(o["call"]):
+        raise Usage("--call expects 8-128 characters of [A-Za-z0-9_-]")
+    if o["session"] is not None and not SESSION_RE.match(o["session"]):
+        raise Usage("--session expects 1-256 characters, no control characters")
+    if o["agent"] is not None and not AGENT_RE.match(o["agent"]):
+        raise Usage("--agent expects 1-128 characters, no control characters")
+    if o["agent"] is not None and o["session"] is None:
+        raise Usage("--agent needs --session (a ticket binds both, D5)")
+    if not o["level_mode"]:
+        if o["action"] is None:
+            raise Usage("missing the action id (--action <id>)")
+        if not ID_RE.match(o["action"]):
+            raise Usage("%r is not an action id" % o["action"])
+    return o
+
+
+def error_doc(action, msg, kind):
+    return {"action": action if action and ID_RE.match(action) else None, "r": 4, "level": None,
+            "level_source": None, "level_sources": [], "verdict": "deny", "decision": "deny",
+            "reason": "denied: %s (fail closed, D4, SR S-12)" % msg, "decided_by": kind, "deny_wins_from": kind,
+            "never_auto": True, "precondition": None, "headless_ask_to_deny": False,
+            "setting_that_would_allow": None, "allow_with": None, "warnings": WARN + [msg], "error": msg}
+
+
+def explain_text(doc):
+    lines = ["action: %s (R%s)%s" % (doc.get("action"), doc.get("r"),
+                                      "" if doc.get("effective_action") in (None, doc.get("action"))
+                                      else " judged as %s" % doc["effective_action"]),
+             "level: %s  (from %s)" % (doc.get("level"), doc.get("level_source"))]
+    for s in doc.get("level_sources", []):
+        lines.append("  source %s: %s%s" % (s.get("source"), s.get("state", "-"),
+                                            " = %s" % s["level"] if s.get("level") else ""))
+    for t in doc.get("trace", []):
+        lines.append("trace " + t)
+    for w in doc.get("warnings", []):
+        lines.append("warning " + w)
+    lines.append("verdict: %s  (%s)" % (doc.get("verdict"), doc.get("reason")))
+    aw = doc.get("setting_that_would_allow")
+    if aw:
+        if aw.get("once"):
+            lines.append("allow once with: " + aw["once"])
+        for d in aw.get("durable") or []:
+            lines.append("allow durably with: " + d)
+        if aw.get("note"):
+            lines.append("note: " + aw["note"])
+    return "\n".join(lines)
+
+
+def out(doc, text):
+    sys.stdout.write((explain_text(doc) if text else json.dumps(doc, indent=2)) + "\n")
+
+
+def cmd_resolve(a):
+    action, text = (a[0] if a and not a[0].startswith("-") else None), False
+    try:
+        for i, x in enumerate(a):
+            if x == "--action" and i + 1 < len(a):
+                action = a[i + 1]
+            elif x.startswith("--action="):
+                action = x.split("=", 1)[1]
+        o = parse_resolve_args(a)
+        action = o["action"]
+        text = o["explain"] and not o["json"]
+        doc = level_report(o) if o["level_mode"] else resolve(o)
+        if o["level_mode"] and text:
+            sys.stdout.write("level: %s  (from %s)\n" % (doc["level"], doc["level_source"]))
+            for s in doc["level_sources"]:
+                sys.stdout.write("  source %s: %s%s\n" % (s.get("source"), s.get("state", "-"),
+                                                          " = %s" % s["level"] if s.get("level") else ""))
+            for t in doc["lowering_tickets"]:
+                sys.stdout.write("  lowering ticket %s: %s at %s, session %s, until %s\n" % (
+                    t["id"], t["skill"] or "the whole session", t["level"], t["session_id"], t["expires"]))
+            return 0
+        out(doc, text)
+        return 0
+    except Usage as e:
+        out(error_doc(action, "usage: %s" % e, "usage-error"), text)
+        return 2
+    except Internal as e:
+        out(error_doc(action, "resolver error: %s" % e, "resolver-error"), text)
+        return 3
+    except Exception as e:  # any crash is a deny
+        out(error_doc(action, "resolver crashed: %s: %s" % (type(e).__name__, e), "resolver-error"), text)
+        return 3
+
+
+def main():
+    if not ARGS:
+        sys.stderr.write("permission engine: no subcommand\n")
+        return 3
+    cmd, a = ARGS[0], ARGS[1:]
+    if cmd == "resolve":
+        return cmd_resolve(a)
+    try:
+        if cmd == "home":
+            print(passwd_home()[0])
+        elif cmd == "dirs":
+            home, src = passwd_home()
+            cfg, state = dirs(home)
+            print(json.dumps({"home": home, "home_source": src, "config_dir": cfg, "state_dir": state,
+                              "warnings": WARN}))
+        elif cmd == "check-file":
+            kind = a[1] if len(a) > 1 else "private"
+            if kind == "dir":
+                probs = dir_problems(a[0])
+                st = "ok" if not probs else "unsafe"
+                real = os.path.realpath(a[0])
+            else:
+                if kind not in ("private", "store", "any"):
+                    raise Internal("check-file kind must be private, store, any or dir")
+                r = read_guarded(a[0], kind)
+                st, probs, real = r["state"], r["problems"] + ([r["error"]] if r.get("error") else []), r["real"]
+            print(json.dumps({"path": a[0], "real": real, "state": st, "problems": probs}))
+            return 0 if st == "ok" else 1
+        elif cmd == "store-level":
+            host = a[0] if a else None
+            if host not in HOSTS:
+                raise Internal("store-level needs a host: %s" % ", ".join(HOSTS))
+            ss = option_stores(passwd_home()[0], host)
+            got = [s["level"] for s in ss if s["level"]]
+            print(json.dumps({"host": host, "stores": ss, "level": lowest(*got) if got else None,
+                              "warnings": WARN}))
+        elif cmd == "sha256":
+            with open(a[0], "rb") as f:
+                print(sha256(f.read()))
+        elif cmd == "load-user":
+            u = load_user(passwd_home()[0], load_schema())
+            u.pop("doc", None)
+            u["warnings"] = WARN
+            print(json.dumps(u))
+        elif cmd == "lock-check":
+            u = load_user(passwd_home()[0], load_schema())
+            print(u["lock"] or u["state"])
+        elif cmd == "load-project":
+            pf = load_project(repo_info(a[0] if a else None), load_schema())
+            pf.pop("doc", None)
+            pf["warnings"] = WARN
+            print(json.dumps(pf))
+        elif cmd == "trust":
+            repo = repo_info(a[0] if a else None)
+            schema = load_schema()
+            ok, why = trust_state(load_user(passwd_home()[0], schema), load_project(repo, schema), repo,
+                                  a[1] if len(a) > 1 else None)
+            print(json.dumps({"trusted": ok, "reason": why, "warnings": WARN}))
+        elif cmd == "map":
+            cat = load_catalog()
+            if len(a) < 2 or a[1] not in LEVELS:
+                raise Internal("map needs <action-id> <level>")
+            conds = {}
+            for x in a[2:]:
+                if x.startswith("--cond="):
+                    x = x[7:]
+                m = re.match(r"\A([a-z][a-z0-9_]*)=(true|false)\Z", x)
+                if m:
+                    conds[m.group(1)] = m.group(2) == "true"
+            aid = cat["alias"].get(a[0], a[0])
+            if aid in cat["by"]:
+                cs = candidates(cat["by"][aid], conds, cat, [])
+            else:
+                cs = [{"id": aid, "r": 4, "raised": False, "via": [], "never_auto": True, "pre": None,
+                       "denies": [], "unclassified": True}]
+            best = "allow"
+            for c in cs:
+                v = ceiling(c, a[1], cat, conds)[0]
+                if any(conds.get(d["when"]) is not False for d in c["denies"]):
+                    v = "deny"
+                if v == "allow" and (c["r"] >= 4 or c["never_auto"]):
+                    v = "ask"
+                best = stricter(best, v)
+            print(best)
+        elif cmd == "normalize-remote":
+            print(normalize_remote(a[0] if a else "") or "")
+        elif cmd == "repo-key":
+            r = repo_info(a[0] if a else None)
+            print(r["key"] if r else "")
+        else:
+            raise Internal("unknown subcommand %s" % cmd)
+        return 0
+    except (Internal, IndexError, OSError) as e:
+        sys.stderr.write("permission engine: %s\n" % e)
+        return 3
+
+
+sys.exit(main())
+PY
+
+# perm_python <subcommand> [args...] — run the engine. Returns 127 without python3.
+perm_python() {
+  command -v python3 >/dev/null 2>&1 || return 127
+  [ -n "$PERM_ROOT" ] || return 3
+  python3 -I -S -c "$_PERM_ENGINE" "$PERM_ROOT" "$@"
+}
+
+# perm_json_string <text> — a JSON string literal, builtins only (no python3).
+perm_json_string() {
+  local s="$1"
+  s="${s//\\/\\\\}"
+  s="${s//\"/\\\"}"
+  s="${s//$'\n'/ }"
+  s="${s//$'\t'/ }"
+  printf '"%s"' "$s"
+}
+
+# perm_deny_json <action-id> <message> — the fail-closed answer, builtins only.
+perm_deny_json() {
+  local action="$1" msg="$2" a='null' m
+  case "$action" in
+    ''|*[!A-Za-z0-9._-]*) a='null' ;;
+    *) a="\"$action\"" ;;
+  esac
+  m="$(perm_json_string "resolver error: $msg")"
+  printf '{"action": %s, "r": 4, "level": null, "level_source": null, "level_sources": [], ' "$a"
+  printf '"verdict": "deny", "decision": "deny", "reason": "denied: %s (fail closed, D4, SR S-12)", ' "${m:1:${#m}-2}"
+  printf '"decided_by": "resolver-error", "deny_wins_from": "resolver-error", "never_auto": true, '
+  printf '"precondition": null, "headless_ask_to_deny": false, "setting_that_would_allow": null, '
+  printf '"allow_with": null, "warnings": [%s], "error": %s}\n' "$m" "$m"
+}
+
+# perm_resolve <args...> — the D4 resolution as JSON (or --explain text).
+# Exit 0 = decided; 2 = usage error; 3 = internal error. 2 and 3 print a deny.
+perm_resolve() {
+  local out rc action="" prev="" arg
+  # The action id, only for the fallback answer below: a leading positional
+  # (the D4 form) or --action.
+  case "${1:-}" in -*|'') ;; *) action="$1" ;; esac
+  for arg in "$@"; do
+    [ "$prev" = "--action" ] && action="$arg"
+    case "$arg" in --action=*) action="${arg#--action=}" ;; esac
+    prev="$arg"
+  done
+  out="$(perm_python resolve "$@")" && rc=0 || rc=$?
+  if [ -n "$out" ] && { [ "$rc" -eq 0 ] || [ "$rc" -eq 2 ] || [ "$rc" -eq 3 ]; }; then
+    printf '%s\n' "$out"
+    return "$rc"
+  fi
+  if [ "$rc" -eq 127 ]; then
+    perm_deny_json "$action" "python3 is not available"
+  else
+    perm_deny_json "$action" "the engine exited $rc without an answer"
+  fi
+  return 3
+}
+
+# perm_passwd_home — the passwd home of the real uid. python3 first (it also
+# applies the guarded test override); without it getent (Linux) or dscl (macOS),
+# by absolute path, and never the test override.
+perm_passwd_home() {
+  local h="" uid name
+  if h="$(perm_python home 2>/dev/null)" && [ -n "$h" ]; then
+    printf '%s\n' "$h"
+    return 0
+  fi
+  uid="$(/usr/bin/id -u 2>/dev/null)" || return 1
+  if [ -x /usr/bin/getent ]; then
+    h="$(/usr/bin/getent passwd "$uid" 2>/dev/null)"
+    h="${h#*:*:*:*:*:}"
+    h="${h%%:*}"
+  elif [ -x /usr/bin/dscl ]; then
+    name="$(/usr/bin/id -un 2>/dev/null)" || return 1
+    h="$(/usr/bin/dscl . -read "/Users/$name" NFSHomeDirectory 2>/dev/null)"
+    h="${h#NFSHomeDirectory: }"
+  fi
+  case "$h" in
+    /*) printf '%s\n' "$h" ;;
+    *) return 1 ;;
+  esac
+}
+
+perm_dirs() { perm_python dirs; }
+perm_user_config_dir() { local h; h="$(perm_passwd_home)" || return 1; printf '%s/.config/tamirs-superpowers\n' "$h"; }
+perm_state_dir() { local h; h="$(perm_passwd_home)" || return 1; printf '%s/.local/state/tamirs-superpowers\n' "$h"; }
+perm_check_file() { perm_python check-file "$@"; }
+perm_option_store_level() { perm_python store-level "$@"; }
+perm_sha256() { perm_python sha256 "$@"; }
+perm_load_user_file() { perm_python load-user; }
+perm_load_project_file() { perm_python load-project "$@"; }
+perm_lock_check() { perm_python lock-check; }
+perm_trust_check() { perm_python trust "$@"; }
+perm_map_verdict() { perm_python map "$@"; }
+perm_normalize_remote() { perm_python normalize-remote "$@"; }
+perm_repo_key() { perm_python repo-key "$@"; }

@@ -2,18 +2,36 @@
 # resolve-merge-policy.sh — resolve the delivery/merge policy for one PR.
 #
 # Usage:
-#   resolve-merge-policy.sh <PR_NUMBER> [objective_id]
+#   resolve-merge-policy.sh [--repo <owner/name>] [--host <h>] <PR_NUMBER> [objective_id]
 #   resolve-merge-policy.sh -h | --help
 #
-# Auto-merge is a POLICY, not an invariant. This script answers "what is this
-# repository and this user actually asking for?" so pr-dev never forces a merge
-# mode against configuration. Precedence, highest first:
+# Auto-merge is a PERMISSION, not an invariant and not a default. Whether pr-dev
+# may run `gh pr merge --auto` is the action `pr.merge.auto`, and the only place
+# that decides it is scripts/resolve-permission.sh (ADR 004 D4,
+# docs/engineering/decisions/004-permission-levels.md). This script asks it and
+# keeps computing what only GitHub can answer: capability, protection, merge
+# method, merge queue and the head-branch delete. auto_merge is "enable" only
+# when BOTH hold:
 #
-#   1. TAMIRS_AUTO_MERGE=always|never          (explicit user/session override)
-#   2. .dev-files/objectives/<id>/objective.json  -> .delivery.auto_merge
-#   3. .dev-files/policy.json                  -> .delivery.auto_merge
-#   4. repository capability: allowAutoMerge / merge queue
-#   5. documented default: enable auto-merge when the repository allows it
+#   - resolve-permission.sh --action pr.merge.auto --target <owner/repo#N> says
+#     allow (exit 0, parseable JSON), and
+#   - the repository reports allow_auto_merge: true.
+#
+# Everything else is "skip", and auto_merge_source names the rule that decided.
+# The default -- no configuration anywhere -- is skip: auto-merge is OFF unless
+# configured (core/policies/safety.md). The legacy inputs are the resolver's:
+# TAMIRS_AUTO_MERGE=always grants nothing (a warning names the setting),
+# =never denies (and is also honoured here, before the resolver runs); an
+# objective's delivery.auto_merge=false denies and true grants nothing;
+# .dev-files/policy.json is read tighten-only. A resolver that is missing,
+# exits non-zero or prints something unparseable is a skip (fail closed, D4).
+#
+# --host names the agent host (claude | codex | cursor | gemini | opencode) and
+# is passed to the resolver, which needs it before a host option store may set
+# the level. Without it a store can only lower the level.
+#
+# The resolver is found from THIS file's own location (<plugin root>/scripts/),
+# never from the environment, so the installed plugin cache resolves its own copy.
 #
 # Output: one JSON object on stdout. Always exits 0 — an unresolvable field
 # becomes "unknown" so the caller degrades explicitly instead of guessing.
@@ -23,6 +41,8 @@
 #     "objective_id": "auth-system" | null,
 #     "auto_merge": "enable" | "skip",
 #     "auto_merge_source": "<which rule decided>",
+#     "auto_merge_verdict": "allow" | "ask" | "deny" | "error" | "not-asked",
+#     "auto_merge_allow_with": "<durable setting that would allow it>" | null,
 #     "auto_merge_supported": true | false | null,
 #     "merge_queue": true | false | null,
 #     "merge_method": "squash" | "merge" | "rebase",
@@ -42,6 +62,13 @@
 # to date before merging". true = strict: the head must be rebased/updated onto
 # the base before merge. false = loose: a behind-but-mergeable branch is fine
 # and must NOT be churned with pointless base merges.
+#
+# THE UNATTENDED PRECONDITION
+#   At the unattended level pr.merge.auto is allowed only while its catalog
+#   precondition pinned_check_or_review_and_no_protected_paths holds (D1, SR
+#   S-13). The protection read below is the only place that knows, so this
+#   script establishes it and passes --cond ...=true|false; when a read failed
+#   it passes nothing, and an unestablished precondition never holds.
 #
 # PROTECTION IS READ FROM TWO PLACES, NOT ONE
 #   GitHub has two independent protection systems: classic branch protection
@@ -71,7 +98,7 @@
 set -euo pipefail
 
 usage() {
-  sed -n '2,40p' "$0" | sed 's/^# \?//'
+  sed -n '2,59p' "$0" | sed 's/^# \?//'
   exit "${1:-0}"
 }
 
@@ -86,6 +113,8 @@ fi
 # `gh` honours GH_REPO for resolution, so exporting it once pins every call --
 # including `gh api repos/{owner}/{repo}`.
 PR=""
+OBJECTIVE_ID=""
+HOST_ARG=""
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --repo)
@@ -100,10 +129,19 @@ while [[ $# -gt 0 ]]; do
         *) printf 'error: --repo expects <owner>/<name>, got %s\n' "${1#--repo=}" >&2; exit 2 ;;
       esac
       shift ;;
-    *) [[ -z "$PR" ]] && PR="$1"; shift ;;
+    --host) HOST_ARG="${2:-}"; shift 2 || shift ;;
+    --host=*) HOST_ARG="${1#--host=}"; shift ;;
+    # Positionals: <PR_NUMBER> then [objective_id]. The objective used to be
+    # read as "${2:-}" AFTER this loop had shifted every argument away, so it
+    # was always empty and an objective's delivery.auto_merge=false never
+    # reached the decision.
+    *)
+      if [[ -z "$PR" ]]; then PR="$1"
+      elif [[ -z "$OBJECTIVE_ID" ]]; then OBJECTIVE_ID="$1"
+      fi
+      shift ;;
   esac
 done
-OBJECTIVE_ID="${2:-}"
 if [[ -z "$PR" ]]; then
   echo "ERROR: missing <PR_NUMBER>" >&2
   usage 1
@@ -111,51 +149,25 @@ fi
 
 REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
 
+# The permission resolver, from this file's own location: <root>/skills/
+# dev-workflow/pr-dev/scripts/ -> <root>/scripts/. Not from CLAUDE_PLUGIN_ROOT
+# or any other variable: an environment that can name the resolver can name a
+# fake one that always says allow.
+SCRIPT_DIR="$(CDPATH='' cd -- "$(dirname -- "${BASH_SOURCE[0]}")" 2>/dev/null && pwd -P)" || SCRIPT_DIR=""
+RESOLVER="${SCRIPT_DIR:+$SCRIPT_DIR/../../../../scripts/resolve-permission.sh}"
+
 WARNINGS=()
 warn() { WARNINGS+=("$1"); }
 
-# A JSON reader is a hard prerequisite for honouring any policy file. Without
-# one, the defaults below are still emitted — but the caller is told that the
-# policy files were never opened, instead of being handed a default dressed up
-# as a decision. (json_get itself runs inside a command substitution, so it
-# cannot record this: the check belongs here, once.)
-if ! command -v jq >/dev/null 2>&1 && ! command -v python3 >/dev/null 2>&1; then
-  warn "neither jq nor python3 is on PATH — .dev-files/policy.json and objective.json were NOT read; every field below is a default, not a resolved policy"
-fi
-
-# json_get <file> <dotted.path>
-#
-# NOTE: deliberately not using jq's `//` — it treats `false` as absent, which is
-# exactly the value a "do not auto-merge" policy needs to express.
-#
-# Without jq this used to return 1, which is indistinguishable from "the key is
-# absent" — so on a machine with no jq the policy file was silently discarded
-# and the built-in default won while the caller was told the file had been
-# honoured. It now falls back to python3, and if neither exists it says so in
-# `warnings` rather than pretending the file was read.
-json_get() {
-  local file="$1" path="$2" v=""
-  [[ -f "$file" ]] || return 1
-  if command -v jq >/dev/null 2>&1; then
-    v="$(jq -r ".$path" "$file" 2>/dev/null || true)"
-  elif command -v python3 >/dev/null 2>&1; then
-    v="$(JSON_PATH="$path" python3 -c '
-import json, os, sys
-try:
-    d = json.load(open(sys.argv[1]))
-except Exception:
-    sys.exit(0)
-for k in os.environ["JSON_PATH"].split("."):
-    if not isinstance(d, dict) or k not in d:
-        sys.exit(0)
-    d = d[k]
-print("null" if d is None else ("true" if d is True else ("false" if d is False else d)))
-' "$file" 2>/dev/null || true)"
-  else
-    return 1
-  fi
-  [[ -n "$v" && "$v" != "null" ]] || return 1
-  printf '%s' "$v"
+# jstr <text> — a JSON string literal (quotes, backslashes, control chars).
+jstr() {
+  local s="$1"
+  s="${s//\\/\\\\}"
+  s="${s//\"/\\\"}"
+  s="${s//$'\n'/ }"
+  s="${s//$'\r'/ }"
+  s="${s//$'\t'/ }"
+  printf '"%s"' "$s"
 }
 
 # --- repository capabilities -------------------------------------------------
@@ -172,6 +184,11 @@ MERGE_METHOD=squash
 MERGE_METHOD_SOURCE="default: squash (repository merge methods not readable)"
 DELETE_BRANCH=true
 DELETE_BRANCH_SOURCE="default: delete the head branch after merge (head-branch protection not readable)"
+# The unattended precondition's two halves (THE UNATTENDED PRECONDITION above):
+# unknown | true | false. Unknown is passed to the resolver as nothing at all.
+PINNED_OR_REVIEW=unknown
+PROTECTED_PATHS=unknown
+OWNER_REPO=""
 
 if command -v gh >/dev/null 2>&1; then
   # allow_auto_merge is REST-only — `gh repo view --json` has no such field.
@@ -241,6 +258,9 @@ if command -v gh >/dev/null 2>&1; then
         if [[ "${CLASSIC_APPROVALS:-0}" -gt 0 ]]; then REQUIRES_REVIEW=true; else REQUIRES_REVIEW=false; fi
         CHECKS="$(jq -c '.required_status_checks.contexts // []' <<<"$PROT" 2>/dev/null || true)"
         [[ -n "$CHECKS" ]] && REQUIRED_CHECKS="$CHECKS"
+        # Pinned source: a classic check whose app_id names one app (-1 or
+        # null is "any source", which anything that can post a status meets).
+        C_PINNED="$(jq -r '[.required_status_checks.checks[]? | select((.app_id // -1) > 0)] | length' <<<"$PROT" 2>/dev/null || echo 0)"
       fi
 
       # --- rulesets (the effective rules for this one branch) --------------
@@ -272,6 +292,7 @@ if command -v gh >/dev/null 2>&1; then
         fi
 
         R_CHECKS="$(jq -c '[.[]|select(.type=="required_status_checks")|.parameters.required_status_checks[]?|.context]' <<<"$RULES" 2>/dev/null || echo '[]')"
+        R_PINNED="$(jq -r '[.[]|select(.type=="required_status_checks")|.parameters.required_status_checks[]?|select((.integration_id // 0) > 0)] | length' <<<"$RULES" 2>/dev/null || echo 0)"
         if [[ -n "$R_CHECKS" && "$R_CHECKS" != "[]" ]]; then
           if [[ "$REQUIRED_CHECKS" == "null" ]]; then
             REQUIRED_CHECKS="$R_CHECKS"
@@ -287,6 +308,15 @@ if command -v gh >/dev/null 2>&1; then
       elif [[ "$SRC_CLASSIC" == true ]]; then PROTECTION_SOURCE='"classic"'
       elif [[ "$SRC_RULES"   == true ]]; then PROTECTION_SOURCE='"rulesets"'
       else PROTECTION_SOURCE='"none"'
+      fi
+
+      # The first half of the precondition: >= 1 pinned required check or
+      # >= 1 required approving review. Established only when the rules
+      # endpoint ANSWERED (an error there leaves rulesets unknown).
+      if [[ "${C_PINNED:-0}" -gt 0 || "${R_PINNED:-0}" -gt 0 || "$REQUIRES_REVIEW" == true ]]; then
+        PINNED_OR_REVIEW=true
+      elif [[ -n "$RULES" ]]; then
+        PINNED_OR_REVIEW=false
       fi
 
       # --- admin bypass eligibility ---------------------------------------
@@ -374,6 +404,21 @@ if command -v gh >/dev/null 2>&1; then
       fi
     fi
 
+    # The second half of the precondition: the PR touches nothing that
+    # governs merging itself (.github/workflows/**, CODEOWNERS, the project
+    # permission file). gh lists at most 100 files, so a PR whose changedFiles
+    # exceeds what was listed stays unknown rather than read as clean.
+    if FILES_JSON="$(gh pr view "$PR" --json files,changedFiles 2>/dev/null)" && command -v jq >/dev/null 2>&1; then
+      case "$(jq -r '
+          (.files // null) as $f | (.changedFiles // null) as $n
+          | if ($f | type) != "array" or ($n | type) != "number" or ($f | length) < $n then "unknown"
+            elif any($f[]; (.path // "") | test("^(\\.github/workflows/|\\.tamirs-superpowers/)|^(\\.github/|docs/)?CODEOWNERS$")) then "true"
+            else "false" end' <<<"$FILES_JSON" 2>/dev/null || echo unknown)" in
+        true) PROTECTED_PATHS=true ;;
+        false) PROTECTED_PATHS=false ;;
+      esac
+    fi
+
     # Merge queue presence: reported on the PR when the base has one configured.
     MQ="$(gh api graphql -f query="query{repository(owner:\"${OWNER_REPO%%/*}\",name:\"${OWNER_REPO##*/}\"){mergeQueue(branch:\"$BASE\"){id}}}" 2>/dev/null || true)"
     if [[ -n "$MQ" ]] && command -v jq >/dev/null 2>&1; then
@@ -387,42 +432,123 @@ if command -v gh >/dev/null 2>&1; then
 fi
 
 # --- auto-merge decision -----------------------------------------------------
-AUTO_MERGE=enable
-SOURCE="default: enable when the repository allows auto-merge"
+# pr.merge.auto is decided by scripts/resolve-permission.sh alone (ADR 004 D4).
+# What stays here is the one input only GitHub can answer -- whether the
+# repository allows auto-merge at all -- and the explicit TAMIRS_AUTO_MERGE=never
+# kill switch, honoured before the resolver even runs so it holds when the
+# resolver is missing. There is no default that enables: the old step 5
+# ("enable when the repository allows it") is deleted (D4 row 7).
+AUTO_MERGE=skip
+SOURCE=""
+VERDICT=not-asked
+ALLOW_WITH=""
 
-if [[ "$AUTO_MERGE_SUPPORTED" == "false" ]]; then
-  AUTO_MERGE=skip
-  SOURCE="repository does not allow auto-merge"
-fi
-
-POLICY_FILE="$REPO_ROOT/.dev-files/policy.json"
-if v="$(json_get "$POLICY_FILE" 'delivery.auto_merge')"; then
-  case "$v" in
-    true) AUTO_MERGE=enable; SOURCE=".dev-files/policy.json delivery.auto_merge=true" ;;
-    false) AUTO_MERGE=skip; SOURCE=".dev-files/policy.json delivery.auto_merge=false" ;;
-  esac
-fi
-
-if [[ -n "$OBJECTIVE_ID" ]]; then
-  OBJ_FILE="$REPO_ROOT/.dev-files/objectives/$OBJECTIVE_ID/objective.json"
-  if v="$(json_get "$OBJ_FILE" 'delivery.auto_merge')"; then
-    case "$v" in
-      true) AUTO_MERGE=enable; SOURCE="objective $OBJECTIVE_ID delivery.auto_merge=true" ;;
-      false) AUTO_MERGE=skip; SOURCE="objective $OBJECTIVE_ID delivery.auto_merge=false" ;;
-    esac
+# OWNER_REPO is set only inside the base-branch block; fill it when that block
+# did not run (no gh, or the PR's base could not be read).
+if [[ -z "$OWNER_REPO" ]]; then
+  OWNER_REPO="${GH_REPO:-}"
+  if [[ -z "$OWNER_REPO" ]] && command -v gh >/dev/null 2>&1; then
+    OWNER_REPO="$(gh repo view --json nameWithOwner --jq .nameWithOwner 2>/dev/null || true)"
   fi
 fi
 
-case "${TAMIRS_AUTO_MERGE:-}" in
-  always) AUTO_MERGE=enable; SOURCE="TAMIRS_AUTO_MERGE=always (explicit override)" ;;
-  never)  AUTO_MERGE=skip;   SOURCE="TAMIRS_AUTO_MERGE=never (explicit override)" ;;
-esac
+if [[ "${TAMIRS_AUTO_MERGE:-}" == never ]]; then
+  SOURCE="TAMIRS_AUTO_MERGE=never (explicit override)"
+else
+  PRECOND=unknown
+  if [[ "$PINNED_OR_REVIEW" == true && "$PROTECTED_PATHS" == false ]]; then
+    PRECOND=true
+  elif [[ "$PINNED_OR_REVIEW" == false || "$PROTECTED_PATHS" == true ]]; then
+    PRECOND=false
+  fi
 
-# A repository that forbids auto-merge wins over any request to enable it:
-# asking for something the platform refuses is not a policy, it is an error.
-if [[ "$AUTO_MERGE_SUPPORTED" == "false" && "$AUTO_MERGE" == "enable" ]]; then
-  AUTO_MERGE=skip
-  SOURCE="$SOURCE — overridden: repository does not allow auto-merge"
+  # A bare PR number would make the resolver infer the repository from origin;
+  # owner/repo#N is what the trust rule compares against (D3, SR S-15).
+  TARGET="$PR"
+  case "$OWNER_REPO" in */*) TARGET="$OWNER_REPO#$PR" ;; esac
+  RARGS=(--action pr.merge.auto --skill pr-dev --target "$TARGET" --repo "$REPO_ROOT" --json)
+  [[ -n "$OBJECTIVE_ID" ]] && RARGS+=(--objective "$OBJECTIVE_ID")
+  [[ -n "$HOST_ARG" ]] && RARGS+=(--host "$HOST_ARG")
+  [[ "$PRECOND" != unknown ]] && RARGS+=(--cond "pinned_check_or_review_and_no_protected_paths=$PRECOND")
+
+  if [[ -z "$RESOLVER" || ! -f "$RESOLVER" ]]; then
+    VERDICT=error
+    SOURCE="permission resolver not found (scripts/resolve-permission.sh beside this plugin's skills/) — auto-merge skipped (fail closed, ADR 004 D4)"
+    warn "scripts/resolve-permission.sh is missing: pr.merge.auto cannot be resolved, so auto-merge is off"
+  else
+    RC=0
+    ROUT="$(bash "$RESOLVER" "${RARGS[@]}" 2>/dev/null)" || RC=$?
+    # One parse, by the interpreter the resolver itself requires. -I -S: no
+    # module from the working directory or site-packages is ever imported.
+    PARSED=""
+    if command -v python3 >/dev/null 2>&1; then
+      PARSED="$(printf '%s' "$ROUT" | python3 -I -S -c '
+import json, sys
+try:
+    d = json.loads(sys.stdin.read())
+    assert isinstance(d, dict)
+except Exception:
+    sys.exit(1)
+def one(v):
+    return " ".join(str(v).split()) if v is not None else ""
+aw = d.get("allow_with") or d.get("setting_that_would_allow") or {}
+durable = aw.get("durable") if isinstance(aw, dict) else None
+print(one(d.get("verdict", d.get("decision"))))
+print(one(d.get("decided_by")))
+print(one(d.get("reason")))
+print(one(durable[0]) if isinstance(durable, list) and durable else "")
+for w in d.get("warnings") or []:
+    print(one(w))
+' 2>/dev/null)" || PARSED=""
+    fi
+    if ! command -v python3 >/dev/null 2>&1; then
+      VERDICT=error
+      SOURCE="python3 is not on PATH, so the permission resolver cannot run — auto-merge skipped (fail closed, ADR 004 D4)"
+      warn "python3 is not on PATH — the permission resolver could not run, so .dev-files/policy.json and objective.json were NOT read; auto-merge is off"
+    elif [[ -z "$PARSED" ]]; then
+      VERDICT=error
+      SOURCE="permission resolver output unreadable (exit $RC) — auto-merge skipped (fail closed, ADR 004 D4)"
+      warn "scripts/resolve-permission.sh printed no parseable verdict for pr.merge.auto (exit $RC)"
+    else
+      R_VERDICT="" R_BY="" R_REASON="" n=0
+      while IFS= read -r line; do
+        n=$((n + 1))
+        case "$n" in
+          1) R_VERDICT="$line" ;;
+          2) R_BY="$line" ;;
+          3) R_REASON="$line" ;;
+          4) ALLOW_WITH="$line" ;;
+          *) [[ -n "$line" ]] && warn "resolve-permission: $line" ;;
+        esac
+      done <<<"$PARSED"
+      if [[ "$RC" -ne 0 ]]; then
+        VERDICT=error
+        SOURCE="permission resolver failed (exit $RC: ${R_REASON:-no reason}) — auto-merge skipped (fail closed, ADR 004 D4)"
+      else
+        case "$R_VERDICT" in
+          allow|ask|deny) VERDICT="$R_VERDICT" ;;
+          *) VERDICT=error ;;
+        esac
+        case "$VERDICT" in
+          allow)
+            if [[ "$AUTO_MERGE_SUPPORTED" == true ]]; then
+              AUTO_MERGE=enable
+              SOURCE="resolve-permission pr.merge.auto: allow (${R_BY:-no rule named})"
+            elif [[ "$AUTO_MERGE_SUPPORTED" == false ]]; then
+              SOURCE="resolve-permission pr.merge.auto: allow (${R_BY:-no rule named}) — overridden: repository does not allow auto-merge"
+            else
+              SOURCE="resolve-permission pr.merge.auto: allow (${R_BY:-no rule named}) — overridden: whether the repository allows auto-merge could not be read"
+            fi ;;
+          ask)
+            SOURCE="resolve-permission pr.merge.auto: ask (${R_BY:-no rule named}) — auto-merge is off unless configured${ALLOW_WITH:+; to turn it on: $ALLOW_WITH}" ;;
+          deny)
+            SOURCE="resolve-permission pr.merge.auto: deny (${R_BY:-no rule named}${R_REASON:+: $R_REASON})" ;;
+          *)
+            SOURCE="permission resolver returned no verdict — auto-merge skipped (fail closed, ADR 004 D4)" ;;
+        esac
+      fi
+    fi
+  fi
 fi
 
 OBJ_JSON=null
@@ -433,7 +559,7 @@ if ((${#WARNINGS[@]})); then
   WARNINGS_JSON="["
   for i in "${!WARNINGS[@]}"; do
     [[ $i -gt 0 ]] && WARNINGS_JSON+=","
-    WARNINGS_JSON+="\"${WARNINGS[$i]//\"/\\\"}\""
+    WARNINGS_JSON+="$(jstr "${WARNINGS[$i]}")"
   done
   WARNINGS_JSON+="]"
 fi
@@ -443,7 +569,9 @@ cat <<EOF
   "pr": $PR,
   "objective_id": $OBJ_JSON,
   "auto_merge": "$AUTO_MERGE",
-  "auto_merge_source": "$SOURCE",
+  "auto_merge_source": $(jstr "$SOURCE"),
+  "auto_merge_verdict": "$VERDICT",
+  "auto_merge_allow_with": $( [[ -n "$ALLOW_WITH" ]] && jstr "$ALLOW_WITH" || printf null ),
   "auto_merge_supported": $AUTO_MERGE_SUPPORTED,
   "merge_queue": $MERGE_QUEUE,
   "merge_method": "$MERGE_METHOD",

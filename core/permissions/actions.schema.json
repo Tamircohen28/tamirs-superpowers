@@ -1,0 +1,264 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/Tamircohen28/tamirs-superpowers/core/permissions/actions.schema.json",
+  "title": "Permission action catalog",
+  "description": "Shape of core/permissions/actions.json, the plugin-owned action catalog of ADR 004 D1. Structural rules live here (dot-form ids, R in 0-4, R4 never automatic, a precondition only on an automatic R3). Rules that need the whole file or the ADR (unique ids, declared conditions and target kinds, the unattended list, the D2 ceilings, coverage of every gh/git push/GraphQL/MCP call) are held by tests/test-permission-catalog.sh.",
+  "type": "object",
+  "required": ["schema_version", "spec", "source_docs", "rubric", "tags", "levels", "conditions", "target_kinds", "matching", "unclassified", "mcp", "actions"],
+  "additionalProperties": false,
+  "properties": {
+    "$schema": { "type": "string" },
+    "_comment": { "type": "string" },
+    "schema_version": { "type": "integer", "const": 1 },
+    "spec": { "type": "string" },
+    "source_docs": {
+      "type": "object",
+      "propertyNames": { "pattern": "^[A-Za-z0-9]+$" },
+      "additionalProperties": { "type": "string", "pattern": "^[A-Za-z0-9._/-]+\\.md$" }
+    },
+    "rubric": {
+      "type": "object",
+      "required": ["R0", "R1", "R2", "R3", "R4", "rules"],
+      "additionalProperties": false,
+      "properties": {
+        "R0": { "type": "string" },
+        "R1": { "type": "string" },
+        "R2": { "type": "string" },
+        "R3": { "type": "string" },
+        "R4": { "type": "string" },
+        "rules": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "tags": {
+      "type": "object",
+      "propertyNames": { "pattern": "^[a-z][a-z0-9_]*$" },
+      "additionalProperties": { "type": "string" }
+    },
+    "levels": { "$ref": "#/$defs/levels" },
+    "conditions": {
+      "type": "object",
+      "properties": { "_comment": { "type": "string" } },
+      "propertyNames": { "pattern": "^(_comment|[a-z][a-z0-9_]*)$" },
+      "additionalProperties": { "type": "string" }
+    },
+    "target_kinds": {
+      "type": "object",
+      "properties": { "_comment": { "type": "string" } },
+      "propertyNames": { "pattern": "^(_comment|[a-z][a-z0-9_]*)$" },
+      "additionalProperties": { "type": "array", "items": { "type": "string" }, "uniqueItems": true }
+    },
+    "matching": { "type": "object" },
+    "unclassified": {
+      "type": "object",
+      "required": ["r", "rule", "mutation_markers", "mutation_marker_patterns"],
+      "properties": {
+        "r": { "const": 4 },
+        "rule": { "type": "string" },
+        "mutation_markers": { "type": "array", "items": { "type": "string" }, "minItems": 1 },
+        "mutation_marker_patterns": { "type": "array", "items": { "type": "string", "minLength": 1 }, "minItems": 1 }
+      }
+    },
+    "mcp": {
+      "type": "object",
+      "required": ["server", "claude_prefix"],
+      "properties": {
+        "server": { "type": "string" },
+        "claude_prefix": { "type": "string", "pattern": "^mcp__[A-Za-z0-9_-]+__$" },
+        "_comment": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "actions": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/action" } }
+  },
+  "$defs": {
+    "action_id": { "type": "string", "pattern": "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)+$" },
+    "condition_name": { "type": "string", "pattern": "^[a-z][a-z0-9_]*$" },
+    "verdict": { "enum": ["allow", "ask", "allow_if_precondition", "deny"] },
+    "ceiling": {
+      "type": "object",
+      "required": ["R0", "R1", "R2", "R3", "R4"],
+      "additionalProperties": false,
+      "properties": {
+        "R0": { "$ref": "#/$defs/verdict" },
+        "R1": { "$ref": "#/$defs/verdict" },
+        "R2": { "$ref": "#/$defs/verdict" },
+        "R3": { "$ref": "#/$defs/verdict" },
+        "R4": { "const": "ask" }
+      }
+    },
+    "levels": {
+      "type": "object",
+      "required": ["order", "default", "ceilings", "verdicts", "r4", "overrides"],
+      "additionalProperties": false,
+      "properties": {
+        "_comment": { "type": "string" },
+        "order": { "const": ["supervised", "standard", "unattended"] },
+        "default": { "const": "supervised" },
+        "ceilings": {
+          "type": "object",
+          "required": ["supervised", "standard", "unattended"],
+          "additionalProperties": false,
+          "properties": {
+            "supervised": { "$ref": "#/$defs/ceiling" },
+            "standard": { "$ref": "#/$defs/ceiling" },
+            "unattended": { "$ref": "#/$defs/ceiling" }
+          }
+        },
+        "verdicts": {
+          "type": "object",
+          "propertyNames": { "$ref": "#/$defs/verdict" },
+          "additionalProperties": { "type": "string" }
+        },
+        "r4": { "type": "string" },
+        "overrides": {
+          "type": "object",
+          "propertyNames": { "$ref": "#/$defs/action_id" },
+          "additionalProperties": {
+            "type": "object",
+            "required": ["supervised", "standard", "unattended"],
+            "additionalProperties": false,
+            "properties": {
+              "supervised": { "$ref": "#/$defs/verdict" },
+              "standard": { "$ref": "#/$defs/verdict" },
+              "unattended": { "$ref": "#/$defs/verdict" },
+              "widen": { "type": "string" }
+            }
+          }
+        }
+      }
+    },
+    "source_ref": { "type": "string", "pattern": "^[A-Za-z0-9]+#[A-Za-z0-9-]+$" },
+    "globs": { "type": "array", "items": { "type": "string", "minLength": 1 }, "minItems": 1 },
+    "argv_entry": {
+      "type": "object",
+      "additionalProperties": false,
+      "minProperties": 1,
+      "properties": {
+        "cmd": { "type": "array", "items": { "type": "string", "minLength": 1 }, "minItems": 1 },
+        "script": { "type": "string", "minLength": 1 },
+        "any": { "$ref": "#/$defs/globs" },
+        "all": { "$ref": "#/$defs/globs" },
+        "none": { "$ref": "#/$defs/globs" },
+        "args": { "$ref": "#/$defs/globs" },
+        "args_none": { "$ref": "#/$defs/globs" },
+        "first_arg_none": { "$ref": "#/$defs/globs" },
+        "min_args": { "type": "integer", "minimum": 1 },
+        "env_any": { "$ref": "#/$defs/globs" }
+      },
+      "oneOf": [{ "required": ["cmd"] }, { "required": ["script"] }]
+    },
+    "http_method": { "enum": ["GET", "POST", "PUT", "PATCH", "DELETE"] },
+    "rest_entry": {
+      "type": "object",
+      "required": ["method", "path"],
+      "additionalProperties": false,
+      "properties": {
+        "method": {
+          "anyOf": [
+            { "$ref": "#/$defs/http_method" },
+            { "type": "array", "items": { "$ref": "#/$defs/http_method" }, "minItems": 1, "uniqueItems": true }
+          ]
+        },
+        "path": { "type": "string", "pattern": "^[^/].*$" },
+        "fields_all": { "$ref": "#/$defs/globs" },
+        "fields_none": { "$ref": "#/$defs/globs" }
+      }
+    },
+    "mcp_args": {
+      "type": "object",
+      "minProperties": 1,
+      "additionalProperties": { "type": "string" }
+    },
+    "mcp_entry": {
+      "type": "object",
+      "required": ["tool"],
+      "additionalProperties": false,
+      "properties": {
+        "tool": { "type": "string", "pattern": "^mcp__[A-Za-z0-9_-]+__[a-z0-9_]+$" },
+        "args_all": { "$ref": "#/$defs/mcp_args" },
+        "args_none": { "$ref": "#/$defs/mcp_args" }
+      }
+    },
+    "equivalents": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "argv": { "type": "array", "items": { "$ref": "#/$defs/argv_entry" }, "minItems": 1 },
+        "rest": { "type": "array", "items": { "$ref": "#/$defs/rest_entry" }, "minItems": 1 },
+        "graphql": { "type": "array", "items": { "type": "string", "pattern": "^[a-z][A-Za-z0-9]*$" }, "minItems": 1, "uniqueItems": true },
+        "graphql_operation": { "const": "query" },
+        "mcp": { "type": "array", "items": { "$ref": "#/$defs/mcp_entry" }, "minItems": 1 },
+        "paths": { "type": "array", "items": { "type": "string", "pattern": "^\\{(repo|home|plugin_root|worktree)\\}/" }, "minItems": 1, "uniqueItems": true },
+        "tools": { "type": "array", "items": { "type": "string", "pattern": "^[A-Z][A-Za-z]*$" }, "minItems": 1 }
+      }
+    },
+    "raise": {
+      "type": "object",
+      "required": ["when"],
+      "additionalProperties": false,
+      "properties": {
+        "when": { "$ref": "#/$defs/condition_name" },
+        "r": { "type": "integer", "minimum": 1, "maximum": 4 },
+        "becomes": { "$ref": "#/$defs/action_id" }
+      },
+      "oneOf": [{ "required": ["r"] }, { "required": ["becomes"] }]
+    },
+    "deny": {
+      "type": "object",
+      "required": ["when", "source"],
+      "additionalProperties": false,
+      "properties": {
+        "when": { "$ref": "#/$defs/condition_name" },
+        "source": { "$ref": "#/$defs/source_ref" }
+      }
+    },
+    "action": {
+      "type": "object",
+      "required": ["id", "r", "tags", "aliases", "never_auto", "unattended_precondition", "l2", "target", "equivalents", "sources"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "$ref": "#/$defs/action_id" },
+        "r": { "type": "integer", "minimum": 0, "maximum": 4 },
+        "tags": { "type": "array", "items": { "enum": ["machine"] }, "uniqueItems": true },
+        "aliases": { "type": "array", "items": { "$ref": "#/$defs/action_id" }, "uniqueItems": true },
+        "never_auto": { "type": "boolean" },
+        "unattended_precondition": {
+          "anyOf": [{ "type": "null" }, { "$ref": "#/$defs/condition_name" }]
+        },
+        "raises": { "type": "array", "items": { "$ref": "#/$defs/raise" }, "minItems": 1 },
+        "denies": { "type": "array", "items": { "$ref": "#/$defs/deny" }, "minItems": 1 },
+        "l2": {
+          "type": "array",
+          "items": { "enum": ["PG", "MCP", "GSF", "L1", "enforce-worktree-edits", "cleanup.sh"] },
+          "uniqueItems": true
+        },
+        "target": { "type": "string", "pattern": "^[a-z][a-z0-9_]*$" },
+        "equivalents": { "$ref": "#/$defs/equivalents" },
+        "sources": { "type": "array", "items": { "$ref": "#/$defs/source_ref" }, "minItems": 1, "uniqueItems": true },
+        "note": { "type": "string" }
+      },
+      "allOf": [
+        {
+          "$comment": "D1: R4 is never automatic.",
+          "if": { "properties": { "r": { "const": 4 } } },
+          "then": { "properties": { "never_auto": { "const": true } } }
+        },
+        {
+          "$comment": "S-06: never automatic means no precondition can make it automatic.",
+          "if": { "properties": { "never_auto": { "const": true } } },
+          "then": { "properties": { "unattended_precondition": { "type": "null" } } }
+        },
+        {
+          "$comment": "Only R3 runs on a precondition; R0-R2 never need one and are never 'never automatic'.",
+          "if": { "properties": { "r": { "maximum": 2 } } },
+          "then": { "properties": { "never_auto": { "const": false }, "unattended_precondition": { "type": "null" } } }
+        },
+        {
+          "$comment": "An R3 that may run under unattended names the check that lets it (D1 automatic list).",
+          "if": { "properties": { "r": { "const": 3 }, "never_auto": { "const": false } } },
+          "then": { "properties": { "unattended_precondition": { "$ref": "#/$defs/condition_name" } } }
+        }
+      ]
+    }
+  }
+}
