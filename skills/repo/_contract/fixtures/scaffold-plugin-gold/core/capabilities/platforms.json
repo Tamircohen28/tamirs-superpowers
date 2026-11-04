@@ -323,9 +323,9 @@
               "notes": "No Desktop evidence."
             },
             "hooks": {
-              "last_verified": "2026-09-17",
+              "last_verified": "2026-11-04",
               "status": "unknown",
-              "notes": "Whether the plugin hook bundle fires in Desktop coding sessions has not been verified. Permission levels (ADR 004 D8): see this surface's permission_levels row.",
+              "notes": "Hooks fire in Desktop coding sessions: measured U4 on 2026-11-04 (Desktop 4.16336.0, embedded Claude Code 2.1.317), where a project PreToolUse hook and a plugin's own SessionStart hook ran, and a PreToolUse `ask` raised Desktop's approval card. This plugin's own hook bundle was not run end to end on Desktop. Permission levels (ADR 004 D8): see this surface's permission_levels row.",
               "fallback": "Assume no hooks; rely on in-skill guards and CI."
             },
             "mcp": {
@@ -423,7 +423,7 @@
             "permission_levels": {
               "last_verified": "2026-11-04",
               "status": "unknown",
-              "notes": "ADR 004 D8 (docs/engineering/decisions/004-permission-levels.md); L1 skill gates are advisory on every surface. L2 shell and L3 unverified (spikes C5/U4, docs/engineering/research/permissions/spikes/claude-codex.md): whether the plugin hooks fire in Desktop coding sessions is unmeasured. The GitHub MCP server flags apply at server start. Until a call stamp proves permission-guard.sh ran, L1 answers as supervised. --perms= cannot raise here (scripts/plugin-config.sh confirm refuses a claude-desktop session, D5). Per-skill levels ADVISORY.",
+              "notes": "ADR 004 D8 (docs/engineering/decisions/004-permission-levels.md); L1 skill gates are advisory on every surface. Measured U4 (2026-11-04, Desktop 4.16336.0, embedded Claude Code 2.1.317, docs/engineering/research/permissions/spikes/implementation-measurements.md \"GUI checks\"): hooks run in Desktop coding sessions (a project PreToolUse and a plugin SessionStart fired), and a PreToolUse hook `ask` raises Desktop's \"Allow Claude to run this command?\" card with the reason verbatim and Deny / Allow once, under Bypass permissions too; Deny stops the call. So L3 is the hook ask, as on the CLI; a plugin-shipped PreToolUse ask was not run separately and L2 `deny` was not exercised, so the call stamp stays: until it proves permission-guard.sh ran, L1 answers as supervised. Desktop has no userConfig route: \"Add to this computer\" shows no dialog, the plugin menu offers only Remove, and with nothing stored the hook env carries no CLAUDE_PLUGIN_OPTION_*, so the level comes from its absence (supervised). The GitHub MCP server flags apply at server start. --perms= cannot raise here (scripts/plugin-config.sh confirm refuses a claude-desktop session, D5). Per-skill levels ADVISORY.",
               "fallback": "Run at supervised: the skills' L1 gates stop before every R2+ step, the GitHub MCP server starts --read-only, and a level change runs scripts/plugin-config.sh in the user's own terminal."
             }
           }
@@ -785,7 +785,7 @@
               "status": "partial",
               "since": "3.27.22",
               "since_source": "ADR 004 D9 permissions_min (the desktop app; the CLI floor, permissions_min_cli 2026.10.22, is the build whose shell deny/ask consumer is source-cited, U1, docs/engineering/research/permissions/spikes/cursor-gemini-opencode.md).",
-              "notes": "ADR 004 D8 (docs/engineering/decisions/004-permission-levels.md); L1 skill gates are advisory on every surface. L2 shell ENFORCED: permission-guard.sh on preToolUse and beforeShellExecution, deny only, failClosed: true (source-cited U1 on CLI 2026.10.22). L2 GitHub MCP ENFORCED: the preToolUse deny on the MCP path (source-cited U1.4). L3: beforeShellExecution `ask` forces a prompt in every approval mode but stays unused until spike S1 is measured, so every ask is a deny and R4 is denied. The desktop app is assumed deny-only like the CLI, 3.28 unverified (S2). --perms= has no prompt hook here (beforeSubmitPrompt also sees cursor-agent -p text, D5): only a skill's own L1 parsing lowers. Per-skill levels ADVISORY.",
+              "notes": "ADR 004 D8 (docs/engineering/decisions/004-permission-levels.md); L1 skill gates are advisory on every surface. L2 shell ENFORCED: permission-guard.sh on preToolUse and beforeShellExecution, failClosed: true (source-cited U1 on CLI 2026.10.22). L2 GitHub MCP ENFORCED: the preToolUse deny on the MCP path (source-cited U1.4). L3 on the desktop app from 3.28.7 (cursor_version a plain N.N.N): a shell ask is delivered as the beforeShellExecution `ask`, an approval card in Auto-Review, Allowlist (it overrides an allowlist entry) and Run Everything (measured S2 on 3.28.7); the preToolUse Shell call before it answers no decision for an ask, because preToolUse `ask` is not enforced (S2: it ran unprompted), and a deny stays a deny there. The Allowlist card does not show the hook's reason. L3 on the CLI (cursor_version a dated 2026.x build): deny only, because --yolo runs an ask unprompted (S1), so R4 is denied. A plugin-config.sh confirm, an MCP call, an older desktop build and another host named in the environment stay deny. --perms= has no prompt hook here (beforeSubmitPrompt also sees cursor-agent -p text, D5): only a skill's own L1 parsing lowers. Per-skill levels ADVISORY.",
               "fallback": "A widening runs scripts/plugin-config.sh in the user's own terminal, make setup or CI provision (D7)."
             }
           }

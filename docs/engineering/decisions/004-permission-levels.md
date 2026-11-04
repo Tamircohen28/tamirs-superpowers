@@ -90,7 +90,11 @@ ports), **MCP** = GitHub MCP tool matcher + server flags (D8), **GSF** = [`guard
 REST paths, GraphQL mutations, refspecs, target env (`GH_REPO`, `GH_HOST`, `GIT_DIR`, `GIT_CONFIG_*`) and GitHub API
 HTTP clients [SR] S-07 enumerates. A command mapping to no id but carrying a mutation marker (`gh `, `git push`,
 `api.github.com`, `graphql`, `gh auth token`, `GH_TOKEN`, `GITHUB_TOKEN`, a protected path) or a file-sourced GraphQL
-query (`-F query=@…`) is UNCLASSIFIED ⇒ R4. Wrappers (`make`, `eval`, `$(…)`) and interpreters stay the residual.
+query (`-F query=@…`) is UNCLASSIFIED ⇒ R4. A non-GET call to a GitHub API host is classified only when its method,
+path and body are all established — read through one table-driven argv model per HTTP client and a GraphQL parser
+(issue #349) — and anything unestablished (an unknown option or target, a route override, a body from a file, stdin or a
+template, a client config file, a dot segment or escape in the path, an undecodable body the id depends on) is
+UNCLASSIFIED. Wrappers (`make`, `eval`, `$(…)`) and interpreters stay the residual.
 
 ### D2 — Level presets are ceilings (b)
 
@@ -200,7 +204,7 @@ confirm <nonce>` passes a host prompt naming skill, level, target and expiry.
 | Claude Code | the permission dialog of a PG hook `ask`, on `confirm` or on the R4 call itself | `UserPromptExpansion.command_args` of a prompt whose `UserPromptSubmit.source == "user"` (paired on their shared `prompt_id`); missing `source` ⇒ not user; a model `Skill` call never qualifies. **2.1.318 sends no `source` at all, so no raise request is ever written: the Claude `--perms=` raise is disabled until the host emits it** (the refusal says so and names `/plugin-config`); a lowering still applies | dialog: measured headless C4/U3 (honoured in every mode, headless ⇒ deny) and interactive M1 ([S3]: `default`, `auto`, `bypassPermissions`; the reason shown verbatim, multi-line too, with its origin label; `1. Yes` pre-selected, `2. No`; Esc rejects and the call never runs). Prompt hooks: M2 (`command_name`, `command_args`, `command_source: "plugin"`; the submit fires first, same `prompt_id`); `source` declared in the schema but absent in the interactive CLI, `-p` and stream-json (M3) ⇒ never attested |
 | Gemini CLI | a static extension `ask_user` rule matching `confirm` and the R4 patterns | interactive `BeforeAgent.prompt` right after `BeforeTool(activate_skill)` | `ask_user` holds under `--yolo` and denies headless (measured G3); its TTY prompt source-cited. Hook input cannot tell `gemini -p` (G1, G2) |
 | Cursor CLI | **none**: S1 (measured 2026-11-04, CLI 2026.10.22) showed `beforeShellExecution` `ask` prompts interactively but is ignored under `--yolo`, and print mode is inconclusive (a no-hook control is rejected the same way), so it is not a host-attested channel | none: `beforeSubmitPrompt` also sees `cursor-agent -p` text | U1, S1–S3 ([S2]) |
-| Codex CLI, Cursor desktop, OpenCode | **none: the raise path is disabled.** Codex hook `ask` fails open (X1) and plugins cannot ship execpolicy rules ([codex] A6); Cursor desktop is unverified (S2); OpenCode `--auto` approves every pending ask client-side (O1) | none: `codex exec`, `cursor-agent -p` and `opencode run` author the prompt | X1, O1, [SR] S-02/S-10 |
+| Codex CLI, Cursor desktop, OpenCode | **none: the raise path is disabled.** Codex hook `ask` fails open (X1) and plugins cannot ship execpolicy rules ([codex] A6); Cursor desktop carries a shell ask from 3.28.7 (S2) but not the confirm a raise needs (D8: its Allowlist card shows no reason); OpenCode `--auto` approves every pending ask client-side (O1) | none: `codex exec`, `cursor-agent -p` and `opencode run` author the prompt | X1, O1, [SR] S-02/S-10 |
 
 **Where no channel exists**, `--perms=` only lowers; levels change only outside any agent session (the writer in the
 user's own terminal — PG denies its widening subcommands and `confirm` from agent Bash —, `make setup`, CI
@@ -268,7 +272,7 @@ Tickets replace the agent-typeable approval token of [`docker-guard.py`][docker]
 
 | platform | at install | later | no config |
 |---|---|---|---|
-| Claude Code | `userConfig.permission_level`: `type: string`, `options: ["supervised","standard","unattended"]`, `default: "supervised"` (plain strings, default ∈ options; reported "not yet set" until stored — measured C1/C2) | `/config` picker (CLI only, [claude] E), `/plugin configure`, `claude plugin configure --values-stdin` in the user's terminal (PG denies it from agent Bash); Desktop route unverified (U4) | `supervised` |
+| Claude Code | `userConfig.permission_level`: `type: string`, `options: ["supervised","standard","unattended"]`, `default: "supervised"` (plain strings, default ∈ options; reported "not yet set" until stored — measured C1/C2) | `/config` picker (CLI only, [claude] E), `/plugin configure`, `claude plugin configure --values-stdin` in the user's terminal (PG denies it from agent Bash); Desktop: none — "Add to this computer" installs with no `userConfig` dialog and offers no Configure entry, and with nothing stored the hook env carries no `CLAUDE_PLUGIN_OPTION_*` (measured U4, [S3]), so Desktop runs at the no-config level; whether its embedded Claude Code reads a value the CLI stored is untested | `supervised` |
 | Gemini CLI | `settings[]` `TS_PERMISSION_LEVEL` (string only, prompted unless `--skip-settings`, [gemini] C) | `gemini extensions config tamirs-superpowers TS_PERMISSION_LEVEL`; not in the enum ⇒ `supervised` + warning | `supervised` |
 | Codex, Cursor, OpenCode | none ([codex] C; [cursor] C; [opencode] C) | `/plugin-config` tightens in session; a widening runs `scripts/plugin-config.sh` in the user's own terminal, `make setup` (asks once on a TTY) or CI `provision` | `supervised`; one SessionStart notice |
 
@@ -280,10 +284,10 @@ Layers: **L1** skill gate (resolver call before the step), **L2** hook deny, **L
 | platform | L2 shell (R2–R4) | L2 GitHub MCP | L3 host ask | ask is delivered as | fail-open neutralised by | per-skill levels at L2 |
 |---|---|---|---|---|---|---|
 | Claude Code | E: PG on `Bash`, `onFailure: "block"` | E: the `mcp__plugin_tamirs-superpowers_github__.*` matcher fires for the bundled server's tools and a sibling matcher does not (measured M4, [S3]) + server flags | E: hook `ask` in default/auto/bypass, reason shown verbatim, Esc rejects (measured M1, [S3]); headless ⇒ deny (C4/U3) | hook `ask` (the D5 dialog; the only R4 route) | `onFailure: "block"` (2.1.295+) | E: a skill the host records as active for that agent takes its level from the user's verified, locked file — a `UserPromptExpansion` paired with its `UserPromptSubmit` on one `prompt_id` (M2), or a `PreToolUse` on the `Skill` tool (measured M6, [S3]: the matcher fires for a model `Skill` call, `tool_input.skill` names it); no `source` needed (M3). Bound per agent (M5): a subagent runs at most at the main thread's level (D1 `agent.spawn`); project-file levels only tighten |
-| Claude Desktop | unverified (C5/U4) | server flags | unverified | as CLI once a call stamp (below) proves PG ran | call stamp; else L1 runs `supervised` | A |
+| Claude Desktop | hooks run (a project `PreToolUse` and a plugin `SessionStart` fired, measured U4, [S3]); `deny` not exercised | server flags | E: a `PreToolUse` hook `ask` raises Desktop's "Allow Claude to run this command?" card, reason verbatim, Deny / Allow once, under Bypass permissions too; Deny stops the call (measured U4, 2026-11-04, Desktop 4.16336.0 with embedded Claude Code 2.1.317, a project-settings hook; a plugin-shipped `PreToolUse` `ask` not run separately) | as CLI: hook `ask`; the call stamp (below) stays as defence in depth | call stamp; else L1 runs `supervised` | A |
 | Codex CLI | E, deny only: exit 2 + stderr, or `deny` with reason (source-cited X1; live U5) | MCP-tool hook actions (0.148, [codex] E) matcher unverified ⇒ server flags | none: hook `ask` fails open (X1) | deny naming the D5 out-of-session route; R4 always deny | guard traps every error to a deny, never exits non-0/2; SessionStart canary self-test; `setup.sh` offers user-owned execpolicy `prompt` rules for R4 as a belt while plugin hooks are untrusted ([codex] implication 10) | A |
-| Cursor CLI | E: `preToolUse` + `beforeShellExecution` deny, `failClosed` (source-cited U1) | E: `preToolUse` deny on the MCP path (source-cited U1.4) | `beforeShellExecution` ask prompts interactively, ignored under `--yolo` (measured S1) — not relied on | deny (S1 confirms: an ask cannot be trusted to survive `--yolo`) | `failClosed: true` | A |
-| Cursor desktop | deny assumed as CLI, 3.28 unverified (S2) | as CLI, unverified | unverified (forum: ignored under Auto-review, [cursor] B) | deny | `failClosed: true` | A |
+| Cursor CLI | E: `preToolUse` + `beforeShellExecution` deny, `failClosed` (source-cited U1) | E: `preToolUse` deny on the MCP path (source-cited U1.4) | `beforeShellExecution` ask prompts interactively, ignored under `--yolo` (measured S1) — not relied on | deny (S1 confirms: an ask cannot be trusted to survive `--yolo`); PG tells the CLI by its dated `cursor_version` (`2026.…`) | `failClosed: true` | A |
+| Cursor desktop | E: `preToolUse` + `beforeShellExecution` deny, `failClosed`; the shell tool runs `preToolUse` and then, unless it denied, `beforeShellExecution` in one wrapper (source-cited, `cursor-agent-exec` in 3.28.7) | as CLI (`preToolUse` deny on `MCP:<tool>`), unverified | E from 3.28.7: a `beforeShellExecution` `ask` is an approval card in Auto-Review, Allowlist and Run Everything, which runs only on Run; a `preToolUse` `ask` is ignored (S2, measured 2026-11-04, Cursor 3.28.7, [S3]) | ≥ 3.28.7: every shell ask, R4 included, is a `beforeShellExecution` ask, and PG's `preToolUse` Shell answer for it is no decision so that hook is reached; a `plugin-config.sh confirm` stays a deny (the Allowlist card shows no reason text, so the D5 record cannot be shown, S2); below 3.28.7, unreadable, or MCP: deny | `failClosed: true` | A |
 | Gemini CLI | E: BeforeTool deny, never `ask` (hangs headless and hook input cannot tell headless, G1); paired static extension `deny` | static extension rules on `mcpName = "github"` (unmeasured) + hook | E: static mode-less `ask_user` for R4 patterns and `confirm` (headless deny under `--yolo` measured G3; TTY prompt source-cited) | deny; R4 and `confirm` via static `ask_user`, other R4 deny | static policy pairs every must-hold rule (hooks fail open, [A3] D8) | E: `BeforeTool(activate_skill)` |
 | OpenCode | E (sole plugin): `permission.hook("evaluate")` deny, final under `--auto` (O1b); order across plugins unmeasured ([SR] S-16) | MCP calls are `<server>_<tool>` actions (doc-cited, [opencode] A), unmeasured | A: hook `ask` auto-approved under `--auto` (O1c) | R2: hook `ask` (A under `--auto`); R3/R4: deny | `guard.ts` catches every error as deny | E: `skill` action |
 
@@ -315,7 +319,7 @@ for 10 minutes; the clamp is named in each answer it changes and in `--level`. T
 |---|---|---|
 | Claude Code | 2.1.317 | hook `ask` honoured under bypass and headless deny measured here (C4/U3), the interactive dialog on 2.1.318 (M1); `UserPromptSubmit.source` declared but not emitted on 2.1.318 (M3). Below it: `options` load floor 2.1.271 (C2), `onFailure: "block"` 2.1.295 ([claude] F) |
 | Codex CLI | 0.166.0 | deny-only contract and fail-open paths source-cited at this tag (X1); unknown keys ignored (X4) |
-| Cursor CLI / desktop | 2026.10.22 / 3.27.22 | shell deny/ask consumer source-cited (U1); desktop deny-only, pending S2 |
+| Cursor CLI / desktop | 2026.10.22 / 3.27.22 | shell deny/ask consumer source-cited (U1); desktop deny-only below 3.28.7, the build where a `beforeShellExecution` ask was measured to hold in every run mode (S2, measured 2026-11-04, Cursor 3.28.7) |
 | Gemini CLI | 0.66.0 | G1–G3 measured |
 | OpenCode | 2.2.5 | O1–O3 measured |
 
@@ -452,8 +456,9 @@ is a new, explicit High: unbound until a guard stamp and an AfterTool binding ar
     user-tier policy integrity, workspace `.env` reach. OpenCode: MCP action names, `session.hook("prompt")` under
     `opencode run` and child sessions, evaluate-hook order with a second and a project-local plugin ([SR] S-16).
     **Measured on Claude Code 2.1.318 ([S3]):** the gate passed (U3 steps 3–4 = M1, plugin hook M1b), U2 (M2),
-    `source` under `-p` and stream-json (M3: absent), the Claude MCP matcher (M4) and the agent id (M5). Still open:
-    U1, U4, U6 (self-approval by keystrokes) and the other Claude rows above.
+    `source` under `-p` and stream-json (M3: absent), the Claude MCP matcher (M4) and the agent id (M5). **Measured
+    since ([S3] "Live checks" and "GUI checks", 2026-11-04):** U1, U5, U6, S1, and U4, S2, S3; S4 blocked (no Cursor
+    Teams admin on the account). Still open: the other Claude rows above.
 
 ## Alternatives rejected
 

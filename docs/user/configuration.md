@@ -263,9 +263,10 @@ The writer compares every action's decision before and after the change:
   deny, `trust` — is recorded **pending** with its rows and a nonce, and the writer exits 4
   printing `confirm <nonce>`. `confirm` passes only through a prompt the host itself shows
   you: on Claude Code the permission dialog on that very call, on Gemini CLI the extension's
-  `ask_user` rule. Codex, Cursor, OpenCode and Claude Desktop have no such prompt, so there
-  `confirm` is refused (exit 3) and the message names the command to run **in your own
-  terminal**, outside any agent session:
+  `ask_user` rule. Codex, Cursor and OpenCode have no such prompt, and `confirm` is not wired
+  to Claude Desktop's hook `ask` dialog (measured in U4 after this route was built), so on
+  all four `confirm` is refused (exit 3) and the message names the command to run **in your
+  own terminal**, outside any agent session:
 
   ```bash
   bash <plugin root>/scripts/plugin-config.sh standard
@@ -417,9 +418,9 @@ under it.
 | platform | shell commands | GitHub MCP tools | host prompt for asks and R4 | per-skill levels | `--perms=` | floor |
 |---|---|---|---|---|---|---|
 | Claude Code | ENFORCED: `permission-guard.sh`, fail closed | ENFORCED: the MCP matcher fires for the bundled server's tools (measured), plus server flags | ENFORCED: the hook `ask` dialog, in every permission mode (measured: the reason verbatim, Yes/No, Esc rejects); headless ⇒ deny | lowering ENFORCED; a raise from your locked user file ENFORCED once the host records the skill for that agent | lowering ENFORCED; no raise (the host sends no prompt origin) | 2.1.317 |
-| Claude Desktop | unverified | server flags | unverified | ADVISORY | no raise; lowering unverified | as Claude Code |
+| Claude Desktop | hooks run (measured U4); the guard's own deny not exercised there | server flags | the hook `ask` dialog ("Allow Claude to run this command?", the reason verbatim, Deny / Allow once), under Bypass permissions too (measured U4) | ADVISORY | no raise; lowering unverified | as Claude Code |
 | Codex CLI | ENFORCED, deny only | server flags | none: an R4 call is denied with the command to run | ADVISORY | lowering ENFORCED, session-wide; no raise | 0.166.0 |
-| Cursor | ENFORCED, deny only, `failClosed` | ENFORCED, deny only | none yet: R4 is denied | ADVISORY | no prompt hook: ADVISORY | CLI 2026.10.22 / app 3.27.22 |
+| Cursor | ENFORCED, `failClosed`: deny only on the CLI and below desktop 3.28.7 | ENFORCED, deny only | desktop from 3.28.7: the `beforeShellExecution` approval card for a shell ask, in every run mode (measured S2; in Allowlist mode the card omits the reason); CLI: none, R4 is denied (`--yolo` runs an ask unprompted, S1) | ADVISORY | no prompt hook: ADVISORY | CLI 2026.10.22 / app 3.27.22 |
 | Gemini CLI | ENFORCED, deny only, plus static policy rules | hook plus static rules | ENFORCED: static `ask_user` rules for R4 and `confirm` | not wired yet | lowering by hook, session-wide; raise not wired yet | 0.66.0 |
 | OpenCode | ENFORCED when it is the only plugin (plugin order is unmeasured) | unmeasured | ADVISORY: `opencode --auto` approves an ask, so only R2 asks; R3 and R4 deny | not wired yet | no prompt hook: ADVISORY | 2.2.5 |
 

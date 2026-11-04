@@ -5,14 +5,17 @@
 # WHAT IT PROVES
 #   Every input the adversarial review (F1-F10, plus the low finding L1) and the two
 #   Codex review threads (P1, P2, round 2's P1-a, P1-b, round 3's P1-c, round 4's P1-d, P1-e, round 5's P1-f, P1-g, round 6's P1-h, P1-i) reproduced as a walk-around is
-#   fed to the hook or script that must stop it, and each row names its finding:
+#   fed to the hook or script that must stop it, and each row names its finding; I349-a and I349-b are the
+#   residual edges issue #349 listed (a wget write to another host, gh short-option clusters):
 #     hooks/permission-guard.sh       (PG)  F1 F2 F3 F5 F7 F8 F9 P1 P1-a P1-b P1-c P1-d P1-e P1-f P1-g P1-h P1-i
+#                                           I349-a I349-b
 #     hooks/guard-sensitive-files.sh  (GSF) F4 F6 P2
 #     scripts/plugin-config.sh, scripts/resolve-permission.sh, scripts/github-mcp.sh
 #                                           F1 (the writer), F7, F10, L1
 #   A row passes only on the hardened answer: ask or deny on Claude Code and a deny on
 #   every host that cannot carry an ask (never an allow); for the writer, nothing
-#   written; for the resolver, never the widened verdict. tests/test-permission-guard.sh,
+#   written; for the resolver, never the widened verdict; for a reading no verdict shows
+#   (an L1-only id, the PR a selector names), PG's own --classify answer. tests/test-permission-guard.sh,
 #   tests/hooks/test-protected-path-hardening.sh, tests/test-plugin-config.sh and
 #   tests/test-resolve-permission.sh hold each fix in depth; this file is the one place
 #   that replays the review itself.
@@ -575,6 +578,66 @@ pg P1-i "curl --json '{\"event\":' --json '\"APPROVE\"}' .../pulls/1/reviews (cu
 pg P1-i "curl -d '{\"event\"' -d ':\"APPROVE\"}' .../pulls/1/reviews" "curl -d '{\"event\"' -d ':\"APPROVE\"}' $REV"
 rm -rf "$PH/.config"
 
+# cls <finding> <label> <command> <jq predicate> — PG's own reading of the call (--classify: the real tokeniser and
+# engine, no resolver, nothing written) must satisfy the predicate. For a reading no verdict shows: an L1-only id,
+# the PR a selector names.
+cls() {
+  local out v=no
+  if [ -f "$PG" ]; then
+    out="$(cd "$REPO" && bash "$PG" --classify "$3" "$REPO" 2>/dev/null)"
+    [ "$(printf '%s' "$out" | jq -r "$4" 2>/dev/null)" = true ] && v=yes
+    out="$(printf '%s' "$out" | jq -c '{ids, unclassified, targets: [.resolver_calls[].target], notes}' 2>/dev/null)"
+  else
+    out="missing: $PG"
+  fi
+  row "$1" "$2" "$v" "$out"
+}
+
+# =========================================================================================
+section "Issue #349 a: a wget write to another host is net.post.external, however it is spelled"
+# =========================================================================================
+POSTX='(.ids | index("net.post.external") != null) and (.ids | index("net.get") == null)'
+judge "  (control) wget <url> is net.get" '["net.get"]' "$(bash "$PG" --classify 'wget https://example.com/x' "$REPO" 2>/dev/null | jq -c .ids)"
+judge "  (control) wget -e robots=off <url> is net.get" '["net.get"]' "$(bash "$PG" --classify 'wget -e robots=off https://example.com/x' "$REPO" 2>/dev/null | jq -c .ids)"
+for c in 'wget -e post_data=x https://example.com/x' 'wget -epost_data=x https://example.com/x' \
+         'wget -qe post_data=x https://example.com/x' 'wget --execute=post_data=x https://example.com/x' \
+         'wget -e POST-DATA=x https://example.com/x' 'wget -e method=DELETE https://example.com/x' \
+         'wget -e body_data=x -e method=PUT https://example.com/x' 'wget --post-d=x https://example.com/x' \
+         'wget --meth=PATCH https://example.com/x'; do
+  cls I349-a "$c" "$c" "$POSTX"
+done
+
+# =========================================================================================
+section "Issue #349 b: gh short-option clusters are read as pflag reads them"
+# =========================================================================================
+# gh pr merge has no shorthand for --admin or --auto (gh 2.103.3), so its clusters cannot hide either; what a
+# cluster can hide there is which PR the selector names, which the --auto widening and the --admin checks read.
+cls I349-b "gh pr close 5 -dc bye: -d deletes the branch" 'gh pr close 5 -dc bye' '.ids | index("branch.delete.remote") != null'
+cls I349-b "gh pr close 5 -cd: -c takes 'd', no delete" 'gh pr close 5 -cd' '.ids == ["pr.close"]'
+cls I349-b "gh pr close -dRacme/app 5: -d before -R" 'gh pr close -dRacme/app 5' '.ids | index("branch.delete.remote") != null'
+cls I349-b "gh pr review 5 -ab ok: -a approves" 'gh pr review 5 -ab ok' '.ids == ["pr.review.approve"]'
+cls I349-b "gh pr review 5 -ca: -c -a approves" 'gh pr review 5 -ca' '.ids == ["pr.review.approve"]'
+cls I349-b "gh pr review 5 -ba: -b takes 'a', a comment" 'gh pr review 5 -ba' '.ids == ["pr.comment"]'
+cls I349-b "gh pr review 5 --comment --body '-auto off': the body is a value, a comment" 'gh pr review 5 --comment --body "-auto off"' '.ids == ["pr.comment"]'
+cls I349-b "gh pr review 5 -c -b '-auto off': the -b value is not split" 'gh pr review 5 -c -b "-auto off"' '.ids == ["pr.comment"]'
+cls I349-b "gh pr review 5 -cb '-auto off': a trailing value letter takes the next word" 'gh pr review 5 -cb "-auto off"' '.ids == ["pr.comment"]'
+cls I349-b "gh pr review 5 --body x -a: a later -a still approves" 'gh pr review 5 --body x -a' '.ids == ["pr.review.approve"]'
+cls I349-b "gh pr edit 5 -Bmain: a base change is no pr.create" 'gh pr edit 5 -Bmain' '.unclassified and (.ids | index("pr.create") == null)'
+cls I349-b "gh pr edit 5 -B=main" 'gh pr edit 5 -B=main' '.unclassified and (.ids | index("pr.create") == null)'
+cls I349-b "gh pr merge --auto -dt 5: the subject is 5, the PR is the branch's (no target)" 'gh pr merge --auto -dt 5' '[.resolver_calls[].target] == [null]'
+cls I349-b "  (control) gh pr merge --auto -d 5: PR 5 is the target" 'gh pr merge --auto -d 5' '[.resolver_calls[].target] == ["5"]'
+cls I349-b "gh pr merge --admin -dt 5: the checks read are the branch's PR, not PR 5" 'gh pr merge --admin -dt 5' \
+  '.ids == ["pr.merge.admin"] and (.notes | map(test("PR 5")) | any | not)'
+cls I349-b "gh pr merge -ds 5: pr.merge, PR 5" 'gh pr merge -ds 5' '.ids == ["pr.merge"]'
+cls I349-b "gh pr merge -sd: pr.merge" 'gh pr merge -sd' '.ids == ["pr.merge"]'
+cls I349-b "gh pr merge 5 -ad: pr.merge (no -a shorthand; gh refuses it)" 'gh pr merge 5 -ad' '.ids == ["pr.merge"]'
+cls I349-b "gh workflow run -rmain release.yml: -r takes main" 'gh workflow run -rmain release.yml' '.ids == ["release.create"]'
+user_file "$PH" '{"version": 1, "level": "standard"}'
+judge "  (control) standard: gh pr review 5 -b ok (a comment) is allowed" allow "$(decide "$PG" claude "$(claude_bash 'gh pr review 5 -b ok')")"
+pg I349-b "standard: gh pr review 5 -ab ok (an approval) is held" 'gh pr review 5 -ab ok'
+pg I349-b "standard: gh pr edit 5 -Bmain (a base change, UNCLASSIFIED) is held" 'gh pr edit 5 -Bmain'
+rm -rf "$PH/.config"
+
 # =========================================================================================
 section "Codex P2: a protected path's parent directory is protected too"
 # =========================================================================================
@@ -603,10 +666,10 @@ section "the real config and state dirs were never touched"
 judge "real-home witness unchanged" "$REAL_BEFORE" "$(witness)"
 
 section "rows by finding"
-for id in F1 F2 F3 F4a F4b F4c F4d F5 F6 F7 F8 F9 F10 P1 P1-a P1-b P2 L1; do
+for id in F1 F2 F3 F4a F4b F4c F4d F5 F6 F7 F8 F9 F10 P1 P1-a P1-b P2 L1 I349-a I349-b; do
   p="$(awk -F'\t' -v i="$id" '$1 == i && $2 == "pass"' "$ROWS" | wc -l | tr -d ' ')"
   f="$(awk -F'\t' -v i="$id" '$1 == i && $2 == "fail"' "$ROWS" | wc -l | tr -d ' ')"
-  printf '  %-5s %3s pass %3s fail\n' "$id" "$p" "$f"
+  printf '  %-6s %3s pass %3s fail\n' "$id" "$p" "$f"
 done
 printf '  all   %3s pass %3s fail\n' "$(awk -F'\t' '$2 == "pass"' "$ROWS" | wc -l | tr -d ' ')" "$(awk -F'\t' '$2 == "fail"' "$ROWS" | wc -l | tr -d ' ')"
 

@@ -6,12 +6,12 @@
   <a href="https://github.com/Tamircohen28"><img src="https://img.shields.io/badge/author-Tamir%20Cohen-181717?logo=github" alt="Author" /></a>
   <a href="https://github.com/Tamircohen28/tamirs-superpowers/actions/workflows/ci.yml"><img src="https://github.com/Tamircohen28/tamirs-superpowers/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="MIT License" /></a>
-  <a href="plugin-version.json"><img src="https://img.shields.io/badge/version-5.3.0-blue" alt="Version" /></a>
+  <a href="plugin-version.json"><img src="https://img.shields.io/badge/version-5.3.1-blue" alt="Version" /></a>
 </p>
 
 <p align="center">
   <a href="docs/engineering/build-and-release/platform-targets.json"><img src="https://img.shields.io/badge/Claude%20Code-2.1.318-blueviolet" alt="Claude Code" /></a>
-  <a href="docs/engineering/build-and-release/platform-targets.json"><img src="https://img.shields.io/badge/Cursor-3.27.22-000000" alt="Cursor" /></a>
+  <a href="docs/engineering/build-and-release/platform-targets.json"><img src="https://img.shields.io/badge/Cursor-3.28.7-000000" alt="Cursor" /></a>
   <a href="docs/engineering/build-and-release/platform-targets.json"><img src="https://img.shields.io/badge/Codex-0.166.0-412991" alt="Codex" /></a>
   <a href="docs/engineering/build-and-release/platform-targets.json"><img src="https://img.shields.io/badge/Gemini%20CLI-0.66.0-4285F4" alt="Gemini CLI" /></a>
   <a href="docs/engineering/build-and-release/platform-targets.json"><img src="https://img.shields.io/badge/OpenCode-2.2.5-fab283" alt="OpenCode" /></a>
@@ -71,7 +71,7 @@ Added as a plugin source in Cursor, then installed from it.
 
 | Surface | Registry id | Kind | Status | Install |
 |---|---|---|---|---|
-| Cursor IDE | `cursor` | IDE | ✅ supported — validated 3.27.22 | [guide](docs/user/install/cursor.md) |
+| Cursor IDE | `cursor` | IDE | ✅ supported — validated 3.28.7 | [guide](docs/user/install/cursor.md) |
 | Cursor CLI | `cursor_cli` | CLI | ⚠️ unverified — shares the plugin manifest with the IDE, but no CLI run has been recorded here | — |
 
 ### Gemini

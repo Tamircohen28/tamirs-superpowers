@@ -506,3 +506,198 @@ Question for each: does it let a softer `ask` replace a `deny` anywhere?
    layer for the interactive, non-yolo path, never as the thing that holds. The Cursor desktop cell stays unverified (S2).
    The source-cited claim in `cursor-gemini-opencode.md` U1 and the "L3 host ask" cell should be changed from
    "forces a prompt in every approval mode" to the measured condition.
+
+## GUI checks (issue #351) — 2026-11-04
+
+The four ADR 004 item 13 checks that need a desktop app: U4 (Claude Desktop's Code tab), S2 (Cursor desktop run modes),
+S3 (what Cursor's `beforeSubmitPrompt` receives for `/pr-dev 42 --perms=standard`) and S4 (Cursor plugin variables).
+**U4, S2 and S3 are measured** (U4 on a rerun with the screen unlocked); **S4 stays blocked.** `$G` below is the run's scratch directory, outside the repository,
+where every capture, hook and payload was kept. The repo was not edited during the run. No login or OAuth flow was
+started and no credentials were typed. Every probe command was `echo <PROBE-ID>`; exactly one approval was given, to
+`echo S2-PROBE-autoreview`. Every other prompt was skipped, and the controls and the `preToolUse` echo ran with no prompt.
+
+**Session condition.** The Mac's screen was **locked** for the first run (`ioreg` reported `IOConsoleLocked = true` at
+15:13 and again at 15:37). Pixel input was refused (`loginwindow window … is in front`), and the AX trees of both
+Electron apps exposed no web content. Cursor was not running beforehand, so it was launched with
+`--remote-debugging-port` and its real workbench was driven through CDP (DOM mouse and key events,
+`Page.captureScreenshot`), which needs no unlock. Claude Desktop was already running with live sessions, so it was not
+restarted; U4 was run again at 17:11–17:34 with the screen unlocked.
+
+### Verdict table
+
+| id | verdict | answer | app version |
+|---|---|---|---|
+| U4 | **measured** (rerun 17:11–17:34, screen unlocked; the 15:13 attempt was blocked by the locked screen) | **No userConfig dialog:** "Add to this computer" installs a plugin at once ("Pt2 is installed and ready to use."), with no picker and no default shown, and its menu offers only Remove; the plugin's `SessionStart` hook env carried **no `CLAUDE_PLUGIN_OPTION_PRESET`**. **A `PreToolUse` hook `ask` raises Desktop's dialog:** "Allow Claude to run this command?", the reason `U4 probe: hook ask` verbatim, Deny / Allow once, under **Bypass permissions**; Deny stopped the command. | Claude Desktop 4.16336.0 (embedded Claude Code 2.1.317) |
+| S2 | **measured** | `beforeShellExecution` returning `{"permission":"ask"}` **forces an approval card in all three run modes, Run Everything (Unsandboxed) included.** Auto-Review: card with `Hook requested approval: S2 probe: hook ask`; Run ran it. Allowlist: a card (generic text, no hook reason) even for an **allowlisted** `echo`, whose no-decision control ran unprompted; Skip rejected it. Run Everything: card with the hook's reason; Skip rejected it; the no-decision control ran unprompted. `preToolUse` (matcher `Shell`) returning `ask`: **not enforced**, the command ran unprompted under Run Everything. | Cursor desktop **3.27.22 → 3.28.7** (Cursor's own updater) |
+| S3 | **measured** | `beforeSubmitPrompt` receives the **literal typed text** `"prompt":"/pr-dev 42 --perms=standard"` with `"attachments":[]`: no skill or command field, no expansion. Picking `/pr-dev` from the skill picker (a `cursor_skill` mention chip) gives the same payload. The hook blocked the prompt (`continue:false`), so the model never ran. | Cursor desktop 3.28.7 |
+| S4 | **blocked: no Cursor Teams admin on this account** | cursor.com/dashboard (already signed in, Pro+ individual) has a *Personal*-only Plugins & MCPs page. The plugin row offers `View details` and `Remove`; the details dialog lists MCPs, Skills, Subagents, Hooks, Rules and Commands, with `Remove from Personal` as its only action: no Configure, no variables, although the plugin declares `variables.GITHUB_TOKEN`. Members shows "Upgrade to Teams". | cursor.com dashboard, 2026-11-04 |
+
+### U4 evidence — Claude Desktop (measured on a rerun with the screen unlocked)
+
+**First attempt (15:13, blocked).** The screen was locked: Claude Desktop's web UI could not be seen or targeted, a
+background pixel click on `Customize` was refused (`loginwindow window … is in front`), the AX tree held 5,919
+elements that were all menus, and an AX `View > Hide Sidebar` press took effect (the label flipped) while the capture
+stayed frozen. Blind driving of the live app was ruled out; the sidebar press was undone and nothing was installed.
+
+**Rerun (17:11–17:34, `IOConsoleLocked = false`).** Claude Desktop 4.16336.0, embedded Claude Code 2.1.317; the app
+was not restarted (one main process throughout). Baseline hashes of the user's config files were taken before the
+first click.
+
+1. **Add the scratch marketplace by path.** Customize → Plugins → `Add ▾` → Add marketplace, the scratch
+   marketplace's directory typed into the URL field, Sync. `main.log`: `Adding marketplace: …/t002/mkt`, then
+   `Marketplace added: t002-mkt`. `~/.claude/settings.json` gained `extraKnownMarketplaces."t002-mkt"`
+   (`source: directory`) and `known_marketplaces.json` gained `t002-mkt`.
+2. **Install `pt2` (one `preset` userConfig field, `default: "supervised"`): no dialog.** `Pt2 / defaulted only` →
+   **Add to this computer**; the row turned to `✓ Added` and a toast read "Pt2 is installed and ready to use."
+   **No dialog of any kind appeared**: no scope picker, no `Configure pt2`, no field, no default shown. `main.log`:
+   `installPlugin: skipping remote API path … (reason=local-sourced)`, `attempting CLI install … (scope=default)`,
+   `Plugin installed: pt2@t002-mkt`. `settings.json` gained only `enabledPlugins."pt2@t002-mkt": true`, no
+   `pluginConfigs`. The plugin row's `⋯` menu offers only **Remove**: there is no Configure entry in the Desktop UI.
+3. **What reaches the plugin's hooks.** `pt2`'s own `SessionStart` hook (it writes `env | grep -i CLAUDE_PLUGIN` to
+   its data directory) ran when the scratch session started. The captured env held only `CLAUDE_PLUGIN_ROOT` and
+   `CLAUDE_PLUGIN_DATA`: **no `CLAUDE_PLUGIN_OPTION_PRESET`**. With nothing stored, the declared default is not
+   exported to a hook. The CLI was not compared in this run.
+4. **A Code-tab session in the scratch project.** New → This computer → the scratch project `$G/u4proj` (opened
+   through a temporary symlink under `~`, removed afterwards). The app resolved the real path and asked "Trust this
+   workspace? … Execution allowed by: `.claude/settings.json`"; Trust workspace. Permission mode: **Bypass
+   permissions**, this account's Desktop default for local sessions (not chosen by the run).
+5. **`echo U4-PROBE`: the dialog appears; declined.** The project `PreToolUse` `Bash` hook fired (`fired.log`:
+   `2026-11-04T17:26:17 ask emitted`; stdin `tool_name: Bash`, **`permission_mode: "bypassPermissions"`**,
+   `tool_input.command: "echo U4-PROBE ."`, the trailing ` .` from the prompt's punctuation). The screen showed a card
+   **"Allow Claude to run this command?"** with the tool's description, **`U4 probe: hook ask`** (the hook's
+   `permissionDecisionReason`, verbatim), `$ echo U4-PROBE .` and the buttons **Deny** and **Allow once ⌘↩**.
+   **Deny** turned the tool row to `Stopped`; the command never ran.
+6. **Cleanup.** The marketplace was removed through Manage marketplaces ("This will also uninstall 1 plugin from this
+   marketplace: • Pt2"; `main.log`: `Removed 1 plugin(s) …`, `Removed "t002-mkt" from known_marketplaces.json`).
+   The scratch session was archived, not deleted. The worktree Desktop had created under `~/.claude/worktrees/u4proj/`
+   (clean) was removed with `git worktree remove` and `git branch -d`. The plugin's data directory and its orphaned
+   cache copy were removed. The landing bar's Worktree box and environment were set back to their starting values.
+   Desktop's add/remove had rewritten `~/.claude/settings.json` (trailing newline dropped) and
+   `known_marketplaces.json` (two other marketplaces' `lastUpdated` stamps) without changing their meaning; the exact
+   original bytes were put back.
+
+Restore proof (rerun baseline 17:11 → final 17:34): `~/.claude/settings.json`, `~/.claude/settings.local.json`,
+`~/.claude/plugins/known_marketplaces.json` and `~/.claude/plugins/installed_plugins.json` are byte-identical.
+Deliberately not reverted: `claude_desktop_config.json`'s last-viewed session pointer (now the archived scratch session;
+setting it back would mean opening the user's own session) and a capability cache key the app added; app-cache
+timestamps in `config.json`; `~/.claude.json`'s trust entry for the scratch project; the scratch session's transcript;
+a stale `u4proj` record in `git-worktrees.json`.
+
+App stability, observed and not caused by the run: Desktop's main webview renderer crashed (`render process gone …
+exitCode: 5`) once before the run and eight times during it; twice it showed "Claude keeps crashing", and each time
+the in-page Reload was used, never Restart Claude. The main process never changed and the existing sessions stayed
+listed.
+
+### S2 evidence — Cursor desktop run modes
+
+**Update.** `Info.plist` read `3.27.22` before; the workbench showed `New update available · Later · Install Now` and
+Install Now was clicked; ShipIt logged `Installation completed successfully` and relaunched the app. After: `3.28.7`,
+commit `25b52e7d03ebf2d5608914158e119f7992432a30`, user agent `Cursor/3.28.7`. The command palette has no "Check for
+Updates" entry; the notification is Cursor's own ToDesktop/Squirrel updater.
+
+**Setup.** Scratch repo `$G/cur-s2` with `.cursor/hooks.json` → `beforeShellExecution: .cursor/ask.sh`, which logs stdin
+and returns `{"permission":"ask","user_message":"S2 probe: hook ask"}` for `echo S2-PROBE*`, `{}` (no decision) for the
+control `echo S2-PROBE-noask*`, and `deny` for anything else (a safety net that never fired). The user-level
+`~/.cursor/hooks.json` (cmux hooks, no-ops outside cmux) and the installed tamirs-superpowers 5.1.2 Cursor hooks were also
+active; neither changed an outcome. Run modes on offer in 3.28.7: `Allowlist`, `Allowlist (with Sandbox)`,
+`Auto-Review (with Sandbox)`, `Run Everything (Unsandboxed)`; the user's mode was Run Everything. Each run was a new
+Agent chat asked to run exactly one `echo S2-PROBE-<mode>` and to report a block or rejection and stop.
+
+| run | mode | hook decision | screen | action | result |
+|---|---|---|---|---|---|
+| 1 | Auto-Review (with Sandbox) | ask | `Pending approval` card, `Skip / Run`, footer **`Hook requested approval: S2 probe: hook ask`** | Run | ran, printed `S2-PROBE-autoreview` |
+| 2 | Allowlist (`echo` not allowlisted) | ask | `Pending approval` card, **no hook reason** (`Agent needs your approval to run: echo S2-PROBE-allowlist`) | Skip | `Skipped echo`; agent: "The command was rejected" |
+| 3 | Allowlist, `echo` **temporarily allowlisted** | ask | `Pending approval` card, generic text | Skip | rejected |
+| 4 | Allowlist, `echo` allowlisted (control) | `{}` | no card | — | ran unprompted, exit code 0 |
+| 5 | Run Everything (Unsandboxed) | ask | `Pending approval` card, **`Hook requested approval: S2 probe: hook ask`** | Skip | rejected |
+| 6 | Run Everything (control) | `{}` | no card | — | ran unprompted |
+| 7 | Run Everything, the hook moved to `preToolUse` matcher `Shell` returning `{"permission":"ask"}` | ask (fired) | **no card** | — | ran unprompted, printed `S2-PROBE-pretooluse-runeverything` |
+
+Runs 3 and 4 differ only in the hook's answer: in Allowlist mode a hook `ask` **overrides an allowlist entry**. Runs 5
+and 6: in Run Everything a hook `ask` **is not bypassed**, the opposite of the CLI under `--yolo` (S1). In Allowlist mode
+the card omits the hook's `user_message`.
+
+Payload facts: the `beforeShellExecution` stdin carries `cursor_version: "3.28.7"`, where the S1 CLI captures carry
+`"2026.10.22-27dcf5f"`, so a hook can tell desktop from CLI. `sandbox: true` appears only under Auto-Review; no field
+names the run mode.
+
+Restore: `echo` was removed from the Command Allowlist (back to `cd, git push, cat, git add, git commit`); the run mode
+was left on Run Everything, the original; Cursor was quit (it was not running before). In `state.vscdb` five leaves of
+the reactive-storage blob changed: four app caches (`SPECIAL_KEY_id`, two `modelLastUsedAt` stamps,
+`cliDetectionStatus.checkedAt`) were left alone, and `composerState.doNotShowYoloModeWarningAgain`, flipped false → true
+by the mode switch, was set back to `false` with a single-row UPDATE while Cursor was closed (`pragma quick_check`:
+`ok`). The seven Agent chats exist only in the scratch workspace.
+
+### S3 evidence — `/pr-dev` text on Cursor desktop
+
+Same scratch repo, `beforeSubmitPrompt: .cursor/prompt.sh`, which appends stdin to a log and returns
+`{"continue":false,"user_message":"S3 probe: prompt captured and blocked by beforeSubmitPrompt"}` when the text contains
+`perms=`, else `{"continue":true}`.
+
+1. **Plain text**, `/pr-dev 42 --perms=standard` then Enter:
+
+   ```json
+   {"composer_mode":"agent","prompt":"/pr-dev 42 --perms=standard","attachments":[],"hook_event_name":"beforeSubmitPrompt","cursor_version":"3.28.7", …}
+   ```
+
+   The chat showed the hook's message and stopped.
+2. **Picker**: typing `/pr-dev` opened the skill picker, whose top entry was `/pr-dev` "Skill · PR Dev" from the installed
+   plugin; Enter made it a mention chip (`data-mention-name="pr-dev" data-typeahead-type="cursor_skill"`), then
+   `42 --perms=standard` and Enter. The hook stdin was **identical**, and the prompt was blocked.
+
+No `command_name`/`command_args` split, no `$ARGUMENTS` substitution and no skill body reaches the hook: the skill
+reference survives only as the leading `/pr-dev` token. What the *model* receives after the hook was not observed (the
+prompt was blocked by design: the installed `pr-dev` would otherwise have started work on PR 42). Cursor titled both
+chats from the text even though the prompt was blocked.
+
+### S4 evidence — Cursor plugin variables (blocked)
+
+Checked in Chrome on the already signed-in account; no login was started. `cursor.com/dashboard`: Pro+ plan,
+individual. `Plugins & MCPs` has a single **Personal** scope tab listing the plugin as Plugin / Optional; the row menu
+offers `View details` and `Remove`; the details dialog has only `Remove from Personal`, plus section links MCPs
+(`github`), Skills, Subagents, Hooks (`preToolUse`, `beforeShellExecution`, `postToolUse`), Rules and Commands: no
+Configure entry, no variables field. `Members` → "Upgrade to Teams … Admin Controls". Nothing was set, so nothing needed
+reverting.
+
+### Restore proof
+
+SHA-256 of the user's config files was taken before any change and after the run; exactly one line differs.
+
+| file | result |
+|---|---|
+| `~/.claude/settings.json`, `~/.claude/settings.local.json` | identical |
+| `~/.cursor/cli-config.json`, `~/.cursor/hooks.json` | identical |
+| `~/Library/Application Support/Claude/claude_desktop_config.json`, `…/Claude/config.json` | identical |
+| `~/Library/Application Support/Cursor/User/settings.json` | identical |
+| `~/.claude/plugins/known_marketplaces.json`, `~/.claude/plugins/installed_plugins.json` | identical (no marketplace added, plugin list unchanged) |
+| `~/.claude.json` | changed: Claude Code's own cache/state file, rewritten by the running sessions; this run never wrote it |
+
+Cursor's `state.vscdb` holds app caches, so only this run's own change in it was reverted (S2 restore). The Cursor app
+is now 3.28.7: the update was part of the run.
+
+## Impact on ADR 004 D8 (GUI checks)
+
+1. **U4 (Claude Desktop row): L3 unverified → E (measured).** A `PreToolUse` hook `ask` raises Desktop's own approval
+   card with the reason verbatim and Deny / Allow once, under Bypass permissions too (as M1 on the CLI), and Deny
+   blocks: "ask is delivered as" becomes "as CLI: hook `ask`", and the call stamp stays as defence in depth. This was a
+   project-settings hook; a plugin's own hooks were shown to run (`pt2`'s `SessionStart`), but a plugin-shipped
+   `PreToolUse` `ask` was not run separately, and `deny` was not exercised. **Level storage on Desktop:** Desktop
+   offers no way to set a `userConfig` value (no install dialog, no Configure entry), and with nothing stored the hook
+   env carries no `CLAUDE_PLUGIN_OPTION_*`, so the level comes only from its absence: `supervised`, which is what the
+   resolver already answers (D7 "no config"). Raising it means the CLI's `/plugin configure` (the shared
+   `~/.claude/settings.json` `pluginConfigs`; whether the embedded 2.1.317 reads it was not tested) or the neutral user
+   policy file.
+2. **S2 (Cursor desktop row): unverified → measured on 3.28.7.** L2: `beforeShellExecution` decisions are honoured in
+   every mode (`deny` itself was not re-run on desktop; the deny-guard branch never fired). L3: `beforeShellExecution`
+   `ask` is a real forced prompt in Auto-Review, Allowlist (over an allowlist entry) and Run Everything, which
+   contradicts the forum note "ignored under Auto-review" on 3.28.7. `preToolUse` `ask` is unenforced, so `preToolUse`
+   stays deny-only. A hook tells desktop (`cursor_version` `3.28.7`) from the CLI (`2026.10.22-…`, where `--yolo` drops
+   the ask, S1), so the ask is delivered as `ask` on desktop from 3.28.7 and the CLI stays deny. Caveat: in Allowlist
+   mode the card does not show the hook's `user_message`, so the D5 reason text is not guaranteed on screen. This run is
+   the live run that moves `targets.cursor.validated_against` and `.cursor-version` to 3.28.7.
+3. **S3 (per-skill levels on Cursor): no change.** The arguments arrive only as raw prompt text with no structured skill
+   or argument field, and the picker's chip is flattened to the same text. A `beforeSubmitPrompt` hook can parse
+   `--perms=` from `prompt` but cannot prove which skill ran, so the D8 "per-skill levels at L2" column for Cursor stays
+   **A**, and a `--perms=` raise stays prompt text needing confirmation.
+4. **S4 (plugin variables → hook env): no change.** This account offers no channel to set a plugin variable, so the
+   neutral user-level policy file stays the only shared store (spike decision 5). Rerun on a Teams admin account.
