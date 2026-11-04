@@ -32,8 +32,9 @@
 #                says so and names /plugin-config (the fail-closed rule of D5; a
 #                lowering still applies).
 #                PreToolUse on the Skill tool (tool_input.skill, the host's own record
-#                of a skill it is about to run; that this matcher fires is not one
-#                of the item-13 measurements): the host records that skill as active
+#                of a skill it is about to run; measured M6 on 2.1.318: the matcher
+#                fires for a model Skill call with tool_input {skill: "<plugin>:<name>",
+#                args?: string}): the host records that skill as active
 #                for the calling agent, so its context is written host_recorded at
 #                once. Its arguments are never read for --perms= (model text, D5
 #                "never from content"). Never answers anything: no output, exit 0.

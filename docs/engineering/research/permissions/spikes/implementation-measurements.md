@@ -21,6 +21,7 @@ identical before and after the run. Each `claude` ran under `env -i` (only `HOME
 | M3 | `UserPromptSubmit.source` under `claude -p` (and the SDK's stream-json input) | **measured** | **Absent** in both. With M2: on 2.1.318 the field is in the schema but emitted on none of interactive, `-p`, stream-json. |
 | M4 | Does PreToolUse matcher `mcp__plugin_tamirs-superpowers_github__.*` fire for that server's tools? | **measured** | Yes: it fired for `mcp__plugin_tamirs-superpowers_github__get_me`; a control matcher `…__nomatch_.*` did not. The exit-2 hook blocked the call before execution (`permission_denials` lists it); GitHub was never called. |
 | M5 | Is an agent id present in subagent hook input? (item 13, SR S-11) | **measured** | Yes: a subagent's Bash PreToolUse carries `agent_id` (16 hex) and `agent_type: "general-purpose"` with the parent's `session_id`; main-thread calls carry neither key. |
+| M6 | Does a PreToolUse matcher `Skill` fire for a model's Skill call, and what is `tool_input`? (task-010) | **measured** (`-p`) | Yes. `tool_input` is `{"skill": "<plugin>:<skill>"}`, plus `"args": "<string>"` when the call passes arguments; the exit-2 hook blocked the call (`permission_denials` lists it). See M6 below. |
 | U1, U4 | `/plugin install` dialog; Desktop Code tab | blocked | Need a human at the install dialog / the Desktop app. Unchanged user steps U1, U4 in `claude-codex.md`. |
 | U6 | Can a same-session background job answer the agent's own R4 dialog by keystrokes? | blocked (by rule) | Measuring it means letting a dialog be approved; not run. User step U6 below. The harness of M1 is itself that shape (see Impact 4). |
 
@@ -227,3 +228,34 @@ gaps in Impact 4 unfixed, try `tmux -L x send-keys` and `cmux send-key` too.
 
 Item 13's remaining Claude rows were not reached here: project `env` reaching hooks or overriding
 `CLAUDE_PLUGIN_OPTION_*`, `disableAllHooks` against plugin hooks, and `pluginConfigs` in project settings.
+
+## M6 — the `Skill` matcher (task-010)
+
+Same host (Claude Code 2.1.318), same `env -i` and `--settings` discipline as M1–M5, run from an empty scratch
+directory on 2026-11-04; `~/.claude/settings.json` mtime identical before and after. `$S/s-m6.json` registers
+PreToolUse `Skill` → `cap-hook.sh $S/m6/skill` (saves stdin, exits 2) and `*` → the same capture into `$S/m6/any`,
+also exiting 2, so no tool could run whatever the matcher did.
+
+```text
+cd $W && env -i … claude -p --settings $S/s-m6.json --model haiku --max-turns 2 --output-format json \
+  "Use the Skill tool to invoke the skill tamirs-superpowers:decision"
+# and again with "… with the args string: issue 42"
+```
+
+Both runs: `subtype: success`, `num_turns: 2`, one `permission_denials` entry with `tool_name: "Skill"`; the skill
+never ran. The `Skill` capture holds one payload per run (the `*` capture saw the same single call):
+
+```json
+{"session_id": "…", "transcript_path": "…", "cwd": "$W", "prompt_id": "7fa1bfc6-…", "permission_mode": "bypassPermissions",
+ "effort": {"level": "medium"}, "hook_event_name": "PreToolUse", "tool_name": "Skill",
+ "tool_input": {"skill": "tamirs-superpowers:decision", "args": "issue 42"}, "tool_use_id": "toolu_…"}
+```
+
+`args` is absent when the call passes none. A main-thread call carries no `agent_id` (as in M5). The payload also
+carries the turn's `prompt_id`.
+
+**Impact.** `hooks/hooks.json` wires `permission-intent.sh` on exactly this matcher string, and the hook's
+PreToolUse branch reads `tool_input.skill` (stripping the `tamirs-superpowers:` prefix in `skill_of`) and never
+reads `args` for `--perms=`, which is the shape measured here, so no parser change is needed. The fixtures in
+`tests/test-permission-guard.sh` and `tests/test-plugin-config.sh` (`tool_input: {skill, args}`) match it. The D8
+"PreToolUse on the `Skill` tool" route for a host-recorded skill is therefore measured, not only wired.
