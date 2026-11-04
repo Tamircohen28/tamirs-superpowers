@@ -897,7 +897,21 @@ def rest_ids(method, path, kv, defaults):
     return got
 
 
+GQL_BLOCK_STRING = re.compile(r'"""(?:\\"""|[^"]|"(?!""))*"""', re.S)
+GQL_STRING = re.compile(r'"(?:\\.|[^"\\\n])*"')
+GQL_COMMENT = re.compile(r"#[^\n\r]*")
+
+
+def gql_strip(doc):
+    """The document with string values and comments blanked, so a delimiter inside one cannot hide a field from
+    the scanner (Codex P1, round 6). Block strings first, then strings, then # comments."""
+    doc = GQL_BLOCK_STRING.sub('""', doc)
+    doc = GQL_STRING.sub('""', doc)
+    return GQL_COMMENT.sub(" ", doc)
+
+
 def mutation_names(doc):
+    doc = gql_strip(doc)
     names = []
     for m in re.finditer(r"\bmutation\b[^{]*\{", doc):
         depth, paren, k = 1, 0, m.end()
@@ -1160,11 +1174,31 @@ def http_call(p):
         m = HTTPIE_ITEM.match(d) if prog in HTTPIE else None
         if m and m.group(2) in ("=", ":="):
             kv.append("%s=%s" % (m.group(1), d[m.end():]))
-    for d in data:
-        try:
-            body = json.loads(d)
-        except ValueError:
-            continue
+    if prog not in HTTPIE:
+        # curl concatenates --json pieces (and joins -d pieces) before sending, so a field can be split across
+        # pieces (Codex P1, round 6): decode each piece and the concatenation; a body PG cannot decode as JSON is
+        # unknown, not "no fields" -- GitHub's REST API takes JSON bodies only.
+        pieces = [d for d in data if not d.startswith("@")]
+        bodies, undecoded = [], False
+        for cand in pieces + ([("".join(pieces))] if len(pieces) > 1 else []):
+            try:
+                bodies.append(json.loads(cand))
+            except ValueError:
+                undecoded = undecoded or cand in pieces
+        if undecoded and not any(isinstance(b, dict) for b in bodies[len(pieces) - 1:] if bodies) \
+                and len(pieces) > 0:
+            try:
+                json.loads("".join(pieces))
+            except ValueError:
+                call["unread"] = True
+    else:
+        bodies = []
+        for d in data:
+            try:
+                bodies.append(json.loads(d))
+            except ValueError:
+                pass
+    for body in bodies:
         if isinstance(body, dict):
             kv += ["%s=%s" % (k2, v if isinstance(v, str) else json.dumps(v)) for k2, v in body.items()]
     return sorted(methods), [norm_path(u) for u in urls], kv, data, call["unread"]

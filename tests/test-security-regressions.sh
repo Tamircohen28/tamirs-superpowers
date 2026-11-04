@@ -4,9 +4,9 @@
 #
 # WHAT IT PROVES
 #   Every input the adversarial review (F1-F10, plus the low finding L1) and the two
-#   Codex review threads (P1, P2, round 2's P1-a, P1-b, round 3's P1-c, round 4's P1-d, P1-e, round 5's P1-f, P1-g) reproduced as a walk-around is
+#   Codex review threads (P1, P2, round 2's P1-a, P1-b, round 3's P1-c, round 4's P1-d, P1-e, round 5's P1-f, P1-g, round 6's P1-h, P1-i) reproduced as a walk-around is
 #   fed to the hook or script that must stop it, and each row names its finding:
-#     hooks/permission-guard.sh       (PG)  F1 F2 F3 F5 F7 F8 F9 P1 P1-a P1-b P1-c P1-d P1-e P1-f P1-g
+#     hooks/permission-guard.sh       (PG)  F1 F2 F3 F5 F7 F8 F9 P1 P1-a P1-b P1-c P1-d P1-e P1-f P1-g P1-h P1-i
 #     hooks/guard-sensitive-files.sh  (GSF) F4 F6 P2
 #     scripts/plugin-config.sh, scripts/resolve-permission.sh, scripts/github-mcp.sh
 #                                           F1 (the writer), F7, F10, L1
@@ -561,6 +561,18 @@ EXPJ='{"query":"{{m}}{deleteRepository(input:{repositoryId:\"R\"}){clientMutatio
 pg P1-g "curl --variable m=mutation --expand-json '{query: {{m}}{deleteRepository}}' .../graphql" "curl --variable m=mutation --expand-json '$EXPJ' https://api.github.com/graphql"
 pg P1-g "curl --variable m=mutation --expand-data '{query: {{m}}{...}}' .../graphql" "curl --variable m=mutation --expand-data '$EXPJ' https://api.github.com/graphql"
 pg P1-g "curl --variable e=APPROVE --expand-json '{event: {{e}}}' .../pulls/1/reviews" "curl --variable e=APPROVE --expand-json '{\"event\":\"{{e}}\"}' $REV"
+rm -rf "$PH/.config"
+
+# =========================================================================================
+section "Codex round 6 P1-h/P1-i: GraphQL strings/comments and split curl JSON cannot hide a field"
+# =========================================================================================
+user_file "$PH" '{"version": 1, "level": "standard"}'
+QS='mutation { addComment(input:{subjectId:"I",body:"("}) { clientMutationId } addPullRequestReview(input:{pullRequestId:"P",event:APPROVE}) { clientMutationId } }'
+pg P1-h "gh api graphql: '(' inside an addComment body hides addPullRequestReview APPROVE" "gh api graphql -f query='$QS'"
+QB='mutation { addComment(input:{subjectId:"I",body:"""a ( b"""}) { clientMutationId } addPullRequestReview(input:{pullRequestId:"P",event:APPROVE}) { clientMutationId } }'
+pg P1-h "gh api graphql: '(' inside a block string" "gh api graphql -f query='$QB'"
+pg P1-i "curl --json '{\"event\":' --json '\"APPROVE\"}' .../pulls/1/reviews (curl concatenates)" "curl --json '{\"event\":' --json '\"APPROVE\"}' $REV"
+pg P1-i "curl -d '{\"event\"' -d ':\"APPROVE\"}' .../pulls/1/reviews" "curl -d '{\"event\"' -d ':\"APPROVE\"}' $REV"
 rm -rf "$PH/.config"
 
 # =========================================================================================
