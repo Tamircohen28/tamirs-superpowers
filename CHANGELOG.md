@@ -5,6 +5,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Added
+
+- **`make test-hooks` fails when a suite writes to the real home.** `scripts/real-home-witness.sh`
+  fingerprints `~/.config/tamirs-superpowers` and `~/.local/state/tamirs-superpowers` (home from the
+  passwd entry, not `$HOME`, because a leak is precisely a write past a fake `HOME`) before and after
+  every suite; a change fails the run naming the suite. Two suites leaked there in the 5.2.0 run and
+  nothing noticed until a human looked. A missing directory fingerprints as `absent`, so CI compares equal.
+
 ## [5.3.1] — 2026-11-04
 
 ### Security
