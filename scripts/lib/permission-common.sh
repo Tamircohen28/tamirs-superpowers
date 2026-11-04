@@ -95,8 +95,9 @@
 #        and their /private forms) -- fixed paths, not TMPDIR;
 #     3. it is outside every git work tree;
 #     4. a process ANCESTOR of the engine is a shell RUNNING one of the suites
-#        that need it, by exact basename -- the resolver, guard, setup-level and
-#        merge-policy suites under tests/ (TEST_SCRIPTS below) -- as its script:
+#        that need it, by exact basename -- the resolver, guard, setup-level,
+#        merge-policy, plugin-config and hook-conformance suites under tests/
+#        (TEST_SCRIPTS below) -- as its script:
 #        the file is the shell's first operand, or the process itself (read with
 #        /bin/ps, never through PATH). A name anywhere else in an ancestor's
 #        arguments does not count: `claude -p "run <suite>"` is no test run, and
@@ -143,7 +144,7 @@ TEST_ENV = "TAMIRS_PERMISSION_TEST_ROOT"
 # Spelled in parts so that no ancestor's argument list (an engine passed with -c) ever holds a whole name.
 TEST_SCRIPTS = tuple("test-" + n for n in ("resolve-permission.sh", "permission-guard.sh",
                                              "setup-permission-level.sh", "merge-policy.sh",
-                                             "plugin-config.sh"))
+                                             "plugin-config.sh", "hook-conformance.sh"))
 SHELLS = ("bash", "sh", "zsh", "dash", "ksh")
 TEMP_ROOTS = ("/tmp", "/private/tmp", "/var/tmp", "/private/var/tmp", "/var/folders", "/private/var/folders")
 ENV_LEVELS = ("TS_PERMISSION_LEVEL", "CLAUDE_PLUGIN_OPTION_PERMISSION_LEVEL")
