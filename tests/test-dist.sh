@@ -99,8 +99,12 @@ p="mcp.json"; d=json.load(open(p)); d["mcpServers"]["github"]["type"]="http"; js
 PY'
 probe agent-plugins "hooks shipped in the portable package" "hooks is shipped" \
   'mkdir -p hooks && printf "{}\n" > hooks/hooks.json'
-probe opencode "a shell hook shipped to OpenCode" "hooks/ is shipped" \
+probe opencode "a shell hook shipped to OpenCode" "unexpected shell hook shipped to OpenCode" \
   'mkdir -p hooks && printf "#!/usr/bin/env bash\n" > hooks/x.sh'
+probe opencode "a hook manifest shipped to OpenCode" "hooks/hooks.json is shipped" \
+  'mkdir -p hooks && printf "{}\n" > hooks/hooks.json'
+probe opencode "the permission guard guard.ts runs missing" "hooks/permission-guard.sh missing" \
+  'rm hooks/permission-guard.sh'
 probe gemini "the generated Gemini hooks file missing (Gemini reads only hooks/hooks.json)" "hooks/hooks.json missing" \
   'rm hooks/hooks.json'
 probe gemini "the Claude hooks file shipped to Gemini (its modules key, CLAUDE_PLUGIN_ROOT and event names)" "breaks a Gemini rule" \

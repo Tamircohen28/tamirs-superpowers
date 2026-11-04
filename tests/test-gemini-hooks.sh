@@ -162,7 +162,10 @@ judge "every timeout is a whole number of seconds expressed in milliseconds" "" 
 judge "every hook has a name" 0 "$(jq '[.hooks[][].hooks[] | select(.name == null or .name == "")] | length' "$HOOKS")"
 judge "hook names are unique" "" "$(jq -r '.hooks[][].hooks[].name' "$HOOKS" | sort | uniq -d)"
 judge "every hook is type command" 0 "$(jq '[.hooks[][].hooks[] | select(.type != "command")] | length' "$HOOKS")"
-n_canon="$(jq '[.hooks | to_entries[] | select(.key | IN("WorktreeCreate","WorktreeRemove","DirectoryAdded","StopFailure","SubagentStop","TaskCompleted","TeammateIdle") | not) | .value[].hooks[]] | length' "$ROOT/hooks/hooks.json")"
+# MCP-name matcher groups (mcp__...) are skipped by build-gemini-hooks.sh on purpose:
+# Gemini names MCP tools mcp_<server>_<tool>, so a carried-over matcher would match
+# nothing and the guard would allow every call (ADR 004 D8).
+n_canon="$(jq '[.hooks | to_entries[] | select(.key | IN("WorktreeCreate","WorktreeRemove","DirectoryAdded","StopFailure","SubagentStop","TaskCompleted","TeammateIdle") | not) | .value[] | select((.matcher // "") | startswith("mcp__") | not) | .hooks[]] | length' "$ROOT/hooks/hooks.json")"
 n_gem="$(jq '[.hooks[][].hooks[]] | length' "$HOOKS")"
 judge "every canonical hook outside the dropped events is carried over ($n_canon)" "$n_canon" "$n_gem"
 
