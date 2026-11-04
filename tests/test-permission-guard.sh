@@ -946,8 +946,38 @@ judge "  ... and the context it leaves is user_typed" "pr-dev true" "$(jq -r '"\
 expect "before the confirm the R2 call still asks" claude "$(claude_bash 'gh pr comment 42 --body hi')" ask "pr.comment"
 expect "PG puts the confirm to the user, naming the request" claude "$(claude_bash "bash scripts/plugin-config.sh confirm $NONCE")" ask "skill pr-dev"
 TAMIRS_PERMISSION_TEST_SESSION=claude bash "$ROOT/scripts/plugin-config.sh" confirm "$NONCE" >/dev/null 2>&1; rc=$?
+active_tickets() { # active_tickets -> how many tickets/*.json carry state active
+  local n=0 f
+  for f in "$STATE"/tickets/*.json; do
+    [ -f "$f" ] && [ "$(jq -r '.state // "none"' "$f" 2>/dev/null)" = active ] && n=$((n + 1))
+  done
+  echo "$n"
+}
+# post_bash <command> [tool_use_id] [session] — the Claude Code PostToolUse of an approved Bash call
+post_bash() { jq -nc --arg c "$1" --arg t "${2:-call-1}" --arg s "${3:-pg-1}" --arg d "$REPO" \
+  '{session_id:$s,transcript_path:"/t",cwd:$d,hook_event_name:"PostToolUse",tool_name:"Bash",tool_use_id:$t,tool_input:{command:$c,description:"probe"},tool_response:{stdout:"",stderr:"",interrupted:false}}'; }
+approved() { TAMIRS_PERMISSION_TEST_SESSION=claude bash "$ROOT/hooks/permission-approved.sh" 2>/dev/null; }
+judge "phase 1: confirm inside the asked call only stages the request (exit 0, nothing active)" "0 0 yes" \
+  "$rc $(active_tickets) $(exists "$STATE/staged/$NONCE.json")"
+expect "  ... so with no PostToolUse (a declined dialog never runs the call) the R2 call still asks" claude \
+  "$(claude_bash 'gh pr comment 42 --body hi')" ask "pr.comment"
+po="$(post_bash "bash scripts/plugin-config.sh confirm $NONCE" call-2 | approved)"
+judge "a PostToolUse with another tool_use_id promotes nothing" "0 yes" "$(active_tickets) $(exists "$STATE/staged/$NONCE.json")"
+judge "  ... and says why" yes "$(has "$(printf '%s' "$po" | jq -r '.hookSpecificOutput.additionalContext // ""')" "bound to another call")"
+expect "  ... so the R2 call still asks" claude "$(claude_bash 'gh pr comment 42 --body hi')" ask "pr.comment"
+post_bash "bash scripts/plugin-config.sh confirm $NONCE" call-1 pg-2 | approved >/dev/null
+judge "a PostToolUse with the right tool_use_id from another session promotes nothing" "0 yes" \
+  "$(active_tickets) $(exists "$STATE/staged/$NONCE.json")"
+post_bash "bash scripts/plugin-config.sh confirm $NONCE && true" call-1 | approved >/dev/null
+judge "a PostToolUse whose command is not the plain confirm promotes nothing" "0 yes" \
+  "$(active_tickets) $(exists "$STATE/staged/$NONCE.json")"
+po="$(post_bash "bash scripts/plugin-config.sh confirm $NONCE" call-1 | approved)"
 nt=0; for f in "$STATE"/tickets/*.json; do [ -f "$f" ] && nt=$((nt + 1)); done
-judge "the writer turns the approved request into one ticket" "0 1" "$rc $nt"
+judge "phase 2: the approved call's own PostToolUse turns the request into one active ticket" "0 1 1 no" \
+  "$rc $nt $(active_tickets) $(exists "$STATE/staged/$NONCE.json")"
+judge "  ... and tells the user it is active" yes "$(has "$(printf '%s' "$po" | jq -r '.systemMessage // ""')" "now active")"
+post_bash "bash scripts/plugin-config.sh confirm $NONCE" call-1 | approved >/dev/null
+judge "  ... a replayed PostToolUse adds nothing" "1" "$(active_tickets)"
 expect "the ticket's skill and target: the R2 comment is allowed" claude "$(claude_bash 'gh pr comment 42 --body hi')" allow
 expect "  ... through the GitHub MCP tool too" claude "$(claude_mcp "${PFX}add_issue_comment" '{"owner":"me","repo":"app","issue_number":42,"body":"x"}')" allow
 expect "  ... and a repo-kind step in its repository" claude "$(claude_bash 'gh issue create --title t --body b')" allow
