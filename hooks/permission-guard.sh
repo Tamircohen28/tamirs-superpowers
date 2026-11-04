@@ -586,6 +586,14 @@ def parse(toks, depth=0):
                 gopts.append(tuple(sub[k].split("=", 1)))
                 k += 1
                 continue
+            if sub[k].startswith("-R") and len(sub[k]) > 2:
+                # pflag's attached shorthand: -Racme/app and -R=acme/app are -R acme/app (Codex P1, round 2).
+                v = sub[k][2:]
+                gopts.append(("-R", v[1:] if v.startswith("=") and len(v) > 1 else v))
+                k += 1
+                continue
+            if re.fullmatch(r"-[A-Za-z]+R.*", sub[k]):
+                gopts.append(("-R", None))   # -dR x: a repository PG cannot pin (the cluster is kept)
             clean.append(sub[k])
             k += 1
         sub = clean
@@ -933,98 +941,172 @@ def graphql_ids(doc, file_sourced):
     return got, any(n not in GRAPHQL for n in names)
 
 
-def gh_api(sub):
-    toks, method, fields, path, has_input, k = sub[1:], None, [], None, False, 0
+# gh api's value shorthands; -i (--include) is its one boolean shorthand, so -iXPOST is -i -X POST.
+GH_API_SHORT = {"X": "--method", "f": "--raw-field", "F": "--field", "H": "--header", "q": "--jq", "t": "--template",
+                "p": "--preview"}
+
+
+def gh_api_words(toks):
+    """(options, positionals) of `gh api`'s words, read as pflag reads them (Codex P1, round 2): each option is
+    (long name, value) whether attached (-ftag_name=v1, -XPOST, -f=k=v, --field=k=v, --input=f), separate, or
+    inside a cluster (-iXPOST); the value is None for a flag, or for a value option with no word left."""
     vopts = set(M["value_options"]["gh api"])
+    opts, pos, k = [], [], 0
     while k < len(toks):
-        t = toks[k]
-        if t in ("-X", "--method"):
-            method = toks[k + 1].upper() if k + 1 < len(toks) else None
-            k += 2
-        elif t.startswith("--method=") or (t.startswith("-X") and len(t) > 2):
-            method = t.split("=", 1)[1].upper() if "=" in t else t[2:].upper()
-            k += 1
-        elif t in ("-f", "-F", "--field", "--raw-field"):
-            if k + 1 < len(toks):
-                fields.append((t, toks[k + 1]))
-            k += 2
-        elif t == "--input":
-            has_input = True
-            k += 2
-        elif t in vopts:
-            k += 2
-        elif t.startswith("-"):
-            k += 1
+        t, nxt = toks[k], (toks[k + 1] if k + 1 < len(toks) else None)
+        k += 1
+        if t == "--":
+            pos += toks[k:]
+            break
+        if t.startswith("--"):
+            key, eq, val = t.partition("=")
+            if not eq and key in vopts:
+                val, k = nxt, k + 1
+            opts.append((key, val if eq or key in vopts else None))
+        elif t.startswith("-") and len(t) > 1:
+            for j in range(1, len(t)):
+                if t[j] not in GH_API_SHORT:
+                    continue   # -i, or a shorthand gh refuses (then nothing runs)
+                val = t[j + 1:]
+                val = val[1:] if val.startswith("=") and len(val) > 1 else val
+                if not val:
+                    val, k = nxt, k + 1
+                opts.append((GH_API_SHORT[t[j]], val))
+                break
         else:
-            path = path if path is not None else t
-            k += 1
+            pos.append(t)
+    return opts, pos
+
+
+def gh_api(sub):
+    """(method, paths, fields, has_input): -X/--method, else POST when a request parameter (-f/-F/--field/
+    --raw-field) or --input is given ("adding request parameters will automatically switch the request method to
+    POST", gh api --help), else GET. Every positional is a path: gh takes one and refuses more, so classifying
+    each can only be stricter."""
+    opts, paths = gh_api_words(sub[1:])
+    method, fields, has_input = None, [], False
+    for key, val in opts:
+        if key == "--method":
+            method = val.upper() if val else method
+        elif key in ("--field", "--raw-field") and val is not None:
+            fields.append(("-F" if key == "--field" else "-f", val))
+        elif key == "--input":
+            has_input = True
     if method is None:
         method = "POST" if fields or has_input else "GET"
-    return method, path, fields, has_input
+    return method, paths, fields, has_input
 
 
 HTTP_METHODS = {"GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"}
 DATA_LONG = {"--data", "--data-raw", "--data-binary", "--data-urlencode", "--data-ascii", "--form", "--form-string",
              "--json", "--post-data", "--body-data"}
-UPLOAD_LONG = {"--upload-file", "--post-file"}
+UPLOAD_LONG = {"--upload-file", "--post-file", "--body-file"}
 # curl's short options that take a value: in a cluster (-sSd'{..}') the rest of the word, else the next word, is it.
 CURL_SHORT_VALUE = set("AbcCdDeEFHKmoPQrtTuUwxXyYz")
+# wget's (getopt): -i reads URLs from a file, -e runs a .wgetrc command.
+WGET_SHORT_VALUE = set("aABCDeiIlnoOPQRtTUwXY")
 HTTPIE_ITEM = re.compile(r"\A([^=:@]+)(:=@|:=|==|=@|=|@|:)")
 HTTPIE_DATA = {"=", ":=", "@", "=@", ":=@"}
 
 
+def wget_execute(cmd, call):
+    """A wget -e/--execute .wgetrc command (names in any case, '_' and '-' ignored): method, post_data, body_data,
+    post_file and body_file act as their options; input names a URL file PG cannot read."""
+    key, eq, val = cmd.partition("=")
+    key = re.sub(r"[-_\s]", "", key).lower()
+    val = val.strip()
+    if not eq:
+        return
+    if key == "method":
+        call["methods"].append(val.upper())
+    elif key in ("postdata", "bodydata"):
+        call["data"].append(val)
+    elif key in ("postfile", "bodyfile"):
+        call["data"].append("@" + val)
+    elif key == "input":
+        call["unread"] = True
+
+
 def http_call(p):
-    """(method, path, kv, data) of an HTTP client call aimed at a GitHub API host, or None. A body in any form
-    (-d/--data*/-F/--form/--json/-T/--upload-file, attached or separate, in a cluster) implies POST (PUT for an
-    upload) unless -X/--request says otherwise (Codex P1); httpie and xh take the method as their first word and
-    imply POST from a data item (F8)."""
+    """(methods, paths, kv, data, unread) of an HTTP client call, or None when it aims at no GitHub API host and
+    reads nothing PG cannot see. A body in any form (-d/--data*/-F/--form/--json/-T/--upload-file, attached or
+    separate, in a cluster, curl's --expand-<option>) implies POST (PUT for an upload) unless -X/--request says
+    otherwise (Codex P1); httpie and xh take the method as their first word and imply POST from a data item (F8).
+    curl and wget send every URL they are given (curl's --url too), so every GitHub API URL is a path to classify
+    (Codex P1-b, round 2); a curl --next group may carry its own method, so then every method named, and the
+    implied ones, apply to every URL. unread: the call takes URLs or options from a file PG cannot read (curl
+    -K/--config, wget -i/--input-file, --config, -e input=) or from a curl --expand-url variable."""
     prog = p["argv0"]
-    toks, method, data, upload, url, k, get, pos = p["all"], None, [], False, None, 0, False, []
+    toks, k, get, nxt_group, pos = p["all"], 0, False, False, []
+    call = {"methods": [], "data": [], "urls": [], "unread": False}
+    data, upload = call["data"], False
     vopts = set(M["value_options"].get(prog, []))
     while k < len(toks):
         t = toks[k]
         nxt = toks[k + 1] if k + 1 < len(toks) else ""
+        if prog == "curl" and t.startswith("--expand-") and len(t) > 9:
+            t = "--" + t[9:]   # curl 8.3+: --expand-data is --data with {{variables}} expanded
+            if t.partition("=")[0] == "--url" and "{{" in (t.partition("=")[2] or nxt):
+                call["unread"] = True
         if t in ("-X", "--request") or (prog == "wget" and t == "--method"):
-            method, k = nxt.upper(), k + 2
+            call["methods"].append(nxt.upper())
+            k += 2
             continue
         if t.startswith("--method=") or t.startswith("--request="):
-            method, k = t.split("=", 1)[1].upper(), k + 1
+            call["methods"].append(t.split("=", 1)[1].upper())
+            k += 1
             continue
         if t in ("-G", "--get") and prog == "curl":
             get, k = True, k + 1
             continue
+        if t in ("-:", "--next") and prog == "curl":
+            nxt_group, k = True, k + 1
+            continue
         if t.startswith("--"):
             key, eq, val = t.partition("=")
+            val = val if eq else nxt
             if key in DATA_LONG:
-                data.append(val if eq else nxt)
-                k += 1 if eq else 2
+                data.append(val)
             elif key in UPLOAD_LONG:
-                upload = upload or key != "--post-file"
-                data.append("@" + (val if eq else nxt))
-                k += 1 if eq else 2
-            elif key in vopts and not eq:
-                k += 2
-            else:
-                k += 1
+                upload = upload or key == "--upload-file"
+                data.append("@" + val)
+            elif key == "--url" and prog == "curl":
+                call["urls"].append(val)
+            elif key == "--config" or (key == "--input-file" and prog == "wget"):
+                call["unread"] = True
+            elif key == "--execute" and prog == "wget":
+                wget_execute(val, call)
+            elif key not in vopts:
+                eq = "flag"   # a flag, or an option PG does not know: its own word only
+            k += 1 if eq else 2
             continue
-        if prog == "curl" and len(t) > 1 and t[0] == "-":
+        if prog in ("curl", "wget") and len(t) > 1 and t[0] == "-":
             j, took_next = 1, False
             while j < len(t):
                 ch = t[j]
-                if ch in CURL_SHORT_VALUE:
+                if ch in (CURL_SHORT_VALUE if prog == "curl" else WGET_SHORT_VALUE):
                     val = t[j + 1:]
                     if not val:
                         val, took_next = nxt, True
-                    if ch == "X":
-                        method = val.upper()
+                    if prog == "wget":
+                        if ch == "i":
+                            call["unread"] = True
+                        elif ch == "e":
+                            wget_execute(val, call)
+                    elif ch == "X":
+                        call["methods"].append(val.upper())
                     elif ch in "dF":
                         data.append(val)
                     elif ch == "T":
                         upload = True
                         data.append("@" + val)
+                    elif ch == "K":
+                        call["unread"] = True
                     break
-                if ch == "G":
+                if ch == "G" and prog == "curl":
                     get = True
+                if ch == ":" and prog == "curl":
+                    nxt_group = True
                 j += 1
             k += 2 if took_next else 1
             continue
@@ -1033,19 +1115,23 @@ def http_call(p):
             continue
         pos.append(t)
         k += 1
-    if prog in HTTPIE and pos and pos[0].upper() in HTTP_METHODS and method is None:
-        method = pos.pop(0).upper()
+    if prog in HTTPIE and pos and pos[0].upper() in HTTP_METHODS and not call["methods"]:
+        call["methods"].append(pos.pop(0).upper())
     for n, t in enumerate(pos):
         if api_host(t):
-            url = t
+            call["urls"].append(t)
             if prog in HTTPIE:
-                # httpie/xh request items: key=v and key:=json are a body, key@file a form file (POST).
+                # httpie/xh take one URL; its request items key=v and key:=json are a body, key@file a form file.
                 data += [it for it in pos[n + 1:] if HTTPIE_ITEM.match(it) and HTTPIE_ITEM.match(it).group(2) in HTTPIE_DATA]
-            break
-    if url is None:
+                break
+    urls = [u for u in call["urls"] if api_host(u)]
+    if not urls and not call["unread"]:
         return None
-    if method is None:
-        method = "PUT" if upload else ("POST" if data and not get else "GET")
+    implied = "PUT" if upload else ("POST" if data and not get else "GET")
+    if nxt_group:
+        methods = set(call["methods"]) | {"GET"} | ({"POST"} if data else set()) | ({"PUT"} if upload else set())
+    else:
+        methods = {call["methods"][-1]} if call["methods"] else {implied}
     kv = []
     for d in data:
         m = HTTPIE_ITEM.match(d) if prog in HTTPIE else None
@@ -1058,7 +1144,7 @@ def http_call(p):
             continue
         if isinstance(body, dict):
             kv += ["%s=%s" % (k2, v if isinstance(v, str) else json.dumps(v)) for k2, v in body.items()]
-    return method, norm_path(url), kv, data
+    return sorted(methods), [norm_path(u) for u in urls], kv, data, call["unread"]
 
 
 # Commands whose words are text or file names, never a program they run: a `gh` among their words is prose.
@@ -1782,41 +1868,50 @@ def classify_segment(s):
                 STAMPS.append(rp[k + 1])
             elif t.startswith("--call="):
                 STAMPS.append(t[len("--call="):])
+    # Every path of the call is classified, and one that maps to no id is UNCLASSIFIED even when another maps
+    # (Codex P1-b, round 2): the call is the strictest of its transfers.
     if p["argv0"] == "gh" and p["sub"][:1] == ["api"]:
-        method, path, fields, has_input = gh_api(p["sub"])
-        if path is None or re.fullmatch(r"\$[@*]|\$\{?[A-Za-z_]\w*\}?", path):
-            opaque = True
-            if method == "GET" and not fields:
-                add("repo.read", "argv", s, p=p)
-                got_any = True
-        elif norm_path(path) == "graphql":
-            doc = " ".join(v.split("=", 1)[1] for _, v in fields if v.startswith("query="))
-            file_sourced = has_input or any(f in ("-F", "--field") and v.startswith("query=@") for f, v in fields)
-            g, u = graphql_ids(doc, file_sourced)
-            for aid in g:
-                add(aid, "graphql", s, p=p)
-            got_any = got_any or bool(g)
-            uncl = uncl or u
-        else:
-            kv = [v for _, v in fields]
-            npath = norm_path(path)
-            for aid in rest_ids(method, npath, kv, STD_DEFAULTS):
-                add(aid, "rest", s, p=p, rest=(method, npath, kv))
-                got_any = True
+        method, paths, fields, has_input = gh_api(p["sub"])
+        for path in paths or [None]:
+            hit = False
+            if path is None or re.fullmatch(r"\$[@*]|\$\{?[A-Za-z_]\w*\}?", path):
+                opaque = True
+                if method == "GET" and not fields:
+                    add("repo.read", "argv", s, p=p)
+                    hit = True
+            elif norm_path(path) == "graphql":
+                doc = " ".join(v.split("=", 1)[1] for _, v in fields if v.startswith("query="))
+                file_sourced = has_input or any(f in ("-F", "--field") and v.startswith("query=@") for f, v in fields)
+                g, u = graphql_ids(doc, file_sourced)
+                for aid in g:
+                    add(aid, "graphql", s, p=p)
+                hit, uncl = bool(g), uncl or u
+            else:
+                kv = [v for _, v in fields]
+                npath = norm_path(path)
+                for aid in rest_ids(method, npath, kv, STD_DEFAULTS):
+                    add(aid, "rest", s, p=p, rest=(method, npath, kv))
+                    hit = True
+            got_any, uncl = got_any or hit, uncl or not hit
     if p["argv0"] in HTTP:
         call = http_call(p)
         if call:
-            method, path, kv, data = call
-            if path == "graphql":
-                g, u = graphql_ids(" ".join(data), any(x.startswith("@") for x in data))
-                for aid in g:
-                    add(aid, "graphql", s, p=p)
-                got_any = got_any or bool(g)
-                uncl = uncl or u
-            else:
-                for aid in rest_ids(method, path, kv, STD_DEFAULTS):
-                    add(aid, "rest", s, p=p, rest=(method, path, kv))
-                    got_any = True
+            methods, paths, kv, data, unread = call
+            uncl = uncl or unread
+            for path in paths:
+                hit = False
+                if path == "graphql":
+                    g, u = graphql_ids(" ".join(data), any(x.startswith("@") for x in data))
+                    for aid in g:
+                        add(aid, "graphql", s, p=p)
+                    hit, uncl = bool(g), uncl or u
+                else:
+                    for method in methods:
+                        ids = rest_ids(method, path, kv, STD_DEFAULTS)
+                        for aid in ids:
+                            add(aid, "rest", s, p=p, rest=(method, path, kv))
+                        hit, uncl = hit or bool(ids), uncl or not ids
+                got_any, uncl = got_any or hit, uncl or not hit
     s["hit"] = got_any
     if not got_any and (p["argv0"] == "gh" or p.get("dynamic") or
                         has_marker(" ".join([p["raw0"]] + p["all"]), p["argv0"])):
@@ -2136,18 +2231,8 @@ def pr_target(hit):
     if len(pos) != 1:
         return None
     ref = pos[0]
-    repo = None
-    for k, v in p["gopts"]:
-        if k in ("-R", "--repo"):
-            repo = v
-        if k == "--hostname":
-            return None
-    for v in p["env"]:
-        if v.startswith("GH_REPO="):
-            repo = repo or v.split("=", 1)[1]
-        if v.startswith("GH_HOST="):
-            return None
-    if "$" in ref or (repo and "$" in repo):
+    pinned, repo = gh_repo_of(p)
+    if not pinned or "$" in ref:
         return None
     if re.fullmatch(r"https://[^/]+/[^/]+/[^/]+/pull/\d+/?", ref):
         return ref
