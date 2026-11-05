@@ -24,6 +24,7 @@ Start here: **[Getting started](getting-started.md)** → **[Concepts](concepts.
 | [Platform differences](platform-differences.md) | Registry-generated capability matrix, honest about gaps |
 | [Installation](install/README.md) | Per-platform install · verify · update · uninstall |
 | [Upgrading to 5.0](upgrade-to-v5.md) | What 5.0.0 changes per host and what to do about it |
+| [Reference](reference.md) | Pointers to the catalog pages, plus the footer and diagram standard every doc here follows |
 
 ## Guides
 
@@ -41,3 +42,7 @@ Start here: **[Getting started](getting-started.md)** → **[Concepts](concepts.
 - [Engineering docs](../engineering/README.md) — architecture, capability model, adapter contract, skill schema, release process
 - [Contributing](../CONTRIBUTING.md) — contributor bootstrap and validation
 - [Changelog](../../CHANGELOG.md)
+
+---
+
+<p align="center"><a href="https://github.com/Tamircohen28">Have a Question?</a>&nbsp;·&nbsp;<a href="https://github.com/Tamircohen28/tamirs-superpowers/issues/new/choose">Open an Issue</a></p>

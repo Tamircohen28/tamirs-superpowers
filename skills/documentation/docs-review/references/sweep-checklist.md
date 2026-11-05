@@ -48,8 +48,10 @@ it from `core/capabilities/platforms.json`.
 | `verdict=stale` and a referenced script was removed | Remove the reference, add a note pointing at the replacement (if any) |
 | `verdict=fresh` | Skip Axis 2 fixes for this file |
 | `audience=top-level` and file is not `docs/README.md` | Move to `docs/user/` or `docs/engineering/`; relink callers |
-| `footer_present=false` (only for `docs/user/**`) | Append the canonical footer block from `README.md` |
+| `footer_present=false` and `footer_required=true` | `bash scripts/check-doc-standards.sh --fix` when the repo ships it; otherwise append the footer from its documentation standard — never from another repo's README |
+| `mermaid_init_missing > 0` | Insert the canonical init line as the block's first line (`--fix` does it) |
 | `mermaid_violations > 0` | Strip the offending classDef / class / fill / style lines |
+| `doc_standards.violations` non-empty | Run the repo's checker with `--fix`; redraw by hand what it reports as `mermaid-style` or `box-drawing` |
 | `has_purpose_sentence=false` | Add a one-line purpose sentence below the title |
 | `link_text_uses_path_count > 0` | Replace path-as-link-text with human-readable labels |
 | `broken_links` non-empty | Fix the path or remove the link; never invent a target |
@@ -71,7 +73,7 @@ For each entry from `detect-plan-files.sh`:
 ## Final validators
 
 ```bash
-python3 tooling/check-doc-orphans.py
-bash tests/unit/skills/footer-center-aligned.sh
-bash tests/unit/skills/mcp-auth-doc-consistency.sh   # only if you touched plugin/skills/
+[[ -f tooling/check-doc-orphans.py ]] && python3 tooling/check-doc-orphans.py
+[[ -f scripts/check-doc-standards.sh ]] && bash scripts/check-doc-standards.sh .   # footer + Mermaid theme
+[[ -f tests/unit/skills/mcp-auth-doc-consistency.sh ]] && bash tests/unit/skills/mcp-auth-doc-consistency.sh   # only if you touched plugin/skills/
 ```

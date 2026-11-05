@@ -115,6 +115,36 @@ judge "docs/CLAUDE.md does not count as the repo's CLAUDE.md" false \
 judge "root CLAUDE.md does" true \
   "$(fact "$(repo cl-root CLAUDE.md)" '.root_files.claude_md')"
 
+section "S2-05 / S2-06 — a filename with a space is counted, never split into the kind field"
+
+# The checker prints `path:line kind: detail`; the inventory once took the kind
+# as the second whitespace field, so `docs/user/my page.md` put "page.md:1" there
+# and both counters read zero. A git repo with an origin, because the target has no
+# config and the inventory derives the footer URLs from the remote.
+CHECK="$REPO_ROOT/scripts/check-doc-standards.sh"
+d="$TMP/space-in-path"
+harness_new_repo "$d"
+git -C "$d" remote add origin https://github.com/acme/widget.git
+mkdir -p "$d/docs/user"
+printf '# W\n' > "$d/README.md"
+printf '# Page\n\n```mermaid\nflowchart TB\n  A --> B\n```\n' > "$d/docs/user/my page.md"
+judge "the checker ran" true "$(fact "$d" '.docs.standards.checked')"
+judge "both missing footers counted (README + the spaced path)" 2 "$(fact "$d" '.docs.standards.footer_violations')"
+judge "the spaced path's Mermaid block counted" 1 "$(fact "$d" '.docs.standards.mermaid_violations')"
+judge "S2-05 fires" yes "$(fires "$d" S2-05)"
+judge "S2-06 fires" yes "$(fires "$d" S2-06)"
+
+# Control: repair with the same template config the inventory falls back to, then
+# both counters must read zero and neither gap may fire.
+cfg="$TMP/space-in-path.cfg.json"
+jq '.footer.question_url = null | .footer.issue_url = null' \
+  "$REPO_ROOT/skills/repo/_contract/templates/config/docs/doc-standards.json.tmpl" > "$cfg"
+bash "$CHECK" --fix --config "$cfg" --init "$REPO_ROOT/config/docs/mermaid-init.txt" "$d" >/dev/null 2>&1
+judge "after --fix both counters are zero" "0 0" \
+  "$(fact "$d" '"\(.docs.standards.footer_violations) \(.docs.standards.mermaid_violations)"')"
+judge "S2-05 quiet after fix" no "$(fires "$d" S2-05)"
+judge "S2-06 quiet after fix" no "$(fires "$d" S2-06)"
+
 section "the live repo is self-consistent"
 
 judge "this repo reports its own CODEOWNERS" true \

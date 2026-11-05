@@ -532,3 +532,7 @@ is a new, explicit High: unbound until a guard stamp and an AfterTool binding ar
 [sdefaults]: ../../../platforms/claude/settings.d/defaults.json
 [mods]: ../architecture/mods.md
 [targets]: ../build-and-release/platform-targets.json
+
+---
+
+<p align="center"><a href="https://github.com/Tamircohen28">Have a Question?</a>&nbsp;·&nbsp;<a href="https://github.com/Tamircohen28/tamirs-superpowers/issues/new/choose">Open an Issue</a></p>

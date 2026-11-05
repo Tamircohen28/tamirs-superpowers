@@ -189,3 +189,7 @@ Every later release needs only step 2: the moved tag is picked up on its own.
 | A new `userConfig` option whose name contains `token`, `secret`, `key` or `password` | it must be `sensitive: true`, or the check fails |
 | A new rule in the directory's checklist | mirror it in `check-claude-dist.sh`, so it fails here first |
 | A new outbound call in shipped code | describe it in `PRIVACY.md` and `platforms/claude/directory/README.md` before the security scan asks |
+
+---
+
+<p align="center"><a href="https://github.com/Tamircohen28">Have a Question?</a>&nbsp;·&nbsp;<a href="https://github.com/Tamircohen28/tamirs-superpowers/issues/new/choose">Open an Issue</a></p>

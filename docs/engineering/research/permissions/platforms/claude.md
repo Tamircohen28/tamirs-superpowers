@@ -254,3 +254,7 @@ Researched 2026-11-03. Tags: `doc-cited` (URL), `measured` (command + output), `
 4. **Registry `claude_desktop.hooks: unknown`** is still correct; the docs remain silent. No drift.
 5. **CLAUDE.md "Invocation tiers"** says `disable-model-invocation` blocks sub-agent invocation. The docs agree: "prevents … preloaded into subagents" and the Skill tool call is blocked. No drift.
 6. **The registry and CLAUDE.md do not mention that plugin agents ignore `permissionMode`, or that a mod's `tool.check` can override deny rules on personal logins.** Not drift, but both facts are load-bearing for this feature and belong in `platforms.json` notes once the design lands.
+
+---
+
+<p align="center"><a href="https://github.com/Tamircohen28">Have a Question?</a>&nbsp;·&nbsp;<a href="https://github.com/Tamircohen28/tamirs-superpowers/issues/new/choose">Open an Issue</a></p>

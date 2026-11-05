@@ -144,6 +144,49 @@ eng_docs=false
 [[ -d "$ROOT/docs/user" ]] && user_docs=true
 [[ -d "$ROOT/docs/engineering" ]] && eng_docs=true
 
+# --- documentation standard (S2-05 footer, S2-06 themed Mermaid) -------------
+# The vendored checker beside this script runs against the target. A target
+# without config/docs/doc-standards.json is checked against the scaffold
+# template with the footer URLs set to null, so they derive from the target's
+# own origin remote. No checker, no template, or no origin to derive from means
+# `checked: false` — a defect nobody measured is never scored.
+doc_std_checked=false
+doc_std_footer=0
+doc_std_mermaid=0
+DOC_STD_CHECK="$(dirname "$0")/check-doc-standards.sh"
+if [[ -f "$DOC_STD_CHECK" ]] && command -v jq &>/dev/null; then
+  doc_std_args=()
+  doc_std_cfg=""
+  if [[ ! -f "$ROOT/config/docs/doc-standards.json" ]]; then
+    doc_std_tmpl="$(dirname "$0")/../templates/config/docs/doc-standards.json.tmpl"
+    doc_std_init="$(dirname "$0")/../templates/config/docs/mermaid-init.txt.tmpl"
+    if [[ -f "$doc_std_tmpl" && -f "$doc_std_init" ]]; then
+      doc_std_cfg="$(mktemp)"
+      jq '.footer.question_url = null | .footer.issue_url = null' "$doc_std_tmpl" > "$doc_std_cfg"
+      doc_std_args=(--config "$doc_std_cfg" --init "$doc_std_init")
+    fi
+  fi
+  if [[ -f "$ROOT/config/docs/doc-standards.json" || -n "$doc_std_cfg" ]]; then
+    doc_std_rc=0
+    doc_std_out="$(bash "$DOC_STD_CHECK" ${doc_std_args[@]+"${doc_std_args[@]}"} "$ROOT" 2>/dev/null)" || doc_std_rc=$?
+    if [[ $doc_std_rc -ne 2 ]]; then
+      doc_std_checked=true
+      # One line per violation: `path:line kind: detail`. The kind is read after
+      # the `:<line> ` delimiter, never as the second whitespace field -- a path
+      # with a space put its tail in $2, so such files scored zero, silently.
+      doc_std_counts=$(printf '%s\n' "$doc_std_out" | awk '
+        { s = $0
+          if (!match(s, /:[0-9]+ (footer|mermaid|box)-[a-z-]+: /)) next
+          k = substr(s, RSTART, RLENGTH); sub(/^:[0-9]+ /, "", k); sub(/: $/, "", k)
+          if (k ~ /^footer-/) f++; else if (k ~ /^mermaid-/) m++ }
+        END { printf "%d %d\n", f + 0, m + 0 }')
+      doc_std_footer="${doc_std_counts% *}"
+      doc_std_mermaid="${doc_std_counts#* }"
+    fi
+  fi
+  [[ -n "$doc_std_cfg" ]] && rm -f "$doc_std_cfg"
+fi
+
 ci_workflow=false
 secret_scan_job=false
 pr_template=false
@@ -470,6 +513,9 @@ jq -nc \
   --argjson contributing "$contributing" \
   --argjson user_docs "$user_docs" \
   --argjson eng_docs "$eng_docs" \
+  --argjson doc_std_checked "$doc_std_checked" \
+  --argjson doc_std_footer "$doc_std_footer" \
+  --argjson doc_std_mermaid "$doc_std_mermaid" \
   --argjson ci_workflow "$ci_workflow" \
   --argjson secret_scan_job "$secret_scan_job" \
   --argjson pr_template "$pr_template" \
@@ -534,7 +580,12 @@ jq -nc \
       changelog: $changelog,
       contributing: $contributing,
       user_dir: $user_docs,
-      engineering_dir: $eng_docs
+      engineering_dir: $eng_docs,
+      standards: {
+        checked: $doc_std_checked,
+        footer_violations: $doc_std_footer,
+        mermaid_violations: $doc_std_mermaid
+      }
     },
     github: {
       ci_workflow: $ci_workflow,

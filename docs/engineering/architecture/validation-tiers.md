@@ -154,3 +154,7 @@ Add the missing eval; never satisfy the gate by dropping the optional capability
 | Claim CI passed because a local gate did | Tier 3 is independent by definition |
 | Ship a script with no tier in its header | State the tier |
 | Treat a red Tier 3 as a flake without evidence | Retry a *known* flake at most a bounded number of times; otherwise root-cause |
+
+---
+
+<p align="center"><a href="https://github.com/Tamircohen28">Have a Question?</a>&nbsp;·&nbsp;<a href="https://github.com/Tamircohen28/tamirs-superpowers/issues/new/choose">Open an Issue</a></p>

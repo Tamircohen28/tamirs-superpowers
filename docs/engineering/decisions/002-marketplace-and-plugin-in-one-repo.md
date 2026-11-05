@@ -43,3 +43,7 @@ Codex's marketplace manifest lives at `.agents/plugins/marketplace.json` — *no
 - Four manifests must move together on a version bump (`.claude-plugin`, `.cursor-plugin`, `.codex-plugin`, plus the Codex marketplace file). CI's manifest alignment check covers the three plugin manifests.
 - If a second plugin is added later, the repo needs a refactor: the current plugin moves into a subdirectory and each marketplace's `source` is repointed. This is a one-time migration.
 - The repo root is unconventional — it carries marketplace and plugin config for three different platforms side by side.
+
+---
+
+<p align="center"><a href="https://github.com/Tamircohen28">Have a Question?</a>&nbsp;·&nbsp;<a href="https://github.com/Tamircohen28/tamirs-superpowers/issues/new/choose">Open an Issue</a></p>

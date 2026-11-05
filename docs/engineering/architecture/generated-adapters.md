@@ -88,3 +88,7 @@ The translations are lossy on purpose; the omissions are the contract.
    row above.
 5. Plant drift in a scratch copy and assert `--check` fails — `tests/test-generators.sh`
    is the pattern.
+
+---
+
+<p align="center"><a href="https://github.com/Tamircohen28">Have a Question?</a>&nbsp;·&nbsp;<a href="https://github.com/Tamircohen28/tamirs-superpowers/issues/new/choose">Open an Issue</a></p>

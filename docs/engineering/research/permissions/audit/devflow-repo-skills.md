@@ -159,3 +159,7 @@ supervised = ask for every R2+. standard = R2 automatic, R3 ask, auto-merge OFF 
 | release.tag, config.global.write, plugin.permission_policy.edit (none present in scope) | R4 | ask | ask | ask (never auto) |
 
 Prompt counts for one typical objective run (deliver, drive, merge, clean up), by level: supervised about 6 prompts (push, PR create, reply/resolve batches, auto-merge, remote-branch delete); standard 2 (auto-merge decision unless configured, remote-branch delete); unattended 0 plus R4 when it occurs.
+
+---
+
+<p align="center"><a href="https://github.com/Tamircohen28">Have a Question?</a>&nbsp;·&nbsp;<a href="https://github.com/Tamircohen28/tamirs-superpowers/issues/new/choose">Open an Issue</a></p>

@@ -43,6 +43,24 @@
         "Objective state is gitignored by default; checking it in is a deliberate per-repo opt-in that an agent must not flip on its own."
       ]
     },
+    "documentation-standards": {
+      "source": "rules/dev/documentation-standards.md",
+      "title": "Documentation standards",
+      "description": "Human-facing docs end with the canonical two-link footer; every diagram is a Mermaid block opening with the canonical dark init line. Canonical: rules/dev/documentation-standards.md",
+      "alwaysApply": false,
+      "globs": [
+        "README.md",
+        "docs/**/*.md",
+        "config/docs/**/*",
+        "scripts/check-doc-standards.sh"
+      ],
+      "canonical_note": ". The data — human-facing globs, footer URLs, the init line — lives in `config/docs/`; never restate it.",
+      "summary": [
+        "- **Every diagram is a fenced ```mermaid block**, never box-drawing or ASCII art (a directory tree in a ```text fence is not a diagram). Its first line is the canonical init directive from `config/docs/mermaid-init.txt`, copied verbatim; no `classDef` / `class` / `style` / `fill:` inside a block. Dark is the default; one block may keep another palette when the line above its fence reads `<!-- doc-standards-ok: <reason> -->`.",
+        "- **Every human-facing doc** (`README.md`, `docs/**` minus `docs/agent-guidelines/**`, `docs/changelog/**`, `docs/CHANGELOG.md`) **ends with the same centred footer**: a `---` rule, then one `<p align=\"center\">` with `Have a Question?` and `Open an Issue` separated by `&nbsp;·&nbsp;`. `README.md` keeps its `MIT © …` line directly above it.",
+        "- Never type the footer: `bash scripts/check-doc-standards.sh --fix` appends or repairs it from the config. `make check-doc-standards` (in `make validate`) fails on any violation; `--strict` also flags box-drawing lines."
+      ]
+    },
     "gh-cli-preference": {
       "source": "rules/dev/gh-cli-preference.md",
       "title": "GitHub transport policy",

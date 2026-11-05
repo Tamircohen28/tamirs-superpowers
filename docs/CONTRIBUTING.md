@@ -24,10 +24,11 @@ make validate               # should pass with zero errors
 
 1. Fork the repo and create a feature branch: `feat/<short-description>`
 2. Make your change
-3. Run `make validate` — fix any shellcheck warnings or JSON errors
-4. Update `CHANGELOG.md` under `[Unreleased]`
-5. Update `README.md` if you added or removed a skill
-6. Open a PR using the PR template
+3. If you touched `README.md` or `docs/**`, run `bash scripts/check-doc-standards.sh --fix` — every human-facing doc ends with the canonical footer and every diagram is a themed Mermaid block ([documentation standards](../rules/dev/documentation-standards.md))
+4. Run `make validate` — fix any shellcheck warnings or JSON errors
+5. Update `CHANGELOG.md` under `[Unreleased]`
+6. Update `README.md` if you added or removed a skill
+7. Open a PR using the PR template
 
 ## Commit message convention
 
@@ -61,3 +62,7 @@ Topic conventions:
 ## Code review
 
 All PRs are reviewed by @Tamircohen28. Response time is best-effort — this is a personal project.
+
+---
+
+<p align="center"><a href="https://github.com/Tamircohen28">Have a Question?</a>&nbsp;·&nbsp;<a href="https://github.com/Tamircohen28/tamirs-superpowers/issues/new/choose">Open an Issue</a></p>

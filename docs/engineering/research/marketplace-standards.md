@@ -268,3 +268,7 @@ users then name in `opencode.json`. This matches the capability registry's
 Capability-registry rows updated from this research: `core/capabilities/platforms.json`
 `plugin_marketplace` on `claude_code`, `claude_desktop`, `codex`, `cursor`, `opencode`
 (`last_verified: 2026-11-05`).
+
+---
+
+<p align="center"><a href="https://github.com/Tamircohen28">Have a Question?</a>&nbsp;·&nbsp;<a href="https://github.com/Tamircohen28/tamirs-superpowers/issues/new/choose">Open an Issue</a></p>

@@ -215,6 +215,29 @@ if [[ "$REQUIRE_CO_CHANGE" == true ]]; then
     [[ "$a" != "$b" ]]
   }
 
+  # Doc-standards boilerplate is not a claim either. The documentation standard
+  # (rules/dev/documentation-standards.md) ends every human-facing doc with one
+  # canonical footer and opens every Mermaid block with one canonical init line, and
+  # `check-doc-standards.sh --fix` applies both in bulk -- a change that touches every
+  # watched install guide without a word of prose moving. Judged by bytes, that run
+  # fires this gate on every file at once, and the only remedy is to commit an
+  # unrelated edit to platform-targets.json: drift manufactured to make a checker
+  # green, the exact failure the registry watch above was rewritten to stop. So a
+  # watched prose file counts as changed only when some changed line is NOT
+  # boilerplate -- the footer paragraph, a `---` rule, a `%%{init:...}%%` directive,
+  # or a blank line. git's own `-I` makes that call per hunk, asked in exit-code mode
+  # per file; `--name-only` output is not trusted to honour it. Every alternative must
+  # match at least one character: git compiles the regex with REG_NEWLINE, so an
+  # empty-matching alternative matches the position after every line's newline and
+  # silences the gate for everything (measured, not guessed). A git too old for `-I`
+  # exits 129, which falls back to the byte answer -- it errs toward firing.
+  BOILERPLATE_RE='^(<p align="center"><a href="[^"]*">[^<]*</a>&nbsp;·&nbsp;<a href="[^"]*">[^<]*</a></p>|---|%%[{]init:.*[}]%%|[[:space:]]+)$'
+  prose_claim_changed() { # <file> -> true when a non-boilerplate line changed, or it cannot tell
+    local rc=0
+    git -C "$ROOT" diff --quiet -I "$BOILERPLATE_RE" "$base" HEAD -- "$1" 2>/dev/null || rc=$?
+    [[ $rc -ne 0 ]]
+  }
+
   changed=false
   targets_changed=false
   if git -C "$ROOT" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
@@ -231,7 +254,7 @@ if [[ "$REQUIRE_CO_CHANGE" == true ]]; then
       if is_watched "$f"; then
         if [[ "$f" == "core/capabilities/platforms.json" ]]; then
           if registry_claims_changed; then changed=true; fi
-        else
+        elif prose_claim_changed "$f"; then
           changed=true
         fi
       fi

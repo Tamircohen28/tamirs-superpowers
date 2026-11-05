@@ -269,3 +269,7 @@ Gemini CLI has no in-process "mods"/TSX hook modules, no statusline script, no o
 - No official statement was found on whether the google-gemini/gemini-cli OSS repo will stop releasing; releases continue through v0.65.0-preview.0 (2026-10-13) as observed.
 - The Antigravity "Lifecycle hooks" doc (which events `agy` fires) was not fetched; hook parity is therefore unknown.
 - Whether `agy plugin import gemini` preserves `hooks/hooks.json` and `policies/*.toml` is not stated on the migration page.
+
+---
+
+<p align="center"><a href="https://github.com/Tamircohen28">Have a Question?</a>&nbsp;·&nbsp;<a href="https://github.com/Tamircohen28/tamirs-superpowers/issues/new/choose">Open an Issue</a></p>

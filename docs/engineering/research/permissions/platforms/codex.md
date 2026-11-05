@@ -264,3 +264,7 @@ Source: `gh release view rust-v<ver> --repo openai/codex` for each release. Thes
 - Does a skill shell write to `$CODEX_HOME/plugins/data/...` prompt under `workspace-write` on 0.166.0?
 - Does `PermissionRequest` fire for prompts that granular `false` flags auto-reject? (Probably not.)
 - Is the strict schema on `[plugins.X]` enforced at load time, or only by the JSON schema? Serde has no `deny_unknown_fields` there, so unknown keys may be silently ignored.
+
+---
+
+<p align="center"><a href="https://github.com/Tamircohen28">Have a Question?</a>&nbsp;·&nbsp;<a href="https://github.com/Tamircohen28/tamirs-superpowers/issues/new/choose">Open an Issue</a></p>

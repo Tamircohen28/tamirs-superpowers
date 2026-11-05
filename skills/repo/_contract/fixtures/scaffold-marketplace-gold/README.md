@@ -90,3 +90,5 @@ See [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md).
 ---
 
 MIT © [Tamir Cohen](https://github.com/Tamircohen28)
+
+<p align="center"><a href="https://github.com/Tamircohen28">Have a Question?</a>&nbsp;·&nbsp;<a href="https://github.com/Tamircohen28/scaffold-marketplace-gold/issues/new/choose">Open an Issue</a></p>

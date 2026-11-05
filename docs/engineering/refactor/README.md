@@ -31,3 +31,7 @@ inventory, generate a new dated one alongside this file.
 `validated_by = NONE` in the CSV is a **finding, not a failure** — it records a
 file that nothing in `make validate` or CI proves correct today, which is exactly
 what Phase 1 and Phase 6 (validation tiers) exist to close.
+
+---
+
+<p align="center"><a href="https://github.com/Tamircohen28">Have a Question?</a>&nbsp;·&nbsp;<a href="https://github.com/Tamircohen28/tamirs-superpowers/issues/new/choose">Open an Issue</a></p>

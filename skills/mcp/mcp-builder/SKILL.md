@@ -433,6 +433,10 @@ over declarations.
    client config outside the project directory run only after `scripts/gate.sh` exits 0 or the
    user gives an explicit yes to its exit-10 ask; exit 3 is a stop, not an obstacle to route
    around. Installs default to `--ignore-scripts` / `--only-binary=:all:`.
+13. **The server's README and docs follow `rules/dev/documentation-standards.md`.** Every
+   human-facing doc ends with the canonical footer (`bash scripts/check-doc-standards.sh --fix`
+   when the repo ships it), every diagram is a Mermaid block opening with the canonical init
+   line from `config/docs/mermaid-init.txt` — never box-drawing.
 
 ---
 

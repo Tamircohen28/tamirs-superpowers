@@ -379,3 +379,7 @@ Commands are explicit-only by nature. An extension's `commands/x.toml` becomes `
 - Can user-tier `~/.gemini/policies` files be written without an integrity or consent prompt? Only workspace
   policies showed an integrity check (policy.ts L117-150).
 - Does Antigravity honour `auto_approve` or `permissionOverrides` from a *plugin* hook?
+
+---
+
+<p align="center"><a href="https://github.com/Tamircohen28">Have a Question?</a>&nbsp;·&nbsp;<a href="https://github.com/Tamircohen28/tamirs-superpowers/issues/new/choose">Open an Issue</a></p>

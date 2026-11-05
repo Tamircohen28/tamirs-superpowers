@@ -311,3 +311,7 @@ Source: https://opencode.ai/changelog and GitHub release notes. All `doc-cited`.
 - Can `ctx.agent.transform` mutate an agent's `permissions`?
 - How do duplicate `plugins` entries with different `options` across config layers merge?
 - Where does `ctx.storage` persist, and does it survive `opencode uninstall` (which keeps "state")?
+
+---
+
+<p align="center"><a href="https://github.com/Tamircohen28">Have a Question?</a>&nbsp;·&nbsp;<a href="https://github.com/Tamircohen28/tamirs-superpowers/issues/new/choose">Open an Issue</a></p>

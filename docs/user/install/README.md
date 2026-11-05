@@ -72,3 +72,7 @@ Capabilities differ per surface, sometimes surprisingly — hooks that do not ru
 Cursor IDE plugin, no parallel subagents outside Claude Code, no session transcripts anywhere
 but Claude Code. Check [platform differences](../platform-differences.md) first; the behavior you
 are seeing may be the documented, honest degradation.
+
+---
+
+<p align="center"><a href="https://github.com/Tamircohen28">Have a Question?</a>&nbsp;·&nbsp;<a href="https://github.com/Tamircohen28/tamirs-superpowers/issues/new/choose">Open an Issue</a></p>

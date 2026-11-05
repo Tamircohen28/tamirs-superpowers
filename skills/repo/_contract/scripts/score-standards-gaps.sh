@@ -92,6 +92,11 @@ d_user=$(echo "$INV" | jq -r '.docs.user_dir')
 d_eng=$(echo "$INV" | jq -r '.docs.engineering_dir')
 d_cl=$(echo "$INV" | jq -r '.docs.changelog')
 d_contrib=$(echo "$INV" | jq -r '.docs.contributing')
+# Documentation standard (S2-05 / S2-06): scored only when the inventory ran the
+# checker (explicit `== true`, see the NOTE ON `//` above).
+ds_checked=$(echo "$INV" | jq -r '(.docs.standards.checked == true)')
+ds_footer=$(echo "$INV" | jq -r '.docs.standards.footer_violations // 0')
+ds_mermaid=$(echo "$INV" | jq -r '.docs.standards.mermaid_violations // 0')
 g_ci=$(echo "$INV" | jq -r '.github.ci_workflow')
 g_secret=$(echo "$INV" | jq -r '.github.secret_scan_job')
 g_pr=$(echo "$INV" | jq -r '.github.pr_template')
@@ -186,6 +191,10 @@ if applies "docs.require_docs_tree_when_published" "$published"; then
   [[ "$d_eng" != true ]] && { add_gap "S2-02" "P2" "docs/engineering/ missing" 2; inc P2; }
   [[ "$d_cl" != true ]] && { add_gap "S2-03" "P2" "docs/CHANGELOG.md missing" 2; inc P2; }
   [[ "$d_contrib" != true ]] && { add_gap "S2-04" "P2" "docs/CONTRIBUTING.md missing" 2; inc P2; }
+fi
+if [[ "$ds_checked" == true ]]; then
+  (( ds_footer > 0 )) && { add_gap "S2-05" "P2" "$ds_footer human-facing doc(s) lack the canonical footer (bash scripts/check-doc-standards.sh --fix; rule: documentation-standards.md)" 2; inc P2; }
+  (( ds_mermaid > 0 )) && { add_gap "S2-06" "P2" "$ds_mermaid Mermaid violation(s): block without the canonical init line, or per-node styling (bash scripts/check-doc-standards.sh --fix; styling needs an author)" 2; inc P2; }
 fi
 [[ "$g_ci" != true ]] && { add_gap "S3-01" "P1" "No .github/workflows CI" 3; inc P1; }
 if [[ "$g_secret" != true ]] && applies "ci.require_ci_jobs_when_ci" "$has_ci"; then

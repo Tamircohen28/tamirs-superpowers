@@ -596,3 +596,7 @@ bash scripts/doctor.sh .
 
 Reports the detected platform, version drift, present and missing tools, which optional
 features are consequently usable, and a remedy line for each gap.
+
+---
+
+<p align="center"><a href="https://github.com/Tamircohen28">Have a Question?</a>&nbsp;·&nbsp;<a href="https://github.com/Tamircohen28/tamirs-superpowers/issues/new/choose">Open an Issue</a></p>

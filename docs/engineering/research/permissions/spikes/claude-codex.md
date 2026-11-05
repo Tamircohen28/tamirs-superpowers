@@ -183,3 +183,7 @@ Run from any normal shell where you are logged in. None of these edit global con
 4. **Preset storage.** Claude: a `string`+`options` field with a valid `default` works, is validated by `configure`, and an unset value resolves to the default at runtime (C1/C2), so `supervised` as default is safe. The manifest must use string options and a member default; hooks must read `CLAUDE_PLUGIN_OPTION_*`, never `${user_config.*}` in a shell-form command. Codex: nothing in `config.toml` can carry it (unknown keys are ignored, X4), so the preset lives in the neutral user file, and a skill must compute its data directory itself (X2).
 5. **Raising the level per run.** Claude can gate an escalating `--perms=` on `UserPromptSubmit.source == "user"` and read arguments from `UserPromptExpansion.command_args` (C3, pending U2). Codex has no equivalent: the override is prompt text and needs an in-chat confirmation.
 6. **Open after this spike:** U1 (dialog), U2 (live `command_args`), U3 (bypass behavior of hook `ask`), U4 (Desktop). Only U3 changes the design: if hook `ask` is ignored under `bypassPermissions`, `deny` plus a skill-body confirmation becomes the only Claude barrier there too.
+
+---
+
+<p align="center"><a href="https://github.com/Tamircohen28">Have a Question?</a>&nbsp;·&nbsp;<a href="https://github.com/Tamircohen28/tamirs-superpowers/issues/new/choose">Open an Issue</a></p>

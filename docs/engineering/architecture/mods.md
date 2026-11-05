@@ -228,3 +228,7 @@ release; when the engine's types change, regenerate rather than edit, and re-run
   here sleeps, and the objective re-read is a handful of small JSON files.
 - Add a test for every feature. `claude plugin test` reports a hook the engine skipped and
   why, so a silently-failing hook shows up as a failing test.
+
+---
+
+<p align="center"><a href="https://github.com/Tamircohen28">Have a Question?</a>&nbsp;·&nbsp;<a href="https://github.com/Tamircohen28/tamirs-superpowers/issues/new/choose">Open an Issue</a></p>

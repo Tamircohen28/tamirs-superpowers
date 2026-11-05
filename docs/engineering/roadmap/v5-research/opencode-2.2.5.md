@@ -69,3 +69,7 @@ PR #57260 "v2.1 minor breaking changes".
 - task-002/005: install/verify docs must use the warm, service-mode recipe, not `--standalone`.
 - task-004: raise the OpenTUI peer to `>=0.8.0`; check the duplicate-load behaviour.
 - task-003/006: the permission pin and generator need no 2.2.5 change.
+
+---
+
+<p align="center"><a href="https://github.com/Tamircohen28">Have a Question?</a>&nbsp;·&nbsp;<a href="https://github.com/Tamircohen28/tamirs-superpowers/issues/new/choose">Open an Issue</a></p>

@@ -57,7 +57,7 @@ The four repo shapes and their contract profiles:
 
 ### What scaffold produces
 
-```
+```text
 team-plugins/
 ├── .claude-plugin/marketplace.json      # Claude Code + Claude Desktop (the canonical list)
 ├── .cursor-plugin/marketplace.json      # Cursor
@@ -145,3 +145,7 @@ A marketplace is a supply chain for everyone who adds it:
 | [Agent-kit repos](agent-kit.md) | The `--type plugin` shape |
 | [Contract package](../../skills/repo/_contract/README.md) | `app-gold` / `plugin-gold` / `marketplace-gold` |
 | Contract templates | `skills/repo/_contract/templates/marketplace/` |
+
+---
+
+<p align="center"><a href="https://github.com/Tamircohen28">Have a Question?</a>&nbsp;·&nbsp;<a href="https://github.com/Tamircohen28/tamirs-superpowers/issues/new/choose">Open an Issue</a></p>

@@ -233,3 +233,7 @@ Unreachable by any hook on any platform today:
 ## Counts
 
 Audited: 10 agents; 16 script entries (setup, install, update, uninstall, github-policy, capture-config, notify-pushover, github-mcp, doctor, agent-health, collector, enable, probe-platform-versions, check-platform-targets, check-repo-description, statusline) plus the 13 build-* scripts and the setup lib set as one group each; 32 hook entry scripts, 8 libs, 4 manifests; 1 mod module with 11 handler sites; 1 MCP server with about 45 tools in 15 rows. Ungated R3/R4 paths: 9 (git push to default or force, remote ref delete, `gh pr merge` and `gh api` mutation, `gh repo create/delete`, branch protection via `gh api`, MCP merge, MCP file writes on the default branch or workflows, MCP repo create/delete/fork, edits to the policy and guard files).
+
+---
+
+<p align="center"><a href="https://github.com/Tamircohen28">Have a Question?</a>&nbsp;·&nbsp;<a href="https://github.com/Tamircohen28/tamirs-superpowers/issues/new/choose">Open an Issue</a></p>

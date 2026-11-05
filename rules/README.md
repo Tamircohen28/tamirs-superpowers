@@ -28,6 +28,7 @@ rules/dev/         ← how contributors work in THIS repo   ← you are here
 | [`github-repository-policy.md`](dev/github-repository-policy.md) | Governing a GitHub repository: rulesets, required checks, Actions concurrency | Rulesets over classic protection; `~DEFAULT_BRANCH` never a literal; why strict status checks are deliberately off; per-repo required contexts; which workflows may be cancelled. Policy data: [`config/github/repository-policy.json`](../config/github/repository-policy.json) |
 | [`user-facing-script-standards.md`](dev/user-facing-script-standards.md) | Authoring any script | CLI contract; macOS/Linux portability; Windows declared unsupported (WSL2/Git Bash); non-interactive + non-blocking stdin; dependency tiers; machine-readable output |
 | [`skill-quality-standards.md`](dev/skill-quality-standards.md) | Authoring or editing `skills/**/SKILL.md` | The portable skill standard and its platform extensions; schema at [`core/schemas/skill-frontmatter.json`](../core/schemas/skill-frontmatter.json) |
+| [`documentation-standards.md`](dev/documentation-standards.md) | Writing a human-facing doc (`README.md`, `docs/**`) or drawing a diagram anywhere | Themed Mermaid with the one canonical init line, never box-drawing; the two-link footer on every human-facing doc; checked by `scripts/check-doc-standards.sh` (`--fix` repairs). Data: [`config/docs/doc-standards.json`](../config/docs/doc-standards.json) |
 
 ---
 

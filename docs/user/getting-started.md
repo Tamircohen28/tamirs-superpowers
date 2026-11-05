@@ -153,3 +153,7 @@ Then workers run, each ending at commit + handoff; the branches merge onto
   registry says `unknown` and the orchestrator degrades honestly rather than pretending.
 - **A capability is listed `unknown`.** That means *this repo has not measured it*, not that
   it is broken. It is treated as unavailable until someone records evidence.
+
+---
+
+<p align="center"><a href="https://github.com/Tamircohen28">Have a Question?</a>&nbsp;·&nbsp;<a href="https://github.com/Tamircohen28/tamirs-superpowers/issues/new/choose">Open an Issue</a></p>

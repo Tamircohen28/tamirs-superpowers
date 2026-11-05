@@ -542,3 +542,7 @@ Three hard removals/renames and several behaviour reversals: `claude project pur
 
 ### Gaps
 - No deprecation of `hooks/hooks.json` settings hooks, output styles, or the statusline command was found in range; absence is reported from the CHANGELOG and the current docs, not from an explicit "not deprecated" statement.
+
+---
+
+<p align="center"><a href="https://github.com/Tamircohen28">Have a Question?</a>&nbsp;·&nbsp;<a href="https://github.com/Tamircohen28/tamirs-superpowers/issues/new/choose">Open an Issue</a></p>

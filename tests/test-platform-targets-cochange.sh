@@ -34,6 +34,16 @@
 #      on its capability STATUS and platform/surface projection, and a projection that
 #      cannot be made falls back to the byte answer rather than to silence.
 #
+#   4. BOILERPLATE READ AS CLAIM CHANGE. The documentation standard
+#      (rules/dev/documentation-standards.md) appends one canonical footer to every
+#      human-facing doc and one canonical init line to every Mermaid block, and
+#      `check-doc-standards.sh --fix` does it in bulk -- which touched every watched
+#      install guide without a word of prose moving, and fired this gate on all of
+#      them at once. Same shape as 3, same corrosive remedy. A watched prose file now
+#      counts as changed only when some changed line is not boilerplate (git's own
+#      `-I`, per hunk, in exit-code mode). Paired: footer-only passes, footer plus one
+#      prose line fires, prose alone fires.
+#
 #   Every case is asserted in both directions. The over-match cases are paired with the
 #   real watched path, so a "fix" that simply stops matching anything fails here, and
 #   the range cases are paired with a clean multi-commit range, so a fix that always
@@ -177,6 +187,55 @@ commit "$d7" "watched path, no platform-targets" 'core/capabilities/platforms.js
 judge "branch-creation push (all-zero before-SHA) degrades to HEAD~1" fired \
   "$(gate "$d7" GITHUB_EVENT_NAME=push \
        GITHUB_EVENT_PATH="$(push_event "$d7" 0000000000000000000000000000000000000000)")"
+
+# --- BUG 4: doc-standards boilerplate is not a claim change -----------------------
+
+section "boilerplate — the canonical footer and Mermaid init line do not demand a co-change"
+
+FOOTER_LINE='<p align="center"><a href="https://example.test/o">Have a Question?</a>&nbsp;·&nbsp;<a href="https://example.test/o/r/issues/new/choose">Open an Issue</a></p>'
+INSTALL_DOC='docs/user/install/codex.md'
+
+d19="$(new_repo boilerplate-footer)"
+mkdir -p "$d19/docs/user/install"
+printf '# Codex\n\nInstall it.\n\n```mermaid\nflowchart TB\n  A --> B\n```\n' > "$d19/$INSTALL_DOC"
+commit_all "$d19" "watched install doc at base"
+printf '\n---\n\n%s\n' "$FOOTER_LINE" >> "$d19/$INSTALL_DOC"
+commit_all "$d19" "footer only"
+judge "appending the footer to a watched install doc passes" clean "$(gate "$d19")"
+
+d20="$(new_repo boilerplate-init)"
+mkdir -p "$d20/docs/user/install"
+printf '# Codex\n\nInstall it.\n\n```mermaid\nflowchart TB\n  A --> B\n```\n' > "$d20/$INSTALL_DOC"
+commit_all "$d20" "watched install doc at base"
+printf '# Codex\n\nInstall it.\n\n```mermaid\n%%%%{init: {"theme":"base","themeVariables":{"primaryColor":"#1f2937"}}}%%%%\nflowchart TB\n  A --> B\n```\n' > "$d20/$INSTALL_DOC"
+commit_all "$d20" "init line only"
+judge "inserting the init line into a watched install doc passes" clean "$(gate "$d20")"
+
+d21="$(new_repo boilerplate-plus-prose)"
+mkdir -p "$d21/docs/user/install"
+printf '# Codex\n\nInstall it.\n' > "$d21/$INSTALL_DOC"
+commit_all "$d21" "watched install doc at base"
+printf '# Codex\n\nInstall it now.\n\n---\n\n%s\n' "$FOOTER_LINE" > "$d21/$INSTALL_DOC"
+commit_all "$d21" "footer plus a prose change"
+judge "the footer plus one prose change still fires" fired "$(gate "$d21")"
+
+d22="$(new_repo boilerplate-prose-only)"
+mkdir -p "$d22/docs/user/install"
+printf '# Codex\n\nInstall it.\n' > "$d22/$INSTALL_DOC"
+commit_all "$d22" "watched install doc at base"
+printf '# Codex\n\nInstall it now.\n' > "$d22/$INSTALL_DOC"
+commit_all "$d22" "prose only"
+judge "a prose-only change still fires (control)" fired "$(gate "$d22")"
+
+d23="$(new_repo boilerplate-then-targets)"
+mkdir -p "$d23/docs/user/install"
+printf '# Codex\n\nInstall it.\n' > "$d23/$INSTALL_DOC"
+commit_all "$d23" "watched install doc at base"
+printf '# Codex\n\nInstall it now.\n\n---\n\n%s\n' "$FOOTER_LINE" > "$d23/$INSTALL_DOC"
+mkdir -p "$d23/$(dirname "$TARGETS")"
+printf '{}\n' > "$d23/$TARGETS"
+commit_all "$d23" "prose change with platform-targets co-changed"
+judge "footer plus prose with platform-targets.json co-changed passes" clean "$(gate "$d23")"
 
 # --- BUG 2: a watched path is a literal path, not a regex -------------------------
 

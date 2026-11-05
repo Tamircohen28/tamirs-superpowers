@@ -228,7 +228,17 @@ Write these files (fully populated — no template placeholders left unfilled):
    Open with: <p align="center"><img src="assets/banner.svg" alt="REPO_NAME" width="600" /></p>
    Put every badge anchor on ONE line — <a href="..."><img ... /></a>. A newline inside the anchor is link
    text and GitHub underlines it between the badges. No emoji anywhere above the first "## " heading.
-   Close with a one-line text footer after a --- rule: MIT © [Tamir Cohen](https://github.com/Tamircohen28)
+   Close with a --- rule, the one-line text footer MIT © [Tamir Cohen](https://github.com/Tamircohen28), then the
+   canonical two-link footer. NEVER type that footer: after writing every doc, copy
+   CONTRACT_ROOT/templates/config/docs/{doc-standards.json.tmpl,mermaid-init.txt.tmpl} to REPO_ROOT/config/docs/
+   (drop the .tmpl suffix; fill {{GITHUB_OWNER}}/{{REPO_NAME}}), CONTRACT_ROOT/templates/check-doc-standards.sh.tmpl
+   to REPO_ROOT/scripts/check-doc-standards.sh, and CONTRACT_ROOT/templates/docs/agent-guidelines/documentation-standards.md.tmpl
+   to REPO_ROOT/docs/agent-guidelines/documentation-standards.md; then run
+   bash REPO_ROOT/scripts/check-doc-standards.sh --fix REPO_ROOT — it appends the footer to every human-facing doc
+   (README.md and docs/**, minus docs/agent-guidelines/** and the changelogs) and must exit 0 before you finish.
+   Every diagram in any doc, the Architecture overview included, is a ```mermaid block whose first line is the
+   init directive from mermaid-init.txt verbatim (dark fills, white text); never box-drawing, never
+   classDef/class/style/fill:. The Makefile agent wires `make check-doc-standards` for the same script.
    If plugin: add Install as Claude Code plugin, Build adapters (npm run build), Security model sections
 1a. REPO_ROOT/assets/banner.svg — hero banner. READ CONTRACT_ROOT/references/readme-banner.md FIRST and
     follow it; it is the art direction and the pass/fail bar, and this line is only the summary.

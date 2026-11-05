@@ -245,3 +245,7 @@ bash tests/test-setup.sh
 
 Every case runs against a `mktemp -d` fake `HOME` and asserts at the end that the
 real `~/.claude` was untouched.
+
+---
+
+<p align="center"><a href="https://github.com/Tamircohen28">Have a Question?</a>&nbsp;·&nbsp;<a href="https://github.com/Tamircohen28/tamirs-superpowers/issues/new/choose">Open an Issue</a></p>

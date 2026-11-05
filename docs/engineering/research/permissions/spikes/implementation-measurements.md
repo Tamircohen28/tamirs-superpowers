@@ -701,3 +701,7 @@ is now 3.28.7: the update was part of the run.
    **A**, and a `--perms=` raise stays prompt text needing confirmation.
 4. **S4 (plugin variables → hook env): no change.** This account offers no channel to set a plugin variable, so the
    neutral user-level policy file stays the only shared store (spike decision 5). Rerun on a Teams admin account.
+
+---
+
+<p align="center"><a href="https://github.com/Tamircohen28">Have a Question?</a>&nbsp;·&nbsp;<a href="https://github.com/Tamircohen28/tamirs-superpowers/issues/new/choose">Open an Issue</a></p>

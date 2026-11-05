@@ -445,6 +445,7 @@ answers half the request and teaches nothing for the next skill.
 - **Never fabricate a benchmark number.** Absent is a legitimate value; invented is not. Record `run_mode` so numbers are read correctly.
 - **Never add `user-invocable: false` or `disable-model-invocation: true` unless the skill is genuinely internal** — these block user invocation permanently, and also block sub-agent and orchestration invocation.
 - **Never hardcode absolute paths** (`/Users/<name>/`) in SKILL.md; use `$CLAUDE_SKILL_DIR`, `$CLAUDE_PLUGIN_ROOT`, or relative paths.
+- **Diagrams and docs follow `rules/dev/documentation-standards.md`.** A diagram in a skill body, a reference file or an eval is a fenced Mermaid block whose first line is the canonical init directive from `config/docs/mermaid-init.txt` — never box-drawing, never `classDef`/`class`/`style`/`fill:`. A skill that writes human-facing docs leaves the footer to `scripts/check-doc-standards.sh --fix`. Point at the rule; never restate it.
 - **Always run the eval viewer before evaluating outputs yourself** — human review must happen before model revision.
 - **Always spawn with-skill and baseline subagents in the same turn** where `parallel_subagents` exists — sequential spawning gives misleading timing comparisons. Where it does not exist, run sequentially and mark the timing comparison unreliable rather than presenting it as sound.
 - **Capture `timing.json` from the task notification immediately** — it is not persisted anywhere else.

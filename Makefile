@@ -6,7 +6,7 @@
 	assert-contract repo-standards-gate opencode-agents opencode-agents-check \
 	opencode-commands opencode-commands-check check-opencode-permission-keys \
 	cursor-commands cursor-commands-check \
-	check-marketplace-schema check-doc-claims test-hooks doctor check-version-truth \
+	check-marketplace-schema check-doc-claims check-doc-standards test-hooks doctor check-version-truth \
 	check-capability-registry validate-roles check-gemini-adapter gemini-extension \
 	check-action-pinning check-manifest-declares \
 	gemini-extension-check bootstrap-dev github-policy github-policy-plan \
@@ -61,6 +61,7 @@ help:
 	@echo "  check-manifest-versions — plugin manifests agree with each other"
 	@echo "  check-marketplace-schema — extraKnownMarketplaces is a record, not an array"
 	@echo "  check-doc-claims        — skill counts and target coverage match reality"
+	@echo "  check-doc-standards     — every human-facing doc ends with the canonical footer and every Mermaid block opens with the canonical init line and no diagram is drawn with box characters (scripts/check-doc-standards.sh --fix repairs footers and init lines; --strict is what validate runs)"
 	@echo "  check-branch-literals   — no hardcoded main/master in branch position"
 	@echo "  check-action-pinning    — every workflow action pinned to a commit SHA"
 	@echo "  check-manifest-declares — manifest keys named by a capability row exist and resolve"
@@ -142,7 +143,7 @@ test-contract:
 	@bash tests/contract/run.sh
 
 validate: lint test-hooks test-contract test-repo-contract check-manifest-versions check-platform-equivalence \
-	check-marketplace-schema check-doc-claims check-version-truth check-capability-registry \
+	check-marketplace-schema check-doc-claims check-doc-standards check-version-truth check-capability-registry \
 	validate-roles check-gemini-adapter gemini-extension-check check-github-policy check-branch-literals \
 	check-action-pinning check-manifest-declares check-platform-version-pins check-claude-dist check-dists \
 	manifests-check codex-hooks-check cursor-rules-check codex-agents-check opencode-plugin-test \
@@ -191,6 +192,12 @@ check-marketplace-schema:
 check-doc-claims:
 	@bash scripts/check-doc-claims.sh --self-test
 	@bash scripts/check-doc-claims.sh .
+
+# --strict (box-drawing diagrams outside ```text fences) joins this target once the
+# last box diagram under docs/ is redrawn as Mermaid (#368).
+check-doc-standards:
+	@echo "--- Documentation standards: canonical footer + themed Mermaid (rules/dev/documentation-standards.md) ---"
+	@bash scripts/check-doc-standards.sh --strict .
 
 check-branch-literals:
 	@echo "--- Hardcoded default-branch names ---"

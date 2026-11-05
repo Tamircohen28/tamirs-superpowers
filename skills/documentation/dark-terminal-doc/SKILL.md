@@ -92,6 +92,7 @@ Naive approaches fail because: ad-hoc inline styles drift from the design system
 6. **Summary cards are mandatory for comparison docs** — three boxes: brand-a wins / brand-b wins / tie. Single-subject docs (cheatsheets, changelogs) may omit them.
 7. **Max-width is 1200px throughout,** not 960px — comparison tables need horizontal breathing room.
 8. **Section headers must use `text-transform: uppercase`, `letter-spacing: 2px`, and an emoji prefix** to create visual rhythm and scanability in long tables.
+9. **Diagrams use the canonical dark Mermaid palette** — the init line from `config/docs/mermaid-init.txt` per `rules/dev/documentation-standards.md` — unless the user asks for another palette for this document.
 
 ---
 

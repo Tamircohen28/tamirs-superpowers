@@ -19,3 +19,7 @@ plugins/<name>/      # Claude Code plugin wrapper
 1. Edit files under `canonical/` only — never edit `dist/` by hand.
 2. Run `npm run build` to regenerate adapters.
 3. Run `npm run validate` before opening a PR.
+
+---
+
+<p align="center"><a href="https://github.com/Tamircohen28">Have a Question?</a>&nbsp;·&nbsp;<a href="https://github.com/Tamircohen28/scaffold-plugin-gold/issues/new/choose">Open an Issue</a></p>

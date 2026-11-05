@@ -18,3 +18,7 @@ Each ADR uses the lightweight format:
 - **Context** — What situation led to this decision
 - **Decision** — What was decided
 - **Consequences** — What becomes easier and harder as a result
+
+---
+
+<p align="center"><a href="https://github.com/Tamircohen28">Have a Question?</a>&nbsp;·&nbsp;<a href="https://github.com/Tamircohen28/tamirs-superpowers/issues/new/choose">Open an Issue</a></p>

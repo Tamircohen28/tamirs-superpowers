@@ -273,3 +273,7 @@ Decisions the spike supports:
 4. **Cross-platform.** "Headless ask" is three different things: Gemini hangs, OpenCode auto-rejects (or auto-approves with `--auto`), Cursor unknown. The ADR's rule "no human present -> ask becomes deny
    plus the setting that would allow it" must be implemented by the plugin itself on Gemini and OpenCode; the host will not do it.
 5. **Config location.** U3 and O3 confirm there is no per-platform channel that reaches hooks on Cursor and no portable one on OpenCode: the neutral user-level file remains the only shared store.
+
+---
+
+<p align="center"><a href="https://github.com/Tamircohen28">Have a Question?</a>&nbsp;·&nbsp;<a href="https://github.com/Tamircohen28/tamirs-superpowers/issues/new/choose">Open an Issue</a></p>

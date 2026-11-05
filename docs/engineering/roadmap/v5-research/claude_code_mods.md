@@ -305,3 +305,7 @@ Anthropic ships 3 sample mods (`token-weather`, `blast-radius`, `replay-theater`
 ### Gaps
 - `describe` and `timeoutMs` semantics were only named, not documented in detail in the pages fetched.
 - Whether `claude plugin test` can mount `vscode`/`mobile` surfaces for `ui.mount` was stated in the d.ts header ("terminal, desktop, vscode or mobile") but not in the docs page.
+
+---
+
+<p align="center"><a href="https://github.com/Tamircohen28">Have a Question?</a>&nbsp;·&nbsp;<a href="https://github.com/Tamircohen28/tamirs-superpowers/issues/new/choose">Open an Issue</a></p>

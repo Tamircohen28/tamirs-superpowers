@@ -360,7 +360,7 @@ Never use an accent purely decoratively. It must encode meaning.
 - No gradients on surfaces (the paper is flat)
 - No emoji in content
 - No bold text inside prose (use Space Grotesk headings instead)
-- No dark backgrounds, dark cards, or inverted panels
+- No dark backgrounds, dark cards, or inverted panels — with one exception: a diagram inside the artifact is a Mermaid block using the dark palette from `config/docs/mermaid-init.txt` (`rules/dev/documentation-standards.md`), unless the user asks for another palette for this artifact
 - No generic sans-serif fallback without Space Grotesk / Inter loaded
 - Do not use more than 3 accent colors in a single view
 - Do not put the AirGap on more than 1–2 places per tab — it is a signature, not a pattern
