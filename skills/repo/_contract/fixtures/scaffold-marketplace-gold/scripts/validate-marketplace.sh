@@ -51,8 +51,52 @@ parse_or_fail() {
   return 0
 }
 
-# local_dir_ok <path-relative-to-root> — the directory a local source points at exists.
-local_dir_ok() { [[ -d "$ROOT/$1" ]]; }
+# Every local path a manifest supplies — an entry's source, and the metadata.pluginRoot
+# prefix that is joined in front of it — goes through the same two gates. The textual rule
+# is the platforms' own ("relative, no '..', forward slashes"); the real-path rule is what
+# makes it hold: a prefix joined after the entry was checked, or a symlink under plugins/,
+# can point outside the checkout, and a catalog that validates locally but whose files do
+# not accompany a clone is exactly the failure the validator exists to catch.
+ROOT_REAL="$(cd "$ROOT" && pwd -P)"
+
+# check_rel_path <label> <path> — the documented textual rule. Calls err() and returns 1.
+check_rel_path() {
+  local label="$1" p="$2"
+  if [[ "$p" == /* ]]; then err "$label '$p' is absolute; relative paths only"; return 1; fi
+  if [[ "$p" == *\\* ]]; then err "$label '$p' uses backslashes; forward slashes only"; return 1; fi
+  if [[ "$p" == *..* ]]; then err "$label '$p' contains '..'"; return 1; fi
+  return 0
+}
+
+# check_local_dir <label> <path-relative-to-root> [why-it-matters] — exists, and its real
+# path is inside the marketplace root. Calls err() and returns 1.
+check_local_dir() {
+  local label="$1" rel="$2" why="${3:-}" real
+  if [[ ! -d "$ROOT/$rel" ]]; then err "$label directory '$rel' does not exist${why:+ ($why)}"; return 1; fi
+  real="$(cd "$ROOT/$rel" 2>/dev/null && pwd -P)" || { err "$label directory '$rel' is not readable"; return 1; }
+  if [[ "$real" != "$ROOT_REAL" && "$real" != "$ROOT_REAL"/* ]]; then
+    err "$label directory '$rel' resolves to '$real', outside the marketplace root — a symlink or prefix escape; those files will not accompany a clone"
+    return 1
+  fi
+  return 0
+}
+
+# resolve_plugin_root <manifest> <label> — metadata.pluginRoot, validated as a local
+# directory BEFORE any entry is resolved under it. Sets PLUGIN_ROOT to "" (none), the
+# stripped prefix, or "!" after an err() when the prefix is invalid, so callers skip
+# resolution instead of joining it. A global, not a command substitution: err() must
+# count in this shell, or an invalid prefix would print and still exit 0.
+resolve_plugin_root() {
+  local f="$1" label="$2" pr
+  PLUGIN_ROOT=""
+  pr="$(jq -r '.metadata.pluginRoot // empty' "$f")"
+  [[ -n "$pr" ]] || return 0
+  if ! check_rel_path "$label metadata.pluginRoot" "$pr" || ! check_local_dir "$label metadata.pluginRoot" "${pr#./}"; then
+    PLUGIN_ROOT="!"
+    return 0
+  fi
+  PLUGIN_ROOT="${pr#./}"
+}
 
 # duplicates <file> — plugin names that appear more than once.
 duplicates() { jq -r '[.plugins[]?.name // empty] | group_by(.) | map(select(length > 1) | .[0]) | .[]' "$1"; }
@@ -72,7 +116,7 @@ if parse_or_fail "$CLAUDE_MANIFEST" "claude"; then
     || err "$rel: 'plugins' must be a non-empty array"
   jq -e '(.description // .metadata.description // "") | length > 0' "$CLAUDE_MANIFEST" >/dev/null 2>&1 \
     || warn "$rel: no 'description' — claude plugin validate warns on this too"
-  plugin_root="$(jq -r '.metadata.pluginRoot // empty' "$CLAUDE_MANIFEST")"
+  resolve_plugin_root "$CLAUDE_MANIFEST" "$rel:"; plugin_root="$PLUGIN_ROOT"
 
   while IFS= read -r dup; do err "$rel: duplicate plugin name '$dup'"; done < <(duplicates "$CLAUDE_MANIFEST")
 
@@ -86,16 +130,17 @@ if parse_or_fail "$CLAUDE_MANIFEST" "claude"; then
     case "$stype" in
       string)
         src="$(jq -r --argjson i "$i" '.plugins[$i].source' "$CLAUDE_MANIFEST")"
-        if [[ "$src" == *..* ]]; then err "$rel: plugin '$pname' source '$src' contains '..'"; continue; fi
-        if [[ "$src" == *\\* ]]; then err "$rel: plugin '$pname' source '$src' uses backslashes; forward slashes only"; continue; fi
+        check_rel_path "$rel: plugin '$pname' source" "$src" || continue
         if [[ "$src" == ./* ]]; then
           local_path="${src#./}"
+        elif [[ "$plugin_root" == "!" ]]; then
+          continue   # pluginRoot already reported; nothing to resolve under it
         elif [[ -n "$plugin_root" ]]; then
-          local_path="${plugin_root#./}/$src"
+          local_path="$plugin_root/$src"
         else
           err "$rel: plugin '$pname' source '$src' must start with './' (or be a bare name under metadata.pluginRoot)"; continue
         fi
-        local_dir_ok "$local_path" || { err "$rel: plugin '$pname' source directory '$local_path' does not exist (install would fail with 'Source path does not exist')"; continue; }
+        check_local_dir "$rel: plugin '$pname' source" "$local_path" "install would fail with 'Source path does not exist'" || continue
         if [[ -f "$ROOT/$local_path/.claude-plugin/plugin.json" ]]; then
           mname="$(jq -r '.name // empty' "$ROOT/$local_path/.claude-plugin/plugin.json" 2>/dev/null || true)"
           [[ "$mname" == "$pname" ]] \
@@ -146,7 +191,7 @@ if parse_or_fail "$CURSOR_MANIFEST" "cursor"; then
     || err "$rel: 'owner.name' is required"
   jq -e '.plugins | type == "array" and length > 0' "$CURSOR_MANIFEST" >/dev/null 2>&1 \
     || err "$rel: 'plugins' must be a non-empty array"
-  plugin_root="$(jq -r '.metadata.pluginRoot // empty' "$CURSOR_MANIFEST")"
+  resolve_plugin_root "$CURSOR_MANIFEST" "$rel:"; plugin_root="$PLUGIN_ROOT"
   while IFS= read -r dup; do err "$rel: duplicate plugin name '$dup' (the submission checklist requires unique names)"; done < <(duplicates "$CURSOR_MANIFEST")
 
   n="$(jq -r '.plugins | length' "$CURSOR_MANIFEST")"
@@ -156,10 +201,11 @@ if parse_or_fail "$CURSOR_MANIFEST" "cursor"; then
     [[ "$pname" =~ ^[a-z0-9]([a-z0-9.-]*[a-z0-9])?$ ]] || err "$rel: plugin '$pname' must be kebab-case"
     src="$(jq -r --argjson i "$i" '.plugins[$i].source | if type == "object" then (.path // "") else (. // "") end' "$CURSOR_MANIFEST")"
     [[ -n "$src" ]] || { err "$rel: plugin '$pname' needs 'source' (a path, or an object with 'path')"; continue; }
-    if [[ "$src" == /* || "$src" == *..* ]]; then err "$rel: plugin '$pname' source '$src' — relative paths only, no '..' and no absolute paths"; continue; fi
+    check_rel_path "$rel: plugin '$pname' source" "$src" || continue
+    [[ "$plugin_root" == "!" ]] && continue   # pluginRoot already reported; nothing to resolve under it
     local_path="${src#./}"
-    [[ -n "$plugin_root" ]] && local_path="${plugin_root#./}/$local_path"
-    local_dir_ok "$local_path" || { err "$rel: plugin '$pname' source directory '$local_path' does not exist"; continue; }
+    [[ -n "$plugin_root" ]] && local_path="$plugin_root/$local_path"
+    check_local_dir "$rel: plugin '$pname' source" "$local_path" || continue
     if [[ -f "$ROOT/$local_path/.cursor-plugin/plugin.json" ]]; then
       mname="$(jq -r '.name // empty' "$ROOT/$local_path/.cursor-plugin/plugin.json" 2>/dev/null || true)"
       [[ "$mname" == "$pname" ]] || err "$rel: entry '$pname' but $local_path/.cursor-plugin/plugin.json says '$mname'"
@@ -224,10 +270,10 @@ if parse_or_fail "$CODEX_MANIFEST" "codex"; then
       *) err "$rel: plugin '$pname' has no 'source'" ;;
     esac
     if [[ -n "$codex_local_src" ]]; then
-      [[ "$codex_local_src" == ./* && "$codex_local_src" != *..* ]] \
+      check_rel_path "$rel: plugin '$pname' local source" "$codex_local_src" || continue
+      [[ "$codex_local_src" == ./* ]] \
         || { err "$rel: plugin '$pname' local source '$codex_local_src' must start with './' and stay inside the marketplace root"; continue; }
-      local_dir_ok "${codex_local_src#./}" \
-        || { err "$rel: plugin '$pname' source directory '${codex_local_src#./}' does not exist (Codex would skip the entry)"; continue; }
+      check_local_dir "$rel: plugin '$pname' source" "${codex_local_src#./}" "Codex would skip the entry" || continue
       if [[ -f "$ROOT/${codex_local_src#./}/.codex-plugin/plugin.json" ]]; then
         mname="$(jq -r '.name // empty' "$ROOT/${codex_local_src#./}/.codex-plugin/plugin.json" 2>/dev/null || true)"
         [[ "$mname" == "$pname" ]] \

@@ -146,6 +146,69 @@ run "$d"; rc=$RC
 judge "an absolute path source -> exit 1" 1 "$rc"
 
 # ===========================================================================
+section "metadata.pluginRoot and symlinks: the resolved directory must be inside the checkout"
+# ===========================================================================
+# Codex-review repro (round 3): Cursor pluginRoot "../outside", the starter plugin moved
+# there, entry source = its bare directory name. The entry passed the '..' check and the
+# prefix was joined afterwards, so a catalog whose files would not accompany a clone
+# validated clean. The same join exists on the Claude side.
+d="$(fresh cursor-root-escape)"
+mkdir -p "$TMP/outside" && cp -R "$d/plugins/$PLUGIN" "$TMP/outside/$PLUGIN"
+set_json "$d/.cursor-plugin/marketplace.json" ".metadata.pluginRoot = \"../outside\" | .plugins[0].source = \"$PLUGIN\""
+run "$d"; rc=$RC
+judge "Cursor pluginRoot '../outside' + bare-name source -> exit 1" 1 "$rc"
+judge "  ... blaming pluginRoot, before any entry is resolved under it" yes "$(has "$OUT" "metadata.pluginRoot '../outside' contains '..'")"
+
+d="$(fresh claude-root-escape)"
+set_json "$d/.claude-plugin/marketplace.json" ".metadata.pluginRoot = \"../outside\" | .plugins[0].source = \"$PLUGIN\""
+run "$d"; rc=$RC
+judge "Claude pluginRoot '../outside' + bare-name source -> exit 1" 1 "$rc"
+judge "  ... blaming pluginRoot" yes "$(has "$OUT" "metadata.pluginRoot '../outside' contains '..'")"
+
+d="$(fresh claude-root-abs)"
+set_json "$d/.claude-plugin/marketplace.json" ".metadata.pluginRoot = \"$TMP/outside\" | .plugins[0].source = \"$PLUGIN\""
+run "$d"; rc=$RC
+judge "an absolute pluginRoot -> exit 1" 1 "$rc"
+judge "  ... named as absolute" yes "$(has "$OUT" "is absolute; relative paths only")"
+
+d="$(fresh claude-root-missing)"
+set_json "$d/.claude-plugin/marketplace.json" ".metadata.pluginRoot = \"./nowhere\" | .plugins[0].source = \"$PLUGIN\""
+run "$d"; rc=$RC
+judge "a pluginRoot directory that does not exist -> exit 1" 1 "$rc"
+
+d="$(fresh root-ok)"
+set_json "$d/.claude-plugin/marketplace.json" ".metadata.pluginRoot = \"./plugins\" | .plugins[0].source = \"$PLUGIN\""
+set_json "$d/.cursor-plugin/marketplace.json" ".metadata.pluginRoot = \"plugins\" | .plugins[0].source = \"$PLUGIN\""
+run "$d"; rc=$RC
+judge "positive control: a valid pluginRoot with bare-name sources on Claude and Cursor -> exit 0" 0 "$rc"
+
+# A symlink under plugins/ is the other way a textually clean path leaves the checkout.
+for platform in claude cursor codex; do
+  d="$(fresh symlink-$platform)"
+  mkdir -p "$TMP/elsewhere" && rm -rf "$TMP/elsewhere/$PLUGIN" && cp -R "$d/plugins/$PLUGIN" "$TMP/elsewhere/$PLUGIN"
+  ln -s "$TMP/elsewhere/$PLUGIN" "$d/plugins/linked"
+  case "$platform" in
+    claude) set_json "$d/.claude-plugin/marketplace.json" '.plugins[0].source = "./plugins/linked"' ;;
+    cursor) set_json "$d/.cursor-plugin/marketplace.json" '.plugins[0].source = "plugins/linked"' ;;
+    codex)  set_json "$d/.agents/plugins/marketplace.json" '.plugins[0].source.path = "./plugins/linked"' ;;
+  esac
+  run "$d"; rc=$RC
+  judge "$platform: a source that is a symlink to outside the checkout -> exit 1" 1 "$rc"
+  judge "  ... naming the escape" yes "$(has "$OUT" "outside the marketplace root")"
+done
+
+d="$(fresh symlink-inside)"
+ln -s "$PLUGIN" "$d/plugins/alias"
+set_json "$d/.claude-plugin/marketplace.json" '.plugins[0].source = "./plugins/alias"'
+run "$d"; rc=$RC
+judge "positive control: a symlink that stays inside the checkout -> exit 0" 0 "$rc"
+
+d="$(fresh codex-abs)"
+set_json "$d/.agents/plugins/marketplace.json" ".plugins[0].source.path = \"$TMP/outside/$PLUGIN\""
+run "$d"; rc=$RC
+judge "Codex: an absolute local path -> exit 1" 1 "$rc"
+
+# ===========================================================================
 section "cross-catalog agreement: the Claude list is canonical"
 # ===========================================================================
 d="$(fresh codex-extra)"
