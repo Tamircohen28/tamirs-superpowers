@@ -150,9 +150,9 @@ fi
 REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
 
 # The permission resolver, from this file's own location: <root>/skills/
-# dev-workflow/pr-dev/scripts/ -> <root>/scripts/. Not from CLAUDE_PLUGIN_ROOT
-# or any other variable: an environment that can name the resolver can name a
-# fake one that always says allow.
+# dev-workflow/pr-dev/scripts/ -> <root>/scripts/. Never from an environment
+# variable: an environment that can name the resolver can name a fake one that
+# always says allow.
 SCRIPT_DIR="$(CDPATH='' cd -- "$(dirname -- "${BASH_SOURCE[0]}")" 2>/dev/null && pwd -P)" || SCRIPT_DIR=""
 RESOLVER="${SCRIPT_DIR:+$SCRIPT_DIR/../../../../scripts/resolve-permission.sh}"
 
