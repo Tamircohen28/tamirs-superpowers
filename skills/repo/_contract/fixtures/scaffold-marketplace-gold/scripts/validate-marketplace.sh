@@ -196,23 +196,20 @@ if parse_or_fail "$CODEX_MANIFEST" "codex"; then
     jq -e --argjson i "$i" '.plugins[$i].category | type == "string" and length > 0' "$CODEX_MANIFEST" >/dev/null 2>&1 \
       || err "$rel: plugin '$pname' needs 'category'"
     stype="$(jq -r --argjson i "$i" '.plugins[$i].source | type' "$CODEX_MANIFEST")"
+    # A local source is either a plain "./path" string or {"source":"local","path":"./path"}.
+    # Both forms get the same checks — the directory exists and the plugin's own manifest
+    # name equals the entry name — so a mismatch cannot slip through the string spelling.
+    codex_local_src=""
     case "$stype" in
       string)
-        src="$(jq -r --argjson i "$i" '.plugins[$i].source' "$CODEX_MANIFEST")"
-        [[ "$src" == ./* && "$src" != *..* ]] || { err "$rel: plugin '$pname' local source '$src' must start with './' and stay inside the marketplace root"; continue; }
-        local_dir_ok "${src#./}" || err "$rel: plugin '$pname' source directory '${src#./}' does not exist (Codex would skip the entry)"
+        codex_local_src="$(jq -r --argjson i "$i" '.plugins[$i].source' "$CODEX_MANIFEST")"
         ;;
       object)
         skind="$(jq -r --argjson i "$i" '.plugins[$i].source.source // empty' "$CODEX_MANIFEST")"
         case "$skind" in
           local)
-            src="$(jq -r --argjson i "$i" '.plugins[$i].source.path // empty' "$CODEX_MANIFEST")"
-            [[ "$src" == ./* && "$src" != *..* ]] || { err "$rel: plugin '$pname' local source path '$src' must start with './' and stay inside the marketplace root"; continue; }
-            local_dir_ok "${src#./}" || err "$rel: plugin '$pname' source directory '${src#./}' does not exist (Codex would skip the entry)"
-            if [[ -f "$ROOT/${src#./}/.codex-plugin/plugin.json" ]]; then
-              mname="$(jq -r '.name // empty' "$ROOT/${src#./}/.codex-plugin/plugin.json" 2>/dev/null || true)"
-              [[ "$mname" == "$pname" ]] || err "$rel: entry '$pname' but ${src#./}/.codex-plugin/plugin.json says '$mname'"
-            fi
+            codex_local_src="$(jq -r --argjson i "$i" '.plugins[$i].source.path // empty' "$CODEX_MANIFEST")"
+            [[ -n "$codex_local_src" ]] || err "$rel: plugin '$pname' local source needs 'path'"
             ;;
           url)        jq -e --argjson i "$i" '.plugins[$i].source.url | type == "string" and length > 0' "$CODEX_MANIFEST" >/dev/null 2>&1 || err "$rel: plugin '$pname' url source needs 'url'" ;;
           git-subdir) jq -e --argjson i "$i" '.plugins[$i].source | (.url | type == "string") and (.path | type == "string")' "$CODEX_MANIFEST" >/dev/null 2>&1 || err "$rel: plugin '$pname' git-subdir source needs 'url' and 'path'" ;;
@@ -226,6 +223,17 @@ if parse_or_fail "$CODEX_MANIFEST" "codex"; then
         ;;
       *) err "$rel: plugin '$pname' has no 'source'" ;;
     esac
+    if [[ -n "$codex_local_src" ]]; then
+      [[ "$codex_local_src" == ./* && "$codex_local_src" != *..* ]] \
+        || { err "$rel: plugin '$pname' local source '$codex_local_src' must start with './' and stay inside the marketplace root"; continue; }
+      local_dir_ok "${codex_local_src#./}" \
+        || { err "$rel: plugin '$pname' source directory '${codex_local_src#./}' does not exist (Codex would skip the entry)"; continue; }
+      if [[ -f "$ROOT/${codex_local_src#./}/.codex-plugin/plugin.json" ]]; then
+        mname="$(jq -r '.name // empty' "$ROOT/${codex_local_src#./}/.codex-plugin/plugin.json" 2>/dev/null || true)"
+        [[ "$mname" == "$pname" ]] \
+          || err "$rel: entry '$pname' but ${codex_local_src#./}/.codex-plugin/plugin.json says '$mname' — install by name would resolve a different plugin"
+      fi
+    fi
   done
   (( FAILED == CODEX_BEFORE )) && ok "codex: $rel — $n plugin(s)"
 fi
