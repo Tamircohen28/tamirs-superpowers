@@ -90,6 +90,35 @@
         "No rule body is duplicated per platform — every adapter derives from canonical/",
         "assert-contract.sh plugin-gold passes with P1=P2=P3=0"
       ]
+    },
+    {
+      "id": 7,
+      "prompt": "/repo-scaffold team-plugins -- A marketplace of the plugins our team ships for Claude Code, Cursor and Codex --type marketplace",
+      "expected_output": "A new private GitHub marketplace repo TamirCohen28/team-plugins with one catalog in three manifests: .claude-plugin/marketplace.json (name team-plugins, owner.name, plugins[] with the local starter entry ./plugins/team-plugins-starter), .cursor-plugin/marketplace.json (kebab-case name, path source plugins/team-plugins-starter), .agents/plugins/marketplace.json (interface.displayName, local source object, policy.installation AVAILABLE, policy.authentication, category). No OpenCode manifest — OpenCode has no marketplace and the README's Catalog table and Quick Start say so. plugins/team-plugins-starter/ carries .claude-plugin/plugin.json whose name equals the entry name, plus Cursor and Codex plugin manifests and one skill. scripts/validate-marketplace.sh (byte-identical to the template) passes; CI jobs CI, validate, secret-scan, action-pinning; Makefile install runs claude plugin marketplace add .; docs/user/catalog.md explains local, GitHub and npm entries per platform. assert-contract.sh marketplace-gold passes before push. The summary prints only documented commands: /plugin marketplace add, /plugin install, codex plugin marketplace add, Cursor's manifest-from-repo, and 'no marketplace' for OpenCode.",
+      "files": [],
+      "expectations": [
+        ".claude-plugin/marketplace.json, .cursor-plugin/marketplace.json and .agents/plugins/marketplace.json all exist and parse",
+        "No OpenCode marketplace manifest is created, and README.md states that OpenCode has no marketplace",
+        "plugins/team-plugins-starter/.claude-plugin/plugin.json name equals the catalog entry name",
+        "bash scripts/validate-marketplace.sh . passes (and runs claude plugin validate when the CLI is present)",
+        "CI workflow includes a validate job that runs scripts/validate-marketplace.sh",
+        "README.md has a '## Catalog' table with Claude Code, Cursor, Codex and OpenCode columns",
+        "assert-contract.sh marketplace-gold passes on REPO_ROOT",
+        "No canonical/, dist/ or package.json is created — a marketplace has nothing to build",
+        "The Stage 6 summary prints no install command that a platform does not document"
+      ]
+    },
+    {
+      "id": 8,
+      "prompt": "make me a repo that is a plugin catalog — a place the team adds plugins to and everyone installs from",
+      "expected_output": "Tech-stack detection suggests --type marketplace from 'plugin catalog' / 'installs from' (not --type plugin, which is one agent-kit plugin). The plan line reads 'Creating private repo TamirCohen28/<name> [marketplace / node]' and the scaffold proceeds with CONTRACT_PROFILE=marketplace-gold, Agents A–E plus M, no Agent F.",
+      "files": [],
+      "expectations": [
+        "The skill suggests --type marketplace, not --type plugin",
+        "CONTRACT_PROFILE is marketplace-gold and TECH defaults to node",
+        "Agent M runs and Agent F does not",
+        "The marketplace manifests come from _contract/templates/marketplace/ and nothing is invented for OpenCode"
+      ]
     }
   ]
 }

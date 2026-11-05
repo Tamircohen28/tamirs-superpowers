@@ -46,7 +46,7 @@ help:
 	@echo "  check-opencode-permission-keys — fail if the agent generator emits a non-schema key"
 	@echo "  lint                    — shellcheck .sh files only"
 	@echo "  test-hooks              — behavior tests for hooks/ (tests/test-*.sh)"
-	@echo "  test-repo-contract      — contract fixtures (app-gold, plugin-gold, claude-plugin-gold)"
+	@echo "  test-repo-contract      — contract fixtures (app-gold, plugin-gold, claude-plugin-gold, marketplace-gold)"
 	@echo "  plugin-validate         — claude plugin validate (requires Claude Code CLI)"
 	@echo "  test-mods               — validate + test the mod (mod/) and the guard plugin (plugins/guard); requires Claude Code CLI 2.1.287+"
 	@echo "  typecheck-mods          — tsc over the mod against the build's claude-code.d.ts (skips when none is laid)"
@@ -335,6 +335,11 @@ test-repo-contract:
 	  $(CONTRACT_DIR)/fixtures/scaffold-plugin-gold plugin-gold
 	@echo "--- Feature equivalence (scaffold-claude-plugin-gold) ---"
 	@$(MAKE) -C $(CONTRACT_DIR)/fixtures/scaffold-claude-plugin-gold agent\:check
+	@echo "--- Repo contract (scaffold-marketplace-gold / marketplace-gold) ---"
+	@bash $(CONTRACT_DIR)/fixtures/scaffold-marketplace-gold/scripts/validate-marketplace.sh \
+	  $(CONTRACT_DIR)/fixtures/scaffold-marketplace-gold
+	@CONTRACT_OFFLINE=1 bash $(CONTRACT_DIR)/scripts/assert-contract.sh \
+	  $(CONTRACT_DIR)/fixtures/scaffold-marketplace-gold marketplace-gold
 
 check-manifest-versions:
 	@echo "--- Manifest/tag version alignment ---"

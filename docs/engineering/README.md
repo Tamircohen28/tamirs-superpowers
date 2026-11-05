@@ -40,3 +40,4 @@ contributors want [CONTRIBUTING](../CONTRIBUTING.md).
 | [ADR index](decisions/README.md) | Design decisions and their rationale |
 | [Refactor artifacts](refactor/README.md) | Point-in-time inventory from the portable-orchestration refactor |
 | [Agent-kit contract](../user/agent-kit.md) | User guide for `plugin-gold` distribution repos |
+| [Marketplace standards research](research/marketplace-standards.md) | What the Claude Code, Cursor, Codex and OpenCode plugin pages say about marketplaces (read 2026-11-05); the evidence behind `repo-scaffold --type marketplace` and the `marketplace-gold` profile |

@@ -1,0 +1,20 @@
+{
+  "name": "{{MARKETPLACE_NAME}}",
+  "interface": {
+    "displayName": "{{MARKETPLACE_DISPLAY_NAME}}"
+  },
+  "plugins": [
+    {
+      "name": "{{PLUGIN_NAME}}",
+      "source": {
+        "source": "local",
+        "path": "./plugins/{{PLUGIN_NAME}}"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Developer Tools"
+    }
+  ]
+}

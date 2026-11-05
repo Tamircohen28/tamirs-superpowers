@@ -45,6 +45,10 @@ elif [[ -f "$ROOT/.claude-plugin/plugin.json" ]]; then
   else
     repo_type="claude-plugin"
   fi
+elif [[ -f "$ROOT/.claude-plugin/marketplace.json" ]]; then
+  # A catalog of plugins, not a plugin: its skills live inside the plugins it lists, so
+  # neither the app skill bridge (E1/L4) nor the plugin-manifest parity (E2) applies.
+  repo_type="marketplace"
 elif [[ -d "$ROOT/skills" ]] && [[ "$(count_skills "$ROOT/skills")" -gt 0 ]]; then
   if [[ -f "$ROOT/hooks/hooks.json" || -d "$ROOT/.claude-plugin" ]]; then
     repo_type="claude-plugin"

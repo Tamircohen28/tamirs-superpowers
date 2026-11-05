@@ -1,0 +1,1197 @@
+{
+  "schema_version": 2,
+  "last_reviewed": "2026-10-17",
+  "capability_definitions": {
+    "skills": {
+      "summary": "Discovers and loads SKILL.md files shipped by this repo.",
+      "degradation": "None possible — a target without skills is not a supported target."
+    },
+    "skill_auto_invocation": {
+      "summary": "Selects a skill from its description without the user naming it.",
+      "degradation": "Document the explicit invocation form (slash command or 'use the X skill') in the install guide."
+    },
+    "subagents": {
+      "summary": "Delegates a bounded task to a separate agent with its own context.",
+      "degradation": "Run the role inline in the main session, sequentially, with a narrowed scope."
+    },
+    "parallel_subagents": {
+      "summary": "Runs two or more subagents concurrently.",
+      "degradation": "Fan out sequentially; the task graph still holds, only wall-clock time changes."
+    },
+    "agent_teams": {
+      "summary": "Long-lived named agents that message each other during a session.",
+      "degradation": "Use one-shot subagents plus files under session-files/ as the message bus."
+    },
+    "hooks": {
+      "summary": "Runs THIS REPO'S declared hook scripts on that platform's lifecycle events. Like every row here, this describes this repo's artifacts on that platform, not the platform's abstract feature set: the question is 'if I install this plugin there, do my hooks run?', not 'is that product hooks-capable?'",
+      "degradation": "Move the guard into the skill body as an explicit step, and into CI as a check."
+    },
+    "mcp": {
+      "summary": "Connects Model Context Protocol servers declared by the repo.",
+      "degradation": "Use the equivalent CLI (gh, curl) through the shell capability."
+    },
+    "statusline": {
+      "summary": "Renders a repo-provided status line in the session chrome.",
+      "degradation": "Purely cosmetic — omit it. Never make a skill depend on it."
+    },
+    "shell": {
+      "summary": "Executes arbitrary shell commands in the workspace.",
+      "degradation": "Emit the commands for the user to run and wait for pasted output."
+    },
+    "git": {
+      "summary": "Git is on PATH and the workspace is a repository.",
+      "degradation": "Skip branch/commit/worktree workflows; skills that need them declare git as required."
+    },
+    "github_cli": {
+      "summary": "The gh CLI is installed and authenticated.",
+      "degradation": "Optional feature dependency. Fall back to printing the PR/issue body for the user to file manually."
+    },
+    "background_tasks": {
+      "summary": "Runs a long command detached and reports its exit later.",
+      "degradation": "Run in the foreground with a bounded timeout."
+    },
+    "worktree_isolation": {
+      "summary": "Each task gets its own git worktree so concurrent agents do not collide.",
+      "degradation": "Single checkout, one task at a time; the orchestrator serializes writes."
+    },
+    "plugin_marketplace": {
+      "summary": "Installs and updates this plugin from a hosted marketplace listing.",
+      "degradation": "Document a direct install path (git clone plus a local plugin/extension link)."
+    },
+    "extension_install": {
+      "summary": "Installs the repo directly as an extension from a git URL.",
+      "degradation": "Use the platform's own install path; this is not a universal mechanism."
+    },
+    "slash_commands": {
+      "summary": "Exposes repo-provided commands as /name.",
+      "degradation": "Users invoke the skill by describing it in prose."
+    },
+    "ask_user_question": {
+      "summary": "Presents a structured multiple-choice question mid-run.",
+      "degradation": "Ask in prose and stop for a free-text reply."
+    },
+    "artifacts": {
+      "summary": "Publishes a rendered HTML/Markdown page as a shareable artifact.",
+      "degradation": "Write the same content to a file in the repo and tell the user the path."
+    },
+    "session_transcripts": {
+      "summary": "Session history is readable on disk in a documented format.",
+      "degradation": "Usage analytics (session-report) are unavailable; say so rather than reporting zeros."
+    },
+    "dynamic_workflows": {
+      "summary": "Runs a Workflow tool script that can pause, branch, and resume mid-execution driven by model output.",
+      "degradation": "Achieve the same result with sequential subagent orchestration driven by the main session."
+    },
+    "mods": {
+      "summary": "Loads THIS REPO'S hooks module (named by the `modules` key of the mod's own hooks file, which the Claude manifest's `hooks` field loads beside the settings hooks file) as in-process function hooks: it can draw (pane, band, spinner), read pushed rate-limit state, answer /objective without a model turn, and call the host's HTTP/model/process APIs. Claude Code 2.1.287+ only.",
+      "degradation": "Every feature the mod adds has a settings-hook or skill fallback that still runs (docs/engineering/architecture/mods.md, 'What it does'); nothing may depend on the mod having loaded."
+    },
+    "permission_levels": {
+      "summary": "Enforces this plugin's permission levels (ADR 004): each shell and bundled GitHub MCP call maps to action ids in core/permissions/actions.json, scripts/resolve-permission.sh decides allow, ask or deny for the active level and the session's --perms= tickets, and the host carries that decision as an L2 hook deny and, where it has one, an L3 host prompt for asks and R4. A level governs the plugin's own actions, never the host's prompts.",
+      "degradation": "Where a layer is ADVISORY or unverified, treat the surface as supervised: the skills' L1 gates stop before every R2+ step and the GitHub MCP server starts --read-only. Where the host carries no plugin ask, the ask is delivered as a deny naming the setting that would allow it, an R4 call is denied with the command for the user to run outside the session, and --perms= only lowers (ADR 004 D2, D5, D8)."
+    }
+  },
+  "platforms": {
+    "claude": {
+      "display_name": "Claude",
+      "vendor": "Anthropic",
+      "aliases": [
+        "anthropic"
+      ],
+      "primary_surface": "claude_code",
+      "doc_urls": [
+        "https://code.claude.com/docs/en/plugin-marketplaces",
+        "https://code.claude.com/docs/en/plugins-reference",
+        "https://code.claude.com/docs/en/skills"
+      ],
+      "surfaces": {
+        "claude_code": {
+          "display_name": "Claude Code",
+          "kind": "cli",
+          "support": "supported",
+          "aliases": [
+            "claude-code"
+          ],
+          "doc_urls": [
+            "https://code.claude.com/docs/en/plugins-reference",
+            "https://code.claude.com/docs/en/plugin-marketplaces",
+            "https://code.claude.com/docs/en/skills"
+          ],
+          "install": {
+            "type": "marketplace",
+            "command": "/plugin marketplace add Tamircohen28/scaffold-marketplace-gold && /plugin install scaffold-marketplace-gold@scaffold-marketplace-gold",
+            "doc": "docs/user/install/claude-code.md"
+          },
+          "validation": {
+            "command": "claude plugin validate ."
+          },
+          "capabilities": {
+            "skills": {
+              "last_verified": "2026-09-17",
+              "status": "native",
+              "since": "2.0.0",
+              "validation": "claude plugin validate .",
+              "notes": "Canonical skills/ tree is consumed directly; no adapter. Since 2.1.265, a forked skill's kickoff prompt and text turns stream as progress events instead of arriving silently once it returns — this repo's one forked skill, targeted-debug (context: fork, agent: Explore), is now visible turn-by-turn while it runs."
+            },
+            "skill_auto_invocation": {
+              "last_verified": "2026-09-17",
+              "status": "native",
+              "since": "2.0.0",
+              "validation": "claude plugin validate .",
+              "notes": "Description-driven; suppressed per skill with disable-model-invocation."
+            },
+            "subagents": {
+              "last_verified": "2026-09-17",
+              "status": "native",
+              "since": "2.0.0",
+              "validation": "test -d agents && claude plugin validate .",
+              "notes": "Since 2.1.265, resuming a foreground-spawned subagent no longer rewrites its tool list/system prompt or breaks prompt-cache reuse, and agent teammates/resumed subagents no longer move SubagentStart hook context out of the prompt prefix (this repo wires no SubagentStart hook today, so that half of the fix is not exercised here). Since 2.1.271, agent frontmatter (and --agents JSON) gained omitClaudeMd, letting a subagent run without user/project/local CLAUDE.md files (managed policy files still load) — reviewed against all ten agents/*.md here and deliberately not set: each already loads its own canonical contract explicitly from core/roles/*.md rather than depending on CLAUDE.md for that, but still needs the *target* project's own CLAUDE.md for the domain conventions a reviewer or implementer judges against, so omitting it would remove context these roles are designed to use. Since 2.1.274, a subagent's progress summary is no longer replaced by a runaway multi-paragraph reply — directly relevant to this plugin's worker-dev handoff vocabulary (completed/partial/failed/blocked) and orchestrate-dev fan-outs that read a worker's summary back; and `claude agents` no longer loses --model/--effort/--permission-mode/--allow-dangerously-skip-permissions/--agent after an auto-update — no script here shells out to `claude agents` directly, so not exercised, but relevant to a contributor invoking one of these ten agents/*.md from that CLI subcommand by hand. Reviewed and not applicable: a fix for model:\"opus\" leaving the wrong session model on Bedrock/Vertex/Foundry — all ten agents/*.md here pin model: sonnet, and this repo targets direct Claude Code/Desktop sessions, not a Bedrock/Vertex/Foundry gateway. Full version history: CLAUDE.md's Subagents bullet."
+            },
+            "parallel_subagents": {
+              "last_verified": "2026-09-17",
+              "status": "native",
+              "since": "2.0.0",
+              "validation": "claude plugin validate .",
+              "notes": "Multiple Agent calls in one message run concurrently."
+            },
+            "agent_teams": {
+              "last_verified": "2026-09-17",
+              "status": "native-experimental",
+              "validation": "claude plugin validate .",
+              "notes": "Teammate messaging is available but documented as evolving; skills must not require it. Since 2.1.268, a respawned in-process teammate no longer picks up tools or a system prompt from a same-named agent file sitting in a folder the session has not trusted — this repo's own agents/*.md are versioned inside the trusted plugin checkout, so a same-named untrusted file is not a scenario this repo's orchestration creates, but the fix matters to anyone running orchestrate-dev/worker-dev fan-outs from a workspace containing other, untrusted agent definitions."
+            },
+            "hooks": {
+              "last_verified": "2026-09-17",
+              "status": "native",
+              "since": "2.0.0",
+              "validation": "jq empty hooks/hooks.json && make test-hooks",
+              "notes": "hooks/hooks.json with CLAUDE_PLUGIN_ROOT. This is the only target where the Claude-shaped hook bundle runs as shipped. Since 2.1.261, resuming a session no longer loses hook output produced around parallel tool calls. Since 2.1.268, PermissionRequest hooks now fire in --print (headless) mode (this repo wires no PermissionRequest hook, so not exercised) and CLAUDE_CODE_SESSIONEND_HOOKS_TIMEOUT_MS now actually extends a SessionEnd hook that declares no per-hook timeout of its own (previously still cancelled at 1.5s regardless of the env var) — every SessionEnd hook this repo ships (session-end.sh, handoff-reminder.sh, release-agent-claims.sh) already sets an explicit per-hook timeout in hooks/hooks.json, so this fix changes nothing here today but matters to anyone adding a SessionEnd hook without one. Full version history: CLAUDE.md's Hooks bullet. Since 2.1.269, a PreToolUse deny rule and the write-path check behind Edit() now also apply to a file a Bash `tee` command writes (previously a tee-based write could bypass a deny rule matched only against the editing tools), and a Bash(tee:*) allow rule is now scoped the way its glob implies instead of over-matching — this closes, at the host-permission layer, exactly the gap hooks/guard-sensitive-files.sh's own header comment documents and was built to cover independently via hooks/lib/write-targets.py's tee parsing; permissions-allow.json/permissions-ask.json declare no Bash(tee:*) rule of either kind, so neither bug was ever exposed here. The same release fixed a deny/ask rule beginning with a bare `!` leaking beyond the settings source that declared it (a lone `!` is now ignored) — reviewed against every rule in both files; none starts with `!`. Since 2.1.270 (bug fix, regression in 2.1.269), read-only git commands in Bash no longer unexpectedly ask for permission after a session has been running for a while. Since 2.1.271, a stale .git/config.lock left behind after a sandboxed Bash command failed to start no longer breaks git checkout -b, git push -u or git config for the rest of the session (Linux) — relevant because permissions-allow.json pre-allows git push *, git remote add * and git init specifically to avoid exactly this class of friction, and hooks/worktree-create.sh issues git worktree add -B through the same sandboxed Bash surface; no repo-side workaround existed for the bug, so nothing to change beyond the compatibility bump. Permission levels (ADR 004 D8): see this surface's permission_levels row. No PermissionRequest hook is wired here, by design: it can answer the host's prompts on the user's behalf (docs/engineering/research/permissions/platforms/claude.md, table row 'PermissionRequest hook'); tests/test-manifest-invariants.sh holds it."
+            },
+            "mcp": {
+              "last_verified": "2026-09-17",
+              "status": "native",
+              "since": "2.0.0",
+              "validation": "bash scripts/check-manifest-declares.sh .mcp.json mcpServers",
+              "notes": "The one declared server (github, via scripts/github-mcp.sh) is stdio. Since 2.1.265, a server declared http with only legacy HTTP+SSE support auto-falls-back to that transport instead of never connecting; not exercised here, since nothing shipped is http-typed. Since 2.1.268, /mcp and /plugin server details, claude mcp list/get, and MCP login errors no longer show a secret resolved from a ${VAR} placeholder in an MCP config — this repo's .mcp.json passes the token through a ${user_config.github_token} env substitution (since 4.11.0; github-mcp.sh itself reads nothing off the machine), which is exactly the kind of resolved secret the fix stops those surfaces from printing. Since 2.1.274, CLAUDE_CODE_MCP_STARTUP_WAIT_MS extends how long the host waits for a slow-starting MCP server — reviewed against github-mcp.sh's Docker fallback path (docker run ... ghcr.io/github/github-mcp-server stdio), which can be slow to start on a cold image pull; documented as an available knob in CLAUDE.md's MCP bullet rather than set as a repo default, since the right value is workstation-dependent. The same release switched Bedrock/Vertex/Foundry/telemetry-disabled sessions to MCP client v2 by default — not applicable, since this repo targets direct Claude Code/Desktop sessions, not a Bedrock/Vertex/Foundry gateway."
+            },
+            "statusline": {
+              "last_verified": "2026-09-17",
+              "status": "native",
+              "since": "2.0.0",
+              "validation": "echo '{}' | bash scripts/statusline.sh"
+            },
+            "shell": {
+              "last_verified": "2026-09-17",
+              "status": "native",
+              "validation": "command -v bash",
+              "notes": "Since 2.1.271, Bash/PowerShell/Monitor in auto mode with sandboxing can declare per-command allowed_domains, reviewed alongside the command so only the hosts it needs are opened for it. Reviewed and not applicable here: platforms/claude/settings.d/ ships only Bash allow/ask rules (no PowerShell), none network-scoped beyond gh/git working through their own auth, and no doc here recommends running this plugin under auto mode with sandboxing, so there is no allowed_domains list to declare."
+            },
+            "git": {
+              "last_verified": "2026-09-17",
+              "status": "native",
+              "validation": "git rev-parse --is-inside-work-tree",
+              "notes": "Since 2.1.271, a stale .git/config.lock left behind after a sandboxed Bash command failed to start no longer breaks git checkout -b, git push -u or git config for the rest of the session (Linux) — relevant because permissions-allow.json pre-allows git push *, git remote add * and git init specifically to avoid this class of friction, and hooks/worktree-create.sh issues git worktree add -B through the same sandboxed Bash surface. No repo-side workaround existed; nothing to change beyond the compatibility bump. Full detail: CLAUDE.md's Hooks bullet."
+            },
+            "github_cli": {
+              "last_verified": "2026-09-17",
+              "status": "native",
+              "validation": "gh auth status",
+              "notes": "Platform imposes no limit, but gh is an optional host dependency — presence is environment-dependent, so skills treat it as optional."
+            },
+            "background_tasks": {
+              "last_verified": "2026-09-17",
+              "status": "native",
+              "validation": "command -v bash",
+              "notes": "Bash tool supports detached execution with completion callback. Since 2.1.271, a Monitor until-loop watch always carries a deadline (at most 30 minutes; 10 in single-prompt -p runs) and Claude is notified to re-arm it, replacing the old no-timeout persistent option — skills/dev-workflow/pr-dev/references/ci-monitor-loop.md's one Monitor wrapper here already sets timeout_ms: 1800000 (30 minutes) and never set persistent, so this repo's one documented Monitor usage was already inside the new ceiling. The same release fixed Claude starting a second copy of a background command that was still running after the conversation was compacted — relevant to a long orchestrate-dev/worker-dev fan-out that compacts mid-run with a background watch in flight; host-side fix, no repo-side workaround existed or is needed."
+            },
+            "worktree_isolation": {
+              "last_verified": "2026-09-17",
+              "status": "native",
+              "since": "2.0.0",
+              "validation": "bash hooks/worktree-create.sh --help",
+              "notes": "Automated by the repo's worktree hooks; on other targets the same thing is emulated by hand."
+            },
+            "plugin_marketplace": {
+              "last_verified": "2026-11-05",
+              "status": "native",
+              "since": "2.0.0",
+              "validation": "bash scripts/check-marketplace-schema.sh .",
+              "notes": "Marketplace format re-read 2026-11-05 (doc-cited https://code.claude.com/docs/en/plugins/marketplace-reference and /plugins/create-marketplace, recorded in docs/engineering/research/marketplace-standards.md): the catalog is .claude-plugin/marketplace.json with required name, owner.name and plugins[].{name,source}; sources are a ./relative path or github | url | git-subdir | npm | archive | command objects; `claude plugin validate <root>` is the validator; users add with `claude plugin marketplace add <owner/repo | url | path>` and install `<plugin>@<marketplace>`. repo-scaffold --type marketplace renders exactly that file (skills/repo/_contract/templates/marketplace/claude/). Since 2.1.268, claude plugin install/uninstall/update/enable/disable accept --json (one machine-readable result line: command, outcome, plugin, scope, message, failureCode), and claude plugin list --json rows gain errorDetails/noteDetails; scripts/update.sh and scripts/uninstall.sh now request --json from claude plugin update/uninstall and surface the returned message/failureCode when the CLI call fails, instead of only a generic 'run the slash command yourself' fallback. The same release also fixed plugin/marketplace errors printing a token or password embedded in a git source URL (host-side; this repo's marketplace.json source is a plain https GitHub URL with no embedded credential) and hardened marketplace entry-path containment against a backslash bypass (host-side, no manifest change). Separately, /plugin install/enable/disable now take effect when the interactive menu closes, without needing /reload-plugins afterward — this is about the interactive /plugin menu specifically, and is unrelated to hooks/plugin-reload-reminder.sh's reminder, which fires on local file edits (plugin.json/hooks.json/marketplace.json) made outside that menu, e.g. under a --plugin-dir dev symlink; that reminder is still correct and unaffected. Since 2.1.269, plugin archives extracted for a session are no longer readable by other local users, no longer leave world-writable bits, and no longer leave stale files behind a re-extraction — host-side hardening of the extraction step; nothing in this plugin's own manifest or install path changes. Since 2.1.271, claude plugin install/update accept --accept-command <sha256> to confirm exactly the command a prior --json run displayed, instead of the blanket -y. Reviewed against scripts/update.sh's and scripts/uninstall.sh's existing claude plugin update/uninstall ... --json calls: neither script passes -y or hits an interactive confirmation today, so there is no blanket-accept behavior here to tighten — not adopted this cycle, recorded rather than silently skipped."
+            },
+            "extension_install": {
+              "last_verified": "2026-09-17",
+              "status": "unsupported",
+              "notes": "Claude installs plugins, not git-URL extensions.",
+              "fallback": "Use plugin_marketplace, or --plugin-dir for local development."
+            },
+            "slash_commands": {
+              "last_verified": "2026-09-17",
+              "status": "native",
+              "since": "2.0.0",
+              "validation": "claude plugin validate ."
+            },
+            "ask_user_question": {
+              "last_verified": "2026-09-17",
+              "status": "native",
+              "validation": "claude plugin validate .",
+              "notes": "Structured choice prompts are available in interactive sessions only; headless runs must not block on one."
+            },
+            "artifacts": {
+              "last_verified": "2026-09-17",
+              "status": "partial",
+              "notes": "Artifact publishing is present on some Claude Code surfaces and account configurations, not guaranteed by the CLI itself. No shipped skill requires it.",
+              "fallback": "Write the page to a file in the repo and report the path."
+            },
+            "session_transcripts": {
+              "last_verified": "2026-09-17",
+              "status": "native",
+              "validation": "node skills/toolkit/session-report/analyze-sessions.mjs --json | jq -e '.overall.sessions > 0'",
+              "notes": "JSONL transcripts under ~/.claude/projects; the session-report skill parses this format and no other. The claim is that the history is READABLE, so the validation reads it: the parser runs against the real transcript root and must find at least one session. It previously read `test -d \"$HOME/.claude/projects\"`, which passes on an empty directory created by any Claude Code run that never wrote a transcript, and would keep passing if the format changed under the parser."
+            },
+            "dynamic_workflows": {
+              "last_verified": "2026-09-17",
+              "status": "native",
+              "validation": "claude plugin validate .",
+              "notes": "The Workflow tool runs a script that can pause, branch, and resume mid-execution driven by model output. No repo-declared artifact exercises it directly; validation follows the same plugin-load convention as ask_user_question and skill_auto_invocation."
+            },
+            "mods": {
+              "last_verified": "2026-10-02",
+              "status": "native",
+              "since": "2.1.287",
+              "since_source": "Claude Code changelog entry 2.1.287 (\"Added Claude Mods\") and the mods overview (\"Mods require Claude Code v2.1.287 or later\"); validated on a live 2.1.287 CLI 2026-10-02.",
+              "validation": "claude plugin validate .claude-plugin/plugin.json && claude plugin test .",
+              "notes": "Validated on a live claude 2.1.287 CLI: the validator lists the module's 14 hook registrations and every $ call, and `claude plugin test .` runs the 23 tests in the mod's test file against the engine (band, pane and spinner mounted on both terminal and desktop element tables). Drawing in a real interactive session was not exercised from this environment (headless). Widening lever, never used (ADR 004 D10.4): a mod `tool.check` can approve a call that a user deny rule refuses or a PreToolUse hook blocks on a personal login (doc-cited, docs/engineering/research/permissions/platforms/claude.md, row 'Mod tool.check'; directory hold MOD_ANSWERS_PERMISSION). The mod registers no tool.check and no PermissionRequest handler; tests/test-manifest-invariants.sh holds it."
+            },
+            "permission_levels": {
+              "last_verified": "2026-11-04",
+              "status": "native",
+              "since": "2.1.317",
+              "since_source": "ADR 004 D9 permissions_min in docs/engineering/build-and-release/platform-targets.json: the hook `ask` under bypassPermissions and its headless deny were measured on 2.1.317 (C4/U3, docs/engineering/research/permissions/spikes/claude-codex.md).",
+              "validation": "bash tests/test-permission-guard.sh && bash tests/test-resolve-permission.sh",
+              "notes": "ADR 004 D8 (docs/engineering/decisions/004-permission-levels.md); L1 skill gates are advisory on every surface. L2 shell ENFORCED: hooks/permission-guard.sh on PreToolUse Bash|Shell with onFailure: block. L2 GitHub MCP ENFORCED: the mcp__plugin_scaffold-marketplace-gold_github__.* matcher fires for the bundled server's tools (measured M4, docs/engineering/research/permissions/spikes/implementation-measurements.md) plus the github-mcp.sh server flags. L3 ENFORCED: a hook `ask` raises the host dialog in default, auto and bypassPermissions with the reason verbatim and Yes/No only (measured M1) and becomes a deny headless (measured C4/U3), and it is the only route for an R4 call. --perms= (D5): a lowering is a ticket at once and ENFORCED for the session; a raise is refused, because it needs UserPromptSubmit.source == user and 2.1.318 emits no source on any entrypoint (measured M2/M3); /plugin-config sets a durable per-skill level instead. Tickets and active-skill contexts are bound to (session, agent): a subagent's hook input carries its own agent_id (measured M5), so a main-thread ticket or skill never reaches a subagent and a subagent never runs above the main thread. Per-skill levels from the user's verified, locked file: a lowering is ENFORCED; a raise is ENFORCED for the agent the host recorded the skill for, by a UserPromptExpansion paired with its UserPromptSubmit on one prompt_id (M2) or a PreToolUse on the Skill tool, whose tool_input.skill hooks/permission-intent.sh reads (measured M6); project-file per-skill levels only tighten. Below 2.1.317 scripts/doctor.sh warns and the resolver runs every level above supervised as supervised (the D9 clamp); an unreadable version is a warning only."
+            }
+          }
+        },
+        "claude_desktop": {
+          "display_name": "Claude Desktop",
+          "kind": "desktop",
+          "support": "supported",
+          "aliases": [
+            "claude-desktop",
+            "desktop"
+          ],
+          "doc_urls": [
+            "https://code.claude.com/docs/en/plugins-reference",
+            "https://code.claude.com/docs/en/skills"
+          ],
+          "runtime_surface_of": "claude_code",
+          "install": {
+            "type": "marketplace",
+            "command": "Install the plugin from the same marketplace listing as Claude Code.",
+            "doc": "docs/user/install/claude-desktop.md"
+          },
+          "validation": {
+            "command": "claude plugin validate .",
+            "requires_cli": true
+          },
+          "capabilities": {
+            "skills": {
+              "last_verified": "2026-09-17",
+              "status": "native",
+              "validation": "claude plugin validate .",
+              "notes": "Desktop consumes the Claude Code plugin format; installed plugins and their skills are visible there. No separate manifest exists or should be created."
+            },
+            "skill_auto_invocation": {
+              "last_verified": "2026-09-17",
+              "status": "native",
+              "validation": "claude plugin validate .",
+              "notes": "Same plugin runtime as Claude Code."
+            },
+            "subagents": {
+              "last_verified": "2026-09-17",
+              "status": "unknown",
+              "notes": "Not exercised on Desktop by this repo. Treat as unavailable until a Desktop run is recorded."
+            },
+            "parallel_subagents": {
+              "last_verified": "2026-09-17",
+              "status": "unknown",
+              "notes": "Depends on subagents, which is itself unverified here."
+            },
+            "agent_teams": {
+              "last_verified": "2026-09-17",
+              "status": "unknown",
+              "notes": "No Desktop evidence."
+            },
+            "hooks": {
+              "last_verified": "2026-11-04",
+              "status": "unknown",
+              "notes": "Hooks fire in Desktop coding sessions: measured U4 on 2026-11-04 (Desktop 4.16336.0, embedded Claude Code 2.1.317), where a project PreToolUse hook and a plugin's own SessionStart hook ran, and a PreToolUse `ask` raised Desktop's approval card. This plugin's own hook bundle was not run end to end on Desktop. Permission levels (ADR 004 D8): see this surface's permission_levels row.",
+              "fallback": "Assume no hooks; rely on in-skill guards and CI."
+            },
+            "mcp": {
+              "last_verified": "2026-09-17",
+              "status": "native",
+              "validation": "bash scripts/check-manifest-declares.sh .mcp.json mcpServers",
+              "notes": "Desktop is a long-standing MCP host; server config lives in the Desktop app rather than the repo."
+            },
+            "statusline": {
+              "last_verified": "2026-09-17",
+              "status": "unsupported",
+              "notes": "No terminal chrome to render into.",
+              "fallback": "Cosmetic only; nothing depends on it."
+            },
+            "shell": {
+              "last_verified": "2026-09-17",
+              "status": "partial",
+              "notes": "Desktop coding sessions can run commands; other Desktop surfaces (plain chat) cannot.",
+              "fallback": "Print commands for the user to run."
+            },
+            "git": {
+              "last_verified": "2026-09-17",
+              "status": "partial",
+              "notes": "Follows shell — available only in the coding-session surface.",
+              "fallback": "Skip git workflows."
+            },
+            "github_cli": {
+              "last_verified": "2026-09-17",
+              "status": "unknown",
+              "notes": "Depends on the Desktop session's shell environment; not measured.",
+              "fallback": "Print the PR/issue body for manual filing."
+            },
+            "background_tasks": {
+              "last_verified": "2026-09-17",
+              "status": "unknown",
+              "notes": "No Desktop evidence.",
+              "fallback": "Run in the foreground."
+            },
+            "worktree_isolation": {
+              "last_verified": "2026-09-17",
+              "status": "unknown",
+              "notes": "Requires shell plus git, both only partially confirmed here.",
+              "fallback": "Single checkout, serialized tasks."
+            },
+            "plugin_marketplace": {
+              "last_verified": "2026-11-05",
+              "status": "native",
+              "validation": "bash scripts/check-marketplace-schema.sh .",
+              "notes": "Same marketplace listing as Claude Code (doc-cited 2026-11-05, create-marketplace: install from the hosted marketplace). No manifest of its own — repo-scaffold --type marketplace writes none for Desktop."
+            },
+            "extension_install": {
+              "last_verified": "2026-09-17",
+              "status": "unsupported",
+              "notes": "Not a Claude mechanism.",
+              "fallback": "Use the marketplace listing."
+            },
+            "slash_commands": {
+              "last_verified": "2026-09-17",
+              "status": "native",
+              "validation": "claude plugin validate .",
+              "notes": "Plugin commands surface in Desktop alongside skills."
+            },
+            "ask_user_question": {
+              "last_verified": "2026-09-17",
+              "status": "unknown",
+              "notes": "Not verified on Desktop.",
+              "fallback": "Ask in prose."
+            },
+            "artifacts": {
+              "last_verified": "2026-09-17",
+              "status": "partial",
+              "notes": "Artifacts are a first-class Desktop feature, but nothing in this repo can validate or drive one, and no shipped skill depends on it.",
+              "fallback": "Write the page to a file in the repo and report the path."
+            },
+            "session_transcripts": {
+              "last_verified": "2026-09-17",
+              "status": "unknown",
+              "notes": "No documented on-disk transcript format for Desktop; session-report should refuse rather than guess.",
+              "fallback": "Report that usage analytics are unavailable on this surface."
+            },
+            "dynamic_workflows": {
+              "last_verified": "2026-09-17",
+              "status": "unsupported",
+              "notes": "The Workflow tool is a Claude Code CLI surface; not exercised on Desktop.",
+              "fallback": "Sequential subagent orchestration driven by the main session."
+            },
+            "mods": {
+              "last_verified": "2026-10-02",
+              "status": "native",
+              "since": "2.1.287",
+              "validation": "claude plugin test .",
+              "notes": "Per the official mods docs ('Where mods run'): hooks run and panes/bands draw in the Desktop app's Code tab, except in WSL sessions, with the element table the mods reference marks desktop-capable (no Raster/Image). The mod's UI tests mount every drawing on the `desktop` element table. Not exercised on a Desktop install from this repo; the AbovePrompt usage line exists for exactly this surface, which has no statusline. Widening lever, never used (ADR 004 D10.4): the mod registers no `tool.check`, which could approve over a user deny (docs/engineering/research/permissions/platforms/claude.md); tests/test-manifest-invariants.sh holds it.",
+              "fallback": "The settings hooks and skills; the usage line is cosmetic."
+            },
+            "permission_levels": {
+              "last_verified": "2026-11-04",
+              "status": "unknown",
+              "notes": "ADR 004 D8 (docs/engineering/decisions/004-permission-levels.md); L1 skill gates are advisory on every surface. Measured U4 (2026-11-04, Desktop 4.16336.0, embedded Claude Code 2.1.317, docs/engineering/research/permissions/spikes/implementation-measurements.md \"GUI checks\"): hooks run in Desktop coding sessions (a project PreToolUse and a plugin SessionStart fired), and a PreToolUse hook `ask` raises Desktop's \"Allow Claude to run this command?\" card with the reason verbatim and Deny / Allow once, under Bypass permissions too; Deny stops the call. So L3 is the hook ask, as on the CLI; a plugin-shipped PreToolUse ask was not run separately and L2 `deny` was not exercised, so the call stamp stays: until it proves permission-guard.sh ran, L1 answers as supervised. Desktop has no userConfig route: \"Add to this computer\" shows no dialog, the plugin menu offers only Remove, and with nothing stored the hook env carries no CLAUDE_PLUGIN_OPTION_*, so the level comes from its absence (supervised). The GitHub MCP server flags apply at server start. --perms= cannot raise here (scripts/plugin-config.sh confirm refuses a claude-desktop session, D5). Per-skill levels ADVISORY.",
+              "fallback": "Run at supervised: the skills' L1 gates stop before every R2+ step, the GitHub MCP server starts --read-only, and a level change runs scripts/plugin-config.sh in the user's own terminal."
+            }
+          }
+        },
+        "claude_vscode": {
+          "display_name": "Claude Code VS Code extension",
+          "kind": "ide",
+          "support": "unverified",
+          "unverified_reason": "The VS Code extension runs the same plugin as the CLI, and since extension 2.1.299 it also draws mods (with a reduced element set: no Button hotkey/plain/autoFocus/action, no Text size/mono/tabular, no Box position/hover, status lines cut at 200 and toasts at 500 characters, Client never rendered). This repo has never installed the plugin or invoked a skill there, and the mod has no vscode branch yet, so no capability is claimed. Measurements recorded under claude_code were taken in the terminal.",
+          "aliases": [
+            "claude-vscode",
+            "vscode"
+          ],
+          "doc_urls": [
+            "https://code.claude.com/docs/en/vs-code",
+            "https://code.claude.com/docs/en/plugins/mods"
+          ]
+        }
+      }
+    },
+    "codex": {
+      "display_name": "Codex",
+      "vendor": "OpenAI",
+      "primary_surface": "codex",
+      "doc_urls": [
+        "https://developers.openai.com/codex/config-basic",
+        "https://developers.openai.com/codex/guides/agents-md"
+      ],
+      "surfaces": {
+        "codex": {
+          "display_name": "Codex CLI",
+          "kind": "cli",
+          "support": "supported",
+          "aliases": [
+            "codex-cli",
+            "openai-codex"
+          ],
+          "doc_urls": [
+            "https://developers.openai.com/codex/guides/agents-md",
+            "https://developers.openai.com/codex/config-basic"
+          ],
+          "install": {
+            "type": "marketplace",
+            "command": "codex plugin add scaffold-marketplace-gold@scaffold-marketplace-gold",
+            "doc": "docs/user/install/codex.md"
+          },
+          "validation": {
+            "command": "bash scripts/check-manifest-declares.sh .codex-plugin/plugin.json skills mcpServers hooks"
+          },
+          "capabilities": {
+            "skills": {
+              "last_verified": "2026-09-17",
+              "status": "native",
+              "since": "0.40.0",
+              "validation": "bash scripts/check-manifest-declares.sh .codex-plugin/plugin.json skills",
+              "notes": "`skills` is a documented field of the .codex-plugin/plugin.json manifest spec, and this repo's manifest carries all seven skill roots; validated against 0.146.0. The previous note offered platform-targets.json as its source — that file's capabilities array is generated FROM this registry, so the row was citing itself."
+            },
+            "skill_auto_invocation": {
+              "last_verified": "2026-09-17",
+              "status": "unknown",
+              "notes": "Codex skill selection behaviour has not been measured by this repo.",
+              "fallback": "Document explicit invocation in docs/user/install/codex.md."
+            },
+            "subagents": {
+              "last_verified": "2026-09-08",
+              "status": "unknown",
+              "notes": "Demoted from 'native' 2026-09-08. The claim rested on two things, and neither survived checking. (1) The note cited platform-targets.json — but that file's per-target `capabilities` array is a DERIVED mirror of THIS registry (scripts/check-platform-targets.sh says so in its header), so the row was citing itself. (2) The validation was `jq empty .codex-plugin/plugin.json`, which passes on any valid JSON. Against the upstream manifest spec, .codex-plugin/plugin.json defines name, version, description, author, homepage, repository, license, keywords, skills, hooks, mcpServers, apps and interface — there is no agents or subagents field, and no documented folder discovery of an agents/ directory. This repo also ships no Codex agent mirror, unlike .gemini/agents/, which exists precisely because Gemini needed one. Codex CLI does have a subagents feature, and it is deliberately outside the plugin system: subagents are standalone .toml files in $CODEX_HOME/agents/ or a per-repo .codex/agents/, and bundling one inside a plugin manifest is an OPEN feature request (https://github.com/openai/codex/issues/28491, closed as a duplicate of #18988). So the missing field is not an oversight in the spec — there is no plugin-packaging path to this capability at all today. The status stays 'unknown' rather than 'unsupported' because the capability exists on the surface; what is unestablished is a route from this plugin to it, and 'unsupported' would claim Codex lacks subagents, which is false. The identical 'Cloud subagents can run on their own VMs (2026-08-19)' sentence also sat on the cursor row verbatim, date included — one note copied, not two facts established. 2026-10-17: scripts/build-codex-agents.sh now generates .codex/agents/<name>.toml (name, description, developer_instructions, and features.shell_tool = false where the canonical allowlist has no Bash; no model field) from every agents/*.md, checked by make codex-agents-check. This is a REPO-LEVEL route: a project that adopts the toolkit and commits .codex/agents/ gets the ten specialist agents as Codex custom subagents. It is still not a plugin-shipped route — the plugin manifest has no agents field (openai/codex#28491 -> #18988 remains open) — so status stays unknown until one live Codex run measures the generated agents loading. 2026-10-17 (WP-P1): a live codex-cli 0.163.0 binary installs and runs offline up to the first model call (see the hooks note), so measuring the generated .codex/agents/*.toml loading needs only an authenticated or local-model session, not new tooling; not run here (no credential). Status stays unknown. `codex features list` on 0.163.0: multi_agent stable/true, multi_agent_v2 stable/false.",
+              "fallback": "Run the role inline in the main session, sequentially, with a narrowed scope."
+            },
+            "parallel_subagents": {
+              "last_verified": "2026-09-17",
+              "status": "unknown",
+              "notes": "Concurrency behaviour unverified.",
+              "fallback": "Fan out sequentially."
+            },
+            "agent_teams": {
+              "last_verified": "2026-09-17",
+              "status": "unknown",
+              "notes": "No evidence of inter-agent messaging.",
+              "fallback": "Use session-files/ as the message bus."
+            },
+            "hooks": {
+              "last_verified": "2026-09-21",
+              "status": "native",
+              "validation": "jq -e '.hooks' .codex-plugin/plugin.json",
+              "notes": "Manifest hooks field. No 'since' is recorded, deliberately. It previously read 0.147.0, which was taken from the neighbouring features_adopted entry portable-agent-plugins-0.147.0 -- a different change (plugin catalog install) -- while the hooks-field entry sitting beside it is unversioned precisely because the floor was never established. Codex accepted a manifest hooks field long before 0.147.0: openai/codex PR #19705 'Discover hooks bundled with plugins' merged 2026-04-28, roughly twenty releases earlier. The exact floor is still unestablished, so none is claimed here rather than a wrong one. It IS the same shape as Claude hooks/hooks.json -- this repo's own file, pointed at by .codex-plugin/plugin.json. Corrected 2026-09-21: the note previously read 'Not the same shape', which is false. Codex's manifest.rs accepts the same HooksFile type its engine consumes, its own test uses plugin_root.join('hooks/hooks.json'), the engine is named ClaudeHooksEngine, it sets CLAUDE_PLUGIN_ROOT, exit-2 blocking semantics match, and it ships Claude tool-name matcher aliases deliberately. What is true is narrower: coverage is PARTIAL -- WorktreeCreate, WorktreeRemove, DirectoryAdded and Notification have no Codex equivalent and never fire. Source-derived from openai/codex main, not verified against a live codex run. 2026-10-17 (5.0.0): delivered through the manifest hooks field of .codex-plugin/plugin.json (and of the root plugin.json's extensions.com.openai once platforms/manifests.source.json's emit_codex_extension is switched on after a live run), both pointing at the GENERATED platforms/codex/hooks.json (scripts/build-codex-hooks.sh), not at hooks/hooks.json. Reason: Codex's hooks-file parser (HooksFile in codex-rs/config/src/hook_config.rs) is deny_unknown_fields with exactly description and hooks, so the top-level modules key the Claude file has carried since 4.10.0 fails to parse — source-read on openai/codex main, NOT run live; whether that is a hard error or a warning that drops every hook is not established, and either way no hook loaded from that file between 4.10.0 and 4.12.2. The generated copy drops modules, the five events Codex lacks (Notification, DirectoryAdded, WorktreeCreate, WorktreeRemove, StopFailure) and Claude's per-hook onFailure (Codex's command-hook struct has no such field), so every guard is fail-open on Codex. Hook trust is hash-bound: each plugin update needs a /hooks re-trust. Validation: bash scripts/build-codex-hooks.sh . --check. 2026-10-17 (WP-P1, codex-cli 0.163.0 measured offline via `codex exec --dangerously-bypass-hook-trust` against a dead provider): a hooks file carrying `modules` is reported (failed to parse plugin hooks config: unknown field `modules`, expected `description` or `hooks`) and its hooks are dropped; the session continues — the generated platforms/codex/hooks.json avoids it. Plugin hook env is PLUGIN_ROOT, PLUGIN_DATA, CLAUDE_PLUGIN_ROOT, CLAUDE_PLUGIN_DATA, CODEX_HOME; stdin common fields session_id, transcript_path, cwd, hook_event_name, model, permission_mode (+turn_id on turn events). SessionEnd/Interrupt timeouts are clamped to 3s (the generator now writes the clamp). HOWEVER: with a root Agent Plugins plugin.json present, Codex 0.163.0 (loader.rs, unchanged on main) sets a plugin's hook sources to empty before reading any hooks path — overlay `hooks`, `extensions.com.openai.hooks`, or both. Measured: the tree loaded no hooks until the root plugin.json was removed, after which SessionStart/UserPromptSubmit hooks ran. 5.0.0 therefore keeps the Agent Plugins manifest under platforms/agent-plugins/ (shipped only at the root of the agent-plugins tarball) and the Codex subset carries none; scripts/check-dist.sh --target codex refuses one. Now measurable without a live session: tests/hooks/test-codex-contract.sh (every wired command vs Codex's output contract: Stop-family JSON on exit 0, rejected PreToolUse/PostToolUse keys, apply_patch deny/allow pairs). Still needs a live run: PreToolUse/PostToolUse on a real apply_patch call, Stop/SubagentStop handling, /hooks hash-bound re-trust. Permission levels (ADR 004 D8): see this surface's permission_levels row. Widening lever, never used (ADR 004 D10.4): a PermissionRequest hook can return allow and so answer the host's approval prompts on the user's behalf (docs/engineering/research/permissions/platforms/codex.md, 'PermissionRequest can answer approval prompts'); platforms/codex/hooks.json wires none and tests/test-manifest-invariants.sh holds it."
+            },
+            "mcp": {
+              "last_verified": "2026-09-17",
+              "status": "native",
+              "validation": "bash scripts/check-manifest-declares.sh .codex-plugin/plugin.json mcpServers",
+              "notes": "Declared through the plugin manifest's mcpServers field, which points at ./.mcp.json. This row previously validated with `test -f .codex/config.toml` and said MCP was configured there instead — that file's own header comment says the opposite (\"MCP servers are declared in .codex-plugin/plugin.json\"), and it would have passed on an empty file."
+            },
+            "statusline": {
+              "last_verified": "2026-09-17",
+              "status": "unsupported",
+              "notes": "Not a declared Codex capability.",
+              "fallback": "Cosmetic only; omit."
+            },
+            "shell": {
+              "last_verified": "2026-09-17",
+              "status": "native",
+              "validation": "command -v bash"
+            },
+            "git": {
+              "last_verified": "2026-09-17",
+              "status": "native",
+              "validation": "git rev-parse --is-inside-work-tree"
+            },
+            "github_cli": {
+              "last_verified": "2026-09-17",
+              "status": "native",
+              "validation": "gh auth status",
+              "notes": "Optional host dependency, as everywhere."
+            },
+            "background_tasks": {
+              "last_verified": "2026-09-17",
+              "status": "unknown",
+              "notes": "Not measured.",
+              "fallback": "Foreground with a bounded timeout."
+            },
+            "worktree_isolation": {
+              "last_verified": "2026-09-17",
+              "status": "emulated",
+              "notes": "No hook automation; the skill creates and removes worktrees itself via shell and git.",
+              "fallback": "Explicit git worktree add/remove steps inside the skill."
+            },
+            "plugin_marketplace": {
+              "last_verified": "2026-11-05",
+              "status": "native",
+              "validation": "bash scripts/check-marketplace-schema.sh .",
+              "notes": "Codex has its own marketplace manifest (doc-cited 2026-11-05, https://developers.openai.com/plugins/build/plugins, recorded in docs/engineering/research/marketplace-standards.md): `$REPO_ROOT/.agents/plugins/marketplace.json` with top-level name, interface.displayName and plugins[].{name, source, policy.installation (AVAILABLE | INSTALLED_BY_DEFAULT | NOT_AVAILABLE), policy.authentication, category}; sources local (path) | url | git-subdir | npm. It also reads `.claude-plugin/marketplace.json` as a \"legacy-compatible marketplace\". Users add with `codex plugin marketplace add <owner/repo | git-url --sparse .agents/plugins | ./path>`; `list`, `upgrade` and `remove` exist; no validation CLI is documented. This repo ships .agents/plugins/marketplace.json in that shape, and repo-scaffold --type marketplace renders the same (skills/repo/_contract/templates/marketplace/codex/). Codex installs plugins from a marketplace; the install command on this surface is `codex plugin add scaffold-marketplace-gold@scaffold-marketplace-gold` (the CLI has no `install` subcommand: `codex plugin` takes add | list | marketplace | remove, and `add` takes PLUGIN@MARKETPLACE; source-cited cli/src/plugin_cmd.rs on 0.166.0). The evidence is the marketplace manifest this repo publishes, which is what the validation checks. The previous note offered platform-targets.json as its source — that file's capabilities array is generated FROM this registry, so the row was citing itself."
+            },
+            "extension_install": {
+              "last_verified": "2026-09-17",
+              "status": "unsupported",
+              "notes": "Codex installs plugins, not git-URL extensions.",
+              "fallback": "Use the plugin manifest install path."
+            },
+            "slash_commands": {
+              "last_verified": "2026-09-17",
+              "status": "unsupported",
+              "notes": "No plugin-shippable command mechanism found. All 9 plugins bundled with codex 0.156.0 (browser, chrome, codex-app-tools, computer-use, latex, messages, record-and-replay, unified-computer-use, visualize) were checked: 0 declare a commands manifest field and 0 ship a commands/ directory. Codex publishes no manifest reference to cite, so this is the strongest available evidence rather than a documented absence - it means a plugin cannot CONTRIBUTE commands, not that Codex has no built-in ones. The adjacent surface Codex does offer is interface.defaultPrompt, which this plugin ships with 6 entries as of 4.5.0.",
+              "fallback": "Use the interface.defaultPrompt entries, or invoke skills in prose."
+            },
+            "ask_user_question": {
+              "last_verified": "2026-09-17",
+              "status": "unknown",
+              "notes": "No structured-question primitive verified.",
+              "fallback": "Ask in prose."
+            },
+            "artifacts": {
+              "last_verified": "2026-09-17",
+              "status": "unsupported",
+              "notes": "No artifact publishing surface.",
+              "fallback": "Write to a file in the repo."
+            },
+            "session_transcripts": {
+              "last_verified": "2026-09-17",
+              "status": "unknown",
+              "notes": "Transcript format not documented for this repo's tooling; session-report targets the Claude JSONL format only.",
+              "fallback": "Report analytics as unavailable."
+            },
+            "dynamic_workflows": {
+              "last_verified": "2026-09-17",
+              "status": "unsupported",
+              "notes": "The Workflow tool is Claude-specific; no declared Codex equivalent.",
+              "fallback": "Sequential subagent orchestration driven by the main session."
+            },
+            "mods": {
+              "last_verified": "2026-10-02",
+              "status": "unsupported",
+              "notes": "Claude Code function hooks have no Codex equivalent. Codex never sees the `modules` key: since 5.0.0 its manifest points `hooks` at the generated Codex hooks file, and since 5.0.2 the key lives in the mod's own hooks file, which only the Claude manifest's `hooks` field names, so the settings hooks file carries no mod reference on any host.",
+              "fallback": "The settings hooks Codex already runs; objective-state.sh show for the objective; rate-limit-handoff.sh for the handoff nudge."
+            },
+            "permission_levels": {
+              "last_verified": "2026-11-04",
+              "status": "partial",
+              "since": "0.166.0",
+              "since_source": "ADR 004 D9 permissions_min: the deny-only hook contract and its fail-open paths are source-cited at rust-v0.166.0 (X1, docs/engineering/research/permissions/spikes/claude-codex.md).",
+              "notes": "ADR 004 D8 (docs/engineering/decisions/004-permission-levels.md); L1 skill gates are advisory on every surface. L2 shell ENFORCED deny only: permission-guard.sh on PreToolUse Bash|Shell answers a deny with its reason, traps every error to a deny and always exits 0, because Codex lets a call through on a hook `ask`, a bare `allow`, any other exit or malformed output (X1). L2 GitHub MCP: the same guard on the MCP matcher, matcher firing unverified, so the server flags decide. L3 none: every ask is delivered as a deny naming the out-of-session route, and an R4 call is always denied with the command for the user's own terminal. Plugin hooks run only after /hooks trust, re-required on every update. --perms= only lowers (no host-attested channel, D5): hooks/permission-intent.sh on UserPromptSubmit writes a session-wide lowering ticket the guard applies. Per-skill levels ADVISORY. Optional belt: setup.sh --codex-rules writes user-owned execpolicy `prompt` rules for R4 forms.",
+              "fallback": "A widening runs scripts/plugin-config.sh in the user's own terminal, make setup or CI provision (D7); inside a session the level only tightens."
+            }
+          }
+        },
+        "codex_ide": {
+          "display_name": "Codex IDE extension",
+          "kind": "ide",
+          "support": "unverified",
+          "unverified_reason": "The IDE extension consumes the same AGENTS.md and .codex-plugin/plugin.json as the CLI, but this repo has never installed the plugin or invoked a skill there. Every measurement recorded under codex was taken from the CLI, so no capability is claimed for this surface in either direction.",
+          "aliases": [
+            "codex-ide"
+          ],
+          "doc_urls": [
+            "https://developers.openai.com/codex/ide"
+          ]
+        }
+      }
+    },
+    "cursor": {
+      "display_name": "Cursor",
+      "vendor": "Anysphere",
+      "primary_surface": "cursor",
+      "doc_urls": [
+        "https://cursor.com/docs/context/rules",
+        "https://cursor.com/docs/hooks",
+        "https://cursor.com/docs/plugins",
+        "https://cursor.com/docs/reference/third-party-hooks"
+      ],
+      "surfaces": {
+        "cursor": {
+          "display_name": "Cursor IDE",
+          "kind": "ide",
+          "support": "supported",
+          "doc_urls": [
+            "https://cursor.com/docs/plugins",
+            "https://cursor.com/docs/context/rules",
+            "https://cursor.com/docs/hooks",
+            "https://cursor.com/docs/reference/third-party-hooks"
+          ],
+          "install": {
+            "type": "marketplace",
+            "command": "Add the repo as a plugin source in Cursor, then install scaffold-marketplace-gold.",
+            "doc": "docs/user/install/cursor.md"
+          },
+          "validation": {
+            "command": "bash scripts/check-manifest-declares.sh .cursor-plugin/plugin.json skills mcpServers rules hooks commands agents"
+          },
+          "capabilities": {
+            "skills": {
+              "last_verified": "2026-09-17",
+              "status": "native",
+              "since": "3.22.7",
+              "validation": "bash scripts/check-manifest-declares.sh .cursor-plugin/plugin.json skills",
+              "notes": "Validated against 3.22.7; the floor is the version actually tested, not a guess."
+            },
+            "skill_auto_invocation": {
+              "last_verified": "2026-08-26",
+              "status": "partial",
+              "notes": "CLI sticky skills (2026-08-11) plus Agent Window Custom Modes (2026-08-19: Option+Enter from / pins a skill as an always-on mode). Automatic description-based selection across all surfaces is still unverified. CLI persistent sessions (2026-08-26) keep long skill/validation runs alive across disconnects.",
+              "fallback": "Name the skill explicitly, pin it as a Custom Mode, or rely on the .cursor/rules/*.mdc entrypoint."
+            },
+            "subagents": {
+              "last_verified": "2026-09-23",
+              "status": "native",
+              "since": "3.22.7",
+              "validation": "bash scripts/check-manifest-declares.sh --or-discovers agents .cursor-plugin/plugin.json agents",
+              "notes": "Subagents load and run - measured 2026-09-23 on cursor-agent 2026.07.17-3e2a980 via --plugin-dir. CURSOR ITSELF DOES NOT ENFORCE THE FRONTMATTER `tools:` ALLOWLIST, and this plugin now supplies a guard that does - hooks/cursor-agent-tools-guard.sh (#223), wired to preToolUse/postToolUse from platforms/cursor/hooks.json. Desktop >= 3.22/3.24: frames are keyed on Task tool_use_id + child parent_tool_call_id so concurrent subagents are attributed correctly. Fallback (older payloads): reconstructs from event ORDER - push on Task (tool_input.subagent_type), check against active frames, pop on postToolUse - and under concurrency applies the INTERSECTION of active allowlists (safer than guessing). It is ADVISORY, NOT A SANDBOX: it infers 'inside a subagent' from event sequence, raising the cost of an unlisted call without making one impossible, and a missed postToolUse fails safe (over-restrictive). The original measurement stands and is why the guard exists: a probe agent declaring `tools: Read, Grep, Glob` wrote a file when asked. The seven read-only agents here (architecture-reviewer, security-reviewer, spec-reviewer, performance-reviewer, research-agent, debugging-specialist, orchestrator) are therefore NOT constrained on Cursor - what stops them is the prose in their own system prompt, which is a model instruction, not a sandbox. A first probe looked reassuring (architecture-reviewer refused, citing being review-only) and proved nothing; only an agent whose prose actively demanded writing distinguished a model declining from the platform preventing. This is the same failure scripts/build-opencode-agents.sh exists to prevent on OpenCode, where permissions are translated explicitly. Status stays `native` because subagents genuinely work; the unenforced allowlist is a separate, unmet guarantee. See #179."
+            },
+            "parallel_subagents": {
+              "last_verified": "2026-09-10",
+              "status": "partial",
+              "notes": "Cloud Agents can swarm subagents each on an isolated VM (2026-08-19). Local parallel fan-out concurrency is still unmeasured here. Self-Hosted Machines (2026-09-02): My Machines / Team Pools / partner sandboxes can host tool execution with computer use on Linux/Mac — not GitHub Actions self-hosted runners. Projects (2026-09-10) coordinators can fan work across many cloud/local agents with durable shared context.",
+              "fallback": "Prefer cloud-isolated subagents for collision-free swarms; otherwise fan out sequentially locally."
+            },
+            "agent_teams": {
+              "last_verified": "2026-09-10",
+              "status": "unknown",
+              "notes": "No evidence of inter-agent messaging. Projects (2026-09-10): use a Cursor Project with a coordinator agent + shared context for multi-week / multi-agent work; coordinator plans and delegates, does not write code itself.",
+              "fallback": "Use session-files/ as the message bus."
+            },
+            "hooks": {
+              "last_verified": "2026-09-23",
+              "status": "partial",
+              "notes": "Cursor-format plugin hooks DO run, measured 2026-09-23 on cursor-agent 2026.07.17-3e2a980: .cursor-plugin/plugin.json declares \"hooks\": \"./platforms/cursor/hooks.json\" and a write to .github/workflows/ci.yml was blocked with the guard's own reason reaching the agent and the file unchanged, while an ordinary write succeeded. Claude-shaped plugin hooks (hooks/hooks.json, CLAUDE_PLUGIN_ROOT) still do NOT run under a Cursor plugin install - Cursor reads third-party Claude hooks only from .claude/settings.local.json, .claude/settings.json and ~/.claude/settings.json, never from a plugin's own hooks.json - which is why the bundle sits at a non-default path: an undeclared component binds to that unreadable default rather than disabling itself. At that measurement the bundle wired 3 of Cursor's 21 events (preToolUse, beforeShellExecution, postToolUse); #179 E8 extended it to the ten below. Project-level .cursor/hooks.json remains a separate thing, shipping soft contributor guards for this repo as an open project. See #221. 2026-10-17 (5.0.0): the bundle wires ten of Cursor's 21 events: workspaceOpen (pluginPaths from SUPERPOWERS_CURSOR_PLUGIN_PATH), sessionStart (session-init.sh -> additional_context; env not emitted, shape undocumented), sessionEnd (session-end.sh, release-agent-claims.sh, handoff-reminder.sh; no output, reminder on stderr), beforeSubmitPrompt (goal-condition-lint.sh blocks with continue:false + user_message; scope-decompose-reminder.sh and skill-suggest.sh pass with continue:true + user_message, addressed to the user since the event has no model channel), preToolUse, beforeShellExecution, postToolUse, stop (check-done.sh, {} + stderr), preCompact (precompact-snapshot.sh writes .dev-files/compaction/latest.md), subagentStop (subagent-handoff-check.sh: its handoff warning goes to user_message and stderr on Cursor, never followup_message). failClosed: true and loop_limit: null on the safety tier only: enforce-worktree-edits.sh, guard-sensitive-files.sh (preToolUse and beforeShellExecution), protect-other-branches.sh, cursor-agent-tools-guard.sh (preToolUse); Cursor's hooks reference documents loop_limit only for stop/subagentStop hooks, so on these permission events it is most likely a no-op (doc-cited, not measured). No hook emits followup_message (Cursor auto-submits it as the user's next message); tests/test-cursor-lifecycle.sh asserts the envelope of every entry against tests/fixtures/cursor/. Unwired with reasons in platforms/cursor/README.md: subagentStart, postToolUseFailure, MCP/read/after* events. Cloud agents run the guards, prompt hooks, stop, preCompact and subagentStop but not sessionStart/sessionEnd/workspaceOpen and load no user-level hooks. Status stays partial: no live run of the lifecycle port yet (fixtures built from the documented fields, desktop 3.24). Permission levels (ADR 004 D8): see this surface's permission_levels row.",
+              "fallback": "Treat guards as advisory; enforce the same rules in CI."
+            },
+            "mcp": {
+              "last_verified": "2026-09-17",
+              "status": "native",
+              "validation": "bash scripts/check-manifest-declares.sh .mcp.json mcpServers"
+            },
+            "statusline": {
+              "last_verified": "2026-09-17",
+              "status": "unsupported",
+              "notes": "No plugin-declared statusline.",
+              "fallback": "Cosmetic only; omit."
+            },
+            "shell": {
+              "last_verified": "2026-09-17",
+              "status": "native",
+              "validation": "command -v bash"
+            },
+            "git": {
+              "last_verified": "2026-09-17",
+              "status": "native",
+              "validation": "git rev-parse --is-inside-work-tree"
+            },
+            "github_cli": {
+              "last_verified": "2026-09-17",
+              "status": "native",
+              "validation": "gh auth status",
+              "notes": "Optional host dependency."
+            },
+            "background_tasks": {
+              "last_verified": "2026-09-17",
+              "status": "unknown",
+              "notes": "Cloud Agent Builds run work remotely, which is not the same primitive; not measured.",
+              "fallback": "Foreground with a bounded timeout."
+            },
+            "worktree_isolation": {
+              "last_verified": "2026-09-17",
+              "status": "emulated",
+              "notes": "Done by the skill through shell and git; no hook automation.",
+              "fallback": "Explicit git worktree add/remove steps."
+            },
+            "plugin_marketplace": {
+              "last_verified": "2026-11-05",
+              "status": "native",
+              "validation": "bash scripts/check-marketplace-schema.sh .",
+              "notes": "Cursor has a marketplace manifest (doc-cited 2026-11-05, https://cursor.com/docs/reference/plugins#marketplace-manifest-format, recorded in docs/engineering/research/marketplace-standards.md): `.cursor-plugin/marketplace.json` at the repo root, <= 10 MB, with required name (kebab-case), owner.name and plugins[].name; `source` is a path to the plugin directory (the only documented source type), resolved against metadata.pluginRoot when set and merged with the plugin's own .cursor-plugin/plugin.json when found. No validation CLI and no user-side add/install command are on the reference page; repos are submitted at cursor.com/marketplace/publish, and the Cursor CLI changelog documents `agent plugin marketplace add <git-url>` (see the extension_install row). repo-scaffold --type marketplace renders that file (skills/repo/_contract/templates/marketplace/cursor/)."
+            },
+            "extension_install": {
+              "last_verified": "2026-11-03",
+              "status": "unknown",
+              "notes": "No longer verified absent: the Cursor CLI changelog documents installing plugins from a git URL (`agent plugin marketplace add <git-url>`; doc-cited https://cursor.com/docs/cli/changelog.md, read 2026-11-03, docs/engineering/research/permissions/platforms/cursor.md). That is a plugin marketplace source rather than a Gemini-style extension install, and it has not been run here, so it is unmeasured.",
+              "fallback": "Use the plugin manifest install path."
+            },
+            "slash_commands": {
+              "last_verified": "2026-09-23",
+              "status": "partial",
+              "since": "3.22.7",
+              "validation": "bash scripts/check-manifest-declares.sh .cursor-plugin/plugin.json commands",
+              "notes": "Demoted from 'native' 2026-09-08 because the limit was on our side, not Cursor's: this repo shipped no commands/ directory and no commands key, so zero commands. RESOLVED 2026-09-23 (#179 E6): scripts/build-cursor-commands.sh generates .cursor/commands/ from skills/*/*/SKILL.md - 26 commands, one per user-invocable skill, with the three user-invocable:false skills deliberately excluded to match this repo's slash-surface tier - and .cursor-plugin/plugin.json now declares \"commands\": \"./.cursor/commands/\" explicitly rather than relying on default discovery, because an undeclared component binds to a default path instead of disabling itself (the trap that hit rules in 4.5.0 and hooks in #221). Format read from https://cursor.com/docs/reference/plugins: flat .md with optional YAML frontmatter, fields name (lowercase kebab-case) and description. No $ARGUMENTS line is emitted, unlike the OpenCode generator, because Cursor documents NO argument interpolation for commands and a literal placeholder would ship a promise the surface does not keep. Status is 'partial', not 'native': the generator, its both-directions drift check (verified to FAIL on a hand-edited command, not only to pass when in sync) and the 26 generated files are verified locally, but NO live Cursor run has confirmed the commands appear under / in the IDE, so the surface behaviour is generated-and-declared rather than observed. validated_against is unchanged for the same reason.",
+              "fallback": "Invoke by skill name; there is no repo-provided /command on this surface to fall back from."
+            },
+            "ask_user_question": {
+              "last_verified": "2026-09-17",
+              "status": "unknown",
+              "notes": "No structured-question primitive verified.",
+              "fallback": "Ask in prose."
+            },
+            "artifacts": {
+              "last_verified": "2026-09-17",
+              "status": "unsupported",
+              "notes": "No artifact publishing surface.",
+              "fallback": "Write to a file in the repo."
+            },
+            "session_transcripts": {
+              "last_verified": "2026-09-17",
+              "status": "unknown",
+              "notes": "Transcript format not documented for this repo's tooling.",
+              "fallback": "Report analytics as unavailable."
+            },
+            "dynamic_workflows": {
+              "last_verified": "2026-09-17",
+              "status": "unsupported",
+              "notes": "The Workflow tool is Claude-specific; no declared Cursor equivalent.",
+              "fallback": "Sequential subagent orchestration driven by the main session."
+            },
+            "mods": {
+              "last_verified": "2026-10-02",
+              "status": "unsupported",
+              "notes": "Cursor loads platforms/cursor/hooks.json, never hooks/hooks.json, so it never sees the `modules` key. No equivalent in-process hook API.",
+              "fallback": "The Cursor hook bundle; skills."
+            },
+            "permission_levels": {
+              "last_verified": "2026-11-04",
+              "status": "partial",
+              "since": "3.27.22",
+              "since_source": "ADR 004 D9 permissions_min (the desktop app; the CLI floor, permissions_min_cli 2026.10.22, is the build whose shell deny/ask consumer is source-cited, U1, docs/engineering/research/permissions/spikes/cursor-gemini-opencode.md).",
+              "notes": "ADR 004 D8 (docs/engineering/decisions/004-permission-levels.md); L1 skill gates are advisory on every surface. L2 shell ENFORCED: permission-guard.sh on preToolUse and beforeShellExecution, failClosed: true (source-cited U1 on CLI 2026.10.22). L2 GitHub MCP ENFORCED: the preToolUse deny on the MCP path (source-cited U1.4). L3 on the desktop app from 3.28.7 (cursor_version a plain N.N.N): a shell ask is delivered as the beforeShellExecution `ask`, an approval card in Auto-Review, Allowlist (it overrides an allowlist entry) and Run Everything (measured S2 on 3.28.7); the preToolUse Shell call before it answers no decision for an ask, because preToolUse `ask` is not enforced (S2: it ran unprompted), and a deny stays a deny there. The Allowlist card does not show the hook's reason. L3 on the CLI (cursor_version a dated 2026.x build): deny only, because --yolo runs an ask unprompted (S1), so R4 is denied. A plugin-config.sh confirm, an MCP call, an older desktop build and another host named in the environment stay deny. --perms= has no prompt hook here (beforeSubmitPrompt also sees cursor-agent -p text, D5): only a skill's own L1 parsing lowers. Per-skill levels ADVISORY.",
+              "fallback": "A widening runs scripts/plugin-config.sh in the user's own terminal, make setup or CI provision (D7)."
+            }
+          }
+        },
+        "cursor_cli": {
+          "display_name": "Cursor CLI",
+          "kind": "cli",
+          "support": "unverified",
+          "unverified_reason": "The CLI shares .cursor-plugin/plugin.json with the IDE, and Cursor documents CLI sticky skills (2026-08-11) and persistent sessions (2026-08-26 CLI changelog), but no CLI run has been recorded here. The measurements under cursor were taken against an IDE plugin install; carrying them over would be an assumption, not evidence.",
+          "aliases": [
+            "cursor-cli"
+          ],
+          "doc_urls": [
+            "https://cursor.com/docs/cli/changelog"
+          ]
+        }
+      }
+    },
+    "gemini": {
+      "display_name": "Gemini",
+      "vendor": "Google",
+      "primary_surface": "gemini_cli",
+      "doc_urls": [
+        "https://github.com/google-gemini/gemini-cli/blob/main/docs/cli/skills.md",
+        "https://github.com/google-gemini/gemini-cli/blob/main/docs/core/subagents.md",
+        "https://github.com/google-gemini/gemini-cli/blob/main/docs/extensions/reference.md",
+        "https://antigravity.google/docs/plugins/",
+        "https://antigravity.google/docs/cli/gcli-migration"
+      ],
+      "surfaces": {
+        "gemini_cli": {
+          "display_name": "Gemini CLI",
+          "kind": "cli",
+          "support": "supported",
+          "aliases": [
+            "gemini-cli"
+          ],
+          "doc_urls": [
+            "https://github.com/google-gemini/gemini-cli/blob/main/docs/extensions/reference.md",
+            "https://github.com/google-gemini/gemini-cli/blob/main/docs/cli/skills.md",
+            "https://github.com/google-gemini/gemini-cli/blob/main/docs/core/subagents.md"
+          ],
+          "install": {
+            "type": "extension",
+            "command": "gemini extensions install https://github.com/Tamircohen28/scaffold-marketplace-gold && gemini skills install https://github.com/Tamircohen28/scaffold-marketplace-gold --path .gemini/skills --consent",
+            "doc": "docs/user/install/gemini.md"
+          },
+          "validation": {
+            "command": "bash scripts/check-gemini-adapter.sh"
+          },
+          "capabilities": {
+            "skills": {
+              "last_verified": "2026-09-17",
+              "status": "adapter",
+              "since": "0.55.1",
+              "validation": "make gemini-extension-check",
+              "notes": "Measured on 0.55.1: Gemini discovers skills exactly one level below a skills root, so the canonical two-level skills/<domain>/<name>/ tree resolves to ZERO skills. scripts/build-gemini-extension.sh generates a flat symlink mirror at .gemini/skills/ (one symlink per skill, so still exactly one copy in the repo), which Gemini then reads natively — in-workspace with no install at all, or via a single gemini skills install --path .gemini/skills. This row is about the generated mirror, not the canonical tree. NOTE: Gemini follows symlinks for skill discovery; OpenCode does not, at any level. Do not port one platform's mirror strategy to the other.",
+              "fallback": "None needed — the mirror is committed, and scripts/check-gemini-adapter.sh fails rather than shipping an adapter that finds nothing. Regenerate with make gemini-extension; never hand-edit .gemini/skills/. One live failure mode: an untrusted workspace folder silently skips the mirror, and the only clue is Gemini logging 'Skipping project agents due to untrusted folder'."
+            },
+            "skill_auto_invocation": {
+              "last_verified": "2026-09-17",
+              "status": "unknown",
+              "notes": "Gemini follows the Agent Skills model, but its selection behaviour has not been measured.",
+              "fallback": "Document explicit invocation in docs/user/install/gemini.md."
+            },
+            "subagents": {
+              "last_verified": "2026-09-17",
+              "status": "adapter",
+              "since": "0.55.1",
+              "validation": "make gemini-extension-check",
+              "notes": "The CANONICAL form does not load: agents/*.md are read from the extension root and rejected with 'tools.0: Invalid tool name', because Gemini wants tools as an array of its own tool names while this repo's agents declare Claude's (Read, Grep, Glob, Bash) as a string. A GENERATED form does: scripts/build-gemini-extension.sh emits .gemini/agents/*.md with tools as a YAML array of real Gemini names (read_file, search_file_content, glob, run_shell_command), verified against the loader rather than guessed, and omits model: entirely — a Claude alias like 'sonnet' passes validation and then fails at invocation. Verified on 0.55.1: all agents load with no errors.",
+              "fallback": "Regenerate with make gemini-extension; never hand-edit .gemini/agents/. Installing the extension still emits a harmless load error for the canonical agents/ at the extension root — noisy, not fatal, and unfixable from this side (no subdirectory flag, no manifest field relocates it)."
+            },
+            "parallel_subagents": {
+              "last_verified": "2026-09-17",
+              "status": "unsupported",
+              "notes": "Gemini subagents cannot themselves call subagents — documented recursion protection, not merely unmeasured. orchestrate-dev's fan-out pattern is structurally impossible on Gemini as a result.",
+              "fallback": "Fan out sequentially."
+            },
+            "agent_teams": {
+              "last_verified": "2026-09-17",
+              "status": "unknown",
+              "notes": "No evidence.",
+              "fallback": "Use session-files/ as the message bus."
+            },
+            "hooks": {
+              "last_verified": "2026-10-17",
+              "status": "unknown",
+              "notes": "This adapter now SHIPS hooks and policies. platforms/gemini/hooks.json is generated from hooks/hooks.json by scripts/build-gemini-hooks.sh (PreToolUse->BeforeTool with anchored ^(replace|write_file)$ / ^(run_shell_command)$ matchers, PostToolUse->AfterTool, UserPromptSubmit->BeforeAgent, Stop->AfterAgent, PreCompact->PreCompress, SessionStart/SessionEnd/Notification by name; WorktreeCreate, WorktreeRemove, DirectoryAdded, StopFailure and SubagentStop have no Gemini event and are dropped), every command running the unmodified canonical hook through hooks/gemini-wrap.sh, which translates the payload in and the envelope out and always exits 0 because Gemini denies on every non-zero exit but 1. Shipped at hooks/hooks.json in the gemini distribution only (build-dist.sh --target gemini places it there; Gemini reads that one path and the manifest cannot point elsewhere); a bare git-URL install of the repository reads the Claude file, whose ${CLAUDE_PLUGIN_ROOT} Gemini never exports. Measured on 0.64.0: the extension validates, installs and lists with the file in place (gemini extensions install <dist> --consent --skip-settings) and loadExtensionHooks reads only the hooks object. FIRING NOT OBSERVED (needs an authenticated session), so status stays unknown rather than native. Fail-open: Gemini has no onFailure equivalent, so the three fail-closed Claude guards run fail-open here; Two static policy files hold with hooks disabled: policies/scaffold-marketplace-gold.toml (five deny rules) and policies/scaffold-marketplace-gold-permissions.toml (generated from platforms/gemini/policies.source.json: mode-less ask_user rules for the R4 forms and plugin-config.sh confirm, plus deny rules for the host config CLIs, provisioning, protected paths and the GitHub MCP tools D8 excludes). Permission levels (ADR 004 D8): see this surface's permission_levels row.",
+              "fallback": "Guards become explicit in-skill steps plus CI checks. gemini hooks migrate --from-claude can translate them into personal settings.",
+              "validation": "bash scripts/build-gemini-hooks.sh . --check && bash tests/test-gemini-hooks.sh"
+            },
+            "mcp": {
+              "last_verified": "2026-10-17",
+              "status": "native",
+              "since": "0.55.1",
+              "validation": "bash scripts/check-gemini-adapter.sh",
+              "notes": "Measured on 0.55.1 and 0.64.0. The github server needs its token in the environment variable the official server reads. Since the V5 manifest, gemini-extension.json declares it under settings[] (the variable the official server reads, sensitive: true, stored in the keychain by gemini extensions config scaffold-marketplace-gold <setting-name>); measured on 0.64.0 the value reaches MCP server transports only (getExtensionEnvironment), never hooks. Without --skip-settings the keychain prompt blocks a non-interactive install."
+            },
+            "statusline": {
+              "last_verified": "2026-09-17",
+              "status": "unsupported",
+              "notes": "Measured on 0.55.1: no extension-declared statusline.",
+              "fallback": "Cosmetic only; omit."
+            },
+            "shell": {
+              "last_verified": "2026-09-17",
+              "status": "native",
+              "validation": "command -v bash"
+            },
+            "git": {
+              "last_verified": "2026-09-17",
+              "status": "native",
+              "validation": "git rev-parse --is-inside-work-tree"
+            },
+            "github_cli": {
+              "last_verified": "2026-09-17",
+              "status": "native",
+              "validation": "gh auth status",
+              "notes": "Optional host dependency. Also required before the bundled github MCP server's first call."
+            },
+            "background_tasks": {
+              "last_verified": "2026-09-17",
+              "status": "unknown",
+              "notes": "Not measured.",
+              "fallback": "Foreground with a bounded timeout."
+            },
+            "worktree_isolation": {
+              "last_verified": "2026-09-17",
+              "status": "emulated",
+              "notes": "Shell plus git, driven by the skill.",
+              "fallback": "Explicit git worktree add/remove steps."
+            },
+            "plugin_marketplace": {
+              "last_verified": "2026-09-17",
+              "status": "partial",
+              "notes": "Gemini auto-indexes a gallery of extensions from public repos that declare a root manifest and carry the `gemini-cli-extension` GitHub topic — no separate publish step beyond that. This repo is NOT currently listed: its GitHub topics include `gemini-cli` but not `gemini-cli-extension`. Otherwise-qualifying, but the topic gap keeps it out of the gallery today.",
+              "fallback": "Use extension_install, or add the `gemini-cli-extension` topic to appear in the auto-indexed gallery."
+            },
+            "extension_install": {
+              "last_verified": "2026-09-17",
+              "status": "native",
+              "since": "0.55.1",
+              "validation": "bash scripts/check-gemini-adapter.sh",
+              "notes": "Primary install path, measured on 0.55.1: gemini extensions install <git-url>, or gemini extensions link . for local development. Note that gemini extensions validate only parses the manifest — it reports success on an extension whose context file does not exist — so it is not sufficient evidence for any row here."
+            },
+            "slash_commands": {
+              "last_verified": "2026-09-17",
+              "status": "unknown",
+              "notes": "Mechanism confirmed on 0.60.0: custom commands are TOML, discovered from ~/.gemini/commands/ (user), <project>/.gemini/commands/ (project) AND active extensions, so this extension could ship them directly; managed with /commands list and /commands reload. Status stays unknown because this repo ships no commands and the per-field TOML schema has not been read - a mechanism existing is not the same as these commands being discovered.",
+              "fallback": "Users invoke skills by describing them in prose."
+            },
+            "ask_user_question": {
+              "last_verified": "2026-09-17",
+              "status": "unknown",
+              "notes": "No structured-question primitive documented.",
+              "fallback": "Ask in prose."
+            },
+            "artifacts": {
+              "last_verified": "2026-09-17",
+              "status": "unsupported",
+              "notes": "No artifact publishing surface.",
+              "fallback": "Write to a file in the repo."
+            },
+            "session_transcripts": {
+              "last_verified": "2026-09-17",
+              "status": "unknown",
+              "notes": "Transcript format not documented for this repo's tooling.",
+              "fallback": "Report analytics as unavailable."
+            },
+            "dynamic_workflows": {
+              "last_verified": "2026-09-17",
+              "status": "unsupported",
+              "notes": "The Workflow tool is Claude-specific; no declared Gemini equivalent.",
+              "fallback": "Sequential subagent orchestration driven by the main session."
+            },
+            "mods": {
+              "last_verified": "2026-10-02",
+              "status": "unsupported",
+              "notes": "No equivalent; the Gemini extension reads no hooks file from this repo.",
+              "fallback": "Skills."
+            },
+            "permission_levels": {
+              "last_verified": "2026-11-04",
+              "status": "partial",
+              "since": "0.66.0",
+              "since_source": "ADR 004 D9 permissions_min: G1-G3 measured on 0.66.0 (docs/engineering/research/permissions/spikes/cursor-gemini-opencode.md).",
+              "notes": "ADR 004 D8 (docs/engineering/decisions/004-permission-levels.md); L1 skill gates are advisory on every surface. L2 shell ENFORCED by design: permission-guard.sh on BeforeTool run_shell_command through gemini-wrap.sh answers deny, never `ask` (a hook ask hangs headless and hook input cannot tell headless, measured G1), paired with the static deny rules; hook firing itself is still not observed, so the static rules are what holds today. L2 GitHub MCP: the same guard on ^(mcp_github_...)$, which gemini-wrap.sh maps to the Claude tool name, plus static rules on mcpName github (unmeasured). L3 ENFORCED: static mode-less ask_user for R4 patterns and confirm, which holds under --yolo and denies headless (measured G3). --perms= only lowers: hooks/permission-intent.sh on BeforeAgent writes a session-wide lowering ticket the guard applies, and no BeforeTool(activate_skill) pairing records a raise yet. Per-skill levels at L2 not wired yet (D8 names BeforeTool(activate_skill)).",
+              "fallback": "Raise the level with `gemini extensions config scaffold-marketplace-gold TS_PERMISSION_LEVEL` or scripts/plugin-config.sh in the user's own terminal (D7)."
+            }
+          }
+        },
+        "gemini_code_assist": {
+          "display_name": "Gemini Code Assist",
+          "kind": "ide",
+          "support": "unverified",
+          "unverified_reason": "Code Assist is a different host from the Gemini CLI: it does not install CLI extensions, so the generated .gemini/ mirror this repo ships has no established install path there and has never been exercised on it. Listed because it is a real Gemini surface users will ask about, not because it is known to work.",
+          "aliases": [
+            "gemini-code-assist"
+          ],
+          "doc_urls": [
+            "https://developers.google.com/gemini-code-assist/docs/overview"
+          ]
+        },
+        "antigravity_cli": {
+          "display_name": "Antigravity CLI",
+          "kind": "cli",
+          "support": "unverified",
+          "unverified_reason": "Google retired Gemini CLI for consumer tiers on 2026-06-18 in favour of Antigravity CLI (`agy`), a closed-source successor with its own plugin format: a folder with a required plugin.json (this repo emits only {name, description}, the two fields an earlier reading of the docs gave as a closed schema; the current plugins page example also shows $schema, displayName, version, logo and suggestedPrompts, so whether the schema is still closed is unverified without `agy plugin validate --strict`), optional mcp_config.json, hooks.json, skills/<name>/SKILL.md, agents/<name>.md and rules/<name>.md, installed with `agy plugin install` or imported from a Gemini extension with `agy plugin import gemini`. Google states skills, hooks, subagents and extensions carry over at launch without 1:1 parity, and one third-party source claims hooks load but do not fire; neither was measured here. The docs now also cover plugin hooks.json in the CLI (https://antigravity.google/docs/hooks) and required plugin config variables, which install the plugin disabled and open a setup dialog on enable (https://antigravity.google/docs/plugins/); neither is measured or used here. The gemini_cli surface stays supported for enterprise Code Assist and paid API-key users. No capability is claimed until a live `agy` run records one. The route documented, not measured: `agy plugin import gemini` from an installed Gemini extension, or `agy plugin install` on the folder scripts/build-dist.sh --target antigravity writes (docs/user/install/antigravity.md). The validation command is static only: the generated plugin.json and mcp_config.json are held to the two-field shape and the antigravity distribution to its layout; every coarse key in platforms/antigravity/adapter.yaml stays unknown until a live agy run records one. Widening lever, never used (ADR 004 D8, D10.4): Antigravity hooks accept `allow` and `auto_approve` decisions (docs/engineering/research/permissions/platforms/gemini.md, PreToolUse decision values); if this repo's hooks are ever wired there they are deny-only, and no shipped hook or adapter emits auto_approve (tests/test-manifest-invariants.sh holds it).",
+          "aliases": [
+            "agy",
+            "antigravity",
+            "antigravity-cli"
+          ],
+          "doc_urls": [
+            "https://antigravity.google/docs/plugins/",
+            "https://antigravity.google/docs/cli/gcli-migration"
+          ],
+          "validation": {
+            "command": "bash scripts/build-antigravity-plugin.sh . --check && bash tests/test-antigravity-adapter.sh",
+            "requires_cli": false
+          }
+        }
+      }
+    },
+    "opencode": {
+      "display_name": "OpenCode",
+      "vendor": "Anomaly",
+      "primary_surface": "opencode",
+      "doc_urls": [
+        "https://opencode.ai/config.json",
+        "https://opencode.ai/v2/docs/agents/",
+        "https://opencode.ai/v2/docs/plugins/",
+        "https://opencode.ai/v2/docs/skills/"
+      ],
+      "surfaces": {
+        "opencode": {
+          "display_name": "OpenCode CLI",
+          "kind": "cli",
+          "support": "supported",
+          "aliases": [
+            "open-code"
+          ],
+          "doc_urls": [
+            "https://opencode.ai/v2/docs/skills/",
+            "https://opencode.ai/v2/docs/agents/",
+            "https://opencode.ai/v2/docs/plugins/",
+            "https://opencode.ai/config.json"
+          ],
+          "install": {
+            "type": "path",
+            "command": "Point the opencode.json `skills` array at absolute paths in this checkout. Use absolute paths, not symlinks: symlink following for skill discovery has not been measured on OpenCode 2, so a symlinked install may silently discover nothing.",
+            "doc": "docs/user/install/opencode.md"
+          },
+          "validation": {
+            "command": "opencode debug config"
+          },
+          "capabilities": {
+            "skills": {
+              "last_verified": "2026-10-31",
+              "status": "native",
+              "since": "2.0.0",
+              "validation": "opencode debug config",
+              "notes": "Documented OpenCode 2 feature (opencode.ai/docs/skills). 2.2.5 (2026-10-31): `opencode --standalone debug config` loads this repo's opencode.json skills key and .opencode/, but per-skill discovery is NOT verifiable from the CLI: `api skill.list` returns only the three built-ins even for a control project with a skills path, warm or cold. OpenCode recognises a smaller frontmatter set and ignores unknown fields. Symlink following is unconfirmed on OpenCode 2; install with absolute paths in the `skills` array, never a symlink."
+            },
+            "skill_auto_invocation": {
+              "last_verified": "2026-09-17",
+              "status": "unknown",
+              "notes": "Discovery is verified; automatic selection is not. Since 2.0.23 (changelog only, anomalyco/opencode#52747) skill frontmatter accepts disable-model-invocation to keep a skill out of model selection; not exercised here, and no shipped skill sets it.",
+              "fallback": "Name the skill explicitly."
+            },
+            "subagents": {
+              "last_verified": "2026-10-31",
+              "status": "adapter",
+              "notes": "Canonical agents/ are translated into .opencode/agents/ by scripts/build-opencode-agents.sh because the frontmatter genuinely differs; drift is enforced by make opencode-agents-check. 2026-10-17 (5.0.0): .opencode/agents/ (plural, OpenCode 2): mode: subagent explicit, deny-only permissions ruleset (an allow would override the host's own .env prompts under last-match-wins) plus external_directory ask; all 10 resolve on 2.0.32 and again on 2.2.5 (2026-10-31) via `opencode debug agents`; unknown frontmatter keys are ignored, not rejected; the singular .opencode/agent/ is still read, so a stale copy would load every id twice (the generator prunes it).",
+              "fallback": "Regenerate the adapter rather than hand-editing .opencode/agents/."
+            },
+            "parallel_subagents": {
+              "last_verified": "2026-10-16",
+              "status": "unknown",
+              "notes": "Unmeasured: the evidence conflicts and no live v2 run has settled it. Against: foreground task calls issued in one turn were reported to run serially (anomalyco/opencode#29638, filed when the repo was sst/opencode, re-reporting #14195; closed not planned), and subagent_depth defaults to 1 (opencode.ai/docs/config), so subagents cannot nest. For: the v2 tools docs (dev.opencode.ai/v2/docs/tools) document background: true, which returns immediately and notifies the parent. Docs and issues rechecked 2026-10-16. Until a v2 run exercises the background path, treat parallel fan-out as unavailable. 2026-10-17: OpenCode 2 docs: the subagent tool takes background: true (returns immediately, notifies the parent on finish); experimental.subagent_depth defaults to 1, so the orchestrator must be the primary agent (the canonical orchestrator grants no Task, so its adapter denies subagent — reviewed, kept: on OpenCode the person's primary agent orchestrates); whether several foreground calls in one turn run concurrently is undocumented; no live run.",
+              "fallback": "Fan out sequentially."
+            },
+            "agent_teams": {
+              "last_verified": "2026-09-17",
+              "status": "unknown",
+              "notes": "No evidence of inter-agent messaging.",
+              "fallback": "Use session-files/ as the message bus."
+            },
+            "hooks": {
+              "last_verified": "2026-10-31",
+              "status": "adapter",
+              "notes": "OpenCode has no hooks.json; its only lifecycle mechanism is the JS/TS plugin API. Lifecycle guards from hooks/ still do not run. A narrow opt-in exception is skills/toolkit/usage-capture/opencode-plugin.mjs (zero npm imports, observe-only, not listed in this repo's opencode.json) for local usage JSONL. That plugin is not a hook-guard adapter — 'adapter' would imply generated worktree/safety artifacts, and none exist. 2026-10-17 (5.0.0): OpenCode runs no shell hook; the three core guards (enforce-worktree-edits under an active objective, guard-sensitive-files, protect-other-branches incl. force-push refusal and the shared ~/.agent-work-claims store) are an OpenCode 2 server plugin, platforms/opencode/plugin/ (index.ts -> guard.ts: ctx.permission.hook('evaluate') on edit/shell, ctx.shell.hook('create.before') backstop), registered in opencode.json plugins[]. Loads on 2.2.5 (`opencode plugin list` names scaffold-marketplace-gold.guard, but only from the second call on a warm service; the first call after a cold start lists nothing). 2.2.5 runs a `bash` tool call as `shell`, which the guard's permission hook already keys on. That a deny/throw stops the action is the documented contract but unverified live (no provider session run); whether the guard double-runs when a linked worktree lists the plugin from both paths is also unchecked. The no-objective half of the worktree hook is deliberately not mirrored (no session slug on OpenCode). Permission levels (ADR 004 D8): see this surface's permission_levels row. Widening lever, never used (ADR 004 D10.4): ctx.session.update can append a session allow that beats a configured deny (measured O2); guard.ts never calls it and tests/test-manifest-invariants.sh holds it.",
+              "fallback": "Guards become explicit in-skill steps plus CI checks."
+            },
+            "mcp": {
+              "last_verified": "2026-10-31",
+              "status": "native",
+              "validation": "grep -q 'opencode.ai/v2/docs/mcp-servers' docs/user/install/opencode.md",
+              "notes": "OpenCode reads MCP servers from the 'mcp' block of opencode.json, not from .mcp.json. This repo deliberately ships no 'mcp' block -- docs/user/install/opencode.md tells the user to port the entries they want -- so the validation asserts that documented path, not a key we do not ship. It previously read jq -e '.mcp // {}' opencode.json, which names a key that has never been present AND could not fail: the // {} fallback substitutes an empty object, and jq -e only exits non-zero on false or null. It reported success on every input, including this one. 2026-10-17 (5.0.0): opencode.json declares mcp.servers.github = local scripts/github-mcp.sh with the token variable the official server reads via {env:}; measured on 2.2.5 (2026-10-31): `opencode mcp list` on a warm service shows the server failing with the script's own 'github_token is not set' message until the variable is exported (the first call after a cold start lists nothing). 2026-11-04: the validation greps the V2 docs URL the install doc links (opencode.ai/v2/docs/mcp-servers); the V1 path it named before matched nothing in that doc, so the command exited 1."
+            },
+            "statusline": {
+              "last_verified": "2026-10-17",
+              "status": "adapter",
+              "notes": "No plugin-declared statusline. 2026-10-17 (5.0.0): platforms/opencode/plugin/tui.tsx (@opencode/plugin/tui) appends context fill (last session.step.ended prompt tokens vs ModelInfo.limit.context), session cost and objective progress to prompt.footer.status; no rate-limit figures because OpenCode exposes no rate-limit payload (checked against @opencode/client 2.0.32 types; not re-checked on 2.2.5). Not run in a live TUI.",
+              "fallback": "Cosmetic only; omit."
+            },
+            "shell": {
+              "last_verified": "2026-09-17",
+              "status": "native",
+              "validation": "command -v bash"
+            },
+            "git": {
+              "last_verified": "2026-09-17",
+              "status": "native",
+              "validation": "git rev-parse --is-inside-work-tree"
+            },
+            "github_cli": {
+              "last_verified": "2026-09-17",
+              "status": "native",
+              "validation": "gh auth status",
+              "notes": "Optional host dependency."
+            },
+            "background_tasks": {
+              "last_verified": "2026-09-17",
+              "status": "unknown",
+              "notes": "Not measured.",
+              "fallback": "Foreground with a bounded timeout."
+            },
+            "worktree_isolation": {
+              "last_verified": "2026-09-17",
+              "status": "emulated",
+              "notes": "Shell plus git, driven by the skill.",
+              "fallback": "Explicit git worktree add/remove steps."
+            },
+            "plugin_marketplace": {
+              "last_verified": "2026-11-05",
+              "status": "unsupported",
+              "notes": "No plugin marketplace, re-confirmed 2026-11-05 (doc-cited https://opencode.ai/docs/plugins/, recorded in docs/engineering/research/marketplace-standards.md): a plugin is a JS/TS module in .opencode/plugins/ or ~/.config/opencode/plugins/, or an npm package named in opencode.json's `plugin` array and installed by Bun at startup; the page defines no catalog manifest, no add/install command and no validator. repo-scaffold --type marketplace therefore writes NO OpenCode manifest and makes the generated README say so. This plugin's own install is by absolute paths in the `skills` array — not by symlink: OpenCode does not follow them for skill discovery (see the skills row).",
+              "fallback": "Document the absolute `skills` array install in docs/user/install/opencode.md."
+            },
+            "extension_install": {
+              "last_verified": "2026-09-17",
+              "status": "unsupported",
+              "notes": "No git-URL extension install.",
+              "fallback": "Use the path install."
+            },
+            "slash_commands": {
+              "last_verified": "2026-09-17",
+              "status": "unknown",
+              "notes": "27 commands are generated into .opencode/commands/ from the user-invocable skills as of 5.0.0 (26 as of 4.5.0), matching the documented format at opencode.ai/docs/commands. Status stays unknown because DISCOVERY is unproven, not because nothing ships: an api GET /api/command returns an empty data array from a directory holding all 26 - but it returns empty for a config-defined command block too, so that endpoint does not reflect project commands in standalone mode and cannot answer the question either way. A second, schema-documented mechanism also exists (a command object in opencode.json with template required); which is canonical on v2 is unresolved.",
+              "fallback": "Invoke skills in prose."
+            },
+            "ask_user_question": {
+              "last_verified": "2026-09-17",
+              "status": "unknown",
+              "notes": "No structured-question primitive verified.",
+              "fallback": "Ask in prose."
+            },
+            "artifacts": {
+              "last_verified": "2026-09-17",
+              "status": "unsupported",
+              "notes": "No artifact publishing surface.",
+              "fallback": "Write to a file in the repo."
+            },
+            "session_transcripts": {
+              "last_verified": "2026-09-17",
+              "status": "unknown",
+              "notes": "Transcript format not documented for this repo's tooling.",
+              "fallback": "Report analytics as unavailable."
+            },
+            "dynamic_workflows": {
+              "last_verified": "2026-09-17",
+              "status": "unsupported",
+              "notes": "The Workflow tool is Claude-specific; no declared OpenCode equivalent.",
+              "fallback": "Sequential subagent orchestration driven by the main session."
+            },
+            "mods": {
+              "last_verified": "2026-10-17",
+              "status": "adapter",
+              "notes": "No equivalent; OpenCode runs no hooks from this repo. 2026-10-17 (5.0.0): The TUI plugin API is the mods analogue: platforms/opencode/plugin/tui.tsx adds a session.panel objective pane and an /objective command (keymap.layer slash). Not run in a live TUI.",
+              "fallback": "Skills."
+            },
+            "permission_levels": {
+              "last_verified": "2026-11-04",
+              "status": "partial",
+              "since": "2.2.5",
+              "since_source": "ADR 004 D9 permissions_min: O1-O3 measured on 2.2.5 (docs/engineering/research/permissions/spikes/cursor-gemini-opencode.md).",
+              "notes": "ADR 004 D8 (docs/engineering/decisions/004-permission-levels.md); L1 skill gates are advisory on every surface. L2 ENFORCED when it is the only plugin: platforms/opencode/plugin/guard.ts runs permission-guard.sh from permission.hook('evaluate'); its deny stays final under --auto (measured O1), every guard error is a deny, and the order across several plugins is unmeasured (SR S-16). L2 GitHub MCP: calls arrive as <server>_<tool> actions (doc-cited, unmeasured). L3 ADVISORY: a hook `ask` is auto-approved under --auto, so only R2 is an ask and R3/R4 are denies. --perms= has no prompt hook here (opencode run authors the prompt, D5): only a skill's own L1 parsing lowers. Per-skill levels at L2 not wired yet (D8 names the `skill` action; guard.ts passes no skill).",
+              "fallback": "A widening runs scripts/plugin-config.sh in the user's own terminal, make setup or CI provision (D7)."
+            }
+          }
+        },
+        "opencode_desktop": {
+          "display_name": "OpenCode desktop app",
+          "kind": "desktop",
+          "support": "unverified",
+          "unverified_reason": "OpenCode ships a desktop client alongside the terminal one. Whether it reads the same opencode.json `skills` array this repo installs into has not been checked, so the skills row under opencode is not carried over here.",
+          "aliases": [
+            "opencode-desktop"
+          ],
+          "doc_urls": [
+            "https://opencode.ai/v2/docs/"
+          ]
+        }
+      }
+    }
+  }
+}
