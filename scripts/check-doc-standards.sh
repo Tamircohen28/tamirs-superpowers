@@ -158,16 +158,20 @@ is_human_facing() {
 
 # Tracked + untracked-not-ignored files when ROOT is a repository's top level;
 # a pruned find otherwise (a fixture tree inside another repo, or no git at all).
-# Nested worktree directories are dropped either way: they hold other branches.
+# NUL-terminated end to end: under the default core.quotePath git prints a
+# non-ASCII path as "docs/\344\270\255\346\226\207.md", a quoted name that matches
+# no file, so such docs silently dropped out of both the check and the fix.
+# `-z` / `-print0` hand the raw bytes over, and the caller reads with -d ''.
+# Nested worktree directories are dropped by the caller: they hold other branches.
 list_candidates() {
   local top
   top="$(git -C "$ROOT" rev-parse --show-toplevel 2>/dev/null || true)"
   if [[ -n "$top" && "$(cd "$top" && pwd -P)" == "$(pwd -P)" ]]; then
-    git -C "$ROOT" ls-files --cached --others --exclude-standard -- '*.md' 2>/dev/null
+    git -C "$ROOT" ls-files -z --cached --others --exclude-standard -- '*.md' 2>/dev/null
   else
     find . \( -name .git -o -name node_modules -o -name .venv -o -name .worktrees -o -name .agent-worktrees \) -prune \
-      -o -type f -name '*.md' -print | sed 's|^\./||'
-  fi | awk '!/(^|\/)\.(worktrees|agent-worktrees)\//' | sort -u
+      -o -type f -name '*.md' -print0
+  fi | sort -z -u
 }
 
 # --- per-file analysis: prints  line<TAB>kind<TAB>detail  ----------------------
@@ -178,10 +182,18 @@ analyze() {
   LC_ALL=C awk -v INIT="$INIT_LINE" -v FOOTER="$FOOTER" -v LIC="$LIC_RE" -v STRICT="$STRICT" '
     function marker(s,  m) { m = s; sub(/^[ \t]*/, "", m); if (match(m, /^(`+|~+)/)) return substr(m, 1, RLENGTH); return "" }
     function push(s) { l3 = l2; n3 = n2; l2 = l1; n2 = n1; l1 = s; n1 = NR }
-    BEGIN { infence = 0; lang = ""; fm = ""; expect = 0; waived = 0; prev = ""; l1 = l2 = l3 = ""; n1 = n2 = n3 = 0 }
+    BEGIN { infence = 0; lang = ""; fm = ""; expect = 0; waived = 0; eat = 0; prev = ""; l1 = l2 = l3 = ""; n1 = n2 = n3 = 0 }
     {
       line = $0
       m = marker(line)
+      # A directive that opened on an earlier line runs to its closing }%%; its JSON
+      # tail is part of the directive, not diagram body, so no other check reads it.
+      # An unterminated one stops at the fence rather than swallowing the file.
+      if (eat) {
+        if (line ~ /[}]%%[ \t]*$/) { eat = 0; prev = line; push(line); next }
+        if (m == "" || length(m) < 3) { prev = line; push(line); next }
+        eat = 0
+      }
       if (m != "" && length(m) >= 3) {
         if (infence) {
           if (substr(m, 1, 1) == substr(fm, 1, 1) && length(m) >= length(fm) && line ~ /^[ \t]*(`+|~+)[ \t]*$/) {
@@ -199,6 +211,7 @@ analyze() {
       if (infence && lang == "mermaid") {
         if (expect) {
           expect = 0
+          if (line ~ /^%%\{init/ && line !~ /[}]%%[ \t]*$/) eat = 1
           if (!waived && line != INIT) {
             if (line ~ /^%%\{init/) printf "%d\tmermaid-init-wrong\tnot the canonical init directive\n", NR
             else printf "%d\tmermaid-init-missing\tfirst line of a Mermaid block must be the canonical init directive\n", NR
@@ -234,10 +247,24 @@ fix_mermaid() {
   tmp="$(mktemp)"
   LC_ALL=C awk -v INIT="$INIT_LINE" '
     function marker(s,  m) { m = s; sub(/^[ \t]*/, "", m); if (match(m, /^(`+|~+)/)) return substr(m, 1, RLENGTH); return "" }
-    BEGIN { infence = 0; lang = ""; fm = ""; expect = 0; waived = 0; prev = "" }
+    BEGIN { infence = 0; lang = ""; fm = ""; expect = 0; waived = 0; eat = 0; nbuf = 0; prev = "" }
     {
       line = $0
       m = marker(line)
+      # An old directive is consumed whole, from %%{init through its closing }%% --
+      # a multi-line one spans several lines, and dropping only its first line left
+      # the JSON tail and the }%% in the diagram body while the re-check, which reads
+      # only the first line of a block, reported it clean. Consumed lines are held
+      # back, not dropped: when the fence arrives before a closing }%% the directive
+      # was unterminated and those lines were diagram body, so they are printed again
+      # -- a repair must never eat a diagram. (No apostrophes in these comments: the
+      # awk program is a single-quoted shell string.)
+      if (eat) {
+        if (line ~ /[}]%%[ \t]*$/) { eat = 0; nbuf = 0; prev = line; next }
+        if (m == "" || length(m) < 3) { nbuf++; buf[nbuf] = line; prev = line; next }
+        for (i = 1; i <= nbuf; i++) print buf[i]
+        nbuf = 0; eat = 0
+      }
       if (m != "" && length(m) >= 3) {
         if (infence) {
           if (substr(m, 1, 1) == substr(fm, 1, 1) && length(m) >= length(fm) && line ~ /^[ \t]*(`+|~+)[ \t]*$/) {
@@ -257,10 +284,10 @@ fix_mermaid() {
           expect = 0
           if (line == INIT) { print line; prev = line; next }
           print INIT
-          if (line ~ /^%%\{init/) { prev = line; next }
+          if (line ~ /^%%\{init/) { if (line !~ /[}]%%[ \t]*$/) eat = 1; prev = line; next }
           print line; prev = line; next
         }
-        if (line ~ /^%%\{init/) { prev = line; next }
+        if (line ~ /^%%\{init/) { if (line !~ /[}]%%[ \t]*$/) eat = 1; prev = line; next }
       }
       if (expect) expect = 0
       print line; prev = line
@@ -297,8 +324,12 @@ cd "$ROOT" || exit 2
 FILES=0
 TOTAL=0
 FIXED=0
-while IFS= read -r rel; do
+while IFS= read -r -d '' rel; do
+  rel="${rel#./}"
   [[ -n "$rel" ]] || continue
+  case "$rel" in
+    .worktrees/*|*/.worktrees/*|.agent-worktrees/*|*/.agent-worktrees/*) continue ;;
+  esac
   is_human_facing "$rel" || continue
   [[ -f "$rel" ]] || continue
   FILES=$((FILES + 1))

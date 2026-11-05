@@ -175,6 +175,37 @@ R="$(new_root derive-none null null)"
 run "$R" >/dev/null 2>&1; judge "null URLs with no origin is an environment error (2)" 2 "$?"
 
 # ---------------------------------------------------------------------------
+section "a multi-line directive is consumed whole, not just its first line"
+R="$(new_root init-multiline)"
+printf '# T\n\n```mermaid\n%%%%{init: {\n  "theme": "dark",\n  "themeVariables": {"x": "#000"}\n}}%%%%\nflowchart TB\n  A --> B\n```\n\n---\n\n%s\n' "$FOOTER" > "$R/docs/user/m.md"
+judge "kind" "mermaid-init-wrong" "$(kinds "$R")"
+judge "reported once, at the directive's first line" "docs/user/m.md:4" "$(lines_of mermaid-init-wrong "$R")"
+run --fix "$R" >/dev/null; judge "--fix exits 0" 0 "$?"
+judge "exactly one init line" 1 "$(grep -c '^%%{init' "$R/docs/user/m.md")"
+judge "it is canonical, on line 4" "$INIT" "$(sed -n '4p' "$R/docs/user/m.md")"
+judge "diagram body follows immediately" "flowchart TB" "$(sed -n '5p' "$R/docs/user/m.md")"
+judge "no directive tail left in the body" 0 "$(grep -cE '^\}\}%%$|"theme": "dark"' "$R/docs/user/m.md")"
+judge "clean after fix" "" "$(kinds "$R")"
+
+R="$(new_root init-unterminated)"
+printf '# T\n\n```mermaid\n%%%%{init: {"theme":"dark"\nflowchart TB\n  A --> B\n```\n\nAfter.\n\n---\n\n%s\n' "$FOOTER" > "$R/docs/user/u.md"
+run --fix "$R" >/dev/null
+judge "an unterminated directive stops at the fence: body kept" "flowchart TB" "$(sed -n '5p' "$R/docs/user/u.md")"
+judge "and the prose after the block survives" 1 "$(grep -c '^After\.$' "$R/docs/user/u.md")"
+
+# ---------------------------------------------------------------------------
+section "non-ASCII filenames are enumerated, checked and fixed (git and find)"
+R="$(new_root unicode-git)"
+harness_new_repo "$R"
+printf '# T\n' > "$R/docs/user/中文.md"
+judge "git enumeration reports the file (no core.quotePath mangling)" "docs/user/中文.md:1" "$(lines_of footer-missing "$R")"
+run --fix "$R" >/dev/null; judge "--fix exits 0" 0 "$?"
+judge "footer appended to the non-ASCII file" "$FOOTER" "$(last_nonblank "$R/docs/user/中文.md")"
+R="$(new_root unicode-find)"
+printf '# T\n' > "$R/docs/user/中文.md"
+judge "find enumeration reports the file" "docs/user/中文.md:1" "$(lines_of footer-missing "$R")"
+
+# ---------------------------------------------------------------------------
 section "usage and environment errors exit 2"
 mkdir -p "$TMP/noconfig/docs/user"
 run "$TMP/noconfig" >/dev/null 2>&1; judge "missing config" 2 "$?"
