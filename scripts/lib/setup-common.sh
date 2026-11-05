@@ -64,15 +64,38 @@ setup_can_prompt() {
   return 0
 }
 
-# setup_ask <prompt> <default> — echoes the answer, lowercased-ish by the caller.
-# Returns <default> immediately when we cannot prompt, so no caller ever blocks.
+# setup_ask_into <var> <prompt> <default> — asks on /dev/tty and lands the
+# answer in <var>, in THIS shell. Returns <default> without asking when we
+# cannot prompt, so no caller ever blocks.
+#
+# THIS IS THE ONE TO CALL. The older `ans="$(setup_ask ...)"` form is a bug at a
+# real terminal: inside a command substitution fd 1 is the capture pipe, so
+# setup_can_prompt's `[ -t 1 ]` is false, the prompt is never shown, and the
+# default comes back as if the person had declined. Eight call sites did that
+# and `github-labels.sh apply` at a terminal reported "skipped — not confirmed"
+# without ever asking (PR #374). `printf -v` is bash 3.2.
+#
+# The locals carry a prefix on purpose: bash scopes dynamically, so a local
+# named `ans` here would be the one `printf -v ans` assigned when the caller
+# also said `ans` — the caller's variable would stay empty, and "empty" reads
+# as "declined". The first version of this helper did exactly that.
+setup_ask_into() {
+  local __sa_var="$1" __sa_prompt="$2" __sa_default="$3" __sa_ans=''
+  if setup_can_prompt; then
+    printf '%s' "$__sa_prompt" > /dev/tty
+    IFS= read -r __sa_ans < /dev/tty || __sa_ans=''
+    printf '\n' > /dev/tty
+  fi
+  [ -n "$__sa_ans" ] || __sa_ans="$__sa_default"
+  printf -v "$__sa_var" '%s' "$__sa_ans"
+}
+
+# setup_ask <prompt> <default> — echoes the answer. Kept for compatibility;
+# it only prompts when its stdout is the terminal, which is never the case in
+# `$( )`. New code uses setup_ask_into.
 setup_ask() {
-  local prompt="$1" default="$2" ans=''
-  if ! setup_can_prompt; then printf '%s' "$default"; return 0; fi
-  printf '%s' "$prompt" > /dev/tty
-  IFS= read -r ans < /dev/tty || ans=''
-  printf '\n' > /dev/tty
-  [ -n "$ans" ] || ans="$default"
+  local ans
+  setup_ask_into ans "$1" "$2"
   printf '%s' "$ans"
 }
 
@@ -360,23 +383,26 @@ setup_perm_menu() {
   } >&2
 }
 
-# setup_perm_choose <default> — prints supervised | standard | unattended | keep.
-# Three unrecognised answers mean keep: a typo never picks a level.
-setup_perm_choose() {
-  local def="$1" ans n=0
-  setup_perm_menu "$def"
-  while [ "$n" -lt 3 ]; do
-    n=$((n + 1))
-    ans="$(setup_lower "$(setup_ask "Level [1/2/3, k = keep] (${def}): " "$def")")"
-    case "$ans" in
-      1|supervised) printf 'supervised'; return 0 ;;
-      2|standard) printf 'standard'; return 0 ;;
-      3|unattended) printf 'unattended'; return 0 ;;
-      k|keep|skip|n|no|none) printf 'keep'; return 0 ;;
-      *) setup_note "'$ans' is not one of 1, 2, 3 or k" ;;
+# setup_perm_choose_into <var> <default> — lands supervised | standard |
+# unattended | keep in <var>. Three unrecognised answers mean keep: a typo never
+# picks a level. Into a variable, not printed: a printing version has to be
+# called as `$(...)`, inside which no prompt can ever be shown (setup_ask_into).
+setup_perm_choose_into() {
+  local __pc_var="$1" __pc_def="$2" __pc_ans __pc_n=0 __pc_choice=keep
+  setup_perm_menu "$__pc_def"
+  while [ "$__pc_n" -lt 3 ]; do
+    __pc_n=$((__pc_n + 1))
+    setup_ask_into __pc_ans "Level [1/2/3, k = keep] (${__pc_def}): " "$__pc_def"
+    __pc_ans="$(setup_lower "$__pc_ans")"
+    case "$__pc_ans" in
+      1|supervised) __pc_choice=supervised; break ;;
+      2|standard) __pc_choice=standard; break ;;
+      3|unattended) __pc_choice=unattended; break ;;
+      k|keep|skip|n|no|none) __pc_choice=keep; break ;;
+      *) setup_note "'$__pc_ans' is not one of 1, 2, 3 or k" ;;
     esac
   done
-  printf 'keep'
+  printf -v "$__pc_var" '%s' "$__pc_choice"
 }
 
 # setup_permission_level_step <plan|apply|remove>
@@ -442,7 +468,7 @@ EOT
   if [ -n "$flag" ]; then
     want="$flag"
   elif setup_can_prompt; then
-    want="$(setup_perm_choose "$def")"
+    setup_perm_choose_into want "$def"
   elif [ "$SETUP_PERM_STATE" = absent ]; then
     printf '  nothing written (no terminal to ask on). Set one with --permission-level <level>.\n'
     return 0
@@ -495,7 +521,8 @@ EOT
     setup_warn "this file is not verified (${SETUP_PERM_REASON:-lock ${SETUP_PERM_LOCK_STATE:-absent}}). Confirming re-locks ALL of its content, shown in full:"
     sed 's/^/    /' "$SETUP_PERM_FILE" >&2
   fi
-  ans="$(setup_lower "$(setup_ask 'Write this permission level? [y/N] ' n)")"
+  setup_ask_into ans 'Write this permission level? [y/N] ' n
+  ans="$(setup_lower "$ans")"
   case "$ans" in
     y|yes) ;;
     *) rm -f "$new"; printf '  kept as is\n'; return 0 ;;

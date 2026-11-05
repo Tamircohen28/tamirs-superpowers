@@ -1162,7 +1162,11 @@ confirm_change() {
   fi
   [ -n "$CONFIRM_ALL" ] && return 0
   [ -n "${SETUP_YES:-}" ] && return 0
-  ans="$(setup_lower "$(setup_ask 'Apply to this repository? [y/N/a/q] ' n)")"
+  # Into a variable, never `$(setup_ask ...)`: inside a command substitution
+  # stdout is the capture pipe, so the prompt would decide "no terminal" and
+  # hand back the default without ever asking (setup-common.sh, setup_ask_into).
+  setup_ask_into ans 'Apply to this repository? [y/N/a/q] ' n
+  ans="$(setup_lower "$ans")"
   case "$ans" in
     y|yes) return 0 ;;
     a|all) CONFIRM_ALL=1; return 0 ;;
@@ -1438,7 +1442,8 @@ main() {
       out "Each repository is shown and confirmed separately before anything is written."
       if [ -z "${SETUP_YES:-}" ]; then
         local ans
-        ans="$(setup_lower "$(setup_ask "Continue? [y/N] " n)")"
+        setup_ask_into ans "Continue? [y/N] " n
+        ans="$(setup_lower "$ans")"
         case "$ans" in y|yes) : ;; *) out "Nothing was written."; exit 0 ;; esac
       fi
     fi

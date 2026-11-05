@@ -102,6 +102,9 @@ drive() {
       printf "%s\n" "$1" >&2
       printf "%s" "$a"
     }
+    # The library asks through setup_ask_into (answer into a variable, no
+    # subshell); route it through the scripted setup_ask above.
+    setup_ask_into() { local __a; __a="$(setup_ask "$2" "$3")"; printf -v "$1" "%s" "$__a"; }
     SETUP_PERM_PROMPT_ROUTE="$ROUTE"; SETUP_PERM_NOTES="$NOTES"; SETUP_PERMISSION_LEVEL="$FLAG"
     setup_permission_level_step apply
     echo "STEP_RC=$?"
@@ -385,6 +388,7 @@ codex_init() {   # codex_init <interactive yes|no> <answer> -> "<opt>|<questions
     . "$SETUP_REPO_ROOT/scripts/lib/setup-codex.sh"
     setup_can_prompt() { return 0; }
     setup_ask() { printf "%s" "${ANSWER:-$2}"; }
+    setup_ask_into() { printf -v "$1" "%s" "${ANSWER:-$3}"; }
     codex_target_init 2> "$4/prompt"
     printf "%s|%s|" "$CODEX_RULES_OPT" "$SETUP_MODULES"; cat "$4/prompt"' x "$REPO_ROOT" "$1" "$2" "$d" 2>&1)
 }

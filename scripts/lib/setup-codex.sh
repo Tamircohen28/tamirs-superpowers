@@ -164,7 +164,11 @@ codex_target_init() {
       printf '  experimental, so their behaviour can change between Codex releases.\n'
       printf '  Undo: bash scripts/setup.sh remove --targets codex --only execpolicy\n'
     } >&2
-    ans="$(setup_lower "$(setup_ask 'Write the Codex rules file? [y/N] ' n)")"
+    # Into a variable, never `$(setup_ask ...)`: inside a command substitution
+    # stdout is the capture pipe, so the prompt would decide "no terminal" and
+    # hand back the default without asking (setup-common.sh, setup_ask_into).
+    setup_ask_into ans 'Write the Codex rules file? [y/N] ' n
+    ans="$(setup_lower "$ans")"
     case "$ans" in y|yes) CODEX_RULES_OPT=yes ;; *) CODEX_RULES_OPT=no ;; esac
   fi
   case " $SETUP_MODULES " in

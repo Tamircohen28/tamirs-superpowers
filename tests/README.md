@@ -24,6 +24,7 @@ bash tests/test-docs.sh                   # docs tell the truth about the repo
 bash tests/contract/run.sh [platform...]  # platform contract suites
 bash tests/test-fake-gh.sh                # the fake-gh mock tests itself
 bash tests/test-github-labels.sh          # scripts/github-labels.sh + check-github-labels.sh on the fake gh
+bash tests/test-setup-prompt-pty.sh       # setup_ask_into at a real pty (expect); skips without expect
 
 # hook behaviour (pre-existing suites)
 bash tests/test-check-done-tiers.sh

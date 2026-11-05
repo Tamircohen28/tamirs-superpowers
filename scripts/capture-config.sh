@@ -611,7 +611,10 @@ ask_hunk() {
   adopt_requested "$(field "$d" id)" && return 0
   [ -n "$OPT_ADOPT" ] && return 1
   while :; do
-    ans="$(setup_ask 'Adopt into the repo? [y/N/a/q/s] ' n)"
+    # Into a variable, never `$(setup_ask ...)`: inside a command substitution
+    # stdout is the capture pipe, so the prompt would decide "no terminal" and
+    # hand back the default without asking (setup-common.sh, setup_ask_into).
+    setup_ask_into ans 'Adopt into the repo? [y/N/a/q/s] ' n
     case "$(capture_decide "$ans")" in
       adopt)     return 0 ;;
       adopt-all) ADOPT_ALL=1; return 0 ;;
