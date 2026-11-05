@@ -21,6 +21,9 @@ PT_JSON="$(echo "$INV_JSON" | bash "$SCRIPT_DIR/score-platform-target-gaps.sh")"
 PLUGIN_JSON='{"gaps":[],"counts":{"p1":0,"p2":0,"p3":0}}'
 if [[ "$PROFILE" == "plugin-gold" ]]; then
   PLUGIN_JSON="$(bash "$SCRIPT_DIR/score-plugin-gaps.sh" "$ROOT")"
+elif [[ "$PROFILE" == "marketplace-gold" ]]; then
+  # A marketplace repo is graded on its catalogs (MK*), not on an agent-kit build (PK*).
+  PLUGIN_JSON="$(bash "$SCRIPT_DIR/score-marketplace-gaps.sh" "$ROOT")"
 fi
 
 CONTRACT_FILE="$(cd "$SCRIPT_DIR/.." && pwd)/standards-contract.json"

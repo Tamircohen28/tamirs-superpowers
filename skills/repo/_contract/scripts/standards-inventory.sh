@@ -144,10 +144,54 @@ eng_docs=false
 [[ -d "$ROOT/docs/user" ]] && user_docs=true
 [[ -d "$ROOT/docs/engineering" ]] && eng_docs=true
 
+# --- documentation standard (S2-05 footer, S2-06 themed Mermaid) -------------
+# The vendored checker beside this script runs against the target. A target
+# without config/docs/doc-standards.json is checked against the scaffold
+# template with the footer URLs set to null, so they derive from the target's
+# own origin remote. No checker, no template, or no origin to derive from means
+# `checked: false` — a defect nobody measured is never scored.
+doc_std_checked=false
+doc_std_footer=0
+doc_std_mermaid=0
+DOC_STD_CHECK="$(dirname "$0")/check-doc-standards.sh"
+if [[ -f "$DOC_STD_CHECK" ]] && command -v jq &>/dev/null; then
+  doc_std_args=()
+  doc_std_cfg=""
+  if [[ ! -f "$ROOT/config/docs/doc-standards.json" ]]; then
+    doc_std_tmpl="$(dirname "$0")/../templates/config/docs/doc-standards.json.tmpl"
+    doc_std_init="$(dirname "$0")/../templates/config/docs/mermaid-init.txt.tmpl"
+    if [[ -f "$doc_std_tmpl" && -f "$doc_std_init" ]]; then
+      doc_std_cfg="$(mktemp)"
+      jq '.footer.question_url = null | .footer.issue_url = null' "$doc_std_tmpl" > "$doc_std_cfg"
+      doc_std_args=(--config "$doc_std_cfg" --init "$doc_std_init")
+    fi
+  fi
+  if [[ -f "$ROOT/config/docs/doc-standards.json" || -n "$doc_std_cfg" ]]; then
+    doc_std_rc=0
+    doc_std_out="$(bash "$DOC_STD_CHECK" ${doc_std_args[@]+"${doc_std_args[@]}"} "$ROOT" 2>/dev/null)" || doc_std_rc=$?
+    if [[ $doc_std_rc -ne 2 ]]; then
+      doc_std_checked=true
+      # One line per violation: `path:line kind: detail`. The kind is read after
+      # the `:<line> ` delimiter, never as the second whitespace field -- a path
+      # with a space put its tail in $2, so such files scored zero, silently.
+      doc_std_counts=$(printf '%s\n' "$doc_std_out" | awk '
+        { s = $0
+          if (!match(s, /:[0-9]+ (footer|mermaid|box)-[a-z-]+: /)) next
+          k = substr(s, RSTART, RLENGTH); sub(/^:[0-9]+ /, "", k); sub(/: $/, "", k)
+          if (k ~ /^footer-/) f++; else if (k ~ /^mermaid-/) m++ }
+        END { printf "%d %d\n", f + 0, m + 0 }')
+      doc_std_footer="${doc_std_counts% *}"
+      doc_std_mermaid="${doc_std_counts#* }"
+    fi
+  fi
+  [[ -n "$doc_std_cfg" ]] && rm -f "$doc_std_cfg"
+fi
+
 ci_workflow=false
 secret_scan_job=false
 pr_template=false
 dependabot=false
+issue_templates=false
 if [[ -d "$ROOT/.github/workflows" ]]; then
   find "$ROOT/.github/workflows" -name '*.yml' -o -name '*.yaml' 2>/dev/null | grep -q . && ci_workflow=true
   while IFS= read -r wf; do
@@ -164,6 +208,12 @@ if [[ -d "$ROOT/.github/workflows" ]]; then
 fi
 [[ -f "$ROOT/.github/pull_request_template.md" ]] && pr_template=true
 [[ -f "$ROOT/.github/dependabot.yml" ]] && dependabot=true
+# S3-06: at least one issue form. GitHub honours .yml/.yaml forms and legacy
+# .md templates in this one directory; config.yml alone is not a template.
+if [[ -d "$ROOT/.github/ISSUE_TEMPLATE" ]]; then
+  find "$ROOT/.github/ISSUE_TEMPLATE" -maxdepth 1 \( -name '*.yml' -o -name '*.yaml' -o -name '*.md' \) \
+    ! -name 'config.yml' ! -name 'config.yaml' 2>/dev/null | grep -q . && issue_templates=true
+fi
 
 # Same defect as CODEOWNERS below, one axis over: the location is root, but the
 # NAME varies. GitHub's own licence detection accepts LICENSE, LICENCE, COPYING
@@ -217,6 +267,15 @@ blocks_force_push=false
 blocks_deletion=false
 actions_checked=false
 actions_violations=0
+# S3-05: the canonical label set (config/github/labels.json plus one
+# agent:<platform> per registry key). Same contract as S4: an API read, so
+# `checked` stays false offline or when it could not be read, and the scorer
+# then emits nothing — an unread control is unknown, not a gap.
+labels_checked=false
+labels_missing=0
+labels_drifted=0
+labels_extra=0
+labels_missing_names='[]'
 
 # Where the plugin's own tree sits relative to this script. A consumer repo that
 # vendored only _contract/scripts has no lib and no policy: that is a degraded
@@ -225,6 +284,7 @@ CONTRACT_SRC_ROOT="$(cd "$(dirname "$0")/../../../.." 2>/dev/null && pwd || true
 GH_LIB="${GITHUB_COMMON_LIB:-${CONTRACT_SRC_ROOT}/scripts/lib/github-common.sh}"
 GH_POLICY="${GITHUB_POLICY_FILE:-${CONTRACT_SRC_ROOT}/config/github/repository-policy.json}"
 GH_CLI_SCRIPT="${CONTRACT_SRC_ROOT}/scripts/github-policy.sh"
+GH_LABELS_SCRIPT="${CONTRACT_SRC_ROOT}/scripts/github-labels.sh"
 
 # CONTRACT_OFFLINE=1 means "make no network call at all". The gold fixtures run
 # under it, so the probe is skipped outright rather than attempted and filtered
@@ -362,14 +422,44 @@ if [[ "${CONTRACT_OFFLINE:-}" != "1" ]] \
         # classification table in config/github/repository-policy.json. Nothing
         # about cancellable-vs-stateful is re-decided here: a second copy of that
         # judgement is exactly the duplicated-rules problem this work removes.
+        # EXIT CODES: `audit --json` exits 0 when compliant and 3 on drift — a
+        # drifted repository is a SUCCESSFUL read, and the drift is the finding
+        # this block exists to carry. Consuming the document only on exit 0 is
+        # how an Actions violation once left actions.checked=false and S4-14
+        # unscored. Any other code (1: no gh, bad flag, API failure) means the
+        # repository could not be read: unknown, never a gap, never a pass.
         if [[ -f "$GH_CLI_SCRIPT" ]]; then
-          if audit_json="$(bash "$GH_CLI_SCRIPT" audit --repo "$gh_slug" --json 2>/dev/null)"; then
-            if echo "$audit_json" | jq -e 'type == "object" and has("changes")' >/dev/null 2>&1; then
-              actions_checked=true
-              actions_violations=$(echo "$audit_json" | jq '
-                [ .changes[] | select(.label | startswith("actions:"))
-                             | select(.status == "modify" or .status == "create") ] | length')
-            fi
+          audit_rc=0
+          audit_json="$(bash "$GH_CLI_SCRIPT" audit --repo "$gh_slug" --json 2>/dev/null)" || audit_rc=$?
+          if [[ "$audit_rc" == 0 || "$audit_rc" == 3 ]] \
+             && echo "$audit_json" | jq -e '
+                  type == "object" and has("changes")
+                  and ((.repositories // []) | all(.bucket != "failed"))' >/dev/null 2>&1; then
+            actions_checked=true
+            actions_violations=$(echo "$audit_json" | jq '
+              [ .changes[] | select(.label | startswith("actions:"))
+                           | select(.status == "modify" or .status == "create") ] | length')
+          fi
+        fi
+
+        # --- Labels ---------------------------------------------------------
+        # Delegated to scripts/github-labels.sh for the same reason Actions
+        # concurrency is: the comparison (name case-insensitive, colour
+        # case-insensitive, description exact, agent:<platform> from the
+        # registry) lives in one place. Same exit-code rule as the policy
+        # audit above: 0 compliant, 3 drift (a successful read whose drift IS
+        # the finding), anything else unreadable; a `failed` bucket inside a
+        # 3 is a read that failed on this repository and stays unchecked.
+        if [[ -f "$GH_LABELS_SCRIPT" ]]; then
+          labels_rc=0
+          labels_json="$(bash "$GH_LABELS_SCRIPT" audit --repo "$gh_slug" --json 2>/dev/null)" || labels_rc=$?
+          if [[ "$labels_rc" == 0 || "$labels_rc" == 3 ]] \
+             && echo "$labels_json" | jq -e 'type == "object" and (.repos | length) == 1 and (.repos[0].bucket != "failed")' >/dev/null 2>&1; then
+            labels_checked=true
+            labels_missing=$(echo "$labels_json" | jq '.repos[0].summary.create')
+            labels_drifted=$(echo "$labels_json" | jq '.repos[0].summary.update')
+            labels_extra=$(echo "$labels_json" | jq '.repos[0].summary.extra + .repos[0].summary.delete')
+            labels_missing_names=$(echo "$labels_json" | jq -c '[.repos[0].changes[] | select(.status == "create") | .name]')
           fi
         fi
       fi
@@ -470,10 +560,19 @@ jq -nc \
   --argjson contributing "$contributing" \
   --argjson user_docs "$user_docs" \
   --argjson eng_docs "$eng_docs" \
+  --argjson doc_std_checked "$doc_std_checked" \
+  --argjson doc_std_footer "$doc_std_footer" \
+  --argjson doc_std_mermaid "$doc_std_mermaid" \
   --argjson ci_workflow "$ci_workflow" \
   --argjson secret_scan_job "$secret_scan_job" \
   --argjson pr_template "$pr_template" \
   --argjson dependabot "$dependabot" \
+  --argjson issue_templates "$issue_templates" \
+  --argjson labels_checked "$labels_checked" \
+  --argjson labels_missing "$labels_missing" \
+  --argjson labels_drifted "$labels_drifted" \
+  --argjson labels_extra "$labels_extra" \
+  --argjson labels_missing_names "$labels_missing_names" \
   --argjson license_file "$license_file" \
   --argjson codeowners "$codeowners" \
   --argjson gitignore "$gitignore" \
@@ -534,13 +633,26 @@ jq -nc \
       changelog: $changelog,
       contributing: $contributing,
       user_dir: $user_docs,
-      engineering_dir: $eng_docs
+      engineering_dir: $eng_docs,
+      standards: {
+        checked: $doc_std_checked,
+        footer_violations: $doc_std_footer,
+        mermaid_violations: $doc_std_mermaid
+      }
     },
     github: {
       ci_workflow: $ci_workflow,
       secret_scan_job: $secret_scan_job,
       pr_template: $pr_template,
-      dependabot: $dependabot
+      dependabot: $dependabot,
+      issue_templates: $issue_templates,
+      labels: {
+        checked: $labels_checked,
+        missing: $labels_missing,
+        drifted: $labels_drifted,
+        extra: $labels_extra,
+        missing_names: $labels_missing_names
+      }
     },
     root_files: {
       license: $license_file,

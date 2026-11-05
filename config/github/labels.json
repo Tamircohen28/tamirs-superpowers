@@ -1,0 +1,74 @@
+{
+  "$schema": "../../core/schemas/github-labels.json",
+  "_comment": "The canonical GitHub label set for every repository this account owns. Data, not prose: scripts/github-labels.sh renders it, diffs it against the live API and applies it; scripts/check-github-labels.sh holds this file to core/schemas/github-labels.json offline. Keep the set small. GitHub's nine defaults are listed so a repository created without them (or one where they were deleted) is repaired; every label that is not a GitHub default carries a one-line _comment saying who depends on it. The per-platform agent:<platform> labels are NOT listed here: they are rendered at apply time from the keys of core/capabilities/platforms.json (see agent_labels), so adding a platform adds its label without touching this file.",
+  "schema_version": 1,
+  "version": "1.0.0",
+  "last_reviewed": "2026-11-05",
+  "agent_labels": {
+    "_comment": "switch-dev routes an issue to a platform by the label agent:<platform> (resume-schema.md: Owner). One label per key of the capability registry's platforms object, rendered at apply time; the registry is the only platform list. agent:any (unclaimed) is a fixed member of the set below. {display_name} in the template is replaced by the registry's display_name.",
+    "prefix": "agent:",
+    "registry": "core/capabilities/platforms.json",
+    "color": "c5def5",
+    "description_template": "Claimed by {display_name} — resume with switch-dev"
+  },
+  "labels": [
+    { "name": "bug", "color": "d73a4a", "description": "Something isn't working", "origin": "github-default" },
+    { "name": "documentation", "color": "0075ca", "description": "Improvements or additions to documentation", "origin": "github-default" },
+    { "name": "duplicate", "color": "cfd3d7", "description": "This issue or pull request already exists", "origin": "github-default" },
+    { "name": "enhancement", "color": "a2eeef", "description": "New feature or request", "origin": "github-default" },
+    { "name": "good first issue", "color": "7057ff", "description": "Good for newcomers", "origin": "github-default" },
+    { "name": "help wanted", "color": "008672", "description": "Extra attention is needed", "origin": "github-default" },
+    { "name": "invalid", "color": "e4e669", "description": "This doesn't seem right", "origin": "github-default" },
+    { "name": "question", "color": "d876e3", "description": "Further information is requested", "origin": "github-default" },
+    { "name": "wontfix", "color": "ffffff", "description": "This will not be worked on", "origin": "github-default" },
+    {
+      "name": "chore",
+      "color": "fef2c0",
+      "description": "Maintenance, tooling or dependency work with no user-facing change",
+      "origin": "tamirs",
+      "_comment": ".github/dependabot.yml labels every Dependabot PR chore (repo-scaffold Agent C writes the same); it did not exist on this repo until this set was applied."
+    },
+    {
+      "name": "dependencies",
+      "color": "0366d6",
+      "description": "Pull requests that update a dependency file",
+      "origin": "tamirs",
+      "_comment": "Dependabot's own default label; present so a dependabot.yml without a labels block still lands on an existing label."
+    },
+    {
+      "name": "ci",
+      "color": "f9d0c4",
+      "description": "Continuous integration, workflows and release automation",
+      "origin": "tamirs",
+      "_comment": "Workflow and release.yml changes are R4 under ADR 004; the label makes them findable in review."
+    },
+    {
+      "name": "security",
+      "color": "b60205",
+      "description": "Vulnerability, secret exposure or permission change",
+      "origin": "tamirs",
+      "_comment": "The security-reviewer agent and the secret-scan CI job report under it; a PR touching auth, secrets or permissions is labelled before review."
+    },
+    {
+      "name": "release",
+      "color": "0e8a16",
+      "description": "Version bump, changelog entry or release tag",
+      "origin": "tamirs",
+      "_comment": "plugin-version-bump.md: a manifest bump without a release leaves installed users on the cached copy; the label marks the PRs that must be followed by a tag."
+    },
+    {
+      "name": "blocked",
+      "color": "d93f0b",
+      "description": "Cannot proceed until a named dependency is resolved",
+      "origin": "tamirs",
+      "_comment": "start-dev reads the issue's Resume block and stops on a blocker; the label makes the blocked set visible on the issue list without reading each body."
+    },
+    {
+      "name": "agent:any",
+      "color": "bfd4f2",
+      "description": "Unclaimed — any agent/platform may pick this up (switch-dev)",
+      "origin": "tamirs",
+      "_comment": "switch-dev's unclaimed state and the default label of .github/ISSUE_TEMPLATE/agent_task.yml; the per-platform agent:<platform> labels are rendered from the registry (agent_labels above)."
+    }
+  ]
+}

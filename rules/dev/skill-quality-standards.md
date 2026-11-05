@@ -206,6 +206,11 @@ repo-generating skills legitimately name paths in the repo they scaffold.
 - Every platform-specific mechanic gets an explicit fallback or an explicit
   "unsupported on X" — never silently assume subagents, hooks, or a statusline.
 - No employer IP, internal domains, or private org references.
+- Diagrams in a skill body, its references or its evals follow
+  [`documentation-standards.md`](documentation-standards.md): a fenced Mermaid
+  block opening with the canonical init line from `config/docs/mermaid-init.txt`,
+  never box-drawing. A skill that writes human-facing docs leaves the footer to
+  `scripts/check-doc-standards.sh --fix` and points at the rule, never restates it.
 
 ## Body structure
 

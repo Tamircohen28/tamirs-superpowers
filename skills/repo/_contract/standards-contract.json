@@ -1,5 +1,5 @@
 {
-  "version": "1.7.0",
+  "version": "1.8.0",
   "profiles": {
     "app-gold": {
       "repo_type": "app",
@@ -110,12 +110,13 @@
         "p3": 0
       },
       "offline_scoring": {
-        "_comment": "Every S4 id below needs the GitHub API. score-standards-gaps.sh already refuses to emit them when CONTRACT_OFFLINE=1 or when branch_governance.readable is false; this list is the second gate, applied by score-contract-gaps.sh, so a vendored or older scorer still stays quiet offline. S4-03 is retired — it required at least one approving review, which contradicts the canonical policy and the live repository (0 required approvals with review-thread resolution ON, the solo-contributor posture). Its id is kept here so any un-updated copy of the scorer remains silent rather than failing an offline gate.",
+        "_comment": "Every S4 id below, and S3-05 (canonical labels, read by scripts/github-labels.sh), needs the GitHub API. score-standards-gaps.sh already refuses to emit them when CONTRACT_OFFLINE=1 or when branch_governance.readable is false; this list is the second gate, applied by score-contract-gaps.sh, so a vendored or older scorer still stays quiet offline. S4-03 is retired — it required at least one approving review, which contradicts the canonical policy and the live repository (0 required approvals with review-thread resolution ON, the solo-contributor posture). Its id is kept here so any un-updated copy of the scorer remains silent rather than failing an offline gate.",
         "retired_check_ids": {
           "S4-03": "Retired 2026-08-19. Required >= 1 approving review; the approving-review count is policy content owned by config/github/repository-policy.json, and the canonical value is 0 with required_review_thread_resolution true. Superseded by S4-10.",
           "S4-04": "Retired 2026-08-19. Required allow_auto_merge on every repository. Auto-merge is a team-norm PREFERENCE, not a defect when absent \u2014 the same class of error as S4-03: a posture asserted as a universal good. Nothing observable distinguishes a repo that has deliberately left auto-merge off from one that forgot, so no gap can be scored honestly. pr-dev already resolves auto-merge per repository at delivery time, which is where the preference belongs: resolve-merge-policy.sh [--host <h>] asks scripts/resolve-permission.sh for the pr.merge.auto permission (ADR 004 D4) and enables auto-merge only when that answer is allow AND the repository reports allow_auto_merge; anything else, including no configuration anywhere, is skip (auto-merge is OFF unless configured). TAMIRS_AUTO_MERGE=never and an objective's delivery.auto_merge=false deny, =always and true grant nothing, .dev-files/policy.json is read tighten-only, and the output names the deciding rule (auto_merge_source), the resolver's verdict (auto_merge_verdict) and the durable setting that would allow it (auto_merge_allow_with). S4-05 (delete_branch_on_merge) is retained: it is hygiene with no counter-argument."
         },
         "skip_check_ids": [
+          "S3-05",
           "S4-02",
           "S4-03",
           "S4-04",
@@ -259,10 +260,177 @@
         "p3": 0
       },
       "offline_scoring": {
-        "_comment": "Every S4 id below needs the GitHub API. score-standards-gaps.sh already refuses to emit them when CONTRACT_OFFLINE=1 or when branch_governance.readable is false; this list is the second gate, applied by score-contract-gaps.sh, so a vendored or older scorer still stays quiet offline. S4-03 is retired — it required at least one approving review, which contradicts the canonical policy and the live repository (0 required approvals with review-thread resolution ON, the solo-contributor posture). Its id is kept here so any un-updated copy of the scorer remains silent rather than failing an offline gate.",
+        "_comment": "Every S4 id below, and S3-05 (canonical labels, read by scripts/github-labels.sh), needs the GitHub API. score-standards-gaps.sh already refuses to emit them when CONTRACT_OFFLINE=1 or when branch_governance.readable is false; this list is the second gate, applied by score-contract-gaps.sh, so a vendored or older scorer still stays quiet offline. S4-03 is retired — it required at least one approving review, which contradicts the canonical policy and the live repository (0 required approvals with review-thread resolution ON, the solo-contributor posture). Its id is kept here so any un-updated copy of the scorer remains silent rather than failing an offline gate.",
         "retired_check_ids": {
           "S4-03": "Retired 2026-08-19. Required >= 1 approving review; the approving-review count is policy content owned by config/github/repository-policy.json, and the canonical value is 0 with required_review_thread_resolution true. Superseded by S4-10.",
           "S4-04": "Retired 2026-08-19. Required allow_auto_merge on every repository. Auto-merge is a team-norm PREFERENCE, not a defect when absent \u2014 the same class of error as S4-03: a posture asserted as a universal good. Nothing observable distinguishes a repo that has deliberately left auto-merge off from one that forgot, so no gap can be scored honestly. pr-dev already resolves auto-merge per repository at delivery time, which is where the preference belongs: resolve-merge-policy.sh [--host <h>] asks scripts/resolve-permission.sh for the pr.merge.auto permission (ADR 004 D4) and enables auto-merge only when that answer is allow AND the repository reports allow_auto_merge; anything else, including no configuration anywhere, is skip (auto-merge is OFF unless configured). TAMIRS_AUTO_MERGE=never and an objective's delivery.auto_merge=false deny, =always and true grant nothing, .dev-files/policy.json is read tighten-only, and the output names the deciding rule (auto_merge_source), the resolver's verdict (auto_merge_verdict) and the durable setting that would allow it (auto_merge_allow_with). S4-05 (delete_branch_on_merge) is retained: it is hygiene with no counter-argument."
+        },
+        "skip_check_ids": [
+          "S3-05",
+          "S4-02",
+          "S4-03",
+          "S4-04",
+          "S4-05",
+          "S4-06",
+          "S4-07",
+          "S4-08",
+          "S4-09",
+          "S4-10",
+          "S4-11",
+          "S4-12",
+          "S4-13",
+          "S4-14"
+        ]
+      },
+      "feature_equivalence": {
+        "spec": "skills/repo/_contract/feature-equivalence.json",
+        "capability_registry": "core/capabilities/platforms.json",
+        "capability_registry_schema": "core/capabilities/schema.json",
+        "capability_registry_note": "The registry is the single source of truth for the platform set and every capability status. feature-equivalence.json carries only the artifact delta; platform-targets.json carries only versions plus a derived capability mirror. check-feature-equivalence.sh fails when any of the three disagree.",
+        "require_capability_registry_when_multi": true,
+        "validation_scripts": [
+          "scripts/check-feature-equivalence.sh",
+          "scripts/check-platform-targets.sh"
+        ],
+        "make_targets": {
+          "platform_targets_sync_capabilities": "make platform-targets-sync-capabilities"
+        }
+      }
+    },
+    "marketplace-gold": {
+      "extends": "app-gold",
+      "repo_type": "marketplace",
+      "paths": {
+        "contributing": "docs/CONTRIBUTING.md",
+        "changelog": "docs/CHANGELOG.md",
+        "license": "LICENSE",
+        "require_license_when_published": true,
+        "agents_md": "AGENTS.md",
+        "codeowners": "CODEOWNERS",
+        "docs_readme": "docs/README.md"
+      },
+      "readme": {
+        "required_headings": [
+          "Prerequisites",
+          "Quick Start",
+          "Catalog"
+        ],
+        "required_badges": [
+          "ci",
+          "license",
+          "author",
+          "version"
+        ],
+        "require_makefile_lifecycle_when_published": true,
+        "require_root_changelog_when_release_model": true,
+        "require_version_badge_when_release_model": true,
+        "require_ci_badge_when_ci": true,
+        "badge_anchor_form": "single-line",
+        "badge_anchor_form_note": "Every <a> that wraps a badge <img> must open, contain the img, and close on ONE line. A newline plus indent inside the anchor is link TEXT, and GitHub renders it as an underlined gap between badges. Readability is not a reason to reformat it back.",
+        "forbid_header_emoji": true,
+        "header_emoji_note": "No emoji above the first '## ' heading — that region is the banner, badge rows, H1 and tagline. Body prose below the first '##' is unrestricted.",
+        "require_badge_versions_match_platform_targets_when_multi": true,
+        "banner": {
+          "accepted_paths": [
+            "assets/banner.png",
+            "assets/banner.jpg",
+            "assets/banner.webp",
+            "assets/banner.svg"
+          ],
+          "preferred_form": "raster",
+          "art_direction": "skills/repo/_contract/references/readme-banner.md",
+          "min_svg_shapes": 16,
+          "max_svg_text_elements": 3,
+          "raster_min_bytes": 20000,
+          "raster_min_width": 800,
+          "note": "A hero banner is a designed graphic with a motif drawn from the project's domain, not a wordmark on a rectangle. The numbers are the observable floor enforced by scripts/check-readme-branding.sh; the art direction is the reference above."
+        },
+        "versioning_doc": "docs/engineering/build-and-release/versioning.md",
+        "require_versioning_doc_when_release_model": true
+      },
+      "docs": {
+        "require_docs_tree_when_published": true,
+        "required_dirs": [
+          "docs/user",
+          "docs/engineering"
+        ],
+        "allowed_root_md": [
+          "README.md",
+          "CHANGELOG.md",
+          "CONTRIBUTING.md"
+        ]
+      },
+      "ci": {
+        "require_ci_jobs_when_ci": true,
+        "required_jobs": [
+          "secret-scan",
+          "validate"
+        ],
+        "forbidden_patterns": [
+          "runs-on:\\s*\\[self-hosted"
+        ]
+      },
+      "multi_agent": {
+        "require_agents_md": true,
+        "require_claude_imports_agents": true,
+        "require_cursor_mdc_when_multi": true,
+        "require_agent_guidelines_dir_when_multi": true,
+        "require_drift_script_when_multi": true,
+        "require_agent_check_target_when_published": true,
+        "portable_skills_dirs": [
+          ".agents/skills",
+          "skills",
+          ".claude/skills"
+        ]
+      },
+      "marketplace": {
+        "_comment": "A marketplace repo is a catalog of plugins, published in the manifest each platform reads. Every path and field here is doc-cited from the platform pages read on 2026-11-05 (docs/engineering/research/marketplace-standards.md). A platform with no marketplace concept gets no manifest and no requirement; OpenCode is that platform, and the README must say so rather than leave a silent gap.",
+        "manifests": {
+          "claude_code": ".claude-plugin/marketplace.json",
+          "claude_desktop": ".claude-plugin/marketplace.json",
+          "cursor": ".cursor-plugin/marketplace.json",
+          "codex": ".agents/plugins/marketplace.json",
+          "opencode": null
+        },
+        "required_paths": [
+          ".claude-plugin/marketplace.json",
+          ".cursor-plugin/marketplace.json",
+          ".agents/plugins/marketplace.json",
+          "scripts/validate-marketplace.sh",
+          "docs/user/catalog.md"
+        ],
+        "validate_script": "scripts/validate-marketplace.sh",
+        "validation_command": "bash scripts/validate-marketplace.sh .",
+        "platform_validators": {
+          "claude_code": "claude plugin validate .",
+          "cursor": null,
+          "codex": null,
+          "opencode": null
+        },
+        "require_catalog_table": true,
+        "require_readme_opencode_statement": true,
+        "require_local_plugin_manifest": true,
+        "require_catalogs_agree": true,
+        "catalogs_agree_note": "The Claude catalog is the canonical list (Codex reads it as a legacy-compatible marketplace). A plugin listed for Cursor or Codex but absent from it is an error; a Claude-only plugin is a warning, because hooks and MCP make that a legitimate entry.",
+        "codeowners_paths": [
+          "plugins/",
+          "scripts/",
+          ".claude-plugin/",
+          ".cursor-plugin/",
+          ".agents/"
+        ],
+        "research": "docs/engineering/research/marketplace-standards.md"
+      },
+      "exit_gate": {
+        "p1": 0,
+        "p2": 0,
+        "p3": 0
+      },
+      "offline_scoring": {
+        "_comment": "Every S4 id below needs the GitHub API. score-standards-gaps.sh already refuses to emit them when CONTRACT_OFFLINE=1 or when branch_governance.readable is false; this list is the second gate, applied by score-contract-gaps.sh, so a vendored or older scorer still stays quiet offline. S4-03 is retired — it required at least one approving review, which contradicts the canonical policy and the live repository (0 required approvals with review-thread resolution ON, the solo-contributor posture). Its id is kept here so any un-updated copy of the scorer remains silent rather than failing an offline gate.",
+        "retired_check_ids": {
+          "S4-03": "Retired 2026-08-19. Required >= 1 approving review; the approving-review count is policy content owned by config/github/repository-policy.json, and the canonical value is 0 with required_review_thread_resolution true. Superseded by S4-10.",
+          "S4-04": "Retired 2026-08-19. Required allow_auto_merge on every repository. Auto-merge is a team-norm PREFERENCE, not a defect when absent — the same class of error as S4-03: a posture asserted as a universal good. Nothing observable distinguishes a repo that has deliberately left auto-merge off from one that forgot, so no gap can be scored honestly. pr-dev already resolves auto-merge per repository at delivery time, which is where the preference belongs: resolve-merge-policy.sh [--host <h>] asks scripts/resolve-permission.sh for the pr.merge.auto permission (ADR 004 D4) and enables auto-merge only when that answer is allow AND the repository reports allow_auto_merge; anything else, including no configuration anywhere, is skip (auto-merge is OFF unless configured). TAMIRS_AUTO_MERGE=never and an objective's delivery.auto_merge=false deny, =always and true grant nothing, .dev-files/policy.json is read tighten-only, and the output names the deciding rule (auto_merge_source), the resolver's verdict (auto_merge_verdict) and the durable setting that would allow it (auto_merge_allow_with). S4-05 (delete_branch_on_merge) is retained: it is hygiene with no counter-argument."
         },
         "skip_check_ids": [
           "S4-02",

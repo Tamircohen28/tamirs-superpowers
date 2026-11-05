@@ -622,8 +622,50 @@ yet" from "this cannot be done, and here is why".
 
 ---
 
+## Labels
+
+Labels are part of repository setup too, and the same tool shape covers them.
+The canonical set is [`config/github/labels.json`](../../config/github/labels.json),
+validated against [`core/schemas/github-labels.json`](../../core/schemas/github-labels.json);
+read the file for the labels themselves — nothing here restates one. On top of
+that file, one `agent:<platform>` label is rendered per platform in
+`core/capabilities/platforms.json`, so a new platform gets its label without a
+change to the set.
+
+```bash
+bash scripts/github-labels.sh audit --repo <owner/name>   # what is missing or drifted; writes nothing
+bash scripts/github-labels.sh plan  --all                 # the same across every repo you own
+bash scripts/github-labels.sh apply --repo <owner/name>   # create + update, confirmed at the terminal
+make github-labels-plan / make github-labels              # the same two, for this checkout's origin
+```
+
+What it will and will not do:
+
+- `apply` **creates** missing labels and **updates** drifted colours or
+  descriptions. It asks the permission resolver about `label.apply` first (R2:
+  shared-additive), and with no terminal to confirm at it prints the plan and
+  writes nothing — the same contract as the policy command.
+- It **never deletes** a label the set does not name unless you type
+  `--prune`. A deleted label is stripped from every issue that carried it, so
+  `--prune` asks the resolver about `label.delete` separately (R3, never
+  automatic).
+- `bash scripts/check-github-labels.sh` (in `make validate`, offline) holds
+  the set to its schema and holds this repository's `dependabot.yml` and
+  issue templates to it: a template that labels an issue with a name no
+  repository has is a template that silently fails.
+
+Exit codes are the policy command's: `0` compliant or plan printed, `3` drift
+or a failed write, `1` failure. `--json` owns stdout alone.
+
+---
+
 ## See also
 
 - [`config/github/repository-policy.json`](../../config/github/repository-policy.json) — the policy itself
+- [`config/github/labels.json`](../../config/github/labels.json) — the canonical label set
 - [Configuration](configuration.md) — how machine config is rendered
 - [Agent-kit repos](agent-kit.md) — scaffolding and maintaining distribution repos
+
+---
+
+<p align="center"><a href="https://github.com/Tamircohen28">Have a Question?</a>&nbsp;·&nbsp;<a href="https://github.com/Tamircohen28/tamirs-superpowers/issues/new/choose">Open an Issue</a></p>

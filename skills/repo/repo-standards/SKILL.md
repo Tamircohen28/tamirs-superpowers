@@ -79,6 +79,7 @@ Publishing or maintaining a repo without a unified checklist leaks employer IP, 
 | `../_contract/references/versioning-policy.md` | Semver, tagging, changelog enforcement |
 | `../../../config/github/repository-policy.json` | Canonical GitHub repository policy — rulesets, required contexts, Actions concurrency. **Never restate its content**; read it. |
 | `../../../scripts/github-policy.sh` | `audit` / `plan` / `apply` / `verify` for branch governance (S4-02…S4-14) |
+| `../../../scripts/github-labels.sh` | `audit` / `plan` / `apply` for the canonical label set (S3-05); `--prune` is the only path that deletes |
 | `scripts/parse-mode-args.sh` | Mode/target/doc_path parsing |
 | `scripts/standards-inventory.sh` | Re-export → `_contract/scripts/` |
 | `scripts/score-contract-gaps.sh` | Merged standards + multi-agent gaps |
@@ -157,6 +158,7 @@ PLAN_PATH="$TARGET_ROOT/docs/engineering/repo-standards-plan-$DATE.md"
 3. `strict_required_status_checks_policy` — its literal value, because S4-09 is the one setting that must never silently flip.
 4. Legacy classic protection as a **migration item**. Absent is the healthy state on a rulesets-governed repo and is never a finding.
 5. Actions concurrency findings in both directions: a cancellable PR-validation workflow missing the block, and a stateful workflow that wrongly has cancellation on.
+6. Labels (S3-05) from `$INVENTORY`'s `github.labels` block: how many canonical labels are missing (name them) and how many drifted, and whether issue templates exist (S3-06, `github.issue_templates`). When `github.labels.checked` is `false` the set could not be read — say so and score no S3-05 gap. Cite `config/github/labels.json` for the set; never list its labels in the report.
 
 When governance could not be read (`branch_governance.readable` is `false` — no `gh`, no auth, or no permission), say so plainly and score **no** S4 gaps. An unread control is unknown, not broken. Never copy rule values, ruleset names, or required-context lists out of `config/github/repository-policy.json` into the report — cite the file.
 
@@ -218,6 +220,13 @@ git checkout -b feat/repo-standards-setup 2>/dev/null || git checkout -b "feat/r
    - `plan` when the user asked to audit only, or asked to skip applying rules (this is what `--verify-only` used to mean). `audit` for the read-only compliance answer with no remediation diff.
    - `apply` never writes without a confirmation, refuses any change that would make the repo **less** protected than it is today, and prints the plan instead of writing when there is no TTY.
    - **`strict_required_status_checks_policy` must stay `false`** (S4-09, P1). With it on, every merge marks every other open branch out of date and the one-objective/one-PR flow stalls behind a serial rebase queue.
+
+   **Labels (S3-05, S3-06)** — in the same phase, right after the rulesets:
+   ```bash
+   bash "$PLUGIN_ROOT/scripts/github-labels.sh" plan  --repo "$REPO_SLUG"   # diff only, writes nothing
+   bash "$PLUGIN_ROOT/scripts/github-labels.sh" apply --repo "$REPO_SLUG"   # creates + updates, confirms at the TTY
+   ```
+   The set is `config/github/labels.json` plus one `agent:<platform>` per registry platform; do not restate it. `apply` asks the resolver about `label.apply` (R2) and never deletes a label unless `--prune` is typed (`label.delete`, R3) — leave extras alone unless the user asked to prune. For S3-06, add `.github/ISSUE_TEMPLATE/*.yml` forms that label only with names the set provides (`check-github-labels.sh` holds this repo's templates to that).
    **README branding (phase 1):** S1-05 and S1-11..S1-14 are all fixed here, and all five are verified by `bash "$CONTRACT_ROOT/scripts/check-readme-branding.sh" "$TARGET_ROOT"` before the phase closes.
 
    - **S1-11 anchor form** — collapse every `<a>` that wraps a badge `<img>` onto one line: `<a href="..."><img ... /></a>`. The newline and indent in the broken form are link *text*; GitHub renders them as the underlined gap between badges. Do not reformat them back.

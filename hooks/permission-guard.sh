@@ -313,7 +313,7 @@ _pg_candidate() {
       *api.github.com*|*uploads.github.com*|*graphql*|*_TOKEN*|*'gh auth'*) hit=1; break ;;
       *resolve-permission*|*plugin*config*|*setup.sh*|*install.sh*|*enable.sh*|*SETUP_PERMISSION_LEVEL*) hit=1; break ;;
       *cleanup-after-merge.sh*|*cleanup.sh*|*resolve-thread.sh*|*update-issue-resume.sh*|*notify-pushover.sh*) hit=1; break ;;
-      *collector.py*|*handoff.sh*|*enable-repo-merge-settings.sh*|*github-policy.sh*|*ensure-branch-protection.sh*|*capture-config.sh*) hit=1; break ;;
+      *collector.py*|*handoff.sh*|*enable-repo-merge-settings.sh*|*github-policy.sh*|*github-labels.sh*|*ensure-branch-protection.sh*|*capture-config.sh*) hit=1; break ;;
       *claude-code*|*gemini-cli*|*opencode-ai*|*@openai/codex*|*node-pty*) hit=1; break ;;
     esac
     if [ -n "${GH_HOST:-}" ]; then

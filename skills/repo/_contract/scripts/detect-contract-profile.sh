@@ -3,7 +3,7 @@
 # root, and answer the repo-shape questions the rest of the plugin keeps guessing.
 #
 # Usage:
-#   detect-contract-profile.sh [repo-root]            # -> app-gold | plugin-gold
+#   detect-contract-profile.sh [repo-root]            # -> app-gold | plugin-gold | marketplace-gold
 #   detect-contract-profile.sh [repo-root] --json     # -> shape facts as JSON
 #   detect-contract-profile.sh [repo-root] --shape    # -> shape facts as KEY=VALUE
 #
@@ -14,9 +14,14 @@
 #   ordinary app repo for exactly that reason. One detector, read by everyone,
 #   is how those answers stop drifting apart.
 #
-#   The PROFILE is deliberately still decided by `canonical/rules` alone: it
-#   selects which assertion set a repo is graded against, and widening it would
-#   silently re-grade existing repos. Shape facts are additive and score nothing.
+#   The PROFILE selects which assertion set a repo is graded against, so it is
+#   decided by two narrow facts and nothing else: `canonical/rules` means
+#   plugin-gold (an agent-kit build), and a `.claude-plugin/marketplace.json`
+#   WITHOUT a root `.claude-plugin/plugin.json` means marketplace-gold (a repo
+#   that is a catalog, not a plugin — a plugin that self-hosts its marketplace,
+#   like tamirs-superpowers, keeps its root plugin.json and stays app-gold).
+#   Widening either test would silently re-grade existing repos. Shape facts
+#   are additive and score nothing.
 set -euo pipefail
 
 ROOT="${1:-.}"
@@ -37,9 +42,11 @@ if ! ROOT="$(cd "$ROOT" 2>/dev/null && pwd)"; then
   exit 0
 fi
 
-# --- profile (unchanged semantics) -------------------------------------------
+# --- profile --------------------------------------------------------------------
 if [[ -d "$ROOT/canonical/rules" ]]; then
   PROFILE="plugin-gold"
+elif [[ -f "$ROOT/.claude-plugin/marketplace.json" && ! -f "$ROOT/.claude-plugin/plugin.json" ]]; then
+  PROFILE="marketplace-gold"
 else
   PROFILE="app-gold"
 fi

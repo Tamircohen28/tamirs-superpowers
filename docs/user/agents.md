@@ -82,3 +82,7 @@ See [platform differences](platform-differences.md) and
 OpenCode's agent frontmatter genuinely differs, so `.opencode/agents/` is **generated** from
 `agents/` by `scripts/build-opencode-agents.sh`. Never hand-edit the generated copies;
 regenerate them. `make opencode-agents-check` fails on drift.
+
+---
+
+<p align="center"><a href="https://github.com/Tamircohen28">Have a Question?</a>&nbsp;·&nbsp;<a href="https://github.com/Tamircohen28/tamirs-superpowers/issues/new/choose">Open an Issue</a></p>

@@ -81,7 +81,8 @@ Two chains matter:
 |---------|-----|
 | `app-gold` | Greenfield app repos from `repo-scaffold`; polish target for `repo-standards` (default) |
 | `plugin-gold` | Agent-kit distribution repos from `repo-scaffold --type plugin`; auto-detected when `canonical/rules/` exists. Generates one adapter per target (Claude, Codex, Cursor, Gemini CLI, OpenCode) from `canonical/`. |
+| `marketplace-gold` | Plugin catalog repos from `repo-scaffold --type marketplace`; auto-detected when `.claude-plugin/marketplace.json` exists without a root `.claude-plugin/plugin.json`. One catalog in the manifest each platform reads (Claude `.claude-plugin/`, Cursor `.cursor-plugin/`, Codex `.agents/plugins/`); OpenCode has no marketplace and gets none. Research: [`docs/engineering/research/marketplace-standards.md`](../../../docs/engineering/research/marketplace-standards.md). |
 
 Detect profile: `bash scripts/detect-contract-profile.sh <repo-root>`
 
-Exit gate: P1 = P2 = P3 = 0 on merged standards + multi-agent + plugin (if plugin-gold) deterministic checks.
+Exit gate: P1 = P2 = P3 = 0 on merged standards + multi-agent + plugin (if plugin-gold) or marketplace (if marketplace-gold) deterministic checks.

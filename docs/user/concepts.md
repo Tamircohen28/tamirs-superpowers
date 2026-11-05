@@ -130,13 +130,21 @@ a reason — never omitted, never reported as passing.
 
 ## 6. Branches and worktrees follow the work
 
-```text
-main
-└── objective/<slug>            ← integration branch, one per objective
-    ├── worker/<slug>/001       ← one per task, numbered to match task-001.json
-    ├── worker/<slug>/002
-    └── worker/<slug>/003
+```mermaid
+%%{init: {"theme":"base","themeVariables":{"darkMode":true,"background":"#0b0e14","primaryColor":"#1f2937","primaryTextColor":"#ffffff","primaryBorderColor":"#94a3b8","secondaryColor":"#334155","secondaryTextColor":"#ffffff","tertiaryColor":"#111827","tertiaryTextColor":"#ffffff","lineColor":"#64748b","textColor":"#ffffff","edgeLabelBackground":"#1f2937","clusterBkg":"#111827","clusterBorder":"#64748b","actorBkg":"#1f2937","actorBorder":"#94a3b8","actorTextColor":"#ffffff","actorLineColor":"#64748b","signalColor":"#64748b","signalTextColor":"#64748b","labelBoxBkgColor":"#1f2937","labelBoxBorderColor":"#94a3b8","labelTextColor":"#ffffff","loopTextColor":"#ffffff","noteBkgColor":"#334155","noteTextColor":"#ffffff","noteBorderColor":"#94a3b8","activationBkgColor":"#334155","activationBorderColor":"#94a3b8"}}}%%
+flowchart TB
+  main["main"]
+  obj["objective/#lt;slug#gt;"]
+  w1["worker/#lt;slug#gt;/001"]
+  w2["worker/#lt;slug#gt;/002"]
+  w3["worker/#lt;slug#gt;/003"]
+  main --> obj
+  obj --> w1
+  obj --> w2
+  obj --> w3
 ```
+
+`objective/<slug>` is the integration branch, one per objective; each `worker/<slug>/NNN` is one per task, numbered to match `task-NNN.json`.
 
 Worker branches merge **into the integration branch**, never into `main`. Conflicts are
 resolved once, by the integrator, at integration — a worker that merges `main` pollutes
@@ -155,3 +163,7 @@ never orphaned or bulk-migrated; migration is opt-in, one worktree at a time. Po
 - [Skills](skills.md) — what each skill does and when it fires
 - [Agents](agents.md) — the role definitions behind the agents
 - [Platform differences](platform-differences.md) — what your platform can actually do
+
+---
+
+<p align="center"><a href="https://github.com/Tamircohen28">Have a Question?</a>&nbsp;·&nbsp;<a href="https://github.com/Tamircohen28/tamirs-superpowers/issues/new/choose">Open an Issue</a></p>

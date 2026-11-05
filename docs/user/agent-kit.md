@@ -6,13 +6,14 @@ Use this when you want a **team-wide policy + skills package**, not a single app
 
 ---
 
-## Three repo shapes
+## Four repo shapes
 
 | Shape | Example | Skills live in | Standards profile |
 |-------|---------|----------------|-------------------|
 | **App / library** | Node API, Python service | `.agents/skills/` or `.claude/skills/` | `app-gold` |
 | **Flat Claude plugin** | `tamirs-superpowers` | `skills/<domain>/<name>/` at repo root | `app-gold` |
 | **Agent-kit distribution** | Team engineering kit | `canonical/skills/` → generated copies | `plugin-gold` |
+| **Plugin marketplace** | Team plugin catalog — see [marketplace.md](marketplace.md) | inside each catalogued plugin | `marketplace-gold` |
 
 **Key idea:** Claude Code plugins are Claude-specific. The portable layer is **tool-neutral canonical files** + **generated adapters** — not a single plugin-only layout.
 
@@ -21,6 +22,7 @@ Use this when you want a **team-wide policy + skills package**, not a single app
 ## Architecture
 
 ```mermaid
+%%{init: {"theme":"base","themeVariables":{"darkMode":true,"background":"#0b0e14","primaryColor":"#1f2937","primaryTextColor":"#ffffff","primaryBorderColor":"#94a3b8","secondaryColor":"#334155","secondaryTextColor":"#ffffff","tertiaryColor":"#111827","tertiaryTextColor":"#ffffff","lineColor":"#64748b","textColor":"#ffffff","edgeLabelBackground":"#1f2937","clusterBkg":"#111827","clusterBorder":"#64748b","actorBkg":"#1f2937","actorBorder":"#94a3b8","actorTextColor":"#ffffff","actorLineColor":"#64748b","signalColor":"#64748b","signalTextColor":"#64748b","labelBoxBkgColor":"#1f2937","labelBoxBorderColor":"#94a3b8","labelTextColor":"#ffffff","loopTextColor":"#ffffff","noteBkgColor":"#334155","noteTextColor":"#ffffff","noteBorderColor":"#94a3b8","activationBkgColor":"#334155","activationBorderColor":"#94a3b8"}}}%%
 flowchart TB
   subgraph source [Your agent-kit repo]
     canonical_rules["canonical/rules/*.md"]
@@ -70,7 +72,7 @@ See [`platform-equivalence.md`](../agent-guidelines/platform-equivalence.md) for
 
 ## Directory layout (after scaffold)
 
-```
+```text
 my-agent-kit/
 ├── agent-kit.config.json          # paths + plugin name
 ├── canonical/
@@ -189,7 +191,7 @@ v1 scaffolds a stub `agent:update` script. Full `sync-to-repo.mjs` / `npx @org/a
 
 **Intended target layout** (after install ships):
 
-```
+```text
 target-app/
 ├── AGENTS.md              # from dist/codex/
 ├── CLAUDE.md              # thin wrapper
@@ -208,6 +210,7 @@ Until then, copy or symlink generated files manually from `dist/` after `npm run
 | Detection | Profile |
 |-----------|---------|
 | `canonical/rules/` exists | `plugin-gold` |
+| `.claude-plugin/marketplace.json` exists and no root `.claude-plugin/plugin.json` | `marketplace-gold` ([marketplace repos](marketplace.md)) |
 | Otherwise | `app-gold` |
 
 ```text
@@ -272,6 +275,11 @@ Treat agent-kit repos as **supply chain**, not harmless markdown:
 | Doc | Content |
 |-----|---------|
 | [Skills — repo domain](skills.md#repo) | What each repo skill does |
-| [Contract package](../../skills/repo/_contract/README.md) | `app-gold` vs `plugin-gold`: templates, scoring scripts, gold fixtures |
+| [Plugin marketplace repos](marketplace.md) | The `--type marketplace` shape: a catalog of plugins, one manifest per platform that has a marketplace |
+| [Contract package](../../skills/repo/_contract/README.md) | `app-gold` vs `plugin-gold` vs `marketplace-gold`: templates, scoring scripts, gold fixtures |
 | [Engineering architecture](../engineering/architecture/overview.md) | Contract package in this plugin |
 | Contract templates | `skills/repo/_contract/templates/plugin/` |
+
+---
+
+<p align="center"><a href="https://github.com/Tamircohen28">Have a Question?</a>&nbsp;·&nbsp;<a href="https://github.com/Tamircohen28/tamirs-superpowers/issues/new/choose">Open an Issue</a></p>

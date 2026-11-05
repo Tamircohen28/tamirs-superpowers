@@ -17,6 +17,10 @@ Canonical templates for `repo-scaffold` and `repo-standards` polish. Contract ve
 | [`check-feature-equivalence.sh.tmpl`](check-feature-equivalence.sh.tmpl) | E-layer parity + capability-registry agreement, copied to target `scripts/` |
 | [`check-platform-targets.sh.tmpl`](check-platform-targets.sh.tmpl) | V-layer version/badge checks + `--sync-capabilities`, copied to target `scripts/` |
 | [`check-action-pinning.sh.tmpl`](check-action-pinning.sh.tmpl) | Fails a mutable `uses:`/`container:` ref anywhere in the tree, copied to target `scripts/`, wired as `make check-action-pinning` and a required CI job |
+| [`check-doc-standards.sh.tmpl`](check-doc-standards.sh.tmpl) | Canonical two-link footer on every human-facing doc + themed Mermaid (`--fix` repairs), copied to target `scripts/`, wired as `make check-doc-standards`; scored as S2-05 / S2-06 |
+| [`config/docs/doc-standards.json.tmpl`](config/docs/doc-standards.json.tmpl) | The standard's data: human-facing globs and footer URLs (`{{GITHUB_OWNER}}` / `{{REPO_NAME}}`), copied to target `config/docs/` |
+| [`config/docs/mermaid-init.txt.tmpl`](config/docs/mermaid-init.txt.tmpl) | The one canonical dark Mermaid init line, copied verbatim to target `config/docs/` |
+| [`docs/agent-guidelines/documentation-standards.md.tmpl`](docs/agent-guidelines/documentation-standards.md.tmpl) | The agent-facing rule a scaffolded repo's agents read; copied to target `docs/agent-guidelines/` |
 | [`core/capabilities/schema.json.tmpl`](core/capabilities/schema.json.tmpl) | Capability registry JSON Schema |
 | [`core/capabilities/platforms.json.tmpl`](core/capabilities/platforms.json.tmpl) | Capability registry instance — the ONE statement of what each target can do |
 | [`makefile-agent-targets.mk.tmpl`](makefile-agent-targets.mk.tmpl) | `make agent:check`, `make agent-polish-gate`, platform-targets-* targets — agents only |
@@ -24,6 +28,9 @@ Canonical templates for `repo-scaffold` and `repo-standards` polish. Contract ve
 | [`../fixtures/scaffold-gold/`](../fixtures/scaffold-gold/) | Gold reference tree — must pass `assert-contract.sh` |
 | [`scaffold-requirements-plugin.md`](scaffold-requirements-plugin.md) | Agent-kit / `--type plugin` layout |
 | [`plugin/`](plugin/) | Canonical rules, build stubs, marketplace, plugin manifest templates |
+| [`scaffold-requirements-marketplace.md`](scaffold-requirements-marketplace.md) | Plugin catalog / `--type marketplace` layout — one manifest per platform that has a marketplace, none for OpenCode |
+| [`marketplace/`](marketplace/) | Claude, Cursor and Codex marketplace manifests, starter plugin, `validate-marketplace.sh`, CI, Makefile, README and catalog doc templates (doc-cited 2026-11-05) |
+| [`../fixtures/scaffold-marketplace-gold/`](../fixtures/scaffold-marketplace-gold/) | Marketplace gold reference tree — must pass `assert-contract.sh … marketplace-gold` |
 
 ## Canonical paths (app-gold)
 

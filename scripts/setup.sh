@@ -555,7 +555,11 @@ confirm_normal() {
   local ans
   [ -n "$ALL_YES" ] && return 0
   if [ -n "$SETUP_YES" ]; then return 0; fi
-  ans="$(setup_lower "$(setup_ask 'Proceed? [y/N/a/q] ' n)")"
+  # Into a variable, never `$(setup_ask ...)`: inside a command substitution
+  # stdout is the capture pipe, so the prompt would decide "no terminal" and
+  # hand back the default without ever asking (setup-common.sh, setup_ask_into).
+  setup_ask_into ans 'Proceed? [y/N/a/q] ' n
+  ans="$(setup_lower "$ans")"
   case "$ans" in
     y|yes) return 0 ;;
     a|all) ALL_YES=1; return 0 ;;
@@ -580,7 +584,8 @@ confirm_destructive() {
     return 1
   fi
   if [ -n "$SETUP_YES" ] || [ -n "$ALL_YES" ]; then return 3; fi
-  ans="$(setup_lower "$(setup_ask 'overwrite / backup-and-write / skip / quit [backup-and-write] ' b)")"
+  setup_ask_into ans 'overwrite / backup-and-write / skip / quit [backup-and-write] ' b
+  ans="$(setup_lower "$ans")"
   case "$ans" in
     o|ov|over|overwrite) return 0 ;;
     s|sk|ski|skip) return 1 ;;
