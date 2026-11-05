@@ -518,6 +518,14 @@ bash "$PLUGIN_ROOT/scripts/github-policy.sh" apply --repo "TamirCohen28/$REPO_NA
 
 Both go through the permission resolver (`repo.settings.merge` R3, `ruleset.apply` R4). **If either cannot run, the scaffold still succeeded**: exit `3`, a missing or unauthenticated `gh`, or a plan printed for lack of a TTY are each a **degraded success** — continue to Stage 5 and report, in the Stage 6 summary, the verbatim sentence and the run-it-yourself commands given in [`references/branch-governance.md`](references/branch-governance.md) (read it before reporting). Never retry with a different flag, call `gh api` directly, fall back to classic branch protection, or mark the repo protected when it is not.
 
+Right after the rulesets, apply the canonical label set (`config/github/labels.json` plus one `agent:<platform>` label per platform in `core/capabilities/platforms.json` — read both from the files, never restate a label here). The issue templates and `dependabot.yml` Agent C wrote name labels from that set, and they only work once the labels exist:
+
+```bash
+bash "$PLUGIN_ROOT/scripts/github-labels.sh" apply --repo "TamirCohen28/$REPO_NAME"
+```
+
+It asks the resolver about `label.apply` (R2) and follows the **same degraded-success rule**: exit `3`, a missing or unauthenticated `gh`, or a plan printed for lack of a TTY each mean the scaffold still succeeded — continue, and report the labels sentence and run-it-yourself command from [`references/branch-governance.md`](references/branch-governance.md). Never pass `--prune` here: a fresh repository has nothing to prune, and deletion is a separate R3 decision.
+
 ### Stage 5: Run skill-creator
 
 Invoke `tamirs-superpowers:skill-creator`:

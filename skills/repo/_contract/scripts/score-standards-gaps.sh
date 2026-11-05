@@ -101,6 +101,14 @@ g_ci=$(echo "$INV" | jq -r '.github.ci_workflow')
 g_secret=$(echo "$INV" | jq -r '.github.secret_scan_job')
 g_pr=$(echo "$INV" | jq -r '.github.pr_template')
 g_dep=$(echo "$INV" | jq -r '.github.dependabot')
+# S3-05/S3-06. Both default to "no gap" when the fact is absent from an older
+# or vendored inventory. The label read is online: `checked` is true only when
+# github-labels.sh audit --json actually read the repository.
+g_issue_tmpl=$(echo "$INV" | jq -r 'if (.github | has("issue_templates")) then .github.issue_templates else true end')
+g_labels_checked=$(echo "$INV" | jq -r '(.github.labels.checked == true)')
+g_labels_missing=$(echo "$INV" | jq -r '.github.labels.missing // 0')
+g_labels_drifted=$(echo "$INV" | jq -r '.github.labels.drifted // 0')
+g_labels_missing_names=$(echo "$INV" | jq -r '(.github.labels.missing_names // []) | join(", ")')
 lic=$(echo "$INV" | jq -r '.root_files.license')
 co=$(echo "$INV" | jq -r '.root_files.codeowners')
 gi=$(echo "$INV" | jq -r '.root_files.gitignore')
@@ -202,6 +210,7 @@ if [[ "$g_secret" != true ]] && applies "ci.require_ci_jobs_when_ci" "$has_ci"; 
 fi
 [[ "$g_pr" != true ]] && { add_gap "S3-03" "P2" "Missing .github/pull_request_template.md" 3; inc P2; }
 [[ "$g_dep" != true ]] && { add_gap "S3-04" "P3" "Missing dependabot.yml" 3; inc P3; }
+[[ "$g_issue_tmpl" != true ]] && { add_gap "S3-06" "P2" "No issue template under .github/ISSUE_TEMPLATE/ (*.yml forms; they must label with names from config/github/labels.json)" 3; inc P2; }
 if [[ "$lic" != true ]] && applies "paths.require_license_when_published" "$published"; then
   add_gap "S5-01" "P1" "LICENSE missing" 1; inc P1
 fi
@@ -239,6 +248,12 @@ fi
 # config/github/repository-policy.json; github-policy.sh reports drift in it.
 # Nothing here re-decides it.
 if [[ "${CONTRACT_OFFLINE:-}" != "1" && "$gh_readable" == true ]]; then
+  # S3-05 sits here, not with the other S3 rows, because it is the one S3 check
+  # that needs the API: the canonical label set is compared against the live
+  # labels by scripts/github-labels.sh, and an unread repository scores nothing.
+  if [[ "$g_labels_checked" == true ]] && (( g_labels_missing + g_labels_drifted > 0 )); then
+    add_gap "S3-05" "P2" "Canonical labels: $g_labels_missing missing${g_labels_missing_names:+ ($g_labels_missing_names)}, $g_labels_drifted drifted — run: bash scripts/github-labels.sh apply --repo <owner/name>" 3; inc P2
+  fi
   [[ "$bp" != true ]] && { add_gap "S4-02" "P2" "Default branch has no governance — no active branch ruleset and no classic protection" 4; inc P2; }
   [[ "$bp" == true && "$ci_check" != true ]] && { add_gap "S4-06" "P2" "No required status check gates a merge to the default branch" 4; inc P2; }
   # S4-04 (allow_auto_merge) is RETIRED, for the same reason S4-03 was: it

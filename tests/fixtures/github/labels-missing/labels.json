@@ -1,0 +1,101 @@
+[
+  {
+    "id": 7000000001,
+    "node_id": "LA_1",
+    "url": "https://api.github.com/repos/Tamircohen28/example-repo/labels/bug",
+    "name": "bug",
+    "color": "d73a4a",
+    "default": true,
+    "description": "Something isn't working"
+  },
+  {
+    "id": 7000000002,
+    "node_id": "LA_2",
+    "url": "https://api.github.com/repos/Tamircohen28/example-repo/labels/documentation",
+    "name": "documentation",
+    "color": "0075ca",
+    "default": true,
+    "description": "Improvements or additions to documentation"
+  },
+  {
+    "id": 7000000003,
+    "node_id": "LA_3",
+    "url": "https://api.github.com/repos/Tamircohen28/example-repo/labels/duplicate",
+    "name": "duplicate",
+    "color": "cfd3d7",
+    "default": true,
+    "description": "This issue or pull request already exists"
+  },
+  {
+    "id": 7000000004,
+    "node_id": "LA_4",
+    "url": "https://api.github.com/repos/Tamircohen28/example-repo/labels/enhancement",
+    "name": "enhancement",
+    "color": "a2eeef",
+    "default": true,
+    "description": "New feature or request"
+  },
+  {
+    "id": 7000000005,
+    "node_id": "LA_5",
+    "url": "https://api.github.com/repos/Tamircohen28/example-repo/labels/good%20first%20issue",
+    "name": "good first issue",
+    "color": "7057ff",
+    "default": true,
+    "description": "Good for newcomers"
+  },
+  {
+    "id": 7000000006,
+    "node_id": "LA_6",
+    "url": "https://api.github.com/repos/Tamircohen28/example-repo/labels/help%20wanted",
+    "name": "help wanted",
+    "color": "008672",
+    "default": true,
+    "description": "Extra attention is needed"
+  },
+  {
+    "id": 7000000007,
+    "node_id": "LA_7",
+    "url": "https://api.github.com/repos/Tamircohen28/example-repo/labels/invalid",
+    "name": "invalid",
+    "color": "E4E669",
+    "default": true,
+    "description": "This doesn't seem right"
+  },
+  {
+    "id": 7000000008,
+    "node_id": "LA_8",
+    "url": "https://api.github.com/repos/Tamircohen28/example-repo/labels/question",
+    "name": "question",
+    "color": "d876e3",
+    "default": true,
+    "description": "Further information is requested"
+  },
+  {
+    "id": 7000000009,
+    "node_id": "LA_9",
+    "url": "https://api.github.com/repos/Tamircohen28/example-repo/labels/wontfix",
+    "name": "wontfix",
+    "color": "ffffff",
+    "default": true,
+    "description": "This will not be worked on"
+  },
+  {
+    "id": 7000000010,
+    "node_id": "LA_10",
+    "url": "https://api.github.com/repos/Tamircohen28/example-repo/labels/agent%3Aany",
+    "name": "agent:any",
+    "color": "BFD4F2",
+    "default": false,
+    "description": "Unclaimed"
+  },
+  {
+    "id": 7000000011,
+    "node_id": "LA_11",
+    "url": "https://api.github.com/repos/Tamircohen28/example-repo/labels/stale-experiment",
+    "name": "stale-experiment",
+    "color": "ededed",
+    "default": false,
+    "description": "Made by hand, not in the canonical set"
+  }
+]

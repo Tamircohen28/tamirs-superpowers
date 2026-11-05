@@ -31,3 +31,25 @@ bash scripts/github-policy.sh apply --repo TamirCohen28/$REPO_NAME
 ```
 
 Do not retry, do not fall back to classic branch protection, and do not silently mark the repo as protected.
+
+## Labels
+
+Right after the rulesets, apply the canonical label set. The set is data — [`config/github/labels.json`](../../../../config/github/labels.json), plus one `agent:<platform>` label per key of `core/capabilities/platforms.json`, rendered at apply time — and nothing in this skill restates a label name, colour or description. Agent C's `dependabot.yml` labels its PRs `chore`, and the issue templates label with `bug`, `enhancement` and `agent:any`; none of those land on a label unless this step has run:
+
+```bash
+bash "$PLUGIN_ROOT/scripts/github-labels.sh" apply --repo "TamirCohen28/$REPO_NAME"
+```
+
+It asks the resolver about `label.apply` (R2: creating and updating labels is shared-additive). Never pass `--prune` from the scaffold — a new repository has nothing to prune, and deleting a label is `label.delete`, an R3 decision a person makes on an existing repository.
+
+**If it cannot run, the scaffold still succeeded** — the same rule as the rulesets above. `github-labels.sh apply` exits non-zero when `gh` is missing or unauthenticated, when the token cannot write the repository, or when the resolver denies `label.apply` (exit 3); when the resolver asks and there is no TTY to confirm at, it prints the plan and writes nothing. Treat every one of those as a **degraded success**: continue to Stage 5, and report verbatim in the Stage 6 summary —
+
+> Local repository configured. The canonical label set was not applied because GitHub write access is unavailable.
+
+— followed by the exact command the user can run themselves once access exists:
+
+```bash
+bash scripts/github-labels.sh apply --repo TamirCohen28/$REPO_NAME
+```
+
+Do not retry with `gh label create` by hand, and do not report the labels as present when they are not.

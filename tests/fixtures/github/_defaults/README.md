@@ -9,6 +9,7 @@ the same name into its own directory.
 | `POST.json` | any unmatched `POST` | Tests of write paths assert on **what was sent** (`gh_last_body`), not on what came back. Without a generic write response every scenario would need a near-identical echo fixture. |
 | `PUT.json` | any unmatched `PUT` | Ruleset update, `PUT /repos/{o}/{r}/rulesets/{id}`. |
 | `PATCH.json` | any unmatched `PATCH` | Repo settings, `PATCH /repos/{o}/{r}`. |
+| `PATCH-label.json` | `PATCH /repos/{o}/{r}/labels/{name}` | A label object with `name`, which `github_update_label`'s guard requires; the generic `PATCH.json` is a repository object and would fail it. |
 | `DELETE.json` | any unmatched `DELETE` | Real GitHub answers `204 No Content`; an empty file is not valid JSON and `make validate` runs `jq empty` over every `*.json`, so this is `{}`. |
 | `auth-status.txt` | `gh auth status` | The scope list is copied from `session-files/ground-truth-rulesets.md`. |
 | `user.json` | `gh api user` | |

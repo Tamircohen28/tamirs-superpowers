@@ -191,6 +191,7 @@ ci_workflow=false
 secret_scan_job=false
 pr_template=false
 dependabot=false
+issue_templates=false
 if [[ -d "$ROOT/.github/workflows" ]]; then
   find "$ROOT/.github/workflows" -name '*.yml' -o -name '*.yaml' 2>/dev/null | grep -q . && ci_workflow=true
   while IFS= read -r wf; do
@@ -207,6 +208,12 @@ if [[ -d "$ROOT/.github/workflows" ]]; then
 fi
 [[ -f "$ROOT/.github/pull_request_template.md" ]] && pr_template=true
 [[ -f "$ROOT/.github/dependabot.yml" ]] && dependabot=true
+# S3-06: at least one issue form. GitHub honours .yml/.yaml forms and legacy
+# .md templates in this one directory; config.yml alone is not a template.
+if [[ -d "$ROOT/.github/ISSUE_TEMPLATE" ]]; then
+  find "$ROOT/.github/ISSUE_TEMPLATE" -maxdepth 1 \( -name '*.yml' -o -name '*.yaml' -o -name '*.md' \) \
+    ! -name 'config.yml' ! -name 'config.yaml' 2>/dev/null | grep -q . && issue_templates=true
+fi
 
 # Same defect as CODEOWNERS below, one axis over: the location is root, but the
 # NAME varies. GitHub's own licence detection accepts LICENSE, LICENCE, COPYING
@@ -260,6 +267,15 @@ blocks_force_push=false
 blocks_deletion=false
 actions_checked=false
 actions_violations=0
+# S3-05: the canonical label set (config/github/labels.json plus one
+# agent:<platform> per registry key). Same contract as S4: an API read, so
+# `checked` stays false offline or when it could not be read, and the scorer
+# then emits nothing — an unread control is unknown, not a gap.
+labels_checked=false
+labels_missing=0
+labels_drifted=0
+labels_extra=0
+labels_missing_names='[]'
 
 # Where the plugin's own tree sits relative to this script. A consumer repo that
 # vendored only _contract/scripts has no lib and no policy: that is a degraded
@@ -268,6 +284,7 @@ CONTRACT_SRC_ROOT="$(cd "$(dirname "$0")/../../../.." 2>/dev/null && pwd || true
 GH_LIB="${GITHUB_COMMON_LIB:-${CONTRACT_SRC_ROOT}/scripts/lib/github-common.sh}"
 GH_POLICY="${GITHUB_POLICY_FILE:-${CONTRACT_SRC_ROOT}/config/github/repository-policy.json}"
 GH_CLI_SCRIPT="${CONTRACT_SRC_ROOT}/scripts/github-policy.sh"
+GH_LABELS_SCRIPT="${CONTRACT_SRC_ROOT}/scripts/github-labels.sh"
 
 # CONTRACT_OFFLINE=1 means "make no network call at all". The gold fixtures run
 # under it, so the probe is skipped outright rather than attempted and filtered
@@ -415,6 +432,23 @@ if [[ "${CONTRACT_OFFLINE:-}" != "1" ]] \
             fi
           fi
         fi
+
+        # --- Labels ---------------------------------------------------------
+        # Delegated to scripts/github-labels.sh for the same reason Actions
+        # concurrency is: the comparison (name case-insensitive, colour
+        # case-insensitive, description exact, agent:<platform> from the
+        # registry) lives in one place. `audit --json` is read-only; exit 3
+        # means drift and is still a successful read.
+        if [[ -f "$GH_LABELS_SCRIPT" ]]; then
+          labels_json="$(bash "$GH_LABELS_SCRIPT" audit --repo "$gh_slug" --json 2>/dev/null)" || true
+          if echo "$labels_json" | jq -e 'type == "object" and (.repos | length) == 1 and (.repos[0].bucket != "failed")' >/dev/null 2>&1; then
+            labels_checked=true
+            labels_missing=$(echo "$labels_json" | jq '.repos[0].summary.create')
+            labels_drifted=$(echo "$labels_json" | jq '.repos[0].summary.update')
+            labels_extra=$(echo "$labels_json" | jq '.repos[0].summary.extra + .repos[0].summary.delete')
+            labels_missing_names=$(echo "$labels_json" | jq -c '[.repos[0].changes[] | select(.status == "create") | .name]')
+          fi
+        fi
       fi
     fi
   fi
@@ -520,6 +554,12 @@ jq -nc \
   --argjson secret_scan_job "$secret_scan_job" \
   --argjson pr_template "$pr_template" \
   --argjson dependabot "$dependabot" \
+  --argjson issue_templates "$issue_templates" \
+  --argjson labels_checked "$labels_checked" \
+  --argjson labels_missing "$labels_missing" \
+  --argjson labels_drifted "$labels_drifted" \
+  --argjson labels_extra "$labels_extra" \
+  --argjson labels_missing_names "$labels_missing_names" \
   --argjson license_file "$license_file" \
   --argjson codeowners "$codeowners" \
   --argjson gitignore "$gitignore" \
@@ -591,7 +631,15 @@ jq -nc \
       ci_workflow: $ci_workflow,
       secret_scan_job: $secret_scan_job,
       pr_template: $pr_template,
-      dependabot: $dependabot
+      dependabot: $dependabot,
+      issue_templates: $issue_templates,
+      labels: {
+        checked: $labels_checked,
+        missing: $labels_missing,
+        drifted: $labels_drifted,
+        extra: $labels_extra,
+        missing_names: $labels_missing_names
+      }
     },
     root_files: {
       license: $license_file,
