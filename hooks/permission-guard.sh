@@ -211,6 +211,10 @@
 #       names it, and a hook is never given arguments.
 #
 # Bash 3.2 compatible. Needs jq (payload) and python3 (stdlib, -I -S).
+# The batch transport is armed only by _pg_batch itself. Never inherit it: an environment that
+# carries _PG_BATCH=1 into the live hook would route its answers through fds 5/6 it does not own
+# (ci-speed security review F1: with inherited fds that forged an allow for an R4 call).
+_PG_BATCH=0
 set -uo pipefail
 
 _PG_DONE=0
@@ -2459,6 +2463,10 @@ for h in HITS:
     job = {"id": h["id"], "conds": conds, "target": target, "hits": [h]}
     JOB_KEYS[key] = job
     JOBS.append(job)
+# HITS come out of set iteration, whose order python3 -I -S randomises per process: two calls of the same
+# command could name a different action (and a different resolver id) whenever two ids tie on verdict and rank.
+# Order the jobs canonically so every max() below breaks ties the same way on every run (ci-speed task-002).
+JOBS.sort(key=lambda j: (j["id"], tuple(j["conds"]), json.dumps(j["target"], sort_keys=True, default=str)))
 if UNCL_FROM:
     JOBS.append({"id": UNCL, "conds": [], "target": None, "hits": [], "uncl": UNCL_FROM})
 
@@ -3046,14 +3054,16 @@ _pg_batch() {
   if ! command -v jq >/dev/null 2>&1 || ! command -v python3 >/dev/null 2>&1; then
     # Without the tools every line is a deny, still one per line (tr -d: the count hook_read_stdin would see).
     echo "permission-guard: jq and python3 are required; every call is denied" >&2
-    tr -d '\000' | awk -v d="$lit_deny" '{ print d }'
+    LC_ALL=C tr -d '\000' | awk -v d="$lit_deny" '{ print d }'
     return 0
   fi
   T="$(mktemp -d "${TMPDIR:-/tmp}/pg-batch.XXXXXX")" || return 2
   _PG_BATCH_T="$T"
   trap _pg_batch_cleanup EXIT
   trap '' PIPE
-  tr -d '\000' > "$T/in"
+  # LC_ALL=C: under a UTF-8 locale BSD tr aborts on invalid UTF-8 and the batch would answer a
+  # truncated prefix with exit 0 (review F2). Bytes in, bytes out; the count below is of what was read.
+  LC_ALL=C tr -d '\000' > "$T/in"
   n_in="$(wc -l < "$T/in" | tr -d ' ')"
   if [ -s "$T/in" ] && [ -n "$(tail -c 1 "$T/in")" ]; then n_in=$((n_in + 1)); fi
 
@@ -3073,6 +3083,10 @@ _pg_batch() {
     . as $raw
     | (try fromjson catch null) as $o
     | (if ($raw | utf8bytelength) > 1048576 then ["big", null]
+       # jq -R has already replaced invalid UTF-8 with U+FFFD, which the live hook never sees repaired:
+       # it denies such bytes, so the batch does too (review F3). A literal U+FFFD is denied as well,
+       # the strict direction for a test transport.
+       elif ($raw | test("\ufffd")) then ["bad", null]
        elif ($o | type) != "object" then ["bad", null]
        elif ($o | has("cmd")) and (($o.cmd | type) == "string") and (($o | (has("tool_name") or has("hook_event_name") or has("command"))) | not) then
          ($o | pg_short((if (.cwd | type) == "string" and .cwd != "" then .cwd else $pwd end); (.host // $dhost))) as $p
