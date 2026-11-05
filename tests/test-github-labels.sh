@@ -286,9 +286,32 @@ judge "json: totals"                                "$EXPECT_CREATE" "$(jq '.sum
 judge "json: prune false"                           false "$(jq '.prune' "$OUT")"
 judge "json: not degraded"                          false "$(jq '.degraded' "$OUT")"
 judge "json: human report went to stderr, not stdout" no "$(outhas "Remediate:")"
+judge "json: drift exits 3, exactly as the human audit does" 3 "$RC"
 STUB_MODE=ask run_labels apply --repo "$TARGET_REPO" --json
 judge "json: a degraded apply says so"              true "$(jq '.degraded' "$OUT")"
 judge "  and wrote nothing"                         0   "$(gh_mutations)"
+judge "  and exits 0 (degraded is a success)"       0   "$RC"
+scenario labels-compliant
+run_labels audit --repo "$TARGET_REPO" --json
+judge "json: compliant exits 0"                     0   "$RC"
+judge "  with the compliant bucket"                 compliant "$(jq -r '.repos[0].bucket' "$OUT")"
+# The exit code is decided before either renderer runs. An early `exit 0` on
+# the JSON path once let a failed read exit 0 while the human audit exited 3,
+# so a caller parsing --json could not tell "compliant" from "could not read".
+scenario labels-missing
+fake_gh_reset
+fake_gh_error GET 'repos/*/*/labels' 403-rate-limit
+run_labels_raw audit --repo "$TARGET_REPO" --json
+judge "json: a failed read exits 3, like the human audit" 3 "$RC"
+judge "  the document still parses"                 yes "$(jq empty "$OUT" >/dev/null 2>&1 && echo yes || echo no)"
+judge "  and names the failed bucket"               failed "$(jq -r '.repos[0].bucket' "$OUT")"
+judge "  with the rate-limit reason"                yes "$(has "$(jq -r '.repos[0].note' "$OUT")" "rate limit")"
+fake_gh_reset
+fake_gh_error POST 'repos/*/*/labels' 422
+run_labels_raw apply --repo "$TARGET_REPO" --yes --json
+judge "json: failed writes exit 3"                  3   "$RC"
+judge "  and the failed count is in the document"   "$EXPECT_CREATE" "$(jq '.repos[0].summary.failed' "$OUT")"
+fake_gh_reset
 
 # ---------------------------------------------------------------------------
 section "API failures are a bucket, never an abort"

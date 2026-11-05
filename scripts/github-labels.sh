@@ -643,30 +643,43 @@ main() {
     [ -n "$BULK" ] && printf '  %-46s %s\n' "$name" "$(field "$(printf '%s/repos/%04d' "$WORK" "$REPO_N")" bucket)" >&2
   done <"$WORK/repolist"
 
+  # The exit code is decided from the findings BEFORE either renderer runs, so
+  # `--json` and the human report can never disagree about it. An early
+  # `exit 0` on the JSON path once let a failed label read (bucket "failed")
+  # exit 0 while the same audit without --json exited 3.
+  local rc; rc="$(exit_status)"
+
   if [ -n "$OPT_JSON" ]; then
     print_json
-    exit 0
+    exit "$rc"
   fi
 
-  local rc=0 d
   if [ -n "$BULK" ]; then
     print_bulk_report
   else
     print_repo_report "$WORK/repos/0001"
   fi
-  for d in "$WORK"/repos/*; do
-    [ -d "$d" ] || continue
-    case "$(field "$d" bucket)" in drifted|failed) rc=3 ;; esac
-  done
   out ""
   case "$VERB" in
     audit) out "  Remediate:  bash scripts/github-labels.sh plan --repo $(field "$WORK/repos/0001" repo)" ;;
     plan)  out "  Nothing has been written. Re-run with 'apply' to make these changes." ;;
     apply) out "  Verify:     bash scripts/github-labels.sh audit --repo $(field "$WORK/repos/0001" repo)" ;;
   esac
-  [ -n "$DEGRADED" ] && rc=0
   out ""
   exit "$rc"
+}
+
+# exit_status — 3 when any repository drifted or failed, else 0; a degraded
+# run (apply that printed the plan for want of a terminal or an allow) is 0.
+# The one place the code is decided; both renderers read it.
+exit_status() {
+  local rc=0 d
+  for d in "$WORK"/repos/*; do
+    [ -d "$d" ] || continue
+    case "$(field "$d" bucket)" in drifted|failed) rc=3 ;; esac
+  done
+  [ -n "$DEGRADED" ] && rc=0
+  printf '%s' "$rc"
 }
 
 main

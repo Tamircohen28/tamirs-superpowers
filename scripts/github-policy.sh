@@ -1266,20 +1266,18 @@ CLASSICPLAN
   # compliant, however green the rulesets read. GitHub aggregates the two and
   # takes the stricter, so that classic rule is the effective policy — reporting
   # COMPLIANT here would be reporting the document instead of the behaviour.
+  # Rendering only: the exit code comes from exit_status, which reads the same
+  # facts, so the JSON path cannot drift from this one.
   if [ "${R_CLASSIC_CRITICAL:-0}" != "0" ]; then
     out "Result: ${SETUP_C_RED}NON-COMPLIANT${SETUP_C_OFF} — legacy classic branch protection overrides the ruleset policy on $branch"
-    return 3
-  fi
-  if [ "$R_BUCKET" = already_compliant ] && [ "$ACTIONS_BAD" = "0" ]; then
+  elif [ "$R_BUCKET" = already_compliant ] && [ "$ACTIONS_BAD" = "0" ]; then
     out "Result: ${SETUP_C_GREEN}COMPLIANT${SETUP_C_OFF}"
-    return 0
-  fi
-  if [ "$R_BUCKET" = conflict ]; then
+  elif [ "$R_BUCKET" = conflict ]; then
     out "Result: ${SETUP_C_YELLOW}BLOCKED${SETUP_C_OFF} — $R_NOTE"
-    return 3
+  else
+    out "Result: ${SETUP_C_RED}NON-COMPLIANT${SETUP_C_OFF}"
   fi
-  out "Result: ${SETUP_C_RED}NON-COMPLIANT${SETUP_C_OFF}"
-  return 3
+  return 0
 }
 
 print_bulk_report() {
@@ -1491,21 +1489,24 @@ main() {
     report_contexts "$(field "$WORK/repos/0001" repo)" "$(field "$WORK/repos/0001" branch)" >"$WORK/contexts.out" || true
   fi
 
+  # The exit code is decided from the findings BEFORE either renderer runs, so
+  # `--json` and the human report can never disagree about it. An early
+  # `exit 0` on the JSON path once let a failed read exit 0 while the same
+  # audit without --json exited 3.
+  local rc; rc="$(exit_status)"
+
   if [ -n "$OPT_JSON" ]; then
     print_json
-    exit 0
+    exit "$rc"
   fi
 
-  local rc=0
   if [ -n "$BULK" ]; then
     print_bulk_report
-    if [ "$(count_bucket conflict)" -gt 0 ] || [ "$(count_bucket failed)" -gt 0 ] \
-       || [ "$(count_bucket drifted)" -gt 0 ]; then rc=3; fi
     case "$VERB" in
       plan) out "Nothing has been written. Re-run with 'apply' to make these changes." ;;
     esac
   else
-    print_single_report "$(field "$WORK/repos/0001" repo)" "$(field "$WORK/repos/0001" branch)" || rc=$?
+    print_single_report "$(field "$WORK/repos/0001" repo)" "$(field "$WORK/repos/0001" branch)"
     out ""
     case "$VERB" in
       audit)  out "  Remediate:  bash scripts/github-policy.sh plan --repo $(field "$WORK/repos/0001" repo)" ;;
@@ -1514,9 +1515,29 @@ main() {
       verify) out "  Remediate:  bash scripts/github-policy.sh apply --repo $(field "$WORK/repos/0001" repo)" ;;
     esac
   fi
-  [ -n "$DEGRADED" ] && rc=0
   out ""
   exit "$rc"
+}
+
+# exit_status — the run's exit code from its findings alone: 3 on any drift,
+# conflict or failure, 0 when compliant; a degraded run (apply that printed the
+# plan for want of a terminal or an allow) is 0. Bulk reads the buckets;
+# single-repository scope reads the same facts print_single_report renders
+# (R_BUCKET, R_CLASSIC_CRITICAL, ACTIONS_BAD) — one decision, two renderers.
+exit_status() {
+  local rc=0
+  if [ -n "$BULK" ]; then
+    if [ "$(count_bucket conflict)" -gt 0 ] || [ "$(count_bucket failed)" -gt 0 ] \
+       || [ "$(count_bucket drifted)" -gt 0 ]; then rc=3; fi
+  elif [ "${R_CLASSIC_CRITICAL:-0}" != "0" ]; then
+    rc=3
+  elif [ "$R_BUCKET" = already_compliant ] && [ "$ACTIONS_BAD" = "0" ]; then
+    rc=0
+  else
+    rc=3
+  fi
+  [ -n "$DEGRADED" ] && rc=0
+  printf '%s' "$rc"
 }
 
 main
