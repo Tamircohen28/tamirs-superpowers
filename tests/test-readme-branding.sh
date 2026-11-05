@@ -382,7 +382,8 @@ section "6. the artifacts this repo ships are themselves clean"
 for target in "$REPO_ROOT" \
               "$CONTRACT/fixtures/scaffold-gold" \
               "$CONTRACT/fixtures/scaffold-plugin-gold" \
-              "$CONTRACT/fixtures/scaffold-claude-plugin-gold"; do
+              "$CONTRACT/fixtures/scaffold-claude-plugin-gold" \
+              "$CONTRACT/fixtures/scaffold-marketplace-gold"; do
   name="$(basename "$target")"
   judge "$name README passes the branding check" 0 \
     "$(bash "$CHECK" "$target" >/dev/null 2>&1; echo $?)"

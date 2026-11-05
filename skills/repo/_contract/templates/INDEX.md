@@ -24,6 +24,9 @@ Canonical templates for `repo-scaffold` and `repo-standards` polish. Contract ve
 | [`../fixtures/scaffold-gold/`](../fixtures/scaffold-gold/) | Gold reference tree — must pass `assert-contract.sh` |
 | [`scaffold-requirements-plugin.md`](scaffold-requirements-plugin.md) | Agent-kit / `--type plugin` layout |
 | [`plugin/`](plugin/) | Canonical rules, build stubs, marketplace, plugin manifest templates |
+| [`scaffold-requirements-marketplace.md`](scaffold-requirements-marketplace.md) | Plugin catalog / `--type marketplace` layout — one manifest per platform that has a marketplace, none for OpenCode |
+| [`marketplace/`](marketplace/) | Claude, Cursor and Codex marketplace manifests, starter plugin, `validate-marketplace.sh`, CI, Makefile, README and catalog doc templates (doc-cited 2026-11-05) |
+| [`../fixtures/scaffold-marketplace-gold/`](../fixtures/scaffold-marketplace-gold/) | Marketplace gold reference tree — must pass `assert-contract.sh … marketplace-gold` |
 
 ## Canonical paths (app-gold)
 

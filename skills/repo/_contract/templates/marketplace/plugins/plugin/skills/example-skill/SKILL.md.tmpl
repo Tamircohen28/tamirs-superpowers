@@ -1,0 +1,26 @@
+---
+name: example-skill
+description: 'Use when trying the {{PLUGIN_NAME}} starter plugin from the {{MARKETPLACE_NAME}} marketplace — replace this skill with a real one before publishing. Triggers: ''try the starter skill'', ''example-skill''.'
+when_to_use: 'try the starter skill shipped with {{PLUGIN_NAME}}; replace before publishing.'
+argument-hint: '[task]'
+arguments: []
+disable-model-invocation: false
+user-invocable: true
+allowed-tools:
+- Read
+disallowed-tools: []
+model: sonnet
+effort: low
+context: ''
+agent: ''
+hooks: {}
+paths: []
+shell: bash
+metadata:
+  updated-date: '{{TODAY}}'
+---
+
+# example-skill
+
+Starter skill for the `{{PLUGIN_NAME}}` plugin. It proves the catalog entry installs and
+loads; replace it with a real skill (`/skill-creator`) before publishing the marketplace.

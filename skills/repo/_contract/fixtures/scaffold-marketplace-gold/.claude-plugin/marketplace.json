@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-marketplace.json",
+  "name": "scaffold-marketplace-gold",
+  "description": "Contract gold fixture for marketplace-gold profile validation.",
+  "owner": {
+    "name": "Tamir Cohen",
+    "url": "https://github.com/Tamircohen28"
+  },
+  "metadata": {
+    "version": "0.1.0"
+  },
+  "plugins": [
+    {
+      "name": "scaffold-marketplace-gold-starter",
+      "source": "./plugins/scaffold-marketplace-gold-starter",
+      "description": "Starter plugin shipped with the scaffold-marketplace-gold marketplace.",
+      "version": "0.1.0",
+      "category": "productivity",
+      "tags": ["starter"]
+    }
+  ]
+}

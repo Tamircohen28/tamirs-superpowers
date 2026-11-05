@@ -1,18 +1,19 @@
 {
-  "version": "1.2.0",
+  "version": "1.3.0",
   "description": "Canonical source -> byte-identical copies. Every checker that ships in three places (the plugin's own scripts/, the scaffold template, and each gold fixture) is declared here so the copies can be regenerated and asserted instead of hand-maintained. A copy that drifts is a stale fork: the fixture stops testing what the live script does, and scaffolded repos inherit a bug that was already fixed upstream. Regenerate: bash skills/repo/_contract/scripts/sync-contract-scripts.sh. Assert: same script with --check.",
   "rationale": "Observed: skills/repo/_contract/fixtures/*/scripts/check-feature-equivalence.sh sat on a pre-fix revision of scripts/check-feature-equivalence.sh (SC2055 single-bracket form) for as long as fixtures were outside the lint scope, and templates/check-manifest-version-alignment.sh.tmpl never received --allow-pending-release or the BSD-sed usage() fix. Neither was detected because nothing compared them.",
   "groups": [
     {
       "id": "check-feature-equivalence",
       "canonical": "scripts/check-feature-equivalence.sh",
-      "note": "Fully portable \u2014 repo type is detected at runtime, so the plugin, the template and every fixture run the identical file.",
+      "note": "Fully portable — repo type is detected at runtime, so the plugin, the template and every fixture run the identical file.",
       "copies": [
         "skills/repo/_contract/scripts/check-feature-equivalence.sh",
         "skills/repo/_contract/templates/check-feature-equivalence.sh.tmpl",
         "skills/repo/_contract/fixtures/scaffold-gold/scripts/check-feature-equivalence.sh",
         "skills/repo/_contract/fixtures/scaffold-plugin-gold/scripts/check-feature-equivalence.sh",
-        "skills/repo/_contract/fixtures/scaffold-claude-plugin-gold/scripts/check-feature-equivalence.sh"
+        "skills/repo/_contract/fixtures/scaffold-claude-plugin-gold/scripts/check-feature-equivalence.sh",
+        "skills/repo/_contract/fixtures/scaffold-marketplace-gold/scripts/check-feature-equivalence.sh"
       ]
     },
     {
@@ -24,7 +25,8 @@
         "skills/repo/_contract/templates/check-manifest-declares.sh.tmpl",
         "skills/repo/_contract/fixtures/scaffold-gold/scripts/check-manifest-declares.sh",
         "skills/repo/_contract/fixtures/scaffold-plugin-gold/scripts/check-manifest-declares.sh",
-        "skills/repo/_contract/fixtures/scaffold-claude-plugin-gold/scripts/check-manifest-declares.sh"
+        "skills/repo/_contract/fixtures/scaffold-claude-plugin-gold/scripts/check-manifest-declares.sh",
+        "skills/repo/_contract/fixtures/scaffold-marketplace-gold/scripts/check-manifest-declares.sh"
       ]
     },
     {
@@ -36,7 +38,8 @@
         "skills/repo/_contract/templates/check-platform-targets.sh.tmpl",
         "skills/repo/_contract/fixtures/scaffold-gold/scripts/check-platform-targets.sh",
         "skills/repo/_contract/fixtures/scaffold-plugin-gold/scripts/check-platform-targets.sh",
-        "skills/repo/_contract/fixtures/scaffold-claude-plugin-gold/scripts/check-platform-targets.sh"
+        "skills/repo/_contract/fixtures/scaffold-claude-plugin-gold/scripts/check-platform-targets.sh",
+        "skills/repo/_contract/fixtures/scaffold-marketplace-gold/scripts/check-platform-targets.sh"
       ]
     },
     {
@@ -48,7 +51,8 @@
         "skills/repo/_contract/templates/check-action-pinning.sh.tmpl",
         "skills/repo/_contract/fixtures/scaffold-gold/scripts/check-action-pinning.sh",
         "skills/repo/_contract/fixtures/scaffold-plugin-gold/scripts/check-action-pinning.sh",
-        "skills/repo/_contract/fixtures/scaffold-claude-plugin-gold/scripts/check-action-pinning.sh"
+        "skills/repo/_contract/fixtures/scaffold-claude-plugin-gold/scripts/check-action-pinning.sh",
+        "skills/repo/_contract/fixtures/scaffold-marketplace-gold/scripts/check-action-pinning.sh"
       ]
     },
     {
@@ -59,7 +63,8 @@
         "skills/repo/_contract/templates/check-agent-drift.sh.tmpl",
         "skills/repo/_contract/fixtures/scaffold-gold/scripts/check-agent-drift.sh",
         "skills/repo/_contract/fixtures/scaffold-plugin-gold/scripts/check-agent-drift.sh",
-        "skills/repo/_contract/fixtures/scaffold-claude-plugin-gold/scripts/check-agent-drift.sh"
+        "skills/repo/_contract/fixtures/scaffold-claude-plugin-gold/scripts/check-agent-drift.sh",
+        "skills/repo/_contract/fixtures/scaffold-marketplace-gold/scripts/check-agent-drift.sh"
       ]
     },
     {
@@ -83,6 +88,14 @@
       "canonical": "skills/repo/_contract/templates/plugin/scripts/validate.mjs.tmpl",
       "copies": [
         "skills/repo/_contract/fixtures/scaffold-plugin-gold/scripts/validate.mjs"
+      ]
+    },
+    {
+      "id": "marketplace-validate-sh",
+      "canonical": "skills/repo/_contract/templates/marketplace/scripts/validate-marketplace.sh.tmpl",
+      "note": "The template is canonical because repo-scaffold renders it; it carries no substitutions, so the fixture copy is byte-identical and exercises exactly the checks a scaffolded marketplace repo runs.",
+      "copies": [
+        "skills/repo/_contract/fixtures/scaffold-marketplace-gold/scripts/validate-marketplace.sh"
       ]
     },
     {
@@ -155,6 +168,12 @@
           "substitutions": {
             "REPO_NAME": "scaffold-claude-plugin-gold"
           }
+        },
+        {
+          "path": "skills/repo/_contract/fixtures/scaffold-marketplace-gold/core/capabilities/schema.json",
+          "substitutions": {
+            "REPO_NAME": "scaffold-marketplace-gold"
+          }
         }
       ]
     },
@@ -176,6 +195,12 @@
           "path": "skills/repo/_contract/fixtures/scaffold-claude-plugin-gold/core/capabilities/platforms.json",
           "substitutions": {
             "REPO_NAME": "scaffold-claude-plugin-gold"
+          }
+        },
+        {
+          "path": "skills/repo/_contract/fixtures/scaffold-marketplace-gold/core/capabilities/platforms.json",
+          "substitutions": {
+            "REPO_NAME": "scaffold-marketplace-gold"
           }
         }
       ]
@@ -202,7 +227,8 @@
     "roots": [
       "skills/repo/_contract/fixtures/scaffold-gold",
       "skills/repo/_contract/fixtures/scaffold-plugin-gold",
-      "skills/repo/_contract/fixtures/scaffold-claude-plugin-gold"
+      "skills/repo/_contract/fixtures/scaffold-claude-plugin-gold",
+      "skills/repo/_contract/fixtures/scaffold-marketplace-gold"
     ]
   }
 }

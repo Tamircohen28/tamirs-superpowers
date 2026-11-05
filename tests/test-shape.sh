@@ -352,6 +352,10 @@ judge "this repo is detected as a plugin repo" true \
 judge "  ... and its contract profile is unchanged" app-gold "$(bash "$SHAPE" "$ROOT")"
 judge "the plugin-gold fixture still detects as plugin-gold" plugin-gold \
   "$(bash "$SHAPE" "$ROOT/skills/repo/_contract/fixtures/scaffold-plugin-gold")"
+judge "the marketplace-gold fixture detects as marketplace-gold (catalog, no root plugin.json)" marketplace-gold \
+  "$(bash "$SHAPE" "$ROOT/skills/repo/_contract/fixtures/scaffold-marketplace-gold")"
+judge "  ... and is a plugin repo by shape (it ships a marketplace manifest)" true \
+  "$(bash "$SHAPE" "$ROOT/skills/repo/_contract/fixtures/scaffold-marketplace-gold" --json | jq -r .is_plugin_repo)"
 judge "a plain repo is not a plugin repo" false \
   "$(bash "$SHAPE" "$plain" --json | jq -r .is_plugin_repo)"
 judge "a plain repo reports no CI" none "$(bash "$SHAPE" "$plain" --json | jq -r .ci_system)"

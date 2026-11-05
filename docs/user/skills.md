@@ -58,7 +58,7 @@ to zero skills, silently — and instead reads a generated flat symlink mirror a
 | Skill | What it does |
 |---|---|
 | `/repo-standards` | Audit, plan, and polish a repo to standard: README, docs tree, CI/CD, changelog, branch protection, hygiene, multi-agent setup. |
-| `/repo-scaffold` | Create a new repo with production-ready infrastructure. `--type plugin` scaffolds an agent-kit distribution repo. |
+| `/repo-scaffold` | Create a new repo with production-ready infrastructure. `--type plugin` scaffolds an agent-kit distribution repo; `--type marketplace` a catalog of plugins that Claude Code, Cursor and Codex add and install from. |
 | `/multi-agent-repo` | Audit, plan, or implement canonical multi-agent setup (AGENTS.md + thin adapters + drift checks). |
 | `/cleanup` | Full repo housekeeping: stale branches, open PRs, idle worktrees (rescuing uncommitted work), build artifacts, local/remote sync. |
 | `/github-policy` | Audit or remediate GitHub branch protection, rulesets, required checks, and PR-run cancellation against the canonical policy — one repo, a fleet, or a whole org. |

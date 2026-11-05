@@ -15,7 +15,7 @@ MANIFESTS_ONLY=false
 for arg in "$@"; do
   case "$arg" in
     --manifests-only) MANIFESTS_ONLY=true ;;
-    app-gold|plugin-gold) PROFILE="$arg" ;;
+    app-gold|plugin-gold|marketplace-gold) PROFILE="$arg" ;;
     -*) echo "assert-contract: unknown flag: $arg" >&2; exit 1 ;;
     *) ROOT="$arg" ;;
   esac

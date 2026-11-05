@@ -1,0 +1,199 @@
+{
+  "schema_version": 2,
+  "last_reviewed": "2026-09-06",
+  "reviewed_by_skill": "tamirs-superpowers@1.6.0",
+  "capability_source": "core/capabilities/platforms.json",
+  "capability_source_note": "targets.<key>.capabilities and capability_gaps are DERIVED from the capability registry. Regenerate with `bash scripts/check-platform-targets.sh . --sync-capabilities`.",
+  "supported_targets": [
+    "claude_code",
+    "codex",
+    "cursor",
+    "gemini_cli",
+    "opencode"
+  ],
+  "targets": {
+    "claude_code": {
+      "platform": "claude",
+      "supported_min": "2.0.0",
+      "validated_against": "2.0.0",
+      "latest_known": "2.0.0",
+      "doc_urls": [
+        "https://code.claude.com/docs/en/plugins-reference"
+      ],
+      "features_adopted": [
+        "agent-kit-build",
+        "marketplace"
+      ],
+      "capabilities": [
+        "agent_teams",
+        "artifacts",
+        "ask_user_question",
+        "background_tasks",
+        "dynamic_workflows",
+        "git",
+        "github_cli",
+        "hooks",
+        "mcp",
+        "mods",
+        "parallel_subagents",
+        "permission_levels",
+        "plugin_marketplace",
+        "session_transcripts",
+        "shell",
+        "skill_auto_invocation",
+        "skills",
+        "slash_commands",
+        "statusline",
+        "subagents",
+        "worktree_isolation"
+      ],
+      "capability_gaps": {
+        "extension_install": "Claude installs plugins, not git-URL extensions."
+      }
+    },
+    "codex": {
+      "platform": "codex",
+      "supported_min": "0.40.0",
+      "validated_against": "0.40.0",
+      "latest_known": "0.40.0",
+      "doc_urls": [
+        "https://developers.openai.com/codex/guides/agents-md"
+      ],
+      "features_adopted": [
+        "dist-codex-agents-md"
+      ],
+      "capabilities": [
+        "git",
+        "github_cli",
+        "hooks",
+        "mcp",
+        "permission_levels",
+        "plugin_marketplace",
+        "shell",
+        "skills",
+        "worktree_isolation"
+      ],
+      "capability_gaps": {
+        "artifacts": "No artifact publishing surface.",
+        "dynamic_workflows": "The Workflow tool is Claude-specific; no declared Codex equivalent.",
+        "extension_install": "Codex installs plugins, not git-URL extensions.",
+        "mods": "Claude Code function hooks have no Codex equivalent. Codex never sees the `modules` key: since 5.0.0 its manifest points `hooks` at the generated Codex hooks file, and since 5.0.2 the key lives in the mod's own hooks file, which only the Claude manifest's `hooks` field names, so the settings hooks file carries no mod reference on any host.",
+        "slash_commands": "No plugin-shippable command mechanism found. All 9 plugins bundled with codex 0.156.0 (browser, chrome, codex-app-tools, computer-use, latex, messages, record-and-replay, unified-computer-use, visualize) were checked: 0 declare a commands manifest field and 0 ship a commands/ directory. Codex publishes no manifest reference to cite, so this is the strongest available evidence rather than a documented absence - it means a plugin cannot CONTRIBUTE commands, not that Codex has no built-in ones. The adjacent surface Codex does offer is interface.defaultPrompt, which this plugin ships with 6 entries as of 4.5.0.",
+        "statusline": "Not a declared Codex capability."
+      }
+    },
+    "cursor": {
+      "platform": "cursor",
+      "supported_min": "0.45.0",
+      "validated_against": "0.45.0",
+      "latest_known": "0.45.0",
+      "doc_urls": [
+        "https://cursor.com/docs",
+        "https://cursor.com/docs/cloud-agent/self-hosted"
+      ],
+      "features_adopted": [
+        "dist-cursor-rules",
+        "self-hosted-machines-2026-09-02",
+        "team-pools-dynamic-scheduling-2026-09-02",
+        "partner-sandbox-workers-2026-09-02",
+        "computer-use-linux-mac-self-hosted-2026-09-02",
+        "self-hosted-vs-gha-runners-docs-2026-09-02",
+        "cursor-projects-2026-09-10",
+        "project-coordinator-agent-2026-09-10",
+        "project-shared-context-2026-09-10",
+        "project-subscriptions-2026-09-10",
+        "cli-persist-sessions-2026-08-26",
+        "cli-worker-wake-hibernated-2026-08-26",
+        "desktop-cli-patch-3.21.13"
+      ],
+      "capabilities": [
+        "git",
+        "github_cli",
+        "hooks",
+        "mcp",
+        "parallel_subagents",
+        "permission_levels",
+        "plugin_marketplace",
+        "shell",
+        "skill_auto_invocation",
+        "skills",
+        "slash_commands",
+        "subagents",
+        "worktree_isolation"
+      ],
+      "capability_gaps": {
+        "artifacts": "No artifact publishing surface.",
+        "dynamic_workflows": "The Workflow tool is Claude-specific; no declared Cursor equivalent.",
+        "mods": "Cursor loads platforms/cursor/hooks.json, never hooks/hooks.json, so it never sees the `modules` key. No equivalent in-process hook API.",
+        "statusline": "No plugin-declared statusline."
+      },
+      "verification_method": "latest desktop build from official Cursor download links (3.21.13, 2026-09-13 stable) cross-checked against cursor.com/changelog (feature 3.11; date-only entries through 2026-09-10 Projects; prior 2026-09-02 Self-Hosted Machines / Team Pools / partner sandboxes / computer use; prior Start-from-scratch 2026-08-27); Cursor CLI changelog Aug 11 2026 documented; Builds now default (2026-08-17); Origin early-beta docs; cloud-agent subscriptions / custom modes / isolated subagent VMs /goal / steering (2026-08-19); CLI changelog through 2026-08-26 (agent persist / hibernated worker wake)",
+      "changelog_feature": "3.11",
+      "changelog_date": "2026-09-10"
+    },
+    "gemini_cli": {
+      "platform": "gemini",
+      "supported_min": "0.30.0",
+      "validated_against": "0.30.0",
+      "latest_known": "0.30.0",
+      "doc_urls": [
+        "https://google-gemini.github.io/gemini-cli/docs/extensions/"
+      ],
+      "features_adopted": [
+        "gemini-extension-manifest",
+        "dist-gemini-extension"
+      ],
+      "capabilities": [
+        "extension_install",
+        "git",
+        "github_cli",
+        "mcp",
+        "permission_levels",
+        "plugin_marketplace",
+        "shell",
+        "skills",
+        "subagents",
+        "worktree_isolation"
+      ],
+      "capability_gaps": {
+        "artifacts": "No artifact publishing surface.",
+        "dynamic_workflows": "The Workflow tool is Claude-specific; no declared Gemini equivalent.",
+        "mods": "No equivalent; the Gemini extension reads no hooks file from this repo.",
+        "parallel_subagents": "Gemini subagents cannot themselves call subagents — documented recursion protection, not merely unmeasured. orchestrate-dev's fan-out pattern is structurally impossible on Gemini as a result.",
+        "statusline": "Measured on 0.55.1: no extension-declared statusline."
+      }
+    },
+    "opencode": {
+      "platform": "opencode",
+      "supported_min": "2.2.5",
+      "validated_against": "2.2.5",
+      "latest_known": "2.2.5",
+      "doc_urls": [
+        "https://opencode.ai/docs/skills/"
+      ],
+      "features_adopted": [
+        "native-skill-discovery",
+        "dist-opencode-config"
+      ],
+      "capabilities": [
+        "git",
+        "github_cli",
+        "hooks",
+        "mcp",
+        "mods",
+        "permission_levels",
+        "shell",
+        "skills",
+        "statusline",
+        "subagents",
+        "worktree_isolation"
+      ],
+      "capability_gaps": {
+        "artifacts": "No artifact publishing surface.",
+        "dynamic_workflows": "The Workflow tool is Claude-specific; no declared OpenCode equivalent.",
+        "extension_install": "No git-URL extension install.",
+        "plugin_marketplace": "No plugin marketplace, re-confirmed 2026-11-05 (doc-cited https://opencode.ai/docs/plugins/, recorded in docs/engineering/research/marketplace-standards.md): a plugin is a JS/TS module in .opencode/plugins/ or ~/.config/opencode/plugins/, or an npm package named in opencode.json's `plugin` array and installed by Bun at startup; the page defines no catalog manifest, no add/install command and no validator. repo-scaffold --type marketplace therefore writes NO OpenCode manifest and makes the generated README say so. This plugin's own install is by absolute paths in the `skills` array — not by symlink: OpenCode does not follow them for skill discovery (see the skills row)."
+      }
+    }
+  }
+}

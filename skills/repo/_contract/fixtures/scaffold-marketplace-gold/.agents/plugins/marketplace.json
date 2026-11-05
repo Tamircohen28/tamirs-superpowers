@@ -1,0 +1,20 @@
+{
+  "name": "scaffold-marketplace-gold",
+  "interface": {
+    "displayName": "Scaffold Marketplace Gold"
+  },
+  "plugins": [
+    {
+      "name": "scaffold-marketplace-gold-starter",
+      "source": {
+        "source": "local",
+        "path": "./plugins/scaffold-marketplace-gold-starter"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Developer Tools"
+    }
+  ]
+}
