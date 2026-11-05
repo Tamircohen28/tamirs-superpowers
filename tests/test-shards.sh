@@ -128,7 +128,10 @@ judge "script on the stub tree: 1/1 equals its full list" "$STUB_FULL" "$(bash "
 
 run_make() { # <args...> — runs make in the tree, resets the logs first
   : > "$RAN"; : > "$WITNESS"
-  make -C "$TREE" --no-print-directory "$@" 2>&1
+  # env -u: under `make test-hooks SHARD=i/n` the outer make exports SHARD and
+  # MAKEFLAGS to every suite, so a nested make would inherit the shard and the
+  # "no SHARD" cases would test the wrong thing (CI shard 2/4, 2026-11-05).
+  env -u SHARD -u MAKEFLAGS -u MAKEOVERRIDES -u MFLAGS -u MAKELEVEL make -C "$TREE" --no-print-directory "$@" 2>&1
 }
 
 out="$(run_make test-hooks)"; rc=$?
@@ -191,9 +194,9 @@ judge "the witness failure stops the shard at the first suite" 1 "$(grep -c . "$
 # ---------------------------------------------------------------------------
 section "real Makefile wiring"
 
-judge "make -n test-hooks SHARD=2/4 parses" 0 "$(make -n test-hooks SHARD=2/4 >/dev/null 2>&1; echo $?)"
-judge "make -n test-hooks calls scripts/ci/shard-suites.sh" yes "$(has "$(make -n test-hooks SHARD=2/4 2>&1)" "scripts/ci/shard-suites.sh")"
-judge "make -n test-hooks no longer carries its own find" no "$(has "$(make -n test-hooks 2>&1)" "find tests")"
+judge "make -n test-hooks SHARD=2/4 parses" 0 "$(env -u SHARD -u MAKEFLAGS -u MAKEOVERRIDES -u MFLAGS -u MAKELEVEL make -n test-hooks SHARD=2/4 >/dev/null 2>&1; echo $?)"
+judge "make -n test-hooks calls scripts/ci/shard-suites.sh" yes "$(has "$(env -u SHARD -u MAKEFLAGS -u MAKEOVERRIDES -u MFLAGS -u MAKELEVEL make -n test-hooks SHARD=2/4 2>&1)" "scripts/ci/shard-suites.sh")"
+judge "make -n test-hooks no longer carries its own find" no "$(has "$(env -u SHARD -u MAKEFLAGS -u MAKEOVERRIDES -u MFLAGS -u MAKELEVEL make -n test-hooks 2>&1)" "find tests")"
 judge "make -n validate parses" 0 "$(make -n validate >/dev/null 2>&1; echo $?)"
 judge "make help documents SHARD" yes "$(has "$(make help 2>&1)" "SHARD=i/n")"
 judge "make -n test-hooks hands suites SUPERPOWERS_SHELLCHECK_DONE=1" yes "$(has "$(make -n test-hooks 2>&1)" "SUPERPOWERS_SHELLCHECK_DONE=1 bash")"
