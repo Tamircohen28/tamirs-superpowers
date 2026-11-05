@@ -194,6 +194,30 @@ judge "an unterminated directive stops at the fence: body kept" "flowchart TB" "
 judge "and the prose after the block survives" 1 "$(grep -c '^After\.$' "$R/docs/user/u.md")"
 
 # ---------------------------------------------------------------------------
+section "a fence nested in a list keeps its indentation on the inserted directive"
+R="$(new_root list-indent)"
+printf '# T\n\n1. Step one:\n\n   ```mermaid\n   flowchart TB\n     A --> B\n   ```\n\n2. Step two.\n\n---\n\n%s\n' "$FOOTER" > "$R/docs/user/l.md"
+judge "kind" "mermaid-init-missing" "$(kinds "$R")"
+judge "reported at fence + 1" "docs/user/l.md:6" "$(lines_of mermaid-init-missing "$R")"
+run --fix "$R" >/dev/null; judge "--fix exits 0" 0 "$?"
+judge "directive carries the fence indent (3 spaces)" "   $INIT" "$(sed -n '6p' "$R/docs/user/l.md")"
+judge "body keeps its indent" "   flowchart TB" "$(sed -n '7p' "$R/docs/user/l.md")"
+judge "closing fence still indented" '   ```' "$(sed -n '9p' "$R/docs/user/l.md")"
+judge "clean after fix" "" "$(kinds "$R")"
+
+R="$(new_root list-indent-wrong)"
+printf '# T\n\n- Item:\n\n  ```mermaid\n  %%%%{init: {"theme":"dark"}}%%%%\n  flowchart TB\n  ```\n\n---\n\n%s\n' "$FOOTER" > "$R/docs/user/w.md"
+judge "an indented wrong directive is reported" "mermaid-init-wrong" "$(kinds "$R")"
+run --fix "$R" >/dev/null; judge "--fix exits 0" 0 "$?"
+judge "replacement keeps the indent (2 spaces)" "  $INIT" "$(sed -n '6p' "$R/docs/user/w.md")"
+judge "exactly one directive" 1 "$(grep -c '%%{init' "$R/docs/user/w.md")"
+judge "clean after fix" "" "$(kinds "$R")"
+
+R="$(new_root list-indent-canonical)"
+printf '# T\n\n- Item:\n\n  ```mermaid\n  %s\n  flowchart TB\n  ```\n\n---\n\n%s\n' "$INIT" "$FOOTER" > "$R/docs/user/c.md"
+judge "an indented canonical directive is accepted" "" "$(kinds "$R")"
+
+# ---------------------------------------------------------------------------
 section "non-ASCII filenames are enumerated, checked and fixed (git and find)"
 R="$(new_root unicode-git)"
 harness_new_repo "$R"

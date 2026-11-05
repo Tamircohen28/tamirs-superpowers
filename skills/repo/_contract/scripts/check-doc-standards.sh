@@ -211,9 +211,12 @@ analyze() {
       if (infence && lang == "mermaid") {
         if (expect) {
           expect = 0
-          if (line ~ /^%%\{init/ && line !~ /[}]%%[ \t]*$/) eat = 1
-          if (!waived && line != INIT) {
-            if (line ~ /^%%\{init/) printf "%d\tmermaid-init-wrong\tnot the canonical init directive\n", NR
+          # A fence nested in a list is indented, and so is every line inside it;
+          # the directive is judged with that indent stripped.
+          t = line; sub(/^[ \t]*/, "", t)
+          if (t ~ /^%%\{init/ && t !~ /[}]%%[ \t]*$/) eat = 1
+          if (!waived && t != INIT) {
+            if (t ~ /^%%\{init/) printf "%d\tmermaid-init-wrong\tnot the canonical init directive\n", NR
             else printf "%d\tmermaid-init-missing\tfirst line of a Mermaid block must be the canonical init directive\n", NR
           }
         } else if (line ~ /classDef|^[ \t]*class[ \t]|fill:|^[ \t]*style[ \t]/) {
@@ -247,7 +250,7 @@ fix_mermaid() {
   tmp="$(mktemp)"
   LC_ALL=C awk -v INIT="$INIT_LINE" '
     function marker(s,  m) { m = s; sub(/^[ \t]*/, "", m); if (match(m, /^(`+|~+)/)) return substr(m, 1, RLENGTH); return "" }
-    BEGIN { infence = 0; lang = ""; fm = ""; expect = 0; waived = 0; eat = 0; nbuf = 0; prev = "" }
+    BEGIN { infence = 0; lang = ""; fm = ""; ind = ""; expect = 0; waived = 0; eat = 0; nbuf = 0; prev = "" }
     {
       line = $0
       m = marker(line)
@@ -268,26 +271,32 @@ fix_mermaid() {
       if (m != "" && length(m) >= 3) {
         if (infence) {
           if (substr(m, 1, 1) == substr(fm, 1, 1) && length(m) >= length(fm) && line ~ /^[ \t]*(`+|~+)[ \t]*$/) {
-            if (lang == "mermaid" && expect && !waived) print INIT
+            if (lang == "mermaid" && expect && !waived) print ind INIT
             infence = 0; lang = ""; fm = ""; expect = 0; waived = 0
             print line; prev = line; next
           }
         } else {
           infence = 1; fm = m
           lang = line; sub(/^[ \t]*(`+|~+)[ \t]*/, "", lang); sub(/[ \t].*$/, "", lang)
+          # A fence nested in a list is indented. The directive is written with the
+          # same indent: at column zero it would leave the list item, end the fenced
+          # block as Markdown sees it, and break the diagram while the re-check --
+          # which compares with the indent stripped -- reported it clean.
+          ind = line; sub(/[^ \t].*$/, "", ind)
           if (lang == "mermaid") { expect = 1; waived = (prev ~ /<!--[ \t]*doc-standards-ok:/) }
           print line; prev = line; next
         }
       }
       if (infence && lang == "mermaid" && !waived) {
+        t = line; sub(/^[ \t]*/, "", t)
         if (expect) {
           expect = 0
-          if (line == INIT) { print line; prev = line; next }
-          print INIT
-          if (line ~ /^%%\{init/) { if (line !~ /[}]%%[ \t]*$/) eat = 1; prev = line; next }
+          if (t == INIT) { print line; prev = line; next }
+          print ind INIT
+          if (t ~ /^%%\{init/) { if (t !~ /[}]%%[ \t]*$/) eat = 1; prev = line; next }
           print line; prev = line; next
         }
-        if (line ~ /^%%\{init/) { if (line !~ /[}]%%[ \t]*$/) eat = 1; prev = line; next }
+        if (t ~ /^%%\{init/) { if (t !~ /[}]%%[ \t]*$/) eat = 1; prev = line; next }
       }
       if (expect) expect = 0
       print line; prev = line

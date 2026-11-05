@@ -171,8 +171,17 @@ if [[ -f "$DOC_STD_CHECK" ]] && command -v jq &>/dev/null; then
     doc_std_out="$(bash "$DOC_STD_CHECK" ${doc_std_args[@]+"${doc_std_args[@]}"} "$ROOT" 2>/dev/null)" || doc_std_rc=$?
     if [[ $doc_std_rc -ne 2 ]]; then
       doc_std_checked=true
-      doc_std_footer=$(printf '%s\n' "$doc_std_out" | awk '$2 ~ /^footer-/ {c++} END {print c+0}')
-      doc_std_mermaid=$(printf '%s\n' "$doc_std_out" | awk '$2 ~ /^mermaid-/ {c++} END {print c+0}')
+      # One line per violation: `path:line kind: detail`. The kind is read after
+      # the `:<line> ` delimiter, never as the second whitespace field -- a path
+      # with a space put its tail in $2, so such files scored zero, silently.
+      doc_std_counts=$(printf '%s\n' "$doc_std_out" | awk '
+        { s = $0
+          if (!match(s, /:[0-9]+ (footer|mermaid|box)-[a-z-]+: /)) next
+          k = substr(s, RSTART, RLENGTH); sub(/^:[0-9]+ /, "", k); sub(/: $/, "", k)
+          if (k ~ /^footer-/) f++; else if (k ~ /^mermaid-/) m++ }
+        END { printf "%d %d\n", f + 0, m + 0 }')
+      doc_std_footer="${doc_std_counts% *}"
+      doc_std_mermaid="${doc_std_counts#* }"
     fi
   fi
   [[ -n "$doc_std_cfg" ]] && rm -f "$doc_std_cfg"
