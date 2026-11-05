@@ -192,7 +192,7 @@
         "artifacts": "No artifact publishing surface.",
         "dynamic_workflows": "The Workflow tool is Claude-specific; no declared OpenCode equivalent.",
         "extension_install": "No git-URL extension install.",
-        "plugin_marketplace": "No plugin marketplace — install is by absolute paths in the `skills` array. Not by symlink: OpenCode does not follow them for skill discovery (see the skills row)."
+        "plugin_marketplace": "No plugin marketplace, re-confirmed 2026-11-05 (doc-cited https://opencode.ai/docs/plugins/, recorded in docs/engineering/research/marketplace-standards.md): a plugin is a JS/TS module in .opencode/plugins/ or ~/.config/opencode/plugins/, or an npm package named in opencode.json's `plugin` array and installed by Bun at startup; the page defines no catalog manifest, no add/install command and no validator. repo-scaffold --type marketplace therefore writes NO OpenCode manifest and makes the generated README say so. This plugin's own install is by absolute paths in the `skills` array — not by symlink: OpenCode does not follow them for skill discovery (see the skills row)."
       }
     }
   }
