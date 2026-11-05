@@ -444,6 +444,92 @@ judge "the plain case still resolves: a lockfile, a block" deny \
   "$(bash_verdict "S=$REPO; echo x > \"\$S/yarn.lock\"")"
 judge "a heredoc that only expands the name is fine" deny \
   "$(bash_verdict "$(printf 'S=%s; cat <<EOF\n$S\nEOF\necho x > $S/yarn.lock' "$REPO")")"
+# (5) Issue #363, found after #359 merged: `\S=/tmp` runs a command named
+#     S=/tmp, and a coproc body is a subshell, yet both admitted S=/tmp and
+#     cleared the workflow write. The one `NAME=` must now be the FIRST word
+#     of its statement (only whitespace, `;` or a newline before it), and
+#     everything on or under a `coproc` statement is depth > 0. Every row
+#     writes a workflow through S: resolved wrongly it is /tmp/workflows/ci.yml
+#     and an allow; unresolved it is warn; nothing here can be a deny.
+judge "363 the exact case: a coproc body"   warn "$(bash_verdict "coproc { :; S=/tmp; }; wait; echo x > \"$W\"")"
+judge "363 the exact case: an escaped name" warn "$(bash_verdict "$(printf '\\S=/tmp; echo x > "%s"' "$W")")"
+judge "coproc S=/tmp"                       warn "$(bash_verdict "coproc S=/tmp; echo x > \"$W\"")"
+judge "coproc { S=/tmp; }"                  warn "$(bash_verdict "coproc { S=/tmp; }; echo x > \"$W\"")"
+judge "coproc name { S=/tmp; }"             warn "$(bash_verdict "coproc name { S=/tmp; }; echo x > \"$W\"")"
+judge "  ... with the body on its own lines" warn \
+  "$(bash_verdict "$(printf 'coproc name {\nS=/tmp\n}\necho x > "%s"' "$W")")"
+judge "time S=/tmp"                         warn "$(bash_verdict "time S=/tmp; echo x > \"$W\"")"
+judge "! S=/tmp"                            warn "$(bash_verdict "! S=/tmp; echo x > \"$W\"")"
+judge "\"S\"=/tmp"                          warn "$(bash_verdict "\"S\"=/tmp; echo x > \"$W\"")"
+judge "'S'=/tmp"                            warn "$(bash_verdict "'S'=/tmp; echo x > \"$W\"")"
+judge "coproc tee is parsed as a write"     deny "$(bash_verdict "coproc tee yarn.lock")"
+judge "363 the plain case still resolves: a scratch write, no notice" allow \
+  "$(bash_verdict "S=$S_SCRATCH; cp /tmp/a \"\$S/b\"")"
+judge "363 the plain case still resolves: a lockfile, a block" deny \
+  "$(bash_verdict "S=$REPO; echo x > \"\$S/yarn.lock\"")"
+# The fuzz over the admitted-assignment rule the issue asks for: every
+# preceding context that is not a statement start must leave S unresolved
+# (warn, never allow), and every statement start must still admit it (allow:
+# /tmp/workflows/ci.yml is nobody's protected path). A lone quote is not a
+# context: it leaves the rest of the command unterminated, which bash rejects
+# and the parser reads as one quoted word; the quoted-name rows above cover it.
+for ctx in '\' '{ ' '( ' 'if ' 'then ' 'else ' 'elif ' 'do ' 'while ' 'until ' \
+           'coproc ' 'time ' '! ' 'true && ' 'true || ' 'true | ' 'true & ' 'echo ' 'env ' \
+           'x' '-' '.' '/' '$' '@' 'true; x '; do
+  judge "fuzz: <${ctx}>S=/tmp is not the admitted assignment" warn \
+    "$(bash_verdict "$(printf '%sS=/tmp; echo x > "%s"' "$ctx" "$W")")"
+done
+for ctx in '' ' ' 'true; ' 'true;  ' $'true;\n' $'\n' $'true;\n  '; do
+  judge "fuzz: <${ctx//$'\n'/\\n}>S=/tmp is admitted" allow \
+    "$(bash_verdict "$(printf '%sS=/tmp; echo x > "%s"' "$ctx" "$W")")"
+done
+# (6) Codex on PR #364: making `coproc` a command introducer exposed the `cd`
+#     after it, and the tracked cwd followed a cd that ran in the coprocess's
+#     subshell. The class is every context where a cd does not reach the
+#     parent: a coproc, a background job, a pipeline component, a `( … )`,
+#     a `{ … }` that turns out to be backgrounded or piped, `$( )`, `sh -c`
+#     — the parent's cwd is UNCHANGED there. And where a cd runs in the
+#     parent but only maybe (an if/loop/case body, a function body, after
+#     `&&`/`||`) the cwd becomes UNKNOWN, since "moved" and "unchanged" can
+#     each be the wrong answer. Every row runs from the repo's .github with
+#     the write `echo x > workflows/ci.yml`: judged against .github it is a
+#     deny, against /tmp a silent allow, against nothing a warn.
+gh_verdict() {
+  jq -n --arg c "$1" --arg cwd "$REPO/.github" \
+     '{tool_name:"Bash", cwd:$cwd, tool_input:{command:$c}}' \
+  | bash "$GUARD" 2>/dev/null \
+  | jq -r 'if .hookSpecificOutput.permissionDecision=="deny" then "deny"
+           elif .hookSpecificOutput.additionalContext then "warn"
+           else "allow" end' 2>/dev/null
+}
+gh_checked() { case "$(gh_verdict "$1")" in deny|warn) echo checked ;; *) echo allow ;; esac; }
+WF='echo x > workflows/ci.yml'
+judge "364 the exact case: coproc cd"      deny "$(gh_verdict "coproc cd /tmp; wait; $WF")"
+judge "coproc { cd; }"                     deny "$(gh_verdict "coproc { cd /tmp; }; wait; $WF")"
+judge "coproc name { cd; }"                deny "$(gh_verdict "coproc name { cd /tmp; }; wait; $WF")"
+judge "(cd)"                               deny "$(gh_verdict "(cd /tmp); $WF")"
+judge "cd &"                               deny "$(gh_verdict "cd /tmp & wait; $WF")"
+judge "{ cd; } &"                          deny "$(gh_verdict "{ cd /tmp; } & wait; $WF")"
+judge "{ cd; } | cat"                      deny "$(gh_verdict "{ cd /tmp; } | cat; $WF")"
+judge "if …; fi &"                         deny "$(gh_verdict "if true; then cd /tmp; fi & wait; $WF")"
+judge "cd | cat"                           deny "$(gh_verdict "cd /tmp | cat; $WF")"
+judge "\$(cd)"                             deny "$(gh_verdict "\$(cd /tmp); $WF")"
+judge "bash -c cd"                         deny "$(gh_verdict "bash -c 'cd /tmp'; $WF")"
+judge "the control: a top-level cd still moves the cwd" allow "$(gh_verdict "cd /tmp; $WF")"
+judge "a brace group that ran in the parent moved it too" allow "$(gh_verdict "{ cd /tmp; }; $WF")"
+judge "a write inside the coproc body uses the body's cwd" allow \
+  "$(gh_verdict "coproc { cd /tmp; $WF; }")"
+# A cd that runs in the parent only conditionally leaves the cwd unknown:
+# never a confident answer in either direction.
+judge "cd in a then-body: unknown, never allow"   checked "$(gh_checked "if false; then cd /tmp; fi; $WF")"
+judge "  ... and it is unknown, not unchanged"    warn    "$(gh_verdict "if true; then cd /tmp; fi; $WF")"
+judge "cd in a loop body"                         checked "$(gh_checked "for i in 1; do cd /tmp; done; $WF")"
+judge "cd in a case body"                         checked "$(gh_checked "case x in a) cd /tmp;; esac; $WF")"
+judge "cd after &&"                               checked "$(gh_checked "false && cd /tmp; $WF")"
+judge "cd after ||"                               checked "$(gh_checked "true || cd /tmp; $WF")"
+judge "cd in a function body, NAME() form"        checked "$(gh_checked "f() { cd /tmp; }; $WF")"
+judge "cd in a function body, function form"      checked "$(gh_checked "function f { cd /tmp; }; $WF")"
+judge "a compound with no cd leaves the cwd alone" deny    "$(gh_verdict "if true; then :; fi; $WF")"
 # Found while writing the rows above, present on the parent revision too: a
 # reserved word that introduces a command sat in argv0's place, so the write
 # primitive after it was never parsed and `if true; then cp /tmp/a yarn.lock;

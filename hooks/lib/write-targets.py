@@ -817,8 +817,11 @@ def _script_then_files(words, script_flags, cmd=None):
 #   rule is stated the other way round, as what MUST hold of the whole command
 #   text for a name to resolve at all (_resolvable_names):
 #     - the identifier NAME occurs exactly once as `NAME=`: followed by `=`
-#       and not `==`, and not preceded by `$`, `{`, a quote (`"S=/x"` runs a
-#       command named S=/x) or an identifier character;
+#       and not `==`, and the FIRST word of its statement — preceded only by
+#       the start of the text, a `;` or a newline, and whitespace
+#       (_statement_start). A backslash (`\S=/tmp` runs a command named
+#       S=/tmp), a quote, `{`, `(`, `&&`, a reserved word or any other word
+#       before it disqualifies the name (issue #363);
 #     - every other occurrence of NAME on a word boundary, anywhere in the raw
 #       text — quotes, heredoc bodies and comments included — is a plain
 #       `$NAME` (not followed by `[`) or `${NAME}` expansion;
@@ -863,11 +866,11 @@ FORBIDS_RESOLUTION = re.compile(
 # depth; the rest are passed over to reach the command they introduce.
 SCOPE_OPENERS = ("if", "while", "until", "for", "select", "case", "{")
 SCOPE_CLOSERS = ("fi", "done", "esac", "}")
-NEUTRAL_KEYWORDS = ("then", "elif", "else", "do", "in", "!", "time", "function")
+NEUTRAL_KEYWORDS = ("then", "elif", "else", "do", "in", "!", "time", "function", "coproc")
 ALL_KEYWORDS = SCOPE_OPENERS + SCOPE_CLOSERS + NEUTRAL_KEYWORDS
 # The reserved words a command can directly follow in one segment. `for`,
 # `select`, `case` and `function` are followed by a name, not a command.
-COMMAND_INTRODUCERS = ("if", "then", "elif", "else", "while", "until", "do", "{", "!")
+COMMAND_INTRODUCERS = ("if", "then", "elif", "else", "while", "until", "do", "{", "!", "coproc")
 
 
 # Names bash sets or reads on its own, with no assignment in the text — so the
@@ -899,6 +902,23 @@ def _shell_managed(name):
     return name in SHELL_MANAGED_NAMES or name.startswith(SHELL_MANAGED_PREFIXES)
 
 
+def _statement_start(text, pos):
+    """True when text[pos] begins a statement: only whitespace since the start, a `;` or a newline.
+
+    The one admitted `NAME=` must be the FIRST word of its statement. Anything
+    else before it on the line — a backslash (`\\S=/tmp` runs a command named
+    S=/tmp), a quote, `{`, `(`, `&&`, `|`, a reserved word (`if`, `then`,
+    `do`, `coproc`, `time`, `!`), another word — means bash does not read it
+    as the shell's own assignment, or runs it somewhere the parent never
+    sees (issue #363). Whether that statement is also at compound depth 0 is
+    _track_assignments' half of the rule.
+    """
+    i = pos
+    while i > 0 and text[i - 1] in " \t":
+        i -= 1
+    return i == 0 or text[i - 1] in ";\n"
+
+
 def _resolvable_names(text):
     """The names the whole command text allows to resolve (the rule above)."""
     if FORBIDS_RESOLUTION.search(text):
@@ -918,8 +938,8 @@ def _resolvable_names(text):
                 continue                                    # $NAME
             if before2 == "${" and after == "}":
                 continue                                    # ${NAME}
-            if before not in ("$", "{", '"', "'") and after == "=" and text[e:e + 2] != "==":
-                sites += 1                                  # NAME= (a quoted name is a command)
+            if after == "=" and text[e:e + 2] != "==" and _statement_start(text, s):
+                sites += 1                                  # NAME=, first word of its statement
                 continue
             clean = False
             break
@@ -928,30 +948,85 @@ def _resolvable_names(text):
     return out
 
 
-def _scope_update(seg, scope):
-    """Apply a segment's leading reserved words to scope["depth"]; return the new depth.
+def _scope_update(seg, scope, cwd, terminator):
+    """Apply a segment's leading reserved words to the open compound frames.
 
-    `{ S=/tmp` opens before the assignment is read and `fi` closes before
-    the next command, so the depth returned is the one this segment's own
-    commands run at. A quoted word is never reserved. Unbalanced closers stop
-    at zero.
+    Returns (depth, own, cwd): the compound depth this segment's own commands
+    run at, 1 when they are a `coproc` statement's own command, and the cwd
+    after any body closed here was accounted for. `{ S=/tmp` opens before
+    the assignment is read and `fi` closes before the next command. A quoted
+    word is never reserved. Unbalanced closers stop at zero.
+
+    Each frame remembers the cwd it opened with and whether its body is a
+    SUBSHELL (a coproc body, or a `{ … }`/`if`/loop that `}`/`fi`/`done`
+    turns out to end with `&` or `|`): a `cd` inside such a body never moved
+    the parent, so the cwd is restored at the closer (Codex, PR #364). A body
+    that ran in the parent keeps whatever its `cd`s produced — the cwd a
+    conditional body leaves is already None, see analyze_command.
     """
     words = [t for t in seg if t.kind == "word"]
+    frames = scope["frames"]
     i = 0
+    own = 0
+    subshell_next = False
+    fn_next = scope.pop("fn_pending", False)
     while i < len(words):
         w = words[i].value
         if words[i].quoted:
             break
         if w in SCOPE_OPENERS:
-            scope["depth"] += 1
+            kind = "function" if fn_next else w
+            frames.append({"kind": kind, "cwd": cwd, "subshell": subshell_next})
+            if subshell_next:
+                own = 0     # `coproc { … }`: the body frame governs, not the statement
+            subshell_next = fn_next = False
         elif w in SCOPE_CLOSERS:
-            scope["depth"] = max(0, scope["depth"] - 1)
+            frame = frames.pop() if frames else None
+            if frame and (frame["subshell"] or terminator in ("&", "|")):
+                cwd = frame["cwd"]
         elif w == "function":
+            fn_next = True
             i += 1      # `function NAME` — the name is not a command
+        elif w == "coproc":
+            # `coproc cmd`, `coproc { … }`, `coproc NAME { … }`: the coprocess
+            # is a subshell, so the rest of this statement runs at depth > 0
+            # and a `{`/compound body that follows opens on top of that
+            # (issue #363). The optional NAME is the word before a `{` or an
+            # opener keyword; `(` is a separator, so it is never a word here.
+            own = 1
+            subshell_next = True
+            if (i + 2 < len(words) and not words[i + 1].quoted
+                    and words[i + 1].value not in ALL_KEYWORDS
+                    and words[i + 2].value in SCOPE_OPENERS):
+                i += 1
         elif w not in NEUTRAL_KEYWORDS:
             break
         i += 1
-    return scope["depth"]
+    if fn_next:
+        scope["fn_pending"] = True      # `function NAME` with its `{` on the next line
+    return len(frames) + own, own, cwd
+
+
+def _cd_mode(scope, own, terminator, prev_terminator):
+    """How a `cd`/`pushd`/`popd` in this segment reaches the parent shell's cwd.
+
+    "ignore"  — it runs in a subshell the parent never sees: a coproc
+                statement, a background job (`cd /tmp &`), a pipeline
+                component (judged in _segment_records), a `( … )` group
+                (restored by analyze_command's cwd stack);
+    "unknown" — it runs in the parent but maybe not, or later: an `if`,
+                loop or case body, a function body, after `&&`/`||`. The
+                tracked cwd becomes None, so every later relative write is
+                UNSURE rather than judged against a directory that may be
+                wrong in either direction;
+    "apply"   — bash itself would move the parent's cwd: top level, or a
+                brace group that runs in the parent.
+    """
+    if own or terminator == "&":
+        return "ignore"
+    if prev_terminator in ("&&", "||") or any(f["kind"] != "{" for f in scope["frames"]):
+        return "unknown"
+    return "apply"
 
 
 def _track_assignments(words, piped_in, terminator, conditional):
@@ -1752,14 +1827,20 @@ def analyze_command(command, cwd):
     ASSIGNS.clear()
     RESOLVABLE.clear()
     RESOLVABLE.update(_resolvable_names(command))
-    scope = {"depth": 0}
+    scope = {"frames": []}
     prev_terminator = ""
 
     for seg, piped_in, terminator in segments:
         if seg:
-            depth = _scope_update(seg, scope) + len(cwd_stack)
+            depth, own, cwd = _scope_update(seg, scope, cwd, terminator)
+            depth += len(cwd_stack)
             cwd = _segment_records(seg, piped_in, terminator, cwd, records, heredoc_iter,
-                                   conditional=depth > 0 or prev_terminator in ("&&", "||"))
+                                   conditional=depth > 0 or prev_terminator in ("&&", "||"),
+                                   cd_mode=_cd_mode(scope, own, terminator, prev_terminator))
+        elif terminator == ")" and prev_terminator == "(":
+            # `NAME() {`: the body that follows is a function's, run later
+            # if at all, so a `cd` inside it leaves the cwd unknown.
+            scope["fn_pending"] = True
         # The group boundary is the terminator of the segment just processed.
         if terminator == "(":
             cwd_stack.append(cwd)
@@ -1798,11 +1879,13 @@ QUIET_COMMANDS = ("cd", "pushd", "popd", "true", ":", "echo", "printf", "test", 
                   "export", "ls", "cat", "pwd", "head", "tail", "wc", "grep", "which", "type")
 
 
-def _segment_records(seg, piped_in, terminator, cwd, records, heredoc_iter, conditional=False):
+def _segment_records(seg, piped_in, terminator, cwd, records, heredoc_iter, conditional=False,
+                     cd_mode="apply"):
     """Append this segment's records; return the cwd the NEXT segment sees.
 
     `conditional` is true when the segment follows `&&`/`||` or sits inside
     a compound command: it may never run, so no assignment in it is admitted.
+    `cd_mode` (see _cd_mode) says whether a `cd` here moves the parent's cwd.
     """
     fragment = " ".join(t.value for t in seg if t.kind == "word")[:160]
 
@@ -1899,8 +1982,10 @@ def _segment_records(seg, piped_in, terminator, cwd, records, heredoc_iter, cond
     # writes the repo's lockfile, not /tmp's. `pushd` moves it the same way.
     if base in ("cd", "pushd", "popd"):
         finish()
-        if piped_in or terminator == "|":
-            return cwd
+        if piped_in or terminator == "|" or cd_mode == "ignore":
+            return cwd          # a subshell's cd: the parent never moved
+        if cd_mode == "unknown":
+            return None         # a cd that may not run, or runs later
         if base == "popd":
             return None
         ops = _operands(rest)

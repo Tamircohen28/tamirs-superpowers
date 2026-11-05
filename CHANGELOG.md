@@ -5,6 +5,23 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [5.4.1] — 2026-11-05
+
+### Fixed
+
+- **The protected-file guard's one admitted assignment must start its statement, and
+  `coproc` is a subshell (#363).** `\S=/tmp; echo x > "$S/workflows/ci.yml"` runs a command
+  named `S=/tmp`, and `coproc { :; S=/tmp; }` assigns inside a coprocess; both left an
+  inherited `S` resolved to `/tmp` and the workflow write cleared. The write-target parser now
+  admits `NAME=literal` only when nothing but whitespace, a `;` or a newline precedes it on
+  its line, and counts everything on a `coproc` statement and in its body as depth above zero.
+  Both are unresolved writes again, as before 5.4.0. The tracked working directory follows the
+  same rule: a `cd` in a coproc, a background job, a pipeline component, a `( … )`, or a
+  `{ … }` that is backgrounded or piped never moves the parent's cwd, and a `cd` that runs in
+  the parent only conditionally (an `if`/loop/`case` body, a function body, after `&&`/`||`)
+  leaves it unknown, so a later relative write is reported as unresolved rather than judged
+  against the wrong directory.
+
 ## [5.4.0] — 2026-11-04
 
 ### Added
