@@ -5,6 +5,12 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [5.5.1] — 2026-11-05
+
+### Fixed
+
+- **Plugin directory `COMMAND_NAMES_MOD_FILE` hold.** A comment in `skills/dev-workflow/pr-dev/scripts/resolve-merge-policy.sh` named the plugin-root variable on its own, which the directory reads as a path to the folder that holds the mod; it now says "an environment variable" instead. Held on every version since 5.1.2.
+
 ## [5.5.0] — 2026-11-05
 
 ### Added
