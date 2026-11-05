@@ -422,14 +422,23 @@ if [[ "${CONTRACT_OFFLINE:-}" != "1" ]] \
         # classification table in config/github/repository-policy.json. Nothing
         # about cancellable-vs-stateful is re-decided here: a second copy of that
         # judgement is exactly the duplicated-rules problem this work removes.
+        # EXIT CODES: `audit --json` exits 0 when compliant and 3 on drift — a
+        # drifted repository is a SUCCESSFUL read, and the drift is the finding
+        # this block exists to carry. Consuming the document only on exit 0 is
+        # how an Actions violation once left actions.checked=false and S4-14
+        # unscored. Any other code (1: no gh, bad flag, API failure) means the
+        # repository could not be read: unknown, never a gap, never a pass.
         if [[ -f "$GH_CLI_SCRIPT" ]]; then
-          if audit_json="$(bash "$GH_CLI_SCRIPT" audit --repo "$gh_slug" --json 2>/dev/null)"; then
-            if echo "$audit_json" | jq -e 'type == "object" and has("changes")' >/dev/null 2>&1; then
-              actions_checked=true
-              actions_violations=$(echo "$audit_json" | jq '
-                [ .changes[] | select(.label | startswith("actions:"))
-                             | select(.status == "modify" or .status == "create") ] | length')
-            fi
+          audit_rc=0
+          audit_json="$(bash "$GH_CLI_SCRIPT" audit --repo "$gh_slug" --json 2>/dev/null)" || audit_rc=$?
+          if [[ "$audit_rc" == 0 || "$audit_rc" == 3 ]] \
+             && echo "$audit_json" | jq -e '
+                  type == "object" and has("changes")
+                  and ((.repositories // []) | all(.bucket != "failed"))' >/dev/null 2>&1; then
+            actions_checked=true
+            actions_violations=$(echo "$audit_json" | jq '
+              [ .changes[] | select(.label | startswith("actions:"))
+                           | select(.status == "modify" or .status == "create") ] | length')
           fi
         fi
 
@@ -437,11 +446,15 @@ if [[ "${CONTRACT_OFFLINE:-}" != "1" ]] \
         # Delegated to scripts/github-labels.sh for the same reason Actions
         # concurrency is: the comparison (name case-insensitive, colour
         # case-insensitive, description exact, agent:<platform> from the
-        # registry) lives in one place. `audit --json` is read-only; exit 3
-        # means drift and is still a successful read.
+        # registry) lives in one place. Same exit-code rule as the policy
+        # audit above: 0 compliant, 3 drift (a successful read whose drift IS
+        # the finding), anything else unreadable; a `failed` bucket inside a
+        # 3 is a read that failed on this repository and stays unchecked.
         if [[ -f "$GH_LABELS_SCRIPT" ]]; then
-          labels_json="$(bash "$GH_LABELS_SCRIPT" audit --repo "$gh_slug" --json 2>/dev/null)" || true
-          if echo "$labels_json" | jq -e 'type == "object" and (.repos | length) == 1 and (.repos[0].bucket != "failed")' >/dev/null 2>&1; then
+          labels_rc=0
+          labels_json="$(bash "$GH_LABELS_SCRIPT" audit --repo "$gh_slug" --json 2>/dev/null)" || labels_rc=$?
+          if [[ "$labels_rc" == 0 || "$labels_rc" == 3 ]] \
+             && echo "$labels_json" | jq -e 'type == "object" and (.repos | length) == 1 and (.repos[0].bucket != "failed")' >/dev/null 2>&1; then
             labels_checked=true
             labels_missing=$(echo "$labels_json" | jq '.repos[0].summary.create')
             labels_drifted=$(echo "$labels_json" | jq '.repos[0].summary.update')

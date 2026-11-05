@@ -48,6 +48,7 @@ fake_gh_use_fixtures "$REPO_ROOT/tests/fixtures/github/compliant"
 | [`fleet`](fleet/README.md) | three repos, three states | bulk iteration, per-repo isolation |
 | [`labels-missing`](labels-missing/README.md) | GitHub's nine defaults, a drifted `agent:any`, one hand-made extra | label create / update / extra-never-deleted-without-`--prune` |
 | [`labels-compliant`](labels-compliant/README.md) | the canonical label set already applied | label idempotence — zero mutations |
+| [`inventory-drift`](inventory-drift/README.md) | compliant rulesets + drifted labels, for the inventory | `standards-inventory.sh` consumes an audit that exits 3 (drift), stays unknown on a failed read |
 | [`_defaults`](_defaults/README.md) | shared fallbacks | write responses, auth, repo list |
 
 ## File naming
