@@ -28,7 +28,9 @@ static form when it is absent.
 
 ## 2. Behavior tests — always run
 
-`make test-hooks` runs every `tests/test-*.sh`:
+`make test-hooks` runs every `tests/test-*.sh` (`find tests -maxdepth 2`, sorted under
+`LC_ALL=C`; 91 suites today), and `make test-hooks SHARD=i/n` runs one deterministic slice of
+that list — see [Shards](#shards) below.
 
 | Test | Proves |
 |---|---|
@@ -53,6 +55,37 @@ static form when it is absent.
 | `test-dist.sh` · `test-claude-dist.sh` | every per-host distribution builds and passes its check, and a planted finding of each class makes the check fail |
 | `test-opencode-v2.sh` · `test-antigravity-adapter.sh` · `test-agents-skills.sh` | the OpenCode 2 configuration, plugin and permissions vocabulary; the Antigravity adapter's closed schema; the `.agents/skills` mirror |
 | `test-skill-budget.sh` · `test-evals-suite.sh` | the always-on token budget gate and the skills-ref gate (hermetic through saved CLI output; the live case self-skips without the CLI); the static shape of the `claude plugin eval` suite under `evals/` |
+| `test-shards.sh` | the shard partition: every suite in exactly one shard, the union of `1/n … n/n` is the full list, `1/1` is today's list in today's order, and the Makefile consumes the script rather than its own `find` |
+
+### Shards
+
+`scripts/ci/shard-suites.sh i/n` is the single source of the partition. Suite `k` (0-based
+in the sorted list) lands in shard `(k mod n) + 1`: a round-robin by name, so every suite
+runs in exactly one shard and the union of `1/n … n/n` is the whole list. `make test-hooks`
+consumes the script, never its own `find`, so a local shard and a CI shard run the same
+suites; without `SHARD` the target is `1/1`, the whole list, unchanged. The real-home
+witness still brackets every suite inside a shard.
+
+```bash
+bash scripts/ci/shard-suites.sh 2/4   # print the suites in shard 2 of 4
+make test-hooks SHARD=2/4             # run that shard
+```
+
+Balance is by **count, not seconds** (23/23/23/22 for `n=4` today). The heavy suites land
+where the sorted order puts them: `test-static` in 1/4 (measured at 246 s for the whole
+shard), `test-permission-fuzz` in 2/4, `test-permission-guard` in 3/4,
+`test-security-regressions` and `test-toolkit-gates` in 4/4. Until the batch judge for the
+permission guard lands (objective `ci-speed`, task-001), shard 2/4 is the long pole: the
+fuzz suite alone is 746 s on the 4-core runner, so the matrix is bounded by that one suite
+rather than by the count. Adding or renaming a `tests/test-*.sh` re-partitions every shard.
+That is by design — there is no hand-kept list to go stale — but it means a new heavy suite
+can move the long pole without anyone touching CI. Re-size `n` from the per-suite timing
+table after task-001 lands, not from the count.
+
+Under `make test-hooks` every suite receives `SUPERPOWERS_SHELLCHECK_DONE=1`, so
+`test-static` skips its own shellcheck pass: `make lint` is the gate's one pass, and both the
+CI `shellcheck` job and `validate-rest` run it. Standalone `bash tests/test-static.sh` still
+shellchecks, which is how the CI static job invokes it.
 
 ## 3. Orchestration simulations
 
@@ -94,15 +127,22 @@ unverified capabilities stay `unknown` in the registry rather than being assumed
 
 | Job | What it runs |
 |---|---|
-| shellcheck | `make lint` |
-| Hook behavior tests | `make test-hooks` |
+| shellcheck | `make lint`, plus the orphan-hook-script warning |
+| make test-hooks (shard i/4) | one shard of the behavior tests, `make test-hooks SHARD=i/4`; a four-leg matrix with `fail-fast: false` so every shard reports |
+| make validate minus the suites | `make -o test-hooks validate`: every prerequisite and every recipe line of the gate except `test-hooks` |
+| make validate (full local-parity gate) | the aggregator — the required context. `needs` the matrix and the job above, runs on `if: always()`, exits 1 unless both results are `success` |
+| Orchestration simulation | `bash tests/test-orchestration.sh` |
+| Skill contract | `tests/test-skill-contract.sh`, then `--strict`, then the Agent Skills reference validator |
+| Static repo + docs tests | `tests/test-static.sh` (shellchecks, standalone), `tests/test-docs.sh`, the repository-description count check (warns) |
+| Platform contract (gemini, opencode) | the per-platform adapter suite, contract half only |
 | Validate JSON | every `*.json` parses |
 | Validate SKILL.md frontmatter | the portable schema validator |
 | Secret scan | no credential ever lands in the tree |
-| `claude plugin validate` | the marketplace manifest (`.`); the Claude manifest, skills, agents, hooks and the mod's source (`.claude-plugin/plugin.json`) |
-| `claude plugin test` (`make test-mods`) | `mod/*.test.tsx` against the engine: the mod's hooks, drawings on the terminal and desktop element tables |
-| `make typecheck-mods` | `tsc` over the mod against the build's `claude-code.d.ts`, where the engine has laid one; skips otherwise |
-| Repo contract | `make test-repo-contract` |
+| `claude plugin validate` | the marketplace manifest (`.`); `make test-mods` (`claude plugin test`, `mod/*.test.tsx` against the engine); a plugin install from the checkout held to the token budget |
+| Claude-only distribution | `build-claude-dist.sh` then `check-claude-dist.sh` |
+| Per-host distributions | every generator's `--check`, `make check-dists`, `tests/test-dist.sh` |
+| Repo contract (scaffold-gold) | `make test-repo-contract` |
+| Repo contract (this repo) | `make assert-contract` |
 | Manifest/tag version alignment | manifests vs the cut release tag |
 | Platform targets co-change | `platform-targets.json` must move when repo skills do |
 | HOL plugin scanner | third-party scan |
@@ -110,12 +150,33 @@ unverified capabilities stay `unknown` in the registry rather than being assumed
 Manifest/tag alignment reports a **warning**, not a failure, when a release is pending: the
 tag provably cannot exist at merge time, so failing there was a race, not a signal.
 
+### Why the aggregator exists
+
+`config/github/repository-policy.json` requires the context `make validate (full
+local-parity gate)` on every pull request, and the live ruleset copies it. A context is a
+check's display name, and a name no workflow produces blocks every merge forever. Splitting
+the gate into a matrix therefore could not rename the check, and a matrix leg cannot be the
+check either: each leg reports under its own name. So the job id `full-validate` keeps its
+name and owns no work of its own any more. It `needs` both the matrix and
+`validate-rest`; it runs on `if: always()`, so a failed or cancelled dependency still makes
+it red instead of leaving a context that never reports; and its one step exits 1 unless
+`needs.validate-shards.result` and `needs.validate-rest.result` are both `success` — a
+matrix result is `success` only when every leg is. The policy file and the ruleset did not
+change.
+
+`validate-rest` is `make -o test-hooks validate`, not a second list of targets. `-o` marks
+`test-hooks` as already up to date, so make runs the gate's prerequisite list and its recipe
+body exactly as the Makefile states them, minus that one target. Nothing in the workflow
+restates the Makefile, so a check added to `validate` reaches CI with no workflow edit.
+
 ## 6. Local parity
 
 ```bash
 make validate            # the full local gate — Tier 2
 make lint                # shellcheck only
-make test-hooks          # behavior tests
+make test-hooks          # behavior tests, every suite
+make test-hooks SHARD=2/4    # one shard of them (what one CI matrix leg runs)
+make -o test-hooks validate  # the gate minus the suites (what CI's validate-rest runs)
 make test-repo-contract  # contract fixtures
 make doctor              # environment health, not a test
 ```
