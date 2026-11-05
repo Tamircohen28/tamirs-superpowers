@@ -45,7 +45,7 @@ help:
 	@echo "  cursor-commands-check   — fail if .cursor/commands/ has drifted from skills/"
 	@echo "  check-opencode-permission-keys — fail if the agent generator emits a non-schema key"
 	@echo "  lint                    — shellcheck .sh files only"
-	@echo "  test-hooks              — behavior tests for hooks/ (tests/test-*.sh)"
+	@echo "  test-hooks              — behavior tests for hooks/ (tests/test-*.sh); SHARD=i/n runs one slice (scripts/ci/shard-suites.sh)"
 	@echo "  test-repo-contract      — contract fixtures (app-gold, plugin-gold, claude-plugin-gold, marketplace-gold)"
 	@echo "  plugin-validate         — claude plugin validate (requires Claude Code CLI)"
 	@echo "  test-mods               — validate + test the mod (mod/) and the guard plugin (plugins/guard); requires Claude Code CLI 2.1.287+"
@@ -124,11 +124,26 @@ uninstall:
 # leave live ownerless `rm -rf` processes in the run, which is misleading
 # evidence when a test loses a directory. test-worktree-objective.sh unsets it
 # for the cases that assert on the default behaviour.
+#
+# SHARD=i/n runs one deterministic slice of the suites (suite k, 0-based in sorted
+# order, belongs to shard (k mod n)+1); the list comes from scripts/ci/shard-suites.sh,
+# the single source of the partition, so CI's matrix and a local SHARD=2/4 run the
+# same suites. Without SHARD it is the whole list, in the same order as before. The
+# list is captured BEFORE the loop: piped straight into `while`, a rejected SHARD
+# would read as an empty list and the target would pass having run nothing.
+#
+# SUPERPOWERS_SHELLCHECK_DONE=1: `make lint` is the gate's one shellcheck pass;
+# tests/test-static.sh skips its own identical pass under this marker (and still runs
+# it standalone, which is how CI's static job invokes it).
 test-hooks:
-	@echo "--- Hook behavior tests ---"
-	@find tests -maxdepth 2 -name 'test-*.sh' 2>/dev/null | sort | while read -r f; do \
+	@shard="$(SHARD)"; [ -n "$$shard" ] || shard=1/1; \
+	if [ "$$shard" = 1/1 ]; then echo "--- Hook behavior tests ---"; \
+	else echo "--- Hook behavior tests (shard $$shard) ---"; fi; \
+	suites="$$(bash scripts/ci/shard-suites.sh "$$shard")" || exit 1; \
+	printf '%s\n' "$$suites" | while read -r f; do \
+	  [ -n "$$f" ] || continue; \
 	  echo "==> $$f"; before="$$(bash scripts/real-home-witness.sh)"; \
-	  SUPERPOWERS_WORKTREE_CLEANUP=0 bash "$$f" || exit 1; \
+	  SUPERPOWERS_WORKTREE_CLEANUP=0 SUPERPOWERS_SHELLCHECK_DONE=1 bash "$$f" || exit 1; \
 	  [ "$$before" = "$$(bash scripts/real-home-witness.sh)" ] || { \
 	    echo "FAIL $$f wrote to the real ~/.config or ~/.local/state tamirs-superpowers (use the test root)"; exit 1; }; \
 	done
