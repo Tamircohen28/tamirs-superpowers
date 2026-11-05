@@ -63,7 +63,7 @@ make check-doc-standards                       # the validate target
 
 ## Skills that write docs or diagrams
 
-Point here; never restate. `skill-creator` (and the body rules in [`skill-quality-standards.md`](skill-quality-standards.md)), `plan-dev`, `multi-agent-repo`, `mcp-builder`, `repo-standards` (rubric `S2-05` footer, `S2-06` themed Mermaid; polish runs `--fix`), `repo-scaffold` (Agent A writes the footer on every doc and a dark Mermaid architecture overview), `docs-review` (Axes 1, 4 and 5 run the checker), `field-notebook-ui` and `dark-terminal-doc` (diagrams inside artifacts use the same dark palette unless the user asks otherwise).
+Point here; never restate. `skill-creator` (and the body rules in [`skill-quality-standards.md`](skill-quality-standards.md)), `plan-dev`, `mcp-builder`, `repo-standards` (through its rubric, `skills/repo/_contract/standards-rubric.md`: `S2-05` footer, `S2-06` themed Mermaid, polish runs `--fix` — the skill body itself is a platform-claims path watched by the co-change gate, so the pointer lives in the rubric the skill reads), `repo-scaffold` (Agent A writes the footer on every doc and a dark Mermaid architecture overview), `docs-review` (Axes 1, 4 and 5 run the checker), `field-notebook-ui` and `dark-terminal-doc` (diagrams inside artifacts use the same dark palette unless the user asks otherwise). `multi-agent-repo` carries no pointer: it writes `AGENTS.md` and platform adapters, agent-facing files this rule excludes.
 
 ## Scaffolded repositories
 

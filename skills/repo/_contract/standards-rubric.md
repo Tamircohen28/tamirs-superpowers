@@ -49,6 +49,8 @@ file is a graphic, not that the graphic is right).
 
 Manual: doc map READMEs, ADR index, project-specific content. S2-05 / S2-06 are scored from the checker's output and skipped (never invented) when the inventory could not run it.
 
+S2-05 / S2-06 — the standard is `rules/dev/documentation-standards.md` (a scaffolded repo reads it as `docs/agent-guidelines/documentation-standards.md`); the checker is `scripts/check-doc-standards.sh`, with its data in `config/docs/doc-standards.json` and `config/docs/mermaid-init.txt`. Polish (phase 6, before `docs-review`) runs `bash "$CONTRACT_ROOT/scripts/check-doc-standards.sh" --fix "$TARGET_ROOT"` — copying `templates/check-doc-standards.sh.tmpl` and `templates/config/docs/` into the target first when it ships none. `--fix` appends or repairs the footer (README keeps its `MIT © …` line directly above it, never typed by hand) and inserts the init line; what it cannot repair — per-node Mermaid styling, box-drawing diagrams — is redrawn by hand.
+
 ## S3 GitHub infra
 
 | ID | Check | Severity |
