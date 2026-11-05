@@ -100,13 +100,57 @@ judge "object-form local source without path -> exit 1" 1 "$rc"
 judge "  ... naming the missing field" yes "$(has "$OUT" "local source needs 'path'")"
 
 # ===========================================================================
+section "every documented manifest location must agree with the entry name"
+# ===========================================================================
+# Codex-review repro (round 4): a local Codex plugin in the root plugin.json format — the
+# portable entry point the research doc records — named "different-name", with the
+# optional .codex-plugin/plugin.json fallback matching. Only the fallback was compared.
+d="$(fresh codex-root-mismatch)"
+printf '{"name":"different-name","version":"0.1.0"}\n' > "$d/plugins/$PLUGIN/plugin.json"
+run "$d"; rc=$RC
+judge "Codex: root plugin.json 'different-name' + matching .codex-plugin fallback -> exit 1" 1 "$rc"
+judge "  ... naming the root manifest" yes "$(has "$OUT" "plugins/$PLUGIN/plugin.json says 'different-name'")"
+
+d="$(fresh codex-root-ok)"
+printf '{"name":"%s","version":"0.1.0"}\n' "$PLUGIN" > "$d/plugins/$PLUGIN/plugin.json"
+run "$d"; rc=$RC
+judge "positive control: root plugin.json with the entry name, fallback matching -> exit 0" 0 "$rc"
+
+d="$(fresh codex-fallback-only-mismatch)"
+set_json "$d/plugins/$PLUGIN/.codex-plugin/plugin.json" '.name = "different-name"'
+run "$d"; rc=$RC
+judge "fallback order: no root plugin.json, .codex-plugin/plugin.json 'different-name' -> exit 1" 1 "$rc"
+judge "  ... naming the fallback manifest" yes "$(has "$OUT" ".codex-plugin/plugin.json says 'different-name'")"
+
+d="$(fresh codex-root-ok-fallback-mismatch)"
+printf '{"name":"%s","version":"0.1.0"}\n' "$PLUGIN" > "$d/plugins/$PLUGIN/plugin.json"
+set_json "$d/plugins/$PLUGIN/.codex-plugin/plugin.json" '.name = "different-name"'
+run "$d"; rc=$RC
+judge "root plugin.json matching but the fallback disagreeing -> exit 1 (a reader on the fallback resolves another plugin)" 1 "$rc"
+
+d="$(fresh codex-root-only-ok)"
+printf '{"name":"%s","version":"0.1.0"}\n' "$PLUGIN" > "$d/plugins/$PLUGIN/plugin.json"
+rm "$d/plugins/$PLUGIN/.codex-plugin/plugin.json"
+run "$d"; rc=$RC
+judge "positive control: root plugin.json only, no fallback -> exit 0" 0 "$rc"
+
+# Cursor documents two formats: .cursor-plugin/plugin.json (Cursor Plugins) and a root
+# plugin.json (Agent Plugins). Both are merged with the entry when found.
+d="$(fresh cursor-root-mismatch)"
+rm "$d/plugins/$PLUGIN/.cursor-plugin/plugin.json"
+printf '{"name":"different-name","version":"0.1.0"}\n' > "$d/plugins/$PLUGIN/plugin.json"
+run "$d"; rc=$RC
+judge "Cursor: Agent Plugins root plugin.json 'different-name' -> exit 1" 1 "$rc"
+judge "  ... naming the root manifest" yes "$(has "$OUT" "plugins/$PLUGIN/plugin.json says 'different-name'")"
+
+# ===========================================================================
 section "Claude: the same name agreement, plus the documented source rules"
 # ===========================================================================
 d="$(fresh claude-mismatch)"
 set_json "$d/plugins/$PLUGIN/.claude-plugin/plugin.json" '.name = "different-name"'
 run "$d"; rc=$RC
 judge "renamed .claude-plugin/plugin.json -> exit 1" 1 "$rc"
-judge "  ... says install by manifest name would fail" yes "$(has "$OUT" "install by manifest name would fail")"
+judge "  ... says install by name would resolve a different plugin" yes "$(has "$OUT" "install by name would resolve a different plugin")"
 
 d="$(fresh claude-dotdot)"
 set_json "$d/.claude-plugin/marketplace.json" '.plugins[0].source = "./plugins/../plugins/x"'

@@ -81,6 +81,28 @@ check_local_dir() {
   return 0
 }
 
+# check_manifest_names <label> <dir-rel> <entry-name> <manifest-rel>... — the plugin's own
+# name must equal the catalog entry name in EVERY documented manifest location that exists
+# under the plugin directory, because each platform reads a different one and install by
+# name resolves whichever its reader finds: Codex reads the root plugin.json (its portable
+# entry point) and falls back to .codex-plugin/plugin.json; Cursor reads .cursor-plugin/
+# plugin.json (Cursor Plugins) or a root plugin.json (Agent Plugins); Claude Code reads
+# .claude-plugin/plugin.json. Checking only one location let a root manifest with a
+# different name pass. Calls err() per mismatch; returns 1 when any mismatched.
+check_manifest_names() {
+  local label="$1" dir="$2" entry="$3" m mname bad=0
+  shift 3
+  for m in "$@"; do
+    [[ -f "$ROOT/$dir/$m" ]] || continue
+    mname="$(jq -r '.name // empty' "$ROOT/$dir/$m" 2>/dev/null || true)"
+    if [[ "$mname" != "$entry" ]]; then
+      err "$label entry '$entry' but $dir/$m says '$mname' — install by name would resolve a different plugin"
+      bad=1
+    fi
+  done
+  return $bad
+}
+
 # resolve_plugin_root <manifest> <label> — metadata.pluginRoot, validated as a local
 # directory BEFORE any entry is resolved under it. Sets PLUGIN_ROOT to "" (none), the
 # stripped prefix, or "!" after an err() when the prefix is invalid, so callers skip
@@ -141,10 +163,8 @@ if parse_or_fail "$CLAUDE_MANIFEST" "claude"; then
           err "$rel: plugin '$pname' source '$src' must start with './' (or be a bare name under metadata.pluginRoot)"; continue
         fi
         check_local_dir "$rel: plugin '$pname' source" "$local_path" "install would fail with 'Source path does not exist'" || continue
+        check_manifest_names "$rel:" "$local_path" "$pname" .claude-plugin/plugin.json || true
         if [[ -f "$ROOT/$local_path/.claude-plugin/plugin.json" ]]; then
-          mname="$(jq -r '.name // empty' "$ROOT/$local_path/.claude-plugin/plugin.json" 2>/dev/null || true)"
-          [[ "$mname" == "$pname" ]] \
-            || err "$rel: entry '$pname' but $local_path/.claude-plugin/plugin.json says '$mname' — install by manifest name would fail"
           ever="$(jq -r --argjson i "$i" '.plugins[$i].version // empty' "$CLAUDE_MANIFEST")"
           mver="$(jq -r '.version // empty' "$ROOT/$local_path/.claude-plugin/plugin.json" 2>/dev/null || true)"
           if [[ -n "$ever" && -n "$mver" && "$ever" != "$mver" ]]; then
@@ -206,10 +226,9 @@ if parse_or_fail "$CURSOR_MANIFEST" "cursor"; then
     local_path="${src#./}"
     [[ -n "$plugin_root" ]] && local_path="$plugin_root/$local_path"
     check_local_dir "$rel: plugin '$pname' source" "$local_path" || continue
-    if [[ -f "$ROOT/$local_path/.cursor-plugin/plugin.json" ]]; then
-      mname="$(jq -r '.name // empty' "$ROOT/$local_path/.cursor-plugin/plugin.json" 2>/dev/null || true)"
-      [[ "$mname" == "$pname" ]] || err "$rel: entry '$pname' but $local_path/.cursor-plugin/plugin.json says '$mname'"
-    fi
+    # Cursor Plugins carry .cursor-plugin/plugin.json; Agent Plugins carry plugin.json at
+    # the plugin root. Either is what Cursor merges with the entry, so both must agree.
+    check_manifest_names "$rel:" "$local_path" "$pname" .cursor-plugin/plugin.json plugin.json || true
   done
   (( FAILED == CURSOR_BEFORE )) && ok "cursor: $rel — $n plugin(s)"
 fi
@@ -274,11 +293,9 @@ if parse_or_fail "$CODEX_MANIFEST" "codex"; then
       [[ "$codex_local_src" == ./* ]] \
         || { err "$rel: plugin '$pname' local source '$codex_local_src' must start with './' and stay inside the marketplace root"; continue; }
       check_local_dir "$rel: plugin '$pname' source" "${codex_local_src#./}" "Codex would skip the entry" || continue
-      if [[ -f "$ROOT/${codex_local_src#./}/.codex-plugin/plugin.json" ]]; then
-        mname="$(jq -r '.name // empty' "$ROOT/${codex_local_src#./}/.codex-plugin/plugin.json" 2>/dev/null || true)"
-        [[ "$mname" == "$pname" ]] \
-          || err "$rel: entry '$pname' but ${codex_local_src#./}/.codex-plugin/plugin.json says '$mname' — install by name would resolve a different plugin"
-      fi
+      # The root plugin.json is Codex's portable entry point; .codex-plugin/plugin.json is
+      # the documented compatibility fallback. Whichever exists is what Codex resolves by.
+      check_manifest_names "$rel:" "${codex_local_src#./}" "$pname" plugin.json .codex-plugin/plugin.json || true
     fi
   done
   (( FAILED == CODEX_BEFORE )) && ok "codex: $rel — $n plugin(s)"
