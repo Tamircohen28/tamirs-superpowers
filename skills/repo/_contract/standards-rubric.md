@@ -59,8 +59,15 @@ S2-05 / S2-06 — the standard is `rules/dev/documentation-standards.md` (a scaf
 | S3-02 | Secret-scan in CI | P2 |
 | S3-03 | PR template | P2 |
 | S3-04 | dependabot.yml | P3 |
+| S3-05 | Canonical labels present — every label in `config/github/labels.json` plus one `agent:<platform>` per registry platform exists with the canonical colour and description (API read; skipped and unscored when offline or unreadable, exactly like S4) | P2 |
+| S3-06 | Issue templates present (`.github/ISSUE_TEMPLATE/*.yml`), labelling only with names the canonical set provides | P2 |
 
-Manual: issue templates, release workflow, no self-hosted runners.
+S3-05 is compared by `scripts/github-labels.sh audit --json`; the set itself is **not** listed
+here — it lives in [`config/github/labels.json`](../../../config/github/labels.json) and is held
+offline by `scripts/check-github-labels.sh`. Apply with `scripts/github-labels.sh apply`
+(creates and updates; deletes only with `--prune`).
+
+Manual: release workflow, no self-hosted runners.
 
 ## S4 Branch governance
 

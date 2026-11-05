@@ -192,6 +192,11 @@ _fgh_fixture_name() {
     4:repos/*/*/actions/runs)          printf 'runs' ;;
     5:repos/*/*/commits/*/check-runs) printf 'check-runs' ;;
     5:repos/*/*/commits/*/status) printf 'commit-status' ;;
+    3:repos/*/*/labels)                printf 'labels' ;;
+    # One fixture for every single-label path, not one per name: the only
+    # calls that reach it are PATCH and DELETE, whose tests assert on the body
+    # sent, and a name like agent%3Aany makes a poor filename.
+    4:repos/*/*/labels/*)              printf 'label' ;;
     3:orgs/*/rulesets/*)               printf 'org-ruleset-%s' "${p##*/}" ;;
     2:orgs/*/rulesets)                 printf 'org-rulesets' ;;
     1:user/repos|2:users/*/repos|2:orgs/*/repos) printf 'repo-list' ;;

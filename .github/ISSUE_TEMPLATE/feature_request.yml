@@ -1,6 +1,6 @@
 name: Feature request
 description: Suggest a new skill, hook improvement, or MCP server addition
-labels: [feature]
+labels: [enhancement]
 body:
   - type: markdown
     attributes:

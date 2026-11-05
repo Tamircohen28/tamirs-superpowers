@@ -32,7 +32,7 @@ Start here: **[Getting started](getting-started.md)** → **[Concepts](concepts.
 |---|---|
 | [Agent-kit repos](agent-kit.md) | Scaffolding and maintaining multi-platform rule/skill distribution repos |
 | [Plugin marketplace repos](marketplace.md) | Scaffolding and maintaining a catalog of plugins that Claude Code, Cursor and Codex add and install from |
-| [GitHub repository policy](github-policy.md) | Auditing and enforcing branch rulesets and Actions concurrency across your repos |
+| [GitHub repository policy](github-policy.md) | Auditing and enforcing branch rulesets, the canonical label set and Actions concurrency across your repos |
 | [Cross-platform workflow](cross-platform-workflow.md) | Handing work between platforms |
 | [Phone notifications](phone-notifications.md) | Opt-in Pushover setup |
 | [Usage capture](usage-capture.md) | Opt-in local JSONL of Claude Code / OpenCode LLM requests (model, latency, skills) |
