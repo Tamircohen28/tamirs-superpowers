@@ -17,12 +17,18 @@ surface it installs into. See
 
 ## The shape of an adapter
 
-```text
-platforms/<id>/
-├── manifest/config      # the platform's own install descriptor
-├── adapter.yaml         # adapter metadata (below); registry_key points at the registry
-├── install docs         # docs/user/install/<id>.md
-└── tests                # the validation command, wired into CI
+```mermaid
+%%{init: {"theme":"base","themeVariables":{"background":"#0b0e14","primaryColor":"#1f2937","primaryTextColor":"#ffffff","primaryBorderColor":"#94a3b8","secondaryColor":"#334155","secondaryTextColor":"#ffffff","tertiaryColor":"#111827","tertiaryTextColor":"#ffffff","lineColor":"#cbd5e1","textColor":"#ffffff","edgeLabelBackground":"#1f2937","clusterBkg":"#111827","clusterBorder":"#64748b"}}}%%
+flowchart LR
+  adapter["platforms/#lt;id#gt;/"]
+  manifest["manifest or config<br/>the platform's own install descriptor"]
+  yaml["adapter.yaml<br/>adapter metadata; registry_key points at the registry"]
+  docs["install docs<br/>docs/user/install/#lt;id#gt;.md"]
+  tests["tests<br/>the validation command, wired into CI"]
+  adapter --> manifest
+  adapter --> yaml
+  adapter --> docs
+  adapter --> tests
 ```
 
 Plus **one registry entry** in

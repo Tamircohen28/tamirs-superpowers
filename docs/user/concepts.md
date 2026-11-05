@@ -130,13 +130,21 @@ a reason — never omitted, never reported as passing.
 
 ## 6. Branches and worktrees follow the work
 
-```text
-main
-└── objective/<slug>            ← integration branch, one per objective
-    ├── worker/<slug>/001       ← one per task, numbered to match task-001.json
-    ├── worker/<slug>/002
-    └── worker/<slug>/003
+```mermaid
+%%{init: {"theme":"base","themeVariables":{"background":"#0b0e14","primaryColor":"#1f2937","primaryTextColor":"#ffffff","primaryBorderColor":"#94a3b8","secondaryColor":"#334155","secondaryTextColor":"#ffffff","tertiaryColor":"#111827","tertiaryTextColor":"#ffffff","lineColor":"#cbd5e1","textColor":"#ffffff","edgeLabelBackground":"#1f2937","clusterBkg":"#111827","clusterBorder":"#64748b"}}}%%
+flowchart TB
+  main["main"]
+  obj["objective/#lt;slug#gt;"]
+  w1["worker/#lt;slug#gt;/001"]
+  w2["worker/#lt;slug#gt;/002"]
+  w3["worker/#lt;slug#gt;/003"]
+  main --> obj
+  obj --> w1
+  obj --> w2
+  obj --> w3
 ```
+
+`objective/<slug>` is the integration branch, one per objective; each `worker/<slug>/NNN` is one per task, numbered to match `task-NNN.json`.
 
 Worker branches merge **into the integration branch**, never into `main`. Conflicts are
 resolved once, by the integrator, at integration — a worker that merges `main` pollutes

@@ -89,17 +89,42 @@ Details: [adapter-contract.md](adapter-contract.md),
 The first five subsystems describe what ships. This one describes how a **machine** gets
 configured from it, and it runs in both directions:
 
-```text
-canonical source                renderer                          machine
-────────────────                ────────                          ───────
-core/global-rules.md      ┐            scripts/lib/setup-claude.sh    ~/.claude/
-platforms/claude/settings.d/ ├─ scripts/setup.sh ─ setup-codex.sh     ~/.codex/
-platforms/<t>/templates/  ┘   plan │ apply │ remove   setup-cursor.sh   ~/.cursor/
-agents/                                              setup-gemini.sh   ~/.gemini/
-                                                     setup-opencode.sh ~/.config/opencode/
-
-                          ◄── scripts/capture-config.sh ──
-                              detect │ review │ deliver  (classified, IP-scanned, PR)
+```mermaid
+%%{init: {"theme":"base","themeVariables":{"background":"#0b0e14","primaryColor":"#1f2937","primaryTextColor":"#ffffff","primaryBorderColor":"#94a3b8","secondaryColor":"#334155","secondaryTextColor":"#ffffff","tertiaryColor":"#111827","tertiaryTextColor":"#ffffff","lineColor":"#cbd5e1","textColor":"#ffffff","edgeLabelBackground":"#1f2937","clusterBkg":"#111827","clusterBorder":"#64748b"}}}%%
+flowchart LR
+  subgraph source ["canonical source"]
+    rules["core/global-rules.md"]
+    settingsd["platforms/claude/settings.d/"]
+    templates["platforms/#lt;t#gt;/templates/"]
+    agents["agents/"]
+  end
+  setup["scripts/setup.sh<br/>plan / apply / remove"]
+  subgraph renderer ["renderer (scripts/lib/)"]
+    rclaude["setup-claude.sh"]
+    rcodex["setup-codex.sh"]
+    rcursor["setup-cursor.sh"]
+    rgemini["setup-gemini.sh"]
+    ropencode["setup-opencode.sh"]
+  end
+  subgraph machine ["machine"]
+    mclaude["~/.claude/"]
+    mcodex["~/.codex/"]
+    mcursor["~/.cursor/"]
+    mgemini["~/.gemini/"]
+    mopencode["~/.config/opencode/"]
+  end
+  capture["scripts/capture-config.sh<br/>detect / review / deliver"]
+  rules --> setup
+  settingsd --> setup
+  templates --> setup
+  agents --> setup
+  setup --> rclaude --> mclaude
+  setup --> rcodex --> mcodex
+  setup --> rcursor --> mcursor
+  setup --> rgemini --> mgemini
+  setup --> ropencode --> mopencode
+  machine -.-> capture
+  capture -.->|"classified, IP-scanned, PR"| source
 ```
 
 **Render (`scripts/setup.sh`).** One engine, a registry of one `platforms/<t>/setup.conf`
@@ -156,15 +181,27 @@ Never hand-edit a consumer. Details: [../build-and-release/versioning.md](../bui
 
 ## Data flow for one skill invocation
 
-```text
-user invokes /orchestrate-dev
-  → platform loads skills/dev-workflow/orchestrate-dev/SKILL.md
-  → skill reads core/capabilities/platforms.json  → picks concurrent | serialized | sequential
-  → skill reads core/roles/ + core/policies/      → contracts it will not restate
-  → writes .dev-files/objectives/<id>/            → objective + task state
-  → dispatches worker-dev per task                → commit + handoff, Tier 1
-  → integrates, reviews combined diff             → Tier 2
-  → deliver-dev                                   → one PR → pr-dev → Tier 3 (CI)
+```mermaid
+%%{init: {"theme":"base","themeVariables":{"background":"#0b0e14","primaryColor":"#1f2937","primaryTextColor":"#ffffff","primaryBorderColor":"#94a3b8","secondaryColor":"#334155","secondaryTextColor":"#ffffff","tertiaryColor":"#111827","tertiaryTextColor":"#ffffff","lineColor":"#cbd5e1","textColor":"#ffffff","edgeLabelBackground":"#1f2937","clusterBkg":"#111827","clusterBorder":"#64748b"}}}%%
+flowchart TB
+  user["user invokes /orchestrate-dev"]
+  load["platform loads skills/dev-workflow/orchestrate-dev/SKILL.md"]
+  caps["skill reads core/capabilities/platforms.json"]
+  roles["skill reads core/roles/ + core/policies/"]
+  state["writes .dev-files/objectives/#lt;id#gt;/"]
+  workers["dispatches worker-dev per task"]
+  integrate["integrates, reviews combined diff"]
+  deliver["deliver-dev"]
+  pr["one PR"]
+  prdev["pr-dev"]
+  ci["Tier 3 (CI)"]
+  user --> load --> caps
+  caps -->|"picks concurrent / serialized / sequential"| roles
+  roles -->|"contracts it will not restate"| state
+  state -->|"objective + task state"| workers
+  workers -->|"commit + handoff, Tier 1"| integrate
+  integrate -->|"Tier 2"| deliver
+  deliver --> pr --> prdev --> ci
 ```
 
 ## Where to go next
