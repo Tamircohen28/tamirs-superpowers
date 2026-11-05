@@ -31,3 +31,4 @@
 - [Keep a requested status cadence](feedback-status-cadence.md) — "update me every 10 min" means unprompted lines on that cadence; the user asked "status?" ~10 times
 - [Don't clear others' stashes for a hook](feedback-stash-ownership.md) — a stop hook is not the user; diff and ask first; the 2026-11-04 stashes live in refs/archive/stash-2026-11-04/*
 - [Stack same-file PRs and fast-forward the stack](feedback-stacked-prs-fast-forward.md) — a squash of the base re-conflicts every PR above it; one CI round, then push the last green head to master; watchers must treat empty rollups as pending
+- [claude tag push rejected on release](reference-release-claude-tag-push-rejected.md) — no ruleset, fast-forward, still "[remote rejected]"; never rerun the job (it regenerates the build SHA); move the tag by hand onto v<ver>-claude^{}
