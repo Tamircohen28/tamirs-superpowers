@@ -14,3 +14,7 @@ A marketplace repo carries two kinds of version:
 2. Bump `metadata.version` in both catalogs that carry one
 3. `make validate`
 4. Tag `vX.Y.Z` and push
+
+---
+
+<p align="center"><a href="https://github.com/Tamircohen28">Have a Question?</a>&nbsp;·&nbsp;<a href="https://github.com/Tamircohen28/scaffold-marketplace-gold/issues/new/choose">Open an Issue</a></p>

@@ -76,3 +76,7 @@ Read 2026-11-05; recorded in the scaffolding plugin's
 - <https://cursor.com/docs/reference/plugins#marketplace-manifest-format>
 - <https://developers.openai.com/plugins/build/plugins>
 - <https://opencode.ai/docs/plugins/>
+
+---
+
+<p align="center"><a href="https://github.com/Tamircohen28">Have a Question?</a>&nbsp;·&nbsp;<a href="https://github.com/Tamircohen28/scaffold-marketplace-gold/issues/new/choose">Open an Issue</a></p>

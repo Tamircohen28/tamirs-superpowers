@@ -64,7 +64,8 @@
         "skills/repo/_contract/templates/check-doc-standards.sh.tmpl",
         "skills/repo/_contract/fixtures/scaffold-gold/scripts/check-doc-standards.sh",
         "skills/repo/_contract/fixtures/scaffold-plugin-gold/scripts/check-doc-standards.sh",
-        "skills/repo/_contract/fixtures/scaffold-claude-plugin-gold/scripts/check-doc-standards.sh"
+        "skills/repo/_contract/fixtures/scaffold-claude-plugin-gold/scripts/check-doc-standards.sh",
+        "skills/repo/_contract/fixtures/scaffold-marketplace-gold/scripts/check-doc-standards.sh"
       ]
     },
     {
@@ -75,7 +76,8 @@
         "skills/repo/_contract/templates/config/docs/mermaid-init.txt.tmpl",
         "skills/repo/_contract/fixtures/scaffold-gold/config/docs/mermaid-init.txt",
         "skills/repo/_contract/fixtures/scaffold-plugin-gold/config/docs/mermaid-init.txt",
-        "skills/repo/_contract/fixtures/scaffold-claude-plugin-gold/config/docs/mermaid-init.txt"
+        "skills/repo/_contract/fixtures/scaffold-claude-plugin-gold/config/docs/mermaid-init.txt",
+        "skills/repo/_contract/fixtures/scaffold-marketplace-gold/config/docs/mermaid-init.txt"
       ]
     },
     {
@@ -127,6 +129,12 @@
           "path": "skills/repo/_contract/fixtures/scaffold-claude-plugin-gold/config/docs/doc-standards.json",
           "substitutions": {
             "REPO_NAME": "scaffold-claude-plugin-gold"
+          }
+        },
+        {
+          "path": "skills/repo/_contract/fixtures/scaffold-marketplace-gold/config/docs/doc-standards.json",
+          "substitutions": {
+            "REPO_NAME": "scaffold-marketplace-gold"
           }
         }
       ]
