@@ -5,6 +5,24 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [5.5.0] — 2026-11-05
+
+### Added
+
+- **Documentation standard** — one canonical rule, `rules/dev/documentation-standards.md`, for every human-facing doc: diagrams are Mermaid blocks opening with the one dark-theme init line in `config/docs/mermaid-init.txt` (white text on dark fills; no per-node `classDef`/`style`), and every page ends with the centered `Have a Question?` / `Open an Issue` footer whose targets come from `config/docs/doc-standards.json`. `scripts/check-doc-standards.sh` (`--fix`, `--strict`) enforces both in `make validate`; `docs-review` defers to it instead of a footer check hardcoded to another repository; `repo-standards` scores S2-05/S2-06 and polish runs the fix; `repo-scaffold` ships the checker, config and rule to new repos. (#367, #373)
+- **Canonical GitHub labels** — `config/github/labels.json` plus one `agent:<platform>` per registry platform; `scripts/github-labels.sh audit|plan|apply` in the style of the policy script (`label.apply` R2, `label.delete` R3 behind `--prune`); `repo-scaffold` applies them after the rulesets with the same degraded-success rule; `repo-standards` reports S3-05 (labels) and S3-06 (issue templates). (#369, #374)
+- **`repo-scaffold --type marketplace`** — scaffolds a plugin-marketplace repository with the manifests each platform actually defines (Claude `.claude-plugin/marketplace.json`, Cursor `.cursor-plugin/marketplace.json`, Codex `.agents/plugins/marketplace.json`; OpenCode has none and the generated README says so), a validator that checks path containment and plugin-name agreement across catalogs, a `marketplace-gold` contract profile and fixture, and the research note `docs/engineering/research/marketplace-standards.md`. (#370, #372)
+
+### Changed
+
+- Eight box-drawing diagrams in `docs/user/` and `docs/engineering/architecture/` are redrawn as dark-theme Mermaid (flowcharts and state diagrams); directory trees stay as text. (#368, #371)
+- `check-platform-targets.sh --require-co-change` judges a watched prose file by whether any changed line is not doc-standards boilerplate (footer, rule, Mermaid init line), so a footer sweep no longer demands a platform-targets edit. (#373)
+
+### Fixed
+
+- Prompts asked through `setup_ask` inside a `$(...)` capture never reached the terminal, so `setup.sh`, `capture-config.sh`, the Codex rules prompt and `github-policy.sh apply` silently took the default "no" at a real TTY. `setup_ask_into` answers into the caller's variable; a pty regression test covers it. (#374)
+- `github-labels.sh --json` and `github-policy.sh --json` exit the same code as the human report, so a failed read or drift is no longer a 0 for CI. (#374)
+
 ## [5.4.1] — 2026-11-05
 
 ### Fixed
