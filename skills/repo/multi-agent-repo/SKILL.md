@@ -270,6 +270,7 @@ Users invoke `/repo-standards polish` or `/multi-agent-repo dev` — not manual 
 - **Windows** — prefer `@AGENTS.md` in CLAUDE.md over symlinks.
 - **Never force-push** or push to branches other than the feature branch.
 - **Never merge** the PR from this skill.
+- **Docs this skill writes follow `rules/dev/documentation-standards.md`** — every human-facing doc ends with the canonical footer (`bash scripts/check-doc-standards.sh --fix`, never typed), every diagram is a Mermaid block opening with the canonical init line from `config/docs/mermaid-init.txt`.
 
 ## Relationship to other skills
 

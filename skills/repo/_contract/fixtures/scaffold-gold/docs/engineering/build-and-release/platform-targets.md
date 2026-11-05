@@ -10,3 +10,7 @@ Machine-readable source: [`platform-targets.json`](platform-targets.json).
 
 Update this file and README Row 3 badges whenever repo skills adopt new platform APIs.
 Agents run `make platform-targets-sync` before release.
+
+---
+
+<p align="center"><a href="https://github.com/Tamircohen28">Have a Question?</a>&nbsp;·&nbsp;<a href="https://github.com/Tamircohen28/scaffold-gold/issues/new/choose">Open an Issue</a></p>

@@ -173,3 +173,7 @@ and the same branches.
 - [`core/policies/validation.md`](../../core/policies/validation.md) — the tiers
 - [`core/policies/git.md`](../../core/policies/git.md) — branch and worktree model
 - [Engineering: orchestration state machine](../engineering/architecture/orchestration-state-machine.md)
+
+---
+
+<p align="center"><a href="https://github.com/Tamircohen28">Have a Question?</a>&nbsp;·&nbsp;<a href="https://github.com/Tamircohen28/tamirs-superpowers/issues/new/choose">Open an Issue</a></p>

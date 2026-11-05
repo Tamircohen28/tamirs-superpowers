@@ -406,3 +406,7 @@ Other baseline facts worth pinning: `platform-targets.json` has
 12. **`.codex-version` / `.cursor-version` are orphan truth.** Nothing reads them. If the
     refactor introduces a canonical version/pin source, these two must either be wired
     into it or deleted — leaving them is guaranteed future drift.
+
+---
+
+<p align="center"><a href="https://github.com/Tamircohen28">Have a Question?</a>&nbsp;·&nbsp;<a href="https://github.com/Tamircohen28/tamirs-superpowers/issues/new/choose">Open an Issue</a></p>

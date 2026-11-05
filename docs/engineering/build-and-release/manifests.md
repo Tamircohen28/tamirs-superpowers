@@ -200,3 +200,7 @@ Plugins manifest changes nothing there, entries still point at the plugin folder
 `source.path`. `.mcp.json` and `.claude-plugin/plugin.json` are the Claude inputs.
 `platforms/cursor/hooks.json` is hand-written in Cursor's own event format
 ([cursor install doc](../../user/install/cursor.md)).
+
+---
+
+<p align="center"><a href="https://github.com/Tamircohen28">Have a Question?</a>&nbsp;·&nbsp;<a href="https://github.com/Tamircohen28/tamirs-superpowers/issues/new/choose">Open an Issue</a></p>

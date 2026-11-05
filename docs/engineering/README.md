@@ -41,3 +41,7 @@ contributors want [CONTRIBUTING](../CONTRIBUTING.md).
 | [Refactor artifacts](refactor/README.md) | Point-in-time inventory from the portable-orchestration refactor |
 | [Agent-kit contract](../user/agent-kit.md) | User guide for `plugin-gold` distribution repos |
 | [Marketplace standards research](research/marketplace-standards.md) | What the Claude Code, Cursor, Codex and OpenCode plugin pages say about marketplaces (read 2026-11-05); the evidence behind `repo-scaffold --type marketplace` and the `marketplace-gold` profile |
+
+---
+
+<p align="center"><a href="https://github.com/Tamircohen28">Have a Question?</a>&nbsp;·&nbsp;<a href="https://github.com/Tamircohen28/tamirs-superpowers/issues/new/choose">Open an Issue</a></p>

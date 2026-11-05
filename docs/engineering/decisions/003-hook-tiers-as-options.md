@@ -98,3 +98,7 @@ each gated hook names its tier in one line, and the manifest names the same tier
 option. If the host ever grows a cross-plugin dependency mechanism or the directory
 accepts a bundle, moving a tier into its own plugin is a matter of moving the files and
 deleting the gate calls — nothing in this decision has to be undone first.
+
+---
+
+<p align="center"><a href="https://github.com/Tamircohen28">Have a Question?</a>&nbsp;·&nbsp;<a href="https://github.com/Tamircohen28/tamirs-superpowers/issues/new/choose">Open an Issue</a></p>

@@ -227,3 +227,7 @@ Use **Agent task** when creating issues manually (`.github/ISSUE_TEMPLATE/agent_
 - [Concepts — worktree hooks](concepts.md)
 - [Skill reference — switch-dev](reference.md)
 - Contributor rule: `rules/dev/cross-platform-handoff.md`
+
+---
+
+<p align="center"><a href="https://github.com/Tamircohen28">Have a Question?</a>&nbsp;·&nbsp;<a href="https://github.com/Tamircohen28/tamirs-superpowers/issues/new/choose">Open an Issue</a></p>

@@ -123,3 +123,7 @@ The URL is resolved by reading the git remote for the current branch (falls back
 3. Test with real data: copy a sample JSON payload from Claude Code's debug output and pipe it in
 4. Run `make lint` to confirm shellcheck passes
 5. Reload the plugin: `/reload-plugins`
+
+---
+
+<p align="center"><a href="https://github.com/Tamircohen28">Have a Question?</a>&nbsp;·&nbsp;<a href="https://github.com/Tamircohen28/tamirs-superpowers/issues/new/choose">Open an Issue</a></p>

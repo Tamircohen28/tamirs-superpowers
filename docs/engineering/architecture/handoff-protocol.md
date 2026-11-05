@@ -231,3 +231,7 @@ Recorded rather than silently assumed, as of 2026-10-17.
 - The on-disk format of `~/.claude/tasks/<team>/`; not read.
 - Whether the host's `task_id` on `TaskCompleted` is `task-NNN` (as the reference's example shows) or a bare integer in a given build; both are handled.
 - `StopFailure`, `TaskCompleted` and `TeammateIdle` on Claude Desktop: the hooks file is shared, but these events are measured on Claude Code only.
+
+---
+
+<p align="center"><a href="https://github.com/Tamircohen28">Have a Question?</a>&nbsp;·&nbsp;<a href="https://github.com/Tamircohen28/tamirs-superpowers/issues/new/choose">Open an Issue</a></p>

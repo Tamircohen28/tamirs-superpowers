@@ -151,3 +151,7 @@ unconfigured, so the hook becomes a harmless no-op. Nothing else to unwire.
 
 Deleting only the credentials file is enough: the script exits 0 silently when
 unconfigured, so the hook becomes a no-op.
+
+---
+
+<p align="center"><a href="https://github.com/Tamircohen28">Have a Question?</a>&nbsp;·&nbsp;<a href="https://github.com/Tamircohen28/tamirs-superpowers/issues/new/choose">Open an Issue</a></p>

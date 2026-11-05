@@ -124,3 +124,7 @@ stated fallback. Portable-schema details: [engineering/architecture/skill-schema
 
 Use `/skill-creator`. It generates conforming frontmatter, keeps the description
 trigger-shaped, and can benchmark whether the skill actually fires.
+
+---
+
+<p align="center"><a href="https://github.com/Tamircohen28">Have a Question?</a>&nbsp;·&nbsp;<a href="https://github.com/Tamircohen28/tamirs-superpowers/issues/new/choose">Open an Issue</a></p>

@@ -25,3 +25,7 @@ here when polishing a standalone repo.
 VER=$(jq -r .version package.json)
 git tag -l "v${VER}" | grep -q . || echo "missing tag v${VER}"
 ```
+
+---
+
+<p align="center"><a href="https://github.com/Tamircohen28">Have a Question?</a>&nbsp;·&nbsp;<a href="https://github.com/Tamircohen28/scaffold-gold/issues/new/choose">Open an Issue</a></p>

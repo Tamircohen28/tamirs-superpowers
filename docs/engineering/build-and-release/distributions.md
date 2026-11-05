@@ -78,3 +78,7 @@ Adding a target: a `case` arm in `build-dist.sh` (roots, extra prunes, README so
 `case` arm in `check-dist.sh` (the host's rules, each with its source), probes in
 `tests/test-dist.sh`, a loop entry in `release.yml`'s `dist-assets` job, and a row in each
 table above.
+
+---
+
+<p align="center"><a href="https://github.com/Tamircohen28">Have a Question?</a>&nbsp;·&nbsp;<a href="https://github.com/Tamircohen28/tamirs-superpowers/issues/new/choose">Open an Issue</a></p>

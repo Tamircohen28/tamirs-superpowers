@@ -10,3 +10,7 @@
 | Understand how it works under the hood | [Engineering docs →](engineering/README.md) |
 | Contribute a skill or fix a bug | [Contributing →](CONTRIBUTING.md) |
 | See what changed | [Changelog →](../CHANGELOG.md) |
+
+---
+
+<p align="center"><a href="https://github.com/Tamircohen28">Have a Question?</a>&nbsp;·&nbsp;<a href="https://github.com/Tamircohen28/tamirs-superpowers/issues/new/choose">Open an Issue</a></p>

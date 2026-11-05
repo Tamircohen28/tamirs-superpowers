@@ -19,6 +19,7 @@ A multi-platform agent plugin: bundled skills, specialist agents, worktree hooks
 | Hand work to another provider | [`rules/dev/cross-platform-handoff.md`](rules/dev/cross-platform-handoff.md) |
 | Write a plan, review, or scratch file | [`rules/dev/dev-files-workspace.md`](rules/dev/dev-files-workspace.md) — it goes in `.dev-files/` |
 | Author or edit a `SKILL.md` | [`rules/dev/skill-quality-standards.md`](rules/dev/skill-quality-standards.md) + [`core/schemas/skill-frontmatter.json`](core/schemas/skill-frontmatter.json) |
+| Write a human-facing doc, or draw a diagram | [`rules/dev/documentation-standards.md`](rules/dev/documentation-standards.md) — themed Mermaid, the two-link footer; `bash scripts/check-doc-standards.sh --fix` |
 | Write a script or a hook | [`rules/dev/user-facing-script-standards.md`](rules/dev/user-facing-script-standards.md) |
 | Touch GitHub | [`rules/dev/gh-cli-preference.md`](rules/dev/gh-cli-preference.md) — `gh` is optional; degrade explicitly |
 | Change shipped content | [`rules/dev/plugin-version-bump.md`](rules/dev/plugin-version-bump.md) — bump `plugin-version.json`, then `--sync` |

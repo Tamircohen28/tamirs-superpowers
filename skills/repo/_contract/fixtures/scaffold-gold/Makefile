@@ -1,6 +1,6 @@
 .PHONY: help install update uninstall test lint agent\:check agent-polish-gate \
 	check-agent-drift check-feature-equivalence check-platform-targets check-action-pinning \
-	platform-targets-sync platform-targets-assert
+	check-doc-standards platform-targets-sync platform-targets-assert
 
 help:
 	@echo "install update uninstall test lint agent\:check agent-polish-gate"
@@ -32,6 +32,9 @@ check-platform-targets:
 check-action-pinning:
 	bash scripts/check-action-pinning.sh .
 
+check-doc-standards:
+	bash scripts/check-doc-standards.sh .
+
 platform-targets-sync:
 	bash scripts/check-platform-targets.sh . --sync
 
@@ -40,4 +43,4 @@ platform-targets-assert:
 
 agent\:check: check-agent-drift check-feature-equivalence check-platform-targets check-action-pinning
 
-agent-polish-gate: platform-targets-sync platform-targets-assert agent\:check
+agent-polish-gate: platform-targets-sync platform-targets-assert agent\:check check-doc-standards

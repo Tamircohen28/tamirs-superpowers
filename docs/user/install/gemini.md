@@ -331,3 +331,7 @@ make validate                                  # the full repo gate
 ```
 
 `check-gemini-adapter.sh` runs with or without the CLI installed — it skips the `gemini extensions validate` step with a message rather than failing, so CI stays honest on a runner that has no Gemini.
+
+---
+
+<p align="center"><a href="https://github.com/Tamircohen28">Have a Question?</a>&nbsp;·&nbsp;<a href="https://github.com/Tamircohen28/tamirs-superpowers/issues/new/choose">Open an Issue</a></p>

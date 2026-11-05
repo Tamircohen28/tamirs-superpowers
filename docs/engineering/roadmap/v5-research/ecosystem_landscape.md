@@ -262,3 +262,7 @@ The borrowable ideas are concrete: Claude mods (2.1.287) incl. `blast-radius`/`r
 ### Gaps
 - The official Claude Code changelog page was not fetched directly; version/date claims for 2.1.288–2.1.301 are from third-party trackers that disagree on the latest build.
 - Could not confirm the Anthropic "Improving skill-creator" blog post (Mar 3, 2026) directly; details are from secondary coverage.
+
+---
+
+<p align="center"><a href="https://github.com/Tamircohen28">Have a Question?</a>&nbsp;·&nbsp;<a href="https://github.com/Tamircohen28/tamirs-superpowers/issues/new/choose">Open an Issue</a></p>

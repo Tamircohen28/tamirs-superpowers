@@ -205,3 +205,7 @@ event, `$.state` keys declared in the contract. Two more are the guard's own:
 - **Grow the vocabulary by the fact it reads, not by pattern.** Each entry names what it
   holds and what it leaves alone (`git clean -n`, `git restore --staged .`), and gets a row
   in the test table. A spelling that is not clearly destructive is not held.
+
+---
+
+<p align="center"><a href="https://github.com/Tamircohen28">Have a Question?</a>&nbsp;·&nbsp;<a href="https://github.com/Tamircohen28/tamirs-superpowers/issues/new/choose">Open an Issue</a></p>

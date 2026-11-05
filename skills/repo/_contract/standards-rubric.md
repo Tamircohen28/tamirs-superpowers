@@ -44,8 +44,10 @@ file is a graphic, not that the graphic is right).
 | S2-02 | docs/engineering/ | P2 |
 | S2-03 | docs/CHANGELOG.md | P2 |
 | S2-04 | docs/CONTRIBUTING.md | P2 |
+| S2-05 | Every human-facing doc ends with the canonical two-link footer (`scripts/check-doc-standards.sh`; `--fix` repairs) | P2 |
+| S2-06 | Every diagram is a Mermaid block opening with the canonical dark init line, no per-node styling (`scripts/check-doc-standards.sh`) | P2 |
 
-Manual: doc map READMEs, ADR index, project-specific content.
+Manual: doc map READMEs, ADR index, project-specific content. S2-05 / S2-06 are scored from the checker's output and skipped (never invented) when the inventory could not run it.
 
 ## S3 GitHub infra
 

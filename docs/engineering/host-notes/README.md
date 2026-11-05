@@ -12,3 +12,7 @@ Per-host release notes the maintainers reviewed against this plugin: what each h
 **Why not `CLAUDE.md`.** Until plugin 5.0.0 the Claude Code notes lived inline in the root `CLAUDE.md`. A `CLAUDE.md` at a plugin root is never loaded by Claude Code (`claude plugin validate` warns about it), and the plugin directory's scanner reads prose about what the plugin *used* to do as what it does — so a 50 KB history there was read by no host and misread by the one scanner that did. `CLAUDE.md` is now a short, current contributor page and links here once.
 
 **Adding a note.** The nightly `platform-sync` review appends under a new `### <version>` heading in the host's file, one bold-led item per sub-topic, each marked **adopted** (with the plugin release), **reviewed, not applicable** (with the reason) or **open** (for Tamir's judgment). Never a model name; never a claim that is not in the host's changelog or in a live run recorded in `platform-targets.json`.
+
+---
+
+<p align="center"><a href="https://github.com/Tamircohen28">Have a Question?</a>&nbsp;·&nbsp;<a href="https://github.com/Tamircohen28/tamirs-superpowers/issues/new/choose">Open an Issue</a></p>

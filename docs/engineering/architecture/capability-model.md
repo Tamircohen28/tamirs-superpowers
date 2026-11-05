@@ -508,3 +508,7 @@ So: a specification, a vendor changelog, or a documentation page is a reason to 
 measure, never a substitute for having measured. When a measurement contradicts a row,
 the row is what changes — and its note should carry the observed error text, so the next
 maintainer inherits the evidence rather than the conclusion.
+
+---
+
+<p align="center"><a href="https://github.com/Tamircohen28">Have a Question?</a>&nbsp;·&nbsp;<a href="https://github.com/Tamircohen28/tamirs-superpowers/issues/new/choose">Open an Issue</a></p>

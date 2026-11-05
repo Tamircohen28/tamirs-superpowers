@@ -28,3 +28,7 @@ Distribute as a Claude Code plugin hosted on a personal GitHub marketplace.
 **Harder:**
 - User-level settings (`permissions`, `env`, `theme`, `worktree`) cannot be bundled — the plugin system intentionally scopes these to the user, not the plugin. They must still be configured manually in `~/.claude/settings.json`.
 - Iterating locally requires either symlinking or reloading the plugin, rather than editing files in-place.
+
+---
+
+<p align="center"><a href="https://github.com/Tamircohen28">Have a Question?</a>&nbsp;·&nbsp;<a href="https://github.com/Tamircohen28/tamirs-superpowers/issues/new/choose">Open an Issue</a></p>

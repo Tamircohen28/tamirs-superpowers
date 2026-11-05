@@ -162,3 +162,7 @@ install doc says the target is retired.
 For the same reason, **a regressed surface is never flipped to `support: "unverified"`.**
 That value means nobody ever measured it, and deleting a measured block to reach it
 destroys the evidence and misreports the history. Keep the block; move the rows.
+
+---
+
+<p align="center"><a href="https://github.com/Tamircohen28">Have a Question?</a>&nbsp;·&nbsp;<a href="https://github.com/Tamircohen28/tamirs-superpowers/issues/new/choose">Open an Issue</a></p>

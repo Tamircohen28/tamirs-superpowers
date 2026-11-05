@@ -279,3 +279,7 @@ means never measured; a surface that regressed **was** measured, so it keeps its
 capability block with the affected rows moved to `unsupported` and the note saying what
 changed and when. See
 [adapter-contract.md](adapter-contract.md#removing-or-downgrading-a-platform).
+
+---
+
+<p align="center"><a href="https://github.com/Tamircohen28">Have a Question?</a>&nbsp;·&nbsp;<a href="https://github.com/Tamircohen28/tamirs-superpowers/issues/new/choose">Open an Issue</a></p>

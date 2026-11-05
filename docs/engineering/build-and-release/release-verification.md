@@ -43,3 +43,7 @@ A digest mismatch means the file is not the one the workflow built; a certificat
 mismatch means it was signed by something other than this repository's `release.yml`. In
 both cases discard the file and download again from the release page; if it fails twice,
 open an issue with the `gh attestation verify --format json` output.
+
+---
+
+<p align="center"><a href="https://github.com/Tamircohen28">Have a Question?</a>&nbsp;·&nbsp;<a href="https://github.com/Tamircohen28/tamirs-superpowers/issues/new/choose">Open an Issue</a></p>

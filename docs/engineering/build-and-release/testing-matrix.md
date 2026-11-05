@@ -129,3 +129,7 @@ opening a PR; run the platform CLI checks for whichever platform you touched.
 - **Live model behavior** — orchestration scenarios simulate the state machine, not the LLM.
 - **Third-party platform internals** — a capability is `unknown` until this repo measures it.
   That is the honesty rule, and it is why the matrix has gaps instead of guesses.
+
+---
+
+<p align="center"><a href="https://github.com/Tamircohen28">Have a Question?</a>&nbsp;·&nbsp;<a href="https://github.com/Tamircohen28/tamirs-superpowers/issues/new/choose">Open an Issue</a></p>

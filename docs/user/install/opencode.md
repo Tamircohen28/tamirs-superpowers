@@ -483,3 +483,7 @@ which is the authoritative registry; `platforms/opencode/adapter.yaml` is the th
 | The guard denies an edit you meant to make | A protected path: `PM_ALLOW_PROTECTED=1`. A main-checkout edit under an objective: work in the objective's worktree the message names. A configured deny in `opencode.json`: edit the rule. |
 | `/objective` says no objective is active | Nothing under `.dev-files/objectives/` in the **local** main checkout has `status: active`; `/plan-dev` writes one. |
 | Fixture skills `demo` / `example-skill` appear | A `skills` entry points at `skills/repo`; list the four real repo skills individually. |
+
+---
+
+<p align="center"><a href="https://github.com/Tamircohen28">Have a Question?</a>&nbsp;·&nbsp;<a href="https://github.com/Tamircohen28/tamirs-superpowers/issues/new/choose">Open an Issue</a></p>

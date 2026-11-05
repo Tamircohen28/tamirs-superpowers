@@ -412,3 +412,7 @@ sandbox — the same rules are enforced in CI, which is where they actually bind
 
 Source of truth: [`core/capabilities/platforms.json`](../../../core/capabilities/platforms.json).
 Comparison: [platform differences](../platform-differences.md).
+
+---
+
+<p align="center"><a href="https://github.com/Tamircohen28">Have a Question?</a>&nbsp;·&nbsp;<a href="https://github.com/Tamircohen28/tamirs-superpowers/issues/new/choose">Open an Issue</a></p>

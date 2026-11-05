@@ -627,3 +627,7 @@ yet" from "this cannot be done, and here is why".
 - [`config/github/repository-policy.json`](../../config/github/repository-policy.json) — the policy itself
 - [Configuration](configuration.md) — how machine config is rendered
 - [Agent-kit repos](agent-kit.md) — scaffolding and maintaining distribution repos
+
+---
+
+<p align="center"><a href="https://github.com/Tamircohen28">Have a Question?</a>&nbsp;·&nbsp;<a href="https://github.com/Tamircohen28/tamirs-superpowers/issues/new/choose">Open an Issue</a></p>

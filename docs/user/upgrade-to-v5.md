@@ -65,3 +65,7 @@ The full record is the `[5.0.0]` section of [`CHANGELOG.md`](../../CHANGELOG.md)
 | Generated files | `platforms/codex/hooks.json`, `platforms/gemini/hooks.json`, `platforms/gemini/policies/`, `platforms/antigravity/*.json`, `.codex/agents/`, `.opencode/agents/`, `.agents/skills/`, the five manifests and `.cursor/rules/` are generated; CI fails on drift | `make manifests codex-hooks gemini-hooks antigravity-plugin agents-skills codex-agents opencode-agents cursor-rules` after editing a source; `make validate` before every push |
 | Host notes | Claude Code release notes live in `docs/engineering/host-notes/`; `platform-targets.json` is authoritative for versions | Add a release note there, not to `CLAUDE.md` |
 | New gates | `check-skills-ref`, `check-token-budget` (`evals/budget.json`), `test-skill-contract --strict`, `test-hook-conformance.sh`, the nightly `evals.yml` | A skill that grows the always-on cost past the ceiling fails CI; `bash scripts/check-token-budget.sh --update` after a deliberate change |
+
+---
+
+<p align="center"><a href="https://github.com/Tamircohen28">Have a Question?</a>&nbsp;·&nbsp;<a href="https://github.com/Tamircohen28/tamirs-superpowers/issues/new/choose">Open an Issue</a></p>

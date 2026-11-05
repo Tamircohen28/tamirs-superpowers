@@ -216,3 +216,7 @@ flowchart TB
 | Objective/task/handoff states | [orchestration-state-machine.md](orchestration-state-machine.md) |
 | Branch and worktree layout | [branch-worktree-model.md](branch-worktree-model.md) |
 | What runs where, and when | [validation-tiers.md](validation-tiers.md) · [../build-and-release/testing-matrix.md](../build-and-release/testing-matrix.md) |
+
+---
+
+<p align="center"><a href="https://github.com/Tamircohen28">Have a Question?</a>&nbsp;·&nbsp;<a href="https://github.com/Tamircohen28/tamirs-superpowers/issues/new/choose">Open an Issue</a></p>

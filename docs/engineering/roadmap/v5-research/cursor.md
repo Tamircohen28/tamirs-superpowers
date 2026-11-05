@@ -223,3 +223,7 @@ Cursor imports Claude hooks only from `.claude/settings.local.json`, `.claude/se
 ### Gaps
 - No page states whether Cursor reads `.claude-plugin/plugin.json` (Claude plugin manifests) at all; only the Agent Plugins root `plugin.json` and Cursor's `.cursor-plugin/plugin.json` are documented. Treat Claude-manifest import as unsupported until measured.
 - Whether `CLAUDE.md` is read as project instructions is unstated (the rules page names only `.cursor/rules` and `AGENTS.md`).
+
+---
+
+<p align="center"><a href="https://github.com/Tamircohen28">Have a Question?</a>&nbsp;·&nbsp;<a href="https://github.com/Tamircohen28/tamirs-superpowers/issues/new/choose">Open an Issue</a></p>

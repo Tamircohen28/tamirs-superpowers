@@ -277,3 +277,7 @@ Line 108 already says a level governs the plugin only.
 - The order of OpenCode evaluate hooks across several plugins.
 - Whether Gemini user-tier policy files get an integrity check.
 - Whether env from a Cursor `sessionStart` hook reaches this plugin's hooks.
+
+---
+
+<p align="center"><a href="https://github.com/Tamircohen28">Have a Question?</a>&nbsp;·&nbsp;<a href="https://github.com/Tamircohen28/tamirs-superpowers/issues/new/choose">Open an Issue</a></p>

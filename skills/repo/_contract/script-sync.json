@@ -56,6 +56,82 @@
       ]
     },
     {
+      "id": "check-doc-standards",
+      "canonical": "scripts/check-doc-standards.sh",
+      "note": "Fully portable: ROOT, --config and --init are always arguments, the human-facing globs and footer URLs come from the target's config/docs/doc-standards.json, and a null URL is derived from the target's own origin. The plugin, the template, the contract's vendored copy (standards-inventory.sh runs it to score S2-05/S2-06) and every fixture run the identical file.",
+      "copies": [
+        "skills/repo/_contract/scripts/check-doc-standards.sh",
+        "skills/repo/_contract/templates/check-doc-standards.sh.tmpl",
+        "skills/repo/_contract/fixtures/scaffold-gold/scripts/check-doc-standards.sh",
+        "skills/repo/_contract/fixtures/scaffold-plugin-gold/scripts/check-doc-standards.sh",
+        "skills/repo/_contract/fixtures/scaffold-claude-plugin-gold/scripts/check-doc-standards.sh"
+      ]
+    },
+    {
+      "id": "mermaid-init",
+      "canonical": "config/docs/mermaid-init.txt",
+      "note": "The one canonical Mermaid init directive (rules/dev/documentation-standards.md). Repo-independent, so the template and every fixture carry the identical line; a palette change is made here once and propagates.",
+      "copies": [
+        "skills/repo/_contract/templates/config/docs/mermaid-init.txt.tmpl",
+        "skills/repo/_contract/fixtures/scaffold-gold/config/docs/mermaid-init.txt",
+        "skills/repo/_contract/fixtures/scaffold-plugin-gold/config/docs/mermaid-init.txt",
+        "skills/repo/_contract/fixtures/scaffold-claude-plugin-gold/config/docs/mermaid-init.txt"
+      ]
+    },
+    {
+      "id": "doc-standards-config-template",
+      "canonical": "config/docs/doc-standards.json",
+      "note": "The scaffold template is GENERATED from this repo's live config by lifting the owner and repo name out of the footer URLs into placeholders, the same chain as the capability registry. Declared before the fixture group so one sync pass propagates config -> template -> fixtures.",
+      "substitutions": {
+        "GITHUB_OWNER": "Tamircohen28",
+        "REPO_NAME": "tamirs-superpowers"
+      },
+      "copies": [
+        {
+          "path": "skills/repo/_contract/templates/config/docs/doc-standards.json.tmpl",
+          "reverse": true
+        }
+      ]
+    },
+    {
+      "id": "doc-standards-guideline",
+      "canonical": "skills/repo/_contract/templates/docs/agent-guidelines/documentation-standards.md.tmpl",
+      "note": "The agent-facing rule a scaffolded repo's agents read (rules/dev/documentation-standards.md is this plugin's own, and names this repo's paths). Repo-independent, so every fixture carries the identical file; it sits under docs/agent-guidelines/, which the standard excludes from the footer requirement.",
+      "copies": [
+        "skills/repo/_contract/fixtures/scaffold-gold/docs/agent-guidelines/documentation-standards.md",
+        "skills/repo/_contract/fixtures/scaffold-plugin-gold/docs/agent-guidelines/documentation-standards.md",
+        "skills/repo/_contract/fixtures/scaffold-claude-plugin-gold/docs/agent-guidelines/documentation-standards.md"
+      ]
+    },
+    {
+      "id": "doc-standards-config",
+      "canonical": "skills/repo/_contract/templates/config/docs/doc-standards.json.tmpl",
+      "note": "Rendered into fixtures with GITHUB_OWNER/REPO_NAME substituted so each fixture's footer links to its own issues page, exactly as a scaffolded repo's would.",
+      "substitutions": {
+        "GITHUB_OWNER": "Tamircohen28"
+      },
+      "copies": [
+        {
+          "path": "skills/repo/_contract/fixtures/scaffold-gold/config/docs/doc-standards.json",
+          "substitutions": {
+            "REPO_NAME": "scaffold-gold"
+          }
+        },
+        {
+          "path": "skills/repo/_contract/fixtures/scaffold-plugin-gold/config/docs/doc-standards.json",
+          "substitutions": {
+            "REPO_NAME": "scaffold-plugin-gold"
+          }
+        },
+        {
+          "path": "skills/repo/_contract/fixtures/scaffold-claude-plugin-gold/config/docs/doc-standards.json",
+          "substitutions": {
+            "REPO_NAME": "scaffold-claude-plugin-gold"
+          }
+        }
+      ]
+    },
+    {
       "id": "check-agent-drift",
       "canonical": "skills/repo/_contract/scripts/check-agent-drift.sh",
       "note": "The plugin's own scripts/check-agent-drift.sh is deliberately NOT the canonical source here: it is a 14-line wrapper around this repo's scripts/validate-skill-frontmatter.py, while the contract version is the portable generic checker. Two different scripts that share a name, not a fork.",

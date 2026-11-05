@@ -382,3 +382,7 @@ is listed with each of them [above](#unverified-surfaces).
 - Promoting an unverified surface is the same procedure plus the thing that is actually
   missing: a recorded run on that surface. Until then it stays in the list above, with no
   capability claims in either direction.
+
+---
+
+<p align="center"><a href="https://github.com/Tamircohen28">Have a Question?</a>&nbsp;·&nbsp;<a href="https://github.com/Tamircohen28/tamirs-superpowers/issues/new/choose">Open an Issue</a></p>

@@ -1,0 +1,23 @@
+{
+  "$comment": "The documentation standard's data: which Markdown files are human-facing and what the canonical footer links to. Canonical rule: rules/dev/documentation-standards.md. Checker: scripts/check-doc-standards.sh (make check-doc-standards; --fix repairs footers and Mermaid init lines). Globs match the repo-relative path; `*` and `**` both match across `/`. A null URL is derived from `git remote get-url origin`: question_url becomes https://<host>/<owner>, issue_url becomes https://<host>/<owner>/<repo>/issues/new/choose (GitLab hosts: /-/issues/new). mermaid.init_file is resolved relative to this file and holds the one canonical %%{init}%% line, verbatim.",
+  "human_facing": {
+    "include": [
+      "README.md",
+      "docs/**/*.md"
+    ],
+    "exclude": [
+      "docs/agent-guidelines/**",
+      "docs/changelog/**",
+      "docs/CHANGELOG.md"
+    ]
+  },
+  "footer": {
+    "question_text": "Have a Question?",
+    "question_url": "https://github.com/Tamircohen28",
+    "issue_text": "Open an Issue",
+    "issue_url": "https://github.com/Tamircohen28/scaffold-claude-plugin-gold/issues/new/choose"
+  },
+  "mermaid": {
+    "init_file": "mermaid-init.txt"
+  }
+}

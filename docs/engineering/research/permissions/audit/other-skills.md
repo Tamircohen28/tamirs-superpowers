@@ -195,3 +195,7 @@ auto-merge off. Unattended = R3 automatic unless flagged never-auto, R4 never au
 
 Rows where the skill-level prose gate and the level table disagree today: usage-capture, mcp-builder Phase 6, retro, capture-config
 (`--adopt all`), skill-creator nested sessions. For every `*` row the rubric needs an owner decision on a machine-local class.
+
+---
+
+<p align="center"><a href="https://github.com/Tamircohen28">Have a Question?</a>&nbsp;·&nbsp;<a href="https://github.com/Tamircohen28/tamirs-superpowers/issues/new/choose">Open an Issue</a></p>

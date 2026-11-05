@@ -299,3 +299,7 @@ AGENTS.md is layered root→cwd with `AGENTS.override.md` precedence and a 32 Ki
 - `features.worktrees` key name (the 0.162.0 note says "when the worktrees feature is on") was not found in the fetched config reference portions.
 - Cloud Codex (codex.openai.com / "Codex cloud") plugin behaviour was not covered by any fetched page beyond "installing on the web doesn't deploy hook scripts"; no reliable source on whether cloud tasks load repo-level `.agents/plugins/marketplace.json`.
 - The Codex IDE extension page was not fetched; the "no plugins" claim rests on the plugins overview page alone.
+
+---
+
+<p align="center"><a href="https://github.com/Tamircohen28">Have a Question?</a>&nbsp;·&nbsp;<a href="https://github.com/Tamircohen28/tamirs-superpowers/issues/new/choose">Open an Issue</a></p>

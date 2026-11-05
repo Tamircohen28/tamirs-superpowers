@@ -206,3 +206,7 @@ Researched 2026-11-03. Tags: **doc-cited** (URL), **measured** (command and outp
 - Do plugin `variables` values reach hook or skill environments, and can a non-team user set them locally?
 - How does text after `/pr-dev` reach the model: verbatim in the user message, or wrapped?
 - How do the CLI's `cli-config.json` and project `cli.json` permission lists merge?
+
+---
+
+<p align="center"><a href="https://github.com/Tamircohen28">Have a Question?</a>&nbsp;·&nbsp;<a href="https://github.com/Tamircohen28/tamirs-superpowers/issues/new/choose">Open an Issue</a></p>

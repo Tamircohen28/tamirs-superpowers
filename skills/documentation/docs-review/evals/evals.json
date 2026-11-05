@@ -64,13 +64,22 @@
     },
     {
       "id": "template-check-flags-user-doc-without-footer",
-      "description": "check-template.sh against a docs/user/ file lacking the canonical footer must report footer_present=false.",
+      "description": "check-template.sh against a human-facing doc (README.md or docs/** outside the config's exclude list) lacking the canonical two-link footer must report footer_required=true and footer_present=false; nothing in the check may name another repository's URL.",
       "input": {
         "shape": "validate",
-        "audience": "user",
+        "audience": "human",
         "footer_block_absent": true
       },
-      "assert": "footer_present == false"
+      "assert": "footer_required == true && footer_present == false"
+    },
+    {
+      "id": "template-check-flags-mermaid-without-init",
+      "description": "A ```mermaid block whose first line is not an %%{init}%% directive must be counted in mermaid_init_missing; the fix is the canonical line from config/docs/mermaid-init.txt, inserted by check-doc-standards.sh --fix, never retyped.",
+      "input": {
+        "shape": "validate",
+        "mermaid": "flowchart TD\\n  A-->B"
+      },
+      "assert": "mermaid_init_missing == 1"
     },
     {
       "id": "template-check-detects-mermaid-violations",
@@ -127,10 +136,10 @@
       "assert": "stdout contains 'Files audited:' && stdout contains 'Fixes applied:' && stdout contains 'Broken links:' && stdout contains 'Platform doc inconsistencies:' && stdout contains 'Install commands verified:' && stdout contains 'Generated tables:'"
     },
     {
-      "id": "footer-test-still-passes",
-      "description": "After a sweep, the existing footer-center-aligned.sh test must still pass \u2014 the skill should NEVER produce a doc that violates the canonical footer.",
+      "id": "doc-standards-check-still-passes",
+      "description": "After a sweep, the repo's documentation-standard checker must still exit 0 \u2014 the skill should NEVER produce a doc that lacks the canonical footer or a Mermaid block without the canonical init line. Skipped when the audited repo ships no scripts/check-doc-standards.sh.",
       "input": {
-        "command": "bash tests/unit/skills/footer-center-aligned.sh"
+        "command": "[[ -f scripts/check-doc-standards.sh ]] && bash scripts/check-doc-standards.sh . || true"
       },
       "expected_exit": 0
     },

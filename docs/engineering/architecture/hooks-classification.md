@@ -296,3 +296,7 @@ The shape the table argues for, with the two tiers that are now options marked.
 | `mod/*.test.ts` | The mod, under `claude plugin test mod` (`make test-mods`) |
 
 Run the shell suites with `make test-hooks`.
+
+---
+
+<p align="center"><a href="https://github.com/Tamircohen28">Have a Question?</a>&nbsp;·&nbsp;<a href="https://github.com/Tamircohen28/tamirs-superpowers/issues/new/choose">Open an Issue</a></p>

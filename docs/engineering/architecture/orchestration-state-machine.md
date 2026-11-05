@@ -167,3 +167,7 @@ bash scripts/validate-roles.sh          # schemas parse; roles and agents agree
 
 Full JSON Schema validation (`check-jsonschema`, `ajv`, `python -m jsonschema`) is optional
 tooling — the schemas work with any of them.
+
+---
+
+<p align="center"><a href="https://github.com/Tamircohen28">Have a Question?</a>&nbsp;·&nbsp;<a href="https://github.com/Tamircohen28/tamirs-superpowers/issues/new/choose">Open an Issue</a></p>

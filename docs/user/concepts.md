@@ -163,3 +163,7 @@ never orphaned or bulk-migrated; migration is opt-in, one worktree at a time. Po
 - [Skills](skills.md) — what each skill does and when it fires
 - [Agents](agents.md) — the role definitions behind the agents
 - [Platform differences](platform-differences.md) — what your platform can actually do
+
+---
+
+<p align="center"><a href="https://github.com/Tamircohen28">Have a Question?</a>&nbsp;·&nbsp;<a href="https://github.com/Tamircohen28/tamirs-superpowers/issues/new/choose">Open an Issue</a></p>

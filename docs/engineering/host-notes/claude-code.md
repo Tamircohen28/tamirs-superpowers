@@ -326,3 +326,7 @@ Reviewed 2026-11-04 from the changelog and a live run of `claude` CLI 2.1.318, t
 - **Subagents — background shell commands (2.1.318).** A background subagent's shell command moves to the background after 3 minutes on every provider. *Reviewed, nothing to change:* the worker and integrator briefs already run `make validate` with `run_in_background` and read the log's `EXIT=` line, never the task notification's exit code.
 - **Slash commands in `-p` (2.1.318).** Custom slash commands that fail, or that only Claude can invoke, no longer print nothing in `claude -p` and SDK sessions. *Reviewed, not applicable:* the only internal-only skills (`changelog-review`, `docs-review`, `mcp-pagination`) are reached through `Skill` from a parent skill, not typed.
 - **Marketplace — `claude plugin validate` (2.1.318).** A custom-named marketplace file that `claude plugin marketplace add` rejects no longer passes. *Reviewed, not applicable:* the in-repo marketplace file is the default-named `.claude-plugin/marketplace.json` (the guard plugin's), which `claude plugin validate .` reads and passes on this build.
+
+---
+
+<p align="center"><a href="https://github.com/Tamircohen28">Have a Question?</a>&nbsp;·&nbsp;<a href="https://github.com/Tamircohen28/tamirs-superpowers/issues/new/choose">Open an Issue</a></p>

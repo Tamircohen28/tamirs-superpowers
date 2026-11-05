@@ -174,7 +174,12 @@ What to fix:
 - Bullets: pick `-` consistently (avoid mixing `-`, `*`, `+` within one file).
 
 What to leave alone:
-- Deliberate ASCII diagrams. Code blocks of legitimately long single-line commands.
+- Code blocks of legitimately long single-line commands. Directory trees inside ```` ```text ```` fences.
+
+What to redraw:
+- Box-drawing / ASCII diagrams — as a ```` ```mermaid ```` block whose first line is the canonical init
+  directive, per `rules/dev/documentation-standards.md` (`bash scripts/check-doc-standards.sh --strict`
+  lists them when the repo ships the checker).
 
 ### Axis 2 — Freshness vs git history
 
@@ -212,14 +217,21 @@ Orphan check (skip gracefully if script doesn't exist):
 
 ### Axis 4 — Template / standard conformance
 
-Goal: every doc complies with `.claude/rules/documentation-standards.md` (if present).
+Goal: every doc complies with the repo's documentation standard — `rules/dev/documentation-standards.md`
+here, `docs/agent-guidelines/documentation-standards.md` in a repo scaffolded by this plugin, or
+whatever the audited repo names.
 
 ```bash
 bash "$CLAUDE_SKILL_DIR/scripts/check-template.sh" <FILE>
 ```
 
-Reports: audience path match, `docs/user/**` footer presence, Mermaid violations
-(no `classDef`, `class`, `style`, `fill:`), has-purpose-sentence.
+Reports: audience (from the repo's `config/docs/doc-standards.json` when it has one, path-based
+otherwise), footer required/present on every human-facing doc, Mermaid violations (no `classDef`,
+`class`, `style`, `fill:`; every block opens with an init directive), the repo's own
+`scripts/check-doc-standards.sh` findings for the file when it ships one, has-purpose-sentence.
+Fix footers and init lines with `bash scripts/check-doc-standards.sh --fix` rather than by hand
+whenever the checker exists; set `DOC_STANDARDS_REPORT=<saved stdout>` during a sweep so the
+checker runs once, not once per file.
 
 ### Axis 5 — Link / cross-reference / diagram validity
 
@@ -398,7 +410,7 @@ Report: `N tables in sync, N drifted`, each drift with the file, the claim, and 
    ```bash
    [[ -f tooling/check-doc-orphans.py ]] && python3 tooling/check-doc-orphans.py
    [[ -f tooling/ci/validate-skills.sh ]] && bash tooling/ci/validate-skills.sh plugin/skills
-   [[ -f tests/unit/skills/footer-center-aligned.sh ]] && bash tests/unit/skills/footer-center-aligned.sh
+   [[ -f scripts/check-doc-standards.sh ]] && bash scripts/check-doc-standards.sh .
    ```
 7. **Render review report** — fill `$CLAUDE_SKILL_DIR/templates/review-report.md.tmpl`; save to `docs/review-${DATE}.md`.
 8. **Final summary** — print the structured block from the "When repo-standards invokes this skill" section above.
@@ -435,8 +447,9 @@ All paths below are relative to `$CLAUDE_SKILL_DIR` (this skill's install direct
 ## Existing repo validators this skill defers to
 
 - `tooling/check-doc-orphans.py` — orphan detection for `docs/user/` and `docs/engineering/`.
-- `tests/unit/skills/footer-center-aligned.sh` — footer block conformance.
-- `.claude/rules/documentation-standards.md` — the rule the skill enforces.
+- `scripts/check-doc-standards.sh` — footer and Mermaid-theme conformance (`--fix` repairs); its rule
+  is `rules/dev/documentation-standards.md` here or `docs/agent-guidelines/documentation-standards.md`
+  in a scaffolded repo.
 - `tooling/ci/regen-claude-md.sh` / `regen-testing-md.sh` — auto-regenerated counts.
 
 This skill orchestrates them; it does NOT re-implement them.

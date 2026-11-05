@@ -344,3 +344,7 @@ missing checks = R4).
 41. https://embracethered.com/blog/posts/2025/github-copilot-remote-code-execution-via-prompt-injection/ (cited via secondary; not fetched)
 42. https://cybersecuritynews.com/github-copilot-rce-vulnerability (secondary)
 43. https://nvd.nist.gov/vuln/detail/CVE-2025-54136 ; https://thehackernews.com/2025/08/cursor-ai-code-editor-vulnerability.html
+
+---
+
+<p align="center"><a href="https://github.com/Tamircohen28">Have a Question?</a>&nbsp;·&nbsp;<a href="https://github.com/Tamircohen28/tamirs-superpowers/issues/new/choose">Open an Issue</a></p>

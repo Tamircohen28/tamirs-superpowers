@@ -94,3 +94,7 @@ git tag -l "v${VER}" | grep -q . || echo "missing tag v${VER}"
 
 Major-version PRs are blocked in `.github/dependabot.yml`. Review minors by hand after
 reading upstream changelogs.
+
+---
+
+<p align="center"><a href="https://github.com/Tamircohen28">Have a Question?</a>&nbsp;·&nbsp;<a href="https://github.com/Tamircohen28/tamirs-superpowers/issues/new/choose">Open an Issue</a></p>

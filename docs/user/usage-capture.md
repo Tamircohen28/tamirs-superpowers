@@ -65,3 +65,7 @@ export TAMIRS_USAGE_CAPTURE_ENDPOINT_LABEL=corp-gateway
 jq -s 'map(select(.event=="api_request")) | sort_by(-.duration_ms) | .[:10]' \
   ~/.local/share/tamirs-superpowers/usage/$(TZ=Asia/Jerusalem date +%Y-%m-%d).jsonl
 ```
+
+---
+
+<p align="center"><a href="https://github.com/Tamircohen28">Have a Question?</a>&nbsp;·&nbsp;<a href="https://github.com/Tamircohen28/tamirs-superpowers/issues/new/choose">Open an Issue</a></p>

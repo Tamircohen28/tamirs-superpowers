@@ -135,3 +135,7 @@ and is never overwritten, so the original is always recoverable.
 bash tests/test-renderers.sh    # hermetic: fake HOME, never touches your real config
 bash scripts/doctor.sh .
 ```
+
+---
+
+<p align="center"><a href="https://github.com/Tamircohen28">Have a Question?</a>&nbsp;·&nbsp;<a href="https://github.com/Tamircohen28/tamirs-superpowers/issues/new/choose">Open an Issue</a></p>

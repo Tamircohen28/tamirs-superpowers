@@ -151,3 +151,7 @@ bash scripts/build-antigravity-plugin.sh . --check   # generated files match the
 bash tests/test-antigravity-adapter.sh               # two-field plugin.json, MCP shape, no hooks.json, adapter contract
 bash tests/test-agents-skills.sh                     # the .agents/skills mirror
 ```
+
+---
+
+<p align="center"><a href="https://github.com/Tamircohen28">Have a Question?</a>&nbsp;·&nbsp;<a href="https://github.com/Tamircohen28/tamirs-superpowers/issues/new/choose">Open an Issue</a></p>

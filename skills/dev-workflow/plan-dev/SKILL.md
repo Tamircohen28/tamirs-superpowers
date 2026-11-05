@@ -287,6 +287,7 @@ Next: /orchestrate-dev auth-system     — run the graph, integrate, one PR
 - **Never write code, commit, or push.** This skill plans only.
 - **Always run `validate_plan.py` on the written objective** before reporting success.
 - **Always keep GitHub export optional** — but always honour an explicit "create issues" request.
+- **Diagrams in a plan are Mermaid** per `rules/dev/documentation-standards.md` — the canonical init line from `config/docs/mermaid-init.txt` first, never box-drawing. A task whose scope includes `README.md` or `docs/**` inherits the footer requirement; name `bash scripts/check-doc-standards.sh` in its verification.
 
 ## What NOT to do
 
