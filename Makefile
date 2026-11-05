@@ -131,6 +131,10 @@ uninstall:
 # same suites. Without SHARD it is the whole list, in the same order as before. The
 # list is captured BEFORE the loop: piped straight into `while`, a rejected SHARD
 # would read as an empty list and the target would pass having run nothing.
+#
+# SUPERPOWERS_SHELLCHECK_DONE=1: `make lint` is the gate's one shellcheck pass;
+# tests/test-static.sh skips its own identical pass under this marker (and still runs
+# it standalone, which is how CI's static job invokes it).
 test-hooks:
 	@shard="$(SHARD)"; [ -n "$$shard" ] || shard=1/1; \
 	if [ "$$shard" = 1/1 ]; then echo "--- Hook behavior tests ---"; \
@@ -139,7 +143,7 @@ test-hooks:
 	printf '%s\n' "$$suites" | while read -r f; do \
 	  [ -n "$$f" ] || continue; \
 	  echo "==> $$f"; before="$$(bash scripts/real-home-witness.sh)"; \
-	  SUPERPOWERS_WORKTREE_CLEANUP=0 bash "$$f" || exit 1; \
+	  SUPERPOWERS_WORKTREE_CLEANUP=0 SUPERPOWERS_SHELLCHECK_DONE=1 bash "$$f" || exit 1; \
 	  [ "$$before" = "$$(bash scripts/real-home-witness.sh)" ] || { \
 	    echo "FAIL $$f wrote to the real ~/.config or ~/.local/state tamirs-superpowers (use the test root)"; exit 1; }; \
 	done

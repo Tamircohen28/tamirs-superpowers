@@ -114,6 +114,9 @@ for s in tests/test-alpha.sh tests/test-beta-two.sh tests/test-beta.sh tests/tes
          tests/hooks/test-h1.sh tests/hooks/test-h2.sh tests/test-zeta.sh; do
   printf '#!/usr/bin/env bash\nprintf "%%s\\n" "$0" >> "%s"\n' "$RAN" > "$TREE/$s"
 done
+# One stub also records the shellcheck marker the recipe hands every suite.
+MARKER="$TMP/marker.log"
+printf 'printf "%%s\\n" "${SUPERPOWERS_SHELLCHECK_DONE:-unset}" > "%s"\n' "$MARKER" >> "$TREE/tests/test-alpha.sh"
 # Decoys the find must not pick up: depth 3, and a non-test-*.sh name.
 mkdir -p "$TREE/tests/hooks/deep"
 printf '#!/usr/bin/env bash\nexit 1\n' > "$TREE/tests/hooks/deep/test-too-deep.sh"
@@ -135,6 +138,7 @@ judge "no SHARD: header carries no shard suffix" no "$(has "$out" "(shard")"
 judge "no SHARD: every suite ran once, in sorted order" "$STUB_FULL" "$(cat "$RAN")"
 judge "no SHARD: one '==>' line per suite" 7 "$(printf '%s\n' "$out" | grep -c '^==> ')"
 judge "no SHARD: the witness ran before and after every suite" 14 "$(grep -c call "$WITNESS")"
+judge "no SHARD: suites receive SUPERPOWERS_SHELLCHECK_DONE=1" 1 "$(cat "$MARKER")"
 
 for n in 1 2 3; do
   union=""
@@ -192,6 +196,35 @@ judge "make -n test-hooks calls scripts/ci/shard-suites.sh" yes "$(has "$(make -
 judge "make -n test-hooks no longer carries its own find" no "$(has "$(make -n test-hooks 2>&1)" "find tests")"
 judge "make -n validate parses" 0 "$(make -n validate >/dev/null 2>&1; echo $?)"
 judge "make help documents SHARD" yes "$(has "$(make help 2>&1)" "SHARD=i/n")"
+judge "make -n test-hooks hands suites SUPERPOWERS_SHELLCHECK_DONE=1" yes "$(has "$(make -n test-hooks 2>&1)" "SUPERPOWERS_SHELLCHECK_DONE=1 bash")"
+judge "make lint is still the gate's shellcheck pass" yes "$(has "$(make -n lint 2>&1)" "shellcheck -S warning")"
+judge "validate still depends on lint" yes "$(has "$(grep -E '^validate:' "$REPO_ROOT/Makefile")" " lint ")"
+
+# ---------------------------------------------------------------------------
+section "one shellcheck pass per gate (tests/test-static.sh under the marker)"
+
+# A fake shellcheck that logs every call and passes: test-static standalone must
+# reach it, test-static under the marker must not. The fake keeps each run to the
+# cost of the file walk rather than the real ~50 s pass.
+FAKEBIN="$TMP/bin"
+SC_LOG="$TMP/shellcheck.log"
+mkdir -p "$FAKEBIN"
+printf '#!/usr/bin/env bash\nprintf "%%s\\n" "$*" >> "%s"\nexit 0\n' "$SC_LOG" > "$FAKEBIN/shellcheck"
+chmod +x "$FAKEBIN/shellcheck"
+
+: > "$SC_LOG"
+out="$(env -u SUPERPOWERS_SHELLCHECK_DONE PATH="$FAKEBIN:$PATH" bash "$REPO_ROOT/tests/test-static.sh" 2>&1)"; rc=$?
+judge "standalone: test-static exits 0 with the fake shellcheck" 0 "$rc"
+judge "standalone: test-static runs shellcheck over the tree" yes "$([ "$(grep -c . "$SC_LOG")" -gt 10 ] && echo yes || echo no)"
+judge "standalone: test-static reports the shellcheck case as ok" yes "$(has "$out" "ok   every shipped .sh is shellcheck-clean")"
+judge "standalone: the fake was called with the lint flags" yes "$(has "$(head -n 1 "$SC_LOG")" "-S warning --exclude SC2034")"
+
+: > "$SC_LOG"
+out="$(SUPERPOWERS_SHELLCHECK_DONE=1 PATH="$FAKEBIN:$PATH" bash "$REPO_ROOT/tests/test-static.sh" 2>&1)"; rc=$?
+judge "under the marker: test-static exits 0" 0 "$rc"
+judge "under the marker: test-static never calls shellcheck" 0 "$(grep -c . "$SC_LOG")"
+judge "under the marker: test-static names the skip and its reason" yes "$(has "$out" "skip shellcheck — already run by make lint (SUPERPOWERS_SHELLCHECK_DONE=1)")"
+judge "under the marker: the other sections still run" yes "$(has "$out" "--- executable bits ---")"
 
 if harness_have shellcheck; then
   judge "shard-suites.sh is shellcheck-clean at -S warning" 0 "$(shellcheck -S warning --exclude SC2034 "$SHARD_SH" >/dev/null 2>&1; echo $?)"
