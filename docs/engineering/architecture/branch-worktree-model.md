@@ -10,13 +10,21 @@ engineering view of it.
 
 ## Branches
 
-```text
-main                          # or whatever objective.base_branch says
-└── objective/<slug>          # integration branch — exactly one per objective
-    ├── worker/<slug>/001     # one per task, numbered to match task-001.json
-    ├── worker/<slug>/002
-    └── worker/<slug>/003
+```mermaid
+%%{init: {"theme":"base","themeVariables":{"background":"#0b0e14","primaryColor":"#1f2937","primaryTextColor":"#ffffff","primaryBorderColor":"#94a3b8","secondaryColor":"#334155","secondaryTextColor":"#ffffff","tertiaryColor":"#111827","tertiaryTextColor":"#ffffff","lineColor":"#cbd5e1","textColor":"#ffffff","edgeLabelBackground":"#1f2937","clusterBkg":"#111827","clusterBorder":"#64748b"}}}%%
+flowchart TB
+  main["main"]
+  obj["objective/#lt;slug#gt;"]
+  w1["worker/#lt;slug#gt;/001"]
+  w2["worker/#lt;slug#gt;/002"]
+  w3["worker/#lt;slug#gt;/003"]
+  main --> obj
+  obj --> w1
+  obj --> w2
+  obj --> w3
 ```
+
+`main` stands for whatever `objective.base_branch` says.
 
 - `<slug>` is the objective `id` (`^[a-z0-9][a-z0-9-]*$`).
 - The worker suffix is the task's three-digit number, so `worker/auth/002` pairs

@@ -32,11 +32,23 @@ plus the branch graph. A project that wants durable, reviewable state may un-ign
 
 Required fields: `id`, `title`, `base_branch`, `integration_branch`, `status`, `tasks`.
 
-```text
-draft ──► active ──► integrating ──► reviewing ──► delivering ──► completed
-             │            │              │             │
-             └────────────┴──────────────┴─────────────┴──► blocked ──► active
-             └──────────────────────────────────────────────► abandoned
+```mermaid
+%%{init: {"theme":"base","themeVariables":{"background":"#0b0e14","primaryColor":"#1f2937","primaryTextColor":"#ffffff","primaryBorderColor":"#94a3b8","secondaryColor":"#334155","secondaryTextColor":"#ffffff","tertiaryColor":"#111827","tertiaryTextColor":"#ffffff","lineColor":"#cbd5e1","textColor":"#ffffff","edgeLabelBackground":"#1f2937","clusterBkg":"#111827","clusterBorder":"#64748b"}}}%%
+stateDiagram-v2
+  [*] --> draft
+  draft --> active
+  active --> integrating
+  integrating --> reviewing
+  reviewing --> delivering
+  delivering --> completed
+  active --> blocked
+  integrating --> blocked
+  reviewing --> blocked
+  delivering --> blocked
+  blocked --> active
+  active --> abandoned
+  completed --> [*]
+  abandoned --> [*]
 ```
 
 | State | Meaning | Owner |
@@ -59,12 +71,20 @@ applies.
 
 Required fields: `id`, `role`, `depends_on`, `scope`, `validation_tier`, `status`.
 
-```text
-pending ──► ready ──► running ──► completed
-   │                     │
-   │                     ├──► failed ──► ready        (one retry, --bump-attempts)
-   │                     └──► blocked ──► ready
-   └────────────────────────► cancelled
+```mermaid
+%%{init: {"theme":"base","themeVariables":{"background":"#0b0e14","primaryColor":"#1f2937","primaryTextColor":"#ffffff","primaryBorderColor":"#94a3b8","secondaryColor":"#334155","secondaryTextColor":"#ffffff","tertiaryColor":"#111827","tertiaryTextColor":"#ffffff","lineColor":"#cbd5e1","textColor":"#ffffff","edgeLabelBackground":"#1f2937","clusterBkg":"#111827","clusterBorder":"#64748b"}}}%%
+stateDiagram-v2
+  [*] --> pending
+  pending --> ready
+  ready --> running
+  running --> completed
+  running --> failed
+  failed --> ready : one retry, --bump-attempts
+  running --> blocked
+  blocked --> ready
+  pending --> cancelled
+  completed --> [*]
+  cancelled --> [*]
 ```
 
 - `pending` → `ready` when every task in `depends_on` is `completed`.

@@ -128,21 +128,31 @@ The hook writes nothing when `.dev-files/` does not exist: creating a workspace 
 
 ## 6. The cross-platform resume flow
 
-```text
-Claude Code session dies on a rate limit
-  │  StopFailure(rate_limit) → systemMessage to the user
-  │                          → .dev-files/handoffs/rate-limit-<ts>.json
-  ▼
-/switch-dev handoff objective=<id> [task-NNN] [target]      (any platform, any time)
-  │  writes handoffs/task-NNN.json (status partial unless the goal actually holds)
-  │  sets tasks/task-NNN.json status; pushes commits
-  │  optionally mirrors to the GitHub issue Resume block + agent:<target> label
-  ▼
-/switch-dev resume objective=<id>   or   /switch-dev resume #N          (the receiving platform)
-  │  reads objective.json, tasks/, the newest handoff; resolves the worktree for this platform
-  ▼
-worker-dev task-NNN   (continues from the handoff's summary/decisions/followups, never from memory)
+```mermaid
+%%{init: {"theme":"base","themeVariables":{"background":"#0b0e14","primaryColor":"#1f2937","primaryTextColor":"#ffffff","primaryBorderColor":"#94a3b8","secondaryColor":"#334155","secondaryTextColor":"#ffffff","tertiaryColor":"#111827","tertiaryTextColor":"#ffffff","lineColor":"#cbd5e1","textColor":"#ffffff","edgeLabelBackground":"#1f2937","clusterBkg":"#111827","clusterBorder":"#64748b"}}}%%
+flowchart TB
+  die["Claude Code session dies on a rate limit"]
+  hook["StopFailure rate_limit hook"]
+  msg["systemMessage to the user"]
+  rec[".dev-files/handoffs/rate-limit-#lt;ts#gt;.json"]
+  handoff["/switch-dev handoff<br/>objective=#lt;id#gt; task-NNN target"]
+  task["handoffs/task-NNN.json written<br/>task status set, commits pushed"]
+  mirror["issue Resume block<br/>+ agent:#lt;target#gt; label"]
+  resume["/switch-dev resume<br/>objective=#lt;id#gt; or issue number"]
+  read["read objective.json, tasks/, newest handoff<br/>resolve the worktree"]
+  worker["worker-dev task-NNN"]
+  die --> hook
+  hook --> msg
+  hook --> rec
+  rec --> handoff
+  handoff --> task
+  handoff -.-> mirror
+  task --> resume
+  mirror -.-> resume
+  resume --> read --> worker
 ```
+
+`/switch-dev handoff` runs on any platform, at any time; the task handoff it writes carries status `partial` unless the goal actually holds, and mirroring to the GitHub issue Resume block is optional. `/switch-dev resume` runs on the receiving platform, and `worker-dev` continues from the handoff's summary, decisions and followups, never from memory.
 
 `switch-dev` degrades per platform ([platform-capabilities.md](../../../skills/dev-workflow/switch-dev/references/platform-capabilities.md)): the files are the protocol on every platform; what differs is which conveniences exist around them.
 
