@@ -46,6 +46,9 @@ fake_gh_use_fixtures "$REPO_ROOT/tests/fixtures/github/compliant"
 | [`org-stricter`](org-stricter/README.md) | an org ruleset stricter than canonical | CONFLICT and leave alone — no flag overrides it |
 | [`org-drift`](org-drift/README.md) | canonical rulesets live at org level, one drifted | org-level idempotence, plus coverage narrowing |
 | [`fleet`](fleet/README.md) | three repos, three states | bulk iteration, per-repo isolation |
+| [`labels-missing`](labels-missing/README.md) | GitHub's nine defaults, a drifted `agent:any`, one hand-made extra | label create / update / extra-never-deleted-without-`--prune` |
+| [`labels-compliant`](labels-compliant/README.md) | the canonical label set already applied | label idempotence — zero mutations |
+| [`inventory-drift`](inventory-drift/README.md) | compliant rulesets + drifted labels, for the inventory | `standards-inventory.sh` consumes an audit that exits 3 (drift), stays unknown on a failed read |
 | [`_defaults`](_defaults/README.md) | shared fallbacks | write responses, auth, repo list |
 
 ## File naming
@@ -58,6 +61,8 @@ The shim maps an API path to a fixture basename:
 | `repos/{o}/{r}/rulesets` | `rulesets.json` |
 | `repos/{o}/{r}/rulesets/{id}` | `ruleset-{id}.json` |
 | `repos/{o}/{r}/branches/{b}/protection` | `protection.json` |
+| `repos/{o}/{r}/labels` | `labels.json` (a scenario that is written to also carries `POST-labels.json`, or the read fixture would answer the write) |
+| `repos/{o}/{r}/labels/{name}` | `label.json` — one name for every label, since only `PATCH`/`DELETE` reach it (`_defaults/PATCH-label.json`) |
 | `repos/{o}/{r}/actions/workflows` | `workflows.json` |
 | `orgs/{org}/rulesets` | `org-rulesets.json` |
 | `orgs/{org}/rulesets/{id}` | `org-ruleset-{id}.json` |

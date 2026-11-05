@@ -3,9 +3,12 @@ alwaysApply: false
 globs:
   - "config/github/**/*"
   - "core/schemas/repository-policy.json"
+  - "core/schemas/github-labels.json"
   - "scripts/github-policy.sh"
+  - "scripts/github-labels.sh"
   - "scripts/lib/github-common.sh"
   - "scripts/check-github-policy.sh"
+  - "scripts/check-github-labels.sh"
   - ".github/workflows/**/*"
   - "skills/repo/**/*"
 ---
@@ -166,3 +169,16 @@ The library distinguishes and reports each failure mode separately — unauthent
 3. Run `bash scripts/check-github-policy.sh` (offline; no network, no `gh`).
 4. Run the policy entrypoint's `plan` verb to see live drift. `plan` never writes.
 5. Apply only after confirming the diff. Applying mutates live branch governance and can lock the author out of their own default branch.
+
+---
+
+## 10. Labels
+
+Labels are repository setup too, and they follow the same shape as the rulesets: **data, not prose**. The canonical set lives in [`config/github/labels.json`](../../config/github/labels.json), constrained by [`core/schemas/github-labels.json`](../../core/schemas/github-labels.json). No skill, script or doc — this one included — restates a label name, colour or description. Issue templates and `dependabot.yml` may *name* a label from the set; `scripts/check-github-labels.sh` (in `make validate`, offline) holds this repository's templates to it.
+
+Two things about the set are decisions rather than data, and belong here:
+
+- **The per-platform `agent:<platform>` labels are never listed.** They are rendered at apply time, one per key of [`core/capabilities/platforms.json`](../../core/capabilities/platforms.json), so adding a platform to the registry adds its label on the next apply. A hardcoded `agent:<platform>` in the label file is the platform list the registry exists to replace, and the checker rejects it. `agent:any` is the one fixed member, because it is the unclaimed state `switch-dev` relies on.
+- **Apply creates and updates; it never deletes unless `--prune` is typed.** A live label the set does not name may be one a person made on purpose, and deleting a label strips it from every issue that carried it with no history. `scripts/github-labels.sh apply` asks the resolver about `label.apply` (R2 — shared-additive) and, only with `--prune`, about `label.delete` (R3, never automatic). The scaffold never prunes.
+
+`scripts/github-labels.sh audit | plan | apply` reads and writes through the same `scripts/lib/github-common.sh` abstraction as the rulesets, with the same error classes and the same no-TTY behaviour (print the plan, write nothing, exit 0). `repo-scaffold` applies the set right after the rulesets; `repo-standards` scores it as S3-05 (skipped and unscored when the API could not be read, exactly like S4) and issue templates as S3-06.

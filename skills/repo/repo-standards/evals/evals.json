@@ -96,6 +96,18 @@
         "capabilities/capability_gaps in platform-targets.json are treated as derived — a mismatch is reported as drift to re-sync, never hand-edited",
         "No fix is proposed that assumes a capability the registry marks unsupported"
       ]
+    },
+    {
+      "id": 7,
+      "prompt": "/repo-standards review on a repository that has no .github/workflows, no issue templates, and whose default branch carries no ruleset, with gh authenticated",
+      "expected_output": "One report in which the offline rows and the online rows both appear: S3-01 (no CI workflow, P1) and S3-06 (no issue templates) from the filesystem sweep, S3-05 (canonical labels missing, naming them) from github-labels.sh audit --json, and the S4 ruleset rows (S4-07 safety ruleset absent, S4-08 PR/CI ruleset absent, S4-12 force pushes not blocked, S4-13 deletion not blocked) from the rulesets read. Adding the label rows did not displace the CI or ruleset rows.",
+      "files": [],
+      "expectations": [
+        "S3-01 is reported as P1 and S3-06 as P2 alongside S3-05 — the new S3 rows never crowd out the CI row",
+        "S4-07, S4-08, S4-12 and S4-13 are reported from the rulesets read, not inferred from the missing CI",
+        "S3-05 names the missing labels and points at `bash scripts/github-labels.sh apply --repo <owner/name>`; the label set itself is cited as config/github/labels.json, never listed in the report",
+        "No label, ruleset or required-context value is copied out of config/github/ into the report"
+      ]
     }
   ]
 }

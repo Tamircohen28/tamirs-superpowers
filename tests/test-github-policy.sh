@@ -411,6 +411,10 @@ section "6 — a repository with no rulesets at all"
 # ---------------------------------------------------------------------------
 scenario no-rulesets "Tamircohen28/example-repo"
 run_policy plan --repo Tamircohen28/example-repo --json
+# The exit code is decided before either renderer runs: --json must exit the
+# same code as the human report, or a caller parsing the document cannot tell
+# "compliant" from "drifted" without re-deriving it.
+judge "6: drift exits 3 under --json, as the human plan does" "3" "$RC"
 judge "6: both rulesets are absent and planned" "2"          "$(jout '.summary.changes')"
 judge "6: nothing is reported as up to date" "0"             "$(jout '.summary.up_to_date')"
 judge "6: [] is a state, not a failure" "0"                  "$(jout '.summary.failed')"
@@ -490,6 +494,7 @@ section "10 — missing GitHub permissions (403)"
 # ---------------------------------------------------------------------------
 scenario no-permission "Tamircohen28/example-repo"
 run_policy audit --repo Tamircohen28/example-repo --json
+judge "10: a failed read exits 3 under --json, as the human audit does" "3" "$RC"
 judge "10: the repository is reported as failed" "failed"    "$(jout '.repositories[0].bucket')"
 judge "10: exactly one failure" "1"                          "$(jout '.summary.failed')"
 judge "10: the 403 is classified as a scope problem" "yes" \

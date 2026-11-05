@@ -1,0 +1,20 @@
+# pty-answer.exp — run a command on a pty and answer every y/N-shaped prompt.
+#
+#   expect -f tests/lib/pty-answer.exp <answer> <command> [args...]
+#
+# Prints the session (so a test can grep it), writes EXPECT_SAW_PROMPT on its
+# own line each time a prompt was answered, and exits with the child's status
+# (99 on a silent 30-second wait). Used by tests/test-setup-prompt-pty.sh;
+# kept out of that .sh file because the static suite reads `timeout <n>` in a
+# shell file as a call to GNU timeout(1).
+set timeout 30
+set answer [lindex $argv 0]
+spawn {*}[lrange $argv 1 end]
+expect {
+  -re {\[y/N/a/q\] $}  { puts "\nEXPECT_SAW_PROMPT"; send "$answer\r"; exp_continue }
+  -re {\[y/N\] $}      { puts "\nEXPECT_SAW_PROMPT"; send "$answer\r"; exp_continue }
+  timeout              { puts "\nEXPECT_TIMEOUT"; exit 99 }
+  eof
+}
+catch wait result
+exit [lindex $result 3]

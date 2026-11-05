@@ -341,7 +341,7 @@ judge "s asks for more context"                show      "$(decide 's')"
 judge "the prompt capitalises N" yes \
   "$(if grep -qF '[y/N/a/q/s]' "$MIRROR/scripts/capture-config.sh"; then echo yes; else echo no; fi)"
 judge "the prompt's default argument is n" yes \
-  "$(if grep -qF "setup_ask 'Adopt into the repo? [y/N/a/q/s] ' n" "$MIRROR/scripts/capture-config.sh"; then echo yes; else echo no; fi)"
+  "$(if grep -qF "setup_ask_into ans 'Adopt into the repo? [y/N/a/q/s] ' n" "$MIRROR/scripts/capture-config.sh"; then echo yes; else echo no; fi)"
 judge "the prompt reads /dev/tty, never stdin" "" \
   "$(grep -n 'read .*<&0\|read -r [a-z]*$' "$MIRROR/scripts/capture-config.sh" | head -1)"
 

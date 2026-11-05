@@ -757,3 +757,55 @@ github_render_payload_file() {
   local out; out="$(github_policy_render_ruleset "$1" "$2" "$3")" || return 1
   printf '%s\n' "$out" >"$4"
 }
+
+# ---------------------------------------------------------------------------
+# Labels — read and written by scripts/github-labels.sh through here, so the
+# label set gets the same error classes and the same subshell-safe state as
+# branch governance. Nothing below decides what a label SHOULD be: the desired
+# set is rendered by the entrypoint from config/github/labels.json plus the
+# capability registry.
+# ---------------------------------------------------------------------------
+
+# github_list_labels <owner/repo> — JSON array of every label on the repository,
+# every page. Paginated by hand for the reason list_repos_paged gives in
+# github-policy.sh: github_api runs with --include, and --paginate would emit
+# one header block per page while the splitter keeps only the last.
+github_list_labels() {
+  local repo="$1" page=1 out n all='[]'
+  while :; do
+    out="$(github_api_json GET "repos/$repo/labels?per_page=100&page=$page" 'type == "array"')" || return 1
+    n="$(printf '%s' "$out" | jq 'length')"
+    all="$(jq -n --argjson a "$all" --argjson b "$out" '$a + $b')"
+    [ "${n:-0}" -lt 100 ] && break
+    page=$((page + 1))
+    [ "$page" -gt 20 ] && { github_warn "stopping label listing at 2000 labels"; break; }
+  done
+  github_ok
+  printf '%s' "$all"
+}
+
+# github_label_path_name <name> — a label name as a URL path segment. Names
+# carry spaces ("good first issue") and colons ("agent:any"); the REST path
+# wants them percent-encoded, and jq's @uri encodes every reserved character.
+github_label_path_name() { jq -rn --arg s "$1" '$s | @uri'; }
+
+# Writes — each one mutates the live label set. The entrypoint confirms first.
+
+# github_create_label <owner/repo> <payload-file>   payload: {name, color, description}
+github_create_label() {
+  github_api_json POST "repos/$1/labels" 'has("name")' --input "$2"
+}
+
+# github_update_label <owner/repo> <live-name> <payload-file>
+# payload: {new_name?, color, description}. The path names the label as it is
+# live; a rename (including a case change) goes in the body as new_name.
+github_update_label() {
+  local enc; enc="$(github_label_path_name "$2")"
+  github_api_json PATCH "repos/$1/labels/$enc" 'has("name")' --input "$3"
+}
+
+# github_delete_label <owner/repo> <live-name>
+github_delete_label() {
+  local enc; enc="$(github_label_path_name "$2")"
+  github_api DELETE "repos/$1/labels/$enc" >/dev/null
+}

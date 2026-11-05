@@ -10,7 +10,7 @@
 	check-capability-registry validate-roles check-gemini-adapter gemini-extension \
 	check-action-pinning check-manifest-declares \
 	gemini-extension-check bootstrap-dev github-policy github-policy-plan \
-	check-github-policy
+	check-github-policy github-labels github-labels-plan check-github-labels
 
 SKILLS_DIR := skills
 HOOKS_DIR  := hooks
@@ -24,6 +24,9 @@ help:
 	@echo "  github-policy-plan      — show what the GitHub repository policy would change; writes nothing"
 	@echo "  github-policy           — apply the GitHub repository policy (diff + confirm per repository)"
 	@echo "  check-github-policy     — validate the canonical policy document (offline)"
+	@echo "  github-labels-plan      — show which canonical labels this repo is missing or has drifted; writes nothing"
+	@echo "  github-labels           — apply the canonical label set (create + update, confirm; never deletes without --prune)"
+	@echo "  check-github-labels     — validate the canonical label set and the repo's label consumers (offline)"
 	@echo "  install                 — bootstrap ~/.claude/settings.json and specialist agents"
 	@echo "  update                  — refresh plugin + agents"
 	@echo "  uninstall               — remove installed agents and uninstall plugin when possible"
@@ -109,6 +112,21 @@ check-github-policy:
 	@echo "--- GitHub repository policy (offline) ---"
 	@bash scripts/check-github-policy.sh .
 
+# Labels: same shape as the policy targets. `apply` creates and updates and
+# confirms per repository; it never deletes from make (pass --prune to the
+# script yourself). Exit 3 is "drift found", a report, not a broken build.
+github-labels-plan:
+	@bash scripts/github-labels.sh plan || [ $$? -eq 3 ]
+
+github-labels:
+	@bash scripts/github-labels.sh apply || [ $$? -eq 3 ]
+
+# Offline: the label set's own invariants plus the repo's label consumers
+# (dependabot.yml, issue templates). No network, no gh, no credential.
+check-github-labels:
+	@echo "--- GitHub label set (offline) ---"
+	@bash scripts/check-github-labels.sh .
+
 install:
 	@bash scripts/install.sh
 
@@ -159,7 +177,7 @@ test-contract:
 
 validate: lint test-hooks test-contract test-repo-contract check-manifest-versions check-platform-equivalence \
 	check-marketplace-schema check-doc-claims check-doc-standards check-version-truth check-capability-registry \
-	validate-roles check-gemini-adapter gemini-extension-check check-github-policy check-branch-literals \
+	validate-roles check-gemini-adapter gemini-extension-check check-github-policy check-github-labels check-branch-literals \
 	check-action-pinning check-manifest-declares check-platform-version-pins check-claude-dist check-dists \
 	manifests-check codex-hooks-check cursor-rules-check codex-agents-check opencode-plugin-test \
 	gemini-hooks-check antigravity-plugin-check agents-skills-check check-skills-ref test-skill-contract-strict

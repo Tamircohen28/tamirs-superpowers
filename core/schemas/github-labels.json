@@ -1,0 +1,91 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/Tamircohen28/tamirs-superpowers/core/schemas/github-labels.json",
+  "title": "GitHub label set",
+  "description": "Machine-readable statement of the labels every repository this account owns must carry. config/github/labels.json is the only place the set is written down; scripts/github-labels.sh renders it (plus one agent:<platform> label per platform in the capability registry) and diffs it against the live API, and scripts/check-github-labels.sh holds the file to this schema offline. Every object closes with additionalProperties:false so a misspelled key is an error, not an ignored field.",
+  "type": "object",
+  "required": ["schema_version", "version", "agent_labels", "labels"],
+  "additionalProperties": false,
+  "properties": {
+    "$schema": { "type": "string" },
+    "_comment": { "$ref": "#/$defs/comment" },
+    "schema_version": { "type": "integer", "const": 1 },
+    "version": {
+      "$ref": "#/$defs/semver",
+      "description": "Content version of the label set. Bumped on every change, per the _contract canonical-config pattern."
+    },
+    "last_reviewed": { "$ref": "#/$defs/date" },
+
+    "agent_labels": {
+      "type": "object",
+      "description": "How the per-platform agent:<platform> labels are rendered. The platform list is never written here: it is read from the capability registry at apply time, so a platform added to the registry gets its label on the next apply without a change to the label set.",
+      "required": ["prefix", "registry", "color", "description_template"],
+      "additionalProperties": false,
+      "properties": {
+        "_comment": { "$ref": "#/$defs/comment" },
+        "prefix": {
+          "type": "string",
+          "const": "agent:",
+          "description": "Pinned: switch-dev, update-issue-resume.sh and the agent_task issue template all match labels on this prefix."
+        },
+        "registry": {
+          "type": "string",
+          "const": "core/capabilities/platforms.json",
+          "description": "Repo-relative path of the capability registry whose platforms keys become label suffixes."
+        },
+        "color": { "$ref": "#/$defs/color" },
+        "description_template": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100,
+          "pattern": "\\{display_name\\}",
+          "description": "Rendered once per platform with {display_name} replaced by the registry's display_name."
+        }
+      }
+    },
+
+    "labels": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": { "$ref": "#/$defs/label" }
+    }
+  },
+
+  "$defs": {
+    "comment": { "type": "string", "minLength": 1 },
+    "semver": { "type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$" },
+    "date": { "type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$" },
+    "color": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{6}$",
+      "description": "Six lowercase hex digits, no leading #, exactly as the REST API returns it. Lowercase so the file and the live value compare byte for byte."
+    },
+    "label": {
+      "type": "object",
+      "required": ["name", "color", "description", "origin"],
+      "additionalProperties": false,
+      "properties": {
+        "_comment": { "$ref": "#/$defs/comment" },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 50,
+          "pattern": "^\\S(.*\\S)?$",
+          "description": "GitHub's limit is 50 characters; names are unique per repository case-insensitively."
+        },
+        "color": { "$ref": "#/$defs/color" },
+        "description": {
+          "type": "string",
+          "maxLength": 100,
+          "description": "GitHub truncates at 100 characters; the comparison would never converge on a longer value."
+        },
+        "origin": {
+          "type": "string",
+          "enum": ["github-default", "tamirs"],
+          "description": "github-default: one of the nine labels GitHub creates on a new repository, listed so a repository that lost it is repaired. tamirs: added by this account and owed a _comment naming who depends on it (checked by scripts/check-github-labels.sh)."
+        }
+      }
+    }
+  }
+}

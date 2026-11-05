@@ -813,6 +813,21 @@
       "sources": ["ADR#D1", "A1#C"]
     },
     {
+      "id": "label.apply",
+      "r": 2,
+      "tags": [],
+      "aliases": [],
+      "never_auto": false,
+      "unattended_precondition": null,
+      "l2": ["PG"],
+      "target": "repo",
+      "equivalents": {
+        "argv": [{ "script": "github-labels.sh", "any": ["apply"] }]
+      },
+      "sources": ["ADR#D1"],
+      "note": "scripts/github-labels.sh apply: create and update the canonical label set on a repository (label.create + label.edit in one run, so one ask covers the sweep). Deleting a label it does not name is label.delete, asked separately and only with --prune."
+    },
+    {
       "id": "copilot.assign",
       "r": 2,
       "tags": [],
@@ -1038,6 +1053,26 @@
       },
       "sources": ["ADR#D1", "A1#D-10", "SR#S-07"],
       "note": "GraphQL updatePullRequest can set state, so it maps here (context may raise, never lower)."
+    },
+    {
+      "id": "label.delete",
+      "r": 3,
+      "tags": [],
+      "aliases": [],
+      "never_auto": true,
+      "unattended_precondition": null,
+      "l2": ["PG"],
+      "target": "repo",
+      "equivalents": {
+        "argv": [
+          { "cmd": ["gh", "label", "delete"] },
+          { "script": "github-labels.sh", "all": ["apply", "--prune"] }
+        ],
+        "rest": [{ "method": "DELETE", "path": "repos/{owner}/{repo}/labels/{name}" }],
+        "graphql": ["deleteLabel"]
+      },
+      "sources": ["ADR#D1"],
+      "note": "Deleting a label strips it from every issue and PR that carried it, and GitHub keeps no history of which ones. github-labels.sh reaches it only with --prune typed."
     },
     {
       "id": "issue.close",

@@ -1,0 +1,191 @@
+[
+  {
+    "id": 7100000000,
+    "node_id": "LA_C0",
+    "url": "https://api.github.com/repos/Tamircohen28/example-repo/labels/bug",
+    "name": "bug",
+    "color": "d73a4a",
+    "default": true,
+    "description": "Something isn't working"
+  },
+  {
+    "id": 7100000001,
+    "node_id": "LA_C1",
+    "url": "https://api.github.com/repos/Tamircohen28/example-repo/labels/documentation",
+    "name": "documentation",
+    "color": "0075ca",
+    "default": true,
+    "description": "Improvements or additions to documentation"
+  },
+  {
+    "id": 7100000002,
+    "node_id": "LA_C2",
+    "url": "https://api.github.com/repos/Tamircohen28/example-repo/labels/duplicate",
+    "name": "duplicate",
+    "color": "cfd3d7",
+    "default": true,
+    "description": "This issue or pull request already exists"
+  },
+  {
+    "id": 7100000003,
+    "node_id": "LA_C3",
+    "url": "https://api.github.com/repos/Tamircohen28/example-repo/labels/enhancement",
+    "name": "enhancement",
+    "color": "a2eeef",
+    "default": true,
+    "description": "New feature or request"
+  },
+  {
+    "id": 7100000004,
+    "node_id": "LA_C4",
+    "url": "https://api.github.com/repos/Tamircohen28/example-repo/labels/good%20first%20issue",
+    "name": "good first issue",
+    "color": "7057ff",
+    "default": true,
+    "description": "Good for newcomers"
+  },
+  {
+    "id": 7100000005,
+    "node_id": "LA_C5",
+    "url": "https://api.github.com/repos/Tamircohen28/example-repo/labels/help%20wanted",
+    "name": "help wanted",
+    "color": "008672",
+    "default": true,
+    "description": "Extra attention is needed"
+  },
+  {
+    "id": 7100000006,
+    "node_id": "LA_C6",
+    "url": "https://api.github.com/repos/Tamircohen28/example-repo/labels/invalid",
+    "name": "invalid",
+    "color": "e4e669",
+    "default": true,
+    "description": "This doesn't seem right"
+  },
+  {
+    "id": 7100000007,
+    "node_id": "LA_C7",
+    "url": "https://api.github.com/repos/Tamircohen28/example-repo/labels/question",
+    "name": "question",
+    "color": "d876e3",
+    "default": true,
+    "description": "Further information is requested"
+  },
+  {
+    "id": 7100000008,
+    "node_id": "LA_C8",
+    "url": "https://api.github.com/repos/Tamircohen28/example-repo/labels/wontfix",
+    "name": "wontfix",
+    "color": "ffffff",
+    "default": true,
+    "description": "This will not be worked on"
+  },
+  {
+    "id": 7100000009,
+    "node_id": "LA_C9",
+    "url": "https://api.github.com/repos/Tamircohen28/example-repo/labels/chore",
+    "name": "chore",
+    "color": "fef2c0",
+    "default": false,
+    "description": "Maintenance, tooling or dependency work with no user-facing change"
+  },
+  {
+    "id": 7100000010,
+    "node_id": "LA_C10",
+    "url": "https://api.github.com/repos/Tamircohen28/example-repo/labels/dependencies",
+    "name": "dependencies",
+    "color": "0366d6",
+    "default": false,
+    "description": "Pull requests that update a dependency file"
+  },
+  {
+    "id": 7100000011,
+    "node_id": "LA_C11",
+    "url": "https://api.github.com/repos/Tamircohen28/example-repo/labels/ci",
+    "name": "ci",
+    "color": "f9d0c4",
+    "default": false,
+    "description": "Continuous integration, workflows and release automation"
+  },
+  {
+    "id": 7100000012,
+    "node_id": "LA_C12",
+    "url": "https://api.github.com/repos/Tamircohen28/example-repo/labels/security",
+    "name": "security",
+    "color": "b60205",
+    "default": false,
+    "description": "Vulnerability, secret exposure or permission change"
+  },
+  {
+    "id": 7100000013,
+    "node_id": "LA_C13",
+    "url": "https://api.github.com/repos/Tamircohen28/example-repo/labels/release",
+    "name": "release",
+    "color": "0e8a16",
+    "default": false,
+    "description": "Version bump, changelog entry or release tag"
+  },
+  {
+    "id": 7100000014,
+    "node_id": "LA_C14",
+    "url": "https://api.github.com/repos/Tamircohen28/example-repo/labels/blocked",
+    "name": "blocked",
+    "color": "d93f0b",
+    "default": false,
+    "description": "Cannot proceed until a named dependency is resolved"
+  },
+  {
+    "id": 7100000015,
+    "node_id": "LA_C15",
+    "url": "https://api.github.com/repos/Tamircohen28/example-repo/labels/agent%3Aany",
+    "name": "agent:any",
+    "color": "bfd4f2",
+    "default": false,
+    "description": "Unclaimed — any agent/platform may pick this up (switch-dev)"
+  },
+  {
+    "id": 7100000016,
+    "node_id": "LA_C16",
+    "url": "https://api.github.com/repos/Tamircohen28/example-repo/labels/agent%3Aclaude",
+    "name": "agent:claude",
+    "color": "c5def5",
+    "default": false,
+    "description": "Claimed by Claude — resume with switch-dev"
+  },
+  {
+    "id": 7100000017,
+    "node_id": "LA_C17",
+    "url": "https://api.github.com/repos/Tamircohen28/example-repo/labels/agent%3Acodex",
+    "name": "agent:codex",
+    "color": "c5def5",
+    "default": false,
+    "description": "Claimed by Codex — resume with switch-dev"
+  },
+  {
+    "id": 7100000018,
+    "node_id": "LA_C18",
+    "url": "https://api.github.com/repos/Tamircohen28/example-repo/labels/agent%3Acursor",
+    "name": "agent:cursor",
+    "color": "c5def5",
+    "default": false,
+    "description": "Claimed by Cursor — resume with switch-dev"
+  },
+  {
+    "id": 7100000019,
+    "node_id": "LA_C19",
+    "url": "https://api.github.com/repos/Tamircohen28/example-repo/labels/agent%3Agemini",
+    "name": "agent:gemini",
+    "color": "c5def5",
+    "default": false,
+    "description": "Claimed by Gemini — resume with switch-dev"
+  },
+  {
+    "id": 7100000020,
+    "node_id": "LA_C20",
+    "url": "https://api.github.com/repos/Tamircohen28/example-repo/labels/agent%3Aopencode",
+    "name": "agent:opencode",
+    "color": "c5def5",
+    "default": false,
+    "description": "Claimed by OpenCode — resume with switch-dev"
+  }
+]
