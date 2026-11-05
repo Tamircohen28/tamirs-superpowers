@@ -61,7 +61,7 @@ help:
 	@echo "  check-manifest-versions — plugin manifests agree with each other"
 	@echo "  check-marketplace-schema — extraKnownMarketplaces is a record, not an array"
 	@echo "  check-doc-claims        — skill counts and target coverage match reality"
-	@echo "  check-doc-standards     — every human-facing doc ends with the canonical footer and every Mermaid block opens with the canonical init line (scripts/check-doc-standards.sh --fix repairs)"
+	@echo "  check-doc-standards     — every human-facing doc ends with the canonical footer and every Mermaid block opens with the canonical init line and no diagram is drawn with box characters (scripts/check-doc-standards.sh --fix repairs footers and init lines; --strict is what validate runs)"
 	@echo "  check-branch-literals   — no hardcoded main/master in branch position"
 	@echo "  check-action-pinning    — every workflow action pinned to a commit SHA"
 	@echo "  check-manifest-declares — manifest keys named by a capability row exist and resolve"
@@ -197,7 +197,7 @@ check-doc-claims:
 # last box diagram under docs/ is redrawn as Mermaid (#368).
 check-doc-standards:
 	@echo "--- Documentation standards: canonical footer + themed Mermaid (rules/dev/documentation-standards.md) ---"
-	@bash scripts/check-doc-standards.sh .
+	@bash scripts/check-doc-standards.sh --strict .
 
 check-branch-literals:
 	@echo "--- Hardcoded default-branch names ---"

@@ -59,7 +59,7 @@ make check-doc-standards                       # the validate target
 | `mermaid-style` | `classDef` / `class` / `style` / `fill:` inside a block | reported |
 | `box-drawing` | `--strict` only: U+2500–U+257F outside a ```` ```text ```` fence | reported |
 
-`--strict` stays out of `make validate` until the last box diagram in `docs/` is redrawn (issue #368); promote it in the Makefile target the moment that lands.
+`make validate` runs `--strict`: the last box diagrams in `docs/` were redrawn as Mermaid in #371, so a box-drawing line outside a ```` ```text ```` fence is now a gate failure, not a warning.
 
 ## Skills that write docs or diagrams
 

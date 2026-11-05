@@ -72,7 +72,7 @@ See [`platform-equivalence.md`](../agent-guidelines/platform-equivalence.md) for
 
 ## Directory layout (after scaffold)
 
-```
+```text
 my-agent-kit/
 ├── agent-kit.config.json          # paths + plugin name
 ├── canonical/
@@ -191,7 +191,7 @@ v1 scaffolds a stub `agent:update` script. Full `sync-to-repo.mjs` / `npx @org/a
 
 **Intended target layout** (after install ships):
 
-```
+```text
 target-app/
 ├── AGENTS.md              # from dist/codex/
 ├── CLAUDE.md              # thin wrapper
