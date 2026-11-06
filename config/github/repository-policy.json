@@ -1,7 +1,7 @@
 {
   "$schema": "../../core/schemas/repository-policy.json",
   "schema_version": 1,
-  "version": "1.4.0",
+  "version": "1.5.0",
   "last_reviewed": "2026-11-06",
   "_comment": "Canonical GitHub repository policy for the repos this account governs. Derived from the two rulesets live on Tamircohen28/tamirs-superpowers (captured 2026-08-19), not from prose — see session-files/ground-truth-rulesets.md. This file is the single source of truth: no SKILL.md, script, or doc may restate a rule, a context list, or a concurrency group found here. Change workflow: edit -> bump `version` -> `bash scripts/check-github-policy.sh` (offline) -> `scripts/github-policy.sh plan` to see live drift.",
 
@@ -118,6 +118,21 @@
           "Build & Self-test",
           "Agent instruction drift",
           "Secret scan"
+        ]
+      }
+    },
+    "Tamircohen28/UltrasGreenPlus": {
+      "_comment": "Recorded from the live PR & CI ruleset on 2026-11-06, after the Python 3.11-3.15 matrix (UltrasGreenPlus #61) replaced Python 3.10 with 3.13, 3.14 and 3.15. In the order GitHub stores them.",
+      "required_checks": {
+        "contexts": [
+          "Python 3.11",
+          "Python 3.12",
+          "Python 3.13",
+          "Python 3.14",
+          "Python 3.15",
+          "Chrome extension",
+          "Hygiene: secrets, version, drift",
+          "Brand assets reproducible"
         ]
       }
     },
