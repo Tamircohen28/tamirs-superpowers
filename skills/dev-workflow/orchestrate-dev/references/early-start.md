@@ -88,3 +88,21 @@ Wait for the merge only when a collision rule above cannot hold. When you do:
 - record which rule failed on the task (`task-set --notes 'waiting: overlapping paths with <predecessor> in <file>'`);
 - say so in the report, in one line, with the rule named;
 - do not wait "to be safe". A wait with no named rule is a defect in the plan, not caution: either the scopes are disjoint and the work should have started, or they overlap and the task graph should say so.
+
+## Overlap review and integration with the last worker
+
+Do not hold review, integration or delivery behind the slowest task:
+
+- As soon as the first tasks hand off, merge them onto the integration branch and push it as a
+  **draft PR** so CI starts measuring the combined change; start the reviewer on that committed code.
+  Fold the remaining tasks in as they land.
+- **Simulate every merge before CI does.** Before opening or updating a PR, and after each sibling PR
+  merges, run `git merge-tree --write-tree origin/<default> HEAD` (conflicts) and the repo's cheap
+  contract gate (`make test-repo-contract` here) on the merge result. It takes a minute; a CI round
+  takes ten.
+- **Order PRs that add rules before PRs that add fixtures.** A rule that applies to every fixture (a
+  docs footer, an issue-template requirement) fails a fixture that landed beside it on another branch.
+
+Why: on 2026-11-06 a new gold fixture merged beside two branches that added rules for every fixture;
+each rule then failed it after merge, costing three rebases and two extra CI rounds.
+

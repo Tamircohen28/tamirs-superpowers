@@ -55,7 +55,9 @@ The findings above are as reviewed at `924a737`. Since then the lead has acted o
   deterministic tie-break between tied action ids". F5's fix covers the nondeterminism task-002
   found, through a deterministic `JOBS` tie-break. This review did not re-test `e4cfb3e`.
 - **F4 went to task-002.** After F5's fix, the agreement check can return to bytes.
-- **F6, F7 and F8 are open** as P3 followups.
+- **F6, F7 and F8 are resolved** (#384): F6 — every read of the engine's answer has a deadline; F7 — the
+  agreement sample is stratified by client family and covers Cursor and OpenCode payloads; F8 — recorded in
+  `hooks/permission-guard.sh`'s header as known behaviour.
 
 ## Q1 — no verdict widening
 

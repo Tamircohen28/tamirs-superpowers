@@ -117,8 +117,37 @@ n = len(lines_in)
 if sample == "all":
     picked = list(range(n))
 else:
+    # Stratified (#384 F7): the corpus is ~90% one client family, so a plain random sample could miss
+    # a whole family. Rows are grouped by the command's first word (curl, gh, wget, http, xh, ...), each
+    # group shuffled with the seed, and the groups drained round-robin. The key reads only the command,
+    # so the same rows are picked from every host's file of one corpus.
     k = min(int(sample), n)
-    picked = sorted(random.Random(int(seed)).sample(range(n), k))
+    rng = random.Random(int(seed))
+
+    def stratum(line):
+        try:
+            o = json.loads(line)
+        except ValueError:
+            return ""
+        if not isinstance(o, dict):
+            return ""
+        cmd = o.get("cmd") or (o.get("tool_input") or {}).get("command") or o.get("command") or ""
+        first = str(cmd).strip().split(None, 1)
+        return os.path.basename(first[0]) if first else ""
+
+    groups = {}
+    for i, line in enumerate(lines_in):
+        groups.setdefault(stratum(line), []).append(i)
+    order = sorted(groups)
+    for key in order:
+        rng.shuffle(groups[key])
+    rng.shuffle(order)
+    picked = []
+    while len(picked) < k:
+        for key in order:
+            if groups[key] and len(picked) < k:
+                picked.append(groups[key].pop())
+    picked.sort()
 
 
 def short_payload(o, host, cwd):

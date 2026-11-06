@@ -253,6 +253,24 @@ run "$d"; rc=$RC
 judge "Codex: an absolute local path -> exit 1" 1 "$rc"
 
 # ===========================================================================
+section "empty sources name no plugin (#375)"
+# An empty string source skipped every local-source check (Codex) or resolved to
+# metadata.pluginRoot itself (Claude); both passed while naming no plugin.
+d="$(fresh codex-empty-string)"
+set_json "$d/.agents/plugins/marketplace.json" '.plugins[0].source = ""'
+run "$d"; rc=$RC
+judge "Codex: an empty string source -> exit 1" 1 "$rc"
+judge "  ... saying the source is empty" yes "$(has "$OUT" "source is an empty string")"
+d="$(fresh claude-empty-under-root)"
+set_json "$d/.claude-plugin/marketplace.json" '.metadata.pluginRoot = "./plugins" | .plugins[0].source = ""'
+run "$d"; rc=$RC
+judge "Claude: an empty source under metadata.pluginRoot -> exit 1" 1 "$rc"
+judge "  ... saying the source is empty" yes "$(has "$OUT" "source is empty")"
+d="$(fresh cursor-empty-string)"
+set_json "$d/.cursor-plugin/marketplace.json" '.plugins[0].source = ""'
+run "$d"; rc=$RC
+judge "Cursor: an empty string source -> exit 1 (already rejected; held)" 1 "$rc"
+
 section "cross-catalog agreement: the Claude list is canonical"
 # ===========================================================================
 d="$(fresh codex-extra)"

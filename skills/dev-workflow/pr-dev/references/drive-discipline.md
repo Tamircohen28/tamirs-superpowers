@@ -33,3 +33,18 @@ If an orchestrator (or any owner) needs something true before merge, it **posts 
 ## 4. Batch review threads
 
 Triage **all open threads at once** per round: list them, group by owning sub-agent (or task), send **one message per owner** with every thread for that owner, collect the fixes, then make **one push per round**. One push per thread restarts CI each time and cancels in-flight runs.
+
+## 5. Cap automated review at two rounds
+
+A **review round** is one pass of an automated reviewer (for example the Codex connector) over a
+pushed head: the PR opening, marking it ready, or an `@codex review` comment. Count rounds from the
+first push and print the count with every readiness summary (`review round 2 of 2`).
+
+- Rounds 1 and 2: fix every real finding, push once per round, request the next round.
+- After round 2: fix what blocks (a P1, a broken build, a wrong verdict), merge on green CI, and file
+  every remaining non-blocking finding as one tracked issue that names the PR. Do not request round 3.
+
+Why: on 2026-11-05/06 three PRs ran 5–6 rounds each at ~30 minutes of CI per round; the two-round
+advice existed and was applied only at round five. Each round past two found narrower cases of the same
+class, and every one of them fit in a follow-up issue.
+
