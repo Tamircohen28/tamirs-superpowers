@@ -1,7 +1,7 @@
 # tamirs-superpowers
 
-A portable agent toolkit for Claude: **30 skills**, 10 role-based specialist agents and an
-evidence-first output style, from one plugin.
+A portable agent toolkit for Claude: the plugin's skills, 10 role-based specialist agents and
+an evidence-first output style, from one plugin.
 
 This is the directory edition, built for Anthropic's plugin directory from the canonical
 repository. It ships the skills, agents and output style only: no hooks, no mod, no MCP server
