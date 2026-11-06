@@ -8,6 +8,8 @@ metadata:
   modified: 2026-10-24T11:35:52.273Z
 ---
 
+**Superseded 2026-11-06:** the directory now *refuses* versions with command hooks, a local MCP server, a settings command or a mod from unverified organizations; see [[project-directory-verified-org-refusal]]. The notes below describe the earlier policy holds.
+
 The plugin was submitted to Anthropic's plugin directory on 2026-10-05, tracking the `claude` tag
 (built by `scripts/build-claude-dist.sh`; release.yml is workflow_dispatch-only — cut it by hand).
 Portal "policy holds" mean a human reviewer reads that version; they are **not refusals**. Validation
