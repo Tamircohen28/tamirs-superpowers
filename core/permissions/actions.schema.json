@@ -48,6 +48,15 @@
       "additionalProperties": { "type": "array", "items": { "type": "string" }, "uniqueItems": true }
     },
     "matching": { "type": "object" },
+    "host_bypass": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["still_ask"],
+      "properties": {
+        "_comment": { "type": "string" },
+        "still_ask": { "type": "array", "items": { "type": "string" }, "uniqueItems": true }
+      }
+    },
     "unclassified": {
       "type": "object",
       "required": ["r", "rule", "mutation_markers", "mutation_marker_patterns"],
