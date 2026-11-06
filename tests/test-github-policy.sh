@@ -745,6 +745,25 @@ judge "ctx: strict stays false for the plugin repo too" "false" \
   "$(jq -r '.rules[] | select(.type == "required_status_checks") | .parameters.strict_required_status_checks_policy' "$TMP/render/pr_ci.json")"
 judge "ctx: iBrain's list does not leak into another repo" "no" \
   "$(has "$(cat "$TMP/render/pr_ci.json")" 'postgres-16-migrations')"
+# The repositories whose own required checks were adopted on 2026-11-06 (the
+# repository's checks win over an empty account default). Each renders exactly
+# its own list, in the stored order, and a repository with no entry still gets
+# no status-check rule at all.
+for ctx_repo in Aurora-DJ mac-server-setup repo-bug-learner st-claude tamirs-marketplace; do
+  render_for "Tamircohen28/$ctx_repo" "$TMP/render/ctx-$ctx_repo.json"
+  judge "ctx: $ctx_repo renders exactly its own contexts, in order" \
+    "$(jq -c '.repositories["Tamircohen28/'"$ctx_repo"'"].required_checks.contexts' "$POLICY")" \
+    "$(jq -c '[.rules[] | select(.type == "required_status_checks") | .parameters.required_status_checks[].context]' "$TMP/render/ctx-$ctx_repo.json")"
+  judge "ctx: $ctx_repo keeps strict off" "false" \
+    "$(jq -r '.rules[] | select(.type == "required_status_checks") | .parameters.strict_required_status_checks_policy' "$TMP/render/ctx-$ctx_repo.json")"
+done
+judge "ctx: Aurora-DJ records three contexts" "3" \
+  "$(jq -r '.repositories["Tamircohen28/Aurora-DJ"].required_checks.contexts | length' "$POLICY")"
+render_for "Tamircohen28/sc-grab" "$TMP/render/sc-grab.json"
+judge "ctx: a repository without an entry (sc-grab) still gets no status-check rule" "0" \
+  "$(jq -r '[.rules[] | select(.type == "required_status_checks")] | length' "$TMP/render/sc-grab.json")"
+judge "ctx: the adopted lists do not leak into another repo" "no" \
+  "$(has "$(cat "$TMP/render/sc-grab.json") $(cat "$TMP/render/pr_ci.json")" 'Validate marketplace.json')"
 
 scenario ctx-missing "$TARGET_REPO"
 run_policy plan --repo "$TARGET_REPO" --json

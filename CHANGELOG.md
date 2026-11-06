@@ -5,6 +5,12 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [5.6.8] — 2026-11-06
+
+### Fixed
+
+- **The repository policy keeps five repositories' own required checks instead of removing them.** `config/github/repository-policy.json` (policy 1.4.0) now records, under `repositories.<owner/repo>.required_checks.contexts`, the required checks already live on `Tamircohen28/Aurora-DJ` (Build & Self-test, Agent instruction drift, Secret scan), `mac-server-setup` (CI), `repo-bug-learner` (CI), `st-claude` (CI, ui-tests, secret-scan) and `tamirs-marketplace` (Validate marketplace.json, Validate skill frontmatter, Secret scan, Lint markdown), in the order GitHub stores them. Before, `scripts/github-policy.sh audit` reported a CONFLICT on each (applying would have removed those checks) and refused to apply. The user's decision of 2026-11-06: a repository's own required checks win. The lists are per repository only; the account default stays empty and strict stays off.
+
 ## [5.6.7] — 2026-11-06
 
 ### Changed

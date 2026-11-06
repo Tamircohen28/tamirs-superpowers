@@ -1,8 +1,8 @@
 {
   "$schema": "../../core/schemas/repository-policy.json",
   "schema_version": 1,
-  "version": "1.3.0",
-  "last_reviewed": "2026-08-19",
+  "version": "1.4.0",
+  "last_reviewed": "2026-11-06",
   "_comment": "Canonical GitHub repository policy for the repos this account governs. Derived from the two rulesets live on Tamircohen28/tamirs-superpowers (captured 2026-08-19), not from prose — see session-files/ground-truth-rulesets.md. This file is the single source of truth: no SKILL.md, script, or doc may restate a rule, a context list, or a concurrency group found here. Change workflow: edit -> bump `version` -> `bash scripts/check-github-policy.sh` (offline) -> `scripts/github-policy.sh plan` to see live drift.",
 
   "defaults": {
@@ -111,6 +111,53 @@
 
   "repositories": {
     "_comment": "Per-repository overrides, keyed by owner/repo. An absent repo inherits the defaults above with an empty required-context list — protected, but not gated on checks it does not have.",
+    "Tamircohen28/Aurora-DJ": {
+      "_comment": "Recorded from the live PR & CI ruleset on 2026-11-06, in the order GitHub stores them, so the policy keeps the checks the repository already requires instead of removing them. The user's decision: a repository's own required checks win.",
+      "required_checks": {
+        "contexts": [
+          "Build & Self-test",
+          "Agent instruction drift",
+          "Secret scan"
+        ]
+      }
+    },
+    "Tamircohen28/mac-server-setup": {
+      "_comment": "Recorded from the live PR & CI ruleset on 2026-11-06. `CI` is the repository's aggregate job.",
+      "required_checks": {
+        "contexts": [
+          "CI"
+        ]
+      }
+    },
+    "Tamircohen28/repo-bug-learner": {
+      "_comment": "Recorded from the live PR & CI ruleset on 2026-11-06. The repository's ADR 002 keeps `CI` as its single required check.",
+      "required_checks": {
+        "contexts": [
+          "CI"
+        ]
+      }
+    },
+    "Tamircohen28/st-claude": {
+      "_comment": "Recorded from the live PR & CI ruleset on 2026-11-06, in the order GitHub stores them.",
+      "required_checks": {
+        "contexts": [
+          "CI",
+          "ui-tests",
+          "secret-scan"
+        ]
+      }
+    },
+    "Tamircohen28/tamirs-marketplace": {
+      "_comment": "Recorded from the live PR & CI ruleset on 2026-11-06, in the order GitHub stores them.",
+      "required_checks": {
+        "contexts": [
+          "Validate marketplace.json",
+          "Validate skill frontmatter",
+          "Secret scan",
+          "Lint markdown"
+        ]
+      }
+    },
     "Tamircohen28/iBrain": {
       "_comment": "Required contexts are the CI job names of this repository's own workflows; they exist nowhere else, which is why they live here and not in the account default. Adding a CI job does NOT make it blocking: add its `name:` here and apply. Strict stays off (see required_checks). A context is the check DISPLAY name (the job's `name:` if set, else its id): `Manifest/tag version alignment` is the display name of job manifest-version-alignment; the bare job id would never report and would block every merge.",
       "required_checks": {
