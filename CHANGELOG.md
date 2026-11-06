@@ -5,6 +5,12 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [5.6.9] — 2026-11-06
+
+### Fixed
+
+- **The repository policy keeps UltrasGreenPlus's required checks.** `config/github/repository-policy.json` (policy 1.5.0) records the eight checks now live on `Tamircohen28/UltrasGreenPlus` (Python 3.11–3.15, Chrome extension, Hygiene: secrets, version, drift, Brand assets reproducible), so `scripts/github-policy.sh apply` keeps them instead of proposing their removal. Same rule as 5.6.8: a repository's own required checks win.
+
 ## [5.6.8] — 2026-11-06
 
 ### Fixed
