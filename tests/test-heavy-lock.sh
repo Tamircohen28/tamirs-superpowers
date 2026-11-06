@@ -29,6 +29,15 @@ section "stale lock, opt-out, bounded wait"
 rm -rf "$LOCK"; mkdir -p "$LOCK"; echo 999999 > "$LOCK/pid"; echo ghost > "$LOCK/name"
 out="$(HEAVY_LOCK_DIR="$T" bash -c "source '$LIB'; heavy_lock_take third; echo got" 2>&1)"
 judge "a lock whose pid is gone is taken over at once" yes "$(case "$out" in *"stale lock from ghost"*got*) echo yes;; *) echo no;; esac)"
+# #388 review: two waiters that see the same dead pid must not both take the lock.
+rm -rf "$LOCK"; mkdir -p "$LOCK"; echo 999998 > "$LOCK/pid"; echo ghost > "$LOCK/name"
+for w in a b c d; do
+  HEAVY_LOCK_DIR="$T" bash -c "source '$LIB'; heavy_lock_take race-$w; echo \"\$(python3 -c \"import time; print(repr(time.time()))\") start $w\" >> '$T/race.log'; sleep 2; echo \"\$(python3 -c \"import time; print(repr(time.time()))\") end $w\" >> '$T/race.log'" 2>/dev/null &
+done
+wait
+overlap="$(sort -g "$T/race.log" | awk '$2 == "start" { n++; if (n > 1) bad = 1 } $2 == "end" { n-- } END { print bad ? "overlap" : "serial" }')"
+judge "four waiters on one stale lock run one at a time" serial "$overlap"
+rm -rf "$LOCK" "$T/race.log"
 rm -rf "$LOCK"; mkdir -p "$LOCK"; echo $$ > "$LOCK/pid"; echo me > "$LOCK/name"
 out="$(HEAVY_LOCK=0 HEAVY_LOCK_DIR="$T" bash -c "source '$LIB'; heavy_lock_take fourth; echo got" 2>&1)"
 judge "HEAVY_LOCK=0 skips the lock" got "$out"

@@ -40,9 +40,21 @@ heavy_lock_take() {
     hpid="$(cat "$dir/pid" 2>/dev/null)"
     holder="$(cat "$dir/name" 2>/dev/null)"
     if [ -n "$hpid" ] && ! kill -0 "$hpid" 2>/dev/null; then
-      echo "heavy-lock: taking over a stale lock from $holder (pid $hpid is gone)" >&2
-      rm -rf "$dir"
-      continue
+      # Reclaim under a second exclusive directory: two waiters that both saw the same dead
+      # pid must not both remove the lock, or the second would delete the first's fresh one
+      # (#388 review). The reclaimer re-reads the pid inside, so a lock that changed hands in
+      # the meantime is left alone. A reclaim mutex older than a minute is itself stale.
+      if mkdir "$dir.reclaim" 2>/dev/null; then
+        if [ "$(cat "$dir/pid" 2>/dev/null)" = "$hpid" ]; then
+          echo "heavy-lock: taking over a stale lock from $holder (pid $hpid is gone)" >&2
+          rm -rf "$dir"
+        fi
+        rmdir "$dir.reclaim" 2>/dev/null
+        continue
+      elif [ -n "$(find "$dir.reclaim" -maxdepth 0 -mmin +1 2>/dev/null)" ]; then
+        rmdir "$dir.reclaim" 2>/dev/null
+        continue
+      fi
     fi
     if [ "$waited" -eq 0 ]; then
       echo "heavy-lock: $name waits for ${holder:-another heavy suite} (pid ${hpid:-?}) to finish; HEAVY_LOCK=0 skips the wait" >&2
