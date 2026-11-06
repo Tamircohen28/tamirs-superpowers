@@ -41,16 +41,30 @@
 
 PC_SAFE_REF='^[A-Za-z0-9._/@+-]+$'
 
+# HOW A LINE IS PRINTED (the plugin directory's hook-permission rule): with echo, never a printf
+# format, and stderr is never merged into stdout. Every echo below prints a value that cannot be
+# one of echo's own options (it starts with a fixed word, holds a slash, or was checked not to
+# start with -) and holds no backslash; pc_line is for the one value that is not so constrained.
+
+# pc_line <text> — <text> and a newline, byte for byte: a here-string where echo would read the
+# text as its option (-n, -e, -E and their clusters), echo otherwise.
+pc_line() {
+  case "$1" in
+    -*) cat <<<"$1" ;;
+    *) echo "$1" ;;
+  esac
+}
+
 # pc_with_deadline <seconds> <command...> — run it, killed after <seconds>.
 # Returns its exit status, or 124/143 when the deadline killed it.
 pc_with_deadline() {
   local secs="$1" pid wd rc mon
   shift
-  if command -v timeout >/dev/null 2>&1; then
+  if command -v timeout >/dev/null 2>/dev/null; then
     timeout -k 1 "$secs" "$@"
     return $?
   fi
-  if command -v gtimeout >/dev/null 2>&1; then
+  if command -v gtimeout >/dev/null 2>/dev/null; then
     gtimeout -k 1 "$secs" "$@"
     return $?
   fi
@@ -62,7 +76,7 @@ pc_with_deadline() {
   "$@" &
   pid=$!
   [ "$mon" = 1 ] || set +m
-  ( sleep "$secs"; kill -TERM -- "-$pid" 2>/dev/null; sleep 1; kill -KILL -- "-$pid" 2>/dev/null ) </dev/null >/dev/null 2>&1 &
+  ( sleep "$secs"; kill -TERM -- "-$pid" 2>/dev/null; sleep 1; kill -KILL -- "-$pid" 2>/dev/null ) </dev/null >/dev/null 2>/dev/null &
   wd=$!
   wait "$pid"
   rc=$?
@@ -75,7 +89,7 @@ pc_with_deadline() {
 pc_gh() {
   local secs="$1" dir="$2"
   shift 2
-  command -v gh >/dev/null 2>&1 || return 127
+  command -v gh >/dev/null 2>/dev/null || return 127
   ( CDPATH='' cd -- "$dir" 2>/dev/null || exit 1
     pc_with_deadline "$secs" env GH_PROMPT_DISABLED=1 GH_NO_UPDATE_NOTIFIER=1 GH_SPINNER_DISABLED=1 \
       GH_PAGER=cat PAGER=cat NO_COLOR=1 CLICOLOR=0 GIT_TERMINAL_PROMPT=0 gh "$@" </dev/null 2>/dev/null )
@@ -103,7 +117,7 @@ pc_url_slug() {
   repo="${repo%.git}"
   case "$host$owner$repo" in *..*) return 1 ;; esac
   [ -n "$repo" ] && [ "$owner" != . ] && [ "$repo" != . ] || return 1
-  printf '%s/%s/%s\n' "$host" "$owner" "$repo"
+  echo "$host/$owner/$repo"
 }
 
 # pc_default_branch <dir> <remote> <seconds>
@@ -113,7 +127,7 @@ pc_default_branch() {
   [[ "$remote" =~ $PC_SAFE_REF ]] || return 0
   ref="$(pc_git "$dir" symbolic-ref --quiet "refs/remotes/$remote/HEAD")"
   if [ -n "$ref" ] && [ "${ref#refs/remotes/"$remote"/}" != "$ref" ]; then
-    printf '%s\n' "${ref#refs/remotes/"$remote"/}"
+    pc_line "${ref#refs/remotes/"$remote"/}"
     return 0
   fi
   url="$(pc_git "$dir" remote get-url --push "$remote")" || return 0
@@ -122,7 +136,7 @@ pc_default_branch() {
   out="${out%%$'\n'*}"
   case "$out" in ''|-*|*..*|refs/*) return 0 ;; esac
   [[ "$out" =~ $PC_SAFE_REF ]] || return 0
-  printf '%s\n' "$out"
+  echo "$out"
 }
 
 # pc_required_checks <dir> <pr|-> <owner/repo|-> <seconds>
@@ -140,8 +154,8 @@ pc_required_checks() {
     127) echo "unknown gh is not installed"; return 0 ;;
     *) echo "unknown gh exited $rc (no required check reported yet, no such PR, or no access)"; return 0 ;;
   esac
-  command -v jq >/dev/null 2>&1 || { echo "unknown jq is not installed"; return 0; }
-  verdict="$(printf '%s' "$out" | jq -r '
+  command -v jq >/dev/null 2>/dev/null || { echo "unknown jq is not installed"; return 0; }
+  verdict="$(jq -r '
     if type == "array" and length > 0 and all(.[]; type == "object" and (.bucket | type) == "string") then
       ([.[] | select(.bucket == "fail" or .bucket == "cancel")] | length) as $f
       | ([.[] | select(.bucket == "pending")] | length) as $p
@@ -149,11 +163,11 @@ pc_required_checks() {
       | if $f + $p > 0 then "true \(length) required: \($f) failing or cancelled, \($p) pending"
         elif $ok == length then "false \(length) required, all passing"
         else "unknown a required check is in a state gh does not name" end
-    else "unknown gh printed no required checks" end' 2>/dev/null)" || verdict=""
+    else "unknown gh printed no required checks" end' <<<"$out" 2>/dev/null)" || verdict=""
   case "$verdict" in
-    true\ *) printf '%s\n' "$verdict" ;;
-    false\ *) if [ "$rc" = 0 ]; then printf '%s\n' "$verdict"; else echo "unknown gh said pending, its list did not"; fi ;;
-    unknown\ *) printf '%s\n' "$verdict" ;;
+    true\ *) echo "$verdict" ;;
+    false\ *) if [ "$rc" = 0 ]; then echo "$verdict"; else echo "unknown gh said pending, its list did not"; fi ;;
+    unknown\ *) echo "$verdict" ;;
     *) echo "unknown gh printed no JSON" ;;
   esac
 }

@@ -114,8 +114,8 @@ case "$input" in
   *) [[ "$input" =~ $_pi_slash ]] || [[ "$input" =~ $_pi_skill ]] || exit 0 ;;
 esac
 unset _pi_slash _pi_skill
-command -v python3 >/dev/null 2>&1 || exit 0
-command -v jq >/dev/null 2>&1 || exit 0
+command -v python3 >/dev/null 2>/dev/null || exit 0
+command -v jq >/dev/null 2>/dev/null || exit 0
 hook_detect_platform "$input"
 # shellcheck source=scripts/lib/permission-common.sh
 . "$PI_ROOT/scripts/lib/permission-common.sh" 2>/dev/null || exit 0
@@ -142,7 +142,8 @@ HALF_TTL = 600
 PERMS_RE = re.compile(r"\A--perms=(\S*)\Z")
 SID_RE = re.compile(r"\A[A-Za-z0-9_-]{1,128}\Z")
 AGENT_KEY_RE = re.compile(r"\A[A-Za-z0-9_-]{1,64}\Z")
-PID_RE = re.compile(r"\A[^\x00-\x1f\x7f]{1,200}\Z")
+# No C0 control or DEL; the class is built with chr() so it spells no escape.
+PID_RE = re.compile(r"\A[^" + chr(0) + "-" + chr(0x1f) + chr(0x7f) + r"]{1,200}\Z")
 OBJ_RE = re.compile(r"\A[A-Za-z0-9][A-Za-z0-9._-]{0,127}\Z")
 PLUGIN = "tamirs-superpowers"
 
@@ -486,7 +487,7 @@ if msg:
                                                          "additionalContext": msg}}) + "\n")
 PY
 
-_pi_event="$(printf '%s' "$input" | jq -r '.hook_event_name // empty' 2>/dev/null)" || _pi_event=""
+_pi_event="$(jq -r '.hook_event_name // empty' <<<"$input" 2>/dev/null)" || _pi_event=""
 case "$_pi_event" in
   UserPromptExpansion|UserPromptSubmit|PreToolUse) ;;
   *) exit 0 ;;

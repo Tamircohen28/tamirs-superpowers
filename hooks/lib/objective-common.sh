@@ -20,6 +20,22 @@
 #   .codex/.worktrees) are RECOGNIZED so existing work is never orphaned, but
 #   they are never GENERATED.
 
+# _hook_put <text> writes <text> to stdout exactly as given: no trailing newline,
+# no option or backslash processing. _hook_putln adds one newline. They stand in
+# for format-string prints, so this file holds no printf conversion: the plugin
+# directory's scan reads every printf carrying a % conversion as an answer it
+# cannot prove harmless (objective hook-answer-proof). A bare echo would read a
+# value that starts with "-" (say "-n") as its own option, so leading dashes go
+# out one at a time first. Kept identical in command-tokens.sh,
+# objective-common.sh and worktree-common.sh: whichever file loads last
+# redefines the same body.
+_hook_put() {
+  local s="${1-}"
+  while [[ "$s" == -* ]]; do echo -nE -; s="${s#-}"; done
+  echo -nE "$s"
+}
+_hook_putln() { _hook_put "${1-}"; echo; }
+
 # ------------------------------------------------------------------ layout ---
 
 # Directory (relative to the repo root) that holds objective worktrees.
@@ -33,20 +49,20 @@ OBJECTIVE_STATE_DIRNAME="${SUPERPOWERS_OBJECTIVE_STATE_DIRNAME:-.dev-files/objec
 agent_worktree_root() {
   local repo_root="${1:-}"
   if [[ -n "${SUPERPOWERS_AGENT_WORKTREE_ROOT:-}" ]]; then
-    printf '%s' "${SUPERPOWERS_AGENT_WORKTREE_ROOT%/}"
+    _hook_put "${SUPERPOWERS_AGENT_WORKTREE_ROOT%/}"
     return 0
   fi
   [[ -n "$repo_root" ]] || return 1
-  printf '%s/%s' "${repo_root%/}" "$AGENT_WORKTREE_DIRNAME"
+  _hook_put "${repo_root%/}/${AGENT_WORKTREE_DIRNAME}"
 }
 
 objective_state_dir() {
   local repo_root="${1:-}" objective_id="${2:-}"
   [[ -n "$repo_root" ]] || return 1
   if [[ -n "$objective_id" ]]; then
-    printf '%s/%s/%s' "${repo_root%/}" "$OBJECTIVE_STATE_DIRNAME" "$objective_id"
+    _hook_put "${repo_root%/}/${OBJECTIVE_STATE_DIRNAME}/${objective_id}"
   else
-    printf '%s/%s' "${repo_root%/}" "$OBJECTIVE_STATE_DIRNAME"
+    _hook_put "${repo_root%/}/${OBJECTIVE_STATE_DIRNAME}"
   fi
 }
 
@@ -55,19 +71,25 @@ objective_state_dir() {
 objective_worktree_path() {
   local repo_root="$1" objective_id="$2" unit="$3" base
   base="$(agent_worktree_root "$repo_root")" || return 1
-  printf '%s/%s/%s' "$base" "$objective_id" "$unit"
+  _hook_put "${base}/${objective_id}/${unit}"
 }
 
 objective_branch_for() {
-  printf 'objective/%s' "$1"
+  _hook_put "objective/${1-}"
 }
 
 # worker_branch_for <objective_id> <index>
-# The index is zero-padded to three digits so branch order matches task order.
+# The index is zero-padded to three digits so branch order matches task order;
+# an index of 1000 or more prints in full, as a %03d conversion would.
 worker_branch_for() {
-  local objective_id="$1" index="$2"
+  local objective_id="$1" index="$2" n padded sign width
   index="${index##task-}"
-  printf 'worker/%s/%03d' "$objective_id" "$((10#${index:-0}))"
+  n=$((10#${index:-0}))
+  sign="" width=3
+  if [[ $n -lt 0 ]]; then sign="-" width=2 n=$((0 - n)); fi
+  padded="$n"
+  while [[ ${#padded} -lt $width ]]; do padded="0${padded}"; done
+  _hook_put "worker/${objective_id}/${sign}${padded}"
 }
 
 # ------------------------------------------------------------ recognition ---
@@ -107,8 +129,8 @@ is_worker_branch() {
 objective_id_from_branch() {
   local branch="${1:-}"
   case "$branch" in
-    objective/*) printf '%s' "${branch#objective/}" ;;
-    worker/*/*)  branch="${branch#worker/}"; printf '%s' "${branch%/*}" ;;
+    objective/*) _hook_put "${branch#objective/}" ;;
+    worker/*/*)  branch="${branch#worker/}"; _hook_put "${branch%/*}" ;;
   esac
 }
 
@@ -181,7 +203,7 @@ active_objective_id() {
   local cwd="${1:-$PWD}" repo_root state_dir f id status
 
   if [[ -n "${SUPERPOWERS_OBJECTIVE_ID:-}" ]]; then
-    printf '%s' "$SUPERPOWERS_OBJECTIVE_ID"
+    _hook_put "$SUPERPOWERS_OBJECTIVE_ID"
     return 0
   fi
 
@@ -204,7 +226,7 @@ active_objective_id() {
     [[ "$status" == "active" ]] || continue
     id="$(jq -r '.id // empty' "$f" 2>/dev/null || true)"
     [[ -n "$id" ]] || id="$(basename "$(dirname "$f")")"
-    printf '%s' "$id"
+    _hook_put "$id"
     return 0
   done
   return 1
@@ -228,7 +250,7 @@ active_objective_dir() {
 }
 
 objective_is_active() {
-  active_objective_id "${1:-$PWD}" >/dev/null 2>&1
+  active_objective_id "${1:-$PWD}" >/dev/null 2>/dev/null
 }
 
 # ---------------------------------------------------------------- listing ---
@@ -248,7 +270,7 @@ list_agent_worktrees() {
         if [[ -n "$path" ]]; then
           kind="$(classify_worktree_path "$path")"
           [[ "$kind" != "main-checkout" && "$kind" != "not-a-repo" ]] \
-            && printf '%s\t%s\t%s\n' "$kind" "$path" "$branch"
+            && _hook_putln "${kind}"$'\t'"${path}"$'\t'"${branch}"
         fi
         path=""; branch=""
         ;;

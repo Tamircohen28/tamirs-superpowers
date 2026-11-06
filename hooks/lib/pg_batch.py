@@ -1,15 +1,17 @@
 """pg_batch.py - hooks/permission-guard.sh's engine, started once and run over many calls.
 
 Started by `permission-guard.sh --classify-batch` and `--judge-batch` only (the tests' entries;
-no hook manifest names them), as `python3 -I -S hooks/lib/pg_batch.py <plugin root>`, with the
-protocol on two descriptors the guard opens on named pipes, never on stdin or stdout: a child the
-engine starts (the resolver, git, the tokeniser, the state-dir lookup) could inherit those two and
-read or write the protocol, and no child inherits 3 or 4 (subprocess closes them).
+no hook manifest names them), as `python3 -I -S hooks/lib/pg_batch.py <plugin root> <engine
+file>`, the engine file holding the guard's _PG_ENGINE heredoc, with the protocol on two
+descriptors the guard opens on named pipes, never on stdin or stdout: a child the engine starts
+(the resolver, git, the tokeniser, the state-dir lookup) could inherit those two and read or
+write the protocol, and no child inherits 3 or 4 (subprocess closes them).
 
-  fd 3  NUL-terminated fields. The first is the engine's source, the guard's _PG_ENGINE heredoc.
-        Then one request per call, eight fields: host, mode, budget, fast, bash, res_hosts,
-        cursor_ask, payload - the engine's argv 2..8 and its stdin, exactly what the guard's
-        single-call path passes.
+  fd 3  one request per call, eight lines: host, mode, budget, fast, bash, res_hosts,
+        cursor_ask - the engine's argv 2..8 - and the path of a file holding its stdin, which
+        is read when the request is. Together exactly what the guard's single-call path passes.
+        The guard writes the lines with echo (no field holds a line break: it refuses one) and
+        the payload file as its single-call here-string writes the engine's stdin.
   fd 4  one answer per request: a header line "<rc>\\t<n>\\n", then n lines: what the engine
         wrote to its stdout with every trailing newline removed (as the guard's $(...) capture
         does), rc its exit status (0 from answer() and the classify print; 1 for any crash,
@@ -37,7 +39,7 @@ IN_FD, OUT_FD = 3, 4
 
 
 class Fields(object):
-    """NUL-terminated fields from a descriptor, read in chunks; None at EOF."""
+    """Newline-terminated fields from a descriptor, read in chunks; None at EOF."""
 
     def __init__(self, fd):
         self.fd = fd
@@ -45,7 +47,7 @@ class Fields(object):
 
     def next(self):
         while True:
-            i = self.buf.find(b"\0")
+            i = self.buf.find(b"\n")
             if i >= 0:
                 field = bytes(self.buf[:i])
                 del self.buf[:i + 1]
@@ -64,9 +66,13 @@ def write_all(fd, data):
 
 
 def run_one(code, root, req):
-    """One engine run; (rc, captured stdout as text)."""
+    """One engine run; (rc, captured stdout as text). A payload file that cannot be read is rc 1 (a deny)."""
     argv = ["-c", root] + [os.fsdecode(f) for f in req[:-1]]
-    payload = req[-1]
+    try:
+        with open(req[-1], "rb") as f:
+            payload = f.read()
+    except OSError:
+        return 1, ""
     cap = io.StringIO()
     saved_argv, saved_in, saved_out = sys.argv, sys.stdin, sys.stdout
     sys.argv = argv
@@ -88,14 +94,16 @@ def run_one(code, root, req):
 
 
 def main():
-    if len(sys.argv) != 2:
-        sys.stderr.write("usage: pg_batch.py <plugin root> (fd 3 requests, fd 4 answers)\n")
+    if len(sys.argv) != 3:
+        sys.stderr.write("usage: pg_batch.py <plugin root> <engine file> (fd 3 requests, fd 4 answers)\n")
         return 2
     root = sys.argv[1]
-    fields = Fields(IN_FD)
-    src = fields.next()
-    if src is None:
+    try:
+        with open(sys.argv[2], "rb") as f:
+            src = f.read()
+    except OSError:
         return 2
+    fields = Fields(IN_FD)
     code = compile(src.decode("utf-8", "surrogateescape"), "<permission-guard engine>", "exec")
     while True:
         req = []

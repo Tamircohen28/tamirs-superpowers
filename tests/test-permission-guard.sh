@@ -170,12 +170,13 @@ run_pg() {
   ERR="$(cat "$errf" 2>/dev/null)"
   rm -f "$errf"
 }
+# The test's word for a pass (no decision: `{}` on every host, Cursor included) is "allow".
 verdict() { # verdict <dialect> -> allow|ask|deny|<invalid>
   local n
   n="$(printf '%s' "$OUT" | jq -s 'length' 2>/dev/null || echo 0)"
   [ "$n" = 1 ] || { echo "invalid($n objects)"; return; }
   case "$1" in
-    cursor) printf '%s' "$OUT" | jq -r '.permission // "none"' ;;
+    cursor) printf '%s' "$OUT" | jq -r '.permission // "allow"' ;;
     *) printf '%s' "$OUT" | jq -r '.hookSpecificOutput.permissionDecision // "allow"' ;;
   esac
 }
@@ -245,7 +246,7 @@ for i, m in enumerate(meta):
         print("FAIL\t%s\tnot one JSON object: %r" % (clean(m["label"]), line[:200]))
         continue
     if m["dialect"] == "cursor":
-        got, reason = d.get("permission", "none"), d.get("user_message", "")
+        got, reason = d.get("permission", "allow"), d.get("user_message", "")   # {} is a pass on Cursor too (5.6.1)
     else:
         h = d.get("hookSpecificOutput") or {}
         got, reason = h.get("permissionDecision", "allow"), h.get("permissionDecisionReason", "")
@@ -296,7 +297,7 @@ for c in 'ls -la' 'git status' 'git log --oneline -5' 'echo hello | grep h' 'cat
   bexpect "cursor beforeShellExecution: $c" cursor "$(cursor_shell "$c")" allow
 done
 judge "claude allow is {}" '{}' "$(run_pg claude "$(claude_bash 'git status')"; printf '%s' "$OUT")"
-judge "cursor allow is {\"permission\":\"allow\"}" '{"permission":"allow"}' "$(run_pg cursor "$(cursor_shell 'git status')"; printf '%s' "$OUT")"
+judge "cursor allow is {} (no decision)" '{}' "$(run_pg cursor "$(cursor_shell 'git status')"; printf '%s' "$OUT")"
 for c in 'ls -la' 'git status' 'git diff HEAD~1 -- README'; do
   bclassify "fast path takes '$c'" "$c" '.fast_path_allows' true
 done
@@ -817,7 +818,7 @@ expect "desktop 3.28.7-nightly, beforeShellExecution: asks" cursor "$(cursor_v 3
 expect "desktop 3.28.7, beforeShellExecution: a deny stays a deny (gh pr merge --admin)" cursor "$(cursor_v 3.28.7 beforeShellExecution 'gh pr merge 5 --squash --admin')" deny "pr.merge.admin"
 expect "desktop 3.28.7, beforeShellExecution: an ordinary command is allowed" cursor "$(cursor_v 3.28.7 beforeShellExecution 'git status')" allow
 expect "desktop 3.28.7, preToolUse Shell: the ask is left to beforeShellExecution (no decision)" cursor "$(cursor_v 3.28.7 preToolUse 'gh pr merge 5')" allow
-judge "  ... it is Cursor's allow, nothing else" '{"permission":"allow"}' "$OUT"
+judge "  ... it is no decision, {}, nothing else" '{}' "$OUT"
 judge "  ... and says why on stderr" yes "$(has "$ERR" "beforeShellExecution")"
 expect "desktop 3.28.7, preToolUse Shell: a deny stays a deny" cursor "$(cursor_v 3.28.7 preToolUse 'gh pr merge 5 --squash --admin')" deny "pr.merge.admin"
 expect "desktop 3.28.7, preToolUse Shell: writes no call stamp for a deferred ask" cursor "$(cursor_v 3.28.7 preToolUse 'bash scripts/resolve-permission.sh pr.create --call cursdefer0000001 && gh pr merge 5')" allow
@@ -1069,7 +1070,7 @@ rm -rf "$ASKED"
 expect "codex: confirm of a valid record is still a deny (no channel, D5)" codex "$(codex_bash "bash scripts/plugin-config.sh confirm $N1")" deny "policy.edit"
 expect "opencode: likewise" claude "$(oc_bash "bash scripts/plugin-config.sh confirm $N1")" deny "policy.edit"
 judge "  ... neither wrote a confirm stamp" no "$(exists "$ASKED/$N1.json")"
-expect "a nonce with no record: a deny, nothing to approve" claude "$(claude_bash 'bash scripts/plugin-config.sh confirm 33333333333333333333333333333333')" deny "nothing for the user to approve"
+expect "a nonce with no record: a deny, nothing to approve" claude "$(claude_bash 'bash scripts/plugin-config.sh confirm 33333333333333333333333333333333')" deny "nothing for the user to confirm"
 expect "not a nonce: a deny" claude "$(claude_bash 'bash scripts/plugin-config.sh confirm 0123456789abcdef')" deny "not a nonce"
 expect "confirm with no nonce: a deny" claude "$(claude_bash 'bash scripts/plugin-config.sh confirm')" deny "not a nonce"
 mk_pending "$N1" perms 2020-01-01T00:00:00Z
@@ -1082,7 +1083,7 @@ open(p, "w").write(json.dumps(d, indent=2, sort_keys=True) + "\n")
 PY
 expect "an altered record (its hash no longer matches): a deny" claude "$(claude_bash "bash scripts/plugin-config.sh confirm $N1")" deny "does not match its hash"
 mk_pending "$N1" perms 2099-01-01T00:00:00Z 644
-expect "a group/world-readable record: a deny (unsafe)" claude "$(claude_bash "bash scripts/plugin-config.sh confirm $N1")" deny "nothing for the user to approve"
+expect "a group/world-readable record: a deny (unsafe)" claude "$(claude_bash "bash scripts/plugin-config.sh confirm $N1")" deny "nothing for the user to confirm"
 judge "none of those denies was stamped" no "$(exists "$ASKED")"
 mk_pending "$N1" perms
 expect "confirm beside an R3 call: the dialog still names the request" claude "$(claude_bash "bash scripts/plugin-config.sh confirm $N1 && gh pr merge 5")" ask "skill pr-dev"

@@ -2,14 +2,22 @@
 # Claude Code / Cursor / Codex hook JSON helpers.
 #
 # Cursor fail-closes when preToolUse stdout is empty or non-JSON.
-# Claude Code treats empty stdout as allow. Codex requires a Stop or
+# Claude Code treats empty stdout as no decision. Codex requires a Stop or
 # SubagentStop hook that exits 0 to print JSON (plain text fails the hook).
 # Always emit valid JSON.
+#
+# HOW AN ANSWER IS PRINTED (the plugin directory's hook-permission rule)
+#   Every helper prints its whole answer with ONE command: a jq program for an
+#   answer that carries a reason, a single echo of a fixed literal otherwise.
+#   No printf format conversions, nothing merged from stderr into stdout, and
+#   no helper here can approve a tool call: the no-decision answer is `{}` on
+#   every host, so the host's own permission flow decides. Diagnostics go to
+#   stderr only.
 #
 # Usage (after reading stdin into HOOK_INPUT):
 #   source "$(dirname "$0")/lib/hook-output.sh"
 #   hook_detect_platform "$HOOK_INPUT"     # HOOK_PLATFORM=claude|cursor|codex
-#   hook_allow
+#   hook_pass                               # no decision: `{}` on every host
 #   hook_deny "reason"
 #   hook_ask "reason"                       # Claude only; a deny on every other host
 #   hook_ask_carried                        # 0 when hook_ask would print an ask here
@@ -19,7 +27,7 @@
 #
 # Hook tiers (plugin options, read by the bash hooks — never by the mod):
 #   hook_tier_enabled notification|contributor   # 0 = on, 1 = off
-#   hook_tier_gate    notification|contributor [silent|allow|suppress]
+#   hook_tier_gate    notification|contributor [silent|pass|suppress]
 #
 #   Claude Code exports every manifest `userConfig` option to a hook as
 #   CLAUDE_PLUGIN_OPTION_<NAME>; the two boolean tier options arrive as
@@ -40,7 +48,7 @@
 #
 #   For a PreToolUse guard that is not merely slow, it is WRONG: a killed hook
 #   writes nothing to stdout, and per this file's own contract Cursor
-#   fail-closes on empty stdout. So a guard whose answer would have been ALLOW
+#   fail-closes on empty stdout. So a guard that would have let the call through
 #   instead DENIES the user's tool call, for a reason that has nothing to do
 #   with what was being guarded. Bounding the read converts that into the
 #   correct answer for an empty payload.
@@ -63,7 +71,9 @@ hook_read_stdin() {
   # A final line with no trailing newline lands in $line, not in the loop.
   buf="${buf}${line}"
 
-  printf '%s' "$buf"
+  # A here-string adds one trailing newline; every caller reads this through
+  # $(...), which strips trailing newlines, so the caller sees the same bytes.
+  cat <<<"$buf"
 }
 
 # hook_detect_platform <payload> — sets and exports HOOK_PLATFORM: claude
@@ -99,11 +109,11 @@ hook_read_stdin() {
 hook_detect_platform() {
   local input="${1:-}"
   HOOK_PLATFORM=claude
-  if printf '%s' "$input" | jq -e '(.conversation_id // .cursor_version // .workspace_roots) != null' >/dev/null 2>&1; then
+  if jq -e '(.conversation_id // .cursor_version // .workspace_roots) != null' <<<"$input" >/dev/null 2>/dev/null; then
     HOOK_PLATFORM=cursor
   elif [[ -n "${CODEX_HOME:-}" ]]; then
     HOOK_PLATFORM=codex
-  elif printf '%s' "$input" | jq -e '.turn_id != null' >/dev/null 2>&1; then
+  elif jq -e '.turn_id != null' <<<"$input" >/dev/null 2>/dev/null; then
     HOOK_PLATFORM=codex
   fi
   export HOOK_PLATFORM
@@ -112,8 +122,14 @@ hook_detect_platform() {
 # The PreToolUse answer shapes, as jq programs over $reason. The helpers below print one each;
 # hooks/permission-guard.sh's batch entries (--judge-batch) render many at once through these
 # same programs, so a batch answer and a hook answer are the same bytes once compacted and the
-# two cannot drift. An allow is a literal: {} (Claude Code, Codex) or {"permission":"allow"}
-# (Cursor). $reason in each is jq's variable, bound by --arg at the call (SC2016).
+# two cannot drift. HOOK_JQ_PASS is the no-decision answer, the same `{}` on every host,
+# Cursor included: Cursor reads `{}` as no decision and runs its own flow (measured on
+# beforeShellExecution, Cursor 3.28.7, S2 runs 4 and 6 in
+# docs/engineering/research/permissions/spikes/implementation-measurements.md), and its hooks
+# reference marks no output field required. $reason in each is jq's variable, bound by --arg at
+# the call (SC2016).
+# shellcheck disable=SC2034  # for permission-guard.sh's batch renderer, beside the other shapes
+HOOK_JQ_PASS='{}'
 # shellcheck disable=SC2016
 HOOK_JQ_DENY='{hookSpecificOutput:{hookEventName:"PreToolUse",permissionDecision:"deny",permissionDecisionReason:$reason}}'
 # shellcheck disable=SC2016
@@ -123,14 +139,17 @@ HOOK_JQ_CURSOR_DENY='{permission:"deny",user_message:$reason,agent_message:$reas
 # shellcheck disable=SC2016
 HOOK_JQ_CURSOR_ASK='{permission:"ask",user_message:$reason,agent_message:$reason}'
 
-hook_allow() {
-  if [[ "${HOOK_PLATFORM:-claude}" == "cursor" ]]; then
-    printf '%s\n' '{"permission":"allow"}'
-  else
-    printf '%s\n' '{}'
-  fi
+# hook_pass — PreToolUse: no decision, on every host. Prints `{}` and exits 0.
+#
+#   A fixed literal printed by one echo, so it needs no jq: a host without jq
+#   still gets a well-formed answer. hook_allow is the older name, kept so its
+#   callers need no change; it is the same function and prints the same `{}`.
+hook_pass() {
+  echo '{}'
   exit 0
 }
+
+hook_allow() { hook_pass; }
 
 hook_deny() {
   local reason="$1"
@@ -192,8 +211,9 @@ hook_cursor_ask() {
 hook_additional_context() {
   local msg="$1"
   if [[ "${HOOK_PLATFORM:-claude}" == "cursor" ]]; then
-    # Cursor preToolUse has no additional_context; agent_message is closest.
-    jq -n --arg msg "$msg" '{permission:"allow",agent_message:$msg}'
+    # Cursor preToolUse has no additional_context; agent_message is closest. No
+    # permission field: the answer is no decision plus a note, as on every host.
+    jq -n --arg msg "$msg" '{agent_message:$msg}'
   else
     jq -n --arg msg "$msg" \
       '{hookSpecificOutput:{hookEventName:"PreToolUse",additionalContext:$msg},systemMessage:$msg}'
@@ -214,7 +234,7 @@ hook_additional_context() {
 #   and does nothing, and Cursor's stop event takes `{}` as "nothing to add" too. Advisory
 #   text belongs on stderr, as check-done.sh already does.
 hook_stop_ok() {
-  printf '%s\n' '{}'
+  echo '{}'
   exit 0
 }
 
@@ -231,8 +251,9 @@ hook_tier_enabled() {
     contributor)  raw="${CLAUDE_PLUGIN_OPTION_CONTRIBUTOR_HOOKS:-}";  default=1 ;;
     *) return 0 ;;
   esac
-  # bash 3.2 (macOS) has no ${var,,}; tr is portable.
-  value="$(printf '%s' "$raw" | tr '[:upper:]' '[:lower:]')"
+  # bash 3.2 (macOS) has no ${var,,}; tr is portable. $(...) drops the
+  # here-string's trailing newline.
+  value="$(tr '[:upper:]' '[:lower:]' <<<"$raw")"
   case "$value" in
     true|1|yes|on)   return 0 ;;
     false|0|no|off)  return 1 ;;
@@ -248,16 +269,17 @@ hook_tier_enabled() {
 #   noop  silent    (default) nothing on stdout — PostToolUse, SessionStart,
 #                   UserPromptSubmit and Notification hooks, where empty
 #                   stdout already means "nothing to say" on every host.
-#         allow     hook_allow's JSON for the detected platform — a PreToolUse
-#                   guard, because Cursor fail-closes on empty stdout.
+#         pass      hook_pass's `{}` — a PreToolUse guard, because Cursor
+#                   fail-closes on empty stdout. The older spelling of this
+#                   argument is still read, so its callers need no change.
 #         suppress  {"suppressOutput": true} — a hook that already answers
 #                   with that shape when it has nothing to show.
 hook_tier_gate() {
   local tier="${1:-}" noop="${2:-silent}"
   hook_tier_enabled "$tier" && return 0
   case "$noop" in
-    allow)    hook_allow ;;
-    suppress) printf '%s\n' '{"suppressOutput": true}' ;;
+    pass|allow) hook_pass ;;
+    suppress)   echo '{"suppressOutput": true}' ;;
     *)        : ;;
   esac
   exit 0

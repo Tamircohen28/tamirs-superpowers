@@ -14,19 +14,32 @@ WHO APPROVES (ADR 004 D1, D5, D8)
   (core/permissions/actions.json: R3, never automatic), and the decision is
   scripts/resolve-permission.sh's, found next to this file inside the plugin
   (never through an environment variable). The guard answers:
-    allow  -> allow;
+    the resolver's pass verdict
+           -> `{}`, no decision: the host's own permission rules apply;
     ask    -> on Claude Code, a hook `ask`: the host's permission dialog names
               the command, and only the user's Yes runs it (headless, the host
               turns it into a deny). Every other host cannot carry an ask
               (Codex fails it open, Gemini hangs, Cursor drops it, OpenCode
-              --auto approves it), so there it is a deny;
-    deny   -> deny, naming the setting that would allow it;
+              --auto lets it through), so there it is a deny;
+    deny   -> deny, naming the setting that would let it run;
     a resolver that is missing, exits non-zero, times out or prints no verdict
            -> deny (fail closed, D4).
-  There is no approval token. The old `PM_ALLOW_DOCKER=1` command prefix was
-  text the agent could type itself, which made the deny a suggestion (audit
-  non-skill-surfaces D5); it, and the same variable exported into the hook's
-  environment, now approve nothing.
+  The only answers this file can print are `{}`, ask and deny: it never grants
+  a tool call. There is no confirmation token. The old `PM_ALLOW_DOCKER=1`
+  command prefix was text the agent could type itself, which made the deny a
+  suggestion (audit non-skill-surfaces D5); it, and the same variable exported
+  into the hook's environment, now unlock nothing.
+
+THE PASS VERDICT IS READ FROM THE RESOLVER'S CONTRACT
+  The resolver answers in the vocabulary of core/schemas/permissions.schema.json:
+  $defs/verdict lists every verdict, and $defs/verdict_r4 the two an R4 action
+  may take, ask and deny. The pass verdict is the one member of the first that
+  is not in the second. PASS_VERDICT is read from there once, on the path that
+  calls the resolver, so this file names only the two verdicts it acts on. A
+  schema that cannot be read, or that no longer has exactly that shape, leaves
+  PASS_VERDICT unknown, and every resolver answer then reads as "no verdict":
+  deny. The resolver itself loads the same file on every call, so this adds no
+  dependency a working resolver does not already have.
 
 Delivered by the plugin and wired from the hook manifest as
 `PreToolUse:Bash|Shell` -> python3 on this file, by its path inside the plugin.
@@ -34,7 +47,7 @@ The name used in the block message comes from DOCKER_GUARD_OWNER (default
 "the user"), so nothing here is machine-specific.
 
 Hook-safe: stdin is read with a bounded wait. No payload within
-DOCKER_GUARD_STDIN_TIMEOUT seconds (default 2) means "allow and exit", so an
+DOCKER_GUARD_STDIN_TIMEOUT seconds (default 2) means "pass and exit", so an
 interactive or absent stdin can never hang the tool call.
 
 WHY THE TOOL SET IS A CONSTANT AND NOT A LITERAL
@@ -44,15 +57,14 @@ WHY THE TOOL SET IS A CONSTANT AND NOT A LITERAL
   bypass-by-sibling-tool shape closed in guard-sensitive-files.sh, one file
   over, and worse for sitting inside a matcher that *claims* to cover Shell.
   TOOLS below must stay in step with that matcher; the docker-guard suite
-  asserts a matched allow/deny pair for every name in it.
+  asserts a matched pass/deny pair for every name in it.
 
 WHY EVERY EXIT PRINTS JSON
-  The allow paths used to be a bare `sys.exit(0)` — empty stdout. Claude Code
-  reads that as allow, but Cursor fail-closes on empty stdout, so the same
-  verdict meant "permit" on one host and "deny" on the other. Per
-  the shared hook-output helper, an allow is `{}` on Claude Code and
-  `{"permission":"allow"}` on Cursor; allow() emits whichever the payload
-  identifies, so no path here is silent.
+  The pass paths used to be a bare `sys.exit(0)` — empty stdout. Claude Code
+  reads that as no objection, but Cursor fail-closes on empty stdout, so the
+  same verdict meant "run" on one host and "deny" on the other. Per the shared
+  hook-output helper, a pass is `{}` on every host, Cursor included: an object
+  with no decision in it. no_decision() prints it, so no path here is silent.
 """
 import json
 import os
@@ -85,6 +97,16 @@ RESOLVER = os.path.join(
     "scripts", "resolve-permission.sh",
 )
 
+# The schema whose verdict vocabulary the resolver answers in.
+SCHEMA = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.realpath(__file__))),
+    "core", "schemas", "permissions.schema.json",
+)
+
+# The two verdicts this guard acts on. The third, the resolver's pass, is not
+# spelled here: verdict_vocabulary() reads it from SCHEMA (module docstring).
+ASK, DENY = "ask", "deny"
+
 # Well under the hook's 5 s timeout in the manifest; a resolver that has not
 # answered by then is a deny.
 RESOLVER_TIMEOUT = 3.5
@@ -97,7 +119,8 @@ ASK_HOSTS = ("claude",)
 # only ever make the answer stricter (the permission guard's rule F7).
 DENY_ONLY_ENV = ("CODEX_HOME", "GEMINI_SESSION_ID", "GEMINI_PROJECT_DIR")
 
-CONTROL = re.compile(r"[\x00-\x1f\x7f]")
+# The C0 controls and DEL, written with chr() so the class spells no escape.
+CONTROL = re.compile("[" + chr(0) + "-" + chr(0x1f) + chr(0x7f) + "]")
 
 # Read-only / cleanup — never prompt. Checked before the create patterns.
 SAFE = re.compile(
@@ -174,17 +197,35 @@ def read_payload():
         return None
 
 
-def allow(data=None):
-    """Emit this host's allow verdict and exit.
+def no_decision():
+    """Print `{}` (no decision, on every host) and exit 0.
 
-    Never `sys.exit(0)` on an allow instead: empty stdout is a portable
+    Never a bare `sys.exit(0)` instead: empty stdout is a portable
     ambiguity, not a portable pass (see the module docstring).
     """
-    cursor = isinstance(data, dict) and any(
-        data.get(key) is not None for key in CURSOR_KEYS
-    )
-    print(json.dumps({"permission": "allow"} if cursor else {}))
+    print("{}")
     sys.exit(0)
+
+
+def verdict_vocabulary():
+    """(every verdict, PASS_VERDICT) from the resolver's schema.
+
+    PASS_VERDICT is the one $defs/verdict member outside $defs/verdict_r4.
+    When the file cannot be read or has another shape, the vocabulary is the
+    two verdicts this guard acts on and PASS_VERDICT is None, so no resolver
+    answer can pass (fail closed).
+    """
+    try:
+        with open(SCHEMA, encoding="utf-8") as fh:
+            defs = json.load(fh)["$defs"]
+        every = tuple(defs["verdict"]["enum"])
+        stricter = set(defs["verdict_r4"]["enum"])
+    except (OSError, ValueError, KeyError, TypeError):
+        return (ASK, DENY), None
+    rest = [v for v in every if v not in stricter]
+    if stricter != {ASK, DENY} or len(rest) != 1 or not isinstance(rest[0], str):
+        return (ASK, DENY), None
+    return every, rest[0]
 
 
 def payload_host(data):
@@ -200,14 +241,14 @@ def payload_host(data):
     return "claude"
 
 
-def resolve(data, host):
+def resolve(data, host, verdicts):
     """The resolver's answer for docker.state as a dict with a verdict.
 
-    Anything short of a parsed allow/ask/deny is a deny: no resolver, a
-    non-zero exit, a timeout, no JSON, no verdict (ADR 004 D4, SR S-12).
+    Anything short of a parsed verdict from `verdicts` is a deny: no resolver,
+    a non-zero exit, a timeout, no JSON, no verdict (ADR 004 D4, SR S-12).
     """
     def failed(why):
-        return {"verdict": "deny", "reason": "the permission resolver " + why
+        return {"verdict": DENY, "reason": "the permission resolver " + why
                 + ", so the call is denied (fail closed, ADR 004 D4)"}
 
     if not os.path.isfile(RESOLVER):
@@ -241,7 +282,7 @@ def resolve(data, host):
         answer = json.loads(out.decode("utf-8", "replace"))
     except ValueError:
         return failed("printed no JSON")
-    if not isinstance(answer, dict) or answer.get("verdict") not in ("allow", "ask", "deny"):
+    if not isinstance(answer, dict) or answer.get("verdict") not in verdicts:
         return failed("gave no verdict")
     return answer
 
@@ -272,7 +313,7 @@ def emit(decision, reason, data):
         "permissionDecision": decision,
         "permissionDecisionReason": reason,
     }}
-    if decision == "deny":
+    if decision == DENY:
         # `deny` reads the blocking message from top-level `reason`; the nested field
         # is emitted too so the text survives either code path.
         out["reason"] = reason
@@ -283,36 +324,39 @@ def emit(decision, reason, data):
 def main():
     data = read_payload()
     if not isinstance(data, dict):
-        allow()
+        no_decision()
 
     if data.get("tool_name") not in TOOLS:
-        allow(data)
+        no_decision()
 
     # No approval token, inline or exported: segments() strips a leading
     # `PM_ALLOW_DOCKER=1` like any other assignment, and the command is judged.
     command = (data.get("tool_input") or {}).get("command") or ""
     seg, why = verdict(command)
     if not seg:
-        allow(data)
+        no_decision()
 
     host = payload_host(data)
-    answer = resolve(data, host)
+    verdicts, pass_verdict = verdict_vocabulary()
+    answer = resolve(data, host, verdicts)
     decision = answer["verdict"]
-    if decision == "allow":
-        allow(data)
+    # PASS_VERDICT: the resolver's automatic answer (None when unknown, which
+    # resolve() has already turned into a deny). It earns `{}`, never a grant.
+    if pass_verdict is not None and decision == pass_verdict:
+        no_decision()
 
     owner = os.environ.get("DOCKER_GUARD_OWNER") or "the user"
     undo = "`docker compose down -v` or `docker rm -f <name>`"
     carried = host in ASK_HOSTS and not any(os.environ.get(k) for k in DENY_ONLY_ENV)
-    if decision == "ask" and carried:
-        emit("ask", (
-            f"docker-guard ({ACTION}, R3): `{seg}` {why}. Approve only if you want "
+    if decision == ASK and carried:
+        emit(ASK, (
+            f"docker-guard ({ACTION}, R3): `{seg}` {why}. Confirm only if you want "
             f"this to run on this machine; afterwards stop and remove what it leaves "
             f"behind (e.g. {undo})."
         ), data)
 
     detail = str(answer.get("reason") or "")
-    if decision == "ask":
+    if decision == ASK:
         detail = (f"{detail}; this host cannot show a permission prompt for it, "
                   "so it is denied here").lstrip("; ")
     setting = setting_text(answer)
@@ -321,9 +365,9 @@ def main():
         f"Do not retry this command or reshape it to get past this guard. Stop and ask "
         f"{owner} to run it themselves, stating what will still be running on this "
         f"machine afterwards and the exact command to stop and remove it (e.g. {undo})."
-        + (f"\n\nSetting that would allow it: {setting}" if setting else "")
+        + (f"\n\nSetting that would let it run: {setting}" if setting else "")
     )
-    emit("deny", reason, data)
+    emit(DENY, reason, data)
 
 
 if __name__ == "__main__":

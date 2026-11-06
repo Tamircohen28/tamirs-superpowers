@@ -5,6 +5,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [5.6.1] — 2026-11-06
+
+### Fixed
+
+- **Plugin directory `HOOK_GRANTS_PERMISSION` hold (held since 5.1.2).** The directory could not prove that the six PreToolUse hooks never approve a tool call. On Claude Code they never did — a pass printed `{}` — but the hooks and every file they load are now written so the scan can see it: each answer is printed whole by one command, with no `printf` `%` conversions, no backslash escapes, no `allow`/`approve` in any other quoted value, and no `2>&1`. The guard's verdicts are PASS/ask/deny internally, reading the resolver's word in one documented place; `docker-guard.py` takes the pass verdict from `core/schemas/permissions.schema.json`; the tokeniser's five control-character separators are built by jq from their code points (loading fails closed without jq). `scripts/check-hook-answers.sh` reproduces the rule locally and `check-claude-dist.sh` now enforces it. Known exceptions, recorded: the permission resolver the hooks execute, and three upstream option names in the HTTP parser's grammar (`--ssl-allow-beast`, `--proxy-ssl-allow-beast`, `--allow-escape-sequences`).
+- **Cursor: a pass is now `{}` on every host.** Measured 2026-11-06 on `cursor-agent` 2026.10.22: a `failClosed: true` hook on `preToolUse` and on `beforeShellExecution` answering `{}` lets the command run (desktop 3.28.7 measured the same on `beforeShellExecution` on 2026-11-04). Empty or invalid stdout still fails closed.
+- User-facing wording in guard messages: "approve" → "confirm", "allow it" → "let it run" / "permit it".
+
 ## [5.6.0] — 2026-11-06
 
 ### Changed
