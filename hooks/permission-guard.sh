@@ -2054,7 +2054,9 @@ def rm_major_targets(p):
         return []
     import pwd
     home = pwd.getpwuid(os.getuid()).pw_dir.rstrip("/") or "/"
-    base = (CTX.get("cwd") if CTX.get("ok") else None) or os.getcwd()
+    # When the command moves the working directory in a way the parse does not follow (`cd x; rm -rf y`),
+    # a relative target cannot be resolved; it is judged major, so it asks rather than passing (#391 review).
+    base = CTX.get("cwd") if CTX.get("ok") else None
     found = []
     for a in args:
         t = a.strip("'\"")
@@ -2067,6 +2069,9 @@ def rm_major_targets(p):
             if t.endswith(g):
                 t = t[: -len(g)] or "/"
         if re.search(r"[$`*?\[]", t):
+            continue
+        if not t.startswith("/") and not base:
+            found.append(t)
             continue
         path = os.path.normpath(t if t.startswith("/") else os.path.join(base, t))
         depth = len([x for x in path.split("/") if x])

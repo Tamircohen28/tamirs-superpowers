@@ -1520,6 +1520,8 @@ expect "bypass: rm -rf of the repository root still asks" claude "$(bypass "rm -
 expect "bypass: rm -rf ~/Projects still asks" claude "$(bypass 'rm -rf ~/Projects')" ask fs.delete.tree
 WT_LINKED="$T/linked-wt"; git -C "$REPO" worktree add -q "$WT_LINKED" 2>/dev/null || git -C "$REPO" worktree add -q --detach "$WT_LINKED" 2>/dev/null
 expect "bypass: rm -rf of a linked worktree (.git is a file) still asks" claude "$(bypass "rm -rf $WT_LINKED")" ask fs.delete.tree
+expect "bypass: cd x; rm -rf y (cwd not followed) still asks" claude "$(bypass "cd $T; rm -rf victim")" ask fs.delete.tree
+expect "bypass: cd x && rm -rf build passes (cwd followed, not major)" claude "$(bypass "cd $T && rm -rf build")" allow
 expect "bypass: rm -rf node_modules passes" claude "$(bypass 'rm -rf node_modules')" allow
 expect "default mode: rm -rf / asks" claude "$(claude_bash 'rm -rf /')" ask fs.delete.tree
 expect "bypass on a Codex payload changes nothing: still a deny" codex \
