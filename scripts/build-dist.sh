@@ -89,6 +89,9 @@ case "$TARGET" in
     # and the directory-specific README.
     ROOTS=(.claude-plugin/plugin.json listing/icon.png agents output-styles platforms/claude "${COMMON_ROOTS[@]}")
     # The Gemini wrapper and its dialect library run only under the Gemini extension.
+    # notify-setup configures a Notification hook through plugin options; the edition ships
+    # neither, so the skill and the Pushover sender stay with the full plugin (#386 review).
+    PRUNE_PATHS+=(skills/toolkit/notify-setup scripts/notify-pushover.sh scripts/pushover_format.py)
     PRUNE_PATHS+=(platforms/claude/directory hooks/gemini-wrap.sh hooks/lib/gemini-output.sh
       docs/user/install/codex.md docs/user/install/cursor.md docs/user/install/gemini.md docs/user/install/opencode.md
       docs/user/platform-setup.md docs/user/platform-differences.md docs/user/cross-platform-workflow.md

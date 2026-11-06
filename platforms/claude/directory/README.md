@@ -1,6 +1,6 @@
 # tamirs-superpowers
 
-A portable agent toolkit for Claude: **31 skills**, 10 role-based specialist agents and an
+A portable agent toolkit for Claude: **30 skills**, 10 role-based specialist agents and an
 evidence-first output style, from one plugin.
 
 This is the directory edition, built for Anthropic's plugin directory from the canonical
@@ -18,6 +18,7 @@ tamirs-marketplace (see Install). Source, issues and the full documentation:
   (`repo-scaffold`, `repo-standards`, `multi-agent-repo`, `github-policy`, `cleanup`), and a
   toolkit (`skill-creator`, `find-skill`, `retro`, `session-report`, `mcp-builder`, and more).
   Every skill states what it needs and degrades explicitly where a capability is missing.
+  Phone notifications (`notify-setup`) need hooks and come with the full plugin only.
 - **Agents** — ten specialists (implementer, test engineer, security reviewer, …), each
   reading its contract from `core/roles/` and your project's own `CLAUDE.md`.
 - **Output style** — `Evidence`: answers that cite the command, file or output behind each

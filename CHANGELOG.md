@@ -9,7 +9,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Changed
 
-- **The plugin directory gets a directory edition: skills, agents and the output style only.** Since 5.5.1 Anthropic's plugin directory refuses (no longer holds) versions from organizations that are not Verified when they carry command hooks, a local MCP server, a command in the plugin's settings or a mod — 5.5.1 and 5.6.0 were refused on exactly those four. The `claude` tag now points at a build without `hooks/`, `mod/` or `.mcp.json`, with `hooks`, `mcpServers`, `settings`, `types` and `userConfig` stripped from the manifest copy; `check-claude-dist.sh` fails a tree that carries any of them. Its README says what the edition leaves out and how to install the full plugin. **The full plugin is unchanged** and keeps shipping from the tamirs-marketplace.
+- **The plugin directory gets a directory edition: skills, agents and the output style only.** Since 5.5.1 Anthropic's plugin directory refuses (no longer holds) versions from organizations that are not Verified when they carry command hooks, a local MCP server, a command in the plugin's settings or a mod — 5.5.1 and 5.6.0 were refused on exactly those four. The `claude` tag now points at a build without `hooks/`, `mod/` or `.mcp.json`, with `hooks`, `mcpServers`, `settings`, `types` and `userConfig` stripped from the manifest copy; `check-claude-dist.sh` fails a tree that carries any of them. `notify-setup` and the Pushover sender are left out too, because phone notifications need the Notification hook. Its README says what the edition leaves out and how to install the full plugin. **The full plugin is unchanged** and keeps shipping from the tamirs-marketplace.
 
 ## [5.6.1] — 2026-11-06
 
