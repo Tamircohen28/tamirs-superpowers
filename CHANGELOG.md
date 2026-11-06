@@ -5,6 +5,12 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [5.6.6] — 2026-11-06
+
+### Fixed
+
+- **A fast-forward-only `git pull` or `git merge` no longer asks when its directory is unknown.** `git -C $dir pull --ff-only`, or a `git pull --ff-only` inside a `cd` loop, was raised to `git.reset_to_remote` (R4) because the guard could not resolve the directory and failed closed, so it asked even in Claude Code's bypass mode. A fast-forward-only sync discards nothing wherever it runs (git refuses it when it cannot fast-forward), so `hooks/permission-guard.sh` now answers that before looking up the directory. `git reset --hard <remote>` in an unknown directory still asks.
+
 ## [5.6.5] — 2026-11-06
 
 ### Changed

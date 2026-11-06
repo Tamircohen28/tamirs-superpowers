@@ -1898,11 +1898,16 @@ def establish(name, hit):
         return None
     if kind != "argv" or p["argv0"] != "git":
         return None
+    sub = p["sub"]
+    verb = sub[0] if sub else ""
+    # A fast-forward-only pull or merge discards nothing wherever it runs: git refuses it
+    # when it cannot fast-forward. Answered before the directory, so `git -C $dir pull
+    # --ff-only` or one inside a `cd` loop is a sync, not an unknown that raises to R4.
+    if name == "discards_work" and verb in ("pull", "merge") and "--ff-only" in sub:
+        return False
     d = seg_dir(p)
     if d is None:
         return None
-    sub = p["sub"]
-    verb = sub[0] if sub else ""
     if verb == "push":
         info = hit.setdefault("push", push_info(p, d))
         if name == "default_branch":
@@ -1932,8 +1937,6 @@ def establish(name, hit):
             return None if not sha else unpushed(d, "HEAD", sha)
         return None
     if name == "discards_work":
-        if verb in ("pull", "merge") and "--ff-only" in sub:
-            return False
         if verb == "reset":
             c, u = clean_tree(d), unpushed(d)
             if c is None or u is None:

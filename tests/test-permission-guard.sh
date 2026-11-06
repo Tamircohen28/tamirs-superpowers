@@ -1527,6 +1527,18 @@ expect "default mode: rm -rf / asks" claude "$(claude_bash 'rm -rf /')" ask fs.d
 expect "bypass on a Codex payload changes nothing: still a deny" codex \
   "$(codex_bash 'gh pr merge 5 --squash' | jq -c '.permission_mode = "bypassPermissions"')" deny
 
+section "a fast-forward-only pull or merge is a sync wherever it runs (5.6.6)"
+expect "git -C \$dir pull --ff-only (dir unknown): a sync, not a reset" claude \
+  "$(claude_bash 'git -C $P/$d pull -q --ff-only')" allow
+expect "cd loop + git pull --ff-only: a sync" claude \
+  "$(claude_bash 'for d in a b; do (cd "$d" && git pull -q --ff-only); done')" allow
+expect "git -C \$dir merge --ff-only: a sync" claude "$(claude_bash 'git -C $X merge --ff-only origin/main')" allow
+expect "bypass: git -C \$dir pull --ff-only passes" claude "$(bypass 'git -C $P/$d pull -q --ff-only')" allow
+expect "git -C \$dir reset --hard origin/main (dir unknown) still asks" claude \
+  "$(claude_bash 'git -C $X reset --hard origin/main')" ask git.reset_to_remote
+expect "bypass: git -C \$dir reset --hard origin/main still asks" claude \
+  "$(bypass 'git -C $X reset --hard origin/main')" ask git.reset_to_remote
+
 judge "every queued case was flushed" "0 0" "$(wc -l < "$BQ_IN" | tr -d ' ') $(wc -l < "$BC_IN" | tr -d ' ')"
 
 printf '\n  info wall time: %ss; %s verdicts and %s classifications judged in batch over %s flushes, the rest single-call\n' \
