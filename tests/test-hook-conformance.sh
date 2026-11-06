@@ -399,7 +399,7 @@ for dialect in claude codex cursor gemini; do
     cursor) run_cmd cursor "$PLAIN" "$CU_CMD" "$(cursor_payload preToolUse "$PLAIN" Write "$PROT")" 15 ;;
     gemini) run_cmd gemini "$PLAIN" "$GE_CMD" "$(gemini_payload BeforeTool "$PLAIN" replace "$PROT")" 15 ;;
   esac
-  judge "$dialect: a workflow write is DENIED" yes "$(denied "$dialect" "$OUT" "$RC")"
+  judge "$dialect: a lockfile write is DENIED" yes "$(denied "$dialect" "$OUT" "$RC")"
   judge "$dialect: the deny is one JSON object" yes "$(one_object "$OUT")"
 done
 
