@@ -1,7 +1,7 @@
 {
   "name": "tamirs-superpowers",
   "displayName": "Tamir's Superpowers",
-  "version": "5.6.1",
+  "version": "5.6.2",
   "description": "31 bundled skills, 10 specialist agents, smart worktree hooks, statusline, and MCP server stubs — plan, implement, review, debug, multi-agent setup, and audit code from one plugin.",
   "homepage": "https://github.com/Tamircohen28/tamirs-superpowers",
   "repository": "https://github.com/Tamircohen28/tamirs-superpowers",
@@ -23,10 +23,7 @@
   ],
   "icon": "./listing/icon.png",
   "license": "MIT",
-  "types": "./mod/types/index.d.ts",
   "defaultEnabled": true,
-  "mcpServers": "./.mcp.json",
-  "hooks": "./mod/modules.json",
   "skills": [
     "./skills/creative",
     "./skills/debugging",
@@ -35,64 +32,5 @@
     "./skills/mcp",
     "./skills/toolkit",
     "./skills/repo"
-  ],
-  "settings": {
-    "statusLine": {
-      "type": "command",
-      "command": "s=\"${CLAUDE_PLUGIN_ROOT}/scripts/statusline.sh\"; [ -f \"$s\" ] || s=$(ls $HOME/.claude/plugins/cache/tamirs-marketplace/tamirs-superpowers/*/scripts/statusline.sh 2>/dev/null | sort -rV | head -1); [ -n \"$s\" ] && [ -f \"$s\" ] && bash \"$s\""
-    }
-  },
-  "userConfig": {
-    "permission_level": {
-      "type": "string",
-      "title": "Permission level (how much the skills do without asking you)",
-      "description": "supervised (default): asks before anything that leaves this machine - push, open a PR, comment, merge, delete a branch. standard: pushes its own branches, opens PRs and comments without asking; still asks before merging, closing or deleting. unattended: also arms auto-merge, deletes merged branches and closes finished PRs and issues, each only when its safety precondition holds. The riskiest actions ask at every level. It governs the plugin, never Claude Code's own prompts; the lower of this and ~/.config/tamirs-superpowers/permissions.json applies (ADR 004).",
-      "options": ["supervised", "standard", "unattended"],
-      "default": "supervised"
-    },
-    "github_token": {
-      "type": "string",
-      "title": "GitHub token for the bundled github MCP server",
-      "description": "Optional. A GitHub personal access token with repo scope. Leave blank to keep the github MCP server off - it refuses to start without one and nothing else needs it.",
-      "sensitive": true
-    },
-    "pushover_token": {
-      "type": "string",
-      "title": "Pushover application token",
-      "description": "Optional. From your Pushover application at pushover.net/apps. Leave blank to keep phone notifications off - the notification hook stays silent when unconfigured.",
-      "sensitive": true
-    },
-    "pushover_user": {
-      "type": "string",
-      "title": "Pushover user key",
-      "description": "Optional. Your Pushover user key from pushover.net. Required only if you set an application token above. Read by the Notification hook only; the mod sends nothing.",
-      "sensitive": true
-    },
-    "rate_limit_warn_percent": {
-      "type": "number",
-      "title": "Rate-limit warning threshold (%)",
-      "description": "The mod shows a band above the prompt with a handoff reminder once any rate-limit window (5h, 7d, spend) reaches this percentage. Claude Code and Claude Desktop only.",
-      "default": 85,
-      "min": 50,
-      "max": 100
-    },
-    "semantic_skill_suggest": {
-      "type": "boolean",
-      "title": "Semantic skill suggestions (one small-model call per long prompt)",
-      "description": "Off by default. When on, prompts of 12+ words are classified by a small model against the bundled skill names and a matching skill is named to Claude as context. hooks/skill-suggest.sh's keyword matching stays on either way.",
-      "default": false
-    },
-    "notification_hooks": {
-      "type": "boolean",
-      "title": "Notification hooks (desktop and phone notifications, VPN exit check, usage-capture collector start)",
-      "description": "On by default. When off, the desktop notification, the Pushover phone notification, the VPN exit-node check and the usage-capture collector start stay silent, whatever else is configured. Safety, worktree and convenience hooks are unaffected. Read by the bash hooks only; hosts without plugin options use the default.",
-      "default": true
-    },
-    "contributor_hooks": {
-      "type": "boolean",
-      "title": "Contributor hooks (plugin-author reminders and checks)",
-      "description": "Off by default. When on, the /reload-plugins reminder after a plugin-file edit, report.md link validation and the hand-written SKILL.md guard run. For people working on this plugin or on agent configuration; noise for everyone else. Read by the bash hooks only; hosts without plugin options use the default.",
-      "default": false
-    }
-  }
+  ]
 }
