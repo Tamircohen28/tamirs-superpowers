@@ -40,7 +40,7 @@
           {
             "type": "command",
             "command": "bash \"${CLAUDE_PLUGIN_ROOT}\"/hooks/protect-other-branches.sh",
-            "timeout": 15,
+            "timeout": 30,
             "statusMessage": "Checking for concurrent agent work..."
           }
         ]
@@ -51,7 +51,7 @@
           {
             "type": "command",
             "command": "bash \"${CLAUDE_PLUGIN_ROOT}\"/hooks/enforce-worktree-edits.sh",
-            "timeout": 10,
+            "timeout": 30,
             "statusMessage": "Checking worktree isolation..."
           }
         ]
@@ -62,7 +62,7 @@
           {
             "type": "command",
             "command": "bash \"${CLAUDE_PLUGIN_ROOT}\"/hooks/guard-sensitive-files.sh",
-            "timeout": 5,
+            "timeout": 30,
             "statusMessage": "Checking for protected files..."
           },
           {
@@ -78,13 +78,13 @@
           {
             "type": "command",
             "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/docker-guard.py\"",
-            "timeout": 5,
+            "timeout": 30,
             "statusMessage": "Checking for durable Docker state..."
           },
           {
             "type": "command",
             "command": "bash \"${CLAUDE_PLUGIN_ROOT}\"/hooks/guard-sensitive-files.sh",
-            "timeout": 5,
+            "timeout": 30,
             "statusMessage": "Checking for protected files..."
           }
         ]

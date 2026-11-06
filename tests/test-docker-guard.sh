@@ -382,6 +382,8 @@ BY='{"tool_name":"Bash","session_id":"sess-1","cwd":"/","permission_mode":"bypas
 BYP='{"tool_name":"Bash","session_id":"sess-1","cwd":"/","permission_mode":"bypassPermissions","tool_input":{"command":"docker system prune -af"}}'
 check "bypass: compose up runs even when the resolver denies" allow "$(decision "$(runp deny "$BY")")"
 check "bypass: a prune still asks" ask "$(decision "$(runp deny "$BYP")")"
+BYC='{"tool_name":"Bash","session_id":"sess-1","cwd":"/","permission_mode":"bypassPermissions","tool_input":{"command":"docker compose up -d; docker system prune -af"}}'
+check "bypass: a prune after an allowed docker command still asks" ask "$(decision "$(runp deny "$BYC")")"
 check "bypass on a Codex payload changes nothing" deny "$(decision "$(runp deny "$(printf '%s' "$CX" | jq -c '.permission_mode="bypassPermissions"')")")"
 
 echo

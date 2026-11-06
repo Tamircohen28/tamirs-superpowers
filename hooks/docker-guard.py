@@ -340,9 +340,12 @@ def main():
     # Claude Code's bypass mode (5.6.7): what can be stopped and removed runs; a prune, which cannot be
     # undone, is still put to the user as an ask. The mode comes from the host's payload, Claude only.
     if host == "claude" and data.get("permission_mode") == "bypassPermissions":
-        if "not reversible" not in why:
+        # Every segment, not the first risky one: `docker compose up -d; docker system prune -af` holds a prune.
+        prune = next(((s, w) for s in segments(command) if not SAFE.match(s)
+                      for p, w in RISKY if "not reversible" in w and p.match(s)), None)
+        if prune is None:
             no_decision()
-        emit(ASK, f"docker-guard ({ACTION}, R3): `{seg}` {why}. Bypass mode still asks before this one.", data)
+        emit(ASK, f"docker-guard ({ACTION}, R3): `{prune[0]}` {prune[1]}. Bypass mode still asks before this one.", data)
     verdicts, pass_verdict = verdict_vocabulary()
     answer = resolve(data, host, verdicts)
     decision = answer["verdict"]

@@ -494,8 +494,9 @@ done
 #     parent but only maybe (an if/loop/case body, a function body, after
 #     `&&`/`||`) the cwd becomes UNKNOWN, since "moved" and "unchanged" can
 #     each be the wrong answer. Every row runs from the repo's .github with
-#     the write `echo x > workflows/ci.yml`: judged against .github it is a
-#     deny, against /tmp a silent allow, against nothing a warn.
+#     the write `echo x > components/ui/b.tsx` (the repo is a shadcn project):
+#     judged against .github it is a deny, against /tmp a silent allow, against
+#     nothing a warn.
 gh_verdict() {
   jq -n --arg c "$1" --arg cwd "$REPO/.github" \
      '{tool_name:"Bash", cwd:$cwd, tool_input:{command:$c}}' \
@@ -505,7 +506,7 @@ gh_verdict() {
            else "allow" end' 2>/dev/null
 }
 gh_checked() { case "$(gh_verdict "$1")" in deny|warn) echo checked ;; *) echo allow ;; esac; }
-WF='echo x > workflows/ci.yml'
+WF='echo x > components/ui/b.tsx'
 judge "364 the exact case: coproc cd"      deny "$(gh_verdict "coproc cd /tmp; wait; $WF")"
 judge "coproc { cd; }"                     deny "$(gh_verdict "coproc { cd /tmp; }; wait; $WF")"
 judge "coproc name { cd; }"                deny "$(gh_verdict "coproc name { cd /tmp; }; wait; $WF")"

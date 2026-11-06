@@ -33,7 +33,7 @@
             "name": "protect-other-branches-shell",
             "type": "command",
             "command": "bash \"${extensionPath}/hooks/gemini-wrap.sh\" \"${extensionPath}/hooks/protect-other-branches.sh\"",
-            "timeout": 15000,
+            "timeout": 30000,
             "description": "Checking for concurrent agent work..."
           }
         ]
@@ -45,7 +45,7 @@
             "name": "enforce-worktree-edits-write",
             "type": "command",
             "command": "bash \"${extensionPath}/hooks/gemini-wrap.sh\" \"${extensionPath}/hooks/enforce-worktree-edits.sh\"",
-            "timeout": 10000,
+            "timeout": 30000,
             "description": "Checking worktree isolation..."
           }
         ]
@@ -57,7 +57,7 @@
             "name": "guard-sensitive-files-write",
             "type": "command",
             "command": "bash \"${extensionPath}/hooks/gemini-wrap.sh\" \"${extensionPath}/hooks/guard-sensitive-files.sh\"",
-            "timeout": 5000,
+            "timeout": 30000,
             "description": "Checking for protected files..."
           },
           {
@@ -75,14 +75,14 @@
             "name": "docker-guard-shell",
             "type": "command",
             "command": "bash \"${extensionPath}/hooks/gemini-wrap.sh\" \"${extensionPath}/hooks/docker-guard.py\"",
-            "timeout": 5000,
+            "timeout": 30000,
             "description": "Checking for durable Docker state..."
           },
           {
             "name": "guard-sensitive-files-shell",
             "type": "command",
             "command": "bash \"${extensionPath}/hooks/gemini-wrap.sh\" \"${extensionPath}/hooks/guard-sensitive-files.sh\"",
-            "timeout": 5000,
+            "timeout": 30000,
             "description": "Checking for protected files..."
           }
         ]

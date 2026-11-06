@@ -273,7 +273,7 @@ judge "five deny reasons were produced" 5 "$(printf '%s' "$texts" | grep -c 'BLO
 judge "none names PM_ALLOW_PROTECTED"       no "$(has "$texts" PM_ALLOW_PROTECTED)"
 judge "none names create_or_update_file"    no "$(has "$texts" create_or_update_file)"
 judge "none points at the GitHub MCP"       no "$(has "$texts" "GitHub MCP")"
-judge "the workflow text is the R4 ask"     yes "$(has "$texts" "R4 action (workflow.edit)")"
+judge "no reason is the removed workflow rule" no "$(has "$texts" "workflow.edit")"
 judge "the protected text sends it to the user" yes "$(has "$texts" "ask them to make this change themselves")"
 
 # ===========================================================================
