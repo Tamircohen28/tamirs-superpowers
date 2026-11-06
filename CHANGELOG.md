@@ -5,6 +5,17 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [5.6.5] — 2026-11-06
+
+### Changed
+
+- **Claude Code's bypass mode now means bypass for the permission guard.** When Claude Code itself runs with `bypassPermissions`, `hooks/permission-guard.sh` lets every ask through except the operations that cannot be undone: deleting a repository, deleting a major directory, force-pushing the default branch, resetting work to the remote, or dropping or force-removing a worktree with work in it (the catalog's new `host_bypass.still_ask`). Denies, plugin-config confirms and every other host are unchanged. The user's decision of 2026-11-06, recorded in ADR 004.
+- **New action `fs.delete.tree` (R4).** A recursive `rm` of `/`, a top-level directory, the home directory or one of its direct children (`~/Projects`), or a git repository's root asks on every level and in bypass mode. A path built from a variable other than `$HOME` is not judged.
+
+### Fixed
+
+- **An assignment-only segment is judged by its substitution.** `t=$(gh api "repos/$r/releases/latest" --jq .tag_name)` was read as UNCLASSIFIED (R4) because the marker inside the substitution counted against the assignment; the substitution is already classified as its own segment (`repo.read` here). A marker outside every substitution still counts.
+
 ## [5.6.4] — 2026-11-06
 
 ### Fixed

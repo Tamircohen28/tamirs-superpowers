@@ -1503,6 +1503,26 @@ for ev in preToolUse beforeShellExecution; do
 done
 judge "hooks-classification.md names PG core-safety-invariant" yes \
   "$(grep -q 'permission-guard.sh.*core-safety-invariant' "$ROOT/docs/engineering/architecture/hooks-classification.md" && echo yes || echo no)"
+section "an assignment-only segment is judged by its substitution (5.6.5)"
+expect "t=\$(gh api repos/.../releases/latest --jq .tag_name): a read, not UNCLASSIFIED" claude \
+  "$(claude_bash 't=$(gh api "repos/o/r/releases/latest" --jq .tag_name); echo "$t"')" allow
+expect "x=\$(gh pr merge 5): the merge inside still asks" claude "$(claude_bash 'x=$(gh pr merge 5 --squash)')" ask
+expect "a marker outside every substitution still counts" claude "$(claude_bash 'X="gh pr merge 5"')" ask
+
+section "Claude Code bypassPermissions: only the irreversible still asks (5.6.5)"
+bypass() { claude_bash "$@" | jq -c '.permission_mode = "bypassPermissions"'; }
+expect "default mode: gh pr merge asks" claude "$(claude_bash 'gh pr merge 5 --squash')" ask
+expect "bypass: gh pr merge passes" claude "$(bypass 'gh pr merge 5 --squash')" allow
+expect "bypass: gh workflow run passes" claude "$(bypass 'gh workflow run release.yml')" allow
+expect "bypass: gh release create passes" claude "$(bypass 'gh release create v1')" allow
+expect "bypass: gh repo delete still asks" claude "$(bypass 'gh repo delete o/r --yes')" ask repo.delete
+expect "bypass: rm -rf of the repository root still asks" claude "$(bypass "rm -rf $REPO")" ask fs.delete.tree
+expect "bypass: rm -rf ~/Projects still asks" claude "$(bypass 'rm -rf ~/Projects')" ask fs.delete.tree
+expect "bypass: rm -rf node_modules passes" claude "$(bypass 'rm -rf node_modules')" allow
+expect "default mode: rm -rf / asks" claude "$(claude_bash 'rm -rf /')" ask fs.delete.tree
+expect "bypass on a Codex payload changes nothing: still a deny" codex \
+  "$(codex_bash 'gh pr merge 5 --squash' | jq -c '.permission_mode = "bypassPermissions"')" deny
+
 judge "every queued case was flushed" "0 0" "$(wc -l < "$BQ_IN" | tr -d ' ') $(wc -l < "$BC_IN" | tr -d ' ')"
 
 printf '\n  info wall time: %ss; %s verdicts and %s classifications judged in batch over %s flushes, the rest single-call\n' \

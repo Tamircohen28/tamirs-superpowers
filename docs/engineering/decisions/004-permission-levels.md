@@ -81,6 +81,13 @@ ports), **MCP** = GitHub MCP tool matcher + server flags (D8), **GSF** = [`guard
 | `config.global.write` (incl. `git config alias.*`/`core.hooksPath`, `.git/hooks/**`, `gh alias set`), `config.policy.stage`, `secrets.capture.bodies` | R4 | setup/install, usage-capture, mcp-builder, retro, capture-config ([A2] F1–F4, [A3] D11) | PG (script names), GSF |
 | `policy.edit` (`plugin.permission_policy.edit`): permission files, lock, tickets, guard scripts, installed caches, host settings and option stores (D10), `claude plugin configure`, `gemini extensions config` | R4 | any write ([A3] D7, E) | GSF + PG deny; only the D6 writer, through D5 |
 | `worktree.remove.force`, `worktree.drop`, `git.reset_to_remote` that discard uncommitted or unpushed work | R4 | pr-dev script, cleanup ([A1] D-1, D-6) | PG; [safety] invariant 4 |
+| `fs.delete.tree`: a recursive `rm` of `/`, a top-level directory, the home directory or one of its direct children, or a git repository's root | R4 | none intended | PG |
+
+**Host bypass (2026-11-06).** When Claude Code itself runs with `bypassPermissions`, the user has chosen not to be
+asked. `permission-guard.sh` then lets every ask through except the catalog's `host_bypass.still_ask` list:
+`repo.delete`, `fs.delete.tree`, `git.push.force.default`, `git.reset_to_remote`, `worktree.drop`,
+`worktree.remove.force` — the operations that cannot be undone. Denies, plugin-config confirms and every other host
+are unchanged. The user's decision, recorded with the change (5.6.5).
 
 **`none` means never automatic** ([SR] S-06): such an action asks at every level. Under `unattended` only
 `pr.merge.auto`, `branch.delete.remote`, `pr.close`, `issue.close`, `git.push.force` (own branch, with lease) and
