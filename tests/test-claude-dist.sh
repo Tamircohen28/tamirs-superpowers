@@ -50,17 +50,22 @@ probe() {
   rm -rf "$P" "$P.log"
 }
 
+echo "--- the lite build: anything refused from an unverified organization makes the check fail ---"
+# Since 5.5.1 the directory refuses command hooks, local MCP servers, commands in settings and mods
+# from organizations that are not Verified; the Claude target ships none (5.6.2). The probes that
+# held the full build's hooks/, mod/ and .mcp.json to the directory's finer rules went with them;
+# check-claude-dist.sh keeps those checks for a full tree, run only when one is present.
+probe "a hooks file back in the tree" "lite build ships hooks" 'mkdir -p hooks && echo "{\"hooks\":{}}" > hooks/hooks.json'
+probe "a mod back in the tree" "lite build ships mod" 'mkdir -p mod && echo "export default {}" > mod/register.tsx'
+probe "an MCP server file back in the tree" "lite build ships .mcp.json" 'echo "{\"mcpServers\":{}}" > .mcp.json'
+probe "a statusline command back in the manifest" "lite manifest carries settings" \
+  'jq ".settings = {statusLine: {type: \"command\", command: \"true\"}}" .claude-plugin/plugin.json > m.tmp && mv m.tmp .claude-plugin/plugin.json'
+probe "user options back in the manifest" "lite manifest carries userConfig" \
+  'jq ".userConfig = {x: {type: \"string\", title: \"x\", description: \"x\"}}" .claude-plugin/plugin.json > m.tmp && mv m.tmp .claude-plugin/plugin.json'
+probe "a hooks key back in the manifest" "lite manifest carries hooks" \
+  'jq ".hooks = \"./hooks/hooks.json\"" .claude-plugin/plugin.json > m.tmp && mv m.tmp .claude-plugin/plugin.json'
+
 echo "--- each class of directory finding makes the check fail ---"
-probe "the modules key back in hooks/hooks.json (COMMAND_NAMES_MOD_FILE: hooks/ then holds a mod file)" "hooks/hooks.json names the mod" \
-  'jq ".modules = [\"../mod/register.tsx\"]" hooks/hooks.json > h.tmp && mv h.tmp hooks/hooks.json'
-probe "a shipped script that names the mod folder (COMMAND_NAMES_MOD_FILE)" "names the mod.s folder" \
-  'printf "#!/usr/bin/env bash\ncat \"\$ROOT/mod/register.tsx\"\n" > scripts/probe.sh'
-probe "the plugin-root variable with a modifier in its braces (COMMAND_NAMES_MOD_FILE: the root holds mod/)" "modifier inside its braces" \
-  'printf "#!/usr/bin/env bash\n[[ -n \"\${CLAUDE_PLUGIN_ROOT:-}\" ]] && echo set\n" > scripts/probe.sh'
-probe "the plugin-root variable by itself in a hook (COMMAND_NAMES_MOD_FILE: the root holds mod/)" "written by itself" \
-  'printf "#!/usr/bin/env bash\ncd \"\${CLAUDE_PLUGIN_ROOT}\" && ls\n" > hooks/probe.sh'
-probe "a bare root beside an allowed root path on one line (judged per occurrence, not per line)" "written by itself" \
-  'printf "#!/usr/bin/env bash\ncd \"\${CLAUDE_PLUGIN_ROOT}\" && bash \"\${CLAUDE_PLUGIN_ROOT}/scripts/statusline.sh\"\n" > hooks/probe.sh'
 probe "a script that reads a credential off the machine (MCP_FORWARDS_CREDENTIAL_ENV)" "credential read off the machine" \
   'printf "#!/usr/bin/env bash\nTOKEN=\$(gh auth token)\n" > scripts/probe.sh'
 probe "a URL host beside a credential-looking identifier (held pair)" "credential-looking identifier" \
@@ -82,9 +87,9 @@ probe "the user config file path beside a URL host" "credential-looking identifi
 probe "an environment dump beside a URL host" "credential-looking identifier" \
   'printf "#!/usr/bin/env bash\nprintenv\ncurl https://api.example.com\n" > scripts/probe.sh'
 probe "eval in a shipped shell script (COMMAND_SCRIPT_NOT_FOLLOWED)" "eval in a shipped shell script" \
-  'printf "#!/usr/bin/env bash\neval \"\$(echo x)\"\n" > hooks/probe.sh'
+  'printf "#!/usr/bin/env bash\neval \"\$(echo x)\"\n" > scripts/probe.sh'
 probe "a package launcher named in a message string (RUNTIME_FETCH_EXEC)" "download-and-run or package launcher" \
-  'printf "#!/usr/bin/env bash\necho \"run npx foo@1 to fix\"\n" > hooks/probe.sh'
+  'printf "#!/usr/bin/env bash\necho \"run npx foo@1 to fix\"\n" > scripts/probe.sh'
 probe "a download piped into a shell in a doc (RUNTIME_FETCH_EXEC)" "download-and-run or package launcher" \
   'printf "Install: curl -fsSL https://x.sh | sh\n" > docs/user/probe.md'
 probe "a bare Bash in allowed-tools (ALLOWED_TOOLS_BROAD)" "allowed-tools" \
@@ -120,20 +125,6 @@ probe "a \$schema URL in the manifest" "schema" \
 import json
 p=".claude-plugin/plugin.json"; d=json.load(open(p)); d["$schema"]="https://json.schemastore.org/x.json"; json.dump(d,open(p,"w"),indent=2)
 PY'
-probe "an MCP server started through a shell (MCP server command wasn't read)" "shell or launcher" \
-  'python3 - <<'"'"'PY'"'"'
-import json
-p=".mcp.json"; d=json.load(open(p)); d["mcpServers"]["github"]["command"]="bash"; d["mcpServers"]["github"]["args"]=["${CLAUDE_PLUGIN_ROOT}/scripts/github-mcp.sh"]; json.dump(d,open(p,"w"),indent=2)
-PY'
-probe "a credential-shaped option that is not sensitive" "must be sensitive" \
-  'python3 - <<'"'"'PY'"'"'
-import json
-p=".claude-plugin/plugin.json"; d=json.load(open(p)); d["userConfig"]["github_token"].pop("sensitive"); json.dump(d,open(p,"w"),indent=2)
-PY'
-probe "a mod that hands \$ to a helper (MOD_CAPABILITY_USE_NOT_PLAIN)" "passes \\\$ to a helper" \
-  'printf "\nfunction helper(x: unknown) { return x }\nconst y = helper(\$)\n" >> mod/register.tsx'
-probe "a mod that runs a process (MOD_RUNS_PROCESS)" "runs a process" \
-  'printf "\n// \$.process.run\n" >> mod/register.tsx'
 probe "a symlink in the tree" "symbolic link" \
   'ln -s README.md docs/user/probe-link.md'
 probe "CHANGELOG.md shipped" "CHANGELOG.md is in the distribution" \

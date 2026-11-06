@@ -116,7 +116,19 @@ done
 prose="$(grep -rnE 'gh auth token|PUSHOVER_TOKEN|PUSHOVER_USER|GITHUB_TOKEN|GH_TOKEN|GITHUB_PERSONAL_ACCESS_TOKEN|pushover\.env' "$DIST" --include='*.md' --include='*.json' --include='*.sh' --include='*.py' --include='*.tsx' --include='*.tmpl' --include='*.yaml' 2>/dev/null | grep -vE '^[^:]+/(\.mcp\.json|\.claude-plugin/plugin\.json|scripts/github-mcp\.sh|scripts/notify-pushover\.sh):' | head -3)"
 [[ -z "$prose" ]] && ok "no shipped file names a credential variable or the gh token command (outside the three that must)" || bad "credential name in shipped text" "$prose"
 
-echo "--- hooks, mod and MCP ---"
+echo "--- the lite build: nothing an unverified organization is refused for ---"
+# Since 5.5.1 the directory refuses (not holds) a version from an organization that is not
+# Verified when it carries command hooks, a local MCP server, a command in the plugin's
+# settings, or a mod. The Claude target therefore ships none of them (scripts/build-dist.sh).
+for f in hooks mod .mcp.json; do
+  [[ -e "$DIST/$f" ]] && bad "lite build ships $f (refused from an unverified organization)" || ok "lite build ships no $f"
+done
+for k in hooks mcpServers settings types userConfig; do
+  jq -e --arg k "$k" 'has($k)' "$DIST/.claude-plugin/plugin.json" >/dev/null 2>&1 \
+    && bad "lite manifest carries $k" || ok "lite manifest carries no $k"
+done
+
+echo "--- hooks, mod and MCP (only if a full build is checked) ---"
 H="$DIST/hooks/hooks.json"
 if [[ -f "$H" ]] && jq -e . "$H" >/dev/null 2>&1; then
   ok "hooks/hooks.json parses"
@@ -131,7 +143,7 @@ if [[ -f "$H" ]] && jq -e . "$H" >/dev/null 2>&1; then
   badcmd="$(jq -r '.. | .command? // empty' "$H" | grep -vE '^(bash|python3) ("\$\{CLAUDE_PLUGIN_ROOT\}"/[A-Za-z0-9_./-]+|"\$\{CLAUDE_PLUGIN_ROOT\}/[A-Za-z0-9_./-]+")( [^$`]*)?$' | head -3)"
   [[ -z "$badcmd" ]] && ok "every hook command is <interp> \"\${CLAUDE_PLUGIN_ROOT}\"/<path>, quoted, no other variable" || bad "hook command not in the plain CLAUDE_PLUGIN_ROOT form" "$badcmd"
 else
-  bad "hooks/hooks.json missing or invalid"
+  if [[ -e "$H" ]]; then bad "hooks/hooks.json invalid"; else note "no hooks/hooks.json: the lite build ships no hooks"; fi
 fi
 MCP="$DIST/.mcp.json"
 if [[ -f "$MCP" ]]; then

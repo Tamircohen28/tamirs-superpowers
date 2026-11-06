@@ -1,12 +1,13 @@
 # tamirs-superpowers
 
-A portable agent toolkit for Claude Code and Claude Desktop: **31 skills**, 10 role-based
-specialist agents, worktree-isolation hooks, a statusline, an in-process mod, and a bundled
-GitHub MCP server, from one plugin.
+A portable agent toolkit for Claude: **31 skills**, 10 role-based specialist agents and an
+evidence-first output style, from one plugin.
 
-This is the Claude-only distribution built for Anthropic's plugin directory. It is generated
-from the canonical repository, which also ships the same skills to Codex, Cursor, Gemini CLI
-and OpenCode. Source, issues and the full documentation:
+This is the directory edition, built for Anthropic's plugin directory from the canonical
+repository. It ships the skills, agents and output style only: no hooks, no mod, no MCP server
+and no statusline command. The full plugin, with worktree-isolation hooks, a permission guard,
+a statusline, an in-process mod and a bundled GitHub MCP server, installs from the
+tamirs-marketplace (see Install). Source, issues and the full documentation:
 <https://github.com/Tamircohen28/tamirs-superpowers>.
 
 ## What you get
@@ -15,104 +16,39 @@ and OpenCode. Source, issues and the full documentation:
   (`plan-dev`, `start-dev`, `orchestrate-dev`, `worker-dev`, `deliver-dev`, `pr-dev`,
   `switch-dev`), debugging (`targeted-debug`, `diagnose-refusal`), repository standards
   (`repo-scaffold`, `repo-standards`, `multi-agent-repo`, `github-policy`, `cleanup`), and a
-  toolkit (`skill-creator`, `find-skill`, `retro`, `session-report`, `notify-setup`,
-  `mcp-builder`, and more). Every skill states what it needs and degrades explicitly where a
-  capability is missing.
+  toolkit (`skill-creator`, `find-skill`, `retro`, `session-report`, `mcp-builder`, and more).
+  Every skill states what it needs and degrades explicitly where a capability is missing.
 - **Agents** — ten specialists (implementer, test engineer, security reviewer, …), each
   reading its contract from `core/roles/` and your project's own `CLAUDE.md`.
-- **Hooks** — worktree isolation for parallel workers, sensitive-file guards, a Docker guard,
-  session snapshots before compaction, a done-check on stop, and a desktop notification when
-  the session needs you. All run locally; none makes a network request.
-- **Mod** (Claude Code 2.1.287+) — a live objective pane and `/objective` command, a
-  rate-limit band that reminds you to run `/switch-dev handoff`, usage figures on Desktop, and a definition-of-done
-  line under answers that wrote files. It makes no network call and runs no process; what it
-  does with what it sees is listed below.
-- **Statusline** — context, rate-limit windows, cost and prompt-cache state on one line.
-- **GitHub MCP server** — the official `github-mcp-server`, started with a token you provide.
+- **Output style** — `Evidence`: answers that cite the command, file or output behind each
+  claim. Opt in with `/output-style Evidence`.
 
 ## What it runs, sends and fetches
 
-Nothing leaves your machine unless you turn a feature on and give it a credential:
-
-- **Pushover phone notifications** (opt-in): set the `pushover_token` and `pushover_user`
-  options and the Notification hook posts a short message, with up to 300 characters of
-  Claude's last reply, to `api.pushover.net` when the session needs you. Only that hook
-  sends; the mod does not.
-- **GitHub MCP server** (opt-in): set the `github_token` option and the plugin starts the
-  official `github-mcp-server` binary (or its Docker image, pulled from `ghcr.io` on first
-  use) with that token, which then talks to `api.github.com` for the session.
-- **Semantic skill suggestion** (opt-in): set `semantic_skill_suggest` and a long prompt is
-  classified by a small model through your own session's client.
-
-Credentials are read only from those options, which the host keeps in its credential store.
-The plugin never reads a token from your environment, from `gh`, or from a file. Full
-details: [PRIVACY.md](PRIVACY.md).
-
-### What the hooks do with the calls they see
-
-- `enforce-worktree-edits` and `guard-sensitive-files` run before `Edit`/`Write`/`Bash`:
-  they allow the call, or deny it with a reason (a write outside the worker's worktree, a
-  write to a secret, CI or lockfile path). They change no input and send nothing.
-- `docker-guard` denies destructive Docker commands with a reason. `notify` raises a desktop
-  banner; `notify-pushover` posts to Pushover only when both options are set.
-- `session-init`, `precompact-snapshot`, `check-done`, `handoff-reminder`, `skill-suggest`
-  and the worktree hooks read and write files inside your checkout (`.dev-files/`,
-  `.agent-worktrees/`) and add short context lines. None makes a network request.
-
-### What the mod reads and submits
-
-- **Reads**: the objective, task and handoff JSON files under `.dev-files/objectives/` in
-  your checkout, your project's `CLAUDE.md` (for a declared commit trailer line) and
-  `.git/HEAD` (for the branch name), plus the usage and rate-limit figures Claude Code
-  pushes to it. It counts file-writing tool calls; it does not read their contents.
-- **Hooks**: `command.run` answers `/objective` with the objective summary and changes
-  nothing; it handles no other command, and every other command passes through untouched.
-  `classic.SessionStart` (on `/clear`, `/resume` and `/branch` only) re-reads the objective
-  files and the band's saved dismissals, and passes the event through unchanged: it changes
-  no setting, instruction or hook output. `skill.prompt` appends the active objective's id,
-  title, worktree and open-task count to the text of this plugin's own dev-workflow skills
-  (`plan-dev`, `orchestrate-dev`, `worker-dev` and the like) and leaves every other skill
-  untouched. `agent.spawn` counts workers in flight for the spinner and passes the spawn through
-  unchanged, as does `tool.call` for file-writing calls. `session.start` and `session.measure`
-  only read state and rate-limit figures. `ui.render` draws the objective pane, the spinner
-  suffix and the rate-limit band. On `attribution.text` it appends the commit trailer your project's `CLAUDE.md`
-  declares, if any. On `session.compact` it adds the branch and objective to the
-  compaction instructions. It registers one command, `/objective`.
-- **Answers one tool itself**: the mod registers the `objective_status` tool and its
-  `tool.call` hook answers that tool, and only that tool, with the objective summary as JSON
-  read from `.dev-files/objectives/`. That tool exists only through the mod, so there is
-  nothing for it to stand in for; every other tool call goes on to its own tool.
-- **Sends**: nothing of its own. The mod makes no network call and runs no process; every
-  call it makes is on Claude Code's own mod API (files under your checkout, its own state
-  and store, the agent list, drawing, and the session's model). The one thing that leaves
-  the session is opt-in: with `semantic_skill_suggest` on (off by default), the first 2,000
-  characters of a long prompt go to your session's own model through `$.model.classify`, as
-  described under **Submits** below.
-- **Submits**: nothing. The mod makes no `prompt.submit` call; the rate-limit band only
-  displays the text "type /switch-dev handoff". With `semantic_skill_suggest` on (off by
-  default), a one-line note naming a matching skill is attached as context to your own
-  prompt, and the first 2,000 characters of that prompt go to your session's own model to
-  pick the skill name.
+Nothing runs on its own. This edition has no hooks, no mod and no MCP server, so nothing starts
+when a session opens, when a tool is called or when the session ends. A skill runs a command
+only when Claude runs it as part of the task you gave, through Claude Code's normal permission
+prompts; the scripts a skill names ship inside the plugin and are readable as text. The plugin
+reads no token from your environment, from `gh` or from a file, and sends nothing anywhere.
+The privacy policy is in [PRIVACY.md](PRIVACY.md).
 
 ## Install
 
-Add it from the directory on claude.ai, or in Claude Code:
+Add it from the directory on claude.ai. For the full plugin (hooks, permission guard, mod,
+statusline, GitHub MCP server), in Claude Code:
 
 ```text
 /plugin marketplace add Tamircohen28/tamirs-marketplace
 /plugin install tamirs-superpowers@tamirs-marketplace
 ```
 
-Then, optionally, open `/plugin` > tamirs-superpowers > **Configure** to set the options
-above. The skills need no configuration.
-
 ## Surfaces
 
 | Surface | Status |
 |---|---|
-| Claude Code (CLI) | Supported. Hooks, mod, statusline, MCP server and every skill. |
-| Claude Desktop | Supported. Same plugin; the statusline does not draw (no terminal chrome) and the mod draws the usage figures in its place. |
-| claude.ai (web) | Skills and agents. Hooks, the mod and the stdio MCP server are Claude Code and Desktop features. |
+| Claude Code (CLI) | Supported: every skill, agent and the output style. |
+| Claude Desktop | Supported: the same. |
+| claude.ai (web) | Skills and agents. |
 
 ## License
 
