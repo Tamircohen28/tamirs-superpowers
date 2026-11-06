@@ -5,6 +5,12 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [5.6.3] — 2026-11-06
+
+### Changed
+
+- **The protected-file guard's "unresolved write" notice is off by default.** It is advisory and never blocked anything, but it appeared on every inline script (`python3 - <<EOF`, `bash -c`, a path built at run time) and read like an error. A write the guard can resolve to a protected file — a lockfile, a workflow, `.yarn/releases/`, generated shadcn UI, gitignored build output — is still denied exactly as before. The new plugin option `unresolved_write_notices` turns the notice back on.
+
 ## [5.6.2] — 2026-11-06
 
 ### Changed
