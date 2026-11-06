@@ -272,9 +272,15 @@ while IFS=$'\t' read -r kind detail fragment; do
   esac
 done <<<"$analysis"
 
-# No silent failure path: "could not determine" must not be delivered as "no
-# protected file was touched". This is advisory, never a block — the command
-# still runs, and the agent is told what the guard could not check.
+# The unresolved-write notice is advisory, never a block: the command still runs either way,
+# and a write the parse *can* resolve to a protected path is still denied above. Off by default
+# since 5.6.3 (the user found it noise on every inline script); the plugin option
+# unresolved_write_notices turns it back on, and then "could not determine" is never delivered
+# as "no protected file was touched".
+case "${CLAUDE_PLUGIN_OPTION_UNRESOLVED_WRITE_NOTICES:-false}" in
+  true|1|yes|on) ;;
+  *) unsure=""; repeats=""; new_markers=() ;;
+esac
 if [ -n "$unsure" ]; then
   if [ "${#new_markers[@]}" -gt 0 ]; then
     mkdir -p "$notice_dir" 2>/dev/null && chmod 700 "$notice_base" "$notice_dir" 2>/dev/null

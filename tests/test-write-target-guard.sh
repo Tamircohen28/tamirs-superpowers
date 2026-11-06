@@ -33,6 +33,8 @@ set -uo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 # shellcheck source=tests/lib/harness.sh
 source "$ROOT/tests/lib/harness.sh"
+# The unresolved-write notice is off by default since 5.6.3; these cases assert it, so turn it on.
+export CLAUDE_PLUGIN_OPTION_UNRESOLVED_WRITE_NOTICES=true
 
 harness_require git jq python3
 

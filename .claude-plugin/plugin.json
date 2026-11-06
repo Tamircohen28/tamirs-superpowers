@@ -1,7 +1,7 @@
 {
   "name": "tamirs-superpowers",
   "displayName": "Tamir's Superpowers",
-  "version": "5.6.2",
+  "version": "5.6.3",
   "description": "31 bundled skills, 10 specialist agents, smart worktree hooks, statusline, and MCP server stubs — plan, implement, review, debug, multi-agent setup, and audit code from one plugin.",
   "homepage": "https://github.com/Tamircohen28/tamirs-superpowers",
   "repository": "https://github.com/Tamircohen28/tamirs-superpowers",
@@ -47,7 +47,11 @@
       "type": "string",
       "title": "Permission level (how much the skills do without asking you)",
       "description": "supervised (default): asks before anything that leaves this machine - push, open a PR, comment, merge, delete a branch. standard: pushes its own branches, opens PRs and comments without asking; still asks before merging, closing or deleting. unattended: also arms auto-merge, deletes merged branches and closes finished PRs and issues, each only when its safety precondition holds. The riskiest actions ask at every level. It governs the plugin, never Claude Code's own prompts; the lower of this and ~/.config/tamirs-superpowers/permissions.json applies (ADR 004).",
-      "options": ["supervised", "standard", "unattended"],
+      "options": [
+        "supervised",
+        "standard",
+        "unattended"
+      ],
       "default": "supervised"
     },
     "github_token": {
@@ -92,6 +96,12 @@
       "type": "boolean",
       "title": "Contributor hooks (plugin-author reminders and checks)",
       "description": "Off by default. When on, the /reload-plugins reminder after a plugin-file edit, report.md link validation and the hand-written SKILL.md guard run. For people working on this plugin or on agent configuration; noise for everyone else. Read by the bash hooks only; hosts without plugin options use the default.",
+      "default": false
+    },
+    "unresolved_write_notices": {
+      "type": "boolean",
+      "title": "Unresolved-write notices from the protected-file guard",
+      "description": "Off by default. When on, the protected-file guard tells Claude when a command writes somewhere it cannot resolve (an inline script, a path built at run time), so it was not checked against the protected-path rules. Writes the guard can resolve to a protected file are denied either way.",
       "default": false
     }
   }

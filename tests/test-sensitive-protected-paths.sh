@@ -30,6 +30,8 @@ set -uo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 # shellcheck source=tests/lib/harness.sh
 source "$ROOT/tests/lib/harness.sh"
+# The unresolved-write notice is off by default since 5.6.3; these cases assert it, so turn it on.
+export CLAUDE_PLUGIN_OPTION_UNRESOLVED_WRITE_NOTICES=true
 
 harness_require git jq python3
 
@@ -305,5 +307,17 @@ judge "codex: deny with a non-empty reason" yes \
 cursor_out="$(jq -n --arg p "$PHOME/.cursor/hooks.json" --arg cwd "$REPO" \
   '{tool_name:"Write", cwd:$cwd, cursor_version:"3", tool_input:{file_path:$p}}' | bash "$GUARD" 2>/dev/null)"
 judge "cursor: permission deny" deny "$(printf '%s' "$cursor_out" | jq -r '.permission' 2>/dev/null)"
+
+
+section "the unresolved-write notice is off by default (5.6.3)"
+G="$ROOT/hooks/guard-sensitive-files.sh"
+quiet_payload="$(jq -nc --arg c "python3 -c \"open('x','w')\"" --arg d "$ROOT" '{cwd:$d, hook_event_name:"PreToolUse", tool_name:"Bash", tool_input:{command:$c}}')"
+quiet_out="$(printf '%s' "$quiet_payload" | env -u CLAUDE_PLUGIN_OPTION_UNRESOLVED_WRITE_NOTICES bash "$G" 2>/dev/null)"
+judge "option unset: an unresolved write gets no notice" no "$(case "$quiet_out" in *"NOT checked"*|*"unresolved write"*) echo yes;; *) echo no;; esac)"
+deny_payload="$(jq -nc --arg c "echo x > package-lock.json" --arg d "$ROOT" '{cwd:$d, hook_event_name:"PreToolUse", tool_name:"Bash", tool_input:{command:$c}}')"
+deny_out="$(printf '%s' "$deny_payload" | env -u CLAUDE_PLUGIN_OPTION_UNRESOLVED_WRITE_NOTICES bash "$G" 2>/dev/null)"
+judge "option unset: a resolvable protected write is still denied" deny "$(printf '%s' "$deny_out" | jq -r '.hookSpecificOutput.permissionDecision // "pass"' 2>/dev/null)"
+on_out="$(printf '%s' "$quiet_payload" | CLAUDE_PLUGIN_OPTION_UNRESOLVED_WRITE_NOTICES=true bash "$G" 2>/dev/null)"
+judge "option on: the notice is back" yes "$(case "$on_out" in *"NOT checked"*) echo yes;; *) echo no;; esac)"
 
 harness_summary
