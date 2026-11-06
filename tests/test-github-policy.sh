@@ -749,7 +749,7 @@ judge "ctx: iBrain's list does not leak into another repo" "no" \
 # repository's checks win over an empty account default). Each renders exactly
 # its own list, in the stored order, and a repository with no entry still gets
 # no status-check rule at all.
-for ctx_repo in Aurora-DJ mac-server-setup repo-bug-learner st-claude tamirs-marketplace UltrasGreenPlus; do
+for ctx_repo in Aurora-DJ mac-server-setup repo-bug-learner st-claude tamirs-marketplace UltrasGreenPlus agent-usage-telemetry orchard; do
   render_for "Tamircohen28/$ctx_repo" "$TMP/render/ctx-$ctx_repo.json"
   judge "ctx: $ctx_repo renders exactly its own contexts, in order" \
     "$(jq -c '.repositories["Tamircohen28/'"$ctx_repo"'"].required_checks.contexts' "$POLICY")" \
