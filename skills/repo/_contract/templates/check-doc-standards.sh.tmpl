@@ -301,6 +301,9 @@ fix_mermaid() {
       if (expect) expect = 0
       print line; prev = line
     }
+    # EOF inside an unterminated directive with no closing fence: the held-back lines
+    # are diagram body, so print them rather than lose them.
+    END { for (i = 1; i <= nbuf; i++) print buf[i] }
   ' "$f" > "$tmp" && mv "$tmp" "$f"
 }
 
