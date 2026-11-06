@@ -45,11 +45,16 @@ AGENT_CLAIM_STALE_SECONDS="${AGENT_CLAIM_STALE_SECONDS:-900}"
 # Last error message set by a claim_* function that returned non-zero.
 CLAIM_ERROR=""
 
+# The field separator of claim_inspect's and claim_push_destinations' lines.
+# Their lines are printed by _hook_put/_hook_putln (lib/command-tokens.sh,
+# sourced below), which carry no printf conversion.
+_CLAIM_TAB=$'\t'
+
 claim_now() { date +%s; }
 
 # claim_require_deps — verify the tools the claim layer needs.
 claim_require_deps() {
-  if ! command -v jq >/dev/null 2>&1; then
+  if ! command -v jq >/dev/null 2>/dev/null; then
     CLAIM_ERROR="jq is not installed; agent-claim state cannot be read or written."
     return 1
   fi
@@ -75,7 +80,7 @@ claim_ensure_dir() {
 
 # claim_tool_label — which agent tool is running, best effort but never empty.
 claim_tool_label() {
-  if [ -n "${AGENT_CLAIM_TOOL:-}" ]; then printf '%s' "$AGENT_CLAIM_TOOL"; return 0; fi
+  if [ -n "${AGENT_CLAIM_TOOL:-}" ]; then _hook_put "$AGENT_CLAIM_TOOL"; return 0; fi
   if [ -n "${CODEX_SESSION_ID:-}${CODEX_THREAD_ID:-}${CODEX_HOME:-}" ]; then printf 'codex'; return 0; fi
   if [ -n "${CURSOR_SESSION_ID:-}${CURSOR_TRACE_ID:-}${CURSOR_AGENT:-}" ]; then printf 'cursor'; return 0; fi
   case "${HOOK_PLATFORM:-}" in
@@ -91,13 +96,13 @@ claim_tool_label() {
 # the same across every tool call of one agent; pid is the fallback.
 claim_agent_id() {
   local session="${1:-}"
-  if [ -n "${AGENT_CLAIM_ID:-}" ]; then printf '%s' "$AGENT_CLAIM_ID"; return 0; fi
+  if [ -n "${AGENT_CLAIM_ID:-}" ]; then _hook_put "$AGENT_CLAIM_ID"; return 0; fi
   local tool
   tool="$(claim_tool_label)"
   if [ -n "$session" ] && [ "$session" != "null" ]; then
-    printf '%s:%s' "$tool" "$session"
+    _hook_put "${tool}:${session}"
   else
-    printf '%s:pid-%s' "$tool" "${PPID:-$$}"
+    _hook_put "${tool}:pid-${PPID:-$$}"
   fi
 }
 
@@ -106,16 +111,16 @@ claim_agent_id() {
 # returns EPERM for a live process owned by another user, which would be
 # misread as death.
 claim_pid_alive() {
-  ps -p "$1" -o pid= >/dev/null 2>&1
+  ps -p "$1" -o pid= >/dev/null 2>/dev/null
 }
 
 # claim_key <resource> — filesystem-safe key for a resource identifier.
 claim_key() {
-  printf '%s' "$1" | tr '/:@#' '____' | tr -c 'A-Za-z0-9._-' '_'
+  _hook_put "$1" | tr '/:@#' '____' | tr -c 'A-Za-z0-9._-' '_'
 }
 
 claim_path() {
-  printf '%s/%s.json' "$AGENT_CLAIM_DIR" "$(claim_key "$1")"
+  _hook_put "${AGENT_CLAIM_DIR}/$(claim_key "$1").json"
 }
 
 # claim_inspect <resource> <my-agent-id>
@@ -132,29 +137,29 @@ claim_inspect() {
   fi
   if [ ! -r "$file" ]; then
     CLAIM_ERROR="Claim file '$file' exists but is not readable — cannot determine whether another agent holds $resource."
-    printf 'ERROR\t-\t-\t-\t%s\n' "$CLAIM_ERROR"
+    _hook_putln "ERROR${_CLAIM_TAB}-${_CLAIM_TAB}-${_CLAIM_TAB}-${_CLAIM_TAB}${CLAIM_ERROR}"
     return 1
   fi
   if ! json="$(cat "$file" 2>/dev/null)"; then
     CLAIM_ERROR="Claim file '$file' could not be read — cannot determine whether another agent holds $resource."
-    printf 'ERROR\t-\t-\t-\t%s\n' "$CLAIM_ERROR"
+    _hook_putln "ERROR${_CLAIM_TAB}-${_CLAIM_TAB}-${_CLAIM_TAB}-${_CLAIM_TAB}${CLAIM_ERROR}"
     return 1
   fi
-  if ! printf '%s' "$json" | jq -e . >/dev/null 2>&1; then
+  if ! _hook_put "$json" | jq -e . >/dev/null 2>/dev/null; then
     CLAIM_ERROR="Claim file '$file' is not valid JSON — claim state for $resource is corrupt and cannot be evaluated."
-    printf 'ERROR\t-\t-\t-\t%s\n' "$CLAIM_ERROR"
+    _hook_putln "ERROR${_CLAIM_TAB}-${_CLAIM_TAB}-${_CLAIM_TAB}-${_CLAIM_TAB}${CLAIM_ERROR}"
     return 1
   fi
 
-  holder="$(printf '%s' "$json" | jq -r '.agent_id // ""')"
-  tool="$(printf '%s' "$json" | jq -r '.tool // "unknown"')"
-  pid="$(printf '%s' "$json" | jq -r '.pid // ""')"
-  host="$(printf '%s' "$json" | jq -r '.host // ""')"
-  hb="$(printf '%s' "$json" | jq -r '.heartbeat_at // ""')"
+  holder="$(_hook_put "$json" | jq -r '.agent_id // ""')"
+  tool="$(_hook_put "$json" | jq -r '.tool // "unknown"')"
+  pid="$(_hook_put "$json" | jq -r '.pid // ""')"
+  host="$(_hook_put "$json" | jq -r '.host // ""')"
+  hb="$(_hook_put "$json" | jq -r '.heartbeat_at // ""')"
 
-  if [ -z "$holder" ] || [ -z "$hb" ] || ! printf '%s' "$hb" | grep -qE '^[0-9]+$'; then
+  if [ -z "$holder" ] || [ -z "$hb" ] || ! _hook_put "$hb" | grep -qE '^[0-9]+$'; then
     CLAIM_ERROR="Claim file '$file' is missing required fields (agent_id/heartbeat_at) — claim state for $resource cannot be evaluated."
-    printf 'ERROR\t-\t-\t-\t%s\n' "$CLAIM_ERROR"
+    _hook_putln "ERROR${_CLAIM_TAB}-${_CLAIM_TAB}-${_CLAIM_TAB}-${_CLAIM_TAB}${CLAIM_ERROR}"
     return 1
   fi
 
@@ -163,7 +168,7 @@ claim_inspect() {
   [ "$age" -lt 0 ] && age=0
 
   if [ "$holder" = "$me" ]; then
-    printf 'MINE\t%s\t%s\t%s\tself\n' "$holder" "$tool" "$age"
+    _hook_putln "MINE${_CLAIM_TAB}${holder}${_CLAIM_TAB}${tool}${_CLAIM_TAB}${age}${_CLAIM_TAB}self"
     return 0
   fi
 
@@ -172,19 +177,19 @@ claim_inspect() {
   # dead process (ESRCH) from a live one owned by another user (EPERM), and
   # reading EPERM as "dead" would release a live claim.
   if [ -n "$host" ] && [ "$host" = "$(hostname)" ] && [ -n "$pid" ] \
-     && printf '%s' "$pid" | grep -qE '^[0-9]+$' && command -v ps >/dev/null 2>&1; then
+     && _hook_put "$pid" | grep -qE '^[0-9]+$' && command -v ps >/dev/null 2>/dev/null; then
     if ! claim_pid_alive "$pid"; then
-      printf 'STALE\t%s\t%s\t%s\tholder pid %s is gone on this host\n' "$holder" "$tool" "$age" "$pid"
+      _hook_putln "STALE${_CLAIM_TAB}${holder}${_CLAIM_TAB}${tool}${_CLAIM_TAB}${age}${_CLAIM_TAB}holder pid ${pid} is gone on this host"
       return 0
     fi
   fi
 
   if [ "$age" -gt "$AGENT_CLAIM_STALE_SECONDS" ]; then
-    printf 'STALE\t%s\t%s\t%s\theartbeat older than %ss\n' "$holder" "$tool" "$age" "$AGENT_CLAIM_STALE_SECONDS"
+    _hook_putln "STALE${_CLAIM_TAB}${holder}${_CLAIM_TAB}${tool}${_CLAIM_TAB}${age}${_CLAIM_TAB}heartbeat older than ${AGENT_CLAIM_STALE_SECONDS}s"
     return 0
   fi
 
-  printf 'LIVE\t%s\t%s\t%s\theartbeat %ss ago\n' "$holder" "$tool" "$age" "$age"
+  _hook_putln "LIVE${_CLAIM_TAB}${holder}${_CLAIM_TAB}${tool}${_CLAIM_TAB}${age}${_CLAIM_TAB}heartbeat ${age}s ago"
   return 0
 }
 
@@ -230,7 +235,7 @@ case "${BASH_SOURCE[0]}" in
   *) _claim_lib_dir=. ;;
 esac
 # shellcheck source=hooks/lib/command-tokens.sh
-source "${_claim_lib_dir}/command-tokens.sh"
+source "${_claim_lib_dir}/command-tokens.sh" || return 1
 unset _claim_lib_dir
 
 # Unit separator between the tokens of one segment (segments are newline-separated).
@@ -380,7 +385,7 @@ claim_push_destinations() {
 
     found=1
     if ! _claim_push_segment_dests "$fallback"; then
-      printf 'ERROR\t%s\n' "$push_err"
+      _hook_putln "ERROR${_CLAIM_TAB}${push_err}"
       return 1
     fi
   done <<< "$(claim_effective_segments "$cmd")"
@@ -393,7 +398,7 @@ claim_push_destinations() {
   fi
 
   local d
-  for d in "${dsts[@]}"; do printf 'DEST\t%s\n' "$d"; done
+  for d in "${dsts[@]}"; do _hook_putln "DEST${_CLAIM_TAB}${d}"; done
   return 0
 }
 
@@ -419,5 +424,5 @@ claim_release_all() {
     fi
   done < <(find "$AGENT_CLAIM_DIR" -maxdepth 1 -name '*.json' -type f \
              -exec grep -lF -- "$me" {} + 2>/dev/null)
-  printf '%s' "$released"
+  _hook_put "$released"
 }

@@ -35,25 +35,27 @@ hook_detect_platform "$INPUT"
 
 # jq is required by hook-output.sh itself, but check explicitly so the failure
 # is a spoken denial rather than a malformed hook response.
-if ! command -v jq >/dev/null 2>&1; then
+if ! command -v jq >/dev/null 2>/dev/null; then
   # hook_deny() builds its JSON WITH jq, so it cannot be used on this path - the
   # whole point of this branch is that jq is absent. Emit the denial literally, and
   # branch on platform: a Claude-shaped response is unreadable to Cursor, so the
   # deny would be silently ignored there and this guard would fail OPEN in exactly
   # the case it exists to fail closed. hook_detect_platform ran above, so
-  # HOOK_PLATFORM is already set.
+  # HOOK_PLATFORM is already set. Each answer is one echo of a fixed literal with
+  # the fixed reason spliced in; the reason holds no quote or backslash, so the
+  # line is valid JSON without an encoder.
   _reason='CONCURRENCY GUARD CANNOT RUN: jq is not installed, so agent work-claims cannot be evaluated. Refusing to assume the artifact is free.'
   if [ "${HOOK_PLATFORM:-claude}" = "cursor" ]; then
-    printf '{"permission":"deny","user_message":"%s","agent_message":"%s"}\n' "$_reason" "$_reason"
+    echo '{"permission":"deny","user_message":"'"$_reason"'","agent_message":"'"$_reason"'"}'
   else
-    printf '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"%s"}}\n' "$_reason"
+    echo '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"'"$_reason"'"}}'
   fi
   exit 0
 fi
 
-COMMAND=$(printf '%s' "$INPUT" | jq -r '.tool_input.command // ""')
-CWD=$(printf '%s' "$INPUT" | jq -r '.cwd // (.workspace_roots[0]? // "") // ""')
-SESSION=$(printf '%s' "$INPUT" | jq -r '.session_id // .conversation_id // ""')
+COMMAND=$(_hook_put "$INPUT" | jq -r '.tool_input.command // ""')
+CWD=$(_hook_put "$INPUT" | jq -r '.cwd // (.workspace_roots[0]? // "") // ""')
+SESSION=$(_hook_put "$INPUT" | jq -r '.session_id // .conversation_id // ""')
 [ -n "$CWD" ] && [ -d "$CWD" ] || CWD="$PWD"
 
 # The payload's `.cwd` is the SESSION's directory, not the command's. An agent
@@ -97,7 +99,7 @@ effective_cwd() {
     esac
     case "$dir" in /*) : ;; *) dir="$CWD/$dir" ;; esac
     [ -d "$dir" ] || continue
-    printf '%s' "$dir"
+    _hook_put "$dir"
     return 0
   done <<< "$(claim_effective_segments "$COMMAND")"
   return 1
@@ -130,12 +132,12 @@ repo_slug() {
     shift
   done
   if [ -n "$slug" ]; then
-    printf '%s' "$slug" | sed -E 's#^https?://[^/]+/##; s#\.git$##'
+    _hook_put "$slug" | sed -E 's#^https?://[^/]+/##; s#\.git$##'
     return 0
   fi
   url=$(git -C "$dir" remote get-url origin 2>/dev/null) || return 1
   [ -n "$url" ] || return 1
-  printf '%s' "$url" | sed -E 's#^git@[^:]+:##; s#^https?://[^/]+/##; s#\.git$##'
+  _hook_put "$url" | sed -E 's#^git@[^:]+:##; s#^https?://[^/]+/##; s#\.git$##'
 }
 
 # integrator_may_take <resource> — true when this agent is the integrator for an
@@ -187,7 +189,7 @@ first_number_arg() {
   local i="$1"
   while [ "$i" -lt "$ntoks" ]; do
     case "${toks[$i]}" in
-      [0-9]*) case "${toks[$i]}" in *[!0-9]*) : ;; *) printf '%s' "${toks[$i]}"; return 0 ;; esac ;;
+      [0-9]*) case "${toks[$i]}" in *[!0-9]*) : ;; *) _hook_put "${toks[$i]}"; return 0 ;; esac ;;
     esac
     i=$((i + 1))
   done
@@ -236,7 +238,7 @@ detect_gh_api() {
         case "${t#*=}" in PATCH|POST|PUT|DELETE) mutating=1 ;; esac ;;
       -f|-F|--field|--raw-field|-f=*|-F=*|--field=*|--raw-field=*) mutating=1 ;;
       *)
-        hit=$(printf '%s' "$t" | grep -oE 'repos/[^/]+/[^/]+/(pulls|issues)/[0-9]+' | head -1)
+        hit=$(_hook_put "$t" | grep -oE 'repos/[^/]+/[^/]+/(pulls|issues)/[0-9]+' | head -1)
         [ -n "$hit" ] && path="$hit" ;;
     esac
     i=$((i + 1))
@@ -244,9 +246,9 @@ detect_gh_api() {
   [ "$mutating" -eq 1 ] || return 0
   [ -n "$path" ] || return 0
 
-  slug=$(printf '%s' "$path" | sed -E 's#^repos/([^/]+/[^/]+)/.*#\1#')
-  kind=$(printf '%s' "$path" | sed -E 's#.*/(pulls|issues)/[0-9]+$#\1#')
-  num=$(printf '%s' "$path" | grep -oE '[0-9]+$')
+  slug=$(_hook_put "$path" | sed -E 's#^repos/([^/]+/[^/]+)/.*#\1#')
+  kind=$(_hook_put "$path" | sed -E 's#.*/(pulls|issues)/[0-9]+$#\1#')
+  num=$(_hook_put "$path" | grep -oE '[0-9]+$')
   [ "$kind" = "pulls" ] && kind="pr" || kind="issue"
 
   add_target "github:${slug}#${kind}-${num}" "${kind} #${num} in ${slug} (via gh api)"
@@ -259,11 +261,11 @@ push_fallback_branch() {
   local up b
   up=$(git -C "$CWD" rev-parse --abbrev-ref --symbolic-full-name '@{upstream}' 2>/dev/null)
   if [ -n "$up" ] && [ "$up" != "@{upstream}" ]; then
-    printf '%s' "${up#*/}"
+    _hook_put "${up#*/}"
     return 0
   fi
   b=$(current_branch)
-  if [ -n "$b" ] && [ "$b" != "HEAD" ]; then printf '%s' "$b"; fi
+  if [ -n "$b" ] && [ "$b" != "HEAD" ]; then _hook_put "$b"; fi
 }
 
 # git push is parsed whole-command (one invocation can name many destinations,
@@ -281,7 +283,7 @@ detect_git_push() {
   [ -n "$slug" ] || return 0
 
   if [ "$rc" -ne 0 ]; then
-    value="$(printf '%s' "$parsed" | head -1 | cut -f2)"
+    value="$(_hook_put "$parsed" | head -1 | cut -f2)"
     deny_cannot_run "'git push' in '$CWD': ${value:-the destination branch could not be determined}. The guard will not fall back to a default branch — that would answer a question about a branch the command never named."
   fi
 
@@ -316,7 +318,7 @@ detect_targets
 detect_git_push
 
 # Nothing this guard is responsible for.
-[ -n "$TARGETS" ] || hook_allow
+[ -n "$TARGETS" ] || hook_pass
 
 # ------------------------------------------------------------ evaluation ---
 
@@ -333,11 +335,11 @@ for line in $TARGETS; do
 
   RESULT="$(claim_inspect "$RESOURCE" "$ME")"
   RC=$?
-  STATUS="$(printf '%s' "$RESULT" | cut -f1)"
-  HOLDER="$(printf '%s' "$RESULT" | cut -f2)"
-  TOOL="$(printf '%s' "$RESULT" | cut -f3)"
-  AGE="$(printf '%s' "$RESULT" | cut -f4)"
-  DETAIL="$(printf '%s' "$RESULT" | cut -f5)"
+  STATUS="$(_hook_put "$RESULT" | cut -f1)"
+  HOLDER="$(_hook_put "$RESULT" | cut -f2)"
+  TOOL="$(_hook_put "$RESULT" | cut -f3)"
+  AGE="$(_hook_put "$RESULT" | cut -f4)"
+  DETAIL="$(_hook_put "$RESULT" | cut -f5)"
 
   # claim_inspect runs in a command substitution, so CLAIM_ERROR cannot
   # propagate out of it — the reason is carried in the DETAIL field instead.
@@ -391,4 +393,4 @@ for line in $TARGETS; do
 done
 IFS="$OLD_IFS"
 
-hook_allow
+hook_pass

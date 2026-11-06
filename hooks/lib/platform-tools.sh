@@ -41,13 +41,17 @@
 # Usage:
 #   source "$(dirname "$0")/lib/platform-tools.sh"
 #   canonical="$(normalize_tool_name "$tool_name")"
+#
+# Output: the name and one trailing newline, which $(...) strips. echo for the
+# fixed names, a here-string for the passthrough, so a raw name that looks like
+# an echo option (-n, -e) is still printed as itself.
 normalize_tool_name() {
   local raw="$1"
   case "$raw" in
-    apply_patch)       printf '%s' "Edit" ;;
-    write_file)        printf '%s' "Write" ;;
-    replace)           printf '%s' "Edit" ;;
-    run_shell_command) printf '%s' "Bash" ;;
-    *)                 printf '%s' "$raw" ;;
+    apply_patch)       echo Edit ;;
+    write_file)        echo Write ;;
+    replace)           echo Edit ;;
+    run_shell_command) echo Bash ;;
+    *)                 cat <<<"$raw" ;;
   esac
 }

@@ -281,6 +281,29 @@ else
   note "claude CLI not on PATH (or --no-claude): strict validate and plugin test skipped"
 fi
 
+# HOOK_GRANTS_PERMISSION: the directory holds a version when it cannot prove a PreToolUse hook never
+# approves a tool call. scripts/check-hook-answers.sh reproduces its rule (no printf % conversions, no
+# backslash escapes, no quoted allow/approve outside the answer, no 2>&1) over each hook and every file it
+# loads. Two known exceptions, both recorded rather than hidden: the permission resolver the hooks execute
+# (scripts/resolve-permission.sh, scripts/lib/permission-common.sh — its verdict vocabulary; not yet shown
+# to be in the scanner's reach) and three upstream option names in hooks/lib/pg_http.py's grammar tables
+# (curl --ssl-allow-beast / --proxy-ssl-allow-beast, gh api --allow-escape-sequences).
+CHA="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/check-hook-answers.sh"
+if [[ -f "$CHA" && -f "$DIST/hooks/hooks.json" ]] && command -v python3 >/dev/null 2>&1; then
+  hap="$(bash "$CHA" "$DIST" --json 2>/dev/null | jq -r '[.. | objects | select(has("file") and has("line") and has("rule"))
+      | select(.file != "scripts/resolve-permission.sh" and .file != "scripts/lib/permission-common.sh")
+      | select((.file == "hooks/lib/pg_http.py" and .rule == "r3") | not)
+      | "\(.file):\(.line) \(.rule)"] | unique | .[]' 2>/dev/null | head -5)"
+  pgx="$(bash "$CHA" "$DIST" --json 2>/dev/null | jq -r '[.. | objects | select(.file? == "hooks/lib/pg_http.py" and .rule? == "r3")] | unique_by(.line) | length' 2>/dev/null)"
+  if [[ -z "$hap" && "${pgx:-9}" -le 3 ]]; then
+    ok "every PreToolUse hook's closure meets the no-approve rule (resolver and 3 pg_http option names excepted)"
+  else
+    bad "a PreToolUse hook's closure breaks the no-approve rule (HOOK_GRANTS_PERMISSION)" "${hap:-pg_http.py r3 count $pgx > 3}"
+  fi
+else
+  note "check-hook-answers.sh, hooks/hooks.json or python3 missing: no-approve rule not checked"
+fi
+
 echo
 echo "passed: $PASS   failed: $FAIL"
 if [[ "$FAIL" -gt 0 ]]; then printf 'failing:'; printf ' [%s]' "${FAILED[@]}"; echo; exit 1; fi

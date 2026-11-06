@@ -128,7 +128,7 @@ gate_out() { # <tier> <noop> <VAR=value> [HOOK_PLATFORM]
 }
 judge "silent: off prints nothing and exits" "" "$(gate_out notification silent CLAUDE_PLUGIN_OPTION_NOTIFICATION_HOOKS=false)"
 judge "allow (claude): off prints {}" '{}' "$(gate_out contributor allow CLAUDE_PLUGIN_OPTION_CONTRIBUTOR_HOOKS=false claude)"
-judge "allow (cursor): off prints the Cursor allow" '{"permission":"allow"}' "$(gate_out contributor allow CLAUDE_PLUGIN_OPTION_CONTRIBUTOR_HOOKS=false cursor)"
+judge "pass (cursor): off prints the empty no-decision object" '{}' "$(gate_out contributor allow CLAUDE_PLUGIN_OPTION_CONTRIBUTOR_HOOKS=false cursor)"
 judge "suppress: off prints suppressOutput" '{"suppressOutput": true}' "$(gate_out notification suppress CLAUDE_PLUGIN_OPTION_NOTIFICATION_HOOKS=0)"
 judge "on: the gate returns and the hook continues" CONTINUED "$(gate_out contributor allow CLAUDE_PLUGIN_OPTION_CONTRIBUTOR_HOOKS=true cursor)"
 judge "gate exits 0 when off" 0 "$(env CLAUDE_PLUGIN_OPTION_NOTIFICATION_HOOKS=false bash -c 'source "$1"; hook_tier_gate notification' _ "$LIB" >/dev/null; echo $?)"
@@ -260,16 +260,18 @@ section "contributor tier: skill-creator-guard.sh under Cursor must ALLOW, not g
 # ===========================================================================
 
 # Cursor fail-closes on empty stdout: a gated-off guard that printed nothing
-# would deny every SKILL.md write on Cursor while looking "off".
+# would deny every SKILL.md write on Cursor while looking "off". {} is not empty:
+# it is valid JSON with no decision, and the call proceeds even under failClosed
+# (measured 2026-11-06, cursor-agent 2026.10.22, preToolUse + beforeShellExecution).
 CURSOR_PAYLOAD="$(jq -n --arg p "$TMP/skills/foo/SKILL.md" '{conversation_id:"c1", cursor_version:"2026.07", tool_name:"Write", tool_input:{file_path:$p}}')"
 run_hook CLAUDE_PLUGIN_OPTION_CONTRIBUTOR_HOOKS=false "$SKILL_GUARD" "$CURSOR_PAYLOAD"
-judge "false (cursor): prints the Cursor allow" allow "$(printf '%s' "$OUT" | jq -r '.permission // "none"')"
+judge "false (cursor): prints {} (no decision: the call proceeds)" '{}' "$(printf '%s' "$OUT" | jq -c .)"
 judge "false (cursor): exits 0" 0 "$RC"
 run_hook - "$SKILL_GUARD" "$CURSOR_PAYLOAD"
-judge "unset (cursor, default off): prints the Cursor allow" allow "$(printf '%s' "$OUT" | jq -r '.permission // "none"')"
+judge "unset (cursor, default off): prints {} (no decision)" '{}' "$(printf '%s' "$OUT" | jq -c .)"
 run_hook CLAUDE_PLUGIN_OPTION_CONTRIBUTOR_HOOKS=true "$SKILL_GUARD" "$CURSOR_PAYLOAD"
-judge "true (cursor): the reminder rides on agent_message with allow" yes "$(has "$(printf '%s' "$OUT" | jq -r '.agent_message // ""')" "SKILL QUALITY GATE")"
-judge "true (cursor): still an allow" allow "$(printf '%s' "$OUT" | jq -r '.permission // "none"')"
+judge "true (cursor): the reminder rides on agent_message" yes "$(has "$(printf '%s' "$OUT" | jq -r '.agent_message // ""')" "SKILL QUALITY GATE")"
+judge "true (cursor): still no decision (no permission key)" none "$(printf '%s' "$OUT" | jq -r '.permission // "none"')"
 
 # ===========================================================================
 section "the gate sits where it belongs: every gated hook names its tier, nothing else does"

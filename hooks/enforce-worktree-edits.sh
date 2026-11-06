@@ -31,7 +31,7 @@ canonical_tool_name="$(normalize_tool_name "$tool_name")"
 
 case "$canonical_tool_name" in
   Edit|Write|MultiEdit|NotebookEdit|StrReplace) ;;
-  *) hook_allow ;;
+  *) hook_pass ;;
 esac
 
 # The Claude config directory is version-controlled for backup, not a project
@@ -39,7 +39,7 @@ esac
 # housekeeping, so it must never be forced through a worktree.
 claude_config_root() {
   local root="${CLAUDE_CONFIG_DIR:-${HOME}/.claude}"
-  printf '%s' "${root%/}"
+  _hook_put "${root%/}"
 }
 
 is_claude_config_path() {
@@ -55,7 +55,7 @@ nearest_existing_dir() {
   while [[ -n "$d" && "$d" != "/" && "$d" != "." && ! -d "$d" ]]; do
     d="$(dirname "$d")"
   done
-  printf '%s' "$d"
+  _hook_put "$d"
 }
 
 # judge_target_dir TARGET_DIR — decide whether TARGET_DIR is a legitimate
@@ -66,7 +66,7 @@ nearest_existing_dir() {
 #
 # A function, not the old inline block, because one tool call can now name
 # MORE THAN ONE write target: Codex's apply_patch can touch several files in
-# a single envelope. hook_allow/hook_deny both exit(0) immediately, so an
+# a single envelope. hook_pass/hook_deny both exit(0) immediately, so an
 # inline version could only ever answer for the FIRST target it looked at —
 # a patch with one in-worktree target and one outside it would have been
 # allowed on the strength of the first. See the candidate loop below, which
@@ -293,4 +293,4 @@ if [[ -n "${JUDGE_DEGRADED_REASON:-}" ]]; then
   hook_additional_context "$JUDGE_DEGRADED_REASON"
 fi
 
-hook_allow
+hook_pass

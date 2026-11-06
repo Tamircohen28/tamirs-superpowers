@@ -21,9 +21,9 @@
 #   `!= "Bash"` and re-run: the Shell block cases fail, the Bash ones do not.
 #
 # WHY THE ALLOW PATHS ARE ASSERTED AS *JSON*, NOT AS SILENCE
-#   Claude Code reads empty stdout as allow; Cursor fail-closes on it. So a
-#   bare exit(0) is not a portable pass, and per hooks/lib/hook-output.sh an
-#   allow is `{}` on Claude Code and `{"permission":"allow"}` on Cursor.
+#   Claude Code reads empty stdout as no objection; Cursor fail-closes on it.
+#   So a bare exit(0) is not a portable pass, and per hooks/lib/hook-output.sh
+#   a pass is `{}` on every host, Cursor included: an object with no decision.
 #
 # WHO APPROVES (ADR 004 D5, D8; permissions-gates task-004)
 #   The guard no longer takes an approval token: every flagged command is the
@@ -36,6 +36,13 @@
 #   PM_ALLOW_DOCKER=1 approves" and "PM_ALLOW_DOCKER=1 in env approves" — now
 #   assert that the token approves nothing. Added: the verdict mapping per host,
 #   fail-closed resolver failures, and the in-tree guard on the real resolver.
+#
+# WHY THE TEMP TREE CARRIES THE PERMISSIONS SCHEMA
+#   The guard does not spell the resolver's pass verdict: it reads it from
+#   core/schemas/permissions.schema.json (the one $defs/verdict member outside
+#   $defs/verdict_r4), next to itself in the plugin. The tree copies the real
+#   schema, and two cases below take it away or reshape it to show that an
+#   unreadable vocabulary passes nothing.
 set -uo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -58,6 +65,9 @@ trap 'rm -rf "$TMP"' EXIT
 PLUG="$TMP/plugin"
 mkdir -p "$PLUG/hooks" "$PLUG/scripts"
 cp "$REAL_HOOK" "$PLUG/hooks/docker-guard.py"
+mkdir -p "$PLUG/core/schemas"
+SCHEMA="$PLUG/core/schemas/permissions.schema.json"
+cp "$ROOT/core/schemas/permissions.schema.json" "$SCHEMA"
 HOOK="$PLUG/hooks/docker-guard.py"
 STUB_LOG="$TMP/stub.log"
 export STUB_LOG
@@ -213,14 +223,15 @@ fi
 
 printf '\n--- host-shaped allow verdicts ---\n'
 
-# Cursor is identified by keys only it sends; its allow shape differs.
+# Cursor is identified by keys only it sends; its pass is `{}` like every
+# host's (hooks/lib/hook-output.sh): no permission key, no decision at all.
 out="$(printf '{"tool_name":"Bash","cursor_version":"1.0","tool_input":{"command":"docker ps"}}' \
   | env -u PM_ALLOW_DOCKER python3 "$HOOK" 2>/dev/null)"
-verdict="$(printf '%s' "$out" | python3 -c 'import json,sys; print(json.load(sys.stdin).get("permission",""))' 2>/dev/null)"
-if [ "$verdict" = "allow" ]; then
-  ok "cursor payload gets {\"permission\":\"allow\"}"
+keys="$(printf '%s' "$out" | python3 -c 'import json,sys; print(",".join(sorted(json.load(sys.stdin))) or "none")' 2>/dev/null)"
+if [ "$keys" = "none" ]; then
+  ok "cursor payload gets {}"
 else
-  bad "cursor payload gets {\"permission\":\"allow\"}" "out='$out'"
+  bad "cursor payload gets {}" "out='$out'"
 fi
 
 out="$(run 'Bash' 'docker ps')"
@@ -292,6 +303,8 @@ check "  ... with this session and the main-thread agent" yes "$(contains "$argv
 check "  ... and the payload's cwd as the repo" yes "$(contains "$argv" "--repo /")"
 out="$(runp allow "$SUB")"
 check "a subagent's call names its agent_id" yes "$(contains "$(sed -n 's/^ARGV //p' "$STUB_LOG")" "--agent agent-7")"
+out="$(runp allow "$CU")"
+check "allow on Cursor => {} (no decision, Cursor's rules apply)" "{}" "$out"
 
 out="$(runp ask "$CL")"
 check "ask on Claude Code => a hook ask (the host's dialog)" ask "$(decision "$out")"
@@ -331,6 +344,25 @@ out="$(runp allow "$CL")"
 check "resolver missing => deny (fail closed)" deny "$(decision "$out")"
 check "  ... and says why" yes "$(contains "$(reason_of "$out")" "missing")"
 mv "$PLUG/scripts/resolve-permission.sh.off" "$PLUG/scripts/resolve-permission.sh"
+
+# The pass verdict comes from the schema; without it, nothing passes.
+mv "$SCHEMA" "$SCHEMA.off"
+out="$(runp allow "$CL")"
+check "permissions schema missing => the resolver's pass is denied (fail closed)" deny "$(decision "$out")"
+check "  ... as 'gave no verdict'" yes "$(contains "$(reason_of "$out")" "gave no verdict")"
+out="$(runp ask "$CL")"
+check "  ... while an ask is still an ask" ask "$(decision "$out")"
+python3 -c '
+import json, sys
+d = json.load(open(sys.argv[1]))
+d["$defs"]["verdict_r4"]["enum"] = ["deny"]
+json.dump(d, open(sys.argv[2], "w"))
+' "$SCHEMA.off" "$SCHEMA"
+out="$(runp allow "$CL")"
+check "permissions schema reshaped (verdict_r4 is not ask+deny) => deny (fail closed)" deny "$(decision "$out")"
+mv "$SCHEMA.off" "$SCHEMA"
+out="$(runp allow "$CL")"
+check "  ... and restored, the pass passes again" allow "$(decision "$out")"
 
 out="$(runp allow '{"tool_name":"Bash","tool_input":{"command":"docker ps"}}')"
 check "an unflagged command never calls the resolver" "" "$(cat "$STUB_LOG")"

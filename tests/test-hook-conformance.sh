@@ -314,7 +314,10 @@ while IFS=$'\t' read -r ev cmd tmo; do
       judge "$label: an ordinary $tool in a plain checkout is not denied" no "$(denied cursor "$OUT" "$RC")"
     fi
     if [ "$ev" = preToolUse ] || [ "$ev" = beforeShellExecution ]; then
-      printf '%s' "$OUT" | jq -e 'has("permission")' >/dev/null 2>&1 && ok "$label: a Cursor permission hook answers permission" || bad "$label: a Cursor permission hook answers permission" "stdout: $OUT (a failClosed hook with no permission key is a deny)"
+      # A pass is {} (no decision); the call proceeds even under failClosed (measured 2026-11-06,
+      # cursor-agent 2026.10.22). What fails closed is empty or invalid stdout, so the answer must be one
+      # JSON object, and a decision, when there is one, must be a word Cursor reads.
+      printf '%s' "$OUT" | jq -e 'type == "object" and ((has("permission") | not) or (.permission | IN("deny", "ask")))' >/dev/null 2>&1 && ok "$label: a Cursor permission hook answers one JSON object (no decision, ask or deny)" || bad "$label: a Cursor permission hook answers one JSON object (no decision, ask or deny)" "stdout: $OUT (empty or invalid stdout is a deny under failClosed)"
     fi
   done
 done < <(jq -r '.hooks | to_entries[] | .key as $ev | .value[] | [$ev, .command, (.timeout // 60 | tostring)] | @tsv' "$CURSOR_HOOKS")
