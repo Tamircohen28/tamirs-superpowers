@@ -176,7 +176,13 @@ fi
 # ---------------------------------------------------------------------------
 section "shellcheck"
 
-if harness_have shellcheck; then
+# `make lint` is the gate's shellcheck pass over the same file set; `make test-hooks`
+# sets SUPERPOWERS_SHELLCHECK_DONE=1 so the gate runs it once, not twice (it was ~50 s
+# of a 32-minute CI job, the second time ~29 minutes in). Standalone — CI's "Static
+# repo + docs tests" job runs this file directly — the section still runs.
+if [ "${SUPERPOWERS_SHELLCHECK_DONE:-}" = 1 ]; then
+  skip "shellcheck" "already run by make lint (SUPERPOWERS_SHELLCHECK_DONE=1)"
+elif harness_have shellcheck; then
   sc_fail=""
   while IFS= read -r f; do
     [ -f "$f" ] || continue

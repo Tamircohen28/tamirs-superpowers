@@ -5,6 +5,18 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [5.6.0] — 2026-11-06
+
+### Changed
+
+- **CI gate in four parallel shards (#376–#381).** `make test-hooks SHARD=i/n` runs one deterministic slice (`scripts/ci/shard-suites.sh`, round-robin by sorted name); CI runs four shard jobs plus `validate-rest` (`make -o test-hooks validate`), and `make validate (full local-parity gate)` stays the required check as their aggregator, so the ruleset is unchanged. Shellcheck runs once per gate: `tests/test-static.sh` skips its pass under `SUPERPOWERS_SHELLCHECK_DONE=1` and still checks standalone. Measured: the gate's wall time went from 32 minutes to 13–21 on the first runs.
+- **The permission suites judge in batch.** `hooks/permission-guard.sh --judge-batch` / `--classify-batch` read NDJSON and answer one line per input with the engine loaded once; the fuzz and guard suites send their corpora through it and keep a seeded real-hook sample that must agree in full (decision, shape, reason). Locally: fuzz 195 s → 102 s, guard 275 s → 127 s.
+
+### Fixed
+
+- **The permission guard named a different action from run to run when two ids tied** on verdict and rank (set iteration under hash randomisation): `workflow.edit` or `file.write.remote` for the same `gh api` call, 3 of 6 runs each. Jobs are ordered canonically before every choice. The verdict never changed in the measured cases, but the resolver reads that id.
+- Security review of the batch path (`docs/engineering/research/ci-speed-batch-guard-review.md`): the batch flag cannot be inherited by the live hook, the batch runs under `LC_ALL=C`, and a line with invalid UTF-8 is a deny as in the live hook. Open P3s: #384.
+
 ## [5.5.1] — 2026-11-05
 
 ### Fixed

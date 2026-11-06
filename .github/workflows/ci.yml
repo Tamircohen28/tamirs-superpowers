@@ -32,8 +32,35 @@ jobs:
             echo "hooks/ absent — skipping"
           fi
 
-  full-validate:
-    name: make validate (full local-parity gate)
+  # `make validate` is split three ways so the gate answers in minutes instead of half
+  # an hour, without changing the required status-check context. The suites
+  # (`make test-hooks`) run as a four-shard matrix; everything else in the gate runs
+  # once in `validate-rest`; and `full-validate` keeps the name that
+  # config/github/repository-policy.json requires, as an aggregator that is green only
+  # when both are. Shard model: docs/engineering/build-and-release/testing-matrix.md.
+  validate-shards:
+    name: make test-hooks (shard ${{ matrix.shard }}/4)
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: skills/repo/_contract/fixtures/scaffold-plugin-gold/.nvmrc
+      - name: Install validation dependencies
+        run: |
+          sudo apt-get install -y shellcheck
+          pip install -r scripts/requirements-validate.txt
+      - name: Run this shard of the suites
+        run: make test-hooks SHARD=${{ matrix.shard }}/4
+
+  validate-rest:
+    name: make validate minus the suites
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -46,8 +73,36 @@ jobs:
         run: |
           sudo apt-get install -y shellcheck
           pip install -r scripts/requirements-validate.txt
-      - name: Run the full gate
-        run: make validate
+      # `-o test-hooks` tells make to treat that one prerequisite as already up to date,
+      # so this is `make validate` exactly -- same prerequisite list, same recipe body
+      # (JSON parse, frontmatter, orphan hooks) -- minus the target the matrix runs.
+      # Nothing here restates the Makefile, so nothing here can drift from it.
+      - name: Run every part of the gate except test-hooks
+        run: make -o test-hooks validate
+
+  full-validate:
+    # The required status-check context. It owns no work of its own any more: it is
+    # green only when every shard and the rest of the gate are, and it runs on
+    # `always()` so a failed or cancelled dependency still produces a red check here
+    # rather than a context that never reports (which would block every merge).
+    name: make validate (full local-parity gate)
+    runs-on: ubuntu-latest
+    needs: [validate-shards, validate-rest]
+    if: always()
+    steps:
+      - name: Every part of the gate passed
+        env:
+          SHARDS: ${{ needs.validate-shards.result }}
+          REST: ${{ needs.validate-rest.result }}
+        run: |
+          echo "validate-shards: $SHARDS"
+          echo "validate-rest:   $REST"
+          if [ "$SHARDS" = success ] && [ "$REST" = success ]; then
+            echo "make validate passed in full"
+          else
+            echo "::error::make validate did not pass in full (shards=$SHARDS rest=$REST)"
+            exit 1
+          fi
 
   orchestration-tests:
     name: Orchestration simulation
@@ -112,9 +167,9 @@ jobs:
       - name: Contract assertions
         run: bash tests/test-${{ matrix.platform }}-adapter.sh
 
-  # `hook-tests` (make test-hooks) stood here and was removed. `make validate` runs
-  # test-hooks as its second dependency, so full-validate already executes every
-  # tests/test-*.sh that job ran. Measured on a full run it was the most expensive
+  # `hook-tests` (make test-hooks) stood here and was removed. `validate-shards` now
+  # runs every tests/test-*.sh that job ran, across four shards behind the
+  # full-validate aggregator. Measured on a full run it was the most expensive
   # duplicate in this workflow -- 249s against full-validate's 295s -- so it bought a
   # 46-second head start on a five-minute gate at the price of a whole runner.
   #

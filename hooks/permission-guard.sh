@@ -189,8 +189,32 @@
 #       path would have let it through. No resolver runs and nothing is written;
 #       the GitHub lookups (reads, under the same deadline) do. A hook is never
 #       given arguments.
+#   permission-guard.sh --judge-batch      < calls.ndjson
+#   permission-guard.sh --classify-batch   < calls.ndjson
+#       the same answers for many calls with the engine started once
+#       (lib/pg_batch.py compiles it once and runs it per call in fresh globals;
+#       lib/pg_http.py and pg_graphql.py are imported once). One line in, one
+#       line out, in order. A line is a hook payload, judged exactly as the hook
+#       judges it (the dialect from its shape and this environment, the fast
+#       path, the budget), or {"cmd","cwd","host"} (host: claude, codex, cursor,
+#       opencode; cwd defaults to the working directory; cursor takes an
+#       optional cursor_version), which becomes that host's shell payload.
+#       --judge-batch prints what the hook would print, compacted to one line
+#       through the same jq programs (lib/hook-output.sh), and the reason on
+#       stderr as the hook does; --classify-batch prints the --classify object,
+#       or {"verdict":"deny","reason"} where the engine answered a deny instead.
+#       A line that is not a JSON object, names a host this guard has no
+#       dialect for, or is longer than 1 MiB, and a line the engine cannot
+#       answer, is a deny line, never a missing one: the line count out equals
+#       the line count in by construction. The tests' entry only
+#       (tests/test-permission-fuzz.sh, test-permission-guard.sh): no manifest
+#       names it, and a hook is never given arguments.
 #
 # Bash 3.2 compatible. Needs jq (payload) and python3 (stdlib, -I -S).
+# The batch transport is armed only by _pg_batch itself. Never inherit it: an environment that
+# carries _PG_BATCH=1 into the live hook would route its answers through fds 5/6 it does not own
+# (ci-speed security review F1: with inherited fds that forged an allow for an R4 call).
+_PG_BATCH=0
 set -uo pipefail
 
 _PG_DONE=0
@@ -244,31 +268,41 @@ _pg_blank() {
   return 0
 }
 
-# _pg_finish <allow|ask|deny> <reason> — answer once, in the host's dialect.
-_pg_finish() {
-  local verdict="$1" reason="${2:-}"
-  _PG_DONE=1
-  case "$verdict" in
-    allow) hook_allow ;;
+_pg_rank() { case "$1" in codex|cursor|gemini) echo 2 ;; opencode) echo 1 ;; *) echo 0 ;; esac; }
+
+# _pg_shape <allow|ask|deny> — the answer as delivered, in _PG_SHAPE: allow | ask | cursor-ask | deny. The one
+# place the host's dialect is applied to a verdict (D8); _pg_finish prints it, the batch entry records it.
+_pg_shape() {
+  _PG_SHAPE=deny
+  case "$1" in
+    allow) _PG_SHAPE=allow ;;
     ask)
-      printf '%s\n' "$reason" >&2
       # Belt: only the two dialects whose host carries a hook ask may answer one (the engine
       # already turns every other host's ask into a deny, D8).
       case "${PG_HOST:-}" in
-        claude|opencode) hook_ask "$reason" ;;
+        claude|opencode) hook_ask_carried && _PG_SHAPE=ask ;;
         cursor)
           # Cursor desktop's beforeShellExecution carries the ask (S2); its preToolUse Shell call, which runs first
           # and drops an ask, answers no decision so that hook is reached (PG_CURSOR_ASK, set below, never inherited).
           case "${PG_CURSOR_ASK:-}" in
-            ask) hook_cursor_ask "$reason" ;;
-            defer) hook_allow ;;
-            *) hook_deny "$reason" ;;
+            ask) _PG_SHAPE=cursor-ask ;;
+            defer) _PG_SHAPE=allow ;;
           esac ;;
-        *) hook_deny "$reason" ;;
       esac ;;
-    *)
-      printf '%s\n' "$reason" >&2
-      hook_deny "$reason" ;;
+  esac
+}
+
+# _pg_finish <allow|ask|deny> <reason> — answer once, in the host's dialect.
+_pg_finish() {
+  local verdict="$1" reason="${2:-}"
+  _PG_DONE=1
+  _pg_shape "$verdict"
+  [ "$verdict" = allow ] || printf '%s\n' "$reason" >&2
+  case "$_PG_SHAPE" in
+    allow) hook_allow ;;
+    ask) hook_ask "$reason" ;;
+    cursor-ask) hook_cursor_ask "$reason" ;;
+    *) hook_deny "$reason" ;;
   esac
   exit 0
 }
@@ -2429,6 +2463,10 @@ for h in HITS:
     job = {"id": h["id"], "conds": conds, "target": target, "hits": [h]}
     JOB_KEYS[key] = job
     JOBS.append(job)
+# HITS come out of set iteration, whose order python3 -I -S randomises per process: two calls of the same
+# command could name a different action (and a different resolver id) whenever two ids tie on verdict and rank.
+# Order the jobs canonically so every max() below breaks ties the same way on every run (ci-speed task-002).
+JOBS.sort(key=lambda j: (j["id"], tuple(j["conds"]), json.dumps(j["target"], sort_keys=True, default=str)))
 if UNCL_FROM:
     JOBS.append({"id": UNCL, "conds": [], "target": None, "hits": [], "uncl": UNCL_FROM})
 
@@ -2834,6 +2872,330 @@ if stamp_err:
 answer(verdict, " ".join(lines))
 PY
 
+# ------------------------------------------------------------------ one call, from its fields
+
+# The payload's fields, as one jq function: pg_fields is [nul-flag, tool, event, command, host, cursor_version].
+# The host (F7) is the payload's SHAPE: Cursor's own keys, the gemini_tool_name hooks/gemini-wrap.sh adds, Codex's
+# turn_id, the "host": "opencode" platforms/opencode/plugin/guard.ts sends, else Claude Code. A NUL in a text field
+# sets the flag and blanks the three (the call is denied on the flag; a raw NUL would end a read -d '' early).
+# The main path and the batch entries read the same function.
+# shellcheck disable=SC2016  # jq variables
+_PG_JQ_FIELDS='
+  def pg_s: if type == "string" then . elif . == null then "" else tostring end;
+  def pg_fields:
+    (.tool_name | pg_s) as $t | (.hook_event_name | pg_s) as $e
+    | ((if (.tool_input | type) == "object" then .tool_input.command else null end) // .command | pg_s) as $c
+    | (if (.cursor_version | type) == "string" then .cursor_version else "" end | gsub("\u0000"; "")) as $v
+    | (if ($t + $e + $c | contains("\u0000")) then "nul" else "ok" end) as $n
+    | [$n, (if $n == "nul" then "" else $t end), (if $n == "nul" then "" else $e end), (if $n == "nul" then "" else $c end),
+       (if (.conversation_id // .cursor_version // .workspace_roots) != null then "cursor"
+        elif has("gemini_tool_name") then "gemini"
+        elif .turn_id != null then "codex"
+        elif .host == "opencode" then "opencode"
+        else "claude" end), $v];
+'
+
+_pg_set() { _PG_VERDICT="$1"; _PG_REASON="${2:-}"; }
+
+# _pg_prepare <judge|classify> — the host, mode and early verdicts of one call, from `input` (the payload text)
+# and the fields _PG_JQ_FIELDS read from it: _pg_nul _pg_tool _pg_event _pg_cmd _pg_phost _pg_cver. Sets PG_HOST,
+# PG_RES_HOSTS, PG_CURSOR_ASK and _pg_mode; leaves a verdict the engine is not needed for in _PG_VERDICT (judge:
+# the fail-closed denies, the allows of a call outside the guard's scope and the fast path; classify: the denies,
+# with _pg_fast telling the engine whether the fast path would have allowed, as --classify reports it).
+_pg_prepare() {
+  local want="$1"
+  _PG_VERDICT="" _PG_REASON="" _pg_mode="" _pg_fast=0 PG_CURSOR_ASK=""
+  if [ "${_PG_BATCH:-0}" = 1 ]; then
+    # hook_detect_platform's answer, read by the batch's one jq pass (the same expression, _pg_batch).
+    HOOK_PLATFORM="$_pg_platform"
+    export HOOK_PLATFORM
+  fi
+  # The host (F7). The payload's SHAPE names it (pg_fields). The environment (CODEX_HOME, GEMINI_SESSION_ID,
+  # GEMINI_PROJECT_DIR) can be set by a repository, so it never loosens: where it names another host, the
+  # STRICTER dialect answers (deny-only > OpenCode's R2-only ask > Claude's ask) and the resolver is asked under
+  # both hosts, the strictest answer kept.
+  [ -n "$_pg_phost" ] || _pg_phost=claude
+  PG_HOST="$_pg_phost" PG_RES_HOSTS="$_pg_phost"
+  for _pg_eh in ${CODEX_HOME:+codex} ${GEMINI_SESSION_ID:+gemini} ${GEMINI_PROJECT_DIR:+gemini}; do
+    case ",$PG_RES_HOSTS," in *",$_pg_eh,"*) continue ;; esac
+    PG_RES_HOSTS="$PG_RES_HOSTS,$_pg_eh"
+    [ "$(_pg_rank "$_pg_eh")" -gt "$(_pg_rank "$PG_HOST")" ] && PG_HOST="$_pg_eh"
+  done
+  unset _pg_eh
+
+  case "$_pg_nul" in
+    ok) : ;;
+    nul) _pg_set deny "tamirs-superpowers permission guard: the call carries a NUL byte, which a shell would read differently from this guard; denied (fail closed, ADR 004 D4)."; return 0 ;;
+    *) _pg_set deny "tamirs-superpowers permission guard: the hook payload is not valid JSON, so the call cannot be judged (fail closed, ADR 004 D4)."; return 0 ;;
+  esac
+
+  case "$(normalize_tool_name "$_pg_tool")" in
+    Bash|Shell) _pg_mode=shell ;;
+    "${PG_MCP_PREFIX}"*|MCP:*) _pg_mode=mcp ;;
+  esac
+  [ -z "$_pg_mode" ] && [ "$_pg_event" = beforeShellExecution ] && _pg_mode=shell
+  if [ -z "$_pg_mode" ]; then
+    if [ "$want" = classify ]; then
+      _pg_set deny "tamirs-superpowers permission guard: the call is neither a shell command nor a GitHub MCP call, so there is nothing to classify."
+    else
+      _pg_set allow ""
+    fi
+    return 0
+  fi
+
+  # Cursor desktop's ask (D8, measured S2): beforeShellExecution carries it; the preToolUse Shell call before it
+  # defers. Only when the payload is Cursor's and the environment names no other host (CODEX_HOME, GEMINI_*): Codex
+  # ranks with Cursor above, so PG_HOST alone would not show it, and a Codex hook ask fails open (X1).
+  if [ "$_pg_mode" = shell ] && [ "$_pg_phost" = cursor ] && [ "$PG_RES_HOSTS" = cursor ] && _pg_cursor_desktop_ask "$_pg_cver"; then
+    case "$_pg_event:$_pg_tool" in
+      beforeShellExecution:*) PG_CURSOR_ASK=ask ;;
+      preToolUse:Shell) PG_CURSOR_ASK=defer ;;
+    esac
+  fi
+
+  if [ "$_pg_mode" = shell ]; then
+    if [ "$want" = classify ]; then
+      _pg_candidate "$_pg_cmd" || _pg_fast=1
+    else
+      _pg_blank "$_pg_cmd" && { _pg_set allow ""; return 0; }
+      # FAST PATH: nothing in the command can reach a guarded id. The engine tokenises the rest itself, under a
+      # deadline (F5).
+      _pg_candidate "$_pg_cmd" || { _pg_set allow ""; return 0; }
+    fi
+  fi
+  [ "$want" = classify ] && _pg_mode="classify-$_pg_mode"
+  return 0
+}
+
+# _pg_engine <mode> <fast> <cursor_ask> — the engine on `input`; its stdout, trailing newlines stripped, in
+# _pg_out and its exit status in _pg_rc. One python3 per call, or the batch's one process (_PG_BATCH).
+_pg_engine() {
+  if [ "${_PG_BATCH:-0}" = 1 ]; then
+    _pg_engine_batch "$@"
+    return 0
+  fi
+  _pg_out="$(
+    printf '%s' "$input" |
+      python3 -I -S -c "$_PG_ENGINE" "$PG_ROOT" "$PG_HOST" "$1" "$PG_BUDGET" "$2" "${BASH:-bash}" "$PG_RES_HOSTS" \
+        "$3" 2>/dev/null
+  )"
+  _pg_rc=$?
+}
+
+# _pg_decide — judge one call (the hook's whole reading past the payload's fields): _pg_prepare, then the engine,
+# then its verdict, in _PG_VERDICT / _PG_REASON. The main path prints the result through _pg_finish; --judge-batch
+# records it.
+_pg_decide() {
+  _pg_prepare judge
+  [ -n "$_PG_VERDICT" ] && return 0
+  if ! command -v python3 >/dev/null 2>&1; then
+    _pg_set deny "tamirs-superpowers permission guard cannot run: python3 is not installed, so the call cannot be classified (fail closed, ADR 004 D4)."
+    return 0
+  fi
+  _pg_engine "$_pg_mode" 0 "$PG_CURSOR_ASK"
+  _pg_verdict="${_pg_out%%$'\n'*}"
+  _pg_reason="${_pg_out#*$'\n'}"
+  _pg_reason="${_pg_reason%$'\n'}"
+  if [ "$_pg_rc" -ne 0 ]; then
+    _pg_set deny "tamirs-superpowers permission guard: its engine exited $_pg_rc without a verdict, so the call is denied (fail closed, ADR 004 D4)."
+    return 0
+  fi
+  case "$_pg_verdict" in
+    allow|ask|deny) _pg_set "$_pg_verdict" "$_pg_reason" ;;
+    *) _pg_set deny "tamirs-superpowers permission guard: its engine gave no verdict, so the call is denied (fail closed, ADR 004 D4)." ;;
+  esac
+  return 0
+}
+
+# ------------------------------------------------------------------ batch (--classify-batch, --judge-batch)
+
+# The engine, started once (lib/pg_batch.py) and asked over two named pipes: fd 5 carries the requests (the
+# engine's argv 2..8 and its stdin, NUL-terminated, after the engine's source), fd 6 the answers ("<rc>\t<n>",
+# then n lines). _pg_engine_batch leaves _pg_out and _pg_rc exactly as _pg_engine does; an engine that stopped
+# answering is rc 1 for this and every later call, which _pg_decide denies.
+_PG_BATCH_DEAD=0
+_pg_engine_batch() {
+  local n i line sep=""
+  _pg_out="" _pg_rc=1
+  [ "$_PG_BATCH_DEAD" = 0 ] || return 0
+  if ! printf '%s\0' "$PG_HOST" "$1" "$PG_BUDGET" "$2" "${BASH:-bash}" "$PG_RES_HOSTS" "$3" "$input" >&5 2>/dev/null; then
+    _PG_BATCH_DEAD=1; return 0
+  fi
+  if ! IFS=$'\t' read -r _pg_rc n <&6; then _PG_BATCH_DEAD=1 _pg_rc=1; return 0; fi
+  case "$_pg_rc:$n" in *[!0-9]*:*|*:*[!0-9]*|:*|*:) _PG_BATCH_DEAD=1 _pg_rc=1; return 0 ;; esac
+  i=0
+  while [ "$i" -lt "$n" ]; do
+    if ! IFS= read -r line <&6; then _PG_BATCH_DEAD=1 _pg_out="" _pg_rc=1; return 0; fi
+    _pg_out="${_pg_out}${sep}${line}"
+    sep=$'\n'
+    i=$((i + 1))
+  done
+  return 0
+}
+
+_PG_BATCH_T=""
+_PG_BATCH_DRV=""
+_pg_batch_cleanup() {
+  [ -n "$_PG_BATCH_DRV" ] && kill "$_PG_BATCH_DRV" 2>/dev/null
+  [ -n "$_PG_BATCH_T" ] && rm -rf "$_PG_BATCH_T"
+  return 0
+}
+
+# _pg_batch <judge|classify> — NDJSON on stdin, one answer line per input line on stdout, in order (the header
+# has the contract). Every line's reading is _pg_prepare / _pg_decide, the hook's own, over the same fields; what
+# the batch adds is the transport: one jq pass reads every line (hook_read_stdin's bash `read` drops NUL bytes,
+# so tr does first), the engine answers through pg_batch.py, and one jq pass renders the answers through
+# lib/hook-output.sh's own programs. A line the reader could not deliver is a deny line, so the count holds.
+_pg_batch() {
+  local want="$1" T n_in=0 n_done=0 line out kind lit_deny
+  _PG_BATCH=1
+  lit_deny='{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"tamirs-superpowers permission guard cannot run: jq or python3 is not installed, so the call cannot be judged (fail closed, ADR 004 D4)."}}'
+  [ "$want" = classify ] && lit_deny='{"verdict":"deny","reason":"tamirs-superpowers permission guard cannot run: jq or python3 is not installed, so the call cannot be classified (fail closed, ADR 004 D4)."}'
+  if ! command -v jq >/dev/null 2>&1 || ! command -v python3 >/dev/null 2>&1; then
+    # Without the tools every line is a deny, still one per line (tr -d: the count hook_read_stdin would see).
+    echo "permission-guard: jq and python3 are required; every call is denied" >&2
+    LC_ALL=C tr -d '\000' | awk -v d="$lit_deny" '{ print d }'
+    return 0
+  fi
+  T="$(mktemp -d "${TMPDIR:-/tmp}/pg-batch.XXXXXX")" || return 2
+  _PG_BATCH_T="$T"
+  trap _pg_batch_cleanup EXIT
+  trap '' PIPE
+  # LC_ALL=C: under a UTF-8 locale BSD tr aborts on invalid UTF-8 and the batch would answer a
+  # truncated prefix with exit 0 (review F2). Bytes in, bytes out; the count below is of what was read.
+  LC_ALL=C tr -d '\000' > "$T/in"
+  n_in="$(wc -l < "$T/in" | tr -d ' ')"
+  if [ -s "$T/in" ] && [ -n "$(tail -c 1 "$T/in")" ]; then n_in=$((n_in + 1)); fi
+
+  # One jq pass: per line, nine NUL-terminated fields — kind (raw | short | bad | host | big), pg_fields' six, the
+  # platform hook_detect_platform would name (its expression, with this environment's CODEX_HOME), and the payload
+  # text the engine reads: the line itself, or the payload a {"cmd","cwd","host"} line builds.
+  # shellcheck disable=SC2016  # jq variables
+  jq -R -j --arg pwd "$PWD" --arg codex "${CODEX_HOME:-}" --arg dhost "${_PG_BATCH_DHOST:-claude}" "$_PG_JQ_FIELDS"'
+    def pg_short($d; $h):
+      {cwd: $d, hook_event_name: "PreToolUse", tool_name: "Bash", tool_input: {command: .cmd}} as $claude
+      | if $h == "claude" then $claude
+        elif $h == "codex" then ($claude + {turn_id: "batch"})
+        elif $h == "opencode" then ($claude + {host: "opencode"})
+        elif $h == "cursor" then ({conversation_id: "batch", hook_event_name: "beforeShellExecution", workspace_roots: [$d], cwd: $d, command: .cmd}
+                                  + (if (.cursor_version | type) == "string" then {cursor_version: .cursor_version} else {} end))
+        else null end;
+    . as $raw
+    | (try fromjson catch null) as $o
+    | (if ($raw | utf8bytelength) > 1048576 then ["big", null]
+       # jq -R has already replaced invalid UTF-8 with U+FFFD, which the live hook never sees repaired:
+       # it denies such bytes, so the batch does too (review F3). A literal U+FFFD is denied as well,
+       # the strict direction for a test transport.
+       elif ($raw | test("\ufffd")) then ["bad", null]
+       elif ($o | type) != "object" then ["bad", null]
+       elif ($o | has("cmd")) and (($o.cmd | type) == "string") and (($o | (has("tool_name") or has("hook_event_name") or has("command"))) | not) then
+         ($o | pg_short((if (.cwd | type) == "string" and .cwd != "" then .cwd else $pwd end); (.host // $dhost))) as $p
+         | if $p == null then ["host", null] else ["short", $p] end
+       else ["raw", $o] end) as [$kind, $p]
+    | (if $p == null then ["", "", "", "", "", ""] else ($p | pg_fields) end) as $f
+    | (if $kind == "raw" then $raw elif $kind == "short" then ($p | tojson) else "" end) as $text
+    | (if $p != null and (($p.conversation_id // $p.cursor_version // $p.workspace_roots) != null) then "cursor"
+       elif $codex != "" then "codex"
+       elif $p != null and $p.turn_id != null then "codex"
+       else "claude" end) as $platform
+    | ([$kind] + $f + [$platform, $text]) | map(. + "\u0000") | join("")
+  ' < "$T/in" > "$T/fields" 2>/dev/null
+
+  mkfifo "$T/req" "$T/ans" || return 2
+  if [ "$want" = classify ]; then
+    python3 -I -S "$SCRIPT_DIR/lib/pg_batch.py" "$PG_ROOT" 3<"$T/req" 4>"$T/ans" </dev/null >/dev/null &
+  else
+    python3 -I -S "$SCRIPT_DIR/lib/pg_batch.py" "$PG_ROOT" 3<"$T/req" 4>"$T/ans" </dev/null >/dev/null 2>/dev/null &
+  fi
+  _PG_BATCH_DRV=$!
+  exec 5>"$T/req" 6<"$T/ans" 7>"$T/rec"
+  printf '%s\0' "$_PG_ENGINE" >&5 2>/dev/null || _PG_BATCH_DEAD=1
+
+  _pg_kind="" _pg_nul="" _pg_tool="" _pg_event="" _pg_cmd="" _pg_phost="" _pg_cver="" _pg_platform="" input=""
+  while IFS= read -r -d '' _pg_kind && IFS= read -r -d '' _pg_nul && IFS= read -r -d '' _pg_tool \
+      && IFS= read -r -d '' _pg_event && IFS= read -r -d '' _pg_cmd && IFS= read -r -d '' _pg_phost \
+      && IFS= read -r -d '' _pg_cver && IFS= read -r -d '' _pg_platform && IFS= read -r -d '' input; do
+    n_done=$((n_done + 1))
+    _PG_VERDICT="" _PG_REASON="" _PG_SHAPE=deny
+    HOOK_PLATFORM="$_pg_platform" PG_HOST="$_pg_phost"
+    case "$_pg_kind" in
+      big) _pg_set deny "tamirs-superpowers permission guard: the batch line is longer than 1 MiB, so the call is denied unread (fail closed, ADR 004 D4)." ;;
+      host) _pg_set deny "tamirs-superpowers permission guard: the batch line names a host this guard has no dialect for (claude, codex, cursor, opencode), so the call is denied (fail closed, ADR 004 D4)." ;;
+      bad) _pg_set deny "tamirs-superpowers permission guard: the hook payload is not valid JSON, so the call cannot be judged (fail closed, ADR 004 D4)." ;;
+      *)
+        if [ "$want" = classify ]; then
+          _pg_prepare classify
+          if [ -z "$_PG_VERDICT" ]; then
+            _pg_engine "$_pg_mode" "$_pg_fast" "$PG_CURSOR_ASK"
+            if [ "$_pg_rc" -ne 0 ]; then
+              _pg_set deny "tamirs-superpowers permission guard: its engine exited $_pg_rc without a classification, so the call is denied (fail closed, ADR 004 D4)."
+            else
+              case "$_pg_out" in
+                '{'*) _pg_set classified "$_pg_out" ;;
+                deny*) _pg_reason="${_pg_out#*$'\n'}"; _pg_set deny "${_pg_reason%$'\n'}" ;;
+                *) _pg_set deny "tamirs-superpowers permission guard: its engine gave no classification, so the call is denied (fail closed, ADR 004 D4)." ;;
+              esac
+            fi
+          fi
+        else
+          _pg_decide
+        fi ;;
+    esac
+    if [ "$want" = classify ]; then
+      if [ "$_PG_VERDICT" = classified ]; then
+        printf 'V\t%s\n' "$_PG_REASON" >&7
+        continue
+      fi
+      _PG_SHAPE=classify-deny
+    else
+      _pg_shape "$_PG_VERDICT"
+      [ "$_PG_VERDICT" = allow ] || printf '%s\n' "$_PG_REASON" >&2
+    fi
+    # A record is one line: a reason never holds a line break or a tab (the engine joins its words; the rest are
+    # this file's literals). One that did would split the record, so it is replaced, as a deny.
+    case "$_PG_REASON" in
+      *$'\n'*|*$'\t'*|*$'\r'*) _PG_SHAPE=deny; [ "$want" = classify ] && _PG_SHAPE=classify-deny
+        _PG_REASON="tamirs-superpowers permission guard: the reason held a control character, so the call is denied (fail closed, ADR 004 D4)." ;;
+    esac
+    printf 'R\t%s\t%s\t%s\n' "$HOOK_PLATFORM" "$_PG_SHAPE" "$_PG_REASON" >&7
+  done < "$T/fields"
+  # A line the reader never delivered (jq stopped early) is a deny, so the count holds.
+  kind=deny; [ "$want" = classify ] && kind=classify-deny
+  while [ "$n_done" -lt "$n_in" ]; do
+    n_done=$((n_done + 1))
+    printf 'R\tclaude\t%s\ttamirs-superpowers permission guard: the batch reader stopped before this line, so the call is denied (fail closed, ADR 004 D4).\n' "$kind" >&7
+  done
+  exec 5>&- 6<&- 7>&-
+  wait "$_PG_BATCH_DRV" 2>/dev/null
+  _PG_BATCH_DRV=""
+
+  # Render every R record through lib/hook-output.sh's programs, then print in order: a V record verbatim (the
+  # engine's own --classify line), an R record from the rendering.
+  # shellcheck disable=SC2016  # jq variables
+  jq -R -c 'select(startswith("R\t")) | (.[2:] | split("\t")) as $f | $f[0] as $platform | $f[1] as $shape | ($f[2:] | join("\t")) as $reason
+    | if $shape == "allow" then (if $platform == "cursor" then {permission: "allow"} else {} end)
+      elif $shape == "ask" then '"$HOOK_JQ_ASK"'
+      elif $shape == "cursor-ask" then '"$HOOK_JQ_CURSOR_ASK"'
+      elif $shape == "classify-deny" then {verdict: "deny", reason: $reason}
+      elif $platform == "cursor" then '"$HOOK_JQ_CURSOR_DENY"'
+      else '"$HOOK_JQ_DENY"' end' < "$T/rec" > "$T/ren" 2>/dev/null
+  exec 7<"$T/rec" 8<"$T/ren"
+  n_done=0
+  while IFS= read -r line <&7; do
+    n_done=$((n_done + 1))
+    case "$line" in
+      V$'\t'*) printf '%s\n' "${line#V$'\t'}" ;;
+      *) IFS= read -r out <&8 || out="$lit_deny"; printf '%s\n' "$out" ;;
+    esac
+  done
+  exec 7<&- 8<&-
+  if [ "$n_done" -ne "$n_in" ]; then
+    echo "permission-guard: batch printed $n_done lines for $n_in input lines" >&2
+    return 2
+  fi
+  return 0
+}
+
 # ------------------------------------------------------------------ inspection CLI
 
 if [ "$#" -gt 0 ]; then
@@ -2859,6 +3221,16 @@ if [ "$#" -gt 0 ]; then
       printf '%s' "$input" |
         python3 -I -S -c "$_PG_ENGINE" "$PG_ROOT" "${PG_HOST:-claude}" "$_pg_mode" "$PG_BUDGET" "$_pg_fast" \
           "${BASH:-bash}" "${PG_HOST:-claude}"
+      exit $? ;;
+    --judge-batch|--classify-batch)
+      [ "$#" -eq 1 ] || { echo "usage: permission-guard.sh $1 < calls.ndjson" >&2; exit 2; }
+      _PG_BATCH_DHOST=claude
+      if [ "$1" = --classify-batch ]; then
+        _PG_BATCH_DHOST="${PG_HOST:-claude}"   # --classify's dialect comes from the environment
+        _pg_batch classify
+      else
+        _pg_batch judge
+      fi
       exit $? ;;
     -h|--help)
       sed -n '2,/^set -uo pipefail/p' "${BASH_SOURCE[0]}" | sed '$d; s/^# \{0,1\}//'
@@ -2889,7 +3261,7 @@ fi
 hook_detect_platform "$input"
 _pg_blank "$input" && _pg_finish allow ""
 
-_pg_tool="" _pg_event="" _pg_cmd="" _pg_nul="" _pg_phost="" _pg_cver=""
+_pg_tool="" _pg_event="" _pg_cmd="" _pg_nul="" _pg_phost="" _pg_cver="" _pg_platform=""
 {
   IFS= read -r -d '' _pg_nul
   IFS= read -r -d '' _pg_tool
@@ -2897,83 +3269,7 @@ _pg_tool="" _pg_event="" _pg_cmd="" _pg_nul="" _pg_phost="" _pg_cver=""
   IFS= read -r -d '' _pg_cmd
   IFS= read -r -d '' _pg_phost
   IFS= read -r -d '' _pg_cver
-} < <(printf '%s' "$input" | jq -j '
-  def s: if type == "string" then . elif . == null then "" else tostring end;
-  (.tool_name | s) as $t | (.hook_event_name | s) as $e
-  | ((if (.tool_input | type) == "object" then .tool_input.command else null end) // .command | s) as $c
-  | (if (.cursor_version | type) == "string" then .cursor_version else "" end | gsub("\u0000"; "")) as $v
-  | (if ($t + $e + $c | contains("\u0000")) then "nul" else "ok" end) + "\u0000" + $t + "\u0000" + $e + "\u0000" + $c + "\u0000"
-    + (if (.conversation_id // .cursor_version // .workspace_roots) != null then "cursor"
-       elif has("gemini_tool_name") then "gemini"
-       elif .turn_id != null then "codex"
-       elif .host == "opencode" then "opencode"
-       else "claude" end) + "\u0000" + $v + "\u0000"
-' 2>/dev/null)
+} < <(printf '%s' "$input" | jq -j "$_PG_JQ_FIELDS"'pg_fields | map(. + "\u0000") | join("")' 2>/dev/null)
 
-# The host (F7). The payload's SHAPE names it: Cursor's own keys, the gemini_tool_name hooks/gemini-wrap.sh
-# adds, Codex's turn_id, the "host": "opencode" platforms/opencode/plugin/guard.ts sends, else Claude Code. The
-# environment (CODEX_HOME, GEMINI_SESSION_ID, GEMINI_PROJECT_DIR) can be set by a repository, so it never
-# loosens: where it names another host, the STRICTER dialect answers (deny-only > OpenCode's R2-only ask >
-# Claude's ask) and the resolver is asked under both hosts, the strictest answer kept.
-_pg_rank() { case "$1" in codex|cursor|gemini) echo 2 ;; opencode) echo 1 ;; *) echo 0 ;; esac; }
-[ -n "$_pg_phost" ] || _pg_phost=claude
-PG_HOST="$_pg_phost" PG_RES_HOSTS="$_pg_phost"
-for _pg_eh in ${CODEX_HOME:+codex} ${GEMINI_SESSION_ID:+gemini} ${GEMINI_PROJECT_DIR:+gemini}; do
-  case ",$PG_RES_HOSTS," in *",$_pg_eh,"*) continue ;; esac
-  PG_RES_HOSTS="$PG_RES_HOSTS,$_pg_eh"
-  [ "$(_pg_rank "$_pg_eh")" -gt "$(_pg_rank "$PG_HOST")" ] && PG_HOST="$_pg_eh"
-done
-unset _pg_eh
-
-case "$_pg_nul" in
-  ok) : ;;
-  nul) _pg_finish deny "tamirs-superpowers permission guard: the call carries a NUL byte, which a shell would read differently from this guard; denied (fail closed, ADR 004 D4)." ;;
-  *) _pg_finish deny "tamirs-superpowers permission guard: the hook payload is not valid JSON, so the call cannot be judged (fail closed, ADR 004 D4)." ;;
-esac
-
-_pg_mode=""
-case "$(normalize_tool_name "$_pg_tool")" in
-  Bash|Shell) _pg_mode=shell ;;
-  "${PG_MCP_PREFIX}"*|MCP:*) _pg_mode=mcp ;;
-esac
-[ -z "$_pg_mode" ] && [ "$_pg_event" = beforeShellExecution ] && _pg_mode=shell
-[ -n "$_pg_mode" ] || _pg_finish allow ""
-
-# Cursor desktop's ask (D8, measured S2): beforeShellExecution carries it; the preToolUse Shell call before it
-# defers. Only when the payload is Cursor's and the environment names no other host (CODEX_HOME, GEMINI_*): Codex
-# ranks with Cursor above, so PG_HOST alone would not show it, and a Codex hook ask fails open (X1).
-PG_CURSOR_ASK=""
-if [ "$_pg_mode" = shell ] && [ "$_pg_phost" = cursor ] && [ "$PG_RES_HOSTS" = cursor ] && _pg_cursor_desktop_ask "$_pg_cver"; then
-  case "$_pg_event:$_pg_tool" in
-    beforeShellExecution:*) PG_CURSOR_ASK=ask ;;
-    preToolUse:Shell) PG_CURSOR_ASK=defer ;;
-  esac
-fi
-
-if [ "$_pg_mode" = shell ]; then
-  _pg_blank "$_pg_cmd" && _pg_finish allow ""
-  # FAST PATH: nothing in the command can reach a guarded id. The engine tokenises the rest itself, under a
-  # deadline (F5).
-  _pg_candidate "$_pg_cmd" || _pg_finish allow ""
-fi
-
-if ! command -v python3 >/dev/null 2>&1; then
-  _pg_finish deny "tamirs-superpowers permission guard cannot run: python3 is not installed, so the call cannot be classified (fail closed, ADR 004 D4)."
-fi
-
-_pg_out="$(
-  printf '%s' "$input" |
-    python3 -I -S -c "$_PG_ENGINE" "$PG_ROOT" "$PG_HOST" "$_pg_mode" "$PG_BUDGET" 0 "${BASH:-bash}" "$PG_RES_HOSTS" \
-      "$PG_CURSOR_ASK" 2>/dev/null
-)"
-_pg_rc=$?
-_pg_verdict="${_pg_out%%$'\n'*}"
-_pg_reason="${_pg_out#*$'\n'}"
-_pg_reason="${_pg_reason%$'\n'}"
-if [ "$_pg_rc" -ne 0 ]; then
-  _pg_finish deny "tamirs-superpowers permission guard: its engine exited $_pg_rc without a verdict, so the call is denied (fail closed, ADR 004 D4)."
-fi
-case "$_pg_verdict" in
-  allow|ask|deny) _pg_finish "$_pg_verdict" "$_pg_reason" ;;
-  *) _pg_finish deny "tamirs-superpowers permission guard: its engine gave no verdict, so the call is denied (fail closed, ADR 004 D4)." ;;
-esac
+_pg_decide
+_pg_finish "$_PG_VERDICT" "$_PG_REASON"

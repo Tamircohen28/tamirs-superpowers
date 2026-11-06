@@ -12,6 +12,7 @@
 #   hook_allow
 #   hook_deny "reason"
 #   hook_ask "reason"                       # Claude only; a deny on every other host
+#   hook_ask_carried                        # 0 when hook_ask would print an ask here
 #   hook_cursor_ask "reason"                # Cursor beforeShellExecution ask, when the caller knows it holds
 #   hook_additional_context "message"
 #   hook_stop_ok                            # Stop/SubagentStop: nothing to decide
@@ -108,6 +109,20 @@ hook_detect_platform() {
   export HOOK_PLATFORM
 }
 
+# The PreToolUse answer shapes, as jq programs over $reason. The helpers below print one each;
+# hooks/permission-guard.sh's batch entries (--judge-batch) render many at once through these
+# same programs, so a batch answer and a hook answer are the same bytes once compacted and the
+# two cannot drift. An allow is a literal: {} (Claude Code, Codex) or {"permission":"allow"}
+# (Cursor). $reason in each is jq's variable, bound by --arg at the call (SC2016).
+# shellcheck disable=SC2016
+HOOK_JQ_DENY='{hookSpecificOutput:{hookEventName:"PreToolUse",permissionDecision:"deny",permissionDecisionReason:$reason}}'
+# shellcheck disable=SC2016
+HOOK_JQ_ASK='{hookSpecificOutput:{hookEventName:"PreToolUse",permissionDecision:"ask",permissionDecisionReason:$reason}}'
+# shellcheck disable=SC2016
+HOOK_JQ_CURSOR_DENY='{permission:"deny",user_message:$reason,agent_message:$reason}'
+# shellcheck disable=SC2016
+HOOK_JQ_CURSOR_ASK='{permission:"ask",user_message:$reason,agent_message:$reason}'
+
 hook_allow() {
   if [[ "${HOOK_PLATFORM:-claude}" == "cursor" ]]; then
     printf '%s\n' '{"permission":"allow"}'
@@ -120,11 +135,9 @@ hook_allow() {
 hook_deny() {
   local reason="$1"
   if [[ "${HOOK_PLATFORM:-claude}" == "cursor" ]]; then
-    jq -n --arg reason "$reason" \
-      '{permission:"deny",user_message:$reason,agent_message:$reason}'
+    jq -n --arg reason "$reason" "$HOOK_JQ_CURSOR_DENY"
   else
-    jq -n --arg reason "$reason" \
-      '{hookSpecificOutput:{hookEventName:"PreToolUse",permissionDecision:"deny",permissionDecisionReason:$reason}}'
+    jq -n --arg reason "$reason" "$HOOK_JQ_DENY"
   fi
   exit 0
 }
@@ -145,11 +158,17 @@ hook_deny() {
 #             claude (the payload is translated first), so Gemini is recognised by
 #             the GEMINI_SESSION_ID / GEMINI_PROJECT_DIR it exports to every hook;
 #             a variable that is wrongly present only turns an ask into a deny.
+#
+#   hook_ask_carried is the predicate alone (0 when hook_ask would print an ask), for a caller
+#   that must know the delivered answer without printing it (permission-guard.sh's batch entry).
+hook_ask_carried() {
+  [[ "${HOOK_PLATFORM:-claude}" == "claude" && -z "${GEMINI_SESSION_ID:-}" && -z "${GEMINI_PROJECT_DIR:-}" ]]
+}
+
 hook_ask() {
   local reason="$1"
-  if [[ "${HOOK_PLATFORM:-claude}" == "claude" && -z "${GEMINI_SESSION_ID:-}" && -z "${GEMINI_PROJECT_DIR:-}" ]]; then
-    jq -n --arg reason "$reason" \
-      '{hookSpecificOutput:{hookEventName:"PreToolUse",permissionDecision:"ask",permissionDecisionReason:$reason}}'
+  if hook_ask_carried; then
+    jq -n --arg reason "$reason" "$HOOK_JQ_ASK"
     exit 0
   fi
   hook_deny "$reason"
@@ -166,7 +185,7 @@ hook_ask() {
 #   other Cursor answer stays hook_deny. The Allowlist card shows the command but
 #   not the reason, so a caller also writes the reason to stderr.
 hook_cursor_ask() {
-  jq -n --arg reason "$1" '{permission:"ask",user_message:$reason,agent_message:$reason}'
+  jq -n --arg reason "$1" "$HOOK_JQ_CURSOR_ASK"
   exit 0
 }
 
