@@ -77,7 +77,7 @@ ports), **MCP** = GitHub MCP tool matcher + server flags (D8), **GSF** = [`guard
 | `process.spawn.agent_host` (`process.spawn.claude_cli`): `claude`, `codex`, `gemini`, `opencode`, `cursor-agent`, `agy`, headless or not, also via `npx`, `bunx`, `pnpm dlx`, `node …/cli.js`; `tty.drive`: `script`, `expect`, `unbuffer`, python/node `pty`, `tmux send-keys`/`paste-buffer` (after any global option such as `-L`/`-S`/`-f`), `cmux send`/`send-key`, `wezterm cli send-text`, `kitty @ send-text`, `zellij action write`, `screen -X stuff`, `osascript` (`keystroke`, `do script`, `write text`), `xdotool` (list: [S3] Impact 4) | R4 m | skill-creator nested `claude -p` ([A2] F5); `tty.drive`: none intended | PG; both can forge a typed prompt or answer a TTY or host prompt (D5; [SR] S-01, S-02) |
 | `repo.create` (incl. `fork_repository`), `repo.delete` | R4 | repo-scaffold, MCP ([A1] D-3, [A3] B5) | PG, MCP, server exclusion |
 | `ruleset.apply`, `ruleset.apply.org`, `branch_protection.write` (apply, remove, legacy shim) | R4 | github-policy, repo-* ([A1] D-8/D-9) | PG (script names, `gh api …/protection`) |
-| `workflow.edit` (local or remote), `file.write.remote` to workflows, hooks or policy | R4 | GSF today denies locally and points at the MCP path ([A3] D3) | GSF, MCP |
+| `workflow.edit` (remote), `file.write.remote` to workflows, hooks or policy | R4 | A local workflow edit is ordinary source since 5.6.7 (the user's decision of 2026-11-06); the remote write is still R4 | MCP |
 | `config.global.write` (incl. `git config alias.*`/`core.hooksPath`, `.git/hooks/**`, `gh alias set`), `config.policy.stage`, `secrets.capture.bodies` | R4 | setup/install, usage-capture, mcp-builder, retro, capture-config ([A2] F1–F4, [A3] D11) | PG (script names), GSF |
 | `policy.edit` (`plugin.permission_policy.edit`): permission files, lock, tickets, guard scripts, installed caches, host settings and option stores (D10), `claude plugin configure`, `gemini extensions config` | R4 | any write ([A3] D7, E) | GSF + PG deny; only the D6 writer, through D5 |
 | `worktree.remove.force`, `worktree.drop`, `git.reset_to_remote` that discard uncommitted or unpushed work | R4 | pr-dev script, cleanup ([A1] D-1, D-6) | PG; [safety] invariant 4 |
@@ -86,8 +86,11 @@ ports), **MCP** = GitHub MCP tool matcher + server flags (D8), **GSF** = [`guard
 **Host bypass (2026-11-06).** When Claude Code itself runs with `bypassPermissions`, the user has chosen not to be
 asked. `permission-guard.sh` then lets every ask through except the catalog's `host_bypass.still_ask` list:
 `repo.delete`, `fs.delete.tree`, `git.push.force.default`, `git.reset_to_remote`, `worktree.drop`,
-`worktree.remove.force` — the operations that cannot be undone. Denies, plugin-config confirms and every other host
-are unchanged. The user's decision, recorded with the change (5.6.5).
+`worktree.remove.force` — the operations that cannot be undone. Plugin-config confirms and every other host
+are unchanged. The user's decision, recorded with the change (5.6.5). Since 5.6.7 a level's deny steps aside as
+well, except a `still_ask` id, `policy.edit`/`config.global.write` and a command too long to read, and three more
+guards honour the mode: `docker-guard.py` (a prune still asks), `guard-sensitive-files.sh` (its generated-file
+rules; the protected paths hold) and `protect-other-branches.sh` (work claims).
 
 **`none` means never automatic** ([SR] S-06): such an action asks at every level. Under `unattended` only
 `pr.merge.auto`, `branch.delete.remote`, `pr.close`, `issue.close`, `git.push.force` (own branch, with lease) and

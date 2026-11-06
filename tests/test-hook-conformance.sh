@@ -388,7 +388,7 @@ for dialect in claude codex cursor gemini; do
 done
 
 section "equivalence: guard-sensitive-files.sh on a protected path"
-PROT="$PLAIN/.github/workflows/ci.yml"; mkdir -p "$PLAIN/.github/workflows"
+PROT="$PLAIN/package-lock.json"
 CL_CMD='bash "${CLAUDE_PLUGIN_ROOT}"/hooks/guard-sensitive-files.sh'
 CU_CMD='bash ${CURSOR_PLUGIN_ROOT}/hooks/guard-sensitive-files.sh'
 GE_CMD='bash "${extensionPath}/hooks/gemini-wrap.sh" "${extensionPath}/hooks/guard-sensitive-files.sh"'

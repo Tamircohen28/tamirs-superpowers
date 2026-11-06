@@ -337,6 +337,12 @@ def main():
         no_decision()
 
     host = payload_host(data)
+    # Claude Code's bypass mode (5.6.7): what can be stopped and removed runs; a prune, which cannot be
+    # undone, is still put to the user as an ask. The mode comes from the host's payload, Claude only.
+    if host == "claude" and data.get("permission_mode") == "bypassPermissions":
+        if "not reversible" not in why:
+            no_decision()
+        emit(ASK, f"docker-guard ({ACTION}, R3): `{seg}` {why}. Bypass mode still asks before this one.", data)
     verdicts, pass_verdict = verdict_vocabulary()
     answer = resolve(data, host, verdicts)
     decision = answer["verdict"]

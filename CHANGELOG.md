@@ -5,6 +5,17 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [5.6.7] — 2026-11-06
+
+### Changed
+
+- **Agents may edit GitHub Actions workflows.** `hooks/guard-sensitive-files.sh` no longer blocks a write to `.github/workflows/` in any repo or mode, whatever tool makes it: a workflow is reviewable source that lands in a commit and a PR like any other, and git undoes it. The user's decision of 2026-11-06. A workflow written through the GitHub API is still `workflow.edit` (R4) in `permission-guard.sh`.
+- **Bypass mode now covers every guard, not only the permission guard's asks.** Under Claude Code's `bypassPermissions`: a level's deny steps aside too (a push to the default branch, an admin merge), except a `host_bypass.still_ask` id, the agent editing its own permission policy, and a command too long to read; `docker-guard.py` lets containers, volumes and images through and still asks before a prune; `guard-sensitive-files.sh` lets lockfiles, vendored binaries and build output through, while the plugin's policy files and host settings stay protected; `protect-other-branches.sh` steps aside for work claims. The mode is read from the host's payload (`hook_host_bypass` in `hooks/lib/hook-output.sh`), Claude only.
+
+### Fixed
+
+- **A busy machine no longer blocks tool calls.** The blocking guards' timeouts rise to 30 s (were 5–15 s): under load a 5 s guard timed out, and `onFailure: "block"` turned the timeout into a block, eight times in one day.
+
 ## [5.6.6] — 2026-11-06
 
 ### Fixed

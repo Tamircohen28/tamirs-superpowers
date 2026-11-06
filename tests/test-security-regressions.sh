@@ -403,12 +403,9 @@ else
 fi
 
 # =========================================================================================
-section "F6: PM_ALLOW_PROTECTED never reaches a workflow, a hook script or a policy path"
+section "F6: PM_ALLOW_PROTECTED never reaches a hook script or a policy path"
 # =========================================================================================
 export PM_ALLOW_PROTECTED=1
-gsf F6 "Write a workflow under the override" deny "Write:$REPO/.github/workflows/ci.yml"
-gsf F6 "echo x >> .github/workflows/ci.yml under the override" deny 'echo x >> .github/workflows/ci.yml'
-gsf F6 "rm -rf .github/workflows under the override" deny 'rm -rf .github/workflows'
 gsf F6 "Write .git/hooks/pre-commit under the override" deny "Write:$REPO/.git/hooks/pre-commit"
 gsf F6 "Write the project policy file under the override" deny "Write:$REPO/.tamirs-superpowers/permissions.json"
 unset PM_ALLOW_PROTECTED

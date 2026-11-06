@@ -13,13 +13,10 @@
 #      edit them), through hook_ask where the platform has one, else a deny.
 #      Targets are judged by realpath too, and an unresolved write whose text
 #      names a protected path is a deny (S-03).
-#   2. GENERATED (lockfiles, .yarn/releases, workflows, shadcn UI, ignored build
-#      output). The user may set PM_ALLOW_PROTECTED=1 to edit a lockfile,
-#      .yarn/releases, shadcn UI or build output on purpose; it is theirs to
-#      set and no deny text names it (D10.5). It never unlocks a WORKFLOW: env
-#      switches only tighten (D3), and a cloned repo's .claude/settings.json
-#      `env` can set this one, so a workflow, like a hook script or a policy
-#      path, is judged whatever it says.
+#   2. GENERATED (lockfiles, .yarn/releases, shadcn UI, ignored build output).
+#      The user may set PM_ALLOW_PROTECTED=1 to edit one on purpose; it is
+#      theirs to set and no deny text names it (D10.5). GitHub Actions
+#      workflows left this class in 5.6.7: agents may edit them.
 #   Paths are compared case-folded on a case-insensitive volume (macOS APFS):
 #   the parser repeats each target under its on-disk spelling, and folds its
 #   own protected rules wherever the volume folds or cannot be shown not to.
@@ -58,7 +55,6 @@
 #     - .yarn/releases/*    : a vendored yarn binary, in every repo that has one
 #     - dist/ build/ out/   : blocked ONLY when git itself ignores the path
 #     - src/components/ui/* : blocked ONLY when components.json (shadcn) exists
-#     - .github/workflows/* : blocked always, with a remedy chosen from the remote
 #
 # WHAT THIS STILL CANNOT SEE — stated because a believed-closed gap is worse
 # than a known one:
@@ -146,27 +142,16 @@ protected_ask() {
 }
 
 # classify <abs path> <fragment> <TARGET|DELETE|TREE> — deny (and exit) if protected.
-# With PM_ALLOW_PROTECTED=1 only the workflow rule is judged (see the header).
+# With PM_ALLOW_PROTECTED=1 none of these rules is judged (see the header).
 classify() {
-  local file="$1" via="$2" kind="$3" repo_root remedy context=""
+  local file="$1" via="$2" kind="$3" repo_root context=""
   [ -n "$file" ] || return 0
   [ -n "$via" ] && context=" (via: $via)"
 
-  # R4 `workflow.edit` (D10.5): the remedy is the user, not a route around
-  # this hook — a remote write tool is the same change with no guard on it.
-  # The workflows directory itself counts, and so does a .github that holds
-  # one when it is removed or filled by a copy or extraction.
-  remedy="Changing a workflow is an R4 action (workflow.edit): ask the user to confirm this exact change and to make it themselves, rather than routing it through another tool or a remote API"
-  case "$file" in
-    */.github/workflows|*/.github/workflows/*)
-      deny "BLOCKED: '$file' is a GitHub Actions workflow.$context $remedy."
-      ;;
-    */.github)
-      if [ "$kind" = "TREE" ] || { [ "$kind" = "DELETE" ] && [ -d "$file/workflows" ]; }; then
-        deny "BLOCKED: '$file' holds the GitHub Actions workflows.$context $remedy."
-      fi
-      ;;
-  esac
+  # A GitHub Actions workflow is ordinary, reviewable source (5.6.7, the user's decision of
+  # 2026-11-06): agents edit workflows in every repo, the change lands in a commit and a PR
+  # like any other, and git undoes it. The remote route (`gh api .../contents/.github/
+  # workflows/...`) is still judged by permission-guard.sh as workflow.edit.
   [ "$override" = "1" ] && return 0
 
   # Repo root for the file being written — every derived check below needs
@@ -224,8 +209,13 @@ if [ -n "$ask_reason" ]; then
   protected_ask "R4 ASK: $ask_reason"
 fi
 
-# Pass 2 — generated files. The user's override applies here, and only to
-# the rules it may reach: never the workflow rule (D3, D10.5).
+# Claude Code's bypass mode (5.6.7): the user chose to run free, so the generated-file
+# rules below step aside. They guard edits that git can undo; pass 1 above
+# (the plugin's own policy, guard files and host settings) still holds. The mode comes from
+# the host's own payload (hook_host_bypass), never from an environment variable.
+hook_host_bypass "$input" && hook_pass
+
+# Pass 2 — generated files. The user's override applies to all of them.
 override=0
 [ "${PM_ALLOW_PROTECTED:-0}" = "1" ] && override=1
 
@@ -289,7 +279,7 @@ if [ -n "$unsure" ]; then
   fi
   [ -n "$repeats" ] && unsure="${unsure}  - (same unresolved-write notice as earlier this session: ${repeats})"$'\n'
   hook_additional_context "PROTECTED-FILE GUARD: this command writes somewhere it could not resolve statically, so it was NOT checked against the protected-path rules:
-${unsure}If it writes a lockfile, a .github/workflows/ file, .yarn/releases/, generated shadcn UI, or gitignored build output, that is on you — rewrite it with a literal path so the guard can see the target, or ask the user before proceeding."
+${unsure}If it writes a lockfile, .yarn/releases/, generated shadcn UI, or gitignored build output, that is on you — rewrite it with a literal path so the guard can see the target, or ask the user before proceeding."
 elif [ -n "$repeats" ]; then
   hook_additional_context "PROTECTED-FILE GUARD: unresolved write, not checked (same notice as earlier this session): ${repeats}"
 fi
