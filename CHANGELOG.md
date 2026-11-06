@@ -5,6 +5,12 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [5.6.10] — 2026-11-06
+
+### Fixed
+
+- **The repository policy requires `CI` on agent-usage-telemetry and orchard.** `config/github/repository-policy.json` (policy 1.6.0) records `CI` for `Tamircohen28/agent-usage-telemetry` (its first CI, aggregate job) and `Tamircohen28/orchard` (carried over from the classic branch protection on main, so the move to rulesets keeps it).
+
 ## [5.6.9] — 2026-11-06
 
 ### Fixed

@@ -1,7 +1,7 @@
 {
   "$schema": "../../core/schemas/repository-policy.json",
   "schema_version": 1,
-  "version": "1.5.0",
+  "version": "1.6.0",
   "last_reviewed": "2026-11-06",
   "_comment": "Canonical GitHub repository policy for the repos this account governs. Derived from the two rulesets live on Tamircohen28/tamirs-superpowers (captured 2026-08-19), not from prose — see session-files/ground-truth-rulesets.md. This file is the single source of truth: no SKILL.md, script, or doc may restate a rule, a context list, or a concurrency group found here. Change workflow: edit -> bump `version` -> `bash scripts/check-github-policy.sh` (offline) -> `scripts/github-policy.sh plan` to see live drift.",
 
@@ -133,6 +133,22 @@
           "Chrome extension",
           "Hygiene: secrets, version, drift",
           "Brand assets reproducible"
+        ]
+      }
+    },
+    "Tamircohen28/agent-usage-telemetry": {
+      "_comment": "Added 2026-11-06 with the repository's first CI (agent-usage-telemetry #4). `CI` is the aggregate job that passes only when every other job passed; the matrix job names change with the Node list, so they are not required.",
+      "required_checks": {
+        "contexts": [
+          "CI"
+        ]
+      }
+    },
+    "Tamircohen28/orchard": {
+      "_comment": "Recorded 2026-11-06 from the classic branch protection on main (required check `CI`), so migrating main to rulesets keeps the check. `CI` is the repository's aggregate job.",
+      "required_checks": {
+        "contexts": [
+          "CI"
         ]
       }
     },
