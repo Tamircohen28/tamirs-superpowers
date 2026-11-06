@@ -190,7 +190,7 @@ loop:
   if STRICT == true and PR is BEHIND → update the branch once (see below)
   if STRICT != true → leave a behind-but-mergeable branch alone
 
-  # Readiness
+  # Readiness — automated review is capped at two rounds (references/drive-discipline.md §5)
   if all checks green AND unresolved == 0:
     if AUTO_MERGE == enable → ensure auto-merge/queue entry; poll until merged
     else                    → print the readiness summary and ASK before merging
@@ -496,7 +496,7 @@ Never silently stop, guess, or take a destructive action without confirmation. W
 | `scripts/resolve-thread.sh` | Resolve one review thread |
 | `scripts/cleanup-after-merge.sh` | Post-merge cleanup: checks merged/base/default/fork/protection, gates each deletion, exits 3 with a `skipped:` list |
 | `references/ci-monitor-loop.md` | Long-cycle CI waiting with Monitor |
-| `references/drive-discipline.md` | Polling bounds, no-required-checks merge gate, blocking pre-merge threads, batched review rounds |
+| `references/drive-discipline.md` | Polling bounds, no-required-checks merge gate, blocking pre-merge threads, batched review rounds, the two-round review cap |
 | `templates/review-reply.md.tmpl` | Review reply shapes |
 
 ## Output format

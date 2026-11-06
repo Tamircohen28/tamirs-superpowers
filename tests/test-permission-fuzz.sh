@@ -565,9 +565,9 @@ pg_batch_agree "$PG" judge "$PLANT" "$T/plant.swap" all 1 "$T/plant.swap.report"
 judge "  ... the agreement check fails on exactly lines 3 and 5 (exit 1)" "1 3 5" "$rc $(grep '^DIFF' "$T/plant.swap.report" | cut -f2 | tr '\n' ' ' | sed 's/ $//')"
 
 section "every call, judged by the real guard in batch ($JOBS_N shards)"
-python3 - "$CORPUS" "$WORK" "$T/b-classify.in" "$T/b-claude.in" "$T/b-codex.in" <<'MK'
+python3 - "$CORPUS" "$WORK" "$T/b-classify.in" "$T/b-claude.in" "$T/b-codex.in" "$T/b-cursor.in" "$T/b-opencode.in" <<'MK'
 import json, sys
-corpus, cwd, f_cls, f_cl, f_cx = sys.argv[1:6]
+corpus, cwd, f_cls, f_cl, f_cx, f_cu, f_oc = sys.argv[1:8]
 rows = [json.loads(l) for l in open(corpus, encoding="utf-8") if l.strip()]
 
 
@@ -579,11 +579,16 @@ def payload(cmd, codex):
     return json.dumps(p)
 
 
-with open(f_cls, "w", encoding="utf-8") as a, open(f_cl, "w", encoding="utf-8") as b, open(f_cx, "w", encoding="utf-8") as c:
+with open(f_cls, "w", encoding="utf-8") as a, open(f_cl, "w", encoding="utf-8") as b, open(f_cx, "w", encoding="utf-8") as c, \
+        open(f_cu, "w", encoding="utf-8") as u, open(f_oc, "w", encoding="utf-8") as o:
     for d in rows:
         a.write(json.dumps({"cmd": d["cmd"], "cwd": cwd, "host": "claude"}) + "\n")
         b.write(payload(d["cmd"], False) + "\n")
         c.write(payload(d["cmd"], True) + "\n")
+        # Cursor and OpenCode (#384 F7): judged only by the agreement check below, which holds the batch to
+        # the real hook on each host's own payload; their verdict rules are the per-host suites' job.
+        u.write(json.dumps({"cmd": d["cmd"], "cwd": cwd, "host": "cursor"}) + "\n")
+        o.write(json.dumps({"cmd": d["cmd"], "cwd": cwd, "host": "opencode"}) + "\n")
 MK
 NROWS="$(wc -l < "$CORPUS" | tr -d ' ')"
 T_BATCH="$SECONDS"
@@ -593,17 +598,22 @@ T_BATCH="$SECONDS"
 { pg_batch_run "$PG" judge "$T/b-claude.in" "$T/b-claude.out" "$JOBS_N" 2> "$T/b-claude.err"; echo $? > "$T/b-claude.rc"; } &
 { pg_batch_run "$PG" judge "$T/b-codex.in" "$T/b-codex.out" "$JOBS_N" 2> "$T/b-codex.err"; echo $? > "$T/b-codex.rc"; } &
 wait
-for what in classify claude codex; do
+{ pg_batch_run "$PG" judge "$T/b-cursor.in" "$T/b-cursor.out" "$JOBS_N" 2> "$T/b-cursor.err"; echo $? > "$T/b-cursor.rc"; } &
+{ pg_batch_run "$PG" judge "$T/b-opencode.in" "$T/b-opencode.out" "$JOBS_N" 2> "$T/b-opencode.err"; echo $? > "$T/b-opencode.rc"; } &
+wait
+for what in classify claude codex cursor opencode; do
   case "$what" in
     classify) label="--classify-batch" ;;
     claude) label="--judge-batch, Claude payloads" ;;
     codex) label="--judge-batch, Codex payloads" ;;
+    cursor) label="--judge-batch, Cursor payloads" ;;
+    opencode) label="--judge-batch, OpenCode payloads" ;;
   esac
   judge "$label: $NROWS calls, one line each, every shard exit 0" "0 $NROWS" "$(cat "$T/b-$what.rc" 2>/dev/null || echo none) $(wc -l < "$T/b-$what.out" | tr -d ' ')"
   [ -s "$T/b-$what.err" ] && head -3 "$T/b-$what.err" | sed 's/^/    /'
 done
 T_BATCH=$((SECONDS - T_BATCH))
-printf '  info batch: %s lines in %ss, three batches side by side over %s shards each\n' "$((NROWS * 3))" "$T_BATCH" "$JOBS_N"
+printf '  info batch: %s lines in %ss, five batches over %s shards each\n' "$((NROWS * 5))" "$T_BATCH" "$JOBS_N"
 
 python3 - "$CORPUS" "$T/b-classify.out" "$T/b-claude.out" "$T/b-codex.out" > "$T/results.txt" <<'RUN'
 import json, sys
@@ -706,7 +716,7 @@ SAMPLE="${FUZZ_SAMPLE:-150}"
 case "$SAMPLE" in all|[1-9]*) ;; *) echo "FATAL: FUZZ_SAMPLE must be a count or 'all', not '$SAMPLE'" >&2; exit 1 ;; esac
 section "a seeded sample of $SAMPLE calls through the real hook agrees with the batch, line for line (seed ${FUZZ_SEED:-349})"
 T_SAMPLE="$SECONDS"
-for what in classify claude codex; do
+for what in classify claude codex cursor opencode; do
   mode=judge; [ "$what" = classify ] && mode=classify
   pg_batch_agree "$PG" "$mode" "$T/b-$what.in" "$T/b-$what.out" "$SAMPLE" "${FUZZ_SEED:-349}" "$T/agree-$what.txt" "$JOBS_N" > "$T/agree-$what.sum" 2>&1
   checked="$(grep '^AGREE' "$T/agree-$what.txt" 2>/dev/null | cut -f2)"
@@ -715,6 +725,8 @@ for what in classify claude codex; do
     classify) label="--classify on the sample agrees with --classify-batch (${checked:-0} checked)" ;;
     claude) label="the hook on the sample's Claude payloads agrees with --judge-batch (${checked:-0} checked)" ;;
     codex) label="the hook on the sample's Codex payloads agrees with --judge-batch (${checked:-0} checked)" ;;
+    cursor) label="the hook on the sample's Cursor payloads agrees with --judge-batch (${checked:-0} checked)" ;;
+    opencode) label="the hook on the sample's OpenCode payloads agrees with --judge-batch (${checked:-0} checked)" ;;
   esac
   judge "$label" 0 "${diffs:-no AGREE line: $(head -c 200 "$T/agree-$what.sum")}"
   if [ "${diffs:-1}" != 0 ] && grep -q '^DIFF' "$T/agree-$what.txt" 2>/dev/null; then
@@ -727,7 +739,7 @@ if [ "$SAMPLE" != all ]; then
     "$([ "$(grep '^AGREE' "$T/agree-claude.txt" | cut -f2)" = "$SAMPLE" ] || [ "$NROWS" -lt "$SAMPLE" ] && echo yes || echo no)"
 fi
 T_SAMPLE=$((SECONDS - T_SAMPLE))
-printf '  info sample: %s single calls in %ss\n' "$(( ${checked:-0} * 3 ))" "$T_SAMPLE"
+printf '  info sample: %s single calls in %ss\n' "$(( ${checked:-0} * 5 ))" "$T_SAMPLE"
 
 section "the real config and state dirs were never touched"
 judge "real-home witness unchanged" "$REAL_BEFORE" "$(witness)"

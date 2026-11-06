@@ -209,6 +209,14 @@
 #       the line count in by construction. The tests' entry only
 #       (tests/test-permission-fuzz.sh, test-permission-guard.sh): no manifest
 #       names it, and a hook is never given arguments.
+#       Every read of the engine's answer has a deadline (the call budget plus a
+#       margin): an engine that stalls is marked dead, and the rest are denies.
+#
+# One payload per call. A host sends exactly one JSON object on stdin. A stdin
+# holding two JSON values is judged by the first on the fast path, and the
+# engine rejects the multi-value text, so a benign first value passes and a
+# dangerous first value is denied. No host writes such a stdin and no
+# model-authored text reaches it; recorded as known behaviour (#384 F8).
 #
 # Bash 3.2 compatible. Needs jq (payload) and python3 (stdlib, -I -S).
 # The batch transport is armed only by _pg_batch itself. Never inherit it: an environment that
@@ -3066,11 +3074,16 @@ _pg_engine_batch() {
          echo "$3"; echo "$_PG_BATCH_T/payload"; } >&5 2>/dev/null; then
     _PG_BATCH_DEAD=1; return 0
   fi
-  if ! IFS=$'\t' read -r _pg_rc n <&6; then _PG_BATCH_DEAD=1 _pg_rc=1; return 0; fi
+  # Every read from the engine has a deadline (#384 F6): a header that over-reports its line
+  # count, or an engine that stalls, would otherwise hang both sides until the driver's alarm.
+  # The per-call budget plus a margin; on timeout the engine is marked dead and every remaining
+  # line is a deny, so the count contract still holds.
+  _pg_rt=$(( ${PG_BUDGET%%.*} + 5 ))
+  if ! IFS=$'\t' read -r -t "$_pg_rt" _pg_rc n <&6; then _PG_BATCH_DEAD=1 _pg_rc=1; return 0; fi
   case "$_pg_rc:$n" in *[!0-9]*:*|*:*[!0-9]*|:*|*:) _PG_BATCH_DEAD=1 _pg_rc=1; return 0 ;; esac
   i=0
   while [ "$i" -lt "$n" ]; do
-    if ! IFS= read -r line <&6; then _PG_BATCH_DEAD=1 _pg_out="" _pg_rc=1; return 0; fi
+    if ! IFS= read -r -t "$_pg_rt" line <&6; then _PG_BATCH_DEAD=1 _pg_out="" _pg_rc=1; return 0; fi
     _pg_out="${_pg_out}${sep}${line}"
     sep=$'\n'
     i=$((i + 1))

@@ -210,7 +210,8 @@ Every dispatched worker — subagent or your own sequential turn — runs the `w
   "no objective" — both real incidents, both silent until the handoff never arrives;
 - the repo's Tier 1 command for that scope;
 - the prohibitions: **no PR, no auto-merge, no merging main, no full repo suite**;
-- the instruction to end with `handoff.sh emit`.
+- the instruction to end with `handoff.sh emit`;
+- the wait, commit and load lines every brief carries: [`references/worker-health.md`](references/worker-health.md#the-lines-every-worker-brief-carries).
 
 Any reference-material path handed to a worker — an earlier report, a research file, anything
 generated before dispatch — must be **absolute**, never relative to the orchestrator's own cwd.
@@ -262,6 +263,8 @@ State lives entirely on disk under `.dev-files/objectives/<id>/`. After a crash,
 Read every handoff before integrating. Blocking followups and `risks` are input to the integration plan; a `partial` or `failed` handoff means decide (re-plan, drop the task, or narrow the objective) — never quietly integrate around it.
 
 ## Step 10 — integrate onto ONE branch
+
+Start integrating when the first tasks hand off, not after the last one, and simulate each merge before CI: [`references/early-start.md`](references/early-start.md#overlap-review-and-integration-with-the-last-worker).
 
 Merge worker branches into `objective/<id>` in dependency order. **Conflicts are resolved here, by the integrator, and nowhere else** — a worker never merges main and never resolves another worker's conflict.
 

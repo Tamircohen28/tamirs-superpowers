@@ -5,6 +5,18 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [5.6.4] — 2026-11-06
+
+### Fixed
+
+- **Marketplace validator: an empty source names no plugin (#375).** A Codex entry with `"source": ""` skipped every local-source check, and an empty Claude source under `metadata.pluginRoot` resolved to the plugin root itself; both passed. The shared path gate now rejects an empty path for every platform, and the Codex string branch reports it directly (template and `marketplace-gold` fixture; three new cases in `tests/test-validate-marketplace.sh`).
+- **Permission guard batch path (#384).** Every read of the engine's answer has a deadline (the call budget plus a margin), so a stalled engine is marked dead and the remaining lines are denies instead of a hang (F6). The fuzz suite's real-hook agreement sample is stratified by client family and now covers Cursor and OpenCode payloads as well as Claude and Codex (F7). A stdin holding two JSON values is recorded in the guard's header as known, pre-existing behaviour (F8).
+
+### Changed
+
+- **Orchestration and review loops (#387, from the 2026-11-06 retro).** `orchestrate-dev`'s worker brief carries the wait, commit and load lines (never end a turn waiting on a notification; commit each piece as it passes; iterate on a small corpus; one heavy suite at a time), and integration starts when the first tasks hand off, with each merge simulated before CI and rule-adding PRs ordered before fixture-adding ones. `pr-dev` caps automated review at two rounds and files what remains as one issue.
+- **Platform pins (#366).** Gemini CLI `latest_known`/`reviewed_through` 0.67.0 and Codex CLI 0.167.0, from their release notes; nothing adopted. Codex's `prompt-user` command rules (openai/codex#58045) may one day let the Codex adapter ask instead of deny; not adopted until measured live. `validated_against` stays at the last live runs (0.66.0, 0.166.0).
+
 ## [5.6.3] — 2026-11-06
 
 ### Changed

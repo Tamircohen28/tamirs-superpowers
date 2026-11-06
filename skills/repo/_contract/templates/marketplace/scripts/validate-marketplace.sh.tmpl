@@ -62,6 +62,9 @@ ROOT_REAL="$(cd "$ROOT" && pwd -P)"
 # check_rel_path <label> <path> — the documented textual rule. Calls err() and returns 1.
 check_rel_path() {
   local label="$1" p="$2"
+  # An empty path would resolve to the marketplace root (or to metadata.pluginRoot itself)
+  # and pass every later check while naming no plugin (#375).
+  if [[ -z "$p" ]]; then err "$label is empty; name the plugin's directory"; return 1; fi
   if [[ "$p" == /* ]]; then err "$label '$p' is absolute; relative paths only"; return 1; fi
   if [[ "$p" == *\\* ]]; then err "$label '$p' uses backslashes; forward slashes only"; return 1; fi
   if [[ "$p" == *..* ]]; then err "$label '$p' contains '..'"; return 1; fi
@@ -268,6 +271,7 @@ if parse_or_fail "$CODEX_MANIFEST" "codex"; then
     case "$stype" in
       string)
         codex_local_src="$(jq -r --argjson i "$i" '.plugins[$i].source' "$CODEX_MANIFEST")"
+        [[ -n "$codex_local_src" ]] || { err "$rel: plugin '$pname' source is an empty string; name the plugin's directory"; continue; }
         ;;
       object)
         skind="$(jq -r --argjson i "$i" '.plugins[$i].source.source // empty' "$CODEX_MANIFEST")"
