@@ -11,6 +11,10 @@ source "$REPO_ROOT/tests/lib/harness.sh"
 T="$(harness_tmpdir)"
 LIB="$REPO_ROOT/tests/lib/heavy-lock.sh"
 LOCK="$T/tamirs-superpowers-heavy-suite.lock"
+# A known baseline: a caller that set HEAVY_LOCK=0 or HEAVY_LOCK_WAIT must not change what these
+# cases test (#388 review); the opt-out and bounded-wait cases set their own values below.
+export HEAVY_LOCK=1
+unset HEAVY_LOCK_WAIT
 
 section "one holder at a time"
 HEAVY_LOCK_DIR="$T" bash -c "source '$LIB'; heavy_lock_take first; sleep 3" &
