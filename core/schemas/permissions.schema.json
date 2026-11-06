@@ -100,7 +100,7 @@
         "pr.merge.admin", "git.push.force.default", "release.create", "tag.push", "process.spawn.agent_host", "tty.drive",
         "repo.create", "repo.delete", "ruleset.apply", "ruleset.apply.org", "branch_protection.write", "workflow.edit",
         "config.global.write", "config.policy.stage", "secrets.capture.bodies", "policy.edit", "worktree.remove.force", "worktree.drop",
-        "git.reset_to_remote"
+        "git.reset_to_remote", "fs.delete.tree"
       ]
     },
     "user_actions": {
@@ -128,7 +128,8 @@
         "policy.edit": { "$ref": "#/$defs/verdict_r4" },
         "worktree.remove.force": { "$ref": "#/$defs/verdict_r4" },
         "worktree.drop": { "$ref": "#/$defs/verdict_r4" },
-        "git.reset_to_remote": { "$ref": "#/$defs/verdict_r4" }
+        "git.reset_to_remote": { "$ref": "#/$defs/verdict_r4" },
+        "fs.delete.tree": { "$ref": "#/$defs/verdict_r4" }
       }
     },
     "project_actions": {

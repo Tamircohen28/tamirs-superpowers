@@ -2007,13 +2007,90 @@ def add(aid, kind, seg, **kw):
     HITS.append(h)
 
 
+def strip_substitutions(text):
+    """The text with every $( ... ) and `...` span removed (nesting followed). Their contents are classified as
+    segments of their own, so a marker inside one says nothing about the assignment that holds it."""
+    out, i, n = [], 0, len(text)
+    while i < n:
+        if text.startswith("$(", i):
+            depth, i = 1, i + 2
+            while i < n and depth:
+                if text.startswith("$(", i):
+                    depth, i = depth + 1, i + 2
+                    continue
+                if text[i] == ")":
+                    depth -= 1
+                elif text[i] == "(":
+                    depth += 1
+                i += 1
+            continue
+        if text[i] == "`":
+            j = text.find("`", i + 1)
+            i = n if j < 0 else j + 1
+            continue
+        out.append(text[i])
+        i += 1
+    return "".join(out)
+
+
+def rm_major_targets(p):
+    """The major directories a recursive `rm` names (fs.delete.tree): /, a top-level directory (/Users, /etc),
+    the home directory or one of its direct children (~/Projects), or a git repository's root, a linked
+    worktree included (its .git is a file). A target built
+    from a variable other than $HOME, or a glob other than a trailing /* or /.*, is not judged (no guess)."""
+    if p["argv0"] != "rm":
+        return []
+    args, recursive, ended = [], False, False
+    for t in p["sub"]:
+        if not ended and t == "--":
+            ended = True
+        elif not ended and t.startswith("--"):
+            recursive = recursive or t == "--recursive"
+        elif not ended and t.startswith("-") and len(t) > 1:
+            recursive = recursive or "r" in t[1:] or "R" in t[1:]
+        else:
+            args.append(t)
+    if not recursive:
+        return []
+    import pwd
+    home = pwd.getpwuid(os.getuid()).pw_dir.rstrip("/") or "/"
+    # When the command moves the working directory in a way the parse does not follow (`cd x; rm -rf y`),
+    # a relative target cannot be resolved; it is judged major, so it asks rather than passing (#391 review).
+    base = CTX.get("cwd") if CTX.get("ok") else None
+    found = []
+    for a in args:
+        t = a.strip("'\"")
+        for pre in ("$HOME", "${HOME}"):
+            if t == pre or t.startswith(pre + "/"):
+                t = home + t[len(pre):]
+        if t == "~" or t.startswith("~/"):
+            t = home + t[1:]
+        for g in ("/*", "/.*"):
+            if t.endswith(g):
+                t = t[: -len(g)] or "/"
+        if re.search(r"[$`*?\[]", t):
+            continue
+        if not t.startswith("/") and not base:
+            found.append(t)
+            continue
+        path = os.path.normpath(t if t.startswith("/") else os.path.join(base, t))
+        depth = len([x for x in path.split("/") if x])
+        if (path == "/" or depth <= 1 or path == home or os.path.dirname(path) == home
+                or os.path.exists(os.path.join(path, ".git"))):   # a .git dir, or a linked worktree's .git file
+            found.append(path)
+    return found
+
+
 def classify_segment(s):
     """Adds the segment's hits; returns True when it is UNCLASSIFIED (a marker, no id)."""
     p, toks = s["p"], s["toks"]
     text = " ".join(toks)
     got_any, uncl = False, False
     if p["argv0"] is None:
-        return has_marker(text)
+        # An assignment-only segment (`t=$(gh api repos/o/r --jq .x)`) runs nothing itself: the substitution is
+        # its own segment and is classified there (5.6.5; it read as UNCLASSIFIED R4 before). A marker outside
+        # every substitution still counts.
+        return has_marker(strip_substitutions(text))
     if names_writer(s):
         add("policy.edit", "argv", s, p=p)
         got_any = True
@@ -2036,6 +2113,9 @@ def classify_segment(s):
         if any(entry_matches(e, p, defaults) for e in a["equivalents"].get("argv", [])):
             add(a["id"], "argv", s, p=p)
             got_any = True
+    if rm_major_targets(p):
+        add("fs.delete.tree", "argv", s, p=p)
+        got_any = True
     writer = script_hit(p, "plugin-config.sh")
     if writer is not None:
         pos = positionals(writer, set())
@@ -2632,6 +2712,17 @@ def rnum(j):
 
 final = max(JOBS, key=lambda j: (RANK[j["res"]["verdict"]], rnum(j))) if JOBS else None
 verdict = final["res"]["verdict"] if final else PASS
+# Host bypass mode (5.6.5, the user's decision of 2026-11-06): when Claude Code itself runs with
+# bypassPermissions, the user has chosen not to be asked, so the guard steps aside for every ask except the
+# catalog's host_bypass.still_ask list: the operations that cannot be undone (deleting a repository or a major
+# directory, force-pushing the default branch, discarding a worktree or resetting work to the remote). A deny
+# stays a deny, a confirm keeps its own flow, and every other host is unchanged.
+BYPASS_KEEP = set((CAT.get("host_bypass") or {}).get("still_ask") or [])
+HOST_BYPASS = HOST == "claude" and isinstance(PAY, dict) and PAY.get("permission_mode") == "bypassPermissions"
+if HOST_BYPASS and verdict == "ask" and not CONFIRMS and not any(
+        j["id"] in BYPASS_KEEP or (j["res"].get("effective_action") or "") in BYPASS_KEEP
+        for j in JOBS if j["res"]["verdict"] == "ask"):
+    verdict = PASS
 stamp_err = None
 
 

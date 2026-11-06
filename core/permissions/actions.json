@@ -156,6 +156,10 @@
     "claude_prefix": "mcp__plugin_tamirs-superpowers_github__",
     "_comment": "Equivalents name tools in their Claude form. Strip claude_prefix for the bare tool name; OpenCode names the same tool github_<tool> (doc-cited); the Codex, Cursor and Gemini forms are unverified (D8). A tool of this server with no entry is UNCLASSIFIED."
   },
+  "host_bypass": {
+    "_comment": "When Claude Code itself runs with bypassPermissions, permission-guard.sh steps aside for every ask except these: the operations that cannot be undone. The user's decision of 2026-11-06 (5.6.5): in bypass mode, ask only for something major and irreversible, such as deleting a remote repository or a major directory. Other hosts, denies and plugin-config confirms are unchanged.",
+    "still_ask": ["repo.delete", "fs.delete.tree", "git.push.force.default", "git.reset_to_remote", "worktree.drop", "worktree.remove.force"]
+  },
   "actions": [
     {
       "id": "repo.read",
@@ -1845,6 +1849,19 @@
       "equivalents": {},
       "sources": ["ADR#D1", "A1#D-6", "safety#4"],
       "note": "A reset to a remote ref that discards uncommitted or unpushed work. Reached from git.sync.ff (condition discards_work)."
+    },
+    {
+      "id": "fs.delete.tree",
+      "r": 4,
+      "tags": [],
+      "aliases": [],
+      "never_auto": true,
+      "unattended_precondition": null,
+      "l2": ["PG"],
+      "target": "path",
+      "equivalents": {},
+      "sources": ["ADR#D1"],
+      "note": "A recursive rm of a major directory: /, a top-level system directory, the home directory or one of its direct children, or a git repository's root. Matched in permission-guard.sh (rm_major_targets), not by an argv pattern, because it judges the resolved path. Added 2026-11-06 with host_bypass."
     }
   ]
 }
