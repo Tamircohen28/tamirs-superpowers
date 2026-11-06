@@ -112,8 +112,8 @@ section "the actual bypass: apply_patch via a Bash heredoc is BLOCKED, matching 
 
 judge "Bash: apply_patch <<'PATCH' updating yarn.lock is DENIED" deny \
   "$(run_guard Bash "$(heredoc_input "$(patch_envelope "Update File: yarn.lock")")")"
-judge "Bash: apply_patch <<'PATCH' adding a workflow is DENIED" deny \
-  "$(run_guard Bash "$(heredoc_input "$(patch_envelope "Add File: .github/workflows/new.yml")")")"
+judge "Bash: apply_patch <<'PATCH' adding a lockfile is DENIED" deny \
+  "$(run_guard Bash "$(heredoc_input "$(patch_envelope "Add File: pnpm-lock.yaml")")")"
 judge "Bash: apply_patch <<'PATCH' renaming onto a lockfile (Move to) is DENIED" deny \
   "$(run_guard Bash "$(heredoc_input "$(patch_envelope "Update File: scratch.py" "Move to: yarn.lock")")")"
 

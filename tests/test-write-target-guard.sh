@@ -91,17 +91,17 @@ notice() {
 section "Bash-mediated writes to a protected path are BLOCKED"
 # ===========================================================================
 
-judge "heredoc into a workflow"       deny "$(bash_verdict "$(printf 'cat > .github/workflows/ci.yml <<%s\nname: CI\nEOF\n' "'EOF'")")"
+judge "heredoc into a lockfile"       deny "$(bash_verdict "$(printf 'cat > package-lock.json <<%s\n{}\nEOF\n' "'EOF'")")"
 judge "sed -i on a lockfile"          deny "$(bash_verdict "sed -i.bak 's/a/b/' yarn.lock")"
 judge "tee into a lockfile"           deny "$(bash_verdict "echo x | tee pnpm-lock.yaml")"
-judge "append redirect to a workflow" deny "$(bash_verdict "echo x >> .github/workflows/ci.yml")"
-judge "cp into the workflows dir"     deny "$(bash_verdict "cp /tmp/ci.yml .github/workflows/")"
-judge "mv onto a workflow"            deny "$(bash_verdict "mv /tmp/a.yml .github/workflows/ci.yml")"
-judge "curl -o a workflow"            deny "$(bash_verdict "curl -sSL https://x/y -o .github/workflows/ci.yml")"
+judge "append redirect to a lockfile" deny "$(bash_verdict "echo x >> package-lock.json")"
+judge "cp onto a lockfile"            deny "$(bash_verdict "cp /tmp/x.json package-lock.json")"
+judge "mv onto a lockfile"            deny "$(bash_verdict "mv /tmp/a.json package-lock.json")"
+judge "curl -o a lockfile"            deny "$(bash_verdict "curl -sSL https://x/y -o package-lock.json")"
 judge "redirect into .yarn/releases"  deny "$(bash_verdict "printf x > .yarn/releases/yarn-4.0.0.cjs")"
 judge "redirect into gitignored dist" deny "$(bash_verdict "echo x > dist/bundle.js")"
 judge "heredoc into shadcn ui"        deny "$(bash_verdict "$(printf 'cat > src/components/ui/b.tsx <<%s\nx\nEOF\n' "'EOF'")")"
-judge "rm of a workflow"              deny "$(bash_verdict "rm -f .github/workflows/ci.yml")"
+judge "rm of a lockfile"              deny "$(bash_verdict "rm -f package-lock.json")"
 judge "a write after cd into the repo" deny "$(bash_verdict "cd $REPO && echo x > yarn.lock")"
 
 # ===========================================================================
@@ -149,7 +149,7 @@ section "the Edit/Write path is unchanged"
 # ===========================================================================
 
 judge "Edit of a lockfile"          deny  "$(verdict Edit  "$REPO/yarn.lock")"
-judge "Write of a workflow"         deny  "$(verdict Write "$REPO/.github/workflows/ci.yml")"
+judge "Write of a workflow passes (5.6.7)" allow "$(verdict Write "$REPO/.github/workflows/ci.yml")"
 judge "Edit of ordinary source"     allow "$(verdict Edit  "$REPO/src/app.ts")"
 judge "Edit of a relative path"     deny  "$(verdict Edit  "yarn.lock")"
 
@@ -212,8 +212,8 @@ judge "and it matches Shell too"                 yes "$(has "$(guard_matchers)" 
 # The wiring is only worth asserting if the guard actually decides on that payload.
 shell_verdict() { verdict Shell "$1"; }
 judge "tee into a lockfile, as a Shell call"     deny "$(shell_verdict "tee yarn.lock")"
-judge "redirect into a workflow, as a Shell call" deny \
-  "$(shell_verdict "echo x >> .github/workflows/ci.yml")"
+judge "redirect into a lockfile, as a Shell call" deny \
+  "$(shell_verdict "echo x >> package-lock.json")"
 judge "a mention is still allowed on Shell"      allow "$(shell_verdict "cat yarn.lock")"
 
 section "3. a wrapper's own OPTIONS are consumed, not left in argv0's place"
@@ -240,8 +240,8 @@ section "4. a value-taking option's VALUE is not an operand"
 # lockfile itself.
 judge "install -m 0644"        deny "$(bash_verdict "install -m 0644 /tmp/a yarn.lock")"
 judge "install -m0644 -o root" deny "$(bash_verdict "install -m0644 -o root /tmp/a yarn.lock")"
-judge "install -m 0644 into the workflows dir" deny \
-  "$(bash_verdict "install -m 0644 /tmp/a .github/workflows/ci.yml")"
+judge "install -m 0644 onto a lockfile" deny \
+  "$(bash_verdict "install -m 0644 /tmp/a package-lock.json")"
 judge "cp -S .bak onto a lockfile" deny "$(bash_verdict "cp -S .bak /tmp/a yarn.lock")"
 judge "sed -i -e, script given by flag" deny "$(bash_verdict "sed -i -e 's/a/b/' yarn.lock")"
 judge "touch -r ref"           deny "$(bash_verdict "touch -r /tmp/ref yarn.lock")"
@@ -298,8 +298,8 @@ S_SCRATCH="$TMP/scratch"; mkdir -p "$S_SCRATCH"
 judge "a literal scratch dir: no notice"      allow "$(bash_verdict "S=$S_SCRATCH; cp /tmp/a \"\$S/b\"")"
 judge "a lockfile through the variable: BLOCKED" deny \
   "$(bash_verdict "S=$S_SCRATCH; cp /tmp/a \"\$S/package-lock.json\"")"
-judge "a workflow through the variable: BLOCKED" deny \
-  "$(bash_verdict "OUT=.github/workflows/ci.yml; echo x > \$OUT")"
+judge "a lockfile through the variable: BLOCKED" deny \
+  "$(bash_verdict "OUT=package-lock.json; echo x > \$OUT")"
 judge "a redirect through \${S}"              deny "$(bash_verdict "S=$REPO; echo x > \"\${S}/yarn.lock\"")"
 judge "export NAME=literal is a builtin: not resolved" warn "$(bash_verdict "export S=$REPO; echo x > \$S/yarn.lock")"
 judge "a double-quoted literal"               deny "$(bash_verdict "S=\"$REPO\"; echo x > \$S/yarn.lock")"
@@ -494,8 +494,9 @@ done
 #     parent but only maybe (an if/loop/case body, a function body, after
 #     `&&`/`||`) the cwd becomes UNKNOWN, since "moved" and "unchanged" can
 #     each be the wrong answer. Every row runs from the repo's .github with
-#     the write `echo x > workflows/ci.yml`: judged against .github it is a
-#     deny, against /tmp a silent allow, against nothing a warn.
+#     the write `echo x > components/ui/b.tsx` (the repo is a shadcn project):
+#     judged against .github it is a deny, against /tmp a silent allow, against
+#     nothing a warn.
 gh_verdict() {
   jq -n --arg c "$1" --arg cwd "$REPO/.github" \
      '{tool_name:"Bash", cwd:$cwd, tool_input:{command:$c}}' \
@@ -505,7 +506,7 @@ gh_verdict() {
            else "allow" end' 2>/dev/null
 }
 gh_checked() { case "$(gh_verdict "$1")" in deny|warn) echo checked ;; *) echo allow ;; esac; }
-WF='echo x > workflows/ci.yml'
+WF='echo x > components/ui/b.tsx'
 judge "364 the exact case: coproc cd"      deny "$(gh_verdict "coproc cd /tmp; wait; $WF")"
 judge "coproc { cd; }"                     deny "$(gh_verdict "coproc { cd /tmp; }; wait; $WF")"
 judge "coproc name { cd; }"                deny "$(gh_verdict "coproc name { cd /tmp; }; wait; $WF")"

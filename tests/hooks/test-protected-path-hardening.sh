@@ -149,9 +149,7 @@ if [ "$REPO_FOLDS" = yes ]; then
   judge "Edit <repo>/.TAMIRS-superpowers/permissions.json" deny \
     "$(v Edit "$REPO/.TAMIRS-superpowers/permissions.json")"
   judge "Edit <repo>/.Claude/Settings.local.json" deny "$(v Edit "$REPO/.Claude/Settings.local.json")"
-  judge "Write <repo>/.GitHub/Workflows/ci.yml (the workflows dir exists)" deny \
-    "$(v Write "$REPO/.GitHub/Workflows/ci.yml")"
-  judge "Bash > .GitHub/Workflows/ci.yml" deny "$(vb 'echo x > .GitHub/Workflows/ci.yml')"
+  judge "Bash > YARN.LOCK (the lockfile, folded)" deny "$(vb 'echo x > YARN.LOCK')"
   judge "Edit <repo>/YARN.LOCK (the lockfile, folded)" deny "$(v Edit "$REPO/YARN.LOCK")"
   judge "Edit <repo>/Src/A.txt (an ordinary file, folded) stays allowed" allow "$(v Edit "$REPO/Src/A.txt")"
 fi
@@ -391,23 +389,17 @@ judge "  ... while a write after such a substitution is still seen" deny \
   "$(vbn "x=\"\$(cat <<'EOF'\nit's\nEOF\n)\"; echo x > ~/.claude/settings.json")"
 
 # ===========================================================================
-section "F6: PM_ALLOW_PROTECTED reaches the generated-file rules only"
+section "F6: PM_ALLOW_PROTECTED reaches the generated-file rules only (workflows are free since 5.6.7)"
 # ===========================================================================
 export PM_ALLOW_PROTECTED=1
-judge "Write a workflow"                  deny "$(v Write "$REPO/.github/workflows/ci.yml")"
-judge "Bash > a workflow"                 deny "$(vb 'echo x >> .github/workflows/ci.yml')"
-judge "rm a workflow"                     deny "$(vb 'rm -f .github/workflows/ci.yml')"
-judge "rm -rf the workflows dir"          deny "$(vb 'rm -rf .github/workflows')"
-judge "rm -rf .github"                    deny "$(vb 'rm -rf .github')"
 judge "a .git/hooks script"               deny "$(v Write "$REPO/.git/hooks/pre-commit")"
 judge "the project policy file"           deny "$(v Write "$REPO/.tamirs-superpowers/permissions.json")"
 judge "a lockfile is still the user's to unlock" allow "$(v Edit "$REPO/yarn.lock")"
 judge "gitignored build output too"       allow "$(vb 'echo x > dist/bundle.js')"
 judge "generated shadcn UI too"           allow "$(v Write "$REPO/src/components/ui/button.tsx")"
 unset PM_ALLOW_PROTECTED
-wf_out="$(raw Write "$REPO/.github/workflows/ci.yml")"
-judge "the workflow deny still names no override" no "$(has "$(reason "$wf_out")" PM_ALLOW_PROTECTED)"
-judge "without the override: rm -rf .github/workflows" deny "$(vb 'rm -rf .github/workflows')"
+judge "a workflow write passes (5.6.7)"   allow "$(v Write "$REPO/.github/workflows/ci.yml")"
+judge "rm -rf .github/workflows passes"   allow "$(vb 'rm -rf .github/workflows')"
 judge "  ... while rm -rf of an ordinary .github subdir is allowed" allow "$(vb 'rm -rf .github/ISSUE_TEMPLATE')"
 
 harness_summary

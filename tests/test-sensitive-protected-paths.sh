@@ -226,10 +226,10 @@ judge "python3 -c naming opencode config"   deny "$(vb "python3 -c \"open('$PHOM
 judge "an installed guard file"             deny "$(vg "$INST/hooks/guard-sensitive-files.sh" Write "$INST/hooks/lib/write-targets.py")"
 judge "a source-checkout guard file is still an ask" ask \
   "$(vg "$SRC_ASK/hooks/guard-sensitive-files.sh" Write "$SRC_ASK/hooks/permission-guard.sh")"
-section "... and is still honoured for the generated-file rules, workflows excepted"
+section "... and is still honoured for the generated-file rules"
 judge "Edit a lockfile"                     allow "$(v Edit "$REPO/yarn.lock")"
 judge "Bash write to a lockfile"            allow "$(vb "echo x > yarn.lock")"
-judge "Write a workflow is still denied (F6)" deny "$(v Write "$REPO/.github/workflows/ci.yml")"
+judge "Write a workflow passes (5.6.7: no longer protected)" allow "$(v Write "$REPO/.github/workflows/ci.yml")"
 unset PM_ALLOW_PROTECTED
 
 # ===========================================================================
@@ -265,7 +265,7 @@ judge "CLAUDE_PLUGIN_ROOT adds a protected root, never removes one" deny \
 section "deny texts name no bypass (D10.5)"
 # ===========================================================================
 texts=""
-for c in "Edit|$PHOME/.claude/settings.json" "Edit|$REPO/yarn.lock" "Write|$REPO/.github/workflows/ci.yml" \
+for c in "Edit|$PHOME/.claude/settings.json" "Edit|$REPO/yarn.lock" "Write|$REPO/package-lock.json" \
          "Bash|echo x > $TMP/innocent.json" "Bash|python3 -c \"open('$PHOME/.gitconfig','w')\""; do
   texts="$texts$(reason "$(run_guard "$GUARD" "${c%%|*}" "${c#*|}")")"$'\n'
 done
@@ -273,7 +273,7 @@ judge "five deny reasons were produced" 5 "$(printf '%s' "$texts" | grep -c 'BLO
 judge "none names PM_ALLOW_PROTECTED"       no "$(has "$texts" PM_ALLOW_PROTECTED)"
 judge "none names create_or_update_file"    no "$(has "$texts" create_or_update_file)"
 judge "none points at the GitHub MCP"       no "$(has "$texts" "GitHub MCP")"
-judge "the workflow text is the R4 ask"     yes "$(has "$texts" "R4 action (workflow.edit)")"
+judge "no reason is the removed workflow rule" no "$(has "$texts" "workflow.edit")"
 judge "the protected text sends it to the user" yes "$(has "$texts" "ask them to make this change themselves")"
 
 # ===========================================================================
@@ -319,5 +319,17 @@ deny_out="$(printf '%s' "$deny_payload" | env -u CLAUDE_PLUGIN_OPTION_UNRESOLVED
 judge "option unset: a resolvable protected write is still denied" deny "$(printf '%s' "$deny_out" | jq -r '.hookSpecificOutput.permissionDecision // "pass"' 2>/dev/null)"
 on_out="$(printf '%s' "$quiet_payload" | CLAUDE_PLUGIN_OPTION_UNRESOLVED_WRITE_NOTICES=true bash "$G" 2>/dev/null)"
 judge "option on: the notice is back" yes "$(case "$on_out" in *"NOT checked"*) echo yes;; *) echo no;; esac)"
+
+# Claude Code's bypass mode (5.6.7): the generated-file rules step aside; host settings do not.
+bp() { jq -nc --arg f "$1" --arg d "$ROOT" --arg m "$2" \
+  '{cwd:$d, session_id:"s", hook_event_name:"PreToolUse", tool_name:"Edit", permission_mode:$m, tool_input:{file_path:$f, old_string:"a", new_string:"b"}}' \
+  | bash "$G" 2>/dev/null | jq -r '.hookSpecificOutput.permissionDecision // "pass"' 2>/dev/null; }
+judge "default mode: editing a workflow passes" pass "$(bp "$ROOT/.github/workflows/ci.yml" default)"
+judge "default mode: editing a lockfile is denied" deny "$(bp "$ROOT/package-lock.json" default)"
+judge "bypass: editing a lockfile passes" pass "$(bp "$ROOT/package-lock.json" bypassPermissions)"
+judge "bypass: the host settings file is still denied" deny "$(bp "$HOME/.claude/settings.json" bypassPermissions)"
+judge "bypass on a Codex payload changes nothing" deny "$(jq -nc --arg f "$ROOT/package-lock.json" --arg d "$ROOT" \
+  '{cwd:$d, turn_id:"t", hook_event_name:"PreToolUse", tool_name:"Edit", permission_mode:"bypassPermissions", tool_input:{file_path:$f}}' \
+  | bash "$G" 2>/dev/null | jq -r '.hookSpecificOutput.permissionDecision // "pass"' 2>/dev/null)"
 
 harness_summary

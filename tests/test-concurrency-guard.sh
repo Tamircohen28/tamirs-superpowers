@@ -291,6 +291,20 @@ judge "no cd: the session repo is still the target" BLOCKED \
   "$(run_hook "git push origin main" "$dir")"
 
 echo
+# Claude Code's bypass mode (5.6.7): a live claim and an unresolvable push both step aside.
+run_hook_bypass() {
+  local cmd="$1" dir="$2" out
+  out=$(jq -n --arg c "$cmd" --arg cwd "$REPO" \
+          '{tool_name:"Bash", tool_input:{command:$c}, cwd:$cwd, session_id:"test-session", permission_mode:"bypassPermissions"}' \
+        | AGENT_CLAIM_DIR="$dir" AGENT_CLAIM_ID="test-agent" AGENT_CLAIM_TOOL="claude-code" bash "$HOOK" 2>/dev/null)
+  if [ "$(printf '%s' "$out" | jq -r '.hookSpecificOutput.permissionDecision // "allow"' 2>/dev/null)" = "deny" ]; then
+    printf 'DENY:x'; else printf 'ALLOW'; fi
+}
+BDIR="$TMPROOT/claims.bypass"; plant_claim "git:acme/repo@main" 0 "$BDIR"
+judge "bypass: a live claim on main steps aside" ALLOW "$(run_hook_bypass "git push origin main" "$BDIR")"
+judge "bypass: push --all (cannot resolve) steps aside" ALLOW "$(run_hook_bypass "git push --all origin" "$BDIR")"
+check "default mode: the same live claim still blocks" BLOCKED "git push origin main"
+
 echo "passed: $PASS   failed: $FAIL"
 if [ "$FAIL" -ne 0 ]; then
   printf 'failing: %s\n' "${FAILED_NAMES[*]}"

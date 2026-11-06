@@ -2722,9 +2722,21 @@ verdict = final["res"]["verdict"] if final else PASS
 # stays a deny, a confirm keeps its own flow, and every other host is unchanged.
 BYPASS_KEEP = set((CAT.get("host_bypass") or {}).get("still_ask") or [])
 HOST_BYPASS = HOST == "claude" and isinstance(PAY, dict) and PAY.get("permission_mode") == "bypassPermissions"
-if HOST_BYPASS and verdict == "ask" and not CONFIRMS and not any(
-        j["id"] in BYPASS_KEEP or (j["res"].get("effective_action") or "") in BYPASS_KEEP
-        for j in JOBS if j["res"]["verdict"] == "ask"):
+# Since 5.6.7 a level's deny steps aside too (a push to the default branch, an admin merge): the user's
+# "allowed to do anything" covers what the level forbids, not only what it would ask about. Three denies hold:
+# a still_ask id (it cannot be undone), the agent editing its own permission policy (D10.3), and a command too
+# long to read (UNCLASSIFIED: nothing in it was judged, a major delete included).
+BYPASS_HOLD = BYPASS_KEEP | {"policy.edit", "config.global.write"}
+
+
+def bypass_held(j):
+    if j["id"] == UNCL and j["res"]["verdict"] == "deny":   # unread, not merely unclassified (an ask)
+        return True
+    return j["id"] in BYPASS_HOLD or (j["res"].get("effective_action") or "") in BYPASS_HOLD
+
+
+if HOST_BYPASS and verdict in ("ask", "deny") and not CONFIRMS and not any(
+        bypass_held(j) for j in JOBS if j["res"]["verdict"] in ("ask", "deny")):
     verdict = PASS
 stamp_err = None
 

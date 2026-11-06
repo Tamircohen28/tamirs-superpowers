@@ -377,6 +377,15 @@ d="$(decision "$out")"
 check "real resolver: docker compose up is not allowed, even with PM_ALLOW_DOCKER=1" yes \
   "$(case "$d" in ask|deny) echo yes ;; *) echo "no: $d" ;; esac)"
 
+# Claude Code's bypass mode (5.6.7): the resolver is not consulted for what can be removed; a prune still asks.
+BY='{"tool_name":"Bash","session_id":"sess-1","cwd":"/","permission_mode":"bypassPermissions","tool_input":{"command":"docker compose up -d"}}'
+BYP='{"tool_name":"Bash","session_id":"sess-1","cwd":"/","permission_mode":"bypassPermissions","tool_input":{"command":"docker system prune -af"}}'
+check "bypass: compose up runs even when the resolver denies" allow "$(decision "$(runp deny "$BY")")"
+check "bypass: a prune still asks" ask "$(decision "$(runp deny "$BYP")")"
+BYC='{"tool_name":"Bash","session_id":"sess-1","cwd":"/","permission_mode":"bypassPermissions","tool_input":{"command":"docker compose up -d; docker system prune -af"}}'
+check "bypass: a prune after an allowed docker command still asks" ask "$(decision "$(runp deny "$BYC")")"
+check "bypass on a Codex payload changes nothing" deny "$(decision "$(runp deny "$(printf '%s' "$CX" | jq -c '.permission_mode="bypassPermissions"')")")"
+
 echo
 printf 'docker-guard: %d passed, %d failed\n' "$PASS" "$FAIL"
 if [ "$FAIL" -gt 0 ]; then

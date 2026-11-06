@@ -119,6 +119,15 @@ hook_detect_platform() {
   export HOOK_PLATFORM
 }
 
+# hook_host_bypass INPUT — true when Claude Code itself runs this call in bypassPermissions mode
+# (5.6.7). The mode is read from the host's payload, never from an environment variable a cloned
+# repo's settings could set; only the Claude dialect carries it. A guard that honours it steps
+# aside for what can be undone and keeps judging what cannot.
+hook_host_bypass() {
+  [ "${HOOK_PLATFORM:-claude}" = "claude" ] &&
+    [ "$(jq -r '.permission_mode // empty' <<<"${1:-}" 2>/dev/null)" = "bypassPermissions" ]
+}
+
 # The PreToolUse answer shapes, as jq programs over $reason. The helpers below print one each;
 # hooks/permission-guard.sh's batch entries (--judge-batch) render many at once through these
 # same programs, so a batch answer and a hook answer are the same bytes once compacted and the

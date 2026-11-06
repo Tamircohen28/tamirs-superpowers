@@ -388,7 +388,7 @@ for dialect in claude codex cursor gemini; do
 done
 
 section "equivalence: guard-sensitive-files.sh on a protected path"
-PROT="$PLAIN/.github/workflows/ci.yml"; mkdir -p "$PLAIN/.github/workflows"
+PROT="$PLAIN/package-lock.json"
 CL_CMD='bash "${CLAUDE_PLUGIN_ROOT}"/hooks/guard-sensitive-files.sh'
 CU_CMD='bash ${CURSOR_PLUGIN_ROOT}/hooks/guard-sensitive-files.sh'
 GE_CMD='bash "${extensionPath}/hooks/gemini-wrap.sh" "${extensionPath}/hooks/guard-sensitive-files.sh"'
@@ -399,7 +399,7 @@ for dialect in claude codex cursor gemini; do
     cursor) run_cmd cursor "$PLAIN" "$CU_CMD" "$(cursor_payload preToolUse "$PLAIN" Write "$PROT")" 15 ;;
     gemini) run_cmd gemini "$PLAIN" "$GE_CMD" "$(gemini_payload BeforeTool "$PLAIN" replace "$PROT")" 15 ;;
   esac
-  judge "$dialect: a workflow write is DENIED" yes "$(denied "$dialect" "$OUT" "$RC")"
+  judge "$dialect: a lockfile write is DENIED" yes "$(denied "$dialect" "$OUT" "$RC")"
   judge "$dialect: the deny is one JSON object" yes "$(one_object "$OUT")"
 done
 

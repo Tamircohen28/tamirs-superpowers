@@ -1539,6 +1539,12 @@ expect "git -C \$dir reset --hard origin/main (dir unknown) still asks" claude \
 expect "bypass: git -C \$dir reset --hard origin/main still asks" claude \
   "$(bypass 'git -C $X reset --hard origin/main')" ask git.reset_to_remote
 
+section "bypass: a level's deny steps aside, except what cannot be undone (5.6.7)"
+expect "default mode: an admin merge is denied" claude "$(claude_bash 'gh pr merge 5 --squash --admin')" deny
+expect "bypass: an admin merge passes" claude "$(bypass 'gh pr merge 5 --squash --admin')" allow
+expect "bypass: claude plugin configure (its own policy) stays denied" claude \
+  "$(bypass 'claude plugin configure tamirs-superpowers')" deny policy.edit
+
 judge "every queued case was flushed" "0 0" "$(wc -l < "$BQ_IN" | tr -d ' ') $(wc -l < "$BC_IN" | tr -d ' ')"
 
 printf '\n  info wall time: %ss; %s verdicts and %s classifications judged in batch over %s flushes, the rest single-call\n' \

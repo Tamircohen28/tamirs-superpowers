@@ -162,7 +162,7 @@ judge "tracked build/ is ALLOWED (not ignored -> not build output)" allow \
 
 # Unconditional rules must stay unconditional.
 judge "a lockfile is still DENIED"  deny  "$(guard_decision "$plainui/yarn.lock")"
-judge "a workflow is still DENIED"  deny  "$(guard_decision "$plainui/.github/workflows/ci.yml")"
+judge "a workflow is ALLOWED (5.6.7)" allow "$(guard_decision "$plainui/.github/workflows/ci.yml")"
 judge "ordinary source is ALLOWED"  allow "$(guard_decision "$plainui/src/app.ts")"
 
 # ===========================================================================

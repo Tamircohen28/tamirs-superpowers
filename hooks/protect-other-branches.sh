@@ -53,6 +53,10 @@ if ! command -v jq >/dev/null 2>/dev/null; then
   exit 0
 fi
 
+# Claude Code's bypass mode (5.6.7): the user chose to run free, and a work claim is coordination,
+# not an irreversible act, so neither a live claim nor a check that cannot run stops the call.
+hook_host_bypass "$INPUT" && hook_pass
+
 COMMAND=$(_hook_put "$INPUT" | jq -r '.tool_input.command // ""')
 CWD=$(_hook_put "$INPUT" | jq -r '.cwd // (.workspace_roots[0]? // "") // ""')
 SESSION=$(_hook_put "$INPUT" | jq -r '.session_id // .conversation_id // ""')

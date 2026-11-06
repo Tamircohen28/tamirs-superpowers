@@ -157,7 +157,7 @@
     "_comment": "Equivalents name tools in their Claude form. Strip claude_prefix for the bare tool name; OpenCode names the same tool github_<tool> (doc-cited); the Codex, Cursor and Gemini forms are unverified (D8). A tool of this server with no entry is UNCLASSIFIED."
   },
   "host_bypass": {
-    "_comment": "When Claude Code itself runs with bypassPermissions, permission-guard.sh steps aside for every ask except these: the operations that cannot be undone. The user's decision of 2026-11-06 (5.6.5): in bypass mode, ask only for something major and irreversible, such as deleting a remote repository or a major directory. Other hosts, denies and plugin-config confirms are unchanged.",
+    "_comment": "When Claude Code itself runs with bypassPermissions, permission-guard.sh steps aside for every ask except these: the operations that cannot be undone. The user's decision of 2026-11-06 (5.6.5): in bypass mode, ask only for something major and irreversible, such as deleting a remote repository or a major directory. Since 5.6.7 a level's deny steps aside too, except a still_ask id, the agent editing its own policy (policy.edit, config.global.write) and a command too long to read; docker-guard.py, guard-sensitive-files.sh (generated files) and protect-other-branches.sh honour the same mode. Other hosts and plugin-config confirms are unchanged.",
     "still_ask": ["repo.delete", "fs.delete.tree", "git.push.force.default", "git.reset_to_remote", "worktree.drop", "worktree.remove.force"]
   },
   "actions": [
@@ -1674,7 +1674,7 @@
       "aliases": [],
       "never_auto": true,
       "unattended_precondition": null,
-      "l2": ["GSF", "MCP"],
+      "l2": ["MCP"],
       "target": "path",
       "equivalents": {
         "paths": ["{repo}/.github/workflows/**"],
