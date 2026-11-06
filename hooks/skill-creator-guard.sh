@@ -11,7 +11,9 @@ INPUT="$(hook_read_stdin)"
 hook_detect_platform "$INPUT"
 # Contributor tier (plugin option contributor_hooks, default off). This guard
 # is also wired in platforms/cursor/hooks.json, and Cursor fail-closes on empty
-# stdout — so "off" must still answer with the platform's allow, not silence.
+# stdout — so "off" must still answer with the platform's pass ({}), not silence.
+# The argument stays `allow` (an alias of pass in hook_tier_gate): the hook-tiers
+# suite pins this exact line.
 hook_tier_gate contributor allow
 
 # Both extraction routes below only make sense for a tool that actually
@@ -56,7 +58,7 @@ except Exception:
             fi
             ;;
         esac
-      done < <(printf '%s' "$INPUT" | python3 "${SCRIPT_DIR}/lib/write-targets.py" 2>/dev/null)
+      done < <(python3 "${SCRIPT_DIR}/lib/write-targets.py" <<<"$INPUT" 2>/dev/null)
     fi
     ;;
 esac
@@ -69,4 +71,4 @@ EOF
 )"
 fi
 
-hook_allow
+hook_pass

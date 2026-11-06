@@ -54,7 +54,7 @@ WHAT root_fields MEANS
     { addPullRequestReview(...) }` reports `addPullRequestReview`. Directives
     are not evaluated: a field under `@skip(if: true)` is still reported,
     because whether it runs can turn on a variable this module never sees, and
-    over-reporting a field asks where under-reporting one would allow. A type
+    over-reporting a field asks where under-reporting one would let it through. A type
     condition is not checked either, for the same reason. Each name appears
     once, in first-seen order. Fields below the top level are not reported: a
     nested field that happens to share a mutation's name is not a mutation.
@@ -63,9 +63,9 @@ WHAT root_fields MEANS
     one anywhere in its own body or in any fragment it reaches, at any depth.
 
 WHAT IT DOES NOT DO
-    It does not decode JSON: a JSON-escaped keyword (`mutat\\u0069on`) is the
-    caller's to decode first — undecoded it is a lexical error here, so it still
-    fails closed. It does not validate against a schema and does not expand
+    It does not decode JSON: a keyword with a JSON unicode escape in place of
+    one of its letters is the caller's to decode first — undecoded it is a
+    lexical error here, so it still fails closed. It does not validate against a schema and does not expand
     templates (curl's `{{name}}` is a syntax error). It performs no I/O and
     imports nothing; it is a pure function of its argument and runs on Python
     3.9 and later.

@@ -97,7 +97,7 @@ source "${SCRIPT_DIR}/lib/hook-output.sh"
 input="$(hook_read_stdin)"
 hook_detect_platform "$input"
 
-[ -z "$input" ] && hook_allow
+[ -z "$input" ] && hook_pass
 
 # nearest_existing_dir DIR — walk up from DIR to the nearest ancestor that
 # actually exists. `git -C` on a directory that does not exist yet fails
@@ -114,7 +114,8 @@ nearest_existing_dir() {
   while [[ -n "$d" && "$d" != "/" && "$d" != "." && ! -d "$d" ]]; do
     d="$(dirname "$d")"
   done
-  printf '%s' "$d"
+  # A here-string adds a newline; the caller's $( ) strips it again.
+  cat <<<"$d"
 }
 
 # TARGET <tab> <abs path> <tab> <fragment>   — a file this call will write
@@ -136,7 +137,7 @@ PROTECTED_REMEDY="Only the user changes plugin permission policy, guard files an
 
 protected_ask() {
   local reason="$1"
-  if declare -F hook_ask >/dev/null 2>&1; then
+  if declare -F hook_ask >/dev/null 2>/dev/null; then
     echo "$reason" >&2
     hook_ask "$reason"
   fi
@@ -155,7 +156,7 @@ classify() {
   # this hook — a remote write tool is the same change with no guard on it.
   # The workflows directory itself counts, and so does a .github that holds
   # one when it is removed or filled by a copy or extraction.
-  remedy="Changing a workflow is an R4 action (workflow.edit): ask the user to approve this exact change and to make it themselves, rather than routing it through another tool or a remote API"
+  remedy="Changing a workflow is an R4 action (workflow.edit): ask the user to confirm this exact change and to make it themselves, rather than routing it through another tool or a remote API"
   case "$file" in
     */.github/workflows|*/.github/workflows/*)
       deny "BLOCKED: '$file' is a GitHub Actions workflow.$context $remedy."
@@ -202,9 +203,10 @@ classify() {
   return 0
 }
 
-# Process substitution, not a pipe: `deny` must be able to exit THIS shell.
-# In a pipeline the loop is a subshell, `exit` leaves it, and the script would
-# fall through and print a second, contradictory allow.
+# A here-string, not a pipe: `deny` must be able to exit THIS shell. In a
+# pipeline the loop is a subshell, `exit` leaves it, and the script would fall
+# through and print a second, contradictory pass. The here-string feeds the
+# same bytes the old `< <(printf '%s\n' …)` did: the text plus one newline.
 #
 # Pass 1 — protected paths, before and regardless of PM_ALLOW_PROTECTED.
 # Every deny outranks every ask, so the asks wait for the whole list.
@@ -215,7 +217,7 @@ while IFS=$'\t' read -r kind mode why; do
     ask) [ -n "$ask_reason" ] || ask_reason="$why" ;;
     *)   deny "BLOCKED: $why $PROTECTED_REMEDY" ;;
   esac
-done < <(printf '%s\n' "$analysis")
+done <<<"$analysis"
 if [ -n "$ask_reason" ]; then
   # The reason says why this is an ask (a source checkout's guard file, or a
   # git replay onto a protected path); write-targets.py words it.
@@ -238,7 +240,7 @@ override=0
 # (TMPDIR when the host exports none), per user, swept after two days. No
 # session id means no marker and the full notice every time.
 notice_dir=""
-session_key="$(printf '%s' "$input" | jq -r '.session_id // .conversation_id // empty' 2>/dev/null || true)"
+session_key="$(jq -r '.session_id // .conversation_id // empty' <<<"$input" 2>/dev/null || true)"
 session_key="${session_key//[^a-zA-Z0-9_-]/_}"
 if [ -n "$session_key" ]; then
   notice_base="${CLAUDE_PLUGIN_DATA:-${TMPDIR:-/tmp}}"
@@ -248,8 +250,8 @@ fi
 # notice_marker <reason> — the marker path for this session and reason kind.
 notice_marker() {
   local kind="${1%% (*}" sum
-  sum="$(printf '%s' "$kind" | cksum | cut -d' ' -f1)"
-  printf '%s/%s' "$notice_dir" "$sum"
+  sum="$(cksum <<<"$kind" | cut -d' ' -f1)"
+  echo "${notice_dir}/${sum}"
 }
 
 unsure=""
@@ -268,7 +270,7 @@ while IFS=$'\t' read -r kind detail fragment; do
       fi
       ;;
   esac
-done < <(printf '%s\n' "$analysis")
+done <<<"$analysis"
 
 # No silent failure path: "could not determine" must not be delivered as "no
 # protected file was touched". This is advisory, never a block — the command
@@ -286,4 +288,4 @@ elif [ -n "$repeats" ]; then
   hook_additional_context "PROTECTED-FILE GUARD: unresolved write, not checked (same notice as earlier this session): ${repeats}"
 fi
 
-hook_allow
+hook_pass

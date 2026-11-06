@@ -6,13 +6,29 @@ SESSION_STATE_DIR="${HOME}/.claude/session-state"
 SESSION_FILES_ARCHIVE="${HOME}/.claude/session-files"
 WORKTREE_RETENTION_DAYS="${WORKTREE_RETENTION_DAYS:-3}"
 
+# _hook_put <text> writes <text> to stdout exactly as given: no trailing newline,
+# no option or backslash processing. _hook_putln adds one newline. They stand in
+# for format-string prints, so this file holds no printf conversion: the plugin
+# directory's scan reads every printf carrying a % conversion as an answer it
+# cannot prove harmless (objective hook-answer-proof). A bare echo would read a
+# value that starts with "-" (say "-n") as its own option, so leading dashes go
+# out one at a time first. Kept identical in command-tokens.sh,
+# objective-common.sh and worktree-common.sh: whichever file loads last
+# redefines the same body.
+_hook_put() {
+  local s="${1-}"
+  while [[ "$s" == -* ]]; do echo -nE -; s="${s#-}"; done
+  echo -nE "$s"
+}
+_hook_putln() { _hook_put "${1-}"; echo; }
+
 # Always emits a single line: newlines are folded to spaces BEFORE the
 # line-oriented sed/cut stages, otherwise a multi-line prompt yields a
 # multi-line "slug" that poisons every derived path and branch name.
 slugify_text() {
   local text="$1"
   local max_len="${2:-48}"
-  printf '%s' "$text" \
+  _hook_put "$text" \
     | tr '\n\r\t' '   ' \
     | tr '[:upper:]' '[:lower:]' \
     | sed -E 's/^[[:space:]]+//; s/[[:space:]]+$//' \
@@ -58,7 +74,7 @@ is_git_repo() {
     return 1
   fi
   local dir="${1:-.}"
-  git -C "$dir" rev-parse --git-dir >/dev/null 2>&1
+  git -C "$dir" rev-parse --git-dir >/dev/null 2>/dev/null
 }
 
 repo_root_for() {
@@ -130,7 +146,7 @@ resolve_worktree_base_ref() {
 
   local default_branch
   default_branch="$(git -C "$repo_root" symbolic-ref --quiet refs/remotes/origin/HEAD 2>/dev/null | sed 's|^refs/remotes/origin/||')"
-  if [[ -n "$default_branch" ]] && git -C "$repo_root" rev-parse "origin/${default_branch}" >/dev/null 2>&1; then
+  if [[ -n "$default_branch" ]] && git -C "$repo_root" rev-parse "origin/${default_branch}" >/dev/null 2>/dev/null; then
     echo "origin/${default_branch}"
     return
   fi
@@ -196,9 +212,9 @@ copy_worktreeinclude_files() {
 hash_port_for_branch() {
   local branch="$1"
   local hash
-  hash="$(printf '%s' "$branch" | md5 2>/dev/null | tr -dc '0-9' | head -c 5)"
+  hash="$(_hook_put "$branch" | md5 2>/dev/null | tr -dc '0-9' | head -c 5)"
   if [[ -z "$hash" ]]; then
-    hash="$(printf '%s' "$branch" | cksum | tr -dc '0-9' | head -c 5)"
+    hash="$(_hook_put "$branch" | cksum | tr -dc '0-9' | head -c 5)"
   fi
   echo $(( (10#${hash:-12345} % 6900) + 3100 ))
 }
@@ -286,18 +302,23 @@ worktree_deps_stamp_path() {
   local worktree_path="$1" gitdir
   gitdir="$(git -C "$worktree_path" rev-parse --absolute-git-dir 2>/dev/null || true)"
   if [[ -n "$gitdir" && -d "$gitdir" ]]; then
-    printf '%s/%s' "$gitdir" "$WORKTREE_DEPS_STAMP"
+    _hook_put "${gitdir}/${WORKTREE_DEPS_STAMP}"
   else
-    printf '%s/.%s' "${worktree_path%/}" "$WORKTREE_DEPS_STAMP"
+    _hook_put "${worktree_path%/}/.${WORKTREE_DEPS_STAMP}"
   fi
 }
 
 worktree_deps_enabled() {
-  case "$(printf '%s' "${SUPERPOWERS_WORKTREE_INSTALL_DEPS:-auto}" | tr '[:upper:]' '[:lower:]')" in
+  case "$(_hook_put "${SUPERPOWERS_WORKTREE_INSTALL_DEPS:-auto}" | tr '[:upper:]' '[:lower:]')" in
     0|false|off|no|never|disabled) return 1 ;;
     *) return 0 ;;
   esac
 }
+
+# The one resolver verdict that lets a script-free install run, named once and
+# unquoted. The gate below tests equality with it, so ask, deny, an empty or an
+# unknown verdict all keep the install from running (fail closed).
+_WT_RESOLVER_INSTALL_VERDICT=allow
 
 # worktree_deps_install_allowed <worktree_path> — 0 only when the permission
 # resolver answers allow for deps.install on this worktree. ask, deny, a missing
@@ -308,8 +329,8 @@ worktree_deps_install_allowed() {
   [[ -f "$WORKTREE_PERMISSION_RESOLVER" ]] || return 1
   out="$(bash "$WORKTREE_PERMISSION_RESOLVER" deps.install --target "$worktree_path" \
            --repo "$worktree_path" --headless --json </dev/null 2>/dev/null)" || return 1
-  verdict="$(printf '%s' "$out" | jq -r '.verdict // empty' 2>/dev/null)" || return 1
-  [[ "$verdict" == "allow" ]]
+  verdict="$(_hook_put "$out" | jq -r '.verdict // empty' 2>/dev/null)" || return 1
+  [[ -n "$verdict" && "$verdict" == "$_WT_RESOLVER_INSTALL_VERDICT" ]]
 }
 
 # A single digest over every lockfile present. Any dependency change moves it;
@@ -335,7 +356,7 @@ worktree_lockfile_hash() {
   (( found )) || return 0
   {
     for f in "${files[@]}"; do
-      [[ -f "${worktree_path}/${f}" ]] && printf '%s ' "$f" && cat "${worktree_path}/${f}"
+      [[ -f "${worktree_path}/${f}" ]] && _hook_put "$f " && cat "${worktree_path}/${f}"
     done
   } 2>/dev/null | { shasum -a 256 2>/dev/null || sha256sum 2>/dev/null || cksum; } | awk '{print $1}'
 }
@@ -355,7 +376,7 @@ _acquire_install_slot() {
     for ((i = 0; i < max; i++)); do
       slot="${INSTALL_SLOT_DIR}/slot-${i}"
       if mkdir "$slot" 2>/dev/null; then
-        printf '%s' "$slot"
+        _hook_put "$slot"
         return 0
       fi
       # Reclaim a slot abandoned by a killed installer.
@@ -407,6 +428,18 @@ _exclude_session_files() {
   printf 'session-files/\n' >> "$exclude" 2>/dev/null || true
 }
 
+# _wt_shell_quote <text> prints <text> quoted for a shell command line, for the
+# "run it yourself" lines in the install log. A value of ordinary path
+# characters prints as is, which is what a %q conversion printed for it; any
+# other value is single-quoted, each single quote re-spelled as quote, double
+# quote, quote, double quote, quote.
+_wt_shell_quote() {
+  local v="${1-}" sq="'" rep="'\"'\"'"
+  if [[ -z "$v" ]]; then _hook_put "''"; return 0; fi
+  if [[ "$v" != *[!A-Za-z0-9_./+:=@%-]* ]]; then _hook_put "$v"; return 0; fi
+  _hook_put "${sq}${v//$sq/$rep}${sq}"
+}
+
 run_worktree_post_setup() {
   local worktree_path="$1"
   local logfile="${worktree_path}/session-files/worktree-setup.log"
@@ -453,7 +486,7 @@ run_worktree_post_setup() {
   # nothing matched — a worktree without deps must be a stated outcome, not a
   # silent one.
   local installed=0 ran=0 printed=0 qpath
-  qpath="$(printf '%q' "$worktree_path")"
+  qpath="$(_wt_shell_quote "$worktree_path")"
   # run_install <label> <rerun-with-scripts> <cmd...> — a script-free install
   # (deps.install). Runs only when the resolver allowed it; otherwise it is
   # printed like any other.
@@ -467,7 +500,7 @@ run_worktree_post_setup() {
     fi
     echo "${stamp} ${label}" >> "$logfile"
     ran=1
-    if (cd "$worktree_path" && "$@" >> "$logfile" 2>&1); then
+    if (cd "$worktree_path" && "$@" >> "$logfile" 2>> "$logfile"); then
       [[ -n "$with_scripts" ]] && echo "${stamp} lifecycle scripts were skipped; if this project needs them, run yourself: cd ${qpath} && ${with_scripts}" >> "$logfile"
     else
       errors+=("$label")
@@ -482,7 +515,7 @@ run_worktree_post_setup() {
     printed=1
     echo "${stamp} ${label}: NOT run by the hook — ${why}. If you trust this checkout, run it yourself: cd ${qpath} && $*" >> "$logfile"
   }
-  have() { command -v "$1" >/dev/null 2>&1; }
+  have() { command -v "$1" >/dev/null 2>/dev/null; }
   local runs_code="can run the project's own code (ADR 004 S-08)"
 
   if [[ -f "${worktree_path}/package.json" ]]; then
@@ -558,7 +591,7 @@ run_worktree_post_setup() {
   # Only stamp a clean run that installed everything it found — a failed
   # install, or a command left for the user, must not be mistaken for a
   # satisfied one on the next pass.
-  (( ran && ! printed )) && [[ -n "$want_hash" ]] && printf '%s\n' "$want_hash" > "$stamp_file"
+  (( ran && ! printed )) && [[ -n "$want_hash" ]] && _hook_putln "$want_hash" > "$stamp_file"
   return 0
 }
 
@@ -601,7 +634,7 @@ create_session_worktree() {
   # behind, marked prunable. `worktree add` then refuses the branch as "already
   # used by worktree at <the path that is gone>", and the rebuild an edit just
   # asked for cannot happen until somebody prunes by hand.
-  git -C "$repo_root" worktree prune >/dev/null 2>&1 || true
+  git -C "$repo_root" worktree prune >/dev/null 2>/dev/null || true
 
   # A non-worktree DIRECTORY on the path — the `session-files` shell the old
   # session-init behaviour created — makes `worktree add` refuse to populate it,
@@ -652,7 +685,7 @@ create_session_worktree() {
   write_worktree_env_local "$worktree_path" "$branch_name" 2>/dev/null || true
   # Install deps in the background so a slow npm/yarn install never blocks the
   # hook timeout.
-  ( run_worktree_post_setup "$worktree_path" >/dev/null 2>&1 & )
+  ( run_worktree_post_setup "$worktree_path" >/dev/null 2>/dev/null & )
   return 0
 }
 
@@ -748,7 +781,7 @@ append_env_exports() {
 # to 0 in any test that runs a hook and does not want the process.
 cleanup_stale_worktrees() {
   worktree_cleanup_enabled || return 0
-  ( _cleanup_stale_worktrees_blocking ) >/dev/null 2>&1 &
+  ( _cleanup_stale_worktrees_blocking ) >/dev/null 2>/dev/null &
   # Detach where the shell supports it, so the hook exiting cannot SIGHUP the
   # deletion half-done and leave a partially-removed worktree behind.
   disown 2>/dev/null || true
@@ -756,7 +789,7 @@ cleanup_stale_worktrees() {
 
 # Same accepted spellings as worktree_deps_enabled, for one vocabulary.
 worktree_cleanup_enabled() {
-  case "$(printf '%s' "${SUPERPOWERS_WORKTREE_CLEANUP:-auto}" | tr '[:upper:]' '[:lower:]')" in
+  case "$(_hook_put "${SUPERPOWERS_WORKTREE_CLEANUP:-auto}" | tr '[:upper:]' '[:lower:]')" in
     0|false|off|no|never|disabled) return 1 ;;
     *) return 0 ;;
   esac

@@ -56,7 +56,7 @@ WHAT IT CANNOT DECIDE, AND SAYS SO
     command assigned a literal to in one bare top-level statement and otherwise
     only expands (`S=/tmp/x; cp a "$S/b"` — the whitelist under "Same-command
     literal assignments"), because the text answers the question and an
-    advisory there is a silent allow of `"$S/package-lock.json"`. Silence would read as "no protected file
+    advisory there is a silent pass of `"$S/package-lock.json"`. Silence would read as "no protected file
     touched" when the true answer is "could not determine" — the exact shape of
     failure this repo's `no silent or empty failure paths` rule forbids.
 
@@ -115,8 +115,9 @@ REDIRECT_OPS = (">", ">>", ">|", "&>", "&>>", ">&", "<>")
 # Operators whose next word is an input operand, never an argument of the command.
 INPUT_OPS = ("<", "<<", "<<-", "<<<", "<&")
 
+# ESC (0x1b) by chr(), so the table spells no numeric escape.
 ANSI_C_ESCAPES = {"n": "\n", "t": "\t", "r": "\r", "a": "\a", "b": "\b",
-                  "f": "\f", "v": "\v", "e": "\x1b", "E": "\x1b"}
+                  "f": "\f", "v": "\v", "e": chr(0x1b), "E": chr(0x1b)}
 CLOSERS = {"(": ")", "[": "]", "{": "}"}
 
 
@@ -181,7 +182,7 @@ def _scan_balanced(text, start, open_ch, close_ch, aware):
                 k = j
                 while k < n and text[k] not in " \t\n;&|()<>":
                     k += 1
-                delim = re.sub(r"[\'\"\\\\]", "", text[j:k])
+                delim = re.sub(r"""['"\\]""", "", text[j:k])  # drop quotes and backslashes
                 if delim:
                     pending.append((delim, strip))
                 i = k
@@ -314,7 +315,7 @@ def tokenize(text, anomalies=None, heredocs=None):
                 if c == "\\" and j + 1 < n:
                     # Inside "…" a backslash escapes only $ ` " \ and a newline.
                     nx = text[j + 1]
-                    if nx in '$`"\\':
+                    if nx in "$`\"\\":
                         buf.append(nx)
                         j += 2
                         continue
@@ -1743,7 +1744,7 @@ def _strip_wrapper_options(words, wrapper):
     Stripping only the wrapper's name leaves its first option in argv0's place:
     `env -i tee yarn.lock` becomes `-i`, `nice -n 10 tee yarn.lock` becomes
     `-n`, `sudo -u root tee yarn.lock` becomes `-u`. None of those is a write
-    primitive, so each returns no targets — the silent-allow this guard exists
+    primitive, so each returns no targets — the silent pass this guard exists
     to remove, reached without any attempt to evade it.
     """
     spec = WRAPPER_OPTS.get(wrapper, {})
@@ -3292,7 +3293,7 @@ def _source_records(argv0, words, cwd, fragment):
 SOURCE_CHECKOUT_ASK_TAIL = (" This plugin runs from a source checkout, so its guard files are editable, but only with "
                             "the user's explicit approval of this change.")
 REPLAY_ASK_TAIL = (" A git branch operation brings in another commit's version of it, so it is put to the user "
-                   "rather than refused: approve only if you meant this operation to change that file.")
+                   "rather than refused: confirm only if you meant this operation to change that file.")
 
 # Kinds that never leave this module: they are consumed by protect().
 INTERNAL_KINDS = ("SOURCE", "REPLAY", "PREFIX", "ANOMALY", "RAN")

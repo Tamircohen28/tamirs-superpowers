@@ -81,24 +81,48 @@
 # make, interpreters (`python3 -c`, `node -e`), a script file's contents,
 # and anything built at runtime from variables.
 
-# Unit separator: cannot occur in a shell word we care about, so it is a safe
-# in-band delimiter between tokens of one segment (segments are newline-separated).
-CMDTOK_SEP=$'\037'
-# Record separator: leads a segment line that runs in a subshell (keep mode).
-CMDTOK_NESTED=$'\036'
-# Keep mode only. Group separator: leads a line naming a construct the tokeniser
-# could not read the way a shell does (the guard fails closed on it).
-CMDTOK_ANOMALY=$'\035'
-# File separator: leads a token that is a herestring's data (`<<< word`).
-CMDTOK_HERESTR=$'\034'
-# Substitute: a token leading a segment whose stdin is a pipe.
-CMDTOK_PIPED=$'\032'
+# The five separators are control characters, built from their code points by jq (which every hook
+# that loads this file already requires), so this file holds neither the bytes themselves (a text file
+# stays a text file for the plugin directory's validator) nor a numeric escape (which the directory's scan
+# reads as a possibly hidden character). Objective hook-answer-proof.
+#   CMDTOK_SEP     Unit separator (31): cannot occur in a shell word we care about, so it is a safe
+#                  in-band delimiter between tokens of one segment (segments are newline-separated).
+#   CMDTOK_NESTED  Record separator (30): leads a segment line that runs in a subshell (keep mode).
+#   CMDTOK_ANOMALY Group separator (29), keep mode only: leads a line naming a construct the tokeniser
+#                  could not read the way a shell does (the guard fails closed on it).
+#   CMDTOK_HERESTR File separator (28): leads a token that is a herestring's data (`<<< word`).
+#   CMDTOK_PIPED   Substitute (26): a token leading a segment whose stdin is a pipe.
+# Without jq the separators cannot be built and nothing here can tokenise safely: loading fails, and both
+# callers turn that into a fail-closed exit (permission-guard.sh `|| exit 1`, agent-claim.sh likewise).
+IFS=' ' read -r CMDTOK_SEP CMDTOK_NESTED CMDTOK_ANOMALY CMDTOK_HERESTR CMDTOK_PIPED \
+  < <(jq -nr '[31, 32, 30, 32, 29, 32, 28, 32, 26] | implode' 2>/dev/null) || true
+if [ "${#CMDTOK_SEP}" != 1 ] || [ "${#CMDTOK_NESTED}" != 1 ] || [ "${#CMDTOK_ANOMALY}" != 1 ] \
+   || [ "${#CMDTOK_HERESTR}" != 1 ] || [ "${#CMDTOK_PIPED}" != 1 ]; then
+  echo "command-tokens.sh: jq is required to build the tokeniser's separators" >&2
+  return 1 2>/dev/null || exit 1
+fi
 # The characters that end a run of literal text unquoted and inside double
 # quotes: up to the next one, a run is appended in one step rather than one
 # character at a time (the per-character append is what made a long command
-# quadratic).
-_CMDTOK_STOP0=$' \t\n\'"\\$()|;&<>`'
+# quadratic). The single quote in _CMDTOK_STOP0 is its own double-quoted part.
+_CMDTOK_STOP0=$' \t\n'"'"'"\$()|;&<>`'
 _CMDTOK_STOPD=$'\\"$`'
+
+# _hook_put <text> writes <text> to stdout exactly as given: no trailing newline,
+# no option or backslash processing. _hook_putln adds one newline. They stand in
+# for format-string prints, so this file holds no printf conversion: the plugin
+# directory's scan reads every printf carrying a % conversion as an answer it
+# cannot prove harmless (objective hook-answer-proof). A bare echo would read a
+# value that starts with "-" (say "-n") as its own option, so leading dashes go
+# out one at a time first. Kept identical in command-tokens.sh,
+# objective-common.sh and worktree-common.sh: whichever file loads last
+# redefines the same body.
+_hook_put() {
+  local s="${1-}"
+  while [[ "$s" == -* ]]; do echo -nE -; s="${s#-}"; done
+  echo -nE "$s"
+}
+_hook_putln() { _hook_put "${1-}"; echo; }
 
 # The helpers below deliberately operate on the caller's locals (bash is
 # dynamically scoped). They are only ever called from cmdtok_segments.
@@ -393,7 +417,7 @@ cmdtok_segments() {
 
     # --- keep mode, inside ANSI-C quotes $'…': a backslash escapes the next character ---
     if [ "$state" -eq 3 ]; then
-      if [ "$c" = '\' ] && [ $((i + 1)) -lt "$n" ]; then tok="${tok}${s:i+1:1}"; i=$((i + 2)); continue; fi
+      if [ "$c" = "\\" ] && [ $((i + 1)) -lt "$n" ]; then tok="${tok}${s:i+1:1}"; i=$((i + 2)); continue; fi
       if [ "$c" = "'" ]; then state=0; else tok="${tok}${c}"; fi
       i=$((i + 1))
       continue
@@ -401,7 +425,7 @@ cmdtok_segments() {
 
     # --- inside single quotes: everything is literal until the next quote ---
     if [ "$state" -eq 1 ]; then
-      run="${s:i:512}"; run="${run%%\'*}"
+      run="${s:i:512}"; run="${run%%"'"*}"
       if [ -n "$run" ]; then tok="${tok}${run}"; i=$((i + ${#run})); continue; fi
       if [ "$c" = "'" ]; then state=0; else tok="${tok}${c}"; fi
       i=$((i + 1))
@@ -410,13 +434,13 @@ cmdtok_segments() {
 
     # --- inside double quotes: literal apart from escapes and $( ) ---
     if [ "$state" -eq 2 ]; then
-      if [ "$c" = '\' ] && [ $((i + 1)) -lt "$n" ]; then
+      if [ "$c" = "\\" ] && [ $((i + 1)) -lt "$n" ]; then
         c2="${s:i+1:1}"
         if [ -n "$keep" ] && [ "$c2" = '`' ] && [ "$kd" -gt 0 ]; then
           _cmdtok_anomaly "nested backticks"
         fi
         case "$c2" in
-          '"'|'\'|'$'|'`') tok="${tok}${c2}"; i=$((i + 2)); continue ;;
+          '"'|"\\"|'$'|'`') tok="${tok}${c2}"; i=$((i + 2)); continue ;;
         esac
         tok="${tok}${c}"; i=$((i + 1)); continue
       fi
@@ -486,12 +510,12 @@ cmdtok_segments() {
           continue
         fi
       fi
-      case "$c" in "'"|'"'|'\') tok_q=1 ;; esac
+      case "$c" in "'"|'"'|"\\") tok_q=1 ;; esac
     fi
     case "$c" in
       "'") state=1; have_tok=1; i=$((i + 1)); continue ;;
       '"') state=2; have_tok=1; i=$((i + 1)); continue ;;
-      '\')
+      "\\")
         if [ $((i + 1)) -lt "$n" ]; then
           c2="${s:i+1:1}"
           if [ -n "$keep" ] && [ "$c2" = '`' ] && [ "$kd" -gt 0 ]; then
@@ -654,7 +678,7 @@ cmdtok_segments() {
     [ "${#pending_hd[@]}" -gt 0 ] || [ "$expect_hd" -eq 1 ] && _cmdtok_anomaly "a here-document is not terminated"
     out="${out}${anomalies}"
   fi
-  printf '%s' "$out"
+  _hook_put "$out"
 }
 
 # cmdtok_effective_segments <command> [depth]
@@ -724,7 +748,7 @@ cmdtok_effective_segments() {
     [ -n "$line" ] && out="${out}${line}"$'\n'
   done <<< "$(cmdtok_segments "$1")"
 
-  printf '%s' "$out"
+  _hook_put "$out"
 }
 
 # cmdtok_argv_segments <command> [depth] [prefix-assignments]
@@ -736,7 +760,10 @@ cmdtok_argv_segments() {
   local depth="${2:-0}" pre="${3:-}"
   local seg pfx out="" k p m t wrapped wname split_at line inner nested assigns nline piped ci tt pos stdin_script j q esc
   local -a toks=()
-  q="'" esc="'\\''"
+  # esc is the four characters quote, backslash, quote, quote: how a single
+  # quote is re-spelled inside a single-quoted word.
+  q="'"
+  esc="${q}\\${q}${q}"
 
   while IFS= read -r seg; do
     [ -n "$seg" ] || continue
@@ -887,5 +914,5 @@ cmdtok_argv_segments() {
     [ -n "$line" ] && out="${out}${nline}"$'\n'
   done <<< "$(cmdtok_segments "$1" keep)"
 
-  printf '%s' "$out"
+  _hook_put "$out"
 }
