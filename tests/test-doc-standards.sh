@@ -193,6 +193,14 @@ run --fix "$R" >/dev/null
 judge "an unterminated directive stops at the fence: body kept" "flowchart TB" "$(sed -n '5p' "$R/docs/user/u.md")"
 judge "and the prose after the block survives" 1 "$(grep -c '^After\.$' "$R/docs/user/u.md")"
 
+# EOF inside an unterminated directive with no closing fence: the held-back lines are
+# diagram body and must be printed at end of input, not silently dropped.
+R="$(new_root init-unterminated-eof)"
+printf '# T\n\n```mermaid\n%%%%{init: {"theme":"dark"\nflowchart TB\n  A --> B\n' > "$R/docs/user/z.md"
+run --fix "$R" >/dev/null
+judge "EOF in an unterminated directive keeps the body" "flowchart TB" "$(sed -n '5p' "$R/docs/user/z.md")"
+judge "and the last body line survives" 1 "$(grep -c '^  A --> B$' "$R/docs/user/z.md")"
+
 # ---------------------------------------------------------------------------
 section "a fence nested in a list keeps its indentation on the inserted directive"
 R="$(new_root list-indent)"
