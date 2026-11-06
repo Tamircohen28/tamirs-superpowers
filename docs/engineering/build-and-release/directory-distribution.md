@@ -48,6 +48,19 @@ which satisfies the directory's "raise it with every release" rule without a sec
 
 ## What is in the tree
 
+**The directory edition (5.6.2 onward).** Since 5.5.1 the directory *refuses* (not holds) a
+version from an organization that is not Verified when it carries a command hook, a local MCP
+server, a command in the plugin's settings, or a mod; there is no way to apply for Verified
+status yet. 5.5.1 and 5.6.0 were refused on exactly those four findings
+(`LOCAL_CODE_HOOK_COMMAND`, `LOCAL_CODE_MCP_SERVER`, `LOCAL_CODE_SETTINGS_COMMAND`,
+`LOCAL_CODE_MOD`), while 5.5.0, picked up before the rule changed, stayed in review. So the
+Claude target ships skills, agents and the output style only: `hooks/`, `mod/` and `.mcp.json`
+are not roots, and the build strips `hooks`, `mcpServers`, `settings`, `types` and
+`userConfig` from the manifest copy. `check-claude-dist.sh` fails a tree that carries any of
+them (`tests/test-claude-dist.sh` plants each). The full plugin keeps shipping from the
+marketplace, unchanged. The list below is the full build's, kept because the checks for
+`hooks/`, `mod/` and `.mcp.json` still run when a tree carries them.
+
 [`scripts/build-claude-dist.sh`](../../../scripts/build-claude-dist.sh) writes it — since 5.0.0 a wrapper around [`scripts/build-dist.sh`](../../../scripts/build-dist.sh) `--target claude`, the generic builder every host's subset comes from (see [`distributions.md`](distributions.md)); the Claude arm of its per-target table is what this section describes:
 
 1. **Roots, copied whole**: `.claude-plugin/plugin.json`, `.mcp.json`, `hooks/`, `mod/`, `agents/`, `skills/`, `core/`, `rules/`, `output-styles/`,

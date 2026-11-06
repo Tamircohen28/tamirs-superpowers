@@ -80,10 +80,18 @@ COMMON_PRUNE=(
 ROOTS=(); PRUNE_PATHS=("${COMMON_PRUNE[@]}"); README_SRC="README.md"; CLOSURE_EXTRA="docs/user"
 case "$TARGET" in
   claude)
-    # Anthropic's plugin directory: the Claude manifest, the mod, the Claude hooks file, no
-    # other host's manifest or docs, and the directory-specific README.
-    ROOTS=(.claude-plugin/plugin.json listing/icon.png .mcp.json hooks mod agents output-styles platforms/claude "${COMMON_ROOTS[@]}")
+    # Anthropic's plugin directory, the lite build (5.6.2): the directory accepts command
+    # hooks, local MCP servers, commands in the plugin's settings and mods only from Verified
+    # organizations, and refused 5.5.1 and 5.6.0 for carrying them. So this target ships
+    # skills, agents and output styles only — no hooks/, no mod/, no .mcp.json, and the
+    # manifest copy is stripped of hooks, mcpServers, settings, types and userConfig below.
+    # The full plugin keeps shipping from the marketplace. No other host's manifest or docs,
+    # and the directory-specific README.
+    ROOTS=(.claude-plugin/plugin.json listing/icon.png agents output-styles platforms/claude "${COMMON_ROOTS[@]}")
     # The Gemini wrapper and its dialect library run only under the Gemini extension.
+    # notify-setup configures a Notification hook through plugin options; the edition ships
+    # neither, so the skill and the Pushover sender stay with the full plugin (#386 review).
+    PRUNE_PATHS+=(skills/toolkit/notify-setup scripts/notify-pushover.sh scripts/pushover_format.py)
     PRUNE_PATHS+=(platforms/claude/directory hooks/gemini-wrap.sh hooks/lib/gemini-output.sh
       docs/user/install/codex.md docs/user/install/cursor.md docs/user/install/gemini.md docs/user/install/opencode.md
       docs/user/platform-setup.md docs/user/platform-differences.md docs/user/cross-platform-workflow.md
@@ -195,6 +203,20 @@ done
 
 # The README: the directory-specific one for Claude, the repository's for everyone else.
 cp -L "$SRC/$README_SRC" "$OUT/README.md"
+
+# The directory's lite build: a manifest with no hooks, MCP server, settings command, mod
+# types or user options (each is refused from an unverified organization). Written with
+# ensure_ascii=False so the description's em dashes stay readable.
+if [[ "$TARGET" == "claude" && -f "$OUT/.claude-plugin/plugin.json" ]]; then
+  python3 - "$OUT/.claude-plugin/plugin.json" <<'PY'
+import json, sys
+p = sys.argv[1]
+d = json.load(open(p, encoding="utf-8"))
+for k in ("hooks", "mcpServers", "settings", "types", "userConfig", "lspServers", "monitors"):
+    d.pop(k, None)
+open(p, "w", encoding="utf-8").write(json.dumps(d, indent=2, ensure_ascii=False) + "\n")
+PY
+fi
 
 # The Agent Plugins package reads its manifest and mcp.json at the package root.
 if [[ "$TARGET" == "agent-plugins" && -d "$OUT/platforms/agent-plugins" ]]; then
