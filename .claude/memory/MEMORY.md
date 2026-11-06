@@ -32,3 +32,5 @@
 - [Don't clear others' stashes for a hook](feedback-stash-ownership.md) — a stop hook is not the user; diff and ask first; the 2026-11-04 stashes live in refs/archive/stash-2026-11-04/*
 - [Stack same-file PRs and fast-forward the stack](feedback-stacked-prs-fast-forward.md) — a squash of the base re-conflicts every PR above it; one CI round, then push the last green head to master; watchers must treat empty rollups as pending
 - [claude tag push rejected on release](reference-release-claude-tag-push-rejected.md) — no ruleset, fast-forward, still "[remote rejected]"; never rerun the job (it regenerates the build SHA); move the tag by hand onto v<ver>-claude^{}
+- [Bound session wall time](feedback-session-wall-time.md) — retro 2026-11-06: read the directory after each release, 2 review rounds, small corpora while iterating, one heavy suite at a time (tests/lib/heavy-lock.sh), authority up front, simulate merges
+- [Directory refuses unverified local code](project-directory-verified-org-refusal.md) — since 5.5.1 hooks/MCP/settings commands/mods are refused from unverified orgs; the claude tag carries a skills-and-agents directory edition (5.6.2)

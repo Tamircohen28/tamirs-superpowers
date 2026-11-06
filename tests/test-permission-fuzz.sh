@@ -57,6 +57,9 @@ set -uo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 # shellcheck source=tests/lib/harness.sh
 source "$ROOT/tests/lib/harness.sh"
+# shellcheck source=tests/lib/heavy-lock.sh
+source "$ROOT/tests/lib/heavy-lock.sh"
+heavy_lock_take "$(basename "$0")"   # one heavy suite at a time on this machine (retro 2026-11-06)
 # shellcheck source=tests/lib/fake-gh.sh
 source "$ROOT/tests/lib/fake-gh.sh"
 # shellcheck source=tests/lib/pg-batch.sh

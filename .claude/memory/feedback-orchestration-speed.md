@@ -19,3 +19,8 @@ A 2026-11-03/04 session (ADR 004 permission levels → 3 PRs, 5.2.0 + 5.3.0) ran
 - The permission guard reads HTTP clients through `hooks/lib/pg_http.py` and GraphQL through `hooks/lib/pg_graphql.py` (5.3.1). A new edge goes into those table-driven models plus a regression row and a fuzz case, never a new regex in `permission-guard.sh`: the regex patches I made on #348/#350 were all thrown away when the parsers landed.
 - During a GitHub outage (githubstatus PRs/Actions degraded): retry merges via `PUT /pulls/N/merge` with the full head SHA; if `pull_request` CI never triggers, `gh workflow run ci.yml --ref <branch>`. A `workflow_dispatch` run fails the manifest-alignment job by design (no `--manifests-only`); verify it locally in PR mode instead.
 - Tests or reviewers that drive real hooks must use the resolver's test root. `make test-hooks` now fingerprints the real `~/.config`/`~/.local/state` plugin dirs around every suite (`scripts/real-home-witness.sh`) and fails naming the leaking suite; a reviewer *agent* run outside make is not covered, so still check after one. Related: [[feedback-background-task-exit-codes]], [[feedback-probe-narrow-before-full-gate]].
+- Never serialize review and integration behind the last worker (2026-11-05, user: "its all so slow"). As soon as the
+  other tasks are committed: merge them onto the integration branch, push it as a **draft PR** so CI starts measuring,
+  and start the reviewer on the committed code; fold the last worker in when it lands. Workers parking on a background
+  task's completion notification is the other recurring stall — tell them up front to watch the log with a bounded
+  until-loop and to commit each piece as it passes.
