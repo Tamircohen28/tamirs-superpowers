@@ -32,22 +32,15 @@
 #     "AGREE\t<checked>\t<diffs>"; prints the same summary line; returns 1 when any line diverged, 2 when the
 #     batch file has a different line count from the input.
 #
-#     The canonical form, and why it is not the bytes: the engine lists the ids a call reaches in set order,
-#     which python3 -I -S randomises per process (PYTHONHASHSEED is ignored under -I), so two single calls on
-#     the same command already differ in the order of `ids` and `resolver_calls`, in which of two tied ids
-#     the reason names ("asks before workflow.edit" or "asks before file.write.remote", 3 of 6 runs each) and
-#     in whether a raise is spelled out ("denied git.push.default (raised from git.push.branch)" or "denied
-#     git.push.default (R3)") — measured 2026-11-05 on the fuzz corpus, single calls against single calls.
-#     A judge answer is therefore compared as its decision (permissionDecision; Cursor's permission; {} is
-#     an allow), its shape (the key sets, hookEventName), and the two parts of its reason that are stable
-#     across single calls: the command it quotes (the first `...` span: a swapped line names another
-#     command) and the rank it states (the first (R<n>): a fail-closed deny such as "its engine exited 1"
-#     quotes no command and states no rank, so it never passes for a judged deny); a classify answer as the
-#     whole object with every list sorted. A batch that allows where the hook asks or denies, asks where it
-#     denies, prints another host's shape, answers every line with a fail-closed deny, or returns the lines
-#     out of order is caught (tests/test-permission-fuzz.sh plants each). The ids a reason names and its
-#     wording are not compared, and cannot be until the engine orders tied ids deterministically (a followup
-#     of ci-speed task-002, with the measurement above).
+#     The canonical form: a judge answer is compared as its decision (permissionDecision; Cursor's
+#     permission; {} is a pass), its shape (the key sets, hookEventName) and its whole reason text; a classify
+#     answer as the whole object with every list sorted (set-valued fields such as `ids`). Reasons are
+#     compared in full because the engine now orders tied ids deterministically (objective/ci-speed e4cfb3e:
+#     JOBS are sorted before every max(); measured 2026-11-05, the same command named "workflow.edit" or
+#     "file.write.remote" in 3 of 6 single calls before that fix). A batch that passes where the hook asks or
+#     denies, asks where it denies, prints another host's shape, answers every line with a fail-closed deny,
+#     names another action or another command, or returns the lines out of order is caught
+#     (tests/test-permission-fuzz.sh plants each).
 #
 # The real-hook path of a single call is the suites' own: the hook's stdin, no arguments, the environment of
 # the calling suite (TAMIRS_PERMISSION_TEST_ROOT applies to every process here, batch or single, because all
@@ -188,12 +181,8 @@ def sort_lists(o):
 
 
 def reason_parts(reason):
-    """The stable parts of a reason: the command it quotes and the rank it states (the header)."""
-    if not isinstance(reason, str):
-        return {"cmd": None, "rank": None}
-    m = re.search(r"`([^`]*)`", reason)
-    r = re.search(r"\(R[0-4]\)", reason)
-    return {"cmd": m.group(1) if m else None, "rank": r.group(0) if r else None}
+    """The whole reason (the header): tied ids are ordered deterministically by the engine."""
+    return {"reason": reason if isinstance(reason, str) else None}
 
 
 def canon(rc, data):

@@ -553,8 +553,8 @@ pg_batch_run "$STUB" judge "$PLANT" "$T/plant.ec" 1; rc=$?
 judge "a batch answering every line with an engine-exited-1 deny still prints one line per input" "0 6" "$rc $(wc -l < "$T/plant.ec" | tr -d ' ')"
 pg_batch_agree "$PG" judge "$PLANT" "$T/plant.ec" all 1 "$T/plant.ec.report" "$JOBS_N" >/dev/null; rc=$?
 judge "  ... and the agreement check fails on every one of the 6, the hook's own denies included (exit 1)" "1 6 6" "$rc $(grep '^AGREE' "$T/plant.ec.report" | cut -f2,3 | tr '\t' ' ')"
-judge "  ... because a judged deny quotes its command and states its rank, which the stub's cannot" yes \
-  "$(grep '^DIFF' "$T/plant.ec.report" | cut -f3 | jq -r 'select(.decision == "deny") | [.cmd != null, .rank != null] | all' 2>/dev/null | sort -u | grep -qx true && echo yes || echo no)"
+judge "  ... because a judged deny carries its own reason, which the stub's generic one does not match" yes \
+  "$(grep '^DIFF' "$T/plant.ec.report" | cut -f3,4 | jq -R -r 'split("\t") | (.[0] | fromjson) as $s | (.[1] | fromjson) as $b | select($s.decision == "deny") | ($s.reason != $b.reason)' 2>/dev/null | sort -u | grep -qx true && echo yes || echo no)"
 # lines 3 (gh pr merge, codex) and 5 (curl -X DELETE, opencode) are both denies: swapped, each quotes the other's command
 awk 'NR == 3 { l3 = $0; next } NR == 4 { l4 = $0; next } NR == 5 { print; print l4; print l3; next } { print }' "$T/plant.ok" > "$T/plant.swap"
 judge "two same-decision lines swapped: both still denies" "deny deny" "$(sed -n '3p;5p' "$T/plant.swap" | jq -r '.hookSpecificOutput.permissionDecision' | tr '\n' ' ' | sed 's/ $//')"
