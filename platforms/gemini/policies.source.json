@@ -369,6 +369,7 @@
     }
   ],
   "permission_not_expressible": [
+    "fs.delete.tree (a recursive rm of /, a top-level directory, the home directory or a direct child, or a git repository root): it judges the resolved path, which a static prefix rule cannot; permission-guard.sh decides it on BeforeTool run_shell_command.",
     "Level-dependent decisions (R2 and R3: ask at supervised, allow at standard or unattended): a static rule cannot read the level, so hooks/permission-guard.sh decides them and answers deny with the setting that would allow it.",
     "R4 forms that depend on state: worktree.remove.force, worktree.drop and git.reset_to_remote only when they discard uncommitted or unpushed work; git.push.force.default to a default branch other than main or master.",
     "The REST and GraphQL equivalents of the R4 actions beyond the named protection, ruleset and release forms (gh api with a variable path, curl to api.github.com, file-sourced GraphQL): permission-guard.sh maps or treats them as UNCLASSIFIED (R4).",

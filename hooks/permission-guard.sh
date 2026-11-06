@@ -2035,7 +2035,8 @@ def strip_substitutions(text):
 
 def rm_major_targets(p):
     """The major directories a recursive `rm` names (fs.delete.tree): /, a top-level directory (/Users, /etc),
-    the home directory or one of its direct children (~/Projects), or a git repository's root. A target built
+    the home directory or one of its direct children (~/Projects), or a git repository's root, a linked
+    worktree included (its .git is a file). A target built
     from a variable other than $HOME, or a glob other than a trailing /* or /.*, is not judged (no guess)."""
     if p["argv0"] != "rm":
         return []
@@ -2070,7 +2071,7 @@ def rm_major_targets(p):
         path = os.path.normpath(t if t.startswith("/") else os.path.join(base, t))
         depth = len([x for x in path.split("/") if x])
         if (path == "/" or depth <= 1 or path == home or os.path.dirname(path) == home
-                or os.path.isdir(os.path.join(path, ".git"))):
+                or os.path.exists(os.path.join(path, ".git"))):   # a .git dir, or a linked worktree's .git file
             found.append(path)
     return found
 
