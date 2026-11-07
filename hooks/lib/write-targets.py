@@ -455,7 +455,7 @@ def tokenize(text, anomalies=None, heredocs=None, heredoc_meta=None):
 # --------------------------------------------------------------------------
 
 # Prefixes that wrap another command without changing what it writes.
-WRAPPERS = ("sudo", "env", "command", "time", "nohup", "nice", "stdbuf", "exec", "builtin", "timeout")
+WRAPPERS = ("sudo", "env", "command", "time", "nohup", "nice", "stdbuf", "exec", "builtin")
 
 # A wrapper's OWN options, so they are consumed rather than mistaken for the
 # command it wraps. Stripping only the wrapper's name leaves its first option
@@ -497,33 +497,7 @@ WRAPPER_OPTS = {
     "builtin": {"value": (), "flag": ()},
     "time": {"value": ("-f", "--format", "-o", "--output"),
              "flag": ("-p", "--portability", "-v", "--verbose", "-a", "--append")},
-    # GNU coreutils timeout, plus the BSD/macOS `-f`/`-p`. Its DURATION operand
-    # is consumed by _segment_records (TIMEOUT_DURATION), then the command runs.
-    "timeout": {"value": ("-s", "--signal", "-k", "--kill-after"),
-                "flag": ("--preserve-status", "--foreground", "-v", "--verbose", "-f", "-p")},
 }
-# What `timeout` may run and still be unwrapped (review of #402, D3): a wrapper,
-# or a command this parser has a rule for — a modelled writer, an evaluator
-# (judged as one), or a command on the read-only list. Anything else (`strace`,
-# `gdb`, `ssh`, `docker`, `make`, …) keeps `timeout` a dispatcher.
-TIMEOUT_RUNS = frozenset((
-    "sudo", "env", "command", "time", "nohup", "nice", "stdbuf", "exec", "builtin", "timeout",
-    "rm", "unlink", "shred", "tee", "sed", "gsed", "perl", "awk", "gawk", "mawk", "nawk",
-    "cp", "mv", "install", "rsync", "ln", "link", "ditto", "touch", "truncate", "sponge", "dd",
-    "curl", "wget", "tar", "gtar", "bsdtar", "unzip", "7z", "7za", "7zz", "7zr", "cpio", "pax",
-    "gzip", "gunzip", "pigz", "unpigz", "bzip2", "bunzip2", "xz", "unxz", "lzma", "unlzma",
-    "lzip", "zstd", "unzstd", "lz4", "unlz4", "brotli", "compress", "uncompress",
-    "ed", "red", "ex", "vi", "vim", "nvim", "split", "csplit", "git", "patch", "script",
-    "eval", "bash", "sh", "zsh", "dash", "ksh", "python", "python2", "python3", "node", "deno",
-    "bun", "ruby", "php", "osascript", "tclsh", "source", ".", "find", "xargs",
-    "ls", "stat", "wc", "head", "tail", "cat", "grep", "egrep", "fgrep", "rg", "du", "df",
-    "readlink", "realpath", "basename", "dirname", "test", "[", "md5", "md5sum", "shasum",
-    "sha1sum", "sha256sum", "sha512sum", "cksum", "diff", "cmp", "echo", "printf", "true",
-    "false", ":", "pwd", "date", "which", "type", "cut", "tr", "column", "nl", "comm", "jq",
-    "sort", "uniq", "od", "strings", "id", "whoami", "uname", "hostname", "printenv", "sleep",
-    "seq",
-))
-TIMEOUT_DURATION = re.compile(r"^[0-9]+(?:\.[0-9]+)?[smhd]?$")
 
 # Per-command options, so a value-taking option's VALUE is never counted as an
 # operand. Getting this wrong is not cosmetic: in `install -m 0644 src yarn.lock`
@@ -672,9 +646,8 @@ UNMODELLED_RUNNERS = ("setsid", "ionice", "flock", "chrt", "taskset", "unbuffer"
                       "firejail", "sandbox-exec", "arch", "gtimeout", "busybox", "nsenter",
                       "unshare", "faketime", "torsocks", "proxychains", "proxychains4")
 
-# Commands that dispatch other commands built at runtime. (`timeout` is a
-# WRAPPER: the command it runs is on its own command line, issue #402.)
-DISPATCHERS = ("xargs", "parallel", "watch")
+# Commands that dispatch other commands built at runtime.
+DISPATCHERS = ("xargs", "parallel", "watch", "timeout")
 
 # `patch` and `git apply`/`git am` are no longer opaque: their write targets are
 # read out of the patch itself (see "Patches and git" below), and a patch that
@@ -2220,19 +2193,6 @@ def _segment_records(seg, piped_in, terminator, cwd, records, heredoc_iter, cond
                 out = _flag_value(own, ("-o", "--output"))
                 if out is not None:
                     wrapper_targets.append((out, "TARGET"))
-            # `timeout [opts] DURATION cmd …` runs cmd: the duration goes too.
-            if name == "timeout" and not wrapper_unsure:
-                if words and TIMEOUT_DURATION.match(words[0].value):
-                    words.pop(0)
-                else:
-                    wrapper_unsure = ("is run under `timeout` with a duration this parse cannot read, "
-                                      "so the command it actually runs cannot be identified")
-                if not wrapper_unsure and (not words or words[0].expands
-                                           or words[0].value.startswith("-")
-                                           or os.path.basename(words[0].value) not in TIMEOUT_RUNS):
-                    # `timeout 5 $CMD …`, `timeout 5 strace cp …`: a command this parse
-                    # has no rule for stays the dispatcher `timeout` was before #402.
-                    wrapper_unsure = "builds and runs another command at runtime"
             if wrapper_unsure:
                 records.append(("UNSURE", wrapper_unsure, fragment))
                 finish()

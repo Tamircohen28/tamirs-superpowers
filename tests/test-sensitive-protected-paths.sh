@@ -386,8 +386,12 @@ passes "a cached plugin script run with stdin from /dev/null" \
 passes "the same through a literal variable" \
   "P=~/.claude/plugins/cache/m/p/5.6.3; bash \$P/scripts/x.sh </dev/null"
 # (Payload text, never run; `-k 5` keeps the static timeout lint from reading it as a call.)
-passes "timeout around a cached plugin script" \
+# `timeout` stays the dispatcher it is on master (review of #402, D3): what it runs is opaque.
+blocked "timeout around a cached plugin script stays opaque" \
   "timeout -k 5 90 bash ~/.claude/plugins/cache/m/p/5.6.3/scripts/probe.sh . 2>&1 | tail -10"
+blocked "timeout over a nested env + strace"     "timeout -k 1 5 env strace cp x ~/.gitconfig"
+blocked "timeout over sort -o"                   "timeout -k 1 5 sort -o ~/.gitconfig f"
+blocked "timeout over git config --file"         "timeout -k 1 5 git config --file ~/.gitconfig a b"
 blocked "timeout around a real write"            "timeout -k 5 90 cp /tmp/a ~/.gitconfig"
 blocked "timeout with a duration it cannot read, naming a path" \
   "timeout -k 5 \$T cp /tmp/a ~/.gitconfig"
