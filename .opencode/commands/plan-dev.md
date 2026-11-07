@@ -1,5 +1,5 @@
 ---
-description: 'Informal work — a task, a feature request, a spec, a review doc, a list of features to implement — must become a structured plan before any code is written.'
+description: 'Informal work — a task, a feature request, a spec, a review doc, a list of features — must become a structured plan before any code is written.'
 subagent: false
 ---
 

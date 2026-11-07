@@ -1,5 +1,5 @@
 ---
-description: 'The user wants Claude Code to reach them on their phone, or phone notifications have stopped arriving — ''notify me on my phone when Claude needs me'', ''send notifications to my phone'', ''set up push…'
+description: 'The user wants Claude Code to reach them on their phone, or phone notifications have stopped arriving — ''notify me on my phone when Claude needs me'', ''set up push notifications'', ''set up Pushover'',…'
 subagent: false
 ---
 
