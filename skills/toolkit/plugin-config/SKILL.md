@@ -1,7 +1,7 @@
 ---
 name: plugin-config
-description: 'Use when the user types /plugin-config to view or change how much the plugin''s skills do without asking — the permission level (supervised, standard, unattended), a per-skill or per-group level, an allow/ask/deny for one action, resetting overrides, trusting a repository''s .tamirs-superpowers/permissions.json, or confirming a pending widening or --perms= request by its nonce. Triggers: ''/plugin-config show'', ''/plugin-config standard'', ''/plugin-config pr-dev unattended'', ''/plugin-config pr.merge.auto allow'', ''/plugin-config reset all'', ''/plugin-config trust'', ''/plugin-config confirm <nonce>''. Explicit-only: never invoked on the model''s own initiative.'
-when_to_use: '/plugin-config show; /plugin-config standard; /plugin-config pr-dev unattended; /plugin-config pr.merge.auto allow; /plugin-config confirm 0123456789abcdef0123456789abcdef.'
+description: 'Use when the user types /plugin-config to view or change how much the plugin''s skills do without asking — the permission level (supervised, standard, unattended), a per-skill or per-group level, an allow/ask/deny for one action, resetting overrides, trusting a repository''s permissions file, or confirming a pending request by its nonce. Explicit-only: never invoked on the model''s own initiative.'
+when_to_use: /plugin-config show; /plugin-config pr-dev unattended; /plugin-config confirm <nonce>.
 argument-hint: '[show|set|reset|trust|confirm] [skill|group|level] [level]'
 disable-model-invocation: true
 user-invocable: true

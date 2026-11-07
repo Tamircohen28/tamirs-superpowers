@@ -3,16 +3,13 @@ name: platform-sync
 description: >-
   Use when this repo may have fallen behind the AI coding platforms it targets — Claude Code,
   Codex CLI, Cursor, Gemini CLI, OpenCode. Triggers: 'what new features am I missing', 'am I up to
-  date with the latest docs', 'check my repo against the latest docs', 'is my plugin
-  using current best practices', 'sync my plugin', 'audit every platform', 'did they ship anything
-  new I should adopt', '/platform-sync'. Also when a platform manifest or CHANGELOG is being
-  bumped, when a release is being cut, or when it has been more than a day since the last check.
-when_to_use: |
-  - "are we using the newest Codex CLI capabilities"
-  - "review our opencode.json against the latest OpenCode release"
-  - "we added a GEMINI.md — audit our agent config against current docs"
-  - Any repo carrying CLAUDE.md, AGENTS.md, GEMINI.md, .cursor/rules/, .gemini/ or
-    opencode.json — not only plugin manifests
+  date with the latest docs', 'is my plugin using current best practices', 'sync my plugin',
+  'audit every platform', '/platform-sync'. Also when a platform manifest or CHANGELOG is being
+  bumped, a release is being cut, or more than a day has passed since the last check.
+when_to_use: >
+  "are we using the newest Codex CLI capabilities", "review our opencode.json against the latest
+  OpenCode release"; any repo carrying CLAUDE.md, AGENTS.md, GEMINI.md, .cursor/rules/ or
+  opencode.json — not only plugin manifests.
 argument-hint: "[repo path or omit for cwd]"
 arguments: []
 disable-model-invocation: false

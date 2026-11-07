@@ -1,7 +1,7 @@
 ---
 name: mcp-builder
-description: 'Use when building or scaffolding an MCP (Model Context Protocol) server wrapping a REST API, database, or service as tools for an MCP client. Triggers on: ''build an MCP server'', ''create MCP tools'', ''write an MCP server for'', ''integrate X with Claude via MCP'', ''expose API via MCP'', ''add MCP support for'', ''make Claude able to call X'', ''MCP server for Stripe/GitHub/Postgres'', ''scaffold MCP'', ''wrap this API in MCP'', ''Claude tool for X API'', ''FastMCP server'', ''TypeScript MCP'', ''MCP server for Cursor/Codex/Gemini/OpenCode''. Not for inspecting an existing MCP server, or client config only.'
-when_to_use: '''build an MCP server for Stripe'', ''create MCP tools for our Postgres DB'', ''write a FastMCP server for GitHub'', ''expose our REST API via MCP'', ''add MCP support for OpenWeatherMap'', ''scaffold a TypeScript MCP server'', ''wire this MCP server into Cursor and Codex too''.'
+description: 'Use when building or scaffolding an MCP (Model Context Protocol) server wrapping a REST API, database, or service as tools for an MCP client. Triggers on: ''build an MCP server'', ''create MCP tools'', ''expose API via MCP'', ''make Claude able to call X'', ''MCP server for Stripe/GitHub/Postgres'', ''wrap this API in MCP'', ''FastMCP server'', ''TypeScript MCP'', ''MCP server for Cursor/Codex/Gemini/OpenCode''. Not for inspecting an existing MCP server, or client config only.'
+when_to_use: '''create MCP tools for our Postgres DB'', ''add MCP support for OpenWeatherMap'', ''wire this MCP server into Cursor and Codex too''.'
 argument-hint: '[service or API to integrate — e.g. ''GitHub REST API'', ''Stripe'', ''internal Postgres DB'', ''OpenWeatherMap'']'
 arguments: []
 disable-model-invocation: false

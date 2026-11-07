@@ -1,7 +1,7 @@
 ---
 name: worker-dev
 description: 'Use when executing exactly ONE task inside an objective already planned by orchestrate-dev — ''run task-002'', ''do your assigned task'', ''implement task-001 of objective X'', ''work this task and hand off'', ''resume task-003'', or a task-NNN.json exists under .dev-files/objectives/. A whole user request is not a worker task — that is orchestrate-dev or start-dev.'
-when_to_use: 'run task-002 of objective auth-system; implement your assigned scope and hand off; do task-001 in this worktree, scope src/auth/**; resume task-003; emit the handoff JSON for this single task, don''t open a PR; you''re the implementer for task-004 — get it committed.'
+when_to_use: run task-002 of objective auth-system; implement your assigned scope and hand off; emit the handoff JSON for this single task, don't open a PR.
 argument-hint: '<objective-id> <task-id>'
 arguments: []
 disable-model-invocation: false
