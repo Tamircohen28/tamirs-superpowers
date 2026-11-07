@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 # test-skill-budget.sh — the three measurable trust gates added in V5 Phase 4:
 #   scripts/check-skills-ref.sh      the Agent Skills reference validator over every skill
-#   scripts/check-token-budget.sh    the always-on token cost held to evals/budget.json
+#   scripts/check-token-budget.sh    the always-on token cost held to evals/budget.json,
+#                                    measured live or estimated offline from the checkout
+#                                    by scripts/always-on-cost.py
 #   tests/test-skill-contract.sh     --strict eval coverage (exercised here only through
 #                                    the budget file; strict itself is its own CI step)
 #
@@ -16,6 +18,11 @@
 #   CLI and the plugin are both present, and is reported as skipped (with the reason)
 #   otherwise, never as passing.
 #
+#   The offline estimate is the part that gates CI (issue #401): a runner's CLI has no
+#   credentials and prints a chars/4 fallback ~30% below the tokenizer count, so the live
+#   step there could never see an overrun. `check-token-budget.sh --offline` holds the
+#   checkout itself to the ceiling with python3 + PyYAML only, and runs on every shard.
+#
 # Usage: bash tests/test-skill-budget.sh
 
 set -uo pipefail
@@ -24,11 +31,14 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 # shellcheck source=tests/lib/harness.sh
 source "$REPO_ROOT/tests/lib/harness.sh"
 
-harness_require jq bash
+harness_require jq bash python3
+python3 -c "import yaml" >/dev/null 2>&1 \
+  || { echo "FATAL: PyYAML is required (pip install -r scripts/requirements-validate.txt)"; exit 1; }
 
 BUDGET="$REPO_ROOT/evals/budget.json"
 BUDGET_SH="$REPO_ROOT/scripts/check-token-budget.sh"
 REF_SH="$REPO_ROOT/scripts/check-skills-ref.sh"
+COST_PY="$REPO_ROOT/scripts/always-on-cost.py"
 TMP="$(harness_tmpdir)"
 
 # ---------------------------------------------------------------------------
@@ -40,6 +50,8 @@ for key in always_on_tokens ceiling tolerance_percent; do
   judge "budget.$key is a non-negative integer" true \
     "$(jq -r --arg k "$key" '(.[$k] | type == "number") and (.[$k] >= 0) and (.[$k] == (.[$k] | floor))' "$BUDGET")"
 done
+judge "budget.chars_per_token is a positive number" true \
+  "$(jq -r '(.chars_per_token | type == "number") and (.chars_per_token > 0)' "$BUDGET")"
 for key in measured_on measured_at; do
   judge "budget.$key is a non-empty string" true \
     "$(jq -r --arg k "$key" '(.[$k] | type == "string") and ((.[$k] | length) > 0)' "$BUDGET")"
@@ -116,8 +128,9 @@ judge "the updated budget passes a plain run" 0 "$rc"
 judge "--update rewrites always_on_tokens to the measured figure" "$baseline" "$(jq -r '.always_on_tokens' "$UPD")"
 judge "--update stamps measured_at with today's UTC date" "$(date -u +%Y-%m-%d)" "$(jq -r '.measured_at' "$UPD")"
 judge "--update replaces the placeholder measured_on" no "$(has "$(jq -r '.measured_on' "$UPD")" "0.0.0")"
-judge "--update leaves ceiling, tolerance_percent and note alone" "$(jq -c '{ceiling: 1000000, tolerance_percent, note}' "$BUDGET")" \
-  "$(jq -c '{ceiling, tolerance_percent, note}' "$UPD")"
+judge "--update leaves ceiling, tolerance_percent, chars_per_token and note alone" \
+  "$(jq -c '{ceiling: 1000000, tolerance_percent, chars_per_token, note}' "$BUDGET")" \
+  "$(jq -c '{ceiling, tolerance_percent, chars_per_token, note}' "$UPD")"
 judge "--update does not touch the committed evals/budget.json" "$baseline" "$(jq -r '.always_on_tokens' "$BUDGET")"
 
 # Wrong-shape CLI output fails loudly instead of reading 0.
@@ -139,9 +152,102 @@ rc="$(bash "$BUDGET_SH" "$REPO_ROOT" --from "$DETAILS" --budget "$BADBUDGET" >/d
 judge "a budget file missing one of the five fields fails" 1 "$rc"
 
 # ---------------------------------------------------------------------------
-section "check-token-budget.sh: live measurement (needs the claude CLI and the installed plugin)"
+section "always-on-cost.py: rebuilds the text the CLI measures (planted plugin)"
 
-if harness_have claude && claude plugin details tamirs-superpowers >/dev/null 2>&1; then
+# A two-component plugin whose always-on text is known by hand:
+#   skill  "p:s a &lt;b&gt; c w"   namespaced; whitespace run collapsed; <> escaped   19
+#   agent  "g d"                   bare name; description trimmed, else verbatim      3
+#   joined with "\n" -> 23 chars; the CLI's fallback sums components: ceil(22 / 4) = 6
+TINY="$TMP/tiny"
+mkdir -p "$TINY/.claude-plugin" "$TINY/skills/x/s" "$TINY/agents"
+printf '{"name":"p","skills":["./skills/x"]}\n' > "$TINY/.claude-plugin/plugin.json"
+printf -- '---\nname: s\ndescription: "a  <b>\\n c"\nwhen_to_use: w\n---\n# S\n' > "$TINY/skills/x/s/SKILL.md"
+printf -- '---\nname: g\ndescription: " d "\n---\n# G\n' > "$TINY/agents/g.md"
+tiny="$(python3 "$COST_PY" "$TINY" --chars-per-token 2 --json 2>&1)"
+judge "the planted plugin's always-on text is 23 chars" 23 "$(jq -r '.chars' <<<"$tiny" 2>/dev/null)"
+judge "tokens are ceil(chars / chars_per_token)" 12 "$(jq -r '.tokens' <<<"$tiny" 2>/dev/null)"
+judge "the CLI's no-credentials fallback is ceil(component chars / 4)" 6 "$(jq -r '.cli_fallback_tokens' <<<"$tiny" 2>/dev/null)"
+judge "the skill is namespaced, collapsed and escaped as the CLI does" 19 \
+  "$(jq -r '.components[] | select(.name == "s") | .chars' <<<"$tiny" 2>/dev/null)"
+rc="$(python3 "$COST_PY" "$TMP/nowhere" --chars-per-token 2 >/dev/null 2>&1; echo $?)"
+judge "a root with no .claude-plugin/plugin.json fails" 1 "$rc"
+rc="$(python3 "$COST_PY" "$TINY" >/dev/null 2>&1; echo $?)"
+judge "no chars_per_token (no flag, no evals/budget.json) fails rather than guessing" 1 "$rc"
+
+# ---------------------------------------------------------------------------
+section "check-token-budget.sh --offline: the checkout held to the budget with no CLI"
+
+out="$(bash "$BUDGET_SH" "$REPO_ROOT" --offline 2>&1)"; rc=$?
+judge "this checkout's offline always-on estimate is within evals/budget.json" 0 "$rc"
+[ "$rc" -eq 0 ] || printf '%s\n' "$out" | grep -E '^(FAIL|ERROR)' | sed 's/^/       /'
+judge "the offline run labels its figure as an estimate" yes "$(has "$out" "(offline)")"
+judge "the offline run shows chars and the ratio it divided by" yes "$(has "$out" "chars per token")"
+
+# The CI-blind failure of #401, planted: a tree over the ceiling fails offline.
+TINYB="$TMP/tiny-budget.json"
+jq '.always_on_tokens = 10 | .ceiling = 11 | .chars_per_token = 2' "$BUDGET" > "$TINYB"
+out="$(bash "$BUDGET_SH" "$TINY" --offline --budget "$TINYB" 2>&1)"; rc=$?
+judge "a planted tree over the ceiling fails offline" 1 "$rc"
+judge "the offline failure says 'ceiling'" yes "$(has "$out" "exceeds the ceiling")"
+jq '.always_on_tokens = 12 | .ceiling = 12' "$TINYB" > "$TINYB.ok"
+rc="$(bash "$BUDGET_SH" "$TINY" --offline --budget "$TINYB.ok" >/dev/null 2>&1; echo $?)"
+judge "the same tree at the ceiling passes" 0 "$rc"
+
+rc="$(bash "$BUDGET_SH" "$REPO_ROOT" --offline --update --budget "$TINYB" >/dev/null 2>&1; echo $?)"
+judge "--offline --update is refused (the baseline is a tokenizer count)" 2 "$rc"
+rc="$(bash "$BUDGET_SH" "$REPO_ROOT" --offline --from "$DETAILS" >/dev/null 2>&1; echo $?)"
+judge "--offline with --from is refused (two sources)" 2 "$rc"
+NORATIO="$TMP/no-ratio.json"
+jq 'del(.chars_per_token)' "$BUDGET" > "$NORATIO"
+rc="$(bash "$BUDGET_SH" "$REPO_ROOT" --offline --budget "$NORATIO" >/dev/null 2>&1; echo $?)"
+judge "a budget without chars_per_token fails" 1 "$rc"
+
+# ---------------------------------------------------------------------------
+section "check-token-budget.sh --cross-check: a CLI figure compared with the checkout"
+
+est="$(python3 "$COST_PY" "$REPO_ROOT" --json)"
+est_tokens="$(jq -r '.tokens' <<<"$est")"
+est_fallback="$(jq -r '.cli_fallback_tokens' <<<"$est")"
+
+# What CI's credential-less CLI prints for this checkout.
+FALLBACK="$TMP/fallback.txt"
+sed -E "s/~[0-9,]+ tok/~$est_fallback tok/" "$DETAILS" > "$FALLBACK"
+out="$(bash "$BUDGET_SH" "$REPO_ROOT" --from "$FALLBACK" --cross-check 2>&1)"; rc=$?
+judge "the CLI's chars/4 fallback is recognised" yes "$(has "$out" "no-credentials chars/4 fallback")"
+judge "the fallback figure is replaced by the offline estimate" yes "$(has "$out" "measured $est_tokens always-on tokens (fallback)")"
+judge "the replaced figure is then held to the budget (this checkout is within it)" 0 "$rc"
+UPDF="$TMP/upd-fallback.json"
+cp "$BUDGET" "$UPDF"
+rc="$(bash "$BUDGET_SH" "$REPO_ROOT" --from "$FALLBACK" --cross-check --update --budget "$UPDF" >/dev/null 2>&1; echo $?)"
+judge "--update refuses to record a fallback figure as the baseline" 1 "$rc"
+judge "the refused --update leaves the budget file untouched" "$(jq -c . "$BUDGET")" "$(jq -c . "$UPDF")"
+
+# A real tokenizer count well above what the offline estimate says: the ratio is stale.
+# The budget accepts the figure itself (baseline = figure, no ceiling), so the only thing
+# that can fail is the comparison with the checkout.
+STALE="$TMP/stale.txt"
+stale_figure=$(( est_tokens * 120 / 100 ))
+sed -E "s/~[0-9,]+ tok/~$stale_figure tok/" "$DETAILS" > "$STALE"
+STALEB="$TMP/stale-budget.json"
+jq --argjson n "$stale_figure" '.always_on_tokens = $n | .ceiling = 1000000' "$BUDGET" > "$STALEB"
+out="$(bash "$BUDGET_SH" "$REPO_ROOT" --from "$STALE" --cross-check --budget "$STALEB" 2>&1)"; rc=$?
+judge "a tokenizer count the offline estimate under-reads by >1% fails" 1 "$rc"
+judge "the calibration failure names chars_per_token" yes "$(has "$out" "Set chars_per_token to")"
+rc="$(bash "$BUDGET_SH" "$REPO_ROOT" --from "$STALE" --budget "$STALEB" >/dev/null 2>&1; echo $?)"
+judge "without --cross-check a saved figure is not compared with the checkout" 0 "$rc"
+
+# A tokenizer count at or below the estimate is the expected case (the ratio reads high).
+NEAR="$TMP/near.txt"
+sed -E "s/~[0-9,]+ tok/~$(( est_tokens * 99 / 100 )) tok/" "$DETAILS" > "$NEAR"
+rc="$(bash "$BUDGET_SH" "$REPO_ROOT" --from "$NEAR" --cross-check --budget "$HIGHCEIL" >/dev/null 2>&1; echo $?)"
+judge "a tokenizer count just below the offline estimate passes the cross-check" 0 "$rc"
+
+# ---------------------------------------------------------------------------
+section "check-token-budget.sh: live measurement of this checkout (needs the claude CLI)"
+
+# The live run loads the plugin from this checkout with --plugin-dir, so it needs the CLI
+# but no install, and it never measures an installed release instead of the tree (#401).
+if harness_have claude; then
   out="$(bash "$BUDGET_SH" "$REPO_ROOT" 2>&1)"; rc=$?
   if [ "$rc" -eq 0 ]; then
     ok "live always-on cost is within evals/budget.json"
@@ -151,7 +257,7 @@ if harness_have claude && claude plugin details tamirs-superpowers >/dev/null 2>
   fi
 else
   skip "live always-on cost is within evals/budget.json" \
-    "claude CLI absent or tamirs-superpowers not installed — the hermetic cases above cover the logic"
+    "claude CLI absent — the offline estimate above holds the checkout to the budget"
 fi
 
 # ---------------------------------------------------------------------------

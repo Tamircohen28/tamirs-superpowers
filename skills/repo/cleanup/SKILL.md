@@ -1,7 +1,7 @@
 ---
 name: cleanup
 description: 'Use when the user wants to clean up, tidy, or reset a GitHub repo — even if they name only one part. Triggers: repo cleanup, repo housekeeping, prune merged branches, delete stale remote branches, tidy my worktrees, drive all open PRs to merge-ready, wipe build and cache artifacts, reset local checkout to match remote.'
-when_to_use: 'clean up this repo, my worktrees are a mess, purge the build files, sync local to remote, get me back to a fresh clean environment.'
+when_to_use: my worktrees are a mess, purge the build files, get me back to a fresh clean environment.
 argument-hint: '[--remote-only | --local-only | --dry-run] [repo path, defaults to cwd]'
 arguments:
 - flags

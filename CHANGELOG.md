@@ -5,13 +5,24 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
-## [5.6.13] — 2026-11-07
+## [5.6.15] — 2026-11-07
 
 ### Fixed
 
 - **`make test-hooks` ran fewer suites than it listed** (#400). The recipe fed the suite list to `while read` on stdin, and a suite that read its own stdin swallowed the rest of the list; the loop then ended green. On CI, shard 1/4 skipped `tests/test-worktree-install-gate.sh` (23 of 24 ran) after `tests/test-toolkit-gates.sh`, and a local full run stopped after `test-toolkit-gates.sh`, skipping the 7 suites after it. The recipe now walks the list with `for`, gives every suite `</dev/null`, and closes with `--- <ran> of <listed> suites ran ---`, failing if they differ. `tests/test-worktree-install-gate.sh` passes (52 assertions). `tests/test-shards.sh` gains a stub suite that reads stdin.
 - **The real-home witness no longer fails the gate when live sessions write, and it names what changed** (#400). `scripts/real-home-witness.sh` now records each path (`snapshot`) and compares them after the suite (`check`). It prints every changed path and excuses only writes it can attribute to a live host session: a host-version probe-cache entry (`hostver/`) or a skill context (`intent/`) keyed by a UUID that occurs in no file under `tests/`, with a real host binary for probe entries, plus the intent files `permission-intent.sh` prunes once they pass their age. Everything else is still a leak: a test session such as `sess-1`, no session, a fake binary, a stamp, a ticket, a config file. `tests/test-real-home-witness.sh` covers both directions, including the `make test-hooks` recipe run on a stub tree.
 - **`tests/test-docker-guard.sh` wrote to the real state dir.** Its "real resolver" case ran against the developer's own configuration. Above supervised, the resolver's host-version probe wrote a `sess-1` entry into the real `hostver/`. The witness tripped on it, and the issue had blamed live sessions. The case moved to `tests/test-permission-guard.sh`, which runs it under the test root at every level.
+
+## [5.6.13] — 2026-11-07
+
+### Fixed
+
+- **The always-on skill budget is back under its ceiling, and CI can now see an overrun** (#401). The always-on cost (the name, description and `when_to_use` of every skill and agent, paid by every session) measured ~8,668 tokens against an 8,500 ceiling. `diagnose-objective` (+360) and `plugin-config` (+317, 5.2.0) took it over. CI never noticed: a runner's CLI has no credentials, so `claude plugin details` prints a chars/4 fallback (~5,945) instead of a tokenizer count, and the live check also measured the *installed* plugin rather than the checkout. Fixes:
+  - 29 skill descriptions are trimmed. The cuts are `when_to_use` examples that restated the description, duplicated "Not for…" clauses and long phrase lists; every distinctive trigger phrase stays. The figure falls from **~8,668 to ~7,298** tokens (tokenizer, claude 2.1.319), and the ceiling drops to 8,000. No skill body or behaviour changes.
+  - New `scripts/always-on-cost.py` rebuilds the exact text the CLI measures from the checkout. `check-token-budget.sh --offline` holds `ceil(chars / chars_per_token)` to the budget with python3 + PyYAML only. `tests/test-skill-budget.sh` runs it on every CI shard, and `make validate` runs it through the new `check-token-budget-offline` target. On the pre-fix tree it reads ~8,822 and fails.
+  - The live check now measures the checkout with `claude --plugin-dir`, never an installed copy. It recognises the CLI's chars/4 fallback and holds the offline estimate instead. It fails when a real tokenizer count shows `chars_per_token` (new field in `evals/budget.json`, 2.70) has gone stale. `--update` refuses an offline or fallback figure.
+
+  Installed users get the lower always-on cost only after updating the plugin to 5.6.13.
 
 ## [5.6.12] — 2026-11-07
 

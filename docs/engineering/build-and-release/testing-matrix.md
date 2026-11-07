@@ -54,7 +54,7 @@ that list — see [Shards](#shards) below.
 | `hooks/test-codex-contract.sh` · `test-cursor-lifecycle.sh` · `test-gemini-hooks.sh` | the per-host hook suites: captured Codex payloads (`fixtures/codex/`) with Codex's Stop-family JSON rule and 3-second clamps; Cursor's ten wired events (`fixtures/cursor/`) with its documented output shape per event; the generated Gemini hooks file, policies and `hooks/gemini-wrap.sh` translation |
 | `test-dist.sh` · `test-claude-dist.sh` | every per-host distribution builds and passes its check, and a planted finding of each class makes the check fail |
 | `test-opencode-v2.sh` · `test-antigravity-adapter.sh` · `test-agents-skills.sh` | the OpenCode 2 configuration, plugin and permissions vocabulary; the Antigravity adapter's closed schema; the `.agents/skills` mirror |
-| `test-skill-budget.sh` · `test-evals-suite.sh` | the always-on token budget gate and the skills-ref gate (hermetic through saved CLI output; the live case self-skips without the CLI); the static shape of the `claude plugin eval` suite under `evals/` |
+| `test-skill-budget.sh` · `test-evals-suite.sh` | the always-on token budget gate: the checkout's offline estimate held to `evals/budget.json` on every shard, the CLI's chars/4 fallback recognised, a stale `chars_per_token` caught; and the skills-ref gate (hermetic through saved CLI output; the live case self-skips without the CLI); the static shape of the `claude plugin eval` suite under `evals/` |
 | `test-shards.sh` | the shard partition: every suite in exactly one shard, the union of `1/n … n/n` is the full list, `1/1` is today's list in today's order, and the Makefile consumes the script rather than its own `find` |
 
 ### Shards

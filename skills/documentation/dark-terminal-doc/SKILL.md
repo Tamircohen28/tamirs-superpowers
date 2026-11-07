@@ -3,10 +3,9 @@ name: dark-terminal-doc
 description: >
   Use when a single-file HTML technical document should carry a dark developer / terminal
   aesthetic — monospace, terminal-green on near-black. Trigger on: "dark terminal doc",
-  "terminal-style HTML", "developer-terminal aesthetic", "make it look like a terminal", "dark
-  developer-facing HTML page", or a comparison table, reference sheet, changelog, release notes or
-  API cheatsheet in that look, or one matching a document already in this style. Not for a doc
-  with no stated aesthetic.
+  "terminal-style HTML", "make it look like a terminal", or a comparison table, reference sheet,
+  changelog, release notes or API cheatsheet in that look, or one matching a document already in
+  this style. Not for a doc with no stated aesthetic.
 when_to_use: >
   Phrases: "make a comparison table: Postgres vs MySQL", "create a git cheatsheet I can open
   offline", "build an API cheatsheet page I can share with the team", "produce release notes for
