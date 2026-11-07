@@ -1,4 +1,4 @@
-.PHONY: check-repo-description gemini-hooks gemini-hooks-check antigravity-plugin antigravity-plugin-check agents-skills agents-skills-check check-skills-ref check-token-budget check-token-budget-offline test-skill-contract-strict
+.PHONY: worktrees-migrate check-repo-description gemini-hooks gemini-hooks-check antigravity-plugin antigravity-plugin-check agents-skills agents-skills-check check-skills-ref check-token-budget check-token-budget-offline test-skill-contract-strict
 .PHONY: help setup setup-plan capture install update uninstall validate lint test plugin-validate test-mods typecheck-mods test-repo-contract \
 	check-manifest-versions check-platform-equivalence check-agent-drift \
 	check-feature-equivalence check-platform-targets platform-targets-sync \
@@ -30,6 +30,7 @@ help:
 	@echo "  install                 — bootstrap ~/.claude/settings.json and specialist agents"
 	@echo "  update                  — refresh plugin + agents"
 	@echo "  uninstall               — remove installed agents and uninstall plugin when possible"
+	@echo "  worktrees-migrate       — plan moving idle ~/.claude/worktrees session worktrees to the configured root (ARGS=--yes to move)"
 	@echo "  validate                — full CI-parity local gate (lint, contract, JSON, skills)"
 	@echo "  agent:check             — drift + feature equivalence + platform targets (agents)"
 	@echo "  agent-polish-gate       — sync platform targets + assert current + agent:check (agents, pre-PR)"
@@ -137,8 +138,16 @@ update:
 uninstall:
 	@bash scripts/uninstall.sh
 
+# Dry run unless ARGS carries --yes; see scripts/worktrees-migrate.sh --help (ADR 005).
+worktrees-migrate:
+	@bash scripts/worktrees-migrate.sh $(ARGS) </dev/null
+
+# SUPERPOWERS_WORKTREE_ROOT / CLAUDE_PLUGIN_OPTION_WORKTREE_ROOT are unset: the
+# suites redirect HOME and expect session worktrees under it, and a root
+# exported in the developer's shell would send them to the real one.
+#
 # SUPERPOWERS_WORKTREE_CLEANUP=0: several suites invoke a hook, and every hook
-# invocation starts a DETACHED `rm -rf` pass over ~/.claude/worktrees that keeps
+# invocation starts a DETACHED `rm -rf` pass over the session worktree roots that keeps
 # running after the hook returns. It cannot reach a suite's tmpdir, but it does
 # leave live ownerless `rm -rf` processes in the run, which is misleading
 # evidence when a test loses a directory. test-worktree-objective.sh unsets it
@@ -155,7 +164,8 @@ uninstall:
 # tests/test-static.sh skips its own identical pass under this marker (and still runs
 # it standalone, which is how CI's static job invokes it).
 test-hooks:
-	@shard="$(SHARD)"; [ -n "$$shard" ] || shard=1/1; \
+	@unset SUPERPOWERS_WORKTREE_ROOT CLAUDE_PLUGIN_OPTION_WORKTREE_ROOT; \
+	shard="$(SHARD)"; [ -n "$$shard" ] || shard=1/1; \
 	if [ "$$shard" = 1/1 ]; then echo "--- Hook behavior tests ---"; \
 	else echo "--- Hook behavior tests (shard $$shard) ---"; fi; \
 	suites="$$(bash scripts/ci/shard-suites.sh "$$shard")" || exit 1; \

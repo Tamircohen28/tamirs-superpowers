@@ -5,6 +5,17 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [5.7.0] — 2026-11-07
+
+### Changed
+
+- **Session worktrees move out of `~/.claude`, to a configurable root** (#404). They were hard-coded under `~/.claude/worktrees/<repo>/<slug>`. Claude Code treats every `.claude` directory as a protected path, so outside `bypassPermissions` mode each write there prompted, and no `permissions.allow` rule could pre-approve it. The worktree policy sends every edit into the session worktree, so almost every edit prompted. New worktrees now go to `<root>/<repo>/<slug>`. The root is `SUPERPOWERS_WORKTREE_ROOT`, then the new `worktree_root` plugin option, then **`~/.session-worktrees`** by default. A leading `~` or `$HOME` is expanded, and a relative value is ignored. The default is not the `~/.agent-worktrees` the issue proposed. Every objective-layout consumer reads any `/.agent-worktrees/` path as an objective worktree, and `core/policies/git.md` documents `~/.agent-worktrees/<repo>/<objective>/` as the user-level objective location ([ADR 005](docs/engineering/decisions/005-session-worktree-root.md)).
+  - Every hook that creates or names the root uses it: `worktree-create.sh`, `capture-task-slug.sh`, `session-init.sh` (the policy line and the `CLAUDE_WORKTREE_ROOT` export), `enforce-worktree-edits.sh` (the deny reason and the rebuild-on-edit path), `directory-added.sh`, `worktree-remove.sh`, `handoff-reminder.sh`, and the retention pass. The OpenCode guard resolves the same root (`sessionWorktreeRoot`).
+  - **Nothing already running breaks.** Edits under `~/.claude/worktrees/<repo>/<slug>` and native `<repo>/.claude/worktrees/<name>` are still allowed. When a session's live worktree is at the legacy root, the hooks keep pointing at it. They do not report it as removed or build a second one beside it. Nothing new is ever created there. The retention pass sweeps both roots.
+  - `classify_worktree_path` gains `session-global` for the configured root. `legacy-global` keeps meaning `~/.claude/worktrees`. Both roots are matched in their logical and physical spellings.
+  - **New `scripts/worktrees-migrate.sh`** (`make worktrees-migrate`) moves idle legacy worktrees to the root with `git worktree move`, never `--force`. It is a dry run unless given `--yes`. It skips a worktree with uncommitted changes, a live agent claim, an unfinished objective task, a running process inside it, a change in the last 60 minutes, or an existing destination, and prints the reason. It rewrites the session-state records that named the old path.
+  - Run `scripts/worktrees-migrate.sh`, then `/plugin update` and `/reload-plugins` in each running session. User docs: [Where session worktrees live](docs/user/configuration.md#where-session-worktrees-live).
+
 ## [5.6.13] — 2026-11-07
 
 ### Fixed

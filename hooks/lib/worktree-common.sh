@@ -1,7 +1,77 @@
 #!/usr/bin/env bash
-# Shared helpers for Make-worktree-in-~/.claude/worktrees session workflow.
+# Shared helpers for the session-worktree workflow: one prompt, one slug, one
+# worktree at <worktree root>/<repo>/<slug>.
+#
+# WHERE SESSION WORKTREES LIVE (issue #404)
+#   The root is configurable, and by default it is OUTSIDE ~/.claude:
+#
+#     1. SUPERPOWERS_WORKTREE_ROOT          env var, every host
+#     2. CLAUDE_PLUGIN_OPTION_WORKTREE_ROOT the `worktree_root` plugin option
+#                                           (Claude Code exports it to hooks)
+#     3. ~/.session-worktrees               the default
+#
+#   A value may start with `~` or `$HOME`; anything that is not an absolute
+#   path after that expansion (or is `/`) is ignored and the next source wins.
+#
+#   Why not ~/.claude/worktrees any more: Claude Code treats every `.claude`
+#   directory as a protected path, so outside bypassPermissions mode each write
+#   there prompts, and no `permissions.allow` rule can pre-approve it. The
+#   policy sends every edit into a session worktree, so that was a prompt on
+#   almost every edit.
+#
+#   Why not ~/.agent-worktrees: that name is the OBJECTIVE layout's marker —
+#   is_objective_worktree_path matches any `/.agent-worktrees/` path, and
+#   core/policies/git.md documents ~/.agent-worktrees/<repo>/<objective>/task-NNN
+#   as a user-level objective location. The retention pass below also removes
+#   clean worktrees under this root, so the root must hold session worktrees
+#   only, never objective or hand-made ones.
+#
+#   The legacy root (~/.claude/worktrees) is still RECOGNISED — sessions that
+#   started on an older plugin version, and worktrees nobody has migrated, keep
+#   working — but nothing is CREATED there. scripts/worktrees-migrate.sh moves
+#   idle legacy worktrees to the configured root.
 
-WORKTREE_ROOT="${HOME}/.claude/worktrees"
+LEGACY_WORKTREE_ROOT="${HOME}/.claude/worktrees"
+DEFAULT_WORKTREE_ROOT="${HOME}/.session-worktrees"
+
+# _normalize_worktree_root <raw> sets _WT_ROOT_OUT to the absolute, expanded
+# form of <raw>, or returns 1 when <raw> is empty, relative, or `/`. No
+# subshell and no output: it runs every time this file is sourced.
+_normalize_worktree_root() {
+  local raw="${1-}"
+  raw="${raw#"${raw%%[![:space:]]*}"}"
+  raw="${raw%"${raw##*[![:space:]]}"}"
+  [[ -n "$raw" ]] || return 1
+  # shellcheck disable=SC2088  # the literal text a person typed, matched as text
+  case "$raw" in
+    '~')          raw="$HOME" ;;
+    '~/'*)        raw="${HOME}/${raw:2}" ;;
+    '$HOME')      raw="$HOME" ;;
+    '$HOME/'*)    raw="${HOME}/${raw:6}" ;;
+    '${HOME}')    raw="$HOME" ;;
+    '${HOME}/'*)  raw="${HOME}/${raw:8}" ;;
+  esac
+  [[ "$raw" == /* ]] || return 1
+  while [[ "$raw" == */ && "$raw" != "/" ]]; do raw="${raw%/}"; done
+  [[ "$raw" != "/" ]] || return 1
+  _WT_ROOT_OUT="$raw"
+}
+
+# _resolve_worktree_root sets WORKTREE_ROOT (env > option > default) and
+# WORKTREE_ROOT_SOURCE (env | option | default), for messages and tests.
+# shellcheck disable=SC2034  # WORKTREE_ROOT_SOURCE is read by the scripts that source this
+_resolve_worktree_root() {
+  _WT_ROOT_OUT=""
+  if _normalize_worktree_root "${SUPERPOWERS_WORKTREE_ROOT:-}"; then
+    WORKTREE_ROOT="$_WT_ROOT_OUT"; WORKTREE_ROOT_SOURCE="env"
+  elif _normalize_worktree_root "${CLAUDE_PLUGIN_OPTION_WORKTREE_ROOT:-}"; then
+    WORKTREE_ROOT="$_WT_ROOT_OUT"; WORKTREE_ROOT_SOURCE="option"
+  else
+    WORKTREE_ROOT="$DEFAULT_WORKTREE_ROOT"; WORKTREE_ROOT_SOURCE="default"
+  fi
+}
+_resolve_worktree_root
+
 SESSION_STATE_DIR="${HOME}/.claude/session-state"
 SESSION_FILES_ARCHIVE="${HOME}/.claude/session-files"
 WORKTREE_RETENTION_DAYS="${WORKTREE_RETENTION_DAYS:-3}"
@@ -86,14 +156,64 @@ repo_name_for() {
   basename "$(repo_root_for "$1")"
 }
 
-is_global_worktree_path() {
-  local path="$1"
-  [[ "$path" == "${WORKTREE_ROOT}/"* ]]
+# _physical_dir <dir> prints the symlink-resolved form of <dir>, or <dir> as
+# given when it does not exist. git reports PHYSICAL paths (/private/var/... on
+# macOS) while a root built from $HOME or typed by a person is LOGICAL, so every
+# comparison below matches both forms.
+_physical_dir() {
+  local d="${1-}"
+  if [[ -n "$d" && -d "$d" ]]; then
+    (cd "$d" 2>/dev/null && pwd -P) || _hook_put "$d"
+  else
+    _hook_put "$d"
+  fi
 }
 
-# True when dir is inside a REGISTERED git worktree that lives under a
-# .claude/worktrees/ directory — either the ~/.claude/worktrees/<repo>/<slug>
-# layout or Claude Code's native <repo>/.claude/worktrees/<name> layout — and
+# path_under_root <path> <root> — true when <path> is strictly below <root>,
+# comparing logical and physical spellings of both. The root itself is not
+# "under" it: a session worktree is <root>/<repo>/<slug>.
+path_under_root() {
+  local path="${1%/}" root="${2%/}" root_phys path_phys
+  [[ -n "$path" && -n "$root" ]] || return 1
+  [[ "$path" == "$root"/* ]] && return 0
+  root_phys="$(_physical_dir "$root")"
+  [[ "$root_phys" != "$root" && "$path" == "$root_phys"/* ]] && return 0
+  if [[ -d "$path" ]]; then
+    path_phys="$(_physical_dir "$path")"
+    if [[ "$path_phys" != "$path" ]]; then
+      [[ "$path_phys" == "$root"/* || "$path_phys" == "$root_phys"/* ]] && return 0
+    fi
+  fi
+  return 1
+}
+
+# session_root_kind <path> — "session-global" when <path> is under the
+# configured root, "legacy-global" when it is under ~/.claude/worktrees, and
+# nothing (status 1) otherwise. The configured root is checked first, so a
+# root the user pointed back at ~/.claude/worktrees is still "session-global".
+session_root_kind() {
+  local path="${1-}"
+  if path_under_root "$path" "$WORKTREE_ROOT"; then
+    _hook_put session-global; return 0
+  fi
+  if [[ "$LEGACY_WORKTREE_ROOT" != "$WORKTREE_ROOT" ]] \
+     && path_under_root "$path" "$LEGACY_WORKTREE_ROOT"; then
+    _hook_put legacy-global; return 0
+  fi
+  return 1
+}
+
+# is_global_worktree_path <path> — true for a path under the configured root
+# AND under the legacy ~/.claude/worktrees root. Recognising the legacy root is
+# what keeps a session that started on an older plugin version, or a worktree
+# nobody migrated, from being denied every edit.
+is_global_worktree_path() {
+  session_root_kind "${1-}" >/dev/null
+}
+
+# True when dir is inside a REGISTERED git worktree that lives under a session
+# root — the configured root, the legacy ~/.claude/worktrees/<repo>/<slug>
+# layout, or Claude Code's native <repo>/.claude/worktrees/<name> layout — and
 # is checked out on a session branch (wt/* or claude/*). Such a worktree is a
 # dedicated session workspace regardless of whether its name matches a slug
 # rebuilt from session state, so enforcement must not string-match paths.
@@ -101,11 +221,12 @@ is_registered_claude_worktree() {
   local dir="$1"
   local top branch
   top="$(git -C "$dir" rev-parse --show-toplevel 2>/dev/null)" || return 1
-  case "$top" in
-    "${WORKTREE_ROOT}"/*) ;;
-    */.claude/worktrees/*) ;;
-    *) return 1 ;;
-  esac
+  if ! is_global_worktree_path "$top"; then
+    case "$top" in
+      */.claude/worktrees/*) ;;
+      *) return 1 ;;
+    esac
+  fi
   # A linked (registered) worktree has a .git FILE at its top level; the main
   # checkout has a .git directory. An unregistered/pruned copy fails rev-parse.
   [[ -f "${top}/.git" ]] || return 1
@@ -127,6 +248,36 @@ worktree_path_for() {
   local task_slug="$2"
   [[ -n "$repo_name" && -n "$task_slug" ]] || return 1
   echo "${WORKTREE_ROOT}/${repo_name}/${task_slug}"
+}
+
+# legacy_worktree_path_for <repo> <slug> — the same worktree at the legacy
+# ~/.claude/worktrees root. Recognised, never created.
+legacy_worktree_path_for() {
+  local repo_name="$1" task_slug="$2"
+  [[ -n "$repo_name" && -n "$task_slug" ]] || return 1
+  echo "${LEGACY_WORKTREE_ROOT}/${repo_name}/${task_slug}"
+}
+
+# session_worktree_path_for <repo> <slug> — where this session's worktree IS.
+#
+# The configured root's path, unless that is not a live worktree and the legacy
+# root's path is: a session that started on an older plugin version has its
+# worktree (and its `wt/<slug>` branch checked out) under ~/.claude/worktrees.
+# Pointing it at a fresh path under the new root would report the live
+# worktree as removed, and `git worktree add` there would fail because the
+# branch is already checked out. Creation still only ever uses the new root:
+# when neither is live this prints the new root's path.
+session_worktree_path_for() {
+  local repo_name="$1" task_slug="$2" path legacy
+  path="$(worktree_path_for "$repo_name" "$task_slug")" || return 1
+  if ! is_live_worktree "$path" && [[ "$LEGACY_WORKTREE_ROOT" != "$WORKTREE_ROOT" ]]; then
+    legacy="$(legacy_worktree_path_for "$repo_name" "$task_slug")"
+    if is_live_worktree "$legacy"; then
+      echo "$legacy"
+      return 0
+    fi
+  fi
+  echo "$path"
 }
 
 branch_name_for() {
@@ -775,13 +926,24 @@ append_env_exports() {
 # SUPERPOWERS_WORKTREE_CLEANUP=0 turns the whole pass off. That exists for test
 # suites: a suite that invokes a hook inherits this detached `rm -rf` worker,
 # which outlives the hook and keeps running while the suite does. It is scoped
-# to `$WORKTREE_ROOT` so it cannot touch a suite's own tmpdir, but it does show
+# to the session roots so it cannot touch a suite's own tmpdir, but it does show
 # up in a `ps` listing as a live `rm -rf` with no obvious owner, which is
 # exactly the kind of noise that sends an investigation the wrong way. Set it
 # to 0 in any test that runs a hook and does not want the process.
+#
+# Both session roots are swept: the configured one and, when it still exists,
+# the legacy ~/.claude/worktrees. Nothing creates worktrees at the legacy root
+# any more, so without this the ones already there would never be retired. The
+# legacy root's lock is the same `.cleanup.lock` an older plugin version takes,
+# so the two versions never sweep it at once.
 cleanup_stale_worktrees() {
   worktree_cleanup_enabled || return 0
-  ( _cleanup_stale_worktrees_blocking ) >/dev/null 2>/dev/null &
+  (
+    _cleanup_stale_worktrees_blocking "$WORKTREE_ROOT"
+    if [[ "$LEGACY_WORKTREE_ROOT" != "$WORKTREE_ROOT" && -d "$LEGACY_WORKTREE_ROOT" ]]; then
+      _cleanup_stale_worktrees_blocking "$LEGACY_WORKTREE_ROOT"
+    fi
+  ) >/dev/null 2>/dev/null &
   # Detach where the shell supports it, so the hook exiting cannot SIGHUP the
   # deletion half-done and leave a partially-removed worktree behind.
   disown 2>/dev/null || true
@@ -804,8 +966,10 @@ worktree_cleanup_enabled() {
 # filesystem this runs on; a lock left behind by a killed run is reclaimed once
 # it is older than the retention pass could plausibly take.
 _cleanup_stale_worktrees_blocking() {
-  local lock="${WORKTREE_ROOT}/.cleanup.lock"
-  mkdir -p "$WORKTREE_ROOT" 2>/dev/null || return 0
+  local root="${1:-$WORKTREE_ROOT}"
+  [[ -n "$root" ]] || return 0
+  local lock="${root}/.cleanup.lock"
+  mkdir -p "$root" 2>/dev/null || return 0
 
   if ! mkdir "$lock" 2>/dev/null; then
     local lock_mtime now
@@ -827,7 +991,7 @@ _cleanup_stale_worktrees_blocking() {
   local cutoff_epoch
   cutoff_epoch="$(date -v-"${WORKTREE_RETENTION_DAYS}"d +%s 2>/dev/null || date -d "${WORKTREE_RETENTION_DAYS} days ago" +%s)"
 
-  find "$WORKTREE_ROOT" -mindepth 2 -maxdepth 2 -type d 2>/dev/null | while read -r wt_dir; do
+  find "$root" -mindepth 2 -maxdepth 2 -type d 2>/dev/null | while read -r wt_dir; do
     [[ -d "$wt_dir/.git" || -f "$wt_dir/.git" ]] || continue
 
     local mtime

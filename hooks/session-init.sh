@@ -101,8 +101,8 @@ if is_git_repo "$cwd"; then
   elif is_live_worktree "$worktree_path"; then
     session_files_dir="$(ensure_session_files_dir "${worktree_path}/session-files")"
   elif [[ -n "$task_slug" && "$task_slug" != "null" ]] \
-       && is_live_worktree "$(worktree_path_for "$repo_name" "$task_slug")"; then
-    worktree_path="$(worktree_path_for "$repo_name" "$task_slug")"
+       && is_live_worktree "$(session_worktree_path_for "$repo_name" "$task_slug")"; then
+    worktree_path="$(session_worktree_path_for "$repo_name" "$task_slug")"
     session_files_dir="$(ensure_session_files_dir "${worktree_path}/session-files")"
   else
     session_files_dir="$(ensure_session_files_dir "${output_dir}/session-files")"
@@ -172,7 +172,7 @@ context_parts+=("Session output dir: ${output_dir}")
 context_parts+=("Session files dir: ${session_files_dir} — use CLAUDE_SESSION_FILES_DIR for plans, reviews, investigations")
 
 if is_git_repo "$cwd"; then
-  context_parts+=("Worktree policy: every repo task runs in ~/.claude/worktrees/<repo>/<task-slug>. Never edit the main checkout.")
+  context_parts+=("Worktree policy: every repo task runs in ${WORKTREE_ROOT}/<repo>/<task-slug>. Never edit the main checkout.")
   if [[ -n "$worktree_path" && "$worktree_path" != "null" && -d "$worktree_path" ]]; then
     if [[ "$cwd" != "$worktree_path" ]]; then
       context_parts+=("Resumed session worktree exists at: ${worktree_path}. cd there or use EnterWorktree before editing.")

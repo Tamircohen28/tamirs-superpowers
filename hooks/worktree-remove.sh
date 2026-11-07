@@ -4,6 +4,7 @@ set -euo pipefail
 # WorktreeRemove hook — remove agent worktrees in either layout.
 #
 # WHAT IT WILL REMOVE
+#   <worktree root>/<repo>/<slug>                  (session, configured root)
 #   ~/.claude/worktrees/<repo>/<slug>              (legacy global)
 #   <repo>/.agent-worktrees/<objective>/<unit>     (objective model)
 #
@@ -34,7 +35,7 @@ fi
 
 kind="$(classify_worktree_path "$worktree_path")"
 case "$kind" in
-  legacy-global|objective-integration|objective-worker|objective-other) ;;
+  session-global|legacy-global|objective-integration|objective-worker|objective-other) ;;
   *)
     # Not ours to delete. Say so rather than failing silently — a caller that
     # expected a removal should learn that nothing happened.

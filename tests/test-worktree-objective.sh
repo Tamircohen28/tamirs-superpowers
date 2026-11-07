@@ -83,9 +83,9 @@ PLAIN="$TMPROOT/plain"
 new_repo "$PLAIN"
 out="$(run_capture "$PLAIN" "add a login form" "sess-plain")"
 # The slug is the date plus the session id prefix, not the prompt (issue #337).
-legacy_wt="$HOME/.claude/worktrees/plain/$(date +%Y%m%d)-sess-pla"
+legacy_wt="$HOME/.session-worktrees/plain/$(date +%Y%m%d)-sess-pla"
 
-if [ -d "$legacy_wt" ]; then ok "creates ~/.claude/worktrees/<repo>/<slug>"; else bad "creates ~/.claude/worktrees/<repo>/<slug>" "missing $legacy_wt"; fi
+if [ -d "$legacy_wt" ]; then ok "creates ~/.session-worktrees/<repo>/<slug>"; else bad "creates ~/.session-worktrees/<repo>/<slug>" "missing $legacy_wt"; fi
 judge "reports the worktree in additionalContext" \
   "yes" \
   "$(has "$out" "Dedicated worktree")"
@@ -108,7 +108,7 @@ out="$(run_capture "$OBJ" "add a login form" "sess-obj")"
 after="$(git -C "$OBJ" worktree list | wc -l | tr -d ' ')"
 
 judge "creates NO competing git worktree" "$before" "$after"
-if [ -d "$HOME/.claude/worktrees/objrepo/add-a-login-form" ]; then
+if [ -d "$HOME/.session-worktrees/objrepo/add-a-login-form" ] || [ -d "$HOME/.claude/worktrees/objrepo/add-a-login-form" ]; then
   bad "creates no legacy worktree directory" "it created one anyway"
 else
   ok "creates no legacy worktree directory"

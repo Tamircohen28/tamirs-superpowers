@@ -11,7 +11,10 @@ set -euo pipefail
 #   from a script, a CI step, or a non-tty context.
 #
 # TWO LAYOUTS, NEITHER DESTROYED
-#   Legacy:    ~/.claude/worktrees/<repo>/<task-slug>        branch wt/<slug>
+#   Session:   <worktree root>/<repo>/<task-slug>            branch wt/<slug>
+#              (root: SUPERPOWERS_WORKTREE_ROOT > worktree_root option >
+#              ~/.session-worktrees; ~/.claude/worktrees is recognised, never
+#              created — see hooks/lib/worktree-common.sh)
 #   Objective: <repo>/.agent-worktrees/<objective>/<unit>    branch objective/<slug>
 #                                                            or worker/<slug>/NNN
 #   The objective layout is used when an objective is active or explicitly
@@ -44,6 +47,8 @@ worktree-create.sh — create or inventory agent worktrees
 Environment:
   SUPERPOWERS_OBJECTIVE_ID              active objective; makes the hook path
                                         create objective worktrees
+  SUPERPOWERS_WORKTREE_ROOT             session worktree root (default
+                                        ~/.session-worktrees)
   SUPERPOWERS_AGENT_WORKTREE_ROOT       relocate .agent-worktrees elsewhere
   SUPERPOWERS_WORKTREE_INSTALL_DEPS     0/false to skip dependency installs
   SUPERPOWERS_MAX_CONCURRENT_INSTALLS   cap on simultaneous installers (default 2)
@@ -140,7 +145,7 @@ if (($#)); then
       n=0
       list_agent_worktrees "$repo_root" | while IFS=$'\t' read -r kind path branch; do
         case "$kind" in
-          legacy-global|legacy-platform|native-claude) ;;
+          session-global|legacy-global|legacy-platform|native-claude) ;;
           *) continue ;;
         esac
         n=$((n + 1))
@@ -222,11 +227,11 @@ if [[ -n "$objective_id" ]]; then
   esac
   session_files_dir="$(ensure_session_files_dir "${worktree_path}/session-files")"
 else
-  worktree_path="$(worktree_path_for "$repo_name" "$task_slug")"
+  worktree_path="$(session_worktree_path_for "$repo_name" "$task_slug")"
   branch_name="$(branch_name_for "$task_slug")"
   session_files_dir="$(ensure_session_files_dir "${worktree_path}/session-files")"
 
-  mkdir -p "${WORKTREE_ROOT}/${repo_name}"
+  mkdir -p "$(dirname "$worktree_path")"
 
   if [[ -d "$worktree_path" ]]; then
     if ! git -C "$repo_root" worktree list --porcelain | awk -v p="$worktree_path" '/^worktree /{if($2==p) found=1} END{exit !found}'; then

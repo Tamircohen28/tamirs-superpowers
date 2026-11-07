@@ -81,7 +81,7 @@ already approximates.
 
 ## Options
 
-Six non-sensitive `userConfig` fields, shown as rows in `/config` and editable with
+Seven non-sensitive `userConfig` fields, shown as rows in `/config` and editable with
 `claude plugin configure tamirs-superpowers`:
 
 | Field | Default | Effect |
@@ -92,6 +92,7 @@ Six non-sensitive `userConfig` fields, shown as rows in `/config` and editable w
 | `contributor_hooks` | false | Contributor-tier bash hooks run (reload reminder, `report.md` link validation, hand-written `SKILL.md` guard) |
 | `unresolved_write_notices` | false | The protected-file guard tells Claude when a command writes somewhere it cannot resolve; resolvable protected writes are denied either way |
 | `permission_level` | supervised | The permission-level preset (`supervised` / `standard` / `unattended`, a picker): the ceiling the resolver and `hooks/permission-guard.sh` apply. Read by the bash hooks and scripts only — the mod answers no permission ([ADR 004](../decisions/004-permission-levels.md) D3, D10.4) |
+| `worktree_root` | `~/.session-worktrees` | Where the worktree hooks create session worktrees (`<root>/<repo>/<slug>`); `SUPERPOWERS_WORKTREE_ROOT` overrides it. Read by the bash hooks only ([ADR 005](../decisions/005-session-worktree-root.md)) |
 
 The first two are the mod's. The two hook-tier options are **read by the bash hooks, not by
 the mod**: Claude Code exports them to each hook process as `CLAUDE_PLUGIN_OPTION_*`, and
