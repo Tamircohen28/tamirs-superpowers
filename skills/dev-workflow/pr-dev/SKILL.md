@@ -1,7 +1,7 @@
 ---
 name: pr-dev
 description: 'Use when an open PR must be driven to completion — ''finish this PR'', ''address review comments'', ''land the PR'', ''ship/land/close the PR'', ''drive PR #N to merge'', ''fix CI and merge'', ''clean up this PR'', ''the checks are red, get it green and merged'', ''pr-dev 42''.'
-when_to_use: 'drive PR #N to done, handle review feedback, squash-merge and clean up the PR branch, get red checks green and merge, ship a PR number or URL.'
+when_to_use: 'drive PR #N to done, handle review feedback, squash-merge and clean up the PR branch.'
 argument-hint: '[PR number, PR URL, or omit to infer from current branch]'
 arguments: []
 disable-model-invocation: false

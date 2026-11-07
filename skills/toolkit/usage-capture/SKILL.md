@@ -7,10 +7,9 @@ description: >-
   'local usage log', 'record LLM requests', 'LLM latency', 'which model was
   used', 'request duration', 'usage metrics'.
 when_to_use: >-
-  Also: 'record my LLM requests', 'which model and how long did that take',
-  'show my local usage logs', 'enable OTEL usage capture', 'OpenCode request
-  metrics'. Claude Code via native OTEL; OpenCode partial; elsewhere
-  unsupported. Not session-report, which reads historical Claude transcripts.
+  Also: 'show my local usage logs', 'enable OTEL usage capture'. Claude Code via native OTEL;
+  OpenCode partial; elsewhere unsupported. Not session-report, which reads historical Claude
+  transcripts.
 argument-hint: '[enable | disable | status | query | bodies]'
 arguments: []
 disable-model-invocation: false

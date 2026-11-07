@@ -1,7 +1,7 @@
 ---
 name: repo-scaffold
-description: 'Use when creating a brand-new GitHub repository from scratch with production-ready infrastructure. Triggers: ''scaffold a repo'', ''create a new repo'', ''set up a new project'', ''new github repo'', ''bootstrap a project'', ''forge a repo'', ''/repo-scaffold'', ''start a new repo'', ''initialize a project'', ''make me a repo'', ''agent-kit'', ''plugin marketplace'', ''plugin catalog'', ''--type marketplace''. Not repo-standards (existing repo polish) or docs-only requests.'
-when_to_use: 'scaffold a new repo for a CLI that tracks job applications, bootstrap a project with CI and a docs tree, start a new repo with branch protection, --type plugin for agent-kit repos, --type marketplace for a catalog of plugins that Claude Code, Cursor and Codex can add and install from.'
+description: 'Use when creating a brand-new GitHub repository from scratch with production-ready infrastructure. Triggers: ''scaffold a repo'', ''create a new repo'', ''set up a new project'', ''new github repo'', ''bootstrap a project'', ''/repo-scaffold'', ''start a new repo'', ''make me a repo'', ''agent-kit'', ''plugin marketplace'', ''plugin catalog'', ''--type marketplace''. Not repo-standards (existing repo polish) or docs-only requests.'
+when_to_use: bootstrap a project with CI and a docs tree, --type plugin for agent-kit repos, --type marketplace for a catalog of plugins that Claude Code, Cursor and Codex can install from.
 argument-hint: <repo-name> -- <description> [--type app|plugin|marketplace] [--src <github-url-or-local-path>] [--tech <stack>]
 arguments: []
 disable-model-invocation: false

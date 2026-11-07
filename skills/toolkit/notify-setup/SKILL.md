@@ -1,7 +1,7 @@
 ---
 name: notify-setup
-description: 'Use when the user wants Claude Code to reach them on their phone, or phone notifications have stopped arriving — ''notify me on my phone when Claude needs me'', ''send notifications to my phone'', ''set up push notifications'', ''set up Pushover'', ''ping me when Claude needs input'', ''I keep missing when Claude finishes'', ''phone alerts for Claude'', ''push notifications stopped working'', ''make notifications less noisy'', ''change notification priority'', ''turn off phone alerts''.'
-when_to_use: 'Also ''test'' an existing setup, ''troubleshoot'' alerts that never arrive, or ''disable'' them. Claude Code only — it requires the Notification hook event, which no other supported harness provides; elsewhere it says push notifications are unavailable.'
+description: Use when the user wants Claude Code to reach them on their phone, or phone notifications have stopped arriving — 'notify me on my phone when Claude needs me', 'set up push notifications', 'set up Pushover', 'ping me when Claude needs input', 'I keep missing when Claude finishes', 'phone alerts for Claude', 'push notifications stopped working', 'make notifications less noisy', 'turn off phone alerts'.
+when_to_use: Also 'test' or 'troubleshoot' an existing setup. Claude Code only — it needs the Notification hook event; elsewhere it says push notifications are unavailable.
 argument-hint: '[optional: ''test'', ''disable'', or ''troubleshoot'']'
 arguments: []
 disable-model-invocation: false
