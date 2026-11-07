@@ -347,7 +347,9 @@ for 10 minutes; the clamp is named in each answer it changes and in `--level`. T
    (config, plugin code and agents' permission rules); shared `~/.config/gh/**`, `~/.gitconfig`. A repository's
    generated command, skill and agent-adapter dirs for other hosts (`.gemini/skills/`, `.gemini/agents/`,
    `.opencode/commands/`) are not policy and are not protected. It resolves the `realpath` of the target and of any
-   `ln` destination; an UNSURE write whose text names one of these paths is a deny. A git replay (checkout, switch,
+   `ln` destination; an UNSURE write whose text names one of these paths is a deny — the text that could steer the
+   write, not the words of a read-only command or data written to a file (issue #402, `_needle_text` in
+   `hooks/lib/write-targets.py`). A git replay (checkout, switch,
    restore, reset, merge, pull, rebase, cherry-pick, revert, am, stash) that would rewrite one of these paths is an
    R4 ask — `hook_ask`, the host prompt, on Claude Code and a deny on every other host — never a silent allow: an
    integrator merging a branch legitimately brings such a file in, and the user decides.

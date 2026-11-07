@@ -184,7 +184,7 @@ def _scan_balanced(text, start, open_ch, close_ch, aware):
                     k += 1
                 delim = re.sub(r"""['"\\]""", "", text[j:k])  # drop quotes and backslashes
                 if delim:
-                    pending.append((delim, strip))
+                    pending.append((delim, strip, False))
                 i = k
                 continue
             if c == "\n" and pending:
@@ -201,13 +201,20 @@ def _scan_balanced(text, start, open_ch, close_ch, aware):
     return n, False
 
 
-def _read_heredocs(text, i, pending, heredocs, note):
-    """Consume the bodies of the `pending` heredocs from text[i]; return the index after them."""
+def _read_heredocs(text, i, pending, heredocs, note, meta=None):
+    """Consume the bodies of the `pending` heredocs from text[i]; return the index after them.
+
+    `pending` holds (delimiter, strip_tabs, quoted). `meta`, when given, gets one
+    (quoted, start, end) per body: whether its delimiter was quoted (a literal
+    body, never expanded by the shell) and the span of the body in `text`.
+    """
     n = len(text)
-    for delim, strip_tabs in pending:
+    for delim, strip_tabs, quoted in pending:
         lines = []
         closed = False
+        start = end = i
         while i < n:
+            end = i
             j = text.find("\n", i)
             line = text[i:] if j == -1 else text[i:j]
             i = n if j == -1 else j + 1
@@ -220,24 +227,28 @@ def _read_heredocs(text, i, pending, heredocs, note):
             lines.append(body)
         if not closed:
             note("a heredoc whose closing `%s` line never comes" % delim)
+            end = n
         if heredocs is not None:
             heredocs.append("\n".join(lines))
+        if meta is not None:
+            meta.append((quoted, start, end))
     return i
 
 
-def tokenize(text, anomalies=None, heredocs=None):
+def tokenize(text, anomalies=None, heredocs=None, heredoc_meta=None):
     """Split a shell fragment into word and operator tokens.
 
     Heredoc bodies are skipped, never tokenized, and appended to `heredocs`
     (when given) in the order of their `<<`/`<<-` operators, tab-stripped for
-    `<<-`. Constructs this cannot close are appended to `anomalies`.
+    `<<-`; `heredoc_meta` (when given) gets their (quoted, start, end), see
+    _read_heredocs. Constructs this cannot close are appended to `anomalies`.
     """
     toks = []
     buf = []
     expands = False
     quoted = False
     started = False
-    pending = []        # (delimiter, strip_tabs) whose bodies start at the next newline
+    pending = []        # (delimiter, strip_tabs, quoted) whose bodies start at the next newline
     want = [None]       # strip_tabs of a `<<`/`<<-` still waiting for its delimiter word
     i = 0
     n = len(text)
@@ -251,7 +262,8 @@ def tokenize(text, anomalies=None, heredocs=None):
             value = "".join(buf)
             toks.append(Tok("word", value, expands, quoted))
             if want[0] is not None:
-                pending.append((value, want[0]))
+                # A delimiter with any quoting (`'EOF'`, `"EOF"`) makes the body literal.
+                pending.append((value, want[0], quoted))
                 want[0] = None
 
     while i < n:
@@ -415,7 +427,7 @@ def tokenize(text, anomalies=None, heredocs=None):
             if op in ("<<", "<<-"):
                 want[0] = op == "<<-"
             elif op == "\n" and pending:
-                i = _read_heredocs(text, i, pending, heredocs, note)
+                i = _read_heredocs(text, i, pending, heredocs, note, heredoc_meta)
                 del pending[:]
             continue
 
@@ -433,6 +445,8 @@ def tokenize(text, anomalies=None, heredocs=None):
         note("a heredoc with no body")
         if heredocs is not None:
             heredocs.extend("" for _ in pending)
+        if heredoc_meta is not None:
+            heredoc_meta.extend((q, n, n) for _, _, q in pending)
     return toks
 
 
@@ -441,7 +455,7 @@ def tokenize(text, anomalies=None, heredocs=None):
 # --------------------------------------------------------------------------
 
 # Prefixes that wrap another command without changing what it writes.
-WRAPPERS = ("sudo", "env", "command", "time", "nohup", "nice", "stdbuf", "exec", "builtin")
+WRAPPERS = ("sudo", "env", "command", "time", "nohup", "nice", "stdbuf", "exec", "builtin", "timeout")
 
 # A wrapper's OWN options, so they are consumed rather than mistaken for the
 # command it wraps. Stripping only the wrapper's name leaves its first option
@@ -483,7 +497,12 @@ WRAPPER_OPTS = {
     "builtin": {"value": (), "flag": ()},
     "time": {"value": ("-f", "--format", "-o", "--output"),
              "flag": ("-p", "--portability", "-v", "--verbose", "-a", "--append")},
+    # GNU coreutils timeout, plus the BSD/macOS `-f`/`-p`. Its DURATION operand
+    # is consumed by _segment_records (TIMEOUT_DURATION), then the command runs.
+    "timeout": {"value": ("-s", "--signal", "-k", "--kill-after"),
+                "flag": ("--preserve-status", "--foreground", "-v", "--verbose", "-f", "-p")},
 }
+TIMEOUT_DURATION = re.compile(r"^[0-9]+(?:\.[0-9]+)?[smhd]?$")
 
 # Per-command options, so a value-taking option's VALUE is never counted as an
 # operand. Getting this wrong is not cosmetic: in `install -m 0644 src yarn.lock`
@@ -626,8 +645,9 @@ EVALUATORS = (
 )
 INLINE_CODE_FLAGS = ("-c", "-e", "-r", "--eval", "--command", "-E")
 
-# Commands that dispatch other commands built at runtime.
-DISPATCHERS = ("xargs", "parallel", "watch", "timeout")
+# Commands that dispatch other commands built at runtime. (`timeout` is a
+# WRAPPER: the command it runs is on its own command line, issue #402.)
+DISPATCHERS = ("xargs", "parallel", "watch")
 
 # `patch` and `git apply`/`git am` are no longer opaque: their write targets are
 # read out of the patch itself (see "Patches and git" below), and a patch that
@@ -670,6 +690,7 @@ HOME_VAR = re.compile(r"^(?:\$HOME|\$\{HOME\})(?=/|$)")
 
 EVAL_WHY = ("runs code supplied to it rather than named on the command line; its writes "
             "are not visible to a shell parse")
+FIND_ACTION_WHY = "runs an action per match; the affected paths are decided at runtime"
 PROGRAM_WHY = ("runs a program whose output redirections or commands this parse does not "
                "follow (an awk `print >`, a sed `w` or `e`, an editor command)")
 
@@ -920,8 +941,19 @@ def _statement_start(text, pos):
     return i == 0 or text[i - 1] in ";\n"
 
 
-def _resolvable_names(text):
-    """The names the whole command text allows to resolve (the rule above)."""
+def _resolvable_names(text, shell_text=None):
+    """The names the whole command text allows to resolve (the rule above).
+
+    `shell_text` is the text with its quoted heredoc bodies cut out: such a body
+    is literal data the parent shell never parses, so a `D` or a `). ` in an
+    issue body does not make `D=/tmp/x` unresolvable (issue #402). The only
+    ways this shell could run a body — `source`, `.`, `eval` — are commands,
+    so they are in `shell_text` and still forbid resolution; and
+    `read D <<'EOF'` names `D` outside the body. A heredoc inside `$( … )` is
+    not cut (the tokenizer never sees it as a body).
+    """
+    if shell_text is not None:
+        text = shell_text
     if FORBIDS_RESOLUTION.search(text):
         return set()
     out = set()
@@ -1656,6 +1688,157 @@ def _split_targets(base, words):
     return [(prefix, "PREFIX")], unsure
 
 
+# A script named on an interpreter's command line runs THAT file: a heredoc,
+# a pipe or a `<` then feeds it data, not code (`bash x.sh </dev/null`,
+# `python3 x.py <<<"$json"` — issue #402). Only these options may precede the
+# script; anything else (`-s`, `-i`, `-m`, `-`, `/dev/stdin`, …) can make the
+# interpreter read its program from stdin, so it stays EVAL_WHY.
+SCRIPT_SAFE_FLAGS = {
+    "bash": "euxv", "sh": "euxv", "zsh": "euxv", "dash": "euxv", "ksh": "euxv",
+    "python": "IuBsSEOqb", "python2": "IuBsSEOqb", "python3": "IuBsSEOqb",
+}
+SHELL_SAFE_O = ("pipefail", "errexit", "nounset", "xtrace")
+
+
+def _named_script(base, words, cwd=None):
+    """The program file an interpreter is NAMED to run, or None.
+
+    It must exist now as a regular file whose realpath is not under /dev or
+    /proc: a FIFO, `/dev/stdin`, a symlink to either, or a file this very
+    command creates could hand the interpreter its stdin as code. A file the
+    same command writes is caught after the parse (analyze_command, SCRIPT).
+    """
+    safe = SCRIPT_SAFE_FLAGS.get(base)
+    if safe is None:
+        return None             # node, perl, ruby, php, source, …: no exemption
+    i = 0
+    while i < len(words):
+        v = words[i].value
+        if v == "--":
+            i += 1
+            break
+        if v.startswith("-") and v != "-":
+            if v == "-o" and safe == "euxv" and i + 1 < len(words) \
+                    and words[i + 1].value in SHELL_SAFE_O:
+                i += 2
+                continue
+            if v[1:] and all(c in safe for c in v[1:]):
+                i += 1
+                continue
+            return None
+        break
+    if i >= len(words):
+        return None
+    script = _static_value(words[i])
+    if not script or script == "-" or words[i].value.startswith("("):
+        return None
+    path = _resolve(script, cwd)
+    if not path:
+        return None
+    real = os.path.realpath(path)
+    if re.match(r"^/(?:dev|proc)(?:/|$)", real) or not os.path.isfile(real):
+        return None
+    return path
+
+
+# find's own write actions, and the commands an -exec/-execdir may run without
+# making the find a write (issue #402: `find <dir> -exec ls -l {} \;`).
+FIND_WRITES = ("-delete", "-fprint", "-fprint0", "-fprintf", "-fls")
+FIND_PRINTS = ("-fprint", "-fprint0", "-fprintf", "-fls")
+FIND_EXECS = ("-exec", "-execdir", "-ok", "-okdir")
+FIND_EXEC_READ_ONLY = ("ls", "stat", "wc", "head", "tail", "cat", "grep", "egrep", "fgrep",
+                       "md5", "md5sum", "shasum", "sha1sum", "sha256sum", "sha512sum", "cksum",
+                       "du", "readlink", "realpath", "basename", "dirname", "echo", "test", "[",
+                       "diff", "cmp", "jq")
+
+
+def _find_unsure(words):
+    """FIND_ACTION_WHY unless every action of this find only reads."""
+    i = 0
+    while i < len(words):
+        v = words[i].value
+        if v in FIND_WRITES or v in ("-ok", "-okdir"):
+            return FIND_ACTION_WHY
+        if v in FIND_EXECS:
+            j = i + 1
+            while j < len(words) and words[j].value not in (";", "+"):
+                j += 1
+            argv = words[i + 1:j]
+            if j >= len(words) or not argv or any(w.expands for w in argv):
+                return FIND_ACTION_WHY
+            base = argv[0].value
+            rest = [w.value for w in argv[1:] if w.value != "{}"]
+            if base not in FIND_EXEC_READ_ONLY or not _read_only_shape(base, rest):
+                return FIND_ACTION_WHY      # a path (`/tmp/x/ls`) is not the command listed
+            i = j + 1
+            continue
+        i += 1
+    return None
+
+
+XARGS_VALUE = ("-I", "-n", "-L", "-l", "-P", "-s", "-d", "-a", "-E", "-e", "--max-args",
+               "--max-procs", "--delimiter", "--arg-file", "--eof", "--replace", "--max-lines",
+               "--max-chars", "--process-slot-var")
+XARGS_FLAG = ("-0", "-r", "-t", "-p", "-x", "-o", "--null", "--no-run-if-empty", "--verbose",
+              "--interactive", "--exit", "--open-tty")
+
+
+def _xargs_read_only(words):
+    """True for `xargs [opts] CMD …` whose CMD is one find -exec may run (issue #402).
+
+    The items xargs reads become CMD's arguments, so CMD must stay read-only
+    whatever they are: every command on FIND_EXEC_READ_ONLY does. An option
+    this does not know, or a CMD built by expansion, keeps xargs a dispatcher.
+    """
+    i = 0
+    while i < len(words):
+        v = words[i].value
+        if v == "--":
+            i += 1
+            break
+        if not v.startswith("-") or v == "-":
+            break
+        name = v.split("=", 1)[0]
+        if name in XARGS_FLAG:
+            i += 1
+        elif name in XARGS_VALUE:
+            i += 1 if ("=" in v or len(v) > 2 and not v.startswith("--")) else 2
+        elif v[:2] in ("-I", "-n", "-L", "-P", "-s", "-d", "-a", "-E") and len(v) > 2:
+            i += 1          # an attached short value: -n1, -I{}, -P4
+        else:
+            return False
+    if i >= len(words) or any(w.expands for w in words[i:]):
+        return False
+    base = os.path.basename(words[i].value)
+    if "/" in words[i].value or base not in FIND_EXEC_READ_ONLY:
+        return False
+    return _read_only_shape(base, [w.value for w in words[i + 1:]])
+
+
+def _find_roots(words, cwd):
+    """The starting points of a find (before its first expression), resolved; None if unknown."""
+    i = 0
+    while i < len(words) and words[i].value in ("-H", "-L", "-P", "-E", "-X", "-d", "-s", "-x"):
+        i += 1
+    roots = []
+    while i < len(words):
+        v = words[i].value
+        if v.startswith("-") or v in ("(", "!", ")"):
+            break
+        roots.append(words[i])
+        i += 1
+    if not roots:
+        return [cwd] if cwd else None
+    out = []
+    for t in roots:
+        value = _static_value(t)
+        path = _resolve(value, cwd) if value is not None else None
+        if path is None:
+            return None
+        out.append(path)
+    return out
+
+
 def segment_targets(argv0, words, fed_code, cwd=None, heredoc=None):
     """([(target token, kind)], unsure_reason) for one already-unwrapped command segment.
 
@@ -1674,13 +1857,24 @@ def segment_targets(argv0, words, fed_code, cwd=None, heredoc=None):
         return [(t, kind) for t in toks]
 
     if base == "eval" or (base in EVALUATORS and (
-            fed_code or any(w.value in INLINE_CODE_FLAGS for w in words))):
+            any(w.value in INLINE_CODE_FLAGS for w in words)
+            or (fed_code and not _named_script(base, words, cwd)))):
         return [], EVAL_WHY
-    if base in DISPATCHERS:
+    # `source`/`.` run a file in THIS shell. Fed a heredoc, a pipe, a `<` or a
+    # process substitution (`. <(…)`), or pointed at /dev or /proc, they run
+    # code this parse never sees; a named file is a named script, as `bash f` is.
+    if base in ("source", "."):
+        ops = _operands(words)
+        first = _static_value(ops[0]) if ops else None
+        if fed_code or not ops or ops[0].value.startswith("(") or first == "-" or (
+                first and re.match(r"^/(?:dev|proc)(?:/|$)", os.path.normpath(first))):
+            return [], EVAL_WHY
+    if base in DISPATCHERS and not (base == "xargs" and _xargs_read_only(words)):
         return [], "builds and runs another command at runtime"
-    if base == "find" and any(
-            w.value in ("-exec", "-execdir", "-delete", "-fprint", "-fprintf") for w in words):
-        return [], "runs an action per match; the affected paths are decided at runtime"
+    if base == "find":
+        why = _find_unsure(words)
+        if why:
+            return [], why
 
     if base in ("rm", "unlink", "shred"):
         return T(_operands(words, base), "DELETE"), None
@@ -1791,10 +1985,18 @@ def redirect_targets(toks):
 
 def analyze_command(command, cwd):
     """Yield (kind, detail, fragment) records for one Bash command string."""
+    global SEGMENTS
     anomalies = []
     heredoc_bodies = []
-    toks = tokenize(command, anomalies, heredoc_bodies)
+    heredoc_meta = []
+    toks = tokenize(command, anomalies, heredoc_bodies, heredoc_meta)
     heredoc_iter = iter(heredoc_bodies)
+    # The text the shell itself parses: the command minus its quoted heredoc
+    # bodies, which are literal data (spans cut from the end so earlier ones hold).
+    shell_text = command
+    for quoted, start, end in reversed(heredoc_meta):
+        if quoted and end > start:
+            shell_text = shell_text[:start] + shell_text[end:]
 
     records = []
     segment = []
@@ -1827,21 +2029,36 @@ def analyze_command(command, cwd):
     cwd_stack = []
     ASSIGNS.clear()
     RESOLVABLE.clear()
-    RESOLVABLE.update(_resolvable_names(command))
+    RESOLVABLE.update(_resolvable_names(command, shell_text))
     scope = {"frames": []}
     prev_terminator = ""
+    # One entry per top-level segment for _needle_text (issue #402): what it
+    # says, where its output can go, and the records it produced.
+    SEGMENTS = {"segs": [], "functions": False}
+    hd = 0
 
     for seg, piped_in, terminator in segments:
         if seg:
             depth, own, cwd = _scope_update(seg, scope, cwd, terminator)
             depth += len(cwd_stack)
+            n_hd = sum(1 for t in seg if t.kind == "op" and t.value in ("<<", "<<-"))
+            info = {"words": [t.value for t in seg if t.kind == "word"],
+                    "bodies": [(heredoc_bodies[k], heredoc_meta[k][0])
+                               for k in range(hd, min(hd + n_hd, len(heredoc_bodies)))],
+                    "piped_in": piped_in, "terminator": terminator, "depth": depth}
+            hd += n_hd
+            first = len(records)
             cwd = _segment_records(seg, piped_in, terminator, cwd, records, heredoc_iter,
                                    conditional=depth > 0 or prev_terminator in ("&&", "||"),
-                                   cd_mode=_cd_mode(scope, own, terminator, prev_terminator))
+                                   cd_mode=_cd_mode(scope, own, terminator, prev_terminator),
+                                   shape=info)
+            info["records"] = records[first:]
+            SEGMENTS["segs"].append(info)
         elif terminator == ")" and prev_terminator == "(":
             # `NAME() {`: the body that follows is a function's, run later
             # if at all, so a `cd` inside it leaves the cwd unknown.
             scope["fn_pending"] = True
+            SEGMENTS["functions"] = True
         # The group boundary is the terminator of the segment just processed.
         if terminator == "(":
             cwd_stack.append(cwd)
@@ -1853,6 +2070,14 @@ def analyze_command(command, cwd):
         # conditional state only when its own terminator is a list operator.
         if seg or terminator in ("&&", "||", "|", "&"):
             prev_terminator = terminator
+    # A named script fed stdin was exempted from EVAL_WHY on the promise that it
+    # is a file on disk. If this same command writes, links or fills that file
+    # (`ln -sf /dev/stdin s; bash s <<EOF`), the promise does not hold.
+    written = [d for k, d, _ in records if k in ("TARGET", "TREE", "DELETE")]
+    for kind, path, fragment in list(records):
+        if kind == "SCRIPT" and any(w == path or path.startswith(w.rstrip("/") + "/")
+                                    for w in written):
+            records.append(("UNSURE", EVAL_WHY, fragment))
     records.extend(("ANOMALY", why, "") for why in anomalies)
     return records
 
@@ -1881,13 +2106,20 @@ QUIET_COMMANDS = ("cd", "pushd", "popd", "true", ":", "echo", "printf", "test", 
 
 
 def _segment_records(seg, piped_in, terminator, cwd, records, heredoc_iter, conditional=False,
-                     cd_mode="apply"):
+                     cd_mode="apply", shape=None):
     """Append this segment's records; return the cwd the NEXT segment sees.
 
     `conditional` is true when the segment follows `&&`/`||` or sits inside
     a compound command: it may never run, so no assignment in it is admitted.
     `cd_mode` (see _cd_mode) says whether a `cd` here moves the parent's cwd.
+    `shape`, when given, is filled with the command this segment runs once
+    unwrapped (`base`, `rest`), whether it carried `NAME=value` prefixes, and
+    its redirection targets — what _needle_text needs to tell a read from a write.
     """
+    if shape is None:
+        shape = {}
+    shape.update({"base": None, "rest": [], "prefix_assign": False,
+                  "redirects": [t.value for t in redirect_targets(seg)]})
     fragment = " ".join(t.value for t in seg if t.kind == "word")[:160]
 
     # This segment's own `<<`/`<<-` bodies, in order — pulled off the shared
@@ -1958,11 +2190,19 @@ def _segment_records(seg, piped_in, terminator, cwd, records, heredoc_iter, cond
             continue
         if "=" in head and not head.startswith("=") and head.split("=", 1)[0].replace("_", "a").isalnum():
             words.pop(0)
+            shape["prefix_assign"] = True
             continue
         name = os.path.basename(head)
         if name in WRAPPERS:
             words.pop(0)
             words, wrapper_unsure = _strip_wrapper_options(words, name)
+            # `timeout [opts] DURATION cmd …` runs cmd: the duration goes too.
+            if name == "timeout" and not wrapper_unsure:
+                if words and TIMEOUT_DURATION.match(words[0].value):
+                    words.pop(0)
+                else:
+                    wrapper_unsure = ("is run under `timeout` with a duration this parse cannot read, "
+                                      "so the command it actually runs cannot be identified")
             if wrapper_unsure:
                 records.append(("UNSURE", wrapper_unsure, fragment))
                 finish()
@@ -1976,6 +2216,9 @@ def _segment_records(seg, piped_in, terminator, cwd, records, heredoc_iter, cond
     argv0, rest = words[0].value, words[1:]
     base = os.path.basename(argv0)
     records.append(("RAN", base, fragment))
+    shape["base"] = base
+    shape["rest"] = [w.value for w in rest]
+    shape["argv0"] = argv0
 
     # `cd` moves the frame every later relative path is resolved against —
     # unless it runs in a subshell, where the move dies with it. A pipeline
@@ -2033,6 +2276,17 @@ def _segment_records(seg, piped_in, terminator, cwd, records, heredoc_iter, cond
         records.append(("UNSURE", unsure, fragment))
     if PROTECTED_MODE and not unsure:
         records.extend(_source_records(argv0, rest, cwd, fragment))
+    if fed_code and not unsure and base in SCRIPT_SAFE_FLAGS:
+        script = _named_script(base, rest, cwd)
+        if script:
+            records.append(("SCRIPT", script, fragment))
+    if PROTECTED_MODE and base == "find" and unsure == FIND_ACTION_WHY and any(
+            w.value in FIND_WRITES + FIND_EXECS and w.value not in FIND_PRINTS for w in rest):
+        # A find that deletes or runs a writer acts on everything under its
+        # starting points, so one that HOLDS a protected path reaches it, as
+        # `rm -rf` of that directory would (SCOPE, judged in protect()).
+        for root in _find_roots(rest, cwd) or []:
+            records.append(("SCOPE", root, fragment))
     finish(pairs)
     return cwd
 
@@ -2794,6 +3048,8 @@ EDIT_PATH_KEYS = ("file_path", "path", "notebook_path", "filePath")
 
 
 def records_for(payload):
+    global SEGMENTS
+    SEGMENTS = None
     tool = payload.get("tool_name") or ""
     tool_input = payload.get("tool_input") or {}
     cwd = payload.get("cwd") or os.getcwd()
@@ -2847,12 +3103,19 @@ def records_for(payload):
 #     that CONTAINS a protected home or plugin-root path counts as deleting it.
 #   - An UNSURE write whose command text names a protected path is a deny, not
 #     an advisory: the parser cannot prove which file an interpreter writes, so
-#     a mention is the only evidence there is, and for R4 it is enough.
+#     a mention is the only evidence there is, and for R4 it is enough. The
+#     text is the part that could steer the write (_needle_text, issue #402):
+#     a read-only command's words and data written to a file are not evidence.
+#   - A find that deletes or runs a writer is judged by its starting points
+#     (SCOPE), as `rm -rf` of that directory would be.
 #
 # The table comes from core/permissions/actions.json (`equivalents.paths` of
 # the ids below); FALLBACK_PROTECTED is used only when that file cannot be
 # read, and tests/test-sensitive-protected-paths.sh holds the two equal.
 PROTECTED_MODE = False
+# Per-command segment shapes from analyze_command, read by _needle_text; None
+# for a payload that is not a shell command.
+SEGMENTS = None
 PROTECTED_IDS = ("policy.edit", "config.global.write")
 FALLBACK_PROTECTED = {
     "policy.edit": [
@@ -3284,6 +3547,213 @@ def _source_records(argv0, words, cwd, fragment):
     return out
 
 
+# --------------------------------------------------------------------------
+# Which text is evidence of an unresolved write (issue #402)
+# --------------------------------------------------------------------------
+# protect() fails closed on an UNSURE write by asking whether the command NAMES
+# a protected path. Asked of the whole command, that read a protected path in a
+# `stat`, a `find -exec ls`, a `jq` lookup or a PR body heredoc as a write,
+# whenever anything else in the same command was unresolved. _needle_text
+# answers the narrower question the rule means: does the text that could steer
+# an unresolved write name one? It drops only what provably cannot:
+#
+#   1. An INERT segment — a command on the positive read-only list below, in
+#      a shape that writes nothing (no `sed -i`, `sort -o`, `rg --pre`,
+#      `git -c`, `printf -v`, …), at top level, with no assignment, no
+#      substitution, no redirection but /dev/null, and whose output goes to
+#      the terminal or only through other inert commands. Its words can reach
+#      no write: not as a target, not as code, not through a variable, a file,
+#      the cwd or a pipe.
+#   2. DATA — a quoted (or expansion-free) heredoc body fed to `cat`/`tee`,
+#      and the arguments of `echo`/`printf` — but only when every UNSURE in
+#      the command is an unresolved TARGET (never an interpreter, eval, a
+#      dispatcher or a find action, which could read that data back as code)
+#      and nothing in the command can turn file content into a path (no
+#      substitution, `read`, `mapfile`, `source`, no interpreter or script run).
+#
+# Everything else stays evidence, so every write form that names its target,
+# its code, its variable, its cwd or its input still fails closed. Inline
+# interpreter code is never narrowed: proving `python3 -c` read-only is the
+# arbitrary-code question this parser does not answer. A function definition,
+# an alias, a PATH change or a tokeniser anomaly turns the narrowing off.
+
+READ_ONLY_COMMANDS = (
+    "ls", "stat", "wc", "head", "tail", "cat", "grep", "egrep", "fgrep", "rg", "du", "df",
+    "readlink", "realpath", "basename", "dirname", "test", "[", "md5", "md5sum", "shasum",
+    "sha1sum", "sha256sum", "sha512sum", "cksum", "diff", "cmp", "echo", "printf", "true",
+    "false", ":", "pwd", "date", "which", "type", "cut", "tr", "column", "nl", "comm", "jq",
+    "sed", "find", "git", "sort", "uniq", "od", "strings", "id", "whoami", "uname",
+    "hostname", "printenv", "sleep", "seq", "xargs",
+)
+GIT_READ_ONLY = ("status", "diff", "log", "show", "ls-files", "ls-tree", "rev-parse", "blame",
+                 "cat-file", "describe", "shortlog", "grep", "rev-list", "show-ref",
+                 "for-each-ref", "merge-base", "name-rev")
+GIT_VALUE_GLOBALS = ("-C", "--git-dir", "--work-tree", "--namespace")
+# Shell builtins and commands that turn data into a path, a variable or code.
+CONVERTERS = ("read", "mapfile", "readarray", "source", ".", "eval", "exec", "xargs",
+              "parallel", "watch", "getopts", "let", "declare", "typeset", "local",
+              "export", "readonly", "set")
+# Code the shell runs while expanding a word or an unquoted heredoc body.
+SUBSTITUTION = re.compile(r"\$\(|`|\$\[|\$\{[^}]*=|^\(")
+DISABLE_NARROWING = ("alias", "unalias", "hash", "enable", "shopt", "function", "trap",
+                     "command_not_found_handle")
+ENV_THAT_RUNS_CODE = re.compile(r"^(?:PATH|BASH_ENV|ENV|CDPATH|IFS|PROMPT_COMMAND|BASH_FUNC_\S*)\+?=")
+
+
+def _short_cluster_has(args, letters):
+    return any(a.startswith("-") and not a.startswith("--") and any(c in a[1:] for c in letters)
+               for a in args)
+
+
+def _read_only_shape(base, rest):
+    """True when `base rest…` is a read-only invocation (see the block comment above)."""
+    if base not in READ_ONLY_COMMANDS:
+        return False
+    if base == "printf":
+        return not any(a == "-v" or a.startswith("-v") for a in rest[:1])
+    if base == "sort":
+        return not (_short_cluster_has(rest, "oT") or any(
+            a.startswith(("--output", "--compress-program", "--temporary-directory")) for a in rest))
+    if base == "uniq":
+        return all(a.startswith("-") for a in rest)
+    if base == "rg":
+        return not any(a.startswith("--pre") for a in rest)
+    if base == "sed":
+        toks = [Tok("word", a) for a in rest]
+        if _has_inplace(toks) or any(a in ("-f", "--file") or a.startswith("--file=") or
+                                     (a.startswith("-f") and not a.startswith("--")) for a in rest):
+            return False
+        return not any(_sed_writes(x) for x in _sed_scripts(toks))
+    if base == "find":
+        return _find_unsure([Tok("word", a) for a in rest]) is None
+    if base == "xargs":
+        return _xargs_read_only([Tok("word", a) for a in rest])
+    if base == "git":
+        i = 0
+        while i < len(rest) and rest[i].startswith("-"):
+            a = rest[i]
+            if a in GIT_VALUE_GLOBALS:
+                i += 2
+                continue
+            if a.startswith(("--git-dir=", "--work-tree=", "--namespace=")) or a in (
+                    "--no-pager", "--no-optional-locks", "--literal-pathspecs", "--bare"):
+                i += 1
+                continue
+            return False        # -c, --config-env, --exec-path, -p (a pager), …
+        if i >= len(rest) or rest[i] not in GIT_READ_ONLY:
+            return False
+        args = rest[i + 1:]
+        return not any(a.startswith(("--output", "--ext-diff", "-O", "--open-files-in-pager"))
+                       for a in args)
+    return True
+
+
+def _inert(seg):
+    """Rule 1 of the block comment, for this segment alone (its pipe is _needle_text's)."""
+    if seg["depth"] or seg["prefix_assign"] or not seg.get("base"):
+        return False
+    if os.path.basename(seg.get("argv0") or "") != seg["base"] or "/" in (seg.get("argv0") or ""):
+        # A path in argv0 (`./ls`, `/tmp/x/cat`) is not the command on the list.
+        return False
+    if any(SUBSTITUTION.search(w) for w in seg["words"]):
+        return False
+    if any(not q and SUBSTITUTION.search(b) for b, q in seg["bodies"]):
+        return False
+    for kind, detail, _ in seg["records"]:
+        if kind == "RAN" or (kind == "TARGET" and detail == "/dev/null"):
+            continue
+        return False
+    return _read_only_shape(seg["base"], seg["rest"])
+
+
+def _needle_text(text, records):
+    """The part of `text` that could steer an unresolved write (see the block comment)."""
+    info = SEGMENTS
+    if not info or any(k == "ANOMALY" for k, _, _ in records):
+        return text
+    segs = info["segs"]
+    if info["functions"] or any(
+            s.get("base") in DISABLE_NARROWING or (s["words"] and s["words"][0] in ("function", "exec"))
+            or any(ENV_THAT_RUNS_CODE.match(w) for w in s["words"]) for s in segs):
+        return text         # `exec >f` sends every later "terminal" output into a file
+    inert = [False] * len(segs)
+    for i in range(len(segs) - 1, -1, -1):
+        piped_on = segs[i]["terminator"] == "|"
+        inert[i] = _inert(segs[i]) and (not piped_on or (i + 1 < len(segs) and inert[i + 1]))
+    target_only = all(d.startswith(("writes to a target built by shell expansion",
+                                    "writes to a relative path after a `cd`",
+                                    "writes to a glob"))
+                      for k, d, _ in records if k == "UNSURE")
+    live = [s for s, dead in zip(segs, inert) if not dead]
+    converts = any(
+        s.get("base") in CONVERTERS or s.get("base") in EVALUATORS
+        or "/" in (s.get("argv0") or "")
+        or (s.get("base") == "printf" and not _read_only_shape("printf", s["rest"]))
+        or any(SUBSTITUTION.search(w) for w in s["words"])
+        or any(not q and SUBSTITUTION.search(b) for b, q in s["bodies"])
+        for s in live)
+    data_ok = target_only and not converts
+    parts = []
+    for s in live:
+        base = s.get("base")
+        data = data_ok and _data_segment(s, live)
+        if data and base in ("echo", "printf"):
+            parts.extend(s["redirects"])        # what it writes to, not what it says
+            continue
+        parts.extend(s["words"])
+        for body, quoted in s["bodies"]:
+            if data and base in ("cat", "tee") and (quoted or not SUBSTITUTION.search(body)):
+                continue
+            parts.append(body)
+    return "\n".join(parts)
+
+
+# A later command may READ BACK a file this one wrote: `sed -f`, `make -f`,
+# `tar -T`, `git restore --pathspec-from-file`, … could each turn its content
+# into code or a path. These flags only take the file as text to send.
+CONTENT_FILE_FLAGS = ("--body-file", "--notes-file", "-F", "--file")
+
+
+def _data_segment(seg, live):
+    """Rule 2 for one echo/printf/cat/tee segment: its content can only become file content.
+
+    Its output must not be piped or sit in a group, it carries no assignment,
+    and no other live segment names a file it writes (except as the message
+    file of `gh` or `git commit`), or a glob that could.
+    """
+    base = seg.get("base")
+    if base not in ("echo", "printf", "cat", "tee") or seg["prefix_assign"] or seg["depth"] \
+            or seg["terminator"] == "|" or (
+                base == "printf" and not _read_only_shape("printf", seg["rest"])):
+        return False
+    files = list(seg["redirects"])
+    if base == "tee":
+        files += [a for a in seg["rest"] if not a.startswith("-")]
+    names = set()
+    for f in files:
+        name = os.path.basename(f.rstrip("/"))
+        if not name or name in (".", ".."):
+            return False
+        names.add(name)
+    for other in live:
+        if other is seg:
+            continue
+        words = other["words"]
+        skip = set()
+        if other.get("base") == "gh" or (other.get("base") == "git" and "commit" in other["rest"]):
+            for i, w in enumerate(words):
+                if w in CONTENT_FILE_FLAGS:
+                    skip.add(i + 1)
+                elif any(w.startswith(flag + "=") for flag in CONTENT_FILE_FLAGS if flag.startswith("--")):
+                    skip.add(i)
+        for i, w in enumerate(words):
+            if i in skip:
+                continue
+            if any(c in w for c in "*?[") or any(n in w for n in names):
+                return False
+    return True
+
+
 # What an R4 ask adds to its reason, by why it is an ask and not a deny. A
 # guard file of a plugin source checkout is editable with approval; a git
 # replay (checkout, switch, restore, reset, merge, pull, rebase, cherry-pick,
@@ -3296,7 +3766,7 @@ REPLAY_ASK_TAIL = (" A git branch operation brings in another commit's version o
                    "rather than refused: confirm only if you meant this operation to change that file.")
 
 # Kinds that never leave this module: they are consumed by protect().
-INTERNAL_KINDS = ("SOURCE", "REPLAY", "PREFIX", "ANOMALY", "RAN")
+INTERNAL_KINDS = ("SOURCE", "REPLAY", "PREFIX", "ANOMALY", "RAN", "SCOPE", "SCRIPT")
 
 
 def protect(records, payload):
@@ -3347,6 +3817,10 @@ def protect(records, payload):
             flag_path(prot.match(detail, containing=True), detail,
                       "would be rewritten from another commit, the index or a patch", fragment, replay=True)
             continue
+        if kind == "SCOPE":
+            flag_path(prot.match(detail, containing=True), detail,
+                      "is searched by a find that deletes or runs a writer on what it matches", fragment)
+            continue
         if kind == "PREFIX":
             flag_path(prot.match_prefix(detail), detail,
                       "names the files this command writes (prefix plus a suffix), and one of them can be a "
@@ -3355,7 +3829,7 @@ def protect(records, payload):
         if kind == "ANOMALY":
             anomalies.append(detail)
             continue
-        if kind == "RAN":
+        if kind in ("RAN", "SCRIPT"):
             continue
         out.append((kind, detail, fragment))
         if kind in ("TARGET", "DELETE", "TREE"):
@@ -3369,12 +3843,17 @@ def protect(records, payload):
                 out.append((kind, real, fragment))
     unsure = any(k == "UNSURE" for k, _, _ in records)
     if text and (unsure or anomalies):
+        evidence = _needle_text(text, records)
+        opaque = any(k == "UNSURE" and d == EVAL_WHY for k, d, _ in records)
         for rx, mode, pattern in prot.needles():
-            m = rx.search(text)
+            m = rx.search(evidence)
             if m:
                 if anomalies and not unsure:
                     lead = ("this command uses shell syntax the parse does not follow (%s), and it names '%s'"
                             % ("; ".join(anomalies), m.group(0)))
+                elif opaque:
+                    lead = ("code this parse cannot read (inline interpreter code, eval, or a program fed "
+                            "on stdin) runs in a command that names '%s'" % m.group(0))
                 else:
                     lead = "a write this parse could not resolve names '%s'" % m.group(0)
                 flag("name:" + m.group(0).casefold(), mode,

@@ -5,6 +5,15 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [5.6.13] — 2026-11-07
+
+### Fixed
+
+- **The protected-path guard no longer blocks commands that only mention a protected path** (#402). When anything in a command was unresolved, `write-targets.py --protected` searched the whole command text for a protected path and denied on any hit. A `stat` of the state dir, a `find … -exec ls`, a `jq` on `opencode.json` or a PR-body heredoc naming the state dir were all denied if anything else in the command was unresolved. The search now covers only the text that could steer the unresolved write (`_needle_text`). It drops the words of commands on a positive read-only list (`ls`, `stat`, `cat`, `grep`, `jq`, `sed -n`, read-only `git`, `find` and `xargs` that only run read-only commands, …) when they sit at top level and their output goes only to the terminal or to other such commands. When every unresolved write is an unresolved target and nothing in the command can read data back as a path or code, it also drops heredoc and `echo`/`printf` data written to a file. A function definition, an alias, `exec`, a PATH change or a tokeniser anomaly turns the narrowing off. Inline interpreter code (`python3 -c`, `python3 - <<EOF`, `node -e`, `eval`) that names a protected path stays blocked: proving it read-only is the arbitrary-code question the parser does not answer. Its reason now says the block was judged from text and how to make the write checkable (Edit/Write, a literal target, a plain read-only command).
+- **Parses that over-reported:** a script named on an interpreter's command line and fed stdin (`bash x.sh </dev/null`, `python3 x.py <<<"$json"`) is a named script, not inline code, if it exists as a regular file outside `/dev` and `/proc` and the same command does not write it. `timeout DURATION cmd` is a wrapper, and its command is judged. `find -exec` and `xargs` that only run read-only commands are not dispatchers. A literal `NAME=value` is no longer left unresolved because a quoted heredoc body happens to contain `NAME` or `). `.
+- **Writes the guard missed:** `find -fls`, `-fprint0`, `-ok` and `-okdir` are find actions. `source`/`.` fed code (`source /dev/stdin <<EOF`, `. <(…)`) runs code like `eval`. A `find` that deletes or runs a writer is judged by its starting points, so `find ~/.claude -name 'settings*.json' -exec sed -i …` is denied the way `rm -rf ~/.claude` is.
+- Two-direction tables in `tests/test-sensitive-protected-paths.sh`. Every false positive from the issue and close variants now pass. More than 70 real write forms onto protected paths stay blocked, including read-back routes (`sed -f` of an echoed file, `exec >file`, a `/dev/stdin` symlink posing as a script).
+
 ## [5.6.12] — 2026-11-07
 
 ### Changed

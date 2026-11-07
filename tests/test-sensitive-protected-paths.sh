@@ -10,6 +10,12 @@
 #     different $HOME only adds a second protected home, never moves the first;
 #   - a symlink, or a symlinked parent directory, does not carry a write past
 #     the check (realpath), and `ln` cannot make a protected file reachable;
+#   - (#402) a protected path that is only read (stat, ls, find -exec ls, jq,
+#     git diff) or only data (a heredoc body or echo text written to a file)
+#     is not a write, beside an unresolved write or not — and every real write
+#     form onto one (redirects, tee, sed -i, cp/mv/install/rm/ln, find
+#     -delete/-exec, xargs, interpreters, git replays, dd, truncate, cd) stays
+#     blocked, as do the read-back routes that would turn data into a target;
 #   - an unresolved write (an interpreter, a variable) that NAMES a protected
 #     path is a deny, while one that names none stays the advisory it was;
 #   - PM_ALLOW_PROTECTED unlocks nothing protected, but still unlocks the
@@ -331,5 +337,194 @@ judge "bypass: the host settings file is still denied" deny "$(bp "$HOME/.claude
 judge "bypass on a Codex payload changes nothing" deny "$(jq -nc --arg f "$ROOT/package-lock.json" --arg d "$ROOT" \
   '{cwd:$d, turn_id:"t", hook_event_name:"PreToolUse", tool_name:"Edit", permission_mode:"bypassPermissions", tool_input:{file_path:$f}}' \
   | bash "$G" 2>/dev/null | jq -r '.hookSpecificOutput.permissionDecision // "pass"' 2>/dev/null)"
+
+# ===========================================================================
+# Issue #402: a protected path that is only MENTIONED is not a write; every
+# real write still is. Two tables, one per direction. `blocked` accepts deny
+# or the R4 ask (a git replay); `passes` accepts allow or the advisory warn.
+# Both print the verdict they got when they fail.
+# ===========================================================================
+blocked() { local d; d="$(vb "$2")"; case "$d" in deny|ask) d=blocked ;; esac; judge "$1" blocked "$d"; }
+passes()  { local d; d="$(vb "$2")"; case "$d" in allow|warn) d=passes ;; esac; judge "$1" passes "$d"; }
+NL=$'\n'
+
+section "#402 (a): mentions, reads and data are not writes"
+# The six reports in the issue, then close variants of each.
+passes "find on the state dir with a read-only -exec ls" \
+  "find ~/.local/state/tamirs-superpowers -newermt '-5 minutes' -exec ls -laT {} \\;"
+passes "find -exec stat ... + on the state dir" \
+  "find $PHOME/.local/state/tamirs-superpowers -type f -exec stat -f %m {} +"
+passes "find -exec grep -l in the plugin cache" \
+  "find ~/.claude/plugins/cache -name '*.json' -exec grep -l version {} \\;"
+passes "stat of hostver beside an unrelated interpreter" \
+  "stat -f %m ~/.local/state/tamirs-superpowers/hostver; python3 -c 'print(1)'"
+passes "ls | head of the state dir beside an unresolved write" \
+  "ls -la ~/.local/state/tamirs-superpowers | head -5; echo x > \"\$OUT\""
+passes "PR body heredoc naming the state dir, to a variable path" \
+  "cat > \"\$SCRATCH/pr-body.md\" <<'EOF'${NL}The guard state lives in ~/.local/state/tamirs-superpowers.${NL}EOF"
+passes "unquoted heredoc naming hostver, to a variable path" \
+  "cat > \$D/issue.md <<EOF${NL}State dir: \$HOME/.local/state/tamirs-superpowers/hostver${NL}EOF"
+passes "issue body whose prose repeats the variable's name" \
+  "D=$TMP/scratch${NL}cat > \$D/issue.md <<'EOF'${NL}## D${NL}Never hand-edit ~/.config/tamirs-superpowers/permissions.json.${NL}EOF"
+passes "tee of heredoc data naming opencode.json to a variable path" \
+  "tee \"\$OUT/notes.md\" >/dev/null <<'EOF'${NL}OpenCode reads opencode.json from the repo root.${NL}EOF"
+passes "jq on opencode.json beside an unrelated interpreter" \
+  "jq '.permission' opencode.json; python3 -c 'print(1)'"
+passes "jq on opencode.json into a scratch file" "jq -r .version opencode.json > /tmp/v.txt"
+passes "git diff of opencode.json beside an unresolved write" \
+  "git diff -- opencode.json; echo x > \"\$OUT\""
+passes "sed -n of a cached plugin script beside an interpreter" \
+  "sed -n 1,40p ~/.claude/plugins/cache/m/p/5.6.3/scripts/x.sh; python3 -c 'print(1)'"
+passes "echo naming the policy file into a variable path" \
+  "echo \"edit ~/.config/tamirs-superpowers/permissions.json by hand\" >> \"\$NOTES\""
+passes "printf naming opencode.json into a file, then an unresolved copy of another" \
+  "printf '%s\\n' 'see opencode.json' > notes.txt; cp a.txt \"\$DEST\""
+# A script named on the command line must exist as a regular file to be one.
+CACHE="$HOME/.claude/plugins/cache/m/p/5.6.3"
+mkdir -p "$CACHE/scripts" "$CACHE/hooks/lib"
+for f in scripts/labels.sh scripts/x.sh scripts/probe.sh hooks/lib/write-targets.py; do printf '#\n' > "$CACHE/$f"; done
+passes "a cached plugin script run with stdin from /dev/null" \
+  "bash ~/.claude/plugins/cache/m/p/5.6.3/scripts/labels.sh apply </dev/null 2>&1 | tail -6"
+passes "the same through a literal variable" \
+  "P=~/.claude/plugins/cache/m/p/5.6.3; bash \$P/scripts/x.sh </dev/null"
+# (Payload text, never run; `-k 5` keeps the static timeout lint from reading it as a call.)
+passes "timeout around a cached plugin script" \
+  "timeout -k 5 90 bash ~/.claude/plugins/cache/m/p/5.6.3/scripts/probe.sh . 2>&1 | tail -10"
+blocked "timeout around a real write"            "timeout -k 5 90 cp /tmp/a ~/.gitconfig"
+blocked "timeout with a duration it cannot read, naming a path" \
+  "timeout -k 5 \$T cp /tmp/a ~/.gitconfig"
+passes "python3 script.py fed a here-string" \
+  "python3 ~/.claude/plugins/cache/m/p/5.6.3/hooks/lib/write-targets.py --protected <<<'{}'"
+passes "cat of host settings, then an interpreter on other data" \
+  "cat ~/.claude/settings.json; python3 -c 'print(2)'"
+passes "xargs grep over files in the plugin cache, beside an unresolved write" \
+  "ls ~/.claude/plugins/cache/m/p/rules/*.mdc | xargs grep -c 'alwaysApply: true'; echo x > \"\$OUT\""
+passes "xargs -0 wc -l from a find" \
+  "find ~/.local/state/tamirs-superpowers -type f -print0 | xargs -0 wc -l"
+passes "a literal variable whose quoted heredoc prose has '). '" \
+  "W=$TMP/w; cat > \"\$W/review.md\" <<'EOF'${NL}(see ~/.claude/settings.json). Then stop.${NL}EOF"
+
+section "#402 (b): every real write form onto a protected path stays blocked"
+blocked "> onto ~/.claude/settings.json"         "echo x > ~/.claude/settings.json"
+blocked ">> onto the passwd-home .gitconfig"     "echo x >> $PHOME/.gitconfig"
+blocked "> after cd into a protected dir"        "cd ~/.config/gh && echo x > hosts.yml"
+blocked "bare > after cd into a protected dir"   "cd ~/.config/gh; > hosts.yml"
+blocked "cp after cd into ~/.claude"             "cd $PHOME/.claude && cp /tmp/a settings.json"
+blocked "tee onto gh hosts"                      "echo x | tee ~/.config/gh/hosts.yml"
+blocked "tee -a onto project settings"           "echo x | tee -a .claude/settings.local.json"
+blocked "tee of a heredoc onto .gitconfig"       "tee ~/.gitconfig <<'EOF'${NL}x${NL}EOF"
+blocked "heredoc into opencode.json"             "cat > opencode.json <<'EOF'${NL}{}${NL}EOF"
+blocked "sed -i on opencode.json"                "sed -i 's/a/b/' opencode.json"
+blocked "BSD sed -i '' on codex config"          "sed -i '' 's/a/b/' ~/.codex/config.toml"
+blocked "perl -pi on opencode.json"              "perl -pi -e 's/a/b/' opencode.json"
+blocked "cp onto opencode.json"                  "cp /tmp/a opencode.json"
+blocked "mv onto cursor hooks"                   "mv /tmp/a ~/.cursor/hooks.json"
+blocked "install onto .gitconfig"                "install -m 644 /tmp/a ~/.gitconfig"
+blocked "rm of the permission file"              "rm -f ~/.config/tamirs-superpowers/permissions.json"
+blocked "ln -sf over .gitconfig"                 "ln -sf /tmp/a ~/.gitconfig"
+blocked "dd of= onto .gitconfig"                 "dd if=/dev/zero of=$PHOME/.gitconfig count=1"
+blocked "truncate gh hosts"                      "truncate -s 0 ~/.config/gh/hosts.yml"
+blocked "touch project settings"                 "touch .claude/settings.json"
+blocked "find -delete in the policy dir"         "find ~/.config/tamirs-superpowers -name '*.json' -delete"
+blocked "find -exec rm in gh config"             "find ~/.config/gh -exec rm {} \\;"
+blocked "find -exec mv opencode.json away"       "find . -name opencode.json -exec mv {} /tmp \\;"
+blocked "find -exec sed -i on host settings"     "find ~/.claude -name 'settings*.json' -exec sed -i s/a/b/ {} +"
+blocked "find -exec tee into gh config"          "find ~/.config/gh -type f -exec tee {} \\; </dev/null"
+blocked "find -exec sh -c writing"               "find ~/.config/gh -exec sh -c 'echo x > \"\$1\"' _ {} \\;"
+blocked "find read-only -exec, then -exec rm"    "find ~/.config/gh -exec ls {} \\; -exec rm {} \\;"
+blocked "find read-only -exec, then -delete"     "find ~/.config/gh -exec ls {} \\; -delete"
+blocked "find -fprint onto .gitconfig"           "find /tmp -fprint ~/.gitconfig"
+blocked "find -fls onto .gitconfig"              "find /tmp -fls ~/.gitconfig"
+blocked "find -fprint0 onto .gitconfig"          "find /tmp -fprint0 ~/.gitconfig"
+blocked "find -ok rm in gh config"               "yes | find ~/.config/gh -ok rm {} \\;"
+blocked "find read-only -exec piped into a shell" "find ~/.config/gh -exec cat {} \\; | sh"
+blocked "xargs rm of .gitconfig"                 "echo ~/.gitconfig | xargs rm"
+blocked "xargs cp into gh config"                "ls ~/.config/gh/* | xargs -I{} cp /tmp/a {}"
+blocked "xargs sed -i on opencode.json"          "printf '%s\\n' opencode.json | xargs sed -i s/a/b/"
+blocked "xargs sh -c writing"                    "echo ~/.gitconfig | xargs -I{} sh -c 'echo x > {}'"
+blocked "xargs with an option it does not know"  "echo ~/.gitconfig | xargs --frobnicate cat"
+blocked "xargs tee"                              "echo ~/.gitconfig | xargs tee </dev/null"
+blocked "python3 -c open(w) on opencode.json"    "python3 -c \"open('opencode.json','w').write('x')\""
+blocked "python3 heredoc writing host settings" \
+  "python3 - <<'EOF'${NL}import os${NL}p=os.path.expanduser('~/.claude/settings.json')${NL}open(p,'w')${NL}EOF"
+blocked "python3 heredoc that only mentions opencode.json (inline code stays opaque)" \
+  "python3 - <<'EOF'${NL}p='docs/x.json'${NL}s=open(p).read().replace('a','opencode.json')${NL}open(p,'w').write(s)${NL}EOF"
+blocked "node -e writeFileSync on opencode.json" "node -e \"require('fs').writeFileSync('opencode.json','x')\""
+blocked "perl -e open > on opencode.json"        "perl -e 'open(F, \">\", \"opencode.json\")'"
+blocked "python3 via a prefix env var"           "F=~/.config/gh/hosts.yml python3 -c \"import os; open(os.environ['F'],'w')\""
+blocked "python3 via an exported var"            "export F=~/.config/gh/hosts.yml; python3 -c \"import os; open(os.environ['F'],'w')\""
+blocked "python3 via a shell var in its code"    "F=~/.gitconfig; python3 -c \"open('\$F','w')\""
+blocked "python3 via argv"                       "python3 - $PHOME/.gitconfig <<'EOF'${NL}import sys; open(sys.argv[1],'w')${NL}EOF"
+blocked "python3 after cd into a protected dir"  "cd ~/.config/gh && python3 -c \"open('hosts.yml','w')\""
+blocked "python3 reading a path an echo wrote"   "echo ~/.gitconfig > /tmp/p; python3 -c \"open(open('/tmp/p').read().strip(),'w')\""
+blocked "protected file piped into python3"      "cat ~/.config/gh/hosts.yml | python3 -c 'import sys; sys.stdin.read()'"
+blocked "a heredoc file then bash < it"          "cat > /tmp/f <<'EOF'${NL}echo x > ~/.gitconfig${NL}EOF${NL}bash < /tmp/f"
+printf '#\n' > "$TMP/runner.sh"
+blocked "a script this command writes, then runs fed code" \
+  "cat > $TMP/runner.sh <<'EOF'${NL}source /dev/stdin${NL}EOF${NL}bash $TMP/runner.sh <<'EOF'${NL}echo x > ~/.gitconfig${NL}EOF"
+blocked "a script relinked to /dev/stdin, then fed code" \
+  "ln -sf /dev/stdin $TMP/runner.sh; bash $TMP/runner.sh <<'EOF'${NL}echo x > ~/.gitconfig${NL}EOF"
+blocked "a script that does not exist yet, fed code" \
+  "bash $TMP/not-yet.sh <<'EOF'${NL}echo x > ~/.gitconfig${NL}EOF"
+blocked "a FIFO as the script" \
+  "mkfifo $TMP/ff; bash $TMP/ff <<'EOF'${NL}echo x > ~/.gitconfig${NL}EOF"
+blocked "echo data read back as a sed program" \
+  "echo 'w $PHOME/.gitconfig' > /tmp/p.sed; sed -n -f /tmp/p.sed /etc/hosts; cp a \"\$X\""
+blocked "heredoc data read back through a glob" \
+  "cat > /tmp/p.sed <<'EOF'${NL}w $PHOME/.gitconfig${NL}EOF${NL}sed -n -f /tmp/p.* /etc/hosts; cp a \"\$X\""
+blocked "echo data piped to a sed program on stdin" \
+  "echo 'w $PHOME/.gitconfig' | sed -n -f - /etc/hosts; cp a \"\$X\""
+blocked "exec > file, then an inert ls read back" \
+  "exec > /tmp/p; ls -d ~/.config/gh; exec >/dev/tty; D=\$(cat /tmp/p); echo x > \"\$D/hosts.yml\""
+blocked "find -exec of a look-alike ls by path" \
+  "find ~/.config/gh -exec /tmp/x/ls {} \\;"
+blocked "xargs of a look-alike grep by path" \
+  "echo ~/.gitconfig | xargs /tmp/x/grep"
+blocked "code piped into bash -s"                "echo 'echo x > ~/.gitconfig' | bash -s"
+blocked "code piped into python3 -"              "echo \"open('$PHOME/.gitconfig','w')\" | python3 -"
+blocked "bash /dev/stdin fed a heredoc"          "bash /dev/stdin <<'EOF'${NL}echo x > ~/.gitconfig${NL}EOF"
+blocked "python3 -i script.py fed code"          "echo \"open('$PHOME/.gitconfig','w')\" | python3 -i /tmp/s.py"
+blocked "source /dev/stdin fed a heredoc"        "source /dev/stdin <<'EOF'${NL}echo x > ~/.gitconfig${NL}EOF"
+blocked ". of a process substitution"            ". <(echo 'echo x > ~/.gitconfig')"
+blocked "eval naming .gitconfig"                 "eval 'echo x > ~/.gitconfig'"
+blocked "a substitution-built target dir"        "D=\$(echo ~/.config/gh); echo x > \"\$D/hosts.yml\""
+blocked "a loop variable target"                 "for d in ~/.config/gh; do echo x > \"\$d/hosts.yml\"; done"
+blocked "a target from \$(ls -d)"                "echo x > \"\$(ls -d ~/.config/gh)/hosts.yml\""
+blocked "a function called with the path"        "f() { echo x > \"\$1\"; }; f ~/.gitconfig"
+blocked "a function shadowing cat"               "cat() { echo x > \"\$1\"; }; cat ~/.gitconfig"
+blocked "set -- then a positional target"        "set -- ~/.gitconfig; echo x > \"\$1\""
+blocked "printf -v builds the target"            "printf -v D '%s' ~/.config/gh; echo x > \"\$D/hosts.yml\""
+blocked "a heredoc file read back into the target" \
+  "cat > /tmp/p <<'EOF'${NL}$PHOME/.config/gh${NL}EOF${NL}D=\$(cat /tmp/p); echo x > \"\$D/hosts.yml\""
+blocked "an echo file read back with read"       "echo ~/.config/gh > /tmp/p; read D < /tmp/p; echo x > \"\$D/hosts.yml\""
+blocked "an unquoted heredoc whose substitution writes" \
+  "cat > \"\$OUT\" <<EOF${NL}\$(echo x > ~/.gitconfig)${NL}EOF"
+blocked "a ls of gh config feeding a loop's target" \
+  "ls -d ~/.config/gh | while read d; do echo x > \"\$d/hosts.yml\"; done"
+blocked "a read-only command in a redirected group" \
+  "{ ls -d ~/.config/gh; } > /tmp/p; D=\$(cat /tmp/p); echo x > \"\$D/x\""
+blocked "PATH hijack before a read-only command" \
+  "PATH=/tmp/evil:\$PATH; cat ~/.gitconfig; echo x > \"\$OUT\""
+section "#402: the reason says whether it was judged from a target or from text"
+mention_reason="$(reason "$(run_guard "$GUARD" Bash "python3 -c \"open('opencode.json','w')\"")")"
+judge "a text-judged block names code it cannot read" yes "$(has "$mention_reason" "code this parse cannot read")"
+judge "  ... still sends a real write to the user"     yes "$(has "$mention_reason" "only the user can make the change")"
+judge "  ... and says how to make a write checkable"   yes "$(has "$mention_reason" "Edit or Write tool")"
+target_reason="$(reason "$(run_guard "$GUARD" Bash "echo x > ~/.gitconfig")")"
+judge "a resolved write keeps the plain R4 remedy"     yes "$(has "$target_reason" "ask them to make this change themselves")"
+judge "  ... with no checkable-write advice"           no  "$(has "$target_reason" "Edit or Write tool")"
+
+# git replays need the files tracked and changed, so git itself names them.
+GREPO="$TMP/grepo"
+harness_new_repo "$GREPO"
+mkdir -p "$GREPO/.claude"
+printf 'a\n' > "$GREPO/opencode.json"; printf '{}\n' > "$GREPO/.claude/settings.json"
+git -C "$GREPO" add -A && git -C "$GREPO" commit -q -m base
+printf 'b\n' > "$GREPO/opencode.json"; printf '{"x":1}\n' > "$GREPO/.claude/settings.json"
+blocked_in() { local d; d="$(v Bash "$2" "$GREPO")"; case "$d" in deny|ask) d=blocked ;; esac; judge "$1" blocked "$d"; }
+blocked_in "git checkout -- onto opencode.json"  "git checkout -- opencode.json"
+blocked_in "git restore of project settings"     "git restore .claude/settings.json"
+blocked_in "git apply of a patch onto opencode.json" \
+  "git apply <<'EOF'${NL}--- a/opencode.json${NL}+++ b/opencode.json${NL}@@ -1 +1 @@${NL}-a${NL}+b${NL}EOF"
 
 harness_summary

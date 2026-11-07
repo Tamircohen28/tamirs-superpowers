@@ -12,7 +12,8 @@
 #      plugin that is a source checkout are an R4 ask instead (contributors
 #      edit them), through hook_ask where the platform has one, else a deny.
 #      Targets are judged by realpath too, and an unresolved write whose text
-#      names a protected path is a deny (S-03).
+#      names a protected path is a deny (S-03) — the text that could steer it,
+#      not a read-only command's arguments or data written to a file (#402).
 #   2. GENERATED (lockfiles, .yarn/releases, shadcn UI, ignored build output).
 #      The user may set PM_ALLOW_PROTECTED=1 to edit one on purpose; it is
 #      theirs to set and no deny text names it (D10.5). GitHub Actions
@@ -130,6 +131,11 @@ deny() {
 # The R4 remedy (D10.3, D10.5): only the user changes these, outside the
 # agent's reach. It names no bypass — not an env switch, not another tool.
 PROTECTED_REMEDY="Only the user changes plugin permission policy, guard files and host settings (ADR 004 D10): stop and ask them to make this change themselves, outside this session. Do not retry it through another tool, command or path."
+# A block judged from the command's TEXT (an unresolved write, or code this
+# parse cannot read, that names a protected path) is not proof of a write
+# (issue #402). It keeps the same rule for a real write and says how to make
+# a write the guard can check; every route it names is itself judged.
+MENTION_REMEDY="If this command really writes that path, only the user can make the change (ADR 004 D10): stop and ask them, and do not retry it another way. If it only reads or mentions it, make the write checkable instead: edit the file you mean with the Edit or Write tool, give the redirect or copy a literal target rather than a variable, and read protected files with a plain read-only command (cat, jq, grep, stat, ls) rather than inline interpreter code."
 
 protected_ask() {
   local reason="$1"
@@ -200,7 +206,10 @@ while IFS=$'\t' read -r kind mode why; do
   [ "$kind" = "PROTECTED" ] || continue
   case "$mode" in
     ask) [ -n "$ask_reason" ] || ask_reason="$why" ;;
-    *)   deny "BLOCKED: $why $PROTECTED_REMEDY" ;;
+    *)   case "$why" in
+           *"is treated as a write to it."*) deny "BLOCKED: $why $MENTION_REMEDY" ;;
+           *)                                deny "BLOCKED: $why $PROTECTED_REMEDY" ;;
+         esac ;;
   esac
 done <<<"$analysis"
 if [ -n "$ask_reason" ]; then
