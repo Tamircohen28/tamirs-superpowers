@@ -117,6 +117,11 @@ done
 # One stub also records the shellcheck marker the recipe hands every suite.
 MARKER="$TMP/marker.log"
 printf 'printf "%%s\\n" "${SUPERPOWERS_SHELLCHECK_DONE:-unset}" > "%s"\n' "$MARKER" >> "$TREE/tests/test-alpha.sh"
+# ...and reads its stdin, as a real suite may (test-toolkit-gates.sh does). Fed the
+# list on stdin, it swallowed every suite after it and the loop ended green (#400).
+# A line it reads is logged, so the "every suite ran once" cases below catch both a
+# list fed on stdin and a suite handed make's own stdin (run_make feeds make a line).
+printf 'if IFS= read -r l; then printf "STDIN %%s\\n" "$l" >> "%s"; fi; cat > /dev/null\n' "$RAN" >> "$TREE/tests/test-alpha.sh"
 # Decoys the find must not pick up: depth 3, and a non-test-*.sh name.
 mkdir -p "$TREE/tests/hooks/deep"
 printf '#!/usr/bin/env bash\nexit 1\n' > "$TREE/tests/hooks/deep/test-too-deep.sh"
@@ -131,7 +136,8 @@ run_make() { # <args...> — runs make in the tree, resets the logs first
   # env -u: under `make test-hooks SHARD=i/n` the outer make exports SHARD and
   # MAKEFLAGS to every suite, so a nested make would inherit the shard and the
   # "no SHARD" cases would test the wrong thing (CI shard 2/4, 2026-11-05).
-  env -u SHARD -u MAKEFLAGS -u MAKEOVERRIDES -u MFLAGS -u MAKELEVEL make -C "$TREE" --no-print-directory "$@" 2>&1
+  printf 'not-a-suite\n' | env -u SHARD -u MAKEFLAGS -u MAKEOVERRIDES -u MFLAGS -u MAKELEVEL \
+    make -C "$TREE" --no-print-directory "$@" 2>&1
 }
 
 out="$(run_make test-hooks)"; rc=$?
@@ -140,6 +146,8 @@ judge "no SHARD: header is unchanged" yes "$(has "$out" "--- Hook behavior tests
 judge "no SHARD: header carries no shard suffix" no "$(has "$out" "(shard")"
 judge "no SHARD: every suite ran once, in sorted order" "$STUB_FULL" "$(cat "$RAN")"
 judge "no SHARD: one '==>' line per suite" 7 "$(printf '%s\n' "$out" | grep -c '^==> ')"
+judge "no SHARD: no suite read the list or make's stdin" 0 "$(grep -c '^STDIN' "$RAN")"
+judge "no SHARD: the closing line counts every suite" yes "$(has "$out" "--- 7 of 7 suites ran ---")"
 judge "no SHARD: the witness ran before and after every suite" 14 "$(grep -c call "$WITNESS")"
 judge "no SHARD: suites receive SUPERPOWERS_SHELLCHECK_DONE=1" 1 "$(cat "$MARKER")"
 
@@ -178,17 +186,19 @@ judge "a failing suite fails its shard" yes "$([ "$rc" -ne 0 ] && echo yes || ec
 judge "the failing suite is the last one that ran" "tests/hooks/test-h1.sh" "$(tail -n 1 "$RAN")"
 printf '#!/usr/bin/env bash\nprintf "%%s\\n" "$0" >> "%s"\n' "$RAN" > "$TREE/tests/hooks/test-h1.sh"
 
-# The witness check is live inside a shard: a fingerprint that changes across a
-# suite fails the shard and names the suite. The stub now prints its own call
-# count, so the before/after fingerprints can never agree.
+# The witness check is live inside a shard: a check that reports a leak fails the
+# shard and names the suite. The stub's `check` now always reports one.
 cat > "$TREE/scripts/real-home-witness.sh" <<EOF
 #!/usr/bin/env bash
 printf 'call\n' >> "$WITNESS"
-wc -l < "$WITNESS" | tr -d ' '
+[ "\$1" = check ] || exit 0
+printf '  witness: LEAK added intent/x.json (stub)\n'
+exit 1
 EOF
 out="$(run_make test-hooks SHARD=2/2)"; rc=$?
 judge "a changed real-home fingerprint fails the shard" yes "$([ "$rc" -ne 0 ] && echo yes || echo no)"
 judge "the witness failure names the suite" yes "$(has "$out" "FAIL $(bash "$SHARD_SH" 2/2 "$TREE" | head -n 1) wrote to the real")"
+judge "the witness's leak report reaches the output" yes "$(has "$out" "witness: LEAK added intent/x.json")"
 judge "the witness failure stops the shard at the first suite" 1 "$(grep -c . "$RAN")"
 
 # ---------------------------------------------------------------------------

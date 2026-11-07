@@ -1547,6 +1547,23 @@ expect "bypass: claude plugin configure (its own policy) stays denied" claude \
 
 judge "every queued case was flushed" "0 0" "$(wc -l < "$BQ_IN" | tr -d ' ') $(wc -l < "$BC_IN" | tr -d ' ')"
 
+section "the in-tree docker guard on the real resolver, at every level (#400)"
+# docker.state is never automatic at any level (catalog never_auto), so the real answer is ask or deny,
+# never allow, whatever the user file says. This case lived in tests/test-docker-guard.sh and ran against the
+# developer's own configuration; the resolver honours its test root only under the permission suites, so on
+# a machine above supervised its host-version probe wrote into the real ~/.local/state (#400). Here the test
+# root holds each level in turn, and the trace proves the real resolver answered.
+DG_CALL='{"tool_name":"Bash","session_id":"pg-1","cwd":"/","tool_input":{"command":"docker compose up -d"}}'
+for lv in none supervised standard unattended; do
+  set_level "$lv"
+  dg_out="$(printf '%s' "$DG_CALL" | PM_ALLOW_DOCKER=1 python3 "$ROOT/hooks/docker-guard.py" 2>/dev/null)"
+  dg="$(printf '%s' "$dg_out" | jq -r '.hookSpecificOutput.permissionDecision // .permission // (if . == {} then "allow" else "?" end)' 2>/dev/null)"
+  judge "docker guard, level $lv: docker compose up is not allowed, even with PM_ALLOW_DOCKER=1" yes \
+    "$(case "$dg" in ask|deny) echo yes ;; *) echo "no: $dg" ;; esac)"
+  judge "docker guard, level $lv: the answer names docker.state" yes "$(has "$dg_out" "docker.state")"
+done
+set_level none
+
 printf '\n  info wall time: %ss; %s verdicts and %s classifications judged in batch over %s flushes, the rest single-call\n' \
   "$((SECONDS - T_START))" "$BQ_TOTAL" "$BC_TOTAL" "$BQ_FLUSHES"
 harness_summary

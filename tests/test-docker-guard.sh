@@ -35,7 +35,8 @@
 #   so their assertions are unchanged. Changed: the two token cases — "inline
 #   PM_ALLOW_DOCKER=1 approves" and "PM_ALLOW_DOCKER=1 in env approves" — now
 #   assert that the token approves nothing. Added: the verdict mapping per host,
-#   fail-closed resolver failures, and the in-tree guard on the real resolver.
+#   fail-closed resolver failures. The in-tree guard on the real resolver is
+#   judged in tests/test-permission-guard.sh, under its test root (#400).
 #
 # WHY THE TEMP TREE CARRIES THE PERMISSIONS SCHEMA
 #   The guard does not spell the resolver's pass verdict: it reads it from
@@ -367,15 +368,13 @@ check "  ... and restored, the pass passes again" allow "$(decision "$out")"
 out="$(runp allow '{"tool_name":"Bash","tool_input":{"command":"docker ps"}}')"
 check "an unflagged command never calls the resolver" "" "$(cat "$STUB_LOG")"
 
-printf '\n--- the in-tree guard on the real resolver ---\n'
-
-# docker.state is never automatic at any level (catalog never_auto), so on any
-# machine's configuration the real answer is ask or deny, never allow.
-out="$(printf '%s' "$CL" | env -u PM_ALLOW_DOCKER -u CODEX_HOME -u GEMINI_SESSION_ID -u GEMINI_PROJECT_DIR \
-  PM_ALLOW_DOCKER=1 python3 "$REAL_HOOK" 2>/dev/null)"
-d="$(decision "$out")"
-check "real resolver: docker compose up is not allowed, even with PM_ALLOW_DOCKER=1" yes \
-  "$(case "$d" in ask|deny) echo yes ;; *) echo "no: $d" ;; esac)"
+# The in-tree guard on the REAL resolver lives in tests/test-permission-guard.sh
+# ("the in-tree docker guard on the real resolver, at every level"). It ran here
+# against the developer's own configuration, which this suite cannot redirect (the
+# resolver honours its test root only under the permission suites): on a machine
+# above supervised the resolver's host-version probe wrote a sess-1 entry into the
+# real ~/.local/state/tamirs-superpowers/hostver, and make test-hooks' witness
+# rightly failed this suite (#400).
 
 # Claude Code's bypass mode (5.6.7): the resolver is not consulted for what can be removed; a prune still asks.
 BY='{"tool_name":"Bash","session_id":"sess-1","cwd":"/","permission_mode":"bypassPermissions","tool_input":{"command":"docker compose up -d"}}'
