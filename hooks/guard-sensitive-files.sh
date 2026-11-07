@@ -133,9 +133,9 @@ deny() {
 PROTECTED_REMEDY="Only the user changes plugin permission policy, guard files and host settings (ADR 004 D10): stop and ask them to make this change themselves, outside this session. Do not retry it through another tool, command or path."
 # A block judged from the command's TEXT (an unresolved write, or code this
 # parse cannot read, that names a protected path) is not proof of a write
-# (issue #402). It keeps the same rule for a real write and says how to make
-# a write the guard can check; every route it names is itself judged.
-MENTION_REMEDY="If this command really writes that path, only the user can make the change (ADR 004 D10): stop and ask them, and do not retry it another way. If it only reads or mentions it, make the write checkable instead: edit the file you mean with the Edit or Write tool, give the redirect or copy a literal target rather than a variable, and read protected files with a plain read-only command (cat, jq, grep, stat, ls) rather than inline interpreter code."
+# (issue #402). It keeps the same rule for a real write, and otherwise asks
+# for a command the guard can resolve, which is then judged on its target.
+MENTION_REMEDY="Only the user changes plugin permission policy, guard files and host settings (ADR 004 D10): if this command does write that path, stop and ask them to make the change themselves. If it does not, rewrite it so the guard can resolve its target, for example a literal path in place of a variable or inline code."
 
 protected_ask() {
   local reason="$1"

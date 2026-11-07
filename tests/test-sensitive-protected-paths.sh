@@ -347,6 +347,7 @@ judge "bypass on a Codex payload changes nothing" deny "$(jq -nc --arg f "$ROOT/
 blocked() { local d; d="$(vb "$2")"; case "$d" in deny|ask) d=blocked ;; esac; judge "$1" blocked "$d"; }
 passes()  { local d; d="$(vb "$2")"; case "$d" in allow|warn) d=passes ;; esac; judge "$1" passes "$d"; }
 NL=$'\n'
+TAB=$'\t'
 
 section "#402 (a): mentions, reads and data are not writes"
 # The six reports in the issue, then close variants of each.
@@ -379,10 +380,7 @@ passes "echo naming the policy file into a variable path" \
   "echo \"edit ~/.config/tamirs-superpowers/permissions.json by hand\" >> \"\$NOTES\""
 passes "printf naming opencode.json into a file, then an unresolved copy of another" \
   "printf '%s\\n' 'see opencode.json' > notes.txt; cp a.txt \"\$DEST\""
-# A script named on the command line must exist as a regular file to be one.
-CACHE="$HOME/.claude/plugins/cache/m/p/5.6.3"
-mkdir -p "$CACHE/scripts" "$CACHE/hooks/lib"
-for f in scripts/labels.sh scripts/x.sh scripts/probe.sh hooks/lib/write-targets.py; do printf '#\n' > "$CACHE/$f"; done
+# stdin from /dev/null carries no program, so a named script stays a named script.
 passes "a cached plugin script run with stdin from /dev/null" \
   "bash ~/.claude/plugins/cache/m/p/5.6.3/scripts/labels.sh apply </dev/null 2>&1 | tail -6"
 passes "the same through a literal variable" \
@@ -393,8 +391,9 @@ passes "timeout around a cached plugin script" \
 blocked "timeout around a real write"            "timeout -k 5 90 cp /tmp/a ~/.gitconfig"
 blocked "timeout with a duration it cannot read, naming a path" \
   "timeout -k 5 \$T cp /tmp/a ~/.gitconfig"
-passes "python3 script.py fed a here-string" \
-  "python3 ~/.claude/plugins/cache/m/p/5.6.3/hooks/lib/write-targets.py --protected <<<'{}'"
+passes "python3 script.py with stdin from /dev/null" \
+  "python3 ~/.claude/plugins/cache/m/p/5.6.3/hooks/lib/write-targets.py --protected </dev/null"
+passes "an unresolved write run in an ordinary directory" "python3 -c \"open('hosts.yml','w')\""
 passes "cat of host settings, then an interpreter on other data" \
   "cat ~/.claude/settings.json; python3 -c 'print(2)'"
 passes "xargs grep over files in the plugin cache, beside an unresolved write" \
@@ -459,15 +458,50 @@ blocked "python3 after cd into a protected dir"  "cd ~/.config/gh && python3 -c 
 blocked "python3 reading a path an echo wrote"   "echo ~/.gitconfig > /tmp/p; python3 -c \"open(open('/tmp/p').read().strip(),'w')\""
 blocked "protected file piped into python3"      "cat ~/.config/gh/hosts.yml | python3 -c 'import sys; sys.stdin.read()'"
 blocked "a heredoc file then bash < it"          "cat > /tmp/f <<'EOF'${NL}echo x > ~/.gitconfig${NL}EOF${NL}bash < /tmp/f"
-printf '#\n' > "$TMP/runner.sh"
-blocked "a script this command writes, then runs fed code" \
-  "cat > $TMP/runner.sh <<'EOF'${NL}source /dev/stdin${NL}EOF${NL}bash $TMP/runner.sh <<'EOF'${NL}echo x > ~/.gitconfig${NL}EOF"
+# A named script fed anything but /dev/null may run what it is fed (`exec bash`).
+printf 'exec bash\n' > "$TMP/runner.sh"
+blocked "an existing script fed a heredoc stays opaque" \
+  "bash $TMP/runner.sh <<'EOF'${NL}echo x > ~/.gitconfig${NL}EOF"
+blocked "an existing script fed a here-string stays opaque" \
+  "python3 $TMP/runner.py <<<\"open('$PHOME/.gitconfig','w')\""
 blocked "a script relinked to /dev/stdin, then fed code" \
   "ln -sf /dev/stdin $TMP/runner.sh; bash $TMP/runner.sh <<'EOF'${NL}echo x > ~/.gitconfig${NL}EOF"
-blocked "a script that does not exist yet, fed code" \
-  "bash $TMP/not-yet.sh <<'EOF'${NL}echo x > ~/.gitconfig${NL}EOF"
 blocked "a FIFO as the script" \
   "mkfifo $TMP/ff; bash $TMP/ff <<'EOF'${NL}echo x > ~/.gitconfig${NL}EOF"
+blocked "bash reading its program through <> on stdin" "bash <> ~/.config/gh/x.sh"
+blocked "a named script in the cache fed a here-string" \
+  "python3 ~/.claude/plugins/cache/m/p/5.6.3/hooks/lib/write-targets.py --protected <<<'{}'"
+# Review of #402 (security-reviewer): each was a regression in the first cut.
+blocked "\$_ carries an inert command's argument into cp"  "ls ~/.gitconfig; cp /tmp/a \$_"
+blocked "\${_} carries a stat argument into a redirect"     "stat ~/.gitconfig; echo hi > \"\${_}\""
+blocked "\${!name} indirection to \$_"                       "X=_; ls ~/.gitconfig; cp /tmp/a \${!X}"
+blocked "an exported diff driver runs under an inert git diff" \
+  "echo x > \$UNK; export GIT_EXTERNAL_DIFF=tee; echo pwned | git diff --no-index a ~/.gitconfig"
+blocked "env-assigned diff driver under an inert git diff" \
+  "echo x > \$UNK; env GIT_EXTERNAL_DIFF=tee git diff --no-index a ~/.gitconfig"
+blocked "a heredoc Makefile run by make" \
+  "cat > Makefile <<'EOF'${NL}all:${NL}${TAB}echo x > ~/.gitconfig${NL}EOF${NL}make; echo x > \"\$UNK\""
+blocked "a heredoc conftest.py run by pytest" \
+  "cat > conftest.py <<'EOF'${NL}open('$PHOME/.gitconfig','w')${NL}EOF${NL}pytest; cp a \"\$X\""
+blocked "a heredoc read back as \${F}" \
+  "cat > \"\$F\" <<'EOF'${NL}w $PHOME/.gitconfig${NL}EOF${NL}sed -n -f \"\${F}\" /etc/hosts; cp a \"\$X\""
+blocked "xargs -l (optional value) hides rm"        "echo ~/.gitconfig | xargs -l rm ls"
+blocked "xargs --replace (optional value) hides rm" "echo ~/.gitconfig | xargs --replace rm ls"
+blocked "time -o writes the file it names"          "time -o ~/.gitconfig ls"
+blocked "time --output= beside an unresolved write" "echo x > \$UNK; time --output=$PHOME/.gitconfig ls"
+blocked "timeout over an expanded command"          "timeout -k 1 5 \$CMD x ~/.gitconfig"
+blocked "timeout over setsid"                       "timeout -k 1 5 setsid cp /tmp/a ~/.gitconfig"
+blocked "setsid around a write"                     "setsid cp /tmp/a ~/.gitconfig"
+blocked "sort --out= abbreviation beside an unresolved write" "sort --out=$PHOME/.gitconfig /etc/hosts; cp a \"\$X\""
+blocked "sed --in abbreviation beside an unresolved write"    "sed --in 's/a/b/' ~/.gitconfig; cp a \"\$X\""
+blocked "sed --exp= abbreviation with a w command"            "sed -n --exp='w $PHOME/.gitconfig' /etc/hosts; cp a \"\$X\""
+blocked "an inert ls into fd 3"                     "echo x > \$UNK; ls ~/.gitconfig >&3"
+blocked "history expansion of the last argument"    "echo x > \$UNK; ls ~/.gitconfig; rm !\$"
+blocked "timeout then -- before the command"        "timeout -k 1 5 -- cp x ~/.gitconfig"
+blocked "\${X@P} prompt expansion in an inert echo" "echo x > \$UNK; echo \${X@P} ~/.gitconfig"
+cwd_verdict="$(v Bash "python3 -c \"open('hosts.yml','w')\"" "$HOME/.config/gh")"
+case "$cwd_verdict" in deny|ask) cwd_verdict=blocked ;; esac
+judge "an unresolved write run inside a protected dir (a cwd kept from an earlier call)" blocked "$cwd_verdict"
 blocked "echo data read back as a sed program" \
   "echo 'w $PHOME/.gitconfig' > /tmp/p.sed; sed -n -f /tmp/p.sed /etc/hosts; cp a \"\$X\""
 blocked "heredoc data read back through a glob" \
@@ -508,11 +542,12 @@ blocked "PATH hijack before a read-only command" \
 section "#402: the reason says whether it was judged from a target or from text"
 mention_reason="$(reason "$(run_guard "$GUARD" Bash "python3 -c \"open('opencode.json','w')\"")")"
 judge "a text-judged block names code it cannot read" yes "$(has "$mention_reason" "code this parse cannot read")"
-judge "  ... still sends a real write to the user"     yes "$(has "$mention_reason" "only the user can make the change")"
-judge "  ... and says how to make a write checkable"   yes "$(has "$mention_reason" "Edit or Write tool")"
+judge "  ... still sends a real write to the user"     yes "$(has "$mention_reason" "ask them to make the change themselves")"
+judge "  ... and asks for a target the guard can resolve" yes "$(has "$mention_reason" "so the guard can resolve its target")"
+judge "  ... naming no read-only shape that skips the scan" no "$(has "$mention_reason" "jq")"
 target_reason="$(reason "$(run_guard "$GUARD" Bash "echo x > ~/.gitconfig")")"
 judge "a resolved write keeps the plain R4 remedy"     yes "$(has "$target_reason" "ask them to make this change themselves")"
-judge "  ... with no checkable-write advice"           no  "$(has "$target_reason" "Edit or Write tool")"
+judge "  ... with no rewrite advice"                   no  "$(has "$target_reason" "so the guard can resolve its target")"
 
 # git replays need the files tracked and changed, so git itself names them.
 GREPO="$TMP/grepo"
