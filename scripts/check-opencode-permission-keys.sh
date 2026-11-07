@@ -153,17 +153,20 @@ if not d["properties"].get("permission",{}).get("deprecated"):
 
   # The docs table is the only enumeration that exists. A plain substring check is
   # deliberately crude: it says "this action is still mentioned", nothing more.
+  # Feed grep a here-string, never `printf | grep -q`: grep -q exits on the first
+  # match, printf then dies of SIGPIPE, and under pipefail the pipeline returns 141 —
+  # so every action named EARLY in the ~100 KB page was reported missing (2026-11-07).
   if page="$(curl -fsSL --max-time 20 https://opencode.ai/v2/docs/permissions/ 2>/dev/null)"; then
     missing=""
     for k in $V2_ACTIONS; do
-      printf '%s' "$page" | grep -q "$k" || missing="$missing $k"
+      grep -qF -- "$k" <<<"$page" || missing="$missing $k"
     done
     if [[ -n "$missing" ]]; then
       echo "NOTE: the V2 permissions docs page no longer mentions:$missing — re-read https://opencode.ai/v2/docs/permissions/ and update the pin deliberately." >&2
     else
       echo "every pinned action is still named on https://opencode.ai/v2/docs/permissions/"
     fi
-    if ! printf '%s' "$page" | grep -q 'doom_loop'; then
+    if ! grep -qF -- 'doom_loop' <<<"$page"; then
       echo "NOTE: the docs page no longer mentions doom_loop at all; the 'not current V2 Core actions' sentence this pin relies on may have moved." >&2
     fi
   else

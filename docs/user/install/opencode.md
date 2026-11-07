@@ -26,7 +26,7 @@ guide. See [platform differences](../platform-differences.md#unverified-surfaces
 
 | | |
 |---|---|
-| **Validated against** | `@opencode/cli` **2.2.5** (npm `latest`), live, without a provider key (see [Verify](#verify)): config loads, all 10 agent adapters resolve with their rules, the guard plugin loads, the `github` MCP server is declared and attempted |
+| **Validated against** | `@opencode/cli` **2.2.6** (npm `latest`, 2026-11-07; 2.2.5 before it), live, without a provider key (see [Verify](#verify)): config loads, all 10 agent adapters resolve with their rules, the guard plugin loads, the `github` MCP server is declared and attempted |
 | **Minimum supported** | **2.2.5** — the only release ever run, and the only one where the `bash`-to-`shell` tool alias the guard relies on was observed (`platform-targets.json` `supported_min`). 2.2.3 and 2.2.4 are not validated; the floor can be lowered by validating them |
 | **Manifest** | none — OpenCode has no plugin-manifest bundle; `opencode.json` is the project config |
 | **Config** | `opencode.json` (`skills`, `plugins`, `mcp.servers`, `permissions`) + `.opencode/agents/` + `.opencode/commands/` + `platforms/opencode/plugin/` |
@@ -35,7 +35,7 @@ guide. See [platform differences](../platform-differences.md#unverified-surfaces
 Check your version:
 
 ```bash
-opencode --version      # opencode v2.2.5
+opencode --version      # opencode v2.2.6 (2.2.5 or newer)
 ```
 
 ## Where everything lives
@@ -266,11 +266,11 @@ shows what the host exposes and says so in its header rather than inventing a fi
 
 The plugin needs **no install step**: OpenCode resolves `@opencode/plugin` itself at
 runtime. `platforms/opencode/plugin/package.json` exists for the type-check only
-(`npm install && npm run check` runs `tsc --noEmit` against `@opencode/plugin` 2.2.5;
+(`npm install && npm run check` runs `tsc --noEmit` against `@opencode/plugin` 2.2.6;
 `tests/test-opencode-v2.sh` does it in a temp dir when the network allows). The decision
 functions are pure (`rules.ts`) and unit-tested with plain Node, no install.
 
-**What is verified and what is not.** On 2.2.5, `opencode plugin list` (warm service, see [Verify](#verify)) shows
+**What is verified and what is not.** On 2.2.5 and 2.2.6, `opencode plugin list` (warm service, see [Verify](#verify)) shows
 `tamirs-superpowers.guard` loaded from `platforms/opencode/plugin/index.ts` — the server
 imported the module, resolved `@opencode/plugin`, and ran `Plugin.define`. Whether a
 `deny` set in `permission.hook("evaluate")` stops the edit with the message shown, and
@@ -330,7 +330,7 @@ and cannot be bypassed with `PM_ALLOW_PROTECTED` — edit the config for an inte
 
 ## Verify
 
-Run on `@opencode/cli` 2.2.5 (`npm install -g @opencode/cli`) with a fresh `HOME` and
+Run on `@opencode/cli` 2.2.6, and on 2.2.5 before it (`npm install -g @opencode/cli`) with a fresh `HOME` and
 XDG directories, a private service port (`opencode service set port <unused port>`),
 **no provider key and no login**, from this repo's root. Use **service mode** for the
 `list` commands: the service loads a directory lazily, so the **first** `plugin list` /
@@ -341,7 +341,7 @@ apart**, and read the second. `--standalone` never lists plugins or MCP servers
 
 ```bash
 opencode --version
-# opencode v2.2.5
+# opencode v2.2.6
 
 opencode service start
 opencode plugin list; opencode mcp list     # first call: cold service
@@ -364,8 +364,9 @@ opencode debug agents      # every resolved agent, JSON
 # then this repo's deny rules and { "action": "external_directory", "resource": "*", "effect": "ask" } last
 ```
 
-In a linked git worktree, `plugin list` shows the guard from both the worktree path and
-the main checkout (same id). Whether the guard then runs twice is not verified.
+In a linked git worktree, `plugin list` on 2.2.5 showed the guard from both the worktree
+path and the main checkout (same id); on 2.2.6 it showed the worktree path only. Whether
+the guard ran twice on 2.2.5 is not verified.
 
 Things the V2 CLI **cannot** show, recorded so nobody looks for them:
 
@@ -460,10 +461,10 @@ which is the authoritative registry; `platforms/opencode/adapter.yaml` is the th
 | Skills | ✅ native | Canonical `skills/` read in place via the `skills` array. Paths resolve from the working directory. |
 | Skill auto-invocation | ❓ unknown | Discovery is configured; automatic selection is not measured. Use `/<skill-name>`, `@skill-id`, or name the skill. |
 | Custom commands | ⚙️ adapter | Generated `.opencode/commands/` — 27 user-invocable skills as `/name`, `subagent: false`; drift enforced by `make opencode-commands-check`. |
-| Subagents | ⚙️ adapter | Generated `.opencode/agents/` with V2 `permissions` rulesets; all ten resolve on 2.2.5 (`debug agents`); drift enforced by `make opencode-agents-check`. |
+| Subagents | ⚙️ adapter | Generated `.opencode/agents/` with V2 `permissions` rulesets; all ten resolve on 2.2.5 and 2.2.6 (`debug agents`); drift enforced by `make opencode-agents-check`. |
 | Parallel subagents | ❓ unknown | V2's `subagent` tool takes `background: true` ("returns immediately and notifies the parent when the child finishes") and `experimental.subagent_depth` defaults to 1, so an orchestrator must be the primary agent and fan-out is one background child per worker; whether several foreground calls in one turn run concurrently is undocumented and was not run live. Assume sequential. |
 | MCP | ✅ native | `mcp.servers.github` declared in `opencode.json`; token via `GITHUB_PERSONAL_ACCESS_TOKEN`. |
-| Hooks | ⚙️ adapter | No shell hooks. The three core guards are the V2 server plugin in `platforms/opencode/plugin/`; it loads on 2.2.5, its denies are unverified live. |
+| Hooks | ⚙️ adapter | No shell hooks. The three core guards are the V2 server plugin in `platforms/opencode/plugin/`; it loads on 2.2.5 and 2.2.6, its denies are unverified live. |
 | Statusline | ⚙️ adapter | The TUI plugin's `prompt.footer.status` line (context fill, cost, objective) and `session.panel` objective pane; no rate-limit figures, none exist on OpenCode. |
 | Marketplace install | ❌ unsupported | No plugin marketplace. Install is by path. |
 | `.mcp.json` auto-wiring | ❌ unsupported | Declared by hand in `opencode.json` instead. |

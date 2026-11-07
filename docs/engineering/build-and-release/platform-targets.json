@@ -1,7 +1,7 @@
 {
   "schema_version": 2,
   "last_reviewed": "2026-11-03",
-  "reviewed_by_skill": "tamirs-superpowers@5.6.11",
+  "reviewed_by_skill": "tamirs-superpowers@5.6.12",
   "supported_targets": [
     "claude_code",
     "codex",
@@ -352,11 +352,11 @@
       "supported_min_source": "2.2.5 is the only release ever exercised live, and the bash-to-shell tool alias the guard relies on was observed only there. 2.2.3 is the first release whose @opencode/plugin peers @opentui/core and @opentui/solid >=0.8.0, but 2.2.3 and 2.2.4 are not validated; the floor can be lowered by validating them.",
       "permissions_min": "2.2.5",
       "permissions_min_source": "Permission levels (ADR 004 D9): O1-O3 measured on 2.2.5 (a plugin permission-hook deny stays final under --auto while its ask is auto-approved; a session allow beats a config deny; where ctx.storage lives; docs/engineering/research/permissions/spikes/cursor-gemini-opencode.md). ADR 004 D9 (docs/engineering/decisions/004-permission-levels.md): below this floor a readable host version runs every level above supervised as supervised, said once, and an unreadable one is a warning only; scripts/resolve-permission.sh applies it (it probes the host CLI's --version, once per session under a 3 s deadline and only when an answer would be looser than supervised's) and scripts/doctor.sh reports it.",
-      "validated_against": "2.2.5",
-      "reviewed_through": "2.2.5",
-      "latest_known": "2.2.5",
-      "verified_on": "2026-10-31",
-      "verification_method": "Live run 2026-10-31 against @opencode/cli 2.2.5 (fresh HOME and XDG dirs, no provider key, no login; findings in docs/engineering/roadmap/v5-research/opencode-2.2.5.md). CONFIRMED: `opencode --version` 2.2.5; `opencode --standalone debug config` loads this repo's opencode.json (keys mcp, permissions, plugins, skills) and .opencode/; `opencode --standalone debug agents` loads all 10 generated agents; on a warm service (second call onward, about 5 s after the first) `opencode plugin list` names tamirs-superpowers.guard and `opencode mcp list` shows the github server failing with the launcher's own 'github_token is not set' message; the first call on a cold service lists nothing and `--standalone` never lists either; scripts/check-opencode-permission-keys.sh --refresh matches the published schema. NOT CONFIRMED: user-skill discovery (`api skill.list` returns only the three built-ins, even for a control project with a skills path), that a permission deny or a thrown shell hook actually stops an action (needs a provider key), whether the guard runs twice when a linked worktree lists the plugin from both paths, and the TUI plugin rendering.",
+      "validated_against": "2.2.6",
+      "reviewed_through": "2.2.6",
+      "latest_known": "2.2.6",
+      "verified_on": "2026-11-07",
+      "verification_method": "2.2.6 (2026-11-07, issue #398): live run against @opencode/cli 2.2.6 (npm `latest`, published 2026-11-06, repository anomalyco/opencode; installed into a throwaway npm prefix, not globally) with fresh HOME and XDG dirs, no provider key, no login. CONFIRMED: `opencode --version` prints `opencode v2.2.6`; tests/test-opencode-v2.sh's live section passes on it (warm-service `opencode plugin list` names tamirs-superpowers.guard, `opencode debug agents` loads all 10 generated adapters, the implementer adapter resolves external_directory to ask after the base policy), and its tsc --noEmit step passes against @opencode/plugin 2.2.6; `opencode --standalone debug config` loads this repo's config document (keys $schema, mcp, permissions, plugins, skills) and .opencode/; cold-service `plugin list`/`mcp list` still print nothing, the warm second call lists both, and `--standalone` still lists neither (unchanged from 2.2.5); warm `opencode mcp list` shows the github server `connected` because GITHUB_PERSONAL_ACCESS_TOKEN was set in this environment (the documented 'github_token is not set' failure is the no-token case); `scripts/check-opencode-permission-keys.sh . --refresh` finds Permission.Rule still unenumerated and every pinned action still named on the docs page (which now redirects from /v2/docs/permissions/ to /docs/permissions/; V2 is the docs default). One observation differs from 2.2.5 and is recorded, not acted on: in a linked worktree `plugin list` now shows the plugin once, from the worktree path only (2.2.5 listed both the worktree and the main checkout). Release notes (gh release view v2.2.6 --repo anomalyco/opencode) reviewed against this repo's surface: `pool: true` opt-in MCP connection sharing, `opencode run --worktree`/`-w` and `--archived`, `opencode run` now waiting for background jobs (exit 143 on SIGTERM), the `websearch.use` policy action and `OPENCODE_FLAGS=all`/`experimental.all_flags`, webfetch permission matching that ignores the #fragment and rejects credentialed URLs, an `external_directory` ask before `session_move` leaves the project, a fix for repeated zsh `q` flags freezing shell permission scanning, and GUI-plugin registries (Theme, CodeBlock, ctx.ui.Select) - all additive or host-side; none changes the config keys, permission actions, agent format or plugin API this repo generates against, so nothing is adopted. NOT CONFIRMED (unchanged from 2.2.5): user-skill discovery (`api skill.list` returned an empty list), that a deny or a thrown shell hook actually stops an action (needs a provider key), and TUI plugin rendering. supported_min and permissions_min stay 2.2.5. Live run 2026-10-31 against @opencode/cli 2.2.5 (fresh HOME and XDG dirs, no provider key, no login; findings in docs/engineering/roadmap/v5-research/opencode-2.2.5.md). CONFIRMED: `opencode --version` 2.2.5; `opencode --standalone debug config` loads this repo's opencode.json (keys mcp, permissions, plugins, skills) and .opencode/; `opencode --standalone debug agents` loads all 10 generated agents; on a warm service (second call onward, about 5 s after the first) `opencode plugin list` names tamirs-superpowers.guard and `opencode mcp list` shows the github server failing with the launcher's own 'github_token is not set' message; the first call on a cold service lists nothing and `--standalone` never lists either; scripts/check-opencode-permission-keys.sh --refresh matches the published schema. NOT CONFIRMED: user-skill discovery (`api skill.list` returns only the three built-ins, even for a control project with a skills path), that a permission deny or a thrown shell hook actually stops an action (needs a provider key), whether the guard runs twice when a linked worktree lists the plugin from both paths, and the TUI plugin rendering.",
       "install_doc": "docs/user/install/opencode.md",
       "doc_urls": [
         "https://opencode.ai/v2/docs/skills/",
@@ -373,7 +373,8 @@
         "permission-key-schema-conformance",
         "skill-disable-model-invocation-reviewed-2.0.23",
         "permission-keys-repinned-2026-10-02",
-        "permission-keys-rechecked-2.2.5"
+        "permission-keys-rechecked-2.2.5",
+        "release-notes-reviewed-2.2.6"
       ],
       "capabilities": [
         "git",

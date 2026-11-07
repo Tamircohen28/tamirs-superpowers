@@ -48,7 +48,7 @@ Reviewed **2026-10-06** (changelog/schema only, no live binary; `validated_again
 | Cursor | 3.22.7 | 3.28.7 | 3.28.7 | 3.28.7 | [cursor.md](../../user/install/cursor.md) |
 | Codex | 0.40.0 | 0.166.0 | 0.166.0 | 0.166.0 | [codex.md](../../user/install/codex.md) |
 | Gemini CLI | 0.55.1 | 0.66.0 | 0.66.0 | 0.66.0 | [gemini.md](../../user/install/gemini.md) |
-| OpenCode | 2.2.5 | 2.2.5 | 2.2.5 | 2.2.5 | [opencode.md](../../user/install/opencode.md) |
+| OpenCode | 2.2.5 | 2.2.6 | 2.2.6 | 2.2.6 | [opencode.md](../../user/install/opencode.md) |
 
 
 Two different claims, deliberately kept apart. **Validated against** is the version this repo
@@ -63,6 +63,8 @@ prose on this page had already closed, and it could only ever be silenced by a l
 inventing a version.
 
 **OpenCode, 2026-10-31:** the target is OpenCode 2 only and moved to **2.2.5** (validated, reviewed and latest known; the support floor is 2.2.5 because it is the only release ever exercised, and 2.2.3/2.2.4 are not validated). The OpenCode 1 review history below (reviewed through 1.18.29, then 1.18.32; `validated_against` 1.18.11) is kept as a dated record only and is no longer a claim about any supported version. Live findings: [`opencode-2.2.5.md`](../roadmap/v5-research/opencode-2.2.5.md).
+
+**OpenCode, 2026-11-07 (#398):** validated, reviewed and latest known move to **2.2.6** after a live run of the same recipe on 2.2.6 (fresh `HOME`/XDG, no provider key) and a read of the 2.2.6 release notes; nothing in them changes the config keys, permission actions, agent format or plugin API this repo generates against. The support floor and `permissions_min` stay **2.2.5**. Details in `platform-targets.json`'s `verification_method`.
 
 **Codex reviewed through 0.156.0 on 2026-09-23** (from 0.155.1), against the official
 `openai/codex` release notes for `rust-v0.156.0` (published 2026-09-22). `validated_against`

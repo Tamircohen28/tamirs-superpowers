@@ -5,6 +5,16 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [5.6.12] — 2026-11-07
+
+### Changed
+
+- **OpenCode target moves to 2.2.6** (#398). The nightly probe found `@opencode/cli` 2.2.6 at npm `latest`. A live run on 2.2.6 (fresh `HOME`/XDG, no provider key) repeated the documented recipe: config loads, all ten generated agents resolve, the guard plugin loads on a warm service, and the plugin type-checks against `@opencode/plugin` 2.2.6. The 2.2.6 release notes add nothing that changes the config keys, permission actions, agent format or plugin API this repo generates against. `validated_against`, `reviewed_through` and `latest_known` advance to 2.2.6; the support floor stays 2.2.5. README badge, the install guide and the platform-targets page follow.
+
+### Fixed
+
+- **`check-opencode-permission-keys.sh --refresh` no longer reports actions as missing from the docs page when they are there.** It piped the ~100 KB page through `printf | grep -q`; `grep -q` exits on the first match, `printf` dies of SIGPIPE, and under `pipefail` the pipeline failed, so every action named early on the page (`read`, `edit`, `shell`, `subagent`, `skill`, `websearch`) was listed as missing. It now feeds `grep` a here-string.
+
 ## [5.6.11] — 2026-11-06
 
 ### Fixed
