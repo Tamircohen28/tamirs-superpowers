@@ -5,6 +5,17 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [5.6.13] — 2026-11-07
+
+### Fixed
+
+- **The always-on skill budget is back under its ceiling, and CI can now see an overrun** (#401). The always-on cost (the name, description and `when_to_use` of every skill and agent, paid by every session) measured ~8,668 tokens against an 8,500 ceiling. `diagnose-objective` (+360) and `plugin-config` (+317, 5.2.0) took it over. CI never noticed: a runner's CLI has no credentials, so `claude plugin details` prints a chars/4 fallback (~5,945) instead of a tokenizer count, and the live check also measured the *installed* plugin rather than the checkout. Fixes:
+  - 29 skill descriptions are trimmed. The cuts are `when_to_use` examples that restated the description, duplicated "Not for…" clauses and long phrase lists; every distinctive trigger phrase stays. The figure falls from **~8,668 to ~7,298** tokens (tokenizer, claude 2.1.319), and the ceiling drops to 8,000. No skill body or behaviour changes.
+  - New `scripts/always-on-cost.py` rebuilds the exact text the CLI measures from the checkout. `check-token-budget.sh --offline` holds `ceil(chars / chars_per_token)` to the budget with python3 + PyYAML only. `tests/test-skill-budget.sh` runs it on every CI shard, and `make validate` runs it through the new `check-token-budget-offline` target. On the pre-fix tree it reads ~8,822 and fails.
+  - The live check now measures the checkout with `claude --plugin-dir`, never an installed copy. It recognises the CLI's chars/4 fallback and holds the offline estimate instead. It fails when a real tokenizer count shows `chars_per_token` (new field in `evals/budget.json`, 2.70) has gone stale. `--update` refuses an offline or fallback figure.
+
+  Installed users get the lower always-on cost only after updating the plugin to 5.6.13.
+
 ## [5.6.12] — 2026-11-07
 
 ### Changed

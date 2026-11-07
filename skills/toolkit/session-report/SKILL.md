@@ -1,7 +1,7 @@
 ---
 name: session-report
-description: 'Use when the user asks what they are spending on Claude or where the tokens went. Triggers: ''session report'', ''token usage'', ''how many tokens'', ''what did that cost'', ''am I burning tokens'', ''cache hit rate'', ''why is this session so expensive'', ''which project costs most'', ''show my usage'', ''usage this week'', ''last 7 days'', ''claude stats'', ''claude analytics'', ''token breakdown'', ''subagent cost breakdown'', ''expensive prompts''. Also use proactively after a long or context-heavy session when the user wonders where the budget went.'
-when_to_use: 'Also: ''show my Claude usage'', ''token report'', ''what did I spend on Claude this week'', ''usage breakdown by project''. Claude Code only — it parses Claude Code''s own JSONL transcripts under ~/.claude/projects and has no adapter for any other harness.'
+description: 'Use when the user asks what they are spending on Claude or where the tokens went. Triggers: ''session report'', ''token usage'', ''how many tokens'', ''what did that cost'', ''cache hit rate'', ''why is this session so expensive'', ''which project costs most'', ''show my usage'', ''usage this week'', ''last 7 days'', ''claude stats'', ''claude analytics'', ''token breakdown'', ''subagent cost breakdown'', ''expensive prompts''. Also use proactively after a long or context-heavy session when the user wonders where the budget went.'
+when_to_use: 'Also: ''what did I spend on Claude this week'', ''usage breakdown by project''. Claude Code only — it parses Claude Code''s own JSONL transcripts and has no adapter for any other harness.'
 argument-hint: '[optional time window — e.g. ''7d'', ''30d'', ''since Monday'', ''24h'']'
 arguments: []
 disable-model-invocation: false

@@ -1,4 +1,4 @@
-.PHONY: check-repo-description gemini-hooks gemini-hooks-check antigravity-plugin antigravity-plugin-check agents-skills agents-skills-check check-skills-ref check-token-budget test-skill-contract-strict
+.PHONY: check-repo-description gemini-hooks gemini-hooks-check antigravity-plugin antigravity-plugin-check agents-skills agents-skills-check check-skills-ref check-token-budget check-token-budget-offline test-skill-contract-strict
 .PHONY: help setup setup-plan capture install update uninstall validate lint test plugin-validate test-mods typecheck-mods test-repo-contract \
 	check-manifest-versions check-platform-equivalence check-agent-drift \
 	check-feature-equivalence check-platform-targets platform-targets-sync \
@@ -79,6 +79,7 @@ help:
 	@echo "  agents-skills[-check]   — regenerate (or assert) the .agents/skills mirror (Antigravity, Agent Skills clients)"
 	@echo "  check-skills-ref        — hold every SKILL.md to the Agent Skills reference validator (npx skills-ref; skips offline)"
 	@echo "  check-token-budget      — measure the plugin's always-on token cost and hold it to evals/budget.json (needs the CLI)"
+	@echo "  check-token-budget-offline — the same budget, estimated from the checkout (python3 + PyYAML; no CLI)"
 	@echo "  check-repo-description  — the GitHub repository description names the shipped skill and agent counts (gh + token; skips offline)"
 	@echo "  test-skill-contract-strict — the skill contract with every warning promoted to a failure"
 	@echo "  bootstrap-dev           — contributor toolchain setup"
@@ -180,7 +181,8 @@ validate: lint test-hooks test-contract test-repo-contract check-manifest-versio
 	validate-roles check-gemini-adapter gemini-extension-check check-github-policy check-github-labels check-branch-literals \
 	check-action-pinning check-manifest-declares check-platform-version-pins check-claude-dist check-dists \
 	manifests-check codex-hooks-check cursor-rules-check codex-agents-check opencode-plugin-test \
-	gemini-hooks-check antigravity-plugin-check agents-skills-check check-skills-ref test-skill-contract-strict
+	gemini-hooks-check antigravity-plugin-check agents-skills-check check-skills-ref test-skill-contract-strict \
+	check-token-budget-offline
 	@echo "--- Validating JSON files ---"
 	@find . -name '*.json' -not -path '*/.git/*' | while read f; do \
 	  jq empty "$$f" 2>&1 && echo "  OK  $$f" || { echo "  FAIL $$f"; exit 1; }; \
@@ -292,6 +294,9 @@ check-skills-ref:
 
 check-token-budget:
 	@bash scripts/check-token-budget.sh .
+
+check-token-budget-offline:
+	@bash scripts/check-token-budget.sh . --offline
 
 check-repo-description:
 	@bash scripts/check-repo-description.sh .

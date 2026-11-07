@@ -1,7 +1,7 @@
 ---
 name: retro
 description: "Use when a session should become durable rules, hooks or memory — the user asks ('/retro', 'run a retrospective', 'postmortem', 'what went wrong this session', 'find friction', 'capture lessons', 'lessons learned'), OR a session is wrapping up after friction (repeated failures, rework, multiple corrections). Offer it proactively at session end; it only proposes and never writes without approval."
-when_to_use: "Also: 'improve the workflow', 'add lessons to memory', 'that was bumpy, let's improve the workflow so it doesn't repeat', 'we spent way too long on this'."
+when_to_use: 'Also: ''that was bumpy, let''s improve the workflow so it doesn''t repeat'', ''we spent way too long on this''.'
 argument-hint: "[none]"
 arguments: []
 disable-model-invocation: false

@@ -1,7 +1,7 @@
 ---
 name: github-policy
 description: 'Use when a repository''s branch protection, rulesets, required checks, or PR-run cancellation may not match the canonical policy — never set up, hand-configured, or a merge blocked or allowed unexpectedly. Triggers: github-policy, branch protection, ruleset audit, required approvals, organization ruleset, classic branch protection, repos with no branch rules, branch is out of date on every PR, cancel superseded PR runs when I push again, bring repositories into compliance.'
-when_to_use: '"is this repo protected", "set up branch protection", "audit my rulesets", "apply the policy to all my repos", "do the same for my org", "why did that merge without CI", "why does every PR want me to rebase", "convert classic branch protection to rulesets", "should I require an approval on this repo".'
+when_to_use: '"is this repo protected", "set up branch protection", "audit my rulesets", "apply the policy to all my repos", "why did that merge without CI", "why does every PR want me to rebase", "convert classic branch protection to rulesets".'
 argument-hint: '[audit|remediate|fleet|org] [owner/repo or org name — default: this checkout''s origin]'
 arguments:
 - mode

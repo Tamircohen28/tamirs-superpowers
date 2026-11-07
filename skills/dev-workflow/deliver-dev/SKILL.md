@@ -1,7 +1,7 @@
 ---
 name: deliver-dev
 description: 'Use when an integrated objective must become a delivery — ''deliver this objective'', ''ship it'', ''open the PR for objective X'', ''all tasks are done, create the PR'', ''turn the integration branch into a PR'', ''run the pre-PR gates'', ''review the combined diff and ship''. Not for driving an already-open PR — that is pr-dev.'
-when_to_use: 'deliver objective <id>, all workers are done — create the PR, turn objective/<slug> into a pull request, the integration branch is ready.'
+when_to_use: deliver objective <id>, all workers are done — create the PR, the integration branch is ready.
 argument-hint: '<objective-id> (or omit to infer from the current objective/<slug> branch)'
 arguments: []
 disable-model-invocation: false

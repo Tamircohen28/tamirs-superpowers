@@ -232,11 +232,14 @@ jobs:
       - name: Validate and test the mod (mod)
         run: make test-mods
       # The always-on token cost the host charges every session for this plugin, measured
-      # by `claude plugin details` on an install from this checkout and held to the committed
-      # baseline in evals/budget.json (ceiling and tolerance). A skill that silently grows
-      # the figure fails here, not in a user's context window.
-      - name: Install the plugin from this checkout
-        run: claude plugin marketplace add ./ && claude plugin install tamirs-superpowers@tamirs-superpowers
+      # by `claude --plugin-dir . plugin details` on this checkout and held to the committed
+      # baseline in evals/budget.json (ceiling and tolerance). This runner's CLI has no
+      # credentials, so it prints a chars/4 fallback (~30% low, issue #401); the script
+      # recognises that figure and holds the offline estimate from scripts/always-on-cost.py
+      # instead, which needs PyYAML. The same offline check also runs in every shard through
+      # tests/test-skill-budget.sh.
+      - name: Install PyYAML
+        run: python3 -m pip install -q -r scripts/requirements-validate.txt
       - name: Hold the always-on token cost to its budget
         run: bash scripts/check-token-budget.sh .
 

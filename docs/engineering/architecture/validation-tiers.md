@@ -76,10 +76,10 @@ the condition every gate exists to catch and asserts it fires, beside the clean 
 | Gate | Tier | What it catches | Run | Lives in CI |
 |---|:--:|---|---|---|
 | Agent Skills reference validator | 2 | a `name` that is not the folder name, a name outside `[a-z0-9-]`/64 chars, a description over 1,024 chars, an undocumented frontmatter field | `bash scripts/check-skills-ref.sh` | `skill-contract` job, after `tests/test-skill-contract.sh` |
-| Always-on token budget | 3 | the plugin's always-on context cost growing past a committed baseline or a hard ceiling | `bash scripts/check-token-budget.sh` | `plugin-validate` job (needs the Claude Code CLI with the plugin installed from the checkout) |
+| Always-on token budget | 1 offline, 3 live | the plugin's always-on context cost growing past a committed baseline or a hard ceiling | `bash scripts/check-token-budget.sh --offline` (estimate from the checkout); `bash scripts/check-token-budget.sh` (live, needs the Claude Code CLI) | every `validate-shards` shard, through `tests/test-skill-budget.sh` (offline); `plugin-validate` job (live CLI figure, cross-checked against the checkout) |
 | Strict eval coverage | 2 | a public skill without positive-trigger, negative-trigger, behavior or (where it declares optional capabilities) fallback evals | `bash tests/test-skill-contract.sh --strict` | `skill-contract` job, as its own step |
 
-Make targets: `check-skills-ref`, `check-token-budget`, `test-skill-contract-strict`.
+Make targets: `check-skills-ref`, `check-token-budget`, `check-token-budget-offline` (also part of `make validate`), `test-skill-contract-strict`.
 
 ### Agent Skills reference validator — `scripts/check-skills-ref.sh`
 
@@ -105,24 +105,48 @@ launcher, so it is pruned from the Claude distribution; it is a contributor/CI t
 
 ### Always-on token budget — `scripts/check-token-budget.sh` and `evals/budget.json`
 
-`claude plugin details tamirs-superpowers` prints `Projected token cost` /
-`Always-on: ~N tok`: the context every session pays before any skill fires (the name,
-description and `when_to_use` of every skill and agent; hooks and MCP schemas are not
-counted). The official marketplace highlights that figure to users once it reaches 2,000
-tokens. `evals/budget.json` commits the last accepted measurement:
+`claude --plugin-dir . plugin details tamirs-superpowers` prints `Projected token cost` /
+`Always-on: ~N tok` for the checkout: the context every session pays before any skill fires
+(the name, description and `when_to_use` of every skill and agent; hooks and MCP schemas
+are not counted). The live run uses `--plugin-dir`, so it measures the tree being checked
+and never an installed release. The official marketplace highlights that figure to users
+once it reaches 2,000 tokens. `evals/budget.json` commits the last accepted measurement:
 
 ```json
-{ "always_on_tokens": N, "ceiling": C, "tolerance_percent": 10,
+{ "always_on_tokens": N, "ceiling": C, "tolerance_percent": 10, "chars_per_token": R,
   "measured_on": "<claude --version>", "measured_at": "YYYY-MM-DD", "note": "..." }
 ```
+
+**The CLI's figure is a tokenizer count only when it is signed in.** It sends the text to
+the count_tokens API. Without credentials, as on a CI runner, it prints `ceil(chars / 4)`
+and does not say so. For this plugin's prose that reads about 30% low: on 2026-11-07, CI
+printed ~5,945 for a tree a signed-in machine measured at ~8,668, over the 8,500 ceiling
+(issue #401). So the gate also has an offline form. `scripts/always-on-cost.py` rebuilds
+the exact text the CLI measures from the checkout: each skill as
+`<plugin>:<name> <description> <when_to_use>` with whitespace runs collapsed and `<`/`>`
+escaped, each agent as `<name> <description>`, joined by newlines. It divides the length
+by `chars_per_token`. That ratio is set a little below the one observed (2.735–2.748 chars
+per token on claude 2.1.319), so the estimate reads high, never low.
+
+- `check-token-budget.sh --offline` holds that estimate to the budget with python3 and
+  PyYAML only. `tests/test-skill-budget.sh` runs it, so every CI shard and `make validate`
+  fail on an overrun.
+- The live run cross-checks the CLI figure against the checkout. If the figure equals the
+  checkout's chars/4 fallback, the script says so and holds the offline estimate instead.
+  If it is a tokenizer count that the estimate under-reads by more than 1%,
+  `chars_per_token` is stale and the run fails, naming the value to set. `--from` cross-checks
+  only with `--cross-check`, because a saved figure may describe another tree.
+- `--update` refuses an offline or fallback figure: the baseline is always a tokenizer
+  count from a signed-in machine.
 
 The script fails when the measured figure exceeds `ceiling`, or exceeds
 `always_on_tokens` by more than `tolerance_percent`, or when the CLI output does not
 contain exactly one `Always-on: ~N tok` line (a shape change fails loudly; nothing is ever
-parsed as 0). It also refuses to measure an install that reads from a different checkout
-than the one being checked. The ceiling sits at the measured figure rounded up to the
-next 500 because the tree is already far above 2,000; the `note` field records that 2,000
-is the figure to drive down to. **Update the baseline** in the same PR that changes the
+parsed as 0). It also refuses a figure whose `Source:` line shows the CLI did not load the
+plugin from the checkout. The ceiling sits well above the measured figure, at 8,000 against
+7,298 since #401. That leaves room for a skill or two, and an overrun still fails long before
+the old 8,500. The `note` field records the history and that 2,000 is the figure to drive
+down to. **Update the baseline** in the same PR that changes the
 cost, so the diff shows the number beside its cause:
 
 ```bash
