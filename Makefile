@@ -151,6 +151,17 @@ uninstall:
 # list is captured BEFORE the loop: piped straight into `while`, a rejected SHARD
 # would read as an empty list and the target would pass having run nothing.
 #
+# Every suite runs with stdin from /dev/null, and the list is walked with `for`, not
+# fed to `while read` on stdin (#400): a suite that read its stdin swallowed the rest
+# of the list, and the loop ended green having run fewer suites than it listed (CI
+# shard 1/4 skipped test-worktree-install-gate.sh after test-toolkit-gates.sh; a
+# local full run skipped the seven suites after it). The closing line counts the
+# suites that ran against the shard's size and fails when they differ. Suite paths never hold whitespace.
+#
+# The real-home witness snapshots before each suite and checks after it; it names
+# every path a suite leaked and excuses only live sessions' host-version probe cache
+# (scripts/real-home-witness.sh, #400).
+#
 # SUPERPOWERS_SHELLCHECK_DONE=1: `make lint` is the gate's one shellcheck pass;
 # tests/test-static.sh skips its own identical pass under this marker (and still runs
 # it standalone, which is how CI's static job invokes it).
@@ -159,13 +170,17 @@ test-hooks:
 	if [ "$$shard" = 1/1 ]; then echo "--- Hook behavior tests ---"; \
 	else echo "--- Hook behavior tests (shard $$shard) ---"; fi; \
 	suites="$$(bash scripts/ci/shard-suites.sh "$$shard")" || exit 1; \
-	printf '%s\n' "$$suites" | while read -r f; do \
-	  [ -n "$$f" ] || continue; \
-	  echo "==> $$f"; before="$$(bash scripts/real-home-witness.sh)"; \
-	  SUPERPOWERS_WORKTREE_CLEANUP=0 SUPERPOWERS_SHELLCHECK_DONE=1 bash "$$f" || exit 1; \
-	  [ "$$before" = "$$(bash scripts/real-home-witness.sh)" ] || { \
+	snap="$$(mktemp)" || exit 1; trap 'rm -f "$$snap"' EXIT; \
+	set -f; ran=0; \
+	for f in $$suites; do \
+	  echo "==> $$f"; bash scripts/real-home-witness.sh snapshot > "$$snap" || exit 1; \
+	  SUPERPOWERS_WORKTREE_CLEANUP=0 SUPERPOWERS_SHELLCHECK_DONE=1 bash "$$f" </dev/null || exit 1; \
+	  bash scripts/real-home-witness.sh check "$$snap" || { \
 	    echo "FAIL $$f wrote to the real ~/.config or ~/.local/state tamirs-superpowers (use the test root)"; exit 1; }; \
-	done
+	  ran=$$((ran + 1)); \
+	done; \
+	total="$$(printf '%s\n' "$$suites" | grep -c . || true)"; \
+	echo "--- $$ran of $$total suites ran ---"; [ "$$ran" = "$$total" ]
 
 # The five per-platform contract suites. Each runs its always-on schema/contract
 # half anywhere, and skips the vendor-CLI half with a named reason when the CLI is
