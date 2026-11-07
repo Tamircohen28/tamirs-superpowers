@@ -499,6 +499,22 @@ blocked "an inert ls into fd 3"                     "echo x > \$UNK; ls ~/.gitco
 blocked "history expansion of the last argument"    "echo x > \$UNK; ls ~/.gitconfig; rm !\$"
 blocked "timeout then -- before the command"        "timeout -k 1 5 -- cp x ~/.gitconfig"
 blocked "\${X@P} prompt expansion in an inert echo" "echo x > \$UNK; echo \${X@P} ~/.gitconfig"
+# Re-check of the review (D1–D4).
+blocked "eval sets the env an inert git diff runs under" \
+  "echo x > \$UNK; eval 'export GIT_EXTERNAL_DIFF=tee'; echo pwned | git diff --no-index a1 ~/.gitconfig"
+blocked "source of an env file before an inert git diff" \
+  "echo x > \$UNK; source ./env.sh; echo pwned | git diff --no-index a1 ~/.gitconfig"
+blocked ". of an env file before an inert ls"   "echo x > \$UNK; . ./env.sh; ls ~/.gitconfig"
+blocked "eval : before an inert ls"             "echo x > \$UNK; eval :; ls ~/.gitconfig"
+blocked "BSD sed -I '' in place"                "echo x > \$UNK; sed -I '' 's/a/b/' ~/.gitconfig"
+blocked "BSD sed -I.bak in place"               "sed -I.bak 's/a/b/' ~/.gitconfig"
+blocked "timeout over strace"                   "timeout -k 1 5 strace cp x ~/.gitconfig"
+blocked "timeout over gdb -batch"               "timeout -k 1 5 gdb -batch -ex 'shell cp x ~/.gitconfig'"
+blocked "timeout over ssh"                      "timeout -k 1 5 ssh h cp x ~/.gitconfig"
+blocked "timeout over docker run"               "timeout -k 1 5 docker run img cp x ~/.gitconfig"
+blocked "timeout over numactl"                  "timeout -k 1 5 numactl cp x ~/.gitconfig"
+blocked "a line continuation inside \${_}" \
+  "echo x > \$UNK; ls ~/.gitconfig; cp x \${\\${NL}_}"
 cwd_verdict="$(v Bash "python3 -c \"open('hosts.yml','w')\"" "$HOME/.config/gh")"
 case "$cwd_verdict" in deny|ask) cwd_verdict=blocked ;; esac
 judge "an unresolved write run inside a protected dir (a cwd kept from an earlier call)" blocked "$cwd_verdict"

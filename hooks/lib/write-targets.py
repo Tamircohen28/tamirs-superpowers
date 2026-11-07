@@ -502,6 +502,27 @@ WRAPPER_OPTS = {
     "timeout": {"value": ("-s", "--signal", "-k", "--kill-after"),
                 "flag": ("--preserve-status", "--foreground", "-v", "--verbose", "-f", "-p")},
 }
+# What `timeout` may run and still be unwrapped (review of #402, D3): a wrapper,
+# or a command this parser has a rule for — a modelled writer, an evaluator
+# (judged as one), or a command on the read-only list. Anything else (`strace`,
+# `gdb`, `ssh`, `docker`, `make`, …) keeps `timeout` a dispatcher.
+TIMEOUT_RUNS = frozenset((
+    "sudo", "env", "command", "time", "nohup", "nice", "stdbuf", "exec", "builtin", "timeout",
+    "rm", "unlink", "shred", "tee", "sed", "gsed", "perl", "awk", "gawk", "mawk", "nawk",
+    "cp", "mv", "install", "rsync", "ln", "link", "ditto", "touch", "truncate", "sponge", "dd",
+    "curl", "wget", "tar", "gtar", "bsdtar", "unzip", "7z", "7za", "7zz", "7zr", "cpio", "pax",
+    "gzip", "gunzip", "pigz", "unpigz", "bzip2", "bunzip2", "xz", "unxz", "lzma", "unlzma",
+    "lzip", "zstd", "unzstd", "lz4", "unlz4", "brotli", "compress", "uncompress",
+    "ed", "red", "ex", "vi", "vim", "nvim", "split", "csplit", "git", "patch", "script",
+    "eval", "bash", "sh", "zsh", "dash", "ksh", "python", "python2", "python3", "node", "deno",
+    "bun", "ruby", "php", "osascript", "tclsh", "source", ".", "find", "xargs",
+    "ls", "stat", "wc", "head", "tail", "cat", "grep", "egrep", "fgrep", "rg", "du", "df",
+    "readlink", "realpath", "basename", "dirname", "test", "[", "md5", "md5sum", "shasum",
+    "sha1sum", "sha256sum", "sha512sum", "cksum", "diff", "cmp", "echo", "printf", "true",
+    "false", ":", "pwd", "date", "which", "type", "cut", "tr", "column", "nl", "comm", "jq",
+    "sort", "uniq", "od", "strings", "id", "whoami", "uname", "hostname", "printenv", "sleep",
+    "seq",
+))
 TIMEOUT_DURATION = re.compile(r"^[0-9]+(?:\.[0-9]+)?[smhd]?$")
 
 # Per-command options, so a value-taking option's VALUE is never counted as an
@@ -781,6 +802,19 @@ def _split_operands(words, cmd=None):
 def _operands(words, cmd=None):
     """Non-flag arguments, stopping at `--`."""
     return _split_operands(words, cmd)[0]
+
+
+def _sed_inplace(words):
+    """`_has_inplace`, plus BSD/macOS sed's `-I` (in place, without `-s`), e.g. `-I ''`, `-I.bak`."""
+    if _has_inplace(words):
+        return True
+    for w in words:
+        v = w.value
+        if v.startswith("-") and not v.startswith("--"):
+            body = v[1:].split(".", 1)[0]
+            if "I" in body and body.replace("I", "").isalpha() or body == "I":
+                return True
+    return False
 
 
 def _has_inplace(words):
@@ -1844,7 +1878,7 @@ def segment_targets(argv0, words, fed_code, cwd=None, heredoc=None):
         return T(_operands(words, base)), None
     if base in ("sed", "gsed"):
         files = (_script_then_files(words, ("-e", "--expression", "-f", "--file"), base)
-                 if _has_inplace(words) else [])
+                 if _sed_inplace(words) else [])
         return T(files), (PROGRAM_WHY if any(_sed_writes(s) for s in _sed_scripts(words)) else None)
     if base == "perl" and _has_inplace(words):
         # `-e`/`-E` take the program as their value (including inside a cluster,
@@ -2004,8 +2038,10 @@ def analyze_command(command, cwd):
             depth, own, cwd = _scope_update(seg, scope, cwd, terminator)
             depth += len(cwd_stack)
             n_hd = sum(1 for t in seg if t.kind == "op" and t.value in ("<<", "<<-"))
-            info = {"words": [t.value for t in seg if t.kind == "word"],
-                    "bodies": [(heredoc_bodies[k], heredoc_meta[k][0])
+            # (`\<newline>` is gone before bash parses `${\<nl>_}`: match what bash sees.)
+            info = {"words": [t.value.replace("\\\n", "") for t in seg if t.kind == "word"],
+                    "bodies": [(heredoc_bodies[k] if heredoc_meta[k][0]
+                                else heredoc_bodies[k].replace("\\\n", ""), heredoc_meta[k][0])
                                for k in range(hd, min(hd + n_hd, len(heredoc_bodies)))],
                     "piped_in": piped_in, "terminator": terminator, "depth": depth,
                     # fd duplications (`>&3`): output may go to a descriptor opened elsewhere
@@ -2192,8 +2228,10 @@ def _segment_records(seg, piped_in, terminator, cwd, records, heredoc_iter, cond
                     wrapper_unsure = ("is run under `timeout` with a duration this parse cannot read, "
                                       "so the command it actually runs cannot be identified")
                 if not wrapper_unsure and (not words or words[0].expands
-                                           or words[0].value.startswith("-")):
-                    # `timeout 5 $CMD …` was a dispatcher before it was a wrapper; keep that.
+                                           or words[0].value.startswith("-")
+                                           or os.path.basename(words[0].value) not in TIMEOUT_RUNS):
+                    # `timeout 5 $CMD …`, `timeout 5 strace cp …`: a command this parse
+                    # has no rule for stays the dispatcher `timeout` was before #402.
                     wrapper_unsure = "builds and runs another command at runtime"
             if wrapper_unsure:
                 records.append(("UNSURE", wrapper_unsure, fragment))
@@ -3590,7 +3628,8 @@ CONVERTERS = ("read", "mapfile", "readarray", "source", ".", "eval", "exec", "xa
 # `${X@P}` (prompt expansion can run a substitution) and zsh `${(e)X}` count too.
 SUBSTITUTION = re.compile(r"\$\(|`|\$\[|\$\{[^}]*[=@]|\$\{\(|^\(")
 DISABLE_NARROWING = ("alias", "unalias", "hash", "enable", "shopt", "function", "trap",
-                     "command_not_found_handle", "export", "declare", "typeset", "local", "set")
+                     "command_not_found_handle", "export", "declare", "typeset", "local", "set",
+                     "eval", "source", ".")
 # Expansions whose value is another command's words: `$_` (the last argument of
 # the previous command), `${!name}` indirection, BASH_COMMAND/BASH_ARGV.
 CARRIES_WORDS = re.compile(r"\$\{?_(?![A-Za-z0-9_])|\$\{!|BASH_(?:COMMAND|ARGV|ARGC)"
@@ -3645,7 +3684,8 @@ def _read_only_shape(base, rest):
                for a in rest):
             return False
         toks = [Tok("word", a) for a in rest]
-        if _has_inplace(toks) or any(a in ("-f", "--file") or a.startswith("--file=") or
+        if _sed_inplace(toks) or _short_cluster_has(rest, "iI") or any(
+                a in ("-f", "--file") or a.startswith("--file=") or
                                      (a.startswith("-f") and not a.startswith("--")) for a in rest):
             return False
         return not any(_sed_writes(x) for x in _sed_scripts(toks))
