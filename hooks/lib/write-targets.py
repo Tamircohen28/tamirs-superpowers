@@ -155,9 +155,10 @@ class Tok(object):
 # insides are expanded, so a substitution nested in one (`${X:-$(rm f)}`) is
 # found too.
 
-def _unbacktick(body):
-    """The command inside `…`: there a backslash before \\, ` , $ or " stands for that character."""
-    return re.sub(r'\\([\\`$"])', r"\1", body)
+def _unbacktick(body, dquoted=False):
+    """The command inside `…`: a backslash before \\, ` or $ (and " when the backtick is
+    inside "…") stands for that character; anywhere else it stays, as bash keeps it."""
+    return re.sub(r'\\([\\`$"])' if dquoted else r'\\([\\`$])', r"\1", body)
 
 
 def _expansion_subs(text, note=None):
@@ -195,11 +196,22 @@ def _expansion_subs(text, note=None):
     return out
 
 
+def _is_arithmetic(text, start):
+    """True when the `((` at text[start] is one arithmetic group: its inner `(` closes
+    directly before the outer `)` (`$(( (1+2) * 3 ))`), not `((a);(b))`, a subshell."""
+    if not text.startswith("((", start):
+        return False
+    outer, closed = _balanced(text, start)
+    inner, closed_inner = _balanced(text, start + 1)
+    return closed and closed_inner and inner == outer - 1
+
+
 def _raw_subs(raw, note=None):
     """The command texts a raw `$(…)`, `$((…))`, `${…}` or `$[…]` runs."""
-    if raw.startswith("$((") and raw.endswith("))") and len(raw) >= 5:
-        # bash commits to arithmetic here (`$((echo hi))` is an arithmetic error,
-        # not a command), so only what is nested inside it runs.
+    if raw.startswith("$((") and raw.endswith("))") and _is_arithmetic(raw, 1):
+        # One arithmetic group: bash commits to arithmetic here (`$((echo hi))` is
+        # an arithmetic error, not a command), so only what is nested inside runs.
+        # `$((a);(b))` is not one group, and bash runs it as a command.
         return _expansion_subs(raw[3:-2], note)
     if raw.startswith("$("):
         return [raw[2:-1] if raw.endswith(")") else raw[2:]]
@@ -221,10 +233,10 @@ def _backtick_close(text, start):
     return -1
 
 
-def _backtick_body(text, start, end):
+def _backtick_body(text, start, end, dquoted=False):
     """The command inside the backtick span text[start:end] (its closing ` may be missing)."""
     closed = end - start >= 2 and text[end - 1] == "`"
-    return _unbacktick(text[start + 1:end - 1] if closed else text[start + 1:end])
+    return _unbacktick(text[start + 1:end - 1] if closed else text[start + 1:end], dquoted)
 
 
 def _balanced(text, start, open_ch="(", close_ch=")"):
@@ -244,13 +256,47 @@ def _balanced(text, start, open_ch="(", close_ch=")"):
     return end, closed
 
 
+CASE_DELIMS = " \t\n;&|()<>"
+
+
 def _scan_balanced(text, start, open_ch, close_ch, aware):
     depth = 0
     i = start
     n = len(text)
     pending = []
+    # `case … in PAT) …;; esac` inside `$( … )`: the pattern's `)` is not a closer
+    # (issue #405 review). One state per open case: "word" until `in`, then
+    # "pattern" until its `)`, then "body" until `;;`/`;&`/`;;&` or `esac`.
+    cases = []
     while i < n:
         c = text[i]
+        if aware and open_ch == "(" and c.isalpha() and (i == start or text[i - 1] in CASE_DELIMS):
+            j = i
+            while j < n and (text[j].isalnum() or text[j] == "_"):
+                j += 1
+            word = text[i:j]
+            if j >= n or text[j] in CASE_DELIMS:
+                if word == "case":
+                    cases.append("word")
+                elif word == "in" and cases and cases[-1] == "word":
+                    cases[-1] = "pattern"
+                elif word == "esac" and cases and cases[-1] in ("pattern", "body"):
+                    cases.pop()
+            i = j
+            continue
+        if aware and cases and cases[-1] == "pattern" and c in "()":
+            if c == ")":
+                cases[-1] = "body"
+            i += 1          # a pattern's own `(` opener and `)` closer
+            continue
+        if aware and cases and cases[-1] == "body" and text.startswith(";;", i):
+            cases[-1] = "pattern"
+            i += 3 if text.startswith(";;&", i) else 2
+            continue
+        if aware and cases and cases[-1] == "body" and text.startswith(";&", i):
+            cases[-1] = "pattern"
+            i += 2
+            continue
         if aware:
             if c == "\\":
                 i += 2
@@ -452,7 +498,7 @@ def tokenize(text, anomalies=None, heredocs=None, heredoc_meta=None):
                         note("an unterminated backtick")
                     end = n if end == -1 else end + 1
                     buf.append(text[j:end])
-                    subs.append(_backtick_body(text, j, end))
+                    subs.append(_backtick_body(text, j, end, True))
                     expands = True
                     j = end
                     continue
@@ -502,7 +548,7 @@ def tokenize(text, anomalies=None, heredocs=None, heredoc_meta=None):
         # `(( … ))` is an arithmetic command, where `<<` is a shift and `>` a
         # comparison. bash commits to arithmetic here (it does not fall back to
         # running the contents), so the whole thing is one opaque word.
-        if ch == "(" and not started and text.startswith("((", i):
+        if ch == "(" and not started and _is_arithmetic(text, i):
             end, closed = _balanced(text, i)
             if closed and text[end - 2:end] == "))":
                 toks.append(Tok("word", text[i:end], True, subs=_expansion_subs(text[i + 2:end - 2], note)))
@@ -741,6 +787,9 @@ EVALUATORS = (
     "eval", "bash", "sh", "zsh", "dash", "ksh",
     "python", "python2", "python3", "node", "deno", "bun",
     "perl", "ruby", "php", "osascript", "tclsh",
+    # issue #405 review: more interpreters that take inline code or a program on stdin
+    "fish", "csh", "tcsh", "xonsh", "nu", "elvish", "pwsh", "powershell", "lua", "luajit",
+    "Rscript", "R", "julia", "groovy", "guile", "racket", "bb", "jshell", "ash", "mksh", "yash",
 )
 INLINE_CODE_FLAGS = ("-c", "-e", "-r", "--eval", "--command", "-E")
 
@@ -761,7 +810,13 @@ UNMODELLED_RUNNERS += ("numactl", "fakeroot", "fakechroot", "strace", "ltrace", 
                        "envdir", "setuidgid", "daemonize", "start-stop-daemon", "tmux", "screen",
                        "nix-shell", "npx", "bunx", "pnpx", "uvx", "pipx", "expect", "sshpass",
                        "dotenv", "with-contenv", "op", "aws-vault", "doppler", "infisical",
-                       "chamber", "sops", "vagrant", "lima", "wsl")
+                       "chamber", "sops", "vagrant", "lima", "wsl", "gosu", "su-exec", "tini",
+                       "dumb-init", "chronic", "ts", "tsp", "torify", "cpulimit", "taskpolicy",
+                       "toybox", "socat", "s6-setuidgid", "s6-envdir", "setlock", "run0",
+                       "machinectl", "flatpak-spawn", "env-cmd", "cross-env", "dotenvx",
+                       "concurrently", "npm-run-all", "run-p", "run-s", "nodemon", "watchexec",
+                       "reflex", "hyperfine", "perf", "dtrace", "heaptrack", "rr", "uftrace",
+                       "bpftrace", "xterm", "nohup.exe", "winpty", "runuser")
 # Commands that run another command only through one of these subcommands
 # (`docker run img cp x PROT`); any word equal to one of them counts, since
 # their own options come first and are not sized here.
@@ -779,6 +834,7 @@ SUBCOMMAND_RUNNERS = {
     "yarn": ("exec", "dlx"), "bun": ("x", "exec"), "deno": ("eval",), "launchctl": ("asuser", "submit", "bsexec"),
     "flatpak": ("run",), "snap": ("run",), "devcontainer": ("exec",), "limactl": ("shell",),
     "colima": ("ssh",), "multipass": ("exec",), "gcloud": ("ssh",), "heroku": ("run",),
+    "ip": ("exec",),
 }
 RUNNER_WHY = "runs another command (`%s …`) whose writes this parse does not follow"
 
@@ -2081,6 +2137,51 @@ def _make_unsure(words, fed_code):
     return None
 
 
+CC_FAMILY = ("cc", "gcc", "g++", "c++", "clang", "clang++", "ld", "rustc", "swiftc", "tcc", "zig")
+SSH_KEYGEN_READS = "lyFeiBLQD"
+
+
+def _more_write_forms(base, words):
+    """([(token, kind)], unsure) for other commands' write options (issue #405 review), or None."""
+    if base == "uniq":
+        ops = [t for f, t in _walk_options(words, "fsw", ("--skip-fields", "--skip-chars", "--check-chars",
+                                                            "--group", "--all-repeated")) if f is None]
+        return [(t, "TARGET") for t in ops[1:2]], None
+    if base in ("shuf", "gpg", "gpg2"):
+        out = _flag_value(words, ("-o", "--output"))
+        return ([(out, "TARGET")] if out is not None else []), None
+    if base == "openssl":
+        return [(words[i + 1], "TARGET") for i, w in enumerate(words[:-1])
+                if w.value in ("-out", "-keyout")], None
+    if base in CC_FAMILY or (base == "go" and any(w.value == "build" for w in words)):
+        out = _flag_value(words, ("-o",))
+        return ([(out, "TARGET")] if out is not None else []), None
+    if base == "mkfifo":
+        return [(t, "TARGET") for t in _operands(words)], None
+    if base == "mknod":
+        return [(t, "TARGET") for t in _operands(words)[:1]], None
+    if base in ("trash", "trash-put", "rmtrash"):
+        return [(t, "DELETE") for t in _operands(words)], None
+    if base == "scp":
+        ops = []
+        unsure = None
+        for f, t in _walk_options(words, "cFiJlLoPSX", ()):
+            if f is None:
+                ops.append(t)
+            elif f == "-S":
+                unsure = RUNNER_WHY % "scp -S"
+        dest = ops[-1:] if len(ops) >= 2 else []
+        local = [t for t in dest if not re.match(r"^[^/]*:", t.value)]
+        return [(t, "TREE") for t in local], unsure
+    if base == "ssh-keygen":
+        flags = "".join(w.value[1:] for w in words if w.value.startswith("-") and not w.value.startswith("--"))
+        out = _flag_value(words, ("-f",))
+        if out is None or any(c in flags for c in SSH_KEYGEN_READS):
+            return [], None
+        return [(out, "TARGET"), (Tok("word", out.value + ".pub", out.expands, out.quoted), "TARGET")], None
+    return None
+
+
 def segment_targets(argv0, words, fed_code, cwd=None, heredoc=None):
     """([(target token, kind)], unsure_reason) for one already-unwrapped command segment.
 
@@ -2117,6 +2218,8 @@ def segment_targets(argv0, words, fed_code, cwd=None, heredoc=None):
     if base in SUBCOMMAND_RUNNERS and any(
             w.value in SUBCOMMAND_RUNNERS[base] for w in words):
         return [], RUNNER_WHY % base
+    if base in ("at", "batch"):
+        return [], EVAL_WHY     # schedules the commands it reads from stdin or -f
     if base in ("alias", "hash", "enable") and any(
             "=" in w.value or w.value.startswith(("-p", "-f")) for w in words):
         # `alias x='cp a PROT'; x`, `hash -p /tmp/w ls`, `enable -f lib.so x`: a
@@ -2161,6 +2264,9 @@ def segment_targets(argv0, words, fed_code, cwd=None, heredoc=None):
         return T(ops[-1:] if len(ops) >= 2 else [], "TREE"), None
     if base in ("touch", "truncate", "sponge"):
         return T(_operands(words, base)), None
+    other = _more_write_forms(base, words)
+    if other is not None:
+        return other
     if base == "dd":
         of = next((w for w in words if w.value.startswith("of=")), None)
         return ([(Tok("word", of.value[3:], of.expands), "TARGET")] if of else []), None
@@ -2271,14 +2377,28 @@ def redirect_targets(toks):
 # here, except where it is the very file run.
 EXECS = []
 NEST_LIMIT = 12
-TREE_RUNNERS = ("make", "gmake", "bmake", "pytest", "py.test", "tox", "nox", "npm", "yarn", "pnpm",
+TREE_RUNNERS = ("pip", "pip3", "terraform", "tofu", "ansible-playbook", "ansible", "eslint", "webpack",
+                "vite", "rollup", "rspec", "phpunit", "docker-compose", "gem", "brew", "gradlew", "mvnw",
+                "conan", "helm", "pulumi", "cdk", "serverless", "sls", "prettier", "stylelint", "babel",
+                "playwright", "cypress", "next", "nuxt", "astro", "rails", "ctest", "flutter", "dart",
+                "rebar3", "stack", "cabal", "dune", "buck", "buck2", "pants", "earthly", "dagger",
+                "skaffold", "tilt", "packer", "nix-build", "home-manager", "darwin-rebuild", "direnv",
+                "make", "gmake", "bmake", "pytest", "py.test", "tox", "nox", "npm", "yarn", "pnpm",
                 "bun", "deno", "cargo", "go", "mvn", "gradle", "rake", "bundle", "just", "ninja",
                 "cmake", "pre-commit", "jest", "vitest", "mocha", "ava", "poetry", "uv", "pipenv",
                 "hatch", "pdm", "composer", "mix", "dotnet", "swift", "xcodebuild", "ant", "sbt",
                 "lein", "meson", "bazel", "bazelisk", "tsx", "ts-node", "lefthook", "husky",
                 "turbo", "nx", "lerna", "invoke", "task", "scons", "waf", "julia")
-FILE_RUNNERS = tuple(e for e in EVALUATORS if e != "eval") + ("source", ".", "fish", "csh", "tcsh",
-                                                              "lua", "luajit", "Rscript")
+FILE_RUNNERS = tuple(e for e in EVALUATORS if e != "eval") + ("source", ".")
+# Options whose value is a file the interpreter runs as well as its script.
+RUN_FILE_OPTS = ("--rcfile", "--init-file", "-r", "--require", "--import", "--loader",
+                 "--experimental-loader", "--env-file")
+# Options of a tree runner that point it at another directory or file.
+TREE_DIR_OPTS = ("-C", "--directory", "--prefix", "--cwd", "--dir", "--manifest-path", "--rootdir",
+                 "--chdir", "--working-directory", "--root", "--project", "--config", "-c", "--file",
+                 "-f", "--modfile", "--gemfile", "-p", "--path", "--target", "--chart")
+# A .txt that is code to the tool that reads it.
+CODE_DATA_NAMES = re.compile(r"^(?:cmakelists\.txt|.*\.cmake|(?:requirements|constraints)[^/]*\.txt)$")
 PYTHONS = ("python", "python2", "python3")
 # Interpreter options whose value is the next word, never the script.
 RUNNER_VALUE_OPTS = ("-o", "+o", "-O", "+O", "--rcfile", "--init-file", "-W", "-X", "-r",
@@ -2375,19 +2495,42 @@ def _note_exec(base, argv0, rest, cwd, fragment):
                       "files": [_exec_file(t, d) for t in toks]})
 
     if "/" in argv0:
-        return files("file", argv0, [Tok("word", argv0)])
+        files("file", argv0, [Tok("word", argv0)])
+        if base in TREE_RUNNERS:     # `./gradlew build` reads the build files around it
+            EXECS.append({"kind": "tree", "fragment": fragment, "what": argv0,
+                          "dirs": [_repo_top(cwd) if cwd else None]})
+        return
     if base in PYTHONS and any(v == "-m" or (v.startswith("-") and not v.startswith("--")
                                               and v.endswith("m")) for v in values):
-        EXECS.append({"kind": "tree", "fragment": fragment, "what": "`%s -m`" % base,
-                      "dir": _repo_top(cwd) if cwd else None, "exts": PYTHON_EXTENSIONS})
+        k = next(k for k, v in enumerate(values) if v == "-m" or (
+            v.startswith("-") and not v.startswith("--") and v.endswith("m")))
+        module = values[k + 1] if k + 1 < len(values) else ""
+        if module in TREE_RUNNERS:
+            # `python -m pip install .`, `python -m pytest d`: the tool reads the project's files.
+            return _note_exec(module, module, rest[k + 2:], cwd, fragment)
+        ex = {"kind": "tree", "fragment": fragment, "what": "`%s -m %s`" % (base, module),
+              "dirs": [_repo_top(cwd) if cwd else None]}
+        if module not in ("build", "unittest", "setuptools", "twine", "flit", "black", "ruff", "mypy"):
+            ex["exts"] = PYTHON_EXTENSIONS      # any other module only imports Python files
+        EXECS.append(ex)
         return
     if base in FILE_RUNNERS:
         # The script is the first operand that is not an option's value
-        # (`bash -o pipefail s.sh`, `python3 -W ignore s.py`).
+        # (`bash -o pipefail s.sh`, `python3 -W ignore s.py`); a file an option
+        # loads (`node -r ./e.js`, `bash --init-file rc.sh`) runs too.
         toks = [w for k, w in enumerate(rest) if not w.value.startswith(("-", "+"))
                 and not (k and rest[k - 1].value in RUNNER_VALUE_OPTS)]
-        if toks:
-            files("file", "`%s`" % base, toks)
+        loads = [rest[k + 1] for k, w in enumerate(rest[:-1]) if w.value in RUN_FILE_OPTS]
+        loads += [Tok("word", w.value.split("=", 1)[1], w.expands, w.quoted) for w in rest
+                  if "=" in w.value and w.value.split("=", 1)[0] in RUN_FILE_OPTS]
+        if toks[:1] + loads:
+            files("file", "`%s`" % base, toks[:1] + loads)
+        return
+    if base in ("sed", "gsed"):
+        progs = [t for f, t in _walk_options(rest, "efl", ("--expression", "--file", "--line-length"))
+                 if f in ("-f", "--file") and t is not None]
+        if progs:
+            files("file", "`%s -f`" % base, progs)
         return
     if base in AWKS:
         progs = [t for f, t in _walk_options(rest, "fvF", ("--file", "--assign", "--field-separator"))
@@ -2404,8 +2547,29 @@ def _note_exec(base, argv0, rest, cwd, fragment):
             mk = _flag_value(rest, ("-f", "--file", "--makefile"))
             if mk is not None:
                 files("file", "`%s -f`" % base, [mk], d)
+        dirs = [_repo_top(d) if d else None]
+        # Another directory it is pointed at (`pytest /tmp/zz`, `npm --prefix d`,
+        # `cargo build --manifest-path d/Cargo.toml`): its tree runs as well.
+        for k, w in enumerate(rest):
+            v = w.value
+            given = None
+            if v in TREE_DIR_OPTS and k + 1 < len(rest):
+                given = rest[k + 1]
+            elif v.startswith("--") and "=" in v and v.split("=", 1)[0] in TREE_DIR_OPTS:
+                given = Tok("word", v.split("=", 1)[1], w.expands, w.quoted)
+            elif not v.startswith("-") and ("/" in v or v.startswith(".") or "$" in v):
+                given = w
+            if given is None:
+                continue
+            path = _exec_file(given, cwd)[0]
+            if path is None:
+                dirs.append(None)
+                continue
+            if os.path.splitext(path)[1] or os.path.isfile(path):
+                path = os.path.dirname(path)
+            dirs.append(_repo_top(path))
         EXECS.append({"kind": "tree", "fragment": fragment, "what": "`%s`" % base,
-                      "dir": _repo_top(d) if d else None})
+                      "dirs": dirs})
         return
     if base == "git":
         frame = cwd
@@ -2449,28 +2613,33 @@ def _runs_written(ex, path):
         return True
     p = path.casefold()
     ext = os.path.splitext(p)[1]
-    data = ext in DATA_EXTENSIONS
+    data = ext in DATA_EXTENSIONS and not CODE_DATA_NAMES.match(os.path.basename(p))
     kind = ex["kind"]
     if kind == "any":
         return not data
     if kind == "dirs":
         return any(_under(p, d.casefold()) for d in ex["dirs"])
     if kind == "file":
-        # Only the script runs: what follows it is its arguments, data to it.
-        c, literal = ex["files"][0]
-        if c is not None:
-            c = c.casefold()
-            return p == c or (ext in CODE_EXTENSIONS and _under(p, os.path.dirname(c)))
-        # A script named by expansion: the very file when its literal name matches
-        # (or it has none), or a code file beside it, wherever that is.
-        if literal is not None:
-            return literal.casefold() == os.path.basename(p) or ext in CODE_EXTENSIONS
-        return not data
-    d = ex.get("dir")
+        # Only the scripts run (the script, a file an option loads); the
+        # operands after the script are its arguments, data to it.
+        for c, literal in ex["files"]:
+            if c is not None:
+                c = c.casefold()
+                if p == c or (ext in CODE_EXTENSIONS and _under(p, os.path.dirname(c))):
+                    return True
+            elif literal is not None:
+                # Named by expansion: the very file when its literal name matches,
+                # or a code file beside it, wherever that is.
+                if literal.casefold() == os.path.basename(p) or ext in CODE_EXTENSIONS:
+                    return True
+            elif not data:
+                return True
+        return False
     if kind == "tree":
-        if "exts" in ex:
-            return ext in ex["exts"] and (d is None or _under(p, d.casefold()))
-        return not data and (d is None or _under(p, d.casefold()))
+        if "exts" in ex and ext not in ex["exts"]:
+            return False
+        return not data and any(d is None or _under(p, d.casefold()) for d in ex["dirs"])
+    d = ex.get("dir")
     # git
     if ex.get("msg") and p == ex["msg"].casefold():
         return False        # the message file of `git commit -F` is the message, not code
@@ -2506,6 +2675,12 @@ def _write_then_run(records):
                     ex["fragment"]))
                 break
     return out
+
+
+def _join_continuations(body):
+    """An unquoted heredoc body with its line continuations joined: a backslash-newline
+    whose backslash is not itself escaped (`\\<newline>` is a backslash, then a newline)."""
+    return re.sub(r"(?<!\\)((?:\\\\)*)\\\n", r"\1", body)
 
 
 def _nested_records(command, cwd, depth, inherit=None):
@@ -2645,9 +2820,9 @@ def analyze_command(command, cwd, nest=0, inherit=None):
             # The commands its substitutions run (issue #405): in its words,
             # redirection targets and assignments, and in its unquoted heredoc bodies.
             nested = [c for t in seg if t.kind == "word" for c in t.subs]
-            for body, quoted in info["bodies"]:
-                if not quoted:
-                    nested.extend(_expansion_subs(body, note))
+            for k in range(hd - n_hd, min(hd, len(heredoc_bodies))):
+                if not heredoc_meta[k][0]:
+                    nested.extend(_expansion_subs(_join_continuations(heredoc_bodies[k]), note))
             for inner in nested:
                 records.extend(_nested_records(inner, seg_cwd, nest, seg_assigns))
             info["records"] = records[first:]
@@ -2677,9 +2852,65 @@ def analyze_command(command, cwd, nest=0, inherit=None):
     return records
 
 
+BRACE_EXPANSION = re.compile(r"(?<!\$)\{[^{}\s]*(?:,|\.\.)[^{}\s]*\}")
+
+
+def _brace_expand(value, limit=64):
+    """Every word `value` brace-expands to (`a{b,c}d` -> abd, acd); None past `limit` or for a range."""
+    m = None
+    depth = 0
+    start = -1
+    for i, c in enumerate(value):
+        if c == "{":
+            if depth == 0:
+                start = i
+            depth += 1
+        elif c == "}" and depth:
+            depth -= 1
+            if depth == 0:
+                body = value[start + 1:i]
+                if "," in body or ".." in body:
+                    m = (start, i, body)
+                    break
+    if m is None:
+        return [value]
+    start, end, body = m
+    if ".." in body and "," not in body:
+        return None         # `{1..9}`, `{a..z}`: a range, not expanded here
+    parts, depth, cur = [], 0, ""
+    for c in body:
+        if c == "," and depth == 0:
+            parts.append(cur)
+            cur = ""
+            continue
+        depth += {"{": 1, "}": -1}.get(c, 0)
+        cur += c
+    parts.append(cur)
+    out = []
+    for part in parts:
+        sub = _brace_expand(value[:start] + part + value[end + 1:], limit)
+        if sub is None:
+            return None
+        out.extend(sub)
+        if len(out) > limit:
+            return None
+    return out
+
+
 def _record_targets(pairs, cwd, records, fragment):
     """Resolve (token, kind) pairs to absolute paths and append their records."""
+    expanded = []
     for t, kind in pairs:
+        if "{" in t.value and BRACE_EXPANSION.search(t.value):
+            # `tee {/tmp/a,~/.gitconfig}` writes both words (#405 review). A quoted
+            # brace does not expand, but checking its words too only over-reports.
+            words = _brace_expand(t.value)
+            if words is None:
+                records.append(("UNSURE", "writes to a brace expansion this parse does not expand (%s)"
+                                % t.value, fragment))
+                continue
+            expanded.extend((Tok("word", w, t.expands, t.quoted), kind) for w in words if w != t.value)
+    for t, kind in list(pairs) + expanded:
         value = _static_value(t)
         if value is None:
             records.append(("UNSURE", "writes to a target built by shell expansion (%s)" % t.value, fragment))
@@ -2821,10 +3052,6 @@ def _segment_records(seg, piped_in, terminator, cwd, records, heredoc_iter, cond
             words, wrapper_unsure = _strip_wrapper_options(words, name)
             own = before_strip[:len(before_strip) - len(words)]
             assigned.extend(w.value for w in own if ASSIGNMENT_WORD.match(w.value))
-            if name == "command" and any(w.value in ("-v", "-V") for w in own) and not wrapper_unsure:
-                # `command -v tmux` looks a name up; it runs nothing (a redirect still writes).
-                words = []
-                break
             if name == "time" and not wrapper_unsure:
                 # GNU `time -o FILE` / `--output=FILE` writes FILE (issue #402 review).
                 out = _flag_value(own, ("-o", "--output"))
@@ -2856,6 +3083,17 @@ def _segment_records(seg, piped_in, terminator, cwd, records, heredoc_iter, cond
         finish()            # `(( … ))` is arithmetic, not a command; its substitutions are parsed
         return cwd
     argv0, rest = head.value, words[1:]
+    case_pattern = terminator == ")" and len(words) == 1   # `*)`, `R*)` in a case statement
+    if argv0 not in ("[", "[[") and not case_pattern and (
+            any(c in argv0 for c in "*?[") or BRACE_EXPANSION.search(argv0)):
+        # `{tee,x} f`, `/usr/bin/te[e] f`: the shell picks the command (#405 review).
+        records.append(("UNSURE", "runs a command whose name is built by brace or glob expansion (%s), "
+                        "so what it writes is unknown" % argv0, fragment))
+        shape["base"] = shape["argv0"] = argv0
+        shape["rest"] = [w.value for w in rest]
+        EXECS.append({"kind": "any", "fragment": fragment, "what": "a command named by expansion (%s)" % argv0})
+        finish()
+        return cwd
     if head.expands or "$" in argv0 or "`" in argv0:
         # Issue #405: `$CMD x PROT`, `${X} …`, `$(echo cp) …`. A name the same
         # command assigned a literal to is resolved; anything else runs a command
@@ -3485,6 +3723,11 @@ def _git_opt_value(args, i, short, longs):
         return nxt, 2
     if short and v.startswith(short) and not v.startswith("--") and len(v) > 2:
         return Tok("word", v[2:], w.expands, w.quoted), 1
+    if short and v.startswith("-") and not v.startswith("--") and short[1] in v[2:] \
+            and v[1:v.index(short[1], 1)].isalpha():
+        # A cluster of flags ending in it: `-No DIR`, `-koDIR`.
+        tail = v[v.index(short[1], 1) + 1:]
+        return (Tok("word", tail, w.expands, w.quoted), 1) if tail else (nxt, 2)
     if v.startswith("--") and len(v) > 4:
         name, eq, val = v.partition("=")
         stem = name[2:]
@@ -3557,9 +3800,38 @@ def _git_write_forms(sub, args):
             out.append((Tok("word", os.path.join(base, digit), expands), "PREFIX"))
     if sub == "bundle" and ops and ops[0].value == "create" and len(ops) >= 2:
         out.append((ops[1], "TARGET"))
+    if sub in ("init", "clone"):
+        given = _flag_value(args, ("--separate-git-dir",))
+        if given is not None:
+            out.append((given, "TREE"))
+        plain = [t for f, t in _walk_options(args, "bocju", GIT_CLONE_VALUE) if f is None]
+        for f, t in _walk_options(args, "bocju", GIT_CLONE_VALUE):
+            if f in ("-c", "--config") and t is not None and GIT_EXEC_CONFIG.match(t.value):
+                why = ("runs git with configuration (%s) that names a program git runs; that program's "
+                       "writes are not parsed" % t.value.split("=", 1)[0])
+        d = plain[0] if sub == "init" and plain else (plain[1] if sub == "clone" and len(plain) >= 2 else None)
+        if d is not None and d.value.rstrip("/") not in (".", ""):
+            # A new repository writes its .git (hooks, config) and, for a clone, a whole tree.
+            out.append((d, "TREE") if sub == "clone" else (_word(os.path.join(d.value, ".git"), d), "TARGET"))
+    if sub == "credential-store":
+        given = _flag_value(args, ("--file",))
+        if given is not None:
+            out.append((given, "TARGET"))
+    if sub == "fast-export":
+        given = _flag_value(args, ("--export-marks",))
+        if given is not None:
+            out.append((given, "TARGET"))
+    if sub == "pack-objects" and ops:
+        out.append((_word(ops[0].value + "-", ops[0]), "PREFIX"))
     if sub == "config" and file_tok is not None and _git_config_writes(args, ops):
         out.append((file_tok, "TARGET"))
     return out, why
+
+
+GIT_CLONE_VALUE = ("--branch", "--depth", "--origin", "--reference", "--reference-if-able", "--template",
+                   "--config", "--jobs", "--filter", "--separate-git-dir", "--upload-pack",
+                   "--server-option", "--shallow-since", "--shallow-exclude", "--bundle-uri",
+                   "--ref-format", "--revision", "--initial-branch", "--object-format")
 
 
 def _git_config_writes(args, ops):
