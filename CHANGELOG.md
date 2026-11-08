@@ -9,17 +9,20 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Fixed
 
-- **The protected-path guard no longer blocks commands that only mention a protected path** (#402). When anything in a command was unresolved, `write-targets.py --protected` searched the whole command text for a protected path and denied on any hit. A `stat` of the state dir, a `find … -exec ls`, a `jq` on `opencode.json` or a PR-body heredoc naming the state dir were all denied if anything else in the command was unresolved. The search now covers only the text that could steer the unresolved write (`_needle_text`). It drops the words of commands on a positive read-only list (`ls`, `stat`, `cat`, `grep`, `jq`, `sed -n`, read-only `git`, `find` and `xargs` that only run read-only commands, …) when they sit at top level, carry no assignment or substitution, and send output only to the terminal or to other such commands. It also drops heredoc and `echo`/`printf` data written to a file, under three conditions. Every unresolved write must be an unresolved target. Nothing in the command may read the data back as a path or code. The only other commands must be on a short list that never runs a file of the cwd (`make`, `pytest`, `npm` and `git commit` are not on it). The narrowing is off altogether on a tokeniser anomaly, a function, an alias, `exec`, `export`/`declare`/`set`, `eval`/`source`/`.`, a PATH-like assignment, `$_` (also across a line continuation), `${!x}` or history expansion. Inline interpreter code (`python3 -c`, `python3 - <<EOF`, `node -e`, `eval`) that names a protected path stays blocked: proving it read-only is the arbitrary-code question the parser does not answer. Its reason now says the block was judged from text, and asks for a command whose target the guard can resolve.
-- **Parses that over-reported:** a script fed stdin only from `/dev/null` (`bash x.sh </dev/null`) is not inline code, because an empty stdin carries no program. Any other stdin feed of an interpreter stays opaque. `find -exec` and `xargs` that only run read-only commands are not dispatchers. A literal `NAME=value` is no longer left unresolved because a quoted heredoc body happens to contain `NAME` or `). `.
+- **The protected-path guard reports fewer false writes, and models more real ones** (#402). The guard still treats an unresolved write as a write to any protected path the command names; the whole command text is searched, as before. A narrowing of that search was tried and dropped: six security-review rounds each found a write it let through. What changed instead is the parse, so that fewer commands are unresolved in the first place:
+  - A `find -exec`/`-execdir` or an `xargs` that only runs read-only commands (`ls`, `stat`, `cat`, `grep`, `wc`, `jq`, …, named without a path) is no longer an unresolved write (`find <state dir> -exec ls -l {} \;`).
+  - An interpreter whose stdin is only `< /dev/null` is not fed code (`bash <script> </dev/null`); every other stdin feed still is.
+  - A same-command `NAME=value` literal is no longer left unresolved because a quoted heredoc body happens to contain `NAME` or `). ` (`D=/tmp/x; cat > "$D/issue.md" <<'EOF' … EOF`).
 - **Writes the guard missed:**
   - `find -fls`, `-fprint0`, `-ok` and `-okdir` are find actions, and a `find` that deletes or runs a writer is judged by its starting points. So `find ~/.claude -name 'settings*.json' -exec sed -i …` is denied the way `rm -rf ~/.claude` is.
   - `source`/`.` fed code (`source /dev/stdin <<EOF`, `. <(…)`) and `bash <> file` run code like `eval`.
-  - `time -o FILE` writes `FILE`.
+  - `time -o FILE`, including clusters (`-po FILE`) and `--output=`, writes `FILE`; so does `sort -o`/`-ro`/`--out=`.
+  - sed: a script in a short cluster (`sed -ne 'w FILE'`), `--exp=` abbreviations, an address regex with `/` inside a bracket (`/[/]/w FILE`), BSD/macOS `-I` and GNU `--in` (in place) are all read.
+  - `git grep -O`/`--open…` runs a pager command, so it is unresolved.
   - `setsid`, `flock`, `ionice` and similar runners are unresolved.
   - An unresolved write whose cwd, kept from an earlier call, is inside a protected directory is denied.
-  - `sort` and `sed` long-option abbreviations (`--out=`, `--in`, `--exp=`) are not read as read-only.
-  - BSD/macOS `sed -I` (in place) is a write.
-- Two-direction tables in `tests/test-sensitive-protected-paths.sh`. Every false positive from the issue and close variants now pass. About 100 real write forms onto protected paths stay blocked, including every bypass the security review found in the first cut (`$_`, exported `GIT_EXTERNAL_DIFF`, a heredoc Makefile run by `make`, a script that `exec`s its stdin, `xargs -l`, `time -o`).
+- The deny reason for a text-judged block now says so, and asks for a command whose target the guard can resolve.
+- Tests in `tests/test-sensitive-protected-paths.sh`: every write form the issue and the six review rounds named stays denied, the dropped narrowing's allow cases are now asserted denied (as on master), and the parse fixes above are asserted allowed.
 
 ## [5.6.14] — 2026-11-07
 

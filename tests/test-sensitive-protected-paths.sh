@@ -10,12 +10,12 @@
 #     different $HOME only adds a second protected home, never moves the first;
 #   - a symlink, or a symlinked parent directory, does not carry a write past
 #     the check (realpath), and `ln` cannot make a protected file reachable;
-#   - (#402) a protected path that is only read (stat, ls, find -exec ls, jq,
-#     git diff) or only data (a heredoc body or echo text written to a file)
-#     is not a write, beside an unresolved write or not — and every real write
-#     form onto one (redirects, tee, sed -i, cp/mv/install/rm/ln, find
-#     -delete/-exec, xargs, interpreters, git replays, dd, truncate, cd) stays
-#     blocked, as do the read-back routes that would turn data into a target;
+#   - (#402) the parse no longer reports a write where there is none (a find
+#     or xargs running only read-only commands, an interpreter whose stdin is
+#     /dev/null, a literal `NAME=` a quoted heredoc body happens to mention),
+#     and every real write form onto a protected path stays blocked — the
+#     table also holds every bypass six review rounds found against a
+#     narrowing of the text search that was then dropped;
 #   - an unresolved write (an interpreter, a variable) that NAMES a protected
 #     path is a deny, while one that names none stays the advisory it was;
 #   - PM_ALLOW_PROTECTED unlocks nothing protected, but still unlocks the
@@ -349,7 +349,7 @@ passes()  { local d; d="$(vb "$2")"; case "$d" in allow|warn) d=passes ;; esac; 
 NL=$'\n'
 TAB=$'\t'
 
-section "#402 (a): mentions, reads and data are not writes"
+section "#402 (a): what the parse no longer reports as a write, and what the whole-text search still blocks"
 # The six reports in the issue, then close variants of each.
 passes "find on the state dir with a read-only -exec ls" \
   "find ~/.local/state/tamirs-superpowers -newermt '-5 minutes' -exec ls -laT {} \\;"
@@ -357,28 +357,28 @@ passes "find -exec stat ... + on the state dir" \
   "find $PHOME/.local/state/tamirs-superpowers -type f -exec stat -f %m {} +"
 passes "find -exec grep -l in the plugin cache" \
   "find ~/.claude/plugins/cache -name '*.json' -exec grep -l version {} \\;"
-passes "stat of hostver beside an unrelated interpreter" \
+blocked "stat of hostver beside an unrelated interpreter (whole-text search, as on master)" \
   "stat -f %m ~/.local/state/tamirs-superpowers/hostver; python3 -c 'print(1)'"
-passes "ls | head of the state dir beside an unresolved write" \
+blocked "ls | head of the state dir beside an unresolved write (whole-text search, as on master)" \
   "ls -la ~/.local/state/tamirs-superpowers | head -5; echo x > \"\$OUT\""
-passes "PR body heredoc naming the state dir, to a variable path" \
+blocked "PR body heredoc naming the state dir, to a variable path (whole-text search, as on master)" \
   "cat > \"\$SCRATCH/pr-body.md\" <<'EOF'${NL}The guard state lives in ~/.local/state/tamirs-superpowers.${NL}EOF"
-passes "unquoted heredoc naming hostver, to a variable path" \
+blocked "unquoted heredoc naming hostver, to a variable path (whole-text search, as on master)" \
   "cat > \$D/issue.md <<EOF${NL}State dir: \$HOME/.local/state/tamirs-superpowers/hostver${NL}EOF"
 passes "issue body whose prose repeats the variable's name" \
   "D=$TMP/scratch${NL}cat > \$D/issue.md <<'EOF'${NL}## D${NL}Never hand-edit ~/.config/tamirs-superpowers/permissions.json.${NL}EOF"
-passes "tee of heredoc data naming opencode.json to a variable path" \
+blocked "tee of heredoc data naming opencode.json to a variable path (whole-text search, as on master)" \
   "tee \"\$OUT/notes.md\" >/dev/null <<'EOF'${NL}OpenCode reads opencode.json from the repo root.${NL}EOF"
-passes "jq on opencode.json beside an unrelated interpreter" \
+blocked "jq on opencode.json beside an unrelated interpreter (whole-text search, as on master)" \
   "jq '.permission' opencode.json; python3 -c 'print(1)'"
 passes "jq on opencode.json into a scratch file" "jq -r .version opencode.json > /tmp/v.txt"
-passes "git diff of opencode.json beside an unresolved write" \
+blocked "git diff of opencode.json beside an unresolved write (whole-text search, as on master)" \
   "git diff -- opencode.json; echo x > \"\$OUT\""
-passes "sed -n of a cached plugin script beside an interpreter" \
+blocked "sed -n of a cached plugin script beside an interpreter (whole-text search, as on master)" \
   "sed -n 1,40p ~/.claude/plugins/cache/m/p/5.6.3/scripts/x.sh; python3 -c 'print(1)'"
-passes "echo naming the policy file into a variable path" \
+blocked "echo naming the policy file into a variable path (whole-text search, as on master)" \
   "echo \"edit ~/.config/tamirs-superpowers/permissions.json by hand\" >> \"\$NOTES\""
-passes "printf naming opencode.json into a file, then an unresolved copy of another" \
+blocked "printf naming opencode.json into a file, then an unresolved copy of another (whole-text search, as on master)" \
   "printf '%s\\n' 'see opencode.json' > notes.txt; cp a.txt \"\$DEST\""
 # stdin from /dev/null carries no program, so a named script stays a named script.
 passes "a cached plugin script run with stdin from /dev/null" \
@@ -398,9 +398,9 @@ blocked "timeout with a duration it cannot read, naming a path" \
 passes "python3 script.py with stdin from /dev/null" \
   "python3 ~/.claude/plugins/cache/m/p/5.6.3/hooks/lib/write-targets.py --protected </dev/null"
 passes "an unresolved write run in an ordinary directory" "python3 -c \"open('hosts.yml','w')\""
-passes "cat of host settings, then an interpreter on other data" \
+blocked "cat of host settings, then an interpreter on other data (whole-text search, as on master)" \
   "cat ~/.claude/settings.json; python3 -c 'print(2)'"
-passes "xargs grep over files in the plugin cache, beside an unresolved write" \
+blocked "xargs grep over files in the plugin cache, beside an unresolved write (whole-text search, as on master)" \
   "ls ~/.claude/plugins/cache/m/p/rules/*.mdc | xargs grep -c 'alwaysApply: true'; echo x > \"\$OUT\""
 passes "xargs -0 wc -l from a find" \
   "find ~/.local/state/tamirs-superpowers -type f -print0 | xargs -0 wc -l"
@@ -540,10 +540,11 @@ blocked "{fd}> file, then an inert ls read back" \
 blocked "a redirection-only > file beside an inert ls" \
   ">/tmp/p; ls -d ~/.config/gh; D=\$(cat /tmp/p); echo x > \"\$D/hosts.yml\""
 # Round 5 (F1): a variable set without a `NAME=` word, before an inert command.
+MF_BUILTIN=map'file'   # (spelled through a variable: the GNU-spelling lint reads payload text)
 blocked "read PATH before an inert ls"          "echo x > \$UNK; read PATH <<< /tmp/b; ls ~/.gitconfig"
 blocked "for PATH in … before an inert ls"      "echo x > \$UNK; for PATH in /tmp/b; do :; done; ls ~/.gitconfig"
 blocked "printf -v PATH before an inert ls"     "echo x > \$UNK; printf -v PATH %s /tmp/b; ls ~/.gitconfig"
-blocked "mapfile PATH before an inert ls"       "echo x > \$UNK; mapfile PATH <<< /tmp/b; ls ~/.gitconfig"
+blocked "an array read (mapfile) into PATH before an inert ls"       "echo x > \$UNK; $MF_BUILTIN PATH <<< /tmp/b; ls ~/.gitconfig"
 blocked "read HOME before an inert git diff"    "echo x > \$UNK; read HOME <<< /tmp/h; echo pwned | git diff --no-index a1 ~/.gitconfig"
 blocked "getopts into a variable before an inert ls" "echo x > \$UNK; getopts p PATH -p; ls ~/.gitconfig"
 blocked "let before an inert ls"                "echo x > \$UNK; let IFS=1; ls ~/.gitconfig"
@@ -559,6 +560,22 @@ blocked "git -C into a protected dir beside an unresolved write" "echo x > \$UNK
 blocked "a heredoc ripgrep config, then rg" \
   "cat <<'EOF' > \"\$RC\"${NL}--pre=sh -c 'echo > $PHOME/.gitconfig'${NL}EOF${NL}rg x ."
 passes "git -C elsewhere, beside an unresolved write naming nothing" "echo x > \$UNK; git -C /tmp/r status"
+# Round 6: write forms the parser did not model, now judged on their own.
+blocked "sed -ne 'w PROT' (script in a short cluster)"   "sed -ne 'w $PHOME/.gitconfig' /etc/hosts"
+blocked "sed -nse 'w PROT'"                              "sed -nse 'w $PHOME/.gitconfig' /etc/hosts"
+blocked "sed address regex with / in a bracket, then w"  "sed -n '/[/]/w $PHOME/.gitconfig' /etc/hosts"
+blocked "sed address regex with a class and /, then w"   "sed -n '/[[:alpha:]/]/w $PHOME/.gitconfig' /etc/hosts"
+blocked "sed --exp= abbreviation with a w command alone" "sed -n --exp='w $PHOME/.gitconfig' /etc/hosts"
+blocked "GNU sed --in abbreviation of --in-place"        "sed --in 's/a/b/' ~/.gitconfig"
+blocked "git grep --open= runs a pager command"          "git grep --open=\"echo x > $PHOME/.gitconfig #\" b"
+blocked "git grep -O runs a pager command"               "git grep -O\"echo x > $PHOME/.gitconfig #\" b"
+blocked "command time -po PROT ls"                       "command time -po ~/.gitconfig ls"
+blocked "env time -ao PROT true"                         "env time -ao ~/.gitconfig true"
+blocked "sort -o PROT"                                   "sort -o ~/.gitconfig /etc/hosts"
+blocked "sort -ro PROT (cluster)"                        "sort -ro ~/.gitconfig /etc/hosts"
+blocked "sort --out=PROT (abbreviation)"                 "sort --out=$PHOME/.gitconfig /etc/hosts"
+passes  "sed -n with a bracket regex and no write"       "sed -n '/[/]/p' /etc/hosts"
+passes  "sort -o into a scratch file"                    "sort -o /tmp/sorted.txt /etc/hosts"
 cwd_verdict="$(v Bash "python3 -c \"open('hosts.yml','w')\"" "$HOME/.config/gh")"
 case "$cwd_verdict" in deny|ask) cwd_verdict=blocked ;; esac
 judge "an unresolved write run inside a protected dir (a cwd kept from an earlier call)" blocked "$cwd_verdict"

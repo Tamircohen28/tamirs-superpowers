@@ -778,11 +778,15 @@ def _operands(words, cmd=None):
 
 
 def _sed_inplace(words):
-    """`_has_inplace`, plus BSD/macOS sed's `-I` (in place, without `-s`), e.g. `-I ''`, `-I.bak`."""
+    """`_has_inplace`, plus BSD/macOS sed's `-I` (in place, without `-s`), e.g. `-I ''`, `-I.bak`,
+    and GNU's abbreviations of `--in-place` (`--in`, `--in-pl=.bak`)."""
     if _has_inplace(words):
         return True
     for w in words:
         v = w.value
+        name = v.split("=", 1)[0]
+        if name.startswith("--") and len(name) > 2 and "--in-place".startswith(name):
+            return True
         if v.startswith("-") and not v.startswith("--"):
             body = v[1:].split(".", 1)[0]
             if "I" in body and body.replace("I", "").isalpha() or body == "I":
@@ -1568,14 +1572,36 @@ def _sed_scripts(words):
     given = False
     for idx, w in enumerate(words):
         v = w.value
-        if v in ("-e", "--expression") and idx + 1 < len(words):
-            scripts.append(words[idx + 1].value)
+        nxt = words[idx + 1].value if idx + 1 < len(words) else None
+        name, eq, val = v.partition("=")
+        if v == "--":
+            break
+        if name.startswith("--") and len(name) > 2 and "--expression".startswith(name):
+            # `--expression`, and the abbreviations getopt_long accepts (`--exp=`)
+            if eq:
+                scripts.append(val)
+            elif nxt is not None:
+                scripts.append(nxt)
             given = True
-        elif v.startswith("--expression="):
-            scripts.append(v[len("--expression="):])
+        elif name.startswith("--") and len(name) > 2 and "--file".startswith(name):
             given = True
-        elif v in ("-f", "--file") or v.startswith("--file="):
-            given = True
+        elif v.startswith("-") and not v.startswith("--") and len(v) > 1:
+            # A short cluster: `-e S`, `-ne S`, `-nes S`… `-e` takes the rest of the
+            # word or the next one; `-f` likewise; `-i`/`-I`/`-l` end the cluster.
+            for k, ch in enumerate(v[1:], 1):
+                if ch == "e":
+                    rest = v[k + 1:]
+                    if rest:
+                        scripts.append(rest)
+                    elif nxt is not None:
+                        scripts.append(nxt)
+                    given = True
+                    break
+                if ch == "f":
+                    given = True
+                    break
+                if ch in "iIl":
+                    break
     if not given:
         ops = _operands(words, "sed")
         if ops:
@@ -1593,6 +1619,23 @@ def _sed_writes(script):
             c = script[i]
             if c == "\\":
                 i += 2
+                continue
+            if c == "[":
+                # A bracket expression: its `]` closes it, and a `/` inside it is
+                # a character, not the end of the regex (`/[/]/w f`).
+                j = i + 1
+                if j < n and script[j] == "^":
+                    j += 1
+                if j < n and script[j] == "]":
+                    j += 1
+                while j < n and script[j] != "]":
+                    if script[j:j + 2] in ("[:", "[.", "[="):
+                        # a class `[:alpha:]`, collating `[.x.]` or equivalence `[=e=]`
+                        close = script.find(script[j + 1] + "]", j + 2)
+                        j = n if close == -1 else close + 2
+                        continue
+                    j += 1
+                i = j + 1
                 continue
             if c == delim:
                 return i + 1
@@ -1728,7 +1771,7 @@ def _find_unsure(words):
                 return FIND_ACTION_WHY
             base = argv[0].value
             rest = [w.value for w in argv[1:] if w.value != "{}"]
-            if base not in FIND_EXEC_READ_ONLY or not _read_only_shape(base, rest):
+            if base not in FIND_EXEC_READ_ONLY:
                 return FIND_ACTION_WHY      # a path (`/tmp/x/ls`) is not the command listed
             i = j + 1
             continue
@@ -1779,7 +1822,7 @@ def _xargs_read_only(words):
     base = os.path.basename(words[i].value)
     if "/" in words[i].value or base not in FIND_EXEC_READ_ONLY:
         return False
-    return _read_only_shape(base, [w.value for w in words[i + 1:]])
+    return True
 
 
 def _find_roots(words, cwd):
@@ -1871,6 +1914,9 @@ def segment_targets(argv0, words, fed_code, cwd=None, heredoc=None):
     if base == "ditto":
         ops = _operands(words)
         return T(ops[-1:] if len(ops) >= 2 else [], "TREE"), None
+    if base in ("sort", "gsort"):
+        out = _sort_output(words)
+        return ([(out, "TARGET")] if out is not None else []), None
     if base in ("touch", "truncate", "sponge"):
         return T(_operands(words, base)), None
     if base == "dd":
@@ -1954,7 +2000,6 @@ def redirect_targets(toks):
 
 def analyze_command(command, cwd):
     """Yield (kind, detail, fragment) records for one Bash command string."""
-    global SEGMENTS
     anomalies = []
     heredoc_bodies = []
     heredoc_meta = []
@@ -2001,38 +2046,18 @@ def analyze_command(command, cwd):
     RESOLVABLE.update(_resolvable_names(command, shell_text))
     scope = {"frames": []}
     prev_terminator = ""
-    # One entry per top-level segment for _needle_text (issue #402): what it
-    # says, where its output can go, and the records it produced.
-    SEGMENTS = {"segs": [], "functions": False}
-    hd = 0
 
     for seg, piped_in, terminator in segments:
         if seg:
             depth, own, cwd = _scope_update(seg, scope, cwd, terminator)
             depth += len(cwd_stack)
-            n_hd = sum(1 for t in seg if t.kind == "op" and t.value in ("<<", "<<-"))
-            # (`\<newline>` is gone before bash parses `${\<nl>_}`: match what bash sees.)
-            info = {"words": [t.value.replace("\\\n", "") for t in seg if t.kind == "word"],
-                    "bodies": [(heredoc_bodies[k] if heredoc_meta[k][0]
-                                else heredoc_bodies[k].replace("\\\n", ""), heredoc_meta[k][0])
-                               for k in range(hd, min(hd + n_hd, len(heredoc_bodies)))],
-                    "piped_in": piped_in, "terminator": terminator, "depth": depth,
-                    # fd duplications (`>&3`): output may go to a descriptor opened elsewhere
-                    "dups": [seg[k + 1].value for k, t in enumerate(seg[:-1])
-                             if t.kind == "op" and t.value in (">&", "<&")]}
-            hd += n_hd
-            first = len(records)
             cwd = _segment_records(seg, piped_in, terminator, cwd, records, heredoc_iter,
                                    conditional=depth > 0 or prev_terminator in ("&&", "||"),
-                                   cd_mode=_cd_mode(scope, own, terminator, prev_terminator),
-                                   shape=info)
-            info["records"] = records[first:]
-            SEGMENTS["segs"].append(info)
+                                   cd_mode=_cd_mode(scope, own, terminator, prev_terminator))
         elif terminator == ")" and prev_terminator == "(":
             # `NAME() {`: the body that follows is a function's, run later
             # if at all, so a `cd` inside it leaves the cwd unknown.
             scope["fn_pending"] = True
-            SEGMENTS["functions"] = True
         # The group boundary is the terminator of the segment just processed.
         if terminator == "(":
             cwd_stack.append(cwd)
@@ -2071,6 +2096,49 @@ QUIET_COMMANDS = ("cd", "pushd", "popd", "true", ":", "echo", "printf", "test", 
                   "export", "ls", "cat", "pwd", "head", "tail", "wc", "grep", "which", "type")
 
 
+def _time_output(words):
+    """GNU time's output file: `-o F`, `-oF`, a cluster ending in `o` (`-po F`), `--output[=]F`."""
+    for idx, w in enumerate(words):
+        v = w.value
+        nxt = words[idx + 1] if idx + 1 < len(words) else None
+        if v.startswith("--"):
+            name, eq, val = v.partition("=")
+            if len(name) > 3 and "--output".startswith(name):
+                return Tok("word", val, w.expands, w.quoted) if eq else nxt
+            continue
+        if v.startswith("-"):
+            for k, ch in enumerate(v[1:], 1):
+                if ch == "f":
+                    break           # -f FORMAT: the rest is its value
+                if ch == "o":
+                    rest = v[k + 1:]
+                    return Tok("word", rest, w.expands, w.quoted) if rest else nxt
+    return None
+
+
+def _sort_output(words):
+    """sort's output file: `-o F`, `-oF`, a cluster ending in `o` (`-ro F`), `--output[=]F` or any
+    abbreviation getopt_long accepts (`--out=F`)."""
+    for idx, w in enumerate(words):
+        v = w.value
+        nxt = words[idx + 1] if idx + 1 < len(words) else None
+        if v == "--":
+            return None
+        if v.startswith("--"):
+            name, eq, val = v.partition("=")
+            if len(name) > 2 and "--output".startswith(name):
+                return Tok("word", val, w.expands, w.quoted) if eq else nxt
+            continue
+        if v.startswith("-") and v != "-":
+            for k, ch in enumerate(v[1:], 1):
+                if ch in "ktTS":
+                    break           # options whose value is the rest of the word
+                if ch == "o":
+                    rest = v[k + 1:]
+                    return Tok("word", rest, w.expands, w.quoted) if rest else nxt
+    return None
+
+
 def _stdin_fed(seg):
     """True when a redirection hands this command's stdin something that can be a program.
 
@@ -2094,20 +2162,13 @@ def _stdin_fed(seg):
 
 
 def _segment_records(seg, piped_in, terminator, cwd, records, heredoc_iter, conditional=False,
-                     cd_mode="apply", shape=None):
+                     cd_mode="apply"):
     """Append this segment's records; return the cwd the NEXT segment sees.
 
     `conditional` is true when the segment follows `&&`/`||` or sits inside
     a compound command: it may never run, so no assignment in it is admitted.
     `cd_mode` (see _cd_mode) says whether a `cd` here moves the parent's cwd.
-    `shape`, when given, is filled with the command this segment runs once
-    unwrapped (`base`, `rest`), whether it carried `NAME=value` prefixes, and
-    its redirection targets — what _needle_text needs to tell a read from a write.
     """
-    if shape is None:
-        shape = {}
-    shape.update({"base": None, "rest": [], "prefix_assign": False, "wrappers": [],
-                  "redirects": [t.value for t in redirect_targets(seg)]})
     fragment = " ".join(t.value for t in seg if t.kind == "word")[:160]
 
     # This segment's own `<<`/`<<-` bodies, in order — pulled off the shared
@@ -2180,18 +2241,16 @@ def _segment_records(seg, piped_in, terminator, cwd, records, heredoc_iter, cond
             continue
         if "=" in head and not head.startswith("=") and head.split("=", 1)[0].replace("_", "a").isalnum():
             words.pop(0)
-            shape["prefix_assign"] = True
             continue
         name = os.path.basename(head)
         if name in WRAPPERS:
             words.pop(0)
-            shape["wrappers"].append(name)
             before_strip = list(words)
             words, wrapper_unsure = _strip_wrapper_options(words, name)
             if name == "time" and not wrapper_unsure:
                 # GNU `time -o FILE` / `--output=FILE` writes FILE (issue #402 review).
                 own = before_strip[:len(before_strip) - len(words)]
-                out = _flag_value(own, ("-o", "--output"))
+                out = _time_output(own)
                 if out is not None:
                     wrapper_targets.append((out, "TARGET"))
             if wrapper_unsure:
@@ -2207,9 +2266,6 @@ def _segment_records(seg, piped_in, terminator, cwd, records, heredoc_iter, cond
     argv0, rest = words[0].value, words[1:]
     base = os.path.basename(argv0)
     records.append(("RAN", base, fragment))
-    shape["base"] = base
-    shape["rest"] = [w.value for w in rest]
-    shape["argv0"] = argv0
 
     # `cd` moves the frame every later relative path is resolved against —
     # unless it runs in a subshell, where the move dies with it. A pipeline
@@ -2800,6 +2856,13 @@ def _git_records(words, cwd, fragment, heredocs, stdin_file, records, piped_in):
     if i >= len(words):
         return
     sub, args = words[i].value, words[i + 1:]
+    if sub == "grep" and any(
+            a.value.startswith("-O") or (a.value.split("=", 1)[0].startswith("--op")
+                                         and "--open-files-in-pager".startswith(a.value.split("=", 1)[0]))
+            for a in args):
+        records.append(("UNSURE", "runs the pager command given to `git grep --open-files-in-pager`; "
+                                  "its writes are not visible to a shell parse", fragment))
+        return
     known = sub in GIT_HANDLERS or sub in GIT_PATCH_HANDLERS or sub in GIT_OPAQUE
     if not known:
         return
@@ -3035,8 +3098,6 @@ EDIT_PATH_KEYS = ("file_path", "path", "notebook_path", "filePath")
 
 
 def records_for(payload):
-    global SEGMENTS
-    SEGMENTS = None
     tool = payload.get("tool_name") or ""
     tool_input = payload.get("tool_input") or {}
     cwd = payload.get("cwd") or os.getcwd()
@@ -3090,9 +3151,11 @@ def records_for(payload):
 #     that CONTAINS a protected home or plugin-root path counts as deleting it.
 #   - An UNSURE write whose command text names a protected path is a deny, not
 #     an advisory: the parser cannot prove which file an interpreter writes, so
-#     a mention is the only evidence there is, and for R4 it is enough. The
-#     text is the part that could steer the write (_needle_text, issue #402):
-#     a read-only command's words and data written to a file are not evidence.
+#     a mention is the only evidence there is, and for R4 it is enough. (Issue
+#     #402 tried narrowing which text counts; six review rounds each found a
+#     write that the narrowing let through, so the whole text still counts.
+#     #402 instead cut the false UNSUREs at the parse: a find/xargs running
+#     only read-only commands, an interpreter whose stdin is /dev/null.)
 #   - A find that deletes or runs a writer is judged by its starting points
 #     (SCOPE), as `rm -rf` of that directory would be.
 #
@@ -3100,9 +3163,6 @@ def records_for(payload):
 # the ids below); FALLBACK_PROTECTED is used only when that file cannot be
 # read, and tests/test-sensitive-protected-paths.sh holds the two equal.
 PROTECTED_MODE = False
-# Per-command segment shapes from analyze_command, read by _needle_text; None
-# for a payload that is not a shell command.
-SEGMENTS = None
 PROTECTED_IDS = ("policy.edit", "config.global.write")
 FALLBACK_PROTECTED = {
     "policy.edit": [
@@ -3534,304 +3594,6 @@ def _source_records(argv0, words, cwd, fragment):
     return out
 
 
-# --------------------------------------------------------------------------
-# Which text is evidence of an unresolved write (issue #402)
-# --------------------------------------------------------------------------
-# protect() fails closed on an UNSURE write by asking whether the command NAMES
-# a protected path. Asked of the whole command, that read a protected path in a
-# `stat`, a `find -exec ls`, a `jq` lookup or a PR body heredoc as a write,
-# whenever anything else in the same command was unresolved. _needle_text
-# answers the narrower question the rule means: does the text that could steer
-# an unresolved write name one? It drops only what provably cannot:
-#
-#   1. An INERT segment — a command on the positive read-only list below, in
-#      a shape that writes nothing (no `sed -i`, `sort -o`, `rg --pre`,
-#      `git -c`, `printf -v`, …), at top level, with no assignment, no
-#      substitution, no redirection but /dev/null, and whose output goes to
-#      the terminal or only through other inert commands. Its words can reach
-#      no write: not as a target, not as code, not through a variable, a file,
-#      the cwd or a pipe.
-#   2. DATA — a quoted (or expansion-free) heredoc body fed to `cat`/`tee`,
-#      and the arguments of `echo`/`printf` — but only when every UNSURE in
-#      the command is an unresolved TARGET (never an interpreter, eval, a
-#      dispatcher or a find action, which could read that data back as code)
-#      and nothing in the command can turn file content into a path (no
-#      substitution, `read`, `mapfile`, `source`, no interpreter or script run).
-#
-# Everything else stays evidence, so every write form that names its target,
-# its code, its variable, its cwd or its input still fails closed. Inline
-# interpreter code is never narrowed: proving `python3 -c` read-only is the
-# arbitrary-code question this parser does not answer. The narrowing is off
-# altogether on a tokeniser anomaly, a function definition, an alias, `exec`,
-# `export`/`declare`/`typeset`/`local`/`set` (exported environment can make a
-# read-only command run code: GIT_EXTERNAL_DIFF, LD_PRELOAD, …), a PATH-like
-# assignment, and any expansion that carries another command's words (`$_`,
-# `${!name}`, BASH_COMMAND, history expansion). Each of those was a way, found
-# in review, to move an inert command's words into a write.
-
-READ_ONLY_COMMANDS = (
-    "ls", "stat", "wc", "head", "tail", "cat", "grep", "egrep", "fgrep", "rg", "du", "df",
-    "readlink", "realpath", "basename", "dirname", "test", "[", "md5", "md5sum", "shasum",
-    "sha1sum", "sha256sum", "sha512sum", "cksum", "diff", "cmp", "echo", "printf", "true",
-    "false", ":", "pwd", "date", "which", "type", "cut", "tr", "column", "nl", "comm", "jq",
-    "sed", "find", "git", "sort", "uniq", "od", "strings", "id", "whoami", "uname",
-    "hostname", "printenv", "sleep", "seq", "xargs",
-)
-GIT_READ_ONLY = ("status", "diff", "log", "show", "ls-files", "ls-tree", "rev-parse", "blame",
-                 "cat-file", "describe", "shortlog", "grep", "rev-list", "show-ref",
-                 "for-each-ref", "merge-base", "name-rev")
-GIT_VALUE_GLOBALS = ("--namespace",)
-# Commands that read a configuration file that can make them run a program
-# (git: core.fsmonitor, diff.external, textconv; rg: a RIPGREP_CONFIG_PATH file
-# with --pre). With one in the command, data written by the command is never
-# dropped as "only file content" (PR #408 review, round 5).
-CONFIG_READERS = ("git", "rg")
-# Shell builtins and commands that turn data into a path, a variable or code.
-CONVERTERS = ("read", "mapfile", "readarray", "source", ".", "eval", "exec", "xargs",
-              "parallel", "watch", "getopts", "let", "declare", "typeset", "local",
-              "export", "readonly", "set")
-# Code the shell runs while expanding a word or an unquoted heredoc body.
-# `${X@P}` (prompt expansion can run a substitution) and zsh `${(e)X}` count too.
-SUBSTITUTION = re.compile(r"\$\(|`|\$\[|\$\{[^}]*[=@]|\$\{\(|^\(")
-DISABLE_NARROWING = ("alias", "unalias", "hash", "enable", "shopt", "function", "trap",
-                     "command_not_found_handle", "export", "declare", "typeset", "local", "set",
-                     "eval", "source", ".")
-# Expansions whose value is another command's words: `$_` (the last argument of
-# the previous command), `${!name}` indirection, BASH_COMMAND/BASH_ARGV.
-CARRIES_WORDS = re.compile(r"\$\{?_(?![A-Za-z0-9_])|\$\{!|BASH_(?:COMMAND|ARGV|ARGC)"
-                           r"|![!$*^:]|!-?[0-9]")     # and history expansion, if it is on
-ASSIGNMENT_WORD = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*\+?=")
-# The only other commands a data segment may share a command with: none reads
-# a file of the cwd as code or a path on its own (a `make`, `npm test`, `pytest`
-# or `git commit` hook would run a Makefile, package.json, conftest.py or hook
-# the heredoc just wrote).
-DATA_SAFE_PEERS = ("cp", "mv", "mkdir", "touch", "cd", "pushd", "popd", "echo", "printf", "cat",
-                   "tee", "true", ":", "rm", "ln", "chmod", "install", "gh", "ls", "stat", "wc",
-                   "head", "tail", "grep", "jq", "sleep", "date", "pwd", "test", "[", "basename",
-                   "dirname", "realpath", "readlink", "diff", "cmp", "sort", "uniq", "cut", "tr")
-ENV_THAT_RUNS_CODE = re.compile(r"^(?:PATH|BASH_ENV|ENV|CDPATH|IFS|PROMPT_COMMAND|BASH_FUNC_\S*)\+?=")
-
-
-SED_SAFE_LONG = ("--quiet", "--silent", "--regexp-extended", "--posix", "--null-data",
-                 "--zero-terminated", "--separate", "--unbuffered", "--debug", "--sandbox")
-
-
-def _long_prefix_of(arg, names):
-    """True when `arg` is `--X` or `--X=…` and X is a prefix of one of `names`."""
-    if not arg.startswith("--") or len(arg) < 3:
-        return False
-    stem = arg[2:].split("=", 1)[0]
-    return any(n.startswith(stem) for n in names)
-
-
-def _short_cluster_has(args, letters):
-    return any(a.startswith("-") and not a.startswith("--") and any(c in a[1:] for c in letters)
-               for a in args)
-
-
-def _read_only_shape(base, rest):
-    """True when `base rest…` is a read-only invocation (see the block comment above)."""
-    if base not in READ_ONLY_COMMANDS:
-        return False
-    if base == "printf":
-        return not any(a == "-v" or a.startswith("-v") for a in rest[:1])
-    if base == "sort":
-        # getopt_long takes any unambiguous prefix: `--out=f` is `--output=f`.
-        return not (_short_cluster_has(rest, "oT") or any(
-            _long_prefix_of(a, ("output", "compress-program", "temporary-directory")) for a in rest))
-    if base == "uniq":
-        return all(a.startswith("-") for a in rest)
-    if base == "rg":
-        return not any(a.startswith("--pre") for a in rest)
-    if base == "sed":
-        # Only these long options, spelled out; `--in`, `--exp=` and every other
-        # abbreviation getopt_long would accept are not read as read-only.
-        if any(a.startswith("--") and a not in SED_SAFE_LONG and not a.startswith("--line-length=")
-               for a in rest):
-            return False
-        toks = [Tok("word", a) for a in rest]
-        if _sed_inplace(toks) or _short_cluster_has(rest, "iI") or any(
-                a in ("-f", "--file") or a.startswith("--file=") or
-                                     (a.startswith("-f") and not a.startswith("--")) for a in rest):
-            return False
-        return not any(_sed_writes(x) for x in _sed_scripts(toks))
-    if base == "find":
-        return _find_unsure([Tok("word", a) for a in rest]) is None
-    if base == "xargs":
-        return _xargs_read_only([Tok("word", a) for a in rest])
-    if base == "git":
-        i = 0
-        while i < len(rest) and rest[i].startswith("-"):
-            a = rest[i]
-            if a in GIT_VALUE_GLOBALS:
-                i += 2
-                continue
-            # `-C`, `--git-dir`, `--work-tree` point git at another repository and
-            # its config, which can run code: such a git is never inert.
-            if a.startswith("--namespace=") or a in (
-                    "--no-pager", "--no-optional-locks", "--literal-pathspecs", "--bare"):
-                i += 1
-                continue
-            return False        # -c, --config-env, --exec-path, -p (a pager), …
-        if i >= len(rest) or rest[i] not in GIT_READ_ONLY:
-            return False
-        args = rest[i + 1:]
-        return not any(a.startswith(("--output", "--ext-diff", "-O", "--open-files-in-pager"))
-                       for a in args)
-    return True
-
-
-def _inert(seg):
-    """Rule 1 of the block comment, for this segment alone (its pipe is _needle_text's)."""
-    if seg["depth"] or seg["prefix_assign"] or not seg.get("base"):
-        return False
-    if any(ASSIGNMENT_WORD.match(w) for w in seg["words"]):
-        return False        # `env GIT_EXTERNAL_DIFF=tee git diff …`: the env runs code
-    if any(d not in ("1", "2", "-") for d in seg.get("dups", [])):
-        return False        # `ls x >&3`: fd 3 may be a file the command reads back
-    if os.path.basename(seg.get("argv0") or "") != seg["base"] or "/" in (seg.get("argv0") or ""):
-        # A path in argv0 (`./ls`, `/tmp/x/cat`) is not the command on the list.
-        return False
-    if any(SUBSTITUTION.search(w) for w in seg["words"]):
-        return False
-    if any(not q and SUBSTITUTION.search(b) for b, q in seg["bodies"]):
-        return False
-    for kind, detail, _ in seg["records"]:
-        if kind == "RAN" or (kind == "TARGET" and detail == "/dev/null"):
-            continue
-        return False
-    return _read_only_shape(seg["base"], seg["rest"])
-
-
-# Builtins and keywords that assign a variable without a `NAME=` word, and the
-# names whose value changes what a read-only command runs or reads (PR #408
-# review, round 5: `read PATH <<< /tmp/b; ls PROT`).
-ASSIGNING_BASES = ("read", "mapfile", "readarray", "getopts", "let", "unset", "printf")
-ASSIGNING_KEYWORDS = ("for", "select")
-SENSITIVE_NAME = re.compile(
-    r"(?<![A-Za-z0-9_$\{])(?:PATH|HOME|IFS|CDPATH|BASH_ENV|ENV|SHELLOPTS|BASHOPTS|"
-    r"XDG_[A-Z0-9_]*|GIT_[A-Z0-9_]*|LD_[A-Z0-9_]*|DYLD_[A-Z0-9_]*|RIPGREP_[A-Z0-9_]*)(?![A-Za-z0-9_])")
-
-
-def _sets_variables(seg):
-    """True when this segment may assign a variable other than by a plain `NAME=` word,
-    or names one of the variables that steer what a command runs (SENSITIVE_NAME)."""
-    words = seg["words"]
-    base = seg.get("base")
-    if base in ASSIGNING_BASES and (base != "printf" or not _read_only_shape("printf", seg["rest"])):
-        return True
-    if words and (words[0] in ASSIGNING_KEYWORDS or words[0].startswith("((")):
-        return True
-    for w in words:
-        if w.startswith("((") or re.search(r"\$\{[A-Za-z_][A-Za-z0-9_]*:?[=?]", w) \
-                or SENSITIVE_NAME.search(w):
-            return True
-    return False
-
-
-def _needle_text(text, records):
-    """The part of `text` that could steer an unresolved write (see the block comment)."""
-    info = SEGMENTS
-    if not info or any(k == "ANOMALY" for k, _, _ in records):
-        return text
-    segs = info["segs"]
-    if info["functions"] or any(
-            s.get("base") in DISABLE_NARROWING or (s["words"] and s["words"][0] == "function")
-            # `exec` behind any wrapper (`command exec >f`, `env exec >f`), and a segment
-            # that is only redirections (`exec 3>f`, `{fd}>f`, `>f`): a persistent fd
-            # change can send every later "terminal" output into a file (PR #408 review).
-            or "exec" in s.get("wrappers", ())
-            or _sets_variables(s)
-            or (not s.get("base") and (s.get("redirects") or s.get("dups")))
-            or any(ENV_THAT_RUNS_CODE.match(w) or CARRIES_WORDS.search(w) for w in s["words"])
-            or any(CARRIES_WORDS.search(b) for b, q in s["bodies"] if not q) for s in segs):
-        return text         # `exec >f` sends every later "terminal" output into a file
-    inert = [False] * len(segs)
-    for i in range(len(segs) - 1, -1, -1):
-        piped_on = segs[i]["terminator"] == "|"
-        inert[i] = _inert(segs[i]) and (not piped_on or (i + 1 < len(segs) and inert[i + 1]))
-    target_only = all(d.startswith(("writes to a target built by shell expansion",
-                                    "writes to a relative path after a `cd`",
-                                    "writes to a glob"))
-                      for k, d, _ in records if k == "UNSURE")
-    live = [s for s, dead in zip(segs, inert) if not dead]
-    converts = any(
-        s.get("base") in CONVERTERS or s.get("base") in EVALUATORS
-        or "/" in (s.get("argv0") or "")
-        or (s.get("base") == "printf" and not _read_only_shape("printf", s["rest"]))
-        or any(SUBSTITUTION.search(w) for w in s["words"])
-        or any(not q and SUBSTITUTION.search(b) for b, q in s["bodies"])
-        for s in live)
-    data_ok = target_only and not converts and all(
-        s.get("base") in DATA_SAFE_PEERS or (s.get("base") is None and not s["redirects"]) for s in live
-    ) and not any(s.get("base") in CONFIG_READERS for s in segs)
-    parts = []
-    for s in live:
-        base = s.get("base")
-        data = data_ok and _data_segment(s, live)
-        if data and base in ("echo", "printf"):
-            parts.extend(s["redirects"])        # what it writes to, not what it says
-            continue
-        parts.extend(s["words"])
-        for body, quoted in s["bodies"]:
-            if data and base in ("cat", "tee") and (quoted or not SUBSTITUTION.search(body)):
-                continue
-            parts.append(body)
-    return "\n".join(parts)
-
-
-# A later command may READ BACK a file this one wrote: `sed -f`, `make -f`,
-# `tar -T`, `git restore --pathspec-from-file`, … could each turn its content
-# into code or a path. These flags only take the file as text to send.
-CONTENT_FILE_FLAGS = ("--body-file", "--notes-file", "-F", "--file")
-
-
-def _data_segment(seg, live):
-    """Rule 2 for one echo/printf/cat/tee segment: its content can only become file content.
-
-    Its output must not be piped or sit in a group, it carries no assignment,
-    and no other live segment names a file it writes (except as the message
-    file of `gh` or `git commit`), or a glob that could.
-    """
-    base = seg.get("base")
-    if base not in ("echo", "printf", "cat", "tee") or seg["prefix_assign"] or seg["depth"] \
-            or seg["terminator"] == "|" or (
-                base == "printf" and not _read_only_shape("printf", seg["rest"])):
-        return False
-    files = list(seg["redirects"])
-    if base == "tee":
-        files += [a for a in seg["rest"] if not a.startswith("-")]
-    names = set()
-    variables = set()
-    for f in files:
-        name = os.path.basename(f.rstrip("/"))
-        if not name or name in (".", ".."):
-            return False
-        names.add(name)
-        # `> "$F"` is read back as `${F}`, `"$F"` or `${F%x}` alike: match the name.
-        variables.update(m.group(1) or m.group(2) for m in VAR_REF.finditer(f))
-    var_rx = re.compile(r"\$\{?(?:%s)(?![A-Za-z0-9_])" % "|".join(map(re.escape, variables))) \
-        if variables else None
-    for other in live:
-        if other is seg:
-            continue
-        words = other["words"]
-        skip = set()
-        if other.get("base") == "gh" or (other.get("base") == "git" and "commit" in other["rest"]):
-            for i, w in enumerate(words):
-                if w in CONTENT_FILE_FLAGS:
-                    skip.add(i + 1)
-                elif any(w.startswith(flag + "=") for flag in CONTENT_FILE_FLAGS if flag.startswith("--")):
-                    skip.add(i)
-        for i, w in enumerate(words):
-            if i in skip:
-                continue
-            if any(c in w for c in "*?[") or any(n in w for n in names) \
-                    or (var_rx is not None and var_rx.search(w)):
-                return False
-    return True
-
-
 # What an R4 ask adds to its reason, by why it is an ask and not a deny. A
 # guard file of a plugin source checkout is editable with approval; a git
 # replay (checkout, switch, restore, reset, merge, pull, rebase, cherry-pick,
@@ -3933,7 +3695,7 @@ def protect(records, payload):
                  % (cwd, aid, pattern, SOURCE_CHECKOUT_ASK_TAIL if mode == "ask" else ""))
             break
     if text and (unsure or anomalies):
-        evidence = _needle_text(text, records)
+        evidence = text
         opaque = any(k == "UNSURE" and d == EVAL_WHY for k, d, _ in records)
         for rx, mode, pattern in prot.needles():
             m = rx.search(evidence)
