@@ -5,6 +5,12 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [5.7.2] — 2026-11-08
+
+### Fixed
+
+- **`sed 's/x/[/w FILE'` is a write again** (Codex review of #408). The 5.7.1 sed scanner skipped a `[ … ]` bracket expression in every field. In an `s` replacement or a `y` string `[` is literal, so the scanner ran past the closing delimiter and lost the `w` flag. Master before 5.7.1 denied this; 5.7.1 allowed it. Bracket expressions are now skipped only in regex fields (addresses and the `s` pattern). Tests cover `s/x/[/w`, `y/[/x/;w`, `\%[%]%w` and `s/[/]/x/w`.
+
 ## [5.7.1] — 2026-11-08
 
 ### Fixed
