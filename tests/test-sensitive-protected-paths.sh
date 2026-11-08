@@ -519,6 +519,26 @@ blocked "timeout over docker run"               "timeout -k 1 5 docker run img c
 blocked "timeout over numactl"                  "timeout -k 1 5 numactl cp x ~/.gitconfig"
 blocked "a line continuation inside \${_}" \
   "echo x > \$UNK; ls ~/.gitconfig; cp x \${\\${NL}_}"
+# PR #408 review (Codex P1): narrowing-disablers hidden behind a wrapper, and
+# redirection-only commands that move where later "inert" output goes.
+blocked "command exec > file, then an inert ls read back by python" \
+  "command exec > /tmp/p; ls -d ~/.gitconfig; python3 -c \"open(open('/tmp/p').read().strip(),'w')\""
+blocked "builtin exec > file, then an inert ls read back" \
+  "builtin exec > /tmp/p; ls -d ~/.config/gh; D=\$(cat /tmp/p); echo x > \"\$D/hosts.yml\""
+blocked "env exec > file, then an inert ls read back" \
+  "env exec > /tmp/p; ls -d ~/.config/gh; D=\$(cat /tmp/p); echo x > \"\$D/hosts.yml\""
+blocked "command eval sets env for an inert git diff" \
+  "echo x > \$UNK; command eval 'export GIT_EXTERNAL_DIFF=tee'; echo pwned | git diff --no-index a1 ~/.gitconfig"
+blocked "builtin source before an inert git diff" \
+  "echo x > \$UNK; builtin source ./env.sh; echo pwned | git diff --no-index a1 ~/.gitconfig"
+blocked "command export before an inert git diff" \
+  "echo x > \$UNK; command export GIT_EXTERNAL_DIFF=tee; echo pwned | git diff --no-index a1 ~/.gitconfig"
+blocked "bare exec 3> file, then an inert ls into fd 3" \
+  "exec 3>/tmp/p; ls ~/.config/gh >&3; D=\$(cat /tmp/p); echo x > \"\$D/hosts.yml\""
+blocked "{fd}> file, then an inert ls read back" \
+  "exec {fd}>/tmp/p; ls -d ~/.config/gh; D=\$(cat /tmp/p); echo x > \"\$D/hosts.yml\""
+blocked "a redirection-only > file beside an inert ls" \
+  ">/tmp/p; ls -d ~/.config/gh; D=\$(cat /tmp/p); echo x > \"\$D/hosts.yml\""
 cwd_verdict="$(v Bash "python3 -c \"open('hosts.yml','w')\"" "$HOME/.config/gh")"
 case "$cwd_verdict" in deny|ask) cwd_verdict=blocked ;; esac
 judge "an unresolved write run inside a protected dir (a cwd kept from an earlier call)" blocked "$cwd_verdict"

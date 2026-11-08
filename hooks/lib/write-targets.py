@@ -2106,7 +2106,7 @@ def _segment_records(seg, piped_in, terminator, cwd, records, heredoc_iter, cond
     """
     if shape is None:
         shape = {}
-    shape.update({"base": None, "rest": [], "prefix_assign": False,
+    shape.update({"base": None, "rest": [], "prefix_assign": False, "wrappers": [],
                   "redirects": [t.value for t in redirect_targets(seg)]})
     fragment = " ".join(t.value for t in seg if t.kind == "word")[:160]
 
@@ -2185,6 +2185,7 @@ def _segment_records(seg, piped_in, terminator, cwd, records, heredoc_iter, cond
         name = os.path.basename(head)
         if name in WRAPPERS:
             words.pop(0)
+            shape["wrappers"].append(name)
             before_strip = list(words)
             words, wrapper_unsure = _strip_wrapper_options(words, name)
             if name == "time" and not wrapper_unsure:
@@ -3702,7 +3703,12 @@ def _needle_text(text, records):
         return text
     segs = info["segs"]
     if info["functions"] or any(
-            s.get("base") in DISABLE_NARROWING or (s["words"] and s["words"][0] in ("function", "exec"))
+            s.get("base") in DISABLE_NARROWING or (s["words"] and s["words"][0] == "function")
+            # `exec` behind any wrapper (`command exec >f`, `env exec >f`), and a segment
+            # that is only redirections (`exec 3>f`, `{fd}>f`, `>f`): a persistent fd
+            # change can send every later "terminal" output into a file (PR #408 review).
+            or "exec" in s.get("wrappers", ())
+            or (not s.get("base") and (s.get("redirects") or s.get("dups")))
             or any(ENV_THAT_RUNS_CODE.match(w) or CARRIES_WORDS.search(w) for w in s["words"])
             or any(CARRIES_WORDS.search(b) for b, q in s["bodies"] if not q) for s in segs):
         return text         # `exec >f` sends every later "terminal" output into a file
