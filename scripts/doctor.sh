@@ -63,21 +63,15 @@ case "$PROBE_SECS" in 1|2|3) ;; *) PROBE_SECS=3 ;; esac
 PROBE_TIMED_OUT="version unknown (probe timed out)"
 
 # with_deadline <seconds> <command...> — run it, killed after <seconds> with every process it
-# started; its status, or 124/137/143 when the deadline killed it. coreutils timeout/gtimeout
-# when installed, else a background job in its own process group and a watchdog (macOS ships
-# no timeout). Every external probe below goes through it, so one stalled CLI can never hang
+# started; its status, or 137/143 when the deadline killed it. A background job in its own
+# process group plus a watchdog, so it behaves the same on macOS (no timeout) and Linux, and
+# the whole group is KILLed when the leader exits. Every external probe below goes through it, so one stalled CLI can never hang
 # doctor before its install-integrity and dependency report (#412).
 with_deadline() {
   local secs="$1" pid wd rc=0 mon=0 sl
   shift
-  if command -v timeout >/dev/null 2>&1; then
-    timeout -k 1 "$secs" "$@" || rc=$?
-    return "$rc"
-  fi
-  if command -v gtimeout >/dev/null 2>&1; then
-    gtimeout -k 1 "$secs" "$@" || rc=$?
-    return "$rc"
-  fi
+  # Always this watchdog, never coreutils timeout/gtimeout: their -k KILLs only a leader that
+  # is still running, so a TERM-ignoring child that outlives its leader would keep stdout open.
   sl="$(command -v sleep 2>/dev/null || echo /bin/sleep)"
   case "$-" in *m*) mon=1 ;; esac
   set -m
