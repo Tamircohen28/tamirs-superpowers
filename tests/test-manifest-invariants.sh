@@ -191,7 +191,7 @@ for o in $opts; do
   grep -q "^| \`$o\` |" "$ROOT/docs/engineering/architecture/mods.md" && ok "mods.md lists option $o" || bad "mods.md does not list option $o" "add a row to the Options table"
 done
 n_opts="$(echo "$opts" | wc -w | tr -d ' ')"
-words=(zero One Two Three Four Five Six)
+words=(zero One Two Three Four Five Six Seven Eight Nine Ten)
 grep -q "^${words[$n_opts]} non-sensitive \`userConfig\` fields" "$ROOT/docs/engineering/architecture/mods.md" \
   && ok "mods.md counts ${words[$n_opts]} non-sensitive options" || bad "mods.md option count is stale" "the manifest declares $n_opts non-sensitive option(s)"
 rows="$(grep -cE '^\| `[a-z_]+` \| [^|]+ \| [^|]+ \|$' "$ROOT/docs/engineering/architecture/mods.md")"

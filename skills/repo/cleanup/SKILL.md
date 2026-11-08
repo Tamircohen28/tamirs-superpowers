@@ -226,7 +226,7 @@ irreplaceable content that nothing in git ever saw.
 For any `dirty` or `recent-clean` worktree, show the user what's there before asking:
 
 ```
-Worktree: ~/.claude/worktrees/myrepo/feat-login
+Worktree: ~/.session-worktrees/myrepo/feat-login
 Branch: feat/login (last commit 3 days ago)
 Uncommitted: 4 files changed
 
@@ -246,7 +246,7 @@ uncommitted git changes), show that instead — a diff summary doesn't apply to 
 tracked:
 
 ```
-Worktree: ~/.claude/worktrees/myrepo/old-audit
+Worktree: ~/.session-worktrees/myrepo/old-audit
 Branch: wip/old-audit (last commit 34 days ago, no open PR — would otherwise be stale-clean)
 Gitignored content: 18 files, 332K (git status reports clean — this is invisible to it)
 
@@ -332,9 +332,9 @@ Brief, state-change-only updates — not one line per command:
 
 [Phase 2/3] Local worktrees
   Main worktree: skipped
-  ~/.claude/worktrees/myrepo/feat-login  → stale-clean → removed
-  ~/.claude/worktrees/myrepo/fix-bug     → dirty (4 files) → user chose push → PR #51 opened → removed
-  ~/.claude/worktrees/myrepo/old-spike   → stale-clean → removed
+  ~/.session-worktrees/myrepo/feat-login  → stale-clean → removed
+  ~/.session-worktrees/myrepo/fix-bug     → dirty (4 files) → user chose push → PR #51 opened → removed
+  ~/.session-worktrees/myrepo/old-spike   → stale-clean → removed
 
 [Phase 3/3] Local reset
   Build artifacts: .next/, dist/ → user confirmed → deleted

@@ -1,7 +1,77 @@
 #!/usr/bin/env bash
-# Shared helpers for Make-worktree-in-~/.claude/worktrees session workflow.
+# Shared helpers for the session-worktree workflow: one prompt, one slug, one
+# worktree at <worktree root>/<repo>/<slug>.
+#
+# WHERE SESSION WORKTREES LIVE (issue #404)
+#   The root is configurable, and by default it is OUTSIDE ~/.claude:
+#
+#     1. SUPERPOWERS_WORKTREE_ROOT          env var, every host
+#     2. CLAUDE_PLUGIN_OPTION_WORKTREE_ROOT the `worktree_root` plugin option
+#                                           (Claude Code exports it to hooks)
+#     3. ~/.session-worktrees               the default
+#
+#   A value may start with `~` or `$HOME`; anything that is not an absolute
+#   path after that expansion (or is `/`) is ignored and the next source wins.
+#
+#   Why not ~/.claude/worktrees any more: Claude Code treats every `.claude`
+#   directory as a protected path, so outside bypassPermissions mode each write
+#   there prompts, and no `permissions.allow` rule can pre-approve it. The
+#   policy sends every edit into a session worktree, so that was a prompt on
+#   almost every edit.
+#
+#   Why not ~/.agent-worktrees: that name is the OBJECTIVE layout's marker —
+#   is_objective_worktree_path matches any `/.agent-worktrees/` path, and
+#   core/policies/git.md documents ~/.agent-worktrees/<repo>/<objective>/task-NNN
+#   as a user-level objective location. The retention pass below also removes
+#   clean worktrees under this root, so the root must hold session worktrees
+#   only, never objective or hand-made ones.
+#
+#   The legacy root (~/.claude/worktrees) is still RECOGNISED — sessions that
+#   started on an older plugin version, and worktrees nobody has migrated, keep
+#   working — but nothing is CREATED there. scripts/worktrees-migrate.sh moves
+#   idle legacy worktrees to the configured root.
 
-WORKTREE_ROOT="${HOME}/.claude/worktrees"
+LEGACY_WORKTREE_ROOT="${HOME}/.claude/worktrees"
+DEFAULT_WORKTREE_ROOT="${HOME}/.session-worktrees"
+
+# _normalize_worktree_root <raw> sets _WT_ROOT_OUT to the absolute, expanded
+# form of <raw>, or returns 1 when <raw> is empty, relative, or `/`. No
+# subshell and no output: it runs every time this file is sourced.
+_normalize_worktree_root() {
+  local raw="${1-}"
+  raw="${raw#"${raw%%[![:space:]]*}"}"
+  raw="${raw%"${raw##*[![:space:]]}"}"
+  [[ -n "$raw" ]] || return 1
+  # shellcheck disable=SC2088  # the literal text a person typed, matched as text
+  case "$raw" in
+    '~')          raw="$HOME" ;;
+    '~/'*)        raw="${HOME}/${raw:2}" ;;
+    '$HOME')      raw="$HOME" ;;
+    '$HOME/'*)    raw="${HOME}/${raw:6}" ;;
+    '${HOME}')    raw="$HOME" ;;
+    '${HOME}/'*)  raw="${HOME}/${raw:8}" ;;
+  esac
+  [[ "$raw" == /* ]] || return 1
+  while [[ "$raw" == */ && "$raw" != "/" ]]; do raw="${raw%/}"; done
+  [[ "$raw" != "/" ]] || return 1
+  _WT_ROOT_OUT="$raw"
+}
+
+# _resolve_worktree_root sets WORKTREE_ROOT (env > option > default) and
+# WORKTREE_ROOT_SOURCE (env | option | default), for messages and tests.
+# shellcheck disable=SC2034  # WORKTREE_ROOT_SOURCE is read by the scripts that source this
+_resolve_worktree_root() {
+  _WT_ROOT_OUT=""
+  if _normalize_worktree_root "${SUPERPOWERS_WORKTREE_ROOT:-}"; then
+    WORKTREE_ROOT="$_WT_ROOT_OUT"; WORKTREE_ROOT_SOURCE="env"
+  elif _normalize_worktree_root "${CLAUDE_PLUGIN_OPTION_WORKTREE_ROOT:-}"; then
+    WORKTREE_ROOT="$_WT_ROOT_OUT"; WORKTREE_ROOT_SOURCE="option"
+  else
+    WORKTREE_ROOT="$DEFAULT_WORKTREE_ROOT"; WORKTREE_ROOT_SOURCE="default"
+  fi
+}
+_resolve_worktree_root
+
 SESSION_STATE_DIR="${HOME}/.claude/session-state"
 SESSION_FILES_ARCHIVE="${HOME}/.claude/session-files"
 WORKTREE_RETENTION_DAYS="${WORKTREE_RETENTION_DAYS:-3}"
@@ -86,14 +156,185 @@ repo_name_for() {
   basename "$(repo_root_for "$1")"
 }
 
-is_global_worktree_path() {
-  local path="$1"
-  [[ "$path" == "${WORKTREE_ROOT}/"* ]]
+# _physical_dir <dir> prints the symlink-resolved form of <dir>, or <dir> as
+# given when it does not exist. git reports PHYSICAL paths (/private/var/... on
+# macOS) while a root built from $HOME or typed by a person is LOGICAL, so every
+# comparison below is made between canonical spellings.
+_physical_dir() {
+  local d="${1-}"
+  if [[ -n "$d" && -d "$d" ]]; then
+    (cd "$d" 2>/dev/null && pwd -P) || _hook_put "$d"
+  else
+    _hook_put "$d"
+  fi
 }
 
-# True when dir is inside a REGISTERED git worktree that lives under a
-# .claude/worktrees/ directory — either the ~/.claude/worktrees/<repo>/<slug>
-# layout or Claude Code's native <repo>/.claude/worktrees/<name> layout — and
+# canonical_path <path> — the physical spelling of <path>: every symlink in it
+# resolved, no `.`/`..` left. A path that does not exist (yet) is the canonical
+# spelling of its nearest existing ancestor plus the remaining components, so
+# a worktree path can be compared before and after it is created. A relative
+# path is taken from $PWD. Returns 1 only when nothing on the path resolves.
+#
+# THE RULE THIS SERVES: a decision to delete, move or reuse a directory is
+# never made on a comparison between a LOGICAL spelling (a configured root, a
+# path built from $HOME) and git's PHYSICAL one. Through a symlink the two
+# differ, and an existing worktree reads as unregistered — which is how
+# WorktreeCreate came to `rm -rf` one with uncommitted work in it (PR #406).
+canonical_path() {
+  local p="${1-}" tail="" base
+  [[ -n "$p" ]] || return 1
+  [[ "$p" == /* ]] || p="${PWD%/}/${p}"
+  while [[ "$p" == */ && "$p" != "/" ]]; do p="${p%/}"; done
+  while [[ ! -d "$p" ]]; do
+    base="${p##*/}"
+    p="${p%/*}"
+    [[ -n "$p" ]] || p="/"
+    case "$base" in
+      ''|.) ;;
+      ..) tail="/..${tail}" ;;
+      *) tail="/${base}${tail}" ;;
+    esac
+  done
+  p="$(cd "$p" 2>/dev/null && pwd -P)" || return 1
+  [[ "$p" == "/" ]] && p=""
+  # Append the part that does not exist yet one component at a time, so a `..`
+  # in it removes the component before it rather than surviving textually.
+  local rest="${tail#/}" comp
+  while [[ -n "$tail" ]]; do
+    comp="${rest%%/*}"
+    if [[ "$rest" == */* ]]; then rest="${rest#*/}"; else rest=""; tail=""; fi
+    case "$comp" in
+      ''|.) ;;
+      ..) p="${p%/*}" ;;
+      *) p="${p}/${comp}" ;;
+    esac
+  done
+  _hook_put "${p:-/}"
+}
+
+# path_under_root <path> <root> — true when <path> is strictly below <root>,
+# both compared in canonical form. The root itself is not "under" it: a session
+# worktree is <root>/<repo>/<slug>. A textual match counts only when the path
+# carries no `..`, so `<root>/../elsewhere` is never "under" the root.
+path_under_root() {
+  local path="${1%/}" root="${2%/}" cpath croot
+  [[ -n "$path" && -n "$root" ]] || return 1
+  case "/$path/" in
+    */../*) ;;
+    *) [[ "$path" == "$root"/* ]] && return 0 ;;
+  esac
+  croot="$(canonical_path "$root")" || return 1
+  cpath="$(canonical_path "$path")" || return 1
+  [[ "$croot" == "/" ]] && croot=""
+  [[ "$cpath" == "$croot"/* ]]
+}
+
+# is_linked_worktree_of <repo_root> <path> — true when <path> is a LINKED
+# worktree registered in <repo_root>'s `git worktree list`, compared in
+# canonical form. The main working tree (the list's first entry) never counts:
+# nothing here may treat a main checkout as a disposable session worktree.
+is_linked_worktree_of() {
+  local repo_root="$1" want line got first=1
+  [[ -n "$repo_root" && -n "${2-}" ]] || return 1
+  want="$(canonical_path "$2")" || return 1
+  while IFS= read -r line; do
+    case "$line" in
+      "worktree "*)
+        if (( first )); then first=0; continue; fi
+        got="$(canonical_path "${line#worktree }")" || continue
+        [[ "$got" == "$want" ]] && return 0
+        ;;
+    esac
+  done < <(git -C "$repo_root" worktree list --porcelain 2>/dev/null)
+  return 1
+}
+
+# worktree_dir_verdict <repo_root> <path> — what an existing <path> is, decided
+# BEFORE anything is created there. Prints exactly one of:
+#   registered        a linked worktree of <repo_root>: reuse it as it is
+#   free              absent, an empty directory, or a session-files shell
+#                     (the only thing the hooks themselves leave behind)
+#   refuse:<reason>   anything else — a .git entry that is not ours, a file, or
+#                     any content beyond session-files/. The caller must leave
+#                     it exactly where it is and fail, never delete it.
+worktree_dir_verdict() {
+  local repo_root="$1" path="$2" entry name
+  if [[ ! -e "$path" && ! -L "$path" ]]; then _hook_put free; return 0; fi
+  if [[ -L "$path" || ! -d "$path" ]]; then
+    _hook_put "refuse:${path} exists and is not a directory"; return 0
+  fi
+  if is_linked_worktree_of "$repo_root" "$path"; then _hook_put registered; return 0; fi
+  if [[ -e "${path}/.git" || -L "${path}/.git" ]]; then
+    _hook_put "refuse:${path} holds a .git entry but is not a registered worktree of ${repo_root}; it was left untouched"
+    return 0
+  fi
+  for entry in "$path"/* "$path"/.[!.]* "$path"/..?*; do
+    [[ -e "$entry" || -L "$entry" ]] || continue
+    name="${entry##*/}"
+    if [[ "$name" == "session-files" && -d "$entry" && ! -L "$entry" ]]; then continue; fi
+    _hook_put "refuse:${path} is not a registered worktree of ${repo_root} and holds files (${name}); it was left untouched — move it aside yourself"
+    return 0
+  done
+  _hook_put free
+}
+
+# _stash_worktree_shell <path> — for a path worktree_dir_verdict called "free":
+# move its session-files/ (if any) to a sibling and remove the then-empty
+# directory, so `git worktree add` can populate the path. Prints the stash path
+# ("" when there was nothing to keep). rmdir, never rm -rf: if anything else
+# appeared in the meantime the directory stays and this fails.
+_stash_worktree_shell() {
+  local path="$1" stash=""
+  [[ -d "$path" ]] || { _hook_put ""; return 0; }
+  if [[ -d "${path}/session-files" ]]; then
+    stash="${path}.session-files.$$"
+    mv "${path}/session-files" "$stash" || return 1
+  fi
+  if ! rmdir "$path" 2>/dev/null; then
+    [[ -n "$stash" ]] && mv "$stash" "${path}/session-files" 2>/dev/null
+    return 1
+  fi
+  _hook_put "$stash"
+}
+
+# _restore_worktree_shell <path> <stash> — put stashed session files back
+# (inside the new worktree, or into a re-made directory when creation failed).
+_restore_worktree_shell() {
+  local path="$1" stash="${2-}"
+  [[ -n "$stash" && -d "$stash" ]] || return 0
+  mkdir -p "$path" 2>/dev/null || return 0
+  if [[ ! -e "${path}/session-files" ]]; then
+    mv "$stash" "${path}/session-files" 2>/dev/null || true
+  fi
+}
+
+# session_root_kind <path> — "session-global" when <path> is under the
+# configured root, "legacy-global" when it is under ~/.claude/worktrees, and
+# nothing (status 1) otherwise. The configured root is checked first, so a
+# root the user pointed back at ~/.claude/worktrees is still "session-global".
+session_root_kind() {
+  local path="${1-}"
+  if path_under_root "$path" "$WORKTREE_ROOT"; then
+    _hook_put session-global; return 0
+  fi
+  if [[ "$LEGACY_WORKTREE_ROOT" != "$WORKTREE_ROOT" ]] \
+     && path_under_root "$path" "$LEGACY_WORKTREE_ROOT"; then
+    _hook_put legacy-global; return 0
+  fi
+  return 1
+}
+
+# is_global_worktree_path <path> — true for a path under the configured root
+# AND under the legacy ~/.claude/worktrees root. Recognising the legacy root is
+# what keeps a session that started on an older plugin version, or a worktree
+# nobody migrated, from being denied every edit.
+is_global_worktree_path() {
+  session_root_kind "${1-}" >/dev/null
+}
+
+# True when dir is inside a REGISTERED git worktree that lives under a session
+# root — the configured root, the legacy ~/.claude/worktrees/<repo>/<slug>
+# layout, or Claude Code's native <repo>/.claude/worktrees/<name> layout — and
 # is checked out on a session branch (wt/* or claude/*). Such a worktree is a
 # dedicated session workspace regardless of whether its name matches a slug
 # rebuilt from session state, so enforcement must not string-match paths.
@@ -101,11 +342,12 @@ is_registered_claude_worktree() {
   local dir="$1"
   local top branch
   top="$(git -C "$dir" rev-parse --show-toplevel 2>/dev/null)" || return 1
-  case "$top" in
-    "${WORKTREE_ROOT}"/*) ;;
-    */.claude/worktrees/*) ;;
-    *) return 1 ;;
-  esac
+  if ! is_global_worktree_path "$top"; then
+    case "$top" in
+      */.claude/worktrees/*) ;;
+      *) return 1 ;;
+    esac
+  fi
   # A linked (registered) worktree has a .git FILE at its top level; the main
   # checkout has a .git directory. An unregistered/pruned copy fails rev-parse.
   [[ -f "${top}/.git" ]] || return 1
@@ -127,6 +369,36 @@ worktree_path_for() {
   local task_slug="$2"
   [[ -n "$repo_name" && -n "$task_slug" ]] || return 1
   echo "${WORKTREE_ROOT}/${repo_name}/${task_slug}"
+}
+
+# legacy_worktree_path_for <repo> <slug> — the same worktree at the legacy
+# ~/.claude/worktrees root. Recognised, never created.
+legacy_worktree_path_for() {
+  local repo_name="$1" task_slug="$2"
+  [[ -n "$repo_name" && -n "$task_slug" ]] || return 1
+  echo "${LEGACY_WORKTREE_ROOT}/${repo_name}/${task_slug}"
+}
+
+# session_worktree_path_for <repo> <slug> — where this session's worktree IS.
+#
+# The configured root's path, unless that is not a live worktree and the legacy
+# root's path is: a session that started on an older plugin version has its
+# worktree (and its `wt/<slug>` branch checked out) under ~/.claude/worktrees.
+# Pointing it at a fresh path under the new root would report the live
+# worktree as removed, and `git worktree add` there would fail because the
+# branch is already checked out. Creation still only ever uses the new root:
+# when neither is live this prints the new root's path.
+session_worktree_path_for() {
+  local repo_name="$1" task_slug="$2" path legacy
+  path="$(worktree_path_for "$repo_name" "$task_slug")" || return 1
+  if ! is_live_worktree "$path" && [[ "$LEGACY_WORKTREE_ROOT" != "$WORKTREE_ROOT" ]]; then
+    legacy="$(legacy_worktree_path_for "$repo_name" "$task_slug")"
+    if is_live_worktree "$legacy"; then
+      echo "$legacy"
+      return 0
+    fi
+  fi
+  echo "$path"
 }
 
 branch_name_for() {
@@ -575,39 +847,42 @@ is_live_worktree() {
 # edit arrives with no worktree to put it in — and two copies of
 # `git worktree add -B` plus its four setup steps would drift apart.
 #
-# Returns non-zero WITHOUT creating anything when an argument is missing or the
-# path is already a live worktree, so a caller can distinguish "made you one"
-# from "there was already one" instead of inferring it from a directory test it
-# would have to repeat.
+# Returns non-zero WITHOUT creating anything when an argument is missing, the
+# path is already a live worktree, or something other than an empty directory
+# or a session-files shell is in the way (worktree_dir_verdict; the reason goes
+# to stderr). A caller can distinguish "made you one" from "there was already
+# one" instead of inferring it from a directory test it would have to repeat.
 create_session_worktree() {
-  local repo_root="$1" worktree_path="$2" slug="$3"
+  local repo_root="$1" worktree_path="$2" slug="$3" verdict
   [[ -n "$repo_root" && -n "$worktree_path" && -n "$slug" ]] || return 1
   is_live_worktree "$worktree_path" && return 1
+  verdict="$(worktree_dir_verdict "$repo_root" "$worktree_path")"
+  case "$verdict" in
+    free) ;;
+    registered) return 1 ;;
+    *) _hook_putln "create_session_worktree: ${verdict#refuse:}" >&2; return 1 ;;
+  esac
 
   local branch_name
   branch_name="$(branch_name_for "$slug")"
   [[ -n "$branch_name" ]] || return 1
 
-  # A worktree the retention pass removed with `rm -rf` leaves its registration
-  # behind, marked prunable. `worktree add` then refuses the branch as "already
+  # A worktree removed by hand with `rm -rf` (as the retention pass itself did
+  # before 5.7.0) leaves its registration behind, marked prunable. `worktree add` then refuses the branch as "already
   # used by worktree at <the path that is gone>", and the rebuild an edit just
   # asked for cannot happen until somebody prunes by hand.
   git -C "$repo_root" worktree prune >/dev/null 2>/dev/null || true
 
   # A non-worktree DIRECTORY on the path — the `session-files` shell the old
   # session-init behaviour created — makes `worktree add` refuse to populate it,
-  # so every guarded edit keeps being denied and no rebuild ever happens. Move
-  # it aside rather than delete it: the reason it is there is that somebody's
-  # plans and reviews are inside.
-  local stash=""
-  if [[ -d "$worktree_path" ]]; then
-    if [[ -n "$(ls -A "$worktree_path" 2>/dev/null)" ]]; then
-      stash="${worktree_path}.orphaned.$$"
-      mv "$worktree_path" "$stash" || return 1
-    else
-      rmdir "$worktree_path" 2>/dev/null || true
-    fi
-  fi
+  # so every guarded edit keeps being denied and no rebuild ever happens. The
+  # session files are moved aside and put back inside the new worktree; the
+  # verdict above already refused anything else, which stays where it is.
+  local stash
+  stash="$(_stash_worktree_shell "$worktree_path")" || {
+    _hook_putln "create_session_worktree: ${worktree_path} changed while it was being prepared; left untouched" >&2
+    return 1
+  }
 
   mkdir -p "$(dirname "$worktree_path")"
 
@@ -625,19 +900,10 @@ create_session_worktree() {
       "$(resolve_worktree_base_ref "$repo_root")" >&2 && added=0
   fi
 
-  if (( added != 0 )); then
-    [[ -n "$stash" ]] && mv "$stash" "$worktree_path" 2>/dev/null
-    return 1
-  fi
-
-  # Put the rescued artifacts back where the hook tells the session they live.
-  if [[ -n "$stash" ]]; then
-    if [[ -d "${stash}/session-files" && ! -e "${worktree_path}/session-files" ]]; then
-      mv "${stash}/session-files" "${worktree_path}/session-files" 2>/dev/null || true
-    fi
-    # Only if nothing is left. Anything else stays on disk for a human to look at.
-    rmdir "$stash" 2>/dev/null || true
-  fi
+  # Put the rescued session files back where the hook tells the session they
+  # live — inside the new worktree, or in a re-made shell when creation failed.
+  _restore_worktree_shell "$worktree_path" "$stash"
+  (( added == 0 )) || return 1
 
   copy_worktreeinclude_files "$repo_root" "$worktree_path"
   write_worktree_env_local "$worktree_path" "$branch_name" 2>/dev/null || true
@@ -716,7 +982,8 @@ append_env_exports() {
 
 # Retiring stale worktrees, detached from the caller.
 #
-# The work itself is `rm -rf` of a whole checkout. A JS worktree carries its own
+# The work itself is deleting a whole checkout (`git worktree remove`, after the
+# checks in _retire_worktree_if_stale). A JS worktree carries its own
 # node_modules — measured at ~1.2 GB and hundreds of thousands of inodes, with
 # 16 GB across all worktrees on one machine — so retiring a few in one pass is
 # seconds of pure disk work, and it ran INLINE in the SessionStart hook, which
@@ -733,13 +1000,24 @@ append_env_exports() {
 # SUPERPOWERS_WORKTREE_CLEANUP=0 turns the whole pass off. That exists for test
 # suites: a suite that invokes a hook inherits this detached `rm -rf` worker,
 # which outlives the hook and keeps running while the suite does. It is scoped
-# to `$WORKTREE_ROOT` so it cannot touch a suite's own tmpdir, but it does show
+# to the session roots so it cannot touch a suite's own tmpdir, but it does show
 # up in a `ps` listing as a live `rm -rf` with no obvious owner, which is
 # exactly the kind of noise that sends an investigation the wrong way. Set it
 # to 0 in any test that runs a hook and does not want the process.
+#
+# Both session roots are swept: the configured one and, when it still exists,
+# the legacy ~/.claude/worktrees. Nothing creates worktrees at the legacy root
+# any more, so without this the ones already there would never be retired. The
+# legacy root's lock is the same `.cleanup.lock` an older plugin version takes,
+# so the two versions never sweep it at once.
 cleanup_stale_worktrees() {
   worktree_cleanup_enabled || return 0
-  ( _cleanup_stale_worktrees_blocking ) >/dev/null 2>/dev/null &
+  (
+    _cleanup_stale_worktrees_blocking "$WORKTREE_ROOT"
+    if [[ "$LEGACY_WORKTREE_ROOT" != "$WORKTREE_ROOT" && -d "$LEGACY_WORKTREE_ROOT" ]]; then
+      _cleanup_stale_worktrees_blocking "$LEGACY_WORKTREE_ROOT"
+    fi
+  ) >/dev/null 2>/dev/null &
   # Detach where the shell supports it, so the hook exiting cannot SIGHUP the
   # deletion half-done and leave a partially-removed worktree behind.
   disown 2>/dev/null || true
@@ -762,8 +1040,10 @@ worktree_cleanup_enabled() {
 # filesystem this runs on; a lock left behind by a killed run is reclaimed once
 # it is older than the retention pass could plausibly take.
 _cleanup_stale_worktrees_blocking() {
-  local lock="${WORKTREE_ROOT}/.cleanup.lock"
-  mkdir -p "$WORKTREE_ROOT" 2>/dev/null || return 0
+  local root="${1:-$WORKTREE_ROOT}"
+  [[ -n "$root" ]] || return 0
+  local lock="${root}/.cleanup.lock"
+  mkdir -p "$root" 2>/dev/null || return 0
 
   if ! mkdir "$lock" 2>/dev/null; then
     local lock_mtime now
@@ -785,28 +1065,51 @@ _cleanup_stale_worktrees_blocking() {
   local cutoff_epoch
   cutoff_epoch="$(date -v-"${WORKTREE_RETENTION_DAYS}"d +%s 2>/dev/null || date -d "${WORKTREE_RETENTION_DAYS} days ago" +%s)"
 
-  find "$WORKTREE_ROOT" -mindepth 2 -maxdepth 2 -type d 2>/dev/null | while read -r wt_dir; do
-    [[ -d "$wt_dir/.git" || -f "$wt_dir/.git" ]] || continue
-
-    local mtime
-    mtime="$(stat -c %Y "$wt_dir" 2>/dev/null || stat -f %m "$wt_dir" 2>/dev/null || echo 0)"
-    [[ "$mtime" -lt "$cutoff_epoch" ]] || continue
-
-    if [[ -n "$(git -C "$wt_dir" status --porcelain 2>/dev/null)" ]]; then
-      continue
-    fi
-
-    local repo_root
-    repo_root="$(git -C "$wt_dir" rev-parse --show-toplevel 2>/dev/null || true)"
-    if [[ -n "$repo_root" && "$repo_root" != "$wt_dir" ]]; then
-      git -C "$(dirname "$repo_root")" worktree remove "$wt_dir" --force 2>/dev/null \
-        || rm -rf "$wt_dir"
-    else
-      rm -rf "$wt_dir"
-    fi
+  # -H: a root reached through a symlink is walked (find does not follow a
+  # symlinked starting point by default, so the pass silently did nothing).
+  find -H "$root" -mindepth 2 -maxdepth 2 -type d 2>/dev/null | while read -r wt_dir; do
+    _retire_worktree_if_stale "$wt_dir" "$cutoff_epoch" || true
   done
 
   rmdir "$lock" 2>/dev/null || true
+}
+
+# _retire_worktree_if_stale <dir> <cutoff-epoch> — remove <dir> only when every
+# one of these is PROVEN, and leave it otherwise:
+#
+#   - it is a LINKED worktree (a .git file). A .git directory is a full clone —
+#     possibly with unpushed commits or stashes — and never this pass's to delete;
+#   - its repository resolves, and <dir> is registered in that repository's
+#     `git worktree list` (canonical comparison, so a symlinked root cannot make
+#     a live worktree look unregistered);
+#   - neither the directory nor anything in it (node_modules aside) changed
+#     since the cutoff;
+#   - `git status --porcelain` SUCCEEDS and prints nothing. A failed status used
+#     to read as "clean", so a worktree whose registration had broken was
+#     `rm -rf`ed with its uncommitted work in it.
+#
+# Removal is `git worktree remove` without --force, so git refuses on its own
+# account anything that is not clean. There is no `rm -rf` fallback: a worktree
+# git will not remove stays on disk for a person to look at.
+_retire_worktree_if_stale() {
+  local wt_dir="$1" cutoff_epoch="$2" mtime common main_root status recent days
+  [[ -f "${wt_dir}/.git" && ! -L "${wt_dir}/.git" ]] || return 0
+
+  mtime="$(stat -c %Y "$wt_dir" 2>/dev/null || stat -f %m "$wt_dir" 2>/dev/null || echo 0)"
+  [[ "$mtime" -lt "$cutoff_epoch" ]] || return 0
+  days="${WORKTREE_RETENTION_DAYS:-3}"
+  recent="$(find "$wt_dir" -name node_modules -prune -o -mtime "-${days}" -print 2>/dev/null | head -n 1)"
+  [[ -z "$recent" ]] || return 0
+
+  common="$(git -C "$wt_dir" rev-parse --path-format=absolute --git-common-dir 2>/dev/null)" || return 0
+  [[ -n "$common" && -d "$common" ]] || return 0
+  main_root="$(dirname "$common")"
+  is_linked_worktree_of "$main_root" "$wt_dir" || return 0
+
+  status="$(git -C "$wt_dir" status --porcelain 2>/dev/null)" || return 0
+  [[ -z "$status" ]] || return 0
+
+  git -C "$main_root" worktree remove "$wt_dir" >/dev/null 2>/dev/null || return 0
 }
 
 # Prune archived session-files older than WORKTREE_RETENTION_DAYS.

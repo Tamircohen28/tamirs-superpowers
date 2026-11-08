@@ -45,7 +45,8 @@ TMPROOT="$(mktemp -d)"
 #
 #   What an audit does establish: nothing in this repo can delete a bare
 #   mktemp root. Every destructive path is anchored to $WORKTREE_ROOT, itself
-#   recomputed as "${HOME}/.claude/worktrees" (hooks/lib/worktree-common.sh:4);
+#   recomputed from ${HOME} (~/.session-worktrees, and the legacy
+#   ~/.claude/worktrees, in hooks/lib/worktree-common.sh);
 #   the retirement `find` requires depth 2 plus a .git entry; the only
 #   `find -delete` is -type f. So this instrumentation exists to tell us which
 #   way to look next, not to fix anything:

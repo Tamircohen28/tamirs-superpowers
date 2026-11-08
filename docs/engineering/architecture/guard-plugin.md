@@ -130,7 +130,7 @@ holds cancelled, the last hold (rule, answer, command), writes refused and the l
 
 | Bash hook (core plugin) | Runs on | The guard plugin's relation to it |
 |---|---|---|
-| `hooks/enforce-worktree-edits.sh` | Claude Code, Codex, Cursor (`platforms/cursor/hooks.json`) | **Mirror.** Same verdict and same reason for the one case the mod judges (main checkout, objective active, target in the repo). The bash hook also handles the single-task model (`~/.claude/worktrees/<repo>/<slug>`), recreates a removed session worktree, and carries the degraded path for disposable checkouts — none of which the mod attempts. |
+| `hooks/enforce-worktree-edits.sh` | Claude Code, Codex, Cursor (`platforms/cursor/hooks.json`) | **Mirror.** Same verdict and same reason for the one case the mod judges (main checkout, objective active, target in the repo). The bash hook also handles the single-task model (`<root>/<repo>/<slug>`, default `~/.session-worktrees`), recreates a removed session worktree, and carries the degraded path for disposable checkouts — none of which the mod attempts. |
 | `hooks/guard-sensitive-files.sh` | Claude Code, Codex, Cursor | **Complement.** That hook keys on write *targets* (lockfiles, workflows, build output) whatever tool writes them; the mod keys on the *command* and holds rather than denies. A bash PreToolUse hook can deny; only an in-process hook can pause for an answer. |
 
 Nothing here replaces a bash hook. Where the mod cannot load — an org with

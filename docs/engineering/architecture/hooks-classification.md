@@ -68,7 +68,7 @@ the one that answers "what breaks if this is gone".
 | `lib/hook-output.sh` | Claude Code / Cursor PreToolUse JSON dialect. Cursor fail-closes on empty stdout; Claude Code treats it as allow — so every guard must emit valid JSON either way. Also `hook_tier_enabled`/`hook_tier_gate`, the [tier](#tiers) switch every gated hook calls first. No helper emits a permission `ask`: a guard allows or denies. |
 | `lib/agent-claim.sh` | The cross-tool work-claim store behind `protect-other-branches.sh`. Tool-neutral by design: Claude Code, Cursor and Codex read and write the same files. Its shell tokeniser lives in `lib/command-tokens.sh`. |
 | `lib/command-tokens.sh` | The shell tokeniser behind `lib/agent-claim.sh`: quotes, heredocs, `VAR=x` prefixes, `&&`/`;`/`|` segments, wrappers and `sh -c` strings. |
-| `lib/worktree-common.sh` | Single-task worktree model (`~/.claude/worktrees/<repo>/<slug>`, `wt/*` branches) plus dependency-install and retention policy. **Protected**: any change requires shellcheck plus exercising both `capture-task-slug.sh` and `worktree-create.sh`. |
+| `lib/worktree-common.sh` | Single-task worktree model (`<root>/<repo>/<slug>`, `wt/*` branches; the root is `SUPERPOWERS_WORKTREE_ROOT` > the `worktree_root` option > `~/.session-worktrees`, and the legacy `~/.claude/worktrees` is recognised, never created — [ADR 005](../decisions/005-session-worktree-root.md)) plus dependency-install and retention policy. **Protected**: any change requires shellcheck plus exercising both `capture-task-slug.sh` and `worktree-create.sh`. |
 | `lib/objective-common.sh` | Objective model — `.agent-worktrees/<objective>/{integration,task-NNN}`, `objective/<slug>` and `worker/<slug>/NNN` branches, active-objective detection, and cross-layout classification. |
 
 ## What "without hooks" actually means
@@ -121,8 +121,9 @@ It now detects an active objective (`SUPERPOWERS_OBJECTIVE_ID`, or an
 objective's workspaces instead. With no objective, behavior is byte-identical.
 
 **`enforce-worktree-edits.sh` — knows every layout.** It allows
-`objective-integration`, `objective-worker`, `legacy-platform`, `legacy-global`
-and `native-claude` workspaces, and denies only the main checkout. The legacy
+`objective-integration`, `objective-worker`, `legacy-platform`, `session-global`
+(the configured session root), `legacy-global` (`~/.claude/worktrees`) and
+`native-claude` workspaces, and denies only the main checkout. The legacy
 shapes are listed deliberately: a worker whose worktree the guard did not
 recognize would be denied every edit, so the work would have nowhere legal to
 go. Recognizing a platform-shaped path is not endorsing it — nothing creates

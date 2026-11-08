@@ -97,4 +97,4 @@ State the degradation in the handoff note. Never hand off work that silently ass
 
 ## Coexistence with plugin worktrees
 
-Claude Code hooks may use `~/.claude/worktrees/<repo>/<slug>/` (global). Older dev-workflow runs used repo-local `.<platform>/.worktrees/<slug>/`; the objective model prefers `.agent-worktrees/<objective>/<task>/`, which carries no platform in the path. All three are valid and `resolve-worktree.sh` understands them; `switch-dev` records whichever path is actually in use.
+Claude Code hooks may use `<root>/<repo>/<slug>/` (global; root `~/.session-worktrees` by default, `~/.claude/worktrees` on plugin versions up to 5.6.13). Older dev-workflow runs used repo-local `.<platform>/.worktrees/<slug>/`; the objective model prefers `.agent-worktrees/<objective>/<task>/`, which carries no platform in the path. All three are valid and `resolve-worktree.sh` understands them; `switch-dev` records whichever path is actually in use.

@@ -69,14 +69,14 @@ echo "--- the first prompt announces the worktree, and says which repo it is for
 
 PROJ="$TMPROOT/proj"
 new_repo "$PROJ"
-PWT="$HOME/.claude/worktrees/proj/$TODAY-sess-1"
+PWT="$HOME/.session-worktrees/proj/$TODAY-sess-1"
 
 ctx="$(context "$(run_capture "$PROJ" "add a login form" "sess-1")")"
 judge "the worktree exists" "yes" "$(exists "$PWT/.git")"
 judge "the hint is emitted" "yes" "$(has "$ctx" "Dedicated worktree")"
 judge "the hint names the repo it is for" "yes" "$(has "$ctx" "Dedicated worktree for proj: $PWT")"
 judge "the cd instruction names the repo too" "yes" "$(has "$ctx" "Before Edit/Write in proj,")"
-judge "it says where other repos' edits go" "yes" "$(has "$ctx" "Edits to other repos go in their own ~/.claude/worktrees/<repo>/<slug>")"
+judge "it says where other repos' edits go" "yes" "$(has "$ctx" "Edits to other repos go in their own $HOME/.session-worktrees/<repo>/<slug>")"
 judge "it says it will not repeat" "yes" "$(has "$ctx" "once per repo per session")"
 judge "the hinted path is recorded" "$PWT" "$(state_field sess-1 worktree_hint_path)"
 
@@ -96,7 +96,7 @@ echo "--- a cwd that moves to another repo re-emits the hint once, for THAT repo
 
 OTHER="$TMPROOT/other"
 new_repo "$OTHER"
-OWT="$HOME/.claude/worktrees/other/$TODAY-sess-1"
+OWT="$HOME/.session-worktrees/other/$TODAY-sess-1"
 
 ctx="$(context "$(run_capture "$OTHER" "fix the thing over here" "sess-1")")"
 judge "the hint comes back for the other repo" "yes" "$(has "$ctx" "Dedicated worktree for other: $OWT")"
@@ -178,7 +178,7 @@ echo "--- the same issue in a new session lands in the same worktree ---"
 
 ISS="$TMPROOT/iss"
 new_repo "$ISS"
-IWT="$HOME/.claude/worktrees/iss/issue-12"
+IWT="$HOME/.session-worktrees/iss/issue-12"
 ctx="$(context "$(run_capture "$ISS" "work on #12" "sess-a")")"
 judge "session a creates the issue worktree" "yes" "$(exists "$IWT/.git")"
 judge "session a is told about it" "yes" "$(has "$ctx" "Dedicated worktree for iss: $IWT")"

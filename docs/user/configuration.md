@@ -88,6 +88,58 @@ either can export the variable by hand. Why these are options and not separate p
 
 ## Worktree behavior
 
+### Where session worktrees live
+
+Each session's worktree is `<root>/<repo>/<slug>` on branch `wt/<slug>`. The root is, in
+order of precedence:
+
+| Source | Example | Hosts |
+|---|---|---|
+| `SUPERPOWERS_WORKTREE_ROOT` env var | `export SUPERPOWERS_WORKTREE_ROOT=~/code/worktrees` | every host |
+| `worktree_root` plugin option | `/plugin` > **tamirs-superpowers** > **Configure** | Claude Code (hooks see it as `CLAUDE_PLUGIN_OPTION_WORKTREE_ROOT`) |
+| default | `~/.session-worktrees` | every host |
+
+A leading `~` or `$HOME` is expanded. A relative path or `/` is ignored, and the next source
+in the table applies.
+
+**Why not `~/.claude/worktrees` any more.** Through 5.6.13 that was the only root. Claude Code
+treats every `.claude` directory as a
+[protected path](https://code.claude.com/docs/en/permission-modes.md): outside
+`bypassPermissions` mode every write there prompts, and no `permissions.allow` rule can
+pre-approve it. The worktree policy sends every edit into the session worktree, so that meant
+a prompt on almost every edit. Pick a root outside any `.claude` directory if you set your own.
+
+**Pick a root that holds nothing else.** The retention pass removes clean worktrees under
+the root once they are older than `WORKTREE_RETENTION_DAYS` (3 days by default). Do not
+point it at a directory of hand-made worktrees, or at `~/.agent-worktrees`, which is the
+objective layout's name ([ADR 005](../engineering/decisions/005-session-worktree-root.md)).
+
+**Existing worktrees keep working.** Edits under `~/.claude/worktrees/<repo>/<slug>` and
+Claude Code's native `<repo>/.claude/worktrees/<name>` are still allowed, and a session that
+already has a live worktree under `~/.claude/worktrees` keeps using it. New worktrees are
+only created under the configured root.
+
+**Moving the old ones.** `scripts/worktrees-migrate.sh` (or `make worktrees-migrate`) prints
+what it would move and changes nothing. Add `--yes` to move:
+
+```bash
+bash scripts/worktrees-migrate.sh            # the plan
+bash scripts/worktrees-migrate.sh --yes      # move the idle ones
+bash scripts/worktrees-migrate.sh --yes --to ~/code/worktrees   # if you set worktree_root
+```
+
+It moves a worktree only when it is idle: no uncommitted changes, no live agent claim, no
+unfinished objective task, no running process with its working directory inside, and nothing
+changed in the last 60 minutes (`--idle-minutes`). Each one moves with `git worktree move`,
+and the session-state records that named the old path are updated. Anything it skips is
+listed with the reason. The `worktree_root` option reaches hooks only, so pass `--to` when you
+set the root there and not through the env var.
+
+Then, in each running Claude Code session, run `/plugin update` and `/reload-plugins` (or
+start a new session) so its hooks use the new root.
+
+### Worktree setup
+
 When a worktree is created, the hooks:
 
 - copy gitignored files matched by `~/.claude/defaults/worktreeinclude` and then the repo's
