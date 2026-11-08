@@ -11,8 +11,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 - **The protected-path guard reports fewer false writes, and models more real ones** (#402). The guard still treats an unresolved write as a write to any protected path the command names; the whole command text is searched, as before. A narrowing of that search was tried and dropped: six security-review rounds each found a write it let through. What changed instead is the parse, so that fewer commands are unresolved in the first place:
   - A `find -exec`/`-execdir` or an `xargs` that only runs read-only commands (`ls`, `stat`, `cat`, `grep`, `wc`, `jq`, …, named without a path) is no longer an unresolved write (`find <state dir> -exec ls -l {} \;`).
-  - An interpreter whose stdin is only `< /dev/null` is not fed code (`bash <script> </dev/null`); every other stdin feed still is.
-  - A same-command `NAME=value` literal is no longer left unresolved because a quoted heredoc body happens to contain `NAME` or `). ` (`D=/tmp/x; cat > "$D/issue.md" <<'EOF' … EOF`).
+  - An interpreter whose stdin is only `< /dev/null` is not fed code (`bash <script> </dev/null`); every other stdin feed still is (`3</dev/null`, `0>&3`).
+  - A same-command `NAME=value` literal is no longer left unresolved because a plainly quoted heredoc body (`<<'EOF'`, not `<<$"X"`) happens to contain `NAME` or `). ` (`D=/tmp/x; cat > "$D/issue.md" <<'EOF' … EOF`).
 - **Writes the guard missed:**
   - `find -fls`, `-fprint0`, `-ok` and `-okdir` are find actions, and a `find` that deletes or runs a writer is judged by its starting points. So `find ~/.claude -name 'settings*.json' -exec sed -i …` is denied the way `rm -rf ~/.claude` is.
   - `source`/`.` fed code (`source /dev/stdin <<EOF`, `. <(…)`) and `bash <> file` run code like `eval`.
