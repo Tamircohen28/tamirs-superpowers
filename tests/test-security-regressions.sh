@@ -8,6 +8,8 @@
 # The permission guard, its resolver and configuration-command rows left with 6.0.0
 # (ADR 006). A git replay is no longer judged, so its rows assert that it is
 # neither asked nor denied.
+# I405 rows (issue #405): substitutions, unnamed commands and runners, write forms of
+# read commands, and write-then-run, all against the same hook.
 #
 # AGAINST ANOTHER TREE
 #   SEC_ROOT=<plugin tree> judges that tree's hook with these same inputs (the
@@ -185,9 +187,29 @@ gsf P2 "rm -rf .claude" deny 'rm -rf .claude'
 gsf P2 "mv .claude /tmp/x" deny 'mv .claude /tmp/x'
 gsf P2 "cp -R /tmp/e/ .claude/" deny 'cp -R /tmp/e/ .claude/'
 gsf P2 "rm -rf .git (holds .git/hooks and .git/config)" deny 'rm -rf .git'
+# =========================================================================================
+section "I405: what #402's reviews found outside its scope (pre-existing, issue #405)"
+# =========================================================================================
+gsf I405 "\$(rm) of host settings inside an echo" deny 'echo $(rm ~/.claude/settings.json)'
+gsf I405 "\$(cp) onto host settings in an assignment" deny 'x=$(cp /tmp/evil ~/.claude/settings.json)'
+gsf I405 "a backtick tee into host settings" deny 'echo `tee ~/.claude/settings.json </dev/null`'
+gsf I405 "<(…) running a write" deny 'diff <(cp /tmp/a ~/.claude/settings.json) /tmp/b'
+gsf I405 "an unquoted heredoc substitution" deny "$(printf 'cat <<EOF\n$(rm ~/.claude/settings.json)\nEOF')"
+gsf I405 "a command name from a variable" deny '$CMD x ~/.claude/settings.json'
+gsf I405 "numactl around a write" deny 'numactl cp x ~/.claude/settings.json'
+gsf I405 "gdb -batch -ex shell" deny "gdb -batch -ex 'shell cp x ~/.claude/settings.json'"
+gsf I405 "docker run" deny 'docker run img cp x ~/.claude/settings.json'
+gsf I405 "sort -o onto host settings" deny 'sort -o ~/.claude/settings.json /etc/hosts'
+gsf I405 "git config --file onto host settings" deny 'git config --file ~/.claude/settings.json a.b c'
+gsf I405 "git diff --output= onto host settings" deny 'git diff --output=$HOME/.claude/settings.json'
+gsf I405 "git bundle create onto host settings" deny 'git bundle create ~/.claude/settings.json HEAD'
+gsf I405 "git archive -o onto host settings" deny 'git archive -o ~/.claude/settings.json HEAD'
+gsf I405 "a heredoc Makefile, then make" deny "$(printf 'cat > Makefile <<%s\nall:\n\techo x > ~/.claude/settings.json\nEOF\nmake' "'EOF'")"
+gsf I405 "a written script, then bash it" deny "echo 'cp a ~/.claude/settings.json' > /tmp/s.sh; bash /tmp/s.sh"
+
 
 section "rows by finding"
-for id in F4a F4b F4c F4d F6 P2; do
+for id in F4a F4b F4c F4d F6 P2 I405; do
   p="$(awk -F'\t' -v i="$id" '$1 == i && $2 == "pass"' "$ROWS" | wc -l | tr -d ' ')"
   f="$(awk -F'\t' -v i="$id" '$1 == i && $2 == "fail"' "$ROWS" | wc -l | tr -d ' ')"
   printf '  %-6s %3s pass %3s fail\n' "$id" "$p" "$f"
