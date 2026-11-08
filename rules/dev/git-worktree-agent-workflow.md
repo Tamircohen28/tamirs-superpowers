@@ -159,7 +159,7 @@ Those remain **valid and supported**. Nothing migrates them destructively, and n
 - `resolve-worktree.sh` recognizes both layouts. Given an existing legacy worktree for a slug, it resolves to that worktree rather than creating a parallel new-layout one.
 - `resolve-worktree.sh --list` enumerates every agent worktree it can see — new-layout and legacy — with its branch, objective (where known), and last commit date.
 - `resolve-worktree.sh --migrate <path>` moves one legacy worktree into the new layout, in place, preserving uncommitted work. It is opt-in, one worktree at a time, and refuses to run on a dirty tree without an explicit confirmation flag.
-- Claude Code's `EnterWorktree` tool and the `~/.claude/worktrees/<repo>/<slug>/` paths created by Claude Code hooks are a separate, external mechanism. They keep working; treat them as legacy-equivalent.
+- Claude Code's `EnterWorktree` tool and the session worktrees the hooks create at `<root>/<repo>/<slug>/` (default `~/.session-worktrees`; `~/.claude/worktrees` through 5.6.13, still recognised) are a separate, external mechanism. They keep working; treat them as legacy-equivalent. The root is the `worktree_root` option or `SUPERPOWERS_WORKTREE_ROOT`; `scripts/worktrees-migrate.sh` moves idle ones out of `~/.claude/worktrees` ([ADR 005](../../docs/engineering/decisions/005-session-worktree-root.md)).
 
 All of `.agent-worktrees/`, `.claude/.worktrees/`, `.cursor/.worktrees/`, and `.codex/.worktrees/` stay in `.gitignore`. Worktree directories are never committed.
 

@@ -180,7 +180,8 @@ classify_layout() {
     */.agent-worktrees/*)                     printf 'objective\n' ;;
     */.claude/.worktrees/*|*/.cursor/.worktrees/*|*/.codex/.worktrees/*|*/.gemini/.worktrees/*|*/.opencode/.worktrees/*)
                                               printf 'legacy-platform\n' ;;
-    */.claude/worktrees/*|*/worktrees/*)      printf 'legacy-external\n' ;;
+    */.claude/worktrees/*|*/worktrees/*|*/.session-worktrees/*)
+                                              printf 'legacy-external\n' ;;
     *)                                        printf 'other\n' ;;
   esac
 }

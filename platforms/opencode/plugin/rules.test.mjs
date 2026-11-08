@@ -26,6 +26,7 @@ import {
   globTailRegex,
   inspectClaim,
   isAgentWorkspacePath,
+  sessionWorktreeRoot,
   judgeEdit,
   judgePush,
   opencodeReason,
@@ -72,6 +73,18 @@ test("writes inside an objective worktree, a legacy worktree, or the Claude conf
   assert.equal(judgeEdit(`/tmp/notes.txt`, facts()).effect, "allow")
   assert.equal(judgeEdit(`/tmp/notes.txt`, facts({ mainRoot: null })).effect, "allow")
   assert.equal(isAgentWorkspacePath(`${MAIN}/src/app.ts`, facts()), false)
+})
+
+test("the session worktree root: env, then ~/.session-worktrees, ~ and $HOME expanded (issue #404)", () => {
+  assert.equal(sessionWorktreeRoot({}, "/u/me"), "/u/me/.session-worktrees")
+  assert.equal(sessionWorktreeRoot({ SUPERPOWERS_WORKTREE_ROOT: "/wt/" }, "/u/me"), "/wt")
+  assert.equal(sessionWorktreeRoot({ SUPERPOWERS_WORKTREE_ROOT: "~/wt" }, "/u/me"), "/u/me/wt")
+  assert.equal(sessionWorktreeRoot({ SUPERPOWERS_WORKTREE_ROOT: "$HOME/wt" }, "/u/me"), "/u/me/wt")
+  assert.equal(sessionWorktreeRoot({ SUPERPOWERS_WORKTREE_ROOT: "relative/wt" }, "/u/me"), "/u/me/.session-worktrees")
+  assert.equal(sessionWorktreeRoot({ SUPERPOWERS_WORKTREE_ROOT: "/" }, "/u/me"), "/u/me/.session-worktrees")
+  const f = facts({ globalWorktreeRoot: "/u/me/.session-worktrees" })
+  assert.equal(isAgentWorkspacePath(`/u/me/.session-worktrees/proj/slug/x.ts`, f), true)
+  assert.equal(isAgentWorkspacePath(`/u/me/.claude/worktrees/proj/slug/x.ts`, f), true)
 })
 
 test("sensitive paths are denied regardless of the tool doing the writing", () => {

@@ -5,21 +5,44 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
-## [5.6.15] — 2026-11-08
+## [5.7.1] — 2026-11-08
 
 ### Fixed
 
-- **The protected-path guard no longer blocks commands that only mention a protected path** (#402). When anything in a command was unresolved, `write-targets.py --protected` searched the whole command text for a protected path and denied on any hit. A `stat` of the state dir, a `find … -exec ls`, a `jq` on `opencode.json` or a PR-body heredoc naming the state dir were all denied if anything else in the command was unresolved. The search now covers only the text that could steer the unresolved write (`_needle_text`). It drops the words of commands on a positive read-only list (`ls`, `stat`, `cat`, `grep`, `jq`, `sed -n`, read-only `git`, `find` and `xargs` that only run read-only commands, …) when they sit at top level, carry no assignment or substitution, and send output only to the terminal or to other such commands. It also drops heredoc and `echo`/`printf` data written to a file, under three conditions. Every unresolved write must be an unresolved target. Nothing in the command may read the data back as a path or code. The only other commands must be on a short list that never runs a file of the cwd (`make`, `pytest`, `npm` and `git commit` are not on it). The narrowing is off altogether on a tokeniser anomaly, a function, an alias, `exec`, `export`/`declare`/`set`, `eval`/`source`/`.`, a PATH-like assignment, `$_` (also across a line continuation), `${!x}` or history expansion. Inline interpreter code (`python3 -c`, `python3 - <<EOF`, `node -e`, `eval`) that names a protected path stays blocked: proving it read-only is the arbitrary-code question the parser does not answer. Its reason now says the block was judged from text, and asks for a command whose target the guard can resolve.
-- **Parses that over-reported:** a script fed stdin only from `/dev/null` (`bash x.sh </dev/null`) is not inline code, because an empty stdin carries no program. Any other stdin feed of an interpreter stays opaque. `find -exec` and `xargs` that only run read-only commands are not dispatchers. A literal `NAME=value` is no longer left unresolved because a quoted heredoc body happens to contain `NAME` or `). `.
+- **The protected-path guard reports fewer false writes, and models more real ones** (#402). The guard still treats an unresolved write as a write to any protected path the command names; the whole command text is searched, as before. A narrowing of that search was tried and dropped: six security-review rounds each found a write it let through. What changed instead is the parse, so that fewer commands are unresolved in the first place:
+  - A `find -exec`/`-execdir` or an `xargs` that only runs read-only commands (`ls`, `stat`, `cat`, `grep`, `wc`, `jq`, …, named without a path) is no longer an unresolved write (`find <state dir> -exec ls -l {} \;`).
+  - An interpreter whose stdin is only `< /dev/null` is not fed code (`bash <script> </dev/null`); every other stdin feed still is (`3</dev/null`, `0>&3`).
+  - A same-command `NAME=value` literal is no longer left unresolved because a plainly quoted heredoc body (`<<'EOF'`, not `<<$"X"`) happens to contain `NAME` or `). ` (`D=/tmp/x; cat > "$D/issue.md" <<'EOF' … EOF`).
 - **Writes the guard missed:**
   - `find -fls`, `-fprint0`, `-ok` and `-okdir` are find actions, and a `find` that deletes or runs a writer is judged by its starting points. So `find ~/.claude -name 'settings*.json' -exec sed -i …` is denied the way `rm -rf ~/.claude` is.
   - `source`/`.` fed code (`source /dev/stdin <<EOF`, `. <(…)`) and `bash <> file` run code like `eval`.
-  - `time -o FILE` writes `FILE`.
+  - `time -o FILE`, including clusters (`-po FILE`) and `--output=`, writes `FILE`; so does `sort -o`/`-ro`/`--out=`.
+  - sed: a script in a short cluster (`sed -ne 'w FILE'`), `--exp=` abbreviations, an address regex with `/` inside a bracket (`/[/]/w FILE`), BSD/macOS `-I` and GNU `--in` (in place) are all read.
+  - `git grep -O`/`--open…` runs a pager command, so it is unresolved.
   - `setsid`, `flock`, `ionice` and similar runners are unresolved.
   - An unresolved write whose cwd, kept from an earlier call, is inside a protected directory is denied.
-  - `sort` and `sed` long-option abbreviations (`--out=`, `--in`, `--exp=`) are not read as read-only.
-  - BSD/macOS `sed -I` (in place) is a write.
-- Two-direction tables in `tests/test-sensitive-protected-paths.sh`. Every false positive from the issue and close variants now pass. About 100 real write forms onto protected paths stay blocked, including every bypass the security review found in the first cut (`$_`, exported `GIT_EXTERNAL_DIFF`, a heredoc Makefile run by `make`, a script that `exec`s its stdin, `xargs -l`, `time -o`).
+- The deny reason for a text-judged block now says so, and asks for a command whose target the guard can resolve.
+- Tests in `tests/test-sensitive-protected-paths.sh`: every write form the issue and the six review rounds named stays denied, the dropped narrowing's allow cases are now asserted denied (as on master), and the parse fixes above are asserted allowed.
+
+## [5.7.0] — 2026-11-08
+
+### Changed
+
+- **Session worktrees move out of `~/.claude`, to a configurable root** (#404). They were hard-coded under `~/.claude/worktrees/<repo>/<slug>`. Claude Code treats every `.claude` directory as a protected path, so outside `bypassPermissions` mode each write there prompted, and no `permissions.allow` rule could pre-approve it. The worktree policy sends every edit into the session worktree, so almost every edit prompted. New worktrees now go to `<root>/<repo>/<slug>`. The root is `SUPERPOWERS_WORKTREE_ROOT`, then the new `worktree_root` plugin option, then **`~/.session-worktrees`** by default. A leading `~` or `$HOME` is expanded, and a relative value is ignored. The default is not the `~/.agent-worktrees` the issue proposed. Every objective-layout consumer reads any `/.agent-worktrees/` path as an objective worktree, and `core/policies/git.md` documents `~/.agent-worktrees/<repo>/<objective>/` as the user-level objective location ([ADR 005](docs/engineering/decisions/005-session-worktree-root.md)).
+  - Every hook that creates or names the root uses it: `worktree-create.sh`, `capture-task-slug.sh`, `session-init.sh` (the policy line and the `CLAUDE_WORKTREE_ROOT` export), `enforce-worktree-edits.sh` (the deny reason and the rebuild-on-edit path), `directory-added.sh`, `worktree-remove.sh`, `handoff-reminder.sh`, and the retention pass. The OpenCode guard resolves the same root (`sessionWorktreeRoot`).
+  - **Nothing already running breaks.** Edits under `~/.claude/worktrees/<repo>/<slug>` and native `<repo>/.claude/worktrees/<name>` are still allowed. When a session's live worktree is at the legacy root, the hooks keep pointing at it. They do not report it as removed or build a second one beside it. Nothing new is ever created there. The retention pass sweeps both roots.
+  - `classify_worktree_path` gains `session-global` for the configured root. `legacy-global` keeps meaning `~/.claude/worktrees`. Both roots are matched in their logical and physical spellings.
+  - **New `scripts/worktrees-migrate.sh`** (`make worktrees-migrate`) moves idle legacy worktrees to the root with `git worktree move`, never `--force`. It is a dry run unless given `--yes`. It skips a worktree with uncommitted changes, a live agent claim, an unfinished objective task, a running process inside it, a change in the last 60 minutes, or an existing destination, and prints the reason. It rewrites the session-state records that named the old path.
+  - Run `scripts/worktrees-migrate.sh`, then `/plugin update` and `/reload-plugins` in each running session. User docs: [Where session worktrees live](docs/user/configuration.md#where-session-worktrees-live).
+
+### Fixed
+
+- **WorktreeCreate no longer deletes an existing worktree with uncommitted work in it** (PR #406 review). It compared the worktree path's *logical* spelling with git's *physical* `git worktree list`. Through a symlink the two differ, so a live worktree read as unregistered and was `rm -rf`ed before re-creation failed. This was **latent before 5.7.0**: the hard-coded `$HOME/.claude/worktrees` root triggered it whenever `$HOME` or `~/.claude` traversed a symlink (reproduced on 5.6.13). The objective path of the same hook had the same comparison. Now:
+  - Every decision to delete, move or reuse a worktree compares canonical (`pwd -P`) paths. That covers WorktreeCreate, WorktreeRemove, the retention pass, the migration script, the root classification and the edit guard's recorded-path check (new `canonical_path`, `is_linked_worktree_of` and `worktree_dir_verdict` in `worktree-common.sh`).
+  - **Nothing is deleted that cannot be proven disposable.** WorktreeCreate reuses a registered worktree. It creates into an empty directory or a session-files shell. Anything else is left in place and the hook fails with the reason: a `.git` entry that is not ours, or any other file. The session path also reuses an existing `wt/<slug>` branch instead of resetting it with `-B`.
+  - **The retention pass** removes only a registered, linked, clean worktree with nothing changed for `WORKTREE_RETENTION_DAYS`. It uses `git worktree remove` without `--force` and has no `rm -rf` fallback. A failed `git status` used to read as "clean", which deleted worktrees whose registration had broken, with their uncommitted files. A full clone (a `.git` directory) was also deleted. Both are now kept. A root reached through a symlink is now walked (`find -H`).
+  - **WorktreeRemove** removes only a verified registered worktree, through git. Its `rm -rf` fallbacks are gone.
+  - **The migration script** skips unregistered worktrees and ones whose `git status` fails, and walks a symlinked source root.
 
 ## [5.6.14] — 2026-11-07
 

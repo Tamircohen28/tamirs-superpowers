@@ -252,10 +252,10 @@ if git clone -q --local --no-hardlinks "$ROOT" "$LEAKREPO" 2>/dev/null; then
   export HOME="$TMPROOT/leakhome"; mkdir -p "$HOME/.claude"
   ( cd "$LEAKREPO" && jq -n --arg c "$LEAKREPO" '{session_id:"leak-1", prompt:"add a widget", cwd:$c}' \
       | bash "$ROOT/hooks/capture-task-slug.sh" >/dev/null 2>&1 )
-  if [ -d "$HOME/.claude/worktrees/leakrepo/$(date +%Y%m%d)-leak-1" ]; then
+  if [ -d "$HOME/.session-worktrees/leakrepo/$(date +%Y%m%d)-leak-1" ]; then
     ok "a well-formed payload still creates its worktree"
   else
-    bad "a well-formed payload still creates its worktree" "nothing at \$HOME/.claude/worktrees/leakrepo/<date>-leak-1"
+    bad "a well-formed payload still creates its worktree" "nothing at \$HOME/.session-worktrees/leakrepo/<date>-leak-1"
   fi
 else
   bad "worktree leak regression" "could not clone $ROOT to test against"

@@ -10,6 +10,7 @@ This directory tracks significant design decisions. Each ADR documents what was 
 | [002](002-marketplace-and-plugin-in-one-repo.md) | Marketplace and plugin colocated in one repo | Accepted |
 | [003](003-hook-tiers-as-options.md) | Hook tiers as plugin options, not separate plugins | Accepted |
 | [004](004-permission-levels.md) | Permission levels: presets, config, overrides and enforcement per platform | Accepted |
+| [005](005-session-worktree-root.md) | Session worktrees live outside `~/.claude`, at a configurable root | Accepted |
 
 ## Format
 

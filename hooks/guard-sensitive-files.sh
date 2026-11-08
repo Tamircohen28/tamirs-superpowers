@@ -12,8 +12,7 @@
 #      plugin that is a source checkout are an R4 ask instead (contributors
 #      edit them), through hook_ask where the platform has one, else a deny.
 #      Targets are judged by realpath too, and an unresolved write whose text
-#      names a protected path is a deny (S-03) — the text that could steer it,
-#      not a read-only command's arguments or data written to a file (#402).
+#      names a protected path is a deny (S-03).
 #   2. GENERATED (lockfiles, .yarn/releases, shadcn UI, ignored build output).
 #      The user may set PM_ALLOW_PROTECTED=1 to edit one on purpose; it is
 #      theirs to set and no deny text names it (D10.5). GitHub Actions

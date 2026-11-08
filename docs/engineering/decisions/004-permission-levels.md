@@ -347,9 +347,8 @@ for 10 minutes; the clamp is named in each answer it changes and in `--level`. T
    (config, plugin code and agents' permission rules); shared `~/.config/gh/**`, `~/.gitconfig`. A repository's
    generated command, skill and agent-adapter dirs for other hosts (`.gemini/skills/`, `.gemini/agents/`,
    `.opencode/commands/`) are not policy and are not protected. It resolves the `realpath` of the target and of any
-   `ln` destination; an UNSURE write whose text names one of these paths is a deny — the text that could steer the
-   write, not the words of a read-only command or data written to a file (issue #402, `_needle_text` in
-   `hooks/lib/write-targets.py`). The commands a `$(…)`, a backtick or a `<(…)`/`>(…)` runs are parsed like
+   `ln` destination; an UNSURE write whose text names one of these paths is a deny. The commands a `$(…)`, a
+   backtick or a `<(…)`/`>(…)` runs are parsed like
    top-level commands; a command name built by expansion, a runner the parser does not unwrap (`strace`, `ssh`,
    `docker run`, …), an environment variable naming a command, and a file the same command writes and then runs
    (`make`, `bash`, `source`, `pytest`, `npm`, a git hook, `./path`) are UNSURE; `sort -o`, `git diff --output`,

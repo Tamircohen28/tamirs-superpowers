@@ -166,7 +166,10 @@ fi
 if is_git_repo "$cwd"; then
   repo_root="$(repo_root_for "$cwd")"
   repo_name="$(repo_name_for "$cwd")"
-  worktree_path="$(worktree_path_for "$repo_name" "$task_slug")"
+  # Where this session's worktree is: the configured root, or the legacy
+  # ~/.claude/worktrees one when a session from an older plugin version has a
+  # live worktree there. New worktrees are only ever created under the root.
+  worktree_path="$(session_worktree_path_for "$repo_name" "$task_slug")"
 
   # ONE LIFECYCLE PER REPO.
   #
@@ -297,7 +300,7 @@ if is_git_repo "$cwd"; then
     hint_mode="set"
     context_lines+=("Git repo task detected. Dedicated worktree for ${repo_name}: ${worktree_path}")
     context_lines+=("Before Edit/Write in ${repo_name}, run: cd \"${worktree_path}\" or use EnterWorktree.")
-    context_lines+=("Edits to other repos go in their own ~/.claude/worktrees/<repo>/<slug>, which the edit guard names. This hint is shown once per repo per session.")
+    context_lines+=("Edits to other repos go in their own ${WORKTREE_ROOT}/<repo>/<slug>, which the edit guard names. This hint is shown once per repo per session.")
     context_lines+=("Session artifacts (plans, reviews, investigations) go in: ${session_files_dir}")
     context_lines+=("Do NOT use repo .dev-files/ — use \$CLAUDE_SESSION_FILES_DIR instead.")
   fi

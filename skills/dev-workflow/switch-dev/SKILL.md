@@ -305,4 +305,4 @@ Print:
 
 ## Scope boundary
 
-This skill moves **task/session state** between tools. It does NOT configure MCP servers, install external orchestrators, run validation, or modify hook worktree paths under `~/.claude/worktrees/`.
+This skill moves **task/session state** between tools. It does NOT configure MCP servers, install external orchestrators, run validation, or modify hook worktree paths under the session worktree root (`~/.session-worktrees/`, or the legacy `~/.claude/worktrees/`).

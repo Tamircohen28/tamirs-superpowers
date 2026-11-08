@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# PreToolUse — block repo file edits outside ~/.claude/worktrees/<repo>/<task-slug>.
+# PreToolUse — block repo file edits outside a session worktree at
+# <worktree root>/<repo>/<task-slug> (WORKTREE_ROOT, default ~/.session-worktrees;
+# see hooks/lib/worktree-common.sh) or another agent workspace.
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=lib/worktree-common.sh
@@ -126,6 +128,7 @@ judge_target_dir() {
   #   objective-integration  .agent-worktrees/<objective>/integration
   #   objective-worker       .agent-worktrees/<objective>/task-NNN
   #   legacy-platform        .claude/.worktrees, .cursor/.worktrees, .codex/.worktrees
+  #   session-global         <worktree root>/<repo>/<slug>
   #   legacy-global          ~/.claude/worktrees/<repo>/<slug>
   #   native-claude          <repo>/.claude/worktrees/<name>
   #
@@ -135,7 +138,7 @@ judge_target_dir() {
   # layout is not endorsing it: nothing here CREATES a platform-shaped path.
   workspace_kind="$(classify_worktree_path "$target_dir")"
   case "$workspace_kind" in
-    objective-integration|objective-worker|objective-other|legacy-platform|legacy-global|native-claude)
+    objective-integration|objective-worker|objective-other|legacy-platform|session-global|legacy-global|native-claude)
       return 0
       ;;
   esac
@@ -151,7 +154,7 @@ judge_target_dir() {
 
   if [[ -z "$worktree_path" || "$worktree_path" == "null" ]]; then
     if [[ -n "$task_slug" && "$task_slug" != "null" ]]; then
-      worktree_path="$(worktree_path_for "$repo_name" "$task_slug")"
+      worktree_path="$(session_worktree_path_for "$repo_name" "$task_slug")"
     fi
   fi
 
@@ -159,12 +162,27 @@ judge_target_dir() {
   # that edits a second repo would otherwise be told to cd into the FIRST repo's
   # worktree — and, below, would have that worktree rebuilt for it. Recompute
   # whenever the recorded path is not this repo's.
-  if [[ -n "$worktree_path" && "$worktree_path" != "null" \
-        && "$worktree_path" != "${WORKTREE_ROOT}/${repo_name}/"* ]]; then
-    if [[ -n "$task_slug" && "$task_slug" != "null" ]]; then
-      worktree_path="$(worktree_path_for "$repo_name" "$task_slug")"
-    else
-      worktree_path=""
+  #
+  # A recorded path under the LEGACY root (~/.claude/worktrees) is kept while it
+  # is a live worktree — the session started on an older plugin version and its
+  # work is there. Once it is gone it is recomputed, so a rebuild lands under
+  # the configured root: nothing is ever created at the legacy root.
+  if [[ -n "$worktree_path" && "$worktree_path" != "null" ]]; then
+    local keep_recorded=no
+    # Canonical comparisons (path_under_root): state can hold either spelling
+    # of a path that runs through a symlink.
+    if path_under_root "$worktree_path" "${WORKTREE_ROOT}/${repo_name}"; then
+      keep_recorded=yes
+    elif path_under_root "$worktree_path" "${LEGACY_WORKTREE_ROOT}/${repo_name}" \
+         && is_live_worktree "$worktree_path"; then
+      keep_recorded=yes
+    fi
+    if [[ "$keep_recorded" != yes ]]; then
+      if [[ -n "$task_slug" && "$task_slug" != "null" ]]; then
+        worktree_path="$(session_worktree_path_for "$repo_name" "$task_slug")"
+      else
+        worktree_path=""
+      fi
     fi
   fi
 
@@ -176,7 +194,7 @@ judge_target_dir() {
   if [[ -n "$objective_id" ]]; then
     reason="Repo edits must happen in an objective worktree, not the main checkout (${repo_root}). Objective '${objective_id}' is active: work in $(agent_worktree_root "$repo_root")/${objective_id}/task-NNN (worker) or .../integration (integrator). Ask the orchestrator which one is yours — do not create a new worktree."
   else
-    reason="Repo edits must happen in a dedicated worktree under ~/.claude/worktrees/${repo_name}/<task-slug>, not the main checkout (${repo_root})."
+    reason="Repo edits must happen in a dedicated worktree under ${WORKTREE_ROOT}/${repo_name}/<task-slug>, not the main checkout (${repo_root})."
     if [[ -z "$worktree_path" || "$worktree_path" == "null" ]]; then
       reason="${reason} Submit your task prompt first so the session's worktree slug is recorded, then cd into the worktree."
     elif is_live_worktree "$worktree_path"; then
