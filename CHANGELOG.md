@@ -26,6 +26,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - **Worktree post-setup installs dependencies again without a level gate.** Only script-free lockfile installs run (`npm ci --ignore-scripts`, `pnpm … --ignore-scripts --ignore-pnpmfile`, classic `yarn … --ignore-scripts`, `bun … --ignore-scripts`, `cargo fetch`); an install that would run the project's own code is still printed for you to run.
 - **The Gemini wrapper no longer renames GitHub MCP tools** to their Claude names; only the permission guard read them. Gemini's `no-workflow-edits` policy rule goes too: agents have been free to edit workflows since 5.6.7.
 - **`scripts/github-mcp.sh` is back to its 5.1 form.** The level-based `--read-only` / `--exclude-tools` flags go with the levels, and so does the 5.2.0 trusted-binary lookup (it read the passwd home through the removed permission library): the server binary is found on `PATH` again, as before 5.2.0.
+- **A `sed` write after a literal `[` is seen again** (Codex P1 on #408). 5.7.1 skipped bracket expressions in every `sed` field, so `sed 's/x/[/w <protected file>' /dev/null` passed although it truncates the file. Bracket expressions are now read only in regex fields (the `s` pattern, `/re/` and `\cREc` addresses); in an `s` replacement and in `y` a `[` is literal.
 - **Known gaps, accepted:** a git replay that brings a host settings file in from another ref (`git checkout <ref> -- .claude/settings.json`) is not judged, and `mkdir`/`git init` of a `.git` in an installed plugin copy outside the host plugin caches is not seen (a written `.git` file is denied). Neither was protected before 5.2.0.
 
 ### Migration
@@ -33,6 +34,25 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Nothing to configure. A stale `~/.config/tamirs-superpowers/permissions.json` (and its `.lock`), a project's `.tamirs-superpowers/permissions.json`, and the plugin's state under `~/.local/state/tamirs-superpowers/` (tickets, stamps, `staged/`, `hostver/`, `intent/`) are no longer read and can be deleted. The `permission_level` value saved in Claude Code's plugin options is ignored.
 - The host's own permission mode is now the one control: `bypassPermissions` means no prompt from this plugin.
 - Delete the Docker/colima/make-e2e `ask` entries from `~/.claude/settings.json` by hand; setup no longer writes them. (The next `make install` / `make update` replaces `permissions.ask` with the empty list, which also removes them, together with any ask rule of your own: the fragment is the whole `permissions.ask` policy.)
+
+## [5.7.1] — 2026-11-08
+
+### Fixed
+
+- **The protected-path guard reports fewer false writes, and models more real ones** (#402). The guard still treats an unresolved write as a write to any protected path the command names; the whole command text is searched, as before. A narrowing of that search was tried and dropped: six security-review rounds each found a write it let through. What changed instead is the parse, so that fewer commands are unresolved in the first place:
+  - A `find -exec`/`-execdir` or an `xargs` that only runs read-only commands (`ls`, `stat`, `cat`, `grep`, `wc`, `jq`, …, named without a path) is no longer an unresolved write (`find <state dir> -exec ls -l {} \;`).
+  - An interpreter whose stdin is only `< /dev/null` is not fed code (`bash <script> </dev/null`); every other stdin feed still is (`3</dev/null`, `0>&3`).
+  - A same-command `NAME=value` literal is no longer left unresolved because a plainly quoted heredoc body (`<<'EOF'`, not `<<$"X"`) happens to contain `NAME` or `). ` (`D=/tmp/x; cat > "$D/issue.md" <<'EOF' … EOF`).
+- **Writes the guard missed:**
+  - `find -fls`, `-fprint0`, `-ok` and `-okdir` are find actions, and a `find` that deletes or runs a writer is judged by its starting points. So `find ~/.claude -name 'settings*.json' -exec sed -i …` is denied the way `rm -rf ~/.claude` is.
+  - `source`/`.` fed code (`source /dev/stdin <<EOF`, `. <(…)`) and `bash <> file` run code like `eval`.
+  - `time -o FILE`, including clusters (`-po FILE`) and `--output=`, writes `FILE`; so does `sort -o`/`-ro`/`--out=`.
+  - sed: a script in a short cluster (`sed -ne 'w FILE'`), `--exp=` abbreviations, an address regex with `/` inside a bracket (`/[/]/w FILE`), BSD/macOS `-I` and GNU `--in` (in place) are all read.
+  - `git grep -O`/`--open…` runs a pager command, so it is unresolved.
+  - `setsid`, `flock`, `ionice` and similar runners are unresolved.
+  - An unresolved write whose cwd, kept from an earlier call, is inside a protected directory is denied.
+- The deny reason for a text-judged block now says so, and asks for a command whose target the guard can resolve.
+- Tests in `tests/test-sensitive-protected-paths.sh`: every write form the issue and the six review rounds named stays denied, the dropped narrowing's allow cases are now asserted denied (as on master), and the parse fixes above are asserted allowed.
 
 ## [5.7.0] — 2026-11-08
 

@@ -9,7 +9,9 @@
 #      unlocks them. A plugin that runs from a source checkout is the
 #      contributor's own tree, so its files are not protected. Targets are
 #      judged by realpath too, and an unresolved write whose text names a
-#      protected path is a deny (S-03). Nothing here asks: every answer is a
+#      protected path is a deny (S-03) — the text that could steer it, not a
+#      read-only command's arguments or data written to a file (#402). Nothing
+#      here asks: every answer is a
 #      deny or no decision (6.0.0, ADR 006).
 #   2. GENERATED (lockfiles, .yarn/releases, shadcn UI, ignored build output).
 #      The user may set PM_ALLOW_PROTECTED=1 to edit one on purpose; it is
@@ -125,6 +127,11 @@ deny() {
 # The protected-path remedy: only the user changes these, outside the agent's
 # reach. It names no bypass — not an env switch, not another tool.
 PROTECTED_REMEDY="Only the user changes host settings and the installed plugin's files: stop and ask them to make this change themselves, outside this session. Do not retry it through another tool, command or path."
+# A block judged from the command's TEXT (an unresolved write, or code this
+# parse cannot read, that names a protected path) is not proof of a write
+# (issue #402). It keeps the same rule for a real write, and otherwise asks
+# for a command the guard can resolve, which is then judged on its target.
+MENTION_REMEDY="Only the user changes host settings and the installed plugin's files: if this command does write that path, stop and ask them to make the change themselves. If it does not, rewrite it so the guard can resolve its target, for example a literal path in place of a variable or inline code."
 
 # classify <abs path> <fragment> <TARGET|DELETE|TREE> — deny (and exit) if protected.
 # With PM_ALLOW_PROTECTED=1 none of these rules is judged (see the header).
@@ -181,7 +188,10 @@ classify() {
 while IFS=$'\t' read -r kind mode why; do
   [ "$kind" = "PROTECTED" ] || continue
   [ "$mode" = "deny" ] || continue
-  deny "BLOCKED: $why $PROTECTED_REMEDY"
+  case "$why" in
+    *"is treated as a write to it."*) deny "BLOCKED: $why $MENTION_REMEDY" ;;
+    *)                                deny "BLOCKED: $why $PROTECTED_REMEDY" ;;
+  esac
 done <<<"$analysis"
 
 # Claude Code's bypass mode (5.6.7): the user chose to run free, so the generated-file
