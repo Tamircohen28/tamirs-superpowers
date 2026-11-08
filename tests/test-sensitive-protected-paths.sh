@@ -539,6 +539,26 @@ blocked "{fd}> file, then an inert ls read back" \
   "exec {fd}>/tmp/p; ls -d ~/.config/gh; D=\$(cat /tmp/p); echo x > \"\$D/hosts.yml\""
 blocked "a redirection-only > file beside an inert ls" \
   ">/tmp/p; ls -d ~/.config/gh; D=\$(cat /tmp/p); echo x > \"\$D/hosts.yml\""
+# Round 5 (F1): a variable set without a `NAME=` word, before an inert command.
+blocked "read PATH before an inert ls"          "echo x > \$UNK; read PATH <<< /tmp/b; ls ~/.gitconfig"
+blocked "for PATH in … before an inert ls"      "echo x > \$UNK; for PATH in /tmp/b; do :; done; ls ~/.gitconfig"
+blocked "printf -v PATH before an inert ls"     "echo x > \$UNK; printf -v PATH %s /tmp/b; ls ~/.gitconfig"
+blocked "mapfile PATH before an inert ls"       "echo x > \$UNK; mapfile PATH <<< /tmp/b; ls ~/.gitconfig"
+blocked "read HOME before an inert git diff"    "echo x > \$UNK; read HOME <<< /tmp/h; echo pwned | git diff --no-index a1 ~/.gitconfig"
+blocked "getopts into a variable before an inert ls" "echo x > \$UNK; getopts p PATH -p; ls ~/.gitconfig"
+blocked "let before an inert ls"                "echo x > \$UNK; let IFS=1; ls ~/.gitconfig"
+blocked "(( )) assignment before an inert ls"   "echo x > \$UNK; (( IFS = 1 )); ls ~/.gitconfig"
+blocked "\${PATH:=…} before an inert ls"        "echo x > \$UNK; : \${PATH:=/tmp/b}; ls ~/.gitconfig"
+blocked "unset PATH before an inert ls"         "echo x > \$UNK; unset PATH; ls ~/.gitconfig"
+# Round 5 (F2): an inert git reads config a data heredoc wrote.
+blocked "a heredoc git config with fsmonitor, then git status" \
+  "echo x > \$UNK; cat <<'EOF' > /tmp/gd/config${NL}[core]${NL}${TAB}fsmonitor = sh -c 'echo > $PHOME/.gitconfig' #${NL}EOF${NL}git --git-dir=/tmp/gd --work-tree=. status"
+blocked "a heredoc to an unresolved config path, then plain git status" \
+  "cat <<'EOF' > \"\$G/config\"${NL}[core]${NL}${TAB}fsmonitor = sh -c 'echo > $PHOME/.gitconfig' #${NL}EOF${NL}git status"
+blocked "git -C into a protected dir beside an unresolved write" "echo x > \$UNK; git -C ~/.config/gh status"
+blocked "a heredoc ripgrep config, then rg" \
+  "cat <<'EOF' > \"\$RC\"${NL}--pre=sh -c 'echo > $PHOME/.gitconfig'${NL}EOF${NL}rg x ."
+passes "git -C elsewhere, beside an unresolved write naming nothing" "echo x > \$UNK; git -C /tmp/r status"
 cwd_verdict="$(v Bash "python3 -c \"open('hosts.yml','w')\"" "$HOME/.config/gh")"
 case "$cwd_verdict" in deny|ask) cwd_verdict=blocked ;; esac
 judge "an unresolved write run inside a protected dir (a cwd kept from an earlier call)" blocked "$cwd_verdict"

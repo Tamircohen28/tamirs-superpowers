@@ -3580,7 +3580,12 @@ READ_ONLY_COMMANDS = (
 GIT_READ_ONLY = ("status", "diff", "log", "show", "ls-files", "ls-tree", "rev-parse", "blame",
                  "cat-file", "describe", "shortlog", "grep", "rev-list", "show-ref",
                  "for-each-ref", "merge-base", "name-rev")
-GIT_VALUE_GLOBALS = ("-C", "--git-dir", "--work-tree", "--namespace")
+GIT_VALUE_GLOBALS = ("--namespace",)
+# Commands that read a configuration file that can make them run a program
+# (git: core.fsmonitor, diff.external, textconv; rg: a RIPGREP_CONFIG_PATH file
+# with --pre). With one in the command, data written by the command is never
+# dropped as "only file content" (PR #408 review, round 5).
+CONFIG_READERS = ("git", "rg")
 # Shell builtins and commands that turn data into a path, a variable or code.
 CONVERTERS = ("read", "mapfile", "readarray", "source", ".", "eval", "exec", "xargs",
               "parallel", "watch", "getopts", "let", "declare", "typeset", "local",
@@ -3661,7 +3666,9 @@ def _read_only_shape(base, rest):
             if a in GIT_VALUE_GLOBALS:
                 i += 2
                 continue
-            if a.startswith(("--git-dir=", "--work-tree=", "--namespace=")) or a in (
+            # `-C`, `--git-dir`, `--work-tree` point git at another repository and
+            # its config, which can run code: such a git is never inert.
+            if a.startswith("--namespace=") or a in (
                     "--no-pager", "--no-optional-locks", "--literal-pathspecs", "--bare"):
                 i += 1
                 continue
@@ -3696,6 +3703,32 @@ def _inert(seg):
     return _read_only_shape(seg["base"], seg["rest"])
 
 
+# Builtins and keywords that assign a variable without a `NAME=` word, and the
+# names whose value changes what a read-only command runs or reads (PR #408
+# review, round 5: `read PATH <<< /tmp/b; ls PROT`).
+ASSIGNING_BASES = ("read", "mapfile", "readarray", "getopts", "let", "unset", "printf")
+ASSIGNING_KEYWORDS = ("for", "select")
+SENSITIVE_NAME = re.compile(
+    r"(?<![A-Za-z0-9_$\{])(?:PATH|HOME|IFS|CDPATH|BASH_ENV|ENV|SHELLOPTS|BASHOPTS|"
+    r"XDG_[A-Z0-9_]*|GIT_[A-Z0-9_]*|LD_[A-Z0-9_]*|DYLD_[A-Z0-9_]*|RIPGREP_[A-Z0-9_]*)(?![A-Za-z0-9_])")
+
+
+def _sets_variables(seg):
+    """True when this segment may assign a variable other than by a plain `NAME=` word,
+    or names one of the variables that steer what a command runs (SENSITIVE_NAME)."""
+    words = seg["words"]
+    base = seg.get("base")
+    if base in ASSIGNING_BASES and (base != "printf" or not _read_only_shape("printf", seg["rest"])):
+        return True
+    if words and (words[0] in ASSIGNING_KEYWORDS or words[0].startswith("((")):
+        return True
+    for w in words:
+        if w.startswith("((") or re.search(r"\$\{[A-Za-z_][A-Za-z0-9_]*:?[=?]", w) \
+                or SENSITIVE_NAME.search(w):
+            return True
+    return False
+
+
 def _needle_text(text, records):
     """The part of `text` that could steer an unresolved write (see the block comment)."""
     info = SEGMENTS
@@ -3708,6 +3741,7 @@ def _needle_text(text, records):
             # that is only redirections (`exec 3>f`, `{fd}>f`, `>f`): a persistent fd
             # change can send every later "terminal" output into a file (PR #408 review).
             or "exec" in s.get("wrappers", ())
+            or _sets_variables(s)
             or (not s.get("base") and (s.get("redirects") or s.get("dups")))
             or any(ENV_THAT_RUNS_CODE.match(w) or CARRIES_WORDS.search(w) for w in s["words"])
             or any(CARRIES_WORDS.search(b) for b, q in s["bodies"] if not q) for s in segs):
@@ -3729,7 +3763,8 @@ def _needle_text(text, records):
         or any(not q and SUBSTITUTION.search(b) for b, q in s["bodies"])
         for s in live)
     data_ok = target_only and not converts and all(
-        s.get("base") in DATA_SAFE_PEERS or (s.get("base") is None and not s["redirects"]) for s in live)
+        s.get("base") in DATA_SAFE_PEERS or (s.get("base") is None and not s["redirects"]) for s in live
+    ) and not any(s.get("base") in CONFIG_READERS for s in segs)
     parts = []
     for s in live:
         base = s.get("base")
