@@ -34,17 +34,17 @@ jobs:
 
   # `make validate` is split three ways so the gate answers in minutes instead of half
   # an hour, without changing the required status-check context. The suites
-  # (`make test-hooks`) run as a four-shard matrix; everything else in the gate runs
+  # (`make test-hooks`) run as a six-shard matrix; everything else in the gate runs
   # once in `validate-rest`; and `full-validate` keeps the name that
   # config/github/repository-policy.json requires, as an aggregator that is green only
   # when both are. Shard model: docs/engineering/build-and-release/testing-matrix.md.
   validate-shards:
-    name: make test-hooks (shard ${{ matrix.shard }}/4)
+    name: make test-hooks (shard ${{ matrix.shard }}/6)
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        shard: [1, 2, 3, 4]
+        shard: [1, 2, 3, 4, 5, 6]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
@@ -57,7 +57,7 @@ jobs:
           sudo apt-get install -y shellcheck
           pip install -r scripts/requirements-validate.txt
       - name: Run this shard of the suites
-        run: make test-hooks SHARD=${{ matrix.shard }}/4
+        run: make test-hooks SHARD=${{ matrix.shard }}/6
 
   validate-rest:
     name: make validate minus the suites
@@ -168,7 +168,7 @@ jobs:
         run: bash tests/test-${{ matrix.platform }}-adapter.sh
 
   # `hook-tests` (make test-hooks) stood here and was removed. `validate-shards` now
-  # runs every tests/test-*.sh that job ran, across four shards behind the
+  # runs every tests/test-*.sh that job ran, across six shards behind the
   # full-validate aggregator. Measured on a full run it was the most expensive
   # duplicate in this workflow -- 249s against full-validate's 295s -- so it bought a
   # 46-second head start on a five-minute gate at the price of a whole runner.

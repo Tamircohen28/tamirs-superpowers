@@ -24,7 +24,7 @@ is rebuilt — that is the failure this directory closes.
 ## Why `settings.d/` is split
 
 The live `settings.json` is one 7 KB blob with 26 top-level keys, 50 `allow`
-entries and 39 `ask` entries. As a single canonical file it is unreviewable: a
+entries and (until 6.0.0) 39 `ask` entries. As a single canonical file it is unreviewable: a
 diff that changes one permission looks the same as one that flips every plugin.
 
 Splitting it along policy boundaries makes each change legible in review:
@@ -93,12 +93,13 @@ default awaiting correction.
 historically wrap docker. Read-only inspection and `docker stop`/`rm`/`down`
 pass unprompted.
 
-It duplicates `permissions.ask` on purpose for any session not in bypass mode:
-hooks run in every permission mode, and a `deny` decision sets a blocking error.
-Under Claude Code `bypassPermissions` the guard steps aside — you chose to run
-unattended — except for a `prune`, which it still denies because pruned state
-cannot be recovered. `permissions-ask.json` remains the host-side policy for any
-machine not in bypass mode.
+Hooks run in every permission mode, and a `deny` decision sets a blocking error
+without a prompt. Under Claude Code `bypassPermissions` the guard steps aside —
+you chose to run unattended — except for a `prune`, which it still denies because
+pruned state cannot be recovered. Since 6.0.0 setup writes no `ask` rule
+(`permissions-ask.json` is an empty list, ADR 006): the Docker/colima/make-e2e
+ask rules earlier versions installed prompted outside bypass mode, and nothing
+this plugin installs may prompt.
 
 Override: `PM_ALLOW_DOCKER=1` inline on the command approves that one command.
 The name in the block message comes from `DOCKER_GUARD_OWNER`. The script reads

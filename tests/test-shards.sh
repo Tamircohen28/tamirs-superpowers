@@ -72,18 +72,52 @@ for n in 2 3 4 7 "$TOTAL"; do
   judge "n=$n: no shard is empty" 0 "$(for i in $(seq 1 "$n"); do [ -n "$(bash "$SHARD_SH" "$i/$n")" ] || echo "$i"; done | grep -c .)"
 done
 
-# suite k (0-based) goes to shard (k mod n)+1 — checked with a plain counter, not awk,
-# so the oracle is written differently from the implementation.
-expected_shard() { # <i> <n>
-  local k=0 line
-  printf '%s\n' "$FULL" | while IFS= read -r line; do
-    [ $(( (k % $2) + 1 )) -eq "$1" ] && printf '%s\n' "$line"
-    k=$((k + 1))
-  done
+# The greedy split, checked against an oracle written differently from the
+# implementation (python, not awk): weights from the timings file, the median for an
+# unnamed suite, heaviest first with ties by name, each to the least-loaded shard.
+TIMINGS="$REPO_ROOT/scripts/ci/suite-timings.tsv"
+judge "the timings file exists" yes "$([ -f "$TIMINGS" ] && echo yes || echo no)"
+judge "every timings row is <suite> <tab> <seconds>" "" \
+  "$(grep -v '^#' "$TIMINGS" | awk -F'\t' 'NF != 2 || $2 !~ /^[0-9]+([.][0-9]+)?$/')"
+oracle() { # <i> <n> [root]
+  printf '%s\n' "$(cd "${3:-$REPO_ROOT}" && find tests -maxdepth 2 -name 'test-*.sh' | LC_ALL=C sort)" | python3 -c '
+import os, sys, statistics
+i, n, root = int(sys.argv[1]), int(sys.argv[2]), sys.argv[3]
+suites = [l for l in sys.stdin.read().split("\n") if l]
+t = {}
+f = os.path.join(root, "scripts/ci/suite-timings.tsv")
+if os.path.exists(f):
+    for line in open(f):
+        p = line.rstrip("\n").split("\t")
+        if len(p) == 2 and not line.startswith("#"):
+            try: t[p[0]] = float(p[1])
+            except ValueError: pass
+known = [t[s] for s in suites if s in t]
+med = statistics.median(known) if known else 1.0
+w = {s: round(t.get(s, med), 3) for s in suites}
+load, mine = [0.0] * n, []
+for s in sorted(suites, key=lambda s: (-w[s], s.encode())):
+    k = min(range(n), key=lambda q: (load[q], q))
+    load[k] += w[s]
+    if k == i - 1: mine.append(s)
+print("\n".join(sorted(mine, key=lambda s: s.encode())))
+' "$1" "$2" "${3:-$REPO_ROOT}"
 }
-for i in 1 2 3 4; do
-  judge "shard $i/4 is exactly the suites with k mod 4 == $((i - 1))" "$(expected_shard "$i" 4)" "$(bash "$SHARD_SH" "$i/4")"
+for n in 4 6; do
+  for i in $(seq 1 "$n"); do
+    judge "shard $i/$n equals the greedy oracle" "$(oracle "$i" "$n")" "$(bash "$SHARD_SH" "$i/$n")"
+  done
 done
+# Greedy keeps every shard within one suite's weight of the others.
+for n in 4 6 8; do
+  spread="$(for i in $(seq 1 "$n"); do bash "$SHARD_SH" -v "$i/$n" 2>&1 >/dev/null | sed -E 's/.*~([0-9]+) s.*/\1/'; done \
+    | sort -n | awk 'NR == 1 { lo = $1 } { hi = $1 } END { print hi - lo }')"
+  heaviest="$(grep -v '^#' "$TIMINGS" | cut -f2 | sort -g | tail -n 1 | cut -d. -f1)"
+  judge "n=$n: the slowest and fastest shard differ by at most the heaviest suite (${spread}s <= ${heaviest}s)" yes \
+    "$([ "$spread" -le $((heaviest + 1)) ] && echo yes || echo no)"
+done
+judge "-v reports the shard's expected seconds" yes "$(has "$(bash "$SHARD_SH" -v 2/6 2>&1 >/dev/null)" "s expected")"
+
 judge "n larger than the suite count: shard $((TOTAL + 1))/$((TOTAL + 1)) is empty and exits 0" "0:" \
   "$(bash "$SHARD_SH" "$((TOTAL + 1))/$((TOTAL + 1))" >/dev/null; echo "$?:$(bash "$SHARD_SH" "$((TOTAL + 1))/$((TOTAL + 1))")")"
 
@@ -130,6 +164,30 @@ printf '#!/usr/bin/env bash\nexit 1\n' > "$TREE/tests/helper.sh"
 STUB_FULL="$(cd "$TREE" && find tests -maxdepth 2 -name 'test-*.sh' | LC_ALL=C sort)"
 judge "stub tree lists seven suites" 7 "$(printf '%s\n' "$STUB_FULL" | grep -c .)"
 judge "script on the stub tree: 1/1 equals its full list" "$STUB_FULL" "$(bash "$SHARD_SH" 1/1 "$TREE")"
+# No timings file: every weight is equal, and greedy is round-robin by sorted name
+# (suite k, 0-based, in shard (k mod n) + 1), checked with a plain counter.
+expected_rr() { # <i> <n>
+  local k=0 line
+  printf '%s\n' "$STUB_FULL" | while IFS= read -r line; do
+    [ $(( (k % $2) + 1 )) -eq "$1" ] && printf '%s\n' "$line"
+    k=$((k + 1))
+  done
+}
+for i in 1 2 3; do
+  judge "no timings: shard $i/3 is round-robin by name" "$(expected_rr "$i" 3)" "$(bash "$SHARD_SH" "$i/3" "$TREE")"
+done
+# With timings for some suites, an unnamed suite weighs their median, and the heavy one
+# gets a shard to itself.
+mkdir -p "$TREE/scripts/ci"
+printf '# test\ntests/test-alpha.sh\t100\ntests/test-beta.sh\t2\ntests/test-gamma.sh\t4\nnot-a-number\tx\n' > "$TREE/scripts/ci/suite-timings.tsv"
+judge "timings: the 100 s suite has shard 1/2 to itself" "tests/test-alpha.sh" "$(bash "$SHARD_SH" 1/2 "$TREE")"
+judge "timings: shard 2/2 holds the other six" 6 "$(bash "$SHARD_SH" 2/2 "$TREE" | grep -c .)"
+judge "timings: an unnamed suite weighs the median (4 s): -v totals 6 x ... = 2+4+4*4" yes \
+  "$(has "$(bash "$SHARD_SH" -v 2/2 "$TREE" 2>&1 >/dev/null)" "~22 s expected")"
+for i in 1 2 3; do
+  judge "timings: shard $i/3 equals the greedy oracle" "$(oracle "$i" 3 "$TREE")" "$(bash "$SHARD_SH" "$i/3" "$TREE")"
+done
+rm -f "$TREE/scripts/ci/suite-timings.tsv"
 
 run_make() { # <args...> — runs make in the tree, resets the logs first
   : > "$RAN"; : > "$WITNESS"

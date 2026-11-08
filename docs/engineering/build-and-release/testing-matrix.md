@@ -29,7 +29,7 @@ static form when it is absent.
 ## 2. Behavior tests — always run
 
 `make test-hooks` runs every `tests/test-*.sh` (`find tests -maxdepth 2`, sorted under
-`LC_ALL=C`; 91 suites today), and `make test-hooks SHARD=i/n` runs one deterministic slice of
+`LC_ALL=C`; 87 suites today), and `make test-hooks SHARD=i/n` runs one deterministic slice of
 that list — see [Shards](#shards) below.
 
 | Test | Proves |
@@ -55,29 +55,33 @@ that list — see [Shards](#shards) below.
 | `test-dist.sh` · `test-claude-dist.sh` | every per-host distribution builds and passes its check, and a planted finding of each class makes the check fail |
 | `test-opencode-v2.sh` · `test-antigravity-adapter.sh` · `test-agents-skills.sh` | the OpenCode 2 configuration, plugin and permissions vocabulary; the Antigravity adapter's closed schema; the `.agents/skills` mirror |
 | `test-skill-budget.sh` · `test-evals-suite.sh` | the always-on token budget gate: the checkout's offline estimate held to `evals/budget.json` on every shard, the CLI's chars/4 fallback recognised, a stale `chars_per_token` caught; and the skills-ref gate (hermetic through saved CLI output; the live case self-skips without the CLI); the static shape of the `claude plugin eval` suite under `evals/` |
-| `test-shards.sh` | the shard partition: every suite in exactly one shard, the union of `1/n … n/n` is the full list, `1/1` is today's list in today's order, and the Makefile consumes the script rather than its own `find` |
+| `test-shards.sh` | the shard partition: every suite in exactly one shard, the union of `1/n … n/n` is the full list, `1/1` is today's list in today's order, the greedy split matches an independent oracle and keeps shards within one suite's weight, and the Makefile consumes the script rather than its own `find` |
 
 ### Shards
 
-`scripts/ci/shard-suites.sh i/n` is the single source of the partition. Suite `k` (0-based
-in the sorted list) lands in shard `(k mod n) + 1`: a round-robin by name, so every suite
-runs in exactly one shard and the union of `1/n … n/n` is the whole list. `make test-hooks`
+`scripts/ci/shard-suites.sh i/n` is the single source of the partition. It is a
+duration-weighted greedy split: each suite weighs its seconds in
+`scripts/ci/suite-timings.tsv` (a suite the file does not name weighs the median), the
+suites are taken heaviest first (ties by name), and each goes to the shard with the least
+total so far (ties to the lowest shard). Every suite runs in exactly one shard and the
+union of `1/n … n/n` is the whole list; with no timings file it degrades to round-robin
+by name. `make test-hooks`
 consumes the script, never its own `find`, so a local shard and a CI shard run the same
 suites; without `SHARD` the target is `1/1`, the whole list, unchanged. The real-home
 witness still brackets every suite inside a shard.
 
 ```bash
-bash scripts/ci/shard-suites.sh 2/4   # print the suites in shard 2 of 4
-make test-hooks SHARD=2/4             # run that shard
+bash scripts/ci/shard-suites.sh -v 2/6   # print the suites in shard 2 of 6 (and its expected seconds)
+make test-hooks SHARD=2/6                # run that shard
 ```
 
-Balance is by **count, not seconds** (within one suite of each other for `n=4`). The heavy
-suites — `test-static` and `test-security-regressions` among them — land wherever the sorted
-order puts them, so the slowest shard is bounded by its heaviest suite rather than by the
-count. Adding or renaming a `tests/test-*.sh` re-partitions every shard. That is by design —
-there is no hand-kept list to go stale — but it means a new heavy suite can move the long
-pole without anyone touching CI. Re-size `n` from the per-suite timing table, not from the
-count.
+Balance is by **seconds**: the greedy split keeps every shard within one suite's weight
+of the others (CI runs six). Until 6.0.0 it was a round-robin by name, and one shard held
+a 15-minute suite while the others idled. Adding or renaming a `tests/test-*.sh`
+re-partitions every shard; a new suite weighs the median until it is timed. Refresh the
+timings when a suite's cost moves a lot: take the newest master CI run's log
+(`gh run view <id> --log`), and write each suite's span between consecutive `==> ` lines
+of its shard into `scripts/ci/suite-timings.tsv`.
 
 Under `make test-hooks` every suite receives `SUPERPOWERS_SHELLCHECK_DONE=1`, so
 `test-static` skips its own shellcheck pass: `make lint` is the gate's one pass, and both the
@@ -125,7 +129,7 @@ unverified capabilities stay `unknown` in the registry rather than being assumed
 | Job | What it runs |
 |---|---|
 | shellcheck | `make lint`, plus the orphan-hook-script warning |
-| make test-hooks (shard i/4) | one shard of the behavior tests, `make test-hooks SHARD=i/4`; a four-leg matrix with `fail-fast: false` so every shard reports |
+| make test-hooks (shard i/6) | one shard of the behavior tests, `make test-hooks SHARD=i/6`; a six-leg matrix with `fail-fast: false` so every shard reports |
 | make validate minus the suites | `make -o test-hooks validate`: every prerequisite and every recipe line of the gate except `test-hooks` |
 | make validate (full local-parity gate) | the aggregator — the required context. `needs` the matrix and the job above, runs on `if: always()`, exits 1 unless both results are `success` |
 | Orchestration simulation | `bash tests/test-orchestration.sh` |
@@ -172,7 +176,7 @@ restates the Makefile, so a check added to `validate` reaches CI with no workflo
 make validate            # the full local gate — Tier 2
 make lint                # shellcheck only
 make test-hooks          # behavior tests, every suite
-make test-hooks SHARD=2/4    # one shard of them (what one CI matrix leg runs)
+make test-hooks SHARD=2/6    # one shard of them (what one CI matrix leg runs)
 make -o test-hooks validate  # the gate minus the suites (what CI's validate-rest runs)
 make test-repo-contract  # contract fixtures
 make doctor              # environment health, not a test

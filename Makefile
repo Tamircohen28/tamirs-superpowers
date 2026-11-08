@@ -153,9 +153,9 @@ worktrees-migrate:
 # evidence when a test loses a directory. test-worktree-objective.sh unsets it
 # for the cases that assert on the default behaviour.
 #
-# SHARD=i/n runs one deterministic slice of the suites (suite k, 0-based in sorted
-# order, belongs to shard (k mod n)+1); the list comes from scripts/ci/shard-suites.sh,
-# the single source of the partition, so CI's matrix and a local SHARD=2/4 run the
+# SHARD=i/n runs one deterministic slice of the suites (a greedy split weighted by
+# scripts/ci/suite-timings.tsv); the list comes from scripts/ci/shard-suites.sh,
+# the single source of the partition, so CI's matrix and a local SHARD=2/6 run the
 # same suites. Without SHARD it is the whole list, in the same order as before. The
 # list is captured BEFORE the loop: piped straight into `while`, a rejected SHARD
 # would read as an empty list and the target would pass having run nothing.
