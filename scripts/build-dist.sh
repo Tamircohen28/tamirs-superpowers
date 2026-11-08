@@ -137,8 +137,10 @@ case "$TARGET" in
     ;;
   opencode)
     # OpenCode reads opencode.json, AGENTS.md and the .opencode/ adapter (agents, commands,
-    # the V2 plugin). It executes no shell hook.
-    ROOTS=(opencode.json AGENTS.md .opencode platforms/opencode "${COMMON_ROOTS[@]}")
+    # the V2 plugin). It executes no shell hook. The plugin's guard.ts runs one parser,
+    # hooks/lib/write-targets.py (stdlib-only Python, nothing else imported), so that one
+    # file ships; check-dist.sh allows exactly it under hooks/.
+    ROOTS=(opencode.json AGENTS.md .opencode platforms/opencode hooks/lib/write-targets.py "${COMMON_ROOTS[@]}")
     PRUNE_PATHS+=(
       docs/user/install/claude-code.md docs/user/install/claude-desktop.md docs/user/install/codex.md docs/user/install/cursor.md docs/user/install/gemini.md
       scripts/lib/setup-claude.sh scripts/lib/setup-codex.sh scripts/lib/setup-cursor.sh scripts/lib/setup-gemini.sh

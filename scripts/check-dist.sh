@@ -226,7 +226,11 @@ PYG
     has opencode.json && ok "opencode.json present" || bad "opencode.json missing"
     has AGENTS.md && ok "AGENTS.md present (OpenCode 2 reads only this file)" || bad "AGENTS.md missing"
     [[ -d "$DIST/.opencode" ]] && ok ".opencode adapter present" || bad ".opencode missing"
-    has hooks && bad "hooks/ is shipped" "OpenCode executes no shell hook" || ok "no shell hooks"
+    # guard.ts runs hooks/lib/write-targets.py; nothing else under hooks/ may ship, and
+    # never a manifest or a shell hook: OpenCode executes none.
+    has hooks/lib/write-targets.py && ok "hooks/lib/write-targets.py shipped (run by guard.ts)" || bad "hooks/lib/write-targets.py missing" "guard.ts parses every write with it"
+    extra_hooks="$(cd "$DIST" && find hooks -type f ! -path hooks/lib/write-targets.py 2>/dev/null | head -3)"
+    [[ -z "$extra_hooks" ]] && ok "nothing else under hooks/" || bad "hooks/ is shipped beyond write-targets.py" "$extra_hooks"
     has mod && bad "mod/ is shipped" || ok "no mod"
     ;;
   agent-plugins)

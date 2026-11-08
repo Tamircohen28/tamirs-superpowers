@@ -177,7 +177,8 @@ const WRITE_TARGETS_TIMEOUT_MS = 5_000
  * and the hook's failClosed denies.
  */
 function writeTargetRecords(toolName: string, toolInput: Record<string, unknown>, cwd: string): WriteTargetRecord[] | null {
-  if (!existsSync(WRITE_TARGETS)) throw new Error(`${WRITE_TARGETS} is missing, so no write can be judged`)
+  // A missing parser falls back exactly as a missing python3 does: the rules.ts port judges.
+  if (!existsSync(WRITE_TARGETS)) return null
   let out: string
   try {
     out = execFileSync("python3", [WRITE_TARGETS, "--protected"], {
@@ -286,7 +287,7 @@ function judgeAfterProtected(file: string, kind: TargetKind, via: string, legacy
 /**
  * Judge one tool call's writes the way guard-sensitive-files.sh does: write-targets.py's
  * PROTECTED denies decide first,
- * then each TARGET / DELETE / TREE meets judgeAfterProtected. null when python3 is
+ * then each TARGET / DELETE / TREE meets judgeAfterProtected. null when python3 or write-targets.py is
  * not installed: the caller then judges with the rules.ts port.
  */
 function judgeWritesCanonical(toolName: string, toolInput: Record<string, unknown>, cwd: string, legacy: boolean): Decision | null {

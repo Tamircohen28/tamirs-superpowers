@@ -472,8 +472,11 @@ test("guard.ts routes writes through write-targets.py --protected before PM_ALLO
   const g = readFileSync(path.join(HERE, "guard.ts"), "utf8")
   assert.match(g, /path\.join\(PLUGIN_ROOT, "hooks", "lib", "write-targets\.py"\)/)
   assert.match(g, /execFileSync\("python3", \[WRITE_TARGETS, "--protected"\]/)
-  // Only a missing python3 falls back to the port; any other failure throws into failClosed.
+  // Only a missing python3 or a missing parser falls back to the port; any other failure
+  // throws into failClosed (a dist without the parser must not deny every call, #411).
   assert.match(g, /code === "ENOENT"\) return null/)
+  assert.match(g, /if \(!existsSync\(WRITE_TARGETS\)\) return null/)
+  assert.doesNotMatch(g, /WRITE_TARGETS\} is missing/)
   // The protected records decide before anything an override or the legacy switch reaches.
   const fn = g.indexOf("function judgeWritesCanonical(")
   const body = g.slice(fn, g.indexOf("\nfunction ", fn + 1))
