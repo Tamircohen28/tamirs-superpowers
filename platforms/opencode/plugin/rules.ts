@@ -12,17 +12,14 @@
 // depends on something OpenCode cannot provide (a session worktree slug, a hook
 // envelope), the narrower rule is stated and the reason recorded inline.
 //
-// ADR 004 (docs/engineering/decisions/004-permission-levels.md) adds two things here:
-// the protected-path table of D10.1 (mirrored from hooks/lib/write-targets.py, held
-// equal to core/permissions/actions.json by rules.test.mjs) and the pure half of the
-// permission-guard bridge (D8): the payload guard.ts hands to hooks/permission-guard.sh
-// and the reading of its answer. On OpenCode every ask is delivered as a deny, because
-// `opencode --auto` approves a plugin ask (measured O1c) and only a deny is final (O1b).
+// The protected-path table is mirrored from hooks/lib/write-targets.py (rules.test.mjs
+// holds the two equal). Every protected-path answer is a deny: no plugin hook asks
+// (6.0.0, ADR 006), and a plugin that runs from a source checkout is not protected.
 //
 // Erasable TypeScript only — no enums, no parameter properties, no namespaces —
 // so `node file.ts` works without a build step.
 
-export type Effect = "allow" | "ask" | "deny"
+export type Effect = "allow" | "deny"
 
 export interface Decision {
   readonly effect: Effect
@@ -68,36 +65,15 @@ export type WriteKind = "write" | "delete" | "tree"
 
 /**
  * Mirrors the `classify` function of hooks/guard-sensitive-files.sh rule for rule
- * (the generated-file pass; the R4 protected paths are protectedReason below).
+ * (the generated-file pass; the protected paths are protectedReason below).
  * Returns the deny reason, or null when the path is not protected. Like the shell
- * hook, no text names an override (ADR 004 D10.5): the user's PM_ALLOW_PROTECTED=1
- * still skips this pass, but a deny never advertises it to the agent.
+ * hook, no text names an override: the user's PM_ALLOW_PROTECTED=1 still skips this
+ * pass, but a deny never advertises it to the agent. A GitHub Actions workflow is
+ * ordinary, reviewable source here, as in the shell hook since 5.6.7.
  */
-/**
- * The workflow half of sensitiveReason, exported on its own because no environment switch may
- * reach it (ADR 004 D3, F6): guard-sensitive-files.sh judges it before PM_ALLOW_PROTECTED. The
- * workflows directory itself counts, and so does a `.github` that a delete or a tree write removes
- * or fills (the shell hook also checks the directory exists; this pure rule cannot, so it denies).
- */
-export function workflowReason(file: string, kind: WriteKind = "write", via = ""): string | null {
-  const f = normPath(file)
-  const context = via ? ` (via: ${via})` : ""
-  const holds = /\/\.github$/.test(f) && (kind === "delete" || kind === "tree")
-  if (!/\/\.github\/workflows(?:\/|$)/.test(f) && !holds) return null
-  // R4 `workflow.edit` (ADR 004 D10.5): the remedy is the user, not a route around
-  // this guard — a remote write tool is the same change with no guard on it.
-  return (
-    `BLOCKED: '${file}' ${holds ? "holds the GitHub Actions workflows" : "is a GitHub Actions workflow"}.${context} ` +
-    "Changing a workflow is an R4 action (workflow.edit): ask the user to approve this exact change and to make it themselves, " +
-    "rather than routing it through another tool or a remote API."
-  )
-}
-
 export function sensitiveReason(file: string, facts: SensitiveFacts = {}, kind: WriteKind = "write", via = ""): string | null {
   const f = normPath(file)
   const context = via ? ` (via: ${via})` : ""
-  const workflow = workflowReason(file, kind, via)
-  if (workflow) return workflow
   if (/\.lock$|\/package-lock\.json$|\/pnpm-lock\.yaml$|\/bun\.lockb$|\/go\.sum$/.test(f)) {
     return (
       `BLOCKED: '${file}' is a package-manager lockfile — it is generated, never hand-edited.${context} ` +
@@ -128,63 +104,52 @@ export function sensitiveReason(file: string, facts: SensitiveFacts = {}, kind: 
   return null
 }
 
-// ------------------------------- protected paths (ADR 004 D10.1, hooks/lib/write-targets.py) ---
+// ------------------------------------ protected paths (hooks/lib/write-targets.py) ---
 //
-// The plugin's permission policy, its guard files and every host settings store that
-// could widen what an agent may do are R4 `policy.edit` (plus `config.global.write`
-// for a repository's .git/hooks and .git/config). No environment switch unlocks them:
-// PM_ALLOW_PROTECTED reaches only the generated-file rules above. The table is the
-// `equivalents.paths` of those two ids in core/permissions/actions.json, the same
-// fallback write-targets.py carries; rules.test.mjs holds all three equal.
+// This plugin's guard files, every host settings store that could widen what an agent
+// may do, and a repository's .git/hooks and .git/config. No environment switch unlocks
+// them: PM_ALLOW_PROTECTED reaches only the generated-file rules above. The table is
+// write-targets.py's own, in its order; rules.test.mjs holds the two equal.
 
-export type ProtectedId = "policy.edit" | "config.global.write"
-
-export const PROTECTED_PATHS: Readonly<Record<ProtectedId, readonly string[]>> = {
-  "policy.edit": [
-    "{home}/.config/tamirs-superpowers/**",
-    "{home}/.local/state/tamirs-superpowers/**",
-    "{repo}/.tamirs-superpowers/**",
-    "{plugin_root}/hooks/**",
-    "{plugin_root}/core/permissions/**",
-    "{plugin_root}/scripts/resolve-permission.sh",
-    "{plugin_root}/scripts/plugin-config.sh",
-    "{plugin_root}/scripts/lib/permission-common.sh",
-    "{home}/.claude/plugins/cache/**",
-    "{home}/.claude/settings*.json",
-    "{repo}/.claude/settings*.json",
-    "{home}/.gemini/settings.json",
-    "{home}/.gemini/policies/**",
-    "{home}/.gemini/extensions/tamirs-superpowers/**",
-    "{repo}/.gemini/settings.json",
-    "{repo}/.gemini/policies/**",
-    "{repo}/.gemini/extensions/**",
-    "{home}/.codex/config.toml",
-    "{home}/.codex/hooks*",
-    "{home}/.codex/rules/**",
-    "{home}/.codex/plugins/**",
-    "{home}/.cursor/hooks.json",
-    "{home}/.cursor/cli-config.json",
-    "{home}/.cursor/permissions.json",
-    "{repo}/.cursor/hooks.json",
-    "{home}/.config/opencode/**",
-    "{repo}/opencode.json",
-    "{repo}/opencode.jsonc",
-    "{repo}/.opencode/opencode.json",
-    "{repo}/.opencode/opencode.jsonc",
-    "{repo}/.opencode/plugin/**",
-    "{repo}/.opencode/plugins/**",
-    "{repo}/.opencode/agent/**",
-    "{repo}/.opencode/agents/**",
-    "{home}/.config/gh/**",
-    "{home}/.gitconfig",
-  ],
-  "config.global.write": ["{repo}/.git/hooks/**", "{repo}/.git/config"],
-}
+export const PROTECTED_PATHS: readonly string[] = [
+  "{plugin_root}/hooks/**",
+  "{plugin_root}/.git/**",
+  "{home}/.claude/plugins/cache/**",
+  "{home}/.claude/settings*.json",
+  "{repo}/.claude/settings*.json",
+  "{home}/.gemini/settings.json",
+  "{home}/.gemini/policies/**",
+  "{home}/.gemini/extensions/tamirs-superpowers/**",
+  "{repo}/.gemini/settings.json",
+  "{repo}/.gemini/policies/**",
+  "{repo}/.gemini/extensions/**",
+  "{home}/.codex/config.toml",
+  "{home}/.codex/hooks*",
+  "{home}/.codex/rules/**",
+  "{home}/.codex/plugins/**",
+  "{home}/.cursor/hooks.json",
+  "{home}/.cursor/cli-config.json",
+  "{home}/.cursor/permissions.json",
+  "{repo}/.cursor/hooks.json",
+  "{home}/.config/opencode/**",
+  "{repo}/opencode.json",
+  "{repo}/opencode.jsonc",
+  "{repo}/.opencode/opencode.json",
+  "{repo}/.opencode/opencode.jsonc",
+  "{repo}/.opencode/plugin/**",
+  "{repo}/.opencode/plugins/**",
+  "{repo}/.opencode/agent/**",
+  "{repo}/.opencode/agents/**",
+  "{home}/.config/gh/**",
+  "{home}/.gitconfig",
+  "{repo}/.git/hooks/**",
+  "{repo}/.git/config",
+]
 
 export interface ProtectedFacts {
-  /** The passwd home first, then the session HOME: protecting one more directory only tightens (D3). */
+  /** The passwd home first, then the session HOME: protecting one more directory only tightens. */
   readonly homes: readonly string[]
-  /** The running plugin's root; a `.git` at that root makes it a source checkout, where guard files are an R4 ask. */
+  /** The running plugin's root; a `.git` at that root makes it a source checkout, which is not protected. */
   readonly pluginRoots: readonly { readonly root: string; readonly sourceCheckout: boolean }[]
   /** True for a directory that holds a `.git` entry, or is the session cwd: what `{repo}` means. */
   readonly isRepoRoot: (dir: string) => boolean
@@ -196,8 +161,7 @@ export interface ProtectedFacts {
 }
 
 export interface ProtectedHit {
-  readonly mode: "deny" | "ask"
-  readonly id: ProtectedId
+  readonly mode: "deny"
   readonly pattern: string
   /** The spelling of the path that matched (its lexical form or its realpath). */
   readonly form: string
@@ -269,39 +233,37 @@ export function protectedHits(forms: readonly string[], facts: ProtectedFacts, c
   const hits: ProtectedHit[] = []
   const within = containing || tree
   const all = withHomeForms(forms, facts.homes)
-  for (const id of Object.keys(PROTECTED_PATHS) as ProtectedId[]) {
-    for (const pattern of PROTECTED_PATHS[id]) {
-      const m = /^\{(home|repo|plugin_root)\}\/(.+)$/.exec(pattern)
-      if (!m) continue
-      const [, ph, tail] = m
-      const tre = globTailRegex(tail)
-      for (const raw of all) {
-        const form = normPath(raw)
-        const fold = facts.caseInsensitive ? facts.caseInsensitive(form) !== false : true
-        const f = (x: string) => (fold ? x.toLowerCase() : x)
-        const below = form === "/" ? "/" : f(form) + "/"
-        if (ph === "repo") {
-          const rx = new RegExp("^" + tre + "$", fold ? "i" : "")
-          const roots = ancestors(form).filter((r) => facts.isRepoRoot(r))
-          let hit = roots.some((r) => rx.test(form.slice(r.length + 1)))
-          if (!hit && within) {
-            const bases = tree && facts.isRepoRoot(form) ? [...roots, form] : roots
-            hit = bases.some((r) => f(r + "/" + fixedPart(tail)).startsWith(below))
-          }
-          if (hit) hits.push({ mode: "deny", id, pattern, form })
-          continue
+  for (const pattern of PROTECTED_PATHS) {
+    const m = /^\{(home|repo|plugin_root)\}\/(.+)$/.exec(pattern)
+    if (!m) continue
+    const [, ph, tail] = m
+    const tre = globTailRegex(tail)
+    for (const raw of all) {
+      const form = normPath(raw)
+      const fold = facts.caseInsensitive ? facts.caseInsensitive(form) !== false : true
+      const f = (x: string) => (fold ? x.toLowerCase() : x)
+      const below = form === "/" ? "/" : f(form) + "/"
+      if (ph === "repo") {
+        const rx = new RegExp("^" + tre + "$", fold ? "i" : "")
+        const roots = ancestors(form).filter((r) => facts.isRepoRoot(r))
+        let hit = roots.some((r) => rx.test(form.slice(r.length + 1)))
+        if (!hit && within) {
+          const bases = tree && facts.isRepoRoot(form) ? [...roots, form] : roots
+          hit = bases.some((r) => f(r + "/" + fixedPart(tail)).startsWith(below))
         }
-        const roots =
-          ph === "home"
-            ? facts.homes.map((h) => ({ root: h, mode: "deny" as const }))
-            : facts.pluginRoots.map((r) => ({ root: r.root, mode: r.sourceCheckout ? ("ask" as const) : ("deny" as const) }))
-        for (const { root, mode } of roots) {
-          const base = normPath(root)
-          if (!base || base === "/") continue
-          const rx = new RegExp("^" + reEscape(base) + "/" + tre + "$", fold ? "i" : "")
-          const fixed = base + "/" + fixedPart(tail)
-          if (rx.test(form) || (within && f(fixed).startsWith(below))) hits.push({ mode, id, pattern, form })
-        }
+        if (hit) hits.push({ mode: "deny", pattern, form })
+        continue
+      }
+      const roots =
+        ph === "home"
+          ? facts.homes.map((h) => ({ root: h, mode: "deny" as const }))
+          : facts.pluginRoots.filter((r) => !r.sourceCheckout).map((r) => ({ root: r.root, mode: "deny" as const }))
+      for (const { root, mode } of roots) {
+        const base = normPath(root)
+        if (!base || base === "/") continue
+        const rx = new RegExp("^" + reEscape(base) + "/" + tre + "$", fold ? "i" : "")
+        const fixed = base + "/" + fixedPart(tail)
+        if (rx.test(form) || (within && f(fixed).startsWith(below))) hits.push({ mode, pattern, form })
       }
     }
   }
@@ -318,50 +280,33 @@ const KIND_WORDS: Readonly<Record<TargetKind, string>> = {
   link: "would become reachable through a new link",
 }
 
-/** The R4 remedy (D10.3, D10.5): only the user changes these, outside the agent's reach. It names no bypass. */
+/** The remedy: only the user changes these, outside the agent's reach. It names no bypass. */
 export const PROTECTED_REMEDY =
-  "Only the user changes plugin permission policy, guard files and host settings (ADR 004 D10): stop and ask them to make " +
+  "Only the user changes this plugin's guard files and host settings: stop and ask them to make " +
   "this change themselves, outside this session. Do not retry it through another tool, command or path."
 
-/**
- * The protected-path verdict for one target, or null. A deny on any spelling wins
- * over an ask; an ask (a guard file of a source checkout) is still an R4 ask, which
- * OpenCode cannot carry — guard.ts delivers it as a deny (D8).
- */
+/** The protected-path verdict for one target, or null: always a deny. */
 export function protectedReason(
   file: string,
   forms: readonly string[],
   facts: ProtectedFacts,
   kind: TargetKind = "write",
   via = "",
-): { readonly mode: "deny" | "ask"; readonly reason: string } | null {
+): { readonly mode: "deny"; readonly reason: string } | null {
   const hits = protectedHits(forms, facts, kind === "delete" || kind === "move" || kind === "link" || kind === "tree", kind === "tree")
   if (!hits.length) return null
-  const hit = hits.find((h) => h.mode === "deny") ?? hits[0]
+  const hit = hits[0]
   const resolved = hit.form === normPath(file) ? "" : ` (resolves to '${hit.form}')`
   const context = via ? ` (via: ${via})` : ""
-  const what = `'${file}'${resolved} ${KIND_WORDS[kind]}, and it is protected as ${hit.id} (R4; matches ${hit.pattern}).${context}`
-  if (hit.mode === "deny") return { mode: "deny", reason: `BLOCKED: ${what} ${PROTECTED_REMEDY}` }
-  return {
-    mode: "ask",
-    reason:
-      `R4 ASK: ${what} This plugin runs from a source checkout, so its guard files are editable, but only with the ` +
-      "user's explicit approval of this change.",
-  }
-}
-
-/** D8 on OpenCode: an ask is not a guard under `--auto` (O1c), so every R3/R4 ask leaves here as a deny. */
-export function deliverAsDeny(reason: string): Decision {
-  return deny(
-    `${reason} OpenCode cannot carry this ask: \`opencode --auto\` approves a plugin ask (measured O1), so it is delivered as a deny (ADR 004 D8).`,
-  )
+  const what = `'${file}'${resolved} ${KIND_WORDS[kind]}, and it is protected (matches ${hit.pattern}).${context}`
+  return { mode: "deny", reason: `BLOCKED: ${what} ${PROTECTED_REMEDY}` }
 }
 
 // ------------------------------------- hooks/lib/write-targets.py --protected ---
 
 /**
  * One line of `python3 hooks/lib/write-targets.py --protected`: `kind <tab> detail <tab> fragment`.
- * For a PROTECTED record, detail is `deny` or `ask` and fragment is the reason.
+ * For a PROTECTED record, detail is `deny` and fragment is the reason.
  */
 export interface WriteTargetRecord {
   readonly kind: string
@@ -380,17 +325,13 @@ export function parseWriteTargets(stdout: string): WriteTargetRecord[] {
 }
 
 /**
- * Pass 1 of hooks/guard-sensitive-files.sh on the parse it reads: every deny outranks
- * every ask, and the texts are the shell hook's own. An R4 ask (a guard file of a source
- * checkout, a git replay onto a protected path) leaves as a deny, since OpenCode cannot
- * carry it (D8). null when no record is PROTECTED.
+ * Pass 1 of hooks/guard-sensitive-files.sh on the parse it reads: the first deny, in the
+ * shell hook's own words. Any other mode is not acted on, as in the shell hook. null when
+ * no record is a PROTECTED deny.
  */
 export function protectedFromRecords(records: readonly WriteTargetRecord[]): Decision | null {
-  const prot = records.filter((r) => r.kind === "PROTECTED")
-  if (!prot.length) return null
-  const denied = prot.find((r) => r.detail !== "ask")
-  if (denied) return deny(`BLOCKED: ${denied.fragment} ${PROTECTED_REMEDY}`)
-  return deliverAsDeny(`R4 ASK: ${prot[0].fragment}`)
+  const denied = records.find((r) => r.kind === "PROTECTED" && r.detail === "deny")
+  return denied ? deny(`BLOCKED: ${denied.fragment} ${PROTECTED_REMEDY}`) : null
 }
 
 /** Pass 2's input: the TARGET / DELETE / TREE records, as the generated-file rules read them. */
@@ -1155,99 +1096,4 @@ export function shellWriteTargets(command: string): ShellWriteTarget[] {
     }
   }
   return out
-}
-
-// ------------------------------------------ hooks/permission-guard.sh (ADR 004 D8) ---
-//
-// OpenCode runs no shell hook, so guard.ts runs the canonical permission guard itself:
-// one source of truth for the action catalog, the conditions and the resolver, instead
-// of a TypeScript port of the matcher. The functions here build and read its
-// CODEX-dialect payload (`turn_id` set): deny only, a resolver host that reads no option
-// store, every ask delivered as a deny (Codex's ask fails open, X1). guard.ts sends the
-// guard's OPENCODE dialect instead: this payload without `turn_id`, plus "host":
-// "opencode" (honoured only where the host would otherwise read as Claude Code). There
-// the guard asks for an R2 call, which D8 accepts as advisory under `--auto` (O1c), and
-// denies every R3/R4, never_auto and UNCLASSIFIED call; resolver host opencode, no
-// option store, no host-attested channel (ADR 004 D3, D5). guard.ts keeps that ask
-// (opencodeVerdict), hands everything else to pgVerdict below, and never sets allow.
-
-/** The bundled GitHub MCP server's tool prefix in the guard's (Claude) vocabulary. */
-export const PG_MCP_PREFIX = "mcp__plugin_tamirs-superpowers_github__"
-
-/**
- * OpenCode names an MCP call's permission action `<server>_<tool>` (doc-cited; the
- * live name is unmeasured, ADR 004 item 13). The bundled server is `github` in
- * opencode.json, so `github_<tool>` is one of its tools, or null for anything else.
- */
-export function githubMcpTool(action: string): string | null {
-  const m = /^github_([A-Za-z0-9_]+)$/.exec(action)
-  return m ? m[1] : null
-}
-
-export type PgCall =
-  | { readonly kind: "shell"; readonly command: string; readonly cwd: string }
-  | { readonly kind: "mcp"; readonly tool: string; readonly input: unknown; readonly cwd: string }
-
-/** The PreToolUse payload for hooks/permission-guard.sh, in the Codex dialect; guard.ts derives its OpenCode dialect from it (see the section header). */
-export function pgPayload(call: PgCall, sessionID: string): Record<string, unknown> {
-  const base = { session_id: sessionID || "opencode", turn_id: "opencode", hook_event_name: "PreToolUse", cwd: call.cwd }
-  if (call.kind === "shell") return { ...base, tool_name: "Bash", tool_input: { command: call.command } }
-  const input = call.input && typeof call.input === "object" && !Array.isArray(call.input) ? call.input : {}
-  return { ...base, tool_name: PG_MCP_PREFIX + call.tool, tool_input: input }
-}
-
-/**
- * The environment the guard runs in: the plugin's own, minus what would make it judge
- * as another host. GEMINI_SESSION_ID / GEMINI_PROJECT_DIR switch it to Gemini, whose
- * extension .env it would then read as a raise; CODEX_HOME is dropped too, since the
- * dialect is chosen by the payload, not by whatever the user's shell exported.
- */
-export function pgEnv(env: Readonly<Record<string, string | undefined>>): Record<string, string> {
-  const out: Record<string, string> = {}
-  for (const [k, v] of Object.entries(env)) {
-    if (v === undefined) continue
-    if (k === "GEMINI_SESSION_ID" || k === "GEMINI_PROJECT_DIR" || k === "GEMINI_CWD" || k === "CODEX_HOME") continue
-    out[k] = v
-  }
-  return out
-}
-
-const PG_HEAD = "tamirs-superpowers permission guard"
-
-/** The guard's own reason, reworded where it names the host it was told it runs on. */
-export function opencodeReason(reason: string): string {
-  return reason
-    .replace(
-      "codex cannot carry a hook ask (it would run the call unchecked)",
-      "opencode cannot carry a plugin ask (`opencode --auto` approves it, measured O1)",
-    )
-    .replace("codex has no host-attested channel", "opencode has no host-attested channel")
-}
-
-/**
- * Read the guard's answer. `{}` is the only allow; a deny keeps its reason; an ask
- * (the Codex dialect never emits one; guard.ts keeps the OpenCode dialect's R2 ask
- * itself before it calls this) and anything unreadable are denies — the guard's
- * silence is never consent (ADR 004 D4: resolver or guard failure is a deny).
- */
-export function pgVerdict(stdout: string): Decision {
-  const text = stdout.trim()
-  let obj: unknown
-  try {
-    obj = JSON.parse(text)
-  } catch {
-    return deny(`${PG_HEAD}: it printed no JSON verdict, so the call is denied (fail closed, ADR 004 D4).`)
-  }
-  if (!obj || typeof obj !== "object" || Array.isArray(obj)) {
-    return deny(`${PG_HEAD}: its verdict is not a JSON object, so the call is denied (fail closed, ADR 004 D4).`)
-  }
-  const o = obj as Record<string, unknown>
-  if (Object.keys(o).length === 0) return ALLOW
-  const h = o.hookSpecificOutput as Record<string, unknown> | undefined
-  const decision = h && typeof h === "object" ? h.permissionDecision : undefined
-  const reason = h && typeof h.permissionDecisionReason === "string" ? opencodeReason(h.permissionDecisionReason) : ""
-  if (decision === "allow") return ALLOW
-  if (decision === "deny") return deny(reason || `${PG_HEAD} denied the call.`)
-  if (decision === "ask") return deliverAsDeny(reason || `${PG_HEAD} asks before this call.`)
-  return deny(`${PG_HEAD}: its verdict names no decision, so the call is denied (fail closed, ADR 004 D4).`)
 }

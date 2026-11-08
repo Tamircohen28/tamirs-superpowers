@@ -100,11 +100,3 @@ cursor_cli_config_render()   { rules_json_render "$1" "$CURSOR_CLI_CONFIG_FRAGME
 cursor_cli_config_unrender() { rules_json_unrender "$1" "$CURSOR_CLI_CONFIG_FRAGMENT"; }
 cursor_cli_config_destructive() { printf 'no'; }
 cursor_cli_config_summary()  { rules_json_summary "$1" "$CURSOR_CLI_CONFIG_FRAGMENT" "$2"; }
-
-# ---------------------------------------------------------------------------
-# permission level route (ADR 004 D7)
-# ---------------------------------------------------------------------------
-# Cursor has no install-time option store for a plugin, so `setup.sh apply` asks
-# for the plugin's permission level on a terminal when Cursor is in scope. The
-# step itself lives in scripts/lib/setup-common.sh.
-cursor_permission_level_route() { printf 'prompt'; }

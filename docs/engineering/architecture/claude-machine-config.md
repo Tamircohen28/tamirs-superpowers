@@ -93,16 +93,14 @@ default awaiting correction.
 historically wrap docker. Read-only inspection and `docker stop`/`rm`/`down`
 pass unprompted.
 
-It duplicates `permissions.ask` on purpose. `permissions.defaultMode` is
-`bypassPermissions` on this machine, which makes `ask` inert; hooks run in every
-permission mode, and a `deny` decision sets a blocking error that survives
-bypass. `permissions-ask.json` remains the right policy for any machine not in
-bypass mode.
+It duplicates `permissions.ask` on purpose for any session not in bypass mode:
+hooks run in every permission mode, and a `deny` decision sets a blocking error.
+Under Claude Code `bypassPermissions` the guard steps aside — you chose to run
+unattended — except for a `prune`, which it still denies because pruned state
+cannot be recovered. `permissions-ask.json` remains the host-side policy for any
+machine not in bypass mode.
 
-There is no override token. The guard asks `scripts/resolve-permission.sh` about
-`docker.state` (ADR 004): on Claude Code the answer is a host `ask` dialog for that
-one call, elsewhere a deny, and a missing or failing resolver blocks.
-`PM_ALLOW_DOCKER=1` — inline or exported — approves nothing.
+Override: `PM_ALLOW_DOCKER=1` inline on the command approves that one command.
 The name in the block message comes from `DOCKER_GUARD_OWNER`. The script reads
 stdin under a `select()` timeout (`DOCKER_GUARD_STDIN_TIMEOUT`, default 2s), so
 an absent or interactive stdin exits immediately rather than hanging the tool

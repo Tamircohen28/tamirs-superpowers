@@ -167,7 +167,7 @@ Still enforced whenever the relevant fields are present:
 |------|:---:|:---:|----------|
 | User workflow (slash + auto-trigger) | `true` | `false` | plan-dev, pr-dev, repo-standards, cleanup, retro |
 | Auto-trigger discovery | `true` | `false` | find-skill, mcp-builder |
-| Explicit-only (slash, no auto) | `true` | `true` | plugin-config |
+| Explicit-only (slash, no auto) | `true` | `true` | *(none today)* |
 | Internal companion | `false` | `true` | docs-review, mcp-pagination, changelog-review |
 | Forked subagent | `true` | `true` | targeted-debug (`context: fork`, `agent: Explore`) |
 

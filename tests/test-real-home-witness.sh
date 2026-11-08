@@ -33,7 +33,7 @@ LIVE_BIN="$(python3 -c 'import os, shutil; print(os.path.realpath(shutil.which("
 new_uuid() { python3 -c 'import uuid; print(uuid.uuid4())'; }
 
 # probe_entry <session|-> <bin> [host] — write a host-version probe-cache entry the way cached_probe does;
-# prints its path. "-" writes "session": null (the resolver called without --session).
+# prints its path. "-" writes "session": null (a writer called without a session).
 probe_entry() {
   python3 - "$HV" "$1" "$2" "${3:-claude}" <<'PY'
 import hashlib, json, os, sys, time
@@ -51,7 +51,7 @@ print(p)
 PY
 }
 
-# intent_file <sid> [suffix] [session_id] — write an intent/ file the way permission-intent.sh does (through a
+# intent_file <sid> [suffix] [session_id] — write an intent/ file the way a 5.x install's intent writer did (through a
 # .<name>.tmp-<pid>); suffix is "", .agent-<key>, .expansion or .submit; prints its path.
 intent_file() {
   python3 - "$STATE/intent" "$1" "${2:-}" "${3:-$1}" <<'PY'
@@ -100,10 +100,10 @@ reset_home; snap
 judge "unchanged state: exit 0, nothing printed" "0:" "$(o="$(check)"; echo "$?:$o")"
 
 reset_home; snap
-printf '{"level":"autonomous"}\n' > "$CONF/permissions.json"
+printf '{"x":1}\n' > "$CONF/settings.json"
 out="$(check)"; rc=$?
 judge "a config file written: exit 1" 1 "$rc"
-judge "  ... named as a leak" yes "$(has "$out" "LEAK added ~/.config/tamirs-superpowers/permissions.json")"
+judge "  ... named as a leak" yes "$(has "$out" "LEAK added ~/.config/tamirs-superpowers/settings.json")"
 
 reset_home; snap
 printf '{"session_id":"sess-1"}\n' > "$STATE/intent/sess-1.json"
@@ -224,7 +224,7 @@ judge "  ... the reason names the session" yes "$(has "$out" "session 'sess-1' i
 
 reset_home; snap
 probe_entry - "$LIVE_BIN" >/dev/null
-judge "no session (a resolver called without --session): exit 1" 1 "$(check >/dev/null; echo $?)"
+judge "no session (a writer called without a session): exit 1" 1 "$(check >/dev/null; echo $?)"
 
 reset_home; snap
 probe_entry "$FIXED_UUID" "$LIVE_BIN" >/dev/null

@@ -222,7 +222,7 @@ TSEOF
   echo "TypeScript skeleton created in ./$PROJECT/"
   echo "Next steps:"
   echo "  1. Replace API_BASE and implement real tools in src/index.ts"
-  echo "  2. Run (after the permission gate, see SKILL.md): cd $PROJECT && npm install --ignore-scripts && npm run build"
+  echo "  2. Run: cd $PROJECT && npm install --ignore-scripts && npm run build"
   echo "  3. Test: npx @modelcontextprotocol/inspector@2.12.0 dist/index.js"
 
 elif [[ "$LANG" == "py" ]]; then
@@ -347,7 +347,7 @@ README
   echo "Python skeleton created in ./$PROJECT/"
   echo "Next steps:"
   echo "  1. Replace API_BASE and implement real tools in server.py"
-  echo "  2. Run (after the permission gate, see SKILL.md): cd $PROJECT && pip install --only-binary=:all: -r requirements.txt"
+  echo "  2. Run: cd $PROJECT && pip install --only-binary=:all: -r requirements.txt"
   echo "  3. Test: fastmcp dev server.py"
 
 else

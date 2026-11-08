@@ -44,20 +44,9 @@ bash tests/test-gemini-hooks.sh           # the generated Gemini hooks file and 
 bash tests/test-dist.sh                   # per-host distributions build, check, planted findings
 bash tests/test-skill-budget.sh           # always-on token budget + skills-ref gates
 
-# permission levels (ADR 004) and the guard's parsers (issue #349)
-bash tests/test-permission-guard.sh       # hooks/permission-guard.sh: ids, conditions, every host's dialect
-bash tests/test-security-regressions.sh   # every review walk-around (F1-F10, P1-P2, I349), replayed
-bash tests/test-pg-http.sh                # hooks/lib/pg_http.py: curl/wget/httpie/xh/gh api argv tables
-bash tests/test-pg-graphql.sh             # hooks/lib/pg_graphql.py: the GraphQL lexer and parser
-bash tests/test-permission-fuzz.sh        # seeded corpus: every mutating call asks/denies (FUZZ_SEED, FUZZ_MUTATING)
+# protected-file guard walk-arounds
+bash tests/test-security-regressions.sh   # every review walk-around against guard-sensitive-files.sh, replayed
 ```
-
-The permission suites that run the real resolver (`test-permission-guard.sh`,
-`test-security-regressions.sh`, `test-permission-fuzz.sh` and the others listed in
-`TEST_SCRIPTS`, `scripts/lib/permission-common.sh`) point it at a temp passwd home
-through `TAMIRS_PERMISSION_TEST_ROOT`. The resolver honours that override only
-under an ancestor shell running one of those suites, and each suite stops before
-its first hook call when the override did not take.
 
 `test-orchestration.sh` and `contract/run.sh` accept a subset as arguments:
 

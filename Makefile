@@ -154,7 +154,7 @@ uninstall:
 # Every suite runs with stdin from /dev/null, and the list is walked with `for`, not
 # fed to `while read` on stdin (#400): a suite that read its stdin swallowed the rest
 # of the list, and the loop ended green having run fewer suites than it listed (CI
-# shard 1/4 skipped test-worktree-install-gate.sh after test-toolkit-gates.sh; a
+# shard 1/4 skipped test-worktree-install-gate.sh after test-toolkit-gates.sh, since removed; a
 # local full run skipped the seven suites after it). The closing line counts the
 # suites that ran against the shard's size and fails when they differ. Suite paths never hold whitespace.
 #

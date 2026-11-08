@@ -40,7 +40,7 @@
       "color": "f9d0c4",
       "description": "Continuous integration, workflows and release automation",
       "origin": "tamirs",
-      "_comment": "Workflow and release.yml changes are R4 under ADR 004; the label makes them findable in review."
+      "_comment": "Workflow and release.yml changes deserve a second look; the label makes them findable in review."
     },
     {
       "name": "security",

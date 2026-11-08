@@ -1,6 +1,8 @@
 # ADR 004 — Permission levels: presets, config, overrides and enforcement per platform
 
-**Status:** Accepted — 2026-11-03
+**Status:** Superseded by [ADR 006](006-remove-permission-levels.md) — 2026-11-08 (accepted 2026-11-03)
+
+> The feature this ADR describes was removed in 6.0.0; see [ADR 006](006-remove-permission-levels.md). The body below is kept as history.
 
 ## Context
 

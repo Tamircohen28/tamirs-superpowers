@@ -2,7 +2,7 @@
 
 - [Always use /skill-creator for skills](feedback-skill-creator-required.md) — never hand-write SKILL.md; user corrected this explicitly
 - [macOS sed insert fails — use Python](feedback-macos-sed-insert.md) — `sed '/pat/i text'` is GNU syntax; use Python for line insertions on macOS
-- [Agents may edit workflows (5.6.7)](feedback-ci-yml-guard-hook.md) — guard no longer blocks .github/workflows/; only the remote API write stays R4
+- [Agents may edit workflows (5.6.7)](feedback-ci-yml-guard-hook.md) — guard no longer blocks .github/workflows/; edit locally and ship in a PR
 - [Check file exists before create_or_update_file](feedback-github-mcp-check-exists.md) — API errors if file exists and SHA is missing; check first
 - [--admin required for all PRs in this repo](project-admin-merge-personal-repo.md) — solo contributor, branch protection on; --admin is the standard merge path
 - [Cut a release after every manifest bump](reference-release-tag-alignment.md) — the alignment job no longer reds on a pending release; it warns. Still cut the release, or installed users stay on the cached copy; backfilling an older version needs a temp branch (release.yml tags the dispatched ref's HEAD)

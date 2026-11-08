@@ -208,11 +208,10 @@ git checkout -b feat/repo-standards-setup 2>/dev/null || git checkout -b "feat/r
 5. **Phases 1–4:** Implement per plan using `$CONTRACT_ROOT/templates/` (see `INDEX.md`).
    **Phase 4 (branch governance)** — after the CI workflow is on the default branch:
    ```bash
-   bash "$CONTRACT_ROOT/scripts/enable-repo-merge-settings.sh" "$REPO_SLUG" --apply --skill repo-standards
+   bash "$CONTRACT_ROOT/scripts/enable-repo-merge-settings.sh"
    bash "$POLICY_CLI" plan  --repo "$REPO_SLUG"   # diff only, writes nothing
    bash "$POLICY_CLI" apply --repo "$REPO_SLUG"   # confirms each change at the TTY
    ```
-   Without `--apply` the merge-settings script only prints its PATCH; with it, the resolver is asked about `repo.settings.merge` (R3, never automatic). Exit `3` means it was not applied (denied, declined, or no terminal to confirm at — the usual case in an agent shell): a **degraded success**. Continue, and relay its `blocked:` line and "run this yourself" command in the report; never retry with another flag or send the PATCH with `gh api` yourself.
    `github-policy.sh` replaced `ensure-branch-protection.sh`, which read and wrote **classic** `branches/*/protection` — an endpoint that 404s on a repository correctly governed by rulesets, so it reported protected repos as unprotected. The old script survives only as a deprecating shim onto these verbs.
 
    Rulesets are authoritative; classic protection is a **legacy migration item**, reported and never written, and its absence is not a gap. Every rule, required context, and enforcement value comes from `config/github/repository-policy.json` — do not restate any of it here or in the report.
@@ -226,7 +225,7 @@ git checkout -b feat/repo-standards-setup 2>/dev/null || git checkout -b "feat/r
    bash "$PLUGIN_ROOT/scripts/github-labels.sh" plan  --repo "$REPO_SLUG"   # diff only, writes nothing
    bash "$PLUGIN_ROOT/scripts/github-labels.sh" apply --repo "$REPO_SLUG"   # creates + updates, confirms at the TTY
    ```
-   The set is `config/github/labels.json` plus one `agent:<platform>` per registry platform; do not restate it. `apply` asks the resolver about `label.apply` (R2) and never deletes a label unless `--prune` is typed (`label.delete`, R3) — leave extras alone unless the user asked to prune. For S3-06, add `.github/ISSUE_TEMPLATE/*.yml` forms that label only with names the set provides (`check-github-labels.sh` holds this repo's templates to that).
+   The set is `config/github/labels.json` plus one `agent:<platform>` per registry platform; do not restate it. `apply` never deletes a label unless `--prune` is typed — leave extras alone unless the user asked to prune. For S3-06, add `.github/ISSUE_TEMPLATE/*.yml` forms that label only with names the set provides (`check-github-labels.sh` holds this repo's templates to that).
    **README branding (phase 1):** S1-05 and S1-11..S1-14 are all fixed here, and all five are verified by `bash "$CONTRACT_ROOT/scripts/check-readme-branding.sh" "$TARGET_ROOT"` before the phase closes.
 
    - **S1-11 anchor form** — collapse every `<a>` that wraps a badge `<img>` onto one line: `<a href="..."><img ... /></a>`. The newline and indent in the broken form are link *text*; GitHub renders them as the underlined gap between badges. Do not reformat them back.

@@ -17,8 +17,7 @@
 #      the typed answer. The `$( )` form of setup_ask, at the same pty, returns
 #      the default — kept as a planted positive: the trap is real, which is why
 #      the helper exists.
-#   2. github-labels.sh apply, at a pty, with the resolver stubbed to allow and
-#      the fake gh: answering y creates the missing labels; answering n writes
+#   2. github-labels.sh apply, at a pty, with the fake gh: answering y creates the missing labels; answering n writes
 #      nothing and reports "not confirmed".
 #
 # Skips cleanly (exit 0) when `expect` is not installed.
@@ -90,17 +89,13 @@ judge "an empty answer is the default"                       yes "$(outhas 'INTO
 
 # ---------------------------------------------------------------------------
 # A hermetic root for github-labels.sh: the real scripts/, config/ and core/
-# by symlink, a stub resolver that answers allow, and the fake gh on PATH.
+# by symlink, and the fake gh on PATH.
 # ---------------------------------------------------------------------------
-mkdir -p "$TMP/bin" "$TMP/home" "$ROOT/scripts"
+mkdir -p "$TMP/bin" "$TMP/home" "$ROOT"
 cp -R "$REPO_ROOT/tests/fixtures/github" "$FIX"
-for e in "$REPO_ROOT"/scripts/*; do
-  [ "$(basename "$e")" = resolve-permission.sh ] || ln -s "$e" "$ROOT/scripts/$(basename "$e")"
-done
+ln -s "$REPO_ROOT/scripts" "$ROOT/scripts"
 ln -s "$REPO_ROOT/config" "$ROOT/config"
 ln -s "$REPO_ROOT/core"   "$ROOT/core"
-printf '#!/usr/bin/env bash\nprintf %s\n' "'{\"verdict\":\"allow\",\"decision\":\"allow\",\"r\":2,\"reason\":\"stub allow\"}'" >"$ROOT/scripts/resolve-permission.sh"
-chmod +x "$ROOT/scripts/resolve-permission.sh"
 fake_gh_install "$TMP/bin" "$TMP/gh.log" "$FIX/labels-missing"
 PATH="$TMP/bin:$PATH"
 export PATH

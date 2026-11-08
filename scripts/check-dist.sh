@@ -226,12 +226,7 @@ PYG
     has opencode.json && ok "opencode.json present" || bad "opencode.json missing"
     has AGENTS.md && ok "AGENTS.md present (OpenCode 2 reads only this file)" || bad "AGENTS.md missing"
     [[ -d "$DIST/.opencode" ]] && ok ".opencode adapter present" || bad ".opencode missing"
-    # guard.ts runs hooks/permission-guard.sh (ADR 004 D8); nothing else under hooks/
-    # may ship, and never a manifest: OpenCode loads no hooks.json.
-    has hooks/permission-guard.sh && ok "permission-guard.sh shipped (run by guard.ts)" || bad "hooks/permission-guard.sh missing" "guard.ts denies every shell call without it"
-    has hooks/hooks.json && bad "hooks/hooks.json is shipped" "OpenCode loads no hook manifest" || ok "no hook manifest"
-    extra_hooks="$(cd "$DIST" && find hooks -maxdepth 1 -type f ! -name permission-guard.sh 2>/dev/null | head -3)"
-    [[ -z "$extra_hooks" ]] && ok "no other shell hooks" || bad "unexpected shell hook shipped to OpenCode" "$extra_hooks"
+    has hooks && bad "hooks/ is shipped" "OpenCode executes no shell hook" || ok "no shell hooks"
     has mod && bad "mod/ is shipped" || ok "no mod"
     ;;
   agent-plugins)

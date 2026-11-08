@@ -71,16 +71,13 @@ bash scripts/ci/shard-suites.sh 2/4   # print the suites in shard 2 of 4
 make test-hooks SHARD=2/4             # run that shard
 ```
 
-Balance is by **count, not seconds** (23/23/23/22 for `n=4` today). The heavy suites land
-where the sorted order puts them: `test-static` in 1/4 (measured at 246 s for the whole
-shard), `test-permission-fuzz` in 2/4, `test-permission-guard` in 3/4,
-`test-security-regressions` and `test-toolkit-gates` in 4/4. Until the batch judge for the
-permission guard lands (objective `ci-speed`, task-001), shard 2/4 is the long pole: the
-fuzz suite alone is 746 s on the 4-core runner, so the matrix is bounded by that one suite
-rather than by the count. Adding or renaming a `tests/test-*.sh` re-partitions every shard.
-That is by design — there is no hand-kept list to go stale — but it means a new heavy suite
-can move the long pole without anyone touching CI. Re-size `n` from the per-suite timing
-table after task-001 lands, not from the count.
+Balance is by **count, not seconds** (within one suite of each other for `n=4`). The heavy
+suites — `test-static` and `test-security-regressions` among them — land wherever the sorted
+order puts them, so the slowest shard is bounded by its heaviest suite rather than by the
+count. Adding or renaming a `tests/test-*.sh` re-partitions every shard. That is by design —
+there is no hand-kept list to go stale — but it means a new heavy suite can move the long
+pole without anyone touching CI. Re-size `n` from the per-suite timing table, not from the
+count.
 
 Under `make test-hooks` every suite receives `SUPERPOWERS_SHELLCHECK_DONE=1`, so
 `test-static` skips its own shellcheck pass: `make lint` is the gate's one pass, and both the

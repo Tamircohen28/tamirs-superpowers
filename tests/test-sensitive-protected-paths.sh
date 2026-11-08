@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
-# test-sensitive-protected-paths.sh — ADR 004 D10.1 / security review S-03:
-# guard-sensitive-files.sh denies writes to the plugin's own policy, its guard
-# files and every host settings store, by realpath, with no override.
+# test-sensitive-protected-paths.sh — security review S-03:
+# guard-sensitive-files.sh denies writes to the installed plugin's guard files
+# and every host settings store, by realpath, with no override.
 #
 # WHAT EACH GROUP PROVES
-#   - every D10.1 location is denied through Edit/Write AND through Bash
+#   - every protected location is denied through Edit/Write AND through Bash
 #     (cp, sed -i, python3 -c / heredoc, >, tee, mv, rm, ln -s);
 #   - the home those locations hang off is the passwd entry, not $HOME — and a
 #     different $HOME only adds a second protected home, never moves the first;
@@ -13,13 +13,12 @@
 #   - an unresolved write (an interpreter, a variable) that NAMES a protected
 #     path is a deny, while one that names none stays the advisory it was;
 #   - PM_ALLOW_PROTECTED unlocks nothing protected, but still unlocks the
-#     generated-file rules (lockfiles) it always did — never a workflow, since
-#     env switches only tighten (D3) and a cloned repo's settings can set it;
-#   - the running plugin's guard files: deny in an installed copy, an R4 ask in
-#     a source checkout (hook_ask when the platform has one, else deny);
-#   - no deny text names PM_ALLOW_PROTECTED or the GitHub MCP write tool (D10.5);
-#   - the fallback table in write-targets.py equals actions.json, and is what
-#     a copy without the catalog uses.
+#     generated-file rules (lockfiles) it always did;
+#   - the running plugin's guard files: deny in an installed copy; a source
+#     checkout is the contributor's own tree and is not protected;
+#   - no answer is ever an ask (6.0.0, ADR 006), git replays are not judged, and
+#     the plugin's old permission config and state dirs are no longer protected;
+#   - no deny text names PM_ALLOW_PROTECTED or the GitHub MCP write tool.
 #   Every protected case is paired with a read, a mention or an unprotected
 #   neighbour that must stay allowed, so a guard that denies everything fails.
 #
@@ -49,28 +48,13 @@ harness_new_repo "$REPO"
 mkdir -p "$REPO/.github/workflows" "$REPO/sub" "$REPO/src"
 printf 'x\n' > "$REPO/yarn.lock"
 
-# A plugin copy with no .git (an installed cache), one that is a source
-# checkout, the same with a hook_ask, and one without its catalog.
+# A plugin copy with no .git (an installed cache), and one that is a source checkout.
 plugin_copy() {
-  mkdir -p "$1/core" "$1/scripts/lib"
+  mkdir -p "$1/scripts/lib"
   cp -R "$ROOT/hooks" "$1/hooks"
-  cp -R "$ROOT/core/permissions" "$1/core/permissions"
 }
 INST="$TMP/installed/tamirs-superpowers"; plugin_copy "$INST"
 SRC="$TMP/src-plain";                     plugin_copy "$SRC"; git -C "$SRC" init -q
-# The real hook-output.sh defines hook_ask (ADR 004 D8). This fixture models a
-# library without it, so the guard's fail-closed branch is still exercised.
-printf '\nunset -f hook_ask 2>/dev/null || true\n' >> "$SRC/hooks/lib/hook-output.sh"
-SRC_ASK="$TMP/src-ask";                   plugin_copy "$SRC_ASK"; git -C "$SRC_ASK" init -q
-cat >> "$SRC_ASK/hooks/lib/hook-output.sh" <<'STUB'
-
-# test stub: the Claude PreToolUse ask shape.
-hook_ask() {
-  jq -n --arg r "$1" '{hookSpecificOutput:{hookEventName:"PreToolUse",permissionDecision:"ask",permissionDecisionReason:$r}}'
-  exit 0
-}
-STUB
-NOCAT="$TMP/nocat"; plugin_copy "$NOCAT"; rm -f "$NOCAT/core/permissions/actions.json"
 
 # payload <tool> <command-or-path> [cwd]
 payload() {
@@ -94,12 +78,9 @@ vb()   { v Bash "$1"; }
 vg()   { decision "$(run_guard "$1" "$2" "$3" "${4:-$REPO}")"; }
 
 # ===========================================================================
-section "every D10.1 location is denied through Edit/Write"
+section "every protected location is denied through Edit/Write"
 # ===========================================================================
 for rel in \
-  .config/tamirs-superpowers/permissions.json \
-  .config/tamirs-superpowers/permissions.lock \
-  .local/state/tamirs-superpowers/tickets/t1 \
   .claude/settings.json \
   .claude/settings.local.json \
   .claude/plugins/cache/tamirs-marketplace/tamirs-superpowers/5.1.3/hooks/hooks.json \
@@ -120,7 +101,6 @@ do
   judge "Write <passwd home>/$rel" deny "$(v Write "$PHOME/$rel")"
 done
 for rel in \
-  .tamirs-superpowers/permissions.json \
   .claude/settings.json \
   .claude/settings.local.json \
   .gemini/settings.json \
@@ -145,6 +125,10 @@ judge "Edit of a repo-relative .claude/settings.json" deny "$(v Edit ".claude/se
 section "... and their unprotected neighbours are not"
 judge "Write <passwd home>/.claude/CLAUDE.md"        allow "$(v Write "$PHOME/.claude/CLAUDE.md")"
 judge "Write <passwd home>/.config/other-tool/x"     allow "$(v Write "$PHOME/.config/other-tool/x.json")"
+# The permission-levels config and state (5.2-5.6) left the table in 6.0.0 (ADR 006).
+judge "the old plugin config dir is not protected"   allow "$(v Write "$PHOME/.config/tamirs-superpowers/x.json")"
+judge "the old plugin state dir is not protected"    allow "$(v Write "$PHOME/.local/state/tamirs-superpowers/x/t1")"
+judge "a project's old plugin dir is not protected"  allow "$(v Edit "$REPO/.tamirs-superpowers/x.json")"
 judge "Edit <repo>/.claude/agents/a.md"              allow "$(v Edit "$REPO/.claude/agents/a.md")"
 # D10.1 narrowed: a repository's generated adapters for other hosts are not policy.
 judge "Edit <repo>/.gemini/skills/x/SKILL.md"        allow "$(v Edit "$REPO/.gemini/skills/x/SKILL.md")"
@@ -168,10 +152,10 @@ section "every Bash write form is denied"
 judge "cp onto ~/.claude/settings.json"   deny "$(vb "cp /tmp/a ~/.claude/settings.json")"
 judge "cp onto the passwd-home path"      deny "$(vb "cp /tmp/a $PHOME/.claude/settings.json")"
 judge "sed -i on ~/.gitconfig"            deny "$(vb "sed -i.bak 's/a/b/' $PHOME/.gitconfig")"
-judge "> into the permission file"        deny "$(vb "echo '{}' > $PHOME/.config/tamirs-superpowers/permissions.json")"
-judge ">> into the lock"                  deny "$(vb "echo x >> $PHOME/.config/tamirs-superpowers/permissions.lock")"
+judge "> into the codex config"           deny "$(vb "echo '{}' > $PHOME/.codex/config.toml")"
+judge ">> into ~/.gitconfig"              deny "$(vb "echo x >> $PHOME/.gitconfig")"
 judge "tee -a into project settings"      deny "$(vb "echo x | tee -a .claude/settings.local.json")"
-judge "tee into the project policy"       deny "$(vb "echo x | tee .tamirs-superpowers/permissions.json")"
+judge "tee into the project opencode.json" deny "$(vb "echo x | tee opencode.json")"
 judge "python3 -c open(...) on codex config" deny \
   "$(vb "python3 -c \"open('$PHOME/.codex/config.toml','w').write('x')\"")"
 judge "python3 heredoc naming ~/.cursor/hooks.json" deny \
@@ -179,17 +163,17 @@ judge "python3 heredoc naming ~/.cursor/hooks.json" deny \
 # shellcheck disable=SC2016  # the $OUT is the payload's, not this shell's
 judge "a variable-built target naming a protected path" deny \
   "$(vb 'OUT=~/.claude/settings.json; echo x > $OUT')"
-judge "code piped into a shell naming the state dir" deny \
-  "$(vb "echo 'echo x > ~/.local/state/tamirs-superpowers/seen/t' | bash")"
+judge "code piped into a shell naming a host settings file" deny \
+  "$(vb "echo 'echo x > ~/.codex/config.toml' | bash")"
 judge "mv a protected file away"          deny "$(vb "mv $PHOME/.config/gh/hosts.yml /tmp/hosts.yml")"
-judge "rm -rf the policy dir"             deny "$(vb "rm -rf $PHOME/.config/tamirs-superpowers")"
+judge "rm -rf the gh config dir"          deny "$(vb "rm -rf $PHOME/.config/gh")"
 judge "rm -rf a dir that contains host settings" deny "$(vb "rm -rf ~/.claude")"
 judge "rm of the project hook"            deny "$(vb "rm -f .git/hooks/pre-commit")"
 
 section "... and the same paths READ or MENTIONED stay allowed"
 judge "cat ~/.claude/settings.json"           allow "$(vb "cat ~/.claude/settings.json")"
 judge "grep in ~/.gitconfig"                  allow "$(vb "grep -n user $PHOME/.gitconfig")"
-judge "jq . on the permission file"           allow "$(vb "jq . $PHOME/.config/tamirs-superpowers/permissions.json")"
+judge "jq . on the host settings"             allow "$(vb "jq . $PHOME/.claude/settings.json")"
 judge "cp FROM a protected file (a read)"     allow "$(vb "cp ~/.claude/settings.json /tmp/settings-backup.json")"
 judge "commit message naming one"             allow "$(vb "git commit -m 'protect ~/.claude/settings.json'")"
 judge "an unresolved write naming none: still advisory" warn "$(vb "python3 -c 'print(1)'")"
@@ -220,12 +204,12 @@ section "PM_ALLOW_PROTECTED unlocks nothing protected"
 # ===========================================================================
 export PM_ALLOW_PROTECTED=1
 judge "Edit ~/.claude/settings.json"        deny "$(v Edit "$PHOME/.claude/settings.json")"
-judge "cp onto the permission file"         deny "$(vb "cp /tmp/a $PHOME/.config/tamirs-superpowers/permissions.json")"
+judge "cp onto ~/.gitconfig"                deny "$(vb "cp /tmp/a $PHOME/.gitconfig")"
 judge "> through a symlink"                 deny "$(vb "echo x > $TMP/innocent.json")"
 judge "python3 -c naming opencode config"   deny "$(vb "python3 -c \"open('$PHOME/.config/opencode/opencode.json','w')\"")"
 judge "an installed guard file"             deny "$(vg "$INST/hooks/guard-sensitive-files.sh" Write "$INST/hooks/lib/write-targets.py")"
-judge "a source-checkout guard file is still an ask" ask \
-  "$(vg "$SRC_ASK/hooks/guard-sensitive-files.sh" Write "$SRC_ASK/hooks/permission-guard.sh")"
+judge "a source-checkout guard file is not protected" allow \
+  "$(vg "$SRC/hooks/guard-sensitive-files.sh" Write "$SRC/hooks/protect-other-branches.sh")"
 section "... and is still honoured for the generated-file rules"
 judge "Edit a lockfile"                     allow "$(v Edit "$REPO/yarn.lock")"
 judge "Bash write to a lockfile"            allow "$(vb "echo x > yarn.lock")"
@@ -235,9 +219,8 @@ unset PM_ALLOW_PROTECTED
 # ===========================================================================
 section "the running plugin's guard files"
 # ===========================================================================
-for rel in hooks/guard-sensitive-files.sh hooks/permission-guard.sh hooks/lib/write-targets.py \
-           hooks/lib/hook-output.sh hooks/hooks.json core/permissions/actions.json \
-           scripts/resolve-permission.sh scripts/lib/permission-common.sh scripts/plugin-config.sh
+for rel in hooks/guard-sensitive-files.sh hooks/protect-other-branches.sh hooks/lib/write-targets.py \
+           hooks/lib/hook-output.sh hooks/hooks.json
 do
   judge "installed copy: Write $rel" deny "$(vg "$INST/hooks/guard-sensitive-files.sh" Write "$INST/$rel")"
 done
@@ -245,24 +228,23 @@ judge "installed copy: sed -i a guard" deny \
   "$(vg "$INST/hooks/guard-sensitive-files.sh" Bash "sed -i.bak 's/deny/allow/' $INST/hooks/guard-sensitive-files.sh")"
 judge "installed copy: an interpreter naming a guard" deny \
   "$(vg "$INST/hooks/guard-sensitive-files.sh" Bash "python3 -c \"open('$INST/hooks/lib/hook-output.sh','w')\"")"
+judge "installed copy: a planted .git (it would read as a source checkout)" deny \
+  "$(vg "$INST/hooks/guard-sensitive-files.sh" Bash "touch $INST/.git")"
 judge "installed copy: its README is not a guard" allow \
   "$(vg "$INST/hooks/guard-sensitive-files.sh" Write "$INST/README.md")"
 judge "installed copy: a skill is not a guard"    allow \
   "$(vg "$INST/hooks/guard-sensitive-files.sh" Write "$INST/skills/x/SKILL.md")"
-judge "source checkout with hook_ask: an ask" ask \
-  "$(vg "$SRC_ASK/hooks/guard-sensitive-files.sh" Edit "$SRC_ASK/hooks/guard-sensitive-files.sh")"
-judge "source checkout with hook_ask: a deny still outranks the ask" deny \
-  "$(vg "$SRC_ASK/hooks/guard-sensitive-files.sh" Bash "echo x > $SRC_ASK/hooks/x.sh; echo y > $PHOME/.gitconfig")"
-plain_out="$(run_guard "$SRC/hooks/guard-sensitive-files.sh" Edit "$SRC/hooks/hooks.json")"
-judge "source checkout without hook_ask: fails closed to deny" deny "$(decision "$plain_out")"
-judge "  ... and says it is a source-checkout guard file" yes "$(has "$(reason "$plain_out")" "source checkout")"
+judge "source checkout: its own guard file is the contributor's to edit" allow \
+  "$(vg "$SRC/hooks/guard-sensitive-files.sh" Edit "$SRC/hooks/guard-sensitive-files.sh")"
+judge "source checkout: a host settings write in the same command is still denied" deny \
+  "$(vg "$SRC/hooks/guard-sensitive-files.sh" Bash "echo x > $SRC/hooks/x.sh; echo y > $PHOME/.gitconfig")"
 judge "another plugin copy's guards are not this guard's" allow \
   "$(vg "$INST/hooks/guard-sensitive-files.sh" Write "$SRC/hooks/guard-sensitive-files.sh")"
 judge "CLAUDE_PLUGIN_ROOT adds a protected root, never removes one" deny \
-  "$(payload Write "$INST/hooks/hooks.json" | CLAUDE_PLUGIN_ROOT="$INST" bash "$SRC_ASK/hooks/guard-sensitive-files.sh" 2>/dev/null | jq -r '.hookSpecificOutput.permissionDecision')"
+  "$(payload Write "$INST/hooks/hooks.json" | CLAUDE_PLUGIN_ROOT="$INST" bash "$SRC/hooks/guard-sensitive-files.sh" 2>/dev/null | jq -r '.hookSpecificOutput.permissionDecision')"
 
 # ===========================================================================
-section "deny texts name no bypass (D10.5)"
+section "deny texts name no bypass"
 # ===========================================================================
 texts=""
 for c in "Edit|$PHOME/.claude/settings.json" "Edit|$REPO/yarn.lock" "Write|$REPO/package-lock.json" \
@@ -277,26 +259,30 @@ judge "no reason is the removed workflow rule" no "$(has "$texts" "workflow.edit
 judge "the protected text sends it to the user" yes "$(has "$texts" "ask them to make this change themselves")"
 
 # ===========================================================================
-section "the table: actions.json, with a fallback that equals it"
+section "the table holds no permission-levels entry; no answer is an ask"
 # ===========================================================================
-parity="$(python3 - "$ROOT" <<'PY'
-import importlib.util, json, sys
-root = sys.argv[1]
-spec = importlib.util.spec_from_file_location("wt", root + "/hooks/lib/write-targets.py")
+left="$(python3 - "$ROOT" <<'PY'
+import importlib.util, sys
+spec = importlib.util.spec_from_file_location("wt", sys.argv[1] + "/hooks/lib/write-targets.py")
 wt = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(wt)
-cat = json.load(open(root + "/core/permissions/actions.json"))["actions"]
-by_id = dict((a["id"], a) for a in cat)
-same = all(wt.FALLBACK_PROTECTED[i] == by_id[i]["equivalents"]["paths"] for i in wt.PROTECTED_IDS)
-read = wt.protected_table(root) == [(i, p) for i in wt.PROTECTED_IDS for p in by_id[i]["equivalents"]["paths"]]
-print("yes" if same and read else "no")
+gone = ("/.config/tamirs-superpowers/", "/.local/state/tamirs-superpowers/", "{repo}/.tamirs-superpowers/",
+        "/core/" + "permissions/", "resolve-" + "permission", "plugin-" + "config", "permission-" + "common")
+print(" ".join(p for _, p in wt.protected_table() if any(g in p for g in gone)))
 PY
 )"
-judge "FALLBACK_PROTECTED equals actions.json, and the catalog is what is read" yes "$parity"
-judge "without the catalog the fallback still denies host settings" deny \
-  "$(vg "$NOCAT/hooks/guard-sensitive-files.sh" Edit "$PHOME/.claude/settings.json")"
-judge "  ... and the copy's own guard files" deny \
-  "$(vg "$NOCAT/hooks/guard-sensitive-files.sh" Edit "$NOCAT/hooks/hooks.json")"
+judge "no removed entry is left in the protected table" "" "$left"
+asked=""
+for c in "Edit|$PHOME/.claude/settings.json" "Edit|$SRC/hooks/hooks.json" "Bash|echo x > $TMP/innocent.json" \
+         "Bash|git -C $REPO checkout -q HEAD -- .claude/settings.json" "Bash|git -C $REPO merge --ff-only HEAD"; do
+  for g in "$GUARD" "$SRC/hooks/guard-sensitive-files.sh" "$INST/hooks/guard-sensitive-files.sh"; do
+    d="$(vg "$g" "${c%%|*}" "${c#*|}")"
+    [ "$d" = ask ] && asked="$asked $c;"
+  done
+done
+judge "no case answers ask" "" "$asked"
+judge "a git replay onto a protected path is not judged" allow \
+  "$(vb "git -C $REPO checkout -q HEAD -- .claude/settings.json")"
 
 # ===========================================================================
 section "platform dialects carry the deny"

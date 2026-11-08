@@ -21,13 +21,6 @@
 #   unmodified source file. Nothing is copied and nothing in the checkout is
 #   touched.
 #
-#   `scripts/` is a real directory of per-entry symlinks rather than one link,
-#   for one reason: `apply` asks scripts/resolve-permission.sh, found beside the
-#   subject (ADR 004 D4), and that one entry is a STUB answering per STUB_MODE.
-#   The real resolver never answers allow for ruleset.apply (R4), so without the
-#   stub no test could reach the write path; the gate section below drives the
-#   stub through allow / ask / deny / missing / garbage.
-#
 # NON-VACUITY IS THE HOUSE RULE
 #   Four bugs in this feature's development were checks that passed while
 #   testing nothing. So no assertion here stands alone:
@@ -67,26 +60,8 @@ REAL_GH="$(command -v gh 2>/dev/null || true)"
 mkdir -p "$TMP/bin" "$TMP/home" "$TMP/render"
 cp -R "$REPO_ROOT/tests/fixtures/github" "$FIX"
 harness_new_repo "$ROOT" main
-mkdir -p "$ROOT/scripts"
-for e in "$REPO_ROOT"/scripts/*; do
-  [ "$(basename "$e")" = resolve-permission.sh ] || ln -s "$e" "$ROOT/scripts/$(basename "$e")"
-done
+ln -s "$REPO_ROOT/scripts" "$ROOT/scripts"
 ln -s "$REPO_ROOT/config"  "$ROOT/config"
-STUB_LOG="$TMP/resolver.log"
-export STUB_LOG
-# The stub records its argv and answers per STUB_MODE: allow | ask | deny (exit
-# 0), exit3 (deny, exit 3), garbage (not JSON). STUB_MODE is set per run below.
-cat >"$ROOT/scripts/resolve-permission.sh" <<'STUB'
-#!/usr/bin/env bash
-printf 'ARGV %s\n' "$*" >>"$STUB_LOG"
-case "${STUB_MODE:-ask}" in
-  garbage) printf 'not json\n'; exit 0 ;;
-  exit3)   printf '{"verdict":"deny","reason":"stub internal error"}\n'; exit 3 ;;
-esac
-printf '{"verdict":"%s","decision":"%s","r":4,"reason":"stub %s","setting_that_would_allow":{"once":null,"durable":["stub-durable-setting"],"note":"stub note"}}\n' \
-  "$STUB_MODE" "$STUB_MODE" "$STUB_MODE"
-STUB
-chmod +x "$ROOT/scripts/resolve-permission.sh"
 
 fake_gh_install "$TMP/bin" "$TMP/gh.log" "$FIX/compliant"
 PATH="$TMP/bin:$PATH"
@@ -116,28 +91,24 @@ scenario() {
 # run_policy <args...> — one invocation, with a fresh call log. Stdout and
 # stderr are captured separately because `--json` splits the document from the
 # human report across the two.
-# The resolver answers `ask` (the real resolver's answer for R4 at every level).
 run_policy() {
   fake_gh_reset
-  : >"$STUB_LOG"
-  ( cd "$ROOT" && STUB_MODE="${STUB_MODE:-ask}" bash "$ROOT/scripts/github-policy.sh" "$@" ) >"$OUT" 2>"$ERR"
+  ( cd "$ROOT" && bash "$ROOT/scripts/github-policy.sh" "$@" ) >"$OUT" 2>"$ERR"
   RC=$?
 }
 
-# run_policy_live <args...> — the same, with the stub resolver answering allow:
-# the stand-in for "a person authorised this write". Every assertion that counts
-# mutations uses this, including the ones expecting ZERO: without it the gate is
-# what produces the zero, and "the org guard blocked this write" would be
-# indistinguishable from "nobody authorised it, so nothing was going to be
-# written anyway". The gate itself is tested on its own, further down.
+# run_policy_live <args...> — the same, with the unattended-write authorisation
+# the LIVE-TARGET GATE requires. Every assertion that counts mutations uses this,
+# including the ones expecting ZERO: without it the gate is what produces the
+# zero, and "the org guard blocked this write" would be indistinguishable from
+# "no terminal, so nothing was going to be written anyway". The gate itself is
+# tested on its own, further down, where its absence is the point.
 run_policy_live() {
   fake_gh_reset
-  : >"$STUB_LOG"
-  ( cd "$ROOT" && STUB_MODE=allow bash "$ROOT/scripts/github-policy.sh" "$@" ) >"$OUT" 2>"$ERR"
+  ( cd "$ROOT" && GITHUB_POLICY_ALLOW_LIVE=1 \
+      bash "$ROOT/scripts/github-policy.sh" "$@" ) >"$OUT" 2>"$ERR"
   RC=$?
 }
-resolver_calls() { awk '/^ARGV /{n++} END{print n+0}' "$STUB_LOG"; }
-resolver_saw()   { has "$(cat "$STUB_LOG" 2>/dev/null)" "$1"; }
 
 reads()      { awk -F'\t' '$2 == "GET" { n++ } END { print n + 0 }' "$FAKE_GH_LOG"; }
 writes_to()  { awk -F'\t' -v p="$1" '$2 != "GET" && index($3, p) { n++ } END { print n + 0 }' "$FAKE_GH_LOG"; }
@@ -654,7 +625,7 @@ section "16 — one repository's 403 must not abort the sweep"
 scenario fleet "$TARGET_REPO"
 fake_gh_reset
 fake_gh_error ANY 'repos/Tamircohen28/whoRuz/rulesets*' 403
-( cd "$ROOT" && STUB_MODE=allow \
+( cd "$ROOT" && GITHUB_POLICY_ALLOW_LIVE=1 \
     bash "$ROOT/scripts/github-policy.sh" apply --all --yes --json ) >"$OUT" 2>"$ERR"
 RC=$?
 judge "16: the sweep still visited all three repositories" "3" "$(jout '.repositories | length')"
@@ -882,99 +853,54 @@ scenario fleet "$TARGET_REPO"
 run_policy plan --all --yes
 judge   "plan --all --yes: zero mutations" "0"               "$(gh_mutations)"
 atleast "plan --all --yes: reads were recorded" "10"         "$(reads)"
+
 # ---------------------------------------------------------------------------
-section "the permission gate (ADR 004 D4): the resolver decides apply"
+section "no TTY, and the live-target gate: print the plan, adopt nothing"
 # ---------------------------------------------------------------------------
 # stdout here is a file, so setup_can_prompt is false by construction — the same
-# situation as CI, a hook, an agent's shell or a piped run.
+# situation as CI, a hook, or a piped run.
 scenario no-rulesets "Tamircohen28/example-repo"
 run_policy apply --repo Tamircohen28/example-repo
-judge "ask, no TTY: single-repo apply degrades to a plan" "yes" "$(outhas 'there is no one here to confirm')"
-judge "ask, no TTY: and writes nothing" "0"                  "$(gh_mutations)"
-judge "ask, no TTY: the plan is still printed" "yes"         "$(outhas 'Nothing has been written')"
-judge "ask, no TTY: it names the setting" "yes"              "$(outhas 'stub-durable-setting')"
-judge "ask, no TTY: and the command to run yourself" "yes"   "$(outhas 'run this yourself in your own terminal')"
-judge "ask, no TTY: a degraded run is a success, not a failure" "0" "$RC"
-atleast "ask, no TTY: it still read live state" "4"          "$(reads)"
-judge "ask: the resolver was asked about ruleset.apply" "yes" "$(resolver_saw '--action ruleset.apply --skill github-policy --target Tamircohen28/example-repo')"
+judge "no-TTY: single-repo apply degrades to a plan" "yes"   "$(outhas 'no TTY — cannot confirm')"
+judge "no-TTY: and writes nothing" "0"                       "$(gh_mutations)"
+judge "no-TTY: the plan is still printed" "yes"              "$(outhas 'Nothing has been written')"
+judge "no-TTY: a degraded run is a success, not a failure" "0" "$RC"
+atleast "no-TTY: it still read live state" "4"               "$(reads)"
 scenario fleet "$TARGET_REPO"
 run_policy apply --all
-judge "ask, no TTY: bulk apply degrades too" "yes"           "$(outhas 'there is no one here to confirm')"
-judge "ask, no TTY: a 3-repo sweep writes nothing" "0"       "$(gh_mutations)"
-atleast "ask, no TTY: the sweep still read every repo" "10"  "$(reads)"
+judge "no-TTY: bulk apply degrades too" "yes"                "$(outhas 'cannot confirm a bulk apply')"
+judge "no-TTY: a 3-repo sweep writes nothing" "0"            "$(gh_mutations)"
+atleast "no-TTY: the sweep still read every repo" "10"       "$(reads)"
 
-# --yes never skips an R3/R4 confirmation, and the retired env switch widens
-# nothing: an unattended --yes run once reverted a deliberate setting on the
-# author's own repository, so this is asserted directly.
+# THE LIVE-TARGET GATE. --yes confirms individual changes; it is deliberately
+# NOT the authorisation to mutate real repositories with nobody watching. That
+# distinction was added after an unattended --yes run reverted a deliberate
+# setting on the author's own repository, so it is asserted here directly: same
+# command, same scenario, the only difference is the environment variable.
 scenario no-rulesets "Tamircohen28/example-repo"
 run_policy apply --repo Tamircohen28/example-repo --yes
-judge "ask + --yes: does NOT authorise an unattended write" "0" "$(gh_mutations)"
-judge "ask + --yes: and says --yes does not skip it" "yes"   "$(outhas '--yes does not skip this confirmation')"
-judge "ask + --yes: the plan is shown instead" "yes"         "$(outhas 'Nothing has been written')"
-judge "ask + --yes: a refused write is not an error" "0"     "$RC"
-fake_gh_reset; : >"$STUB_LOG"
-( cd "$ROOT" && STUB_MODE=ask GITHUB_POLICY_ALLOW_LIVE=1 \
-    bash "$ROOT/scripts/github-policy.sh" apply --repo Tamircohen28/example-repo --yes ) >"$OUT" 2>"$ERR"
-RC=$?
-judge "GITHUB_POLICY_ALLOW_LIVE=1 + --yes: still writes nothing" "0" "$(gh_mutations)"
-judge "GITHUB_POLICY_ALLOW_LIVE: says it is ignored" "yes"   "$(outhas 'GITHUB_POLICY_ALLOW_LIVE is ignored')"
-atleast "GITHUB_POLICY_ALLOW_LIVE: the run still read live state" "4" "$(reads)"
-
-# allow: the only difference from the runs above is the resolver's answer, so a
+judge "gate: --yes alone does NOT authorise an unattended write" "0" "$(gh_mutations)"
+judge "gate: and it says why" "yes" \
+  "$(outhas 'it does not authorise unattended mutation of live repositories')"
+judge "gate: and it names the way to opt in" "yes"           "$(outhas 'GITHUB_POLICY_ALLOW_LIVE=1')"
+judge "gate: the plan is shown instead" "yes"                "$(outhas 'Nothing has been written')"
+judge "gate: a refused write is not an error" "0"            "$RC"
+atleast "gate: the refusal still read live state" "4"        "$(reads)"
+# Non-vacuity: the ONLY difference between these two runs is the variable, so a
 # gate that blocked everything unconditionally would fail here.
 run_policy_live apply --repo Tamircohen28/example-repo --yes
-judge "allow + --yes: writes" "2"                            "$(gh_mutations)"
-judge "allow + --yes: the writes are the two canonical creates" "2" \
+judge "gate: GITHUB_POLICY_ALLOW_LIVE=1 plus --yes is what writes" "2" "$(gh_mutations)"
+judge "gate: and the writes are the two canonical creates" "2" \
   "$(writes_to 'repos/Tamircohen28/example-repo/rulesets')"
+# The variable is not a substitute for --yes either: both are required.
 run_policy_live apply --repo Tamircohen28/example-repo
-judge "allow, no TTY, no --yes: still writes nothing" "0"    "$(gh_mutations)"
-atleast "allow, no --yes: and that run read live state too" "4" "$(reads)"
+judge "gate: the variable alone, without --yes, still writes nothing" "0" "$(gh_mutations)"
+atleast "gate: and that run read live state too" "4"         "$(reads)"
 scenario fleet "$TARGET_REPO"
 run_policy apply --all --yes
-judge "ask: a bulk --yes sweep is refused the same way" "0"  "$(gh_mutations)"
+judge "gate: a bulk --yes sweep is refused the same way" "0"  "$(gh_mutations)"
 run_policy_live apply --all --yes
-atleast "allow: the same sweep does write" "1"               "$(gh_mutations)"
-
-# deny, and every way the resolver can fail: nothing runs, exit 3, the reason.
-scenario no-rulesets "Tamircohen28/example-repo"
-for mode in deny exit3 garbage; do
-  STUB_MODE="$mode" run_policy apply --repo Tamircohen28/example-repo --yes
-  judge "$mode: apply writes nothing" "0"                    "$(gh_mutations)"
-  judge "$mode: exits 3" "3"                                 "$RC"
-  judge "$mode: says it is blocked" "yes"                    "$(outhas 'blocked: ruleset.apply')"
-done
-STUB_MODE=deny run_policy apply --repo Tamircohen28/example-repo
-judge "deny: names the setting that would allow it" "yes"    "$(outhas 'allow with: stub-durable-setting')"
-judge "deny: and the resolver's reason" "yes"                "$(outhas 'stub deny')"
-mv "$ROOT/scripts/resolve-permission.sh" "$TMP/resolver.parked"
-run_policy_live apply --repo Tamircohen28/example-repo --yes
-judge "resolver missing: apply writes nothing" "0"           "$(gh_mutations)"
-judge "resolver missing: exits 3" "3"                        "$RC"
-judge "resolver missing: fails closed and says so" "yes"     "$(outhas 'permission resolver missing or failed')"
-mv "$TMP/resolver.parked" "$ROOT/scripts/resolve-permission.sh"
-
-# --org-level also asks about ruleset.apply.org, for the organization itself.
-printf '%s\n' example-service | jq -R '{full_name: ("ProductionMasterAI/" + .), name: ., fork: false,
-  archived: false, default_branch: "main", visibility: "private",
-  owner: {login: "ProductionMasterAI", type: "Organization"}}' | jq -s . >"$FIX/org-available/repo-list.json"
-fake_gh_use_fixtures "$FIX/org-available"
-STUB_MODE=deny run_policy apply --org ProductionMasterAI --org-level --yes
-judge "org-level: the resolver was asked about ruleset.apply.org" "yes" \
-  "$(resolver_saw '--action ruleset.apply.org --skill github-policy --target ProductionMasterAI')"
-judge "org-level: and about ruleset.apply" "yes"             "$(resolver_saw '--action ruleset.apply --skill github-policy --json')"
-judge "org-level deny: writes nothing" "0"                   "$(gh_mutations)"
-judge "org-level deny: exits 3" "3"                          "$RC"
-run_policy apply --org ProductionMasterAI --org-level --yes
-judge "org-level ask, no TTY: writes nothing" "0"            "$(gh_mutations)"
-judge "org-level ask, no TTY: degrades to a plan" "yes"      "$(outhas 'there is no one here to confirm')"
-scenario no-rulesets "Tamircohen28/example-repo"
-
-# Read verbs never ask: they are R0.
-for verb in plan audit verify; do
-  run_policy "$verb" --repo Tamircohen28/example-repo
-  judge "$verb: the resolver is never called" "0"            "$(resolver_calls)"
-done
-
+atleast "gate: and authorised, the same sweep does write" "1" "$(gh_mutations)"
 
 # ---------------------------------------------------------------------------
 section "flag handling"

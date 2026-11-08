@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # test-protected-path-hardening.sh — the walk-arounds found in the adversarial
-# review of the protected-path guard (ADR 004 D10.1, D3, security review S-03),
+# review of the protected-path guard (security review S-03),
 # each reproduced against the real hook before it was closed.
 #
 # WHAT EACH GROUP PROVES
@@ -13,13 +13,14 @@
 #        write, ed, split, script, and hard or symbolic links made by cp/pax/link;
 #   P2   removing, moving away or copying over any PARENT directory of a protected
 #        path, repo-relative as well as home-relative;
-#   F4c  git and patch: the target set of a patch file, of a pathspec, and of the
-#        incoming diff of merge/pull/am/stash/cherry-pick/rebase/reset/switch;
+#   F4c  git and patch: the target set of a patch file read; git's replays
+#        (merge/pull/am/stash/cherry-pick/rebase/reset/switch) are not judged
+#        and never ask (6.0.0, ADR 006);
 #   F4d  shell syntax the tokenizer used to misread — an arithmetic `(( << ))`,
 #        `$'…'` quoting, an apostrophe in a comment — no longer hides a write,
 #        and an anomaly fails closed when a protected path is named;
 #   F6   PM_ALLOW_PROTECTED unlocks the generated-file rules only — never a
-#        workflow, a hook script or a policy path.
+#        hook script or a host settings path.
 #   Every deny is paired with an allow a guard that denies everything would fail.
 #
 # Hermetic: the guard only JUDGES payloads. The passwd home is named in them but
@@ -48,11 +49,10 @@ WT="$ROOT/hooks/lib/write-targets.py"
 # --- the repository: tracked settings, a branch and a stash that rewrite them ---
 REPO="$TMP/repo"
 harness_new_repo "$REPO"
-mkdir -p "$REPO/.claude" "$REPO/.github/workflows" "$REPO/src" "$REPO/.tamirs-superpowers"
+mkdir -p "$REPO/.claude" "$REPO/.github/workflows" "$REPO/src"
 printf '{"v":1}\n' > "$REPO/.claude/settings.json"
 printf 'name: ci\n'  > "$REPO/.github/workflows/ci.yml"
 printf 'a\n'         > "$REPO/src/a.txt"
-printf '{"version":1}\n' > "$REPO/.tamirs-superpowers/permissions.json"
 printf 'x\n'         > "$REPO/yarn.lock"
 printf 'dist/\n'     > "$REPO/.gitignore"
 printf '{"style":"x"}\n' > "$REPO/components.json"
@@ -106,16 +106,16 @@ v()        { decision "$(raw "$@")"; }
 vb()       { v Bash "$1" "${2:-$REPO}"; }
 # A multi-line command, written with \n escapes.
 vbn()      { vb "$(printf '%b' "$1")" "${2:-$REPO}"; }
-# replay <label> <command> [cwd] — a git replay onto a protected path is an R4
-# ask: hook_ask on Claude Code, a deny on Codex, Cursor and Gemini, never an allow.
+# replay <label> <command> [cwd] — a git replay onto a protected path is not judged
+# (6.0.0, ADR 006): no ask on Claude Code, no deny on Codex, Cursor or Gemini.
 replay() {
   local label="$1" c="$2" d="${3:-$REPO}" out cx cu gm
   out="$(raw Bash "$c" "$d")"
-  judge "$label: Claude asks" ask "$(decision "$out")"
+  judge "$label: Claude does not ask" allow "$(decision "$out")"
   cx="$(payload Bash "$c" "$d" | jq -c '. + {turn_id:"t-1"}' | bash "$GUARD" 2>/dev/null | jq -r '.hookSpecificOutput.permissionDecision // "allow"')"
   cu="$(payload Bash "$c" "$d" | jq -c '. + {conversation_id:"c-1",cursor_version:"3.27.22"}' | bash "$GUARD" 2>/dev/null | jq -r '.permission // "none"')"
   gm="$(payload Bash "$c" "$d" | GEMINI_SESSION_ID=g-1 GEMINI_PROJECT_DIR="$d" bash "$GUARD" 2>/dev/null | jq -r '.hookSpecificOutput.permissionDecision // "allow"')"
-  judge "  ... Codex, Cursor and Gemini deny" "deny deny deny" "$cx $cu $gm"
+  judge "  ... Codex, Cursor and Gemini pass it too" "allow none allow" "$cx $cu $gm"
 }
 
 # swapcase <path> — every letter of the LAST component with its case flipped.
@@ -132,8 +132,8 @@ if [ "$HOME_FOLDS" = yes ]; then
   judge "> ~/.CLAUDE/settings.json"         deny "$(vb 'echo x > ~/.CLAUDE/settings.json')"
   judge "> ~/.claude/SETTINGS.json"         deny "$(vb 'echo x > ~/.claude/SETTINGS.json')"
   judge "Write ~/.CLAUDE/settings.json"     deny "$(v Write "$HOME/.CLAUDE/settings.json")"
-  judge "Write ~/.Config/Tamirs-Superpowers/permissions.json" deny \
-    "$(v Write "$HOME/.Config/Tamirs-Superpowers/permissions.json")"
+  judge "Write ~/.Config/GH/hosts.yml" deny \
+    "$(v Write "$HOME/.Config/GH/hosts.yml")"
   judge "rm -rf ~/.CLAUDE (a folded parent)" deny "$(vb 'rm -rf ~/.CLAUDE')"
   judge "the folded neighbour ~/.CLAUDE/CLAUDE.md stays allowed" allow \
     "$(v Write "$HOME/.CLAUDE/CLAUDE.md")"
@@ -146,8 +146,8 @@ if [ "$PHOME_FOLDS" = yes ]; then
   judge "Write <passwd home>/.CLAUDE/settings.json" deny "$(v Write "$PHOME/.CLAUDE/settings.json")"
 fi
 if [ "$REPO_FOLDS" = yes ]; then
-  judge "Edit <repo>/.TAMIRS-superpowers/permissions.json" deny \
-    "$(v Edit "$REPO/.TAMIRS-superpowers/permissions.json")"
+  judge "Edit <repo>/OpenCode.json" deny \
+    "$(v Edit "$REPO/OpenCode.json")"
   judge "Edit <repo>/.Claude/Settings.local.json" deny "$(v Edit "$REPO/.Claude/Settings.local.json")"
   judge "Bash > YARN.LOCK (the lockfile, folded)" deny "$(vb 'echo x > YARN.LOCK')"
   judge "Edit <repo>/YARN.LOCK (the lockfile, folded)" deny "$(v Edit "$REPO/YARN.LOCK")"
@@ -175,8 +175,8 @@ judge "fold when the volume is unknown, fold when case-insensitive, not when cas
 # ===========================================================================
 section "F4b: fd redirects, including under exec, are writes"
 # ===========================================================================
-judge "exec 3> the permission file; echo >&3" deny \
-  "$(vb "exec 3> ~/.config/tamirs-superpowers/permissions.json; echo '{}' >&3")"
+judge "exec 3> the gh hosts file; echo >&3" deny \
+  "$(vb "exec 3> ~/.config/gh/hosts.yml; echo '{}' >&3")"
 judge "a bare > with no command"          deny "$(vb '> ~/.gitconfig')"
 judge "3<> opens a protected file read-write" deny "$(vb 'exec 3<> ~/.gitconfig')"
 judge ">& FILE is a write to FILE"        deny "$(vb 'echo x >& ~/.gitconfig')"
@@ -271,12 +271,13 @@ judge "the repo root itself stays removable (a temporary repository)" allow \
   "$(vb "rm -rf $REPO" "$TMP")"
 judge "rm -rf src (holds nothing protected)" allow "$(vb 'rm -rf src')"
 parents="$(python3 - "$ROOT" <<'PY'
-import json, re, sys
-cat = json.load(open(sys.argv[1] + "/core/permissions/actions.json"))["actions"]
-by = dict((a["id"], a) for a in cat)
+import importlib.util, re, sys
+spec = importlib.util.spec_from_file_location("wt", sys.argv[1] + "/hooks/lib/write-targets.py")
+wt = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(wt)
 seen = set()
-for aid in ("policy.edit", "config.global.write"):
-    for p in by[aid]["equivalents"]["paths"]:
+for _ in (0,):
+    for p in wt.PROTECTED_PATHS:
         m = re.match(r"^\{(home|repo)\}/(.+)$", p)
         if not m:
             continue
@@ -316,11 +317,11 @@ judge "patch -p1 -i the same patch"       deny "$(vb "patch -p1 -i $TMP/evil.pat
 judge "patch with the protected file as its operand" deny "$(vb "patch .claude/settings.json $TMP/benign.patch")"
 judge "git apply a heredoc patch touching settings" deny \
   "$(vb "$(printf 'git apply <<%s\n%s\nEOF\n' "'EOF'" "$(cat "$TMP/evil.patch")")")"
-replay "git am an mbox touching settings" "git am $TMP/evil.mbox"
+judge "git am an mbox touching settings: advisory, never an ask" warn "$(vb "git am $TMP/evil.mbox")"
 judge "git -C <repo> apply from elsewhere" deny "$(vb "git -C $REPO apply $TMP/evil.patch" "$TMP")"
 judge "git apply an ordinary patch"       allow "$(vb "git apply $TMP/benign.patch")"
 judge "patch -p1 < an ordinary patch"     allow "$(vb "patch -p1 < $TMP/benign.patch")"
-judge "git am an ordinary mbox"           allow "$(vb "git am $TMP/benign.mbox")"
+judge "git am an ordinary mbox: advisory (a mailbox replay is not read)" warn "$(vb "git am $TMP/benign.mbox")"
 judge "git apply --check only checks"     allow "$(vb "git apply --check $TMP/evil.patch")"
 judge "an unreadable patch is still advisory" warn "$(vb "git apply $TMP/missing.patch")"
 judge "a patch written earlier in the same command is unreadable now" warn \
@@ -328,7 +329,7 @@ judge "a patch written earlier in the same command is unreadable now" warn \
 judge "a patch piped in is advisory"      warn "$(vb 'curl -s https://x.invalid/p | git apply')"
 
 # ===========================================================================
-section "F4c: git rewrites judged by the files they would change"
+section "F4c: git replays are not judged and never ask (6.0.0)"
 # ===========================================================================
 replay "git checkout <ref> -- .claude/settings.json" 'git checkout evil -- .claude/settings.json'
 replay "git checkout <ref> -- ." 'git checkout evil -- .'
@@ -344,11 +345,9 @@ replay "git rebase <upstream>" 'git rebase evil'
 replay "git reset --hard <ref>" 'git reset --hard evil'
 replay "git stash apply stash@{1} (rewrites settings)" 'git stash apply stash@{1}'
 replay "git -C <repo> merge from elsewhere" "git -C $REPO merge evil" "$TMP"
-judge "  ... and the ask says it is a git replay the user decides" yes \
-  "$(has "$(reason "$(raw Bash 'git merge evil')")" "git branch operation")"
-judge "a replay beside a direct write of the same file: the deny outranks the ask" deny \
+judge "a replay beside a direct write of the same file: the write is still denied" deny \
   "$(vb 'git merge evil; echo x > .claude/settings.json')"
-replay "git merge of a branch adding an OpenCode agent (D10.1, narrowed)" 'git merge ocagent'
+replay "git merge of a branch adding an OpenCode agent" 'git merge ocagent'
 judge "git merge of regenerated .gemini/skills, .gemini/agents, .opencode/commands: allowed (not policy)" allow \
   "$(vb 'git merge gen')"
 judge "git checkout <ref> -- an ordinary path" allow "$(vb 'git checkout benign -- src/a.txt')"
@@ -361,10 +360,8 @@ judge "git reset --hard <ordinary ref>"   allow "$(vb 'git reset --hard benign')
 judge "git stash pop (stash@{0} only touches src)" allow "$(vb 'git stash pop')"
 judge "git status, log, diff stay allowed" allow "$(vb 'git status && git log --oneline -3 && git diff evil')"
 judge "git switch -c a new branch at HEAD" allow "$(vb 'git switch -c topic')"
-pull_out="$(raw Bash 'git pull')"
-judge "git pull with nothing fetched to compare: advisory" warn "$(decision "$pull_out")"
-judge "  ... and it says what it could not determine" yes "$(has "$(reason "$pull_out")" "could not")"
-judge "git merge of an unknown ref: advisory" warn "$(vb 'git merge no-such-ref')"
+judge "git pull with nothing fetched: no notice, no ask" allow "$(vb 'git pull')"
+judge "git merge of an unknown ref: no notice, no ask" allow "$(vb 'git merge no-such-ref')"
 
 # ===========================================================================
 section "F4d: tokenizer tricks no longer hide a write"
@@ -393,7 +390,7 @@ section "F6: PM_ALLOW_PROTECTED reaches the generated-file rules only (workflows
 # ===========================================================================
 export PM_ALLOW_PROTECTED=1
 judge "a .git/hooks script"               deny "$(v Write "$REPO/.git/hooks/pre-commit")"
-judge "the project policy file"           deny "$(v Write "$REPO/.tamirs-superpowers/permissions.json")"
+judge "the project's Claude settings"     deny "$(v Write "$REPO/.claude/settings.json")"
 judge "a lockfile is still the user's to unlock" allow "$(v Edit "$REPO/yarn.lock")"
 judge "gitignored build output too"       allow "$(vb 'echo x > dist/bundle.js')"
 judge "generated shadcn UI too"           allow "$(v Write "$REPO/src/components/ui/button.tsx")"

@@ -22,8 +22,7 @@ merging duplicate `### ` headings), push each branch, and let one CI round run o
 normal delivery path stays the PR merge (`gh pr merge --squash --admin`, each call approved by the user). Landing
 the stack with `git push origin <head-sha>:refs/heads/master` is an **exception that needs the user's explicit
 authorization for that push**, never a default: `core/policies/safety.md` invariant 5 forbids a direct push to the
-protected default branch unless the repository allows it *and* the user asked, and `core/permissions/actions.json`
-marks `git.push.default` as `never_auto`. The admin role being able to bypass the ruleset is capability, not
+protected default branch unless the repository allows it *and* the user asked. The admin role being able to bypass the ruleset is capability, not
 authorization. On 2026-11-04 the user had said "merge all the green PRs" and confirmed the stack plan before the
 push. When authorized: push the last green head in the stack; GitHub marks every PR whose head is now reachable as
 merged, auto-deletes the branches, and closes `Closes #N` issues. If a PR in the middle turns red (or Codex finds

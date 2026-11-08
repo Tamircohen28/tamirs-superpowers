@@ -117,7 +117,7 @@ done
 # One stub also records the shellcheck marker the recipe hands every suite.
 MARKER="$TMP/marker.log"
 printf 'printf "%%s\\n" "${SUPERPOWERS_SHELLCHECK_DONE:-unset}" > "%s"\n' "$MARKER" >> "$TREE/tests/test-alpha.sh"
-# ...and reads its stdin, as a real suite may (test-toolkit-gates.sh does). Fed the
+# ...and reads its stdin, as a real suite may (the since-removed test-toolkit-gates.sh did). Fed the
 # list on stdin, it swallowed every suite after it and the loop ended green (#400).
 # A line it reads is logged, so the "every suite ran once" cases below catch both a
 # list fed on stdin and a suite handed make's own stdin (run_make feeds make a line).

@@ -252,25 +252,21 @@ write_worktree_env_local() {
 #   last successful install in that worktree, and no more than
 #   SUPERPOWERS_MAX_CONCURRENT_INSTALLS run at once.
 #
-# A HOOK NEVER RUNS CODE THE USER DID NOT CHOOSE (ADR 004 D1 deps.install, SR S-08)
+# A HOOK NEVER RUNS CODE THE USER DID NOT CHOOSE (security review S-08)
 #   The checkout can be anyone's (a contributor's PR head), and an install that
 #   runs lifecycle scripts (`prepare`, `postinstall`), builds packages (uv,
 #   poetry, pipenv, bundler, composer) or runs a package manager the repository
 #   ships (.yarnrc.yml yarnPath and plugins, .yarnrc yarn-path, .pnpmfile.cjs)
 #   runs that repository's code with the user's credentials, from a hook, with
 #   no tool call any guard could see. So:
-#     - only the script-free installs of the catalog's deps.install (R2) ever
-#       run: `npm ci --ignore-scripts`, `pnpm install --frozen-lockfile
-#       --ignore-scripts --ignore-pnpmfile`, `yarn install --frozen-lockfile
-#       --ignore-scripts` (classic yarn, no repo-pinned yarn), `bun install
-#       --frozen-lockfile --ignore-scripts`, `cargo fetch` — and only when
-#       scripts/resolve-permission.sh ALLOWS deps.install for the worktree
-#       (asked --headless: a hook has no human to ask). At the default level,
-#       supervised, R2 asks, so nothing is installed;
+#     - only script-free lockfile installs ever run: `npm ci --ignore-scripts`,
+#       `pnpm install --frozen-lockfile --ignore-scripts --ignore-pnpmfile`,
+#       `yarn install --frozen-lockfile --ignore-scripts` (classic yarn, no
+#       repo-pinned yarn), `bun install --frozen-lockfile --ignore-scripts`,
+#       `cargo fetch`;
 #     - every other install (no lockfile, a repo-pinned package manager, uv,
-#       poetry, pipenv, go, deno, bundler, composer), and every allowed one the
-#       resolver did not allow, is logged as the command for the user to run;
-#     - a resolver that is missing or fails reads as not allowed (fail closed).
+#       poetry, pipenv, go, deno, bundler, composer) is logged as the command
+#       for the user to run.
 #   Nothing here asks: the log names each command and why it did not run.
 #
 # ENVIRONMENT
@@ -285,14 +281,6 @@ write_worktree_env_local() {
 # which is exactly the signal cleanup_stale_worktrees uses to decide a worktree
 # still holds work — a stamp in the tree would quietly disable stale cleanup.
 WORKTREE_DEPS_STAMP="superpowers-deps"
-# The permission resolver, by this file's own location (<plugin>/hooks/lib/ ->
-# <plugin>/scripts/), never through an environment variable.
-case "${BASH_SOURCE[0]}" in
-  */*) _wc_lib_dir="${BASH_SOURCE[0]%/*}" ;;
-  *) _wc_lib_dir=. ;;
-esac
-WORKTREE_PERMISSION_RESOLVER="$(CDPATH='' cd -- "$_wc_lib_dir/../.." 2>/dev/null && pwd -P)/scripts/resolve-permission.sh"
-unset _wc_lib_dir
 PKG_CACHE_DIR="${SUPERPOWERS_PKG_CACHE_DIR:-${HOME}/.claude/cache/pkg}"
 INSTALL_SLOT_DIR="${PKG_CACHE_DIR}/.slots"
 
@@ -313,24 +301,6 @@ worktree_deps_enabled() {
     0|false|off|no|never|disabled) return 1 ;;
     *) return 0 ;;
   esac
-}
-
-# The one resolver verdict that lets a script-free install run, named once and
-# unquoted. The gate below tests equality with it, so ask, deny, an empty or an
-# unknown verdict all keep the install from running (fail closed).
-_WT_RESOLVER_INSTALL_VERDICT=allow
-
-# worktree_deps_install_allowed <worktree_path> — 0 only when the permission
-# resolver answers allow for deps.install on this worktree. ask, deny, a missing
-# resolver, a non-zero exit or unreadable output are all "no" (fail closed). A
-# hook has no human present, so it asks --headless.
-worktree_deps_install_allowed() {
-  local worktree_path="$1" out verdict
-  [[ -f "$WORKTREE_PERMISSION_RESOLVER" ]] || return 1
-  out="$(bash "$WORKTREE_PERMISSION_RESOLVER" deps.install --target "$worktree_path" \
-           --repo "$worktree_path" --headless --json </dev/null 2>/dev/null)" || return 1
-  verdict="$(_hook_put "$out" | jq -r '.verdict // empty' 2>/dev/null)" || return 1
-  [[ -n "$verdict" && "$verdict" == "$_WT_RESOLVER_INSTALL_VERDICT" ]]
 }
 
 # A single digest over every lockfile present. Any dependency change moves it;
@@ -467,17 +437,12 @@ run_worktree_post_setup() {
     return 0
   fi
 
-  local allowed=0 slot=""
-  if worktree_deps_install_allowed "$worktree_path"; then
-    allowed=1
-    if ! slot="$(_acquire_install_slot)"; then
-      echo "${stamp} no installer slot free after ${SUPERPOWERS_INSTALL_SLOT_WAIT:-300}s — skipping install (run it manually if needed)" >> "$logfile"
-      return 0
-    fi
-    _export_shared_pkg_cache
-  else
-    echo "${stamp} deps.install is not allowed without asking at your permission level (scripts/resolve-permission.sh), and a hook cannot ask — nothing is installed; each command is listed below for you to run" >> "$logfile"
+  local slot=""
+  if ! slot="$(_acquire_install_slot)"; then
+    echo "${stamp} no installer slot free after ${SUPERPOWERS_INSTALL_SLOT_WAIT:-300}s — skipping install (run it manually if needed)" >> "$logfile"
+    return 0
   fi
+  _export_shared_pkg_cache
 
   # Dependency install, per ecosystem. This used to cover JS (three lockfiles)
   # and poetry only: a Go, Rust, uv, bun or Deno worktree came up with no deps
@@ -487,17 +452,10 @@ run_worktree_post_setup() {
   # silent one.
   local installed=0 ran=0 printed=0 qpath
   qpath="$(_wt_shell_quote "$worktree_path")"
-  # run_install <label> <rerun-with-scripts> <cmd...> — a script-free install
-  # (deps.install). Runs only when the resolver allowed it; otherwise it is
-  # printed like any other.
+  # run_install <label> <rerun-with-scripts> <cmd...> — a script-free install.
   run_install() {
     local label="$1" with_scripts="$2"; shift 2
     installed=1
-    if (( ! allowed )); then
-      echo "${stamp} ${label}: NOT run — run it yourself: cd ${qpath} && $*" >> "$logfile"
-      printed=1
-      return 0
-    fi
     echo "${stamp} ${label}" >> "$logfile"
     ran=1
     if (cd "$worktree_path" && "$@" >> "$logfile" 2>> "$logfile"); then
@@ -508,7 +466,7 @@ run_worktree_post_setup() {
     return 0
   }
   # print_install <label> <why> <cmd...> — an install that can run the
-  # project's own code: never run by a hook, at any level (SR S-08).
+  # project's own code: never run by a hook (S-08).
   print_install() {
     local label="$1" why="$2"; shift 2
     installed=1
@@ -516,7 +474,7 @@ run_worktree_post_setup() {
     echo "${stamp} ${label}: NOT run by the hook — ${why}. If you trust this checkout, run it yourself: cd ${qpath} && $*" >> "$logfile"
   }
   have() { command -v "$1" >/dev/null 2>/dev/null; }
-  local runs_code="can run the project's own code (ADR 004 S-08)"
+  local runs_code="can run the project's own code"
 
   if [[ -f "${worktree_path}/package.json" ]]; then
     if   [[ -f "${worktree_path}/yarn.lock" ]] && have yarn; then

@@ -117,19 +117,6 @@ bash scripts/capture-config.sh review --adopt 3,7
 …or tell the user to run `make capture` themselves in their terminal. Naming ids
 is a decision the user made; there is no `--yes` and you must not invent one.
 
-**Policy hunks take their own typed yes (ADR 004 `config.policy.stage`, R4).**
-Some hunks change what an agent may do once rendered: their key path or sink is
-permission, hook, sandbox, approval, trust, `env`, plugin, MCP or
-command-running config, or no rule classifies them (`unknown`). For those,
-`--adopt all`, an `--adopt` id list and the `a` answer select the hunk but never
-adopt it. Each one asks `scripts/resolve-permission.sh`, and on `ask` it needs
-the word `yes` typed on `/dev/tty` for that hunk alone (a bare `y` does not
-count). With no terminal the hunk is held back. The run prints `not adopted`,
-the reason and the setting that would allow it. A deny, or a resolver that is
-missing or fails, also holds it back. Report the held-back hunks and tell the
-user to run `make capture` in their own terminal to adopt them. Do not re-run in
-a loop and do not stage them by hand.
-
 Adopted hunks are staged into the **canonical source** — `core/global-rules.md`
 or `platforms/<target>/settings.d/` — never into a platform's rendered file. The
 command then re-runs the renderers and prints the downstream diff, so the user
@@ -179,8 +166,7 @@ let the user decide; if their employer's name needs adding, point them at
 - **Never edit a platform's rendered file** to make a capture "work" — if a
   value has no canonical home, that is a gap to report, not to route around.
 - **Never disable a gate** (`--adopt` is for selecting hunks, not for bypassing a
-  block; a blocked hunk stays blocked, and a policy hunk still needs its own
-  typed `yes`).
+  block; a blocked hunk stays blocked).
 
 ## Verify before reporting done
 

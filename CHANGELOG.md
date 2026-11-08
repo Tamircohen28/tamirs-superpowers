@@ -5,6 +5,32 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [6.0.0] — 2026-11-08
+
+### Removed
+
+- **The permission-levels feature (ADR 004) is gone** (#409, [ADR 006](docs/engineering/decisions/006-remove-permission-levels.md)). Since 5.2.0 the maintainer got permission prompts constantly, even at level `unattended` with Claude Code in `bypassPermissions`: Claude Code honours a hook `ask` in every mode. Removed on every platform:
+  - the `/plugin-config` command (skill, and the Codex, Gemini, Cursor and OpenCode adapters) and `scripts/plugin-config.sh`;
+  - the `permission_level` plugin option (Claude `userConfig`, Gemini `TS_PERMISSION_LEVEL`) and `scripts/setup.sh --permission-level` / `--codex-rules`;
+  - the resolver and its catalog: `scripts/resolve-permission.sh`, `scripts/lib/permission-common.sh`, `hooks/lib/permission-conditions.sh`, `core/permissions/`, `core/schemas/permissions.schema.json`;
+  - the hooks that existed only for it: `hooks/permission-guard.sh` (and its `pg_batch.py`, `pg_graphql.py`, `pg_http.py` parsers), `hooks/permission-intent.sh`, `hooks/permission-approved.sh`, and their wiring in `hooks/hooks.json`, `platforms/codex/hooks.json`, `platforms/gemini/hooks.json`, `platforms/cursor/hooks.json` and the OpenCode plugin;
+  - the Gemini level policy (`policies/tamirs-superpowers-permissions.toml`), the OpenCode level reader (`plugin-config.ts`), the `permission_levels` capability row, the doctor's host-floor section and the Codex execpolicy rules generated from the catalog;
+  - the resolver gates in skills and scripts (cleanup, pr-dev, deliver-dev, github-policy, repo-scaffold, enable-repo-merge-settings, capture-config, retro, skill-creator, usage-capture, mcp-builder, github-labels, github-mcp). Each step is back to its behaviour before the gate, with the skill's own chat confirmation where it had one; pr-dev's auto-merge decision is `TAMIRS_AUTO_MERGE`, then the objective's `delivery.auto_merge`, then `.dev-files/policy.json`, as before 5.2.0.
+
+### Changed
+
+- **No plugin hook asks any more.** `hooks/lib/hook-output.sh` has no ask helper. `guard-sensitive-files.sh` still denies writes to lockfiles and generated files (`PM_ALLOW_PROTECTED=1` unlocks those) and to host settings, the installed plugin cache and the installed plugin's guard files; a plugin that runs from a source checkout is the contributor's own tree and is not protected, and git replays (checkout, merge, pull, rebase, …) are no longer judged. Both used to be an ask. The plugin's own config and state dirs leave the protected list.
+- **`docker-guard.py` denies durable Docker state again**, and `PM_ALLOW_DOCKER=1` (inline or exported) lets one command through, as before 5.3.0. Under Claude Code `bypassPermissions` it passes everything except a prune, which is denied rather than asked.
+- **Worktree post-setup installs dependencies again without a level gate.** Only script-free lockfile installs run (`npm ci --ignore-scripts`, `pnpm … --ignore-scripts --ignore-pnpmfile`, classic `yarn … --ignore-scripts`, `bun … --ignore-scripts`, `cargo fetch`); an install that would run the project's own code is still printed for you to run.
+- **The Gemini wrapper no longer renames GitHub MCP tools** to their Claude names; only the permission guard read them. Gemini's `no-workflow-edits` policy rule goes too: agents have been free to edit workflows since 5.6.7.
+- **`scripts/github-mcp.sh` is back to its 5.1 form.** The level-based `--read-only` / `--exclude-tools` flags go with the levels, and so does the 5.2.0 trusted-binary lookup (it read the passwd home through the removed permission library): the server binary is found on `PATH` again, as before 5.2.0.
+- **Known gaps, accepted:** a git replay that brings a host settings file in from another ref (`git checkout <ref> -- .claude/settings.json`) is not judged, and `mkdir`/`git init` of a `.git` in an installed plugin copy outside the host plugin caches is not seen (a written `.git` file is denied). Neither was protected before 5.2.0.
+
+### Migration
+
+- Nothing to configure. A stale `~/.config/tamirs-superpowers/permissions.json` (and its `.lock`), a project's `.tamirs-superpowers/permissions.json`, and the plugin's state under `~/.local/state/tamirs-superpowers/` (tickets, stamps, `staged/`, `hostver/`, `intent/`) are no longer read and can be deleted. The `permission_level` value saved in Claude Code's plugin options is ignored.
+- The host's own permission mode is now the one control: `bypassPermissions` means no prompt from this plugin.
+
 ## [5.6.14] — 2026-11-07
 
 ### Fixed

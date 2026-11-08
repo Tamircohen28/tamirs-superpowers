@@ -1,27 +1,20 @@
 #!/usr/bin/env bash
 # test-cleanup-gates.sh — the cleanup skill's cleanup.sh --yes deletes only what
-# GitHub and the permission resolver allow (ADR 004 D2/D4, audit finding D-6).
+# GitHub shows safe (audit finding D-6).
 #
 # WHAT IS HELD
-#   - --yes skips no permission gate: every remote branch deletion
-#     (branch.delete.remote, R3) is decided by the resolver. allow deletes; ask
-#     with no terminal, deny, a missing resolver and an unreadable answer keep
-#     the branch, print the setting that would allow it, and exit 3.
-#   - Dry-run (no --yes) deletes nothing and never asks the resolver.
+#   - Dry-run (no --yes) deletes nothing.
 #   - Protection is GitHub's answer (the branch `protected` flag, a ruleset
 #     deletion rule), never a name; unreadable protection keeps the branch.
 #   - A branch at the default branch's tip is kept; so is one with an open PR
 #     or whose PRs cannot be listed.
-#   - The unattended precondition is passed only with a merged same-repo PR.
 #   - A clean worktree is kept when its commits are on no remote ref (also
 #     when origin/<branch> does not exist), when an agent holds a live claim on
 #     its branch, or when an unfinished objective task owns it.
 #
 # HOW
-#   cleanup.sh runs as a COPY inside a temp plugin tree whose
-#   scripts/resolve-permission.sh is a stub (it finds the resolver from its own
-#   path, never from the environment). gh is tests/lib/fake-gh.sh, wrapped here
-#   for pr list and the branch and rules endpoints. Real git under a temp dir.
+#   gh is tests/lib/fake-gh.sh, wrapped here for pr list and the branch and
+#   rules endpoints. Real git under a temp dir.
 set -uo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -38,32 +31,7 @@ export GIT_CONFIG_NOSYSTEM=1
 export AGENT_CLAIM_DIR="$TMP/claims"
 unset GH_TOKEN GITHUB_TOKEN GH_REPO OBJECTIVES_ROOT AGENT_CLAIM_STALE_SECONDS 2>/dev/null || true
 
-# --- plugin tree with a stub resolver -------------------------------------------
-PLUG="$TMP/plugin"
-mkdir -p "$PLUG/skills/repo/cleanup/scripts" "$PLUG/scripts"
-cp "$ROOT/skills/repo/cleanup/scripts/cleanup.sh" "$PLUG/skills/repo/cleanup/scripts/"
-CS="$PLUG/skills/repo/cleanup/scripts/cleanup.sh"
-STUB="$PLUG/scripts/resolve-permission.sh"
-STUB_LOG="$TMP/stub.log"
-export STUB_LOG
-# STUB_MODES="action=mode,..." (default STUB_DEFAULT, else allow). Modes: allow |
-# ask | deny (exit 0), exit3 (deny, exit 3), garbage (not JSON).
-cat > "$STUB" <<'STUBEOF'
-#!/usr/bin/env bash
-printf 'ARGV %s\n' "$*" >> "$STUB_LOG"
-action="" prev=""
-for a in "$@"; do [ "$prev" = --action ] && action="$a"; prev="$a"; done
-mode="${STUB_DEFAULT:-allow}"
-IFS=, read -r -a pairs <<<"${STUB_MODES:-}"
-for p in ${pairs[@]+"${pairs[@]}"}; do [ "${p%%=*}" = "$action" ] && mode="${p#*=}"; done
-case "$mode" in
-  garbage) echo "not json"; exit 0 ;;
-  exit3) printf '{"verdict":"deny","reason":"resolver error"}\n'; exit 3 ;;
-esac
-printf '{"action":"%s","verdict":"%s","reason":"stub %s for %s","setting_that_would_allow":{"once":null,"durable":["/plugin-config %s allow"],"note":null}}\n' \
-  "$action" "$mode" "$mode" "$action" "$action"
-STUBEOF
-chmod +x "$STUB"
+CS="$ROOT/skills/repo/cleanup/scripts/cleanup.sh"
 
 # --- gh: fake-gh.sh plus the calls it does not model ------------------------------
 FX="$TMP/fx"; mkdir -p "$FX/_defaults" "$FX/s"
@@ -157,7 +125,6 @@ new_world() {
   printf '{"id":"obj1","status":"active","integration_branch":"objective/obj1","base_branch":"main","tasks":["task-001","task-002"]}\n' > "$od/objective.json"
   printf '{"id":"task-001","status":"running","branch":"wtask","worktree":"%s"}\n' "$WTS/wtask" > "$od/tasks/task-001.json"
   printf '{"id":"task-002","status":"completed","branch":"wdone","worktree":"%s"}\n' "$WTS/wdone" > "$od/tasks/task-002.json"
-  : > "$STUB_LOG"
 }
 # run [env...] -- [args...] — the copied script on the clone; OUT and RC.
 run() {
@@ -168,56 +135,20 @@ run() {
   OUT="$(cd "$CL" && env ${envs[@]+"${envs[@]}"} bash "$CS" "$@" 2>&1)" || RC=$?
 }
 remote_has() { git -C "$ORIGIN" show-ref --verify --quiet "refs/heads/$1" && echo yes || echo no; }
-calls() { grep -c -- "$1" "$STUB_LOG" 2>/dev/null || true; }
 out_has() { has "$OUT" "$1"; }
 
 # =============================================================================
-section "dry-run deletes nothing and asks nothing"
+section "dry-run deletes nothing"
 # =============================================================================
 new_world
 run -- .
 judge "dry-run exit 0" 0 "$RC"
 judge "merged1 still on origin" yes "$(remote_has merged1)"
 judge "worktree wgone still there" yes "$(exists "$WTS/wgone")"
-judge "the resolver is never asked" 0 "$(calls ARGV)"
-judge "the plan names the R3 gate --yes will ask" yes "$(out_has "would delete merged branch: merged1 (branch.delete.remote, R3")"
+judge "the plan names the deletion --yes would make" yes "$(out_has "would delete merged branch: merged1")"
 
 # =============================================================================
-section "--yes skips no gate: the resolver decides branch.delete.remote"
-# =============================================================================
-new_world
-run STUB_MODES=branch.delete.remote=ask -- --yes --remote-only .
-judge "ask, no terminal => merged1 kept" yes "$(remote_has merged1)"
-judge "  ... exit 3" 3 "$RC"
-judge "  ... says it needs confirmation" yes "$(out_has "branch.delete.remote needs confirmation; no terminal attached")"
-judge "  ... names the setting" yes "$(out_has "allow with: /plugin-config branch.delete.remote allow")"
-judge "  ... asked headless" yes "$(has "$(grep -- '--action branch.delete.remote' "$STUB_LOG" | head -n 1)" "--headless")"
-
-new_world
-run STUB_MODES=branch.delete.remote=deny -- --yes --remote-only .
-judge "deny => merged1 kept" yes "$(remote_has merged1)"
-judge "  ... exit 3 with the reason and setting" "3 yes" \
-  "$RC $(out_has "blocked (branch.delete.remote: stub deny for branch.delete.remote): acme/widget — allow with: /plugin-config branch.delete.remote allow")"
-
-new_world
-run STUB_MODES=branch.delete.remote=exit3 -- --yes --remote-only .
-judge "resolver exits non-zero => merged1 kept" "yes 3" "$(remote_has merged1) $RC"
-
-new_world
-run STUB_MODES=branch.delete.remote=garbage -- --yes --remote-only .
-judge "unparseable resolver output => merged1 kept" "yes 3" "$(remote_has merged1) $RC"
-
-new_world
-mv "$STUB" "$STUB.off"
-run -- --yes .
-mv "$STUB.off" "$STUB"
-judge "resolver missing => merged1 kept" yes "$(remote_has merged1)"
-judge "  ... and the removable worktree kept" yes "$(exists "$WTS/wgone")"
-judge "  ... says the resolver is missing" yes "$(out_has "permission resolver (scripts/resolve-permission.sh) is missing")"
-judge "  ... exit 3" 3 "$RC"
-
-# =============================================================================
-section "allow: only what GitHub shows safe is deleted"
+section "--yes: only what GitHub shows safe is deleted"
 # =============================================================================
 new_world
 run -- --yes .
@@ -231,10 +162,6 @@ judge "ruled (ruleset deletion rule) kept" yes "$(remote_has ruled)"
 judge "unk (protection unreadable) kept" yes "$(remote_has unk)"
 judge "openpr (open PR) kept" yes "$(remote_has openpr)"
 judge "listfail (PR list failed) kept" yes "$(remote_has listfail)"
-judge "branch.delete.remote asked for exactly the two deletions" 2 "$(calls '--action branch.delete.remote')"
-judge "  ... both establish unmerged_commits=false and tag_ref=false" 2 \
-  "$(grep -- '--action branch.delete.remote' "$STUB_LOG" | grep -c -- '--cond unmerged_commits=false --cond tag_ref=false')"
-judge "  ... the precondition only with a merged same-repo PR" 1 "$(calls '--cond pr_merged_not_default_not_cross_repo=true')"
 
 judge "wgone (no origin branch, nothing unpushed) removed" no "$(exists "$WTS/wgone")"
 judge "wlocal (local-only commit, no origin branch) kept" yes "$(exists "$WTS/wlocal")"
@@ -245,21 +172,10 @@ judge "wstale (stale claim) removed" no "$(exists "$WTS/wstale")"
 judge "wtask (running objective task) kept" yes "$(exists "$WTS/wtask")"
 judge "  ... named by its task" yes "$(out_has "objective obj1 task-001 is running")"
 judge "wdone (completed task) removed" no "$(exists "$WTS/wdone")"
-judge "worktree.remove asked with discards_work=false" 3 \
-  "$(grep -- '--action worktree.remove' "$STUB_LOG" | grep -c -- '--cond discards_work=false')"
-
-new_world
-run STUB_MODES=worktree.remove=deny -- --yes --local-only .
-judge "worktree.remove denied => wgone kept" yes "$(exists "$WTS/wgone")"
-judge "  ... exit 3" 3 "$RC"
 
 new_world
 printf 'not json' > "$AGENT_CLAIM_DIR/git_acme_widget_wgone.json"
 run -- --yes --local-only .
 judge "an unreadable claim for its branch keeps the worktree" yes "$(exists "$WTS/wgone")"
-
-new_world
-run --  --yes --local-only --host claude .
-judge "--host reaches the resolver" yes "$(has "$(cat "$STUB_LOG")" "--host claude")"
 
 harness_summary

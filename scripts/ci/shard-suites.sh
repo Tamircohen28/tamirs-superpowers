@@ -21,9 +21,8 @@
 #   The suite list is `find tests -maxdepth 2 -name 'test-*.sh'`, sorted under LC_ALL=C
 #   so that a macOS shell in en_US.UTF-8 and a Linux runner in C.UTF-8 agree on the
 #   order. Suite k (0-based) goes to shard (k mod n) + 1. Round-robin by sorted name is
-#   deterministic and needs no timing data; the expensive suites (test-permission-fuzz,
-#   test-permission-guard, test-security-regressions, test-toolkit-gates, test-static,
-#   test-dist, test-hook-stdin) spread across shards because their names do.
+#   deterministic and needs no timing data; the expensive suites (test-security-regressions,
+#   test-static, test-dist, test-hook-stdin) spread across shards because their names do.
 #
 #   This script is the ONLY source of the partition: the Makefile's `test-hooks`
 #   target consumes its output, so a shard run on CI and the same `SHARD=i/n` on a

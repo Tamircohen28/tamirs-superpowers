@@ -642,13 +642,13 @@ make github-labels-plan / make github-labels              # the same two, for th
 What it will and will not do:
 
 - `apply` **creates** missing labels and **updates** drifted colours or
-  descriptions. It asks the permission resolver about `label.apply` first (R2:
-  shared-additive), and with no terminal to confirm at it prints the plan and
-  writes nothing — the same contract as the policy command.
+  descriptions. It shows each repository's changes and confirms at the
+  terminal before writing; with no terminal to confirm at it prints the plan
+  and writes nothing unless you pass `--yes` — the same contract as the policy
+  command.
 - It **never deletes** a label the set does not name unless you type
   `--prune`. A deleted label is stripped from every issue that carried it, so
-  `--prune` asks the resolver about `label.delete` separately (R3, never
-  automatic).
+  the confirmation names every deletion before anything is written.
 - `bash scripts/check-github-labels.sh` (in `make validate`, offline) holds
   the set to its schema and holds this repository's `dependabot.yml` and
   issue templates to it: a template that labels an issue with a name no

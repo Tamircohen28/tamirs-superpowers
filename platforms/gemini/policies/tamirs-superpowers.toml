@@ -1,18 +1,12 @@
 # GENERATED FILE — DO NOT EDIT.
-#   Source:     platforms/gemini/policies.source.json (rules)
+#   Source:     platforms/gemini/policies.source.json
 #   Generator:  scripts/build-gemini-hooks.sh
 #   Regenerate: bash scripts/build-gemini-hooks.sh .
 #
-# Gemini CLI loads every policies/*.toml at the extension root as tier-2 rules
-# (tier + priority/1000; the YOLO allow-all is 1.998, so a mode-less rule here
-# holds under --yolo). An extension may contribute only deny and ask_user:
-# loadExtensionPolicies drops allow rules and rules whose modes name yolo, so
-# these files can narrow what the model may do and never widen it. A user-tier
-# rule (~/.gemini/policies/*.toml) or an "Always allow" outranks them.
-#
-# Every rule below is a deny at priority 100, mirroring a hook or policy this
-# plugin already enforces. The ADR 004 permission rules (ask_user for R4) are
-# in tamirs-superpowers-permissions.toml beside this file.
+# Gemini CLI loads every policies/*.toml at the extension root as tier-2 rules.
+# Only deny (and ask_user) are honoured in an extension policy; every rule
+# below is a deny, so this file can narrow what the model may do and never
+# widen it. A user-tier rule (~/.gemini/policies/*.toml) outranks these.
 #
 # Not expressible statically (left to the hooks in hooks/hooks.json):
 #   - A push to a branch another agent currently holds (hooks/protect-other-branches.sh): the answer depends on live claim files under the shared claim directory, not on the command text.
@@ -58,12 +52,3 @@ argsPattern = '"file_path":"[^"]*/\.yarn/releases/[^"]+"'
 decision = "deny"
 priority = 100
 denyMessage = "tamirs-superpowers policy: .yarn/releases/ holds the vendored Yarn binary. Change it with `yarn set version <version>`, not by editing the file."
-
-[[rule]]
-# no-workflow-edits
-# mirrors: hooks/guard-sensitive-files.sh .github/workflows/ rule: a workflow change is R4 workflow.edit (ADR 004 D1, D10.5); the user approves and makes it, never a route around the guard.
-toolName = ["write_file", "replace"]
-argsPattern = '"file_path":"[^"]*/\.github/workflows/[^"]+"'
-decision = "deny"
-priority = 100
-denyMessage = "tamirs-superpowers policy: .github/workflows/ files are not edited by the agent. Changing a workflow is an R4 action (workflow.edit): ask the user to approve this exact change and to make it themselves, rather than routing it through another tool or a remote API."

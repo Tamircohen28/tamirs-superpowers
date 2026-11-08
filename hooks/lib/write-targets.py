@@ -1079,7 +1079,7 @@ def _static_value(tok):
     """The literal text of a word, or None when it depends on a runtime expansion.
 
     Two expansions are resolved: `$HOME`/`${HOME}` at the start — the same
-    session HOME `~` already expands to, and both are protected homes (D3) — and
+    session HOME `~` already expands to, and both are protected homes — and
     a variable the same command assigned a literal to (ASSIGNS, above).
     """
     v = tok.value
@@ -2071,18 +2071,11 @@ def _script_records(words, fragment, records):
 # read now — piped in, missing, or possibly rewritten by an earlier command in
 # the same call — it stays UNSURE.
 #
-# git commands that REPLAY committed content onto the working tree (checkout,
-# switch, restore, reset --hard, merge, pull, rebase, cherry-pick, revert, am,
-# stash pop/apply/push, clean) are judged by the files they would change, asked
-# of git itself with cheap, local, read-only queries (`git diff --name-only`,
-# `git log --name-only`, `git stash show`, `git clean -n`). Those are REPLAY
-# records: judged against the protected paths only, never the generated-file
-# rules, since a merge legitimately changes a lockfile, and a hit is an R4 ASK
-# (hook_ask on Claude Code, a deny on every other host), never a silent allow:
-# an integrator merging a branch legitimately brings a protected file in, and
-# the user decides. When git cannot answer (an unknown ref, a fetch that has
-# not happened, a timeout), the command is UNSURE and says so; an explicit
-# pathspec that names a protected path is still judged, as the same ask.
+# In the protected-path pass, `git rm` and `git mv` are judged by their
+# operands. git commands that REPLAY committed content onto the working tree
+# (checkout, switch, restore, reset, merge, pull, rebase, cherry-pick, revert,
+# am, stash, clean) are not judged: an integrator merging a branch legitimately
+# brings any file in, and git undoes it (6.0.0 dropped the ask they used to be).
 #
 # Every git query runs with core.fsmonitor off, no pager, no external diff or
 # textconv, GIT_OPTIONAL_LOCKS=0 (no index refresh write) and a deadline, all
@@ -2117,23 +2110,10 @@ def _git(frame, args):
     return p.stdout.decode("utf-8", "replace")
 
 
-def _z(out):
-    return None if out is None else [x for x in out.split("\0") if x.strip()]
-
-
 def _git_top(frame):
     out = _git(frame, ["rev-parse", "--show-toplevel"])
     top = out.strip() if out else ""
     return top or None
-
-
-def _git_rev(frame, rev, kind="commit"):
-    return _git(frame, ["rev-parse", "--verify", "--quiet", "%s^{%s}" % (rev, kind)]) is not None
-
-
-def _git_diff(frame, revs, pathspecs=()):
-    return _z(_git(frame, ["diff", "--name-only", "-z", "--no-ext-diff", "--no-textconv",
-                           "--no-renames"] + list(revs) + ["--"] + list(pathspecs)))
 
 
 def _git_split(args, value_opts):
@@ -2201,254 +2181,6 @@ class _GitCtx(object):
     def unsure(self, why):
         self.records.append(("UNSURE", "git %s %s" % (self.sub, why), self.fragment))
 
-    def replay(self, names, base=None):
-        base = base or self.top or self.frame
-        for name in names:
-            self.records.append(("REPLAY", os.path.normpath(os.path.join(base, name)), self.fragment))
-
-    def values(self, toks):
-        vals = [_static_value(t) for t in toks]
-        if any(v is None for v in vals):
-            self.unsure("is given a revision or path built by shell expansion, so the files it rewrites were not checked")
-            return None
-        return vals
-
-    def pathspec_fallback(self, paths, why):
-        """git could not answer: an explicit pathspec still counts, and the rest is said."""
-        for p in paths:
-            if not any(c in p for c in "*?[") and not p.startswith(":"):
-                full = _resolve(p, self.frame)
-                if full:
-                    self.records.append(("REPLAY", full, self.fragment))
-        self.unsure(why)
-
-    def paths_from(self, source, paths):
-        names = _git_diff(self.frame, [source] if source else [], paths)
-        if names is None:
-            self.pathspec_fallback(paths, "could not be asked which files `%s` differs in, so only its explicit "
-                                          "paths were checked" % (source or "the index"))
-        else:
-            self.replay(names)
-
-    def switch_to(self, target, force):
-        names = _git_diff(self.frame, [target] if force else ["HEAD", target])
-        if names is None and not force:
-            names = _git_diff(self.frame, [target])
-        if names is None:
-            self.unsure("could not determine which files switching to `%s` rewrites, so they were not checked" % target)
-        else:
-            self.replay(names)
-
-    def incoming(self, refs):
-        for ref in refs:
-            names = _git_diff(self.frame, ["HEAD..." + ref])
-            if names is None:
-                self.unsure("could not determine the incoming changes of `%s`, so the files it rewrites were "
-                            "not checked" % ref)
-            else:
-                self.replay(names)
-
-    def commits(self, revs):
-        names = _z(_git(self.frame, ["log", "--no-walk=unsorted", "-m", "--format=", "--name-only",
-                                     "-z", "--no-ext-diff"] + list(revs) + ["--"]))
-        if names is None:
-            self.unsure("could not determine the files those commits change, so they were not checked")
-        else:
-            self.replay(names)
-
-
-def _git_checkout(g, args):
-    opts, ops, after, ddash = _git_split(args, ("-b", "-B", "--orphan", "--conflict", "--pathspec-from-file"))
-    if _has(opts, "-p", "--patch", "--pathspec-from-file"):
-        return g.unsure("chooses its paths interactively or from a file, so the files it rewrites were not checked")
-    vals = g.values(ops + after)
-    if vals is None:
-        return
-    before, paths = vals[:len(ops)], vals[len(ops):]
-    force = _has(opts, "-f", "--force", "-m", "--merge")
-    if ddash:
-        return g.paths_from(before[0] if before else None, paths)
-    if _has(opts, "-b", "-B", "--orphan"):
-        if before:
-            g.switch_to(before[0], force)
-        return
-    if not before:
-        return
-    if len(before) == 1 and _git_rev(g.frame, before[0]):
-        return g.switch_to(before[0], force)
-    if _git_rev(g.frame, before[0], "tree"):
-        return g.paths_from(before[0], before[1:])
-    g.paths_from(None, before)
-
-
-def _git_switch(g, args):
-    opts, ops, after, ddash = _git_split(args, ("-c", "-C", "--create", "--force-create", "--orphan", "--conflict"))
-    vals = g.values(ops)
-    if vals is None:
-        return
-    if _has(opts, "--orphan"):
-        # An orphan branch starts with no tracked files: every one of them goes.
-        names = _z(_git(g.frame, ["ls-files", "-z", "--full-name"]))
-        return g.replay(names) if names is not None else g.unsure("could not list the tracked files it removes")
-    force = _has(opts, "-f", "--force", "--discard-changes", "-m", "--merge")
-    if vals:
-        g.switch_to(vals[0], force)
-
-
-def _git_restore(g, args):
-    opts, ops, after, ddash = _git_split(args, ("-s", "--source", "--pathspec-from-file", "--conflict"))
-    if _has(opts, "-p", "--patch", "--pathspec-from-file"):
-        return g.unsure("chooses its paths interactively or from a file, so the files it rewrites were not checked")
-    staged = _has(opts, "-S", "--staged")
-    if staged and not _has(opts, "-W", "--worktree"):
-        return                  # the index only
-    vals = g.values(ops + after)
-    if vals is None:
-        return
-    source = opts.get("-s") or opts.get("--source")
-    source = source if isinstance(source, str) else ("HEAD" if staged else None)
-    g.paths_from(source, vals)
-
-
-def _git_reset(g, args):
-    opts, ops, after, ddash = _git_split(args, ("--pathspec-from-file",))
-    if after or not _has(opts, "--hard", "--merge", "--keep"):
-        return                  # the index and HEAD only
-    vals = g.values(ops[:1])
-    if vals is None:
-        return
-    commit = vals[0] if vals else "HEAD"
-    names = _git_diff(g.frame, [commit] if "--hard" in opts else ["HEAD", commit])
-    if names is None:
-        return g.unsure("could not determine which files resetting to `%s` rewrites, so they were not checked" % commit)
-    g.replay(names)
-
-
-def _git_merge(g, args):
-    opts, ops, after, ddash = _git_split(args, ("-m", "-F", "-s", "-X", "--strategy", "--strategy-option",
-                                                "--file", "--into-name", "--cleanup", "--message"))
-    if _has(opts, "--abort"):
-        return g.unsure("restores the pre-merge working tree; the files it rewrites were not computed")
-    if _has(opts, "--continue", "--quit"):
-        return
-    vals = g.values(ops)
-    if vals is not None:
-        g.incoming(vals or ["@{u}"])
-
-
-def _git_pull(g, args):
-    opts, ops, after, ddash = _git_split(args, (
-        "-s", "-X", "--strategy", "--strategy-option", "--depth", "--deepen", "--shallow-since",
-        "--shallow-exclude", "-j", "--jobs", "--upload-pack", "-o", "--server-option", "--negotiation-tip"))
-    vals = g.values(ops)
-    if vals is None:
-        return
-    if vals and vals[0] == ".":
-        # A pull from this repository: every ref is local, so the answer is known.
-        refs = [v.split(":", 1)[0] for v in vals[1:]]
-        if refs:
-            return g.incoming(refs)
-        return g.unsure("merges a ref this parse cannot name, so the files it rewrites were not checked")
-    if len(vals) > 1:
-        refs = ["%s/%s" % (vals[0], v.split(":", 1)[0].replace("refs/heads/", "")) for v in vals[1:]]
-    else:
-        refs = ["@{u}"]
-    seen = [r for r in refs if _git_rev(g.frame, r)]
-    for r in seen:
-        names = _git_diff(g.frame, ["HEAD..." + r])
-        if names is not None:
-            g.replay(names)
-    g.unsure("fetches commits this check has not seen, so the files it rewrites could not be determined%s"
-             % (" (only the already-fetched %s was checked)" % ", ".join(seen) if seen else ""))
-
-
-def _git_rebase(g, args):
-    opts, ops, after, ddash = _git_split(args, ("--onto", "-s", "-X", "--strategy", "--strategy-option",
-                                                "-x", "--exec", "-C", "--whitespace", "--empty"))
-    if _has(opts, "--continue", "--skip", "--abort"):
-        return g.unsure("resumes or unwinds a rebase in progress; the files it rewrites were not computed")
-    if _has(opts, "--quit", "--edit-todo", "--show-current-patch"):
-        return
-    if _has(opts, "-x", "--exec", "--root", "-i", "--interactive"):
-        g.unsure("runs a todo list or commands this parse does not read")
-    vals = g.values(ops)
-    if vals is None:
-        return
-    onto = opts.get("--onto")
-    upstream = vals[0] if vals else "@{u}"
-    if len(vals) > 1:
-        g.switch_to(vals[1], False)
-    g.incoming([onto if isinstance(onto, str) else upstream])
-
-
-def _git_pick(g, args):
-    opts, ops, after, ddash = _git_split(args, ("-m", "--mainline", "-s", "--strategy", "-X",
-                                                "--strategy-option", "--cleanup"))
-    if _has(opts, "--continue", "--skip", "--abort"):
-        return g.unsure("resumes or unwinds a sequence in progress; the files it rewrites were not computed")
-    if _has(opts, "--quit"):
-        return
-    vals = g.values(ops)
-    if vals:
-        g.commits(vals)
-
-
-def _git_stash(g, args):
-    sub = args[0].value if args and not args[0].value.startswith("-") else "push"
-    rest = args[1:] if args and not args[0].value.startswith("-") else args
-    if sub in ("pop", "apply", "branch"):
-        opts, ops, after, ddash = _git_split(rest, ())
-        vals = g.values(ops)
-        if vals is None:
-            return
-        if sub == "branch":
-            vals = vals[1:]
-        stash = vals[0] if vals else "stash@{0}"
-        names = _z(_git(g.frame, ["stash", "show", "--name-only", "-z", "--include-untracked", stash]))
-        if names is None:
-            names = _git_diff(g.frame, [stash + "^1", stash])
-            if names is not None:
-                names += _z(_git(g.frame, ["ls-tree", "-r", "--name-only", "-z", stash + "^3"])) or []
-        if names is None:
-            return g.unsure("could not determine the files `%s` holds, so they were not checked" % stash)
-        return g.replay(names)
-    if sub in ("push", "save"):
-        # The working tree goes back to HEAD: every changed file is rewritten.
-        opts, ops, after, ddash = _git_split(rest, ("-m", "--message", "--pathspec-from-file"))
-        if _has(opts, "-p", "--patch", "--pathspec-from-file"):
-            return g.unsure("chooses its paths interactively or from a file, so the files it rewrites were not checked")
-        paths = g.values(after if sub == "push" else [])
-        if paths is None:
-            return
-        names = _git_diff(g.frame, ["HEAD"], paths)
-        if _has(opts, "-u", "--include-untracked", "-a", "--all") and names is not None:
-            extra = ["--exclude-standard"] if not _has(opts, "-a", "--all") else []
-            untracked = _z(_git(g.frame, ["ls-files", "--others", "--full-name", "-z"] + extra + ["--"] + paths))
-            names = None if untracked is None else names + untracked
-        if names is None:
-            return g.unsure("could not determine which files it rewrites, so they were not checked")
-        g.replay(names)
-
-
-def _git_clean(g, args):
-    flags = []
-    for a in args:
-        v = a.value
-        if v in ("-f", "--force", "-i", "--interactive", "-q", "--quiet", "-n", "--dry-run"):
-            continue
-        if v.startswith("-") and not v.startswith("--"):
-            head, sep, tail = v[1:].partition("e")
-            body = "".join(c for c in head if c not in "fiqn") + sep + tail
-            if body:
-                flags.append("-" + body)
-            continue
-        flags.append(v)
-    out = _git(g.frame, ["clean", "-n"] + flags)
-    if out is None:
-        return g.unsure("could not determine which files it removes, so they were not checked")
-    names = [line[len("Would remove "):] for line in out.splitlines() if line.startswith("Would remove ")]
-    g.replay(names, base=g.frame)
-
 
 def _git_rm(g, args):
     opts, ops, after, ddash = _git_split(args, ("--pathspec-from-file",))
@@ -2491,16 +2223,6 @@ def _git_apply(g, args, heredocs, stdin_file, piped_in):
     _apply_patch_files(g, opts, ops + after, heredocs, stdin_file, piped_in, "TARGET")
 
 
-def _git_am(g, args, heredocs, stdin_file, piped_in):
-    opts, ops, after, ddash = _git_split(args, ("-p", "-C", "--directory", "--exclude", "--include",
-                                                "--patch-format", "--whitespace", "--quoted-cr", "--empty"))
-    if _has(opts, "--continue", "-r", "--resolved", "--skip", "--abort", "--retry"):
-        return g.unsure("resumes or unwinds an am in progress; the files it rewrites were not computed")
-    if _has(opts, "--quit", "--show-current-patch"):
-        return
-    _apply_patch_files(g, opts, ops + after, heredocs, stdin_file, piped_in, "REPLAY")
-
-
 def _apply_patch_files(g, opts, files, heredocs, stdin_file, piped_in, kind):
     try:
         strip = int(opts.get("-p", 1))
@@ -2520,13 +2242,8 @@ def _apply_patch_files(g, opts, files, heredocs, stdin_file, piped_in, kind):
                 g.records.append((kind, os.path.normpath(os.path.join(base, q)), g.fragment))
 
 
-GIT_HANDLERS = {
-    "checkout": _git_checkout, "switch": _git_switch, "restore": _git_restore, "reset": _git_reset,
-    "merge": _git_merge, "pull": _git_pull, "rebase": _git_rebase, "cherry-pick": _git_pick,
-    "revert": _git_pick, "stash": _git_stash, "clean": _git_clean, "rm": _git_rm, "mv": _git_mv,
-}
-GIT_PATCH_HANDLERS = {"apply": _git_apply, "am": _git_am}
-GIT_OPAQUE = ("read-tree", "checkout-index", "bisect")
+GIT_HANDLERS = {"rm": _git_rm, "mv": _git_mv}
+GIT_PATCH_HANDLERS = {"apply": _git_apply}
 GIT_GLOBAL_VALUE = ("-c", "--namespace", "--exec-path", "--config-env", "--super-prefix",
                     "--attr-source", "--list-cmds")
 
@@ -2559,22 +2276,18 @@ def _git_records(words, cwd, fragment, heredocs, stdin_file, records, piped_in):
     if i >= len(words):
         return
     sub, args = words[i].value, words[i + 1:]
-    known = sub in GIT_HANDLERS or sub in GIT_PATCH_HANDLERS or sub in GIT_OPAQUE
-    if not known:
+    if sub not in GIT_HANDLERS and sub not in GIT_PATCH_HANDLERS and sub != "am":
         return
-    if not PROTECTED_MODE:
-        # Only the protected-path pass asks git; every other caller keeps the old answer.
-        if sub in GIT_PATCH_HANDLERS:
+    if not PROTECTED_MODE or sub == "am":
+        # Only the protected-path pass reads `git rm`, `git mv` and a `git apply` patch; every
+        # other caller, and `git am` (commits replayed from a mailbox), keeps the old answer.
+        if sub in GIT_PATCH_HANDLERS or sub == "am":
             records.append(("UNSURE", "applies a patch; the written paths are named inside the patch, not on the command line", fragment))
         return
     g = _GitCtx(sub, frame, fragment, records)
     if lost or frame is None:
         return g.unsure("runs against a repository this parse cannot locate (-C, --git-dir or --work-tree), so "
-                        "the files it rewrites were not checked")
-    if sub in GIT_OPAQUE:
-        if sub != "read-tree" or any(a.value in ("-u", "--reset") for a in args):
-            g.unsure("rewrites the working tree from the index or another commit; the files it changes were not computed")
-        return
+                        "the files it writes were not checked")
     if sub in GIT_PATCH_HANDLERS:
         return GIT_PATCH_HANDLERS[sub](g, args, heredocs, stdin_file, piped_in)
     GIT_HANDLERS[sub](g, args)
@@ -2830,13 +2543,12 @@ def records_for(payload):
 
 
 # --------------------------------------------------------------------------
-# Protected paths (`--protected`): ADR 004 D10.1, security review S-03
+# Protected paths (`--protected`): security review S-03
 # --------------------------------------------------------------------------
-# The plugin's own permission policy, its guard files and every host settings
-# store that could widen what an agent may do are R4 `policy.edit`: the agent
-# never writes them, and no environment switch unlocks them (D10.1, D10.3).
-# Only guard-sensitive-files.sh passes `--protected`; every other consumer of
-# this parser sees the output it always saw.
+# The installed plugin's guard files and every host settings store that could
+# widen what an agent may do: the agent never writes them, and no environment
+# switch unlocks them. Only guard-sensitive-files.sh passes `--protected`;
+# every other consumer of this parser sees the output it always saw.
 #
 # Three things differ from the other protected categories:
 #   - Both the lexical path and its realpath are judged. A symlink that points
@@ -2847,57 +2559,47 @@ def records_for(payload):
 #     that CONTAINS a protected home or plugin-root path counts as deleting it.
 #   - An UNSURE write whose command text names a protected path is a deny, not
 #     an advisory: the parser cannot prove which file an interpreter writes, so
-#     a mention is the only evidence there is, and for R4 it is enough.
+#     a mention is the only evidence there is, and for these paths it is enough.
 #
-# The table comes from core/permissions/actions.json (`equivalents.paths` of
-# the ids below); FALLBACK_PROTECTED is used only when that file cannot be
-# read, and tests/test-sensitive-protected-paths.sh holds the two equal.
+# platforms/opencode/plugin/rules.ts carries the same list, and its test holds
+# the two equal.
 PROTECTED_MODE = False
-PROTECTED_IDS = ("policy.edit", "config.global.write")
-FALLBACK_PROTECTED = {
-    "policy.edit": [
-        "{home}/.config/tamirs-superpowers/**",
-        "{home}/.local/state/tamirs-superpowers/**",
-        "{repo}/.tamirs-superpowers/**",
-        "{plugin_root}/hooks/**",
-        "{plugin_root}/core/permissions/**",
-        "{plugin_root}/scripts/resolve-permission.sh",
-        "{plugin_root}/scripts/plugin-config.sh",
-        "{plugin_root}/scripts/lib/permission-common.sh",
-        "{home}/.claude/plugins/cache/**",
-        "{home}/.claude/settings*.json",
-        "{repo}/.claude/settings*.json",
-        "{home}/.gemini/settings.json",
-        "{home}/.gemini/policies/**",
-        "{home}/.gemini/extensions/tamirs-superpowers/**",
-        "{repo}/.gemini/settings.json",
-        "{repo}/.gemini/policies/**",
-        "{repo}/.gemini/extensions/**",
-        "{home}/.codex/config.toml",
-        "{home}/.codex/hooks*",
-        "{home}/.codex/rules/**",
-        "{home}/.codex/plugins/**",
-        "{home}/.cursor/hooks.json",
-        "{home}/.cursor/cli-config.json",
-        "{home}/.cursor/permissions.json",
-        "{repo}/.cursor/hooks.json",
-        "{home}/.config/opencode/**",
-        "{repo}/opencode.json",
-        "{repo}/opencode.jsonc",
-        "{repo}/.opencode/opencode.json",
-        "{repo}/.opencode/opencode.jsonc",
-        "{repo}/.opencode/plugin/**",
-        "{repo}/.opencode/plugins/**",
-        "{repo}/.opencode/agent/**",
-        "{repo}/.opencode/agents/**",
-        "{home}/.config/gh/**",
-        "{home}/.gitconfig",
-    ],
-    "config.global.write": [
-        "{repo}/.git/hooks/**",
-        "{repo}/.git/config",
-    ],
-}
+PROTECTED_PATHS = [
+    "{plugin_root}/hooks/**",
+    # An installed copy carries no `.git`; one planted there would make it read as a
+    # source checkout, which is not protected (protected_roots), so it is protected too.
+    "{plugin_root}/.git/**",
+    "{home}/.claude/plugins/cache/**",
+    "{home}/.claude/settings*.json",
+    "{repo}/.claude/settings*.json",
+    "{home}/.gemini/settings.json",
+    "{home}/.gemini/policies/**",
+    "{home}/.gemini/extensions/tamirs-superpowers/**",
+    "{repo}/.gemini/settings.json",
+    "{repo}/.gemini/policies/**",
+    "{repo}/.gemini/extensions/**",
+    "{home}/.codex/config.toml",
+    "{home}/.codex/hooks*",
+    "{home}/.codex/rules/**",
+    "{home}/.codex/plugins/**",
+    "{home}/.cursor/hooks.json",
+    "{home}/.cursor/cli-config.json",
+    "{home}/.cursor/permissions.json",
+    "{repo}/.cursor/hooks.json",
+    "{home}/.config/opencode/**",
+    "{repo}/opencode.json",
+    "{repo}/opencode.jsonc",
+    "{repo}/.opencode/opencode.json",
+    "{repo}/.opencode/opencode.jsonc",
+    "{repo}/.opencode/plugin/**",
+    "{repo}/.opencode/plugins/**",
+    "{repo}/.opencode/agent/**",
+    "{repo}/.opencode/agents/**",
+    "{home}/.config/gh/**",
+    "{home}/.gitconfig",
+    "{repo}/.git/hooks/**",
+    "{repo}/.git/config",
+]
 GLOB_CHARS = "*?["
 
 
@@ -2906,22 +2608,8 @@ def _this_plugin_root():
 
 
 def protected_table(root=None):
-    """[(action id, pattern)] from actions.json, else the fallback table."""
-    root = root or _this_plugin_root()
-    try:
-        with open(os.path.join(root, "core", "permissions", "actions.json")) as fh:
-            data = json.load(fh)
-        actions = data["actions"]
-        by_id = actions if isinstance(actions, dict) else dict((a["id"], a) for a in actions)
-        out = []
-        for aid in PROTECTED_IDS:
-            paths = by_id[aid]["equivalents"]["paths"]
-            if not paths or not all(isinstance(p, str) for p in paths):
-                raise ValueError(aid)
-            out.extend((aid, p) for p in paths)
-        return out
-    except Exception:  # noqa: BLE001 - an unreadable catalog must not unprotect
-        return [(aid, p) for aid in PROTECTED_IDS for p in FALLBACK_PROTECTED[aid]]
+    """[(label, pattern)] — every protected path, under one label."""
+    return [("protected", p) for p in PROTECTED_PATHS]
 
 
 def _forms(path):
@@ -2934,7 +2622,7 @@ def _forms(path):
 
 
 def passwd_home():
-    """The real uid's home from the passwd entry, as scripts/lib/permission-common.sh reads it (D3)."""
+    """The real uid's home from the passwd entry, never HOME alone."""
     try:
         import pwd
         return pwd.getpwuid(os.getuid()).pw_dir
@@ -2943,7 +2631,7 @@ def passwd_home():
 
 
 def protected_roots():
-    """{placeholder: [(root, mode)]} — mode is deny, or ask for a source checkout's guard files."""
+    """{placeholder: [(root, mode)]} — every mode is deny."""
     homes = []
     # The passwd home decides (S-04); a session HOME is added, never trusted
     # instead — protecting one more directory can only tighten.
@@ -2957,10 +2645,13 @@ def protected_roots():
         if r and os.path.isabs(r) and os.path.isdir(r):
             # A source checkout carries its own `.git` at the root; an installed
             # copy never does, even when an ancestor (a dotfiles home) is a repo.
-            mode = "ask" if os.path.lexists(os.path.join(os.path.realpath(r), ".git")) else "deny"
+            # A source checkout is the contributor's own work tree, so its guard
+            # files are not protected (they never were before 5.2.0).
+            if os.path.lexists(os.path.join(os.path.realpath(r), ".git")):
+                continue
             for f in _forms(r):
                 if f not in [p for p, _ in plugin]:
-                    plugin.append((f, mode))
+                    plugin.append((f, "deny"))
     return {"home": [(h, "deny") for h in homes], "plugin_root": plugin}
 
 
@@ -3284,26 +2975,15 @@ def _source_records(argv0, words, cwd, fragment):
     return out
 
 
-# What an R4 ask adds to its reason, by why it is an ask and not a deny. A
-# guard file of a plugin source checkout is editable with approval; a git
-# replay (checkout, switch, restore, reset, merge, pull, rebase, cherry-pick,
-# revert, am, stash) is how an integrator legitimately brings a branch's
-# version of such a file in, so it is put to the user (hook_ask on Claude
-# Code, a deny on every other host) rather than refused outright (D10.1).
-SOURCE_CHECKOUT_ASK_TAIL = (" This plugin runs from a source checkout, so its guard files are editable, but only with "
-                            "the user's explicit approval of this change.")
-REPLAY_ASK_TAIL = (" A git branch operation brings in another commit's version of it, so it is put to the user "
-                   "rather than refused: confirm only if you meant this operation to change that file.")
-
 # Kinds that never leave this module: they are consumed by protect().
 INTERNAL_KINDS = ("SOURCE", "REPLAY", "PREFIX", "ANOMALY", "RAN")
 
 
 def protect(records, payload):
-    """The parse with PROTECTED <tab> deny|ask <tab> <why> records in front.
+    """The parse with PROTECTED <tab> deny <tab> <why> records in front.
 
     One record per subject (a path, or a name found in unresolved command
-    text): its deny if any rule denies it, else its ask. SOURCE, REPLAY, PREFIX,
+    text). REPLAY records are dropped (a git replay is not judged). SOURCE, REPLAY, PREFIX,
     ANOMALY and RAN records are consumed here; every TARGET/DELETE/TREE whose
     realpath (spelled on disk) differs is repeated under it, so the other rules
     judge the file actually written too.
@@ -3313,7 +2993,7 @@ def protect(records, payload):
     tool_input = payload.get("tool_input") or {}
     text = tool_input.get("command") if isinstance(tool_input.get("command"), str) else ""
     out = []
-    verdicts = {}       # subject -> (mode, message), first deny wins over any ask
+    verdicts = {}       # subject -> (mode, message), the first one wins
     order = []
     anomalies = []
 
@@ -3328,14 +3008,13 @@ def protect(records, payload):
         for mode, aid, pattern, form, inside in hits:
             resolved = "" if form == path else " (resolves to '%s')" % form
             via = " (via: %s)" % fragment if fragment else ""
-            what = "it holds a path protected" if inside else "it is protected"
-            # A git replay is an R4 ASK, never a silent allow: hook_ask puts it to
-            # the user on Claude Code and is a deny on every other host (D8, D10.1).
+            what = "it holds a protected path" if inside else "it is protected"
+            # A git replay (checkout, merge, pull, rebase, ...) is how an integrator
+            # legitimately brings a branch's version of a file in: not judged here.
             if replay:
-                mode = "ask"
-            tail = (REPLAY_ASK_TAIL if replay else SOURCE_CHECKOUT_ASK_TAIL) if mode == "ask" else ""
-            flag(path, mode, "'%s'%s %s, and %s as %s (R4; matches %s).%s%s"
-                 % (path, resolved, why, what, aid, pattern, via, tail))
+                return
+            flag(path, mode, "'%s'%s %s, and %s (matches %s).%s"
+                 % (path, resolved, why, what, pattern, via))
 
     for kind, detail, fragment in records:
         if kind == "SOURCE":
@@ -3379,7 +3058,7 @@ def protect(records, payload):
                     lead = "a write this parse could not resolve names '%s'" % m.group(0)
                 flag("name:" + m.group(0).casefold(), mode,
                      "%s, which matches %s; an unresolved write that names a protected path is treated as "
-                     "a write to it.%s" % (lead, pattern, SOURCE_CHECKOUT_ASK_TAIL if mode == "ask" else ""))
+                     "a write to it." % (lead, pattern))
     return [("PROTECTED",) + verdicts[s] for s in order] + out
 
 
@@ -3403,7 +3082,7 @@ def main():
     if PROTECTED_MODE:
         try:
             records = protect(records, payload)
-        except Exception as exc:  # noqa: BLE001 - fail closed: R4 paths cannot be cleared
+        except Exception as exc:  # noqa: BLE001 - fail closed: protected paths cannot be cleared
             records = [("PROTECTED", "deny", "the protected-path check failed (%s: %s), so this "
                         "write cannot be cleared." % (type(exc).__name__, exc))] + \
                 [r for r in records if r[0] not in INTERNAL_KINDS]

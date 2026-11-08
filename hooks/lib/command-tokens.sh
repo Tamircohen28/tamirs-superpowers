@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # shellcheck shell=bash
-# command-tokens.sh — the shell tokeniser shared by the guards that read a Bash
-# command: lib/agent-claim.sh (the concurrency guard, protect-other-branches.sh)
-# and permission-guard.sh (ADR 004 item 4: "a tokeniser lib shared with
-# hooks/lib/agent-claim.sh").
+# command-tokens.sh — the shell tokeniser behind lib/agent-claim.sh (the
+# concurrency guard, protect-other-branches.sh). Keep mode was written for the
+# permission guard removed in 6.0.0 (ADR 006); it has no in-tree caller now and
+# is kept as a stricter reading for a future guard.
 #
 # Sourced, never executed. Bash 3.2 compatible, builtins only.
 #
@@ -33,7 +33,7 @@
 #       The raw segments. Quotes are consumed (their content stays inside one
 #       token), heredoc bodies are dropped, and `;`, `&`, `|`, newline, `(`/`)`
 #       and command substitutions start a new segment — but only outside quotes.
-#       With `keep` (the permission guard's mode) a command substitution
+#       With `keep` (the stricter mode) a command substitution
 #       `$(...)` or `...` is ALSO kept, verbatim, inside the word it sits in,
 #       so `curl -H "token $(gh auth status)" https://…` stays one curl segment;
 #       the commands inside the substitution are emitted as their own segments,
@@ -44,7 +44,7 @@
 #       (leading assignments and wrappers such as sudo/env/timeout removed, so
 #       token 0 is the program), with `sh -c '<string>'` descended into.
 #   cmdtok_argv_segments <command> [depth]
-#       the permission guard's view (keep mode): leading reserved words (`if`,
+#       the stricter view (keep mode): leading reserved words (`if`,
 #       `then`, `do`, `{`, `!`, `function NAME`, `coproc [NAME]`, …) dropped,
 #       assignments and wrappers KEPT (the catalog matches env assignments such
 #       as HUSKY=0 and GH_REPO=…), and the string a shell runs replaced by its
@@ -54,7 +54,7 @@
 #       `su|runuser -c`, `env -S '<string>'`, `watch <words>`, a herestring
 #       fed to a shell, and each `find -exec … ;` / `fd -x …` command.
 #
-# KEEP MODE READS WHAT A SHELL READS (ADR 004 D1, SR S-07)
+# KEEP MODE READS WHAT A SHELL READS (security review S-07)
 #   The guard must not see a different command from the one that runs, so
 #   keep mode also follows `# comments`, ANSI-C `$'…'` quotes, `((…))`,
 #   process substitution `<(…)`/`>(…)` (its commands nested), nested
@@ -77,7 +77,7 @@
 #   is unchanged by all of this: every keep-mode reading above is gated on
 #   `keep`, so the concurrency guard's claims stay byte-identical.
 #
-# NOT SEEN (the residual ADR 004 D1 names): aliases (never expanded), eval,
+# NOT SEEN: aliases (never expanded), eval,
 # make, interpreters (`python3 -c`, `node -e`), a script file's contents,
 # and anything built at runtime from variables.
 
@@ -92,8 +92,8 @@
 #                  could not read the way a shell does (the guard fails closed on it).
 #   CMDTOK_HERESTR File separator (28): leads a token that is a herestring's data (`<<< word`).
 #   CMDTOK_PIPED   Substitute (26): a token leading a segment whose stdin is a pipe.
-# Without jq the separators cannot be built and nothing here can tokenise safely: loading fails, and both
-# callers turn that into a fail-closed exit (permission-guard.sh `|| exit 1`, agent-claim.sh likewise).
+# Without jq the separators cannot be built and nothing here can tokenise safely: loading fails, and
+# the caller turns that into a fail-closed exit (agent-claim.sh).
 IFS=' ' read -r CMDTOK_SEP CMDTOK_NESTED CMDTOK_ANOMALY CMDTOK_HERESTR CMDTOK_PIPED \
   < <(jq -nr '[31, 32, 30, 32, 29, 32, 28, 32, 26] | implode' 2>/dev/null) || true
 if [ "${#CMDTOK_SEP}" != 1 ] || [ "${#CMDTOK_NESTED}" != 1 ] || [ "${#CMDTOK_ANOMALY}" != 1 ] \
@@ -753,7 +753,7 @@ cmdtok_effective_segments() {
 
 # cmdtok_argv_segments <command> [depth] [prefix-assignments]
 #
-# The permission guard's view; see the header. A line that starts with
+# The stricter keep-mode view; see the header. A line that starts with
 # CMDTOK_NESTED runs in a subshell (a substitution or an `sh -c` string): its
 # `cd` does not move the commands after it. CMDTOK_ANOMALY lines pass through.
 cmdtok_argv_segments() {

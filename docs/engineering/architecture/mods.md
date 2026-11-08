@@ -81,7 +81,7 @@ already approximates.
 
 ## Options
 
-Six non-sensitive `userConfig` fields, shown as rows in `/config` and editable with
+Five non-sensitive `userConfig` fields, shown as rows in `/config` and editable with
 `claude plugin configure tamirs-superpowers`:
 
 | Field | Default | Effect |
@@ -91,7 +91,6 @@ Six non-sensitive `userConfig` fields, shown as rows in `/config` and editable w
 | `notification_hooks` | true | Notification-tier bash hooks run (desktop and phone notifications, VPN exit check, usage-capture collector start) |
 | `contributor_hooks` | false | Contributor-tier bash hooks run (reload reminder, `report.md` link validation, hand-written `SKILL.md` guard) |
 | `unresolved_write_notices` | false | The protected-file guard tells Claude when a command writes somewhere it cannot resolve; resolvable protected writes are denied either way |
-| `permission_level` | supervised | The permission-level preset (`supervised` / `standard` / `unattended`, a picker): the ceiling the resolver and `hooks/permission-guard.sh` apply. Read by the bash hooks and scripts only — the mod answers no permission ([ADR 004](../decisions/004-permission-levels.md) D3, D10.4) |
 
 The first two are the mod's. The two hook-tier options are **read by the bash hooks, not by
 the mod**: Claude Code exports them to each hook process as `CLAUDE_PLUGIN_OPTION_*`, and
