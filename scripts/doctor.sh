@@ -58,12 +58,52 @@ else
   done
 fi
 
-# Print "name version" for a tool, or empty if absent. Never reads stdin.
+PROBE_SECS="${DOCTOR_PROBE_SECONDS:-3}"
+case "$PROBE_SECS" in 1|2|3) ;; *) PROBE_SECS=3 ;; esac
+PROBE_TIMED_OUT="version unknown (probe timed out)"
+
+# with_deadline <seconds> <command...> — run it, killed after <seconds> with every process it
+# started; its status, or 124/137/143 when the deadline killed it. coreutils timeout/gtimeout
+# when installed, else a background job in its own process group and a watchdog (macOS ships
+# no timeout). Every external probe below goes through it, so one stalled CLI can never hang
+# doctor before its install-integrity and dependency report (#412).
+with_deadline() {
+  local secs="$1" pid wd rc=0 mon=0 sl
+  shift
+  if command -v timeout >/dev/null 2>&1; then
+    timeout -k 1 "$secs" "$@" || rc=$?
+    return "$rc"
+  fi
+  if command -v gtimeout >/dev/null 2>&1; then
+    gtimeout -k 1 "$secs" "$@" || rc=$?
+    return "$rc"
+  fi
+  sl="$(command -v sleep 2>/dev/null || echo /bin/sleep)"
+  case "$-" in *m*) mon=1 ;; esac
+  set -m
+  "$@" &
+  pid=$!
+  [[ "$mon" == 1 ]] || set +m
+  ( "$sl" "$secs"; kill -TERM -- "-$pid" 2>/dev/null; "$sl" 1; kill -KILL -- "-$pid" 2>/dev/null ) \
+    </dev/null >/dev/null 2>&1 &
+  wd=$!
+  wait "$pid" || rc=$?
+  kill "$wd" 2>/dev/null || true
+  wait "$wd" 2>/dev/null || true
+  return "$rc"
+}
+
+# Print "name version" for a tool, or empty if absent. Never reads stdin; never waits longer
+# than the probe deadline.
 tool_version() {
-  local bin="$1" ver
+  local bin="$1" out="" rc=0
   command -v "$bin" >/dev/null 2>&1 || return 1
-  ver="$("$bin" --version </dev/null 2>/dev/null | head -1 || true)"
-  printf '%s' "${ver:-present}"
+  out="$(with_deadline "$PROBE_SECS" "$bin" --version </dev/null 2>/dev/null)" || rc=$?
+  case "$rc" in
+    124|137|143) printf '%s' "$PROBE_TIMED_OUT"; return 0 ;;
+  esac
+  out="$(printf '%s\n' "$out" | head -1 || true)"
+  printf '%s' "${out:-present}"
 }
 
 echo "tamirs-superpowers doctor"
@@ -164,7 +204,7 @@ done
 
 # --- Optional features ---
 hdr "Optional features"
-if command -v gh >/dev/null 2>&1 && gh auth status </dev/null >/dev/null 2>&1; then
+if command -v gh >/dev/null 2>&1 && with_deadline 5 gh auth status </dev/null >/dev/null 2>&1; then
   ok "GitHub automation — gh installed and authenticated"
 else
   warnl "GitHub automation — PR/issue steps will print output for manual filing instead"
