@@ -16,6 +16,15 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   - **New `scripts/worktrees-migrate.sh`** (`make worktrees-migrate`) moves idle legacy worktrees to the root with `git worktree move`, never `--force`. It is a dry run unless given `--yes`. It skips a worktree with uncommitted changes, a live agent claim, an unfinished objective task, a running process inside it, a change in the last 60 minutes, or an existing destination, and prints the reason. It rewrites the session-state records that named the old path.
   - Run `scripts/worktrees-migrate.sh`, then `/plugin update` and `/reload-plugins` in each running session. User docs: [Where session worktrees live](docs/user/configuration.md#where-session-worktrees-live).
 
+### Fixed
+
+- **WorktreeCreate no longer deletes an existing worktree with uncommitted work in it** (PR #406 review). It compared the worktree path's *logical* spelling with git's *physical* `git worktree list`. Through a symlink the two differ, so a live worktree read as unregistered and was `rm -rf`ed before re-creation failed. This was **latent before 5.7.0**: the hard-coded `$HOME/.claude/worktrees` root triggered it whenever `$HOME` or `~/.claude` traversed a symlink (reproduced on 5.6.13). The objective path of the same hook had the same comparison. Now:
+  - Every decision to delete, move or reuse a worktree compares canonical (`pwd -P`) paths. That covers WorktreeCreate, WorktreeRemove, the retention pass, the migration script, the root classification and the edit guard's recorded-path check (new `canonical_path`, `is_linked_worktree_of` and `worktree_dir_verdict` in `worktree-common.sh`).
+  - **Nothing is deleted that cannot be proven disposable.** WorktreeCreate reuses a registered worktree. It creates into an empty directory or a session-files shell. Anything else is left in place and the hook fails with the reason: a `.git` entry that is not ours, or any other file. The session path also reuses an existing `wt/<slug>` branch instead of resetting it with `-B`.
+  - **The retention pass** removes only a registered, linked, clean worktree with nothing changed for `WORKTREE_RETENTION_DAYS`. It uses `git worktree remove` without `--force` and has no `rm -rf` fallback. A failed `git status` used to read as "clean", which deleted worktrees whose registration had broken, with their uncommitted files. A full clone (a `.git` directory) was also deleted. Both are now kept. A root reached through a symlink is now walked (`find -H`).
+  - **WorktreeRemove** removes only a verified registered worktree, through git. Its `rm -rf` fallbacks are gone.
+  - **The migration script** skips unregistered worktrees and ones whose `git status` fails, and walks a symlinked source root.
+
 ## [5.6.13] — 2026-11-07
 
 ### Fixed

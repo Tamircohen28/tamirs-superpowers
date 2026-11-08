@@ -294,11 +294,16 @@ done
 # proven by the directory going away; "kept" is proven by it still being there
 # after a window several times longer than the removal actually takes.
 cleanup_case() {  # cleanup_case <value or "unset">
-  local home="$TMPROOT/cleanup-home" stale i
-  rm -rf "$home"
+  local home="$TMPROOT/cleanup-home" stale i repo="$TMPROOT/cleanup-repo"
+  rm -rf "$home" "$repo"
   stale="$home/.claude/worktrees/somerepo/old-task"
-  mkdir -p "$stale/.git"
-  touch -t 202001010000 "$stale"   # older than the 3-day default retention
+  # A real, registered, clean linked worktree: the pass removes nothing it
+  # cannot verify, so a bare `.git` directory no longer qualifies.
+  new_repo "$repo"
+  mkdir -p "$(dirname "$stale")"
+  git -C "$repo" worktree add -q -b wt/old-task "$stale" main 2>/dev/null
+  # Older than the 3-day default retention, worktree and git metadata alike.
+  find "$home" "$repo/.git/worktrees" -exec touch -t 202001010000 {} + 2>/dev/null
   bash -c '
     export HOME="$1"
     source "$2/hooks/lib/worktree-common.sh"

@@ -83,15 +83,33 @@ create_objective_worktree() {
     base="$(resolve_worktree_base_ref "$repo_root")"
   fi
 
-  if [[ -d "$path" ]]; then
-    if ! git -C "$repo_root" worktree list --porcelain \
-         | awk -v p="$path" '/^worktree /{if($2==p) found=1} END{exit !found}'; then
-      rm -rf "$path"
-      git -C "$repo_root" worktree add -B "$branch" "$path" "$base" >&2
-    fi
-  else
-    git -C "$repo_root" worktree add -B "$branch" "$path" "$base" >&2
-  fi
+  # What is at the path decides what happens, compared canonically: an existing
+  # registered worktree is reused as it is, an empty directory or session-files
+  # shell is replaced by a new worktree, and ANYTHING else is left exactly where
+  # it is and the call fails. This used to `rm -rf` any directory git's worktree
+  # list did not name verbatim — and through a symlinked root git names the
+  # physical path, so a live worktree with uncommitted work was deleted.
+  local verdict stash
+  verdict="$(worktree_dir_verdict "$repo_root" "$path")"
+  case "$verdict" in
+    registered) ;;
+    free)
+      stash="$(_stash_worktree_shell "$path")" || {
+        echo "worktree-create: ${path} changed while it was being prepared; left untouched" >&2
+        return 1
+      }
+      if ! git -C "$repo_root" worktree add -B "$branch" "$path" "$base" >&2; then
+        _restore_worktree_shell "$path" "$stash"
+        echo "worktree-create: git worktree add failed for ${path}; nothing existing was removed" >&2
+        return 1
+      fi
+      _restore_worktree_shell "$path" "$stash"
+      ;;
+    *)
+      echo "worktree-create: ${verdict#refuse:}" >&2
+      return 1
+      ;;
+  esac
 
   copy_worktreeinclude_files "$repo_root" "$path"
   write_worktree_env_local "$path" "$branch" 2>/dev/null || true
@@ -229,23 +247,36 @@ if [[ -n "$objective_id" ]]; then
 else
   worktree_path="$(session_worktree_path_for "$repo_name" "$task_slug")"
   branch_name="$(branch_name_for "$task_slug")"
+
+  # Decided on a CANONICAL comparison with git's worktree list (see
+  # worktree_dir_verdict): reuse a registered worktree, create into an empty
+  # directory or a session-files shell, and refuse — leaving it untouched —
+  # anything else. The old code `rm -rf`ed every directory the list did not name
+  # verbatim, which through a symlinked root (or a $HOME that traverses one,
+  # before #404 too) deleted live worktrees with their uncommitted work.
+  # Creation reuses an existing wt/<slug> branch instead of resetting it with
+  # -B, so commits on it are never stranded (create_session_worktree).
+  verdict="$(worktree_dir_verdict "$repo_root" "$worktree_path")"
+  case "$verdict" in
+    registered)
+      copy_worktreeinclude_files "$repo_root" "$worktree_path"
+      write_worktree_env_local "$worktree_path" "$branch_name" 2>/dev/null || true
+      # Install deps in the background so a slow npm/yarn install never blocks the hook timeout.
+      ( run_worktree_post_setup "$worktree_path" >/dev/null 2>&1 & )
+      ;;
+    free)
+      mkdir -p "$(dirname "$worktree_path")"
+      if ! create_session_worktree "$repo_root" "$worktree_path" "$task_slug"; then
+        echo "WorktreeCreate: could not create ${worktree_path} (see above); nothing existing was removed" >&2
+        exit 1
+      fi
+      ;;
+    *)
+      echo "WorktreeCreate: ${verdict#refuse:}" >&2
+      exit 1
+      ;;
+  esac
   session_files_dir="$(ensure_session_files_dir "${worktree_path}/session-files")"
-
-  mkdir -p "$(dirname "$worktree_path")"
-
-  if [[ -d "$worktree_path" ]]; then
-    if ! git -C "$repo_root" worktree list --porcelain | awk -v p="$worktree_path" '/^worktree /{if($2==p) found=1} END{exit !found}'; then
-      rm -rf "$worktree_path"
-      git -C "$repo_root" worktree add -B "$branch_name" "$worktree_path" "$(resolve_worktree_base_ref "$repo_root")" >&2
-    fi
-  else
-    git -C "$repo_root" worktree add -B "$branch_name" "$worktree_path" "$(resolve_worktree_base_ref "$repo_root")" >&2
-  fi
-
-  copy_worktreeinclude_files "$repo_root" "$worktree_path"
-  write_worktree_env_local "$worktree_path" "$branch_name" 2>/dev/null || true
-  # Install deps in the background so a slow npm/yarn install never blocks the hook timeout.
-  ( run_worktree_post_setup "$worktree_path" >/dev/null 2>&1 & )
 fi
 
 now_iso="$(date -u +%Y-%m-%dT%H:%M:%SZ)"

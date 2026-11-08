@@ -61,6 +61,17 @@ own policy sends every edit into the session worktree, so any session outside
    moving a worktree out from under a running agent is the destructive migration this
    repository forbids.
 
+6. **No deletion, move or reuse on a non-canonical comparison.** A configurable root
+   can run through a symlink, and git reports physical paths. Every such decision —
+   WorktreeCreate's "is this already a worktree", WorktreeRemove, the retention pass, the
+   migration — compares `canonical_path` spellings against `git worktree list`
+   (`is_linked_worktree_of`). Anything that cannot be proven disposable stays: WorktreeCreate
+   creates only into an empty directory or a session-files shell and otherwise fails
+   with the reason, and the retention pass and WorktreeRemove remove only a verified
+   registered linked worktree, through `git worktree remove`, with no `rm -rf` fallback.
+   The comparison bug this closes predates the configurable root (a `$HOME` through a
+   symlink triggered it on 5.6.13); review of PR #406 found it.
+
 ## Consequences
 
 - Sessions in `default` and `acceptEdits` mode stop prompting on every edit, with no allow

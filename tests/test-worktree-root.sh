@@ -239,10 +239,14 @@ judge "the add-dir warning names the configured root" yes "$(has "$da" "worktree
 echo "--- 3d. the retention pass sweeps both roots ---"
 
 sweep_home="$TMPROOT/sweep-home"
+new_repo "$TMPROOT/somerepo"
+n=0
 for r in "$sweep_home/.session-worktrees" "$sweep_home/.claude/worktrees"; do
-  mkdir -p "$r/somerepo/old-task/.git"
-  touch -t 202001010000 "$r/somerepo/old-task"
+  n=$((n + 1))
+  mkdir -p "$r/somerepo"
+  git -C "$TMPROOT/somerepo" worktree add -q -b "wt/old-$n" "$r/somerepo/old-task" main
 done
+find "$sweep_home" "$TMPROOT/somerepo/.git/worktrees" -exec touch -t 202001010000 {} + 2>/dev/null
 HOME="$sweep_home" SUPERPOWERS_WORKTREE_CLEANUP=1 bash -c '
   source "$1/hooks/lib/worktree-common.sh"; cleanup_stale_worktrees' _ "$ROOT" >/dev/null 2>&1
 for _ in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15; do
@@ -333,6 +337,132 @@ judge "--idle-minutes 0 lifts only the recency rule" yes \
 judge "an unknown flag is a usage error" 2 \
   "$(bash "$ROOT/scripts/worktrees-migrate.sh" --nope </dev/null >/dev/null 2>&1; echo $?)"
 judge "--help exits 0" 0 "$(bash "$ROOT/scripts/worktrees-migrate.sh" --help </dev/null >/dev/null 2>&1; echo $?)"
+
+# ---------------------------------------------------------------------------
+# 5. NOTHING IS DELETED OR MOVED ON A PATH COMPARISON THAT WAS NOT CANONICAL.
+#
+# PR #406 review (P1): with the root reached through a symlink, WorktreeCreate
+# compared the root's LOGICAL spelling with git's PHYSICAL worktree list, read an
+# existing worktree as unregistered, and `rm -rf`ed it — uncommitted work
+# included. Every case below holds uncommitted work and asserts it survives
+# WorktreeCreate (session and objective paths), the retention pass, the
+# migration script and WorktreeRemove.
+echo "--- 5. a symlinked root never loses work ---"
+
+S="$TMPROOT/symrepo"
+new_repo "$S"
+mkdir -p "$TMPROOT/sym-real/symrepo"
+ln -s "$TMPROOT/sym-real" "$TMPROOT/sym-link"
+SL="$TMPROOT/sym-link"
+git -C "$S" worktree add -q -b wt/keep "$SL/symrepo/keep" main
+echo precious > "$SL/symrepo/keep/precious.txt"
+echo edit >> "$SL/symrepo/keep/README.md"
+put_state symkeep '{"task_slug":"keep","prompt_count":1}'
+
+run_wtc() {  # run_wtc <session-id> <env...> — WorktreeCreate's stdout; rc in WTC_RC
+  local sid="$1"
+  shift
+  WTC_OUT="$(jq -n --arg cwd "$S" --arg s "$sid" '{session_id:$s, name:"x", cwd:$cwd}' \
+    | env "$@" bash "$ROOT/hooks/worktree-create.sh" 2>"$TMPROOT/wtc.err")"
+  WTC_RC=$?
+}
+
+run_wtc symkeep "SUPERPOWERS_WORKTREE_ROOT=$SL"
+judge "WorktreeCreate reuses the registered worktree behind a symlinked root" 0 "$WTC_RC"
+judge "...and names it" "$SL/symrepo/keep" "$WTC_OUT"
+judge "...the untracked file survives" precious "$(cat "$SL/symrepo/keep/precious.txt" 2>/dev/null)"
+judge "...the tracked edit survives" yes "$(has "$(cat "$SL/symrepo/keep/README.md" 2>/dev/null)" edit)"
+judge "...it is still the same registered worktree" wt/keep "$(git -C "$SL/symrepo/keep" symbolic-ref --short HEAD 2>/dev/null)"
+
+# An unregistered directory with someone's files in it: never deleted, never
+# reused, the hook fails and says why.
+mkdir -p "$SL/symrepo/stray"
+echo notes > "$SL/symrepo/stray/notes.md"
+put_state symstray '{"task_slug":"stray","prompt_count":1}'
+run_wtc symstray "SUPERPOWERS_WORKTREE_ROOT=$SL"
+judge "an unregistered directory with files makes WorktreeCreate fail" 1 "$WTC_RC"
+judge "...and its files stay where they were" notes "$(cat "$SL/symrepo/stray/notes.md" 2>/dev/null)"
+judge "...and the reason names the directory" yes "$(has "$(cat "$TMPROOT/wtc.err")" "$SL/symrepo/stray")"
+
+# A directory holding a .git file that is not a registered worktree of this repo.
+mkdir -p "$SL/symrepo/foreign"
+echo "gitdir: /nowhere" > "$SL/symrepo/foreign/.git"
+echo mine > "$SL/symrepo/foreign/work.txt"
+put_state symforeign '{"task_slug":"foreign","prompt_count":1}'
+run_wtc symforeign "SUPERPOWERS_WORKTREE_ROOT=$SL"
+judge "a .git directory that is not ours makes WorktreeCreate fail" 1 "$WTC_RC"
+judge "...and it is left alone" mine "$(cat "$SL/symrepo/foreign/work.txt" 2>/dev/null)"
+
+# A session-files shell (the only thing the hooks ever leave behind) is fine.
+mkdir -p "$SL/symrepo/shell/session-files"
+echo plan > "$SL/symrepo/shell/session-files/plan.md"
+put_state symshell '{"task_slug":"shell","prompt_count":1}'
+run_wtc symshell "SUPERPOWERS_WORKTREE_ROOT=$SL"
+judge "a session-files shell becomes the worktree" 0 "$WTC_RC"
+judge "...registered" yes "$(exists "$SL/symrepo/shell/.git")"
+judge "...with the session files kept" plan "$(cat "$SL/symrepo/shell/session-files/plan.md" 2>/dev/null)"
+
+# The objective path of WorktreeCreate had the same comparison.
+mkdir -p "$TMPROOT/obj-real"
+ln -s "$TMPROOT/obj-real" "$TMPROOT/obj-link"
+git -C "$S" worktree add -q -b worker/o2/001 "$TMPROOT/obj-link/o2/task-001" main
+echo precious > "$TMPROOT/obj-link/o2/task-001/precious.txt"
+run_wtc symobj "SUPERPOWERS_AGENT_WORKTREE_ROOT=$TMPROOT/obj-link" SUPERPOWERS_OBJECTIVE_ID=o2 SUPERPOWERS_TASK_UNIT=task-001
+judge "objective WorktreeCreate reuses its worktree behind a symlinked root" 0 "$WTC_RC"
+judge "...the untracked file survives" precious "$(cat "$TMPROOT/obj-link/o2/task-001/precious.txt" 2>/dev/null)"
+
+# Retention: age everything. The dirty worktree must stay; so must one whose
+# registration is broken (git status fails, which used to read as "clean").
+git -C "$S" worktree add -q -b wt/clean-old "$SL/symrepo/clean-old" main
+git -C "$S" worktree add -q -b wt/broken "$SL/symrepo/broken" main
+echo precious > "$SL/symrepo/broken/precious.txt"
+rm -rf "$(git -C "$SL/symrepo/broken" rev-parse --path-format=absolute --git-dir)"
+FH="$TMPROOT/full-clone-home"
+mkdir -p "$FH/.session-worktrees/r"
+git init -q -b main "$FH/.session-worktrees/r/clone"
+# The broken-registration case again under a plain (non-symlinked) root, where
+# the pass actually walks: before this fix it read the failed status as clean.
+new_repo "$TMPROOT/brkrepo"
+git -C "$TMPROOT/brkrepo" worktree add -q -b wt/brk "$FH/.session-worktrees/r/brk" main
+echo precious > "$FH/.session-worktrees/r/brk/precious.txt"
+rm -rf "$(git -C "$FH/.session-worktrees/r/brk" rev-parse --path-format=absolute --git-dir)"
+find "$TMPROOT/sym-real" "$S/.git/worktrees" "$TMPROOT/full-clone-home" -exec touch -t 202001010000 {} + 2>/dev/null
+run_retention() {  # run_retention <home> <env...>
+  local h="$1"
+  shift
+  env HOME="$h" SUPERPOWERS_WORKTREE_CLEANUP=1 "$@" bash -c '
+    source "$1/hooks/lib/worktree-common.sh"; _cleanup_stale_worktrees_blocking "$WORKTREE_ROOT"' _ "$ROOT" >/dev/null 2>&1
+}
+run_retention "$HOME" "SUPERPOWERS_WORKTREE_ROOT=$SL"
+judge "retention keeps a dirty worktree behind a symlinked root" precious "$(cat "$SL/symrepo/keep/precious.txt" 2>/dev/null)"
+judge "retention keeps a worktree whose registration is broken" precious "$(cat "$SL/symrepo/broken/precious.txt" 2>/dev/null)"
+judge "retention still retires a clean stale worktree behind a symlinked root" no "$(exists "$SL/symrepo/clean-old")"
+judge "...through git, so the registration goes too" no \
+  "$(has "$(git -C "$S" worktree list --porcelain)" "clean-old")"
+run_retention "$FH"
+judge "retention never deletes a full clone (a .git directory)" yes "$(exists "$FH/.session-worktrees/r/clone/.git")"
+judge "retention keeps a broken-registration worktree under a plain root" precious "$(cat "$FH/.session-worktrees/r/brk/precious.txt" 2>/dev/null)"
+
+# Migration out of a symlinked root: the dirty one stays, a clean idle one moves.
+git -C "$S" worktree add -q -b wt/idle-sym "$SL/symrepo/idle-sym" main
+find "$SL/symrepo/idle-sym/" "$S/.git/worktrees/idle-sym" -exec touch -t 202001010000 {} + 2>/dev/null
+mig="$(bash "$ROOT/scripts/worktrees-migrate.sh" --yes --from "$SL" --to "$TMPROOT/sym-dest" </dev/null 2>&1)"
+judge "migration skips the dirty worktree behind a symlinked root" precious "$(cat "$SL/symrepo/keep/precious.txt" 2>/dev/null)"
+judge "migration skips the broken one" precious "$(cat "$SL/symrepo/broken/precious.txt" 2>/dev/null)"
+judge "migration moves a clean idle worktree out of a symlinked root" yes "$(exists "$TMPROOT/sym-dest/symrepo/idle-sym/.git")"
+judge "...and git agrees" yes "$(has "$(git -C "$S" worktree list --porcelain)" "sym-dest/symrepo/idle-sym")"
+[ "$FAIL" -eq 0 ] || printf '%s\n' "$mig" | sed 's/^/      | /'
+
+# WorktreeRemove on a worktree whose registration is broken: never rm -rf.
+wr="$(jq -n --arg p "$SL/symrepo/broken" '{worktree_path:$p}' | SUPERPOWERS_WORKTREE_ROOT="$SL" bash "$ROOT/hooks/worktree-remove.sh" 2>&1)"
+judge "WorktreeRemove leaves a worktree it cannot verify" precious "$(cat "$SL/symrepo/broken/precious.txt" 2>/dev/null)"
+judge "...and says why" yes "$(has "$wr" "not removed")"
+wr="$(jq -n --arg p "$SL/symrepo/keep" '{worktree_path:$p}' | SUPERPOWERS_WORKTREE_ROOT="$SL" bash "$ROOT/hooks/worktree-remove.sh" 2>&1)"
+judge "WorktreeRemove leaves a dirty worktree behind a symlinked root" precious "$(cat "$SL/symrepo/keep/precious.txt" 2>/dev/null)"
+git -C "$S" worktree add -q -b wt/rm-me "$SL/symrepo/rm-me" main
+wr="$(jq -n --arg p "$SL/symrepo/rm-me" '{worktree_path:$p}' | SUPERPOWERS_WORKTREE_ROOT="$SL" bash "$ROOT/hooks/worktree-remove.sh" 2>&1)"
+judge "WorktreeRemove removes a clean registered worktree behind a symlinked root" no "$(exists "$SL/symrepo/rm-me")"
+judge "...through git" no "$(has "$(git -C "$S" worktree list --porcelain)" "rm-me")"
 
 echo
 echo "passed: $PASS   failed: $FAIL   skipped: $SKIP"

@@ -169,9 +169,11 @@ judge_target_dir() {
   # the configured root: nothing is ever created at the legacy root.
   if [[ -n "$worktree_path" && "$worktree_path" != "null" ]]; then
     local keep_recorded=no
-    if [[ "$worktree_path" == "${WORKTREE_ROOT}/${repo_name}/"* ]]; then
+    # Canonical comparisons (path_under_root): state can hold either spelling
+    # of a path that runs through a symlink.
+    if path_under_root "$worktree_path" "${WORKTREE_ROOT}/${repo_name}"; then
       keep_recorded=yes
-    elif [[ "$worktree_path" == "${LEGACY_WORKTREE_ROOT}/${repo_name}/"* ]] \
+    elif path_under_root "$worktree_path" "${LEGACY_WORKTREE_ROOT}/${repo_name}" \
          && is_live_worktree "$worktree_path"; then
       keep_recorded=yes
     fi

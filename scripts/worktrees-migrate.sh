@@ -231,10 +231,9 @@ PY
 }
 
 # ---------------------------------------------------------------- dirty ---
-# dirty_entries <worktree> — porcelain lines other than the plugin's own files.
+# dirty_entries <porcelain> — porcelain lines other than the plugin's own files.
 dirty_entries() {
-  git -C "$1" status --porcelain 2>/dev/null \
-    | grep -v -E '^\?\? (session-files/|\.env\.local$)' || true
+  printf '%s\n' "$1" | grep -v -E '^(\?\? (session-files/|\.env\.local)$|$)' || true
 }
 
 # ------------------------------------------------------------ state update ---
@@ -283,6 +282,12 @@ while IFS= read -r wt; do
     continue
   fi
   main_root="$(dirname "$common")"
+  # Canonical comparison with git's own list: a worktree reached through a
+  # symlinked root is still recognised, and nothing unregistered is touched.
+  if ! is_linked_worktree_of "$main_root" "$wt"; then
+    skip "$wt" "not a registered linked worktree of ${main_root}"
+    continue
+  fi
   branch="$(git -C "$wt" symbolic-ref --quiet --short HEAD 2>/dev/null || true)"
   log "$wt: repo ${main_root}, branch ${branch:-(detached)}"
 
@@ -303,7 +308,12 @@ while IFS= read -r wt; do
   if reason="$(in_flight "$wt" "$branch" "$main_root")"; then
     skip "$wt" "$reason"; continue
   fi
-  dirty="$(dirty_entries "$wt")"
+  # A status that fails is not "clean" — it is unknown, and unknown stays put.
+  if ! porcelain="$(git -C "$wt" status --porcelain 2>/dev/null)"; then
+    skip "$wt" "git status failed, so its changes cannot be checked"
+    continue
+  fi
+  dirty="$(dirty_entries "$porcelain")"
   if [[ -n "$dirty" ]]; then
     skip "$wt" "uncommitted changes ($(printf '%s\n' "$dirty" | wc -l | tr -d ' ') entries) — commit or discard them first"
     continue
@@ -328,7 +338,7 @@ while IFS= read -r wt; do
     failed=$((failed + 1))
     printf '      FAILED: git worktree move refused (see above); nothing else was changed\n'
   fi
-done < <(find "$FROM" -mindepth 2 -maxdepth 2 -type d ! -name '.cleanup.lock' 2>/dev/null | sort)
+done < <(find -H "$FROM" -mindepth 2 -maxdepth 2 -type d ! -name '.cleanup.lock' 2>/dev/null | sort)
 
 echo
 if [[ $APPLY -eq 1 ]]; then
