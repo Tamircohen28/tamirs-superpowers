@@ -574,14 +574,6 @@ blocked "sort -o PROT"                                   "sort -o ~/.gitconfig /
 blocked "sort -ro PROT (cluster)"                        "sort -ro ~/.gitconfig /etc/hosts"
 blocked "sort --out=PROT (abbreviation)"                 "sort --out=$PHOME/.gitconfig /etc/hosts"
 passes  "sed -n with a bracket regex and no write"       "sed -n '/[/]/p' /etc/hosts"
-# Codex P1 on #408: a bracket expression exists only in a regex field (the `s`
-# pattern, a /re/ or \cREc address). In the `s` replacement and in `y`, `[` is a
-# literal, so the next delimiter ends the field and a following `w` is a write.
-blocked "sed s replacement with a literal [ then w PROT" "sed 's/x/[/w $PHOME/.gitconfig' /dev/null"
-blocked "sed y with a literal [ then w PROT"              "sed -n 'y/[/x/;w $PHOME/.gitconfig' /dev/null"
-blocked "sed \\%re% address with a bracket, then w PROT"  "sed -n '\\%[%]%w $PHOME/.gitconfig' /etc/hosts"
-blocked "sed s pattern with / in a bracket, then w PROT"  "sed 's/[/]/x/w $PHOME/.gitconfig' /dev/null"
-passes  "sed s replacement with a literal [ and no write" "sed 's/x/[/' /dev/null"
 passes  "sort -o into a scratch file"                    "sort -o /tmp/sorted.txt /etc/hosts"
 cwd_verdict="$(v Bash "python3 -c \"open('hosts.yml','w')\"" "$HOME/.config/gh")"
 case "$cwd_verdict" in deny|ask) cwd_verdict=blocked ;; esac

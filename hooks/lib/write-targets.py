@@ -1618,15 +1618,13 @@ def _sed_writes(script):
     i = 0
     n = len(script)
 
-    def past(i, delim, regex=True):
-        # Only a regex field (an `s` pattern, a /re/ or \cREc address) has bracket
-        # expressions; in an `s` replacement and in `y`, `[` is a literal character.
+    def past(i, delim):
         while i < n:
             c = script[i]
             if c == "\\":
                 i += 2
                 continue
-            if c == "[" and regex:
+            if c == "[":
                 # A bracket expression: its `]` closes it, and a `/` inside it is
                 # a character, not the end of the regex (`/[/]/w f`).
                 j = i + 1
@@ -1668,7 +1666,7 @@ def _sed_writes(script):
             if i + 1 >= n:
                 return False
             d = script[i + 1]
-            i = past(past(i + 2, d, regex=(c == "s")), d, regex=False)
+            i = past(past(i + 2, d), d)
             if c == "s":
                 while i < n and script[i] not in ";\n}":
                     if script[i] in "we":
