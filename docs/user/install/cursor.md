@@ -1,6 +1,6 @@
 # Install — Cursor
 
-Registry id: `cursor`. Validated against Cursor desktop **3.28.7** on 2026-11-04: a live run of
+Registry id: `cursor`. Validated against Cursor desktop **3.28.7** on 2026-11-04 (live run). Reviewed through / latest known **3.29.9** on 2026-11-08 (download API + changelog through **2026-11-06**). Prior live run of
 the desktop app's hooks (ADR 004 spikes S2 and S3) measured a `beforeShellExecution` `ask` as an
 approval card in every run mode and read the `beforeSubmitPrompt` payload, with the installed
 plugin's Cursor hooks loaded beside the probe hooks. Before it, 3.27.22 (2026-11-01): the plugin
@@ -9,7 +9,7 @@ loaded as a local plugin with no failures, and its commands, skills and worktree
 plugin's guard hooks end to end inside the desktop app. The support floor stays **3.22.7**, the
 last build a live run confirmed on its own, not a guess. The IDE release notes are read through 3.27
 ([cursor.com/docs/release-notes/ide](https://cursor.com/docs/release-notes/ide)) and publish nothing
-for 3.28; the feature changelog is date-only through **2026-10-20** (both read 2026-11-04).
+for 3.28; the feature changelog is date-only through **2026-11-06** (Voice Chat; Live Apps 2026-11-05; Agent SDK 2026-10-20). Desktop download API reports **3.29.9**; live validation remains **3.28.7**.
 `cursor-agent` **2026.10.22** heads the CLI changelog.
 
 ---
@@ -388,7 +388,10 @@ never adopt anything silently. `apply` shows a diff and asks per change, default
 | statusline · artifacts | unsupported | Cosmetic and absent, respectively |
 | extension install | unknown | The CLI changelog documents installing plugins from a git URL (`agent plugin marketplace add <git-url>`); a plugin marketplace source, not a Gemini-style extension, and not run here |
 
-### Working tips (3.11 → 2026-10-20; desktop 3.28.7 validated and reviewed; CLI 2026-08-26)
+### Working tips (3.11 → 2026-11-06; desktop 3.28.7 validated / 3.29.9 reviewed; CLI 2026-08-26)
+- **Voice Chat with Agents (2026-11-06):** realtime two-way voice in the Agents Window, IDE, web, and Cursor for iOS (Grok Voice). **Not** dictation (former Voice Mode; Cmd+Shift+Space). No plugin/hook change — host UX only. When a voice call is live, agents use `SendToCall` for short spoken updates; otherwise keep answers in chat ([changelog](https://cursor.com/changelog)).
+- **Build Live Apps (2026-11-05):** Cloud Agents can scaffold + `publish-app` Cursor-hosted apps (SSO, secrets, security review). Orthogonal to this skills/hooks plugin — do not confuse with plugin marketplace install ([changelog](https://cursor.com/changelog)).
+- **Desktop 3.29.9 (download API 2026-11-08; validated still 3.28.7):** advance latest_known/reviewed_through only. No IDE notes past 3.27; 3.29 stabilizes Projects / Cloud Agents / Remote Control / Origin Marketplace.
 - **Desktop 3.28.7 (live run 2026-11-04, no release notes published):** a `beforeShellExecution` `ask` is an approval card in Auto-Review, Allowlist and Run Everything; in Allowlist mode the card shows the command but not the hook's reason. A `preToolUse` `ask` is not enforced, and the CLI runs an ask unprompted under `--yolo`. A host fact only: since 6.0.0 no hook in this plugin answers `ask` — its guards allow or deny.
 - **Agent SDK (2026-10-20):** Cursor shipped a GA **Agent SDK** (`npm i -g @grok/agent-sdk`; package was `@cursor/bdk` / `@cursor/agent-sdk`) — agents-as-code with `instructions.md`, typed `tools/`, `skills/`, MCP connections, channels, and evals ([docs](https://cursor.com/docs/agent-sdk)). **Not** the Claude Code Agent SDK mentioned in Claude host notes. Cursor Cloud also ships host skills (`agent-sdk-create-agent`, `agent-sdk-evals`, …) that are **not** bundled by this plugin. Prefer Cursor Automations for schedule/event bots without typed tools; graduate to Agent SDK when you need versioned evals / hill-climbing. This plugin stays skills/hooks/rules — no Agent SDK project required for install.
 - **Desktop 3.25 – 3.27 (IDE release notes):** 3.25 flags a skill that goes past the Agent Skills limits in **Customize > Skills** (this plugin's longest description is 738 of 1024 characters and its longest body 452 lines, so none trips it); 3.26 makes `/` open the skill and command picker and treats a `CLAUDE.md` that mirrors `AGENTS.md` as one file (this repo's two differ); 3.27 hands hook scripts a `parent_agent_id` for subagents, which is not adopted because `tool_use_id` / `parent_tool_call_id` correlation already attributes them and the payload was not captured live.
