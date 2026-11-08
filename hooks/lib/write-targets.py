@@ -1869,13 +1869,16 @@ def _sed_writes(script):
     i = 0
     n = len(script)
 
-    def past(i, delim):
+    def past(i, delim, regex=True):
+        """Index just past the closing `delim`. Only in a REGEX field (an address,
+        an `s` pattern) is `[` a bracket expression; in an `s` replacement or a
+        `y` string it is a literal character (Codex review of PR #408)."""
         while i < n:
             c = script[i]
             if c == "\\":
                 i += 2
                 continue
-            if c == "[":
+            if c == "[" and regex:
                 # A bracket expression: its `]` closes it, and a `/` inside it is
                 # a character, not the end of the regex (`/[/]/w f`).
                 j = i + 1
@@ -1917,7 +1920,8 @@ def _sed_writes(script):
             if i + 1 >= n:
                 return False
             d = script[i + 1]
-            i = past(past(i + 2, d), d)
+            # `s`: regex pattern, literal replacement; `y`: two literal strings.
+            i = past(past(i + 2, d, regex=(c == "s")), d, regex=False)
             if c == "s":
                 while i < n and script[i] not in ";\n}":
                     if script[i] in "we":
