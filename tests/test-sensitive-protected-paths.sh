@@ -560,6 +560,19 @@ blocked "git -C into a protected dir beside an unresolved write" "echo x > \$UNK
 blocked "a heredoc ripgrep config, then rg" \
   "cat <<'EOF' > \"\$RC\"${NL}--pre=sh -c 'echo > $PHOME/.gitconfig'${NL}EOF${NL}rg x ."
 passes "git -C elsewhere, beside an unresolved write naming nothing" "echo x > \$UNK; git -C /tmp/r status"
+# Round 7: a heredoc delimiter the tokenizer spells differently from bash
+# (`$"X"`, `$'\x58'`) must not let its "body" be cut as data: in bash the body
+# ends at `X` and the lines after it are shell code.
+blocked "a \$\"X\" heredoc delimiter hiding a re-assignment" \
+  "D=/tmp/ok${NL}cat <<\$\"X\" >/dev/null${NL}X${NL}D=~/.gitconfig${NL}\$X${NL}echo x > \"\$D\""
+blocked "a \$'\\x58' heredoc delimiter hiding a re-assignment" \
+  "D=/tmp/ok${NL}cat <<\$'\\x58' >/dev/null${NL}X${NL}D=~/.gitconfig${NL}\\x58${NL}echo x > \"\$D\""
+blocked "fd 3 from /dev/null is not stdin: python3 still reads a program" \
+  "exec <p.py; python3 3</dev/null # ~/.gitconfig"
+blocked "stdin re-pointed after /dev/null (0>&3)"    "exec 3<p.py; python3 </dev/null 0>&3 # ~/.gitconfig"
+blocked "stdin re-pointed after /dev/null (0<&3)"    "exec 3<p.py; python3 </dev/null 0<&3 # ~/.gitconfig"
+passes "a plain quoted delimiter still keeps a literal NAME= resolvable" \
+  "D=/tmp/ok${NL}cat > \"\$D/n.md\" <<'EOF'${NL}D=elsewhere${NL}EOF"
 # Round 6: write forms the parser did not model, now judged on their own.
 blocked "sed -ne 'w PROT' (script in a short cluster)"   "sed -ne 'w $PHOME/.gitconfig' /etc/hosts"
 blocked "sed -nse 'w PROT'"                              "sed -nse 'w $PHOME/.gitconfig' /etc/hosts"

@@ -263,7 +263,11 @@ def tokenize(text, anomalies=None, heredocs=None, heredoc_meta=None):
             toks.append(Tok("word", value, expands, quoted))
             if want[0] is not None:
                 # A delimiter with any quoting (`'EOF'`, `"EOF"`) makes the body literal.
-                pending.append((value, want[0], quoted))
+                # Only a plainly spelled one counts as such here: `$"X"` or `$'\x58'`
+                # is X to bash but not to this tokenizer, so its "body" may be shell
+                # code that bash runs (review of #402, round 7).
+                plain = quoted and not expands and bool(re.match(r"^[A-Za-z0-9_.-]+$", value))
+                pending.append((value, want[0], plain))
                 want[0] = None
 
     while i < n:
@@ -2147,16 +2151,21 @@ def _stdin_fed(seg):
     can (`bash <> f` reads its program from f).
     """
     for idx, t in enumerate(seg):
-        if t.kind != "op" or t.value not in ("<", "<<<", "<&", "<>"):
-            continue
         nxt = seg[idx + 1] if idx + 1 < len(seg) else None
         prev = seg[idx - 1] if idx else None
+        if t.kind == "op" and t.value == ">&" and prev is not None and prev.kind == "word" \
+                and prev.value == "0":
+            return True         # `0>&3` re-points stdin at another descriptor
+        if t.kind != "op" or t.value not in ("<", "<<<", "<&", "<>"):
+            continue
         if t.value == "<>" and prev is not None and prev.kind == "word" \
                 and prev.value.isdigit() and prev.value != "0":
             continue            # `3<>f` opens fd 3, not stdin
         if t.value == "<" and nxt is not None and nxt.kind == "word" and not nxt.expands \
-                and nxt.value == "/dev/null":
-            continue
+                and nxt.value == "/dev/null" and not (
+                    prev is not None and prev.kind == "word" and prev.value.isdigit()
+                    and prev.value != "0"):
+            continue            # (`3</dev/null` is not stdin: it does not empty it)
         return True
     return False
 
