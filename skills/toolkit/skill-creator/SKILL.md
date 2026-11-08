@@ -473,7 +473,7 @@ from the table below; the table is orientation, the registry is the answer.
 | Parallel with-skill/baseline runs | `parallel_subagents` | Sequential; timing comparison unreliable, correctness still valid |
 | Isolated runs, per-run token accounting | `subagents` | Inline; omit `timing.json` rather than inventing it |
 | Browser eval viewer | `background_tasks` | `--static <path>` standalone HTML |
-| Description optimisation (`run_loop.py`) | `shell` + the `claude` CLI, and a terminal for its R4 gate | Not available — review the description by hand against the trigger eval set; do not simulate scores |
+| Description optimisation (`run_loop.py`) | `shell` + the `claude` CLI | Not available — review the description by hand against the trigger eval set; do not simulate scores |
 | Packaging (`package_skill.py`) | `shell` | Not available |
 
 Two rules hold in every mode:

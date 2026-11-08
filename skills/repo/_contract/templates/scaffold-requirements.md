@@ -83,21 +83,18 @@ See scaffold-templates section 5c below for full YAML shapes.
 
 Before applying branch governance, enable PR auto-merge and delete head branch on merge. These are repository settings, not ruleset rules, so `github-policy.sh` does not own them. Required for `start-dev` / `pr-dev` (`gh pr merge --auto --delete-branch`).
 
-When scaffolding from `tamirs-superpowers`, use the contract helper. Without `--apply` it only prints the PATCH; with it, it asks the permission resolver about `repo.settings.merge` (R3, never automatic) and sends the PATCH only on allow, or on a `y` typed at a terminal of its own:
-
 ```bash
 REPO=$(gh repo view --json nameWithOwner -q .nameWithOwner)
-bash "$CONTRACT_ROOT/scripts/enable-repo-merge-settings.sh" "$REPO" --apply --skill repo-standards
-```
 
-Exit `3` means the settings were not applied (denied, declined, or no terminal to confirm at — the usual case in an agent shell). That is a **degraded success**: continue to branch governance, and report the script's `blocked:` line and its "run this yourself" command to the user. Never retry it with a different flag, and never send the PATCH below yourself to get around it.
-
-Outside `tamirs-superpowers`, the same change is this PATCH — a repository-settings write the user confirms before it is sent:
-
-```bash
 gh api -X PATCH "repos/$REPO" \
   -f allow_auto_merge=true \
   -f delete_branch_on_merge=true
+```
+
+When scaffolding from `tamirs-superpowers`, prefer the contract helper:
+
+```bash
+bash "$CONTRACT_ROOT/scripts/enable-repo-merge-settings.sh" "$REPO"
 ```
 
 Confirm:

@@ -225,9 +225,8 @@ claim_write() {
 
 # ------------------------------------------------- shell structure parsing ---
 #
-# The tokeniser lives in lib/command-tokens.sh, shared with permission-guard.sh
-# (ADR 004 item 4); why the guard reads the string as a shell does is written
-# down there. These names are kept for the callers in this file and in
+# The tokeniser lives in lib/command-tokens.sh; why the guard reads the string
+# as a shell does is written down there. These names are kept for the callers in this file and in
 # protect-other-branches.sh: claim_shell_segments and claim_effective_segments
 # are the tokeniser's default mode, the same code that used to sit here.
 case "${BASH_SOURCE[0]}" in

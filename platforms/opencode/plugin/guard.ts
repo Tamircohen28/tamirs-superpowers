@@ -1,43 +1,25 @@
-// guard.ts — OpenCode 2 server plugin: the core safety guards and the ADR 004
-// permission layer.
+// guard.ts — OpenCode 2 server plugin: the core safety guards.
 //
 // This is the OpenCode translation of hooks that stay canonical in hooks/ (they run
 // as shell PreToolUse hooks on Claude Code, Codex and Cursor; OpenCode executes no
 // shell hook, its only lifecycle mechanism is this plugin API):
 //
-//   hooks/permission-guard.sh        -> RUN AS IS from ctx.permission.hook("evaluate")
-//                                       on `shell` and on the bundled GitHub MCP
-//                                       server's `github_<tool>` actions, and from
-//                                       ctx.shell.hook("create.before") (ADR 004 D8)
-//   hooks/guard-sensitive-files.sh   -> the same hook on `edit`, plus `shell` write
-//                                       targets, plus ctx.shell.hook("create.before");
-//                                       its parse and protected pass (D10.1) RUN AS IS:
+//   hooks/guard-sensitive-files.sh   -> ctx.permission.hook("evaluate") on `edit`, plus
+//                                       `shell` write targets, plus
+//                                       ctx.shell.hook("create.before"); its parse and
+//                                       protected-path pass RUN AS IS:
 //                                       python3 hooks/lib/write-targets.py --protected,
 //                                       with rules.ts's port only where python3 is absent
 //   hooks/enforce-worktree-edits.sh  -> the same hook on `edit`
 //   hooks/protect-other-branches.sh  -> the same hook on `shell` (git push), plus
 //                                       ctx.shell.hook("create.before")
 //
-// THE PERMISSION LAYER (ADR 004 D8, spikes O1/O2)
-//   - One source of truth: the canonical bash guard decides, through the same action
-//     catalog, conditions and resolver as on every other host; guard.ts only hands it
-//     a payload in the guard's OPENCODE dialect (opencodePayload: rules.ts pgPayload
-//     without the Codex marker, plus "host": "opencode"; resolver host opencode, no
-//     option store) and reads the answer (opencodeVerdict). A TypeScript port of the
-//     matcher would drift.
-//   - D8's OpenCode row, "R2: hook ask (A under --auto); R3/R4: deny". The guard
-//     answers ask only for an R2 call (never_auto and UNCLASSIFIED excluded) and deny
-//     for everything that must survive `opencode --auto`: a plugin `deny` is final
-//     under it (measured O1b), an `ask` is approved by it (O1c). So guard.ts sets
-//     the guard's own effect, ask or deny, and never allow, which would widen a
-//     configured ask (O1e).
-//   - Never ctx.session.update: a session rule overrides a config deny (measured O2),
-//     so using it would let this plugin widen what the user's opencode.json forbids
-//     (ADR 004 D10.4).
-//   - Fail closed: a missing guard, a non-zero exit, a timeout, unreadable output or
-//     an exception in either hook is a deny (D4, D8 "guard.ts catches every error").
-//   - Not switchable from the environment: TAMIRS_OPENCODE_GUARD=0 turns off the
-//     legacy guards only, because an env switch may only tighten (D3).
+// DENY ONLY
+//   The plugin sets `effect = "deny"` and nothing else. A plugin `deny` is final under
+//   `opencode --auto`; an `ask` is approved by it, and no plugin hook asks (6.0.0,
+//   ADR 006). It never sets `allow`, which would widen a configured ask, and never calls
+//   ctx.session.update, whose session rule overrides a deny in the user's opencode.json.
+//   A hook that throws, or a missing or failing write-targets.py, is a deny (fail closed).
 //
 // WHY TWO HOOKS FOR THE SHELL
 //   `permission.hook("evaluate")` is the documented V1 `permission.ask` successor:
@@ -50,8 +32,7 @@
 //   (it is where `command`, `cwd` and `env` are still mutable); throwing there is
 //   the only way to stop one, and whether the host surfaces the thrown reason to
 //   the agent is NOT documented — so the permission hook is the primary guard and
-//   the shell hook the backstop, never the other way round. The guard's verdict for
-//   a command is cached for a few seconds, so the second hook does not run it twice.
+//   the shell hook the backstop, never the other way round.
 //
 // WHAT IS NOT MIRRORED, AND WHY
 //   - The no-objective half of enforce-worktree-edits.sh (deny a main-checkout
@@ -69,25 +50,23 @@
 //     downloaders or awk/sed programs. The binding half is still the git/CI check on
 //     the modified path, exactly as the shell hook's header says.
 //   - This file spawns `git` for one question the filesystem cannot answer —
-//     `check-ignore` on a build-output path —, `python3 hooks/lib/write-targets.py`
-//     (which itself runs read-only local git queries for replays), and `bash
-//     hooks/permission-guard.sh` (which runs python3 and the resolver). Nothing else.
+//     `check-ignore` on a build-output path — and `python3 hooks/lib/write-targets.py`
+//     (which itself runs read-only local git queries for replays). Nothing else.
 //
-// OVERRIDES (same names as the shell hooks; none reaches the permission layer)
+// OVERRIDES (same names as the shell hooks)
 //   PM_ALLOW_PROTECTED=1    skip the generated-file rules (lockfiles, .yarn/releases,
 //                           shadcn ui, build output) for an intended edit; never a
-//                           workflow (R4 workflow.edit, D10.5) or a protected path (D10.1)
-//   TAMIRS_OPENCODE_GUARD=0 disable the legacy guards above; the permission layer,
-//                           the workflow rule and the protected paths stay on
+//                           protected path
+//   TAMIRS_OPENCODE_GUARD=0 disable the worktree, generated-file and branch-claim
+//                           guards; the protected paths stay on
 //
 // Observed on @opencode/cli 2.2.5: `opencode plugin list` and `opencode debug
 // agents` run without a provider key, so the plugin's LOADING can be checked
 // offline (service mode; the first `plugin list` on a fresh service prints nothing,
 // the second lists it — see docs/engineering/roadmap/v5-research/opencode-2.2.5.md).
 // That an evaluate-hook deny stops a shell call under --auto was measured with a
-// probe plugin (spike O1b, docs/engineering/research/permissions/spikes/); this
-// plugin's own run in a session with a provider is still unmeasured, so
-// core/capabilities/platforms.json keeps hooks at adapter.
+// probe plugin; this plugin's own run in a session with a provider is still
+// unmeasured, so core/capabilities/platforms.json keeps hooks at adapter.
 
 import { Plugin } from "@opencode/plugin"
 import { execFileSync } from "node:child_process"
@@ -98,27 +77,20 @@ import { fileURLToPath } from "node:url"
 import {
   ALLOW,
   claimKey,
-  deliverAsDeny,
   deny,
   gitPushes,
-  githubMcpTool,
   inspectClaim,
   judgeEdit,
   judgePush,
-  pgEnv,
-  pgPayload,
-  pgVerdict,
   parseWriteTargets,
   protectedFromRecords,
   protectedReason,
   sensitiveReason,
   sessionWorktreeRoot,
   shellWriteTargets,
-  workflowReason,
   writeTargetsFromRecords,
   type ClaimVerdict,
   type Decision,
-  type PgCall,
   type ProtectedFacts,
   type SensitiveFacts,
   type TargetKind,
@@ -188,11 +160,10 @@ function worktreeFacts(roots: GitRoots | null): WorktreeFacts {
   }
 }
 
-// ------------------------------------------------- protected paths (D10.1) ---
+// ------------------------------------------------------- protected paths ---
 
 /** This plugin's repository root: guard.ts sits at <root>/platforms/opencode/plugin/. */
 const PLUGIN_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..", "..")
-const PERMISSION_GUARD = path.join(PLUGIN_ROOT, "hooks", "permission-guard.sh")
 const WRITE_TARGETS = path.join(PLUGIN_ROOT, "hooks", "lib", "write-targets.py")
 // guard-sensitive-files.sh runs under a 5 s hook timeout; the parse budgets its git queries at 2.5 s.
 const WRITE_TARGETS_TIMEOUT_MS = 5_000
@@ -206,7 +177,8 @@ const WRITE_TARGETS_TIMEOUT_MS = 5_000
  * and the hook's failClosed denies.
  */
 function writeTargetRecords(toolName: string, toolInput: Record<string, unknown>, cwd: string): WriteTargetRecord[] | null {
-  if (!existsSync(WRITE_TARGETS)) throw new Error(`${WRITE_TARGETS} is missing, so no write can be judged`)
+  // A missing parser falls back exactly as a missing python3 does: the rules.ts port judges.
+  if (!existsSync(WRITE_TARGETS)) return null
   let out: string
   try {
     out = execFileSync("python3", [WRITE_TARGETS, "--protected"], {
@@ -244,7 +216,7 @@ function pathForms(abs: string): string[] {
 
 function protectedFacts(cwd: string): ProtectedFacts {
   const homes: string[] = []
-  // The passwd home decides (ADR 004 D3, SR S-04); the session HOME is added, never trusted instead.
+  // The passwd home decides; the session HOME is added, never trusted instead.
   let passwd = ""
   try {
     passwd = userInfo().homedir
@@ -282,11 +254,11 @@ function lexists(p: string): boolean {
   }
 }
 
-/** The protected-path verdict for one absolute target, delivered as OpenCode can (an R4 ask is a deny). */
+/** The protected-path verdict for one absolute target: a deny, or no objection. */
 function judgeProtected(abs: string, kind: TargetKind, via: string, cwd: string): Decision {
   const v = protectedReason(abs, pathForms(abs), protectedFacts(cwd), kind, via)
   if (!v) return ALLOW
-  return v.mode === "deny" ? deny(v.reason) : deliverAsDeny(v.reason)
+  return deny(v.reason)
 }
 
 /** Judge one file write with the rules.ts port: protected paths (always), then judgeAfterProtected. */
@@ -297,17 +269,11 @@ function judgeWrite(file: string, kind: TargetKind, via: string, cwd: string, le
 }
 
 /**
- * Everything after the protected pass, in guard-sensitive-files.sh's order. The workflow
- * rule first, before any PM_ALLOW_PROTECTED handling and whatever TAMIRS_OPENCODE_GUARD
- * says: it is R4 workflow.edit (D10.5), and an environment switch may only tighten (D3) —
- * a repository's config can set either variable (F6). Then, legacy only, the generated-file
- * rules (which PM_ALLOW_PROTECTED=1 skips) and the worktree invariant.
+ * Everything after the protected pass, in guard-sensitive-files.sh's order, and only with
+ * the legacy guards on: the generated-file rules (which PM_ALLOW_PROTECTED=1 skips), then
+ * the worktree invariant.
  */
 function judgeAfterProtected(file: string, kind: TargetKind, via: string, legacy: boolean): Decision {
-  if (kind !== "link") {
-    const workflow = workflowReason(file, kind === "move" ? "delete" : kind, via)
-    if (workflow) return deny(workflow)
-  }
   if (!legacy || kind === "move" || kind === "link") return ALLOW
   const roots = gitRoots(path.dirname(file))
   if (process.env.PM_ALLOW_PROTECTED !== "1") {
@@ -320,8 +286,8 @@ function judgeAfterProtected(file: string, kind: TargetKind, via: string, legacy
 
 /**
  * Judge one tool call's writes the way guard-sensitive-files.sh does: write-targets.py's
- * PROTECTED records decide first (a deny outranks every ask, and an ask leaves as a deny,
- * D8), then each TARGET / DELETE / TREE meets judgeAfterProtected. null when python3 is
+ * PROTECTED denies decide first,
+ * then each TARGET / DELETE / TREE meets judgeAfterProtected. null when python3 or write-targets.py is
  * not installed: the caller then judges with the rules.ts port.
  */
 function judgeWritesCanonical(toolName: string, toolInput: Record<string, unknown>, cwd: string, legacy: boolean): Decision | null {
@@ -334,88 +300,6 @@ function judgeWritesCanonical(toolName: string, toolInput: Record<string, unknow
     if (d.effect !== "allow") return d
   }
   return ALLOW
-}
-
-// ---------------------------------------- hooks/permission-guard.sh (ADR 004 D8) ---
-
-// The guard's own budget is at most 20 s; give it that plus start-up, then deny.
-const PG_TIMEOUT_MS = 25_000
-const PG_CACHE_MS = 5_000
-const pgCache = new Map<string, { at: number; d: Decision }>()
-// Shell commands whose R2 ask the permission hook put to OpenCode's own prompt. The
-// create.before backstop lets such a command through once, within this window, and
-// denies any other asked command: a shell created outside the permission flow never
-// saw a prompt.
-const PG_ASKED_MS = 15 * 60_000
-const pgAsked = new Map<string, number>()
-
-/**
- * The guard payload in its OpenCode dialect: pgPayload's call without the Codex marker
- * (`turn_id`, which would make the guard answer as Codex, deny only), with "host":
- * "opencode" — honoured by the guard only where the host otherwise reads as Claude Code.
- */
-function opencodePayload(call: PgCall, sessionID: string): Record<string, unknown> {
-  const p: Record<string, unknown> = { ...pgPayload(call, sessionID), host: "opencode" }
-  delete p.turn_id
-  return p
-}
-
-/**
- * Read the guard's OpenCode-dialect answer: its ask (an R2 call, D8) stays an ask with
- * its reason; everything else is read by pgVerdict, which allows only `{}` or an
- * explicit allow and denies a deny, garbage and silence (fail closed, D4).
- */
-function opencodeVerdict(stdout: string): Decision {
-  try {
-    const o: unknown = JSON.parse(stdout.trim())
-    const h = o && typeof o === "object" && !Array.isArray(o) ? (o as Record<string, unknown>).hookSpecificOutput : undefined
-    if (h && typeof h === "object" && (h as Record<string, unknown>).permissionDecision === "ask") {
-      const r = (h as Record<string, unknown>).permissionDecisionReason
-      return {
-        effect: "ask",
-        reason: typeof r === "string" && r ? r : "tamirs-superpowers permission guard asks before this R2 call (ADR 004 D8).",
-      }
-    }
-  } catch {
-    /* not JSON: pgVerdict denies it */
-  }
-  return pgVerdict(stdout)
-}
-
-/** Run the canonical permission guard on one call. Every failure is a deny. */
-function runPermissionGuard(call: PgCall, sessionID: string): Decision {
-  const key = JSON.stringify(call)
-  const now = Date.now()
-  const hit = pgCache.get(key)
-  if (hit && now - hit.at < PG_CACHE_MS) return hit.d
-  let d: Decision
-  if (!existsSync(PERMISSION_GUARD)) {
-    d = deny(
-      `tamirs-superpowers permission guard: ${PERMISSION_GUARD} is missing, so the call cannot be judged and is denied ` +
-        "(fail closed, ADR 004 D4, D8). Restore the plugin's hooks/ directory.",
-    )
-  } else {
-    try {
-      const out = execFileSync("bash", [PERMISSION_GUARD], {
-        input: JSON.stringify(opencodePayload(call, sessionID)),
-        encoding: "utf8",
-        timeout: PG_TIMEOUT_MS,
-        maxBuffer: 1 << 20,
-        env: pgEnv(process.env),
-        cwd: call.cwd && path.isAbsolute(call.cwd) && existsSync(call.cwd) ? call.cwd : PLUGIN_ROOT,
-        stdio: ["pipe", "pipe", "pipe"],
-      })
-      d = opencodeVerdict(out)
-    } catch (err) {
-      const why = (err as NodeJS.ErrnoException & { signal?: string }).signal
-        ? `it was stopped (${(err as { signal?: string }).signal})`
-        : `it failed (${(err as Error).message.split("\n")[0]})`
-      d = deny(`tamirs-superpowers permission guard: ${why}, so the call is denied (fail closed, ADR 004 D4, D8).`)
-    }
-  }
-  if (pgCache.size > 64) pgCache.clear()
-  pgCache.set(key, { at: now, d })
-  return d
 }
 
 function readClaim(resource: string): ClaimVerdict {
@@ -464,8 +348,8 @@ function writeClaim(resource: string, note: string): void {
   }
 }
 
-/** Judge one shell command string: git push (legacy), its write targets, then the permission guard. */
-function judgeShell(command: string, cwd: string, legacy: boolean, sessionID: string): Decision {
+/** Judge one shell command string: git push (legacy), then its write targets. */
+function judgeShell(command: string, cwd: string, legacy: boolean): Decision {
   if (legacy) {
     const roots = gitRoots(cwd)
     const push = judgePush(command, {
@@ -495,7 +379,7 @@ function judgeShell(command: string, cwd: string, legacy: boolean, sessionID: st
       }
     }
   }
-  return runPermissionGuard({ kind: "shell", command, cwd }, sessionID)
+  return ALLOW
 }
 
 function isDir(p: string): boolean {
@@ -518,16 +402,15 @@ function claimPushes(command: string, cwd: string): void {
   }
 }
 
-/** A hook that throws must not let the call through (D8: guard.ts catches every error as deny). */
+/** A hook that throws must not let the call through: every error is a deny. */
 function failClosed(err: unknown): Decision {
-  return deny(`tamirs-superpowers guard: an internal error stopped the check (${String((err as Error)?.message ?? err)}), so the call is denied (fail closed, ADR 004 D8).`)
+  return deny(`tamirs-superpowers guard: an internal error stopped the check (${String((err as Error)?.message ?? err)}), so the call is denied (fail closed).`)
 }
 
 export default Plugin.define({
   id: ID,
   async setup(ctx) {
-    // An environment switch may only tighten (ADR 004 D3): this one turns off the
-    // legacy guards, never the permission layer or the protected paths.
+    // TAMIRS_OPENCODE_GUARD=0 turns off the legacy guards, never the protected paths.
     const legacy = process.env.TAMIRS_OPENCODE_GUARD !== "0"
     const locationDir = ctx.location.directory
 
@@ -535,7 +418,6 @@ export default Plugin.define({
       if (e.effect === "deny") return
       try {
         if (e.sessionID) lastSessionID = String(e.sessionID)
-        const session = String(e.sessionID || lastSessionID || "")
         let d: Decision = ALLOW
         if (e.action === "edit") {
           for (const r of e.resources) {
@@ -545,34 +427,15 @@ export default Plugin.define({
           }
         } else if (e.action === "shell") {
           const cwd = typeof e.metadata?.cwd === "string" ? e.metadata.cwd : locationDir
-          const asked: string[] = []
           for (const cmd of e.resources) {
-            const c = judgeShell(cmd, cwd, legacy, session)
-            // A deny of any command decides; an ask is kept while the rest are still judged.
-            if (c.effect === "deny") {
-              d = c
-              break
-            }
-            if (c.effect === "ask") {
-              if (d.effect === "allow") d = c
-              asked.push(cmd)
-            }
+            d = judgeShell(cmd, cwd, legacy)
+            if (d.effect !== "allow") break
             if (legacy) claimPushes(cmd, cwd)
           }
-          if (d.effect === "ask") {
-            if (pgAsked.size > 256) pgAsked.clear()
-            for (const cmd of asked) pgAsked.set(cmd, Date.now())
-          }
-        } else {
-          const tool = githubMcpTool(String(e.action))
-          // MCP tool input reaches permission requests as metadata.input (OpenCode 2.0.30).
-          if (tool) d = runPermissionGuard({ kind: "mcp", tool, input: e.metadata?.input, cwd: locationDir }, session)
         }
         if (d.effect !== "allow") {
-          // The guard's own effect, deny or (R2 only) ask; never allow, which would widen a
-          // configured ask (O1e). A deny is final under --auto (O1b); the R2 ask is approved by
-          // it (O1c), which ADR 004 D8 accepts for R2 alone.
-          e.effect = d.effect
+          // Deny only: never allow, which would widen a configured ask.
+          e.effect = "deny"
           e.message = d.reason
         }
       } catch (err) {
@@ -584,21 +447,7 @@ export default Plugin.define({
     const shell = await ctx.shell.hook("create.before", (e) => {
       let d: Decision
       try {
-        d = judgeShell(e.command, e.cwd, legacy, lastSessionID)
-        if (d.effect === "ask") {
-          // An R2 ask the permission hook put to OpenCode's prompt: this is the shell it
-          // asked about, once. Any other ask has had no prompt, so it is a deny here.
-          const at = pgAsked.get(e.command)
-          if (at !== undefined && Date.now() - at < PG_ASKED_MS) {
-            pgAsked.delete(e.command)
-            d = ALLOW
-          } else {
-            d = deny(
-              `${d.reason} This shell was created outside OpenCode's permission flow, where that ask is put, so it ` +
-                "is denied (ADR 004 D8).",
-            )
-          }
-        }
+        d = judgeShell(e.command, e.cwd, legacy)
       } catch (err) {
         d = failClosed(err)
       }

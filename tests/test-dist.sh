@@ -26,6 +26,30 @@ for t in codex cursor gemini antigravity opencode agent-plugins; do
   if bash "$BUILD" "$T/$t" --target "$t" --quiet >"$T/$t.build.log" 2>&1; then ok "$t builds"; else bad "$t builds" "$(tail -2 "$T/$t.build.log" | tr '\n' ' ')"; continue; fi
   if bash "$CHECK" "$T/$t" --target "$t" >"$T/$t.check.log" 2>&1; then ok "$t passes its check"; else bad "$t passes its check" "$(grep FAIL "$T/$t.check.log" | head -2 | tr '\n' ' ')"; fi
 done
+# Every dist carries what its shipped code runs. OpenCode's guard.ts runs
+# hooks/lib/write-targets.py, found from its own location (three levels up), and a plain
+# command must pass through it; the hook dists ship every lib a shipped hook loads.
+echo "--- every dist carries its runtime dependencies ---"
+OC="$T/opencode"
+OC_PARSER="$OC/platforms/opencode/plugin/../../../hooks/lib/write-targets.py"
+[[ -f "$OC_PARSER" ]] && ok "opencode: the parser guard.ts resolves is in the dist" || bad "opencode: guard.ts's parser is missing" "$OC_PARSER"
+if command -v python3 >/dev/null 2>&1 && [[ -f "$OC_PARSER" ]]; then
+  plain="$(printf '{"tool_name":"Bash","tool_input":{"command":"git status --short"},"cwd":"%s"}' "$T" | python3 "$OC_PARSER" --protected 2>/dev/null)"; rc=$?
+  [[ "$rc" = 0 && "$plain" != *PROTECTED* ]] && ok "opencode: a plain command is not denied by the shipped parser" || bad "opencode: a plain command is denied" "rc=$rc $plain"
+  prot="$(printf '{"tool_name":"Bash","tool_input":{"command":"echo x > %s/.gitconfig"},"cwd":"%s"}' "$HOME" "$T" | python3 "$OC_PARSER" --protected 2>/dev/null)"
+  [[ "$prot" == *$'PROTECTED\tdeny'* ]] && ok "opencode: a host settings write is still denied by the shipped parser" || bad "opencode: the shipped parser lets a host settings write through" "$prot"
+fi
+for t in codex cursor gemini; do
+  missing=""
+  for f in "$T/$t"/hooks/*.sh "$T/$t"/hooks/*.py; do
+    [[ -f "$f" ]] || continue
+    for lib in $(grep -oE 'lib/[A-Za-z0-9_-]+\.(sh|py)' "$f" | sort -u); do
+      [[ -f "$T/$t/hooks/$lib" ]] || missing="$missing $(basename "$f")->$lib"
+    done
+  done
+  [[ -z "$missing" ]] && ok "$t: every hooks/lib file a shipped hook loads is in the dist" || bad "$t: a shipped hook loads a missing lib" "$missing"
+done
+
 # The Claude target through the generic builder is the same tree the Claude-specific
 # wrapper produces (the wrapper is what the release workflow calls).
 bash "$BUILD" "$T/claude-a" --target claude --quiet >/dev/null 2>&1
@@ -99,12 +123,10 @@ p="mcp.json"; d=json.load(open(p)); d["mcpServers"]["github"]["type"]="http"; js
 PY'
 probe agent-plugins "hooks shipped in the portable package" "hooks is shipped" \
   'mkdir -p hooks && printf "{}\n" > hooks/hooks.json'
-probe opencode "a shell hook shipped to OpenCode" "unexpected shell hook shipped to OpenCode" \
+probe opencode "a shell hook shipped to OpenCode" "hooks/ is shipped beyond write-targets.py" \
   'mkdir -p hooks && printf "#!/usr/bin/env bash\n" > hooks/x.sh'
-probe opencode "a hook manifest shipped to OpenCode" "hooks/hooks.json is shipped" \
-  'mkdir -p hooks && printf "{}\n" > hooks/hooks.json'
-probe opencode "the permission guard guard.ts runs missing" "hooks/permission-guard.sh missing" \
-  'rm hooks/permission-guard.sh'
+probe opencode "the parser guard.ts runs, missing" "hooks/lib/write-targets.py missing" \
+  'rm -f hooks/lib/write-targets.py'
 probe gemini "the generated Gemini hooks file missing (Gemini reads only hooks/hooks.json)" "hooks/hooks.json missing" \
   'rm hooks/hooks.json'
 probe gemini "the Claude hooks file shipped to Gemini (its modules key, CLAUDE_PLUGIN_ROOT and event names)" "breaks a Gemini rule" \

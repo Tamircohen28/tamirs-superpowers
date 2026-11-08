@@ -104,26 +104,11 @@ gemini_is_gemini() {
   return 1
 }
 
-# The bundled GitHub MCP server: its key in gemini-extension.json's mcpServers, and
-# the prefix its tools carry on Claude Code (hooks/hooks.json's MCP matcher, which
-# hooks/permission-guard.sh reads as PG_MCP_PREFIX).
-GEMINI_GITHUB_MCP_SERVER="github"
-GEMINI_GITHUB_MCP_CLAUDE_PREFIX="mcp__plugin_tamirs-superpowers_github__"
-
 # gemini_translate_input <gemini-payload> — a Claude-shaped payload on stdout.
 #
 #   tool_name   write_file -> Write, replace -> Edit, run_shell_command -> Bash;
-#               a tool of the bundled GitHub MCP server (gemini-extension.json
-#               names it `github`) -> mcp__plugin_tamirs-superpowers_github__<tool>,
-#               the name the canonical guard reads on Claude Code, with <tool> the
-#               server's own tool name: mcp_context.tool_name when the payload's
-#               mcp_context names server_name "github", else (no usable
-#               mcp_context) the rest of an mcp_github_<tool> name. An mcp_context
-#               naming any other server keeps the call's own name, even when it
-#               starts mcp_github_ (a server called github_x).
-#               Anything else (another server's tool, read_file, ...) passes
-#               through, so an unmapped name stays visibly foreign instead of
-#               being coerced.
+#               anything else (an MCP tool, read_file, ...) passes through, so an
+#               unmapped name stays visibly foreign instead of being coerced.
 #   tool_input  write_file and replace already use `file_path`, which is the key
 #               every canonical guard reads (and write-targets.py's first
 #               EDIT_PATH_KEYS entry); content/old_string/new_string pass through.
@@ -139,25 +124,14 @@ gemini_translate_input() {
   local payload="${1:-}"
   [[ -n "$payload" ]] || payload='{}'
   printf '%s' "$payload" | jq -c \
-    --arg cwd_env "${GEMINI_CWD:-${GEMINI_PROJECT_DIR:-}}" \
-    --arg gh_server "$GEMINI_GITHUB_MCP_SERVER" --arg gh_prefix "$GEMINI_GITHUB_MCP_CLAUDE_PREFIX" '
+    --arg cwd_env "${GEMINI_CWD:-${GEMINI_PROJECT_DIR:-}}" '
     {"write_file":"Write","replace":"Edit","run_shell_command":"Bash"} as $tool
     | {"BeforeTool":"PreToolUse","AfterTool":"PostToolUse","BeforeAgent":"UserPromptSubmit",
        "AfterAgent":"Stop","PreCompress":"PreCompact"} as $ev
-    | ("mcp_" + $gh_server + "_") as $gh_gemini
     | . as $in
     | (if (.cwd // "") == "" and $cwd_env != "" then .cwd = $cwd_env else . end)
     | (if has("tool_name") and (.tool_name|type) == "string"
        then .tool_name = ($tool[.tool_name] // .tool_name) else . end)
-    | (if ($in.tool_name|type) != "string" then null
-       elif ($in.mcp_context|type) == "object" then
-         (if $in.mcp_context.server_name == $gh_server
-             and ($in.mcp_context.tool_name|type) == "string" and $in.mcp_context.tool_name != ""
-          then $in.mcp_context.tool_name else null end)
-       elif ($in.tool_name | startswith($gh_gemini)) and ($in.tool_name | length) > ($gh_gemini | length)
-       then $in.tool_name[($gh_gemini | length):]
-       else null end) as $gh_tool
-    | (if $gh_tool != null then .tool_name = ($gh_prefix + $gh_tool) else . end)
     | (if has("hook_event_name") and (.hook_event_name|type) == "string"
        then .hook_event_name = ($ev[.hook_event_name] // .hook_event_name) else . end)
     | (if $in.tool_name == "run_shell_command"
@@ -183,7 +157,7 @@ gemini_translate_input() {
 #   hookSpecificOutput.permissionDecision     decision: deny (+ the same reason).
 #     "ask", or a top-level decision "ask"      Never ask: a hook ask hangs a headless
 #                                             run and hook input cannot tell headless
-#                                             from interactive (ADR 004 D8, G1), so an
+#                                             from interactive (measured G1), so an
 #                                             ask from any wrapped hook is a deny.
 #   hookSpecificOutput.additionalContext      AfterTool/BeforeAgent/SessionStart:
 #                                               hookSpecificOutput{hookEventName,
@@ -216,7 +190,7 @@ gemini_translate_output() {
        elif $pd == "ask" or $c.decision == "ask" then
          .decision = "deny"
          | .reason = ($h.permissionDecisionReason // $c.reason
-                      // "A tamirs-superpowers hook asked for approval, which Gemini CLI cannot carry (a hook ask hangs a headless run, ADR 004 D8), so the call is denied.")
+                      // "A tamirs-superpowers hook asked for approval, which Gemini CLI cannot carry (a hook ask hangs a headless run), so the call is denied.")
        else . end)
     | (if $ac != null then
          (if ($ev == "AfterTool" or $ev == "BeforeAgent" or $ev == "SessionStart") then

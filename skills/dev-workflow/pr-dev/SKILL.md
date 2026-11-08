@@ -65,7 +65,7 @@ After a PR opens, the real work is staying on top of CI failures, reviewer threa
 Two things changed from the earlier version, and they matter:
 
 1. **It is not called once per worker.** A worker task ends at commit + handoff. `pr-dev` runs **once per objective**, on the PR that `deliver-dev` opened from the integration branch. Driving five PRs for one objective was the defect, not the workflow.
-2. **Auto-merge is a permission, off unless configured.** It is the action `pr.merge.auto`, decided by the permission resolver, resolved once at startup and reported.
+2. **Auto-merge is a resolved policy, not an invariant.** The old rule ("always enable auto-merge") is right for most repositories and wrong for any repository or user that says otherwise. Policy is now resolved once, from a documented precedence, and reported.
 
 ## Validation tier
 
@@ -121,7 +121,7 @@ When an objective resolves, read `.dev-files/objectives/$OBJECTIVE_ID/objective.
 
 - `integration_branch` — this is the PR head. **Never** push to a `worker/*` branch from here; worker branches are already merged into it.
 - `delivery.strategy` — `single-pr` means this PR is the whole objective. If you find yourself about to open a second PR for the same objective, stop: that is the defect this design removes.
-- `delivery.auto_merge` — `false` turns auto-merge off; `true` grants nothing (the resolver warns).
+- `delivery.auto_merge` — feeds the policy resolution below.
 - `tasks` — useful context when writing review replies ("that path belongs to task-003").
 
 No objective is a perfectly normal case (a one-off PR). Continue without one.
@@ -129,31 +129,35 @@ No objective is a perfectly normal case (a one-off PR). Continue without one.
 ### 2. Merge policy
 
 ```bash
-# HOST: claude | codex | cursor | gemini | opencode — the host you are running on
-POLICY="$(bash "$SKILL_DIR/scripts/resolve-merge-policy.sh" ${REPO:+--repo "$REPO"} ${HOST:+--host "$HOST"} "$PR" "${OBJECTIVE_ID:-}")"
+POLICY="$(bash "$SKILL_DIR/scripts/resolve-merge-policy.sh" ${REPO:+--repo "$REPO"} "$PR" "${OBJECTIVE_ID:-}")"
 echo "$POLICY" | jq .
 AUTO_MERGE="$(jq -r .auto_merge <<<"$POLICY")"            # enable | skip
-AUTO_SRC="$(jq -r .auto_merge_source <<<"$POLICY")"       # the rule that decided — quote it
 MERGE_METHOD="$(jq -r .merge_method <<<"$POLICY")"        # squash | merge | rebase
 MERGE_QUEUE="$(jq -r .merge_queue <<<"$POLICY")"          # true | false | null
 STRICT="$(jq -r .strict_branch_update <<<"$POLICY")"      # true | false | null
 PROT_SRC="$(jq -r .protection_source <<<"$POLICY")"       # classic | rulesets | classic+rulesets | none
 ```
 
-**The single source of truth is `scripts/resolve-permission.sh`** (the D4 precedence chain in [ADR 004](../../../docs/engineering/decisions/004-permission-levels.md)); do not restate or re-derive it. `auto_merge` is `enable` only when the resolver allows `pr.merge.auto` **and** the repository allows auto-merge. **The default is off**: with nothing configured the resolver asks, and pr-dev asks you before merging. It turns on through `/plugin-config pr.merge.auto allow` (or a trusted project file, or the unattended level when its precondition holds). `TAMIRS_AUTO_MERGE=always` and an objective's `delivery.auto_merge: true` grant nothing; `=never`, `false` and legacy `.dev-files/policy.json` `false` turn it off. A resolver that is missing or fails means skip. Report `auto_merge_source`, and any `warnings`, verbatim.
+Precedence, highest first (documented in the script's header):
+
+1. `TAMIRS_AUTO_MERGE=always|never` — explicit user/session override
+2. the objective's `delivery.auto_merge`
+3. `.dev-files/policy.json` → `delivery.auto_merge`
+4. repository capability — a repo with auto-merge disabled overrules any request to enable it
+5. **documented default: enable auto-merge when the repository allows it**
 
 State the resolution in one line before looping:
 
 ```
-Merge policy: auto-merge SKIPPED (resolve-permission pr.merge.auto: ask (level supervised ceiling for R3) — auto-merge is off unless configured; to turn it on: /plugin-config pr.merge.auto allow).
-I will drive to green and ask you before merging.
+Merge policy: auto-merge ENABLED (default: repository allows auto-merge), squash + delete branch.
 Base master: strict branch updates required, 9 required checks, review required. Merge queue: none.
 ```
 
 or
 
 ```
-Merge policy: auto-merge ENABLED (resolve-permission pr.merge.auto: allow (user file actions["pr.merge.auto"])), squash + delete branch.
+Merge policy: auto-merge SKIPPED (objective auth-system delivery.auto_merge=false).
+I will drive to green and ask you before merging.
 ```
 
 Then enable it, if and only if policy says so:
@@ -310,7 +314,7 @@ Run this at startup, after every push, and at the readiness gate — it is idemp
 
 When `autoMergeRequest` is set, GitHub merges as soon as required checks and branch protection (including any required review) are satisfied. **`REVIEW_REQUIRED` alone is not blocked** — report "auto-merge enabled; waiting for review" and keep polling.
 
-When policy is `skip`, do not merge silently. A direct merge is `pr.merge` (R3, never automatic). First ask the resolver with the same call shape as the `--admin` gate below, using `--action pr.merge`. On `deny` (or a failed resolver), stop and report `reason` and the setting that would allow it. On `ask`, print the readiness summary and ask:
+When policy is `skip`, do not merge silently. Print the readiness summary and ask:
 
 ```
 PR #N is green and has no unresolved threads, but merge policy here is "ask first"
@@ -351,19 +355,7 @@ collaborators=$(gh api "repos/$REPO/collaborators" --jq 'length' 2>/dev/null || 
 # (from `resolve-merge-policy.sh`'s admin_bypass_available field, not re-derived here)
 ```
 
-**Gate `--admin` on `pr.merge.admin` before every use.** It is R4: never automatic at any level, and no file, env or ticket makes it so ([`safety.md`](../../../core/policies/safety.md)). Ask the resolver, telling it whether a required check is failing or pending (it denies while one is, and while that is unknown):
-
-```bash
-PERM="$SKILL_DIR/../../../scripts/resolve-permission.sh"
-ADMIN_GATE="$(bash "$PERM" --action pr.merge.admin --skill pr-dev --target "$REPO#$PR" ${HOST:+--host "$HOST"} \
-  --cond required_check_failing_or_pending=<true|false, from the state you just fetched> --json)" || ADMIN_GATE='{"verdict":"deny"}'
-jq -r '.verdict, .decided_by' <<<"$ADMIN_GATE"
-```
-
-- `deny` (or the resolver failed) → do not run `--admin`. Stop and report `decided_by` and `reason`.
-- `ask` — the only answer R4 ever gets → stop. Show the user the exact command, the PR and `decided_by`, and run it only when the user approves that very call. A general "merge it" earlier in the session is not that approval.
-
-It bypasses protection; it does not bypass policy.
+`--admin` still requires the user's merge intent. It bypasses protection; it does not bypass policy.
 
 ## Readiness gate
 
@@ -433,8 +425,8 @@ bash "$SKILL_DIR/scripts/cleanup-after-merge.sh" ${REPO:+--repo "$REPO"} "$PR"
 
 Then:
 
-- **Exit 3 means something was kept.** The script deletes nothing unless the PR is `MERGED`, its head is neither the base nor the default branch, and it is not cross-repository. It deletes the remote branch only when GitHub does not report it protected. Each deletion goes through the resolver (`branch.delete.remote` is R3). It never force-removes a worktree with uncommitted changes. Each kept item is listed under `skipped:` with its reason and, when the resolver blocked it, the setting that would allow it (`allow with: …`). Relay that list verbatim. A kept remote branch is deleted only with the user's approval of that very branch. On Claude Code, run `git push origin --delete <branch>` as its own Bash call (never chained with other commands): the permission guard raises the host dialog naming the branch, and that dialog is the approval — a rejection means keep it. On hosts with no such dialog the guard denies the call, so give the user the command to run themselves.
-- Linked issues that a `Closes #N` in the PR body did not already close: closing one is `issue.close` (R3). Ask the resolver for each issue first: `bash "$PERM" --action issue.close --skill pr-dev --target "$REPO#<N>" ${HOST:+--host "$HOST"} --json`. Run `gh issue close <N> --comment "Shipped in PR #$PR."` only on `allow`, or on `ask` after the user's yes in chat. On `deny`, leave the issue open and report the setting. **Closing a PR** (`gh pr close`, `pr.close`, R3) takes the same gate. pr-dev closes no PR it did not open.
+- **Exit 3 means something was kept.** The script deletes nothing unless the PR is `MERGED`, its head is neither the base nor the default branch, and it is not cross-repository. It deletes the remote branch only when GitHub does not report it protected and its tip holds nothing the PR did not merge. It never force-removes a worktree with uncommitted changes. Each kept item is listed under `skipped:` with its reason. Relay that list verbatim.
+- Close issues linked in the PR body if still open: `gh issue close <N> --comment "Shipped in PR #$PR."`
 - When an objective drove this PR, mark it done: set `objective.json` `status` to `completed` and record `delivery.pr_url` (via `objective-state.sh set` when available).
 - Confirm `origin/<head>` is gone (`cleanup-after-merge.sh` deletes it when a UI merge left it behind).
 
@@ -471,7 +463,7 @@ Never silently stop, guess, or take a destructive action without confirmation. W
 - **Never open a second PR for the same objective.** One objective = one PR unless `delivery.strategy` names an exception from `core/policies/delivery.md`.
 - **Never update the branch on a loose base**, and never update it in a loop.
 - **Never fight a merge queue** — enqueue and wait.
-- **Always delete the remote branch after merge,** through `cleanup-after-merge.sh` and its gate. When the gate keeps it, report that. Never work around the gate.
+- **Always delete the remote branch after merge.**
 
 ## Anti-patterns
 
@@ -485,7 +477,7 @@ Never silently stop, guess, or take a destructive action without confirmation. W
 | Idle until a notification arrives | Poll CI and threads with a deadline; report overruns |
 | Post a reply without stating it first | State it, then post |
 | Patch CI config to silence a flaky test | Retry; escalate if it persists |
-| `--admin` to skip a review you just did not want | `--admin` only for billing/solo-maintainer protection cases, after the `pr.merge.admin` gate and the user's approval of that call |
+| `--admin` to skip a review you just did not want | `--admin` only for billing/solo-maintainer protection cases, with user intent |
 
 ## Supporting files
 
@@ -494,7 +486,7 @@ Never silently stop, guess, or take a destructive action without confirmation. W
 | `scripts/resolve-merge-policy.sh` | Resolves auto-merge, merge method, queue, branch-protection and strictness into one JSON object |
 | `scripts/fetch-pr-state.sh` | Fresh PR state + checks + review threads |
 | `scripts/resolve-thread.sh` | Resolve one review thread |
-| `scripts/cleanup-after-merge.sh` | Post-merge cleanup: checks merged/base/default/fork/protection, gates each deletion, exits 3 with a `skipped:` list |
+| `scripts/cleanup-after-merge.sh` | Post-merge cleanup: checks merged/base/default/fork/protection, exits 3 with a `skipped:` list |
 | `references/ci-monitor-loop.md` | Long-cycle CI waiting with Monitor |
 | `references/drive-discipline.md` | Polling bounds, no-required-checks merge gate, blocking pre-merge threads, batched review rounds, the two-round review cap |
 | `templates/review-reply.md.tmpl` | Review reply shapes |

@@ -27,16 +27,18 @@
 #   is a UUID (the shape Claude Code, Codex, Gemini CLI and Cursor mint) that occurs in no file under
 #   tests/: suites pass literal ids (sess-1, s-1, hv-1, pg-1, and a few fixed UUIDs).
 #
-#   hostver/  the host-version probe cache (scripts/lib/permission-common.sh, cached_probe), rewritten
+#   Since 6.0.0 (ADR 006) nothing in this plugin writes there; sessions still running a 5.2-5.6 install
+#   do, until they are upgraded, so their two writers stay excused:
+#   hostver/  the host-version probe cache (the 5.x permission library's cached_probe), rewritten
 #             per session every 10 minutes. An added or changed <host>.<16 hex>.json is excused when it
 #             is a version-1 entry for that host, the 16 hex are the sha256 of its session, the session
 #             is live, and its bin is an existing executable outside every temp directory and this
 #             checkout (a suite's fake host CLI lives in its temp dir). An empty .lock is excused.
-#   intent/   the active-skill contexts (hooks/permission-intent.sh), rewritten on every slash command
+#   intent/   the active-skill contexts (the 5.x active-skill hook), rewritten on every slash command
 #             and Skill call. An added or changed <sid>.json, <sid>.agent-<key>.json, <sid>.expansion.json
 #             or <sid>.submit.json is excused when <sid> is live, the file is a JSON object and a context
 #             names that same session_id. A deletion is excused when the file was already past the age
-#             at which permission-intent.sh prunes it (24 h; 10 min for the two halves).
+#             at which the 5.x writer prunes it (24 h; 10 min for the two halves).
 #   In both: the directory's own mtime, and an atomic writer's temp file that has already been renamed
 #   away. Everything else is a leak: a test session (sess-1) or no session, a fake bin, a fresh file
 #   deleted, an unknown name, and every change anywhere else (a stamp, a ticket, a pending record, a
@@ -80,14 +82,14 @@ HOSTVER = os.path.join(TOPS[1], "hostver")
 INTENT = os.path.join(TOPS[1], "intent")
 UUID = r"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}"
 UUID_RE = re.compile(r"\A%s\Z" % UUID)
-# hostver/: <host>.<sha256(session)[:16]>.json, written through <entry>.tmp-<pid> (permission-common.sh)
+# hostver/: <host>.<sha256(session)[:16]>.json, written through <entry>.tmp-<pid> (a 5.x install)
 ENTRY_RE = re.compile(r"\A([a-z][a-z0-9-]*)\.([0-9a-f]{16})\.json\Z")
 PROBE_TMP_RE = re.compile(r"\A[a-z][a-z0-9-]*\.[0-9a-f]{16}\.json\.tmp-[0-9]+\Z")
 # intent/: <sid>.json, <sid>.agent-<key>.json, <sid>.expansion.json, <sid>.submit.json, written through
-# .<name>.tmp-<pid> and pruned past 24 h (10 min for the two halves) (hooks/permission-intent.sh)
+# .<name>.tmp-<pid> and pruned past 24 h (10 min for the two halves) (a 5.x install)
 INTENT_RE = re.compile(r"\A(%s)(\.agent-[A-Za-z0-9_-]{1,64}|\.expansion|\.submit)?\.json\Z" % UUID)
 INTENT_TMP_RE = re.compile(r"\A\..+\.json\.tmp-[0-9]+\Z")
-INTENT_TTL, INTENT_HALF_TTL = 24 * 3600, 600   # permission-intent.sh TTL_CONTEXT, HALF_TTL
+INTENT_TTL, INTENT_HALF_TTL = 24 * 3600, 600   # the 5.x writer's TTL_CONTEXT, HALF_TTL
 SESSION_DIRS = (HOSTVER, INTENT)
 BYTES = {}   # path -> content, for the files of the current walk in SESSION_DIRS
 
@@ -235,7 +237,7 @@ def excuse(p, old, new):
         if d == INTENT and old and old[0] == "file":
             age = INTENT_HALF_TTL if name.endswith((".expansion.json", ".submit.json")) else INTENT_TTL
             if old[2] / 1e9 < time.time() - age:
-                return None    # past its age: a live session's permission-intent.sh pruned it
+                return None    # past its age: a live 5.x session's writer pruned it
         return "deleted"
     if d == HOSTVER and name == ".lock":
         return None if new[0] == "file" and new[1] == 0 else "a .lock that is not an empty file"

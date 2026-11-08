@@ -24,9 +24,6 @@
 #   5. The registry's own last_reviewed is present and inside a 90-day budget. The field
 #      was read by three scripts and compared to a date by none of them.
 #   6. Every capability row's last_verified is inside the same 90-day budget.
-#   7. Every supported surface's permission_levels `since` equals its target's
-#      permissions_min in platform-targets.json (ADR 004 D9): one floor, two copies,
-#      because scripts/doctor.sh reads the registry where the engineering docs do not ship.
 #
 # Exit 0 if checks pass; 1 on failure.
 set -euo pipefail
@@ -612,41 +609,6 @@ if cutoff90="$(date -v-90d +%Y-%m-%d 2>/dev/null)" || cutoff90="$(date -d '90 da
   fi
 else
   err "could not compute a 90-day cutoff with either date(1) dialect, so per-row staleness went unverified -- failing rather than reporting a check that never ran"
-fi
-
-# --- 7. Permission-level floors (ADR 004 D9) ---
-# A permission_levels row's `since` is the host version its level semantics were measured or
-# source-cited on; platform-targets.json records the same floor as permissions_min. Every
-# distribution prunes docs/engineering/, so scripts/doctor.sh falls back to the registry copy:
-# the two must agree exactly, and a supported surface whose target has a floor must state it.
-if [[ -f "$TARGETS" ]]; then
-  before_floor=$FAILED
-  floor_rows=0
-  while IFS=$'\t' read -r plat surf status since; do
-    [[ -z "$surf" ]] && continue
-    floor_rows=$(( floor_rows + 1 ))
-    if [[ -z "$status" ]]; then
-      err "$plat/$surf has no permission_levels row"
-      continue
-    fi
-    pmin="$(jq -r --arg s "$surf" '.targets[$s].permissions_min // empty' "$TARGETS")"
-    if [[ -z "$pmin" ]]; then
-      [[ -n "$since" ]] && err "$plat/$surf permission_levels claims since=$since, but platform-targets.json targets.$surf has no permissions_min (ADR 004 D9)"
-      continue
-    fi
-    if [[ "$since" != "$pmin" ]]; then
-      err "$plat/$surf permission_levels since=${since:-<none>} is not platform-targets.json targets.$surf.permissions_min=$pmin -- the two record one floor (ADR 004 D9)"
-    fi
-  done < <(jq -r '
-    .platforms | to_entries[] | .key as $p | (.value.surfaces // {}) | to_entries[]
-    | select(.value.support == "supported")
-    | [$p, .key, (.value.capabilities.permission_levels.status // ""),
-       (.value.capabilities.permission_levels.since // "")] | @tsv' "$REGISTRY_CANONICAL")
-  if (( floor_rows == 0 )); then
-    err "the permission-floor scan examined 0 supported surfaces -- the query is broken, not the registry clean"
-  elif (( FAILED == before_floor )); then
-    echo "ok:    every permission_levels floor agrees with platform-targets.json permissions_min ($floor_rows supported surfaces)"
-  fi
 fi
 
 if (( FAILED > 0 )); then

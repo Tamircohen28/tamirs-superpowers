@@ -59,12 +59,3 @@ opencode_config_render()   { rules_json_render "$1" "$OPENCODE_CONFIG_FRAGMENT";
 opencode_config_unrender() { rules_json_unrender "$1" "$OPENCODE_CONFIG_FRAGMENT"; }
 opencode_config_destructive() { printf 'no'; }
 opencode_config_summary()  { rules_json_summary "$1" "$OPENCODE_CONFIG_FRAGMENT" "$2"; }
-
-# ---------------------------------------------------------------------------
-# permission level route (ADR 004 D7)
-# ---------------------------------------------------------------------------
-# OpenCode has no install-time option store (and `ctx.options` is ignored: a
-# project opencode.json could set it, D3), so `setup.sh apply` asks for the
-# plugin's permission level on a terminal when OpenCode is in scope. The step
-# itself lives in scripts/lib/setup-common.sh.
-opencode_permission_level_route() { printf 'prompt'; }

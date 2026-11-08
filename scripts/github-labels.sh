@@ -11,8 +11,8 @@
 #            the set does not know. Never writes, never asks. The default.
 #   plan     the same comparison, on one repository or in bulk, printed as the
 #            exact change `apply` would make. NEVER writes.
-#   apply    plan, then ask the permission resolver (PERMISSION GATE below),
-#            then show each repository's changes and confirm before writing.
+#   apply    plan, then show each repository's changes and confirm before
+#            writing.
 #            Creates missing labels and updates drifted ones. It never deletes
 #            unless --prune is typed.
 #
@@ -26,9 +26,7 @@
 #                    Off by default and never implied by --yes: a label the set
 #                    does not know may be one a human made on purpose, and a
 #                    deleted label is stripped from every issue that carried it.
-#   --yes, -y        do not prompt; apply every change. Honoured only when the
-#                    resolver ALLOWS the write: it never skips the per-repository
-#                    confirmation of an `ask` (ADR 004 D2).
+#   --yes, -y        do not prompt; apply every change. Explicit only.
 #   --json           machine-readable report on stdout, humans on stderr.
 #   --verbose, -v    detailed logging to stderr.
 #   --help, -h       this text.
@@ -44,17 +42,6 @@
 #   GITHUB_PLATFORMS_FILE=<path>   a different capability registry
 #   GITHUB_LABELS_YES=1            same as --yes
 #
-# PERMISSION GATE
-#   `apply` asks scripts/resolve-permission.sh (ADR 004 D4) about label.apply
-#   (R2: creating and updating labels is shared-additive) and, with --prune,
-#   also label.delete (R3, never automatic) before any write.
-#     allow  proceed; --yes may skip the per-repository prompt
-#     ask    a person confirms at a terminal; --yes is ignored. No terminal:
-#            the plan is printed, nothing is written, exit 0
-#     deny   nothing runs: the reason and the setting that would allow it, exit 3
-#   A resolver that is missing, fails or prints no verdict is a deny. `audit`
-#   and `plan` never ask it: they are read-only.
-#
 # EXAMPLES
 #   bash scripts/github-labels.sh audit --repo Tamircohen28/tamirs-superpowers
 #   bash scripts/github-labels.sh plan --all
@@ -65,12 +52,11 @@
 # EXIT CODES
 #   0  compliant, or a plan was printed, or apply finished, or there was no
 #      terminal to confirm on so the plan was printed instead
-#   3  drift: a label is missing or differs; or a write failed; or the
-#      permission resolver denied `apply`
+#   3  drift: a label is missing or differs; or a write failed
 #   1  failure (bad flag, missing gh/jq, unreadable label set, API failure)
 #
-# STDIN IS NEVER READ. Prompts go to /dev/tty. A run with no terminal prints the
-# plan and exits 0 unless the resolver allowed the write and --yes was typed.
+# STDIN IS NEVER READ. Prompts go to /dev/tty. A run with no terminal and no
+# --yes prints the plan and exits 0 — it never mutates silently and never blocks.
 
 set -euo pipefail
 
@@ -436,58 +422,6 @@ print_json() {
 }
 
 # ---------------------------------------------------------------------------
-# Permission gate — once, before any write (ADR 004 D4)
-# ---------------------------------------------------------------------------
-RESOLVER="${SCRIPT_DIR}/resolve-permission.sh"
-
-resolve_one() {
-  local v="" verdict reason setting
-  if [ -f "$RESOLVER" ]; then
-    v="$(bash "$RESOLVER" --action "$1" --skill github-labels ${2:+--target "$2"} --json 2>/dev/null)" || v=""
-  fi
-  [ -n "$v" ] || v='{"verdict":"deny","reason":"permission resolver missing or failed (fail closed, ADR 004 D4)"}'
-  verdict="$(jq -r '.verdict // "deny"' <<<"$v" 2>/dev/null)" || verdict=deny
-  case "$verdict" in allow|ask|deny) ;; *) verdict=deny ;; esac
-  reason="$(jq -r '.reason // .decided_by // "no reason given"' <<<"$v" 2>/dev/null)" || reason="unparseable resolver output"
-  setting="$(jq -r '.setting_that_would_allow | if . == null then "" elif type == "object" then ([.once // empty] + (.durable // []) + [.note // empty] | join("; ")) else tostring end' <<<"$v" 2>/dev/null)" || setting=""
-  printf '%s\t%s\t%s\n' "$verdict" "$1: $reason" "$setting"
-}
-
-permission_gate() {
-  [ "$VERB" = apply ] || return 0
-  local target="" actions="label.apply" a line verdict="allow" reason="" setting="" v r s
-  [ -n "$OPT_PRUNE" ] && actions="label.apply label.delete"
-  [ -n "$BULK" ] || target="$(head -n 1 "$WORK/repolist" | cut -f1)"
-  for a in $actions; do
-    line="$(resolve_one "$a" "$target")"
-    IFS="$(printf '\t')" read -r v r s <<<"$line"
-    case "$v:$verdict" in
-      deny:*)    verdict=deny; reason="$r"; setting="$s" ;;
-      ask:allow) verdict=ask;  reason="$r"; setting="$s" ;;
-    esac
-  done
-  case "$verdict" in
-    allow) vlog "permission: allow ($reason)" ;;
-    ask)
-      if [ -n "${SETUP_YES:-}" ]; then
-        setup_note "--yes does not skip this confirmation: $reason. Every repository is confirmed at the terminal."
-        SETUP_YES=""
-      fi
-      if ! setup_can_prompt; then
-        setup_note "no TTY — $reason, and there is no one here to confirm. Showing the plan instead; nothing is written."
-        [ -n "$setting" ] && setup_note "$setting"
-        setup_note "to apply it, run this yourself in your own terminal: bash scripts/github-labels.sh apply ${OPT_REPO:+--repo $OPT_REPO}${OPT_ALL:+--all}${OPT_ORG:+--org $OPT_ORG}${OPT_PRUNE:+ --prune}"
-        VERB="plan"; DEGRADED=1
-      fi
-      ;;
-    *)
-      setup_err "blocked: $reason${setting:+ — allow with: $setting}"
-      setup_err "nothing was written."
-      exit 3 ;;
-  esac
-}
-
-# ---------------------------------------------------------------------------
 # One repository
 # ---------------------------------------------------------------------------
 # process_repo <owner/name> <archived> — fills $WORK/repos/NNNN/{repo,bucket,
@@ -611,8 +545,6 @@ main() {
   local n_targets
   n_targets="$(wc -l <"$WORK/repolist" | tr -d ' ')"
 
-  permission_gate
-
   if [ "$VERB" = apply ] && [ -n "$BULK" ]; then
     if [ -z "${SETUP_YES:-}" ] && ! setup_can_prompt; then
       setup_note "no TTY — cannot confirm a bulk apply. Showing the plan instead; re-run with --yes to apply."
@@ -670,7 +602,7 @@ main() {
 }
 
 # exit_status — 3 when any repository drifted or failed, else 0; a degraded
-# run (apply that printed the plan for want of a terminal or an allow) is 0.
+# run (apply that printed the plan for want of a terminal) is 0.
 # The one place the code is decided; both renderers read it.
 exit_status() {
   local rc=0 d

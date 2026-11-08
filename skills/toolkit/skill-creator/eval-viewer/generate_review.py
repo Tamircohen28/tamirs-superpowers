@@ -285,9 +285,9 @@ def generate_html(
 # HTTP server (stdlib only, zero dependencies)
 # ---------------------------------------------------------------------------
 
-# THE VIEWER STOPS ONLY A VIEWER IT STARTED (audit other-skills F6; ADR 004 D1).
+# THE VIEWER STOPS ONLY A VIEWER IT STARTED (audit other-skills F6).
 # It used to SIGTERM whatever listened on the port, which could be anyone's dev
-# server: an unverified PID is process.kill (R3). Now a running viewer records
+# server. Now a running viewer records
 # itself in a pid file in a private per-user directory; a restart stops that PID
 # only when the file is ours and the PID's command line is still this script.
 # Anything else on the port is reported and left alone, and the viewer serves on

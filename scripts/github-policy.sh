@@ -11,9 +11,9 @@
 #            that can lock you out of your own repositories must be to look.
 #   plan     render the desired rulesets, diff them against what is live, and
 #            print the exact change. NEVER writes. Works on one repo or in bulk.
-#   apply    plan, then ask the permission resolver (PERMISSION GATE below),
-#            then show each diff and confirm it before mutating. Bulk requires
-#            the verb AND a confirmation.
+#   apply    plan, then show each diff and confirm it before mutating. Bulk
+#            requires the verb AND a confirmation; `--yes` is the only way to
+#            skip the prompt and it must be typed.
 #   verify   post-mutation verification of ONE repository: re-read live state and
 #            re-compare. Read-only. Exit 0 only when everything matches.
 #
@@ -33,9 +33,7 @@
 #                    only authorises the write, because an organization ruleset
 #                    also governs repositories that do not exist yet and that
 #                    blast radius must be typed, not inferred.
-#   --yes, -y        do not prompt; apply every non-blocked change. Explicit only,
-#                    and honoured only when the resolver ALLOWS the write: it never
-#                    skips the per-change confirmation of an `ask` (R4, ADR 004 D2).
+#   --yes, -y        do not prompt; apply every non-blocked change. Explicit only.
 #   --allow-weakening
 #                    permit a change that makes a repository LESS protected than
 #                    it is today. Off by default and never implied by --yes: the
@@ -49,19 +47,8 @@
 # ENV TWINS
 #   GITHUB_POLICY_FILE=<path>   use a different canonical policy document
 #   GITHUB_POLICY_YES=1         same as --yes
-#   (GITHUB_POLICY_ALLOW_LIVE is no longer read: an env switch may only tighten,
-#   ADR 004 D3. The resolver decides; see the PERMISSION GATE below.)
-#
-# PERMISSION GATE
-#   `apply` asks scripts/resolve-permission.sh (ADR 004 D4) about ruleset.apply,
-#   and also ruleset.apply.org with --org-level, before any write. Both are R4:
-#   the resolver never answers allow for them on its own.
-#     allow  proceed; --yes may skip the per-change prompts
-#     ask    a person confirms every change at a terminal; --yes is ignored. No
-#            terminal: the plan is printed, nothing is written, exit 0
-#     deny   nothing runs: the reason and the setting that would allow it, exit 3
-#   A resolver that is missing, fails or prints no verdict is a deny. `audit`,
-#   `plan` and `verify` never ask it: they are read-only.
+#   GITHUB_POLICY_ALLOW_LIVE=1  authorise unattended writes (no TTY). Required in
+#                               addition to --yes; see the LIVE-TARGET GATE below.
 #
 # EXAMPLES
 #   bash scripts/github-policy.sh audit
@@ -82,13 +69,11 @@
 # EXIT CODES
 #   0  compliant, or a plan was printed, or apply finished, or there was no
 #      terminal to confirm on so the plan was printed instead
-#   3  drift: something is absent, drifted, or blocked by a conflict; or the
-#      permission resolver denied `apply`
+#   3  drift: something is absent, drifted, or blocked by a conflict
 #   1  failure (bad flag, missing gh/jq, unreadable policy, API failure)
 #
-# STDIN IS NEVER READ. Prompts go to /dev/tty. A run with no terminal prints the
-# plan and exits 0 unless the resolver allowed the write and --yes was typed — it
-# never mutates silently and never blocks.
+# STDIN IS NEVER READ. Prompts go to /dev/tty. A run with no terminal and no
+# --yes prints the plan and exits 0 — it never mutates silently and never blocks.
 
 set -euo pipefail
 
@@ -1349,70 +1334,6 @@ print_json() {
 }
 
 # ---------------------------------------------------------------------------
-# PERMISSION GATE (ADR 004 D4, item 10). The resolver lives beside this script;
-# it is found from this file's own path, never from the environment.
-# ---------------------------------------------------------------------------
-RESOLVER="${SCRIPT_DIR}/resolve-permission.sh"
-
-# resolve_one <action> [target] — prints "<verdict>\t<reason>\t<setting>".
-resolve_one() {
-  local v="" verdict reason setting
-  if [ -f "$RESOLVER" ]; then
-    v="$(bash "$RESOLVER" --action "$1" --skill github-policy ${2:+--target "$2"} --json 2>/dev/null)" || v=""
-  fi
-  [ -n "$v" ] || v='{"verdict":"deny","reason":"permission resolver missing or failed (fail closed, ADR 004 D4)"}'
-  verdict="$(jq -r '.verdict // "deny"' <<<"$v" 2>/dev/null)" || verdict=deny
-  case "$verdict" in allow|ask|deny) ;; *) verdict=deny ;; esac
-  reason="$(jq -r '.reason // .decided_by // "no reason given"' <<<"$v" 2>/dev/null)" || reason="unparseable resolver output"
-  setting="$(jq -r '.setting_that_would_allow | if . == null then "" elif type == "object" then ([.once // empty] + (.durable // []) + [.note // empty] | join("; ")) else tostring end' <<<"$v" 2>/dev/null)" || setting=""
-  printf '%s\t%s\t%s\n' "$verdict" "$1: $reason" "$setting"
-}
-
-# permission_gate — run once, before any apply gate below. The strictest answer
-# of every action this run would take decides: deny > ask > allow.
-permission_gate() {
-  [ "$VERB" = apply ] || return 0
-  local target="" actions="ruleset.apply" a line verdict="allow" reason="" setting="" v r s
-  if [ -n "$OPT_ORG" ]; then
-    target=""
-    [ -n "$OPT_ORG_LEVEL" ] && actions="ruleset.apply ruleset.apply.org"
-  elif [ -z "$BULK" ]; then
-    target="$(head -n 1 "$WORK/repolist" | cut -f1)"
-  fi
-  if [ -n "${GITHUB_POLICY_ALLOW_LIVE:-}" ]; then
-    setup_note "GITHUB_POLICY_ALLOW_LIVE is ignored: an environment switch may only tighten (ADR 004 D3); the permission resolver decides."
-  fi
-  for a in $actions; do
-    if [ "$a" = ruleset.apply.org ]; then line="$(resolve_one "$a" "$OPT_ORG")"
-    else line="$(resolve_one "$a" "$target")"; fi
-    IFS="$(printf '\t')" read -r v r s <<<"$line"
-    case "$v:$verdict" in
-      deny:*)      verdict=deny; reason="$r"; setting="$s" ;;
-      ask:allow)   verdict=ask;  reason="$r"; setting="$s" ;;
-    esac
-  done
-  case "$verdict" in
-    allow) vlog "permission: allow ($reason)" ;;
-    ask)
-      if [ -n "${SETUP_YES:-}" ]; then
-        setup_note "--yes does not skip this confirmation: $reason. Every change is confirmed at the terminal."
-        SETUP_YES=""
-      fi
-      if ! setup_can_prompt; then
-        setup_note "no TTY — $reason, and there is no one here to confirm. Showing the plan instead; nothing is written."
-        [ -n "$setting" ] && setup_note "$setting"
-        setup_note "to apply it, run this yourself in your own terminal: bash scripts/github-policy.sh apply ${OPT_REPO:+--repo $OPT_REPO}${OPT_ALL:+--all}${OPT_ORG:+--org $OPT_ORG}${OPT_ORG_LEVEL:+ --org-level}"
-        VERB="plan"; DEGRADED=1
-      fi
-      ;;
-    *)
-      setup_err "blocked: $reason${setting:+ — allow with: $setting}"
-      setup_err "nothing was written."
-      exit 3 ;;
-  esac
-}
-
-# ---------------------------------------------------------------------------
 main() {
   build_repo_list || { setup_err "$(github_explain)"; exit 1; }
 
@@ -1424,8 +1345,6 @@ main() {
 
   local n_targets
   n_targets="$(wc -l <"$WORK/repolist" | tr -d ' ')"
-
-  permission_gate
 
   # BULK APPLY GATE. Two independent things must be true before a sweep can
   # mutate: the user typed `apply` (never the default), and either confirmed at a
@@ -1450,6 +1369,24 @@ main() {
   # Single-repo apply obeys the same rule: no terminal and no --yes means plan.
   if [ "$VERB" = apply ] && [ -z "$BULK" ] && [ -z "${SETUP_YES:-}" ] && ! setup_can_prompt; then
     setup_note "no TTY — cannot confirm. Showing the plan instead; re-run with --yes to apply."
+    VERB="plan"; DEGRADED=1
+  fi
+
+  # LIVE-TARGET GATE.
+  #
+  # --yes exists so a human can skip per-change prompts. It was never meant to be
+  # the whole authorisation for writing to somebody's real repositories, and on
+  # 2026-08-19 that gap was exercised for real: a non-interactive run with --yes
+  # reverted a deliberate setting on the author's own repo, silently, because
+  # nothing distinguished "confirmed by a person" from "no person present".
+  #
+  # So: without a terminal, --yes alone is not enough. A genuinely unattended
+  # caller (CI, a scripted sweep) must ALSO set GITHUB_POLICY_ALLOW_LIVE=1, which
+  # is impossible to supply by accident and trivial to grep for in a review.
+  # A TTY session is unaffected — a human at a prompt has already authorised it.
+  if [ "$VERB" = apply ] && ! setup_can_prompt && [ -z "${GITHUB_POLICY_ALLOW_LIVE:-}" ]; then
+    setup_note "refusing to write without a terminal: --yes confirms individual changes, it does not authorise unattended mutation of live repositories."
+    setup_note "set GITHUB_POLICY_ALLOW_LIVE=1 to allow this deliberately. Showing the plan instead."
     VERB="plan"; DEGRADED=1
   fi
 

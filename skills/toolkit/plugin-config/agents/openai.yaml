@@ -1,4 +1,0 @@
-# Codex skill policy (ADR 004 D6): /plugin-config changes the permission policy, so
-# Codex must never pick it implicitly; `$plugin-config` still invokes it explicitly.
-policy:
-  allow_implicit_invocation: false

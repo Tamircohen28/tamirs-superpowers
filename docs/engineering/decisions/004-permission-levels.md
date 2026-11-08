@@ -1,6 +1,8 @@
 # ADR 004 — Permission levels: presets, config, overrides and enforcement per platform
 
-**Status:** Accepted — 2026-11-03
+**Status:** Superseded by [ADR 006](006-remove-permission-levels.md) — 2026-11-08 (accepted 2026-11-03)
+
+> The feature this ADR describes was removed in 6.0.0; see [ADR 006](006-remove-permission-levels.md). The body below is kept as history.
 
 ## Context
 
@@ -347,7 +349,13 @@ for 10 minutes; the clamp is named in each answer it changes and in `--level`. T
    (config, plugin code and agents' permission rules); shared `~/.config/gh/**`, `~/.gitconfig`. A repository's
    generated command, skill and agent-adapter dirs for other hosts (`.gemini/skills/`, `.gemini/agents/`,
    `.opencode/commands/`) are not policy and are not protected. It resolves the `realpath` of the target and of any
-   `ln` destination; an UNSURE write whose text names one of these paths is a deny. A git replay (checkout, switch,
+   `ln` destination; an UNSURE write whose text names one of these paths is a deny. The commands a `$(…)`, a
+   backtick or a `<(…)`/`>(…)` runs are parsed like
+   top-level commands; a command name built by expansion, a runner the parser does not unwrap (`strace`, `ssh`,
+   `docker run`, …), an environment variable naming a command, and a file the same command writes and then runs
+   (`make`, `bash`, `source`, `pytest`, `npm`, a git hook, `./path`) are UNSURE; `sort -o`, `git diff --output`,
+   `git archive -o`, `git bundle create`, `git format-patch -o` and `git config --file` are targets (issue #405).
+   A git replay (checkout, switch,
    restore, reset, merge, pull, rebase, cherry-pick, revert, am, stash) that would rewrite one of these paths is an
    R4 ask — `hook_ask`, the host prompt, on Claude Code and a deny on every other host — never a silent allow: an
    integrator merging a branch legitimately brings such a file in, and the user decides.

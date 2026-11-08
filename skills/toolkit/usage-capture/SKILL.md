@@ -101,30 +101,11 @@ lives at `scripts/usage-capture/collector.py` and the enabler at
 
 ### 1. Enable (Claude Code)
 
-Show the plan first. It writes nothing and asks nothing:
-
-```bash
-bash scripts/usage-capture/enable.sh --dry-run --json
-```
-
-Show the user the `env` keys it would set in `~/.claude/settings.json`, then run it:
-
 ```bash
 bash scripts/usage-capture/enable.sh
 ```
 
-**Permission gates (ADR 004).** Before its first write, `enable.sh` asks
-`scripts/resolve-permission.sh` about each step it is about to take:
-`config.global.write` (R4, the settings rewrite), `secrets.capture.bodies` (R4,
-only with `--bodies`, a separate confirmation) and `daemon.start` (R2).
-`--disable` asks about `config.global.write` and `daemon.stop`. An R4 step is
-never automatic at any level. On a terminal the script names the action and
-target and proceeds only on a typed `yes`. With no terminal (your shell, CI) it
-stops with **exit 3**. Nothing is written, and it prints the setting that would
-allow the step plus the exact command for the user to run in their own
-terminal. That stop is correct behaviour, not an error. Relay the command and
-do not retry. No flag skips a gate, including `--force`. Every rewrite first
-saves `settings.json.bak.<UTC timestamp>` (0600) and reports its path.
+Every rewrite first saves `settings.json.bak.<UTC timestamp>` (0600) and reports its path.
 
 Useful flags: `--dry-run --json`, `--bodies`, `--disable`, `--dir DIR`, `--port PORT`.
 For LiteLLM use `--gateway-kind litellm --endpoint-label <opaque-label>`; do not put a
@@ -137,8 +118,7 @@ with `http/json`. `OTEL_LOG_USER_PROMPTS` stays unset. `OTEL_LOG_TOOL_DETAILS=1`
 so skill/command names appear.
 
 If `OTEL_EXPORTER_OTLP_ENDPOINT` is already set to something else, the script
-refuses unless `--force`. With `--force` the confirmation names the endpoint it
-replaces.
+refuses unless `--force`.
 
 ### 2. Enable (OpenCode) — optional plugin
 
@@ -207,8 +187,7 @@ jq -s 'map(select(.event=="api_request")) | sort_by(-.duration_ms) | .[:10]
 bash scripts/usage-capture/enable.sh --disable
 ```
 
-The same gates apply (`config.global.write`, `daemon.stop`), and so does the
-backup. `--stop` signals only a PID whose command line is the collector. A stale
+The same backup applies. `--stop` signals only a PID whose command line is the collector. A stale
 pid file naming another process is removed, and that process is left running.
 Restart Claude Code. Remove the OpenCode `plugin` path if it was added. Logs on
 disk are left in place — ask before deleting.
@@ -235,5 +214,3 @@ skill still enables Claude settings and still documents the OpenCode plugin.
 - Claim OpenCode `supported` until a live fire is recorded.
 - Enable managed/org OTEL settings in v1.
 - Bind the collector anywhere but `127.0.0.1`.
-- Hand-edit `~/.claude/settings.json` to get around a gate that stopped
-  `enable.sh`. The gate exists because that file has no git history.

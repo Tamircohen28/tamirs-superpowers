@@ -224,27 +224,57 @@ else
   ok "enable.sh refuses a gateway URL as a label"
 fi
 
-# A real (non-dry) run from a shell with no controlling terminal — an agent's
-# Bash, CI — reaches the config.global.write gate (R4, ADR 004 D2/D5): the real
-# resolver never allows R4 and nobody is there to confirm, so enable.sh stops
-# with exit 3 before its first write. The write path itself, with a stub
-# resolver answering allow, is covered in tests/test-toolkit-gates.sh.
-# no_tty: a new session, so /dev/tty cannot open even when make runs in a terminal.
-no_tty() { python3 -I -S -c 'import os, sys; os.setsid(); os.execvp(sys.argv[1], sys.argv[1:])' "$@"; }
-printf '{"env":{"KEEP_ME":"1"}}\n' >"$HOME/.claude/settings.json"
-before="$(cksum <"$HOME/.claude/settings.json")"
-out="$(no_tty bash "$ENABLE" --json --dir "$LOGDIR" --port "$PORT" 2>&1)"; rc=$?
-after="$(cksum <"$HOME/.claude/settings.json")"
-backups="$(find "$HOME/.claude" -name 'settings.json.bak.*' | wc -l | tr -d ' ')"
-if [[ "$rc" -eq 3 && "$before" == "$after" && "$backups" == 0 ]] \
-   && printf '%s' "$out" | grep -q 'blocked: config.global.write' \
-   && printf '%s' "$out" | grep -q 'Run it yourself in a terminal'; then
-  ok "enable.sh without a terminal refuses the settings write (exit 3, settings untouched)"
+SETTINGS="$HOME/.claude/settings.json"
+printf '{"env":{"KEEP_ME":"1"}}\n' >"$SETTINGS"
+orig="$(cat "$SETTINGS")"
+out="$(bash "$ENABLE" --json --dir "$LOGDIR" --port "$PORT" 2>/dev/null || true)"
+if jq -e '.env.OTEL_EXPORTER_OTLP_PROTOCOL == "http/json" and .env.OTEL_LOG_TOOL_DETAILS == "1" and .env.KEEP_ME == "1" and (.env | has("OTEL_LOG_USER_PROMPTS") | not)' "$SETTINGS" >/dev/null 2>&1; then
+  ok "enable.sh writes Claude OTEL env (prompts off, other keys kept)"
 else
-  bad "enable.sh without a terminal refuses the settings write (exit 3, settings untouched)" \
-    "rc=$rc backups=$backups settings=$(cat "$HOME/.claude/settings.json" 2>/dev/null) out=$out"
+  bad "enable.sh writes Claude OTEL env (prompts off, other keys kept)" "settings=$(cat "$SETTINGS" 2>/dev/null) out=$out"
+fi
+
+# A rewrite first copies settings.json to settings.json.bak.<UTC timestamp>, 0600.
+BAK="$(find "$HOME/.claude" -name 'settings.json.bak.*' | head -1)"
+bak_mode="$(python3 -c 'import os,sys; print(oct(os.stat(sys.argv[1]).st_mode & 0o777)[2:])' "$BAK" 2>/dev/null)"
+if [[ -n "$BAK" && "$(cat "$BAK")" == "$orig" && "$bak_mode" == 600 ]] \
+   && printf '%s' "$out" | jq -e --arg b "$BAK" '.backup == $b' >/dev/null 2>&1; then
+  ok "enable.sh backs settings.json up first (0600, original content, named in the result)"
+else
+  bad "enable.sh backs settings.json up first (0600, original content, named in the result)" \
+    "bak=${BAK:-<none>} mode=$bak_mode out=$out"
 fi
 python3 "$COLLECTOR" --dir "$LOGDIR" --port "$PORT" --stop >/dev/null 2>&1 || true
+
+# --disable removes only the owned keys and backs up again.
+rm -f "$HOME"/.claude/settings.json.bak.*
+out="$(bash "$ENABLE" --disable --json --dir "$LOGDIR" --port "$PORT" 2>/dev/null || true)"
+if [[ "$(jq -r '"\(.env.TAMIRS_USAGE_CAPTURE) \(.env.KEEP_ME)"' "$SETTINGS" 2>/dev/null)" == "null 1" ]] \
+   && [[ -n "$(find "$HOME/.claude" -name 'settings.json.bak.*' | head -1)" ]]; then
+  ok "enable.sh --disable removes owned keys, keeps others, writes a backup"
+else
+  bad "enable.sh --disable removes owned keys, keeps others, writes a backup" "settings=$(cat "$SETTINGS" 2>/dev/null) out=$out"
+fi
+
+# collector --stop never signals a PID that is not the collector (stale pid file).
+mkdir -p "$LOGDIR"
+sleep 300 & SLEEPER=$!
+PIDF="$(python3 -I -S - "$COLLECTOR" "$LOGDIR" "$PORT" <<'PYPID'
+import importlib.util, sys
+spec = importlib.util.spec_from_file_location("collector", sys.argv[1]); m = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(m)
+m.STATE["dir"] = sys.argv[2]; m.STATE["port"] = int(sys.argv[3])
+print(m.pid_path())
+PYPID
+)"
+printf '%s\n' "$SLEEPER" >"$PIDF"
+python3 "$COLLECTOR" --dir "$LOGDIR" --port "$PORT" --stop >/dev/null 2>&1 || true
+if kill -0 "$SLEEPER" 2>/dev/null && [[ ! -e "$PIDF" ]]; then
+  ok "collector --stop leaves a foreign PID alive and removes the stale pid file"
+else
+  bad "collector --stop leaves a foreign PID alive and removes the stale pid file" "pidfile=$PIDF"
+fi
+kill "$SLEEPER" 2>/dev/null || true
 
 # --- hook is silent when unset ----------------------------------------------
 unset TAMIRS_USAGE_CAPTURE TAMIRS_USAGE_CAPTURE_DIR TAMIRS_USAGE_CAPTURE_PORT 2>/dev/null || true

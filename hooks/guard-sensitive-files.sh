@@ -1,21 +1,21 @@
 #!/usr/bin/env bash
 # PreToolUse guard: block writes to genuinely generated / protected files.
 #
-# Two classes, judged in this order (ADR 004 D10):
-#   1. PROTECTED (R4 `policy.edit`, `config.global.write`): the plugin's own
-#      permission files and state dir (from the passwd entry, never HOME/XDG),
-#      a project's .tamirs-superpowers/, the guard files of the running plugin,
-#      the installed plugin cache, and every host settings / option store that
-#      could widen what an agent may do. The table is core/permissions/
-#      actions.json. Denied; NO environment switch unlocks them, because the
-#      agent must never edit its own policy (D10.3). Guard files of a running
-#      plugin that is a source checkout are an R4 ask instead (contributors
-#      edit them), through hook_ask where the platform has one, else a deny.
-#      Targets are judged by realpath too, and an unresolved write whose text
-#      names a protected path is a deny (S-03).
+# Two classes, judged in this order:
+#   1. PROTECTED: the guard files of the installed plugin, the installed plugin
+#      cache, and every host settings / option store that could widen what an
+#      agent may do (homes from the passwd entry, never HOME alone). The table
+#      is PROTECTED_PATHS in lib/write-targets.py. Denied; NO environment switch
+#      unlocks them. A plugin that runs from a source checkout is the
+#      contributor's own tree, so its files are not protected. Targets are
+#      judged by realpath too, and an unresolved write whose text names a
+#      protected path is a deny (S-03) — the text that could steer it, not a
+#      read-only command's arguments or data written to a file (#402). Nothing
+#      here asks: every answer is a
+#      deny or no decision (6.0.0, ADR 006).
 #   2. GENERATED (lockfiles, .yarn/releases, shadcn UI, ignored build output).
 #      The user may set PM_ALLOW_PROTECTED=1 to edit one on purpose; it is
-#      theirs to set and no deny text names it (D10.5). GitHub Actions
+#      theirs to set and no deny text names it. GitHub Actions
 #      workflows left this class in 5.6.7: agents may edit them.
 #   Paths are compared case-folded on a case-insensitive volume (macOS APFS):
 #   the parser repeats each target under its on-disk spelling, and folds its
@@ -73,14 +73,20 @@
 #   - Ordinary programs that happen to write (`make`, `npm install`, a checked-in
 #     script, `awk -f prog`). NOT reported: at that breadth the warning fires on
 #     everything and means nothing, and the tool-level guard never covered them.
-#   - Metadata-only changes (`chmod`, `chown`), git aliases, and a write through
-#     a hard link made before this call. git's replays (checkout, switch,
+#     They ARE reported (UNSURE) when they run a file the same command wrote, a
+#     command name built by expansion, a runner the parser does not unwrap
+#     (`strace`, `ssh`, `docker run`, …) or a command named in an environment
+#     variable (`GIT_EXTERNAL_DIFF=…`); the commands inside `$(…)`, backticks
+#     and `<(…)`/`>(…)` are parsed as commands of their own (issue #405).
+#     Write forms of otherwise read-only commands are targets: `sort -o`,
+#     `git diff --output`, `git archive -o`, `git bundle create`,
+#     `git format-patch -o` and `git config --file` (issue #405; this text
+#     lived in ADR 004 D10.1 until that ADR was superseded by ADR 006).
+#   - Metadata-only changes (`chmod`, `chown`), git aliases, a write through
+#     a hard link made before this call, and git's replays (checkout, switch,
 #     restore, reset --hard, merge, pull, rebase, cherry-pick, revert, am,
-#     stash) are judged against the PROTECTED paths by the files git says they
-#     change, as an R4 ask (hook_ask on Claude Code, a deny on every other host:
-#     an integrator merging a branch legitimately brings such a file in, and the
-#     user decides); they never meet the generated-file rules, since a merge
-#     legitimately rewrites a lockfile.
+#     stash): an integrator merging a branch legitimately brings any file in,
+#     including a lockfile.
 #   The half that closes those is a git/CI check on the modified path — it sees
 #   the outcome rather than the mechanism, so no choice of tool routes around
 #   it. This hook is the fast-feedback half, not the binding one.
@@ -118,7 +124,7 @@ nearest_existing_dir() {
 # DELETE <tab> <abs path> <tab> <fragment>   — a file or tree this call removes
 # TREE   <tab> <abs path> <tab> <fragment>   — a path a copy/move/extraction fills
 # UNSURE <tab> <why>      <tab> <fragment>   — a write this parse cannot resolve
-# PROTECTED <tab> deny|ask <tab> <why>           — an R4 path (--protected)
+# PROTECTED <tab> deny <tab> <why>               — a protected path (--protected)
 analysis="$(python3 "${SCRIPT_DIR}/lib/write-targets.py" --protected 2>/dev/null <<<"$input")"
 
 deny() {
@@ -127,24 +133,14 @@ deny() {
   hook_deny "$reason"
 }
 
-# The R4 remedy (D10.3, D10.5): only the user changes these, outside the
-# agent's reach. It names no bypass — not an env switch, not another tool.
-PROTECTED_REMEDY="Only the user changes plugin permission policy, guard files and host settings (ADR 004 D10): stop and ask them to make this change themselves, outside this session. Do not retry it through another tool, command or path."
+# The protected-path remedy: only the user changes these, outside the agent's
+# reach. It names no bypass — not an env switch, not another tool.
+PROTECTED_REMEDY="Only the user changes host settings and the installed plugin's files: stop and ask them to make this change themselves, outside this session. Do not retry it through another tool, command or path."
 # A block judged from the command's TEXT (an unresolved write, or code this
 # parse cannot read, that names a protected path) is not proof of a write
 # (issue #402). It keeps the same rule for a real write, and otherwise asks
 # for a command the guard can resolve, which is then judged on its target.
-MENTION_REMEDY="Only the user changes plugin permission policy, guard files and host settings (ADR 004 D10): if this command does write that path, stop and ask them to make the change themselves. If it does not, rewrite it so the guard can resolve its target, for example a literal path in place of a variable or inline code."
-
-protected_ask() {
-  local reason="$1"
-  if declare -F hook_ask >/dev/null 2>/dev/null; then
-    echo "$reason" >&2
-    hook_ask "$reason"
-  fi
-  # No host ask here: an R4 ask the platform cannot deliver is a deny (D8).
-  deny "$reason"
-}
+MENTION_REMEDY="Only the user changes host settings and the installed plugin's files: if this command does write that path, stop and ask them to make the change themselves. If it does not, rewrite it so the guard can resolve its target, for example a literal path in place of a variable or inline code."
 
 # classify <abs path> <fragment> <TARGET|DELETE|TREE> — deny (and exit) if protected.
 # With PM_ALLOW_PROTECTED=1 none of these rules is judged (see the header).
@@ -155,8 +151,7 @@ classify() {
 
   # A GitHub Actions workflow is ordinary, reviewable source (5.6.7, the user's decision of
   # 2026-11-06): agents edit workflows in every repo, the change lands in a commit and a PR
-  # like any other, and git undoes it. The remote route (`gh api .../contents/.github/
-  # workflows/...`) is still judged by permission-guard.sh as workflow.edit.
+  # like any other, and git undoes it.
   [ "$override" = "1" ] && return 0
 
   # Repo root for the file being written — every derived check below needs
@@ -199,27 +194,18 @@ classify() {
 # same bytes the old `< <(printf '%s\n' …)` did: the text plus one newline.
 #
 # Pass 1 — protected paths, before and regardless of PM_ALLOW_PROTECTED.
-# Every deny outranks every ask, so the asks wait for the whole list.
-ask_reason=""
 while IFS=$'\t' read -r kind mode why; do
   [ "$kind" = "PROTECTED" ] || continue
-  case "$mode" in
-    ask) [ -n "$ask_reason" ] || ask_reason="$why" ;;
-    *)   case "$why" in
-           *"is treated as a write to it."*) deny "BLOCKED: $why $MENTION_REMEDY" ;;
-           *)                                deny "BLOCKED: $why $PROTECTED_REMEDY" ;;
-         esac ;;
+  [ "$mode" = "deny" ] || continue
+  case "$why" in
+    *"is treated as a write to it."*) deny "BLOCKED: $why $MENTION_REMEDY" ;;
+    *)                                deny "BLOCKED: $why $PROTECTED_REMEDY" ;;
   esac
 done <<<"$analysis"
-if [ -n "$ask_reason" ]; then
-  # The reason says why this is an ask (a source checkout's guard file, or a
-  # git replay onto a protected path); write-targets.py words it.
-  protected_ask "R4 ASK: $ask_reason"
-fi
 
 # Claude Code's bypass mode (5.6.7): the user chose to run free, so the generated-file
 # rules below step aside. They guard edits that git can undo; pass 1 above
-# (the plugin's own policy, guard files and host settings) still holds. The mode comes from
+# (the installed plugin's files and host settings) still holds. The mode comes from
 # the host's own payload (hook_host_bypass), never from an environment variable.
 hook_host_bypass "$input" && hook_pass
 

@@ -5,6 +5,43 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [6.0.0] — 2026-11-08
+
+### Removed
+
+- **The permission-levels feature (ADR 004) is gone** (#409, [ADR 006](docs/engineering/decisions/006-remove-permission-levels.md)). Since 5.2.0 the maintainer got permission prompts constantly, even at level `unattended` with Claude Code in `bypassPermissions`: Claude Code honours a hook `ask` in every mode. Removed on every platform:
+  - the `/plugin-config` command (skill, and the Codex, Gemini, Cursor and OpenCode adapters) and `scripts/plugin-config.sh`;
+  - the `permission_level` plugin option (Claude `userConfig`, Gemini `TS_PERMISSION_LEVEL`) and `scripts/setup.sh --permission-level` / `--codex-rules`;
+  - the resolver and its catalog: `scripts/resolve-permission.sh`, `scripts/lib/permission-common.sh`, `hooks/lib/permission-conditions.sh`, `core/permissions/`, `core/schemas/permissions.schema.json`;
+  - the hooks that existed only for it: `hooks/permission-guard.sh` (and its `pg_batch.py`, `pg_graphql.py`, `pg_http.py` parsers), `hooks/permission-intent.sh`, `hooks/permission-approved.sh`, and their wiring in `hooks/hooks.json`, `platforms/codex/hooks.json`, `platforms/gemini/hooks.json`, `platforms/cursor/hooks.json` and the OpenCode plugin;
+  - the Gemini level policy (`policies/tamirs-superpowers-permissions.toml`), the OpenCode level reader (`plugin-config.ts`), the `permission_levels` capability row, the doctor's host-floor section and the Codex execpolicy rules generated from the catalog;
+  - the resolver gates in skills and scripts (cleanup, pr-dev, deliver-dev, github-policy, repo-scaffold, enable-repo-merge-settings, capture-config, retro, skill-creator, usage-capture, mcp-builder, github-labels, github-mcp). Each step is back to its behaviour before the gate, with the skill's own chat confirmation where it had one; pr-dev's auto-merge decision is `TAMIRS_AUTO_MERGE`, then the objective's `delivery.auto_merge`, then `.dev-files/policy.json`, as before 5.2.0.
+
+### Changed
+
+- **No plugin hook asks any more.** `hooks/lib/hook-output.sh` has no ask helper. `guard-sensitive-files.sh` still denies writes to lockfiles and generated files (`PM_ALLOW_PROTECTED=1` unlocks those) and to host settings, the installed plugin cache and the installed plugin's guard files; a plugin that runs from a source checkout is the contributor's own tree and is not protected, and git replays (checkout, merge, pull, rebase, …) are no longer judged. Both used to be an ask. The plugin's own config and state dirs leave the protected list.
+- **`docker-guard.py` denies durable Docker state again**, and `PM_ALLOW_DOCKER=1` (inline or exported) lets one command through, as before 5.3.0. Under Claude Code `bypassPermissions` it passes everything except a prune, which is denied rather than asked.
+- **Machine setup installs no `ask` rule.** `platforms/claude/settings.d/permissions-ask.json` is now an empty list. The 39 Docker/colima/make-e2e `ask` entries prompted in every mode except bypass; `docker-guard.py` denies durable Docker state without a prompt instead. In `bypassPermissions` nothing from this plugin, its hooks or its setup causes a permission prompt.
+- **CI shards by measured duration, six ways.** `scripts/ci/shard-suites.sh` replaces the round-robin by name with a greedy split weighted by `scripts/ci/suite-timings.tsv` (per-suite seconds from the latest master CI run; an unknown suite weighs the median). Each of the six shards expects about 110 s of suites. The old round-robin left one shard at 19 minutes while the others took 4–7. Shards are not required checks by name, so the ruleset needs no change; the required `make validate (full local-parity gate)` aggregator still waits for every shard.
+- **Worktree post-setup installs dependencies again without a level gate.** Only script-free lockfile installs run (`npm ci --ignore-scripts`, `pnpm … --ignore-scripts --ignore-pnpmfile`, classic `yarn … --ignore-scripts`, `bun … --ignore-scripts`, `cargo fetch`); an install that would run the project's own code is still printed for you to run.
+- **The Gemini wrapper no longer renames GitHub MCP tools** to their Claude names; only the permission guard read them. Gemini's `no-workflow-edits` policy rule goes too: agents have been free to edit workflows since 5.6.7.
+- **`scripts/github-mcp.sh` is back to its 5.1 form.** The level-based `--read-only` / `--exclude-tools` flags go with the levels, and so does the 5.2.0 trusted-binary lookup (it read the passwd home through the removed permission library): the server binary is found on `PATH` again, as before 5.2.0.
+- **Known gaps, accepted:** a git replay that brings a host settings file in from another ref (`git checkout <ref> -- .claude/settings.json`) is not judged, and `mkdir`/`git init` of a `.git` in an installed plugin copy outside the host plugin caches is not seen (a written `.git` file is denied). Neither was protected before 5.2.0.
+
+### Security
+
+- **Four ways a Bash write slipped past the protected-file guard are closed** (#405, found by the #402 reviews). Every change is in `hooks/lib/write-targets.py`; nothing blocked before is allowed now.
+  - **Substitutions are parsed as commands.** The commands a `$(…)`, a backtick, a `<(…)`/`>(…)` or an unquoted heredoc body runs are judged like top-level commands, in a subshell scope. An unterminated or too-deep substitution fails closed.
+  - **A command it cannot name is UNSURE:** a command name built by expansion, a runner it does not unwrap (`numactl`, `strace`, `gdb`, `ssh`, `docker run`, …), inline code for more interpreters, git options and `-c` keys that run a program, `make --eval`, and environment variables whose value is a command.
+  - **Write forms of read-only commands are targets:** `git config --file`, `git diff --output`, `git format-patch -o`, `git bundle create`, `git archive -o`, every `sort -o`, plus `uniq IN OUT`, `openssl -out`, `cc -o`, `scp`, `git init`/`git clone DIR` and more.
+  - **Write, then run, is UNSURE:** a file the same command writes and then runs (a script, `awk -f`/`sed -f`, `./path`, `make`/`pytest`/`npm`/`cargo` over its directory, a git hook, a load path set in the command).
+
+### Migration
+
+- Nothing to configure. A stale `~/.config/tamirs-superpowers/permissions.json` (and its `.lock`), a project's `.tamirs-superpowers/permissions.json`, and the plugin's state under `~/.local/state/tamirs-superpowers/` (tickets, stamps, `staged/`, `hostver/`, `intent/`) are no longer read and can be deleted. The `permission_level` value saved in Claude Code's plugin options is ignored.
+- The host's own permission mode is now the one control: `bypassPermissions` means no prompt from this plugin.
+- Delete the Docker/colima/make-e2e `ask` entries from `~/.claude/settings.json` by hand; setup no longer writes them. (The next `make install` / `make update` replaces `permissions.ask` with the empty list, which also removes them, together with any ask rule of your own: the fragment is the whole `permissions.ask` policy.)
+
 ## [5.7.2] — 2026-11-08
 
 ### Fixed

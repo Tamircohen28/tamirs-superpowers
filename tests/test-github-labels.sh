@@ -15,10 +15,7 @@
 #   github-labels.sh derives its repo root from its own location and reads
 #   config/github/labels.json and core/capabilities/platforms.json from there.
 #   A hermetic temp root with SYMLINKS to the real scripts/, config/ and core/
-#   gives the tests the real, unmodified subject while `apply` finds the STUB
-#   resolve-permission.sh beside it (tests/test-github-policy.sh explains why:
-#   the real resolver never answers allow without a person, so without the stub
-#   no test could reach the write path).
+#   gives the tests the real, unmodified subject.
 #
 # NON-VACUITY IS THE HOUSE RULE
 #   Every "no mutations" assertion is paired with one proving the reads were
@@ -54,25 +51,9 @@ REGISTRY="$REPO_ROOT/core/capabilities/platforms.json"
 mkdir -p "$TMP/bin" "$TMP/home"
 cp -R "$REPO_ROOT/tests/fixtures/github" "$FIX"
 harness_new_repo "$ROOT" main
-mkdir -p "$ROOT/scripts"
-for e in "$REPO_ROOT"/scripts/*; do
-  [ "$(basename "$e")" = resolve-permission.sh ] || ln -s "$e" "$ROOT/scripts/$(basename "$e")"
-done
+ln -s "$REPO_ROOT/scripts" "$ROOT/scripts"
 ln -s "$REPO_ROOT/config" "$ROOT/config"
 ln -s "$REPO_ROOT/core"   "$ROOT/core"
-STUB_LOG="$TMP/resolver.log"
-export STUB_LOG
-cat >"$ROOT/scripts/resolve-permission.sh" <<'STUB'
-#!/usr/bin/env bash
-printf 'ARGV %s\n' "$*" >>"$STUB_LOG"
-case "${STUB_MODE:-ask}" in
-  garbage) printf 'not json\n'; exit 0 ;;
-  exit3)   printf '{"verdict":"deny","reason":"stub internal error"}\n'; exit 3 ;;
-esac
-printf '{"verdict":"%s","decision":"%s","r":2,"reason":"stub %s","setting_that_would_allow":{"once":null,"durable":["stub-durable-setting"],"note":"stub note"}}\n' \
-  "$STUB_MODE" "$STUB_MODE" "$STUB_MODE"
-STUB
-chmod +x "$ROOT/scripts/resolve-permission.sh"
 
 fake_gh_install "$TMP/bin" "$TMP/gh.log" "$FIX/labels-compliant"
 PATH="$TMP/bin:$PATH"
@@ -87,35 +68,27 @@ export NO_COLOR=1
 # ---------------------------------------------------------------------------
 scenario() { fake_gh_use_fixtures "$FIX/$1"; }
 
-# run_labels <args...> — one invocation with a fresh call log; the resolver
-# answers `ask` unless STUB_MODE says otherwise. stdout and stderr are captured
-# separately because `--json` splits the document from the human report.
+# run_labels <args...> — one invocation with a fresh call log. stdout and
+# stderr are captured separately because `--json` splits the document from the
+# human report. stdout is a file, so no run here has a terminal.
 run_labels() {
   fake_gh_reset
-  : >"$STUB_LOG"
-  ( cd "$ROOT" && STUB_MODE="${STUB_MODE:-ask}" bash "$ROOT/scripts/github-labels.sh" "$@" ) >"$OUT" 2>"$ERR"
+  ( cd "$ROOT" && bash "$ROOT/scripts/github-labels.sh" "$@" ) >"$OUT" 2>"$ERR"
   RC=$?
 }
-# run_labels_live — the stub answers allow: the stand-in for "a person
-# authorised this write". Every mutation count, including the zeros, uses it.
-run_labels_live() {
-  fake_gh_reset
-  : >"$STUB_LOG"
-  ( cd "$ROOT" && STUB_MODE=allow bash "$ROOT/scripts/github-labels.sh" "$@" ) >"$OUT" 2>"$ERR"
-  RC=$?
-}
-# run_labels_raw — as run_labels_live, but WITHOUT fake_gh_reset, so an error
+# run_labels_live — kept as the name every mutation count uses (each passes
+# --yes, the only way to write without a terminal).
+run_labels_live() { run_labels "$@"; }
+# run_labels_raw — as run_labels, but WITHOUT fake_gh_reset, so an error
 # injected with fake_gh_error just before it is still in force (reset clears
 # injected errors along with the log).
 run_labels_raw() {
-  : >"$STUB_LOG"
-  ( cd "$ROOT" && STUB_MODE=allow bash "$ROOT/scripts/github-labels.sh" "$@" ) >"$OUT" 2>"$ERR"
+  ( cd "$ROOT" && bash "$ROOT/scripts/github-labels.sh" "$@" ) >"$OUT" 2>"$ERR"
   RC=$?
 }
 outhas() { has "$(cat "$OUT")" "$1"; }
 errhas() { has "$(cat "$ERR")" "$1"; }
 anyhas() { has "$(cat "$OUT" "$ERR")" "$1"; }
-resolver_saw() { has "$(cat "$STUB_LOG" 2>/dev/null)" "$1"; }
 # calls <METHOD> <path-suffix> — recorded invocations whose method and path
 # match exactly (the log is seq, method, path, body, argv).
 calls() { awk -F'\t' -v m="$1" -v p="$2" '$2 == m && $3 == p { n++ } END { print n + 0 }' "$FAKE_GH_LOG"; }
@@ -164,7 +137,6 @@ judge "every agent:<platform> from the registry is a create" "" "$missing_platfo
 judge "audit performed no mutation"                 0   "$(gh_mutations)"
 judge "  and did read the repository"               1   "$(calls GET "repos/$TARGET_REPO")"
 judge "  and did read the labels"                   1   "$(calls GET "$LABELS_PATH")"
-judge "audit never asked the resolver"              0   "$(awk '/^ARGV /{n++} END{print n+0}' "$STUB_LOG")"
 judge "audit points at plan to remediate"           yes "$(outhas "Remediate:  bash scripts/github-labels.sh plan --repo $TARGET_REPO")"
 
 # ---------------------------------------------------------------------------
@@ -184,7 +156,6 @@ run_labels plan --repo "$TARGET_REPO"
 judge "plan exits 3 on drift"                       3   "$RC"
 judge "plan says nothing was written"               yes "$(outhas "Nothing has been written")"
 judge "plan performed no mutation"                  0   "$(gh_mutations)"
-judge "plan never asked the resolver"               0   "$(awk '/^ARGV /{n++} END{print n+0}' "$STUB_LOG")"
 run_labels plan --repo "$TARGET_REPO" --prune
 judge "plan --prune lists the extra as a delete"    yes "$(outhas "- stale-experiment")"
 judge "  and still performed no mutation"           0   "$(gh_mutations)"
@@ -216,8 +187,6 @@ judge "every agent:<platform> POST carries the registry display_name" "" "$missi
 patch_body="$(body_of PATCH "$LABELS_PATH/agent%3Aany")"
 judge "the PATCH sends the canonical description"   "$(jq -r '.labels[] | select(.name == "agent:any") | .description' "$LABELS_FILE")" "$(jq -r '.description' <<<"$patch_body")"
 judge "  and no new_name when the name already matches" "null" "$(jq -r '.new_name' <<<"$patch_body")"
-judge "the resolver was asked about label.apply"    yes "$(resolver_saw "--action label.apply --skill github-labels --target $TARGET_REPO")"
-judge "  and NOT about label.delete"                no  "$(resolver_saw "label.delete")"
 judge "apply points at audit to verify"             yes "$(outhas "Verify:     bash scripts/github-labels.sh audit --repo $TARGET_REPO")"
 
 section "apply --prune — the one path that deletes"
@@ -227,8 +196,6 @@ judge "apply --prune exits 0"                       0   "$RC"
 judge "exactly one DELETE, for the extra label"     1   "$(calls DELETE "$LABELS_PATH/stale-experiment")"
 judge "  and no other DELETE"                       1   "$(awk -F'\t' '$2 == "DELETE" { n++ } END { print n + 0 }' "$FAKE_GH_LOG")"
 judge "creates are unchanged by --prune"            "$EXPECT_CREATE" "$(calls POST "$LABELS_PATH")"
-judge "the resolver was asked about label.delete"   yes "$(resolver_saw "--action label.delete --skill github-labels --target $TARGET_REPO")"
-judge "  and about label.apply"                     yes "$(resolver_saw "--action label.apply")"
 
 section "apply — idempotent on a compliant repository"
 scenario labels-compliant
@@ -239,36 +206,17 @@ judge "  the labels were read"                      1   "$(calls GET "$LABELS_PA
 judge "reports compliant"                           yes "$(outhas "· compliant")"
 
 # ---------------------------------------------------------------------------
-section "permission gate (ADR 004 D4)"
+section "no TTY — apply without --yes prints the plan and writes nothing"
 scenario labels-missing
-STUB_MODE=ask run_labels apply --repo "$TARGET_REPO" --yes
-judge "ask + no TTY: exits 0 (degraded to plan)"    0   "$RC"
-judge "ask: nothing written"                        0   "$(gh_mutations)"
-judge "ask: says the plan is shown instead"         yes "$(errhas "Showing the plan instead; nothing is written")"
-judge "ask: --yes did not skip the confirmation"    yes "$(errhas "--yes does not skip this confirmation")"
-judge "ask: names the setting that would allow"     yes "$(errhas "stub-durable-setting")"
-judge "ask: gives the run-it-yourself command"      yes "$(errhas "bash scripts/github-labels.sh apply --repo $TARGET_REPO")"
-judge "ask: the plan was still printed"             yes "$(outhas "+ chore")"
-STUB_MODE=ask run_labels apply --repo "$TARGET_REPO" --prune
-judge "ask + --prune: the run-it-yourself command keeps --prune" yes "$(errhas "apply --repo $TARGET_REPO --prune")"
-for mode in deny garbage exit3; do
-  STUB_MODE=$mode run_labels apply --repo "$TARGET_REPO" --yes
-  judge "$mode: exits 3"                            3   "$RC"
-  judge "$mode: nothing written"                    0   "$(gh_mutations)"
-  judge "$mode: says it is blocked"                 yes "$(errhas "blocked: label.apply")"
-done
-rm -f "$ROOT/scripts/resolve-permission.sh"
-run_labels apply --repo "$TARGET_REPO" --yes
-judge "missing resolver: exits 3 (fail closed)"     3   "$RC"
-judge "missing resolver: nothing written"           0   "$(gh_mutations)"
-judge "missing resolver: says why"                  yes "$(errhas "resolver missing or failed")"
-cat >"$ROOT/scripts/resolve-permission.sh" <<'STUB'
-#!/usr/bin/env bash
-printf 'ARGV %s\n' "$*" >>"$STUB_LOG"
-printf '{"verdict":"%s","decision":"%s","r":2,"reason":"stub %s","setting_that_would_allow":{"once":null,"durable":["stub-durable-setting"],"note":"stub note"}}\n' \
-  "${STUB_MODE:-ask}" "${STUB_MODE:-ask}" "${STUB_MODE:-ask}"
-STUB
-chmod +x "$ROOT/scripts/resolve-permission.sh"
+run_labels apply --repo "$TARGET_REPO"
+judge "no TTY: exits 0 (degraded to plan)"          0   "$RC"
+judge "no TTY: nothing written"                     0   "$(gh_mutations)"
+judge "  the labels were still read"                1   "$(calls GET "$LABELS_PATH")"
+judge "no TTY: says it cannot confirm"              yes "$(errhas "no TTY — cannot confirm")"
+judge "no TTY: names --yes"                         yes "$(errhas "re-run with --yes to apply")"
+judge "no TTY: the plan was still printed"          yes "$(outhas "+ chore")"
+run_labels apply --repo "$TARGET_REPO" --prune
+judge "no TTY + --prune: deletes nothing"           0   "$(gh_mutations)"
 
 # ---------------------------------------------------------------------------
 section "--json"
@@ -287,7 +235,7 @@ judge "json: prune false"                           false "$(jq '.prune' "$OUT")
 judge "json: not degraded"                          false "$(jq '.degraded' "$OUT")"
 judge "json: human report went to stderr, not stdout" no "$(outhas "Remediate:")"
 judge "json: drift exits 3, exactly as the human audit does" 3 "$RC"
-STUB_MODE=ask run_labels apply --repo "$TARGET_REPO" --json
+run_labels apply --repo "$TARGET_REPO" --json
 judge "json: a degraded apply says so"              true "$(jq '.degraded' "$OUT")"
 judge "  and wrote nothing"                         0   "$(gh_mutations)"
 judge "  and exits 0 (degraded is a success)"       0   "$RC"
@@ -343,7 +291,7 @@ section "CLI contract"
 run_labels --help
 judge "--help exits 0"                              0   "$RC"
 judge "--help documents --prune"                    yes "$(outhas "--prune")"
-judge "--help documents the gate"                   yes "$(outhas "label.apply")"
+judge "--help documents --yes"                      yes "$(outhas "--yes, -y")"
 run_labels --bogus
 judge "unknown flag exits 1"                        1   "$RC"
 judge "  and hints at --help"                       yes "$(errhas "Try: bash scripts/github-labels.sh --help")"

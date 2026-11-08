@@ -153,24 +153,10 @@ Extract from args:
 - `CONTRACT_PROFILE=app-gold`; if `SCAFFOLD_TYPE=plugin`, set `CONTRACT_PROFILE=plugin-gold`; if `SCAFFOLD_TYPE=marketplace`, set `CONTRACT_PROFILE=marketplace-gold`
 - If `SCAFFOLD_TYPE=marketplace`: `MARKETPLACE_NAME=$REPO_NAME` (the distinctive top-level name both Claude and Codex ask for), `MARKETPLACE_DISPLAY_NAME` = the repo name in Title Case, `PLUGIN_NAME=$REPO_NAME-starter` (the one local plugin the catalog is seeded with)
 
-Print a one-line plan:
+Print a one-line plan before proceeding:
 ```
-Creating private repo TamirCohen28/<REPO_NAME> [<SCAFFOLD_TYPE> / <TECH>] — "<DESCRIPTION>".
+Creating private repo TamirCohen28/<REPO_NAME> [<SCAFFOLD_TYPE> / <TECH>] — "<DESCRIPTION>". Scaffolding now...
 ```
-
-**Permission gate — before anything is created.** Creating a repository is `repo.create`, R4 in [ADR 004](../../../docs/engineering/decisions/004-permission-levels.md): it is public-facing, hard to undo, and the name and description come from free text, so a plan line is a notice, not a confirmation. Ask the resolver for this exact repository:
-
-```bash
-bash "$CLAUDE_SKILL_DIR/scripts/repo-create-gate.sh" \
-  --repo "TamirCohen28/$REPO_NAME" --visibility private --description "$DESCRIPTION"
-# add --headless when no person can answer you (a subagent, a `claude -p` run)
-```
-
-- exit `0` (allow) → continue to Stage 2.
-- exit `10` (ask — the answer R4 gets at every level) → show the user the printed `action:` line (owner/name, visibility, description) and create it **only on an explicit yes for that repository in this conversation**. A general "scaffold me a repo" earlier is not that yes. When you cannot ask anyone, stop: that is the headless case.
-- exit `3` or anything else → stop. Report the printed `blocked:` line verbatim (it names the setting that would allow it) and create nothing. A resolver that is missing or fails is a deny, never a pass.
-
-The gate never creates the repository itself: the `gh repo create` below stays its own visible call, so the host's own permission prompt on that call still sees it.
 
 If `--src` is a GitHub URL, run:
 ```bash
@@ -511,12 +497,12 @@ git push -u origin HEAD
 Enable PR auto-merge, then apply the canonical repository policy (branch rulesets on the default branch):
 
 ```bash
-bash "$CONTRACT_ROOT/scripts/enable-repo-merge-settings.sh" "TamirCohen28/$REPO_NAME" --apply --skill repo-scaffold
+bash "$CONTRACT_ROOT/scripts/enable-repo-merge-settings.sh" "TamirCohen28/$REPO_NAME"
 PLUGIN_ROOT="$(cd "$CONTRACT_ROOT/../../.." && pwd)"
 bash "$PLUGIN_ROOT/scripts/github-policy.sh" apply --repo "TamirCohen28/$REPO_NAME"
 ```
 
-Both go through the permission resolver (`repo.settings.merge` R3, `ruleset.apply` R4). **If either cannot run, the scaffold still succeeded**: exit `3`, a missing or unauthenticated `gh`, or a plan printed for lack of a TTY are each a **degraded success** — continue to Stage 5 and report, in the Stage 6 summary, the verbatim sentence and the run-it-yourself commands given in [`references/branch-governance.md`](references/branch-governance.md) (read it before reporting). Never retry with a different flag, call `gh api` directly, fall back to classic branch protection, or mark the repo protected when it is not.
+**If either cannot run, the scaffold still succeeded**: a non-zero exit, a missing or unauthenticated `gh`, or a plan printed for lack of a TTY are each a **degraded success** — continue to Stage 5 and report, in the Stage 6 summary, the verbatim sentence and the run-it-yourself commands given in [`references/branch-governance.md`](references/branch-governance.md) (read it before reporting). Never retry with a different flag, call `gh api` directly, fall back to classic branch protection, or mark the repo protected when it is not.
 
 Right after the rulesets, apply the canonical label set (`config/github/labels.json` plus one `agent:<platform>` label per platform in `core/capabilities/platforms.json` — read both from the files, never restate a label here). The issue templates and `dependabot.yml` Agent C wrote name labels from that set, and they only work once the labels exist:
 
@@ -524,7 +510,7 @@ Right after the rulesets, apply the canonical label set (`config/github/labels.j
 bash "$PLUGIN_ROOT/scripts/github-labels.sh" apply --repo "TamirCohen28/$REPO_NAME"
 ```
 
-It asks the resolver about `label.apply` (R2) and follows the **same degraded-success rule**: exit `3`, a missing or unauthenticated `gh`, or a plan printed for lack of a TTY each mean the scaffold still succeeded — continue, and report the labels sentence and run-it-yourself command from [`references/branch-governance.md`](references/branch-governance.md). Never pass `--prune` here: a fresh repository has nothing to prune, and deletion is a separate R3 decision.
+It follows the **same degraded-success rule**: a non-zero exit, a missing or unauthenticated `gh`, or a plan printed for lack of a TTY each mean the scaffold still succeeded — continue, and report the labels sentence and run-it-yourself command from [`references/branch-governance.md`](references/branch-governance.md). Never pass `--prune` here: a fresh repository has nothing to prune, and deleting a label is a separate decision a person makes.
 
 ### Stage 5: Run skill-creator
 

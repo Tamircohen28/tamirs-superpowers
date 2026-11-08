@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # test-cleanup-after-merge.sh — pr-dev's cleanup-after-merge.sh deletes a PR's
-# branch, worktree and remote branch only when GitHub shows it is safe, and only
-# through the permission resolver (ADR 004 D1/D4, audit finding D-1).
+# branch, worktree and remote branch only when GitHub shows it is safe (audit
+# finding D-1).
 #
 # WHAT IS HELD
 #   - Nothing is deleted unless the PR is MERGED, its head is neither the base
@@ -10,17 +10,11 @@
 #   - The remote branch is kept when GitHub reports it protected (branch flag or
 #     a ruleset deletion rule), when that cannot be read, and when its tip holds
 #     commits the PR did not merge.
-#   - branch.delete.remote goes through the resolver: allow deletes; ask with no
-#     terminal, deny, a missing resolver, a failing or unreadable resolver all
-#     keep it and print the setting that would allow it (exit 3).
 #   - A worktree with uncommitted changes is never force-removed.
 #   - A local branch with commits no remote ref or merged PR holds is kept.
 #
 # HOW
-#   The script runs as a COPY inside a temp plugin tree whose
-#   scripts/resolve-permission.sh is a stub (the script finds the resolver from
-#   its own path, never from the environment). Every gh call goes to
-#   tests/lib/fake-gh.sh, wrapped here for the calls it does not model (pr view,
+#   Every gh call goes to tests/lib/fake-gh.sh, wrapped here for the calls it does not model (pr view,
 #   the branch and rules endpoints). Real git: a bare origin and a clone per
 #   scenario, all under a temp dir. No network.
 set -uo pipefail
@@ -38,33 +32,7 @@ export HOME="$TMP/home"; mkdir -p "$HOME"
 export GIT_CONFIG_NOSYSTEM=1
 unset GH_TOKEN GITHUB_TOKEN GH_REPO 2>/dev/null || true
 
-# --- plugin tree with a stub resolver -------------------------------------------
-PLUG="$TMP/plugin"
-mkdir -p "$PLUG/skills/dev-workflow/pr-dev/scripts" "$PLUG/skills/dev-workflow/_shared/scripts" "$PLUG/scripts"
-cp "$ROOT/skills/dev-workflow/pr-dev/scripts/cleanup-after-merge.sh" "$PLUG/skills/dev-workflow/pr-dev/scripts/"
-cp "$ROOT/skills/dev-workflow/_shared/scripts/default-branch.sh" "$PLUG/skills/dev-workflow/_shared/scripts/"
-CAM="$PLUG/skills/dev-workflow/pr-dev/scripts/cleanup-after-merge.sh"
-STUB="$PLUG/scripts/resolve-permission.sh"
-STUB_LOG="$TMP/stub.log"
-export STUB_LOG
-# STUB_MODES="action=mode,..." (default STUB_DEFAULT, else allow). Modes: allow |
-# ask | deny (exit 0), exit3 (deny, exit 3), garbage (not JSON, exit 0).
-cat > "$STUB" <<'STUBEOF'
-#!/usr/bin/env bash
-printf 'ARGV %s\n' "$*" >> "$STUB_LOG"
-action="" prev=""
-for a in "$@"; do [ "$prev" = --action ] && action="$a"; prev="$a"; done
-mode="${STUB_DEFAULT:-allow}"
-IFS=, read -r -a pairs <<<"${STUB_MODES:-}"
-for p in ${pairs[@]+"${pairs[@]}"}; do [ "${p%%=*}" = "$action" ] && mode="${p#*=}"; done
-case "$mode" in
-  garbage) echo "not json"; exit 0 ;;
-  exit3) printf '{"verdict":"deny","reason":"resolver error"}\n'; exit 3 ;;
-esac
-printf '{"action":"%s","verdict":"%s","reason":"stub %s for %s","setting_that_would_allow":{"once":null,"durable":["/plugin-config %s allow"],"note":null}}\n' \
-  "$action" "$mode" "$mode" "$action" "$action"
-STUBEOF
-chmod +x "$STUB"
+CAM="$ROOT/skills/dev-workflow/pr-dev/scripts/cleanup-after-merge.sh"
 
 # --- gh: fake-gh.sh plus the calls it does not model ------------------------------
 FX="$TMP/fx"; mkdir -p "$FX/_defaults" "$FX/s"
@@ -116,25 +84,23 @@ new_world() {
   rm -f "$GHS"/*.json "$GHS/calls.log"
   pr_json MERGED feature main false
   printf '{"name":"feature","protected":false}\n' > "$GHS/branch-feature.json"
-  : > "$STUB_LOG"
 }
 # pr_json <state> <head> <base> <cross>
 pr_json() {
   printf '{"state":"%s","headRefName":"%s","headRefOid":"%s","baseRefName":"%s","isCrossRepository":%s}\n' \
     "$1" "$2" "$HEAD_OID" "$3" "$4" > "$GHS/pr.json"
 }
-# run [env...] — the copied script from the clone; output in OUT, exit in RC.
+# run — the script from the clone; output in OUT, exit in RC.
 run() {
   RC=0
-  OUT="$(cd "$CL" && env "$@" bash "$CAM" 42 2>&1)" || RC=$?
+  OUT="$(cd "$CL" && bash "$CAM" 42 2>&1)" || RC=$?
 }
 remote_has() { git -C "$ORIGIN" show-ref --verify --quiet "refs/heads/$1" && echo yes || echo no; }
 local_has()  { git -C "$CL" show-ref --verify --quiet "refs/heads/$1" && echo yes || echo no; }
-asked() { grep -c -- "--action $1" "$STUB_LOG" 2>/dev/null || true; }
 out_has() { has "$OUT" "$1"; }
 
 # =============================================================================
-section "allow: a merged PR is cleaned up, through the resolver"
+section "a merged PR is cleaned up"
 # =============================================================================
 new_world
 run
@@ -142,62 +108,7 @@ judge "exit 0" 0 "$RC"
 judge "remote branch deleted" no "$(remote_has feature)"
 judge "local branch deleted" no "$(local_has feature)"
 judge "worktree removed" no "$(exists "$WT")"
-judge "branch.delete.remote was asked once" 1 "$(asked branch.delete.remote)"
-judge "  ... with the PR as owner/repo#N" yes "$(has "$(cat "$STUB_LOG")" "--target acme/widget#42")"
-judge "  ... and the established precondition" yes "$(has "$(cat "$STUB_LOG")" "--cond pr_merged_not_default_not_cross_repo=true")"
-judge "  ... unmerged_commits established false" yes "$(has "$(cat "$STUB_LOG")" "--cond unmerged_commits=false")"
-judge "  ... headless, because no terminal is attached" yes "$(has "$(grep -- '--action branch.delete.remote' "$STUB_LOG")" "--headless")"
-judge "branch.delete.local was asked" 1 "$(asked branch.delete.local)"
-judge "worktree.remove was asked with discards_work=false" yes \
-  "$(has "$(grep -- '--action worktree.remove' "$STUB_LOG")" "--cond discards_work=false")"
-
-judge "  ... and no --host when none was given" no "$(has "$(cat "$STUB_LOG")" "--host")"
-
-new_world
-OUT="$(cd "$CL" && bash "$CAM" --host claude 42 2>&1)"
-judge "--host claude reaches the resolver" yes "$(has "$(cat "$STUB_LOG")" "--host claude")"
-
-# =============================================================================
-section "the resolver decides branch.delete.remote"
-# =============================================================================
-new_world
-run STUB_MODES=branch.delete.remote=ask
-judge "ask, no terminal => remote branch kept" yes "$(remote_has feature)"
-judge "  ... exit 3" 3 "$RC"
-judge "  ... says it needs confirmation" yes "$(out_has "needs confirmation and no terminal is attached")"
-judge "  ... names the setting that would allow it" yes "$(out_has "allow with: /plugin-config branch.delete.remote allow")"
-judge "  ... the R1 local cleanup still ran" no "$(local_has feature)"
-
-new_world
-run STUB_MODES=branch.delete.remote=deny
-judge "deny => remote branch kept" yes "$(remote_has feature)"
-judge "  ... exit 3" 3 "$RC"
-judge "  ... reports the reason and the setting" yes "$(out_has "blocked: stub deny for branch.delete.remote — allow with: /plugin-config branch.delete.remote allow")"
-
-new_world
-run STUB_MODES=branch.delete.remote=exit3
-judge "resolver exits non-zero => kept" yes "$(remote_has feature)"
-judge "  ... fail closed" yes "$(out_has "the permission resolver failed (exit 3")"
-
-new_world
-run STUB_MODES=branch.delete.remote=garbage
-judge "unparseable resolver output => kept" yes "$(remote_has feature)"
-judge "  ... exit 3" 3 "$RC"
-
-new_world
-mv "$STUB" "$STUB.off"
-run
-mv "$STUB.off" "$STUB"
-judge "resolver missing => remote branch kept" yes "$(remote_has feature)"
-judge "  ... local branch kept" yes "$(local_has feature)"
-judge "  ... worktree kept" yes "$(exists "$WT")"
-judge "  ... says the resolver is missing" yes "$(out_has "permission resolver (scripts/resolve-permission.sh) is missing")"
-judge "  ... exit 3" 3 "$RC"
-
-new_world
-run STUB_MODES=branch.delete.local=deny,worktree.remove=deny
-judge "deny on the R1 steps => local branch kept" yes "$(local_has feature)"
-judge "  ... worktree kept" yes "$(exists "$WT")"
+judge "no skipped: list" no "$(out_has "skipped:")"
 
 # =============================================================================
 section "D-1: the PR must be MERGED, own-repo, and not the base/default branch"
@@ -208,7 +119,6 @@ run
 judge "OPEN PR => remote branch kept" yes "$(remote_has feature)"
 judge "  ... local branch kept" yes "$(local_has feature)"
 judge "  ... worktree kept" yes "$(exists "$WT")"
-judge "  ... the resolver is never asked" 0 "$(grep -c . "$STUB_LOG" || true)"
 judge "  ... exit 3, naming why" "3 yes" "$RC $(out_has "is OPEN, not MERGED")"
 
 new_world
@@ -251,7 +161,6 @@ new_world
 printf '{"name":"feature","protected":true}\n' > "$GHS/branch-feature.json"
 run
 judge "protected flag => remote branch kept" yes "$(remote_has feature)"
-judge "  ... the resolver is not asked to delete it" 0 "$(asked branch.delete.remote)"
 judge "  ... exit 3" 3 "$RC"
 
 new_world

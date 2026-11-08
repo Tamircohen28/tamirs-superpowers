@@ -38,14 +38,12 @@ confirmed one repository at a time.
 canonical means the repository is left alone. There is no flag. Report it; do
 not look for a way around it.
 
-**3. The PERMISSION GATE.** `apply` asks `scripts/resolve-permission.sh` about
-`ruleset.apply` (R4, ADR 004). Its answer is `ask`: a person confirms each change
-at a terminal and `--yes` does not skip that. Without a terminal the tool prints
-the plan and exits 0 — "it did exactly what it promised", not "it applied". A
-`deny` exits 3 with the setting that would allow it. `GITHUB_POLICY_ALLOW_LIVE`
-no longer widens anything (env switches only tighten): the gate exists because a
-non-interactive `--yes` run once reverted a deliberate setting on the author's
-own repository.
+**3. The LIVE-TARGET GATE.** Without a terminal, `--yes` alone does not
+authorise a write — the tool prints the plan and exits 0. That exit 0 means "it
+did exactly what it promised", not "it applied". `GITHUB_POLICY_ALLOW_LIVE=1` is
+the declaration an unattended caller must make, and **you never set it**: the
+gate exists because a non-interactive `--yes` run once reverted a deliberate
+setting on the author's own repository.
 
 ## Exit codes
 

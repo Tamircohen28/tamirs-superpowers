@@ -20,34 +20,18 @@
 #   To confirm the pairing actually bites, revert the `not in TOOLS` line to
 #   `!= "Bash"` and re-run: the Shell block cases fail, the Bash ones do not.
 #
-# WHY THE ALLOW PATHS ARE ASSERTED AS *JSON*, NOT AS SILENCE
-#   Claude Code reads empty stdout as no objection; Cursor fail-closes on it.
-#   So a bare exit(0) is not a portable pass, and per hooks/lib/hook-output.sh
-#   a pass is `{}` on every host, Cursor included: an object with no decision.
+# WHY THE PASS PATHS ARE ASSERTED AS *JSON*, NOT AS SILENCE
+#   Claude Code reads empty stdout as no objection; Cursor fail-closes on it. So
+#   a bare exit(0) is not a portable pass, and per hooks/lib/hook-output.sh a
+#   pass is `{}` on every host, Cursor included (5.6.1): the guard never grants.
 #
-# WHO APPROVES (ADR 004 D5, D8; permissions-gates task-004)
-#   The guard no longer takes an approval token: every flagged command is the
-#   catalog action docker.state and scripts/resolve-permission.sh decides it.
-#   The guard finds the resolver from its own location, so the suite runs a
-#   COPY of the guard inside a temp plugin tree whose resolver is a stub
-#   (tests/test-merge-policy.sh Part A's pattern) and picks the stub's answer
-#   per case. The pre-existing protections run with the stub answering deny,
-#   so their assertions are unchanged. Changed: the two token cases — "inline
-#   PM_ALLOW_DOCKER=1 approves" and "PM_ALLOW_DOCKER=1 in env approves" — now
-#   assert that the token approves nothing. Added: the verdict mapping per host,
-#   fail-closed resolver failures. The in-tree guard on the real resolver is
-#   judged in tests/test-permission-guard.sh, under its test root (#400).
-#
-# WHY THE TEMP TREE CARRIES THE PERMISSIONS SCHEMA
-#   The guard does not spell the resolver's pass verdict: it reads it from
-#   core/schemas/permissions.schema.json (the one $defs/verdict member outside
-#   $defs/verdict_r4), next to itself in the plugin. The tree copies the real
-#   schema, and two cases below take it away or reshape it to show that an
-#   unreadable vocabulary passes nothing.
+# NO ANSWER IS AN ASK (ADR 006)
+#   The guard denies or says nothing. Under Claude Code's bypassPermissions mode
+#   (5.6.7) it passes everything but a prune, which it still denies.
 set -uo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-REAL_HOOK="$ROOT/hooks/docker-guard.py"
+HOOK="$ROOT/hooks/docker-guard.py"
 
 PASS=0
 FAIL=0
@@ -60,35 +44,6 @@ if ! command -v python3 >/dev/null 2>&1; then
   printf '  skip docker-guard — python3 not available\n'
   exit 0
 fi
-
-TMP="$(mktemp -d "${TMPDIR:-/tmp}/docker-guard.XXXXXX")"
-trap 'rm -rf "$TMP"' EXIT
-PLUG="$TMP/plugin"
-mkdir -p "$PLUG/hooks" "$PLUG/scripts"
-cp "$REAL_HOOK" "$PLUG/hooks/docker-guard.py"
-mkdir -p "$PLUG/core/schemas"
-SCHEMA="$PLUG/core/schemas/permissions.schema.json"
-cp "$ROOT/core/schemas/permissions.schema.json" "$SCHEMA"
-HOOK="$PLUG/hooks/docker-guard.py"
-STUB_LOG="$TMP/stub.log"
-export STUB_LOG
-# The stub records its argv, then answers per STUB_MODE: allow | ask | deny
-# (exit 0), exit3 (deny, exit 3), allow-exit1 (claims allow, exits 1),
-# garbage (not JSON), noverdict ({}), slow (sleeps past the guard's deadline).
-cat > "$PLUG/scripts/resolve-permission.sh" <<'STUB'
-#!/usr/bin/env bash
-printf 'ARGV %s\n' "$*" >> "$STUB_LOG"
-mode="${STUB_MODE:-deny}"
-case "$mode" in
-  garbage)   printf 'not json\n'; exit 0 ;;
-  noverdict) printf '{}\n'; exit 0 ;;
-  slow)      sleep 6; printf '{"verdict":"allow"}\n'; exit 0 ;;
-  exit3)     printf '{"verdict":"deny","reason":"stub internal error"}\n'; exit 3 ;;
-  allow-exit1) printf '{"verdict":"allow"}\n'; exit 1 ;;
-esac
-printf '{"action":"docker.state","verdict":"%s","reason":"stub says %s","setting_that_would_allow":{"once":null,"durable":[],"note":"docker.state is never automatic at any level"}}\n' "$mode" "$mode"
-STUB
-chmod +x "$PLUG/scripts/resolve-permission.sh"
 
 # The tool names this suite exercises. Kept in step with TOOLS in the guard and
 # with the PreToolUse matcher in hooks/hooks.json; asserted below.
@@ -185,13 +140,13 @@ for tool in "${GUARDED_TOOLS[@]}"; do
     bad "$tool: allow verdict is valid JSON" "out='$out'"
   fi
 
-  # The old per-command approval token is agent-typeable text (audit D5): it
-  # must approve nothing, through both tools.
+  # The documented per-command approval path, asserted through both tools so it
+  # cannot regress into working on one only.
   out="$(run "$tool" 'PM_ALLOW_DOCKER=1 docker run -it ubuntu')"
-  if [ "$(is_deny "$out")" = "yes" ]; then
-    ok "$tool: inline PM_ALLOW_DOCKER=1 approves nothing"
+  if [ "$(is_deny "$out")" = "no" ] && [ "$(is_json "$out")" = "yes" ]; then
+    ok "$tool: inline PM_ALLOW_DOCKER=1 approves"
   else
-    bad "$tool: inline PM_ALLOW_DOCKER=1 approves nothing" "out='$out'"
+    bad "$tool: inline PM_ALLOW_DOCKER=1 approves" "out='$out'"
   fi
 
   # A wrapper that has historically shelled out to docker.
@@ -213,26 +168,33 @@ else
   bad "unguarded tool allows in JSON" "out='$out'"
 fi
 
-# The old session-wide suppression approves nothing either.
+# Session-wide suppression.
 out="$(printf '{"tool_name":"Bash","tool_input":{"command":"docker run -it ubuntu"}}' \
   | PM_ALLOW_DOCKER=1 python3 "$HOOK" 2>/dev/null)"
-if [ "$(is_deny "$out")" = "yes" ]; then
-  ok "PM_ALLOW_DOCKER=1 in env approves nothing"
+if [ "$(is_deny "$out")" = "no" ] && [ "$(is_json "$out")" = "yes" ]; then
+  ok "PM_ALLOW_DOCKER=1 in env approves in JSON"
 else
-  bad "PM_ALLOW_DOCKER=1 in env approves nothing" "out='$out'"
+  bad "PM_ALLOW_DOCKER=1 in env approves in JSON" "out='$out'"
 fi
 
-printf '\n--- host-shaped allow verdicts ---\n'
+printf '\n--- host-shaped pass and deny verdicts ---\n'
 
-# Cursor is identified by keys only it sends; its pass is `{}` like every
-# host's (hooks/lib/hook-output.sh): no permission key, no decision at all.
+# Cursor is identified by keys only it sends. A pass is {} there too (5.6.1):
+# no decision, so Cursor's own rules apply; the guard never grants.
 out="$(printf '{"tool_name":"Bash","cursor_version":"1.0","tool_input":{"command":"docker ps"}}' \
   | env -u PM_ALLOW_DOCKER python3 "$HOOK" 2>/dev/null)"
-keys="$(printf '%s' "$out" | python3 -c 'import json,sys; print(",".join(sorted(json.load(sys.stdin))) or "none")' 2>/dev/null)"
-if [ "$keys" = "none" ]; then
+if [ "$out" = "{}" ]; then
   ok "cursor payload gets {}"
 else
   bad "cursor payload gets {}" "out='$out'"
+fi
+out="$(printf '{"tool_name":"Shell","conversation_id":"c","tool_input":{"command":"docker run x"}}' \
+  | env -u PM_ALLOW_DOCKER python3 "$HOOK" 2>/dev/null)"
+verdict="$(printf '%s' "$out" | python3 -c 'import json,sys; print(json.load(sys.stdin).get("permission",""))' 2>/dev/null)"
+if [ "$verdict" = "deny" ]; then
+  ok "cursor payload gets {\"permission\":\"deny\"} for docker run"
+else
+  bad "cursor payload gets {\"permission\":\"deny\"} for docker run" "out='$out'"
 fi
 
 out="$(run 'Bash' 'docker ps')"
@@ -242,6 +204,50 @@ if [ -z "$keys" ]; then
 else
   bad "claude payload gets {}" "out='$out'"
 fi
+
+printf '\n--- the deny names the approval path ---\n'
+
+out="$(run Bash 'docker compose up -d')"
+case "$out" in
+  *"PM_ALLOW_DOCKER=1"*) ok "the deny says how to approve one command" ;;
+  *) bad "the deny says how to approve one command" "out='$out'" ;;
+esac
+
+printf '\n--- no answer is ever an ask ---\n'
+
+asked=""
+for c in 'docker run x' 'docker compose up -d' 'docker system prune -af' 'docker ps' 'make e2e-db'; do
+  for mode in default bypassPermissions; do
+    out="$(python3 -c '
+import json, sys
+print(json.dumps({"tool_name": "Bash", "permission_mode": sys.argv[2], "tool_input": {"command": sys.argv[1]}}))
+' "$c" "$mode" | env -u PM_ALLOW_DOCKER python3 "$HOOK" 2>/dev/null)"
+    case "$out" in *'"ask"'*) asked="$asked [$mode] $c;" ;; esac
+  done
+done
+if [ -z "$asked" ]; then ok "docker-guard never answers ask"; else bad "docker-guard never answers ask" "$asked"; fi
+
+printf '\n--- Claude Code bypass mode: only a prune is denied (5.6.7) ---\n'
+
+# bypass <command> [extra json] — hook stdout for a Claude payload in bypassPermissions.
+bypass() {
+  python3 -c '
+import json, sys
+d = {"tool_name": "Bash", "permission_mode": "bypassPermissions", "tool_input": {"command": sys.argv[1]}}
+d.update(json.loads(sys.argv[2]))
+print(json.dumps(d))
+' "$1" "${2:-{\}}" | env -u PM_ALLOW_DOCKER python3 "$HOOK" 2>/dev/null
+}
+out="$(bypass 'docker compose up -d')"
+if [ "$out" = "{}" ]; then ok "bypass: compose up passes"; else bad "bypass: compose up passes" "out='$out'"; fi
+out="$(bypass 'docker system prune -af')"
+if [ "$(is_deny "$out")" = "yes" ]; then ok "bypass: a prune is denied"; else bad "bypass: a prune is denied" "out='$out'"; fi
+out="$(bypass 'docker run -d x; docker volume prune -f')"
+if [ "$(is_deny "$out")" = "yes" ]; then ok "bypass: a prune after a passing docker command is denied"; else bad "bypass: a prune after a passing docker command is denied" "out='$out'"; fi
+out="$(bypass 'PM_ALLOW_DOCKER=1 docker system prune -af')"
+if [ "$out" = "{}" ]; then ok "bypass: PM_ALLOW_DOCKER=1 approves a prune"; else bad "bypass: PM_ALLOW_DOCKER=1 approves a prune" "out='$out'"; fi
+out="$(bypass 'docker compose up -d' '{"turn_id":"t-1"}')"
+if [ "$(is_deny "$out")" = "yes" ]; then ok "bypass on a Codex payload changes nothing"; else bad "bypass on a Codex payload changes nothing" "out='$out'"; fi
 
 printf '\n--- degenerate stdin never hangs or blocks ---\n'
 
@@ -259,131 +265,6 @@ if [ "$rc" -eq 0 ] && [ "$(is_json "$out")" = "yes" ]; then
 else
   bad "non-JSON stdin allows in JSON" "rc=$rc out='$out'"
 fi
-
-printf '\n--- the resolver decides (stub answers per case) ---\n'
-
-# runp <mode> <payload-json> [env...] — the copy's stdout with the stub answering <mode>.
-runp() {
-  local mode="$1" payload="$2"; shift 2
-  : > "$STUB_LOG"
-  printf '%s' "$payload" | env -u PM_ALLOW_DOCKER -u CODEX_HOME -u GEMINI_SESSION_ID \
-    -u GEMINI_PROJECT_DIR STUB_MODE="$mode" "$@" python3 "$HOOK" 2>/dev/null
-}
-decision() {
-  printf '%s' "$1" | python3 -c '
-import json, sys
-try:
-    d = json.load(sys.stdin)
-except Exception:
-    print("invalid"); raise SystemExit
-hs = d.get("hookSpecificOutput") or {}
-print(hs.get("permissionDecision") or d.get("permission") or ("allow" if d == {} else "?"))
-' 2>/dev/null
-}
-reason_of() {
-  printf '%s' "$1" | python3 -c '
-import json, sys
-d = json.load(sys.stdin)
-print((d.get("hookSpecificOutput") or {}).get("permissionDecisionReason") or d.get("user_message") or "")
-' 2>/dev/null
-}
-check() { if [ "$2" = "$3" ]; then ok "$1"; else bad "$1" "expected '$2', got '$3'"; fi; }
-contains() { case "$1" in *"$2"*) echo yes ;; *) echo no ;; esac; }
-
-CL='{"tool_name":"Bash","session_id":"sess-1","cwd":"/","tool_input":{"command":"docker compose up -d"}}'
-CX='{"tool_name":"Bash","turn_id":"t-1","tool_input":{"command":"docker compose up -d"}}'
-OC='{"tool_name":"Bash","host":"opencode","tool_input":{"command":"docker compose up -d"}}'
-CU='{"tool_name":"Bash","cursor_version":"1.0","tool_input":{"command":"docker compose up -d"}}'
-SUB='{"tool_name":"Bash","session_id":"sess-1","agent_id":"agent-7","tool_input":{"command":"docker run x"}}'
-
-out="$(runp allow "$CL")"
-check "allow => the call runs ({} on Claude)" allow "$(decision "$out")"
-argv="$(sed -n 's/^ARGV //p' "$STUB_LOG")"
-check "  ... the resolver was asked for docker.state" yes "$(contains "$argv" "docker.state --host claude")"
-check "  ... with this session and the main-thread agent" yes "$(contains "$argv" "--session sess-1 --agent main")"
-check "  ... and the payload's cwd as the repo" yes "$(contains "$argv" "--repo /")"
-out="$(runp allow "$SUB")"
-check "a subagent's call names its agent_id" yes "$(contains "$(sed -n 's/^ARGV //p' "$STUB_LOG")" "--agent agent-7")"
-out="$(runp allow "$CU")"
-check "allow on Cursor => {} (no decision, Cursor's rules apply)" "{}" "$out"
-
-out="$(runp ask "$CL")"
-check "ask on Claude Code => a hook ask (the host's dialog)" ask "$(decision "$out")"
-r="$(reason_of "$out")"
-check "  ... the dialog names the exact command" yes "$(contains "$r" "docker compose up -d")"
-check "  ... and the action id" yes "$(contains "$r" "docker.state")"
-check "  ... and offers no token" no "$(contains "$r" "PM_ALLOW_DOCKER")"
-
-out="$(runp ask "$CX")"
-check "ask on Codex => deny (a Codex hook ask fails open)" deny "$(decision "$out")"
-out="$(runp ask "$OC")"
-check "ask on OpenCode => deny (R3: --auto would approve an ask)" deny "$(decision "$out")"
-out="$(runp ask "$CU")"
-check "ask on Cursor => deny in Cursor's shape" deny "$(decision "$out")"
-out="$(runp ask "$CL" CODEX_HOME=/nonexistent)"
-check "ask on a Claude-shaped payload with CODEX_HOME set => deny (stricter host wins)" deny "$(decision "$out")"
-
-out="$(runp deny "$CL")"
-check "deny => deny" deny "$(decision "$out")"
-r="$(reason_of "$out")"
-check "  ... naming the resolver's reason" yes "$(contains "$r" "stub says deny")"
-check "  ... and the setting that would allow it" yes "$(contains "$r" "never automatic")"
-check "  ... and no token to retry with" no "$(contains "$r" "PM_ALLOW_DOCKER")"
-
-for mode in exit3 allow-exit1 garbage noverdict; do
-  out="$(runp "$mode" "$CL")"
-  check "resolver answers '$mode' => deny (fail closed)" deny "$(decision "$out")"
-done
-start=$(date +%s)
-out="$(runp slow "$CL")"
-elapsed=$(( $(date +%s) - start ))
-check "a resolver slower than the deadline => deny (fail closed)" deny "$(decision "$out")"
-check "  ... decided inside the hook's 5 s timeout" yes "$([ "$elapsed" -lt 5 ] && echo yes || echo no)"
-
-mv "$PLUG/scripts/resolve-permission.sh" "$PLUG/scripts/resolve-permission.sh.off"
-out="$(runp allow "$CL")"
-check "resolver missing => deny (fail closed)" deny "$(decision "$out")"
-check "  ... and says why" yes "$(contains "$(reason_of "$out")" "missing")"
-mv "$PLUG/scripts/resolve-permission.sh.off" "$PLUG/scripts/resolve-permission.sh"
-
-# The pass verdict comes from the schema; without it, nothing passes.
-mv "$SCHEMA" "$SCHEMA.off"
-out="$(runp allow "$CL")"
-check "permissions schema missing => the resolver's pass is denied (fail closed)" deny "$(decision "$out")"
-check "  ... as 'gave no verdict'" yes "$(contains "$(reason_of "$out")" "gave no verdict")"
-out="$(runp ask "$CL")"
-check "  ... while an ask is still an ask" ask "$(decision "$out")"
-python3 -c '
-import json, sys
-d = json.load(open(sys.argv[1]))
-d["$defs"]["verdict_r4"]["enum"] = ["deny"]
-json.dump(d, open(sys.argv[2], "w"))
-' "$SCHEMA.off" "$SCHEMA"
-out="$(runp allow "$CL")"
-check "permissions schema reshaped (verdict_r4 is not ask+deny) => deny (fail closed)" deny "$(decision "$out")"
-mv "$SCHEMA.off" "$SCHEMA"
-out="$(runp allow "$CL")"
-check "  ... and restored, the pass passes again" allow "$(decision "$out")"
-
-out="$(runp allow '{"tool_name":"Bash","tool_input":{"command":"docker ps"}}')"
-check "an unflagged command never calls the resolver" "" "$(cat "$STUB_LOG")"
-
-# The in-tree guard on the REAL resolver lives in tests/test-permission-guard.sh
-# ("the in-tree docker guard on the real resolver, at every level"). It ran here
-# against the developer's own configuration, which this suite cannot redirect (the
-# resolver honours its test root only under the permission suites): on a machine
-# above supervised the resolver's host-version probe wrote a sess-1 entry into the
-# real ~/.local/state/tamirs-superpowers/hostver, and make test-hooks' witness
-# rightly failed this suite (#400).
-
-# Claude Code's bypass mode (5.6.7): the resolver is not consulted for what can be removed; a prune still asks.
-BY='{"tool_name":"Bash","session_id":"sess-1","cwd":"/","permission_mode":"bypassPermissions","tool_input":{"command":"docker compose up -d"}}'
-BYP='{"tool_name":"Bash","session_id":"sess-1","cwd":"/","permission_mode":"bypassPermissions","tool_input":{"command":"docker system prune -af"}}'
-check "bypass: compose up runs even when the resolver denies" allow "$(decision "$(runp deny "$BY")")"
-check "bypass: a prune still asks" ask "$(decision "$(runp deny "$BYP")")"
-BYC='{"tool_name":"Bash","session_id":"sess-1","cwd":"/","permission_mode":"bypassPermissions","tool_input":{"command":"docker compose up -d; docker system prune -af"}}'
-check "bypass: a prune after an allowed docker command still asks" ask "$(decision "$(runp deny "$BYC")")"
-check "bypass on a Codex payload changes nothing" deny "$(decision "$(runp deny "$(printf '%s' "$CX" | jq -c '.permission_mode="bypassPermissions"')")")"
 
 echo
 printf 'docker-guard: %d passed, %d failed\n' "$PASS" "$FAIL"

@@ -17,14 +17,6 @@
 #   checkout would leave staged edits behind on every pass. Both are asserted
 #   afterwards rather than left to the reader to notice.
 #
-# THE PERMISSION RESOLVER IS A STUB.
-#   capture-config.sh finds scripts/resolve-permission.sh next to itself, so each
-#   mirror gets a stub there (write_stub_resolver) that answers STUB_MODE
-#   (allow | ask | deny | garbage; ask turns into deny under --headless, as the
-#   real one does) and logs its argv to STUB_LOG. That is what drives the policy
-#   hunk gate (config.policy.stage, R4, ADR 004) through allow / ask / deny /
-#   missing without reading anyone's real permission file.
-#
 # Usage: bash tests/test-capture.sh
 
 set -uo pipefail
@@ -49,67 +41,7 @@ repo_mirror() {
     cp -R "$REPO_ROOT/$d" "$m/" 2>/dev/null || true
   done
   cp -R "$REPO_ROOT/skills/repo/_contract/scripts" "$m/skills/repo/_contract/" 2>/dev/null || true
-  write_stub_resolver "$m/scripts/resolve-permission.sh"
   printf '%s' "$m"
-}
-
-# write_stub_resolver <path> — see THE PERMISSION RESOLVER IS A STUB above.
-write_stub_resolver() {
-  cat > "$1" <<'STUB'
-#!/usr/bin/env bash
-[ -z "${STUB_LOG:-}" ] || printf 'ARGV %s\n' "$*" >> "$STUB_LOG"
-mode="${STUB_MODE:-ask}"
-case " $* " in *" --headless "*) [ "$mode" = ask ] && mode=headless-deny ;; esac
-case "$mode" in
-  garbage) printf 'not json\n'; exit 0 ;;
-  allow) printf '{"verdict":"allow","reason":"stub allows","setting_that_would_allow":null}\n' ;;
-  ask) printf '{"verdict":"ask","reason":"stub asks: R4","setting_that_would_allow":{"once":null,"durable":[],"note":"R4: stub note"}}\n' ;;
-  headless-deny) printf '{"verdict":"deny","reason":"denied: headless: no human present (stub)","setting_that_would_allow":{"once":null,"durable":[],"note":"R4: run it yourself (stub)"}}\n' ;;
-  *) printf '{"verdict":"deny","reason":"stub denies","setting_that_would_allow":{"once":null,"durable":["/plugin-config stub allow"],"note":null}}\n' ;;
-esac
-STUB
-  chmod +x "$1"
-}
-
-# in_pty <answer> <cmd...> — run cmd with a pty as its controlling terminal and
-# type <answer> at every 'Type "yes"' prompt. python's pty.fork() makes the pty
-# the child's controlling terminal (unlike macOS script(1), see the note at
-# "skip is the default" below), so /dev/tty inside it IS this pty.
-in_pty() {
-  python3 -I -S - "$@" <<'PYTTY'
-import os, pty, select, sys, time
-answer, argv = sys.argv[1], sys.argv[2:]
-pid, fd = pty.fork()
-if pid == 0:
-    os.execvp(argv[0], argv)
-out, buf, status = b"", b"", None
-deadline = time.time() + 180
-while time.time() < deadline:
-    r, _, _ = select.select([fd], [], [], 0.2)
-    if r:
-        try:
-            chunk = os.read(fd, 4096)
-        except OSError:
-            chunk = b""
-        if not chunk:
-            break
-        out += chunk
-        buf += chunk
-        while b'Type "yes"' in buf:
-            os.write(fd, (answer + "\n").encode())
-            buf = buf.split(b'Type "yes"', 1)[1]
-    elif status is None:
-        p, st = os.waitpid(pid, os.WNOHANG)
-        if p:
-            status = st
-if status is None:
-    try:
-        _, status = os.waitpid(pid, 0)
-    except ChildProcessError:
-        status = 0
-sys.stdout.write(out.decode("utf-8", "replace"))
-sys.exit(os.waitstatus_to_exitcode(status))
-PYTTY
 }
 
 # A planted token that is shaped like a real one and is not a real one. It is
@@ -350,75 +282,16 @@ section "an adopted hunk lands in the CANONICAL SOURCE"
 
 MIRROR_C="$(repo_mirror)"
 HOME_C="$(fake_home)"; with_rules "$HOME_C"
-STUB_LOG_C="$(harness_tmpdir)/stub.log"
-ADOPT="$(STUB_LOG="$STUB_LOG_C" run_capture "$MIRROR_C" "$HOME_C" review --targets claude --adopt all)"
+ADOPT="$(run_capture "$MIRROR_C" "$HOME_C" review --targets claude --adopt all)"
 judge "the adopt cycle exits 0" 0 "$?"
 
 judge "the captured rule landed in core/global-rules.md" yes \
   "$(if grep -qF 'Always run the linter before opening a PR.' "$MIRROR_C/core/global-rules.md"; then echo yes; else echo no; fi)"
+judge "the captured permission landed in platforms/claude/settings.d/" yes \
+  "$(if jq -e '.permissions.allow | index("Bash(terraform plan:*)")' \
+        "$MIRROR_C/platforms/claude/settings.d/permissions-allow.json" >/dev/null 2>&1; then echo yes; else echo no; fi)"
 judge "the captured effortLevel landed in the defaults fragment" high \
   "$(jq -r '.effortLevel' "$MIRROR_C/platforms/claude/settings.d/defaults.json")"
-
-# perm_landed <mirror> — did the terraform permission reach the canonical source?
-perm_landed() {
-  if jq -e '.permissions.allow | index("Bash(terraform plan:*)")' \
-       "$1/platforms/claude/settings.d/permissions-allow.json" >/dev/null 2>&1; then echo yes; else echo no; fi
-}
-
-# ---------------------------------------------------------------------------
-section "--adopt all never adopts a POLICY hunk (config.policy.stage, R4)"
-
-# The permission entry is portable AND policy: --adopt all with no terminal
-# must leave it out, say so, and have asked the resolver for exactly that id.
-judge "a permission hunk is NOT adopted by --adopt all without a terminal" no "$(perm_landed "$MIRROR_C")"
-judge "an unknown hunk is held back too (no rule says it is harmless)" no \
-  "$(if grep -rqF 'artifactory.example-co.internal' "$MIRROR_C/platforms" 2>/dev/null; then echo yes; else echo no; fi)"
-judge "the run names the held-back policy hunk" yes "$(has "$ADOPT" 'not adopted')"
-judge "and why it was held back" yes "$(has "$ADOPT" 'config.policy.stage, R4')"
-judge "and the setting the resolver named" yes "$(has "$ADOPT" 'allow with: R4: run it yourself (stub)')"
-judge "and how to adopt it (a terminal)" yes "$(has "$ADOPT" 'policy hunk(s) held back')"
-judge "the gate asked the resolver for config.policy.stage" yes \
-  "$(has "$(cat "$STUB_LOG_C" 2>/dev/null)" '--action config.policy.stage --skill capture-config --target')"
-judge "with --headless, because there is no terminal" yes \
-  "$(has "$(cat "$STUB_LOG_C" 2>/dev/null)" '--headless')"
-judge "the gate target is the canonical sink, not the machine file" yes \
-  "$(has "$(cat "$STUB_LOG_C" 2>/dev/null)" "$MIRROR_C/platforms/claude/settings.d/permissions-allow.json")"
-
-# An explicit id list is a decision too, but not about a policy hunk.
-MIRROR_L="$(repo_mirror)"; HOME_L="$(fake_home)"
-PERM_ID="$(HOME="$HOME_L" bash "$MIRROR_L/scripts/capture-config.sh" detect --targets claude --json 2>/dev/null \
-  | jq -r '.hunks[] | select(.key=="permissions.allow") | select(.machine_value | test("terraform")) | .id')"
-STUB_MODE=allow run_capture "$MIRROR_L" "$HOME_L" review --targets claude --adopt "$PERM_ID" >/dev/null
-judge "an --adopt id list adopts a policy hunk only through the gate (allow)" yes "$(perm_landed "$MIRROR_L")"
-MIRROR_L2="$(repo_mirror)"
-out="$(STUB_MODE=deny run_capture "$MIRROR_L2" "$HOME_L" review --targets claude --adopt "$PERM_ID")"
-judge "an --adopt id list does not adopt a denied policy hunk" no "$(perm_landed "$MIRROR_L2")"
-judge "and names the setting that would allow it" yes "$(has "$out" 'allow with: /plugin-config stub allow')"
-MIRROR_L3="$(repo_mirror)"; rm -f "$MIRROR_L3/scripts/resolve-permission.sh"
-out="$(STUB_MODE=allow run_capture "$MIRROR_L3" "$HOME_L" review --targets claude --adopt "$PERM_ID")"
-judge "a missing resolver holds the policy hunk back (fail closed)" no "$(perm_landed "$MIRROR_L3")"
-judge "and says the resolver is missing" yes "$(has "$out" 'resolver is missing or failed')"
-MIRROR_L4="$(repo_mirror)"
-STUB_MODE=garbage run_capture "$MIRROR_L4" "$HOME_L" review --targets claude --adopt "$PERM_ID" >/dev/null
-judge "an unparseable resolver answer holds it back (fail closed)" no "$(perm_landed "$MIRROR_L4")"
-
-# ---------------------------------------------------------------------------
-section "a policy hunk adopts only on its own typed yes (pty)"
-
-MIRROR_P="$(repo_mirror)"; HOME_P="$(fake_home)"
-out="$(STUB_MODE=ask HOME="$HOME_P" in_pty yes bash "$MIRROR_P/scripts/capture-config.sh" review --targets claude --adopt all)"; rc=$?
-judge "the pty review exits 0" 0 "$rc"
-judge "the policy prompt names the action" yes "$(has "$out" 'config.policy.stage (R4)')"
-judge "a typed yes adopts the permission hunk" yes "$(perm_landed "$MIRROR_P")"
-MIRROR_P2="$(repo_mirror)"
-out="$(STUB_MODE=ask HOME="$HOME_P" in_pty y bash "$MIRROR_P2/scripts/capture-config.sh" review --targets claude --adopt all)"
-judge "a bare y is not a yes for a policy hunk" no "$(perm_landed "$MIRROR_P2")"
-judge "while --adopt all still adopted the non-policy hunk" high \
-  "$(jq -r '.effortLevel' "$MIRROR_P2/platforms/claude/settings.d/defaults.json")"
-MIRROR_P3="$(repo_mirror)"
-out="$(STUB_MODE=deny HOME="$HOME_P" in_pty yes bash "$MIRROR_P3/scripts/capture-config.sh" review --targets claude --adopt all)"
-judge "a deny is not asked, even with a terminal" no "$(has "$out" 'Type "yes"')"
-judge "and the denied hunk is not adopted" no "$(perm_landed "$MIRROR_P3")"
 
 # The negative half: capture must not have written a platform's rendered file,
 # and must not have created a repo-side copy of the machine's settings.json.
@@ -587,7 +460,7 @@ judge "the real ~/.claude is unchanged" "$REAL_HOME_BEFORE" "$(guard_real_home)"
 judge "the repo's canonical sources are unchanged" "$REAL_REPO_BEFORE" \
   "$(cd "$REPO_ROOT" && git status --porcelain -- core platforms 2>/dev/null | shasum | awk '{print $1}')"
 judge "no fake HOME is the real one" no \
-  "$(for h in "$HOME_A" "$HOME_B" "$HOME_C" "$HOME_D" "$HOME_E" "$HOME_G" "$HOME_IP" "$HOME_EMP" "$HOME_L" "$HOME_P"; do
+  "$(for h in "$HOME_A" "$HOME_B" "$HOME_C" "$HOME_D" "$HOME_E" "$HOME_G" "$HOME_IP" "$HOME_EMP"; do
        [ "$h" = "$REAL_HOME" ] && echo yes && exit 0
      done; echo no)"
 

@@ -59,13 +59,9 @@ repositories the user cannot easily un-break, so:
 - Never pass `--yes` unless the user said so in this conversation.
 - Never pass `--allow-weakening` unless the user has seen the specific conflict
   and said the policy is right.
-- `apply` asks the permission resolver (`scripts/resolve-permission.sh`, ADR 004)
-  about `ruleset.apply` (and `ruleset.apply.org` with `--org-level`). Both are R4:
-  the answer is `ask`, so a person confirms every change at a terminal and `--yes`
-  does not skip it; with no terminal (an agent's shell) the plan is printed and
-  nothing is written. `deny` stops with exit 3 and the setting that would allow
-  it. `GITHUB_POLICY_ALLOW_LIVE` is no longer read — environment switches may only
-  tighten — so do not set it. Hand the user the `apply` command to run themselves.
+- Never set `GITHUB_POLICY_ALLOW_LIVE=1`. It exists so an unattended caller has
+  to declare itself; an agent setting it is an agent defeating the gate that was
+  added after a live setting was reverted by accident.
 - If the tool declines and prints a plan instead, that is the tool working.
   Report it; do not route around it.
 
@@ -113,8 +109,7 @@ bash scripts/github-policy.sh apply --repo OWNER/NAME
 bash scripts/github-policy.sh verify --repo OWNER/NAME
 ```
 
-`apply` asks the permission resolver first, then shows each change and confirms
-it at the terminal — in the user's own terminal, since an agent shell has none. Running it twice is a
+`apply` shows each change and confirms it at the terminal. Running it twice is a
 no-op proven by content, not asserted — say so if the user worries about
 re-running it.
 
