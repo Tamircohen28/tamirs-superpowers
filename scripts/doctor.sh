@@ -58,12 +58,50 @@ else
   done
 fi
 
-# Print "name version" for a tool, or empty if absent. Never reads stdin.
+PROBE_SECS="${DOCTOR_PROBE_SECONDS:-3}"
+case "$PROBE_SECS" in 1|2|3) ;; *) PROBE_SECS=3 ;; esac
+PROBE_TIMED_OUT="version unknown (probe timed out)"
+
+# with_deadline <seconds> <command...> — run it, killed after <seconds> with every process it
+# started; its status, or 137/143 when the deadline killed it. A background job in its own
+# process group plus a watchdog, so it behaves the same on macOS (no timeout) and Linux, and
+# the whole group is KILLed when the leader exits. Every external probe below goes through it, so one stalled CLI can never hang
+# doctor before its install-integrity and dependency report (#412).
+with_deadline() {
+  local secs="$1" pid wd rc=0 mon=0 sl
+  shift
+  # Always this watchdog, never coreutils timeout/gtimeout: their -k KILLs only a leader that
+  # is still running, so a TERM-ignoring child that outlives its leader would keep stdout open.
+  sl="$(command -v sleep 2>/dev/null || echo /bin/sleep)"
+  case "$-" in *m*) mon=1 ;; esac
+  set -m
+  "$@" &
+  pid=$!
+  [[ "$mon" == 1 ]] || set +m
+  ( "$sl" "$secs"; kill -TERM -- "-$pid" 2>/dev/null; "$sl" 1; kill -KILL -- "-$pid" 2>/dev/null ) \
+    </dev/null >/dev/null 2>&1 &
+  wd=$!
+  wait "$pid" || rc=$?
+  # The leader is gone, but a descendant that ignores TERM may still hold the caller's stdout
+  # open (a command substitution then blocks on EOF). KILL the whole group before the watchdog
+  # is cancelled, so its KILL step can never be skipped.
+  kill -KILL -- "-$pid" 2>/dev/null || true
+  kill "$wd" 2>/dev/null || true
+  wait "$wd" 2>/dev/null || true
+  return "$rc"
+}
+
+# Print "name version" for a tool, or empty if absent. Never reads stdin; never waits longer
+# than the probe deadline.
 tool_version() {
-  local bin="$1" ver
+  local bin="$1" out="" rc=0
   command -v "$bin" >/dev/null 2>&1 || return 1
-  ver="$("$bin" --version </dev/null 2>/dev/null | head -1 || true)"
-  printf '%s' "${ver:-present}"
+  out="$(with_deadline "$PROBE_SECS" "$bin" --version </dev/null 2>/dev/null)" || rc=$?
+  case "$rc" in
+    124|137|143) printf '%s' "$PROBE_TIMED_OUT"; return 0 ;;
+  esac
+  out="$(printf '%s\n' "$out" | head -1 || true)"
+  printf '%s' "${out:-present}"
 }
 
 echo "tamirs-superpowers doctor"
@@ -164,7 +202,7 @@ done
 
 # --- Optional features ---
 hdr "Optional features"
-if command -v gh >/dev/null 2>&1 && gh auth status </dev/null >/dev/null 2>&1; then
+if command -v gh >/dev/null 2>&1 && with_deadline 5 gh auth status </dev/null >/dev/null 2>&1; then
   ok "GitHub automation — gh installed and authenticated"
 else
   warnl "GitHub automation — PR/issue steps will print output for manual filing instead"

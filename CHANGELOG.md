@@ -5,6 +5,12 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [6.0.1] — 2026-11-08
+
+### Fixed
+
+- **doctor's external probes run under a deadline again** (#412). Removing the permission-levels code in 6.0.0 also removed `with_deadline`, which bounded doctor's `<cli> --version` probes and `gh auth status`. A harness CLI that stalls on `--version` hung doctor before its dependency report. Each `--version` probe is now killed at `DOCTOR_PROBE_SECONDS` (1–3, default 3) with every process it started and reported as `version unknown (probe timed out)`; `gh auth status` gets 5 s. New `tests/test-doctor-deadline.sh` (on the 6.0.0 doctor it hangs; now 7/0 in about 8 s).
+
 ## [6.0.0] — 2026-11-08
 
 ### Removed
