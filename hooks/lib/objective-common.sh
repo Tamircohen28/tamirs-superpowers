@@ -3,7 +3,8 @@
 #
 # WHY THIS FILE EXISTS SEPARATELY FROM worktree-common.sh
 #   worktree-common.sh encodes the single-task model: one prompt, one slug, one
-#   worktree under ~/.claude/worktrees/<repo>/<slug>. That model is still the
+#   worktree under <session worktree root>/<repo>/<slug> (default
+#   ~/.session-worktrees; ~/.claude/worktrees before issue #404). That model is still the
 #   default and must keep working untouched. The objective model adds a second,
 #   orchestrated shape on top of it:
 #
@@ -136,8 +137,18 @@ objective_id_from_branch() {
 
 # classify_worktree_path <dir>
 # One of: objective-integration | objective-worker | objective-other |
-#         legacy-global | legacy-platform | native-claude | main-checkout |
-#         not-a-repo
+#         session-global | legacy-global | legacy-platform | native-claude |
+#         main-checkout | not-a-repo
+#
+#   session-global  <configured session root>/<repo>/<slug>  (worktree-common.sh)
+#   legacy-global   ~/.claude/worktrees/<repo>/<slug>         (recognised, never created)
+#
+# ORDER MATTERS where layouts could overlap. An EXPLICIT objective root
+# (SUPERPOWERS_AGENT_WORKTREE_ROOT) is checked first: whoever set it said what
+# lives there. The configured session root comes next, ahead of the
+# `/.agent-worktrees/` name match, so a user who points worktree_root at a path
+# that happens to contain that name still gets session worktrees there. The
+# default roots never overlap (~/.session-worktrees vs .agent-worktrees).
 # Path shape decides the objective classification; branch name refines it. The
 # two can disagree (a worker directory checked out on some other branch), and
 # when they do the DIRECTORY wins for "is this an agent workspace" while the
@@ -148,7 +159,13 @@ classify_worktree_path() {
   top="$(git -C "$dir" rev-parse --show-toplevel 2>/dev/null)" || { printf 'not-a-repo'; return 0; }
   branch="$(git -C "$dir" symbolic-ref --quiet --short HEAD 2>/dev/null || true)"
 
-  if is_objective_worktree_path "$top"; then
+  local session_kind=""
+  if declare -F session_root_kind >/dev/null 2>/dev/null; then
+    session_kind="$(session_root_kind "$top" || true)"
+  fi
+
+  if _is_explicit_objective_root_path "$top" \
+     || { [[ -z "$session_kind" ]] && is_objective_worktree_path "$top"; }; then
     case "${top##*/}" in
       integration) printf 'objective-integration'; return 0 ;;
       task-*)      printf 'objective-worker'; return 0 ;;
@@ -158,22 +175,38 @@ classify_worktree_path() {
     printf 'objective-other'; return 0
   fi
 
+  if [[ -n "$session_kind" ]]; then _hook_put "$session_kind"; return 0; fi
+
   if is_platform_worktree_path "$top"; then printf 'legacy-platform'; return 0; fi
 
-  # git reports the PHYSICAL path (/private/var/... on macOS) while
-  # WORKTREE_ROOT is built from $HOME (/var/... there). Comparing the two as
-  # written misclassifies every legacy-global worktree on a machine whose HOME
-  # traverses a symlink, so both sides are resolved before matching.
-  local global_root
-  global_root="${WORKTREE_ROOT:-$HOME/.claude/worktrees}"
-  local global_root_phys="$global_root"
-  [[ -d "$global_root" ]] && global_root_phys="$(cd "$global_root" && pwd -P)"
+  # Without worktree-common.sh (no session_root_kind), fall back to the legacy
+  # root. git reports the PHYSICAL path (/private/var/... on macOS) while the
+  # root is built from $HOME (/var/... there), so both sides are matched.
+  if [[ -z "$session_kind" ]] && ! declare -F session_root_kind >/dev/null 2>/dev/null; then
+    local global_root="$HOME/.claude/worktrees" global_root_phys
+    global_root_phys="$global_root"
+    [[ -d "$global_root" ]] && global_root_phys="$(cd "$global_root" && pwd -P)"
+    case "$top" in
+      "${global_root}"/*|"${global_root_phys}"/*) printf 'legacy-global'; return 0 ;;
+    esac
+  fi
 
   case "$top" in
-    "${global_root}"/*|"${global_root_phys}"/*) printf 'legacy-global'; return 0 ;;
     */.claude/worktrees/*) printf 'native-claude'; return 0 ;;
   esac
   printf 'main-checkout'
+}
+
+# _is_explicit_objective_root_path <path> — under SUPERPOWERS_AGENT_WORKTREE_ROOT,
+# in either its logical or its physical spelling (git reports physical paths).
+_is_explicit_objective_root_path() {
+  local path="${1%/}" root="${SUPERPOWERS_AGENT_WORKTREE_ROOT:-}" root_phys
+  [[ -n "$path" && -n "$root" ]] || return 1
+  root="${root%/}"
+  [[ "$path" == "$root"/* ]] && return 0
+  [[ -d "$root" ]] || return 1
+  root_phys="$(cd "$root" 2>/dev/null && pwd -P)" || return 1
+  [[ "$root_phys" != "$root" && "$path" == "$root_phys"/* ]]
 }
 
 # is_agent_workspace <dir> — true for any layout in which repo edits are
@@ -187,7 +220,7 @@ is_agent_workspace() {
   kind="$(classify_worktree_path "$dir")"
   case "$kind" in
     objective-integration|objective-worker|objective-other) return 0 ;;
-    legacy-platform|legacy-global|native-claude) return 0 ;;
+    session-global|legacy-platform|legacy-global|native-claude) return 0 ;;
     *) return 1 ;;
   esac
 }

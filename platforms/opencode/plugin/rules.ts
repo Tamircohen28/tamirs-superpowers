@@ -416,7 +416,7 @@ export interface WorktreeFacts {
   readonly agentWorktreeDirname?: string
   /** CLAUDE_CONFIG_DIR or ~/.claude — machine housekeeping, never forced through a worktree. */
   readonly claudeConfigRoot?: string
-  /** WORKTREE_ROOT or ~/.claude/worktrees — the legacy single-task layout. */
+  /** The session worktree root (sessionWorktreeRoot); ~/.claude/worktrees stays recognised by name. */
   readonly globalWorktreeRoot?: string
 }
 
@@ -424,6 +424,27 @@ export interface WorktreeFacts {
  * Mirrors is_agent_workspace / is_objective_worktree_path / is_platform_worktree_path
  * from hooks/lib/objective-common.sh: every layout in which repo edits are legitimate.
  */
+/**
+ * Mirrors _resolve_worktree_root of hooks/lib/worktree-common.sh: where session
+ * worktrees live. SUPERPOWERS_WORKTREE_ROOT wins (OpenCode has no plugin options,
+ * so the `worktree_root` option does not reach it), then ~/.session-worktrees. A
+ * leading ~ or $HOME is expanded; a relative value or `/` is ignored.
+ */
+export function sessionWorktreeRoot(env: Readonly<Record<string, string | undefined>>, home: string): string | undefined {
+  const expand = (raw: string | undefined): string | undefined => {
+    let v = (raw ?? "").trim()
+    if (v === "") return undefined
+    for (const prefix of ["~", "$HOME", "${HOME}"]) {
+      if (v === prefix) { v = home; break }
+      if (v.startsWith(`${prefix}/`)) { v = `${home}/${v.slice(prefix.length + 1)}`; break }
+    }
+    if (!v.startsWith("/")) return undefined
+    v = v.replace(/\/+$/, "")
+    return v === "" ? undefined : v
+  }
+  return expand(env.SUPERPOWERS_WORKTREE_ROOT) ?? (home ? `${home.replace(/\/+$/, "")}/.session-worktrees` : undefined)
+}
+
 export function isAgentWorkspacePath(path: string, facts: WorktreeFacts): boolean {
   const p = normPath(path)
   const dirname = facts.agentWorktreeDirname || ".agent-worktrees"

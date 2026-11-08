@@ -10,6 +10,8 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=lib/worktree-common.sh
+source "${SCRIPT_DIR}/lib/worktree-common.sh"
 # shellcheck source=lib/hook-output.sh
 source "${SCRIPT_DIR}/lib/hook-output.sh"
 # shellcheck source=lib/cursor-output.sh
@@ -25,6 +27,10 @@ case "$cwd" in
     in_worktree=true
     ;;
 esac
+# The configured session root (and the legacy ~/.claude/worktrees one).
+if [[ "$in_worktree" != true && -n "$cwd" ]] && is_global_worktree_path "$cwd"; then
+  in_worktree=true
+fi
 
 if [[ "$in_worktree" != true ]]; then
   [[ "${HOOK_PLATFORM:-claude}" == "cursor" ]] && cursor_silent

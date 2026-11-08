@@ -1,7 +1,7 @@
 {
   "name": "tamirs-superpowers",
   "displayName": "Tamir's Superpowers",
-  "version": "5.6.15",
+  "version": "5.7.1",
   "description": "31 bundled skills, 10 specialist agents, smart worktree hooks, statusline, and MCP server stubs — plan, implement, review, debug, multi-agent setup, and audit code from one plugin.",
   "homepage": "https://github.com/Tamircohen28/tamirs-superpowers",
   "repository": "https://github.com/Tamircohen28/tamirs-superpowers",
@@ -103,6 +103,12 @@
       "title": "Unresolved-write notices from the protected-file guard",
       "description": "Off by default. When on, the protected-file guard tells Claude when a command writes somewhere it cannot resolve (an inline script, a path built at run time), so it was not checked against the protected-path rules. Writes the guard can resolve to a protected file are denied either way.",
       "default": false
+    },
+    "worktree_root": {
+      "type": "string",
+      "title": "Session worktree root",
+      "description": "Where the worktree hooks create session worktrees, as <root>/<repo>/<slug>. Default ~/.session-worktrees, outside ~/.claude: Claude Code treats any .claude directory as a protected path and prompts on every write there outside bypassPermissions mode, which no allow rule can pre-approve. A leading ~ or $HOME is expanded; a relative path is ignored. Existing worktrees under ~/.claude/worktrees keep working; scripts/worktrees-migrate.sh moves idle ones. The SUPERPOWERS_WORKTREE_ROOT environment variable overrides this, and is how hosts without plugin options set it. Read by the bash hooks only.",
+      "default": "~/.session-worktrees"
     }
   }
 }

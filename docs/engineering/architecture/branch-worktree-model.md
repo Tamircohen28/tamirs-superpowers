@@ -87,6 +87,12 @@ Worktree resolution (`resolve-worktree.sh` and everything that calls it) must:
 Resolving a slug that already has a legacy worktree returns *that* worktree rather than
 creating a parallel one.
 
+The single-task session layout follows the same rules. Its root is configurable and defaults
+to `~/.session-worktrees/<repo>/<slug>`, outside `~/.claude`. The old
+`~/.claude/worktrees/<repo>/<slug>` root is recognised and never created, a live worktree
+there is still the session's worktree, and `scripts/worktrees-migrate.sh` is the opt-in
+mover for idle ones ([ADR 005](../decisions/005-session-worktree-root.md)).
+
 ## Hook automation is a capability, not an assumption
 
 On Claude Code, `hooks/hooks.json` creates the worktree from the first prompt, copies

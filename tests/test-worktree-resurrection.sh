@@ -97,11 +97,11 @@ echo "--- first prompt still creates the worktree ---"
 REPO="$TMPROOT/proj"
 new_repo "$REPO"
 SLUG="$(slug_for sess-1)"
-WT="$HOME/.claude/worktrees/proj/$SLUG"
+WT="$HOME/.session-worktrees/proj/$SLUG"
 
 out="$(run_capture "$REPO" "add a login form" "sess-1")"
 
-judge "creates ~/.claude/worktrees/<repo>/<slug>" "yes" "$(exists "$WT/.git")"
+judge "creates ~/.session-worktrees/<repo>/<slug>" "yes" "$(exists "$WT/.git")"
 judge "creates the wt/* branch" "yes" \
   "$(git -C "$REPO" rev-parse --verify -q wt/$SLUG >/dev/null && echo yes || echo no)"
 judge "announces the worktree" "yes" "$(has "$out" "Dedicated worktree")"
@@ -178,7 +178,7 @@ echo "--- a bare directory is not a worktree ---"
 SHELLY="$TMPROOT/shelly"
 new_repo "$SHELLY"
 out="$(run_capture "$SHELLY" "shell case" "sess-2")"
-SWT="$HOME/.claude/worktrees/shelly/$(slug_for sess-2)"
+SWT="$HOME/.session-worktrees/shelly/$(slug_for sess-2)"
 git -C "$SHELLY" worktree remove --force "$SWT"
 mkdir -p "$SWT/session-files"
 
@@ -193,7 +193,7 @@ echo "--- SessionStart does not resurrect a dead path either ---"
 SI="$TMPROOT/siproj"
 new_repo "$SI"
 run_capture "$SI" "session init case" "sess-3" >/dev/null
-SIWT="$HOME/.claude/worktrees/siproj/$(slug_for sess-3)"
+SIWT="$HOME/.session-worktrees/siproj/$(slug_for sess-3)"
 git -C "$SI" worktree remove --force "$SIWT"
 
 jq -n --arg cwd "$SI" --arg s "sess-3" \
@@ -222,7 +222,7 @@ echo "--- a session that predates the fix is adopted, not resurrected ---"
 # next prompt rebuilds. The upgrade path back into the original bug.
 UPG="$TMPROOT/upg"
 new_repo "$UPG"
-UWT="$HOME/.claude/worktrees/upg/$(slug_for sess-u)"
+UWT="$HOME/.session-worktrees/upg/$(slug_for sess-u)"
 run_capture "$UPG" "ship the thing" "sess-u" >/dev/null
 jq 'del(.worktree_created_at)' "$HOME/.claude/session-state/sess-u.json" > "$TMPROOT/u.json"
 mv "$TMPROOT/u.json" "$HOME/.claude/session-state/sess-u.json"
@@ -249,7 +249,7 @@ echo "--- rebuilding preserves the branch tip, it does not reset it ---"
 KEEP="$TMPROOT/keep"
 new_repo "$KEEP"
 KSLUG="$(slug_for sess-k)"
-KWT="$HOME/.claude/worktrees/keep/$KSLUG"
+KWT="$HOME/.session-worktrees/keep/$KSLUG"
 run_capture "$KEEP" "save my work" "sess-k" >/dev/null
 echo "work in progress" > "$KWT/wip.txt"
 git -C "$KWT" add wip.txt
@@ -274,7 +274,7 @@ echo "--- a prunable registration does not block the rebuild ---"
 # branch as checked out at a path that is gone.
 PRN="$TMPROOT/prn"
 new_repo "$PRN"
-PWT="$HOME/.claude/worktrees/prn/$(slug_for sess-p)"
+PWT="$HOME/.session-worktrees/prn/$(slug_for sess-p)"
 run_capture "$PRN" "fix the parser" "sess-p" >/dev/null
 rm -rf "$PWT"
 judge "git still registers the dead worktree" "yes" \
@@ -291,7 +291,7 @@ echo "--- a leftover session-files shell is moved aside, not lost ---"
 # never happens and every edit stays denied with no way forward.
 SHL="$TMPROOT/shl"
 new_repo "$SHL"
-SWT="$HOME/.claude/worktrees/shl/$(slug_for sess-s)"
+SWT="$HOME/.session-worktrees/shl/$(slug_for sess-s)"
 run_capture "$SHL" "write the plan" "sess-s" >/dev/null
 git -C "$SHL" worktree remove --force "$SWT"
 mkdir -p "$SWT/session-files"
@@ -309,7 +309,7 @@ echo "--- retiring clears the exported worktree path ---"
 # first prompt's value would still point at the deleted worktree.
 ENVR="$TMPROOT/envr"
 new_repo "$ENVR"
-EWT="$HOME/.claude/worktrees/envr/$(slug_for sess-e)"
+EWT="$HOME/.session-worktrees/envr/$(slug_for sess-e)"
 ENVFILE="$TMPROOT/claude-env"
 : > "$ENVFILE"
 CLAUDE_ENV_FILE="$ENVFILE" run_capture "$ENVR" "tidy the exports" "sess-e" >/dev/null

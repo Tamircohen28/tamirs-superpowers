@@ -74,7 +74,7 @@ the one that answers "what breaks if this is gone".
 | `lib/pg_http.py` | The table-driven argv model of curl, wget, httpie/xh and `gh api` that `permission-guard.sh` imports (issue #349): per request its method, URLs, body as sent, key=value fields, and whether the body, the route or the request list itself is something the words cannot show. Words only, no I/O; a defect reads as unknown. |
 | `lib/pg_graphql.py` | The GraphQL lexer and executable-document parser `permission-guard.sh` imports (issue #349): the root fields each operation selects, aliases and fragments resolved, ok False on anything it cannot read. If either module fails to import, every candidate shell command is UNCLASSIFIED. |
 | `lib/permission-conditions.sh` | The GitHub-backed conditions of `permission-guard.sh` (default branch via `gh repo view`, required checks for `gh pr merge --admin`), all under one 3 s deadline; an error or timeout leaves a condition unknown, so its raise or deny applies (ADR 004 D4, D8). |
-| `lib/worktree-common.sh` | Single-task worktree model (`~/.claude/worktrees/<repo>/<slug>`, `wt/*` branches) plus dependency-install and retention policy. **Protected**: any change requires shellcheck plus exercising both `capture-task-slug.sh` and `worktree-create.sh`. |
+| `lib/worktree-common.sh` | Single-task worktree model (`<root>/<repo>/<slug>`, `wt/*` branches; the root is `SUPERPOWERS_WORKTREE_ROOT` > the `worktree_root` option > `~/.session-worktrees`, and the legacy `~/.claude/worktrees` is recognised, never created — [ADR 005](../decisions/005-session-worktree-root.md)) plus dependency-install and retention policy. **Protected**: any change requires shellcheck plus exercising both `capture-task-slug.sh` and `worktree-create.sh`. |
 | `lib/objective-common.sh` | Objective model — `.agent-worktrees/<objective>/{integration,task-NNN}`, `objective/<slug>` and `worker/<slug>/NNN` branches, active-objective detection, and cross-layout classification. |
 
 ## What "without hooks" actually means
@@ -127,8 +127,9 @@ It now detects an active objective (`SUPERPOWERS_OBJECTIVE_ID`, or an
 objective's workspaces instead. With no objective, behavior is byte-identical.
 
 **`enforce-worktree-edits.sh` — knows every layout.** It allows
-`objective-integration`, `objective-worker`, `legacy-platform`, `legacy-global`
-and `native-claude` workspaces, and denies only the main checkout. The legacy
+`objective-integration`, `objective-worker`, `legacy-platform`, `session-global`
+(the configured session root), `legacy-global` (`~/.claude/worktrees`) and
+`native-claude` workspaces, and denies only the main checkout. The legacy
 shapes are listed deliberately: a worker whose worktree the guard did not
 recognize would be denied every edit, so the work would have nowhere legal to
 go. Recognizing a platform-shaped path is not endorsing it — nothing creates

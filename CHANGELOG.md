@@ -5,7 +5,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
-## [5.6.15] — 2026-11-08
+## [5.7.1] — 2026-11-08
 
 ### Fixed
 
@@ -23,6 +23,26 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   - An unresolved write whose cwd, kept from an earlier call, is inside a protected directory is denied.
 - The deny reason for a text-judged block now says so, and asks for a command whose target the guard can resolve.
 - Tests in `tests/test-sensitive-protected-paths.sh`: every write form the issue and the six review rounds named stays denied, the dropped narrowing's allow cases are now asserted denied (as on master), and the parse fixes above are asserted allowed.
+
+## [5.7.0] — 2026-11-08
+
+### Changed
+
+- **Session worktrees move out of `~/.claude`, to a configurable root** (#404). They were hard-coded under `~/.claude/worktrees/<repo>/<slug>`. Claude Code treats every `.claude` directory as a protected path, so outside `bypassPermissions` mode each write there prompted, and no `permissions.allow` rule could pre-approve it. The worktree policy sends every edit into the session worktree, so almost every edit prompted. New worktrees now go to `<root>/<repo>/<slug>`. The root is `SUPERPOWERS_WORKTREE_ROOT`, then the new `worktree_root` plugin option, then **`~/.session-worktrees`** by default. A leading `~` or `$HOME` is expanded, and a relative value is ignored. The default is not the `~/.agent-worktrees` the issue proposed. Every objective-layout consumer reads any `/.agent-worktrees/` path as an objective worktree, and `core/policies/git.md` documents `~/.agent-worktrees/<repo>/<objective>/` as the user-level objective location ([ADR 005](docs/engineering/decisions/005-session-worktree-root.md)).
+  - Every hook that creates or names the root uses it: `worktree-create.sh`, `capture-task-slug.sh`, `session-init.sh` (the policy line and the `CLAUDE_WORKTREE_ROOT` export), `enforce-worktree-edits.sh` (the deny reason and the rebuild-on-edit path), `directory-added.sh`, `worktree-remove.sh`, `handoff-reminder.sh`, and the retention pass. The OpenCode guard resolves the same root (`sessionWorktreeRoot`).
+  - **Nothing already running breaks.** Edits under `~/.claude/worktrees/<repo>/<slug>` and native `<repo>/.claude/worktrees/<name>` are still allowed. When a session's live worktree is at the legacy root, the hooks keep pointing at it. They do not report it as removed or build a second one beside it. Nothing new is ever created there. The retention pass sweeps both roots.
+  - `classify_worktree_path` gains `session-global` for the configured root. `legacy-global` keeps meaning `~/.claude/worktrees`. Both roots are matched in their logical and physical spellings.
+  - **New `scripts/worktrees-migrate.sh`** (`make worktrees-migrate`) moves idle legacy worktrees to the root with `git worktree move`, never `--force`. It is a dry run unless given `--yes`. It skips a worktree with uncommitted changes, a live agent claim, an unfinished objective task, a running process inside it, a change in the last 60 minutes, or an existing destination, and prints the reason. It rewrites the session-state records that named the old path.
+  - Run `scripts/worktrees-migrate.sh`, then `/plugin update` and `/reload-plugins` in each running session. User docs: [Where session worktrees live](docs/user/configuration.md#where-session-worktrees-live).
+
+### Fixed
+
+- **WorktreeCreate no longer deletes an existing worktree with uncommitted work in it** (PR #406 review). It compared the worktree path's *logical* spelling with git's *physical* `git worktree list`. Through a symlink the two differ, so a live worktree read as unregistered and was `rm -rf`ed before re-creation failed. This was **latent before 5.7.0**: the hard-coded `$HOME/.claude/worktrees` root triggered it whenever `$HOME` or `~/.claude` traversed a symlink (reproduced on 5.6.13). The objective path of the same hook had the same comparison. Now:
+  - Every decision to delete, move or reuse a worktree compares canonical (`pwd -P`) paths. That covers WorktreeCreate, WorktreeRemove, the retention pass, the migration script, the root classification and the edit guard's recorded-path check (new `canonical_path`, `is_linked_worktree_of` and `worktree_dir_verdict` in `worktree-common.sh`).
+  - **Nothing is deleted that cannot be proven disposable.** WorktreeCreate reuses a registered worktree. It creates into an empty directory or a session-files shell. Anything else is left in place and the hook fails with the reason: a `.git` entry that is not ours, or any other file. The session path also reuses an existing `wt/<slug>` branch instead of resetting it with `-B`.
+  - **The retention pass** removes only a registered, linked, clean worktree with nothing changed for `WORKTREE_RETENTION_DAYS`. It uses `git worktree remove` without `--force` and has no `rm -rf` fallback. A failed `git status` used to read as "clean", which deleted worktrees whose registration had broken, with their uncommitted files. A full clone (a `.git` directory) was also deleted. Both are now kept. A root reached through a symlink is now walked (`find -H`).
+  - **WorktreeRemove** removes only a verified registered worktree, through git. Its `rm -rf` fallbacks are gone.
+  - **The migration script** skips unregistered worktrees and ones whose `git status` fails, and walks a symlinked source root.
 
 ## [5.6.14] — 2026-11-07
 
