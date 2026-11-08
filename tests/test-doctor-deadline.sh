@@ -38,8 +38,15 @@ hang() {
     "$T/pids" "$T/pids" > "$T/bin/$1"
   chmod +x "$T/bin/$1"
 }
+# stubborn <name> — the leader exits on TERM, but its child ignores TERM and keeps stdout open.
+stubborn() {
+  printf '#!/bin/sh\nsh -c '"'"'trap "" TERM; echo $$ >> "%s"; sleep 6011'"'"' &\nwait\n' \
+    "$T/pids" > "$T/bin/$1"
+  chmod +x "$T/bin/$1"
+}
 : > "$T/pids"
 hang claude
+stubborn gemini
 hang gh
 printf '#!/bin/sh\necho "codex-cli 9.9.9"\n' > "$T/bin/codex"; chmod +x "$T/bin/codex"
 
@@ -56,6 +63,8 @@ judge "doctor finishes well before the hung CLIs would (elapsed ${elapsed}s < 30
   "$([ "$elapsed" -lt 30 ] && echo yes || echo no)"
 judge "the hung claude is reported as a timed-out probe" yes \
   "$(has "$OUT" "claude_code (CLI: version unknown (probe timed out))")"
+judge "a CLI whose child ignores TERM is still bounded" yes \
+  "$(has "$OUT" "gemini_cli (CLI: version unknown (probe timed out))")"
 judge "a healthy CLI still reports its version" yes "$(has "$OUT" "codex (CLI: codex-cli 9.9.9)")"
 judge "doctor still reaches the optional-features report" yes "$(has "$OUT" "GitHub automation")"
 judge "a hung gh auth status reads as not authenticated" yes \
@@ -64,7 +73,11 @@ judge "a hung gh auth status reads as not authenticated" yes \
 sleep 2
 left=""
 while read -r pid; do
-  [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null && left="$left $pid"
+  [ -n "$pid" ] || continue
+  # A zombie (state Z) has stopped; only a container's slow PID 1 has not reaped it yet.
+  st="$(ps -o stat= -p "$pid" 2>/dev/null | tr -d ' ')"
+  case "$st" in ""|Z*) continue ;; esac
+  left="$left $pid"
 done < "$T/pids"
 judge "no process a killed probe started is still running" "" "${left# }"
 for pid in $left; do kill -KILL "$pid" 2>/dev/null || true; done

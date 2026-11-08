@@ -88,6 +88,10 @@ with_deadline() {
     </dev/null >/dev/null 2>&1 &
   wd=$!
   wait "$pid" || rc=$?
+  # The leader is gone, but a descendant that ignores TERM may still hold the caller's stdout
+  # open (a command substitution then blocks on EOF). KILL the whole group before the watchdog
+  # is cancelled, so its KILL step can never be skipped.
+  kill -KILL -- "-$pid" 2>/dev/null || true
   kill "$wd" 2>/dev/null || true
   wait "$wd" 2>/dev/null || true
   return "$rc"
