@@ -112,6 +112,7 @@ import {
   protectedFromRecords,
   protectedReason,
   sensitiveReason,
+  sessionWorktreeRoot,
   shellWriteTargets,
   workflowReason,
   writeTargetsFromRecords,
@@ -183,7 +184,7 @@ function worktreeFacts(roots: GitRoots | null): WorktreeFacts {
     agentWorktreeRoot: env.SUPERPOWERS_AGENT_WORKTREE_ROOT || undefined,
     agentWorktreeDirname: env.SUPERPOWERS_AGENT_WORKTREE_DIRNAME || undefined,
     claudeConfigRoot: env.CLAUDE_CONFIG_DIR || (h ? path.join(h, ".claude") : undefined),
-    globalWorktreeRoot: env.WORKTREE_ROOT || (h ? path.join(h, ".claude", "worktrees") : undefined),
+    globalWorktreeRoot: sessionWorktreeRoot(env, h),
   }
 }
 

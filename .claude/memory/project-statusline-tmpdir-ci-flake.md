@@ -27,7 +27,7 @@ fleet transient.
 | Introduced by the new test files (`test-session-init-staleness.sh`) | `aeb42caf` predates them. |
 | Runner/image regression | Identical runner and image on the green runs. |
 | `cleanup_stale_worktrees` orphan leak (`hooks/lib/worktree-common.sh`) | Its `rm: … Directory not empty` line appears on green runs too — a constant, not a trigger. |
-| Something in-repo | Audited: every destructive path is anchored to `$WORKTREE_ROOT`, recomputed as `"${HOME}/.claude/worktrees"` (`hooks/lib/worktree-common.sh:4`); the retirement `find` needs depth 2 **plus** a `.git` entry; the only `find -delete` is `-type f`. An instrumented run of the real Makefile loop (`rm`/`rmdir`/`mktemp` shimmed) logged 982 roots created, 0 name reuses, **0 cross-suite touches**. |
+| Something in-repo | Audited: every destructive path is anchored to `$WORKTREE_ROOT`, recomputed from `${HOME}` (`~/.session-worktrees` and the legacy `~/.claude/worktrees` since 5.7.0, `hooks/lib/worktree-common.sh`); the retirement `find` needs depth 2 **plus** a `.git` entry; the only `find -delete` is `-type f`. An instrumented run of the real Makefile loop (`rm`/`rmdir`/`mktemp` shimmed) logged 982 roots created, 0 name reuses, **0 cross-suite touches**. |
 | **"The dir sits empty and unreferenced for ~2s, so something reaps it"** | **This was the v3.6.0 fix and it is falsified.** Occurrence 4 vanished a `$TMPROOT` that had the `.keep` file in it, on a memory-only diff. |
 
 **Current state (PR #115).** Two mechanism claims have now been written into this file as fact and

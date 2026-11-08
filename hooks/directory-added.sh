@@ -33,6 +33,6 @@ if is_global_worktree_path "$added_dir" || is_registered_claude_worktree "$added
 fi
 
 repo_name="$(repo_name_for "$added_dir")"
-printf '⚠️  Added directory %s is a main checkout. Repo edits there will be denied by the worktree policy — create/use a worktree under ~/.claude/worktrees/%s/<task-slug> (WorktreeCreate or EnterWorktree) before editing.\n' \
-  "$added_dir" "$repo_name" >&2
+printf '⚠️  Added directory %s is a main checkout. Repo edits there will be denied by the worktree policy — create/use a worktree under %s/%s/<task-slug> (WorktreeCreate or EnterWorktree) before editing.\n' \
+  "$added_dir" "$WORKTREE_ROOT" "$repo_name" >&2
 exit 0
