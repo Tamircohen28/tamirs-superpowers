@@ -130,6 +130,11 @@ deny() {
 # The R4 remedy (D10.3, D10.5): only the user changes these, outside the
 # agent's reach. It names no bypass — not an env switch, not another tool.
 PROTECTED_REMEDY="Only the user changes plugin permission policy, guard files and host settings (ADR 004 D10): stop and ask them to make this change themselves, outside this session. Do not retry it through another tool, command or path."
+# A block judged from the command's TEXT (an unresolved write, or code this
+# parse cannot read, that names a protected path) is not proof of a write
+# (issue #402). It keeps the same rule for a real write, and otherwise asks
+# for a command the guard can resolve, which is then judged on its target.
+MENTION_REMEDY="Only the user changes plugin permission policy, guard files and host settings (ADR 004 D10): if this command does write that path, stop and ask them to make the change themselves. If it does not, rewrite it so the guard can resolve its target, for example a literal path in place of a variable or inline code."
 
 protected_ask() {
   local reason="$1"
@@ -200,7 +205,10 @@ while IFS=$'\t' read -r kind mode why; do
   [ "$kind" = "PROTECTED" ] || continue
   case "$mode" in
     ask) [ -n "$ask_reason" ] || ask_reason="$why" ;;
-    *)   deny "BLOCKED: $why $PROTECTED_REMEDY" ;;
+    *)   case "$why" in
+           *"is treated as a write to it."*) deny "BLOCKED: $why $MENTION_REMEDY" ;;
+           *)                                deny "BLOCKED: $why $PROTECTED_REMEDY" ;;
+         esac ;;
   esac
 done <<<"$analysis"
 if [ -n "$ask_reason" ]; then
