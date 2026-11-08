@@ -74,6 +74,11 @@
 #   - Ordinary programs that happen to write (`make`, `npm install`, a checked-in
 #     script, `awk -f prog`). NOT reported: at that breadth the warning fires on
 #     everything and means nothing, and the tool-level guard never covered them.
+#     They ARE reported (UNSURE) when they run a file the same command wrote, a
+#     command name built by expansion, a runner the parser does not unwrap
+#     (`strace`, `ssh`, `docker run`, …) or a command named in an environment
+#     variable (`GIT_EXTERNAL_DIFF=…`); the commands inside `$(…)`, backticks
+#     and `<(…)`/`>(…)` are parsed as commands of their own (issue #405).
 #   - Metadata-only changes (`chmod`, `chown`), git aliases, and a write through
 #     a hard link made before this call. git's replays (checkout, switch,
 #     restore, reset --hard, merge, pull, rebase, cherry-pick, revert, am,

@@ -9,6 +9,8 @@
 #   residual edges issue #349 listed (a wget write to another host, gh short-option clusters):
 #     hooks/permission-guard.sh       (PG)  F1 F2 F3 F5 F7 F8 F9 P1 P1-a P1-b P1-c P1-d P1-e P1-f P1-g P1-h P1-i
 #                                           I349-a I349-b
+#     hooks/guard-sensitive-files.sh        I405 (issue #405: substitutions, unnamed commands and
+#                                           runners, write forms of read commands, write-then-run)
 #     hooks/guard-sensitive-files.sh  (GSF) F4 F6 P2
 #     scripts/plugin-config.sh, scripts/resolve-permission.sh, scripts/github-mcp.sh
 #                                           F1 (the writer), F7, F10, L1
@@ -645,6 +647,26 @@ gsf P2 "rm -rf .git (holds .git/hooks and .git/config)" deny 'rm -rf .git'
 gsf P2 "rm -rf .tamirs-superpowers" deny 'rm -rf .tamirs-superpowers'
 
 # =========================================================================================
+section "I405: what #402's reviews found outside its scope (pre-existing, issue #405)"
+# =========================================================================================
+gsf I405 "\$(rm) of host settings inside an echo" deny 'echo $(rm ~/.claude/settings.json)'
+gsf I405 "\$(cp) onto host settings in an assignment" deny 'x=$(cp /tmp/evil ~/.claude/settings.json)'
+gsf I405 "a backtick tee into host settings" deny 'echo `tee ~/.claude/settings.json </dev/null`'
+gsf I405 "<(…) running a write" deny 'diff <(cp /tmp/a ~/.claude/settings.json) /tmp/b'
+gsf I405 "an unquoted heredoc substitution" deny "$(printf 'cat <<EOF\n$(rm ~/.claude/settings.json)\nEOF')"
+gsf I405 "a command name from a variable" deny '$CMD x ~/.claude/settings.json'
+gsf I405 "numactl around a write" deny 'numactl cp x ~/.claude/settings.json'
+gsf I405 "gdb -batch -ex shell" deny "gdb -batch -ex 'shell cp x ~/.claude/settings.json'"
+gsf I405 "docker run" deny 'docker run img cp x ~/.claude/settings.json'
+gsf I405 "sort -o onto host settings" deny 'sort -o ~/.claude/settings.json /etc/hosts'
+gsf I405 "git config --file onto host settings" deny 'git config --file ~/.claude/settings.json a.b c'
+gsf I405 "git diff --output= onto host settings" deny 'git diff --output=$HOME/.claude/settings.json'
+gsf I405 "git bundle create onto host settings" deny 'git bundle create ~/.claude/settings.json HEAD'
+gsf I405 "git archive -o onto host settings" deny 'git archive -o ~/.claude/settings.json HEAD'
+gsf I405 "a heredoc Makefile, then make" deny "$(printf 'cat > Makefile <<%s\nall:\n\techo x > ~/.claude/settings.json\nEOF\nmake' "'EOF'")"
+gsf I405 "a written script, then bash it" deny "echo 'cp a ~/.claude/settings.json' > /tmp/s.sh; bash /tmp/s.sh"
+
+# =========================================================================================
 section "L1: the GitHub MCP launcher never takes its binary from PATH"
 # =========================================================================================
 R13="$(new_root)"; FAKEPATH="$(harness_tmpdir)"; MARK="$(harness_tmpdir)"
@@ -663,7 +685,7 @@ section "the real config and state dirs were never touched"
 judge "real-home witness unchanged" "$REAL_BEFORE" "$(witness)"
 
 section "rows by finding"
-for id in F1 F2 F3 F4a F4b F4c F4d F5 F6 F7 F8 F9 F10 P1 P1-a P1-b P2 L1 I349-a I349-b; do
+for id in F1 F2 F3 F4a F4b F4c F4d F5 F6 F7 F8 F9 F10 P1 P1-a P1-b P2 L1 I349-a I349-b I405; do
   p="$(awk -F'\t' -v i="$id" '$1 == i && $2 == "pass"' "$ROWS" | wc -l | tr -d ' ')"
   f="$(awk -F'\t' -v i="$id" '$1 == i && $2 == "fail"' "$ROWS" | wc -l | tr -d ' ')"
   printf '  %-6s %3s pass %3s fail\n' "$id" "$p" "$f"

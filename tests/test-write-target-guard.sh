@@ -590,4 +590,69 @@ judge "a block is never deduplicated"                            deny \
 judge "the markers live under the fixture TMPDIR, nowhere else" yes \
   "$(exists "$TMPDIR/guard-sensitive-files")"
 
+# ===========================================================================
+section "8. a write inside a substitution is a write (#405)"
+# ===========================================================================
+# $(…), backticks and <(…)/>(…) run commands of their own. The parse used to
+# treat them as one opaque word, so a write inside one was never seen.
+NL=$'\n'
+TAB=$'\t'
+judge "\$(rm) inside an echo"              deny "$(bash_verdict "echo \$(rm -f yarn.lock)")"
+judge "\$(cp) in an assignment"            deny "$(bash_verdict "x=\$(cp /tmp/a package-lock.json)")"
+judge "a backtick tee"                     deny "$(bash_verdict "echo \`tee yarn.lock </dev/null\`")"
+judge "\$(sed -i) inside double quotes"    deny "$(bash_verdict "echo \"v: \$(sed -i.bak s/a/b/ yarn.lock)\"")"
+judge "nested substitutions"               deny "$(bash_verdict "echo \$(echo \$(rm yarn.lock))")"
+judge "a redirect inside a substitution"   deny "$(bash_verdict "echo \$(echo x > yarn.lock)")"
+judge "a substitution in an unquoted heredoc" deny \
+  "$(bash_verdict "cat <<EOF${NL}\$(rm yarn.lock)${NL}EOF")"
+judge "<(…) process substitution"          deny "$(bash_verdict "diff <(cp /tmp/a yarn.lock) /tmp/b")"
+judge ">(…) process substitution"          deny "$(bash_verdict "echo hi > >(tee yarn.lock)")"
+judge "a substitution in \${X:=…}"          deny "$(bash_verdict "echo \${X:=\$(rm yarn.lock)}")"
+judge "a substitution inside \$(( … ))"     deny "$(bash_verdict "echo \$(( \$(rm yarn.lock) + 1 ))")"
+judge "a cd inside the substitution moves only it" deny \
+  "$(bash_verdict "echo \$(cd $REPO && echo x > yarn.lock)")"
+judge "a literal assigned earlier resolves inside a substitution" deny \
+  "$(bash_verdict "S=$REPO; echo \$(cp /tmp/a \"\$S/yarn.lock\")")"
+judge "single quotes keep it text"         allow "$(bash_verdict "echo '\$(rm yarn.lock)'")"
+judge "a quoted heredoc keeps it text"     allow \
+  "$(bash_verdict "cat <<'EOF'${NL}\$(rm yarn.lock)${NL}EOF")"
+judge "an escaped \\\$ keeps it text"       allow "$(bash_verdict "echo \"\\\$(rm yarn.lock)\"")"
+judge "a comment keeps it text"            allow "$(bash_verdict "true # \$(rm yarn.lock)")"
+judge "arithmetic is not a command"        allow "$(bash_verdict "echo \$(( 3 > 2 )); (( 4 > 1 ))")"
+judge "a read inside a substitution"       allow "$(bash_verdict "echo \"\$(cat yarn.lock)\"")"
+judge "the commit-message idiom"           allow \
+  "$(bash_verdict "git commit -m \"\$(cat <<'EOF'${NL}regenerate yarn.lock${NL}EOF${NL})\"")"
+
+section "9. write forms of read commands are writes (#405)"
+judge "sort -o"                            deny "$(bash_verdict "sort -o yarn.lock /tmp/x")"
+judge "sort -uo (a cluster)"               deny "$(bash_verdict "sort -uo yarn.lock /tmp/x")"
+judge "sort -oFILE (attached)"             deny "$(bash_verdict "sort -oyarn.lock /tmp/x")"
+judge "sort --output="                     deny "$(bash_verdict "sort --output=yarn.lock /tmp/x")"
+judge "sort --output FILE"                 deny "$(bash_verdict "sort --output yarn.lock /tmp/x")"
+judge "sort --out= (an abbreviation)"      deny "$(bash_verdict "sort --out=yarn.lock /tmp/x")"
+judge "sort -k1 -o (a value option first)" deny "$(bash_verdict "sort -k 1 -o yarn.lock /tmp/x")"
+judge "git config --file"                  deny "$(bash_verdict "git config --file yarn.lock a.b c")"
+judge "git config -f"                      deny "$(bash_verdict "git config -f yarn.lock a.b c")"
+judge "git diff --output="                 deny "$(bash_verdict "git diff --output=yarn.lock")"
+judge "git log --output FILE"              deny "$(bash_verdict "git log -p --output yarn.lock")"
+judge "git archive -o"                     deny "$(bash_verdict "git archive -o yarn.lock HEAD")"
+judge "git archive --output="              deny "$(bash_verdict "git archive --output=yarn.lock HEAD")"
+judge "git bundle create"                  deny "$(bash_verdict "git bundle create yarn.lock HEAD")"
+judge "git format-patch --output="         deny "$(bash_verdict "git format-patch --output=yarn.lock HEAD~1")"
+judge "sort of a lockfile is a read"       allow "$(bash_verdict "sort yarn.lock")"
+judge "sort -o elsewhere"                  allow "$(bash_verdict "sort -o /tmp/sorted yarn.lock")"
+judge "git config --file --get is a read"  allow "$(bash_verdict "git config --file yarn.lock --get a.b")"
+judge "git config -f NAME is a read"       allow "$(bash_verdict "git config -f yarn.lock a.b")"
+judge "git diff --stat of a lockfile"      allow "$(bash_verdict "git diff --stat -- yarn.lock")"
+judge "git archive to /tmp"                allow "$(bash_verdict "git archive -o /tmp/a.tar HEAD")"
+
+section "10. a command it cannot name is UNSURE, never silent (#405)"
+judge "a command name from a variable"     warn "$(bash_verdict "\$CMD x yarn.lock")"
+judge "a command name from a substitution" warn "$(bash_verdict "\$(echo cp) /tmp/a yarn.lock")"
+judge "strace running a write"             warn "$(bash_verdict "strace cp x yarn.lock")"
+judge "docker run"                         warn "$(bash_verdict "docker run img cp x yarn.lock")"
+judge "a resolved command variable is judged" deny "$(bash_verdict "C=cp; \$C /tmp/a yarn.lock")"
+judge "a heredoc Makefile then make"       warn \
+  "$(bash_verdict "cat > Makefile <<'EOF'${NL}all:${NL}${TAB}cp x yarn.lock${NL}EOF${NL}make")"
+
 harness_summary
