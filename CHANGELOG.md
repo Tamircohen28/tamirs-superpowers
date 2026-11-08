@@ -28,6 +28,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - **`scripts/github-mcp.sh` is back to its 5.1 form.** The level-based `--read-only` / `--exclude-tools` flags go with the levels, and so does the 5.2.0 trusted-binary lookup (it read the passwd home through the removed permission library): the server binary is found on `PATH` again, as before 5.2.0.
 - **Known gaps, accepted:** a git replay that brings a host settings file in from another ref (`git checkout <ref> -- .claude/settings.json`) is not judged, and `mkdir`/`git init` of a `.git` in an installed plugin copy outside the host plugin caches is not seen (a written `.git` file is denied). Neither was protected before 5.2.0.
 
+### Security
+
+- **Four ways a Bash write slipped past the protected-file guard are closed** (#405, found by the #402 reviews). Every change is in `hooks/lib/write-targets.py`; nothing blocked before is allowed now.
+  - **Substitutions are parsed as commands.** The commands a `$(…)`, a backtick, a `<(…)`/`>(…)` or an unquoted heredoc body runs are judged like top-level commands, in a subshell scope. An unterminated or too-deep substitution fails closed.
+  - **A command it cannot name is UNSURE:** a command name built by expansion, a runner it does not unwrap (`numactl`, `strace`, `gdb`, `ssh`, `docker run`, …), inline code for more interpreters, git options and `-c` keys that run a program, `make --eval`, and environment variables whose value is a command.
+  - **Write forms of read-only commands are targets:** `git config --file`, `git diff --output`, `git format-patch -o`, `git bundle create`, `git archive -o`, every `sort -o`, plus `uniq IN OUT`, `openssl -out`, `cc -o`, `scp`, `git init`/`git clone DIR` and more.
+  - **Write, then run, is UNSURE:** a file the same command writes and then runs (a script, `awk -f`/`sed -f`, `./path`, `make`/`pytest`/`npm`/`cargo` over its directory, a git hook, a load path set in the command).
+
 ### Migration
 
 - Nothing to configure. A stale `~/.config/tamirs-superpowers/permissions.json` (and its `.lock`), a project's `.tamirs-superpowers/permissions.json`, and the plugin's state under `~/.local/state/tamirs-superpowers/` (tickets, stamps, `staged/`, `hostver/`, `intent/`) are no longer read and can be deleted. The `permission_level` value saved in Claude Code's plugin options is ignored.
