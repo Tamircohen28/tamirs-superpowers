@@ -7,6 +7,21 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 - **Cursor 3.11 (+2026-11-06 / desktop 3.29.9 reviewed):** advance `latest_known`/`reviewed_through` **3.28.7 → 3.29.9** and `changelog_date` **2026-10-20 → 2026-11-06**. Keep `validated_against` at **3.28.7** (last live run). Document Voice Chat (≠ dictation) and Live Apps/`publish-app` as host capabilities — no plugin code change. Cursor-only.
 
+## [6.1.0] — 2026-11-09
+
+### Fixed
+
+- **The protected-file guard's seven known parser blind spots** (#415, from the "Not covered" list of #411). Each fix has regression rows pairing the bypass with a near-miss benign command in `tests/test-sensitive-protected-paths.sh` (section "#415"); the protected list and the allow/deny-only contract (ADR 006) are unchanged:
+  1. `case`/`in`/`esac` are keywords only in command position inside `$(...)`, so `echo case in; rm PROT` no longer hides the `rm`; a `case` still open at the closing `)` is a tokenizer anomaly.
+  2. `scp -o ProxyCommand=...`/`-J`/`-F` and `rsync -e`/`--rsh` are UNSURE unless the remote shell is a plain `ssh`; `ssh-keygen` is read getopt-style (`-f`, `-qf`, `-fPATH`, `-G`, `-T`).
+  3. Output paths of `gcc`/`clang` (`-MF`, `-MJ`, `--serialize-diagnostics`, `-Wl,-Map`, `-Xlinker -Map`), `ld -Map`, `go build -o`, `go test -c`/`-o`/`-coverprofile`/`-cpuprofile`/... and `git pack-objects` are write targets; `~+` is the cwd and `~-` is unknown.
+  4. `git init`/`git clone` write into the directory they run in, so `git -C PROT init` and `cd PROT && git clone URL` are writes into PROT.
+  5. An unquoted glob that expands, on disk, to a protected path (`~/.gitco[n]fig`, `~/.config/g?/hosts.yml`) is judged like a write to that path.
+  6. `git config --global ...` is a write to the user-level git config, and a repo-local write of a key that names a program (`core.hooksPath`, `core.pager`, `core.fsmonitor`, `alias.x=!...`, `--edit`) is a write to `.git/config`. Repo-local `user.email`, `remote add`, `branch -u` and the like stay allowed.
+  7. The catch-all (skippable assignment command names, runners not on the list, build tools running code that already exists) stays an accepted limit.
+
+  The accepted limits, each with the reason, are in the header of `hooks/guard-sensitive-files.sh` ("WHAT THIS STILL CANNOT SEE"): `make -C PROT` and `go test PROT/...` (they run in PROT, which writes nothing by itself), globs that match nothing yet, `git remote add`/`set-url`/`git lfs install`, `GIT_CONFIG_GLOBAL` redirection, other compiler side outputs, and item 7. Checked against 62,201 real commands from session transcripts: 0 newly blocked, 0 newly passing. Closes #415.
+
 ## [6.0.1] — 2026-11-08
 
 ### Fixed

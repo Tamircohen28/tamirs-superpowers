@@ -831,6 +831,200 @@ passes "git clone into ."                         "git clone https://x/y ."
 passes "a parameter default with a comma"         "echo \${X:-a,b}; cat ~/.gitconfig"
 passes "pytest on its own beside a read"          "pytest tests/ -q; cat ~/.gitconfig"
 
+# ===========================================================================
+# Issue #415: the blind spots #411 left open. Every row pairs a bypass that is
+# now caught with a near-miss benign command that stays allowed. A limit that
+# is documented rather than fixed is listed in the guard's header.
+# ===========================================================================
+# blockedat/passesat DIR COMMAND — the same two verdicts, run from DIR.
+blockedat() { local d; d="$(decision "$(run_guard "$GUARD" Bash "$3" "$2")")"; case "$d" in deny) d=blocked ;; esac; judge "$1" blocked "$d"; }
+passesat()  { local d; d="$(decision "$(run_guard "$GUARD" Bash "$3" "$2")")"; case "$d" in allow|warn) d=passes ;; esac; judge "$1" passes "$d"; }
+
+section "#415 (1): case/in/esac are keywords only in command position inside \$(...)"
+blocked "a word 'case' as an argument does not open a case"      'echo $(echo case in; rm ~/.gitconfig)'
+blocked "a word 'esac' as an argument does not close one"        'echo $(echo esac; rm ~/.gitconfig)'
+blocked "a quoted 'esac' is an argument too"                     'echo $(echo "esac"; rm ~/.gitconfig)'
+blocked "a real case, a write in its arm"                        'echo $(case y in x) echo case;; y) rm ~/.gitconfig;; esac)'
+blocked "  ... inside double quotes"                              'echo "$(case y in x) echo case;; y) rm ~/.gitconfig;; esac)"'
+blocked "  ... inside a process substitution"                     'cat <(case y in x) echo case;; y) rm ~/.gitconfig;; esac)'
+blocked "  ... nested in an if"                                   'x=$(if true; then case y in x) echo case;; y) rm ~/.gitconfig;; esac; fi)'
+blocked "a case on a substitution"                                'echo $(case $(echo y) in y) rm ~/.gitconfig;; esac)'
+blocked "a case with a parenthesised alternative"                 'echo $(case y in (x|esac) echo a;; y) rm ~/.gitconfig;; esac)'
+blocked "a write after the case closes"                           'echo $(case x in x) echo hi; esac; rm ~/.gitconfig)'
+blocked "a case left open at the closing paren is an anomaly"     'echo $(case y in x) echo hi; rm ~/.gitconfig)'
+passes  "  ... the same shape on a scratch file"                  'echo $(case y in x) echo hi; cat /tmp/a)'
+passes  "a case that only reads"                                  'echo $(case x in x) cat ~/.gitconfig;; esac)'
+passes  "case as an argument, then a read"                        'echo $(printf case in esac); cat ~/.gitconfig'
+passes  "case as an argument in a plain substitution"             'x=$(echo case); cat ~/.gitconfig'
+passes  "a case whose arm writes a scratch file"                  'echo $(case y in x) echo case;; y) rm /tmp/x;; esac)'
+
+section "#415 (2): scp/rsync remote-shell options and ssh-keygen -f"
+blocked "scp -o ProxyCommand runs a command"                      "scp -o ProxyCommand='cp /tmp/a ~/.gitconfig' h:f /tmp/x"
+blocked "  ... the attached form"                                 "scp -oProxyCommand='cp /tmp/a ~/.gitconfig' h:f /tmp/x"
+blocked "scp -o LocalCommand"                                     "scp -o LocalCommand='cp /tmp/a ~/.gitconfig' -o PermitLocalCommand=yes h:f /tmp/x"
+blocked "scp -J jump host"                                        "scp -J 'x;cp /tmp/a ~/.gitconfig' h:f /tmp/x"
+blocked "scp -F config file"                                      'scp -F ~/.gitconfig h:f /tmp/x'
+blocked "rsync -e with a command"                                 "rsync -e 'sh -c \"cp /tmp/a ~/.gitconfig\"' h:f /tmp/x"
+blocked "rsync --rsh=COMMAND"                                     "rsync --rsh='sh -c \"cp /tmp/a ~/.gitconfig\"' h:f /tmp/x"
+blocked "rsync -ave COMMAND (clustered)"                          "rsync -ave 'sh -c \"cp /tmp/a ~/.gitconfig\"' h:f /tmp/x"
+blocked "rsync into the protected file"                           'rsync -avessh h:f ~/.gitconfig'
+passes  "scp with a plain option"                                 'scp -o StrictHostKeyChecking=no h:f /tmp/x'
+passes  "scp -P and BatchMode, then a read"                       'scp -o BatchMode=yes -P 22 h:f /tmp/x; cat ~/.gitconfig'
+passes  "scp -i, then a read"                                     'scp -i ~/.ssh/id h:f /tmp/x; cat ~/.gitconfig'
+passes  "rsync -e ssh between scratch paths"                      'rsync -e ssh /tmp/a h:/tmp/b'
+passes  "rsync -e ssh sending a protected file out"               'rsync -e ssh ~/.gitconfig h:/tmp/b'
+blocked "ssh-keygen -f writes the key"                            'ssh-keygen -t ed25519 -f ~/.config/gh/key'
+blocked "  ... the attached -fPATH"                               'ssh-keygen -f~/.config/gh/key -t ed25519'
+blocked "  ... clustered -qf"                                     'ssh-keygen -qf ~/.config/gh/key -t ed25519'
+blocked "  ... after -N ''"                                       "ssh-keygen -qN '' -f ~/.config/gh/key"
+blocked "ssh-keygen -G writes candidates"                         'ssh-keygen -G ~/.gitconfig -b 2048'
+passes  "ssh-keygen -lf reads"                                    'ssh-keygen -lf ~/.config/gh/key.pub'
+passes  "ssh-keygen -yf reads"                                    'ssh-keygen -yf ~/.config/gh/key'
+passes  "ssh-keygen -F reads known_hosts"                         'ssh-keygen -F host -f ~/.config/gh/key'
+passes  "ssh-keygen writing a scratch key"                        'ssh-keygen -t ed25519 -f /tmp/key; cat ~/.gitconfig'
+
+section "#415 (3): compiler, linker, go and pack-objects outputs; ~+ is the cwd"
+blocked "gcc -MF"                                                 'gcc -MF ~/.config/gh/dep.d -c a.c'
+blocked "gcc -MD -MF"                                             'gcc -MD -MF ~/.config/gh/dep.d -c a.c'
+blocked "gcc -MF attached"                                        'gcc -MF~/.config/gh/dep.d -c a.c'
+blocked "clang -MJ"                                               'clang -MJ ~/.config/gh/db.json -c a.c'
+blocked "gcc -Wl,-Map=PATH"                                       'gcc -Wl,-Map=~/.config/gh/m.map a.o'
+blocked "gcc -Wl,-Map,PATH"                                       'gcc -Wl,-Map,~/.config/gh/m.map a.o'
+blocked "gcc -Xlinker -Map=PATH"                                  'gcc -Xlinker -Map=~/.config/gh/m.map a.o'
+blocked "ld -Map PATH"                                            'ld -Map ~/.config/gh/m.map a.o'
+blocked "clang --serialize-diagnostics"                           'clang --serialize-diagnostics ~/.config/gh/d.dia -c a.c'
+blocked "gcc --output=PATH"                                       'gcc --output=~/.config/gh/a a.c'
+blocked "go build -o"                                             'go build -o ~/.config/gh/bin ./...'
+blocked "go test -c -o"                                           'go test -c -o ~/.config/gh/t.test ./pkg'
+blocked "go test -coverprofile=PATH"                              'go test -coverprofile=$HOME/.config/gh/c.out ./...'
+blocked "go test -cpuprofile PATH"                                'go test -cpuprofile ~/.config/gh/c.out ./...'
+blocked "git pack-objects output prefix"                          'git pack-objects ~/.config/gh/pk < /dev/null'
+blocked "git pack-objects --stdout redirected"                    'git pack-objects --stdout > ~/.config/gh/pk < /dev/null'
+passes  "gcc side outputs on scratch paths, then a read"          'gcc -MF /tmp/dep.d -Wl,-Map=/tmp/m.map -c a.c; cat ~/.config/gh/x'
+passes  "gcc -MD -MT without an output of its own"                'gcc -MD -MT x -c a.c -o /tmp/a.o'
+passes  "gcc -Wl,-rpath is not an output"                         'gcc -Wl,-rpath,/opt a.o -o /tmp/a'
+passes  "ld -Map to a scratch file"                               'ld -Map /tmp/m -o /tmp/a a.o'
+passes  "go build -o to a scratch file, then a read"              'go build ./... && cat ~/.config/gh/x'
+passes  "go test with a repo-relative profile"                    'go test -coverprofile coverage.out ./...'
+passes  "go test -c to scratch"                                   'go test -c -o /tmp/t.test ./pkg'
+passes  "git pack-objects to scratch"                             'git pack-objects /tmp/pk <list'
+passes  "go test ./pkg/..."                                       'go test ./pkg/...'
+passes  "make -C into a scratch dir"                              'make -C /tmp/x all'
+blocked "~+ is the cwd"                                           'cd ~ && cp /tmp/a ~+/.gitconfig'
+blocked "~- is unknown, so a protected name after it is refused"  'cp /tmp/a ~-/.gitconfig'
+passes  "~+ in a scratch cwd"                                     'cd /tmp && cp /tmp/a ~+/note.txt'
+passes  "~+ with a plain name in the home"                        'cd ~ && cp /tmp/a ~+/note.txt'
+
+section "#415 (4): git init / git clone write into the directory they run in"
+blocked "git -C PROT init"                                        'git -C ~/.config/gh init'
+blocked "git -C PROT clone URL"                                   'git -C ~/.config/gh clone /tmp/x'
+blocked "git -C PROT clone URL NAME"                              'git -C ~/.config/gh clone /tmp/x sub'
+blocked "cd PROT && git init"                                     'cd ~/.config/gh && git init'
+blocked "cd PROT && git init --bare"                              'cd ~/.config/gh && git init --bare'
+blocked "cd PROT && git init -b main"                             'cd ~/.config/gh && git init -b main'
+blocked "cd PROT && git clone https URL"                          'cd ~/.config/gh && git clone https://github.com/a/b.git'
+blocked "cd PROT && git clone scp-style URL"                      'cd ~/.config/gh && git clone git@github.com:a/b'
+blocked "a subshell cd, then git init"                            '(cd ~/.config/gh; git init)'
+blocked "git init PROT"                                           'git init ~/.config/gh'
+blocked "git -C PARENT init NAME"                                 'git -C ~/.config init gh'
+blocked "git clone into PROT"                                     'git clone /tmp/x ~/.config/gh/xx'
+blocked "a clone named like a protected file"                     'cd ~/.claude && git clone /tmp/x settings.json'
+passes  "git -C scratch init"                                     'git -C /tmp/r init'
+passes  "cd scratch && git init"                                  'cd /tmp/r && git init'
+passes  "cd scratch && git init --bare"                           'cd /tmp && git init --bare'
+passes  "cd scratch && git clone"                                 'cd /tmp && git clone https://github.com/a/b.git'
+passes  "git -C scratch clone"                                    'git -C /tmp/r clone /tmp/x'
+passes  "git init in scratch, then a read"                        'cd /tmp/r && git init; cat ~/.config/gh/hosts.yml'
+passes  "git init in ~/.claude (nothing protected is .git there)" 'cd ~/.claude && git init'
+passes  "git status in a protected dir"                           'git -C ~/.config/gh status'
+passes  "git status after cd"                                     'cd ~/.claude && git status'
+passes  "git clone into ."                                        'git clone https://x/y .'
+
+section "#415 (5): a glob that expands to a protected path"
+mkdir -p "$HOME/.config/gh" "$HOME/.claude"
+: > "$HOME/.gitconfig"; : > "$HOME/.config/gh/hosts.yml"; : > "$HOME/.claude/settings.json"
+blocked "bracket class spelling .gitconfig"                       'cp /tmp/a ~/.gitco[n]fig'
+blocked "bracket class on the last letter"                        'cp /tmp/a ~/.gitconfi[g]'
+blocked "? for the last letter"                                   'cp /tmp/a ~/.gitconfi?'
+blocked "? in the middle"                                         'cp /tmp/a ~/.git?onfig'
+blocked "* prefix that spells .gitc"                              'cp /tmp/a ~/.gitc*'
+blocked "* after .git"                                            'cp /tmp/a ~/.git*'
+blocked "bracket on the leading letter"                           'cp /tmp/a ~/.[g]itconfig'
+blocked "redirect to a glob"                                      'echo x > ~/.gitco[n]fig'
+blocked "tee to a glob"                                           'tee ~/.gitco[n]fig < /tmp/a'
+blocked "rm of a glob"                                            'rm ~/.gitco[n]fig'
+blocked "rm of a wide glob"                                       'rm ~/.gitc*'
+blocked "mv onto a glob"                                          'mv /tmp/a ~/.gitco[n]fig'
+blocked "sed -i on a glob"                                        'sed -i s/a/b/ ~/.gitco[n]fig'
+blocked "glob in the middle of a gh path"                         'cp /tmp/a ~/.config/g[h]/hosts.yml'
+blocked "* directory over gh"                                     'cp /tmp/a ~/.config/*/hosts.yml'
+blocked "glob over the settings name"                             'cp /tmp/a ~/.claude/settings*.json'
+blocked "glob over a settings dir"                                'cp /tmp/a ~/.clau[d]e/settings.json'
+blocked "an absolute glob"                                        "cp /tmp/a $HOME/.gitco[n]fig"
+blockedat "a repo glob over .git/config"           "$REPO" 'cp /tmp/a .git/conf*'
+blockedat "a repo glob with a class"               "$REPO" 'cp /tmp/a .git/confi[g]'
+blockedat "a repo glob over .git"                  "$REPO" 'rm -rf .gi?/hooks'
+passes  "a glob over .bash files"                                 'cp /tmp/a ~/.bash*'
+passes  "a glob over rc files"                                    'cp /tmp/a ~/.[a-f]*rc'
+passes  "a glob over notes"                                       'cp /tmp/a ~/notes/*.txt'
+passes  "* does not match dotfiles"                               'cp /tmp/a ~/*'
+passes  "a glob in /tmp"                                          'cp /tmp/a /tmp/*.txt'
+passes  "a protected-looking glob in /tmp"                        'cp /tmp/a /tmp/.gitco[n]fig'
+passes  "a glob on the read side"                                 'cp ~/.gitco[n]fig /tmp/a'
+passes  "a glob read into a pipe"                                 'cat ~/.gitc* > /tmp/o'
+passes  "ls of a glob"                                            'ls ~/.git*'
+passes  "rm of a scratch glob"                                    'rm /tmp/x*'
+passes  "a quoted glob is a literal name"                         'cp /tmp/a "$HOME/.gitco[n]fig"'
+passesat "a repo glob over source files"           "$REPO" 'cp /tmp/a src/*.py'
+passesat "a clean of build output"                 "$REPO" 'rm -rf build/* dist/*'
+passesat "rm of object files"                      "$REPO" 'rm *.o'
+passesat "a bare * in the repo"                    "$REPO" 'cp /tmp/a *'
+passesat "a repo glob over a hooks child"          "$REPO" 'rm .git/hoo*/pre-commit'
+rm -f "$HOME/.gitconfig" "$HOME/.config/gh/hosts.yml" "$HOME/.claude/settings.json"
+
+section "#415 (6): git config writes to a protected config file"
+blocked "git config --global KEY VALUE"                           'git config --global user.name x'
+blocked "git config --global --add"                               'git config --global --add safe.directory /tmp/x'
+blocked "git config --global --unset"                             'git config --global --unset user.name'
+blocked "git config --global --replace-all"                       'git config --global --replace-all user.name y'
+blocked "git config --global --edit"                              'git config --global --edit'
+blocked "git config --global core.editor"                         'git config --global core.editor vim'
+blocked "git -C DIR config --global"                              'git -C /tmp/r config --global user.name x'
+blocked "git config --global --remove-section"                    'git config --global --remove-section user'
+blocked "git config set --global"                                 'git config set --global user.name x'
+blocked "git config --file PROT"                                  'git config --file ~/.gitconfig user.name x'
+blocked "git config -f PROT"                                      'git config -f ~/.gitconfig user.name x'
+passes  "git config --global KEY reads one value"                 'git config --global user.name'
+passes  "git config --global --get"                               'git config --global --get user.name'
+passes  "git config --global --list"                              'git config --global --list'
+passes  "git config --global -l"                                  'git config --global -l'
+passes  "git config --global get"                                 'git config --global get user.name'
+passes  "git config --global --get-regexp"                        "git config --global --get-regexp '^user'"
+passes  "git config --global --show-origin --list"                'git config --global --show-origin --list'
+passes  "git config --system --list"                              'git config --system --list'
+passes  "git config --file on a scratch file"                     'git config --file /tmp/cfg user.name x'
+passes  "git config --global --list into a pipe"                  'git config --global --list | grep user'
+blockedat "a repo hooksPath"                       "$REPO" 'git config core.hooksPath /tmp/x'
+blockedat "  ... with --local"                     "$REPO" 'git config --local core.hooksPath /tmp/x'
+blockedat "a shell alias"                          "$REPO" "git config alias.x '!cp a b'"
+blockedat "core.fsmonitor"                         "$REPO" "git config core.fsmonitor '/tmp/evil'"
+blockedat "core.pager"                             "$REPO" "git config core.pager 'sh -c x'"
+blockedat "git config --local --edit"              "$REPO" 'git config --local --edit'
+passesat "repo-local user.email"                   "$REPO" 'git config user.email a@b.c'
+passesat "repo-local user.name"                    "$REPO" 'git config user.name Test'
+passesat "repo-local --local user.email"           "$REPO" 'git config --local user.email a@b.c'
+passesat "repo-local commit.gpgsign"               "$REPO" 'git config commit.gpgsign false'
+passesat "repo-local --unset"                      "$REPO" 'git config --unset user.email'
+passesat "repo-local core.autocrlf"                "$REPO" 'git config core.autocrlf false'
+passesat "repo-local init.defaultBranch"           "$REPO" 'git config init.defaultBranch main'
+passesat "a plain alias"                           "$REPO" 'git config alias.st status'
+passesat "git remote add"                          "$REPO" 'git remote add origin https://x/y.git'
+passesat "git remote set-url"                      "$REPO" 'git remote set-url origin https://x/y.git'
+passesat "git branch -u"                           "$REPO" 'git branch -u origin/main'
+passesat "git submodule add"                       "$REPO" 'git submodule add https://x/y.git s'
+passesat "git worktree add"                        "$REPO" 'git worktree add ../w'
+passesat "git config --get"                        "$REPO" 'git config --get user.email'
+
 section "#402: the reason says whether it was judged from a target or from text"
 mention_reason="$(reason "$(run_guard "$GUARD" Bash "python3 -c \"open('opencode.json','w')\"")")"
 judge "a text-judged block names code it cannot read" yes "$(has "$mention_reason" "code this parse cannot read")"

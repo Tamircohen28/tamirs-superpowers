@@ -82,6 +82,34 @@
 #     `git diff --output`, `git archive -o`, `git bundle create`,
 #     `git format-patch -o` and `git config --file` (issue #405; this text
 #     lived in ADR 004 D10.1 until that ADR was superseded by ADR 006).
+#     Issue #415 closed seven parser blind spots found after #411. Read as
+#     fixed: `case` only in command position inside `$(…)` (an open `case`
+#     at the closing `)` is an anomaly); `scp -o ProxyCommand=…`, `scp -J`
+#     and `rsync -e`/`--rsh` (UNSURE unless a plain ssh); `ssh-keygen -f`
+#     read getopt-style; `gcc -MF`/`-MJ`/`-Wl,-Map`, `ld -Map`, `go build -o`
+#     and `go test -coverprofile`/`-c`; `git pack-objects` output; `~+/`;
+#     `git init`/`git clone` into the cwd or `-C DIR`; a glob that expands to
+#     a protected path; `git config --global` and a repo-local config key that
+#     names a program (`core.hooksPath`, `core.pager`, `alias.x=!…`).
+#     Accepted limits, each with the reason it is not fixed:
+#       * `make -C PROT` / `go test PROT/...`: they RUN
+#         in PROT, which writes nothing by itself; blocking would stop every
+#         build in a protected tree the agent may legitimately read.
+#       * A glob matching nothing yet (`cp a ~/.git*` with no such file) is
+#         allowed: it writes no protected file; expansion needs a real file.
+#       * `git remote add`/`set-url`, `git branch -u`, `git lfs install` and a
+#         repo-local `git config user.email`: they edit `.git/config` data
+#         keys, and tests set them in every scratch repo; only keys that name
+#         a program are treated as a write to the config.
+#       * `GIT_CONFIG_GLOBAL=PROT git config --global …` and other
+#         environment redirection of where git writes.
+#       * Side outputs of a compiler beyond the options named above
+#         (`-save-temps`, `-fprofile-dir`, plugins): the set is open-ended.
+#       * Skippable assignment command names (`FOO=1 cmd`), a runner not on
+#         the parser's list, and build tools running code that already exists
+#         (`make`, `npm run`, `cargo build`): the catch-all. Reporting every
+#         one means the warning fires on everything; the git/CI half sees the
+#         outcome of those anyway.
 #   - Metadata-only changes (`chmod`, `chown`), git aliases, a write through
 #     a hard link made before this call, and git's replays (checkout, switch,
 #     restore, reset --hard, merge, pull, rebase, cherry-pick, revert, am,
