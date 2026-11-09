@@ -79,14 +79,28 @@ WHAT IT CANNOT DECIDE, AND SAYS SO
     (`sort -o`, `git diff --output`, `git archive -o`, `git bundle create`,
     `git format-patch -o`, `git config --file`) are targets.
 
+    Issue #415 closes the blind spots #411 listed: `case` is a keyword only in
+    command position inside `$(...)` (an open `case` at the `)` is an anomaly);
+    `scp -o ProxyCommand`/`-J` and `rsync -e`/`--rsh` are UNSURE unless a plain
+    ssh; `ssh-keygen -f` is read getopt-style; compiler and linker outputs
+    (`-MF`, `-MJ`, `-Wl,-Map`, `ld -Map`, `go build -o`, `go test -c`/`-coverprofile`)
+    and `git pack-objects` are targets; `~+` is the cwd; `git init`/`git clone`
+    write into the directory they run in; a glob that expands, on disk, to a
+    protected path is a GLOB record judged like a write to that path; and
+    `git config --global` (or a repo-local key that names a program, or
+    `--edit`) is a write to the config file. The accepted limits are listed in
+    the header of hooks/guard-sensitive-files.sh.
+
 Usage:
     printf '%s' "$payload" | python3 write-targets.py
     printf '%s' "$payload" | python3 write-targets.py --protected
     python3 write-targets.py --help
 """
+import fnmatch
 import json
 import os
 import re
+import shlex
 import sys
 
 # --------------------------------------------------------------------------
@@ -177,7 +191,7 @@ def _expansion_subs(text, note=None):
             i += 2
             continue
         if c == "$" and i + 1 < n and text[i + 1] in CLOSERS:
-            end, closed = _balanced(text, i + 1, text[i + 1], CLOSERS[text[i + 1]])
+            end, closed = _balanced(text, i + 1, text[i + 1], CLOSERS[text[i + 1]], note)
             if not closed and note:
                 note("an unterminated `$%s`" % text[i + 1])
             out.extend(_raw_subs(text[i:end], note))
@@ -189,6 +203,7 @@ def _expansion_subs(text, note=None):
                 j += 2 if text[j] == "\\" else 1
             if j >= n and note:
                 note("an unterminated backtick")
+            _note_case_word(text[i + 1:j], note)
             out.append(_unbacktick(text[i + 1:j]))
             i = j + 1
             continue
@@ -239,7 +254,7 @@ def _backtick_body(text, start, end, dquoted=False):
     return _unbacktick(text[start + 1:end - 1] if closed else text[start + 1:end], dquoted)
 
 
-def _balanced(text, start, open_ch="(", close_ch=")"):
+def _balanced(text, start, open_ch="(", close_ch=")", note=None):
     """(index just past the bracket matching the one at `start`, whether it closed).
 
     Quote-, comment- and heredoc-aware, so `$(echo ")")` closes at the right
@@ -247,69 +262,208 @@ def _balanced(text, start, open_ch="(", close_ch=")"):
     idiom) does not read the apostrophe in the body as a quote. Should that scan
     run off the end anyway, the plain bracket count is the looser reading tried
     before calling the construct unterminated.
+
+    A `case` still open at the closing `)` is reported through `note` (issue #415):
+    this scan can no longer say where the construct really ends, and a later arm
+    could hold a write it never saw.
     """
-    end, closed = _scan_balanced(text, start, open_ch, close_ch, True)
+    end, closed, open_case = _scan_balanced(text, start, open_ch, close_ch, True)
     if not closed:
-        end2, closed2 = _scan_balanced(text, start, open_ch, close_ch, False)
+        end2, closed2, _ = _scan_balanced(text, start, open_ch, close_ch, False)
         if closed2:
             return end2, True
+    elif open_case and note:
+        note("a `case` still open at the closing `%s`" % close_ch)
+    if open_ch == "(":
+        _note_case_word(text[start + 1:end - 1 if closed else end], note)
     return end, closed
 
 
 CASE_DELIMS = " \t\n;&|()<>"
+# Words after which the next word is again a command's first word.
+CASE_INTRODUCERS = ("then", "do", "else", "elif", "if", "while", "until", "time", "coproc")
+
+
+def _blank_follows(text, i):
+    """Whether text[i] is the end, a blank or a newline once backslash-newlines are removed: the
+    boundary that makes a `{` or `!` a word of its own (issue #415 review, round 3)."""
+    n = len(text)
+    while text.startswith("\\\n", i):
+        i += 2
+    return i >= n or text[i] in " \t\n"
+
+
+# Backstop (issue #415 review, round 3): the position tracking above is a model of where bash reads
+# `case` as a keyword, and every round of review found one more way to keep it from agreeing with
+# bash. So it is not what decides: a `case`/`esac` WORD anywhere in a substitution is noted as an
+# anomaly, and a protected path named anywhere in that command is then denied (analyze_command's
+# anomaly pass). Quotes, backslashes and continuations are dropped first, so no splitting of the word
+# hides it; the word may sit in an argument (`echo case`), which only over-reports.
+CASE_WORD = re.compile(r"(?:^|[\s;&|()<>`])(?:case|esac)(?=$|[\s;&|()<>`])")
+CASE_WHY = "a `case` or `esac` word inside a command substitution"
+
+
+def _note_case_word(body, note):
+    if note and CASE_WORD.search(re.sub(r"[\\'\"]", "", body.replace("\\\n", ""))):
+        note(CASE_WHY)
+
+
+def _case_terminator(text, i):
+    """Index just past a case arm's `;;`, `;;&` or `;&` at text[i] (a backslash-newline between its
+    characters is skipped, as bash does), else 0."""
+    k = i
+    n = len(text)
+    out = ""
+    while k < n and len(out) < 3:
+        if text.startswith("\\\n", k):
+            k += 2
+        elif text[k] == ";" and out in ("", ";"):
+            out += ";"
+            k += 1
+        elif text[k] == "&" and out in (";", ";;"):
+            out += "&"
+            k += 1
+            break
+        else:
+            break
+    return k if out in (";;", ";;&", ";&") else 0
+
+
+def _declares_function(text, i, start):
+    """Whether the `)` at text[i] ends the `()` of a function declaration `name()`/`name ( )`: a
+    word before an empty pair of parentheses (not `$()`, not an array `a=()`)."""
+
+    def back(k, floor):         # past blanks and backslash-newlines, going left
+        while k > floor:
+            if text[k] == "\n" and text[k - 1] == "\\":
+                k -= 2
+            elif text[k] in " \t\n":
+                k -= 1
+            else:
+                break
+        return k
+
+    k = back(i - 1, start)
+    if k <= start or text[k] != "(":
+        return False
+    k = back(k - 1, -1)
+    return k >= 0 and text[k] not in CASE_DELIMS and text[k] not in "$=\\"
 
 
 def _scan_balanced(text, start, open_ch, close_ch, aware):
+    """(end, closed, whether a case was still open where it closed)."""
     depth = 0
     i = start
     n = len(text)
     pending = []
     # `case … in PAT) …;; esac` inside `$( … )`: the pattern's `)` is not a closer
-    # (issue #405 review). One state per open case: "word" until `in`, then
-    # "pattern" until its `)`, then "body" until `;;`/`;&`/`;;&` or `esac`.
+    # (issue #405 review). One [state, subject seen] per open case: "word" until `in`,
+    # then "pattern" until its `)`, then "body" until `;;`/`;&`/`;;&` or `esac`.
+    # `case` and `esac` are keywords in command position only, `in` only after the
+    # subject (issue #415): as an argument (`echo case`) they steer nothing.
     cases = []
+    cmd_pos = True
+    # `time [-p] [--] PIPELINE`, `coproc [NAME] COMMAND` and `function NAME COMMAND` keep command
+    # position across their own option / name word (issue #415 review): `time -p case x in x)
+    # …;; esac` is still a case. A backslash-newline is removed before bash reads a word, so it
+    # changes none of this state, and a keyword can even be split by one (`ca\<NL>se`).
+    after_time = after_coproc = after_func = False
+
+    def subject():
+        if cases and cases[-1][0] == "word":
+            cases[-1][1] = True
+
     while i < n:
         c = text[i]
-        if aware and open_ch == "(" and c.isalpha() and (i == start or text[i - 1] in CASE_DELIMS):
-            j = i
-            while j < n and (text[j].isalnum() or text[j] == "_"):
-                j += 1
-            word = text[i:j]
-            if j >= n or text[j] in CASE_DELIMS:
-                if word == "case":
-                    cases.append("word")
-                elif word == "in" and cases and cases[-1] == "word":
-                    cases[-1] = "pattern"
-                elif word == "esac" and cases and cases[-1] in ("pattern", "body"):
-                    cases.pop()
-            i = j
-            continue
-        if aware and cases and cases[-1] == "pattern" and c in "()":
-            if c == ")":
-                cases[-1] = "body"
-            i += 1          # a pattern's own `(` opener and `)` closer
-            continue
-        if aware and cases and cases[-1] == "body" and text.startswith(";;", i):
-            cases[-1] = "pattern"
-            i += 3 if text.startswith(";;&", i) else 2
-            continue
-        if aware and cases and cases[-1] == "body" and text.startswith(";&", i):
-            cases[-1] = "pattern"
+        if aware and c == "\\" and text.startswith("\\\n", i):
             i += 2
             continue
+        was_time, was_coproc, was_func = after_time, after_coproc, after_func
+        if c not in " \t":
+            after_time = after_coproc = after_func = False
+        if aware and open_ch == "(" and was_time and c == "-" and (i == start or text[i - 1] in CASE_DELIMS):
+            j = i
+            while j < n and text[j] not in CASE_DELIMS:
+                j += 1
+            if text[i:j] in ("-p", "--"):
+                after_time = True       # still `time`'s options; the pipeline has not begun
+                i = j
+                continue
+        if aware and open_ch == "(" and (c.isalpha() or c == "_") and (i == start or text[i - 1] in CASE_DELIMS):
+            j = i
+            while j < n and (text[j].isalnum() or text[j] == "_" or text.startswith("\\\n", j)):
+                j += 2 if text[j] == "\\" else 1
+            word = text[i:j].replace("\\\n", "")
+            if j >= n or text[j] in CASE_DELIMS:
+                if word == "case" and cmd_pos and (not cases or cases[-1][0] == "body" or depth > cases[-1][2]):
+                    # A case inside a `$(…)` nested in an outer case's subject, pattern or arm is
+                    # its own construct: `case $(case y in y) echo y;; esac) in …`.
+                    cases.append(["word", False, depth])
+                    cmd_pos = False
+                elif word == "in" and cases and cases[-1][0] == "word" and cases[-1][1]:
+                    cases[-1][0] = "pattern"
+                    cmd_pos = True
+                elif word == "esac" and cmd_pos and cases and cases[-1][0] in ("pattern", "body"):
+                    cases.pop()
+                    cmd_pos = False
+                else:
+                    subject()
+                    # `coproc NAME COMMAND`, `function NAME COMMAND`: the word after the
+                    # introducer is a name, and the compound command that follows it is a command.
+                    cmd_pos_before = cmd_pos
+                    cmd_pos = word in CASE_INTRODUCERS or was_coproc or was_func
+                    after_time = word == "time"
+                    after_coproc = word == "coproc"
+                    after_func = word == "function" and cmd_pos_before
+            else:
+                subject()
+                cmd_pos = False
+                if was_coproc or was_func:      # `function f-g COMMAND`: a name with odd characters
+                    while j < n and text[j] not in CASE_DELIMS:
+                        j += 1
+                    cmd_pos = True
+            i = j
+            continue
+        if aware and cases and cases[-1][0] == "pattern" and c in "()":
+            if c == ")":
+                cases[-1][0] = "body"
+                cmd_pos = True
+            i += 1          # a pattern's own `(` opener and `)` closer
+            continue
+        if aware and cases and cases[-1][0] == "body" and c == ";":
+            end = _case_terminator(text, i)         # `;;`, `;;&` or `;&`, even split by a continuation
+            if end:
+                cases[-1][0] = "pattern"
+                cmd_pos = True
+                i = end
+                continue
         if aware:
             if c == "\\":
                 i += 2
+                cmd_pos = False
+                subject()
+                continue
+            if c == "$" and text.startswith("$'", i):
+                j = i + 2                           # ANSI-C `$'…'`: a backslash escapes the next char, `\'` included
+                while j < n and text[j] != "'":
+                    j += 2 if text[j] == "\\" else 1
+                i = j + 1
+                cmd_pos = False
+                subject()
                 continue
             if c == "'":
                 j = text.find("'", i + 1)
                 i = n if j == -1 else j + 1
+                cmd_pos = False
+                subject()
                 continue
             if c == '"':
                 j = i + 1
                 while j < n and text[j] != '"':
                     j += 2 if text[j] == "\\" else 1
                 i = j + 1
+                cmd_pos = False
+                subject()
                 continue
             if c == "#" and i > start and text[i - 1] in " \t\n;(|&":
                 j = text.find("\n", i)
@@ -332,15 +486,26 @@ def _scan_balanced(text, start, open_ch, close_ch, aware):
             if c == "\n" and pending:
                 i = _read_heredocs(text, i + 1, pending, None, lambda why: None)
                 pending = []
+                cmd_pos = True
                 continue
+            if c in ";&\n(" or (c == "|" and not (cases and cases[-1][0] == "pattern")):
+                cmd_pos = True
+            elif c in "{!" and (i == start or text[i - 1] in CASE_DELIMS) and _blank_follows(text, i + 1):
+                cmd_pos = True      # a `{` group or a `!` negation introduces a command
+            elif c == ")":
+                # `name()` declares a function; its body, any compound command, starts here.
+                cmd_pos = _declares_function(text, i, start)
+            elif c not in " \t<>|":
+                cmd_pos = False
+                subject()
         if c == open_ch:
             depth += 1
         elif c == close_ch:
             depth -= 1
             if depth == 0:
-                return i + 1, True
+                return i + 1, True, bool(cases)
         i += 1
-    return n, False
+    return n, False, bool(cases)
 
 
 def _read_heredocs(text, i, pending, heredocs, note, meta=None):
@@ -488,7 +653,7 @@ def tokenize(text, anomalies=None, heredocs=None, heredoc_meta=None):
                     break
                 # A substitution inside "…" may hold quotes of its own.
                 if c == "$" and j + 1 < n and text[j + 1] in CLOSERS:
-                    end, closed = _balanced(text, j + 1, text[j + 1], CLOSERS[text[j + 1]])
+                    end, closed = _balanced(text, j + 1, text[j + 1], CLOSERS[text[j + 1]], note)
                     if not closed:
                         note("an unterminated `$%s`" % text[j + 1])
                     buf.append(text[j:end])
@@ -502,6 +667,7 @@ def tokenize(text, anomalies=None, heredocs=None, heredoc_meta=None):
                         note("an unterminated backtick")
                     end = n if end == -1 else end + 1
                     buf.append(text[j:end])
+                    _note_case_word(text[j + 1:end], note)
                     subs.append(_backtick_body(text, j, end, True))
                     expands = True
                     j = end
@@ -529,7 +695,7 @@ def tokenize(text, anomalies=None, heredocs=None, heredoc_meta=None):
         # un-consumed, `cp $(pick) yarn.lock` would split at the parenthesis and
         # lose the destination, and `$[ 1 << 2 ]` would open a heredoc.
         if ch == "$" and i + 1 < n and text[i + 1] in CLOSERS:
-            end, closed = _balanced(text, i + 1, text[i + 1], CLOSERS[text[i + 1]])
+            end, closed = _balanced(text, i + 1, text[i + 1], CLOSERS[text[i + 1]], note)
             if not closed:
                 note("an unterminated `$%s`" % text[i + 1])
             buf.append(text[i:end])
@@ -544,6 +710,7 @@ def tokenize(text, anomalies=None, heredocs=None, heredoc_meta=None):
                 note("an unterminated backtick")
             end = n if end == -1 else end + 1
             buf.append(text[i:end])
+            _note_case_word(text[i + 1:end], note)
             subs.append(_backtick_body(text, i, end))
             expands = True
             started = True
@@ -560,7 +727,7 @@ def tokenize(text, anomalies=None, heredocs=None, heredoc_meta=None):
                 continue
         # `>(…)` / `<(…)` — process substitution, a pipe rather than a file.
         if ch == "(" and toks and toks[-1].kind == "op" and toks[-1].value in ("<", ">", ">>"):
-            end, closed = _balanced(text, i)
+            end, closed = _balanced(text, i, "(", ")", note)
             if not closed:
                 note("an unterminated process substitution")
             toks.append(Tok("word", text[i:end], True,
@@ -783,6 +950,7 @@ COMMAND_OPTS["mawk"] = COMMAND_OPTS["nawk"] = COMMAND_OPTS["awk"]
 # destination, so an option this parser cannot size makes every operand after it
 # a guess. These say UNSURE rather than guessing. For every other command an
 # unknown option only risks an extra target, never a missed one.
+RSYNC_LONG_VALUE = tuple(o for o in COMMAND_OPTS["rsync"]["value"] if o.startswith("--"))
 STRICT_LAYOUT = ("cp", "mv", "install", "rsync", "ln")
 
 # Arbitrary-code evaluators. Handed inline code (or a heredoc) their write
@@ -1407,6 +1575,13 @@ def _static_value(tok):
 
 def _resolve(value, cwd):
     """An operand as an absolute normalised path; None when it is relative and cwd is unknown."""
+    # `~+` is $PWD (the directory this command runs in) and `~-` is $OLDPWD, which is unknown
+    # here (issue #415): expanduser leaves both alone, so they would read as a name under cwd.
+    tilde = re.match(r"^~([+-])(?=/|$)", value)
+    if tilde:
+        if tilde.group(1) == "-" or not cwd:
+            return None
+        value = cwd + value[2:]
     path = os.path.expanduser(value)
     if not os.path.isabs(path):
         if not cwd:
@@ -2191,6 +2366,125 @@ def _make_unsure(words, fed_code):
 
 CC_FAMILY = ("cc", "gcc", "g++", "c++", "clang", "clang++", "ld", "rustc", "swiftc", "tcc", "zig")
 SSH_KEYGEN_READS = "lyFeiBLQD"
+SSH_KEYGEN_VALUE = "abCDEFfGIJjMmNnOPRrsTtVWwZ"
+# `ssh -o` keys that run nothing, load nothing and write no file; any other key (ProxyCommand,
+# LocalCommand, KnownHostsCommand, PKCS11Provider, ControlPath, UserKnownHostsFile, ...) is
+# unresolved (issue #415).
+SSH_PLAIN_OPTIONS = frozenset((
+    "stricthostkeychecking", "batchmode", "connecttimeout", "connectionattempts", "port",
+    "identityfile", "identitiesonly", "loglevel", "serveraliveinterval", "serveralivecountmax",
+    "compression", "forwardagent", "forwardx11", "preferredauthentications", "pubkeyauthentication",
+    "passwordauthentication", "kbdinteractiveauthentication", "kexalgorithms", "ciphers", "macs",
+    "hostkeyalgorithms", "pubkeyacceptedalgorithms", "addressfamily", "tcpkeepalive", "user",
+    "hostname", "hostkeyalias", "numberofpasswordprompts", "requesttty", "setenv", "sendenv"))
+
+
+def _ssh_option_unsure(value):
+    """True when an `-o KEY=VALUE` / `-o "KEY VALUE"` argument may run or write something."""
+    key = re.split(r"[=\s]", value.strip(), maxsplit=1)[0].lower()
+    return key not in SSH_PLAIN_OPTIONS
+
+
+def _remote_shell_unsure(base, words):
+    """Why a copy tool starts a program this parse does not read, or None (issue #415).
+
+    `scp -o ProxyCommand=…`, `-J`, `-F`, `-S`, `-D` and `rsync -e`/`--rsh` all name a command (or
+    a config file that can) which the tool runs to reach the remote host.
+    """
+    if base == "scp":
+        for f, t in _walk_options(words, "cDFiJlLoPSX", ()):
+            if f in ("-S", "-D", "-J", "-F") or (
+                    f == "-o" and t is not None and _ssh_option_unsure(t.value)):
+                return RUNNER_WHY % ("scp " + f)
+        return None
+    if base == "rsync":
+        for f, t in _walk_options(words, "efTBM", RSYNC_LONG_VALUE):
+            if (f == "-e" or (f and f.startswith("--rsh"))) and not _plain_ssh(t):
+                return RUNNER_WHY % "rsync --rsh"
+    return None
+
+
+def _plain_ssh(tok):
+    """True when an rsync `-e` value is `ssh` with options that start no program (`ssh -p 22`)."""
+    if tok is None or tok.expands:
+        return False
+    try:
+        argv = shlex.split(tok.value)
+    except ValueError:
+        return False
+    if not argv or os.path.basename(argv[0]) != "ssh":
+        return False
+    i = 1
+    while i < len(argv):
+        a = argv[i]
+        if a in ("-p", "-i", "-l") and i + 1 < len(argv):
+            i += 2
+        elif a == "-o" and i + 1 < len(argv) and not _ssh_option_unsure(argv[i + 1]):
+            i += 2
+        elif re.match(r"^-[46qvCTxaAkKnNgy]+$", a):
+            i += 1
+        else:
+            return False
+    return True
+
+
+CC_FILE_OPTS = ("-o", "-MF", "-MJ", "--output", "--serialize-diagnostics")
+LD_MAP_OPTS = ("-Map", "--Map")
+GO_OUTPUT_FLAGS = ("o", "coverprofile", "cpuprofile", "memprofile", "blockprofile", "mutexprofile", "trace")
+
+
+def _cc_outputs(base, words):
+    """Files a compiler or linker driver writes (issue #415): `-o`, the dependency file `-MF`, the
+    compilation database `-MJ`, `--serialize-diagnostics`, and the linker map (`-Wl,-Map=F`,
+    `-Wl,-Map,F`, `-Xlinker -Map=F`, or `-Map F` to ld itself). A value glued to the flag counts."""
+    out = []
+    linker = []         # words the linker driver passes on, in order
+    k = 0
+    while k < len(words):
+        w = words[k]
+        v = w.value
+        hit = next((o for o in CC_FILE_OPTS if v == o or v.startswith(o + "=")
+                    or (not o.startswith("--") and v.startswith(o) and len(v) > len(o))), None)
+        if hit is not None:
+            if v == hit:
+                if k + 1 < len(words):
+                    out.append(words[k + 1])
+                k += 1
+            elif v.startswith(hit + "="):
+                out.append(Tok("word", v[len(hit) + 1:], w.expands, w.quoted))
+            else:
+                out.append(Tok("word", v[len(hit):], w.expands, w.quoted))
+        elif v.startswith("-Wl,"):
+            linker += [Tok("word", p, w.expands, w.quoted) for p in v[4:].split(",")]
+        elif v == "-Xlinker" and k + 1 < len(words):
+            linker.append(words[k + 1])
+            k += 1
+        elif base == "ld":
+            linker.append(w)
+        k += 1
+    for j, t in enumerate(linker):
+        name, eq, val = t.value.partition("=")
+        if name in LD_MAP_OPTS:
+            if eq:
+                out.append(Tok("word", val, t.expands, t.quoted))
+            elif j + 1 < len(linker):
+                out.append(linker[j + 1])
+    return out
+
+
+def _go_outputs(words):
+    """Files `go build|test|install` writes: `-o` and the test profiles (`-coverprofile=F`);
+    go takes `-flag V`, `-flag=V` and `--flag` alike."""
+    out = []
+    for k, w in enumerate(words):
+        m = re.match(r"^--?(%s)(=(.*))?$" % "|".join(GO_OUTPUT_FLAGS), w.value, re.S)
+        if not m:
+            continue
+        if m.group(2) is not None:
+            out.append(Tok("word", m.group(3), w.expands, w.quoted))
+        elif k + 1 < len(words):
+            out.append(words[k + 1])
+    return out
 
 
 def _more_write_forms(base, words):
@@ -2205,9 +2499,10 @@ def _more_write_forms(base, words):
     if base == "openssl":
         return [(words[i + 1], "TARGET") for i, w in enumerate(words[:-1])
                 if w.value in ("-out", "-keyout")], None
-    if base in CC_FAMILY or (base == "go" and any(w.value == "build" for w in words)):
-        out = _flag_value(words, ("-o",))
-        return ([(out, "TARGET")] if out is not None else []), None
+    if base in CC_FAMILY:
+        return [(t, "TARGET") for t in _cc_outputs(base, words)], None
+    if base == "go" and any(w.value in ("build", "test", "install") for w in words):
+        return [(t, "TARGET") for t in _go_outputs(words)], None
     if base == "mkfifo":
         return [(t, "TARGET") for t in _operands(words)], None
     if base == "mknod":
@@ -2216,21 +2511,26 @@ def _more_write_forms(base, words):
         return [(t, "DELETE") for t in _operands(words)], None
     if base == "scp":
         ops = []
-        unsure = None
-        for f, t in _walk_options(words, "cFiJlLoPSX", ()):
+        unsure = _remote_shell_unsure("scp", words)
+        for f, t in _walk_options(words, "cDFiJlLoPSX", ()):
             if f is None:
                 ops.append(t)
-            elif f == "-S":
-                unsure = RUNNER_WHY % "scp -S"
         dest = ops[-1:] if len(ops) >= 2 else []
         local = [t for t in dest if not re.match(r"^[^/]*:", t.value)]
         return [(t, "TREE") for t in local], unsure
     if base == "ssh-keygen":
-        flags = "".join(w.value[1:] for w in words if w.value.startswith("-") and not w.value.startswith("--"))
-        out = _flag_value(words, ("-f",))
-        if out is None or any(c in flags for c in SSH_KEYGEN_READS):
+        # getopt, as ssh-keygen reads it (issue #415): `-fFILE` and `-qf FILE` give a file, and
+        # a word that is another option's value (`-C -l`, `-N -f`) is not an option.
+        entries = _walk_options(words, SSH_KEYGEN_VALUE, ())
+        if any(n and n[1:] in SSH_KEYGEN_READS for n, _ in entries):
             return [], None
-        return [(out, "TARGET"), (Tok("word", out.value + ".pub", out.expands, out.quoted), "TARGET")], None
+        out = []
+        for n, t in entries:
+            if n == "-f" and t is not None:
+                out += [(t, "TARGET"), (Tok("word", t.value + ".pub", t.expands, t.quoted), "TARGET")]
+            elif n in ("-G", "-T") and t is not None:
+                out.append((t, "TARGET"))      # DH candidate files
+        return out, None
     return None
 
 
@@ -2310,7 +2610,7 @@ def segment_targets(argv0, words, fed_code, cwd=None, heredoc=None):
         # A copy, move or link can put a whole directory in place, so its
         # destination is judged as a tree: a protected path inside it counts.
         dests, unsure = _destinations(words, base, cwd)
-        return T(dests, "TREE"), unsure
+        return T(dests, "TREE"), unsure or _remote_shell_unsure(base, words)
     if base == "ditto":
         ops = _operands(words)
         return T(ops[-1:] if len(ops) >= 2 else [], "TREE"), None
@@ -2958,6 +3258,8 @@ def _record_targets(pairs, cwd, records, fragment):
         records.append((kind, path, fragment))
         if not t.quoted and any(c in value for c in "*?["):
             records.append(("UNSURE", "writes to a glob that may cover paths beyond the one checked (%s)" % t.value, fragment))
+            if kind in ("TARGET", "DELETE", "TREE"):
+                records.append(("GLOB", kind + ":" + path, fragment))
 
 
 # Commands that write nothing themselves, so a patch file named after them in
@@ -3481,6 +3783,11 @@ GIT_CONFIG_WRITES = ("--add", "--unset", "--unset-all", "--replace-all", "--rena
                      "--remove-section", "-e", "--edit", "--comment", "--append")
 
 
+# `git config` options that take a value: -t/--type, --blob, --default, --comment, --value.
+GIT_CONFIG_VALUE_OPTS = (("-t", ("--type",)), (None, ("--blob",)), (None, ("--default",)),
+                         (None, ("--comment",)), (None, ("--value",)))
+
+
 def _git_opt_value(args, i, short, longs):
     """(token, words used) when args[i] is `short V`, `shortV`, `--long V` or `--long=V` (any
     unambiguous prefix of a long name of at least 3 letters counts); (None, 0) otherwise."""
@@ -3549,6 +3856,15 @@ def _git_write_forms(sub, args):
                 file_tok = tok
                 i += used
                 continue
+            # Options that take a value of their own: that value is not a key or a config operand
+            # (`git config --global --type bool core.autocrlf` is a read of one key).
+            for short, longs in GIT_CONFIG_VALUE_OPTS:
+                tok, used = _git_opt_value(args, i, short, longs)
+                if used:
+                    break
+            if used:
+                i += used
+                continue
         if sub not in ("archive", "config", "bundle", "commit", "notes", "tag", "merge"):
             # The diff-option family: --output=FILE (git diff, log, show, format-patch, …).
             tok, used = _git_opt_value(args, i, None, ("--output",))
@@ -3581,6 +3897,15 @@ def _git_write_forms(sub, args):
         if d is not None and d.value.rstrip("/") not in (".", ""):
             # A new repository writes its .git (hooks, config) and, for a clone, a whole tree.
             out.append((d, "TREE") if sub == "clone" else (_word(os.path.join(d.value, ".git"), d), "TARGET"))
+        elif sub == "init":
+            # `git init` / `git init .` (also behind `-C DIR` or `cd DIR &&`) writes DIR/.git (issue #415).
+            out.append((Tok("word", ".git"), "TARGET"))
+        elif sub == "clone" and plain:
+            # `git clone URL` puts the checkout in ./NAME, the last part of URL without `.git`.
+            name = re.split(r"[/:]", plain[0].value.rstrip("/"))[-1]
+            name = name[:-4] if name.endswith(".git") else name
+            out.append((_word(name, plain[0]) if name and name not in (".", "..") else Tok("word", "."),
+                        "TREE"))
     if sub == "credential-store":
         given = _flag_value(args, ("--file",))
         if given is not None:
@@ -3593,6 +3918,12 @@ def _git_write_forms(sub, args):
         out.append((_word(ops[0].value + "-", ops[0]), "PREFIX"))
     if sub == "config" and file_tok is not None and _git_config_writes(args, ops):
         out.append((file_tok, "TARGET"))
+    elif sub == "config" and _git_config_writes(args, ops):
+        scope = _git_config_scope(args, ops)
+        if scope == "global":
+            out.append((Tok("word", os.path.expanduser("~/.gitconfig")), "TARGET"))
+        elif scope == "local":
+            out.append((Tok("word", "config"), "LOCALCFG"))
     return out, why
 
 
@@ -3600,6 +3931,52 @@ GIT_CLONE_VALUE = ("--branch", "--depth", "--origin", "--reference", "--referenc
                    "--config", "--jobs", "--filter", "--separate-git-dir", "--upload-pack",
                    "--server-option", "--shallow-since", "--shallow-exclude", "--bundle-uri",
                    "--ref-format", "--revision", "--initial-branch", "--object-format")
+
+
+# `git config KEY VALUE` keys that make git run a program (or read another config file): the ones
+# that can turn a repository's own `.git/config` into a way to write elsewhere (issue #415).
+GIT_PROGRAM_KEYS = re.compile(
+    r"^(?:pager\.|core\.(?:pager|editor|sshcommand|fsmonitor|hookspath|askpass|gitproxy|worktree)$|"
+    r"sequence\.editor$|diff\.(?:external$|.*\.(?:command|textconv)$)|merge\..*\.driver$|"
+    r"filter\..*\.(?:clean|smudge|process)$|credential\..*helper$|gpg\.(?:.*\.)?program$|"
+    r"include(?:if\..*)?\.path$|init\.templatedir$|uploadpack\.packobjectshook$|"
+    r"remote\..*\.(?:uploadpack|receivepack|proxy|vcs)$|(?:difftool|mergetool)\..*\.(?:cmd|path)$|"
+    r"browser\..*\.(?:cmd|path)$|web\.browser$|man\..*\.(?:cmd|path)$|sendemail\..*cmd$)", re.I)
+
+
+def _git_config_scope(args, ops):
+    """Where a `git config` write lands (issue #415): "global" (the user-level file), "local" (the
+    repository's own config, only when it sets a key that names a program, or is `--edit`), or None
+    for `--system`, `--worktree`, `--blob`, `--file` (judged elsewhere) and every other local write."""
+    vals = [a.value for a in args]
+    if any(v in ("--system", "--worktree", "--blob", "--file", "-f") or v.startswith(("--file=", "--blob="))
+           for v in vals):
+        return None
+    if "--global" in vals:
+        return "global"
+    if any(v in ("-e", "--edit") for v in vals):
+        return "local"
+    if any(v in ("--unset", "--unset-all", "--remove-section", "--rename-section") for v in vals):
+        return None
+    names = [o.value for o in ops]
+    if names and names[0] in ("set", "add", "replace-all"):
+        names = names[1:]
+    if len(names) < 2:
+        return None
+    key, value = names[0], names[1]
+    if key.lower().startswith("alias."):
+        return "local" if value.lstrip().startswith("!") else None
+    return "local" if GIT_PROGRAM_KEYS.match(key) else None
+
+
+def _git_dir_of(frame):
+    """The `.git` directory of the repository around `frame`; `frame/.git` when there is none yet."""
+    cur = frame
+    while cur and cur != "/":
+        if os.path.isdir(os.path.join(cur, ".git")):
+            return os.path.join(cur, ".git")
+        cur = os.path.dirname(cur)
+    return os.path.join(frame, ".git")
 
 
 def _git_config_writes(args, ops):
@@ -3668,6 +4045,9 @@ def _git_records(words, cwd, fragment, heredocs, stdin_file, records, piped_in):
     # hand git a command to run. A relative output path is resolved where git
     # runs; behind --git-dir/--work-tree that is not known here.
     pairs, why = _git_write_forms(sub, args)
+    # A program-naming key set in the repository's own config (issue #415): that file is the target.
+    pairs = [(Tok("word", os.path.join(_git_dir_of(frame), "config")), "TARGET") if k == "LOCALCFG" else (t, k)
+             for t, k in pairs if not (k == "LOCALCFG" and (lost or frame is None))]
     if pairs:
         _record_targets(pairs, None if lost else frame, records, fragment)
     if why:
@@ -4159,6 +4539,46 @@ def _fold(s, fold):
     return s.casefold() if fold else s
 
 
+def _expand_glob(comps, limit=4000):
+    """Existing paths an unquoted shell glob (already split into components) names.
+
+    As a shell expands it: `*`, `?` and `[...]` stay inside one component and never match a
+    leading dot unless the pattern spells it. Case is folded where the volume folds it.
+    """
+    paths = ["/"]
+    seen = 0
+    for comp in comps:
+        nxt = []
+        glob = any(ch in comp for ch in GLOB_CHARS)
+        for base in paths:
+            fold = _folds(base) is not False
+            if not glob:
+                # A literal component: no listing (a volume that folds case answers for any case,
+                # and the later match folds too).
+                cand = os.path.join(base, comp)
+                if os.path.lexists(cand):
+                    nxt.append(cand)
+                continue
+            try:
+                names = os.listdir(base)
+            except OSError:
+                continue
+            seen += len(names)
+            if seen > limit:
+                return nxt + [os.path.join(base, comp)]    # too wide to list: judge it as spelled
+            want = comp.casefold() if fold else comp
+            for name in names:
+                if comp[0] in GLOB_CHARS and name.startswith("."):
+                    continue
+                have = name.casefold() if fold else name
+                if fnmatch.fnmatchcase(have, want):
+                    nxt.append(os.path.join(base, name))
+        paths = nxt
+        if not paths:
+            break
+    return paths
+
+
 class Protection(object):
     def __init__(self, cwd):
         self.table = protected_table()
@@ -4232,6 +4652,19 @@ class Protection(object):
                                        for _, lit in self._bases(form, ph, literal, fold, tree))
                 if hit:
                     hits.append((mode, aid, pattern, form, inside))
+        return hits
+
+    def match_glob(self, pattern, containing=False):
+        """[(mode, id, pattern, form, inside)] for an unquoted glob a write names (issue #415).
+
+        `~/.gitco[n]fig` and `~/.config/g?/hosts.yml` are judged by the paths the shell would
+        expand them to: each existing match is a path the command writes. A glob that matches
+        nothing is passed on as its own spelling (or fails), which writes no protected file.
+        """
+        comps = [c for c in pattern.split("/") if c]
+        hits = []
+        for path in _expand_glob(comps):
+            hits += self.match(path, containing=containing)
         return hits
 
     def match_prefix(self, prefix):
@@ -4378,7 +4811,7 @@ def _source_records(argv0, words, cwd, fragment):
 
 
 # Kinds that never leave this module: they are consumed by protect().
-INTERNAL_KINDS = ("SOURCE", "REPLAY", "PREFIX", "ANOMALY", "RAN", "SCOPE")
+INTERNAL_KINDS = ("SOURCE", "REPLAY", "PREFIX", "ANOMALY", "RAN", "SCOPE", "GLOB")
 
 
 def protect(records, payload):
@@ -4436,6 +4869,13 @@ def protect(records, payload):
             flag_path(prot.match_prefix(detail), detail,
                       "names the files this command writes (prefix plus a suffix), and one of them can be a "
                       "protected path", fragment)
+            continue
+        if kind == "GLOB":
+            gkind, _, gpath = detail.partition(":")
+            flag_path(prot.match_glob(gpath, containing=(gkind != "TARGET")), gpath,
+                      {"TARGET": "would be written", "DELETE": "would be deleted",
+                       "TREE": "would receive a whole directory tree"}[gkind]
+                      + " (the glob can expand to a protected path)", fragment)
             continue
         if kind == "ANOMALY":
             anomalies.append(detail)
