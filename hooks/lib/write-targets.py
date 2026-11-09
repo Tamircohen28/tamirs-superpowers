@@ -294,6 +294,9 @@ def _scan_balanced(text, start, open_ch, close_ch, aware):
     # subject (issue #415): as an argument (`echo case`) they steer nothing.
     cases = []
     cmd_pos = True
+    # `time [-p] [--] PIPELINE` and `coproc [NAME] COMMAND` keep command position across their own
+    # option / name word (issue #415 review): `time -p case x in x) …;; esac` is still a case.
+    after_time = after_coproc = False
 
     def subject():
         if cases and cases[-1][0] == "word":
@@ -301,6 +304,17 @@ def _scan_balanced(text, start, open_ch, close_ch, aware):
 
     while i < n:
         c = text[i]
+        was_time, was_coproc = after_time, after_coproc
+        if c not in " \t":
+            after_time = after_coproc = False
+        if aware and open_ch == "(" and was_time and c == "-" and (i == start or text[i - 1] in CASE_DELIMS):
+            j = i
+            while j < n and text[j] not in CASE_DELIMS:
+                j += 1
+            if text[i:j] in ("-p", "--"):
+                after_time = True       # still `time`'s options; the pipeline has not begun
+                i = j
+                continue
         if aware and open_ch == "(" and c.isalpha() and (i == start or text[i - 1] in CASE_DELIMS):
             j = i
             while j < n and (text[j].isalnum() or text[j] == "_"):
@@ -318,7 +332,10 @@ def _scan_balanced(text, start, open_ch, close_ch, aware):
                     cmd_pos = False
                 else:
                     subject()
-                    cmd_pos = word in CASE_INTRODUCERS
+                    # `coproc NAME COMMAND`: the word after `coproc` may be the coprocess's name.
+                    cmd_pos = word in CASE_INTRODUCERS or was_coproc
+                    after_time = word == "time"
+                    after_coproc = word == "coproc"
             else:
                 subject()
                 cmd_pos = False
@@ -3676,6 +3693,11 @@ GIT_CONFIG_WRITES = ("--add", "--unset", "--unset-all", "--replace-all", "--rena
                      "--remove-section", "-e", "--edit", "--comment", "--append")
 
 
+# `git config` options that take a value: -t/--type, --blob, --default, --comment, --value.
+GIT_CONFIG_VALUE_OPTS = (("-t", ("--type",)), (None, ("--blob",)), (None, ("--default",)),
+                         (None, ("--comment",)), (None, ("--value",)))
+
+
 def _git_opt_value(args, i, short, longs):
     """(token, words used) when args[i] is `short V`, `shortV`, `--long V` or `--long=V` (any
     unambiguous prefix of a long name of at least 3 letters counts); (None, 0) otherwise."""
@@ -3742,6 +3764,15 @@ def _git_write_forms(sub, args):
             tok, used = _git_opt_value(args, i, "-f", ("--file",))
             if used:
                 file_tok = tok
+                i += used
+                continue
+            # Options that take a value of their own: that value is not a key or a config operand
+            # (`git config --global --type bool core.autocrlf` is a read of one key).
+            for short, longs in GIT_CONFIG_VALUE_OPTS:
+                tok, used = _git_opt_value(args, i, short, longs)
+                if used:
+                    break
+            if used:
                 i += used
                 continue
         if sub not in ("archive", "config", "bundle", "commit", "notes", "tag", "merge"):
