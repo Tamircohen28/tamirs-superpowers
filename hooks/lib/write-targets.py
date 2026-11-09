@@ -281,6 +281,48 @@ CASE_DELIMS = " \t\n;&|()<>"
 CASE_INTRODUCERS = ("then", "do", "else", "elif", "if", "while", "until", "time", "coproc")
 
 
+def _case_terminator(text, i):
+    """Index just past a case arm's `;;`, `;;&` or `;&` at text[i] (a backslash-newline between its
+    characters is skipped, as bash does), else 0."""
+    k = i
+    n = len(text)
+    out = ""
+    while k < n and len(out) < 3:
+        if text.startswith("\\\n", k):
+            k += 2
+        elif text[k] == ";" and out in ("", ";"):
+            out += ";"
+            k += 1
+        elif text[k] == "&" and out in (";", ";;"):
+            out += "&"
+            k += 1
+            break
+        else:
+            break
+    return k if out in (";;", ";;&", ";&") else 0
+
+
+def _declares_function(text, i, start):
+    """Whether the `)` at text[i] ends the `()` of a function declaration `name()`/`name ( )`: a
+    word before an empty pair of parentheses (not `$()`, not an array `a=()`)."""
+
+    def back(k, floor):         # past blanks and backslash-newlines, going left
+        while k > floor:
+            if text[k] == "\n" and text[k - 1] == "\\":
+                k -= 2
+            elif text[k] in " \t\n":
+                k -= 1
+            else:
+                break
+        return k
+
+    k = back(i - 1, start)
+    if k <= start or text[k] != "(":
+        return False
+    k = back(k - 1, -1)
+    return k >= 0 and text[k] not in CASE_DELIMS and text[k] not in "$=\\"
+
+
 def _scan_balanced(text, start, open_ch, close_ch, aware):
     """(end, closed, whether a case was still open where it closed)."""
     depth = 0
@@ -294,9 +336,11 @@ def _scan_balanced(text, start, open_ch, close_ch, aware):
     # subject (issue #415): as an argument (`echo case`) they steer nothing.
     cases = []
     cmd_pos = True
-    # `time [-p] [--] PIPELINE` and `coproc [NAME] COMMAND` keep command position across their own
-    # option / name word (issue #415 review): `time -p case x in x) …;; esac` is still a case.
-    after_time = after_coproc = False
+    # `time [-p] [--] PIPELINE`, `coproc [NAME] COMMAND` and `function NAME COMMAND` keep command
+    # position across their own option / name word (issue #415 review): `time -p case x in x)
+    # …;; esac` is still a case. A backslash-newline is removed before bash reads a word, so it
+    # changes none of this state, and a keyword can even be split by one (`ca\<NL>se`).
+    after_time = after_coproc = after_func = False
 
     def subject():
         if cases and cases[-1][0] == "word":
@@ -304,9 +348,12 @@ def _scan_balanced(text, start, open_ch, close_ch, aware):
 
     while i < n:
         c = text[i]
-        was_time, was_coproc = after_time, after_coproc
+        if aware and c == "\\" and text.startswith("\\\n", i):
+            i += 2
+            continue
+        was_time, was_coproc, was_func = after_time, after_coproc, after_func
         if c not in " \t":
-            after_time = after_coproc = False
+            after_time = after_coproc = after_func = False
         if aware and open_ch == "(" and was_time and c == "-" and (i == start or text[i - 1] in CASE_DELIMS):
             j = i
             while j < n and text[j] not in CASE_DELIMS:
@@ -315,14 +362,16 @@ def _scan_balanced(text, start, open_ch, close_ch, aware):
                 after_time = True       # still `time`'s options; the pipeline has not begun
                 i = j
                 continue
-        if aware and open_ch == "(" and c.isalpha() and (i == start or text[i - 1] in CASE_DELIMS):
+        if aware and open_ch == "(" and (c.isalpha() or c == "_") and (i == start or text[i - 1] in CASE_DELIMS):
             j = i
-            while j < n and (text[j].isalnum() or text[j] == "_"):
-                j += 1
-            word = text[i:j]
+            while j < n and (text[j].isalnum() or text[j] == "_" or text.startswith("\\\n", j)):
+                j += 2 if text[j] == "\\" else 1
+            word = text[i:j].replace("\\\n", "")
             if j >= n or text[j] in CASE_DELIMS:
-                if word == "case" and cmd_pos and (not cases or cases[-1][0] == "body"):
-                    cases.append(["word", False])
+                if word == "case" and cmd_pos and (not cases or cases[-1][0] == "body" or depth > cases[-1][2]):
+                    # A case inside a `$(…)` nested in an outer case's subject, pattern or arm is
+                    # its own construct: `case $(case y in y) echo y;; esac) in …`.
+                    cases.append(["word", False, depth])
                     cmd_pos = False
                 elif word == "in" and cases and cases[-1][0] == "word" and cases[-1][1]:
                     cases[-1][0] = "pattern"
@@ -332,13 +381,20 @@ def _scan_balanced(text, start, open_ch, close_ch, aware):
                     cmd_pos = False
                 else:
                     subject()
-                    # `coproc NAME COMMAND`: the word after `coproc` may be the coprocess's name.
-                    cmd_pos = word in CASE_INTRODUCERS or was_coproc
+                    # `coproc NAME COMMAND`, `function NAME COMMAND`: the word after the
+                    # introducer is a name, and the compound command that follows it is a command.
+                    cmd_pos_before = cmd_pos
+                    cmd_pos = word in CASE_INTRODUCERS or was_coproc or was_func
                     after_time = word == "time"
                     after_coproc = word == "coproc"
+                    after_func = word == "function" and cmd_pos_before
             else:
                 subject()
                 cmd_pos = False
+                if was_coproc or was_func:      # `function f-g COMMAND`: a name with odd characters
+                    while j < n and text[j] not in CASE_DELIMS:
+                        j += 1
+                    cmd_pos = True
             i = j
             continue
         if aware and cases and cases[-1][0] == "pattern" and c in "()":
@@ -347,19 +403,24 @@ def _scan_balanced(text, start, open_ch, close_ch, aware):
                 cmd_pos = True
             i += 1          # a pattern's own `(` opener and `)` closer
             continue
-        if aware and cases and cases[-1][0] == "body" and text.startswith(";;", i):
-            cases[-1][0] = "pattern"
-            cmd_pos = True
-            i += 3 if text.startswith(";;&", i) else 2
-            continue
-        if aware and cases and cases[-1][0] == "body" and text.startswith(";&", i):
-            cases[-1][0] = "pattern"
-            cmd_pos = True
-            i += 2
-            continue
+        if aware and cases and cases[-1][0] == "body" and c == ";":
+            end = _case_terminator(text, i)         # `;;`, `;;&` or `;&`, even split by a continuation
+            if end:
+                cases[-1][0] = "pattern"
+                cmd_pos = True
+                i = end
+                continue
         if aware:
             if c == "\\":
                 i += 2
+                cmd_pos = False
+                subject()
+                continue
+            if c == "$" and text.startswith("$'", i):
+                j = i + 2                           # ANSI-C `$'…'`: a backslash escapes the next char, `\'` included
+                while j < n and text[j] != "'":
+                    j += 2 if text[j] == "\\" else 1
+                i = j + 1
                 cmd_pos = False
                 subject()
                 continue
@@ -406,7 +467,8 @@ def _scan_balanced(text, start, open_ch, close_ch, aware):
                     i + 1 >= n or text[i + 1] in " \t\n"):
                 cmd_pos = True      # a `{` group or a `!` negation introduces a command
             elif c == ")":
-                cmd_pos = False
+                # `name()` declares a function; its body, any compound command, starts here.
+                cmd_pos = _declares_function(text, i, start)
             elif c not in " \t<>|":
                 cmd_pos = False
                 subject()
