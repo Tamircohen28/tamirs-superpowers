@@ -5,6 +5,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+- **Cursor 3.11 (+2026-11-06 / desktop 3.29.9 reviewed):** advance `latest_known`/`reviewed_through` **3.28.7 → 3.29.9** and `changelog_date` **2026-10-20 → 2026-11-06**. Keep `validated_against` at **3.28.7** (last live run). Document Voice Chat (≠ dictation) and Live Apps/`publish-app` as host capabilities — no plugin code change. Cursor-only.
+
 ## [6.0.1] — 2026-11-08
 
 ### Fixed
