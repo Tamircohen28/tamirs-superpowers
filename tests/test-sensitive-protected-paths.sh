@@ -823,7 +823,7 @@ blocked "mkfifo"                                  "mkfifo ~/.gitconfig"
 blocked "command -v still unwraps as before"      "command -v -p cp x ~/.gitconfig"
 passes "[ -f ] is not a glob command name"        "[ -f ~/.gitconfig ] && echo yes"
 passes "one arithmetic group stays arithmetic"    "echo \$(( (1+2) * 3 )); cat ~/.gitconfig"
-passes "a case that reads inside \$(…)"           "echo \$(case x in x) cat ~/.gitconfig;; esac)"
+blocked "a case that reads inside \$(…) (denied by design: backstop)" "echo \$(case x in x) cat ~/.gitconfig;; esac)"
 passes "ssh-keygen -lf reads"                     "ssh-keygen -lf ~/.config/gh/key.pub"
 passes "scp of a protected file to a remote"      "scp ~/.gitconfig host:/tmp/"
 passes "uniq -c reads"                            "uniq -c ~/.gitconfig"
@@ -853,9 +853,9 @@ blocked "a case with a parenthesised alternative"                 'echo $(case y
 blocked "a write after the case closes"                           'echo $(case x in x) echo hi; esac; rm ~/.gitconfig)'
 blocked "a case left open at the closing paren is an anomaly"     'echo $(case y in x) echo hi; rm ~/.gitconfig)'
 passes  "  ... the same shape on a scratch file"                  'echo $(case y in x) echo hi; cat /tmp/a)'
-passes  "a case that only reads"                                  'echo $(case x in x) cat ~/.gitconfig;; esac)'
-passes  "case as an argument, then a read"                        'echo $(printf case in esac); cat ~/.gitconfig'
-passes  "case as an argument in a plain substitution"             'x=$(echo case); cat ~/.gitconfig'
+blocked "a case that only reads (denied by design: case/esac word in a substitution)" 'echo $(case x in x) cat ~/.gitconfig;; esac)'
+blocked "case as an argument, then a read (denied by design: case/esac word in a substitution)" 'echo $(printf case in esac); cat ~/.gitconfig'
+blocked "case as an argument in a plain substitution (denied by design: case/esac word in a substitution)" 'x=$(echo case); cat ~/.gitconfig'
 passes  "a case whose arm writes a scratch file"                  'echo $(case y in x) echo case;; y) rm /tmp/x;; esac)'
 blocked "time -p keeps command position for a case"                'echo $(time -p case x in x) rm ~/.gitconfig;; esac)'
 blocked "time without options, then a case"                       'echo $(time case x in x) rm ~/.gitconfig;; esac)'
@@ -905,19 +905,44 @@ blocked "a case in the subject of a case, arms after it"           'echo $(case 
 blocked "a case in the subject of a function-body case"            'echo $(f() case $(g() case y in y) echo x;; esac; g) in x) rm ~/.gitconfig;; esac; f)'
 blocked "an ANSI-C string with an escaped quote before a case"      $'echo $(echo $\'\\\'\'; case x in x) rm ~/.gitconfig;; esac)'
 blocked "an ANSI-C string with \\' and a ) inside, then a case"     $'echo $(echo $\'a\\\'b)\'; case x in x) rm ~/.gitconfig;; esac)'
-passes  "a function with a case body that only reads"              'echo $(f() case x in x) cat ~/.gitconfig;; esac; f)'
+blocked "a function with a case body that only reads (denied by design: case/esac word in a substitution)" 'echo $(f() case x in x) cat ~/.gitconfig;; esac; f)'
 passes  "a function with a case body that writes a scratch file"    'echo $(f() case x in x) rm /tmp/zz;; esac; f)'
 passes  "a function with a brace body that only reads"             'echo $(f() { cat ~/.gitconfig; }; f)'
 passes  "a function with a subshell body that writes scratch"      'echo $(f() ( rm /tmp/zz ); f)'
-passes  "a continuation before a case that only reads"            $'echo $(\\\ncase x in x) cat ~/.gitconfig;; esac)'
+blocked "a continuation before a case that only reads (denied by design: case/esac word in a substitution)" $'echo $(\\\ncase x in x) cat ~/.gitconfig;; esac)'
 passes  "a split case keyword with a scratch write"                $'echo $(ca\\\nse x in x) rm /tmp/zz;; esac)'
-passes  "a case in a case subject, arm only reads"                 'echo $(case $(case y in y) echo y;; esac) in y) cat ~/.gitconfig;; esac)'
+blocked "a case in a case subject, arm only reads (denied by design: case/esac word in a substitution)" 'echo $(case $(case y in y) echo y;; esac) in y) cat ~/.gitconfig;; esac)'
 passes  "an empty array assignment is not a function definition"   'echo $(a=() ; cat ~/.gitconfig)'
 passes  "an empty command substitution, then a read"               'echo $(); cat ~/.gitconfig'
 passes  "a blank command substitution, then a read"                'echo $( ); cat ~/.gitconfig'
-passes  "case in esac as arguments, then a read after the )"       'echo $(echo case in esac) ; cat ~/.gitconfig'
-passes  "an ANSI-C string with an escaped quote, arm only reads"   $'echo $(echo $\'\\\'\'; case x in x) cat ~/.gitconfig;; esac)'
+blocked "case in esac as arguments, then a read after the ) (denied by design: case/esac word in a substitution)" 'echo $(echo case in esac) ; cat ~/.gitconfig'
+blocked "an ANSI-C string with an escaped quote, arm only reads (denied by design: case/esac word in a substitution)" $'echo $(echo $\'\\\'\'; case x in x) cat ~/.gitconfig;; esac)'
 passes  "an ANSI-C string with an escaped quote, scratch write"    $'echo $(echo $\'\\\'\'; case x in x) rm /tmp/zz;; esac)'
+# #415 round 3: a continuation after ! or {, and the case/esac backstop (denied by design)
+blocked "a continuation after ! then a case"                       $'echo $(!\\\n case x in x) rm ~/.gitconfig;; esac)'
+blocked "a continuation after { then a case"                       $'echo $({\\\n case x in x) rm ~/.gitconfig;; esac; })'
+blocked "two continuations after !"                                $'echo $(!\\\n\\\n\\\n case x in x) rm ~/.gitconfig;; esac)'
+blocked "a continuation after ! after a list"                      $'echo $(true; !\\\n case x in x) rm ~/.gitconfig;; esac)'
+blocked "a continuation after { after a list"                      $'echo $(true; {\\\n case x in x) rm ~/.gitconfig;; esac; })'
+blocked "a continuation after ! inside backticks"                  $'echo `!\\\n case x in x) rm ~/.gitconfig;; esac`'
+blocked "a case in backticks"                                      'echo `case x in x) rm ~/.gitconfig;; esac`'
+blocked "a case in backticks inside double quotes"                 'echo "`case x in x) rm ~/.gitconfig;; esac`"'
+blocked "a case in a double-quoted substitution"                   'echo "$(case x in x) rm ~/.gitconfig;; esac)"'
+blocked "a case in a process substitution"                         'echo <(case x in x) rm ~/.gitconfig;; esac)'
+blocked "a case in a substitution inside a parameter expansion"    'echo ${y:-$(case x in x) rm ~/.gitconfig;; esac)}'
+blocked "case split by empty quotes"                               'echo $(ca""se x in x) rm ~/.gitconfig;; esac)'
+blocked "case split by a backslash"                                $'echo $(ca\\se x in x) rm ~/.gitconfig;; esac)'
+blocked "a case in a substitution nested three deep"               'echo $(echo $(echo $(case x in x) rm ~/.gitconfig;; esac)))'
+blocked "a case-only read in a substitution is denied by design"   'echo $(case x in x) cat ~/.gitconfig;; esac)'
+blocked "a case word as an argument in a substitution is denied"   'echo $(echo case); cat ~/.gitconfig'
+blocked "an esac word as an argument in a substitution is denied"  'echo $(echo esac); cat ~/.gitconfig'
+passes  "a case in a substitution with no protected name"          'echo $(case x in x) rm /tmp/zz;; esac)'
+passes  "a case in a substitution, scratch write, plain read after" 'echo $(case x in x) rm /tmp/zz;; esac); echo done'
+passes  "a protected read with no case in any substitution"        'echo $(cat ~/.gitconfig)'
+passes  "a protected read after a substitution with no case"       'echo $(echo hi); cat ~/.gitconfig'
+passes  "echo case outside a substitution, then a protected read"  'echo case; cat ~/.gitconfig'
+passes  "case-x and bcase are not the case keyword"                'echo $(echo bcase xesac case-x; cat ~/.gitconfig)'
+passes  "a path segment named case is not the case keyword"        'echo $(ls /tmp/case/x; cat ~/.gitconfig)'
 
 section "#415 (2): scp/rsync remote-shell options and ssh-keygen -f"
 blocked "scp -o ProxyCommand runs a command"                      "scp -o ProxyCommand='cp /tmp/a ~/.gitconfig' h:f /tmp/x"

@@ -91,6 +91,13 @@
 #     `git init`/`git clone` into the cwd or `-C DIR`; a glob that expands to
 #     a protected path; `git config --global` and a repo-local config key that
 #     names a program (`core.hooksPath`, `core.pager`, `alias.x=!…`).
+#     DENIED BY DESIGN, not tracked: a `case` or `esac` word (any position,
+#     quotes and continuations dropped first) inside `$(…)`, a backtick or
+#     `<(…)`/`>(…)` is a parse anomaly, so such a command that also names a
+#     protected path anywhere is denied, even a plain read. Where bash reads
+#     `case` as a keyword is modelled (item 1), but the model is not what
+#     decides: every review found another spelling that bash accepts, and a
+#     miss there hides an arm's write. With no protected name, nothing changes.
 #     Accepted limits, each with the reason it is not fixed:
 #       * `make -C PROT` / `go test PROT/...`: they RUN
 #         in PROT, which writes nothing by itself; blocking would stop every

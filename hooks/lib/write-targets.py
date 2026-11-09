@@ -203,6 +203,7 @@ def _expansion_subs(text, note=None):
                 j += 2 if text[j] == "\\" else 1
             if j >= n and note:
                 note("an unterminated backtick")
+            _note_case_word(text[i + 1:j], note)
             out.append(_unbacktick(text[i + 1:j]))
             i = j + 1
             continue
@@ -273,12 +274,38 @@ def _balanced(text, start, open_ch="(", close_ch=")", note=None):
             return end2, True
     elif open_case and note:
         note("a `case` still open at the closing `%s`" % close_ch)
+    if open_ch == "(":
+        _note_case_word(text[start + 1:end - 1 if closed else end], note)
     return end, closed
 
 
 CASE_DELIMS = " \t\n;&|()<>"
 # Words after which the next word is again a command's first word.
 CASE_INTRODUCERS = ("then", "do", "else", "elif", "if", "while", "until", "time", "coproc")
+
+
+def _blank_follows(text, i):
+    """Whether text[i] is the end, a blank or a newline once backslash-newlines are removed: the
+    boundary that makes a `{` or `!` a word of its own (issue #415 review, round 3)."""
+    n = len(text)
+    while text.startswith("\\\n", i):
+        i += 2
+    return i >= n or text[i] in " \t\n"
+
+
+# Backstop (issue #415 review, round 3): the position tracking above is a model of where bash reads
+# `case` as a keyword, and every round of review found one more way to keep it from agreeing with
+# bash. So it is not what decides: a `case`/`esac` WORD anywhere in a substitution is noted as an
+# anomaly, and a protected path named anywhere in that command is then denied (analyze_command's
+# anomaly pass). Quotes, backslashes and continuations are dropped first, so no splitting of the word
+# hides it; the word may sit in an argument (`echo case`), which only over-reports.
+CASE_WORD = re.compile(r"(?:^|[\s;&|()<>`])(?:case|esac)(?=$|[\s;&|()<>`])")
+CASE_WHY = "a `case` or `esac` word inside a command substitution"
+
+
+def _note_case_word(body, note):
+    if note and CASE_WORD.search(re.sub(r"[\\'\"]", "", body.replace("\\\n", ""))):
+        note(CASE_WHY)
 
 
 def _case_terminator(text, i):
@@ -463,8 +490,7 @@ def _scan_balanced(text, start, open_ch, close_ch, aware):
                 continue
             if c in ";&\n(" or (c == "|" and not (cases and cases[-1][0] == "pattern")):
                 cmd_pos = True
-            elif c in "{!" and (i == start or text[i - 1] in CASE_DELIMS) and (
-                    i + 1 >= n or text[i + 1] in " \t\n"):
+            elif c in "{!" and (i == start or text[i - 1] in CASE_DELIMS) and _blank_follows(text, i + 1):
                 cmd_pos = True      # a `{` group or a `!` negation introduces a command
             elif c == ")":
                 # `name()` declares a function; its body, any compound command, starts here.
@@ -641,6 +667,7 @@ def tokenize(text, anomalies=None, heredocs=None, heredoc_meta=None):
                         note("an unterminated backtick")
                     end = n if end == -1 else end + 1
                     buf.append(text[j:end])
+                    _note_case_word(text[j + 1:end], note)
                     subs.append(_backtick_body(text, j, end, True))
                     expands = True
                     j = end
@@ -683,6 +710,7 @@ def tokenize(text, anomalies=None, heredocs=None, heredoc_meta=None):
                 note("an unterminated backtick")
             end = n if end == -1 else end + 1
             buf.append(text[i:end])
+            _note_case_word(text[i + 1:end], note)
             subs.append(_backtick_body(text, i, end))
             expands = True
             started = True
