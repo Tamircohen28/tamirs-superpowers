@@ -69,6 +69,38 @@ for st in partial failed blocked; do
   fi
 done
 
+echo "--- no loop: the note is never fed back to a subagent twice ---"
+# Claude Code feeds a SubagentStop hook's additionalContext back to the subagent, so an
+# unguarded note re-opened read-only helpers 15-23 times each (2026-11-19).
+export TMPDIR="$TMPROOT/tmp"; mkdir -p "$TMPDIR"
+L="$TMPROOT/loop"; mkobj "$L"
+runj(){ printf '%s' "$2" | bash "$H" 2>&1; }
+silent(){ printf '%s' "$1" | jq -e '. == {} or .suppressOutput == true' >/dev/null 2>&1; }
+
+out="$(runj "$L" "{\"cwd\":\"$L\",\"stop_hook_active\":true}")"
+silent "$out" && ok "stop_hook_active => silent" || bad "stop_hook_active => silent" "got: $out"
+
+for t in tamirs-superpowers:research-agent Explore Plan claude-code-guide web-fetch tamirs-superpowers:security-reviewer tamirs-superpowers:debugging-specialist tamirs-superpowers:orchestrator; do
+  out="$(runj "$L" "{\"cwd\":\"$L\",\"agent_type\":\"$t\",\"agent_id\":\"ro-$t\"}")"
+  silent "$out" && ok "read-only '$t' => silent" || bad "read-only '$t' => silent" "got: $(ctx "$out")"
+done
+
+out="$(runj "$L" "{\"cwd\":\"$L\",\"agent_type\":\"general-purpose\",\"agent_id\":\"w1\"}")"
+[ -n "$(ctx "$out")" ] && ok "a worker type still hears the note" || bad "a worker type still hears the note" "got: $out"
+out="$(runj "$L" "{\"cwd\":\"$L\",\"agent_type\":\"general-purpose\",\"agent_id\":\"w1\"}")"
+silent "$out" && ok "the same agent hears it only once" || bad "the same agent hears it only once" "got: $(ctx "$out")"
+out="$(runj "$L" "{\"cwd\":\"$L\",\"agent_type\":\"tamirs-superpowers:implementer\",\"agent_id\":\"w2\"}")"
+[ -n "$(ctx "$out")" ] && ok "a different agent still hears it" || bad "a different agent still hears it" "got: $out"
+
+# A silent stop must not use up the agent's one note.
+LH="$L/.dev-files/objectives/auth-system/handoffs"
+echo '{"status":"completed","validation":[{"cmd":"t","result":"pass"}]}' > "$LH/task-001.json"
+out="$(runj "$L" "{\"cwd\":\"$L\",\"agent_type\":\"general-purpose\",\"agent_id\":\"w3\"}")"
+silent "$out" && ok "nothing to report => silent" || bad "nothing to report => silent" "got: $(ctx "$out")"
+echo '{"status":"completed","validation":[]}' > "$LH/task-002.json"
+m="$(ctx "$(runj "$L" "{\"cwd\":\"$L\",\"agent_type\":\"general-purpose\",\"agent_id\":\"w3\"}")")"
+case "$m" in *task-002*) ok "a silent stop does not consume the agent's note" ;; *) bad "a silent stop does not consume the agent's note" "got: $m" ;; esac
+
 echo "--- never blocks ---"
 for label in empty malformed devnull; do
   case "$label" in
