@@ -284,7 +284,28 @@ test('outside any git checkout the session root is used and nothing fails', asyn
 // it. The kit's `find`/`findAll` descriptions carry an element's own props only
 // (`{ flexDirection: 'column' }` for the pane's root Box); the stamp is on the
 // tree `drawn()` hands back, beside `type`, `props` and `children`.
-const stamped = (tree: unknown) => (tree as { part?: { plugin: string } }).part
+//
+// Up to 2.1.321 the drawn tree was the one hook answer the chain settled on, so the
+// stamp sat on the root. From 2.1.32x the AbovePrompt band is composed: `drawn()` is
+// an engine column Box whose children are each plugin's part, every one stamped
+// with its own plugin (the test's hooks count as plugin "test"). `stamped` therefore
+// returns the stamp of the part this plugin drew — the root's on an older host, the
+// first stamped node carrying this plugin's name on a newer one — and the text
+// checks run against that part alone, so a match in another plugin's part does not
+// count.
+type Drawn = { part?: { plugin: string }; children?: unknown[] }
+const ownPart = (tree: unknown, plugin = PLUGIN): Drawn | undefined => {
+  const node = tree as Drawn | null
+  if (!node || typeof node !== 'object') return undefined
+  if (node.part?.plugin === plugin) return node
+  for (const child of node.children ?? []) {
+    const found = ownPart(child, plugin)
+    if (found) return found
+  }
+  return undefined
+}
+const stamped = (tree: unknown) => ownPart(tree)?.part
+const partText = (tree: unknown) => JSON.stringify(ownPart(tree) ?? null)
 
 test('the objective pane draws every task on the terminal, the desktop and VS Code, its root stamped with the plugin', async ($, on) => {
   stubEngine(on, fakeDisk())
@@ -389,7 +410,10 @@ test('crossing the threshold toasts once, draws a band that names /switch-dev ha
   expect(calls.toasts[0]).toMatch(/5h limit at 91%/)
   for (const surface of SURFACES) {
     const ui = await $.ui.mount({ plugin: PLUGIN, surface, ...BAND })
-    expect(stamped(await ui.drawn())).toEqual({ plugin: PLUGIN })
+    const tree = await ui.drawn()
+    expect(stamped(tree)).toEqual({ plugin: PLUGIN })
+    expect(partText(tree)).toMatch(/5h limit 92%/)
+    expect(partText(tree)).toMatch(/type \/switch-dev handoff/)
     expect(await ui.find({ type: 'Text', text: /5h limit 92%/ })).toBeDefined()
     expect(await ui.find({ type: 'Text', text: /type \/switch-dev handoff/ })).toBeDefined()
     const dismiss = await ui.find({ key: 'dismiss' })
