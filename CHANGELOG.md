@@ -4,7 +4,7 @@ All notable changes to `tamirs-superpowers` are recorded here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
-- **Cursor 3.11 (+2026-11-06 / desktop 3.30.14):** advance `.cursor-version` and `targets.cursor.latest_known`/`reviewed_through` **3.29.9 → 3.30.14** (download API 2026-11-15). `validated_against` stays **3.28.7** (no live desktop run this cycle). Feature changelog still **3.11** / **2026-11-06**. Confirm hooks already use 3.24 `tool_use_id`; no new hook/event adoption required for 3.30. Cursor-only.
+- **Cursor 3.11 (+2026-11-06 / desktop 3.31.15):** advance latest_known/reviewed_through **3.30.14 → 3.31.15**; `cli_changelog_date` **2026-08-26 → 2026-11-17**. Feature pin **3.11** / **2026-11-06**. `validated_against` stays **3.28.7**. Document IDE notes through **3.30** and CLI through **2026-11-17**; note `parent_agent_name` still not adopted. Cursor-only.
 
 
 - **Cursor 3.11 (+2026-11-06 / desktop 3.29.9 reviewed):** advance `latest_known`/`reviewed_through` **3.28.7 → 3.29.9** and `changelog_date` **2026-10-20 → 2026-11-06**. Keep `validated_against` at **3.28.7** (last live run). Document Voice Chat (≠ dictation) and Live Apps/`publish-app` as host capabilities — no plugin code change. Cursor-only.
