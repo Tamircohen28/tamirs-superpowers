@@ -52,6 +52,39 @@ objective="$(active_objective_dir "$cwd" 2>/dev/null || true)"
 [ -n "$objective" ] && [ -d "$objective" ] || hook_stop_ok
 
 obj_id="$(basename "$objective")"
+
+# LOOP GUARD. Claude Code feeds a SubagentStop hook's additionalContext back to the
+# subagent that just stopped, so this "advisory" note re-opened the subagent, which
+# answered and stopped again, which fired the hook again. On 2026-11-19 read-only
+# research helpers under an active objective looped 15 to 23 times each (about 200k
+# tokens each), until some worker wrote the first handoff. Three guards, cheapest first:
+#   1. stop_hook_active: the host says this stop already follows a stop-hook
+#      continuation. Never speak twice in one chain.
+#   2. Read-only roles owe no handoff (research, explore, plan, review, docs-guide,
+#      web-fetch, debugging-specialist, and the orchestrator, which collects handoffs
+#      rather than writing one). Only a worker writes one; nagging a reader loops it.
+#      The host's continuation cap (8) resets on every tool call, so it does not stop this.
+#   3. Once per agent: a marker per (objective, agent_id) under $TMPDIR, so even a
+#      host without stop_hook_active hears the note at most once per subagent.
+active="$(printf '%s' "$input" | jq -r '.stop_hook_active // false' 2>/dev/null || echo false)"
+[ "$active" = "true" ] && hook_stop_ok
+
+agent_type="$(printf '%s' "$input" | jq -r '.agent_type // .subagent_type // empty' 2>/dev/null || true)"
+agent_type_lc="$(printf '%s' "$agent_type" | tr '[:upper:]' '[:lower:]')"
+case "$agent_type_lc" in
+  *research* | *explore* | plan | *:plan | *planner* | *reviewer* | *review* | *guide* | *web-fetch* | *statusline* \
+  | *debugging-specialist* | *orchestrator*)
+    hook_stop_ok ;;
+esac
+
+agent_id="$(printf '%s' "$input" | jq -r '.agent_id // empty' 2>/dev/null || true)"
+marker=""
+if [ -n "$agent_id" ]; then
+  marker_dir="${TMPDIR:-/tmp}/tamirs-superpowers/subagent-handoff"
+  safe_id="$(printf '%s' "${obj_id}-${agent_id}" | tr -c 'A-Za-z0-9._-' '_')"
+  marker="${marker_dir}/${safe_id}"
+  [ -e "$marker" ] && hook_stop_ok
+fi
 handoff_dir="${objective}/handoffs"
 
 # Collect handoffs that claim success without evidence. `completed` with an empty
@@ -75,6 +108,11 @@ fi
 # Nothing to report: there are handoffs and none of them claim success unevidenced.
 if [ "${handoff_count:-0}" -gt 0 ] && [ "${#unevidenced[@]}" -eq 0 ]; then
   hook_stop_ok
+fi
+
+# About to speak: record it, so this agent hears the note once (guard 3).
+if [ -n "$marker" ]; then
+  mkdir -p "$(dirname "$marker")" 2>/dev/null && { : > "$marker"; } 2>/dev/null || true
 fi
 
 msg="Subagent finished under objective '${obj_id}'."

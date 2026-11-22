@@ -30,32 +30,40 @@ heavy_lock_release() {
   HEAVY_LOCK_PATH=""
 }
 
+# mkdir is not atomic everywhere: uutils coreutils 0.10 (the default on Ubuntu 26.04) lets several
+# concurrent mkdirs of one path all succeed. Exclusion therefore comes from bash noclobber, which
+# opens with O_EXCL and involves no coreutils. Every claim and every stale reclaim runs under the
+# one mutex file "$dir.reclaim", held for milliseconds; one older than a minute is itself stale.
+_heavy_lock_excl() { ( set -o noclobber; : > "$1" ) 2>/dev/null; }
+
 heavy_lock_take() {
   local name="${1:-$(basename "$0")}" dir waited=0 limit holder hpid
   [ "${HEAVY_LOCK:-1}" = 0 ] && return 0
   dir="${HEAVY_LOCK_DIR:-${TMPDIR:-/tmp}}"
   dir="${dir%/}/tamirs-superpowers-heavy-suite.lock"
   limit="${HEAVY_LOCK_WAIT:-1800}"
-  while ! mkdir "$dir" 2>/dev/null; do
+  while :; do
+    if _heavy_lock_excl "$dir.reclaim"; then
+      hpid="$(cat "$dir/pid" 2>/dev/null)"
+      holder="$(cat "$dir/name" 2>/dev/null)"
+      if [ -n "$hpid" ] && ! kill -0 "$hpid" 2>/dev/null; then
+        echo "heavy-lock: taking over a stale lock from $holder (pid $hpid is gone)" >&2
+        rm -rf "$dir"
+      fi
+      if [ ! -e "$dir" ] && mkdir "$dir" 2>/dev/null; then
+        echo "$$" > "$dir/pid"
+        echo "$name" > "$dir/name"
+        rm -rf "$dir.reclaim"
+        HEAVY_LOCK_PATH="$dir"
+        return 0
+      fi
+      rm -rf "$dir.reclaim"
+    elif [ -n "$(find "$dir.reclaim" -maxdepth 0 -mmin +1 2>/dev/null)" ]; then
+      rm -rf "$dir.reclaim"
+      continue
+    fi
     hpid="$(cat "$dir/pid" 2>/dev/null)"
     holder="$(cat "$dir/name" 2>/dev/null)"
-    if [ -n "$hpid" ] && ! kill -0 "$hpid" 2>/dev/null; then
-      # Reclaim under a second exclusive directory: two waiters that both saw the same dead
-      # pid must not both remove the lock, or the second would delete the first's fresh one
-      # (#388 review). The reclaimer re-reads the pid inside, so a lock that changed hands in
-      # the meantime is left alone. A reclaim mutex older than a minute is itself stale.
-      if mkdir "$dir.reclaim" 2>/dev/null; then
-        if [ "$(cat "$dir/pid" 2>/dev/null)" = "$hpid" ]; then
-          echo "heavy-lock: taking over a stale lock from $holder (pid $hpid is gone)" >&2
-          rm -rf "$dir"
-        fi
-        rmdir "$dir.reclaim" 2>/dev/null
-        continue
-      elif [ -n "$(find "$dir.reclaim" -maxdepth 0 -mmin +1 2>/dev/null)" ]; then
-        rmdir "$dir.reclaim" 2>/dev/null
-        continue
-      fi
-    fi
     if [ "$waited" -eq 0 ]; then
       echo "heavy-lock: $name waits for ${holder:-another heavy suite} (pid ${hpid:-?}) to finish; HEAVY_LOCK=0 skips the wait" >&2
     fi
@@ -66,7 +74,4 @@ heavy_lock_take() {
     sleep 5
     waited=$((waited + 5))
   done
-  echo "$$" > "$dir/pid"
-  echo "$name" > "$dir/name"
-  HEAVY_LOCK_PATH="$dir"
 }
