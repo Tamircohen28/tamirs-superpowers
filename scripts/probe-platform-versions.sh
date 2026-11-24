@@ -25,8 +25,9 @@
 #                 exists to review. The build is not fetched — its value could not
 #                 be acted on, so the call would gate nothing.
 #   codex       — GitHub releases API on openai/codex; tags are "rust-vX.Y.Z".
-#                 Authenticated when GITHUB_TOKEN or GH_TOKEN is set (CI sets it);
-#                 a failure reports the HTTP status.
+#                 CODEX_RELEASE_TAG, when set, is used instead of the call (the
+#                 nightly workflow resolves it with its own token); a failed call
+#                 reports the HTTP status.
 #   gemini_cli  — npm registry dist-tags.latest for @google/gemini-cli.
 #   opencode    — npm registry dist-tags.latest for @opencode/cli.
 #
@@ -91,30 +92,32 @@ echo "cursor: pinned=$cursor_pinned current=n/a — no automated feature-changel
 
 # --- codex: GitHub releases API, rust-vX.Y.Z tags ---
 #
-# Authenticated when a token is in the environment (the nightly workflow passes its
-# GITHUB_TOKEN). Unauthenticated calls share a 60-per-hour limit per IP and
-# GitHub-hosted runners share IPs: on 2026-11-24 two nightly runs read "unreachable"
-# while the endpoint answered 200 everywhere else, which silently disabled Codex
-# drift detection. The HTTP status is reported on failure so the cause is visible.
+# Unauthenticated API calls share a 60-per-hour limit per IP, and GitHub-hosted
+# runners share IPs: on 2026-11-24 two nightly runs read "unreachable" while the
+# endpoint answered 200 everywhere else, which silently turned Codex drift detection
+# off. The nightly workflow therefore resolves the tag itself with its own token and
+# passes it in CODEX_RELEASE_TAG. This script ships with the plugin and never reads a
+# credential (tests/test-notify-pushover-creds.sh). Without CODEX_RELEASE_TAG it calls
+# the API unauthenticated and reports the HTTP status when that fails.
 codex_pinned=$(pinned codex)
-codex_token="${GITHUB_TOKEN:-${GH_TOKEN:-}}"
-codex_curl=(curl -sSL --max-time 10 -w '\n%{http_code}' -H 'Accept: application/vnd.github+json')
-codex_auth="unauthenticated"
-if [[ -n "$codex_token" ]]; then
-  codex_curl+=(-H "Authorization: Bearer $codex_token")
-  codex_auth="authenticated"
-fi
-codex_response=$("${codex_curl[@]}" "https://api.github.com/repos/openai/codex/releases/latest" 2>/dev/null || true)
-codex_status="${codex_response##*$'\n'}"
-codex_body="${codex_response%$'\n'*}"
-codex_current=""
 codex_reason=""
-if [[ "$codex_status" == "200" ]]; then
-  codex_current=$(printf '%s' "$codex_body" | jq -r '.tag_name // empty' 2>/dev/null \
-    | grep -oE '[0-9]+\.[0-9]+\.[0-9]+.*' || true)
-  [[ -n "$codex_current" ]] || codex_reason="HTTP 200, no rust-vX.Y.Z tag_name"
+if [[ -n "${CODEX_RELEASE_TAG:-}" ]]; then
+  codex_tag="$CODEX_RELEASE_TAG"
 else
-  codex_reason="HTTP ${codex_status:-000}, $codex_auth"
+  codex_response=$(curl -sSL --max-time 10 -w '\n%{http_code}' \
+    -H 'Accept: application/vnd.github+json' \
+    "https://api.github.com/repos/openai/codex/releases/latest" 2>/dev/null || true)
+  codex_status="${codex_response##*$'\n'}"
+  codex_tag=""
+  if [[ "$codex_status" == "200" ]]; then
+    codex_tag=$(printf '%s' "${codex_response%$'\n'*}" | jq -r '.tag_name // empty' 2>/dev/null || true)
+  else
+    codex_reason="HTTP ${codex_status:-000}, unauthenticated"
+  fi
+fi
+codex_current=$(printf '%s' "$codex_tag" | grep -oE '[0-9]+\.[0-9]+\.[0-9]+.*' || true)
+if [[ -z "$codex_current" && -z "$codex_reason" ]]; then
+  codex_reason="no rust-vX.Y.Z tag_name in the release"
 fi
 report codex "$codex_pinned" "$codex_current" "$codex_reason"
 

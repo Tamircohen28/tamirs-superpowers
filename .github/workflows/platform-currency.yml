@@ -23,11 +23,17 @@ jobs:
       - name: Probe platform versions
         id: probe
         env:
-          # Authenticates the Codex GitHub-releases lookup; unauthenticated calls hit
-          # the shared per-IP rate limit on hosted runners and read "unreachable".
-          GITHUB_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           set +e
+          # Resolve the Codex release with this workflow's token: unauthenticated calls
+          # hit the shared per-IP limit on hosted runners and read "unreachable". Done
+          # here, not in the probe script, because that script ships with the plugin and
+          # must never read a credential. Empty on failure: the script then falls back to
+          # an unauthenticated call and reports its HTTP status.
+          CODEX_RELEASE_TAG="$(gh api repos/openai/codex/releases/latest --jq .tag_name 2>/dev/null)"
+          [ -n "$CODEX_RELEASE_TAG" ] || echo "::warning::authenticated Codex release lookup failed; probe falls back to an unauthenticated call"
+          export CODEX_RELEASE_TAG
           output="$(bash scripts/probe-platform-versions.sh . 2>&1)"
           exit_code=$?
           echo "$output"
