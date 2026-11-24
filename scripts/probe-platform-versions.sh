@@ -25,6 +25,9 @@
 #                 exists to review. The build is not fetched — its value could not
 #                 be acted on, so the call would gate nothing.
 #   codex       — GitHub releases API on openai/codex; tags are "rust-vX.Y.Z".
+#                 CODEX_RELEASE_TAG, when set, is used instead of the call (the
+#                 nightly workflow resolves it with its own token); a failed call
+#                 reports the HTTP status.
 #   gemini_cli  — npm registry dist-tags.latest for @google/gemini-cli.
 #   opencode    — npm registry dist-tags.latest for @opencode/cli.
 #
@@ -59,9 +62,9 @@ pinned() {
 }
 
 report() {
-  local key="$1" pinned_v="$2" current_v="$3"
+  local key="$1" pinned_v="$2" current_v="$3" reason="${4:-}"
   if [[ -z "$current_v" ]]; then
-    echo "$key: pinned=$pinned_v current=unreachable — could not reach upstream endpoint"
+    echo "$key: pinned=$pinned_v current=unreachable — could not reach upstream endpoint${reason:+ ($reason)}"
     unreachable_count=$((unreachable_count + 1))
   elif [[ "$pinned_v" == "$current_v" ]]; then
     echo "$key: pinned=$pinned_v current=$current_v — no drift"
@@ -88,11 +91,35 @@ cursor_pinned=$(jq -r ".targets.cursor.changelog_feature // empty" "$TARGETS_JSO
 echo "cursor: pinned=$cursor_pinned current=n/a — no automated feature-changelog source; advance changelog_feature via changelog review"
 
 # --- codex: GitHub releases API, rust-vX.Y.Z tags ---
+#
+# Unauthenticated API calls share a 60-per-hour limit per IP, and GitHub-hosted
+# runners share IPs: on 2026-11-24 two nightly runs read "unreachable" while the
+# endpoint answered 200 everywhere else, which silently turned Codex drift detection
+# off. The nightly workflow therefore resolves the tag itself with its own token and
+# passes it in CODEX_RELEASE_TAG. This script ships with the plugin and never reads a
+# credential (tests/test-notify-pushover-creds.sh). Without CODEX_RELEASE_TAG it calls
+# the API unauthenticated and reports the HTTP status when that fails.
 codex_pinned=$(pinned codex)
-codex_current=$(curl -fsSL --max-time 10 \
-  "https://api.github.com/repos/openai/codex/releases/latest" 2>/dev/null \
-  | jq -r '.tag_name // empty' 2>/dev/null | grep -oE '[0-9]+\.[0-9]+\.[0-9]+.*' || true)
-report codex "$codex_pinned" "$codex_current"
+codex_reason=""
+if [[ -n "${CODEX_RELEASE_TAG:-}" ]]; then
+  codex_tag="$CODEX_RELEASE_TAG"
+else
+  codex_response=$(curl -sSL --max-time 10 -w '\n%{http_code}' \
+    -H 'Accept: application/vnd.github+json' \
+    "https://api.github.com/repos/openai/codex/releases/latest" 2>/dev/null || true)
+  codex_status="${codex_response##*$'\n'}"
+  codex_tag=""
+  if [[ "$codex_status" == "200" ]]; then
+    codex_tag=$(printf '%s' "${codex_response%$'\n'*}" | jq -r '.tag_name // empty' 2>/dev/null || true)
+  else
+    codex_reason="HTTP ${codex_status:-000}, unauthenticated"
+  fi
+fi
+codex_current=$(printf '%s' "$codex_tag" | grep -oE '[0-9]+\.[0-9]+\.[0-9]+.*' || true)
+if [[ -z "$codex_current" && -z "$codex_reason" ]]; then
+  codex_reason="no rust-vX.Y.Z tag_name in the release"
+fi
+report codex "$codex_pinned" "$codex_current" "$codex_reason"
 
 # --- gemini_cli: npm registry dist-tags.latest ---
 gemini_pinned=$(pinned gemini_cli)
