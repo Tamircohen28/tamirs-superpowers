@@ -35,17 +35,19 @@ jobs:
           exit $exit_code
         continue-on-error: true
 
-      - name: Open drift issue
+      # One open issue per drift, not one per night: while a `platform-drift` issue is
+      # open, later runs comment the fresh probe output on it instead of filing a new
+      # issue (13 dated duplicates, #417–#434, piled up before this).
+      - name: Open or update drift issue
         if: steps.probe.outcome == 'failure'
         env:
           GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
           PROBE_OUTPUT: ${{ steps.probe.outputs.output }}
         run: |
-          gh issue create \
-            --title "Platform version drift detected ($(date -u +%Y-%m-%d))" \
-            --body "$(cat <<ISSUE_EOF
-          The nightly platform-currency probe found at least one platform whose
-          upstream version no longer matches the pin in
+          body="$(cat <<ISSUE_EOF
+          The nightly platform-currency probe ($(date -u +%Y-%m-%d)) found at least one
+          platform whose upstream version no longer matches the pin in
           \`docs/engineering/build-and-release/platform-targets.json\`.
 
           \`\`\`
@@ -57,6 +59,16 @@ jobs:
           dependent narrative docs) accordingly.
           ISSUE_EOF
           )"
+          gh label create platform-drift --force --color D93F0B \
+            --description "Nightly platform-currency probe found version drift" >/dev/null
+          existing="$(gh issue list --state open --label platform-drift --limit 1 \
+            --json number --jq '.[0].number // empty')"
+          if [ -n "$existing" ]; then
+            gh issue comment "$existing" --body "$body"
+          else
+            gh issue create --title "Platform version drift detected" \
+              --label platform-drift --body "$body"
+          fi
 
       - name: Fail the job if drift was detected
         if: steps.probe.outcome == 'failure'
