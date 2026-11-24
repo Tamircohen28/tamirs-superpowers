@@ -23,4 +23,4 @@ not coverage theater.
 
 **Triggers:** "add tests", post-implementation, post-bugfix, thin coverage on a critical path.
 
-**Output:** the test files (real, runnable), a one-line coverage-gap summary (what is covered, what deliberately is not), and the command to run them with its real output cited. Never weaken or delete a failing test to get green, and never report a run that did not happen (`core/policies/safety.md`).
+**Output:** the test files (real, runnable), a one-line coverage-gap summary (what is covered, what deliberately is not), and the command to run them with its real output cited. Never weaken or delete a failing test or lower a coverage floor to get green, and never report a run that did not happen (`core/policies/safety.md`).

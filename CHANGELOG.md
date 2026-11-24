@@ -7,6 +7,18 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 - **Cursor 3.11 (+2026-11-06 / desktop 3.29.9 reviewed):** advance `latest_known`/`reviewed_through` **3.28.7 → 3.29.9** and `changelog_date` **2026-10-20 → 2026-11-06**. Keep `validated_against` at **3.28.7** (last live run). Document Voice Chat (≠ dictation) and Live Apps/`publish-app` as host capabilities — no plugin code change. Cursor-only.
 
+## [6.1.2] — 2026-11-22
+
+### Changed
+
+- **New hard invariant: never weaken a quality gate to get green** (`core/policies/safety.md`, invariant 9). Lowering a coverage floor or threshold, skipping a test, loosening a lint/type rule or raising a timeout to hide slowness is now prohibited for every role. The agent reports the gap and the user decides. The `implementer` and `test-engineer` role definitions and the `test-engineer` agent cite it. Motivated by a session where a worker dropped a repository's functions-coverage floor from 84 to 77 to pass a vitest upgrade; the owner kept 84 and tests were added instead.
+
+## [6.1.1] — 2026-11-19
+
+### Fixed
+
+- **`subagent-handoff-check.sh` no longer loops subagents.** Claude Code hands a SubagentStop hook's `additionalContext` back to the subagent that stopped, so the "no handoff yet" note re-opened it. The subagent replied, stopped, and the hook fired again. Under an active objective, read-only research helpers were woken 15 to 23 times each, about 200k tokens apiece, and only stopped when a worker wrote the first handoff. The hook now stays silent when `stop_hook_active` is true, stays silent for read-only roles that never owe a handoff (research, explore, plan, review, docs-guide, web-fetch, statusline, debugging-specialist, orchestrator), and speaks at most once per `(objective, agent_id)`, using a marker under `$TMPDIR` that is written only when it actually speaks. Workers still hear the note. 8 regression rows in `tests/test-subagent-handoff-check.sh` fail on 6.1.0.
+
 ## [6.1.0] — 2026-11-09
 
 ### Fixed

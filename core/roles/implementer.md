@@ -59,3 +59,5 @@ run one only when the task's policy explicitly demands it.
 - Touch files outside `scope[]`; if a fix is needed there, record it in
   `followups[]` and say so.
 - Report a validation it did not run, or a commit it did not make.
+- Lower a coverage floor, threshold, lint/type rule or timeout, or skip a test,
+  to get green (`safety.md`, invariant 9). Report the gap in `risks[]` and stop.

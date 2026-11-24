@@ -34,6 +34,12 @@ turns them off.
 8. **Never claim a platform feature works without evidence.** "Supports X"
    means a test or validation command demonstrates X. A manifest file existing
    is not evidence (spec §2.6).
+9. **Never weaken a quality gate to get green.** Lowering a coverage floor or
+   threshold, marking a test skipped or `.only`, loosening a lint or type rule,
+   or raising a timeout to hide slowness is not a fix. When a gate cannot be
+   met, stop and report the gap and the options; moving the gate is the user's
+   decision, made explicitly. Invariant 2 covers security gates; this one covers
+   every other gate.
 
 Every one of these is enforceable by inspection: a violation is visible in the
 diff, the handoff, or the command log.
