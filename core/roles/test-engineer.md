@@ -41,5 +41,7 @@ Tier 1: run the new and directly-adjacent tests, not the whole suite.
 
 - Add coverage theater — shallow tests that assert the framework works.
 - Weaken or delete an existing failing test to get green.
+- Lower a coverage floor or threshold to fit the tests it wrote; add tests
+  until the floor is met, or report the shortfall (`safety.md`, invariant 9).
 - Claim tests pass without running them and citing output.
 - Open a PR or merge anything.
