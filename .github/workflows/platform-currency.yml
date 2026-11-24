@@ -22,6 +22,10 @@ jobs:
 
       - name: Probe platform versions
         id: probe
+        env:
+          # Authenticates the Codex GitHub-releases lookup; unauthenticated calls hit
+          # the shared per-IP rate limit on hosted runners and read "unreachable".
+          GITHUB_TOKEN: ${{ github.token }}
         run: |
           set +e
           output="$(bash scripts/probe-platform-versions.sh . 2>&1)"
