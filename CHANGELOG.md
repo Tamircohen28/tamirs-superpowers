@@ -4,6 +4,7 @@ All notable changes to `tamirs-superpowers` are recorded here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
+- **Claude Code 2.1.327:** advance `validated_against`/`reviewed_through`/`latest_known` **2.1.318 → 2.1.327** (live run of `claude` 2.1.327: both manifests validate). Host notes for 2.1.319–2.1.327 record each changelog item as reviewed, not applicable or a future opportunity (`engines["claude-code"]`, `isPromptCovered`), and the 2.1.32x composed `AbovePrompt` band behind the mod-test fix in #431. Docs and version pins only; no shipped content changes, so no version bump.
 - **Cursor 3.11 (+2026-11-06 / desktop 3.31.15):** advance latest_known/reviewed_through **3.30.14 → 3.31.15**; `cli_changelog_date` **2026-08-26 → 2026-11-17**. Feature pin **3.11** / **2026-11-06**. `validated_against` stays **3.28.7**. Document IDE notes through **3.30** and CLI through **2026-11-17**; note `parent_agent_name` still not adopted. Cursor-only.
 
 
