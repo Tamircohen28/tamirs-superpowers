@@ -45,7 +45,7 @@ Reviewed **2026-10-06** (changelog/schema only, no live binary; `validated_again
 | Surface | Min supported | Validated against | Reviewed through | Latest known | Install guide |
 |----------|---------------|-------------------|------------------|--------------|---------------|
 | Claude Code | 2.0.0 | 2.1.317 | 2.1.317 | 2.1.317 | [claude-code.md](../../user/install/claude-code.md) |
-| Cursor | 3.22.7 | 3.28.7 | 3.28.7 | 3.28.7 | [cursor.md](../../user/install/cursor.md) |
+| Cursor | 3.22.7 | 3.28.7 | 3.31.15 | 3.31.15 | [cursor.md](../../user/install/cursor.md) |
 | Codex | 0.40.0 | 0.166.0 | 0.166.0 | 0.166.0 | [codex.md](../../user/install/codex.md) |
 | Gemini CLI | 0.55.1 | 0.66.0 | 0.66.0 | 0.66.0 | [gemini.md](../../user/install/gemini.md) |
 | OpenCode | 2.2.5 | 2.2.6 | 2.2.6 | 2.2.6 | [opencode.md](../../user/install/opencode.md) |
