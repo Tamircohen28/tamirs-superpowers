@@ -393,7 +393,11 @@ if [ -n "$oc_ver" ] && [ -n "$oc_floor" ] && [ "$(printf '%s\n%s\n' "$oc_floor" 
   # (measured on 2.0.32). Skill discovery therefore cannot be enumerated from the
   # CLI — `opencode api --standalone skill.list` returned an empty list on 2.0.32
   # even for agents `debug agents` lists — and stays unverified live.
-  agents_json="$(cd "$ROOT" && opencode debug agents 2>/dev/null)"
+  # `--standalone` is required: without it the call goes to whatever background service is
+  # already running (e.g. the OpenCode desktop app's `serve --service`), which answers for
+  # ITS project, not $ROOT, and returns `[]` — every adapter then reads as "not listed".
+  # Same flag as tests/test-opencode-pins.sh; supported on the 2.2.5 floor.
+  agents_json="$(cd "$ROOT" && opencode --standalone debug agents 2>/dev/null)"
   if [ -n "$agents_json" ]; then
     loaded="$(printf '%s' "$agents_json" | jq -r '.[] | select(.system // "" | contains("GENERATED FILE — DO NOT EDIT")) | .id' 2>/dev/null)"
     loadfail=()
