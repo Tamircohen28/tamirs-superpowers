@@ -28,6 +28,8 @@ The README's platform badge row shows **platform tool versions** directly valida
 
 ## Versions
 
+Validated **2026-11-24** (live runs, throwaway npm prefixes, issue #436) — **Codex** `validated_against` 0.166.0 → **0.172.0** and `reviewed_through`/`latest_known` 0.169.1 → **0.172.0**; **Gemini CLI** `validated_against` 0.66.0 → **0.71.1** and `reviewed_through`/`latest_known` 0.67.0 → **0.71.1**; **OpenCode** validated, reviewed and latest known 2.2.6 → **2.4.1**. Codex: the plugin installs from the local marketplace offline, and a recording probe received `SessionStart`/`UserPromptSubmit` with the fixtures' key sets (contract test 94/0). Gemini: the repository and the built distribution validate, the distribution installs and lists, and the adapter test discovers all 30 mirrored skills (38/38). OpenCode: `tests/test-opencode-v2.sh` 180/0 with its live section, and `tsc` passes against `@opencode/plugin` 2.4.1. Two upstream changes reach generated files and were checked, not adopted: Gemini 0.70.0 moved policy patterns to RE2 and scoped `commandRegex` to the top-level command (the four static rules compile and match as intended in that form), and OpenCode 2.4.0 renamed `experimental_image_generate` to `generate_image` (old name mapped automatically; the adapters keep the old name for the 2.2.5 floor, and 2.4.1 resolves it to a `generate_image` deny in all ten). `supported_min` is unchanged on all three. Release-note detail is in `platform-targets.json`'s `verification_method`.
+
 Validated **2026-11-04** (live run) — **Cursor** `validated_against`/`reviewed_through`/`latest_known` 3.27.22 → **3.28.7**. Spike S2 of ADR 004 item 13 ran on the desktop app 3.28.7 (Cursor's own updater moved it from 3.27.22 during the run): a `beforeShellExecution` `ask` raised an approval card in Auto-Review, Allowlist and Run Everything, and a `preToolUse` `ask` was not enforced; S3 measured `beforeSubmitPrompt` on the same build ([implementation-measurements.md](../research/permissions/spikes/implementation-measurements.md), "GUI checks"). cursor.com/changelog and the IDE release notes publish nothing for 3.28, so `reviewed_through` moves with the live run. `supported_min` stays 3.22.7 and `permissions_min` 3.27.22.
 
 Validated **2026-11-03** (live run) — **Claude Code** `validated_against`/`reviewed_through`/`latest_known` 2.1.316 → **2.1.317**. The `claude` CLI already installed on the maintainer machine (2.1.317; nothing was installed or upgraded) ran `claude plugin validate` on the manifest and on the root (both pass; the one warning is the documented root-CLAUDE.md note) and `make test-mods` (`claude plugin test` 37/37 on the mod, 19/19 on the guard). Changelog 2.1.317 read, nothing breaking, nothing adopted.
@@ -46,9 +48,9 @@ Reviewed **2026-10-06** (changelog/schema only, no live binary; `validated_again
 |----------|---------------|-------------------|------------------|--------------|---------------|
 | Claude Code | 2.0.0 | 2.1.317 | 2.1.317 | 2.1.317 | [claude-code.md](../../user/install/claude-code.md) |
 | Cursor | 3.22.7 | 3.28.7 | 3.31.15 | 3.31.15 | [cursor.md](../../user/install/cursor.md) |
-| Codex | 0.40.0 | 0.166.0 | 0.166.0 | 0.166.0 | [codex.md](../../user/install/codex.md) |
-| Gemini CLI | 0.55.1 | 0.66.0 | 0.66.0 | 0.66.0 | [gemini.md](../../user/install/gemini.md) |
-| OpenCode | 2.2.5 | 2.2.6 | 2.2.6 | 2.2.6 | [opencode.md](../../user/install/opencode.md) |
+| Codex | 0.40.0 | 0.172.0 | 0.172.0 | 0.172.0 | [codex.md](../../user/install/codex.md) |
+| Gemini CLI | 0.55.1 | 0.71.1 | 0.71.1 | 0.71.1 | [gemini.md](../../user/install/gemini.md) |
+| OpenCode | 2.2.5 | 2.4.1 | 2.4.1 | 2.4.1 | [opencode.md](../../user/install/opencode.md) |
 
 
 Two different claims, deliberately kept apart. **Validated against** is the version this repo
