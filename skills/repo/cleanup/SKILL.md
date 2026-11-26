@@ -1,7 +1,7 @@
 ---
 name: cleanup
 description: 'Use when the user wants to clean up, tidy, or reset a GitHub repo — even if they name only one part. Triggers: repo cleanup, repo housekeeping, prune merged branches, delete stale remote branches, tidy my worktrees, drive all open PRs to merge-ready, wipe build and cache artifacts, reset local checkout to match remote.'
-when_to_use: 'clean up this repo, my worktrees are a mess, purge the build files, sync local to remote, get me back to a fresh clean environment.'
+when_to_use: my worktrees are a mess, purge the build files, get me back to a fresh clean environment.
 argument-hint: '[--remote-only | --local-only | --dry-run] [repo path, defaults to cwd]'
 arguments:
 - flags
@@ -77,7 +77,6 @@ bash scripts/cleanup.sh [--dry-run] [--remote-only | --local-only] [--yes] [REPO
 `scripts/cleanup.sh` is the **provably-safe deterministic core** of this skill: it performs only the deletions that need no human judgment — remote branches fully merged into the default branch, auxiliary worktrees that are clean *and* merged/gone, git-ignored build/cache directories, and a fast-forward-only sync of the default branch. Anything requiring judgment — dirty worktrees, unpushed commits, unmerged branches, non-ignored files, a diverged default branch — is **reported and left untouched**.
 
 - It is **dry-run by default**; it changes nothing unless `--yes` is passed.
-- **`--yes` skips no permission gate.** It only turns the dry-run into a run: every remote branch deletion (`branch.delete.remote`, R3) and worktree removal is still decided by `scripts/resolve-permission.sh`. With no terminal attached an `ask` is blocked. A blocked step is listed with the setting that would allow it, and the script exits 3. Relay those lines verbatim. Never re-run the deletion by hand to get around a block.
 - It keeps every branch GitHub reports protected (the `protected` flag or a ruleset deletion rule), every branch at the default tip, and every worktree with unpushed commits, a live agent claim or an unfinished objective task.
 - It never drives PRs, never rescues uncommitted work, and never drops anything a human would want to review.
 
@@ -93,30 +92,6 @@ Before doing anything:
    REPO=$(gh repo view --json nameWithOwner -q .nameWithOwner)
    DEFAULT=$(gh repo view --json defaultBranchRef -q .defaultBranchRef.name)
    ```
-
-## Permission gate
-
-Before each R3/R4 step below, ask the resolver (ADR 004). It is the plugin's `scripts/resolve-permission.sh`, three levels above this skill's directory:
-
-```bash
-PERM="$SKILL_DIR/../../../scripts/resolve-permission.sh"
-V="$(bash "$PERM" --action <id> --skill cleanup --target "<REPO or worktree path>" ${HOST:+--host "$HOST"} --json)" \
-  || V='{"verdict":"deny","reason":"resolver failed"}'
-jq -r '.verdict, .reason, (.setting_that_would_allow.durable // [] | join("; "))' <<<"$V"
-```
-
-| Step | Action id | R |
-|---|---|---|
-| 1c delete a remote branch | `branch.delete.remote` | R3 |
-| 2d remove a clean worktree | `worktree.remove` (add `--cond discards_work=false` only when it is clean, nothing is ignored and nothing is unpushed) | R1 |
-| 2c `drop`, a forced removal over changes | `worktree.drop` | R4 |
-| 3b `reset` to remote | `git.reset_to_remote` | R4 |
-
-- `allow`: run the step.
-- `ask`: the step runs only after the user's explicit per-item answer in chat (`yes`, `drop`, `reset`). An R4 step then also meets the host's own permission prompt, which is by design.
-- `deny`, or the resolver failed or is missing: skip the step. Report the `reason` and the setting that would allow it.
-
-A sub-agent with no human to answer treats `ask` as `deny`.
 
 ## Phase 1 — Remote branch cleanup
 
@@ -169,7 +144,7 @@ Wait for `yes`. If the user says `no`, skip 1c and go directly to 1d.
 
 ### 1c. Delete confirmed branches
 
-For each confirmed delete candidate, after the [permission gate](#permission-gate) for `branch.delete.remote` allows it, or the user's `yes` answered its `ask`:
+For each confirmed delete candidate:
 
 ```bash
 git push origin --delete "<branch>" 2>&1 \
@@ -251,7 +226,7 @@ irreplaceable content that nothing in git ever saw.
 For any `dirty` or `recent-clean` worktree, show the user what's there before asking:
 
 ```
-Worktree: ~/.claude/worktrees/myrepo/feat-login
+Worktree: ~/.session-worktrees/myrepo/feat-login
 Branch: feat/login (last commit 3 days ago)
 Uncommitted: 4 files changed
 
@@ -271,7 +246,7 @@ uncommitted git changes), show that instead — a diff summary doesn't apply to 
 tracked:
 
 ```
-Worktree: ~/.claude/worktrees/myrepo/old-audit
+Worktree: ~/.session-worktrees/myrepo/old-audit
 Branch: wip/old-audit (last commit 34 days ago, no open PR — would otherwise be stale-clean)
 Gitignored content: 18 files, 332K (git status reports clean — this is invisible to it)
 
@@ -284,13 +259,13 @@ Options:
   drop  — discard everything, including the gitignored content, and remove (IRREVERSIBLE)
 ```
 
-Wait for the user's choice per worktree. Never drop without an explicit `drop` response. A `drop` is `worktree.drop` (R4): run the [permission gate](#permission-gate) first. Never drop on a `deny`.
+Wait for the user's choice per worktree. Never drop without an explicit `drop` response.
 
 For `ready-to-push` worktrees, push the branch and open/update a PR, then remove.
 
 ### 2d. Remove clean/resolved worktrees
 
-Skip a worktree when an agent holds a live claim on its branch (`~/.agent-work-claims/`), or when an objective task that is not finished owns it. Its worker is still running. Gate each removal (`worktree.remove`, see [permission gate](#permission-gate)).
+Skip a worktree when an agent holds a live claim on its branch (`~/.agent-work-claims/`), or when an objective task that is not finished owns it. Its worker is still running.
 
 ```bash
 git worktree remove --force "<path>"
@@ -343,7 +318,7 @@ Warning: local <DEFAULT> has 2 commits not on remote:
 Push them or reset to remote? (push/reset)
 ```
 
-Wait for the answer. `reset` is `git.reset_to_remote` (R4): run the [permission gate](#permission-gate) before resetting. After syncing, run `git status` and confirm the branch is clean.
+Wait for the answer. After syncing, run `git status` and confirm the branch is clean.
 
 ## Output format
 
@@ -357,9 +332,9 @@ Brief, state-change-only updates — not one line per command:
 
 [Phase 2/3] Local worktrees
   Main worktree: skipped
-  ~/.claude/worktrees/myrepo/feat-login  → stale-clean → removed
-  ~/.claude/worktrees/myrepo/fix-bug     → dirty (4 files) → user chose push → PR #51 opened → removed
-  ~/.claude/worktrees/myrepo/old-spike   → stale-clean → removed
+  ~/.session-worktrees/myrepo/feat-login  → stale-clean → removed
+  ~/.session-worktrees/myrepo/fix-bug     → dirty (4 files) → user chose push → PR #51 opened → removed
+  ~/.session-worktrees/myrepo/old-spike   → stale-clean → removed
 
 [Phase 3/3] Local reset
   Build artifacts: .next/, dist/ → user confirmed → deleted
@@ -380,7 +355,6 @@ Summary:
 ## Hard rules
 
 - **Never delete the default branch, `main`, `master`, `develop`, `release/*`, or any protected branch.** Check GitHub's `protected` flag and the rulesets that apply before deleting anything. A branch whose protection cannot be read is kept.
-- **Never skip the permission gate.** This holds for `--yes`, for a fan-out and for a dry-run that turns into a run.
 - **Never discard uncommitted work without an explicit `drop` from the user** — always show the diff first.
 - **Never remove the main worktree** (first entry in `git worktree list`).
 - **Always ask before deleting build artifacts** — the generated-artifact list may contain intentional local directories.

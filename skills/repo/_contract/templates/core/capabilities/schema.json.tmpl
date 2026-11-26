@@ -26,7 +26,7 @@
       "propertyNames": {
         "$ref": "#/$defs/capabilityKey"
       },
-      "minProperties": 22,
+      "minProperties": 20,
       "additionalProperties": {
         "type": "object",
         "required": [
@@ -82,8 +82,7 @@
         "artifacts",
         "session_transcripts",
         "dynamic_workflows",
-        "mods",
-        "permission_levels"
+        "mods"
       ]
     },
     "status": {
@@ -300,8 +299,8 @@
         "capabilities": {
           "type": "object",
           "description": "Every capability key must be present. Use status 'unknown' for anything unverified rather than omitting it.",
-          "minProperties": 22,
-          "maxProperties": 22,
+          "minProperties": 21,
+          "maxProperties": 21,
           "propertyNames": {
             "$ref": "#/$defs/capabilityKey"
           },

@@ -32,7 +32,7 @@
 #   --adopt <ids>     adopt these hunk ids without prompting (`all` for every
 #                     offerable one). An explicit list is a decision; this is the
 #                     only way to adopt without a terminal, and it is never a
-#                     default. It never covers a POLICY hunk (below).
+#                     default.
 #   --json            machine-readable change set on stdout, humans on stderr
 #   --verbose, -v     detailed logging to stderr
 #   --help, -h        this text
@@ -53,18 +53,6 @@
 #   * `_`-prefixed metadata keys are stripped; repo-side documentation must not
 #     round-trip into captured data
 #   * `make validate` must pass before `deliver` opens anything
-#
-# POLICY HUNKS — config.policy.stage, R4 (ADR 004 D1, D2; audit other-skills F4)
-#   A hunk whose key path or sink is permission, hook, sandbox, approval, trust,
-#   env, plugin, MCP or command-running policy — or that no rule classifies
-#   (`unknown`) — would change what an agent may do once it is rendered. Such a
-#   hunk is never adopted by `--adopt all`, an `--adopt` id list or the `a`
-#   answer: each one asks scripts/resolve-permission.sh (config.policy.stage,
-#   target = the canonical file it lands in) and, on ask, needs a typed "yes"
-#   on /dev/tty for that hunk alone. No terminal => it is not adopted, and the
-#   run says so and names the setting. A deny, or a resolver that is missing or
-#   fails, skips it (fail closed, D4). The resolver is found from this file's
-#   own location, never from the environment.
 #
 # EXAMPLES
 #   bash scripts/capture-config.sh detect
@@ -90,9 +78,6 @@ SETUP_REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 . "${SCRIPT_DIR}/lib/capture-common.sh"
 
 SETUP_DELETE_SENTINEL="@@tamirs-superpowers-delete-this-file@@"
-# The permission resolver, from THIS file's location — never from the
-# environment, which could name a fake one that always says allow.
-RESOLVER="${SCRIPT_DIR}/resolve-permission.sh"
 
 VERB=""
 OPT_TARGETS="${CAPTURE_TARGETS:-}"
@@ -471,7 +456,6 @@ N_ADOPTED=0
 N_DECLINED=0
 ADOPTED_IDS=""
 TOUCHED_SINKS=""
-N_POLICY_HELD=0
 
 adopt_requested() {
   local id="$1" want
@@ -521,92 +505,11 @@ show_context() {
   esac
 }
 
-# is_policy_hunk <hunk-dir> — would adopting this change what an agent may do?
-# Matched on the key path and on the sink, case-insensitively; `unknown` counts,
-# because no rule says it is harmless. See POLICY HUNKS in the header.
-is_policy_hunk() {
-  local d="$1" k s
-  [ "$(field "$d" class)" = unknown ] && return 0
-  k="$(setup_lower "$(field "$d" keypath)")"
-  s="$(setup_lower "$(field "$d" sink)")"
-  case "$k" in
-    permission|permission.*|permissions|permissions.*|*.permission|*.permission.*|*.permissions|*.permissions.*) return 0 ;;
-    hooks|hooks.*|*.hooks|*.hooks.*|*hook*) return 0 ;;
-    defaultmode|automode|automode.*|sandbox*|*.sandbox*|*approval*|trust*|*.trust*|projects.*) return 0 ;;
-    env|env.*|*.env|*.env.*|shell_environment_policy*) return 0 ;;
-    enabledplugins*|extraknownmarketplaces*|plugin|plugin.*|plugins|plugins.*|*.plugins.*) return 0 ;;
-    *mcp*|statusline*|apikeyhelper|*helper|*command*|tools|tools.*|security.*|*yolo*|*allowed*|*denied*|*exclude*) return 0 ;;
-  esac
-  case "$s" in
-    *permission*|*hook*|*auto-mode*|*polic*|*sandbox*|*mcp*|*plugin*|*marketplace*) return 0 ;;
-  esac
-  return 1
-}
-
-# perm_can_prompt — a controlling terminal this process can actually open (an
-# agent's shell has /dev/tty on disk but cannot open it).
-perm_can_prompt() { setup_can_prompt && ( exec 3<>/dev/tty ) 2>/dev/null; }
-
-# perm_field <json> <key> — one field of the resolver's answer, as text.
-perm_field() {
-  printf '%s' "$1" | jq -r --arg k "$2" '
-    (.[$k]) as $v
-    | if $v == null then ""
-      elif ($v | type) == "object" then ([$v.once] + ($v.durable // []) + [$v.note] | map(select(. != null and . != "")) | join("; "))
-      else ($v | tostring) end' 2>/dev/null || printf ''
-}
-
-# policy_gate <hunk-dir> — the per-hunk R4 gate. 0 adopt, 1 skip.
-policy_gate() {
-  local d="$1" target v="" verdict="" headless="" ans
-  target="${SETUP_REPO_ROOT}/$(field "$d" sink)"
-  perm_can_prompt || headless=1
-  if [ -f "$RESOLVER" ]; then
-    v="$(bash "$RESOLVER" --action config.policy.stage --skill capture-config --target "$target" \
-          ${headless:+--headless} --repo "$SETUP_REPO_ROOT" --json 2>/dev/null)" || v=""
-  fi
-  verdict="$(perm_field "$v" verdict)"
-  case "$verdict" in
-    allow) return 0 ;;
-    ask)
-      if [ -z "$headless" ]; then
-        out "  ${SETUP_C_YELLOW}policy hunk${SETUP_C_OFF}: config.policy.stage (R4) — adopting it changes what an agent may do once rendered."
-        out "  $(perm_field "$v" reason)"
-        printf '%s' "Type \"yes\" to adopt hunk [$(field "$d" id)] into $(field "$d" sink) (anything else skips): " > /dev/tty
-        ans=''
-        IFS= read -r ans < /dev/tty || ans=''
-        printf '\n' > /dev/tty
-        [ "$ans" = yes ] && return 0
-        out "  not confirmed"
-        return 1
-      fi ;;
-  esac
-  if [ -z "$v" ] || [ -z "$verdict" ]; then
-    out "  ${SETUP_C_RED}not adopted${SETUP_C_OFF}: policy hunk — the permission resolver is missing or failed (fail closed, ADR 004 D4)"
-  else
-    out "  ${SETUP_C_RED}not adopted${SETUP_C_OFF}: policy hunk (config.policy.stage, R4) — $(perm_field "$v" reason)"
-    out "  allow with: $(perm_field "$v" setting_that_would_allow)"
-  fi
-  [ -n "$headless" ] && out "  it needs a typed \"yes\" in a terminal: run 'make capture' (or this review) yourself"
-  N_POLICY_HELD=$((N_POLICY_HELD + 1))
-  return 1
-}
-
 # ask_hunk — [y/N/a/q/s]. Default is skip, always. `s` re-asks rather than
 # consuming the answer, so showing more context is never a decision.
-# A policy hunk is never covered by `a`, `--adopt all` or an id list: once it is
-# selected it still passes policy_gate on its own.
 # Returns: 0 adopt, 1 skip, 2 quit.
 ask_hunk() {
   local d="$1" ans
-  if is_policy_hunk "$d"; then
-    if [ -n "$ADOPT_ALL" ] || adopt_requested "$(field "$d" id)"; then
-      policy_gate "$d"; return $?
-    fi
-    [ -z "$OPT_ADOPT" ] || return 1          # an id list that does not name it
-    perm_can_prompt || return 1
-    policy_gate "$d"; return $?
-  fi
   [ -n "$ADOPT_ALL" ] && return 0
   adopt_requested "$(field "$d" id)" && return 0
   [ -n "$OPT_ADOPT" ] && return 1
@@ -920,7 +823,6 @@ main() {
   if [ "$N_ADOPTED" -eq 0 ]; then
     out ""
     out "Nothing adopted. The repo is untouched."
-    [ "$N_POLICY_HELD" -eq 0 ] || out "  $N_POLICY_HELD policy hunk(s) held back: each needs its own typed \"yes\" in a terminal."
     exit 0
   fi
 
@@ -929,7 +831,6 @@ main() {
 
   out ""
   out "Done. $N_ADOPTED adopted, $N_DECLINED declined."
-  [ "$N_POLICY_HELD" -eq 0 ] || out "  $N_POLICY_HELD policy hunk(s) held back: each needs its own typed \"yes\" in a terminal."
   out ""
   out "  Review:   git diff"
   out "  Deliver:  bash scripts/capture-config.sh deliver"

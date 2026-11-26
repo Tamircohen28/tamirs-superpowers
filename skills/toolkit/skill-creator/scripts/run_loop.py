@@ -17,7 +17,6 @@ from pathlib import Path
 
 from scripts.generate_report import generate_html
 from scripts.improve_description import improve_description
-from scripts.permission_gate import require
 from scripts.run_eval import find_project_root, run_eval
 from scripts.utils import parse_skill_md
 
@@ -267,14 +266,6 @@ def main():
         sys.exit(1)
 
     name, _, _ = parse_skill_md(skill_path)
-
-    # ONE gate for the whole loop, before the first spawn, naming its size.
-    per_iteration = len(eval_set) * args.runs_per_query
-    require(
-        f"start up to {args.max_iterations * (per_iteration + 2)} nested `claude -p` sessions "
-        f"({args.max_iterations} iterations x {len(eval_set)} queries x {args.runs_per_query} runs, "
-        "plus the description rewrites), each a real model call on your account"
-    )
 
     # Set up live report path
     if args.report != "none":

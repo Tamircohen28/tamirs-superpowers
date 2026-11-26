@@ -1,46 +1,6 @@
 {
-  "_comment": "Captured from the live machine 2026-08-19. Merged into ~/.claude/settings.json as permissions.ask. Every docker/colima command that leaves durable state, plus the three make targets that wrap docker. Belt and braces with hooks/docker-guard.py, which still fires under permissions.defaultMode=bypassPermissions where ask does not.",
+  "_comment": "Merged into ~/.claude/settings.json as permissions.ask. Empty on purpose since 6.0.0: nothing this plugin installs may cause a permission prompt (ADR 006). Arrays are replaced wholesale, so the next setup apply also clears the Docker/colima/make-e2e ask rules earlier versions wrote. hooks/docker-guard.py denies durable Docker state instead; a deny never prompts.",
   "permissions": {
-    "ask": [
-      "Bash(docker run:*)",
-      "Bash(docker run *)",
-      "Bash(docker create:*)",
-      "Bash(docker create *)",
-      "Bash(docker start:*)",
-      "Bash(docker start *)",
-      "Bash(docker compose up:*)",
-      "Bash(docker compose up *)",
-      "Bash(docker-compose up:*)",
-      "Bash(docker-compose up *)",
-      "Bash(docker rm:*)",
-      "Bash(docker rm *)",
-      "Bash(docker rmi:*)",
-      "Bash(docker rmi *)",
-      "Bash(docker volume create:*)",
-      "Bash(docker volume create *)",
-      "Bash(docker volume rm:*)",
-      "Bash(docker volume rm *)",
-      "Bash(docker network create:*)",
-      "Bash(docker network create *)",
-      "Bash(docker volume prune:*)",
-      "Bash(docker volume prune *)",
-      "Bash(docker system prune:*)",
-      "Bash(docker system prune *)",
-      "Bash(docker image prune:*)",
-      "Bash(docker image prune *)",
-      "Bash(docker builder prune:*)",
-      "Bash(docker builder prune *)",
-      "Bash(docker container prune:*)",
-      "Bash(docker container prune *)",
-      "Bash(docker buildx rm:*)",
-      "Bash(docker buildx rm *)",
-      "Bash(colima start:*)",
-      "Bash(colima start *)",
-      "Bash(colima delete:*)",
-      "Bash(colima delete *)",
-      "Bash(make e2e-db)",
-      "Bash(make test:ui)",
-      "Bash(make e2e-db-reset)"
-    ]
+    "ask": []
   }
 }

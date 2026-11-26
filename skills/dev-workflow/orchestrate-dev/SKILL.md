@@ -1,7 +1,7 @@
 ---
 name: orchestrate-dev
 description: 'Use when an implementation request is bigger than one unit of work — a spec or plan file, a multi-part feature, a review doc with several items, ''implement all of this'', ''build X end to end'', ''do these N things'', ''orchestrate this'', ''run these in parallel'', ''split this across agents''. A single small change is not orchestration — that falls through to start-dev.'
-when_to_use: 'work through plan.md and implement all of it, orchestrate this across agents, run these tasks in parallel, coordinate workers on this objective, resume objective <id>.'
+when_to_use: work through plan.md and implement all of it, coordinate workers on this objective, resume objective <id>.
 argument-hint: '[objective description, spec/plan file path, issue number, or existing objective id to resume]'
 arguments: []
 disable-model-invocation: false

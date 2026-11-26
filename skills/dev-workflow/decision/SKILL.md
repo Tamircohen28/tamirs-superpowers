@@ -1,7 +1,7 @@
 ---
 name: decision
 description: 'Use when the user must pick between options — an agent has finished work and needs them to choose how to proceed, the user was told "waiting for your decision about X", or they say "display decision", "what''s the decision on/about X", "show me my options for X", "let me choose", "walk me through the open decisions", "what are my action items", "give me a menu of choices", or give a GitHub issue/PR number or URL.'
-when_to_use: '"display decision 141 to me simply and let me choose", "what are my open decisions", "walk me through the action items one by one", "summarize issue #57 and give me options", "let me choose between X and Y".'
+when_to_use: '"display decision 141 to me simply and let me choose", "summarize issue #57 and give me options".'
 argument-hint: "[decision description, GitHub issue/PR number or URL, or empty to scan the conversation]"
 arguments: []
 disable-model-invocation: false

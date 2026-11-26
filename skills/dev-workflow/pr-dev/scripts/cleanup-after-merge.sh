@@ -6,11 +6,11 @@
 # it, and never removes or deletes the worktree/branch it stands in).
 #
 # Usage:
-#   cleanup-after-merge.sh [--repo <owner/name>] [--host <h>] [-v] <PR_NUMBER>
+#   cleanup-after-merge.sh [--repo <owner/name>] [-v] <PR_NUMBER>
 #   cleanup-after-merge.sh -h | --help
 #
-# Nothing is deleted unless ALL of these are established from GitHub (ADR 004
-# D1, audit finding D-1); a check that cannot be answered counts as failed:
+# Nothing is deleted unless ALL of these are established from GitHub (audit
+# finding D-1); a check that cannot be answered counts as failed:
 #   - the PR is MERGED
 #   - its head branch is neither the PR's base nor the repository's default
 #   - the PR is not cross-repository (a fork head named like an origin branch)
@@ -18,13 +18,8 @@
 #     `protected` flag and the rulesets that apply to it), and the remote tip
 #     holds no commit the merged PR did not carry
 #
-# Each deletion then goes through scripts/resolve-permission.sh (found from this
-# file's own path, never from the environment): branch.delete.remote (R3),
-# branch.delete.local (R1), worktree.remove (R1). allow runs it; ask prompts on
-# the terminal and needs a typed "yes" (no terminal = blocked); deny, a missing
-# resolver or an unreadable answer is blocked, with the setting that would allow
-# it. A worktree holding uncommitted changes is never force-removed
-# (work.discard over uncommitted changes is denied: safety invariant 4).
+# A worktree holding uncommitted changes is never force-removed, and a local
+# branch holding commits no remote ref and no merged PR contains is kept.
 #
 # Steps:
 #   1. cd to repo root; read the PR and the repository's default branch
@@ -36,11 +31,11 @@
 #   7. Print git branch -a for verification
 #
 # Exit: 0 everything that existed was cleaned · 3 one or more deletions were
-# skipped or blocked (each is listed under "skipped:") · 1 error · 2 usage.
+# skipped (each is listed under "skipped:") · 1 error · 2 usage.
 set -euo pipefail
 
 usage() {
-  sed -n '2,39p' "$0" | sed 's/^#[ ]\{0,1\}//'
+  sed -n '2,34p' "$0" | sed 's/^#[ ]\{0,1\}//'
   exit "${1:-0}"
 }
 
@@ -49,7 +44,6 @@ if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
 fi
 
 VERBOSE=0
-HOST_ARG=""
 # --repo <owner/name> — pin the repository explicitly.
 #
 # WHY THIS EXISTS
@@ -76,8 +70,6 @@ while [[ $# -gt 0 ]]; do
   case "$1" in
     --repo) _pin_repo "${2:-}"; shift 2;;
     --repo=*) _pin_repo "${1#--repo=}"; shift;;
-    --host) HOST_ARG="${2:-}"; shift 2 || shift;;
-    --host=*) HOST_ARG="${1#--host=}"; shift;;
     -v|--verbose) VERBOSE=1; shift;;
     -*) echo "ERROR: unknown flag: $1" >&2; usage 2;;
     *) PR="$1"; shift;;
@@ -91,76 +83,11 @@ if [[ -z "$PR" ]]; then
 fi
 
 SCRIPT_DIR="$(CDPATH='' cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
-# The permission resolver, from this file's own location: <root>/skills/
-# dev-workflow/pr-dev/scripts/ -> <root>/scripts/. Never from a variable: an
-# environment that can name the resolver can name a fake one that says allow.
-RESOLVER="$SCRIPT_DIR/../../../../scripts/resolve-permission.sh"
 REPO_ROOT=$(git rev-parse --show-toplevel)
 cd "$REPO_ROOT"
 
 SKIPPED=()
 skip_note() { SKIPPED+=("$1"); echo "Skipped: $1"; }
-
-# can_prompt — a human can answer on a terminal: /dev/tty opens and stdout is
-# one. An agent's Bash, CI, a hook or a captured run has neither.
-can_prompt() {
-  [[ -t 1 ]] || return 1
-  { : </dev/tty; } 2>/dev/null || return 1
-  return 0
-}
-
-# gate <action> <target> [--cond name=value ...] — ask the resolver (ADR 004
-# D4). Returns 0 to proceed; 1 when blocked (the reason is recorded).
-gate() {
-  local action="$1" target="$2" out="" rc=0 parsed="" verdict="" reason="" setting="" ans=""
-  shift 2
-  local args=(--action "$action" --skill pr-dev --target "$target" --repo "$REPO_ROOT" --json "$@")
-  [[ -n "$HOST_ARG" ]] && args+=(--host "$HOST_ARG")
-  can_prompt || args+=(--headless)
-  if [[ ! -f "$RESOLVER" ]]; then
-    skip_note "$action $target — blocked: the permission resolver (scripts/resolve-permission.sh) is missing (fail closed, ADR 004 D4)"
-    return 1
-  fi
-  out="$(bash "$RESOLVER" "${args[@]}" 2>/dev/null)" || rc=$?
-  parsed="$(printf '%s' "$out" | python3 -I -S -c '
-import json, sys
-try:
-    d = json.loads(sys.stdin.read())
-    assert isinstance(d, dict)
-except Exception:
-    sys.exit(1)
-one = lambda v: " ".join(str(v).split()) if v is not None else ""
-aw = d.get("setting_that_would_allow") or d.get("allow_with") or {}
-s = ""
-if isinstance(aw, dict):
-    dur = aw.get("durable") if isinstance(aw.get("durable"), list) else []
-    s = "; ".join(one(x) for x in ([aw.get("once")] if aw.get("once") else []) + dur) or one(aw.get("note"))
-print(one(d.get("verdict", d.get("decision"))))
-print(one(d.get("reason")) or one(d.get("decided_by")))
-print(s)
-' 2>/dev/null)" || parsed=""
-  { IFS= read -r verdict; IFS= read -r reason; IFS= read -r setting; } <<<"$parsed" || true
-  if [[ "$rc" -ne 0 || -z "$parsed" ]]; then
-    verdict=deny
-    reason="the permission resolver failed (exit $rc${reason:+: $reason}) — fail closed"
-  fi
-  case "$verdict" in
-    allow) return 0 ;;
-    ask)
-      if can_prompt; then
-        printf '%s on %s needs your confirmation (%s).\nType yes to proceed: ' "$action" "$target" "${reason:-ask}" >/dev/tty
-        IFS= read -r ans </dev/tty || ans=""
-        [[ "$ans" == yes ]] && return 0
-        skip_note "$action $target — declined at the prompt"
-        return 1
-      fi
-      skip_note "$action $target — blocked: needs confirmation and no terminal is attached (${reason:-ask})${setting:+ — allow with: $setting}"
-      return 1 ;;
-    *)
-      skip_note "$action $target — blocked: ${reason:-denied}${setting:+ — allow with: $setting}"
-      return 1 ;;
-  esac
-}
 
 # --- What the PR is -----------------------------------------------------------
 PR_INFO=$(gh pr view "$PR" --json state,headRefName,headRefOid,baseRefName,isCrossRepository \
@@ -188,7 +115,6 @@ if [[ -z "$DEFAULT_BRANCH" ]]; then
   echo "ERROR: cannot determine the default branch to sync — nothing deleted." >&2
   exit 1
 fi
-TARGET="${OWNER_REPO:+$OWNER_REPO#}$PR"
 
 # The D-1 checks every deletion needs. Unknown is a failure, never a pass.
 WHY_NOT=""
@@ -256,13 +182,12 @@ if [[ -n "$WORKTREE_PATH" && -d "$WORKTREE_PATH" ]]; then
   if [[ "$WORKTREE_PATH" == "$REPO_ROOT" ]]; then
     echo "Note: the PR branch worktree is the current directory ($WORKTREE_PATH) — skipping self-removal; the session's worktree lifecycle reclaims it."
   elif [[ -n "$(git -C "$WORKTREE_PATH" status --porcelain 2>/dev/null || echo unreadable)" ]]; then
-    # Never --force over uncommitted changes: that is work.discard, which the
-    # catalog denies over uncommitted changes at every level (safety invariant 4).
-    skip_note "worktree $WORKTREE_PATH — it holds uncommitted changes (work.discard is denied over uncommitted changes); commit or stash them, then re-run"
-  elif gate worktree.remove "$WORKTREE_PATH" --cond discards_work=false; then
+    # Never --force over uncommitted changes: that would discard work.
+    skip_note "worktree $WORKTREE_PATH — it holds uncommitted changes; commit or stash them, then re-run"
+  else
     # A clean worktree: plain remove first. --force only when the plain form
     # refused a clean one (a submodule): on a clean, pushed worktree it discards
-    # nothing (worktree.remove, not worktree.remove.force).
+    # nothing.
     git worktree remove "$WORKTREE_PATH" 2>/dev/null \
       || git worktree remove --force "$WORKTREE_PATH" 2>/dev/null \
       || skip_note "worktree $WORKTREE_PATH — git worktree remove failed (locked?)"
@@ -292,9 +217,8 @@ if git ls-remote --exit-code --heads origin "refs/heads/$BRANCH" >/dev/null 2>&1
   if [[ "$PROTECTED" != false ]]; then
     skip_note "remote branch origin/$BRANCH — protected on GitHub, or its protection could not be read (branch flag '${FLAG:-unreadable}', rules '${RULES:-none}')"
   elif [[ "$UNMERGED" != false ]]; then
-    skip_note "remote branch origin/$BRANCH — its tip ${REMOTE_TIP:0:12} holds commits PR #$PR did not merge (deleting it would be R4)"
-  elif gate branch.delete.remote "$TARGET" --cond pr_merged_not_default_not_cross_repo=true \
-         --cond unmerged_commits=false --cond tag_ref=false; then
+    skip_note "remote branch origin/$BRANCH — its tip ${REMOTE_TIP:0:12} holds commits PR #$PR did not merge"
+  else
     if git push origin --delete "refs/heads/$BRANCH"; then
       git branch -r -d "origin/$BRANCH" >/dev/null 2>&1 || true
     else
@@ -314,8 +238,8 @@ elif [[ "$CUR_BRANCH" == "$BRANCH" ]]; then
 elif [[ -n "$(worktree_of "$BRANCH")" ]]; then
   skip_note "local branch $BRANCH — still checked out in a worktree that was kept"
 elif [[ "$LOCAL_UNMERGED" != false ]]; then
-  skip_note "local branch $BRANCH — it holds commits no remote ref and no merged PR contains (deleting it would be R3)"
-elif gate branch.delete.local "$TARGET" --cond unmerged_no_remote_copy=false; then
+  skip_note "local branch $BRANCH — it holds commits no remote ref and no merged PR contains"
+else
   git branch -D "$BRANCH" >/dev/null 2>&1 || skip_note "local branch $BRANCH — git branch -D failed"
 fi
 git remote prune origin >/dev/null 2>&1 || true

@@ -17,27 +17,17 @@
 # skill instead; this script is the safe deterministic core of it.
 #
 # Usage:
-#   cleanup.sh [--dry-run] [--remote-only | --local-only] [--yes] [--host <h>] [REPO_PATH]
+#   cleanup.sh [--dry-run] [--remote-only | --local-only] [--yes] [REPO_PATH]
 #
 # Flags:
 #   --dry-run       Print the plan; change nothing. (Default when --yes absent.)
 #   --yes           Actually execute the safe deletions. Without it, dry-run.
 #   --remote-only   Only the remote merged-branch phase.
 #   --local-only    Only the worktree + build-file + ff-sync phases.
-#   --host <h>      The agent host (claude | codex | cursor | gemini | opencode),
-#                   passed to the permission resolver.
 #   -h, --help      Show this help.
 #   REPO_PATH       Repo to operate on (default: current directory).
 #
-# PERMISSIONS (ADR 004). --yes skips no permission gate: it only turns the
-# dry-run into a run. Every remote branch deletion (branch.delete.remote, R3)
-# and every worktree removal (worktree.remove) is first decided by
-# scripts/resolve-permission.sh, found from this file's own path: allow runs it;
-# ask prompts on the terminal for a typed "yes", and with no terminal attached
-# is blocked; deny, a missing resolver or an unreadable answer is blocked. A
-# blocked step is listed with the setting that would allow it and exits 3.
-#
-# What is never deleted, whatever is allowed:
+# What is never deleted, even with --yes:
 #   - a branch GitHub reports protected (its `protected` flag, or a ruleset
 #     deletion/update/non-fast-forward rule), or whose protection cannot be read
 #   - a branch sitting at the default branch's tip (no commits of its own yet)
@@ -46,22 +36,13 @@
 #     remote ref contains (also when origin/<branch> does not exist), holds a
 #     live agent claim, or belongs to an objective task that is not finished
 #
-# Exit codes: 0 success (incl. dry-run), 1 usage/precondition error, 3 one or
-# more deletions were blocked by the permission gate.
+# Exit codes: 0 success (incl. dry-run), 1 usage/precondition error.
 
 set -uo pipefail
 
 DRY_RUN=1        # safe by default; --yes flips to 0
 SCOPE="all"      # all | remote | local
 REPO_PATH="."
-HOST_ARG=""
-BLOCKED=0
-
-# The permission resolver, from this file's own location: <root>/skills/repo/
-# cleanup/scripts/ -> <root>/scripts/. Never from a variable: an environment
-# that can name the resolver can name a fake one that always says allow.
-SCRIPT_DIR="$(CDPATH='' cd -- "$(dirname -- "${BASH_SOURCE[0]}")" 2>/dev/null && pwd -P)" || SCRIPT_DIR=""
-RESOLVER="${SCRIPT_DIR:+$SCRIPT_DIR/../../../../scripts/resolve-permission.sh}"
 
 die()  { printf 'cleanup.sh: %s\n' "$1" >&2; exit 1; }
 say()  { printf '%s\n' "$1"; }
@@ -85,8 +66,6 @@ while [[ $# -gt 0 ]]; do
     --yes)         DRY_RUN=0 ;;
     --remote-only) SCOPE="remote" ;;
     --local-only)  SCOPE="local" ;;
-    --host)        HOST_ARG="${2:-}"; shift ;;
-    --host=*)      HOST_ARG="${1#--host=}" ;;
     -h|--help)     awk 'NR > 1 && /^#/ { sub(/^# ?/, ""); print; next } NR > 1 { exit }' "$0"; exit 0 ;;
     -*)            die "unknown flag: $1" ;;
     *)             REPO_PATH="$1" ;;
@@ -116,7 +95,7 @@ if [[ -z "$DEFAULT" ]]; then
   die "cannot resolve the default branch (gh unavailable and origin/HEAD unset). Run 'git remote set-head origin --auto'. Refusing to guess a name — every deletion below is measured against 'origin/<default>', and a wrong name makes 'git branch --merged' return nothing or, worse, the wrong set."
 fi
 
-# The repository as owner/name: the target the resolver and the claim keys name.
+# The repository as owner/name: what the GitHub API calls and the claim keys name.
 SLUG=""
 if [[ $HAVE_GH -eq 1 ]]; then
   SLUG=$(gh repo view --json nameWithOwner -q .nameWithOwner 2>/dev/null)
@@ -125,65 +104,6 @@ if [[ -z "$SLUG" ]]; then
   SLUG=$(git remote get-url origin 2>/dev/null | sed -E 's#^git@[^:]+:##; s#^[a-z]+://[^/]+/##; s#\.git$##')
   case "$SLUG" in */*/*|/*|"") SLUG="" ;; esac
 fi
-
-# can_prompt — a human can answer on a terminal: /dev/tty opens and stdout is
-# one. A sub-agent's Bash, a Workflow stage, CI or a captured run has neither.
-can_prompt() {
-  [[ -t 1 ]] || return 1
-  { : </dev/tty; } 2>/dev/null || return 1
-  return 0
-}
-
-# gate <action> <target> [--cond name=value ...] — ask the resolver (ADR 004
-# D4) before a deletion. 0 = proceed; 1 = blocked (printed, BLOCKED counted).
-gate() {
-  local action="$1" target="$2" out="" rc=0 parsed="" verdict="" reason="" setting="" ans=""
-  shift 2
-  local args=(--action "$action" --skill cleanup --target "$target" --repo "$ROOT" --json "$@")
-  [[ -n "$HOST_ARG" ]] && args+=(--host "$HOST_ARG")
-  can_prompt || args+=(--headless)
-  if [[ -z "$RESOLVER" || ! -f "$RESOLVER" ]]; then
-    say "  blocked ($action): the permission resolver (scripts/resolve-permission.sh) is missing — fail closed: $target"
-    BLOCKED=$((BLOCKED + 1)); return 1
-  fi
-  out="$(bash "$RESOLVER" "${args[@]}" 2>/dev/null)" || rc=$?
-  parsed="$(printf '%s' "$out" | python3 -I -S -c '
-import json, sys
-try:
-    d = json.loads(sys.stdin.read())
-    assert isinstance(d, dict)
-except Exception:
-    sys.exit(1)
-one = lambda v: " ".join(str(v).split()) if v is not None else ""
-aw = d.get("setting_that_would_allow") or d.get("allow_with") or {}
-s = ""
-if isinstance(aw, dict):
-    dur = aw.get("durable") if isinstance(aw.get("durable"), list) else []
-    s = "; ".join(one(x) for x in ([aw.get("once")] if aw.get("once") else []) + dur) or one(aw.get("note"))
-print(one(d.get("verdict", d.get("decision"))))
-print(one(d.get("reason")) or one(d.get("decided_by")))
-print(s)
-' 2>/dev/null)" || parsed=""
-  { IFS= read -r verdict; IFS= read -r reason; IFS= read -r setting; } <<<"$parsed" || true
-  if [[ "$rc" -ne 0 || -z "$parsed" ]]; then
-    verdict=deny; reason="the permission resolver failed (exit $rc) — fail closed"
-  fi
-  case "$verdict" in
-    allow) return 0 ;;
-    ask)
-      if can_prompt; then
-        printf '%s on %s needs your confirmation (%s).\nType yes to proceed: ' "$action" "$target" "${reason:-ask}" >/dev/tty
-        IFS= read -r ans </dev/tty || ans=""
-        [[ "$ans" == yes ]] && return 0
-        say "  keep (declined at the prompt): $target"; return 1
-      fi
-      say "  blocked ($action needs confirmation; no terminal attached${reason:+: $reason}): $target${setting:+ — allow with: $setting}" ;;
-    *)
-      say "  blocked ($action${reason:+: $reason}): $target${setting:+ — allow with: $setting}" ;;
-  esac
-  BLOCKED=$((BLOCKED + 1))
-  return 1
-}
 
 # gh_protected <branch> — true | false | unknown, from GitHub, never a name:
 # the branch's `protected` flag (classic protection) and the rulesets that
@@ -323,7 +243,7 @@ remote_phase() {
     return
   fi
 
-  local br has_pr tip default_tip prot merged_pr conds
+  local br has_pr tip default_tip prot
   default_tip=$(git rev-parse --verify --quiet "refs/remotes/origin/$DEFAULT" 2>/dev/null)
   while IFS= read -r br; do
     [[ -z "$br" ]] && continue
@@ -348,19 +268,7 @@ remote_phase() {
       say "  keep (protected on GitHub, or its protection could not be read: $prot): $br"
       continue
     fi
-    # Merged into the default branch (git said so above), and not a tag.
-    conds=(--cond unmerged_commits=false --cond tag_ref=false)
-    # The unattended precondition holds only with a merged, same-repo PR for it.
-    merged_pr=$(gh pr list --head "$br" --state merged --json number,isCrossRepository,baseRefName \
-      -q "[.[] | select(.isCrossRepository == false and .baseRefName != \"$br\")] | length" 2>/dev/null)
-    [[ "${merged_pr:-0}" =~ ^[1-9] ]] && conds+=(--cond pr_merged_not_default_not_cross_repo=true)
-    if [[ $DRY_RUN -eq 1 ]]; then
-      act "delete merged branch: $br (branch.delete.remote, R3: --yes asks the permission resolver first)" true
-    elif gate branch.delete.remote "${SLUG:-.}" "${conds[@]}"; then
-      act "delete merged branch: $br" git push origin --delete "refs/heads/$br"
-    else
-      continue
-    fi
+    act "delete merged branch: $br" git push origin --delete "refs/heads/$br"
     deleted=$((deleted + 1))
   done <<< "$merged"
 
@@ -440,11 +348,7 @@ classify_worktree() {
   if [[ $merged -eq 0 ]]; then
     say "  keep (branch not merged): $path"; return 1
   fi
-  # Clean, nothing ignored, nothing unpushed: --force here discards nothing
-  # (worktree.remove with discards_work=false, not worktree.remove.force).
-  if [[ $DRY_RUN -eq 0 ]] && ! gate worktree.remove "$path" --cond discards_work=false; then
-    return 1
-  fi
+  # Clean, nothing ignored, nothing unpushed: --force here discards nothing.
   act "remove stale-clean worktree: $path" git worktree remove --force "$path"
   return 0
 }
@@ -511,9 +415,6 @@ fi
 
 if [[ $DRY_RUN -eq 1 ]]; then
   say "Dry-run complete — no changes made. Re-run with --yes to apply the safe subset."
-elif [[ $BLOCKED -gt 0 ]]; then
-  say "Done — safe subset applied; $BLOCKED step(s) blocked by the permission gate (listed above)."
-  exit 3
 else
   say "Done — safe subset applied."
 fi

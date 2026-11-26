@@ -1,10 +1,9 @@
 ---
 name: docs-review
-description: 'Use when README.md and docs/** need a full documentation audit — a sweep for broken links, stale
-  counts, template conformance, agent-instruction consistency, install-command accuracy and generated
-  skill and platform tables. Invoked by repo-standards polish phase 6; not for direct user invocation.'
-when_to_use: 'Phrases: "run docs-review on $PROJECT_DIR", "verify our install commands are accurate", "re-run the
-  doc audit after I fixed the P1 items".'
+description: Use when README.md and docs/** need a full documentation audit — broken links, stale counts,
+  template conformance, agent-instruction consistency, install-command accuracy, generated skill and platform
+  tables. Invoked by repo-standards polish phase 6; not for direct user invocation.
+when_to_use: '"run docs-review on $PROJECT_DIR", "re-run the doc audit after I fixed the P1 items".'
 argument-hint: '[optional: subset glob like ''docs/user/**'' or single file path]'
 arguments: []
 disable-model-invocation: false

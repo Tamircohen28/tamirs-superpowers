@@ -497,8 +497,7 @@ def pid_is_collector(pid: int) -> bool:
     """True only when <pid>'s command line is this collector.
 
     A stale pid file plus PID reuse would otherwise signal an unrelated process
-    (audit other-skills F10): stopping the plugin's own daemon by a verified PID
-    is daemon.stop (R2); any other PID would be process.kill (R3, ADR 004 D1).
+    (audit other-skills F10).
     """
     try:
         out = subprocess.run(

@@ -1,7 +1,7 @@
 ---
 name: diagnose-objective
-description: 'Use when an orchestrated objective failed, stalled or looks wrong and you need to know why from its state files — ''why did objective X fail'', ''diagnose the objective'', ''what happened to task-003'', ''the orchestration stalled'', ''a worker never handed off'', ''the integration branch is missing work'', ''explain this failed objective'', ''post-mortem the objective'', a task stuck running after the others finished, a handoff that says completed with no validation, or a session that died on a rate limit mid-objective. Reads .dev-files/objectives/<id>/ and writes diagnosis.md; never re-runs, re-plans or integrates anything. Not for a stack trace (targeted-debug), a refused request (diagnose-refusal) or a session retro (retro).'
-when_to_use: 'why did objective auth-system fail; diagnose objective <id>; what happened to task-002, it never handed off; the orchestration stalled, which task is stuck; explain the failed objective and tell me the next command.'
+description: Use when an orchestrated objective failed, stalled or looks wrong and you need to know why from its state files — 'why did objective X fail', 'diagnose the objective', 'what happened to task-003', 'the orchestration stalled', 'a worker never handed off', 'the integration branch is missing work', a task stuck running, a handoff that says completed with no validation, or a session that died on a rate limit mid-objective. Reads .dev-files/objectives/<id>/ and writes diagnosis.md; never re-runs or re-plans. Not for a stack trace (targeted-debug), a refused request (diagnose-refusal) or a session retro (retro).
+when_to_use: diagnose objective <id>; which task is stuck; explain the failed objective and tell me the next command.
 argument-hint: '[objective-id]'
 arguments: []
 disable-model-invocation: false

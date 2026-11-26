@@ -20,16 +20,6 @@
 #   --yes, -y       do not prompt; take the default action for every change
 #   --dry-run       synonym for the `plan` verb
 #   --json          machine-readable plan on stdout, humans on stderr
-#   --permission-level <supervised|standard|unattended>
-#                   set the plugin's permission level (ADR 004) in the user file
-#                   the resolver reads. Without it, `apply` on a terminal asks when
-#                   Codex, Cursor or OpenCode is in scope (they have no install-time
-#                   option); a run that cannot prompt writes nothing, and an existing
-#                   file changes only after its diff is confirmed on a terminal
-#   --codex-rules   also write the OPTIONAL Codex execpolicy rules
-#                   (~/.codex/rules/tamirs-superpowers.rules; experimental in Codex)
-#   --no-codex-rules
-#                   do not write or refresh them, and do not ask
 #   --verbose, -v   detailed logging to stderr
 #   --help, -h      this text
 #
@@ -38,28 +28,16 @@
 #   SETUP_TARGETS=a,b        same as --targets
 #   SETUP_ONLY=<module>      same as --only
 #   SETUP_DESTRUCTIVE=skip   never touch a user-customised file, even with --yes
-#   SETUP_PERMISSION_LEVEL=<level>  same as --permission-level
-#   SETUP_CODEX_RULES=1|0    same as --codex-rules / --no-codex-rules
 #
 # EXAMPLES
 #   bash scripts/setup.sh plan
 #   bash scripts/setup.sh apply --targets claude
 #   bash scripts/setup.sh apply --yes --only statusline
 #   bash scripts/setup.sh remove --targets claude
-#   bash scripts/setup.sh apply --targets codex --permission-level standard
-#   bash scripts/setup.sh apply --targets codex --codex-rules
-#
-# PERMISSION LEVEL
-#   Not a module: the user file (<passwd home>/.config/tamirs-superpowers/
-#   permissions.json, 0600, plus its lock) is your policy, so `remove` leaves it
-#   and `--only permission-level` runs this step alone. Claude Code and Gemini CLI
-#   set the level in their own installers; setup prints that route instead of
-#   asking twice. Details: scripts/lib/setup-common.sh.
 #
 # EXIT CODES
 #   0  success, or "no TTY so here is the plan instead"
-#   1  failure (bad flag, unknown target, missing required dependency, or an
-#      explicit --permission-level that could not be applied)
+#   1  failure (bad flag, unknown target, missing required dependency)
 #
 # STDIN IS NEVER READ. Prompts go to /dev/tty. A run with no terminal and no
 # --yes prints the plan and exits 0 — it never adopts silently and never blocks.
@@ -80,8 +58,6 @@ OPT_ONLY="${SETUP_ONLY:-}"
 OPT_JSON=""
 SETUP_YES="${SETUP_YES:-}"
 SETUP_VERBOSE="${SETUP_VERBOSE:-}"
-SETUP_PERMISSION_LEVEL="${SETUP_PERMISSION_LEVEL:-}"
-SETUP_CODEX_RULES="${SETUP_CODEX_RULES:-}"
 
 usage() { sed -n '2,/^set -euo/p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//; $d'; }
 
@@ -100,10 +76,6 @@ while [ $# -gt 0 ]; do
     --yes|-y)  SETUP_YES=1 ;;
     --dry-run) VERB="plan" ;;
     --json)    OPT_JSON=1 ;;
-    --permission-level) shift; [ $# -gt 0 ] || setup_die "--permission-level needs a value"; SETUP_PERMISSION_LEVEL="$1" ;;
-    --permission-level=*) SETUP_PERMISSION_LEVEL="${1#*=}" ;;
-    --codex-rules) SETUP_CODEX_RULES=1 ;;
-    --no-codex-rules) SETUP_CODEX_RULES=0 ;;
     --verbose|-v) SETUP_VERBOSE=1 ;;
     --help|-h) usage; exit 0 ;;
     --) shift; break ;;
@@ -120,19 +92,6 @@ if [ -z "$VERB" ]; then
 fi
 
 setup_require jq "brew install jq / apt-get install jq — required to merge JSON config"
-
-if [ -n "$SETUP_PERMISSION_LEVEL" ] && ! setup_perm_valid_level "$SETUP_PERMISSION_LEVEL"; then
-  setup_die "unknown permission level '$SETUP_PERMISSION_LEVEL' (known: supervised,standard,unattended)"
-fi
-
-# Modules that prompt while the plan is being built (the Codex rules opt-in) do so
-# only on an interactive apply: never under plan, remove, --json or --yes.
-# Read by scripts/lib/setup-codex.sh, which is sourced per target at run time.
-SETUP_INTERACTIVE_APPLY=no
-if [ "$VERB" = apply ] && [ -z "$OPT_JSON" ] && setup_can_prompt; then
-  # shellcheck disable=SC2034
-  SETUP_INTERACTIVE_APPLY=yes
-fi
 
 # Reject unknown targets before doing any work.
 REQUESTED=""
@@ -220,25 +179,6 @@ DETECT_LINES="$WORK/detect"
 # told apart from a genuinely empty plan. Silent success on a typo is the worst
 # outcome here: the user believes a module ran.
 SEEN_MODULES=""
-
-# Permission level route per detected target (ADR 004 D7): `prompt` where the
-# host has no install-time option, a note where its own installer asks.
-SETUP_PERM_PROMPT_ROUTE=no
-SETUP_PERM_NOTES=""
-
-collect_permission_route() {
-  local r
-  r="$(call "$(printf '%s_permission_level_route' "$(printf '%s' "$1" | tr '-' '_')")")"
-  case "$r" in
-    prompt) SETUP_PERM_PROMPT_ROUTE=yes ;;
-    note:*)
-      case "$SETUP_PERM_NOTES" in
-        *"${r#note:}"*) ;;
-        *) SETUP_PERM_NOTES="${SETUP_PERM_NOTES:+$SETUP_PERM_NOTES
-}${r#note:}" ;;
-      esac ;;
-  esac
-}
 
 detect_target() {
   local bin=""
@@ -408,7 +348,6 @@ build_plan() {
     detect_target
     printf '%s\t%s\t%s\t%s\t%s\n' "$SETUP_NAME" "$SETUP_DISPLAY" "$DETECTED" "$DETECT_WHY" "$SETUP_STATUS" >> "$DETECT_LINES"
     [ "$DETECTED" = yes ] || continue
-    collect_permission_route "$t"
 
     if [ -z "$SETUP_MODULES" ]; then
       add_item "$SETUP_NAME" "$SETUP_DISPLAY" "-" "-" none "$SETUP_TARGET_DIR" skip \
@@ -714,26 +653,10 @@ apply_plan() {
 }
 
 # ---------------------------------------------------------------------------
-# permission_step <plan|apply|remove> — the level step, when --only allows it.
-# An explicit --permission-level always runs. Its exit status is kept in PERM_RC
-# so a write that failed still lets the rest of the summary print.
-PERM_RC=0
-permission_step() {
-  if [ -z "$SETUP_PERMISSION_LEVEL" ] && ! module_selected permission-level; then return 0; fi
-  local rc=0
-  if [ -z "$OPT_JSON" ]; then
-    setup_permission_level_step "$1" || rc=$?
-  else
-    setup_permission_level_step "$1" >&2 || rc=$?
-  fi
-  [ "$rc" -eq 0 ] || PERM_RC=1
-  return 0
-}
-
 main() {
   build_plan
 
-  if [ -n "$OPT_ONLY" ] && [ "$ITEM_N" -eq 0 ] && [ -n "$SEEN_MODULES" ] && ! module_selected permission-level; then
+  if [ -n "$OPT_ONLY" ] && [ "$ITEM_N" -eq 0 ] && [ -n "$SEEN_MODULES" ]; then
     setup_err "--only '$OPT_ONLY' matched no module"
     printf 'available for the selected target(s):%s\n' \
       "$(printf '%s' "$SEEN_MODULES" | tr ' ' '\n' | sort -u | tr '\n' ' ' | sed 's/^ */ /')" >&2
@@ -751,32 +674,24 @@ main() {
   n_change=$(( $(count_status modify) + $(count_status create) + $(count_status delete) ))
 
   if [ "$VERB" = plan ]; then
-    permission_step plan
     out "Nothing has been written. Re-run with 'apply' to make these changes."
-    exit 0
-  fi
-
-  # The stdin resolution, in one place: with no way to ask and no explicit --yes,
-  # a plan is a useful, safe, zero-side-effect result. Never adopt silently,
-  # never error, never block. The permission step obeys it too: it only plans.
-  if ! setup_can_prompt && [ -z "$SETUP_YES" ]; then
-    if [ "$n_change" -eq 0 ]; then
-      out "Everything is already up to date. Nothing to do."
-    else
-      setup_note "no TTY — cannot prompt. Showing the plan instead; re-run with --yes to apply."
-    fi
-    permission_step plan
     exit 0
   fi
 
   if [ "$n_change" -eq 0 ]; then
     out "Everything is already up to date. Nothing to do."
-    permission_step "$VERB"
-    exit "$PERM_RC"
+    exit 0
+  fi
+
+  # The stdin resolution, in one place: with no way to ask and no explicit --yes,
+  # a plan is a useful, safe, zero-side-effect result. Never adopt silently,
+  # never error, never block.
+  if ! setup_can_prompt && [ -z "$SETUP_YES" ]; then
+    setup_note "no TTY — cannot prompt. Showing the plan instead; re-run with --yes to apply."
+    exit 0
   fi
 
   apply_plan
-  [ -n "$QUIT" ] || permission_step "$VERB"
 
   out ""
   if [ -n "$QUIT" ]; then
@@ -787,7 +702,7 @@ main() {
   out ""
   out "  Verify:   bash scripts/doctor.sh ."
   if [ "$VERB" = apply ]; then out "  Undo:     bash scripts/setup.sh remove"; fi
-  exit "$PERM_RC"
+  exit 0
 }
 
 main

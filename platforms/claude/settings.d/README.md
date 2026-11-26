@@ -40,7 +40,7 @@ jq -s 'map(with_entries(select(.key|startswith("_")|not)))
 |---|---|---|
 | `defaults.json` | `$schema`, `model`, `effortLevel`, `theme`, `tui`, `permissions.defaultMode`, 11 UX booleans | `model` is `opus[1m]` (the 1M-context variant), `effortLevel` is `medium` |
 | `permissions-allow.json` | `permissions.allow` — 50 entries | 14 general + 36 docker read-only |
-| `permissions-ask.json` | `permissions.ask` — 39 entries | every mutating docker/colima command + 3 `make` targets that wrap docker |
+| `permissions-ask.json` | `permissions.ask` — empty | since 6.0.0 the plugin installs no ask rule (ADR 006); `hooks/docker-guard.py` denies durable Docker state instead |
 | `auto-mode.json` | `autoMode.soft_deny` | `$defaults` plus the docker-containers prose rule |
 | `misc.json` | `skillOverrides`, `disableClaudeAiConnectors`, `disabledMcpjsonServers`, `env` | |
 | `plugins.json` | `enabledPlugins` — 23 keys, **8 true / 15 false** | the `false` entries are intentional; see below |

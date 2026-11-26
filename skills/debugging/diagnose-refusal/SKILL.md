@@ -1,15 +1,13 @@
 ---
 name: diagnose-refusal
-description: 'Use when a coding-agent session refused, blocked, filtered, or returned HTTP 403/401/429 instead of
-  doing the asked work, and the user needs to know WHICH LAYER refused — harness policy, project
-  instructions, LiteLLM guardrail/routing, upstream provider filter, model refusal, tool permission,
-  or context contamination. Triggers: ''diagnose refusal'', ''/diagnose-refusal'', ''why did it
-  refuse'', ''where did the refusal come from'', ''GLM refused'', ''LiteLLM blocked'', ''provider
-  filter'', ''model refused'', ''HTTP 403 from the model'', ''safety refusal'', ''cannot tell if this
-  is the model or the proxy''.'
-when_to_use: 'Phrases: ''diagnose refusal — GLM through LiteLLM started blocking'', ''which layer killed it:
-  harness, proxy, or model?'', ''write a diagnostic bundle''. Not for ordinary stack-trace bugs — that
-  is targeted-debug.'
+description: 'Use when a coding-agent session refused, blocked, filtered, or returned HTTP 403/401/429
+  instead of doing the asked work, and the user needs to know WHICH LAYER refused — harness policy, project
+  instructions, LiteLLM guardrail/routing, upstream provider filter, model refusal, tool permission, or
+  context contamination. Triggers: ''diagnose refusal'', ''why did it refuse'', ''where did the refusal
+  come from'', ''GLM refused'', ''LiteLLM blocked'', ''provider filter'', ''HTTP 403 from the model'',
+  ''safety refusal'', ''cannot tell if this is the model or the proxy''.'
+when_to_use: 'Phrases: ''which layer killed it: harness, proxy, or model?'', ''write a diagnostic bundle''.
+  Not for ordinary stack-trace bugs — that is targeted-debug.'
 argument-hint: '[notes about the refusal — model name, proxy, skill that triggered it]'
 arguments: []
 disable-model-invocation: false

@@ -34,6 +34,12 @@ turns them off.
 8. **Never claim a platform feature works without evidence.** "Supports X"
    means a test or validation command demonstrates X. A manifest file existing
    is not evidence (spec §2.6).
+9. **Never weaken a quality gate to get green.** Lowering a coverage floor or
+   threshold, marking a test skipped or `.only`, loosening a lint or type rule,
+   or raising a timeout to hide slowness is not a fix. When a gate cannot be
+   met, stop and report the gap and the options; moving the gate is the user's
+   decision, made explicitly. Invariant 2 covers security gates; this one covers
+   every other gate.
 
 Every one of these is enforceable by inspection: a violation is visible in the
 diff, the handoff, or the command log.
@@ -50,7 +56,7 @@ skill frontmatter.
 |--------|---------|---------------------|
 | Every task gets a PR | **No** — one objective, one PR (`delivery.md`) | Independent deliverables, security isolation, or deploy sequencing can justify more; a scratch objective may justify none |
 | Every worker runs the full test suite | **No** — Tier 1 is targeted (`validation.md`) | A task touching a shared core may warrant the full suite; most do not |
-| Every PR auto-merges | Off unless configured | Auto-merge is the action `pr.merge.auto`, decided only by `scripts/resolve-permission.sh` per [ADR 004](../../docs/engineering/decisions/004-permission-levels.md) (D2, D4): a user-file allow or a trusted project file turns it on, and the repository must also allow auto-merge. `TAMIRS_AUTO_MERGE=always` and an objective's `delivery.auto_merge: true` grant nothing. **R4 actions — `gh pr merge --admin` among them — are never automatic at any level**: only the human's approval of that very call passes one, and no file, env or ticket does |
+| Every PR auto-merges | Off unless configured | Branch protection, review requirements, and user preference decide this — never force it |
 | Every branch is fully updated before merge | Loose by default | Strict-update policy is a repository setting; forcing it wastes CI on every unrelated push |
 | Every skill carries Claude-specific frontmatter fields | **No** | Portable core frontmatter is canonical; Claude fields live in the platform extension namespace (spec §3.4) |
 

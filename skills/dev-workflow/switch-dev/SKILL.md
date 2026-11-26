@@ -1,7 +1,7 @@
 ---
 name: switch-dev
-description: 'Use when switching AI coding platforms mid-task without losing context — Claude Code, Cursor, Codex, Gemini CLI, OpenCode. Triggers: switch agent, hand off issue, resume issue, rate limited — switch platform, continue on Cursor, continue on Gemini, continue in OpenCode, pick up where I left off, update the resume block, cross-platform handoff, switch-dev, agent handoff, which issues each agent owns.'
-when_to_use: 'hand off issue #N, resume #N on Cursor, switch to Codex, continue this work on Gemini CLI, pick up where I left off, switch-dev status.'
+description: 'Use when switching AI coding platforms mid-task without losing context — Claude Code, Cursor, Codex, Gemini CLI, OpenCode. Triggers: switch agent, hand off issue, resume issue, rate limited — switch platform, continue on Cursor or Gemini, pick up where I left off, update the resume block, cross-platform handoff, which issues each agent owns.'
+when_to_use: 'hand off issue #N, resume #N on Cursor, switch to Codex, switch-dev status.'
 argument-hint: '[handoff|resume|status] [#issue | objective=<id> | task-NNN] [target platform]'
 arguments:
 - mode
@@ -305,4 +305,4 @@ Print:
 
 ## Scope boundary
 
-This skill moves **task/session state** between tools. It does NOT configure MCP servers, install external orchestrators, run validation, or modify hook worktree paths under `~/.claude/worktrees/`.
+This skill moves **task/session state** between tools. It does NOT configure MCP servers, install external orchestrators, run validation, or modify hook worktree paths under the session worktree root (`~/.session-worktrees/`, or the legacy `~/.claude/worktrees/`).

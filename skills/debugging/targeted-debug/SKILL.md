@@ -1,15 +1,12 @@
 ---
 name: targeted-debug
-description: 'Use when the user pastes a stack trace, traceback, panic, crash log, or error message with a
-  file:line and wants the root cause. Triggers: ''debug this error'', ''look at this stack trace'',
-  ''why does X crash'', ''what causes this exception'', ''why is this panicking'', ''look at this
-  file:line'', and error types (NullPointerException, AttributeError, TypeError, nil pointer
-  dereference, unwrap on None, index out of bounds, segfault, unbound variable, cannot read properties
-  of undefined). Not for vague ''something is broken'' or ''why is it slow'' with no concrete error
-  signal.'
-when_to_use: 'Phrases: ''debug this NullPointerException'', ''here''s the traceback — what''s the root cause'',
-  ''why is this segfaulting'', ''look at src/pay.rs:91 — index out of bounds''. Not when there is no
-  stack trace or concrete error message.'
+description: 'Use when the user pastes a stack trace, traceback, panic, crash log, or error message with
+  a file:line and wants the root cause. Triggers: ''debug this error'', ''look at this stack trace'',
+  ''why does X crash'', ''what causes this exception'', and error types (NullPointerException, AttributeError,
+  TypeError, nil pointer dereference, unwrap on None, index out of bounds, segfault, cannot read properties
+  of undefined). Not for vague ''something is broken'' or ''why is it slow'' with no concrete error signal.'
+when_to_use: 'Phrases: ''here''s the traceback — what''s the root cause'', ''look at src/pay.rs:91 — index
+  out of bounds''.'
 argument-hint: <error-message-or-stack-trace> [file:line ...]
 arguments: []
 disable-model-invocation: false

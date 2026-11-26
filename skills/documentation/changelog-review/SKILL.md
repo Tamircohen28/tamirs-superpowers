@@ -1,14 +1,11 @@
 ---
 name: changelog-review
-description: 'Use when a Claude Code plugin project needs auditing against live official docs — hooks.json,
-  SKILL.md, plugin.json, MCP config — for misuse, broken hook paths, stale patterns and missed
-  capabilities. Invoked by repo-standards polish phase 6; also callable by any skill needing a
-  live-doc-grounded answer about Claude Code hooks, skills, plugin.json or MCP. Version agreement
-  across manifests and badges is delegated to plugin-version.json + scripts/check-version-truth.sh.
-  Never invoke directly — use repo-standards.'
-when_to_use: 'Phrases from delegating skills: "audit this plugin project for Claude Code misuse", "what changed
-  between Claude Code vX and vY", "review my hooks.json / SKILL.md / plugin.json against the official
-  docs", "is this Claude Code config correct".'
+description: Use when a Claude Code plugin project needs auditing against live official docs — hooks.json,
+  SKILL.md, plugin.json, MCP config — for misuse, broken hook paths, stale patterns and missed capabilities.
+  Invoked by repo-standards polish phase 6 and by skills needing a live-doc-grounded answer about Claude
+  Code config. Never invoke directly — use repo-standards.
+when_to_use: '"audit this plugin project for Claude Code misuse", "review my hooks.json against the official
+  docs".'
 argument-hint: '[plugin project path or omit for current repo]'
 arguments: []
 disable-model-invocation: false

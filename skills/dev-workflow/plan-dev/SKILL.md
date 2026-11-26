@@ -1,7 +1,7 @@
 ---
 name: plan-dev
-description: 'Use when informal work — a task, a feature request, a spec, a review doc, a list of features to implement — must become a structured plan before any code is written. Invoke for: ''plan this'', ''plan-dev'', ''break into phases'', ''break this into phases'', ''create issues for this'', ''decompose this spec/task'', ''turn into tickets'', ''turn this into tickets'', ''structure this feature'', ''what order should I tackle these''. Not architecture analysis of existing code or a direct coding request — the output is a roadmap, not code.'
-when_to_use: '''help me organize this work'', ''what order should I do this in'', ''I have a review doc with N items help me organize it'', ''turn this GitHub issue into sub-tasks'', ''structure this work into phases before I start coding''.'
+description: 'Use when informal work — a task, a feature request, a spec, a review doc, a list of features — must become a structured plan before any code is written. Invoke for: ''plan this'', ''plan-dev'', ''break this into phases'', ''create issues for this'', ''decompose this spec'', ''turn this into tickets'', ''structure this feature'', ''what order should I tackle these''. Not architecture analysis of existing code or a direct coding request — the output is a roadmap, not code.'
+when_to_use: '''help me organize this work'', ''I have a review doc with N items help me organize it'', ''turn this GitHub issue into sub-tasks''.'
 argument-hint: '[task description, file path to spec/review doc, or GitHub issue URL/number]'
 arguments: []
 disable-model-invocation: false
