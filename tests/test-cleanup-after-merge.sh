@@ -260,6 +260,18 @@ run_pinned
 judge "remote branch already gone (404) => nothing to delete, exit 0" "no 0" "$(api_deleted feature) $RC"
 judge "  ... and says so" yes "$(out_has "is already gone")"
 
+# Git allows '#' in a branch name. Interpolated raw into an API path it ends the
+# path, so 'feature#fix' would address — and could DELETE — 'feature'.
+new_world
+pr_json MERGED "feature#fix" main false
+printf '{"object":{"sha":"%s"}}\n' "$HEAD_OID" > "$GHS/oref-feature%23fix.json"
+printf '{"name":"feature#fix","protected":false}\n' > "$GHS/obranch-feature%23fix.json"
+run_pinned
+judge "a branch name with '#' is percent-encoded in the API path" yes "$(api_deleted 'feature%23fix')"
+judge "  ... and never sent raw (that would address 'feature')" no \
+  "$(grep -q 'heads/feature#' "$GHS/calls.log" 2>/dev/null && echo yes || echo no)"
+judge "  ... exit 0" 0 "$RC"
+
 new_world
 pr_json OPEN feature main false
 printf '{"object":{"sha":"%s"}}\n' "$HEAD_OID" > "$GHS/oref-feature.json"

@@ -118,13 +118,31 @@ origin_slug() {
 # slug_of <GH_REPO> — owner/name, dropping a leading HOST/ when present.
 slug_of() { local s="$1"; [[ "$s" == */*/* ]] && s="${s#*/}"; printf '%s\n' "$s"; }
 
+# urlpath <branch> — percent-encode a branch name for an API path. Git allows
+# characters such as `#`, `?` and `%` in branch names; interpolated raw, `#` cuts
+# the endpoint short, so `feature#fix` would read or DELETE `feature`. `/` is
+# kept: GitHub's branch and ref endpoints take it literally. Byte-wise (LC_ALL=C),
+# so a UTF-8 name encodes each byte.
+urlpath() {
+  local LC_ALL=C s="$1" out="" c i
+  for ((i = 0; i < ${#s}; i++)); do
+    c="${s:i:1}"
+    case "$c" in
+      [A-Za-z0-9._~/-]) out+="$c" ;;
+      *) out+="$(printf '%%%02X' "'$c")" ;;
+    esac
+  done
+  printf '%s' "$out"
+}
+
 # read_protection <branch> — sets PROTECTED=true|false|unknown, FLAG and RULES from
 # GitHub's branch flag and the rulesets that apply. Unknown is never "unprotected".
 read_protection() {
   PROTECTED=unknown; FLAG=""; RULES=""
   [[ -n "$OWNER_REPO" ]] || return 0
-  FLAG=$(gh api "repos/$OWNER_REPO/branches/$1" --jq '.protected' 2>/dev/null || true)
-  RULES=$(gh api "repos/$OWNER_REPO/rules/branches/$1" --jq '[.[].type] | join(",")' 2>/dev/null) || RULES="?"
+  local enc; enc="$(urlpath "$1")"
+  FLAG=$(gh api "repos/$OWNER_REPO/branches/$enc" --jq '.protected' 2>/dev/null || true)
+  RULES=$(gh api "repos/$OWNER_REPO/rules/branches/$enc" --jq '[.[].type] | join(",")' 2>/dev/null) || RULES="?"
   if [[ "$FLAG" == true ]] || [[ ",$RULES," =~ ,(deletion|update|non_fast_forward), ]]; then
     PROTECTED=true
   elif [[ "$FLAG" == false && "$RULES" != "?" ]]; then
@@ -199,13 +217,14 @@ if [[ -n "${GH_REPO:-}" && "$(lower "$LOCAL_SLUG")" != "$(lower "$(slug_of "$GH_
     finish
   fi
   ERRF="$(mktemp)"
-  if REMOTE_TIP=$(gh api "repos/$OWNER_REPO/git/ref/heads/$BRANCH" --jq '.object.sha' 2>"$ERRF"); then
+  ENC_BRANCH="$(urlpath "$BRANCH")"
+  if REMOTE_TIP=$(gh api "repos/$OWNER_REPO/git/ref/heads/$ENC_BRANCH" --jq '.object.sha' 2>"$ERRF"); then
     read_protection "$BRANCH"
     if [[ "$PROTECTED" != false ]]; then
       skip_note "remote branch $BRANCH on $OWNER_REPO — protected on GitHub, or its protection could not be read (branch flag '${FLAG:-unreadable}', rules '${RULES:-none}')"
     elif [[ -z "$REMOTE_TIP" || "$REMOTE_TIP" != "${HEAD_OID:-}" ]]; then
       skip_note "remote branch $BRANCH on $OWNER_REPO — its tip ${REMOTE_TIP:0:12} is not the merged PR head, and without a checkout of $OWNER_REPO it cannot be shown merged"
-    elif gh api -X DELETE "repos/$OWNER_REPO/git/refs/heads/$BRANCH" >/dev/null 2>&1; then
+    elif gh api -X DELETE "repos/$OWNER_REPO/git/refs/heads/$ENC_BRANCH" >/dev/null 2>&1; then
       echo "Deleted remote branch $BRANCH on $OWNER_REPO."
     else
       skip_note "remote branch $BRANCH on $OWNER_REPO — deleting it through the API failed"
