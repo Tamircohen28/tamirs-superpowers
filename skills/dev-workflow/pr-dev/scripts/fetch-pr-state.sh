@@ -51,6 +51,10 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
+# --repo HOST/OWNER/NAME: `gh api` (the THREADS query) takes its host only from
+# GH_HOST or --hostname, never from GH_REPO, and otherwise goes to github.com.
+if [[ "${GH_REPO:-}" == */*/* && -z "${GH_HOST:-}" ]]; then export GH_HOST="${GH_REPO%%/*}"; fi
+
 PR="${PR:-}"
 if [[ -z "$PR" ]]; then
   echo "ERROR: missing <PR_NUMBER>" >&2

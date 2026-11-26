@@ -112,6 +112,9 @@ while [[ $# -gt 0 ]]; do
       shift ;;
   esac
 done
+# --repo HOST/OWNER/NAME: `gh api` takes its host only from GH_HOST or --hostname,
+# never from GH_REPO, and otherwise asks github.com about an Enterprise repository.
+if [[ "${GH_REPO:-}" == */*/* && -z "${GH_HOST:-}" ]]; then export GH_HOST="${GH_REPO%%/*}"; fi
 if [[ -z "$PR" ]]; then
   echo "ERROR: missing <PR_NUMBER>" >&2
   usage 1

@@ -76,6 +76,11 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
+# --repo HOST/OWNER/NAME: `gh pr` and `gh repo view` take the host from the slug,
+# but `gh api` takes it only from GH_HOST (or --hostname) and otherwise goes to
+# github.com, so every API call below would ask the wrong server.
+if [[ "${GH_REPO:-}" == */*/* && -z "${GH_HOST:-}" ]]; then export GH_HOST="${GH_REPO%%/*}"; fi
+
 PR="${PR:-}"
 if [[ -z "$PR" ]]; then
   echo "ERROR: missing <PR_NUMBER>" >&2

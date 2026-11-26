@@ -47,13 +47,15 @@ serve() { [ -f "\$1" ] && [ "\$(cat "\$1")" != ERR ] || exit 1; if [ -n "\$2" ];
 q=""; prev=""
 for a in "\$@"; do case "\$prev" in --jq|-q) q="\$a" ;; esac; prev="\$a"; done
 printf '%s\n' "\$*" >> "\$GHS/calls.log"
+# The host each API call goes to: \`gh api\` reads it from GH_HOST, never from GH_REPO.
+if [ "\$1" = api ]; then printf '%s\n' "\${GH_HOST:-<github.com>}" >> "\$GHS/api-hosts.log"; fi
 case "\$1 \${2:-}" in
   "pr view") serve "\$GHS/pr.json" "\$q" ;;
 esac
 case "\$*" in
   # --repo other/thing: a DIFFERENT repository from the clone (acme/widget). Real
   # gh only reaches it from \`repo view\` with the slug passed positionally.
-  "repo view other/thing"*)
+  "repo view other/thing"*|"repo view ghe.example/other/thing"*)
      printf '{"defaultBranchRef":{"name":"main"},"nameWithOwner":"other/thing"}\n' > "\$GHS/other-repo.json"
      serve "\$GHS/other-repo.json" "\$q" ;;
   "api repos/other/thing/git/ref/heads/"*)  b="\${2#repos/other/thing/git/ref/heads/}"
@@ -270,6 +272,19 @@ run_pinned
 judge "a branch name with '#' is percent-encoded in the API path" yes "$(api_deleted 'feature%23fix')"
 judge "  ... and never sent raw (that would address 'feature')" no \
   "$(grep -q 'heads/feature#' "$GHS/calls.log" 2>/dev/null && echo yes || echo no)"
+judge "  ... exit 0" 0 "$RC"
+
+# --repo HOST/OWNER/NAME (GitHub Enterprise): `gh pr` and `gh repo view` follow the
+# slug's host, but `gh api` only follows GH_HOST, so without pinning it the ref
+# lookup, protection reads and DELETE would all go to github.com.
+new_world
+printf '{"object":{"sha":"%s"}}\n' "$HEAD_OID" > "$GHS/oref-feature.json"
+printf '{"name":"feature","protected":false}\n' > "$GHS/obranch-feature.json"
+rm -f "$GHS/api-hosts.log"
+RC=0; OUT="$(cd "$CL" && env -u GH_HOST bash "$CAM" --repo ghe.example/other/thing 42 2>&1)" || RC=$?
+judge "Enterprise --repo: the branch is deleted through the API" yes "$(api_deleted feature)"
+judge "  ... and every API call went to the Enterprise host" "ghe.example" \
+  "$(sort -u "$GHS/api-hosts.log" 2>/dev/null | tr '\n' ' ' | sed 's/ $//')"
 judge "  ... exit 0" 0 "$RC"
 
 new_world
