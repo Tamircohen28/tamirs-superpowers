@@ -184,14 +184,15 @@ The portal submission's repository and folder cannot change after it is created,
 tracked ref can. The first `v<version>-claude` tag exists only once a release has run, so:
 
 1. Merge the pull request that carries the source changes.
-2. Cut the release (`gh workflow run release.yml -f version=X.Y.Z`); wait for the
-   `claude-dist` job to report the two tags.
+2. Merge a version bump, which runs `release.yml` on its own (or dispatch it:
+   `gh workflow run release.yml -f version=X.Y.Z`); wait for the `claude-dist` job to report
+   the two tags.
 3. On the plugin's page at <https://claude.ai/directory/manage>, Settings → **Tracked branch
    or tag** → `claude` → Save.
 4. If the submission was rejected, **Resubmit for review** on the Review tab; otherwise
    **Check for new commits**.
 
-Every later release needs only step 2: the moved tag is picked up on its own.
+Every later release needs only step 2, and the merge does it: the moved tag is picked up on its own.
 
 ## Keeping the three in step
 

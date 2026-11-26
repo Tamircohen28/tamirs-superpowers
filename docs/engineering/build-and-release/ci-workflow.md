@@ -107,7 +107,7 @@ make lint       # shellcheck only
 
 ## Release workflow
 
-Releases are created manually via `.github/workflows/release.yml` — see [development-workflow.md](development-workflow.md) for the full release process.
+Releases are created by `.github/workflows/release.yml`, automatically when a push to master changes `plugin-version.json` to an untagged version, or by manual dispatch — see [development-workflow.md](development-workflow.md) for the full release process.
 
 ---
 
