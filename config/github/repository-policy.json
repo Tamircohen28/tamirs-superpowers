@@ -170,6 +170,21 @@
         ]
       }
     },
+    "Tamircohen28/Relay": {
+      "_comment": "Chosen by the owner on 2026-11-26. The CI aggregate job, the unit and lint gates, the secret scan, the air-gap pinning check and the three core e2e suites. The jobs bound to pm-server's Mac runner (macos, live) and the heavy suites (k8s, the remaining e2e jobs) stay optional, so a hot or lost runner cannot block every merge.",
+      "required_checks": {
+        "contexts": [
+          "CI",
+          "test-db",
+          "web",
+          "secret-scan",
+          "airgap-check",
+          "e2e",
+          "e2e-opencode",
+          "e2e-web"
+        ]
+      }
+    },
     "Tamircohen28/repo-bug-learner": {
       "_comment": "Recorded from the live PR & CI ruleset on 2026-11-06. The repository's ADR 002 keeps `CI` as its single required check.",
       "required_checks": {
