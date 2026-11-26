@@ -459,11 +459,18 @@ GHBIN="$TMP/ghbin"; mkdir -p "$GHBIN"
 cat > "$GHBIN/gh" <<'FAKE'
 #!/usr/bin/env bash
 case "$*" in
+  # Real `gh repo view` IGNORES GH_REPO: with no positional slug it answers for the
+  # cwd repository. This fake used to echo GH_REPO back, which modelled a gh that
+  # does not exist and let --repo silently miss `gh repo view` in the scripts.
+  # The pinned repo allows only rebase, so reaching it is observable.
+  *"repo view demo/pinned --json squashMergeAllowed"*)
+    printf '{"squashMergeAllowed":false,"mergeCommitAllowed":false,"rebaseMergeAllowed":true,"deleteBranchOnMerge":true,"viewerPermission":"READ"}\n' ;;
   *"--json squashMergeAllowed"*)
     printf '{"squashMergeAllowed":%s,"mergeCommitAllowed":%s,"rebaseMergeAllowed":%s,"deleteBranchOnMerge":true,"viewerPermission":"ADMIN"}\n' \
       "${GH_SQUASH:-true}" "${GH_MERGE:-true}" "${GH_REBASE:-true}" ;;
   "api repos/{owner}/{repo}")            printf '{"allow_auto_merge":true}\n' ;;
-  *"--json nameWithOwner"*)              printf '%s\n' "${GH_REPO:-acme/widget}" ;;
+  *"repo view demo/pinned --json nameWithOwner"*) printf 'demo/pinned\n' ;;
+  *"--json nameWithOwner"*)              printf 'acme/widget\n' ;;
   *"--json baseRefName"*)                printf 'main\n' ;;
   *"--json headRefName"*)                printf 'release/1.x\n' ;;
   *"branches/release/1.x/protection"*)   [ "${GH_HEAD_PROTECTED:-false}" = true ] && { printf '{"required_status_checks":{"strict":false,"contexts":[]}}\n'; exit 0; }; exit 1 ;;
@@ -565,6 +572,45 @@ judge "--repo reaches the API path, not just the shell" yes \
 
 judge "  ... and without --repo that context is NOT reachable (control)" no \
   "$(has "$(mp | jq -r '.required_checks | tostring')" "pinned-ok")"
+
+# `gh repo view` ignores GH_REPO, so --repo has to reach it positionally. The
+# pinned repo allows only rebase; the cwd repo allows squash. Before the fix the
+# merge methods (and viewerPermission, which gates admin_bypass_available) were
+# read from the cwd repository even with --repo.
+judge "--repo reaches gh repo view too (the pinned repo's merge methods)" rebase \
+  "$(mp_repo | jq -r .merge_method)"
+judge "  ... and without --repo the cwd repo's methods are used (control)" squash \
+  "$(mp | jq -r .merge_method)"
+
+# fetch-pr-state.sh: the THREADS query is built from OWNER/REPO_NAME, which came
+# from a no-argument `gh repo view` and so named the cwd repository even with
+# --repo. The fake below behaves like real gh: GH_REPO is ignored by `repo view`.
+FETCH="$ROOT/skills/dev-workflow/pr-dev/scripts/fetch-pr-state.sh"
+FPBIN="$TMP/fpbin"; mkdir -p "$FPBIN"
+cat > "$FPBIN/gh" <<'FAKE'
+#!/usr/bin/env bash
+printf '%s\n' "$*" >> "$FP_LOG"
+case "$*" in
+  "repo view demo/pinned --json owner"*) printf 'demo\n' ;;
+  "repo view demo/pinned --json name"*)  printf 'pinned\n' ;;
+  "repo view --json owner"*)             printf 'acme\n' ;;
+  "repo view --json name"*)              printf 'widget\n' ;;
+  "pr view"*)                            printf '{}\n' ;;
+  "pr checks"*)                          : ;;
+  "api graphql"*)                        printf '{"data":{}}\n' ;;
+  *) exit 1 ;;
+esac
+FAKE
+chmod +x "$FPBIN/gh"
+fp_threads_repo() { # fp_threads_repo [--repo slug] -> the repository the THREADS query named
+  local log="$TMP/fp.$RANDOM.log"
+  ( cd "$TMP" && env PATH="$FPBIN:$PATH" FP_LOG="$log" bash "$FETCH" "$@" 42 >/dev/null 2>&1 )
+  grep -o 'repository(owner: "[^"]*", name: "[^"]*")' "$log" | head -n 1
+}
+judge "fetch-pr-state --repo: the THREADS query names the pinned repo" \
+  'repository(owner: "demo", name: "pinned")' "$(fp_threads_repo --repo demo/pinned)"
+judge "  ... and without --repo it names the cwd repo (control)" \
+  'repository(owner: "acme", name: "widget")' "$(fp_threads_repo)"
 
 judge "--repo=<slug> form is accepted" 42 \
   "$( ( cd "$TMP" && env PATH="$GHBIN:$PATH" bash "$MERGEPOL" --repo=demo/pinned 42 2>/dev/null ) | jq -r .pr )"

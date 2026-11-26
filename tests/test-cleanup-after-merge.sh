@@ -47,10 +47,23 @@ serve() { [ -f "\$1" ] && [ "\$(cat "\$1")" != ERR ] || exit 1; if [ -n "\$2" ];
 q=""; prev=""
 for a in "\$@"; do case "\$prev" in --jq|-q) q="\$a" ;; esac; prev="\$a"; done
 printf '%s\n' "\$*" >> "\$GHS/calls.log"
+# The host each API call goes to: \`gh api\` reads it from GH_HOST, never from GH_REPO.
+if [ "\$1" = api ]; then printf '%s\n' "\${GH_HOST:-<github.com>}" >> "\$GHS/api-hosts.log"; fi
 case "\$1 \${2:-}" in
   "pr view") serve "\$GHS/pr.json" "\$q" ;;
 esac
 case "\$*" in
+  # --repo other/thing: a DIFFERENT repository from the clone (acme/widget). Real
+  # gh only reaches it from \`repo view\` with the slug passed positionally.
+  "repo view other/thing"*|"repo view ghe.example/other/thing"*)
+     printf '{"defaultBranchRef":{"name":"main"},"nameWithOwner":"other/thing"}\n' > "\$GHS/other-repo.json"
+     serve "\$GHS/other-repo.json" "\$q" ;;
+  "api repos/other/thing/git/ref/heads/"*)  b="\${2#repos/other/thing/git/ref/heads/}"
+     [ -f "\$GHS/oref-\$b.json" ] || { echo "gh: Not Found (HTTP 404)" >&2; exit 1; }
+     serve "\$GHS/oref-\$b.json" "\$q" ;;
+  "api repos/other/thing/branches/"*)       b="\${2#repos/other/thing/branches/}"; serve "\$GHS/obranch-\$b.json" "\$q" ;;
+  "api repos/other/thing/rules/branches/"*) printf '[]\n' > "\$GHS/orules.json"; serve "\$GHS/orules.json" "\$q" ;;
+  "api -X DELETE repos/other/thing/git/refs/heads/"*) exit 0 ;;
   "api repos/acme/widget/branches/"*)       b="\${2#repos/acme/widget/branches/}"; serve "\$GHS/branch-\$b.json" "\$q" ;;
   "api repos/acme/widget/rules/branches/"*) b="\${2#repos/acme/widget/rules/branches/}"
      [ -f "\$GHS/rules-\$b.json" ] || { printf '[]\n' > "\$GHS/rules-\$b.json"; }
@@ -204,5 +217,81 @@ git -C "$WT" commit -q --allow-empty -m "local only"
 run
 judge "local commits no remote holds => local branch kept" yes "$(local_has feature)"
 judge "  ... reports it" yes "$(out_has "holds commits no remote ref and no merged PR contains")"
+
+# =============================================================================
+section "--repo naming ANOTHER repository: only GitHub-side cleanup, via the API"
+# =============================================================================
+# Every local step acts on the CHECKOUT's origin. Run from acme/widget with
+# --repo other/thing, the old script deleted acme/widget's merged 'feature'
+# branch (remote, local and worktree) because the names matched. This world is
+# built so that would happen again: its own 'feature' is merged and same-named.
+run_pinned() {
+  RC=0
+  OUT="$(cd "$CL" && bash "$CAM" --repo other/thing 42 2>&1)" || RC=$?
+}
+api_deleted() { grep -q "api -X DELETE repos/other/thing/git/refs/heads/$1" "$GHS/calls.log" 2>/dev/null && echo yes || echo no; }
+
+new_world
+printf '{"object":{"sha":"%s"}}\n' "$HEAD_OID" > "$GHS/oref-feature.json"
+printf '{"name":"feature","protected":false}\n' > "$GHS/obranch-feature.json"
+run_pinned
+judge "the pinned repo's merged branch is deleted through the API" yes "$(api_deleted feature)"
+judge "  ... this checkout's origin branch is untouched" yes "$(remote_has feature)"
+judge "  ... this checkout's local branch is untouched" yes "$(local_has feature)"
+judge "  ... this checkout's worktree is untouched" yes "$(exists "$WT")"
+judge "  ... says local cleanup was skipped, and why" yes "$(out_has "not other/thing — local cleanup")"
+judge "  ... exit 0" 0 "$RC"
+
+new_world
+printf '{"object":{"sha":"%s"}}\n' "0123456789abcdef0123456789abcdef01234567" > "$GHS/oref-feature.json"
+printf '{"name":"feature","protected":false}\n' > "$GHS/obranch-feature.json"
+run_pinned
+judge "remote tip is not the PR head => kept, not deleted" no "$(api_deleted feature)"
+judge "  ... exit 3, naming why" "3 yes" "$RC $(out_has "is not the merged PR head")"
+
+new_world
+printf '{"object":{"sha":"%s"}}\n' "$HEAD_OID" > "$GHS/oref-feature.json"
+printf '{"name":"feature","protected":true}\n' > "$GHS/obranch-feature.json"
+run_pinned
+judge "protected remote branch => kept" no "$(api_deleted feature)"
+judge "  ... exit 3" 3 "$RC"
+
+new_world
+printf '{"name":"feature","protected":false}\n' > "$GHS/obranch-feature.json"
+run_pinned
+judge "remote branch already gone (404) => nothing to delete, exit 0" "no 0" "$(api_deleted feature) $RC"
+judge "  ... and says so" yes "$(out_has "is already gone")"
+
+# Git allows '#' in a branch name. Interpolated raw into an API path it ends the
+# path, so 'feature#fix' would address — and could DELETE — 'feature'.
+new_world
+pr_json MERGED "feature#fix" main false
+printf '{"object":{"sha":"%s"}}\n' "$HEAD_OID" > "$GHS/oref-feature%23fix.json"
+printf '{"name":"feature#fix","protected":false}\n' > "$GHS/obranch-feature%23fix.json"
+run_pinned
+judge "a branch name with '#' is percent-encoded in the API path" yes "$(api_deleted 'feature%23fix')"
+judge "  ... and never sent raw (that would address 'feature')" no \
+  "$(grep -q 'heads/feature#' "$GHS/calls.log" 2>/dev/null && echo yes || echo no)"
+judge "  ... exit 0" 0 "$RC"
+
+# --repo HOST/OWNER/NAME (GitHub Enterprise): `gh pr` and `gh repo view` follow the
+# slug's host, but `gh api` only follows GH_HOST, so without pinning it the ref
+# lookup, protection reads and DELETE would all go to github.com.
+new_world
+printf '{"object":{"sha":"%s"}}\n' "$HEAD_OID" > "$GHS/oref-feature.json"
+printf '{"name":"feature","protected":false}\n' > "$GHS/obranch-feature.json"
+rm -f "$GHS/api-hosts.log"
+RC=0; OUT="$(cd "$CL" && env -u GH_HOST bash "$CAM" --repo ghe.example/other/thing 42 2>&1)" || RC=$?
+judge "Enterprise --repo: the branch is deleted through the API" yes "$(api_deleted feature)"
+judge "  ... and every API call went to the Enterprise host" "ghe.example" \
+  "$(sort -u "$GHS/api-hosts.log" 2>/dev/null | tr '\n' ' ' | sed 's/ $//')"
+judge "  ... exit 0" 0 "$RC"
+
+new_world
+pr_json OPEN feature main false
+printf '{"object":{"sha":"%s"}}\n' "$HEAD_OID" > "$GHS/oref-feature.json"
+run_pinned
+judge "unmerged PR with --repo => nothing deleted anywhere" "no yes yes" "$(api_deleted feature) $(remote_has feature) $(local_has feature)"
+judge "  ... exit 3" 3 "$RC"
 
 harness_summary
