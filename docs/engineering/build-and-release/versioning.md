@@ -52,7 +52,10 @@ users — `/reload-plugins` does not fetch from GitHub. See
 2. Set the version in `plugin-version.json`, then `bash scripts/check-version-truth.sh . --sync`.
 3. `make validate`.
 4. Open and merge the release PR.
-5. Cut the tag and release:
+5. The merge cuts the tag and release on its own: `release.yml` runs on every push to master
+   that changes `plugin-version.json` and releases that version when it has no tag yet. A
+   push whose version is already tagged stops quietly. To re-cut by hand (a version that is
+   not on master yet, or a failed run):
 
    ```bash
    gh workflow run release.yml -f version=X.Y.Z
@@ -64,11 +67,11 @@ users — `/reload-plugins` does not fetch from GitHub. See
    do unless the `claude-dist` job fails; see
    [directory-distribution.md](directory-distribution.md).
 
-**Cut the release after merging a manifest bump.** The push-to-master job *Manifest/tag
-version alignment* reports a pending release as a `::warning::` rather than failing — the tag
-provably cannot exist at merge time, so failing there was a race, not a signal. Master stays
-green; the warning is the reminder. Leaving it unreleased strands installed users on the
-cached copy.
+**A merged manifest bump releases itself.** The push-to-master job *Manifest/tag version
+alignment* still reports the minutes before the tag exists as a `::warning::`, because the
+tag provably cannot exist at merge time. If that warning outlives the `Release` run, the run
+failed: read it and re-dispatch. Before the push trigger existed, that warning was the only
+reminder, and 5.6.8 through 6.1.2 sat untagged for three weeks behind a green check.
 
 **Never move a manifest version backwards** past a cut release. That is real drift and fails
 CI on every event.
