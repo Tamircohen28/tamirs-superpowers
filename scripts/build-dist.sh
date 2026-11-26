@@ -87,16 +87,24 @@ case "$TARGET" in
     # manifest copy is stripped of hooks, mcpServers, settings, types and userConfig below.
     # The full plugin keeps shipping from the marketplace. No other host's manifest or docs,
     # and the directory-specific README.
-    ROOTS=(.claude-plugin/plugin.json listing/icon.png agents output-styles platforms/claude "${COMMON_ROOTS[@]}")
-    # The Gemini wrapper and its dialect library run only under the Gemini extension.
-    # notify-setup configures a Notification hook through plugin options; the edition ships
-    # neither, so the skill and the Pushover sender stay with the full plugin (#386 review).
-    PRUNE_PATHS+=(skills/toolkit/notify-setup scripts/notify-pushover.sh scripts/pushover_format.py)
-    PRUNE_PATHS+=(platforms/claude/directory hooks/gemini-wrap.sh hooks/lib/gemini-output.sh
-      docs/user/install/codex.md docs/user/install/cursor.md docs/user/install/gemini.md docs/user/install/opencode.md
-      docs/user/platform-setup.md docs/user/platform-differences.md docs/user/cross-platform-workflow.md
-      scripts/lib/setup-codex.sh scripts/lib/setup-cursor.sh scripts/lib/setup-gemini.sh scripts/lib/setup-opencode.sh)
+    #
+    # The prose-only edition (6.1.3): on 2026-11-26 the directory refused 6.1.2 outright
+    # because an unverified organization may ship only Markdown, text, JSON, YAML and
+    # images — no script, no .conf/.html/.mjs/.py, no AGENTS.md or nested .claude-plugin —
+    # with allowed-tools limited to Read, Grep, Glob and LS and frontmatter limited to an
+    # allowed key list. Most skills run scripts, so this edition ships only the skills
+    # that work as plain instructions (DIRECTORY_SKILLS), the agents and the output style,
+    # with their frontmatter rewritten below; core/, rules/, templates/, config/, scripts/
+    # and docs/user/ stay with the full plugin. check-claude-dist.sh holds every rule.
+    DIRECTORY_SKILLS=(skills/dev-workflow/decision skills/toolkit/find-skill skills/toolkit/retro
+      skills/documentation/platform-sync skills/creative/field-notebook-ui skills/documentation/dark-terminal-doc)
+    ROOTS=(.claude-plugin/plugin.json listing/icon.png agents output-styles "${DIRECTORY_SKILLS[@]}"
+      LICENSE SECURITY.md PRIVACY.md)
     README_SRC="platforms/claude/directory/README.md"
+    # A link pulls in only the agents' role contracts and the policies they cite (plain
+    # Markdown). docs/user/ stays out: it holds agents.md, a name the directory refuses in
+    # any case.
+    CLOSURE_EXTRA="core/roles core/policies"
     ;;
   codex)
     # Codex loads the root Agent Plugins manifest (extensions.com.openai) or, before
@@ -214,7 +222,93 @@ p = sys.argv[1]
 d = json.load(open(p, encoding="utf-8"))
 for k in ("hooks", "mcpServers", "settings", "types", "userConfig", "lspServers", "monitors"):
     d.pop(k, None)
+# Only the skill folders this edition ships: a named folder that is absent is a load
+# failure, which the directory reports as part of the plugin it could not read.
+import os
+root = os.path.dirname(os.path.dirname(p))
+if isinstance(d.get("skills"), list):
+    d["skills"] = [s for s in d["skills"] if os.path.isdir(os.path.join(root, s))]
 open(p, "w", encoding="utf-8").write(json.dumps(d, indent=2, ensure_ascii=False) + "\n")
+PY
+  # Frontmatter, cut to what the directory accepts from an unverified organization: an
+  # allowed key list per kind, and no tool list naming anything beyond Read, Grep, Glob
+  # and LS. A skill's allowed-tools keeps only those four (the key goes when none is
+  # left). An agent that writes (Edit or Write in its tools) drops its list and inherits
+  # the session's tools under the person's normal prompts; any other agent is cut to a
+  # read-only Read, Grep, Glob, so no reviewer gains write access. Line-based on purpose:
+  # top-level keys sit at column 0 and their values continue on indented or "- " lines.
+  python3 - "$OUT" <<'PY'
+import os, re, sys
+out = sys.argv[1]
+SAFE = ["Read", "Grep", "Glob", "LS"]
+KEEP = {
+    "skill": ["name", "description", "argument-hint", "model", "user-invocable", "disable-model-invocation", "allowed-tools"],
+    "agent": ["name", "description", "model", "tools"],
+    "style": ["name", "description", "keep-coding-instructions"],
+}
+
+def split(text):
+    if not text.startswith("---\n"):
+        return None
+    end = text.find("\n---\n", 4)
+    if end < 0:
+        return None
+    return text[4:end], text[end + 5:]
+
+def blocks(fm):
+    cur = None
+    for line in fm.split("\n"):
+        m = re.match(r"^([A-Za-z_][A-Za-z0-9_-]*):(.*)$", line)
+        if m:
+            cur = [m.group(1), m.group(2), []]
+            yield cur
+        elif cur is not None:
+            cur[2].append(line)
+
+def tool_list(head, rest):
+    items = [l.strip()[2:].strip() for l in rest if l.strip().startswith("- ")]
+    head = head.strip()
+    if head.startswith("[") and head.endswith("]"):
+        head = head[1:-1]
+    items += [t.strip() for t in head.split(",") if t.strip()]
+    return items
+
+def rewrite(path, kind):
+    text = open(path, encoding="utf-8").read()
+    parts = split(text)
+    if not parts:
+        return
+    fm, body = parts
+    lines = []
+    for key, head, rest in blocks(fm):
+        if key not in KEEP[kind]:
+            continue
+        if key == "allowed-tools":
+            tools = [t for t in tool_list(head, rest) if t in SAFE]
+            if tools:
+                lines.append("allowed-tools:")
+                lines += [f"- {t}" for t in tools]
+            continue
+        if key == "tools":
+            tools = tool_list(head, rest)
+            if "Edit" in tools or "Write" in tools:
+                continue
+            lines.append("tools: Read, Grep, Glob")
+            continue
+        lines.append(f"{key}:{head}")
+        lines += rest
+    open(path, "w", encoding="utf-8").write("---\n" + "\n".join(lines) + "\n---\n" + body)
+
+for d, _, fs in os.walk(out):
+    for f in fs:
+        p = os.path.join(d, f)
+        rel = os.path.relpath(p, out)
+        if f == "SKILL.md" and rel.startswith("skills/"):
+            rewrite(p, "skill")
+        elif rel.startswith("agents/") and f.endswith(".md"):
+            rewrite(p, "agent")
+        elif rel.startswith("output-styles/") and f.endswith(".md"):
+            rewrite(p, "style")
 PY
 fi
 

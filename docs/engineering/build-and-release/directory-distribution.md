@@ -48,6 +48,42 @@ which satisfies the directory's "raise it with every release" rule without a sec
 
 ## What is in the tree
 
+**The prose-only edition (6.1.3 onward).** On 2026-11-26 the directory refused 6.1.2 outright,
+on seven findings. Every one was a rule for unverified organizations, and `check-claude-dist.sh`
+had passed the build. An unverified organization may ship:
+
+- only Markdown, text, JSON, YAML and PNG/JPEG/GIF/WebP/ICO files, none starting with `#!`;
+- no `CLAUDE.md`, `CLAUDE.local.md` or `AGENTS.md` in any case, and no `.claude-plugin`
+  folder but the plugin's own;
+- `allowed-tools` naming only `Read`, `Grep`, `Glob` and `LS`;
+- frontmatter keys from an allowed list, and no `${CLAUDE_...}` name in a skill, agent or
+  output style;
+- a manifest whose every `skills` path ships. A missing one is a load failure, which the portal
+  reports as "part of this plugin couldn't be read".
+
+Most skills run scripts, so the Claude target now ships:
+
+- the six skills that work as plain instructions (`DIRECTORY_SKILLS` in `scripts/build-dist.sh`:
+  `decision`, `find-skill`, `retro`, `platform-sync`, `field-notebook-ui`, `dark-terminal-doc`);
+- the ten agents, with the role contracts and policies they link to (`core/roles/`,
+  `core/policies/`, both plain Markdown);
+- the output style.
+
+`core/`'s other files, `rules/`, `templates/`, `config/`, `scripts/` and `docs/user/` stay with
+the full plugin. The build rewrites each frontmatter to the allowed keys:
+
+- a skill keeps `name`, `description`, `argument-hint`, `model`, `user-invocable`,
+  `disable-model-invocation`, and an `allowed-tools` cut to the four safe tools;
+- an agent keeps `name`, `description` and `model`. An agent that writes (`Edit`/`Write`) drops
+  its `tools` list and inherits the session's tools, and every other agent is cut to a
+  read-only `Read, Grep, Glob`, so no reviewer gains write access;
+- the output style keeps `name`, `description` and `keep-coding-instructions`.
+
+The allowed key list is not published. This one is the smallest set the portal's finding text
+names or implies; widen it only on the portal's evidence. `check-claude-dist.sh` holds every
+rule, and `tests/test-claude-dist.sh` plants a violation of each. Adding a skill to the edition
+means adding it to `DIRECTORY_SKILLS` after confirming it names no script it needs.
+
 **The directory edition (5.6.2 onward).** Since 5.5.1 the directory *refuses* (not holds) a
 version from an organization that is not Verified when it carries a command hook, a local MCP
 server, a command in the plugin's settings, or a mod; there is no way to apply for Verified

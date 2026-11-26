@@ -15,6 +15,10 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 - **Cursor 3.11 (+2026-11-06 / desktop 3.29.9 reviewed):** advance `latest_known`/`reviewed_through` **3.28.7 → 3.29.9** and `changelog_date` **2026-10-20 → 2026-11-06**. Keep `validated_against` at **3.28.7** (last live run). Document Voice Chat (≠ dictation) and Live Apps/`publish-app` as host capabilities — no plugin code change. Cursor-only.
 
+## [6.1.3] — 2026-11-26
+
+- **The directory edition is prose only:** Anthropic's plugin directory refused 6.1.2 outright on seven findings, each a rule for unverified organizations, and `check-claude-dist.sh` had passed the build. An unverified organization may ship only Markdown, text, JSON, YAML and images, with no `#!` file, no `AGENTS.md`/`CLAUDE.md` in any case, no nested `.claude-plugin`, `allowed-tools` limited to Read/Grep/Glob/LS, frontmatter keys from an allowed list, no `${CLAUDE_...}` names, and a manifest whose every skills path ships. The Claude target now carries 50 files instead of 374: the six skills that work as plain instructions (`decision`, `find-skill`, `retro`, `platform-sync`, `field-notebook-ui`, `dark-terminal-doc`), the ten agents with the role contracts and policies they link to, and the output style. Frontmatter is rewritten to the allowed keys, writing agents inherit the session's tools, and reviewers are cut to read-only Read/Grep/Glob. `check-claude-dist.sh` gains each rule, `tests/test-claude-dist.sh` plants a violation of each (60 checks), and the refused 6.1.2 tree fails five of the new rules. The full plugin from the marketplace is unchanged.
+
 ## [6.1.2] — 2026-11-22
 
 ### Changed
