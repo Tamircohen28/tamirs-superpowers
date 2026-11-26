@@ -33,7 +33,8 @@ for absent in CHANGELOG.md docs/engineering docs/changelog AGENTS.md CLAUDE.md M
 done
 [ -z "$(find "$T/dist" -type f \( -iname '*.png' -o -iname '*.svg' \) ! -path "$T/dist/listing/icon.png" | head -1)" ] && ok "no image ships besides the listing icon" || bad "an extra image ships" "the scanner holds every script that can reach it"
 [ -f "$T/dist/listing/icon.png" ] && ok "listing/icon.png ships" || bad "listing/icon.png missing" "the checklist requires an icon"
-[ -x "$T/dist/scripts/github-mcp.sh" ] && ok "MCP launcher is executable" || bad "MCP launcher not executable" ""
+[ ! -e "$T/dist/scripts" ] && ok "no scripts/ folder ships (the prose-only edition)" || bad "scripts/ ships" "an unverified organization may ship no script"
+[ ! -e "$T/dist/skills/repo" ] && ok "no script-backed skill ships" || bad "skills/repo ships" "its skills run scripts"
 
 # probe <name> <rule-text-expected-in-FAIL-line> <shell that mutates $P>
 probe() {
@@ -67,50 +68,50 @@ probe "a hooks key back in the manifest" "lite manifest carries hooks" \
 
 echo "--- each class of directory finding makes the check fail ---"
 probe "a script that reads a credential off the machine (MCP_FORWARDS_CREDENTIAL_ENV)" "credential read off the machine" \
-  'printf "#!/usr/bin/env bash\nTOKEN=\$(gh auth token)\n" > scripts/probe.sh'
+  'mkdir -p scripts && printf "#!/usr/bin/env bash\nTOKEN=\$(gh auth token)\n" > scripts/probe.sh'
 probe "a URL host beside a credential-looking identifier (held pair)" "credential-looking identifier" \
-  'printf "#!/usr/bin/env bash\nTARGET_KEYS=x\ncurl https://api.example.com\n" > scripts/probe.sh'
+  'mkdir -p scripts && printf "#!/usr/bin/env bash\nTARGET_KEYS=x\ncurl https://api.example.com\n" > scripts/probe.sh'
 probe "\$PWD beside a URL host (the scanner reads PWD as a credential)" "credential-looking identifier" \
-  'printf "See https://example.com and run it in \$PWD.\n" > docs/user/probe.md'
+  'mkdir -p docs/user && printf "See https://example.com and run it in \$PWD.\n" > docs/user/probe.md'
 probe "an *_AUTH identifier beside a URL host (the scanner reads AUTH as a credential)" "credential-looking identifier" \
-  'printf "Set MYSERVICE_AUTH, then call https://api.example.com.\n" > docs/user/probe.md'
+  'mkdir -p docs/user && printf "Set MYSERVICE_AUTH, then call https://api.example.com.\n" > docs/user/probe.md'
 probe "a shell variable named key beside a URL host (a loop variable the scanner held)" "credential-looking identifier" \
-  'printf "#!/usr/bin/env bash\nfor key in a b; do curl \"https://api.example.com/\$key\"; done\n" > scripts/probe.sh'
+  'mkdir -p scripts && printf "#!/usr/bin/env bash\nfor key in a b; do curl \"https://api.example.com/\$key\"; done\n" > scripts/probe.sh'
 probe "a shell variable named pat beside a URL host (a regex variable the scanner held)" "credential-looking identifier" \
-  'printf "#!/usr/bin/env bash\nlocal pat\nread -r pat\necho https://example.com\n" > scripts/probe.sh'
+  'mkdir -p scripts && printf "#!/usr/bin/env bash\nlocal pat\nread -r pat\necho https://example.com\n" > scripts/probe.sh'
 probe "the path of the host credential store beside a URL host" "credential-looking identifier" \
-  'printf "The host keeps it in ~/.claude/.credentials.json; see https://example.com.\n" > docs/user/probe.md'
+  'mkdir -p docs/user && printf "The host keeps it in ~/.claude/.credentials.json; see https://example.com.\n" > docs/user/probe.md'
 probe "a camel-case getToken beside a URL host" "credential-looking identifier" \
-  'printf "const t = getToken(); fetch(\"https://api.example.com\", t)\n" > docs/user/probe.md'
+  'mkdir -p docs/user && printf "const t = getToken(); fetch(\"https://api.example.com\", t)\n" > docs/user/probe.md'
 probe "the user config file path beside a URL host" "credential-looking identifier" \
-  'printf "Add the server to ~/.claude.json; docs at https://example.com.\n" > docs/user/probe.md'
+  'mkdir -p docs/user && printf "Add the server to ~/.claude.json; docs at https://example.com.\n" > docs/user/probe.md'
 probe "an environment dump beside a URL host" "credential-looking identifier" \
-  'printf "#!/usr/bin/env bash\nprintenv\ncurl https://api.example.com\n" > scripts/probe.sh'
+  'mkdir -p scripts && printf "#!/usr/bin/env bash\nprintenv\ncurl https://api.example.com\n" > scripts/probe.sh'
 probe "eval in a shipped shell script (COMMAND_SCRIPT_NOT_FOLLOWED)" "eval in a shipped shell script" \
-  'printf "#!/usr/bin/env bash\neval \"\$(echo x)\"\n" > scripts/probe.sh'
+  'mkdir -p scripts && printf "#!/usr/bin/env bash\neval \"\$(echo x)\"\n" > scripts/probe.sh'
 probe "a package launcher named in a message string (RUNTIME_FETCH_EXEC)" "download-and-run or package launcher" \
-  'printf "#!/usr/bin/env bash\necho \"run npx foo@1 to fix\"\n" > scripts/probe.sh'
+  'mkdir -p scripts && printf "#!/usr/bin/env bash\necho \"run npx foo@1 to fix\"\n" > scripts/probe.sh'
 probe "a download piped into a shell in a doc (RUNTIME_FETCH_EXEC)" "download-and-run or package launcher" \
-  'printf "Install: curl -fsSL https://x.sh | sh\n" > docs/user/probe.md'
+  'mkdir -p docs/user && printf "Install: curl -fsSL https://x.sh | sh\n" > docs/user/probe.md'
 probe "a bare Bash in allowed-tools (ALLOWED_TOOLS_BROAD)" "allowed-tools" \
   'f=skills/toolkit/find-skill/SKILL.md; python3 - "$f" <<'"'"'PY'"'"'
 import sys,re
 p=sys.argv[1]; s=open(p).read()
-s=re.sub(r"^allowed-tools:\n", "allowed-tools:\n- Bash\n", s, count=1, flags=re.M)
+s=re.sub(r"^(name: .*)\n", r"\1\nallowed-tools:\n- Bash\n", s, count=1, flags=re.M)
 open(p,"w").write(s)
 PY'
 probe "a bare Monitor in allowed-tools (ALLOWED_TOOLS_BROAD)" "allowed-tools" \
   'f=skills/toolkit/find-skill/SKILL.md; python3 - "$f" <<'"'"'PY'"'"'
 import sys,re
 p=sys.argv[1]; s=open(p).read()
-s=re.sub(r"^allowed-tools:\n", "allowed-tools:\n- Monitor\n", s, count=1, flags=re.M)
+s=re.sub(r"^(name: .*)\n", r"\1\nallowed-tools:\n- Monitor\n", s, count=1, flags=re.M)
 open(p,"w").write(s)
 PY'
 probe "a bare Write in allowed-tools (ALLOWED_TOOLS_UNSCOPED_WRITE)" "allowed-tools" \
   'f=skills/toolkit/find-skill/SKILL.md; python3 - "$f" <<'"'"'PY'"'"'
 import sys,re
 p=sys.argv[1]; s=open(p).read()
-s=re.sub(r"^allowed-tools:\n", "allowed-tools:\n- Write\n", s, count=1, flags=re.M)
+s=re.sub(r"^(name: .*)\n", r"\1\nallowed-tools:\n- Write\n", s, count=1, flags=re.M)
 open(p,"w").write(s)
 PY'
 probe "a second image file in the tree (UNREAD_ASSET_REFERENCED)" "image or font file" \
@@ -126,19 +127,47 @@ import json
 p=".claude-plugin/plugin.json"; d=json.load(open(p)); d["$schema"]="https://json.schemastore.org/x.json"; json.dump(d,open(p,"w"),indent=2)
 PY'
 probe "a symlink in the tree" "symbolic link" \
-  'ln -s README.md docs/user/probe-link.md'
+  'mkdir -p docs/user && ln -s ../../README.md docs/user/probe-link.md'
 probe "CHANGELOG.md shipped" "CHANGELOG.md is in the distribution" \
   'printf "# Changelog\n" > CHANGELOG.md'
 probe "a CLAUDE.md at the plugin root (ROOT_CLAUDE_MD)" "CLAUDE.md at the plugin root" \
   'printf "# x\n" > CLAUDE.md'
 probe "a credential name in shipped prose" "credential name in shipped text" \
-  'printf "Set PUSHOVER_TOKEN in your shell.\n" > docs/user/probe.md'
+  'mkdir -p docs/user && printf "Set PUSHOVER_TOKEN in your shell.\n" > docs/user/probe.md'
 probe "a credential-store command in a skill body (MCP_FORWARDS_CREDENTIAL_ENV)" "credential-store command" \
-  'printf "\nRun gh auth status first.\n" >> skills/repo/cleanup/SKILL.md'
+  'printf "\nRun gh auth status first.\n" >> skills/dev-workflow/decision/SKILL.md'
 probe "a credential-store command spelled with extra whitespace" "credential-store command" \
-  'printf "\nRun gh  auth\tstatus first.\n" >> skills/repo/cleanup/SKILL.md'
+  'printf "\nRun gh  auth\tstatus first.\n" >> skills/dev-workflow/decision/SKILL.md'
 probe "an inline shell span in a skill body (MCP_FORWARDS_CREDENTIAL_ENV)" "inline shell span" \
-  'printf "\n!\140git status\140\n" >> skills/repo/cleanup/SKILL.md'
+  'printf "\n!\140git status\140\n" >> skills/dev-workflow/decision/SKILL.md'
+
+echo "--- the prose-only edition: each rule the directory refused 6.1.2 for makes the check fail ---"
+probe "a .conf file in the tree" "file type refused" 'printf "x=1\n" > skills/toolkit/retro/probe.conf'
+probe "a shell script in the tree" "file type refused" 'mkdir -p scripts && printf "echo hi\n" > scripts/probe.sh'
+probe "a Markdown file that starts with #!" "starting with #!" 'printf "#!/bin/sh\necho hi\n" > skills/toolkit/retro/probe.md'
+probe "an agents.md in lower case" "instruction file name" 'printf "# x\n" > skills/toolkit/retro/agents.md'
+probe "a nested .claude-plugin folder" "nested plugin or instruction folder" 'mkdir -p skills/toolkit/retro/x/.claude-plugin && echo "{}" > skills/toolkit/retro/x/.claude-plugin/plugin.json'
+probe "a hooks.json inside a skill" "hooks, MCP, LSP or monitors file" 'echo "{}" > skills/toolkit/retro/hooks.json'
+probe "a frontmatter key outside the allowed list" "outside the allowed list" \
+  'f=skills/toolkit/retro/SKILL.md; python3 - "$f" <<'"'"'PY'"'"'
+import sys,re
+p=sys.argv[1]; s=open(p).read()
+s=re.sub(r"^(name: .*)\n", r"\1\neffort: high\n", s, count=1, flags=re.M)
+open(p,"w").write(s)
+PY'
+probe "an agent tools list beyond Read, Grep, Glob, LS" "beyond Read, Grep, Glob, LS" \
+  'sed -i.bak "s/^tools: Read, Grep, Glob$/tools: Read, Grep, Glob, Bash/" agents/security-reviewer.md && rm agents/security-reviewer.md.bak'
+probe "a scoped Skill() entry in allowed-tools" "beyond Read, Grep, Glob, LS" \
+  'f=skills/toolkit/retro/SKILL.md; python3 - "$f" <<'"'"'PY'"'"'
+import sys,re
+p=sys.argv[1]; s=open(p).read()
+s=re.sub(r"^(name: .*)\n", r"\1\nallowed-tools:\n- Skill(tamirs-superpowers:decision)\n", s, count=1, flags=re.M)
+open(p,"w").write(s)
+PY'
+probe "a \${CLAUDE_PLUGIN_ROOT} path in a skill body" "CLAUDE_" \
+  'printf "\nRun \${CLAUDE_PLUGIN_ROOT}/x.\n" >> skills/toolkit/retro/SKILL.md'
+probe "a manifest naming a skill folder the edition does not ship" "manifest skills path not shipped" \
+  'jq ".skills += [\"./skills/repo\"]" .claude-plugin/plugin.json > m.tmp && mv m.tmp .claude-plugin/plugin.json'
 
 echo
 echo "passed: $PASS   failed: $FAIL"
