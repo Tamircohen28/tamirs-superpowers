@@ -212,9 +212,13 @@ bash "$SKILL_DIR/scripts/fetch-pr-state.sh" ${REPO:+--repo "$REPO"} "$PR"
 repository.** Every script here resolves the repo from the cwd by default, so
 the same PR number in a sibling checkout is a real, plausible-looking,
 *completely unrelated* pull request — a wrong **answer**, not an error, which is
-why it goes unnoticed. All four scripts accept `--repo` (and `--repo=<slug>`);
-it pins `GH_REPO` for every `gh` call they make. This matters most for an agent
-whose shell resets to a different directory between commands.
+why it goes unnoticed. All four scripts accept `--repo` (and `--repo=<slug>`).
+It pins `GH_REPO`, and passes the slug to `gh repo view` positionally, because
+`gh repo view` with no argument ignores `GH_REPO` and answers for the cwd
+repository. `cleanup-after-merge.sh` runs its local git steps only when the
+checkout's `origin` is the pinned repository. From anywhere else, it deletes the
+PR's remote branch through the API and skips the local steps. This matters most
+for an agent whose shell resets to a different directory between commands.
 
 Quick snapshot inside the loop:
 

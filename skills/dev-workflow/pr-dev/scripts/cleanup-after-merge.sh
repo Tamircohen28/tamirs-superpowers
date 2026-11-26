@@ -83,8 +83,54 @@ if [[ -z "$PR" ]]; then
 fi
 
 SCRIPT_DIR="$(CDPATH='' cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
-REPO_ROOT=$(git rev-parse --show-toplevel)
-cd "$REPO_ROOT"
+REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || true)
+if [[ -n "$REPO_ROOT" ]]; then
+  cd "$REPO_ROOT"
+elif [[ -z "${GH_REPO:-}" ]]; then
+  echo "ERROR: not inside a git checkout; run from the PR's repository or pass --repo <owner>/<name>." >&2
+  exit 1
+fi
+
+# `gh repo view` with no argument reads the CURRENT DIRECTORY's repository and
+# ignores GH_REPO (unlike `gh pr` and `gh api repos/{owner}/{repo}`), so --repo
+# must reach it positionally.
+gh_repo_view() {
+  if [[ -n "${GH_REPO:-}" ]]; then gh repo view "$GH_REPO" "$@"; else gh repo view "$@"; fi
+}
+
+lower() { printf '%s' "$1" | tr '[:upper:]' '[:lower:]'; }
+
+# origin_slug <url> — owner/name of a GitHub-style remote URL
+# (https://host/o/r(.git), ssh://git@host/o/r, git@host:o/r, an SSH alias host:o/r).
+# Empty for a local path or anything it cannot read.
+origin_slug() {
+  local u="${1%/}"
+  u="${u%.git}"
+  case "$u" in
+    *://*) u="${u#*://}"; u="${u#*@}"; u="${u#*/}" ;;
+    *:*)   u="${u#*:}" ;;
+    *)     return 0 ;;
+  esac
+  [[ "$u" =~ ^[^/]+/[^/]+$ ]] && printf '%s\n' "$u"
+  return 0
+}
+
+# slug_of <GH_REPO> — owner/name, dropping a leading HOST/ when present.
+slug_of() { local s="$1"; [[ "$s" == */*/* ]] && s="${s#*/}"; printf '%s\n' "$s"; }
+
+# read_protection <branch> — sets PROTECTED=true|false|unknown, FLAG and RULES from
+# GitHub's branch flag and the rulesets that apply. Unknown is never "unprotected".
+read_protection() {
+  PROTECTED=unknown; FLAG=""; RULES=""
+  [[ -n "$OWNER_REPO" ]] || return 0
+  FLAG=$(gh api "repos/$OWNER_REPO/branches/$1" --jq '.protected' 2>/dev/null || true)
+  RULES=$(gh api "repos/$OWNER_REPO/rules/branches/$1" --jq '[.[].type] | join(",")' 2>/dev/null) || RULES="?"
+  if [[ "$FLAG" == true ]] || [[ ",$RULES," =~ ,(deletion|update|non_fast_forward), ]]; then
+    PROTECTED=true
+  elif [[ "$FLAG" == false && "$RULES" != "?" ]]; then
+    PROTECTED=false
+  fi
+}
 
 SKIPPED=()
 skip_note() { SKIPPED+=("$1"); echo "Skipped: $1"; }
@@ -103,7 +149,7 @@ fi
 # rather than guessing. The sync target is the PR's own base when known.
 # shellcheck source=../../_shared/scripts/default-branch.sh
 . "$SCRIPT_DIR/../../_shared/scripts/default-branch.sh"
-REPO_INFO=$(gh repo view --json defaultBranchRef,nameWithOwner \
+REPO_INFO=$(gh_repo_view --json defaultBranchRef,nameWithOwner \
   --jq '[.defaultBranchRef.name, .nameWithOwner] | @tsv' 2>/dev/null || true)
 IFS=$'\t' read -r REPO_DEFAULT OWNER_REPO <<<"$REPO_INFO" || true
 OWNER_REPO="${OWNER_REPO:-${GH_REPO:-}}"
@@ -126,6 +172,51 @@ elif [[ "$BRANCH" == "$REPO_DEFAULT" || "$BRANCH" == "${BASE_REF:-}" ]]; then
   WHY_NOT="'$BRANCH' is the PR's base or the repository's default branch"
 elif [[ "${CROSS:-}" != false ]]; then
   WHY_NOT="PR #$PR is cross-repository (head from a fork) or that could not be read — '$BRANCH' on origin is not its head"
+fi
+
+finish() {
+  if [[ "${#SKIPPED[@]}" -gt 0 ]]; then
+    echo "skipped:"
+    printf '  - %s\n' "${SKIPPED[@]}"
+    exit 3
+  fi
+  exit 0
+}
+
+# --- --repo naming another repository: GitHub-side cleanup only -----------------
+# Every step after this block (fetch, checkout, worktree and branch removal,
+# `git push origin --delete`) acts on THIS checkout's origin. When --repo names a
+# different repository, those steps would act on the wrong one: a branch of the
+# same name there could be checked out or deleted. They run only when this
+# checkout is the pinned repository; otherwise only the PR's remote branch is
+# handled, through the API, under the same D-1 rules.
+LOCAL_SLUG=""
+[[ -n "$REPO_ROOT" ]] && LOCAL_SLUG="$(origin_slug "$(git -C "$REPO_ROOT" remote get-url origin 2>/dev/null || true)")"
+if [[ -n "${GH_REPO:-}" && "$(lower "$LOCAL_SLUG")" != "$(lower "$(slug_of "$GH_REPO")")" ]]; then
+  echo "Note: this checkout is ${LOCAL_SLUG:-not a checkout of a GitHub repository}, not $OWNER_REPO — local cleanup (default-branch sync, worktree, local branch) skipped; run from a checkout of $OWNER_REPO to do it."
+  if [[ -n "$WHY_NOT" ]]; then
+    skip_note "every deletion for '$BRANCH' — $WHY_NOT"
+    finish
+  fi
+  ERRF="$(mktemp)"
+  if REMOTE_TIP=$(gh api "repos/$OWNER_REPO/git/ref/heads/$BRANCH" --jq '.object.sha' 2>"$ERRF"); then
+    read_protection "$BRANCH"
+    if [[ "$PROTECTED" != false ]]; then
+      skip_note "remote branch $BRANCH on $OWNER_REPO — protected on GitHub, or its protection could not be read (branch flag '${FLAG:-unreadable}', rules '${RULES:-none}')"
+    elif [[ -z "$REMOTE_TIP" || "$REMOTE_TIP" != "${HEAD_OID:-}" ]]; then
+      skip_note "remote branch $BRANCH on $OWNER_REPO — its tip ${REMOTE_TIP:0:12} is not the merged PR head, and without a checkout of $OWNER_REPO it cannot be shown merged"
+    elif gh api -X DELETE "repos/$OWNER_REPO/git/refs/heads/$BRANCH" >/dev/null 2>&1; then
+      echo "Deleted remote branch $BRANCH on $OWNER_REPO."
+    else
+      skip_note "remote branch $BRANCH on $OWNER_REPO — deleting it through the API failed"
+    fi
+  elif grep -qE 'HTTP 404|Not Found' "$ERRF"; then
+    echo "Remote branch $BRANCH on $OWNER_REPO is already gone."
+  else
+    skip_note "remote branch $BRANCH on $OWNER_REPO — its state could not be read"
+  fi
+  rm -f "$ERRF"
+  finish
 fi
 
 CUR_BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "")
@@ -197,16 +288,7 @@ fi
 # --- Delete the remote branch if it survived the merge --------------------------
 if git ls-remote --exit-code --heads origin "refs/heads/$BRANCH" >/dev/null 2>&1; then
   REMOTE_TIP=$(git ls-remote --heads origin "refs/heads/$BRANCH" 2>/dev/null | awk 'NR==1{print $1}')
-  PROTECTED=unknown
-  if [[ -n "$OWNER_REPO" ]]; then
-    FLAG=$(gh api "repos/$OWNER_REPO/branches/$BRANCH" --jq '.protected' 2>/dev/null || true)
-    RULES=$(gh api "repos/$OWNER_REPO/rules/branches/$BRANCH" --jq '[.[].type] | join(",")' 2>/dev/null) || RULES="?"
-    if [[ "$FLAG" == true ]] || [[ ",$RULES," =~ ,(deletion|update|non_fast_forward), ]]; then
-      PROTECTED=true
-    elif [[ "$FLAG" == false && "$RULES" != "?" ]]; then
-      PROTECTED=false
-    fi
-  fi
+  read_protection "$BRANCH"
   UNMERGED=true
   if [[ -n "$REMOTE_TIP" && "$REMOTE_TIP" == "${HEAD_OID:-}" ]]; then
     UNMERGED=false
@@ -246,9 +328,4 @@ git remote prune origin >/dev/null 2>&1 || true
 
 echo "--- branches after cleanup ---"
 git branch -a
-if [[ "${#SKIPPED[@]}" -gt 0 ]]; then
-  echo "skipped:"
-  printf '  - %s\n' "${SKIPPED[@]}"
-  exit 3
-fi
-exit 0
+finish

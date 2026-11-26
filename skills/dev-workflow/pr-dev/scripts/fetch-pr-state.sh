@@ -57,8 +57,15 @@ if [[ -z "$PR" ]]; then
   usage 1
 fi
 
-OWNER=$(gh repo view --json owner --jq .owner.login)
-REPO_NAME=$(gh repo view --json name --jq .name)
+# `gh repo view` with no argument reads the CURRENT DIRECTORY's repository and
+# ignores GH_REPO, unlike `gh pr`, `gh run` and `gh api repos/{owner}/{repo}`.
+# Without the positional slug, --repo pinned the PR and CHECKS sections while the
+# THREADS query below still asked the cwd repository about this PR number.
+gh_repo_view() {
+  if [[ -n "${GH_REPO:-}" ]]; then gh repo view "$GH_REPO" "$@"; else gh repo view "$@"; fi
+}
+OWNER=$(gh_repo_view --json owner --jq .owner.login)
+REPO_NAME=$(gh_repo_view --json name --jq .name)
 
 [[ "$VERBOSE" == 1 ]] && echo "OWNER=$OWNER REPO=$REPO_NAME PR=$PR" >&2
 

@@ -194,7 +194,14 @@ DELETE_BRANCH_SOURCE="default: delete the head branch after merge (head-branch p
 
 if command -v gh >/dev/null 2>&1; then
   # allow_auto_merge is REST-only — `gh repo view --json` has no such field.
-  REPO_JSON="$(gh repo view --json squashMergeAllowed,mergeCommitAllowed,rebaseMergeAllowed,deleteBranchOnMerge,viewerPermission 2>/dev/null || echo '{}')"
+  # `gh repo view` with no argument ignores GH_REPO and reads the cwd repository,
+  # so --repo must reach it positionally — otherwise the merge methods and
+  # viewerPermission (which gates admin_bypass_available) describe the wrong repo.
+  if [[ -n "${GH_REPO:-}" ]]; then
+    REPO_JSON="$(gh repo view "$GH_REPO" --json squashMergeAllowed,mergeCommitAllowed,rebaseMergeAllowed,deleteBranchOnMerge,viewerPermission 2>/dev/null || echo '{}')"
+  else
+    REPO_JSON="$(gh repo view --json squashMergeAllowed,mergeCommitAllowed,rebaseMergeAllowed,deleteBranchOnMerge,viewerPermission 2>/dev/null || echo '{}')"
+  fi
   REST_JSON="$(gh api 'repos/{owner}/{repo}' 2>/dev/null || echo '{}')"
   if command -v jq >/dev/null 2>&1; then
     case "$(jq -r '.allow_auto_merge' <<<"$REST_JSON" 2>/dev/null || echo null)" in
