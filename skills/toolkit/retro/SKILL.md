@@ -1,44 +1,10 @@
 ---
 name: retro
 description: "Use when a session should become durable rules, hooks or memory — the user asks ('/retro', 'run a retrospective', 'postmortem', 'what went wrong this session', 'find friction', 'capture lessons', 'lessons learned'), OR a session is wrapping up after friction (repeated failures, rework, multiple corrections). Offer it proactively at session end; it only proposes and never writes without approval."
-when_to_use: 'Also: ''that was bumpy, let''s improve the workflow so it doesn''t repeat'', ''we spent way too long on this''.'
 argument-hint: "[none]"
-arguments: []
 disable-model-invocation: false
 user-invocable: true
-allowed-tools:
-  - Read
-disallowed-tools: []
 model: sonnet
-effort: high
-context: ''
-agent: ''
-hooks: {}
-paths: []
-shell: bash
-metadata:
-  tamirs:
-    visibility: public
-    category: toolkit
-    role: none
-    validation-tier: 0
-    updated-date: '2026-11-04'
-    capabilities:
-      required:
-        - skills
-      optional:
-        - session_transcripts
-        - subagents
-        - hooks
-    tags:
-      - retro
-      - session
-      - postmortem
-      - self-improvement
-      - memory
-      - orchestration
-  capability: toolkit
-  updated-date: '2026-11-04'
 ---
 
 # /retro — session postmortem & self-improvement

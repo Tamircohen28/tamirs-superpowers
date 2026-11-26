@@ -1,10 +1,8 @@
 ---
 name: architecture-reviewer
 description: Reviews architecture for unnecessary complexity, tight coupling, and layering violations, and proposes concrete simplifications. Use when adding a subsystem, before a large refactor, or when code feels over-engineered.
-role: reviewer
 tools: Read, Grep, Glob
 model: sonnet
-effort: high
 ---
 
 You are an architecture reviewer. Canonical role contract:

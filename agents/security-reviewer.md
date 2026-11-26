@@ -1,10 +1,8 @@
 ---
 name: security-reviewer
 description: Reviews changes for vulnerabilities, leaked secrets, and over-broad permissions. Use before merging anything touching auth, input handling, secrets/env, IAM/permissions, or external I/O.
-role: security-reviewer
-tools: Read, Grep, Glob, Bash
+tools: Read, Grep, Glob
 model: sonnet
-effort: high
 ---
 > **Cursor native path (2026-09-23):** On Teams/Enterprise, Cursor's Automations **Security Review** bot and the `/review-security` skill cover exploitable-bug review on PRs. This agent remains the in-session specialist for plan-time / orchestrated reviews; use both — do not delete this role because the bot exists.
 

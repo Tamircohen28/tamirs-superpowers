@@ -1,52 +1,10 @@
 ---
 name: dark-terminal-doc
 description: >
-  Use when a single-file HTML technical document should carry a dark developer / terminal
-  aesthetic — monospace, terminal-green on near-black. Trigger on: "dark terminal doc",
-  "terminal-style HTML", "make it look like a terminal", or a comparison table, reference sheet,
-  changelog, release notes or API cheatsheet in that look, or one matching a document already in
-  this style. Not for a doc with no stated aesthetic.
-when_to_use: >
-  Phrases: "make a comparison table: Postgres vs MySQL", "create a git cheatsheet I can open
-  offline", "build an API cheatsheet page I can share with the team", "produce release notes for
-  v2.0 as a single-file HTML page".
 argument-hint: "[document type and topic — e.g. 'comparison table: Claude vs GPT-4', 'reference sheet: git commands', 'release notes: v2.0']"
-arguments: []
 disable-model-invocation: false
 user-invocable: true
-allowed-tools:
-- Read
-disallowed-tools: []
 model: sonnet
-effort: medium
-context: ''
-agent: ''
-hooks: {}
-paths: []
-shell: bash
-metadata:
-  tamirs:
-    visibility: public
-    category: documentation
-    role: implementer
-    validation-tier: 1
-    updated-date: '2026-08-19'
-    capabilities:
-      required:
-        - skills
-      optional: []
-    tags:
-      - html
-      - documentation
-      - design
-      - content
-      - dark-terminal
-      - comparison-table
-      - reference-sheet
-      - single-file
-      - portable
-  capability: document-generation
-  updated-date: '2026-08-19'
 ---
 
 # Dark Terminal Document Design System

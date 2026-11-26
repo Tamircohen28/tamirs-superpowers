@@ -1,46 +1,10 @@
 ---
 name: find-skill
 description: 'Use when the user asks ''find a skill for X'', ''is there a plugin that does Y'', ''what skill should I use for Z'', ''recommend an agent for W'', ''compare skills for ...'', or ''search for a Claude Code skill''. Trigger words: find plugin, mcp server for, skill discovery.'
-when_to_use: '''/find-skill 5 PR review automation'', ''is there a plugin for X that generates release notes from git commits''.'
 argument-hint: '[what you need a skill or plugin for — e.g. ''PDF comparison'', ''PR review automation'']'
-arguments: []
 disable-model-invocation: false
 user-invocable: true
-allowed-tools:
-- Skill(tamirs-superpowers:skill-creator)
-disallowed-tools: []
 model: sonnet
-effort: medium
-context: ''
-agent: ''
-hooks: {}
-paths: []
-shell: bash
-metadata:
-  tamirs:
-    visibility: public
-    category: toolkit
-    role: research-agent
-    validation-tier: 0
-    updated-date: '2026-08-19'
-    capabilities:
-      required:
-        - skills
-      optional:
-        - shell
-    tags:
-      - toolkit
-      - marketplace
-      - discovery
-      - search
-      - skills
-      - plugins
-      - agents
-      - configurable-sources
-  capability: skill-discovery
-  provider: developer-workflow
-  agents: []
-  updated-date: '2026-08-19'
 ---
 
 # find-skill — real-time search across skill and plugin marketplaces

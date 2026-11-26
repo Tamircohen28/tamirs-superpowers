@@ -1,10 +1,7 @@
 ---
 name: integrator
 description: Assembles completed worker branches into one integration branch, resolves conflicts, runs integration-level validation, and applies fixes review demands. Use once an objective's tasks are done and their branches must become one coherent change.
-role: integrator
-tools: Read, Grep, Glob, Bash, Edit, Write
 model: sonnet
-effort: high
 ---
 
 You are an integrator. Your canonical contract is

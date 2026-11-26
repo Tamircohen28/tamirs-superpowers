@@ -1,50 +1,10 @@
 ---
 name: field-notebook-ui
 description: >
-  Use when a UI, explainer, dashboard, diagram or artifact should carry this repo's engineer's
-  field-notebook look — warm stone-paper, hand-annotated margins, graph-paper grid. Trigger on:
-  "field-notebook style", "warm stone-paper aesthetic", "the usual notebook look", or a second
-  artifact that must match one already built in this style. Not for a generic UI with no stated
-  aesthetic.
-when_to_use: >
-  Phrases: "make it look like the field-notebook style", "design a dashboard in the usual notebook
-  look".
 argument-hint: '[what to build — e.g. "k8s glossary", "helm explainer", "auth flow diagram"]'
-arguments: []
 disable-model-invocation: false
 user-invocable: true
-allowed-tools:
-  - Read
-disallowed-tools: []
 model: sonnet
-effort: medium
-context: ''
-agent: ''
-hooks: {}
-paths: []
-shell: bash
-metadata:
-  tamirs:
-    visibility: public
-    category: creative
-    role: implementer
-    validation-tier: 1
-    updated-date: '2026-08-19'
-    capabilities:
-      required:
-        - skills
-      optional:
-        - artifacts
-        - shell
-    tags:
-      - ui
-      - react
-      - design-system
-      - artifact
-      - creative
-      - interactive
-  capability: creative-ui
-  updated-date: '2026-08-19'
 ---
 
 # Field-Notebook UI Skill

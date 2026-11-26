@@ -1,6 +1,0 @@
-{
-  "_comment": "Merged into ~/.claude/settings.json as permissions.ask. Empty on purpose since 6.0.0: nothing this plugin installs may cause a permission prompt (ADR 006). Arrays are replaced wholesale, so the next setup apply also clears the Docker/colima/make-e2e ask rules earlier versions wrote. hooks/docker-guard.py denies durable Docker state instead; a deny never prompts.",
-  "permissions": {
-    "ask": []
-  }
-}

@@ -1,69 +1,10 @@
 ---
 name: platform-sync
 description: >-
-  Use when this repo may have fallen behind the AI coding platforms it targets — Claude Code,
-  Codex CLI, Cursor, Gemini CLI, OpenCode. Triggers: 'what new features am I missing', 'am I up to
-  date with the latest docs', 'is my plugin using current best practices', 'sync my plugin',
-  'audit every platform', '/platform-sync'. Also when a platform manifest or CHANGELOG is being
-  bumped, a release is being cut, or more than a day has passed since the last check.
-when_to_use: >
-  "are we using the newest Codex CLI capabilities", "review our opencode.json against the latest
-  OpenCode release"; any repo carrying CLAUDE.md, AGENTS.md, GEMINI.md, .cursor/rules/ or
-  opencode.json — not only plugin manifests.
 argument-hint: "[repo path or omit for cwd]"
-arguments: []
 disable-model-invocation: false
 user-invocable: true
-allowed-tools:
-  - Read
-  - Glob
-  - Grep
-  - WebFetch(domain:code.claude.com)
-  - WebFetch(domain:docs.claude.com)
-  - WebFetch(domain:support.claude.com)
-  - WebFetch(domain:github.com)
-  - WebFetch(domain:raw.githubusercontent.com)
-  - WebFetch(domain:docs.cursor.com)
-  - WebFetch(domain:opencode.ai)
-  - WebFetch(domain:registry.npmjs.org)
-  - WebFetch(domain:cloud.google.com)
-  - WebFetch(domain:developers.openai.com)
-disallowed-tools: []
 model: sonnet
-effort: high
-context: ''
-agent: ''
-hooks: {}
-paths: []
-shell: bash
-metadata:
-  tamirs:
-    visibility: public
-    category: documentation
-    role: research-agent
-    validation-tier: 0
-    updated-date: '2026-09-22'
-    capabilities:
-      required:
-        - skills
-      optional:
-        - parallel_subagents
-        - subagents
-        - slash_commands
-        - shell
-    tags:
-      - documentation
-      - platform
-      - audit
-      - planning
-      - claude-code
-      - codex
-      - cursor
-      - gemini
-      - opencode
-  capability: documentation
-  provider: developer-workflow
-  updated-date: '2026-09-22'
 ---
 
 # platform-sync

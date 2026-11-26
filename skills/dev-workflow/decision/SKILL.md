@@ -1,48 +1,10 @@
 ---
 name: decision
 description: 'Use when the user must pick between options — an agent has finished work and needs them to choose how to proceed, the user was told "waiting for your decision about X", or they say "display decision", "what''s the decision on/about X", "show me my options for X", "let me choose", "walk me through the open decisions", "what are my action items", "give me a menu of choices", or give a GitHub issue/PR number or URL.'
-when_to_use: '"display decision 141 to me simply and let me choose", "summarize issue #57 and give me options".'
 argument-hint: "[decision description, GitHub issue/PR number or URL, or empty to scan the conversation]"
-arguments: []
 disable-model-invocation: false
 user-invocable: true
-allowed-tools:
-  - AskUserQuestion
-disallowed-tools: []
 model: sonnet
-effort: medium
-context: ''
-agent: ''
-hooks: {}
-paths: []
-shell: bash
-metadata:
-  tamirs:
-    visibility: public
-    category: dev-workflow
-    role: none
-    updated-date: '2026-08-19'
-    validation-tier: 0
-    capabilities:
-      required:
-        - skills
-      optional:
-        - ask_user_question
-        - github_cli
-        - shell
-    tags:
-      - decision
-      - ask-user-question
-      - github-issue
-      - action-items
-      - portable
-  capability: dev-workflow
-  tags:
-    - decision
-    - ask-user-question
-    - github-issue
-    - action-items
-  updated-date: "2026-07-20"
 ---
 
 # Decision
