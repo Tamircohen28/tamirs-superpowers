@@ -1,6 +1,13 @@
 name: Release
 
+# A release is cut automatically when a merge to master changes plugin-version.json to a
+# version that has no tag yet, so a bump can no longer sit untagged (5.6.8 through 6.1.2
+# did, for three weeks, behind a green check carrying only a ::warning::). The manual
+# dispatch stays for re-cutting or for a version that is not on master yet.
 on:
+  push:
+    branches: [master]
+    paths: [plugin-version.json]
   workflow_dispatch:
     inputs:
       version:
@@ -9,27 +16,53 @@ on:
         type: string
 
 jobs:
+  resolve:
+    name: Resolve version
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      version: ${{ steps.v.outputs.version }}
+      skip: ${{ steps.v.outputs.skip }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Pick the version and decide whether to release
+        id: v
+        env:
+          EVENT: ${{ github.event_name }}
+          INPUT_VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          if [ "$EVENT" = "workflow_dispatch" ]; then
+            version="$INPUT_VERSION"
+          else
+            version="$(jq -r .version plugin-version.json)"
+          fi
+          if ! printf '%s' "$version" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9.]+)?$'; then
+            echo "Invalid semver: $version"; exit 1
+          fi
+          skip=false
+          if git ls-remote --tags origin "v$version" | grep -q .; then
+            # A dispatch for an existing tag is a mistake and fails; a push whose bump is
+            # already tagged (a revert, a re-sync) has nothing to release and stops quietly.
+            if [ "$EVENT" = "workflow_dispatch" ]; then
+              echo "Tag v$version already exists"; exit 1
+            fi
+            echo "v$version is already tagged; nothing to release"
+            skip=true
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "skip=$skip" >> "$GITHUB_OUTPUT"
+
   release:
     name: Create release
+    needs: resolve
+    if: needs.resolve.outputs.skip != 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-
-      - name: Validate semver format
-        run: |
-          if ! echo "${{ inputs.version }}" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9.]+)?$'; then
-            echo "Invalid semver: ${{ inputs.version }}"
-            exit 1
-          fi
-
-      - name: Check tag does not already exist
-        run: |
-          if git ls-remote --tags origin "v${{ inputs.version }}" | grep -q .; then
-            echo "Tag v${{ inputs.version }} already exists"
-            exit 1
-          fi
 
       - name: Bump the version in its one source and propagate it
         # plugin-version.json is the single source of the plugin version; every consumer
@@ -39,7 +72,7 @@ jobs:
         # the generators produce, not a one-field edit of it.
         run: |
           set -euo pipefail
-          python3 - "${{ inputs.version }}" <<'PY'
+          python3 - "${{ needs.resolve.outputs.version }}" <<'PY'
           import json, sys
           p = "plugin-version.json"
           d = json.load(open(p))
@@ -58,9 +91,9 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add -A
           if git diff --cached --quiet; then
-            echo "No version changes (already at ${{ inputs.version }}) — skipping commit"
+            echo "No version changes (already at ${{ needs.resolve.outputs.version }}) — skipping commit"
           else
-            git commit -m "chore(release): bump version to ${{ inputs.version }}"
+            git commit -m "chore(release): bump version to ${{ needs.resolve.outputs.version }}"
             git push
           fi
 
@@ -69,13 +102,13 @@ jobs:
 
       - name: Create and push tag
         run: |
-          git tag -a "v${{ inputs.version }}" -m "Release v${{ inputs.version }}"
-          git push origin "v${{ inputs.version }}"
+          git tag -a "v${{ needs.resolve.outputs.version }}" -m "Release v${{ needs.resolve.outputs.version }}"
+          git push origin "v${{ needs.resolve.outputs.version }}"
 
       - name: Create GitHub Release
         run: |
-          gh release create "v${{ inputs.version }}" \
-            --title "v${{ inputs.version }}" \
+          gh release create "v${{ needs.resolve.outputs.version }}" \
+            --title "v${{ needs.resolve.outputs.version }}" \
             --notes "See [CHANGELOG.md](CHANGELOG.md) for details." \
             --latest
         env:
@@ -91,14 +124,14 @@ jobs:
     # master and is rebuilt from it. Design and the tag ruleset:
     # docs/engineering/build-and-release/directory-distribution.md.
     name: Claude-only distribution (tag claude)
-    needs: release
+    needs: [resolve, release]
     runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: v${{ inputs.version }}
+          ref: v${{ needs.resolve.outputs.version }}
           fetch-depth: 0
           # A tag ruleset that lets only this workflow move `claude` needs a token the
           # ruleset can name in its bypass list; the default GITHUB_TOKEN cannot be. Set
@@ -117,7 +150,7 @@ jobs:
       - name: Check the distribution's version matches the release
         run: |
           v="$(jq -r .version "$RUNNER_TEMP/claude-dist/.claude-plugin/plugin.json")"
-          [ "$v" = "${{ inputs.version }}" ] || { echo "dist plugin.json is $v, release is ${{ inputs.version }}"; exit 1; }
+          [ "$v" = "${{ needs.resolve.outputs.version }}" ] || { echo "dist plugin.json is $v, release is ${{ needs.resolve.outputs.version }}"; exit 1; }
       - name: Commit the tree and move the tags
         run: |
           set -euo pipefail
@@ -137,9 +170,9 @@ jobs:
           tree="$(git write-tree)"
           unset GIT_INDEX_FILE
           msg="$(printf '%s\n' \
-            "release: v${{ inputs.version }} (Claude-only distribution)" \
+            "release: v${{ needs.resolve.outputs.version }} (Claude-only distribution)" \
             "" \
-            "Generated by scripts/build-claude-dist.sh from ${src} (tag v${{ inputs.version }})." \
+            "Generated by scripts/build-claude-dist.sh from ${src} (tag v${{ needs.resolve.outputs.version }})." \
             "Nothing here is edited by hand; every change lands on master and is rebuilt." \
             "Checked by scripts/check-claude-dist.sh against the plugin directory's rules.")"
           if [ -n "$parent" ]; then
@@ -148,16 +181,16 @@ jobs:
             commit="$(printf '%s\n' "$msg" | git commit-tree "$tree")"
           fi
           echo "generated commit: $commit (tree $tree, parent ${parent:-none})"
-          git tag -a "v${{ inputs.version }}-claude" -m "Claude-only distribution of v${{ inputs.version }}" "$commit"
-          git tag -f -a claude -m "Claude-only distribution, tracked by Anthropic's plugin directory (currently v${{ inputs.version }})" "$commit"
-          git push origin "refs/tags/v${{ inputs.version }}-claude"
+          git tag -a "v${{ needs.resolve.outputs.version }}-claude" -m "Claude-only distribution of v${{ needs.resolve.outputs.version }}" "$commit"
+          git tag -f -a claude -m "Claude-only distribution, tracked by Anthropic's plugin directory (currently v${{ needs.resolve.outputs.version }})" "$commit"
+          git push origin "refs/tags/v${{ needs.resolve.outputs.version }}-claude"
           git push --force origin "refs/tags/claude"
       - name: Summary
         run: |
           {
             echo "## Claude-only distribution"
             echo
-            echo "- tag \`v${{ inputs.version }}-claude\` created (immutable)"
+            echo "- tag \`v${{ needs.resolve.outputs.version }}-claude\` created (immutable)"
             echo "- tag \`claude\` moved onto it — the directory picks it up on its next check"
             echo "- portal: https://claude.ai/directory/manage (Check for new commits)"
           } >> "$GITHUB_STEP_SUMMARY"
@@ -171,7 +204,7 @@ jobs:
     # distribution is tagged because Anthropic's directory tracks a tag; the others are
     # release artifacts a marketplace or a person downloads and verifies.
     name: Per-host distributions (release assets)
-    needs: release
+    needs: [resolve, release]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -184,7 +217,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: v${{ inputs.version }}
+          ref: v${{ needs.resolve.outputs.version }}
       - name: Install PyYAML
         run: python3 -m pip install -q -r scripts/requirements-validate.txt
       - name: Build, check and pack every target
@@ -195,16 +228,16 @@ jobs:
             d="$RUNNER_TEMP/dist-$t"
             bash scripts/build-dist.sh "$d" --target "$t" --quiet
             bash scripts/check-dist.sh "$d" --target "$t"
-            tar -C "$d" -czf "$out/tamirs-superpowers-${{ inputs.version }}-$t.tar.gz" .
+            tar -C "$d" -czf "$out/tamirs-superpowers-${{ needs.resolve.outputs.version }}-$t.tar.gz" .
           done
-          cp core/capabilities/platforms.json "$out/platforms-${{ inputs.version }}.json"
-          (cd "$out" && sha256sum ./* > "SHA256SUMS-${{ inputs.version }}.txt")
+          cp core/capabilities/platforms.json "$out/platforms-${{ needs.resolve.outputs.version }}.json"
+          (cd "$out" && sha256sum ./* > "SHA256SUMS-${{ needs.resolve.outputs.version }}.txt")
           ls -la "$out"
       - name: Attest build provenance for every asset
         uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
         with:
           subject-path: ${{ runner.temp }}/assets/*
       - name: Attach to the release
-        run: gh release upload "v${{ inputs.version }}" "$RUNNER_TEMP"/assets/* --clobber
+        run: gh release upload "v${{ needs.resolve.outputs.version }}" "$RUNNER_TEMP"/assets/* --clobber
         env:
           GH_TOKEN: ${{ github.token }}

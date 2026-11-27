@@ -144,6 +144,16 @@
         ]
       }
     },
+    "Tamircohen28/ai-native-dev-guide": {
+      "_comment": "Recorded 2026-11-26 when the PR & CI ruleset gained its required checks: the three ci.yml jobs that run on every pull request. The Book PDF `build` job runs only when book/ or the PDF tooling changes, so it is deliberately not required (a required context no workflow reports would block every other PR).",
+      "required_checks": {
+        "contexts": [
+          "CI",
+          "secret-scan",
+          "action-pinning"
+        ]
+      }
+    },
     "Tamircohen28/orchard": {
       "_comment": "Recorded 2026-11-06 from the classic branch protection on main (required check `CI`), so migrating main to rulesets keeps the check. `CI` is the repository's aggregate job.",
       "required_checks": {
@@ -157,6 +167,21 @@
       "required_checks": {
         "contexts": [
           "CI"
+        ]
+      }
+    },
+    "Tamircohen28/Relay": {
+      "_comment": "Chosen by the owner on 2026-11-26. The CI aggregate job, the unit and lint gates, the secret scan, the air-gap pinning check and the three core e2e suites. The jobs bound to pm-server's Mac runner (macos, live) and the heavy suites (k8s, the remaining e2e jobs) stay optional, so a hot or lost runner cannot block every merge.",
+      "required_checks": {
+        "contexts": [
+          "CI",
+          "test-db",
+          "web",
+          "secret-scan",
+          "airgap-check",
+          "e2e",
+          "e2e-opencode",
+          "e2e-web"
         ]
       }
     },

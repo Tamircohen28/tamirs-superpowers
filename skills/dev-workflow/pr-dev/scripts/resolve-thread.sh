@@ -20,6 +20,9 @@ if [[ "${1:-}" == "--repo" ]]; then
 elif [[ "${1:-}" == --repo=* ]]; then
   export GH_REPO="${1#--repo=}"; shift
 fi
+# --repo HOST/OWNER/NAME: the mutation is a `gh api graphql` call, which takes its
+# host only from GH_HOST or --hostname, never from GH_REPO.
+if [[ "${GH_REPO:-}" == */*/* && -z "${GH_HOST:-}" ]]; then export GH_HOST="${GH_REPO%%/*}"; fi
 
 usage() {
   sed -n '2,9p' "$0" | sed 's/^# \?//'

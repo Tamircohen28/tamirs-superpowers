@@ -81,6 +81,10 @@ else
   bad ".claude-plugin/plugin.json missing or invalid JSON"
 fi
 [[ -f "$DIST/LICENSE" ]] && ok "LICENSE present" || bad "LICENSE missing"
+# A skills path the manifest names but the edition does not ship is a load failure, which
+# the directory reports as part of the plugin it could not read (6.1.2).
+missing="$(jq -r '.skills // [] | if type == "array" then .[] else . end' "$M" 2>/dev/null | while IFS= read -r sp; do [[ -d "$DIST/${sp#./}" ]] || echo "$sp"; done | head -3)"
+[[ -z "$missing" ]] && ok "every skills path the manifest names ships" || bad "manifest skills path not shipped (a load failure)" "$(echo "$missing" | tr '\n' ' ')"
 if [[ -f "$DIST/README.md" ]]; then
   words="$(sed '/^```/,/^```/d' "$DIST/README.md" | wc -w | tr -d ' ')"
   [[ "$words" -ge 40 ]] && ok "README.md has $words words outside code blocks (40 required)" || bad "README.md too short ($words words)"
@@ -127,6 +131,68 @@ for k in hooks mcpServers settings types userConfig; do
   jq -e --arg k "$k" 'has($k)' "$DIST/.claude-plugin/plugin.json" >/dev/null 2>&1 \
     && bad "lite manifest carries $k" || ok "lite manifest carries no $k"
 done
+
+echo "--- the prose-only edition: what an unverified organization may ship at all ---"
+# On 2026-11-26 the directory refused 6.1.2 outright (not held) on seven findings, each of
+# them a rule for organizations that are not Verified: only Markdown, text, JSON, YAML and
+# PNG/JPEG/GIF/WebP/ICO files; nothing starting with #!; no CLAUDE.md, CLAUDE.local.md or
+# AGENTS.md in any case; no .claude-plugin folder but the plugin's own; no tool list naming
+# anything beyond Read, Grep, Glob and LS; frontmatter keys from an allowed list only; no
+# ${CLAUDE_...} name in a skill, agent or output style. This check passed that build, so
+# every rule now lives here, held by probes in tests/test-claude-dist.sh.
+badtype="$(cd "$DIST" && find . -type f ! -path ./LICENSE | grep -viE '\.(md|txt|json|ya?ml|png|jpe?g|gif|webp|ico)$' | sed 's#^\./##' | head -5)"
+[[ -z "$badtype" ]] && ok "every file is Markdown, text, JSON, YAML or an allowed image" || bad "file type refused from an unverified organization" "$(echo "$badtype" | tr '\n' ' ')"
+shebang="$(find "$DIST" -type f -print0 | while IFS= read -r -d '' f; do [[ "$(head -c2 "$f")" == '#!' ]] && echo "${f#"$DIST"/}"; done | head -3)"
+[[ -z "$shebang" ]] && ok "no file starts with #!" || bad "file starting with #! (a script, whatever its name)" "$(echo "$shebang" | tr '\n' ' ')"
+names="$(find "$DIST" -type f \( -iname 'claude.md' -o -iname 'claude.local.md' -o -iname 'agents.md' \) | sed "s#^$DIST/##" | head -3)"
+[[ -z "$names" ]] && ok "no CLAUDE.md, CLAUDE.local.md or AGENTS.md anywhere, in any case" || bad "instruction file name the directory refuses" "$(echo "$names" | tr '\n' ' ')"
+nested="$(find "$DIST" -type d \( -name .claude-plugin -o -name node_modules -o -path '*/.claude/skills' -o -path '*/.claude/commands' -o -path '*/.claude/agents' -o -path '*/.claude/rules' \) ! -path "$DIST/.claude-plugin" | sed "s#^$DIST/##" | head -3)"
+[[ -z "$nested" ]] && ok "no nested .claude-plugin, node_modules or .claude/{skills,commands,agents,rules} folder" || bad "nested plugin or instruction folder" "$(echo "$nested" | tr '\n' ' ')"
+unread="$(find "$DIST" -type f \( -name hooks.json -o -name .mcp.json -o -name .lsp.json -o -name monitors.json \) | sed "s#^$DIST/##" | head -3)"
+[[ -z "$unread" ]] && ok "no hooks.json, .mcp.json, .lsp.json or monitors.json anywhere" || bad "hooks, MCP, LSP or monitors file in the edition" "$(echo "$unread" | tr '\n' ' ')"
+fmbad="$(python3 - "$DIST" <<'PY'
+import os, re, sys
+root = sys.argv[1]
+SAFE = {"Read", "Grep", "Glob", "LS"}
+KEEP = {
+    "skill": {"name", "description", "argument-hint", "model", "user-invocable", "disable-model-invocation", "allowed-tools"},
+    "agent": {"name", "description", "model", "tools"},
+    "style": {"name", "description", "keep-coding-instructions"},
+}
+out = []
+for d, _, fs in os.walk(root):
+    for f in fs:
+        p = os.path.join(d, f); rel = os.path.relpath(p, root)
+        kind = ("skill" if f == "SKILL.md" and rel.startswith("skills/") else
+                "agent" if rel.startswith("agents/") and f.endswith(".md") else
+                "style" if rel.startswith("output-styles/") and f.endswith(".md") else None)
+        if not kind:
+            continue
+        text = open(p, encoding="utf-8").read()
+        if re.search(r"\$\{CLAUDE_[A-Za-z0-9_]*", text):
+            out.append(f"{rel}: names a ${{CLAUDE_...}} variable")
+        if not text.startswith("---\n") or "\n---\n" not in text[4:]:
+            out.append(f"{rel}: no frontmatter between two --- lines"); continue
+        fm = text[4:text.index("\n---\n", 4)]
+        key = None
+        for line in fm.split("\n"):
+            m = re.match(r"^([A-Za-z_][A-Za-z0-9_-]*):(.*)$", line)
+            if m:
+                key, val = m.group(1), m.group(2).strip()
+                if key not in KEEP[kind]:
+                    out.append(f"{rel}: frontmatter key '{key}' is outside the allowed list")
+                if key in ("tools", "allowed-tools") and val:
+                    for t in val.strip("[]").split(","):
+                        if t.strip() and t.strip() not in SAFE:
+                            out.append(f"{rel}: {key} entry '{t.strip()}' is beyond Read, Grep, Glob, LS")
+            elif key in ("tools", "allowed-tools") and line.strip().startswith("- "):
+                t = line.strip()[2:].strip()
+                if t not in SAFE:
+                    out.append(f"{rel}: {key} entry '{t}' is beyond Read, Grep, Glob, LS")
+print("\n".join(out[:5]))
+PY
+)"
+[[ -z "$fmbad" ]] && ok "every skill, agent and output style keeps allowed frontmatter keys, a Read/Grep/Glob/LS tool list and no \${CLAUDE_...} name" || bad "frontmatter, tool list or \${CLAUDE_...} name refused from an unverified organization" "$(echo "$fmbad" | tr '\n' ' ')"
 
 echo "--- hooks, mod and MCP (only if a full build is checked) ---"
 H="$DIST/hooks/hooks.json"

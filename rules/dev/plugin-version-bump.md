@@ -93,13 +93,13 @@ Marketplace declarations are per-target and not interchangeable. Claude Code's `
 2. Promote the `CHANGELOG.md` entry; update anything the bump falsified
 3. `make validate`
 4. Open a PR — **never** push a manifest bump directly to the default branch
-5. After merge, cut the tag:
+5. The merge cuts the tag: `release.yml` runs on every push to the default branch that changes `plugin-version.json` and releases that version if it has no tag yet. Re-cut by hand only when that run failed or the version is not on the default branch:
 
    ```bash
    gh workflow run release.yml -f version=X.Y.Z
    ```
 
-   The push-to-default-branch job **Manifest/tag version alignment** emits a `::warning::` ("Release pending") rather than failing — the tag provably cannot exist at merge time, so failing there was a race, not a signal. The warning is the reminder; leaving it unreleased strands installed users on the cached copy.
+   The push-to-default-branch job **Manifest/tag version alignment** emits a `::warning::` ("Release pending") for the minutes before the tag exists. A warning that outlives the `Release` run means the run failed; leaving it unreleased strands installed users on the cached copy.
 6. **Verify the tag contains the change** before announcing it:
 
    ```bash
